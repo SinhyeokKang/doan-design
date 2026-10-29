@@ -16,7 +16,7 @@ import { DropOverlay } from "./DropOverlay";
 import type { AddOutcome } from "../main/addProjects";
 import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
-import { groupProjects } from "./homeCards";
+import { cardRow, groupProjects } from "./homeCards";
 import { moveExpanded } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
@@ -526,6 +526,7 @@ export function App() {
   {toast.element}
   <DropOverlay blocked={modal} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+    branch={path => { const entry = entries.find(candidate => candidate.path === path); return entry ? cardRow(entry, null, null).summary?.branch ?? null : null; }}
     onClose={root => { restoreFocus.current = true; setWizard(null); if (root) { live.current.home(); setHighlight([root]); } }} />}
   </FirstPromptContext.Provider></TooltipProvider>;
 }

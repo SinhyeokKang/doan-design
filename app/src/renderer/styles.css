@@ -338,17 +338,23 @@ code, kbd { font-family: var(--type-family); }
 .ob-url-action { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
 .ob-recovery { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); width: 100%; margin-top: var(--space-4); }
 .ob-scene > .doan-notice { margin-top: var(--space-4); }
-.ob-chosen { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-row); margin-top: var(--space-6); padding: var(--space-4); }
-.ob-chosen > div, .ob-destination-name { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+/* Choice cards (D23) take the chosen card's box, so a picked project reads the same before and after it is chosen. */
+.ob-chosen, .ob-choice { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
+.ob-chosen { margin-top: var(--space-6); }
+.ob-chosen > div, .ob-destination-name, .ob-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
 .ob-chosen strong, .ob-destination-name strong, .ob-choice strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ob-path, .ob-choice small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
 .ob-notice-detail { margin-top: var(--space-3); }
 .ob-small-action { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
 .ob-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
 .ob-projects { margin-bottom: var(--space-6); }
-.ob-choice { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-4); }
-.ob-choice > span:not(.shell-thumbnail) { min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
-.ob-choice input { accent-color: var(--affordance-prominent); }
+.ob-choice-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
+.ob-choice { position: relative; cursor: pointer; }
+/* The radio stays in the tab order for arrows and Space; the card shows its state and focus instead. */
+.ob-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.ob-choice:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* The sidebar's worktree row glyph, in the 32px slot a thumbnail takes. */
+.ob-branch-icon { flex: none; width: 32px; display: grid; place-items: center; color: var(--text-subtle); }
 .ob-setup { margin-top: var(--space-4); padding: var(--space-6); }
 .ob-setup > p { margin: var(--space-3) 0; color: var(--text-subtle); }
 /* The sidebar thumbnail at card size: 28px in a 32px slot (draft component constants). */
