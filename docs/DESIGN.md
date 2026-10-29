@@ -329,7 +329,14 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
   - This accounts for 24 of the 25 remaining differences.
   - Buttons are paired by index, so in 'Connection storage failed' and 'doan tools check failed' the draft's Back is compared with the app's Sign in or Check again. Those rows show up as colour and alignment differences. The real buttons match exactly: Sign in is 77×32 and Check again is 114×32, with no property differences.
 - **Tile margins.** `.tile > *` margins place a tile in the specimen grid, so they are not compared.
-- **Not in the draft — 'Your projects'** (user decision 2026-10-29). When projects are registered, they are listed above 'Open a local folder' under the caption 'Your projects'. They use the draft's 'Multiple local checkouts' radio rows (`.ob-choice`, thumbnail, name, path), followed by an sm Use this folder. They were measured with the same rules as the checkout tile.
+- **Not in the draft — 'Your projects'** (user decision 2026-10-29). When projects are registered, they are listed above 'Open a local folder' under the caption 'Your projects', as choice cards (D23 below) with the project thumbnail, followed by an sm Use this folder.
+- **Choice cards instead of radio rows** (D23, 2026-10-29 user).
+  - **Where:** 'Multiple local checkouts' and 'Your projects'.
+  - **The card:** each choice is a selectable `doan-panel` card with the chosen card's box: min-height 72, padding 16, gap 12, title 14/20 / 500, caption path. Cards are 8px apart.
+  - **Selection:** the selected card shows the chosen card's check.
+  - **Keyboard:** a native radio still sits in each card, so the arrows and Space keep working, and Enter also picks. The card draws a 2px `--border-focus` outline, offset 2px, while its radio has keyboard focus.
+  - **Checkouts of one repository** (a URL inspection) show the sidebar's worktree row instead of a thumbnail: the lucide GitBranch glyph in the 32px slot (`--text-subtle`) and the branch name when the window's folder list knows it, else the folder name. Repositories found inside a picked folder keep the thumbnail.
+  - **Draft:** the draft's tile draws plain radio rows.
 - **Not in the draft — clone destination default** (user decision 2026-10-29). The default is `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
 - **Not in the draft — copy.**
   - Install failures read "Couldn’t open the <Provider> install page." Antigravity has no install page.
