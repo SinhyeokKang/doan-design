@@ -342,3 +342,10 @@ test("D21: folder recoveries on a URL screen choose an existing folder of that r
     expect(projectNotice(code, "x", null, false).actions.some(a => a.command === "chooseFolder")).toBe(true);
   }
 });
+
+test("V fix: a cancelled clone offers Edit repository URL under its Choose local folder / Retry row", () => {
+  const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "cloneCancelled", url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" } });
+  expect(html).toContain('data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Retry</button></div><div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button></div>');
+  const failed = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "clone_failed" } });
+  expect(failed).toContain(">Edit repository URL</button>");
+});

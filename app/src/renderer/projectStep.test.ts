@@ -529,3 +529,28 @@ test("⚪: an operation main no longer knows is asked for once, not on every eve
   h.emit([]); await flush(); h.emit([]); await flush(); h.emit([]); await flush();
   expect(h.api.readOnboardingSession).toHaveBeenCalledTimes(1);
 });
+
+test("V fix: Back from a cancelled or failed clone returns to the editable URL, and the old inspection is gone", async () => {
+  const h = harness();
+  await planned(h);
+  expect(h.session.backToUrl()).toBe(false);
+  const running = op("project_clone", { state: "running" });
+  h.queue.clone!.push(ok(running));
+  const cloning = h.session.clone();
+  await flush();
+  h.emit([{ ...running, state: "cancelled" }]);
+  await cloning;
+  expect(h.session.backToUrl()).toBe(true);
+  h.session.restart();
+  expect(phase(h)).toEqual({ kind: "choose" });
+  expect(h.session.state.url).toBe("https://github.com/acme/studio");
+  // With the old inspection discarded, Retry looks the URL up again instead of re-planning the old clone.
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/studio"]]) })));
+  await h.session.retry();
+  expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toEqual({ sessionId: "s1", requestId: expect.any(String), url: "https://github.com/acme/studio" });
+  expect(phase(h)).toMatchObject({ kind: "candidates" });
+  await planned(h);
+  h.queue.clone!.push(ok(op("project_clone", { state: "failed", error: { code: "clone_failed", message: "x" } })));
+  await h.session.clone();
+  expect(h.session.backToUrl()).toBe(true);
+});
