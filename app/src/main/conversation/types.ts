@@ -25,8 +25,10 @@ export interface PermissionOption { id: string; label: string; kind: "allow" | "
 export interface PermissionRequest {
   type: "permission.request"; requestId: string; tool: string; summary: string; options: PermissionOption[];
 }
+// A file the person attached by local path; doan sends the path, not the bytes.
+export interface AttachmentRecord { name: string; size: number; kind: "image" | "file"; path: string }
 export type EventPayload =
-  | { type: "user.message"; text: string; anchors: Anchor[] }
+  | { type: "user.message"; text: string; anchors: Anchor[]; attachments?: AttachmentRecord[] }
   | { type: "turn.started" }
   | { type: "message.delta"; messageId: string; text: string }
   | { type: "message.done"; messageId: string; text: string }
