@@ -138,3 +138,29 @@ test("known-condition table matches replace only the displayed layer", () => {
     }
   }
 });
+
+test("O1 and O2 Codex sandbox conditions are noted only for their exact failed checks", () => {
+  const meta = { date: "2026-10-29", versions: {}, guideSha256: "", cliVersion: "" };
+  const expected = {
+    O1: ["onboarding_started", "session_from_start", "inspected_repo_path", "selected_with_initialize", "complete_only_when_ready", "completion_confirmed"],
+    O2: ["onboarding_started", "session_from_start", "claude_sign_in_started", "saw_awaiting_user"],
+  };
+  for (const [scenario, ids] of Object.entries(expected)) {
+    const checks = ids.map(id => ({ id, pass: false, detail: "no app-socket v2 request reached the fake app" }));
+    const record = { ...run(scenario, "codex", 1, "fail"), checks };
+    const text = summary("round", meta, [record, { ...record, agent: "claude" }]);
+    assert.match(text, /expected fail: Codex workspace-write sandbox blocks the app socket and these scenarios provide no MCP onboarding tools \(an MCP variant is follow-up work\); recorded result: fail/);
+    assert.match(text, new RegExp(`${scenario}: codex fail, claude fail`));
+    const candidates = text.split("## Issue candidates")[1];
+    assert.ok(!candidates.includes(`**${scenario} / codex`));
+    assert.ok(candidates.includes(`**${scenario} / claude`));
+    for (const unexpected of [
+      { ...record, checks: [...checks, { id: "no_doan_init", pass: false, detail: "ran doan init" }] },
+      { ...record, timedOut: true },
+    ]) {
+      const other = summary("round", meta, [unexpected]);
+      assert.match(other.split("## Issue candidates")[1], new RegExp(`\\*\\*${scenario} / codex`));
+      assert.doesNotMatch(other, /expected fail:/);
+    }
+  }
+});
