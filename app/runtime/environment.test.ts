@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 const { isolatedEnv }: typeof import("./environment") = await import(new URL("./environment.ts", import.meta.url).href);
+const { classifyCompletion }: typeof import("../src/main/onboarding/completion") = await import(new URL("../src/main/onboarding/completion.ts", import.meta.url).href);
 
 test("runtime launches override every user-state location without changing the parent environment", async t => {
   const dir = await mkdtemp(join(tmpdir(), "doan-runtime-env-"));
@@ -19,7 +20,8 @@ test("runtime launches override every user-state location without changing the p
   assert.equal(env.DOAN_RUNTIME, join(data, "runtime.json"));
   assert.equal(env.DOAN_CLI, cli);
   assert.equal((await stat(env.SHELL!)).mode & 0o777, 0o755);
-  assert.equal(await readFile(join(data, "onboarding.json"), "utf8"), "{}\n");
+  // The app's own classifier decides; the legacy `{}` no longer ends first run.
+  assert.deepEqual(classifyCompletion(await readFile(join(data, "onboarding.json"), "utf8")), { kind: "complete", projectRoot: env.HOME });
 });
 
 test("runtime launches inherit only an allowlist, never provider credentials or profile overrides", async t => {
