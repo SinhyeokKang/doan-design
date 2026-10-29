@@ -47,7 +47,7 @@
 
 ## U. UI
 
-- [ ] U0. 공용 버튼 변형 `accent-quiet`를 `app/src/renderer/ds/controls.css`에 더한다(배경 `--affordance-backdrop-hover`, hover·pressed `--affordance-backdrop-pressed`, 글자 `--affordance-accent`, disabled는 기존 역할). 공통 결정 10의 공용 요소 변경이며 2026-10-29 사용자가 승인했다.
+- [ ] U0. 공용 버튼 변형 `quiet`를 `app/src/renderer/ds/controls.css`에 더한다(배경 `--affordance-backdrop-hover`, hover·pressed `--affordance-backdrop-pressed`, 글자 `--text-standard`, disabled는 기존 역할). 공통 결정 10의 공용 요소 변경이며 2026-10-29 사용자가 승인했다.
   - 검증: `npm --prefix app test`(ds 대비·변수 검사에 새 변형 포함) 통과.
 - [ ] U1. `HomeComposer.tsx`와 홈 교체: 입력·도구 줄·선택기 셋·프리셋 팝오버와 `/`·첨부 칩·드롭·전송·오류 줄, 장식 배경, 인사 문구. 홈 카드·체크리스트 제거와 그 orphan CSS 삭제(design §6). `ProblemActions` 등 다른 화면이 쓰는 export는 유지.
   - 검증: `npm --prefix app test`(Home·HomeComposer 컴포넌트 테스트: 카드 없음, 키보드 순서, Escape, 칩 제거) 통과, `npm --prefix app run typecheck` 통과.
@@ -70,7 +70,7 @@
 ## Z. 승격과 정리
 
 - [ ] Z1. 결론을 승격한다(영어).
-  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, Welcome 밖 그라디언트 예외, 프리셋 버튼·칩 accent 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 추천 프롬프트 3개(채우기만, 같은 날 '제안 카드 없음' 결정 대체), 프리셋 행의 scope 표시와 프리셋 선택 뒤 placeholder, 홈 요청의 `doan active` 제외 문장). PRODUCT §8: 프리셋 목록의 대상 필요 여부 필드(doan-design-skills 후속). PRODUCT §5 Skills 13과 §7에 프리셋 그룹. ARCHITECTURE §12 목록 결과의 `group`, §7 'Design preset reads'의 요약 형식.
+  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, 홈 전용 타원 그라디언트(Welcome 밖 accent 예외), 고른 프리셋 칩 accent 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 추천 프롬프트 3개(채우기만, 같은 날 '제안 카드 없음' 결정 대체), 프리셋 행의 scope 표시와 프리셋 선택 뒤 placeholder, 홈 요청의 `doan active` 제외 문장). PRODUCT §8: 프리셋 목록의 대상 필요 여부 필드(doan-design-skills 후속). PRODUCT §5 Skills 13과 §7에 프리셋 그룹. ARCHITECTURE §12 목록 결과의 `group`, §7 'Design preset reads'의 요약 형식.
   - ARCHITECTURE §7: 'Home, workspace and project IPC'의 홈 서술, 대화 IPC 표(`newDesign` 텍스트, `model`, 첨부), `conversation:models`, 'Design preset reads'의 'no renderer UI yet', 첨부 저장·IPC·정리, ui-state 키.
   - 부모: `docs/features/buzz-restyle/tasks.md` C3 체크, C8에 임시 상태줄 대체 인계 한 줄, 공통 결정 2 요약에 홈 예외.
   - 검증: `grep -n 'buzz-home' docs/PRODUCT.md docs/ARCHITECTURE.md`에 위 항목이 있고, `grep -n 'no renderer UI yet\|user-facing UI is not done' docs/PRODUCT.md docs/ARCHITECTURE.md` 결과 없음.
