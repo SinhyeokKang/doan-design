@@ -59,3 +59,6 @@
 - 2026-10-29 BU0 완료(`87ed9f6d`·`9e1fb33a`·`3945f2ef`·`631df8ca`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 0 / ⚪ 0. 통합 `d90fdd01`·`f260bc76`·`dc185500`·`0377484a`. 작업자·리뷰어 해제, 워크트리 제거. BU3로 넘김: 홈 선택자들의 `violetAllowed` 항목(프리셋 칩·추천 프롬프트 아이콘·그라디언트·드롭 외곽선·LNB 슬롯), 칩 × 색(홈 CSS, 색만). BZ로 넘김: DESIGN.md 34·72행과 ARCHITECTURE §7 'Toasts'의 옛 토스트 위치.
 - 2026-10-29 BP 로그인: Claude(사용자가 직접 로그인, 지휘자 확인)·Codex·Cursor·Copilot을 지휘자가 ego-browser로 승인했다.
 - 2026-10-29 BT2 완료(`0058222e`·`5160d221`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 2(단일 공급자 실행 불가 문구 우선순위, `credential_override` 계약) / ⚪ 2, 사용자 결정 3건. 결정 반영 뒤 같은 작업자에게 수정 1차를 보냈다.
+- 2026-10-29 BT2 수정 1차(`44c23c3c`·`09577ab6`) 확인 뒤 통합 `2cd780b5`·`190369f4`·`eee41b06`·`8067150e`. 작업자 해제, 워크트리 제거. 처음 BT2 dispatch(`ctx_4613f54708ac`)는 터미널을 수정 1차에 넘긴 뒤 `retained`로 남고 nextAction 없음.
+- 2026-10-29 통합 `/verify`(`8067150e`): PASS — verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build.
+- 2026-10-29 BP 중간 보고: P1은 다섯 공급자 모두 목록을 얻음(모델 요청 불필요, Copilot은 이 계정에서 `auto`만). P2는 Codex·Antigravity·Copilot 완료. Claude(주간 한도, 10/31 13:00 KST 초기화)·Cursor('Upgrade your plan')는 계정 한도로 P2를 관찰하지 못해 미확인으로 기록한다(사용자 결정).
