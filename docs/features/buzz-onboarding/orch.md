@@ -128,3 +128,4 @@
 - 2026-10-29: D26 통합(bf2e665..7254806, 등록된 프로젝트 안이면 이름을 넣은 문구, 미등록이면 기존 문구 유지). V D25·D26 확인 시작.
 - 2026-10-29: 사용자 요청으로 초안 재작성 배치 DR(Opus high, bo-DR) 시작. 결정 D27.
 - 2026-10-29: V D25·D26 확인(`2734d3e`) 통과. 결함 후보 1: 맞는 checkout이 모두 설정이 필요하면 setup 화면에 URL·대안 버튼이 없고 Back이 되돌아옴 → U에 수정. Keychain 기준선 일치. V release, GUI 슬롯을 DR에 넘김.
+- 2026-10-29: D 정본 승격 통합(4bf670e..a6bc8d1)과 PRODUCT 보정 2건. U D25 후속(5c78f25..4efdae0: URL 경로의 setup 화면이 URL·Choose another folder·Edit repository URL을 유지, Back은 URL 입력으로) 통합. G4(cancel 가이드 문구, Sonnet medium) 진행 중.
