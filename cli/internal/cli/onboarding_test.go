@@ -721,6 +721,19 @@ func TestOnboardingStartWithoutBundleGivesGuidance(t *testing.T) {
 	}
 }
 
+// A workspace-write sandbox denies the socket of a running Doan, and an agent
+// that reads app_not_running as "not open" stops (agent-eval 2026-10-29 O1, O2).
+func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
+	for _, code := range []string{"app_not_running", "app_launch_failed"} {
+		steps := strings.Join(onboardingFailure(code, "m").NextSteps, "\n")
+		for _, want := range []string{"open Doan", "sandbox", "MCP `onboarding_start`", "outside the sandbox"} {
+			if !strings.Contains(steps, want) {
+				t.Errorf("%s nextSteps miss %q: %s", code, want, steps)
+			}
+		}
+	}
+}
+
 func TestOnboardingExplicitRuntimeNeverLaunches(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
@@ -860,6 +873,24 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 	for _, s := range []string{"<doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
 		if !strings.Contains(skillBody, s) {
 			t.Errorf("guide misses %q", s)
+		}
+	}
+	for _, parts := range [][]string{
+		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
+		{"`app_not_running`", "`app_launch_failed`", "sandbox", "MCP `onboarding_start`", "outside the sandbox", "open Doan"},
+		// Consent comes before the write, even when the user asked for the whole setup (agent-eval 2026-10-29 O1).
+		{"`project inspect`", "`changes`", "`clone.changes`", "go-ahead", "before `select --initialize` or `clone`", "even if they asked you to set everything up"},
+	} {
+		found := false
+		for _, l := range strings.Split(skillBody, "\n") {
+			all := true
+			for _, part := range parts {
+				all = all && strings.Contains(l, part)
+			}
+			found = found || all
+		}
+		if !found {
+			t.Errorf("guide has no line with %q", parts)
 		}
 	}
 	// Help and the guide must not need a project.
