@@ -8,6 +8,13 @@ function harness() {
   return { rpc, writes, events, cleanup };
 }
 describe("Codex wire dispatcher", () => {
+  it("publishes command activity without the command, while the approval still shows it", () => {
+    const h = harness(); const command = "API_TOKEN=SYNTH_ENV_SECRET curl -H 'Authorization: Bearer SYNTH_BEARER_SECRET' https://u:SYNTH_URL_PASSWORD@example.invalid";
+    h.rpc.receive({ method: "item/started", params: { threadId: "s", turnId: "t", item: { type: "commandExecution", id: "c", command, commandActions: [] } } });
+    expect(h.events).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
+    h.rpc.receive({ id: 4, method: "item/commandExecution/requestApproval", params: { threadId: "s", turnId: "t", itemId: "c", command } });
+    expect(h.events.at(-1)).toMatchObject({ type: "permission.request", summary: command });
+  });
   it("settles unsupported global foreign and post-terminal requests with original typed IDs", () => {
     const h = harness();
     for (const id of [0, "0", 3]) h.rpc.receive({ id, method: "account/unknown", params: {} });

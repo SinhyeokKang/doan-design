@@ -38,7 +38,7 @@ it("runs a recorded Cursor turn: streamed text, completed tool calls as activiti
   expect(request).toMatchObject({ tool: "execute", options: [{ id: "allow", kind: "allow" }, { id: "always", kind: "allowAlways" }, { id: "deny", kind: "deny" }] });
   expect(events.filter(e => e.type === "activity")).toEqual([
     { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },
-    { type: "activity", kind: "command", summary: "`command -v doan; echo $PATH | cut -c1-200`" }]);
+    { type: "activity", kind: "command", summary: "Running a command" }]);
   expect(events).toContainEqual({ type: "permission.resolved", requestId: (request as { requestId: string }).requestId, optionId: "allow" });
   expect(events.at(-1)).toEqual({ type: "turn.done" });
   const done = events.filter(e => e.type === "message.done").map(e => (e as { text: string }).text).join("");
@@ -56,7 +56,7 @@ it("reports a denied Copilot edit as no activity and still completes the turn", 
   }, exited, () => {});
   await runner.send("hi", "turn-1");
   expect(events.filter(e => e.type === "permission.resolved").map(e => (e as { optionId: string }).optionId)).toEqual(["allow", "deny"]);
-  expect(events.filter(e => e.type === "activity")).toEqual([{ type: "activity", kind: "command", summary: "Run the requested shell command" }]);
+  expect(events.filter(e => e.type === "activity")).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
   expect(events.at(-1)).toEqual({ type: "turn.done" });
 });
 
@@ -158,6 +158,9 @@ it("falls back to the path or a short phrase, not the raw ACP kind, when a tool 
     { sessionUpdate: "tool_call", toolCallId: "o", kind: "fetch", status: "completed" },
   ]) { const result = normalizeAcp(state, update, "/repo"); state = result.state; events.push(...result.events); }
   expect(events.map(e => e.type === "activity" ? e.summary : "")).toEqual([".doan/canvases/a.html", "Running a command", "Using a tool"]);
+  const secret = normalizeAcp(initialAcp("s"), { sessionUpdate: "tool_call", toolCallId: "s", kind: "execute", title: "`API_TOKEN=SYNTH_ENV_SECRET curl https://u:SYNTH_URL_PASSWORD@example.invalid`", rawInput: { command: "SYNTH_HEREDOC_SECRET" }, status: "completed" }, "/repo").events;
+  expect(secret).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
+  expect(JSON.stringify(secret)).not.toMatch(/SYNTH_/);
   const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id")?.event.summary;
   expect(ask({ kind: "edit" })).toBe("Editing files");
   expect(ask({ kind: "execute", title: "Run `ls`" })).toBe("Run `ls`");
