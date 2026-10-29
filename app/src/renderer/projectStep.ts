@@ -49,7 +49,8 @@ export interface ProjectStepState {
   url: string;
   // The URL of the last inspection, so an edited URL says it must be checked again.
   inspectedUrl: string | null;
-  error: { code: ProjectError; message?: string } | null;
+  // path: the folder whose inspection failed, so a mismatch can name it (D28).
+  error: { code: ProjectError; message?: string; path?: string } | null;
   // The registered project picked in 'Your projects', before it is inspected.
   listChoice: string | null;
 }
@@ -206,9 +207,9 @@ export class ProjectStepSession {
     const source: Inspect = url === undefined ? { path } : { path, url };
     const reply = await this.inspect(source);
     if (!this.current(at)) return;
-    if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }); return; }
+    if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }, path); return; }
     const inspection = reply.operation.inspection!;
-    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }); return; }
+    if (inspection.candidates.length === 0) { this.failed({ ok: false, code: "project_unavailable" }, back, () => { this.set({ phase: back }); return this.inspectPath(path, url); }, path); return; }
     this.offer(inspection.inspectionId, url ?? null, inspection.candidates, source);
     // One candidate with nothing to set up goes straight to selection, as Choose folder always did.
     const p = this.state.phase;
@@ -373,11 +374,11 @@ export class ProjectStepSession {
     const resolve = this.waiting.get(operation.operationId);
     if (resolve) { this.waiting.delete(operation.operationId); resolve(operation); }
   }
-  private failed(reply: Reply & { ok: false }, phase: ProjectPhase, again: () => Promise<void>): void {
+  private failed(reply: Reply & { ok: false }, phase: ProjectPhase, again: () => Promise<void>, path?: string): void {
     this.again = again;
     // A repository Git could not reach is shown on the first screen with the URL kept (draft 'repository-error').
     if (reply.code === "repository_unreachable") { this.set({ phase: { kind: "choose" }, error: { code: "access_failed" } }); return; }
-    this.set({ phase, error: { code: reply.code, ...(reply.message ? { message: reply.message } : {}) } });
+    this.set({ phase, error: { code: reply.code, ...(reply.message ? { message: reply.message } : {}), ...(path ? { path } : {}) } });
   }
   private fence(): number { return ++this.generation; }
   private current(at: number): boolean { return this.live && at === this.generation; }

@@ -249,13 +249,14 @@ const action = (command: ProjectAction, label: string, variant: Button["variant"
 // Copy from the approved draft's Project states tiles; D13 for the newer marker version.
 // fromUrl: the screen belongs to a GitHub URL, so a folder chosen there must be that repository's (D20).
 // insideProject: the name of the doan project a clone destination sits in (main refuses it as path_unavailable).
-export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null): ProjectNotice {
+// folder: the chosen folder a mismatch is about; on the clone screen "This folder" would read as the destination (D28).
+export function projectNotice(error: ProjectError, message: string | undefined, destination: string | null, fromUrl = false, insideProject: string | null = null, folder: string | null = null): ProjectNotice {
   // Every folder chosen from a URL screen is checked against that repository (D21).
   const choose: ProjectAction = fromUrl ? "chooseExisting" : "chooseFolder";
   switch (error) {
     case "invalid_url": return { body: "Enter a GitHub repository URL, such as https://github.com/owner/repository.", actions: [] };
     case "access_failed": return { title: "Couldn’t access this repository", body: "Check your account and repository access with gh auth login, then try again.", actions: [] };
-    case "remote_mismatch": return { body: "This folder belongs to a different repository.", actions: fromUrl
+    case "remote_mismatch": return { body: `${folder !== null ? nameOf(folder) : "This folder"} belongs to a different repository.`, actions: fromUrl
       ? [action("edit", "Edit repository URL", "subtle"), action("chooseExisting", "Choose another folder")] : [action("chooseFolder", "Choose another folder")] };
     case "project_unavailable": case "path_unavailable":
       // D26 copy: the destination never existed, so "no longer available" would not explain it.
@@ -268,7 +269,7 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
     case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
     case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
     case "completion_unsupported_version": return { title: "Setup was saved by a newer version of Doan", body: "Open this project with that version, or update Doan.", actions: [] };
-    case "no_ready_agent": { const notice = noAgentReadyNotice(null)!; return { body: notice.body!, ...(notice.note ? { note: notice.note } : {}), actions: [action("chooseFolder", "Choose another folder", "subtle"), action("backToAgents", "Back to agents")] }; }
+    case "no_ready_agent": { const notice = noAgentReadyNotice(null)!; return { body: notice.body!, ...(notice.note ? { note: notice.note } : {}), actions: [action("backToAgents", "Back to agents")] }; }
     // Main's fixed message (a kept clone folder names the path to remove); never tool output.
     default: return { body: message ?? "Something changed while doan was checking. Try again.", actions: [action("retry", "Retry")] };
   }
@@ -334,7 +335,11 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const fromUrl = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" || ((p.kind === "candidates" || p.kind === "setup") && p.url !== null);
   // A clone destination under a registered project is what main refuses as path_unavailable on the clone screen.
   const container = p.kind === "clone" && destination !== null ? projects.find(root => destination.startsWith(`${root.replace(/\/+$/, "")}/`)) ?? null : null;
-  const notice = error ? projectNotice(error.code, error.message, destination, fromUrl, container && nameOf(container)) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
+  const notice = error ? projectNotice(error.code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
+  // D28: a notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
+  // already answers 'Already have this repository?'.
+  const offered = new Set(notice?.actions.map(button => button.command) ?? []);
+  const repeats = (command: ProjectAction) => offered.has(command) || (command === "chooseExisting" && offered.has("useExisting"));
   const [title, lead] = p.kind === "ready" || p.kind === "completing" ? HEADINGS.ready
     : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? HEADINGS.clone
     : (p.kind === "candidates" || p.kind === "setup") && p.url !== null ? HEADINGS.found : HEADINGS.choose;
@@ -344,8 +349,9 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       aria-invalid={error?.code === "invalid_url" || undefined} aria-describedby={error && (error.code === "invalid_url" || error.code === "access_failed") ? "ob-project-error" : undefined}
       onChange={event => on.setUrl(event.target.value)} onKeyDown={event => { if (event.key === "Enter" && !readOnly && !event.nativeEvent.isComposing) on.find(); }} />
   </>;
-  const smallActions = (...buttons: [string, () => void][]) => <div className="ob-small-action">{buttons.map(([label, click]) =>
-    <button key={label} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={click}>{label}</button>)}</div>;
+  const smallActions = (...buttons: [string, ProjectAction][]) => { const kept = buttons.filter(([, command]) => !repeats(command));
+    return kept.length > 0 && <div className="ob-small-action">{kept.map(([label, command]) =>
+      <button key={label} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={() => run(command)}>{label}</button>)}</div>; };
   let body: React.ReactNode, footer: { label: string; next: () => void; enabled: boolean } = { label: "Open doan", next: on.complete, enabled: false };
 
   if (p.kind === "choose" || p.kind === "inspecting") {
@@ -402,7 +408,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       </>}
       {notice && <ProjectNoticeView notice={notice} run={run} />}
       {p.url !== null && <p className="ob-fine">Use your existing files and current branch.</p>}
-      {p.url !== null ? smallActions(["Choose another folder", on.chooseExisting], ["Edit repository URL", on.edit]) : smallActions(["Choose another folder", on.chooseFolder])}
+      {p.url !== null ? smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"]) : smallActions(["Choose another folder", "chooseFolder"])}
     </>;
     footer = { label: "Use this folder", next: () => on.select(), enabled: true };
   } else if (p.kind === "checking") {
@@ -418,7 +424,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {notice ? <ProjectNoticeView notice={notice} run={run} />
           : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
       </section>}
-      {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", on.chooseExisting], ["Edit repository URL", on.edit])}
+      {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"])}
       {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
     </>;
   } else if (p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled") {
@@ -427,7 +433,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       <div className="ob-field-label ob-spaced">Save to</div>
       <div className="doan-panel ob-destination"><ProjectThumbnail path={p.destination} />
         <div className="ob-destination-name"><strong>{nameOf(p.destination)}</strong><p className="ob-path">{shown(p.destination, home)}</p></div>
-        <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.changeDestination}>Change</button></div>
+        {!offered.has("changeLocation") && <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.changeDestination}>Change</button>}</div>
       {p.kind === "cloning" ? <>
         {p.cancelling ? <Progress title="Stopping clone and cleaning up" body="Wait before starting another clone." /> : <Progress title={`Cloning ${nameOf(p.destination)}`} body={shown(p.destination, home)} />}
         <div className="ob-state-actions">
@@ -436,14 +442,14 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
             : <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={p.operationId === null} onClick={on.cancelClone}>Cancel</button>}
         </div>
       </> : p.kind === "cloneCancelled" ? <>
-        <p className="ob-provider-help">Cloning was cancelled. Choose a folder or try again.</p>
+        <div className="doan-notice doan-panel ob-project-notice" role="status" tabIndex={-1}><AlertIcon /><span>Cloning was cancelled. Choose a folder or try again.</span></div>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" onClick={on.retry}>Retry</button></div>
-        {smallActions(["Edit repository URL", on.edit])}
+        {smallActions(["Edit repository URL", "edit"])}
       </> : <>
         {notice && <ProjectNoticeView notice={notice} run={run} />}
-        <p className="ob-fine">Already have this repository?</p>
-        {smallActions(["Choose existing folder", on.chooseExisting], ["Edit repository URL", on.edit])}
+        {!repeats("chooseExisting") && <p className="ob-fine">Already have this repository?</p>}
+        {smallActions(["Choose existing folder", "chooseExisting"], ["Edit repository URL", "edit"])}
       </>}
     </>;
     footer = { label: "Clone and continue", next: on.clone, enabled: p.kind === "clone" && p.inspectionId !== null && !error };
@@ -453,7 +459,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     body = <>
       <ChosenProject path={root} home={home} />
       {p.kind === "completing" ? <Progress title="Saving your setup" body="Your project is ready. Finishing setup before opening Home." /> : notice && <ProjectNoticeView notice={notice} run={run} />}
-      {smallActions(["Choose another folder", on.chooseFolder])}
+      {smallActions(["Choose another folder", "chooseFolder"])}
       <p className="ob-fine">Your selected project will be ready on Home.</p>
     </>;
     footer = saveFailed ? { label: "Retry", next: on.retry, enabled: true }
