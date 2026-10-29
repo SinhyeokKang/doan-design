@@ -33,6 +33,7 @@
 | D20 | URL 화면에서 고른 기존 폴더('Choose existing folder', 'Use existing folder')도 그 URL의 remote와 일치하는지 확인한다. path 검사에 선택적 url을 더한다(socket v2 schema·CLI `--url`·main). 새 배치 R이 맡는다 | 사용자 결정(2026-10-29) — spec이 요구하고, 다른 리포 폴더를 잘못 연결하는 것을 막는다 |
 | D21 | URL 화면에서 닿는 폴더 행동(오류 notice의 복구 버튼 포함)은 모두 url을 함께 보낸다. 설치·업데이트 페이지에서 돌아오면 Copilot도 readiness 원인이 `cli_missing`이나 `version_*`일 때만 `checkAgentAuth`를 부른다(이때 check는 도구 사실만 다시 읽거나 연결이 없어 요청을 쓰지 않는다, `agentAuth/ipc.ts` `check`). U2는 R 통합 뒤에 그 위로 다시 맞춰 통합한다 | 지휘자 판단(U2 리뷰) — D20을 두 번 클릭으로 우회할 수 없게 하고, 설치 뒤 Copilot이 재시작 전까지 Install에 머무는 것을 막는다 |
 | D22 | Codex 교체 로그인은 새 staging 프로필에서 실행한다. 성공하면 연결의 프로필을 바꾸고 옛 프로필을 로그아웃·삭제하며, 취소·실패하면 staging만 지우고 기존 연결을 유지한다(ARCHITECTURE §7 프로필 경로 승격은 V3) | 사용자 결정(2026-10-29) — Codex 0.164.0 `codex login`이 시작하자마자 기존 로그인을 원격 폐기·삭제한다(A의 소스 확인, `codex-rs/cli/src/login.rs`) |
+| D23 | 'Multiple local checkouts'와 'Your projects' 행은 'Already on your Mac'처럼 선택 가능한 `doan-panel` 카드로 둔다. checkout 목록은 프로젝트 썸네일 대신 `GitBranch` 아이콘과 브랜치 이름(없으면 폴더 이름)·경로를 보인다(ShellSidebar worktree 행과 같은 형식). 'Your projects'는 썸네일을 유지한다. 초안과의 차이로 DESIGN.md에 기록한다 | 사용자 결정(2026-10-29) — 같은 로컬 폴더가 개수에 따라 다른 모양으로 보였고, worktree는 프로젝트가 아니라 같은 리포의 checkout이다 |
 
 ## 배치
 
