@@ -336,7 +336,7 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
   - **Other worktrees:** the user switches to them later from the shell project card's Worktrees menu.
   - **CLI and MCP:** `onboarding project inspect` still returns every candidate.
 - **Choice cards instead of radio rows** (D23, 2026-10-29 user).
-  - **Where:** 'Multiple local checkouts' and 'Your projects'.
+  - **Where:** 'Your projects' and repositories found inside a picked folder. Before D25, also 'Multiple local checkouts'.
   - **The card:** each choice is a selectable `doan-panel` card with the chosen card's box: min-height 72, padding 16, gap 12, title 14/20 / 500, caption path. Cards are 8px apart.
   - **Selection:** the selected card shows the chosen card's check.
   - **Keyboard:** a native radio still sits in each card, so the arrows and Space keep working, and Enter also picks. The card draws a 2px `--border-focus` outline, offset 2px, while its radio has keyboard focus.
