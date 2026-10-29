@@ -33,6 +33,7 @@
 | 2026-10-29 | 컴포넌트 파일 이름은 `HomeComposerView.tsx`·`ConversationStripView.tsx`(macOS 대소문자 무시 해석 충돌) | 지휘자 판단 — BU3 리뷰가 수용, BZ에서 문서 경로 갱신 |
 | 2026-10-30 | 권한 답이 턴을 바로 끝내 Stop이 사라지면 포커스를 상태줄의 다음 동작(Dismiss)으로 옮긴다 | 지휘자 판단 — design §7 'Stop으로'의 대상이 사라진 경우, V1 결함 2 |
 | 2026-10-30 | design-sync 기준은 초안의 계산된 스타일이다. 전송 중 Send는 disabled 채움, 프리셋 칩 ×는 metadata 회색(초안 CSS의 accent·currentColor 규칙은 우선순위에서 져 실제로 적용되지 않았다) | 지휘자 판단 — 사용자가 앱에서 확정한 것은 렌더된 초안, V2 측정 |
+| 2026-10-30 | 상태줄 진행 줄은 셸 명령을 보이지 않고 일반 문구(`Running a command`)만 보인다. 권한 요청은 무엇을 허용하는지 알도록 명령을 길이 제한해 보인다 | 사용자 — BF1 리뷰 🔴(명령 속 토큰이 화면·대화 기록에 남음) |
 
 ## 배치
 
@@ -82,3 +83,4 @@
 - 2026-10-30 BU3 수정 2차(`63b811ed`·`b5755f9d`) 세 번째 리뷰: 🔴 0 / 🟡 0 / ⚪ 1. 통합 `f6f230ec`~`17d2557b`(6개). 작업자·리뷰어 해제, 워크트리 제거. 통합 `/verify`(`17d2557b`): PASS. V1 시작(Claude Opus medium); V2는 GUI가 겹치지 않게 V1 뒤에 띄운다.
 - 2026-10-30 BV1 완료(`b6de6d16`), 통합 `920d61f9`. (a)~(g)와 Antigravity 이미지 블록 통과(Codex·Copilot·Antigravity). 도달 못 함: Claude·Cursor(계정 한도), 실제 공급자의 실패 상태줄((g)는 Stop→interrupted로 확인). 결함 2건: Codex 원시 항목 타입이 상태줄에 보임, 권한 답이 턴을 바로 끝내면 포커스가 body로 감. 그 밖에 `app/runtime` isolatedEnv의 옛 온보딩 표시가 첫 실행을 끝내지 못함. 키체인 항목 3개 삭제, `bp-run` 삭제 확인. 작업자 해제, 워크트리 제거.
 - 2026-10-30 V2에 앱 실행 허락과 결함 2(포커스)를 맡겼다. 결함 1(main Codex 요약)과 isolatedEnv는 BF1(Claude Opus medium)이 맡는다.
+- 2026-10-30 BF1 완료(`22d2c60a`·`80d22bae`·`826dab88`·`b04d9e51`). 리뷰(Codex `gpt-6-astra` medium): 🔴 1(명령 속 비밀값이 요약에 남음) / 🟡 1(fileSummaries 캐시 상한·정리 없음) / ⚪ 2. 사용자 결정 뒤 수정 1차를 보냈다.
