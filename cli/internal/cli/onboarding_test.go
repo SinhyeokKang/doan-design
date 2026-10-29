@@ -826,8 +826,9 @@ func TestSkillNamesTheBundledCLI(t *testing.T) {
 	if !strings.Contains(body, want) || !strings.HasSuffix(body, "[doan:skill] end of guide vdev\n") {
 		t.Fatal(body)
 	}
+	plain, _ := Skill(Context{}, nil)
 	o, _ = Skill(Context{Executable: func() (string, error) { return filepath.Join(dir, "doan"), nil }}, nil)
-	if body := o.Result.(map[string]any)["body"].(string); body != skillBody+"\n[doan:skill] end of guide vdev\n" {
+	if body := o.Result.(map[string]any)["body"].(string); body != plain.Result.(map[string]any)["body"] {
 		t.Fatal("standalone CLI changed the guide")
 	}
 }

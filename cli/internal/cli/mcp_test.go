@@ -43,6 +43,11 @@ func TestMCPArgv(t *testing.T) {
 		{"skill", `{}`, []string{"skill", "--json"}},
 		{"active", ``, []string{"active", "--json"}},
 		{"active", `{"repo":"/r"}`, []string{"active", "--repo=/r", "--json"}},
+		{"design_skill", ``, []string{"design-skill", "--json"}},
+		{"design_skill", `{}`, []string{"design-skill", "--json"}},
+		{"design_skill", `{"id":"clarify"}`, []string{"design-skill", "--json", "--", "clarify"}},
+		{"design_skill", `{"id":""}`, []string{"design-skill", "--json", "--", ""}},
+		{"design_skill", `{"id":"--json"}`, []string{"design-skill", "--json", "--", "--json"}},
 	} {
 		got, e := argv(tt.tool, json.RawMessage(tt.raw))
 		if e != nil || !reflect.DeepEqual(got, tt.want) {
@@ -78,6 +83,12 @@ func TestMCPArgvRejects(t *testing.T) {
 		{"skill", `1`},
 		{"active", `{"repo":"rel"}`},
 		{"active", `{"canvas":"foo"}`},
+		{"design_skill", `{"repo":"/r"}`},
+		{"design_skill", `{"id":1}`},
+		{"design_skill", `{"id":null}`},
+		{"design_skill", `{"id":["clarify"]}`},
+		{"design_skill", `{"id":"clarify","name":"clarify"}`},
+		{"design_skill", `[]`},
 	} {
 		got, e := argv(tt.tool, json.RawMessage(tt.raw))
 		if e == nil || e.Code != "usage_error" || got != nil {
@@ -175,6 +186,7 @@ func TestMCPToolList(t *testing.T) {
 		"check":            {"repo"},
 		"skill":            {},
 		"active":           {"repo"},
+		"design_skill":     {"id"},
 
 		"onboarding_start":           {},
 		"onboarding_status":          {"operationId", "sessionId"},
@@ -197,8 +209,14 @@ func TestMCPToolList(t *testing.T) {
 		"onboarding_project_clone":   {"destination", "inspectionId", "requestId", "sessionId"},
 		"onboarding_complete":        {"requestId", "sessionId"},
 	}
+	if len(list.Tools) != 18 {
+		t.Fatalf("%d tools", len(list.Tools))
+	}
 	got := map[string][]string{}
 	for _, tool := range list.Tools {
+		if tool.Name == "design_skill" && (tool.Description != "List Doan design presets, or read one preset's complete guidance with id (doan design-skill). Read a preset only when the user names it or it clearly fits the request; a complete body ends with its [doan:design-skill] end marker." || tool.Annotations == nil || !tool.Annotations.ReadOnlyHint) {
+			t.Fatal(tool.Description, tool.Annotations)
+		}
 		var schema struct {
 			Type                 string
 			Properties           map[string]map[string]any

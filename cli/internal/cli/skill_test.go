@@ -41,7 +41,7 @@ func TestSkillGuideMapsMCPTools(t *testing.T) {
 		}
 		return false
 	}
-	for _, row := range [][2]string{{"init", "doan init"}, {"config", "doan config"}, {"ls", "doan ls"}, {"comments", "doan comments"}, {"resolve_comments", "doan comment resolve"}, {"check", "doan check"}, {"skill", "doan skill"}, {"active", "doan active"}} {
+	for _, row := range [][2]string{{"init", "doan init"}, {"config", "doan config"}, {"ls", "doan ls"}, {"comments", "doan comments"}, {"resolve_comments", "doan comment resolve"}, {"check", "doan check"}, {"skill", "doan skill"}, {"active", "doan active"}, {"design_skill", "doan design-skill"}} {
 		if !hasLine("| `"+row[0]+"`", "`"+row[1]) {
 			t.Errorf("missing table row %s", row)
 		}

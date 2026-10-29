@@ -349,3 +349,36 @@ func TestFixturesMatchCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestSummaryIsTheListProjection(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range c.Presets() {
+		b, err := json.Marshal(p.Summary())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got map[string]any
+		if err := json.Unmarshal(b, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, row(p)) {
+			t.Fatalf("summary of %s carries more than id, title, description and scope: %s", p.ID, b)
+		}
+	}
+}
+
+func TestValidID(t *testing.T) {
+	for _, id := range []string{"clarify", "bolder-copy", "context"} {
+		if !ValidID(id) {
+			t.Errorf("rejected %q", id)
+		}
+	}
+	for _, id := range []string{"", "../clarify", "clarify.md", "a/b", "CLARIFY", "-clarify", "clarify-", "a--b", "a1"} {
+		if ValidID(id) {
+			t.Errorf("accepted %q", id)
+		}
+	}
+}
