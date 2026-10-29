@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
@@ -44,6 +44,40 @@ test("an onboarding script starts the fake app, and checks read its v2 exchanges
     keepOnboardingLog(ws, out);
     assert.equal(readFileSync(join(out, "onboarding.jsonl"), "utf8"), readFileSync(ws.onboardingLog, "utf8"));
     assert.ok(!readFileSync(join(out, "onboarding.jsonl"), "utf8").includes(JSON.parse(readFileSync(ws.env.DOAN_RUNTIME!, "utf8")).token));
+  } finally {
+    await ws.dispose();
+  }
+});
+
+// A correct agent must find the project set up after the app says so (agent-eval
+// 2026-10-29 O1), while repo_untouched still sees only what the agent changed.
+test("a successful initialize writes what doan init writes, and only the agent's edits count as changes", async () => {
+  const o1 = loadScenario(join(import.meta.dirname, "../scenarios"), "O1");
+  const ws = await prepareWorkspace({ scenario: o1, agent: "fixture", cli, stub: "stub\n" });
+  try {
+    const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, appWrites: ws.appWrites });
+    const onboarding = (...args: string[]) => {
+      const result = sh(cli, ["onboarding", ...args, "--json"], ws.repo, ws.env);
+      assert.equal(result.code, 0, result.stdout);
+    };
+    onboarding("start");
+    onboarding("project", "inspect", "--session", "s_eval", "--path", ws.repo, "--request", "i1");
+    onboarding("status", "--session", "s_eval");
+    onboarding("project", "select", "--session", "s_eval", "--inspection", "insp_1", "--path", ws.repo, "--initialize", "--request", "s1");
+    assert.equal(existsSync(join(ws.repo, ".doan")), false, "nothing is written before the select succeeds");
+    onboarding("status", "--session", "s_eval");
+    assert.ok(statSync(join(ws.repo, ".doan/canvases")).isDirectory());
+    assert.deepEqual(JSON.parse(readFileSync(join(ws.repo, ".doan/config.json"), "utf8")), { v: 1 });
+    assert.ok(readFileSync(join(ws.repo, ".gitattributes"), "utf8").split("\n").includes(".doan/comments/*.jsonl merge=union"));
+    const ls = sh(cli, ["ls", "--json", "--repo", ws.repo], ws.repo, ws.env);
+    assert.equal(ls.code, 0, ls.stdout);
+    assert.deepEqual(ctx.changedFiles(), []);
+    const material = judgeMaterial(ws, ctx);
+    assert.deepEqual(material.changed, []);
+    assert.ok(!material.diff.includes(".doan/config.json") && !material.diff.includes(".gitattributes"), material.diff);
+    writeFileSync(join(ws.repo, ".doan/config.json"), JSON.stringify({ v: 1, tokenCss: "tokens.css" }) + "\n");
+    assert.deepEqual(ctx.changedFiles(), [".doan/config.json"], "an agent's edit of an app-written file still counts");
+    assert.ok(judgeMaterial(ws, ctx).diff.includes(".doan/config.json"));
   } finally {
     await ws.dispose();
   }

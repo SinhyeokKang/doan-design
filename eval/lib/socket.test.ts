@@ -108,8 +108,8 @@ const signedOutDto = (provider: string) => ({ provider, phase: "disconnected", r
 const CHANGES = [".doan/config.json", ".doan/canvases/", ".gitattributes"];
 
 // Every reply the fake gives must itself be a valid app-socket v2 response.
-function session(script: OnboardingScript, root = "/r") {
-  const app = onboardingApp(script, root);
+function session(script: OnboardingScript, root = "/r", initialize?: (changes: string[]) => void) {
+  const app = onboardingApp(script, root, initialize);
   const token = "t".repeat(64);
   return (request: Record<string, unknown>, sentToken = token): any => {
     const reply = app.answer(JSON.stringify({ v: 2, token: sentToken, ...request }), token);
@@ -152,6 +152,32 @@ test("a project is inspected, selected with --initialize and completed through s
   const done = ask({ op: "status", ...S }).result;
   assert.equal(done.completed, true);
   assert.deepEqual(done.operations.find((o: any) => o.kind === "complete"), { ...complete, state: "succeeded", project: { root: "/r" } });
+});
+
+// The real app sets the folder up as the select succeeds; the in-process fake
+// only reports it, and serveFakeApp writes the files.
+test("a select with --initialize sets the folder up once, when it succeeds", () => {
+  const initialized: string[][] = [];
+  const ask = session({ providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] }, "/r", changes => initialized.push(changes));
+  ask({ op: "start" });
+  ask({ op: "project_inspect", ...S, requestId: "i1", path: "/r" });
+  ask({ op: "status", ...S });
+  assert.equal(ask({ op: "project_select", ...S, requestId: "s0", inspectionId: "insp_1", path: "/r" }).error.code, "initialize_required");
+  const select = ask({ op: "project_select", ...S, requestId: "s1", inspectionId: "insp_1", path: "/r", initialize: true }).result.operation;
+  assert.equal("initialize" in select, false, "what select was asked stays out of the reply");
+  assert.deepEqual(initialized, [], "not before the select succeeds");
+  ask({ op: "status", ...S });
+  ask({ op: "status", ...S });
+  assert.deepEqual(initialized, [CHANGES]);
+
+  const setUp: string[][] = [];
+  const again = session({ providers: [readyAgent("claude")], changes: [], readyAfterCheck: [] }, "/r", changes => setUp.push(changes));
+  again({ op: "start" });
+  again({ op: "project_inspect", ...S, requestId: "i1", path: "/r" });
+  again({ op: "status", ...S });
+  again({ op: "project_select", ...S, requestId: "s1", inspectionId: "insp_1", path: "/r", initialize: true });
+  again({ op: "status", ...S });
+  assert.deepEqual(setUp, [], "an already set-up folder gets nothing");
 });
 
 test("a requestId returns its original operation and refuses other arguments", () => {
