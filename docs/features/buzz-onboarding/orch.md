@@ -116,3 +116,4 @@
 - 2026-10-29: D23 통합(18cc21d..3ecf656, 마크업 측정은 초안 chosen 카드와 일치, 실제 흐름 확인은 V). U에 동의 없는 초기화 조사 Task를 보냈다.
 - 2026-10-29: U 조사(837f4c0..fd91ffa): 동의 없이 initialize를 보내는 경로는 찾지 못했고, 동의를 inspectionId·경로에 묶인 토큰으로 바꿨다. 통합. 남은 의심(포커스 복구가 'Set up and continue'에 감)은 D24로 U에 보냈다.
 - 2026-10-29: `/agent-eval` 라운드 `buzz-onboarding-261029`(`0564054`, Claude Code 2.1.312·Codex 0.164.0): 기존 시나리오는 이전과 같다(R1b·R2 Codex는 알려진 실패, H3·R6 Codex는 판정자만 partial). O1 두 에이전트 fail, O2 Codex fail. 원인: Codex sandbox가 socket을 막는데 온보딩 안내에 sandbox·MCP 안내가 없음, Claude가 변경 계획을 select 뒤에 보고, 가짜 앱이 초기화 파일을 만들지 않음(runner 결함). 실제 상태 점검의 Keychain 차이는 실제 Codex가 사용자 설정의 `malmoi` MCP 자격 증명을 갱신한 것(02:10:51Z, doan 무관). 배치 G2 시작 `ctx_f6d415a0a0b0`. 수정 뒤 O1·O2를 다시 잰다.
+- 2026-10-29: D24 통합(00fba93, c97b81e → `fdd9d8d`). V 최종 확인(D23 카드, 동의 시나리오 재시도, D24 포커스) 시작.
