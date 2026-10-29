@@ -682,6 +682,43 @@ describe("a replacement that does not finish", () => {
       expect(processes.filter(p => p.step === "logout")).toEqual([]);
       expect(storage.pendingCleanup()).toEqual([{ provider: "codex", profile: "codex" }]);
     });
+    // Fix round 2, R-A2-1: only a profile a stored connection references is live; a signed-out provider's own name is not.
+    it("cleans a replaced base profile at the next start after the connection that replaced it signed out", async () => {
+      const m = codex(); await m.load();
+      await connectedCodex(m);
+      const replacement = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0); await finish("logout", 1); await replacement.done;
+      const out = started(await m.signOut("codex")); await finish("logout", 0); keychain = { status: "disconnected" }; await finish("status", 0); await out.done;
+      expect(storage.readMetadata().accounts).toEqual([]);
+      expect(storage.pendingCleanup()).toEqual([{ provider: "codex", profile: "codex" }]);
+      const restarted = codex(); await restarted.load();
+      const retry = await finish("logout", 0);
+      expect(retry.cwd).toBe(join(root, "profiles", "codex"));
+      await vi.waitFor(() => expect(storage.pendingCleanup()).toEqual([]));
+      expect(existsSync(join(root, "profiles", "codex"))).toBe(false);
+    });
+    // Fix round 2, R-A2-2: a staging profile that could not be recorded is never created.
+    it("fails the replacement without a staging profile or any process when its cleanup record cannot be written", async () => {
+      const m = codex(); await m.load();
+      const connection = await connectedCodex(m);
+      const spy = vi.spyOn(storage, "markCleanup").mockImplementation(() => { throw new Error("ENOSPC"); });
+      const before = processes.length;
+      const run = started(await m.signIn("codex", 7));
+      const state = await run.done;
+      spy.mockRestore();
+      expect(processes.slice(before)).toEqual([]);
+      expect(profiles()).toEqual(["codex"]);
+      expect(state).toMatchObject({ phase: "connected", connection, verified: true, error: { code: "storage_failed" } });
+    });
+    for (const content of ["{bad", '{"v":2,"profiles":[]}', '{"v":1,"profiles":[{"provider":"codex","profile":"../codex"}]}']) {
+      it(`leaves a damaged cleanup record file as it is and starts no logout: ${content}`, async () => {
+        writeFileSync(join(root, "cleanup.json"), content);
+        const m = codex(); await m.load(); await flush();
+        expect(processes).toEqual([]);
+        expect(() => storage.pendingCleanup()).toThrow();
+        expect(() => storage.markCleanup("codex", "codex-test")).toThrow();
+        expect(readFileSync(join(root, "cleanup.json"), "utf8")).toBe(content);
+      });
+    }
     it("signs out the connection's own profile", async () => {
       const m = codex(); await m.load();
       await connectedCodex(m);
