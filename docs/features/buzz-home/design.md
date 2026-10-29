@@ -95,7 +95,8 @@
   - id나 파일 이름이 `design-system`인 캔버스가 없음 → `document`
   - 캔버스가 있음 → `critique`, `polish`
   - CLI 목록에 없는 id는 건너뛴다. 규칙이 id를 참조하는 것은 카탈로그 사본이 아니다(제목·설명은 항상 CLI 결과에서 읽는다).
-- 고른 프리셋은 입력 위에 칩(제목, × 제거)으로 보인다. 하나만 고를 수 있고 새로 고르면 바뀐다. Backspace를 빈 입력 맨 앞에서 누르면 칩이 지워진다.
+- 행은 제목과 `scope`(CLI 목록의 2~3단어 주제, 예: `design review`, `edge-case states`)를 보이고, description은 툴팁에만 둔다(2026-10-29 user). description은 93~148자의 에이전트용 문장이라 팝오버 폭에서 잘려 읽히지 않았다(1차 초안). 오른쪽에 id를 메타데이터 색으로 보인다.
+- 고른 프리셋은 입력 위에 칩(제목, × 제거)으로 보인다. 프리셋을 고르고 입력이 비어 있으면 placeholder가 `Which canvas or screen? Add details…`로 바뀐다. `critique`·`polish`·`harden`·`audit` 등 많은 프리셋이 사람이 지목한 디자인을 다루는데 홈에는 선택한 캔버스가 없어서, 프리셋만 보내면 에이전트가 대상을 되묻는 왕복이 생기기 때문이다. 어떤 프리셋이 대상을 요구하는지는 UI가 알 수 없으므로(ARCHITECTURE §7) 모든 프리셋에 같은 문구를 쓴다. 하나만 고를 수 있고 새로 고르면 바뀐다. Backspace를 빈 입력 맨 앞에서 누르면 칩이 지워진다.
 - 상태: 읽는 중(spinner, '프리셋을 불러오는 중'), 실패(`cli_error`의 `reason`별 문구와 Retry, `request_refused`는 Retry 없이 문구만), 이전 CLI(`list()`가 `usage_error` → '이 doan CLI에는 디자인 프리셋이 없다. Doan을 업데이트한다'), 검색 결과 없음. 어느 실패에서도 프리셋 없이 보낼 수 있다.
 
 ### 4.5 보내기
@@ -104,6 +105,7 @@
   - 프리셋 없음: 사용자 텍스트 그대로(앞뒤 공백 제거).
   - placeholder: `Describe what to design, / for presets`. 공급자 이름 대신 단축을 알린다(Antigravity의 "@ to mention, / for actions").
 - 프리셋 있음: ``Use the doan design preset `<id>` (<title>).`` 한 줄, 빈 줄, 사용자 텍스트. 사용자 텍스트가 비어 있으면 첫 줄만 보낸다. 에이전트는 `PRESET_GUIDANCE`의 '사용자가 이름을 댄 프리셋' 규칙으로 읽는다. 이 형식은 PRODUCT §7에 기록한다.
+- 홈에서 보낸 요청에는 마지막에 고정 문장 `This request was sent from Doan's Home without a canvas selection. Do not take its target from doan active; if it needs a canvas, find it from the request or ask.`을 붙인다(2026-10-29 user). 홈으로 가도 로드된 워크스페이스의 선택과 `doan active`가 유지되므로(PRODUCT §5 항목 1), 프리셋의 '가리키는 말은 `doan active`로 찾는다' 규칙 때문에 다른 프로젝트 캔버스의 이전 선택이 대상으로 잡힐 수 있다. 이 문장도 `composeRequest`가 만들고 PRODUCT §7에 기록한다.
 - `sendAvailability`(순수 함수)가 Send의 활성 여부와 이유 한 줄을 정한다: 프로젝트 없음·healthy 아님, 준비된 공급자 없음, 텍스트와 프리셋이 모두 비어 있음, 한도 초과, 같은 root에서 홈이 시작한 대화가 아직 끝나지 않음, 전송 중.
 - 같은 root에 진행 중인 홈 대화가 있으면 그 줄에 Open을 둔다. 한 프로젝트에 홈 대화를 동시에 두 개 두지 않는 이유는 임시 상태줄이 하나만 보여 다른 대화의 권한 요청이 가려지기 때문이다.
 - 호출: `startConversation({root, mode: "newDesign", runtime, text})`. 전송 중에는 입력을 읽기 전용으로 두고 Send에 spinner를 보인다.
@@ -246,6 +248,7 @@ doan이 다르게 가는 점:
 - **PoC**: 두 개를 구현 전에 둔다. 결과는 날짜와 함께 PRODUCT §6에 기록한다. 대화·인증·프리셋 백엔드 자체는 PRODUCT §6에 실제 앱 확인 기록이 있고, 실제 토큰 만료·갱신이 관찰되지 않았다는 한계는 그대로다.
   - P1 모델·effort: 다섯 공급자 각각에서 모델 목록과 모델별 effort 단계를 얻는 방법·비용, 고른 모델·effort로 새 세션을 시작하는 방법, 같은 세션의 다음 턴이 그 값을 유지하는지. 목록이 없는 공급자는 'Default'만 보이는 것으로 확정한다.
   - P2 첨부: 다섯 공급자 각각이 요청에 적힌 저장소 밖 절대 경로의 이미지와 텍스트·PDF 파일을 읽고 이미지 내용을 볼 수 있는지, 기본 권한 설정에서 권한 요청이 생기는지, 거절되면 어떤 이벤트가 오는지.
+- **후속(doan-design-skills, 2026-10-29 user)**: 프리셋 목록에 (a) 분류 `group` 필드, (b) 대상 필요 여부 필드를 더하는 일은 CLI 계약 변경이라 이번 범위가 아니다. 20개가 평평한 목록이라 `critique` 프리셋 자신의 '선택지 8개 이상은 과부하' 기준을 넘고, (b)가 있으면 대상이 필요한 프리셋에만 위 placeholder를 쓸 수 있다. 지금은 추천 3개·검색과 공통 placeholder로 대신한다. Z1에서 PRODUCT §8 열린 질문으로 남긴다.
 - **agent-eval**: 가이드·CLI/MCP 출력·스텁은 바뀌지 않는다. 앱 대화 요청 문장이 새로 생기므로, 실제 공급자 하나로 '프리셋 칩을 고른 요청 → 에이전트가 그 프리셋을 읽음'을 `/runtime-test` probe에서 확인한다. 전체 `/agent-eval`은 요구하지 않는다.
 
 ## 13. 함정 (POSTMORTEM)

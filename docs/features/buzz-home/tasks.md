@@ -22,7 +22,7 @@
 
 - [ ] T1. 기기 로컬 형식 결정과 판독기: ui-state `home: {lastRoot?, lastProvider?, models?}`, 대화 index의 모델 필드, `user.message` 첨부 메타데이터. 각 판독기가 모르는 필드를 다루는 방식을 읽고, 버전 유지/상승을 정한다(상승이면 사용자 확인 후 PRODUCT §7 기록 task 추가).
   - 검증: `npm --prefix app test`에서 기존 v1/v2 fixture 판독과 새 필드 round-trip 테스트 통과.
-- [ ] T2. `homeComposer.ts`: `composeRequest`, `sendAvailability`, `defaultProject`, `defaultProvider`, `defaultModel`, `suggestedPresets`, `searchPresets`, `presetListView`, `startErrorView`, `pickGreeting`, `slashQuery`, `isSubmitKey`, `attachmentLimit`, `attachmentChipView`, `modelPickerView`(로고·모델·effort), `defaultEffort`, `dropTarget`.
+- [ ] T2. `homeComposer.ts`: `composeRequest`(프리셋 머리말, 홈 고정 문장), `presetPlaceholder`, `sendAvailability`, `defaultProject`, `defaultProvider`, `defaultModel`, `suggestedPresets`, `searchPresets`, `presetListView`, `startErrorView`, `pickGreeting`, `slashQuery`, `isSubmitKey`, `attachmentLimit`, `attachmentChipView`, `modelPickerView`(로고·모델·effort), `defaultEffort`, `dropTarget`.
   - 검증: `npm --prefix app test` 해당 테스트 통과(IME 조합 Enter, 한도 경계 32,768, 프리셋 머리말 형식, 이전 CLI `usage_error`, 직전 인사 문구 제외).
 - [ ] T3. `conversationStrip.ts`: `stripState`, `stripView`(시작·진행·권한·실패 코드별·중단·완료, 병합된 이벤트 기준).
   - 검증: `npm --prefix app test` 통과.
@@ -63,7 +63,7 @@
 ## Z. 승격과 정리
 
 - [ ] Z1. 결론을 승격한다(영어).
-  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, Welcome 밖 그라디언트 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 상태 기반 제안 제외).
+  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, Welcome 밖 그라디언트 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 상태 기반 제안 제외, 프리셋 행의 scope 표시와 프리셋 선택 뒤 placeholder, 홈 요청의 `doan active` 제외 문장). PRODUCT §8: 프리셋 목록의 `group`·대상 필요 여부 필드(doan-design-skills 후속).
   - ARCHITECTURE §7: 'Home, workspace and project IPC'의 홈 서술, 대화 IPC 표(`newDesign` 텍스트, `model`, 첨부), `conversation:models`, 'Design preset reads'의 'no renderer UI yet', 첨부 저장·IPC·정리, ui-state 키.
   - 부모: `docs/features/buzz-restyle/tasks.md` C3 체크, C8에 임시 상태줄 대체 인계 한 줄, 공통 결정 2 요약에 홈 예외.
   - 검증: `grep -n 'buzz-home' docs/PRODUCT.md docs/ARCHITECTURE.md`에 위 항목이 있고, `grep -n 'no renderer UI yet\|user-facing UI is not done' docs/PRODUCT.md docs/ARCHITECTURE.md` 결과 없음.
