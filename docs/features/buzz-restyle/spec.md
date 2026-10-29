@@ -27,7 +27,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
    - 대화 입력창과 메시지의 인라인 앵커 칩(연한 액센트 채움 + 진한 글자, 메신저 멘션처럼). Buzz는 일반 멘션을 무채색으로 두지만 doan의 앵커 칩은 메시지의 핵심 대상이라 액센트를 쓴다(doan 조정, 2026-10-26 user)
    - `buzz-conversation`이 코멘트를 걷어내기 전까지는 `buzz-ds`가 구현한 코멘트 카드, 코멘트 제출 버튼, 코멘트 핀이 액센트 자리로 남는다(2026-10-26, 대화로 바꾸기 전의 자리)
    - `buzz-onboarding` Welcome 배경은 accent 기반 타원 그라디언트와 alpha grain을 쓴다(2026-10-28 승인, 초안만 완료). 다른 온보딩 단계에는 그라디언트를 쓰지 않는다.
-   - 예외: `buzz-home` 홈은 violet 타원 그라디언트를 쓴다(grain 없음). 고른 프리셋 칩·Send·추천 프롬프트 아이콘·드롭 외곽선·LNB 상태 슬롯도 accent 자리다(2026-10-29 user, buzz-home design §5·§12).
+   - 예외: `buzz-home` 홈은 violet 타원 그라디언트를 쓴다(grain 없음). 고른 프리셋 칩·Send·추천 프롬프트 아이콘·드롭 외곽선·LNB 상태 슬롯도 accent 자리다(2026-10-29 user, PRODUCT §7 buzz-home).
    - 그 밖(캔버스 선택·hover 표시, 치수, 프레임 하이라이트, 탭, 메뉴, 링크, 카운트, Open 태그, 스피너, 온보딩 단계 등)은 Buzz 무채색 역할이다. 오렌지는 남지 않는다.
 3. **폰트**는 Geist를 로컬 번들로 제공하고 앱 공통 `--type-family`에 적용한다(2026-10-27 user, buzz-shell). 기존 시스템 스택은 대체 글꼴로 유지한다. 이는 Settings 등 모든 공통 폰트 사용처에 적용되는 결정이며 iframe 자체 스타일은 바꾸지 않는다. LNB·헤더는 14/20 400, 프로젝트 이름은 500이다. 다른 역할의 굵기는 승인 없이 일괄 변경하지 않는다.
 4. **UI 스택**은 Radix(shadcn) 그대로다. Base UI와 Buzz의 JS 훅은 들이지 않는다. 새로 쓰는 CSS는 처음부터 Radix `data-state`, 네이티브 `<dialog>[open]`, `:focus-visible`에 건다.
