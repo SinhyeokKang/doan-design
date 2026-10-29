@@ -52,7 +52,7 @@ Transform and opacity are reliable foundations, not the entire palette. Choose p
 - **Material and energy:** color, gradient position, texture, or distortion when the visual world and runtime support it.
 - **State and feedback:** the smallest change that makes cause and result unmistakable.
 
-Do not stack techniques for spectacle. One strong material idea, carried through the focal sequence and quiet supporting states, is usually enough. Stagger siblings only when a list appears as a list; cap the total delay, and never treat every scrolled section as a staggered list.
+Do not stack techniques for spectacle. One strong material idea, carried through the focal sequence and quiet supporting states, is usually enough. Stagger siblings only when a list appears as a list; cap the total delay, and do not treat every scrolled section as a staggered list by default.
 
 ## Timing and easing
 
@@ -92,7 +92,9 @@ Every animation needs a `prefers-reduced-motion` path with an intentional altern
 
 ## Quality floor
 
-- No identical entrance on every section; motion starts from an already-visible default and eases out.
+States and contrast below are checkable defects. The other items are review defaults that the established system or the user's intent can justify.
+
+- By default, no identical entrance on every section; motion starts from an already-visible default and eases out.
 - Every interactive state the motion touches still exists and reads clearly: hover, focus, disabled, loading, error, empty.
 - Colors that animate meet contrast at every resting state: body text at least 4.5:1, large text at least 3:1.
 - Refuse the category defaults unless the request earns them: glass and blur as decoration, a modal for a task that needs neither interruption nor protected focus, sparklines or progress rings standing in for content, zero-offset glow halos as depth.
@@ -125,6 +127,6 @@ Timing, easing, and smoothness are verified only by watching the motion run. Any
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/animate.md`, `skill/reference/overdrive.md` (propose before building, progressive enhancement, one extraordinary moment), `skill/reference/optimize.md` (animation and rendering performance cautions), and `skill/reference/craft-floor.md` (motion floor, states, contrast, refusals), under the Apache License 2.0. Doan modified them: replaced the additional-context note and visitor modes with a "Before you start" section and surface types, removed native platform references, the closing hand-off to the upstream `polish` command, the overdrive banner and its browser-verification loop, the toolkit catalog, production bundle, network, and API optimization, and the design-hook enforcement and rule tags; and added canvas presentation of motion, target selection, review-only, token, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/animate.md`, `skill/reference/overdrive.md` (propose before building, progressive enhancement, one extraordinary moment), `skill/reference/optimize.md` (animation and rendering performance cautions), and `skill/reference/craft-floor.md` (motion floor, states, contrast, refusals), under the Apache License 2.0. Doan modified them: replaced the additional-context note and visitor modes with a "Before you start" section and surface types, removed native platform references, the closing hand-off to the upstream `polish` command, the overdrive banner and its browser-verification loop, the toolkit catalog, production bundle, network, and API optimization, and the design-hook enforcement and rule tags; and added canvas presentation of motion, target selection, review-only, token, and verification rules for Doan. Doan also turned the floor's aesthetic items into review defaults that the established system or the user's intent can justify.
 
 [doan:design-skill] end of preset animate

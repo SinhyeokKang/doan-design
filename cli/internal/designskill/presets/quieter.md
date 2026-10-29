@@ -46,7 +46,7 @@ Decide before editing:
 - Use fewer colors more deliberately. Let neutrals do most of the work and keep color as an accent, roughly 10% of the surface.
 - Keep high contrast only where it matters most; text still meets its contrast floor.
 - Prefer warm or cool tinted grays to pure gray.
-- Never put gray text on a colored background; use a darker shade of that color or transparency.
+- Gray text on a colored background usually looks dull; prefer a darker shade of that color or transparency, unless the system's neutrals are deliberate. Either way, it must meet its contrast floor.
 - Work through the token CSS. If the calmer tone does not exist as a token, propose the token change instead of writing a raw value.
 
 ### Visual weight
@@ -66,7 +66,7 @@ Decide before editing:
 
 - Shorten travel (10-20px instead of 40px) and use gentler easing.
 - Keep functional motion and remove flourishes; replace dramatic effects with gentle feedback.
-- Use a quart ease-out for understated motion. Never bounce or elastic.
+- Use a quart ease-out for understated motion. Bounce and elastic easing read as loud; drop them unless the established system uses them deliberately.
 - Remove animation entirely when it serves no clear purpose.
 
 ### Composition
@@ -80,8 +80,8 @@ Decide before editing:
 For app and document surfaces, calm comes from earned familiarity. A user fluent in the category should trust the interface immediately instead of pausing at subtly-off components. The failure mode is strangeness without purpose: over-decorated buttons, mismatched form controls, gratuitous motion, display fonts where labels belong, invented affordances for standard tasks.
 
 - **Type:** one well-tuned family can carry headings, buttons, labels, body, and data. Use a fixed rem scale, not fluid headings, with a tighter ratio of 1.125-1.2 between steps. Prose keeps a 65-75ch measure; tables and compact UI may run denser.
-- **Color:** restrained is the default. The accent marks primary actions, current selection, and state only, not decoration. A second, slightly cooler or warmer neutral layer can separate sidebars, toolbars, and panels from content. Inactive states never carry heavy or fully saturated color.
-- **Motion:** 150-250 ms for most transitions; motion conveys state change, feedback, loading, or reveal, nothing else. No orchestrated page-load sequences.
+- **Color:** restrained is the default. The accent marks primary actions, current selection, and state only, not decoration. A second, slightly cooler or warmer neutral layer can separate sidebars, toolbars, and panels from content. Inactive states usually do not carry heavy or fully saturated color.
+- **Motion:** 150-250 ms for most transitions; motion conveys state change, feedback, loading, or reveal. Orchestrated page-load sequences rarely belong here.
 - **Consistency:** the same button shape, form-control vocabulary, and icon style across screens. If "save" looks different in two places, one is wrong. Do not reinvent standard affordances for flavor.
 
 Reading surfaces follow the type and consistency rules above; their prose measure and navigation matter more than component density.
@@ -116,6 +116,6 @@ Report anything you could not check, such as contrast you could not measure, mot
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/quieter.md` and `skill/reference/operate.md` (Operate and Read depth: slop test, typography, color, motion, product constraints), under the Apache License 2.0. Doan modified them: renamed the visitor modes as surface types, replaced the ask placeholder with a "Before you start" section, routed color changes through token CSS, condensed the Operate depth into calming guidance for product and reading surfaces and dropped its layout, component-state, and permission notes and rule tags, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/quieter.md` and `skill/reference/operate.md` (Operate and Read depth: slop test, typography, color, motion, product constraints), under the Apache License 2.0. Doan modified them: renamed the visitor modes as surface types, replaced the ask placeholder with a "Before you start" section, routed color changes through token CSS, condensed the Operate depth into calming guidance for product and reading surfaces and dropped its layout, component-state, and permission notes and rule tags, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan. Doan also turned the upstream bans on gray text over color, bounce and elastic easing, and page-load sequences into defaults the established system can justify.
 
 [doan:design-skill] end of preset quieter

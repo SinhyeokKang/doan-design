@@ -55,7 +55,7 @@ Expect to say no to good ideas to make room for clear execution.
 - Use one or two colors plus neutrals, not five to seven, drawn from the existing tokens.
 - Limit typography to one family, three or four sizes, and two or three weights where the system allows it.
 - Remove borders, shadows, and backgrounds that serve neither hierarchy nor function.
-- Flatten structure: fewer nested containers, and never cards inside cards. Basic layout does not need cards; spacing and alignment do the work.
+- Flatten structure: fewer nested containers, and avoid cards inside cards unless the established system uses them deliberately. Basic layout does not need cards; spacing and alignment usually do the work.
 - Use one spacing scale and remove arbitrary gaps.
 
 ### Layout
@@ -116,6 +116,6 @@ Report anything you could not check, such as task timing with real users or load
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/distill.md`, under the Apache License 2.0. Doan modified it: replaced the ask placeholder with a "Before you start" section, required the user's agreement before removing function or content that carries product facts, limited code simplification to requests that cover the implementation, turned "Document Removed Complexity" into the final answer, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/distill.md`, under the Apache License 2.0. Doan modified it: replaced the ask placeholder with a "Before you start" section, required the user's agreement before removing function or content that carries product facts, limited code simplification to requests that cover the implementation, turned "Document Removed Complexity" into the final answer, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan. Doan also turned the upstream ban on cards inside cards into a default the established system can justify.
 
 [doan:design-skill] end of preset distill

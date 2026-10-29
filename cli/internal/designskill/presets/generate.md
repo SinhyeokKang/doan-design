@@ -16,7 +16,7 @@ The user's request and its scope come first: draw the count, the direction, and 
 Take two things from the user's words, besides the target:
 
 - **Count:** a number in the request is the count; no number means three. More than eight dilutes the differences; confirm with the user before drawing that many.
-- **Direction:** map the wording to a preset and read that preset before planning (`doan design-skill <id> --json`):
+- **Direction:** read the meaning of the wording, not its keywords. The list below gives examples of meaning. A negated direction ("not bolder, just spacing options") is a constraint, not a direction. When a direction matches a preset, read that preset only if its guidance changes the alternatives (`doan design-skill <id> --json`, or the MCP `design_skill` tool with `{"id": "<id>"}`):
   - bold, bolder, stronger, punchier: `bolder`
   - quiet, calmer, softer, toned down: `quieter`
   - simpler, minimal, stripped: `distill`
@@ -43,9 +43,9 @@ On an existing surface the brand is already chosen; the job is variation within 
 - **Default** keeps the identity and varies expression within it. It is right for most requests. Unsure means default.
 - **Departure** replaces the identity. Use it only when the current request explicitly asks ("redesign this", "something completely different"), or when the project has no visual authority yet. An old note or comment is not authorization.
 
-### Give each variant a different primary axis
+### Vary on distinct axes
 
-**Default mode:** each variant commits to a different primary axis, using only the existing faces and tokens:
+**Default mode, free exploration** (no direction, or freeform intent): each variant commits to a different primary axis, using only the existing faces and tokens:
 
 1. hierarchy (which element commands the eye);
 2. layout topology;
@@ -58,7 +58,7 @@ New fonts, new hues, or a new aesthetic family belong to departure mode only.
 
 **Departure mode:** each variant anchors to a different direction derived from the product and its brand, never a fixed catalog. Name each in one concrete sentence with a real-world referent ("a museum exhibition label system", not "clean and minimal"), genuinely different from each other and from the current surface.
 
-**A named direction varies along its own dimension:** `bolder` amplifies scale, saturation, or structure; `quieter` pulls back color, ornament, or spacing; `distill` removes noise, redundant content, or nesting; `polish` refines rhythm, hierarchy, or micro-details; `typeset` varies scale ratio, case, and weight; `colorize` varies the palette role and contrast strategy; `layout` changes the arrangement, not spacing; `adapt` targets mobile-first, tablet, desktop, or print and low data; `animate` and `delight` vary the motion vocabulary or the flavor of personality. One dimension per variant.
+**Default mode, fixed direction** (a named direction, or a request that fixes the dimension, such as "only the colors" or "keep the brand hue"): every variant stays in that dimension and compares a distinct sub-strategy inside it, and the request's constraints bind every variant. `bolder` amplifies scale, saturation, or structure; `quieter` pulls back color, ornament, or spacing; `distill` removes noise, redundant content, or nesting; `polish` refines rhythm, hierarchy, or micro-details; `typeset` varies scale ratio, case, and weight; `colorize` varies the palette role and contrast strategy; `layout` changes the arrangement, not spacing; `adapt` targets mobile-first, tablet, desktop, or print and low data; `animate` and `delight` vary the motion vocabulary or the flavor of personality. For example, three color alternatives that keep the brand hue and theme can differ in which roles carry the accent, how much area it covers, and the contrast strategy.
 
 Freeform wording is a ceiling on direction: in default mode it narrows the axes, not the identity ("more confident": one variant amplifies hierarchy, one commits the accent, one tightens density). When it conflicts with a binding brand commitment, keep the commitment unless the user revokes it.
 
@@ -70,11 +70,11 @@ Freeform wording is a ceiling on direction: in default mode it narrows the axes,
 
 ### Squint test
 
-Before drawing, put the one-line descriptions side by side. In default mode, a variant that drifts in palette, type voice, or rhetoric crossed into departure by accident: rework it. Three variants on one axis is a failure. In departure mode, two descriptions that rhyme mean rework. When the axis is color, the variants must not share theme and dominant hue. Each alternative must be recognisably different at thumbnail size.
+Before drawing, put the one-line descriptions side by side. In default mode, a variant that drifts in palette, type voice, or rhetoric crossed into departure by accident: rework it. In free exploration, three variants on one axis is a failure; with a fixed direction, the variants share that axis and two with the same sub-strategy mean rework. In departure mode, two descriptions that rhyme mean rework, and when the axis is color, approved departures must not share theme and dominant hue. Each alternative must be recognisably different at thumbnail size.
 
 ## Hold the quality floor
 
-The user's brief or the established design overrides these defaults; your habit does not.
+Contrast, states, overflow, and truth are checkable defects. The user's brief or the established design overrides the other defaults; your habit does not.
 
 - Contrast: body and placeholder text at least 4.5:1, large text at least 3:1. On colored surfaces, tint secondary text from that hue instead of gray.
 - Spacing: tight groups, generous separation, more space above a heading than below it.
@@ -91,14 +91,14 @@ The user's brief or the established design overrides these defaults; your habit 
 - **Complete replacements:** each alternative is the whole target redrawn, not a CSS-only patch. Give copied elements new `data-doan-id` values (element ids are unique within a canvas). Scope each alternative's styles to its own frame, and reference token CSS variables instead of raw hex or rgb values.
 - **Proposals, not code:** state on each alternative that it is a proposal not in code (Doan guide rule G), with one line on what it changes. Do not mark an alternative with `data-doan-implements`.
 - **No adoption:** do not pick an alternative for the user or apply one, and do not delete any. Draw no comparison or voting UI, create no branches, and run no live session. Applying a chosen one is a separate request.
-- If the user asked only for ideas or a plan, describe the alternatives without editing files.
+- If the user asked only for ideas or a plan, describe the alternatives without editing files. A request to review existing alternatives ends in a report, without editing files.
 - After editing, make `doan check` pass. Resolve only the comments you actually applied.
 - In your answer, list each alternative (canvas, frame id, axis or direction), the identity sentence you held fixed, and anything left for the user to decide.
 
 ## Verify
 
 - Each alternative matches the requested count, direction, and target, and the original is unchanged.
-- The identity holds across default-mode variants, and each variant's primary axis is distinct.
+- The identity holds across default-mode variants. In free exploration, each variant's primary axis is distinct; with a fixed direction, every variant stays in that dimension with a distinct sub-strategy and honors the request's constraints; departure variants differ in direction.
 - The quality floor above holds in each variant.
 - `doan check` passes and every new id is unique.
 
@@ -106,6 +106,6 @@ Report anything you could not check, such as rendered contrast or appearance at 
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/generate.md` (direction words and default count), `skill/reference/live.md` (variant planning: identity lock, mode, primary axes, squint test, complete replacements), `skill/reference/craft-floor.md` (quality floor and refusals), `skill/reference/new-work.md` (what is already true), `skill/reference/mode-operate.md`, `skill/reference/mode-persuade.md`, `skill/reference/mode-read.md` (how variants differ per surface mode), and `skill/SKILL.src.md` ("Modes"), under the Apache License 2.0. Doan modified them: replaced the live browser session, helper commands, overlay, tuning knobs, accept and cleanup steps with alternatives drawn as new canvas frames; removed the hook enforcement, detector, image generation, and harness-specific blocks; left choosing and applying an alternative to the user; and added Doan setup, canvas, id, and verification rules.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/generate.md` (direction words and default count), `skill/reference/live.md` (variant planning: identity lock, mode, primary axes, squint test, complete replacements), `skill/reference/craft-floor.md` (quality floor and refusals), `skill/reference/new-work.md` (what is already true), `skill/reference/mode-operate.md`, `skill/reference/mode-persuade.md`, `skill/reference/mode-read.md` (how variants differ per surface mode), and `skill/SKILL.src.md` ("Modes"), under the Apache License 2.0. Doan modified them: replaced the live browser session, helper commands, overlay, tuning knobs, accept and cleanup steps with alternatives drawn as new canvas frames; removed the hook enforcement, detector, image generation, and harness-specific blocks; left choosing and applying an alternative to the user; made the direction words examples of meaning, with negated directions treated as constraints; kept the multi-axis rule for free exploration, compared sub-strategies inside a fixed direction, and limited the different-theme-and-hue rule to approved departures; made the quality floor's refusals defaults that the brief or the established design can override; and added review-only, Doan setup, canvas, id, and verification rules.
 
 [doan:design-skill] end of preset generate

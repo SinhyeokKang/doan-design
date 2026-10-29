@@ -65,8 +65,8 @@ Production bundle size, code splitting, network requests, API design, caching, a
 
 - Repeated implementation shortcuts and drift from the design system: one-off components, spacing, radii, or type sizes that bypass existing tokens and components.
 - Missing states: hover, focus, disabled, loading, error, empty.
-- Browser surfaces left at defaults: text selection, caret, scrollbars, focus rings, underline offset, tabular numerals in data.
-- Type floor: body measure 65 to 75 characters, display size at most 6rem, tracking no tighter than -0.04em, text that overflows with real copy.
+- Focus rings that are missing or invisible against their background. Other browser surfaces left at defaults (text selection, caret, scrollbars, underline offset, tabular numerals in data) are notes, not violations.
+- Text that overflows or clips with real copy. Body measure outside 65 to 75 characters, display size above 6rem, or tracking tighter than -0.04em are notes unless they cause a confirmed readability problem.
 - Misleading content: invented figures, claims, or customers presented as real; illustrative values must be labelled.
 - Visual defaults that are statically visible and worth a note: gradient text, colored side stripes above 1px, hard offset shadows, zero-offset glow halos, nested cards, emoji or glyphs standing in for icons. Whether they suit the design is a critique judgment; report them here as patterns, not as violations.
 
@@ -104,6 +104,6 @@ Before reporting, confirm each finding in context and drop false positives you c
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/audit.md` (the five dimensions, severity, and report), `skill/reference/craft-floor.md` (contrast, states, browser surfaces, type floor, and truth as checkable criteria), and `skill/reference/optimize.md` (performance cautions only), under the Apache License 2.0. Doan modified them: removed the bundled detector, desktop-app DevTools inspection, re-run commands, the mandatory dimension scores and rating bands, the upstream command recommendations, the native-platform route, template placeholders, and rule tags; limited performance to cautions visible in source and left production bundle, network, and API optimization out of scope; added evidence levels that separate checked from unchecked items; and added target selection, review-only defaults, design system, canvas, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/audit.md` (the five dimensions, severity, and report), `skill/reference/craft-floor.md` (contrast, states, browser surfaces, type floor, and truth as checkable criteria), and `skill/reference/optimize.md` (performance cautions only), under the Apache License 2.0. Doan modified them: removed the bundled detector, desktop-app DevTools inspection, re-run commands, the mandatory dimension scores and rating bands, the upstream command recommendations, the native-platform route, template placeholders, and rule tags; limited performance to cautions visible in source and left production bundle, network, and API optimization out of scope; added evidence levels that separate checked from unchecked items; and added target selection, review-only defaults, design system, canvas, and verification rules for Doan. Doan also reported the floor's aesthetic items (browser-surface defaults, display size, tracking) as notes unless they cause a confirmed problem.
 
 [doan:design-skill] end of preset audit

@@ -23,7 +23,7 @@ On app and document surfaces:
 - Use a fixed rem scale, not fluid type. People view product UI at a consistent density, and a clamp-sized heading that shrinks in a sidebar looks worse, not better.
 - Keep the scale ratio tight: 1.125 to 1.2 between steps is typical. Product UI has more type roles than a brand page, and exaggerated contrast becomes noise.
 - Prose still needs a measure of 65 to 75 characters. Data and compact UI can run denser; tables at 120 characters or more are fine.
-- Do not use display faces for UI labels, buttons, or data.
+- Avoid display faces for UI labels, buttons, and data unless the established system uses one there deliberately and it stays legible.
 - System fonts and familiar sans defaults are legitimate choices here.
 - On document surfaces, prose measure and paragraph rhythm matter more than component density.
 
@@ -99,6 +99,6 @@ Answer each item with rendered or source evidence; a bare "yes" is not verificat
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/typeset.md` and `skill/reference/operate.md` (typography, product constraints, and product permissions), under the Apache License 2.0. Doan modified them: replaced visitor modes with surface types and removed native platform references; replaced the subagent assessment and the bundled detector scan with a source scan the agent runs itself, and dropped the detector findings from the line-break rules; removed the live-mode parameters, the identity-replacement routing and design file update, and the closing hand-off to the upstream `polish` command; and added target selection, type tokens from token CSS, review-only, canvas, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/typeset.md` and `skill/reference/operate.md` (typography, product constraints, and product permissions), under the Apache License 2.0. Doan modified them: replaced visitor modes with surface types and removed native platform references; replaced the subagent assessment and the bundled detector scan with a source scan the agent runs itself, and dropped the detector findings from the line-break rules; removed the live-mode parameters, the identity-replacement routing and design file update, and the closing hand-off to the upstream `polish` command; and added target selection, type tokens from token CSS, review-only, canvas, and verification rules for Doan. Doan also turned the upstream ban on display faces in UI labels, buttons, and data into a default the established system can justify.
 
 [doan:design-skill] end of preset typeset

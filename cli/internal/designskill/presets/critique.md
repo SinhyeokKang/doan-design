@@ -26,8 +26,8 @@ Hierarchy, information architecture, emotional fit, discoverability, composition
 
 ### Type, material, ground
 
-- **Type:** the lettering's character, compression, width, weight, contrast, and scale steps against the intended voice and the design system. A face of the wrong character is a defect even when the layout is right.
-- **Material:** flat CSS or clean vector standing in for a painted, textured, dimensional, or photographic material the design promises is a defect. Faked physicality (CSS bevels, embossing, stamped-metal or chalk effects imitating a material the page never renders) is the most reliable mark of machine-made design.
+- **Type:** the lettering's character, compression, width, weight, contrast, and scale steps against the intended voice and the design system. A face whose character works against the intended voice is a finding even when the layout is right; a face the system or the user chose deliberately is the authority, not the defect.
+- **Material:** flat CSS or clean vector standing in for a painted, textured, dimensional, or photographic material the design promises is a defect. Faked physicality (CSS bevels, embossing, stamped-metal or chalk effects imitating a material the page never renders) often reads as machine-made; flag it unless the system chose that look.
 - **Ground:** the page field's value and temperature against what the design system or brand names, read as the net on-screen result when a texture paints over the base color. Hunt drift toward warm cream on light grounds and blue-black slate on dark. When nothing names a ground color, say there is no authority for it instead of inventing a target.
 
 ### Cognitive load
@@ -91,15 +91,15 @@ Add one or two project-specific personas only when real product context describe
 
 ### Quality floor
 
-Hold the target against this floor. The floor is mechanics; it never picks the direction.
+Hold the target against this floor. The floor is mechanics; it never picks the direction. Contrast, states, overflow, copy, truth, and coverage are checkable defects. The other items are review defaults: the established system or the user's intent can justify a different choice, so report a departure as a defect only with a confirmed problem.
 
-- **Contrast:** body and placeholder text at least 4.5:1, large text at least 3:1. Secondary text on colored surfaces is tinted from that hue or the foreground, not gray.
+- **Contrast:** body and placeholder text at least 4.5:1, large text at least 3:1. Secondary text on colored surfaces usually reads better tinted from that hue or the foreground than in a generic gray.
 - **Depth:** shadows have an offset and a soft blur; a zero-offset colored halo is decoration. Declare elevation once, border or shadow; a 1px border under a wide soft shadow is a ghost card.
 - **Spacing:** tight groups, generous separation, more space above a heading than below it.
 - **Type:** body measure 65 to 75 characters, display size at most 6rem, tracking no tighter than -0.04em, balanced headings, obvious scale and weight steps, no overflow with real copy.
 - **Motion:** one authored moment, not the same entrance on every section; exponential ease-out from an already-visible default.
 - **States:** hover, focus, disabled, loading, error, and empty exist; real content, working controls.
-- **Browser surfaces:** text selection, caret, scrollbars, focus rings, underline offset, and tabular numerals are themed from the palette, not left at browser defaults.
+- **Browser surfaces:** text selection, caret, scrollbars, focus rings, underline offset, and tabular numerals: note where browser defaults clash with the system; defaults are fine where the system uses them.
 - **Copy:** the product's own language; controls name their action; errors name the problem and the recovery.
 - **Truth:** claims and figures come from supplied facts; illustrative values are labelled as such.
 - **Coverage:** everything the request required is present and findable within seconds.
@@ -138,7 +138,7 @@ Deliver the full critique in the conversation; write a file only if the user ask
 7. **Minor observations** and **questions to consider** ("Does this need to feel this complex?").
 8. **Not verified:** anything you could not check.
 
-No numeric score is required unless the user asks. Be direct and specific ("the submit button", not "some elements"), say why it matters, cut "consider exploring", prioritize ruthlessly, and do not soften criticism. To let the user choose what to address next, end with a few targeted questions tied to the findings, each with concrete options.
+No numeric score is required unless the user asks. Be direct and specific ("the submit button", not "some elements"), say why it matters, cut "consider exploring", prioritize ruthlessly, and do not soften criticism. When what to address next needs the user's decision, end with a few targeted questions tied to the findings, each with concrete options; otherwise end with the report.
 
 ## Work in Doan
 
@@ -152,6 +152,6 @@ Each finding names a specific frame, element, or file and rests on evidence you 
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/critique.md` (design review, cognitive load, heuristics, personas, severity), `skill/agents/impeccable-finish-reviewer.md` (type, material, and ground lens; ordered one-line material fixes), and `skill/reference/craft-floor.md` (quality floor as review criteria), under the Apache License 2.0. Doan modified them: condensed the text; removed the detector, browser overlay, live server, desktop-app inspection, required sub-agents, critique storage and trend, mandatory scores and question gate, upstream command recommendations, the finish-review contract and comp pipeline, harness-specific blocks, and rule tags; made the craft floor's refusals review criteria that the request or established design system can override; and added target selection, review-only defaults, design system, canvas, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/critique.md` (design review, cognitive load, heuristics, personas, severity), `skill/agents/impeccable-finish-reviewer.md` (type, material, and ground lens; ordered one-line material fixes), and `skill/reference/craft-floor.md` (quality floor as review criteria), under the Apache License 2.0. Doan modified them: condensed the text; removed the detector, browser overlay, live server, desktop-app inspection, required sub-agents, critique storage and trend, mandatory scores and question gate, upstream command recommendations, the finish-review contract and comp pipeline, harness-specific blocks, and rule tags; made the craft floor's refusals review criteria that the request or established design system can override; and added target selection, review-only defaults, design system, canvas, and verification rules for Doan. Doan also turned the floor's and the review lens's aesthetic absolutes into review defaults that the established system or the user's intent can justify; a departure is a defect only with a confirmed problem. Closing questions remain only when the next step needs the user's decision.
 
 [doan:design-skill] end of preset critique
