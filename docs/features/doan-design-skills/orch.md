@@ -70,3 +70,4 @@
 - 2026-10-29: A 리뷰(`review-A.md`, Codex) 🔴0 🟡1 🟢2. 🟡(NUL이 든 id에서 spawn이 동기 예외를 던져 앱 실패 envelope를 우회한다)와 🟢 주석·handoff 문구를 A 수정 라운드 1로 보냈다. 앱 실패의 빈 `nextSteps`는 계획에 맞다고 판정됐다.
 - 2026-10-29: P 리뷰(`review-P.md`, Codex) 🔴0 🟡2 🟢3. 🟡1(원본의 미학적 절대 금지가 document·polish·distill·quieter에 남음), 🟡2(generate의 다축 대안 규칙이 방향을 지정한 요청과 충돌)와 🟢 셋을 P 수정 라운드 1로 보냈다.
 - 2026-10-29: A 수정 라운드 1(c3a5745)을 지휘자가 확인했다. `runDesignSkill`만 동기 spawn 예외를 실패 결과로 바꾸고 공용 `runCli`는 그대로이다. A를 통합한다.
+- 2026-10-29: P 수정 라운드 1(9f24286·633cbde)을 지휘자가 확인했다(document의 시스템 폰트·glyph는 기본값으로, polish·distill·quieter 금지는 기존 시스템이 정당화하는 기본값으로, generate는 자유 탐색·방향 고정·departure로 분기). P를 통합하고 3차 E·V를 시작한다.
