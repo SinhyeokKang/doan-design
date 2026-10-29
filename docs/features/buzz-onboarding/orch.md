@@ -119,3 +119,4 @@
 - 2026-10-29: `/agent-eval` 라운드 `buzz-onboarding-261029`(`0564054`, Claude Code 2.1.312·Codex 0.164.0): 기존 시나리오는 이전과 같다(R1b·R2 Codex는 알려진 실패, H3·R6 Codex는 판정자만 partial). O1 두 에이전트 fail, O2 Codex fail. 원인: Codex sandbox가 socket을 막는데 온보딩 안내에 sandbox·MCP 안내가 없음, Claude가 변경 계획을 select 뒤에 보고, 가짜 앱이 초기화 파일을 만들지 않음(runner 결함). 실제 상태 점검의 Keychain 차이는 실제 Codex가 사용자 설정의 `malmoi` MCP 자격 증명을 갱신한 것(02:10:51Z, doan 무관). 배치 G2 시작 `ctx_f6d415a0a0b0`. 수정 뒤 O1·O2를 다시 잰다.
 - 2026-10-29: D24 통합(00fba93, c97b81e → `fdd9d8d`). V 최종 확인(D23 카드, 동의 시나리오 재시도, D24 포커스) 시작.
 - 2026-10-29: G2 통합(eb341c7..3aa40fb → `7b58596`). O1·O2 재측정 라운드 `buzz-onboarding-261029-o` 시작. 결정 D25를 U에 보냈고 V에 부탁한 checkout 스크린샷은 취소했다.
+- 2026-10-29: O1·O2 재측정(`buzz-onboarding-261029-o`, `7b58596`): O2-Claude pass, O1-Claude fail(이미 허락했는데 다시 물음 — G2 지시가 과했음), Codex O1·O2 fail(가이드대로 sandbox 안내 후 멈춤, MCP 없는 시나리오라 통과 불가). 실제 상태 변화 없음. G3: 가이드 동의 규칙 보정, Codex O1·O2를 R2처럼 알려진 조건으로 표시(MCP 변형 시나리오는 후속).
