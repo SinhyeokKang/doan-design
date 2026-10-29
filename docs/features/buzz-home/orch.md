@@ -34,6 +34,7 @@
 | 2026-10-30 | 권한 답이 턴을 바로 끝내 Stop이 사라지면 포커스를 상태줄의 다음 동작(Dismiss)으로 옮긴다 | 지휘자 판단 — design §7 'Stop으로'의 대상이 사라진 경우, V1 결함 2 |
 | 2026-10-30 | design-sync 기준은 초안의 계산된 스타일이다. 전송 중 Send는 disabled 채움, 프리셋 칩 ×는 metadata 회색(초안 CSS의 accent·currentColor 규칙은 우선순위에서 져 실제로 적용되지 않았다) | 지휘자 판단 — 사용자가 앱에서 확정한 것은 렌더된 초안, V2 측정 |
 | 2026-10-30 | 상태줄 진행 줄은 셸 명령을 보이지 않고 일반 문구(`Running a command`)만 보인다. 권한 요청은 무엇을 허용하는지 알도록 명령을 길이 제한해 보인다 | 사용자 — BF1 리뷰 🔴(명령 속 토큰이 화면·대화 기록에 남음) |
+| 2026-10-30 | Quick Open의 'Check its status on Home' 문구를 사이드바 문구로 바꾼다. 'Doan/doan' 대소문자는 이번 범위가 아니라 PRODUCT §8 열린 질문으로 남긴다 | 지휘자 판단 — 홈이 프로젝트 상태를 더 보이지 않음(V2 인계) |
 
 ## 배치
 
@@ -84,3 +85,5 @@
 - 2026-10-30 BV1 완료(`b6de6d16`), 통합 `920d61f9`. (a)~(g)와 Antigravity 이미지 블록 통과(Codex·Copilot·Antigravity). 도달 못 함: Claude·Cursor(계정 한도), 실제 공급자의 실패 상태줄((g)는 Stop→interrupted로 확인). 결함 2건: Codex 원시 항목 타입이 상태줄에 보임, 권한 답이 턴을 바로 끝내면 포커스가 body로 감. 그 밖에 `app/runtime` isolatedEnv의 옛 온보딩 표시가 첫 실행을 끝내지 못함. 키체인 항목 3개 삭제, `bp-run` 삭제 확인. 작업자 해제, 워크트리 제거.
 - 2026-10-30 V2에 앱 실행 허락과 결함 2(포커스)를 맡겼다. 결함 1(main Codex 요약)과 isolatedEnv는 BF1(Claude Opus medium)이 맡는다.
 - 2026-10-30 BF1 완료(`22d2c60a`·`80d22bae`·`826dab88`·`b04d9e51`). 리뷰(Codex `gpt-6-astra` medium): 🔴 1(명령 속 비밀값이 요약에 남음) / 🟡 1(fileSummaries 캐시 상한·정리 없음) / ⚪ 2. 사용자 결정 뒤 수정 1차를 보냈다.
+- 2026-10-30 BF1 수정 1차(`4d250d92`·`c8a94cd2`) 재리뷰: 🟡 2(ACP terminal 제목 노출, 프로토콜 실패 시 캐시 미정리). 수정 2차를 보냈다.
+- 2026-10-30 BV2 완료(`c29b818b`·`b45b6660`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 0 / ⚪ 3. Quick Open 문구와 ⚪ 3건을 작은 수정 라운드로 보냈다.
