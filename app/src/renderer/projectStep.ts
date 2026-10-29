@@ -131,6 +131,9 @@ export class ProjectStepSession {
   retry(): Promise<void> {
     if (this.state.error?.code === "completion_unsupported_version") return Promise.resolve();
     const p = this.state.phase;
+    // The access error keeps the URL field editable: an edited URL is looked up as Enter would, and the old
+    // inspection and its retry are dropped (batch V re-check). An unchanged URL repeats the failed action.
+    if (p.kind === "choose" && this.state.error?.code === "access_failed" && this.state.url.trim() !== this.state.inspectedUrl) { this.again = null; this.source = null; return this.act(() => this.inspectUrl()); }
     const again = this.again ?? (p.kind === "cloneCancelled" || p.kind === "clone" ? () => this.runClone() : () => this.inspectUrl());
     return this.act(again);
   }
@@ -255,7 +258,8 @@ export class ProjectStepSession {
     this.set({ phase: { kind: "cloning", url, destination, operationId: null, cancelling: false }, error: null });
     const reply = await this.call(this.deps.api.cloneOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), inspectionId, destination }));
     if (!this.current(at)) return;
-    const retryPlan = () => this.runClone();
+    // The failure may be shown on the first screen (an unreachable repository), so the clone screen is restored first.
+    const retryPlan = () => { this.set({ phase: { kind: "clone", url, inspectionId: null, destination }, error: null }); return this.runClone(); };
     if (!reply.ok) { this.failed(reply, { kind: "clone", url, inspectionId: null, destination }, retryPlan); return; }
     this.set({ phase: { kind: "cloning", url, destination, operationId: reply.operation.operationId, cancelling: reply.operation.cancelling === true } });
     const done = await this.settled(reply.operation);
