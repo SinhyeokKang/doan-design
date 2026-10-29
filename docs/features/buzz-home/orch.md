@@ -23,6 +23,9 @@
 | 2026-10-29 | LNB 미확인 Dot은 성공·실패·중단 모든 종료에 단다 | 사용자 |
 | 2026-10-29 | healthy root가 없으면 홈은 첫 root를 고르고 Send 이유 줄을 보인다 | 사용자 |
 | 2026-10-29 | `credential_override`는 시작 거절로 다루고 design §7 턴 실패 표에서 뺀다. 프리셋 검색에 scope 포함, 시작 상태줄은 초안 문구(design 정정) | 지휘자 판단 — runners.ts가 턴 전에 거절, 확정 초안 frame 04·상태 보드 |
+| 2026-10-29 | PoC P1 반영(design §4.7): Copilot도 모델 목록을 자동으로 읽는다('Load models' 지연 읽기 행 없앰), runner는 매 send마다 모델·effort를 다시 적용, 세 ACP 공급자는 effort 캡슐 없음. BT2 `modelPickerView`의 Copilot 지연 읽기는 BU3가 없앤다 | 사용자 |
+| 2026-10-29 | PoC P2 반영(design §4.8): Antigravity에만 이미지 첨부를 ACP 이미지 블록으로도 넣는다(시그니처 확인, 50 MB 이하). Claude·Cursor P2는 계정 한도로 미확인, V1에서 확인 | 사용자 |
+| 2026-10-29 | BP의 키체인 항목 3개와 로그인된 격리 userData(`.scratch/buzz-home/bp-run/userData`)는 V1까지 남기고 V1 담당이 지운다 | 지휘자 판단 — 다시 로그인하지 않게 |
 
 ## 배치
 
@@ -62,3 +65,4 @@
 - 2026-10-29 BT2 수정 1차(`44c23c3c`·`09577ab6`) 확인 뒤 통합 `2cd780b5`·`190369f4`·`eee41b06`·`8067150e`. 작업자 해제, 워크트리 제거. 처음 BT2 dispatch(`ctx_4613f54708ac`)는 터미널을 수정 1차에 넘긴 뒤 `retained`로 남고 nextAction 없음.
 - 2026-10-29 통합 `/verify`(`8067150e`): PASS — verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build.
 - 2026-10-29 BP 중간 보고: P1은 다섯 공급자 모두 목록을 얻음(모델 요청 불필요, Copilot은 이 계정에서 `auto`만). P2는 Codex·Antigravity·Copilot 완료. Claude(주간 한도, 10/31 13:00 KST 초기화)·Cursor('Upgrade your plan')는 계정 한도로 P2를 관찰하지 못해 미확인으로 기록한다(사용자 결정).
+- 2026-10-29 BP 완료(`802f205c`), 통합 `3060e762`. P1·P2 결과가 design §4.7·§4.8과 달라 그 절을 고치고 사용자 확인을 받았다. BM 시작 조건 충족.
