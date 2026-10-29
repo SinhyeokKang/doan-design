@@ -20,6 +20,11 @@
 
 ## T. 형식과 순수 함수 (`/tdd` → `/implement`)
 
+- [ ] T0. 프리셋 그룹(design §4.4a): `catalog.json`에 `group`, `Summary`에 `group`, 목록 fixture 갱신, main `designSkills.ts`가 `group`을 남기고 없는 결과도 받음.
+  - 검증: `go test ./...`(다섯 값·비지 않은 그룹·연속 순서·요약 키 집합), `npm --prefix app test`(designSkills 해석: `group` 있음/없음, 계약 외 필드 제거) 통과.
+
+── commit: `feat(cli): group design presets` ──
+
 - [ ] T1. 기기 로컬 형식 결정과 판독기: ui-state `home: {lastRoot?, lastProvider?, models?}`, 대화 index의 모델 필드, `user.message` 첨부 메타데이터. 각 판독기가 모르는 필드를 다루는 방식을 읽고, 버전 유지/상승을 정한다(상승이면 사용자 확인 후 PRODUCT §7 기록 task 추가).
   - 검증: `npm --prefix app test`에서 기존 v1/v2 fixture 판독과 새 필드 round-trip 테스트 통과.
 - [ ] T2. `homeComposer.ts`: `composeRequest`(프리셋 머리말, 홈 고정 문장), `presetPlaceholder`, `sendAvailability`, `defaultProject`, `defaultProvider`, `defaultModel`, `suggestedPresets`, `searchPresets`, `presetListView`, `startErrorView`, `pickGreeting`, `slashQuery`, `isSubmitKey`, `attachmentLimit`, `attachmentChipView`, `modelPickerView`(로고·모델·effort), `defaultEffort`, `dropTarget`.
@@ -55,15 +60,15 @@
   - 검증: 각 항목의 스크린샷과 결과를 `.scratch/runtime-test/`에 남기고, 통과·미도달 표면을 PRODUCT §6에 기록.
 - [ ] V2. `/design-sync`: D1 초안과 구현을 design §3.1의 상태별로 측정해 맞추고, DESIGN.md에 홈 절을 새로 쓰고 'Projects home'·'Settings and Home setup'의 Home 부분을 대체 표시한다. 홈과 온보딩 Agent 단계·Quick Open의 용어를 대조한다.
   - 검증: `/design-sync` 리포트의 남은 차이 0 또는 DESIGN.md의 문서화된 차이, `grep -n 'Projects home' docs/DESIGN.md`가 대체 표시를 가리킴.
-- [ ] V3. 정적 게이트.
-  - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과.
+- [ ] V3. 정적 게이트와 agent-eval.
+  - 검증: `node .agents/skills/verify/scripts/verify.mjs --eval` 통과. CLI 목록 출력이 바뀌므로 `/agent-eval`의 design-skill 시나리오 결과를 `docs/USABILITY-EVAL.md`에 기록.
 
 ── commit: `docs(design): record buzz-home measurements` ──
 
 ## Z. 승격과 정리
 
 - [ ] Z1. 결론을 승격한다(영어).
-  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, Welcome 밖 그라디언트 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 상태 기반 제안 제외, 프리셋 행의 scope 표시와 프리셋 선택 뒤 placeholder, 홈 요청의 `doan active` 제외 문장). PRODUCT §8: 프리셋 목록의 `group`·대상 필요 여부 필드(doan-design-skills 후속).
+  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, Welcome 밖 그라디언트 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 상태 기반 제안 제외, 프리셋 행의 scope 표시와 프리셋 선택 뒤 placeholder, 홈 요청의 `doan active` 제외 문장). PRODUCT §8: 프리셋 목록의 대상 필요 여부 필드(doan-design-skills 후속). PRODUCT §5 Skills 13과 §7에 프리셋 그룹. ARCHITECTURE §12 목록 결과의 `group`, §7 'Design preset reads'의 요약 형식.
   - ARCHITECTURE §7: 'Home, workspace and project IPC'의 홈 서술, 대화 IPC 표(`newDesign` 텍스트, `model`, 첨부), `conversation:models`, 'Design preset reads'의 'no renderer UI yet', 첨부 저장·IPC·정리, ui-state 키.
   - 부모: `docs/features/buzz-restyle/tasks.md` C3 체크, C8에 임시 상태줄 대체 인계 한 줄, 공통 결정 2 요약에 홈 예외.
   - 검증: `grep -n 'buzz-home' docs/PRODUCT.md docs/ARCHITECTURE.md`에 위 항목이 있고, `grep -n 'no renderer UI yet\|user-facing UI is not done' docs/PRODUCT.md docs/ARCHITECTURE.md` 결과 없음.

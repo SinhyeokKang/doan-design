@@ -22,7 +22,9 @@
 | main 새 모듈 `attachments.ts` | 첨부 경로 확인(realpath·일반 파일)·썸네일, 붙여넣기 파일 쓰기·정리, 한도, IPC `attachments:*` |
 | main `conversation:models` | 공급자별 모델 목록 읽기(§4.7) |
 | `setup/homeAlerts.ts` | 홈이 쓰지 않게 되므로 제거한다(체크리스트·배너 모두, §6). 다른 사용처가 있으면 그 부분만 남긴다 |
-| CLI·MCP·스킬·포맷 | 변경 없음 |
+| CLI `cli/internal/designskill/` | 카탈로그(`catalog.json`)의 프리셋마다 `group`을 더하고, `doan design-skill --json` 목록과 MCP `design_skill` 목록의 요약에 `group`을 싣는다(§4.4a). 요약은 `get` 결과의 `preset`에도 쓰이므로 거기에도 `group`이 생긴다. 본문·`doan skill` 가이드·스텁은 바뀌지 않는다 |
+| main `designSkills.ts` | 목록 해석이 `group`을 계약 필드로 남긴다. `group`이 없는 이전 CLI 결과도 성공으로 받는다 |
+| MCP·스킬·포맷(그 밖) | 변경 없음 |
 
 ## 3. 화면 구성
 
@@ -90,6 +92,7 @@
 - 도구 줄의 프리셋 버튼이 Radix Popover를 연다. 위에 검색 입력, 아래에 목록이 있다. 입력이 비어 있을 때 맨 앞에서 `/`를 치면 같은 목록이 열리고, 이어 치는 글자가 검색어가 된다. 고르면 `/검색어`는 지워진다.
 - 목록은 `designSkills.list()`를 팝오버를 처음 열 때(또는 `/`를 처음 칠 때) 한 번 읽고, 그 실행 동안 결과를 재사용한다. 실패하면 다음에 열 때 다시 읽는다. renderer에 카탈로그 사본을 두지 않는다.
 - 검색: 제목·id·설명에 대해 NFC 정규화·대소문자 무시, 모든 토큰 일치. 순위는 Quick Open과 같은 방식(접두 > 단어 시작 > 부분 문자열)을 쓴다.
+- 목록 구성(검색어가 없을 때): 맨 위 '<project>에 맞는 프리셋' 묶음, 그 아래 그룹별 묶음(§4.4a). 추천에 나온 프리셋은 자기 그룹에도 그대로 남는다. 검색어가 있으면 묶음 없이 순위대로 한 목록이고, 행 오른쪽에 그룹 이름을 메타데이터로 보인다.
 - 맨 위 '<project>에 맞는 프리셋' 묶음(최대 3개, 검색어가 없을 때만): 순수 함수 `suggestedPresets(entry)`.
   - 캔버스 0개 → `context`, `shape`
   - id나 파일 이름이 `design-system`인 캔버스가 없음 → `document`
@@ -98,6 +101,23 @@
 - 행은 제목과 `scope`(CLI 목록의 2~3단어 주제, 예: `design review`, `edge-case states`)를 보이고, description은 툴팁에만 둔다(2026-10-29 user). description은 93~148자의 에이전트용 문장이라 팝오버 폭에서 잘려 읽히지 않았다(1차 초안). 오른쪽에 id를 메타데이터 색으로 보인다.
 - 고른 프리셋은 입력 위에 칩(제목, × 제거)으로 보인다. 프리셋을 고르고 입력이 비어 있으면 placeholder가 `Which canvas or screen? Add details…`로 바뀐다. `critique`·`polish`·`harden`·`audit` 등 많은 프리셋이 사람이 지목한 디자인을 다루는데 홈에는 선택한 캔버스가 없어서, 프리셋만 보내면 에이전트가 대상을 되묻는 왕복이 생기기 때문이다. 어떤 프리셋이 대상을 요구하는지는 UI가 알 수 없으므로(ARCHITECTURE §7) 모든 프리셋에 같은 문구를 쓴다. 하나만 고를 수 있고 새로 고르면 바뀐다. Backspace를 빈 입력 맨 앞에서 누르면 칩이 지워진다.
 - 상태: 읽는 중(spinner, '프리셋을 불러오는 중'), 실패(`cli_error`의 `reason`별 문구와 Retry, `request_refused`는 Retry 없이 문구만), 이전 CLI(`list()`가 `usage_error` → '이 doan CLI에는 디자인 프리셋이 없다. Doan을 업데이트한다'), 검색 결과 없음. 어느 실패에서도 프리셋 없이 보낼 수 있다.
+
+### 4.4a 프리셋 그룹 (2026-10-29 user)
+
+20개를 한 목록으로 보이면 `critique` 프리셋 자신의 '선택지 8개 이상은 과부하' 기준을 넘는다. upstream(Impeccable, `SOURCES.md`)에는 분류가 없어서 doan이 사람이 하려는 일 기준으로 정한다.
+
+| group | 프리셋(카탈로그 순서) |
+|---|---|
+| Start | context, shape, document, extract |
+| Review | critique, audit |
+| Refine | polish, bolder, quieter, layout, typeset, colorize |
+| Content | distill, clarify, harden, onboard |
+| Explore | adapt, animate, delight, generate |
+
+- `group`은 표시 이름 문자열이다(영어 UI 문구, 위 다섯 값). 카탈로그 쪽 계약이므로 renderer에 그룹 표를 두지 않는다.
+- 그룹 순서는 카탈로그에서 그 그룹이 처음 나오는 순서이고, 그룹 안의 순서는 카탈로그 순서다. 지금 카탈로그 순서에서 위 표의 순서가 그대로 나온다. 카탈로그 순서(PRODUCT §5 Skills 13)는 바꾸지 않는다.
+- CLI 테스트: 모든 프리셋이 다섯 값 중 하나를 가지며 각 그룹이 비지 않는다. 그룹이 카탈로그 안에서 연속하지 않아도 되지만, 지금 카탈로그는 연속한다는 것도 고정한다(앞의 순서 규칙이 표와 같아지는 조건).
+- 이전 CLI(`group` 없음): 그룹 묶음 없이 'All presets' 한 묶음으로 보인다. 오류가 아니다.
 
 ### 4.5 보내기
 
@@ -242,14 +262,14 @@ doan이 다르게 가는 점:
 
 ## 12. 형식·컨벤션·결정 영향
 
-- **형식**: JSON Schema(ARCHITECTURE §11) 변경 없음. `conversation:start` IPC 요청에 `newDesign` 자유 텍스트·`model`·첨부 ID가 더해진다. 기기 로컬 형식 세 곳이 바뀔 수 있다: ui-state.json `home` 키(§8), 대화 index의 모델 필드(§4.7), 이벤트 `user.message`의 첨부 메타데이터(§4.8). 버전을 올릴지는 `/tdd`에서 각 판독기가 모르는 필드를 어떻게 다루는지 읽고 정하고, 올리면 PRODUCT §7에 단방향 이전 여부를 기록한다. 새 디렉터리 `<userData>/attachments/`(붙여넣기 파일만).
+- **형식**: JSON Schema(ARCHITECTURE §11) 변경 없음. CLI envelope v1의 스키마는 `result` 모양을 제한하지 않는다. `doan design-skill --json` 목록 결과의 요약에 `group` 키가 더해진다(ARCHITECTURE §12 갱신, fixture 갱신). `conversation:start` IPC 요청에 `newDesign` 자유 텍스트·`model`·첨부 ID가 더해진다. 기기 로컬 형식 세 곳이 바뀔 수 있다: ui-state.json `home` 키(§8), 대화 index의 모델 필드(§4.7), 이벤트 `user.message`의 첨부 메타데이터(§4.8). 버전을 올릴지는 `/tdd`에서 각 판독기가 모르는 필드를 어떻게 다루는지 읽고 정하고, 올리면 PRODUCT §7에 단방향 이전 여부를 기록한다. 새 디렉터리 `<userData>/attachments/`(붙여넣기 파일만).
 - **컨벤션**: ARCHITECTURE §1과 `doan check` 규칙 변경 없음.
 - **결정**: 공통 결정 2(그라디언트는 Welcome만)에 홈 예외를 더한다. PRODUCT §5 항목 1(projects-home 홈 카드)·항목 0의 홈 체크리스트·배너 서술을 바꾼다. 프리셋 요청 문장 형식을 새로 정한다. 모두 PRODUCT §7에 기록한다. 직접 git·서버·자동 실행 결정은 건드리지 않는다. 대화는 사람이 보낼 때만 시작한다(Out of scope 4 유지).
 - **PoC**: 두 개를 구현 전에 둔다. 결과는 날짜와 함께 PRODUCT §6에 기록한다. 대화·인증·프리셋 백엔드 자체는 PRODUCT §6에 실제 앱 확인 기록이 있고, 실제 토큰 만료·갱신이 관찰되지 않았다는 한계는 그대로다.
   - P1 모델·effort: 다섯 공급자 각각에서 모델 목록과 모델별 effort 단계를 얻는 방법·비용, 고른 모델·effort로 새 세션을 시작하는 방법, 같은 세션의 다음 턴이 그 값을 유지하는지. 목록이 없는 공급자는 'Default'만 보이는 것으로 확정한다.
   - P2 첨부: 다섯 공급자 각각이 요청에 적힌 저장소 밖 절대 경로의 이미지와 텍스트·PDF 파일을 읽고 이미지 내용을 볼 수 있는지, 기본 권한 설정에서 권한 요청이 생기는지, 거절되면 어떤 이벤트가 오는지.
-- **후속(doan-design-skills, 2026-10-29 user)**: 프리셋 목록에 (a) 분류 `group` 필드, (b) 대상 필요 여부 필드를 더하는 일은 CLI 계약 변경이라 이번 범위가 아니다. 20개가 평평한 목록이라 `critique` 프리셋 자신의 '선택지 8개 이상은 과부하' 기준을 넘고, (b)가 있으면 대상이 필요한 프리셋에만 위 placeholder를 쓸 수 있다. 지금은 추천 3개·검색과 공통 placeholder로 대신한다. Z1에서 PRODUCT §8 열린 질문으로 남긴다.
-- **agent-eval**: 가이드·CLI/MCP 출력·스텁은 바뀌지 않는다. 앱 대화 요청 문장이 새로 생기므로, 실제 공급자 하나로 '프리셋 칩을 고른 요청 → 에이전트가 그 프리셋을 읽음'을 `/runtime-test` probe에서 확인한다. 전체 `/agent-eval`은 요구하지 않는다.
+- **후속(doan-design-skills)**: 프리셋 목록에 대상 필요 여부 필드를 더하는 일은 이번 범위가 아니다. 있으면 대상이 필요한 프리셋에만 §4.4의 placeholder를 쓸 수 있다. 지금은 공통 placeholder로 대신하고, Z1에서 PRODUCT §8 열린 질문으로 남긴다. 분류 `group`은 이번에 한다(§4.4a, 2026-10-29 user).
+- **agent-eval**: CLI/MCP 목록 출력에 `group`이 더해지므로 AGENTS.md 규칙에 따라 `/agent-eval`을 돌린다(design-skill 시나리오). 가이드·스텁·본문은 바뀌지 않는다. 앱 대화 요청 문장이 새로 생기므로, 실제 공급자 하나로 '프리셋 칩을 고른 요청 → 에이전트가 그 프리셋을 읽음'을 `/runtime-test` probe에서 확인한다. 전체 `/agent-eval`은 요구하지 않는다.
 
 ## 13. 함정 (POSTMORTEM)
 
