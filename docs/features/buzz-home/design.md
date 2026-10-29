@@ -127,6 +127,7 @@
 | Explore | adapt, animate, delight, generate |
 
 - `group`은 표시 이름 문자열이다(영어 UI 문구, 위 다섯 값). 카탈로그 쪽 계약이므로 renderer에 그룹 표를 두지 않는다.
+- 아이콘(lucide, 2026-10-29 user): Suggested·프리셋 버튼 `pencil-sparkles`, Start `compass`, Review `scan-eye`, Refine `paintbrush`, Content `text-align-start`, Explore `shapes`. 그룹 이름→아이콘 짝은 renderer에 두고, 모르는 그룹은 `pencil-sparkles`로 대체한다. 고른 프리셋 칩과 추천 프롬프트 칩은 그 그룹의 아이콘을 쓴다.
 - 그룹 순서는 카탈로그에서 그 그룹이 처음 나오는 순서이고, 그룹 안의 순서는 카탈로그 순서다. 지금 카탈로그 순서에서 위 표의 순서가 그대로 나온다. 카탈로그 순서(PRODUCT §5 Skills 13)는 바꾸지 않는다.
 - CLI 테스트: 모든 프리셋이 다섯 값 중 하나를 가지며 각 그룹이 비지 않는다. 그룹이 카탈로그 안에서 연속하지 않아도 되지만, 지금 카탈로그는 연속한다는 것도 고정한다(앞의 순서 규칙이 표와 같아지는 조건).
 - 이전 CLI(`group` 없음): 그룹 탭 없이 추천과 'All presets' 한 목록으로 보인다. 오류가 아니다.
