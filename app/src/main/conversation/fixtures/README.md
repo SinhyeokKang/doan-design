@@ -53,3 +53,10 @@ are judged only by the new-session handshake shape at run time.
 `index-v2-home.json` (2026-10-29, buzz-home) is a synthetic v2 index whose
 `newDesign` entry carries the optional `model`, `effort` and `canvasesAtStart`
 fields; the version stays 2.
+
+On 2026-10-29 (buzz-home) `fake-acp-server.cjs` gained `FAKE_ACP_MODELS`, a
+`models` member for session/new and session/load in the shape the P1 PoC
+recorded (`{currentModelId, availableModels: [{modelId, name}]}`), an answer to
+`session/set_config_option`, `FAKE_ACP_LOG` to record client requests and
+`FAKE_ACP_NO_IMAGE` for a server without `promptCapabilities.image`. The
+model IDs the tests pass are synthetic; the recorded turns are unchanged.

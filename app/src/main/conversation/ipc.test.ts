@@ -1,6 +1,8 @@
 import { expect, it, vi } from "vitest";
 import { conversationHandler } from "./ipc";
-import { ConversationService } from "./service";
+import { ConversationService, type Prepare } from "./service";
+import { ModelCatalog, type ModelOption } from "./models";
+import type { AttachmentStore } from "../attachments";
 import { ConversationStore } from "./store";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,5 +26,80 @@ it("passes a provider runtime install failure through as its own code", async ()
     const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
     const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }]);
     expect(await handle(true, "start", { root: "/repo", mode: "new", runtime: "antigravity", canvas: { path: ".doan/canvases/a.html" }, text: "hello" })).toEqual({ error: "cli_install_failed" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+function home(dir: string, models?: ModelOption[]) {
+  let session = 0;
+  const open = vi.fn(async () => ({ sessionId: `s${++session}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+  const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime ?? "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
+  const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
+  const start = vi.spyOn(service, "start");
+  const catalog = new ModelCatalog(prepare, async () => models ?? []);
+  const attachments = { resolve: vi.fn(), markSent: vi.fn(), consume: vi.fn() };
+  const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
+  return { handle, start, prepare, catalog, attachments };
+}
+const MODELS: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }];
+it("keeps FirstPrompt's subject path and takes Home's multi-line text as is", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir);
+    await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", subject: "a pricing page", text: "a pricing page" });
+    expect(h.start.mock.calls[0]![0]).toMatchObject({ mode: "newDesign", subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." });
+    const text = "Make a pricing page\n\n- three tiers\n- dark header";
+    expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text })).toHaveProperty("conversationId");
+    expect(h.start.mock.calls[1]![0]).toMatchObject({ mode: "newDesign", text });
+    expect(h.start.mock.calls[1]![0]).not.toHaveProperty("subject");
+    for (const bad of [{ text: "   \n" }, {}, { subject: "line\nbreak", text: "x" }, { text: "x", canvas: { path: ".doan/canvases/a.html" } }, { text: "x".repeat(32_769) }, { text: "{{1}}" }])
+      expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", ...bad })).toEqual({ error: "bad_request" });
+    expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", text: "x" })).toEqual({ error: "no_agent" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+it("accepts a model and effort only from the list delivered in this run for that folder and provider", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir, MODELS);
+    const start = (over: Record<string, unknown>) => h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", ...over });
+    expect(await start({ model: "sonnet" })).toEqual({ error: "bad_request" });
+    expect(await h.handle(true, "models", { root: "/repo", runtime: "claude" })).toEqual({ models: MODELS });
+    for (const bad of [{ model: "opus" }, { model: "sonnet", effort: "max" }, { model: "haiku", effort: "low" }, { effort: "low" }, { model: "" }, { model: 1 }, { runtime: "codex", model: "sonnet" }])
+      expect(await start(bad)).toEqual({ error: "bad_request" });
+    expect(h.start).not.toHaveBeenCalled();
+    expect(await start({ model: "sonnet", effort: "high" })).toHaveProperty("conversationId");
+    expect(h.start.mock.calls[0]![0]).toMatchObject({ model: "sonnet", effort: "high" });
+    expect(await h.handle(true, "start", { root: "/repo", mode: "new", runtime: "claude", text: "x", model: "sonnet", canvas: undefined })).toEqual({ error: "bad_request" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+it("answers conversation:models for an open project and refuses other windows, frames and inputs", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir, MODELS);
+    expect(await h.handle(false, "models", { root: "/repo", runtime: "claude" })).toEqual({ error: "bad_request" });
+    expect(await h.handle(true, "models", { root: "/missing", runtime: "claude" })).toEqual({ error: "project_not_open" });
+    expect(await h.handle(true, "models", { root: "/repo", runtime: "gemini" })).toEqual({ error: "bad_request" });
+    expect(await h.handle(true, "models", { root: "/repo", runtime: "cursor" })).toEqual({ models: MODELS });
+    // A refused window never reaches start either, whatever it names.
+    expect(await h.handle(false, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" })).toEqual({ error: "bad_request" });
+    expect(h.prepare).toHaveBeenCalledOnce();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+it("passes rechecked attachments to the start, marks them sent before acceptance and names missing ones", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir);
+    const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
+    h.attachments.resolve.mockReturnValueOnce({ ok: false, error: "attachment_missing", missing: ["gone"] });
+    expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: "gone" }] })).toEqual({ error: "attachment_missing", missing: ["gone"] });
+    h.attachments.resolve.mockReturnValueOnce({ ok: false, error: "bad_request" });
+    expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: 1 }] })).toEqual({ error: "bad_request" });
+    expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: "x" })).toEqual({ error: "bad_request" });
+    expect(h.start).not.toHaveBeenCalled();
+    h.attachments.resolve.mockReturnValueOnce({ ok: true, records });
+    expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: "a" }] })).toHaveProperty("conversationId");
+    expect(h.start.mock.calls[0]![0].attachments).toEqual(records);
+    expect(h.attachments.markSent).toHaveBeenCalledWith([{ id: "a" }]);
+    expect(h.attachments.consume).toHaveBeenCalledWith([{ id: "a" }]);
+    expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder[0]!);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openRunner } from "./runners";
+import { listModels, openRunner } from "./runners";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
 import type { EventPayload } from "./types";
@@ -291,4 +291,84 @@ it("never records on a Codex resume and clears once its initialize passes", asyn
   const session = "01a178ba-f9dc-7161-9544-f20f656064a1";
   expect((await codexHandshake("init-error:Unsupported client capabilities", session)).order).toEqual(["refused"]);
   expect((await codexHandshake("", session)).order).toEqual(["cleared"]);
+});
+
+// buzz-home: model lists without a prompt, and the conversation's model and effort on every run (PRODUCT §6 P1).
+function listingClaude(root: string): string {
+  const command = join(root, "claude");
+  // Answers initialize with the supportedModels rows the P1 PoC recorded; records argv and stdin lines.
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, JSON.stringify(process.argv.slice(2)) + '\\n');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+const models = [{value:'default',displayName:'Default (recommended)',description:'',supportsEffort:true,supportedEffortLevels:['low','high']},{value:'haiku',displayName:'Haiku',description:'',supportsEffort:false}];
+readline.createInterface({input:process.stdin}).on('line', line => {
+ fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
+ const r = JSON.parse(line);
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models,account:{}}}});
+ if(r.type==='user') { send({type:'result',subtype:'success',is_error:false,result:'ok',session_id:r.session_id}); process.stdin.pause(); setTimeout(()=>process.exit(0),20); }
+});
+`, { mode: 0o700 });
+  return command;
+}
+it("lists Claude's models from the SDK without sending a prompt and releases the lease after the process is gone", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-models-")), command = listingClaude(root);
+  const release = vi.fn(async () => {});
+  try {
+    const models = await listModels({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, release });
+    expect(models).toEqual([{ id: "default", label: "Default (recommended)", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }]);
+    expect(release).toHaveBeenCalledOnce();
+    expect(readFileSync(join(root, "seen"), "utf8")).not.toContain('"type":"user"');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 15000);
+it("passes the chosen Claude model and effort on a new run and again on a resume", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-choice-")), command = listingClaude(root);
+  try {
+    for (const sessionId of [undefined, "11111111-1111-4111-8111-111111111111"]) {
+      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, model: "haiku", effort: "low", ...(sessionId ? { sessionId } : {}) }, () => {}, () => {}, () => {});
+      await runner.send("hello", "turn"); await runner.close();
+    }
+    const runs = readFileSync(join(root, "seen"), "utf8").split("\n").filter(line => line.startsWith("[")).map(line => (JSON.parse(line) as string[]).join(" "));
+    expect(runs).toHaveLength(2);
+    for (const argv of runs) { expect(argv).toMatch(/--model[= ]haiku/); expect(argv).toMatch(/--effort[= ]low/); }
+    expect(runs[1]).toContain("--resume");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 20000);
+function listingCodex(root: string): string {
+  const command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+let turn = 0;
+readline.createInterface({input:process.stdin}).on('line', line => {
+ fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{userAgent:'fake'}});
+ if(r.method==='model/list') send({id:r.id,result:{data:[{id:'gpt-6-luna',displayName:'GPT-6-Luna',isDefault:true,hidden:false,supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'high'}]}],nextCursor:null}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'}}});
+ if(r.method==='turn/start') { const id = 'native-' + (++turn); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
+});
+`, { mode: 0o700 });
+  return command;
+}
+it("lists Codex models with model/list and starts no thread", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-models-")), command = listingCodex(root);
+  const release = vi.fn(async () => {});
+  try {
+    expect(await listModels({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, release })).toEqual([{ id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "high"] }]);
+    const methods = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => (JSON.parse(line) as { method?: string }).method);
+    expect(methods).toEqual(["initialize", "initialized", "model/list"]);
+    expect(release).toHaveBeenCalledOnce();
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+it("passes the chosen Codex model and effort on every turn/start of the same server", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-choice-")), command = listingCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, model: "gpt-6-luna", effort: "high" }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("one", "t1"); await vi.waitFor(() => expect(events.filter(e => e.type === "turn.done")).toHaveLength(1));
+    await runner.send("two", "t2"); await vi.waitFor(() => expect(events.filter(e => e.type === "turn.done")).toHaveLength(2));
+    const turns = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> }).filter(r => r.method === "turn/start");
+    expect(turns.map(t => [t.params?.model, t.params?.effort])).toEqual([["gpt-6-luna", "high"], ["gpt-6-luna", "high"]]);
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });

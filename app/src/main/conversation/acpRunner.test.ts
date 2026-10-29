@@ -1,9 +1,11 @@
 import { expect, it, vi } from "vitest";
-import { mkdtempSync, realpathSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { acpPermission, acpPromptDone, initialAcp, normalizeAcp, AcpConnection } from "./acp";
 import { openAcp } from "./acpRunner";
+import { listModels } from "./runners";
+import { MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared } from "./service";
 import type { EventPayload } from "./types";
 import cursor from "./fixtures/acp-cursor.json";
@@ -180,4 +182,60 @@ it("never records an ACP resume, a server exit at initialize, or an Antigravity 
   expect((exited.opened as Error).message).toBe("process_exited"); expect(exited.order).toEqual(["refused"]);
   const antigravity = await handshake("cursor", { runtime: "antigravity" }, "protocol:2");
   expect((antigravity.opened as Error).message).toBe("runtime_unsupported"); expect(antigravity.order).toEqual(["refused"]);
+});
+
+// buzz-home: ACP model lists from session/new, the chosen model after every open, and Antigravity's image blocks.
+const MODELS = { currentModelId: "gemini-3.8-flash-high", availableModels: [{ modelId: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" }, { modelId: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)" }] };
+function logged(log: string): { method?: string; params?: Record<string, unknown> }[] {
+  return readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
+}
+function logFile(): string { return join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-log-"))), "log.jsonl"); }
+it("lists an ACP provider's models from session/new without a prompt and releases the lease", async () => {
+  const log = logFile(), release = vi.fn(async () => {});
+  const models = await listModels(input("cursor", { release, env: { PATH: process.env.PATH ?? "", FAKE_ACP_MODELS: JSON.stringify(MODELS), FAKE_ACP_LOG: log } }));
+  expect(models).toEqual([{ id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash (High)", default: true }, { id: "gemini-3.8-flash-low", label: "Gemini 3.8 Flash (Low)", default: false }]);
+  expect(logged(log).map(r => r.method)).toEqual(["initialize", "authenticate", "session/new"]);
+  expect(release).toHaveBeenCalledOnce();
+});
+it("sets the chosen model after session/new and again after session/load, before the prompt", async () => {
+  const log = logFile();
+  const env = { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log };
+  for (const over of [{}, { sessionId: SESSION }]) {
+    const runner = await openAcp(input("cursor", { env, model: "gemini-3.8-flash-low", ...over }), () => {}, () => {}, () => {});
+    await runner.send("hi", "turn");
+  }
+  const requests = logged(log).filter(r => r.method && ["session/new", "session/load", "session/set_config_option", "session/prompt"].includes(r.method));
+  expect(requests.map(r => r.method)).toEqual(["session/new", "session/set_config_option", "session/prompt", "session/load", "session/set_config_option", "session/prompt"]);
+  for (const set of requests.filter(r => r.method === "session/set_config_option")) expect(set.params).toEqual({ sessionId: SESSION, configId: "model", value: "gemini-3.8-flash-low" });
+  // Without a choice the provider's default stands.
+  const plain = logFile();
+  await (await openAcp(input("cursor", { env: { ...env, FAKE_ACP_LOG: plain } }), () => {}, () => {}, () => {})).send("hi", "turn");
+  expect(logged(plain).some(r => r.method === "session/set_config_option")).toBe(false);
+});
+it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", async () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-images-")));
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const small = join(dir, "small.png"), big = join(dir, "big.png"), changed = join(dir, "changed.png"), text = join(dir, "notes.txt");
+  writeFileSync(small, png); writeFileSync(big, png); truncateSync(big, MAX_IMAGE_BYTES + 1); writeFileSync(changed, "no longer an image"); writeFileSync(text, "hello");
+  const attachments = [
+    { name: "small.png", size: png.length, kind: "image" as const, path: small }, { name: "big.png", size: MAX_IMAGE_BYTES + 1, kind: "image" as const, path: big },
+    { name: "changed.png", size: 3, kind: "image" as const, path: changed }, { name: "notes.txt", size: 5, kind: "file" as const, path: text }];
+  const prompts: Record<string, unknown[]> = {};
+  for (const runtime of ["antigravity", "cursor"] as const) {
+    const log = logFile();
+    const runner = await openAcp({ ...input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log } }), runtime }, () => {}, () => {}, () => {});
+    await runner.send("hi", "turn", attachments);
+    prompts[runtime] = logged(log).find(r => r.method === "session/prompt")!.params!.prompt as unknown[];
+  }
+  expect(prompts.antigravity).toEqual([{ type: "text", text: "hi" }, { type: "image", mimeType: "image/png", data: png.toString("base64") }]);
+  expect(prompts.cursor).toEqual([{ type: "text", text: "hi" }]);
+});
+it("sends no image block to an Antigravity server that does not take images", async () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-images-"))), small = join(dir, "a.png");
+  writeFileSync(small, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const log = logFile();
+  // Copilot's recorded initialize has promptCapabilities.image true too, so only a server without it is synthetic here.
+  const runner = await openAcp({ ...input("copilot", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_NO_IMAGE: "1" } }), runtime: "antigravity" }, () => {}, () => {}, () => {});
+  await runner.send("hi", "turn", [{ name: "a.png", size: 8, kind: "image", path: small }]);
+  expect(logged(log).find(r => r.method === "session/prompt")!.params!.prompt).toEqual([{ type: "text", text: "hi" }]);
 });
