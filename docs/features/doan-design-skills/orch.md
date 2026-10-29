@@ -100,3 +100,4 @@
 - 2026-10-29: Z(정본 승격) 통합: PRODUCT·ARCHITECTURE·DIRECTORY·buzz-restyle C3 인계(4커밋). E 최종 결과 뒤 §6·§14·DIRECTORY의 남은 문장을 갱신한다(Z 터미널 retain).
 - 2026-10-29: E 최종 round 통합(966f24ae·9903689a): 35개 시나리오×2 = 70 run, 59 pass, 알려진 조건 fail 5(R2·R1b·O1·O2·D10b Codex). U-009·U-010 fixed 재확인, D11d 양쪽 pass, 본문을 읽은 preset run 20개 중 17개가 목록을 먼저 조회했다. 남은 것: U-011 open(F3 뒤에도 Claude가 관찰을 규칙으로 일반화), 새 U-012(D9 Codex가 대안에서 오류·로딩 상태를 빼고 밝히지 않음), D7b-claude partial 2/3(에이전트 판단). 지휘자 판단(기준: 돌아가더라도 검증을 확실히): F5로 U-011·U-012를 한 번 더 고치고, E가 D9·D10b·D10c와 F4 가이드 변경분(W1·D1·D3b·D8)을 다시 잰다.
 - 2026-10-29: F5 통합(c03154a1·0583f23f·6a92e4d6). E에 D9·D10b·D10c와 W1·D1·D3b·D8 재측정을 보냈다.
+- 2026-10-29: E 마지막 재측정 통합(5bf8f3eb): D9(U-012)·D10c(U-011) 양쪽 pass로 둘 다 fixed, W1·D1·D3b·D8은 F4 문장으로도 양쪽 pass, 본문을 읽은 12 run 모두 목록을 먼저 조회. D10b-claude partial 2/3은 rubric의 순서 지적뿐이라 지휘자 판단으로 더 재지 않는다(본문 규칙 '쓰기 전에 context'는 지켰다). E worktree 제거, round 근거는 주 checkout `.scratch/agent-eval/dds*`로 복사. Z에 마지막 문서 갱신을 보냈다.
