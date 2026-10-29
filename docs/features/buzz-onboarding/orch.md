@@ -39,6 +39,7 @@
 | D26 | clone 목적지가 doan 프로젝트 안이면 "This location is inside the doan project <name>. Choose a location outside it."와 Change location을 보인다. 폴더 검사 중에는 "Checking this folder"를 보인다. 'Edit repository URL' 뒤 포커스는 URL 입력칸이다 | 지휘자 판단(V 최종 확인 메모) — 원인을 말하지 않는 문구와 아직 쓰지 않는데 설정 중이라는 문구를 바로잡는다 |
 | D27 | `.doan/canvases/buzz-onboarding.html`을 출하된 구현 기준으로 다시 그린다. 상태마다 1238×780 전체 창 프레임 하나를 두고 tile 격자는 없앤다 | 사용자 요청(2026-10-29) — 확정 디자인을 상태별로 1:1로 보고 대조한다 |
 | D28 | notice의 복구 버튼과 화면의 보조 버튼이 같은 행동을 반복하지 않는다(notice가 있으면 화면 쪽 중복을 숨김). clone 화면의 remote 불일치는 폴더 이름을 넣어 말한다. clone 취소는 다른 상태처럼 status notice로 보인다. subtle 작은 버튼은 어디서나 같은 모양이다 | 지휘자 판단(전체 프레임 검토, 사용자 요청) — 56·65·66·67번에서 같은 버튼이 두 번 보였다 |
+| D29 | Agent·Project 유리 위에 바로 놓인 subtle 버튼은 스테퍼 캡슐과 같은 `--affordance-backdrop-hover` 배경을 쓴다(패널 안 버튼은 그대로) | 지휘자 판단(D28 4번) — 같은 subtle 버튼이 유리 가운데에서는 배경색(#f5f5f6)과 같아 채워지지 않은 것처럼 보였다 |
 
 ## 배치
 
