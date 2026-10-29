@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 import {
-  conversationPhase, rememberRequest, removalConfirm, restoreRequest, runningInRoot, slotKey, slotState,
+  arrivalOutcome, boundCanvasAction, conversationPhase, newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, restoreRequest, runningInRoot, slotKey, slotState,
   type HomeConversation, type LastRequest,
 } from "./homeConversations";
 
@@ -91,10 +91,12 @@ test("the last request is kept per root, and a newer send replaces it", () => {
   expect(first.get("/r/malmoi")).toBeUndefined();
 });
 
-test("Edit on Home fills an empty composer without asking and checks the attachments again", () => {
+// The renderer has no check-by-path call; main checks every attachment again when the start is accepted and refuses
+// a moved one with attachment_missing (design §4.8), so the chips come back as they were sent.
+test("Edit on Home fills an empty composer without asking; main checks the attachments again on send", () => {
   const result = restoreRequest({ text: "  ", preset: null, attachments: [] }, LAST, "doan-design");
   expect(result.confirm).toBeNull();
-  expect(result.request).toEqual({ ...LAST, attachments: [{ ...file("a.png"), status: "checking" }] });
+  expect(result.request).toEqual(LAST);
 });
 
 test("a different draft asks before it is replaced; the same request does not", () => {
@@ -103,4 +105,40 @@ test("a different draft asks before it is replaced; the same request does not", 
   expect(restoreRequest({ text: "", preset: CRITIQUE, attachments: [] }, LAST, "doan-design").confirm).toEqual(dialog);
   expect(restoreRequest({ text: "", preset: null, attachments: [file("b.pdf")] }, LAST, "doan-design").confirm).toEqual(dialog);
   expect(restoreRequest({ text: LAST.text, preset: CRITIQUE, attachments: [file("a.png")] }, LAST, "doan-design").confirm).toBeNull();
+});
+
+// App wiring rules (buzz-home design §4.5, §4.9, §7, §7.3), pure so App's event handlers stay thin.
+test("after a Home send the window follows only its own arrival; another navigation first or a refused guard toasts Started in", () => {
+  const pending = { conversationId: "c1", root: "/r/doan", intent: 4, sawModal: false };
+  expect(arrivalOutcome(pending, { kind: "arrived", intent: 4 })).toEqual({ pending: null, follow: true, toast: false });
+  expect(arrivalOutcome(pending, { kind: "arrived", intent: 5 })).toEqual({ pending: null, follow: false, toast: true });
+  expect(arrivalOutcome(pending, { kind: "navigated" })).toEqual({ pending: null, follow: false, toast: true });
+  expect(arrivalOutcome(pending, { kind: "unavailable" })).toEqual({ pending: null, follow: false, toast: true });
+  // A draft guard asks in a dialog; closing it without the arrival means it was refused.
+  const asked = arrivalOutcome(pending, { kind: "modal", open: true });
+  expect(asked).toEqual({ pending: { ...pending, sawModal: true }, follow: false, toast: false });
+  expect(arrivalOutcome(asked.pending, { kind: "modal", open: false })).toEqual({ pending: null, follow: false, toast: true });
+  expect(arrivalOutcome(pending, { kind: "modal", open: false })).toEqual({ pending, follow: false, toast: false });
+  expect(arrivalOutcome(null, { kind: "navigated" })).toEqual({ pending: null, follow: false, toast: false });
+});
+
+test("a canvas bound to a Home conversation opens by itself only where the person still looks and opened no other canvas", () => {
+  expect(boundCanvasAction({ viewing: true, openedOther: false })).toBe("open");
+  expect(boundCanvasAction({ viewing: true, openedOther: true })).toBe("toast");
+  expect(boundCanvasAction({ viewing: false, openedOther: false })).toBe("toast");
+});
+
+test("new canvas candidates are the rows absent when the request was sent and not checked yet", () => {
+  const rows = [{ path: ".doan/canvases/a.html" }, { path: ".doan/canvases/b.html" }, { path: ".doan/canvases/c.html" }];
+  expect(newCanvasCandidates(rows, [".doan/canvases/a.html"], [".doan/canvases/c.html"]).map(r => r.path)).toEqual([".doan/canvases/b.html"]);
+});
+
+test("a permission request toasts once, and only when its project is not on screen; the slot does not depend on the toast", () => {
+  const ask = { kind: "permission" as const, requestId: "r1", summary: "Edit x", options: [] };
+  expect(permissionToastKey(ask, { kind: "working", activity: null }, false)).toBe("r1");
+  expect(permissionToastKey(ask, ask, false)).toBeNull();
+  expect(permissionToastKey(ask, { kind: "working", activity: null }, true)).toBeNull();
+  expect(permissionToastKey({ kind: "working", activity: null }, ask, false)).toBeNull();
+  const conversation = { conversationId: "c1", root: "/r/doan", provider: "claude" as const, phase: "permission" as const };
+  expect(slotState([conversation], new Map([["/r/doan", 99]])).get("/r/doan")).toEqual({ kind: "permission", label: "Claude Code needs your answer" });
 });

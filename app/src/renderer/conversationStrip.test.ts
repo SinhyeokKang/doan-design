@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { ConversationEvent, EventPayload, FailureCode } from "../main/conversation/types";
-import { stripState, stripView, type StripContext } from "./conversationStrip";
+import { mergeConversationEvents, stripState, stripView, type StripContext } from "./conversationStrip";
 
 function events(...payloads: (EventPayload & { turnId?: string })[]): ConversationEvent[] {
   return payloads.map(({ turnId, ...payload }, i) => ({ ...payload, v: 1, conversationId: "c1", seq: i + 1, turnId: turnId ?? "t1", at: "2026-10-29T00:00:00Z" }) as ConversationEvent);
@@ -33,10 +33,10 @@ test("working shows the last activity line and Stop; message output alone keeps 
 
 test("a permission request shows its summary and the provider's own choices in their order, then Stop, announced once", () => {
   const state = stripState(events(...started, ASK));
-  expect(state).toEqual({ kind: "permission", requestId: "r1", summary: "Edit .doan/canvases/design-system.html", options: [{ id: "d", label: "Deny" }, { id: "aa", label: "Always allow" }, { id: "a", label: "Allow" }] });
+  expect(state).toEqual({ kind: "permission", requestId: "r1", summary: "Edit .doan/canvases/design-system.html", options: [{ id: "d", label: "Deny", kind: "deny" }, { id: "aa", label: "Always allow", kind: "allowAlways" }, { id: "a", label: "Allow", kind: "allow" }] });
   expect(stripView(state, CTX)).toEqual({
     title: "Claude Code needs your answer", body: "Edit .doan/canvases/design-system.html", live: "alert", alertKey: "r1",
-    actions: [{ command: "answer", label: "Deny", optionId: "d" }, { command: "answer", label: "Always allow", optionId: "aa" }, { command: "answer", label: "Allow", optionId: "a" }, { command: "stop", label: "Stop" }],
+    actions: [{ command: "answer", label: "Deny", optionId: "d", kind: "deny" }, { command: "answer", label: "Always allow", optionId: "aa", kind: "allowAlways" }, { command: "answer", label: "Allow", optionId: "a", kind: "allow" }, { command: "stop", label: "Stop" }],
   });
 });
 
@@ -91,4 +91,12 @@ test("events after a terminal event and from earlier turns do not change the sta
 
 test("each provider names itself", () => {
   expect(stripView({ kind: "working", activity: null }, { ...CTX, provider: "copilot" }).title).toBe("GitHub Copilot is working");
+});
+
+// ARCHITECTURE §7: subscribe first, read, then merge by seq; the renderer cannot import main's state.ts (node:path).
+test("the read snapshot and buffered events merge by seq, once each, for this conversation only", () => {
+  const all = events(...started, { type: "activity", kind: "edit", summary: "a" }, { type: "activity", kind: "edit", summary: "b" });
+  const other = { ...all[1]!, conversationId: "other", seq: 99 };
+  const merged = mergeConversationEvents(all.slice(0, 2), [...all.slice(2).reverse(), all[1]!, other, { ...all[2]!, seq: 0 }], all[0]!.conversationId);
+  expect(merged.map(e => e.seq)).toEqual(all.map(e => e.seq));
 });

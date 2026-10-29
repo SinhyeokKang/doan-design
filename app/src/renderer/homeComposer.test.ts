@@ -304,8 +304,9 @@ test("a provider without a list yet shows Default and asks to be read when its g
   const choice = { provider: "codex" as const, model: null, effort: null };
   const unread = modelPickerView(auth, {}, choice).groups[1]!;
   expect(unread).toMatchObject({ read: true, note: null, rows: [{ kind: "default", label: "Default", selected: true }] });
+  // The draft (frame 05) puts the reading note in the group head beside a spinner, over the Default row.
   const loading = modelPickerView(auth, { codex: "loading" }, choice).groups[1]!;
-  expect(loading).toMatchObject({ read: false, note: null, rows: [{ kind: "default", label: "Default", selected: true }, { kind: "loading", label: "Loading models" }] });
+  expect(loading).toMatchObject({ read: false, note: "Loading models", rows: [{ kind: "default", label: "Default", selected: true }] });
   for (const state of [{ error: "unavailable" }, { models: [] }] as ModelsState[]) {
     expect(modelPickerView(auth, { codex: state }, choice).groups[1]).toMatchObject({ read: false, note: "Models unavailable", rows: [{ kind: "default", label: "Default", selected: true }] });
   }
@@ -313,10 +314,11 @@ test("a provider without a list yet shows Default and asks to be read when its g
   expect(modelPickerView(auth, {}, choice).effort).toBeNull();
 });
 
-test("Copilot is read only when the person asks, because reading spends one Copilot request", () => {
+// PoC P1 (design §4.7, 2026-10-29 user): Copilot lists its models without a request, so it is read like the others.
+test("Copilot's list is read automatically like every other provider's, with no lazy-read row", () => {
   const group = modelPickerView(snapshot(dto("copilot")), {}, { provider: "copilot", model: null, effort: null }).groups[0]!;
-  expect(group).toMatchObject({ read: false, rows: [{ kind: "default", label: "Default", selected: true }, { kind: "load", label: "Load models (uses one Copilot request)" }] });
-  expect(modelPickerView(snapshot(dto("copilot")), { copilot: "loading" }, { provider: "copilot", model: null, effort: null }).groups[0]!.rows.at(-1)).toEqual({ kind: "loading", label: "Loading models" });
+  expect(group).toMatchObject({ read: true, rows: [{ kind: "default", label: "Default", selected: true }] });
+  expect(JSON.stringify(group)).not.toContain("Load models");
 });
 
 test("the effort capsule shows only for a model with levels; an unchosen level reads Default", () => {
