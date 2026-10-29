@@ -11,6 +11,9 @@ import (
 	"strings"
 )
 
+// initContextStep points an agent from project setup to design context; doan init itself never runs a preset.
+const initContextStep = "Before design work, gather product and design context with the `context` design preset: `doan design-skill context` (MCP `design_skill` with `{\"id\": \"context\"}`)."
+
 func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	return initWithRename(ctx, f, args, os.Rename)
 }
@@ -53,7 +56,7 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	} else if err != nil && !os.IsNotExist(err) {
 		return Outcome{}, internal(err)
 	}
-	result := map[string]any{"initialized": false, "repo": root, "created": []string{}}
+	result := map[string]any{"initialized": false, "repo": root, "created": []string{}, "nextSteps": []string{initContextStep}}
 	configPath := filepath.Join(root, ".doan/config.json")
 	st, e = os.Stat(configPath)
 	if e == nil {
