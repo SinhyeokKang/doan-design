@@ -32,12 +32,19 @@ export interface ComposerMemory {
   lists: Record<string, ModelsState>; presets: PresetListReply | undefined;
   auth: AuthSnapshot | null | undefined;
   thumbnails: Record<string, string>;
+  // Attachment keys of each root's last sent request, whose thumbnails Edit on Home shows again.
+  lastKeys: Record<string, string[]>;
+  // A start still waiting for main, kept here so a later visit stays locked and its reply clears only the draft it
+  // sent (review BU3 🟡2); and the refusal or attachment notice under the composer.
+  sending: { generation: number; text: string; preset: string | null; keys: string[] } | null;
+  generation: number;
+  notice: { text: string; retry: boolean } | null;
   greeting: string | null;
   // The last `select` and `restore` requests already applied, so a later visit does not apply them again.
   seen: { select: number; restore: number };
 }
 export function emptyComposer(): ComposerMemory {
-  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, greeting: null, seen: { select: 0, restore: 0 } };
+  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
 }
 
 export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; attachments?: { id: string }[] }
@@ -47,8 +54,9 @@ export interface HomeComposerProps {
   entries: readonly FolderEntry[]; homeDirectory: string | null;
   shellProjects: Readonly<Record<string, ShellProject>>;
   loaded: string | null;
-  // The first-run handoff root, and a project the person just added or dropped (design §4.2, §6).
-  handoff: string | null; select: { root: string; seq: number } | null;
+  // A project to choose once: first run's handoff, or one the person just added or dropped (design §4.2, §6). The
+  // person's later choice wins over it.
+  select: { root: string; seq: number } | null;
   // ui-state's Home memory; null until the saved state is read.
   prefs: HomeMemory | null;
   memory: { current: ComposerMemory };
@@ -118,8 +126,8 @@ export function HomeComposer(props: HomeComposerProps) {
     if (mounted.current) redraw();
   };
   const m = memory.current;
-  const [sending, setSending] = useState(false);
-  const [notice, setNotice] = useState<{ text: string; retry: boolean } | null>(null);
+  const sending = m.sending !== null, notice = m.notice;
+  const setNotice = (next: ComposerMemory["notice"]) => update({ notice: next });
   const [announcement, setAnnouncement] = useState("");
   const [dismissed, setDismissed] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -138,7 +146,7 @@ export function HomeComposer(props: HomeComposerProps) {
   const cards = groupProjects(props.entries, lastCommon);
   const nameOf = (root: string | null) => cards.find(card => card.rows.some(row => row.path === root))?.name ?? null;
   const picked = defaultProject(props.entries, lastCommon, {
-    handoff: props.handoff, current: m.root ? { root: m.root, name: nameOf(m.root) ?? m.root.split("/").at(-1) ?? m.root } : null,
+    current: m.root ? { root: m.root, name: nameOf(m.root) ?? m.root.split("/").at(-1) ?? m.root } : null,
     loaded: props.loaded, lastRoot: props.prefs?.lastRoot ?? null,
   });
   const root = picked.root;
@@ -201,7 +209,7 @@ export function HomeComposer(props: HomeComposerProps) {
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !sending;
   const prompts = text === "" && !preset && attachments.length === 0 && ready && healthy ? suggestedPrompts(entry, project, presets) : [];
-  const edit = (patch: Partial<ComposerMemory>) => { setNotice(null); update(patch); };
+  const edit = (patch: Partial<ComposerMemory>) => update({ ...patch, notice: null });
   useEffect(() => { if (text === "") setDismissed(false); }, [text]);
   useEffect(() => { setHighlight(0); }, [slash]);
 
@@ -251,6 +259,7 @@ export function HomeComposer(props: HomeComposerProps) {
     if (notices.length) setNotice({ text: notices.join(" "), retry: false });
   };
   const addFiles = (files: readonly File[], pastedImages: boolean) => {
+    if (memory.current.sending) return;
     const limit = attachmentLimit(memory.current.attachments.length, files.map(file => ({ pasted: false, size: file.size })));
     if (limit.notices.length) setNotice({ text: limit.notices.join(" "), retry: false });
     const accepted = limit.accept.map(i => files[i]!);
@@ -270,6 +279,7 @@ export function HomeComposer(props: HomeComposerProps) {
     });
   };
   const choose = () => {
+    if (memory.current.sending) return;
     void window.doan.chooseAttachments().catch(() => [] as AttachmentResult[]).then(results => {
       const ok = results.filter((result): result is Extract<AttachmentResult, { ok: true }> => result.ok);
       const limit = attachmentLimit(memory.current.attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
@@ -283,6 +293,7 @@ export function HomeComposer(props: HomeComposerProps) {
     });
   };
   const removeChip = (index: number, trigger: "button" | "backspace") => {
+    if (memory.current.sending) return false;
     const removal = chipRemoval(chips, trigger === "button" ? { kind: "button", index } : { kind: "backspace", text, caret: textarea.current?.selectionStart ?? 0 });
     if (!removal) return false;
     const removed = attachments[removal.remove];
@@ -290,7 +301,7 @@ export function HomeComposer(props: HomeComposerProps) {
     else if (removed) {
       if (removed.id) void window.doan.removeAttachment(removed.id).catch(console.error);
       const url = memory.current.thumbnails[removed.key];
-      if (url) URL.revokeObjectURL(url);
+      if (url && !Object.values(memory.current.lastKeys).some(keys => keys.includes(removed.key))) URL.revokeObjectURL(url);
       edit({ attachments: attachments.filter(a => a.key !== removed.key) });
     }
     setAnnouncement(removal.announcement);
@@ -327,6 +338,8 @@ export function HomeComposer(props: HomeComposerProps) {
     const action = pasteAction(event.clipboardData.getData("text/plain"), files);
     if (action !== "files") return;
     event.preventDefault();
+    // The field is read-only while a start is pending, but a paste handler still runs.
+    if (memory.current.sending) return;
     addFiles(files, true);
   };
 
@@ -339,14 +352,25 @@ export function HomeComposer(props: HomeComposerProps) {
       ...(attachments.length ? { attachments: attachments.flatMap(a => a.id ? [{ id: a.id }] : []) } : {}),
     };
     const last: LastRequest = { root, text, preset, attachments, provider, model, effort };
-    setSending(true); setNotice(null);
+    const mine = { generation: memory.current.generation + 1, text, preset: preset?.id ?? null, keys: attachments.map(a => a.key) };
+    update({ sending: mine, generation: mine.generation, notice: null });
     const outcome = await props.start(request, last).catch((): StartOutcome => ({ error: "unknown" }));
-    if (mounted.current) setSending(false);
-    if ("ok" in outcome) { update({ text: "", preset: null, attachments: [], root, provider }); return; }
+    // The reply may come after the person left and came back to Home; it settles only its own send.
+    if (memory.current.sending?.generation !== mine.generation) return;
+    if ("ok" in outcome) {
+      update(current => {
+        const same = current.text === mine.text && (current.preset?.id ?? null) === mine.preset && current.attachments.map(a => a.key).join("\n") === mine.keys.join("\n");
+        // The previous last request of this root is replaced; its thumbnails are no longer shown anywhere.
+        const thumbnails = { ...current.thumbnails };
+        for (const key of current.lastKeys[root] ?? []) if (!mine.keys.includes(key) && thumbnails[key]) { URL.revokeObjectURL(thumbnails[key]!); delete thumbnails[key]; }
+        return { sending: null, thumbnails, lastKeys: { ...current.lastKeys, [root]: mine.keys }, root, provider, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+      });
+      return;
+    }
     if (outcome.error === "attachment_missing") {
       const missing = new Set(outcome.missing ?? []);
-      update(current => ({ attachments: current.attachments.map(a => a.id && missing.has(a.id) ? { ...a, status: "missing" } : a) }));
-    } else setNotice(startErrorView(outcome.error, provider, project));
+      update(current => ({ sending: null, attachments: current.attachments.map(a => a.id && missing.has(a.id) ? { ...a, status: "missing" } : a) }));
+    } else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
     queueMicrotask(() => textarea.current?.focus());
   };
 
@@ -361,7 +385,16 @@ export function HomeComposer(props: HomeComposerProps) {
   }, [props.restore?.seq]);
   const apply = (request: LastRequest) => {
     setConfirm(null);
-    edit({ text: request.text, preset: request.preset, attachments: request.attachments, root: request.root, provider: request.provider,
+    // The files are checked again at once (design §7.4, 2026-10-29 user): each chip shows checking, then ready or moved.
+    const ids = request.attachments.flatMap(a => a.id ? [a.id] : []);
+    if (ids.length) void window.doan.recheckAttachments(ids).catch(() => null).then(results => update(current => ({
+      attachments: current.attachments.map(a => {
+        if (!a.id || !ids.includes(a.id) || a.status !== "checking") return a;
+        const result = results?.find(item => item.id === a.id);
+        return result?.ok ? { ...a, status: "ready", size: result.attachment.size, path: result.attachment.path } : { ...a, status: "missing" };
+      }),
+    })));
+    edit({ text: request.text, preset: request.preset, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
       models: request.model ? { ...memory.current.models, [request.provider]: request.model } : memory.current.models,
       efforts: request.model && request.effort ? { ...memory.current.efforts, [effortKey(request.provider, request.model)]: request.effort } : memory.current.efforts });
     queueMicrotask(focusEnd);
@@ -439,7 +472,8 @@ export function HomeComposer(props: HomeComposerProps) {
         <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu project-popover" aria-label="Projects" side="bottom" align="start" sideOffset={4} collisionPadding={8}>
           <DropdownMenu.RadioGroup value={card?.key ?? ""} onValueChange={key => { const chosen = cards.find(item => item.key === key); if (chosen) edit({ root: rootForProject(chosen.rows, props.shellProjects[chosen.key]?.selectedRoot) }); }}>
             {cards.map(item => {
-              const down = item.rows.every(row => row.kind !== "list" && row.kind !== "loading");
+              // Every root that is not a list, reading included, is disabled with its status chip (design §4.2).
+              const down = item.rows.every(row => row.kind !== "list");
               const chip = down ? cardRow(item.rows[0]!, null, null).chip : undefined;
               return <Fragment key={item.key}>
                 <DropdownMenu.RadioItem value={item.key} className="doan-menu-item project-item" disabled={down}>
@@ -534,7 +568,7 @@ export function HomeComposer(props: HomeComposerProps) {
               <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
               {projectRows.map(row => {
                 const chip = cardRow(row, null, null).chip;
-                const off = row.kind !== "list" && row.kind !== "loading";
+                const off = row.kind !== "list";
                 return <DropdownMenu.Item key={row.path} className="doan-menu-item shell-worktree" aria-current={row.path === root ? "true" : "false"} disabled={off} onSelect={() => edit({ root: row.path })}>
                   <GitBranch aria-hidden="true" /><span><span>{branchOf(row) ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
                   {off && chip ? <span className={chipClass(chip)}>{chip}</span> : row.path === root && <Check aria-hidden="true" />}

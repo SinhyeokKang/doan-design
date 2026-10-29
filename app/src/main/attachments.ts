@@ -20,7 +20,11 @@ export type ResolvedAttachments = { ok: true; records: AttachmentRecord[] } | { 
 // Electron's nativeImage behind a seam: it decodes only bytes that passed the size and signature checks, never a path.
 export interface ImageCodec { thumbnail(bytes: Uint8Array): Uint8Array | null; reencode(bytes: Uint8Array): Uint8Array | null }
 // dev and ino: the file checked when it was added; a recheck reads nothing from any other file.
-interface Entry extends AttachmentRecord { id: string; pasted: boolean; dir?: string; dev: number; ino: number }
+// sent: a conversation already holds this file, so forgetting it never deletes a paste (Edit on Home brings it back).
+interface Entry extends AttachmentRecord { id: string; pasted: boolean; dir?: string; dev: number; ino: number; sent?: true }
+export type RecheckResult = { id: string; ok: true; attachment: AttachmentInfo } | { id: string; ok: false; error: AttachmentError };
+// Consumed entries kept for Edit on Home's recheck; older ones are forgotten (their files stay where they are).
+const SENT_KEPT = 200;
 
 // The leading bytes of the image formats doan accepts; a mismatch is never decoded.
 export function imageType(head: Uint8Array): "image/png" | "image/jpeg" | "image/gif" | "image/webp" | null {
@@ -58,6 +62,7 @@ export function pastedName(at: Date): string { return `pasted-${at.toISOString()
 
 export class AttachmentStore {
   private entries = new Map<string, Entry>();
+  private sent = new Map<string, Entry>();
   constructor(private dir: string, private codec: ImageCodec) {}
   // At launch, before any paste: removes only unsent paste directories, never reading conversation history.
   cleanup(): void {
@@ -112,7 +117,9 @@ export class AttachmentStore {
     const id = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "id" in value && typeof value.id === "string" ? value.id : null;
     const entry = id ? this.entries.get(id) : undefined; if (!entry) return false;
     this.entries.delete(entry.id);
-    if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
+    // A sent one goes back aside, so a later Edit on Home of the same request can check it again.
+    if (entry.sent) this.sent.set(entry.id, entry);
+    else if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
     return true;
   }
   // The send-time recheck: each file must still be the regular file that was checked, at the same canonical path.
@@ -141,10 +148,33 @@ export class AttachmentStore {
       if (entry?.dir) writeFileSync(join(entry.dir, SENT), "", { mode: 0o600 });
     }
   }
-  // After an accepted start; a refused one keeps them for the next try.
+  // After an accepted start; a refused one keeps them for the next try. A consumed entry is kept aside for recheck.
   consume(value: unknown): void {
     if (!Array.isArray(value)) return;
-    for (const item of value) if (typeof item === "object" && item !== null && "id" in item && typeof item.id === "string") this.entries.delete(item.id);
+    for (const item of value) {
+      const entry = typeof item === "object" && item !== null && "id" in item && typeof item.id === "string" ? this.entries.get(item.id) : undefined;
+      if (!entry) continue;
+      this.entries.delete(entry.id);
+      this.sent.set(entry.id, { ...entry, sent: true });
+      if (this.sent.size > SENT_KEPT) this.sent.delete(this.sent.keys().next().value!);
+    }
+  }
+  // Edit on Home (design §7.4): the acceptance checks again, on the canonical paths main recorded for these ids only.
+  // A passing consumed id becomes a draft attachment again; null for a malformed request.
+  recheck(value: unknown): RecheckResult[] | null {
+    if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("ids" in value) || !Array.isArray(value.ids)) return null;
+    const ids: unknown[] = [...value.ids];
+    if (ids.length > MAX_ATTACHMENTS || !ids.every(id => typeof id === "string" && id.length <= 64) || new Set(ids).size !== ids.length) return null;
+    return (ids as string[]).map((id): RecheckResult => {
+      const entry = this.entries.get(id) ?? this.sent.get(id);
+      const checked = entry ? this.check(entry.path, entry) : null;
+      if (!entry || !checked) return { id, ok: false, error: "not_found" };
+      if ("error" in checked) return { id, ok: false, error: checked.error };
+      if (checked.kind !== entry.kind) return { id, ok: false, error: "not_found" };
+      const current = { ...entry, size: checked.size };
+      this.sent.delete(id); this.entries.set(id, current);
+      return { id, ok: true, attachment: this.info(current, undefined) };
+    });
   }
   // expected: a recheck, which compares the fresh canonical path with the stored one before opening anything, so a
   // path swapped to a link elsewhere is refused without reading the other file.

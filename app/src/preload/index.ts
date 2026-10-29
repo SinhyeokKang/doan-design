@@ -4,7 +4,7 @@ import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
-import type { AttachmentResult } from "../main/attachments";
+import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
 import type { StepResult } from "../main/onboarding/machine";
@@ -74,6 +74,8 @@ const api = {
   addPastedImage: (bytes: ArrayBuffer | Uint8Array): Promise<AttachmentResult | null> => ipcRenderer.invoke("attachments:add-pasted", { bytes: bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes) }),
   // A pasted image removed before it was sent is deleted; a local file is only forgotten.
   removeAttachment: (id: string): Promise<boolean> => ipcRenderer.invoke("attachments:remove", { id }),
+  // Edit on Home: the acceptance checks again for these ids, in order; null when main refused the request.
+  recheckAttachments: (ids: readonly string[]): Promise<RecheckResult[] | null> => ipcRenderer.invoke("attachments:recheck", { ids: [...ids] }),
   onConversationEvent(listener: (event: ConversationEvent) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, event: ConversationEvent) => listener(event);
     ipcRenderer.on("conversation:event", receive);

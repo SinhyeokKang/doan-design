@@ -737,6 +737,7 @@ async function start(): Promise<void> {
   handle("attachments:add-paths", null, (event, value: unknown) => fromWindow(event) ? attachments.addPaths(value) : null);
   handle("attachments:add-pasted", null, (event, value: unknown) => fromWindow(event) ? attachments.addPasted(value) : null);
   handle("attachments:remove", false, (event, value: unknown) => fromWindow(event) && attachments.remove(value));
+  handle("attachments:recheck", null, (event, value: unknown) => fromWindow(event) ? attachments.recheck(value) : null);
 
   const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
   const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");

@@ -35,7 +35,8 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       // The draft (workspace-strip, states-strip) fills Allow and keeps the other answers, Edit on Home and Open subtle.
       const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "subtle") : action.command === "editOnHome" || action.command === "open" ? "subtle" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
-      return <button key={key} ref={action.command === "stop" ? stop : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
+      // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer (design §4.9, §7).
+      return <button key={key} ref={action.command === "stop" ? stop : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
         {action.command === "stop" && <CircleStop aria-hidden="true" />}{action.label}
       </button>;
     })}</span>

@@ -85,27 +85,6 @@ export function restoreRequest(draft: ComposerDraft, last: LastRequest, project:
   };
 }
 
-// After a Home send the window moves to the project's Overview (design §4.5). It follows only its own arrival: a
-// navigation the person made first, an unavailable project or a draft guard the person refused (a dialog that closed
-// without the arrival) leaves the window where it is and toasts `Started in <project>.` instead.
-export interface PendingArrival { conversationId: string; root: string; intent: number; sawModal: boolean }
-export type ArrivalEvent = { kind: "arrived"; intent: number } | { kind: "navigated" } | { kind: "unavailable" } | { kind: "modal"; open: boolean };
-export function arrivalOutcome(pending: PendingArrival | null, event: ArrivalEvent): { pending: PendingArrival | null; follow: boolean; toast: boolean } {
-  if (!pending) return { pending: null, follow: false, toast: false };
-  if (event.kind === "arrived") return event.intent === pending.intent ? { pending: null, follow: true, toast: false } : { pending: null, follow: false, toast: true };
-  if (event.kind === "modal") {
-    if (event.open) return { pending: { ...pending, sawModal: true }, follow: false, toast: false };
-    return pending.sawModal ? { pending: null, follow: false, toast: true } : { pending, follow: false, toast: false };
-  }
-  return { pending: null, follow: false, toast: true };
-}
-
-// A canvas bound to a Home conversation opens by itself only on its project's screen when the person opened no other
-// canvas since sending; anywhere else a `New canvas in <project>` toast offers it (design §7).
-export function boundCanvasAction(input: { viewing: boolean; openedOther: boolean }): "open" | "toast" {
-  return input.viewing && !input.openedOther ? "open" : "toast";
-}
-
 // Rows to ask main about (conversation:forCanvas): absent when the request was sent and not asked about yet (§7.3).
 export function newCanvasCandidates<T extends { path: string }>(rows: readonly T[], atStart: readonly string[], checked: readonly string[]): T[] {
   return rows.filter(row => !atStart.includes(row.path) && !checked.includes(row.path));
