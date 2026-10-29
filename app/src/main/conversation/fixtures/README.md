@@ -49,3 +49,7 @@ The fixtures above stay as recorded: Codex from 0.163.0 (schemas compared with
 0.164.0, the current minimum) and Claude from CLI 2.1.310 / SDK 0.3.310. No
 version newer than the minimums is represented or verified here; such versions
 are judged only by the new-session handshake shape at run time.
+
+`index-v2-home.json` (2026-10-29, buzz-home) is a synthetic v2 index whose
+`newDesign` entry carries the optional `model`, `effort` and `canvasesAtStart`
+fields; the version stays 2.

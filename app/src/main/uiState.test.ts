@@ -253,3 +253,17 @@ test("round-trips shell memory beside Settings and prunes removed roots on read 
   store.flushSync();
   expect(onDisk(path).shellProjects).toEqual({ common: { roots, expanded: true } });
 });
+
+test("keeps home memory beside Settings across saves and drops it with its root", async () => {
+  const path = file();
+  let roots = ["/repo", "/other"];
+  const store = createUiStateStore(path, () => roots);
+  const home = { lastRoot: "/other", lastProvider: "claude", models: { claude: { model: "opus", effort: "max" } } };
+  expect(store.save({ screen: "home", expanded: {}, lastByRoot: {}, home })).toBe(true);
+  expect(store.saveSettingsTab("projects")).toBe(true);
+  store.flushSync();
+  expect(onDisk(path)).toMatchObject({ home, settingsTab: "projects" });
+  expect((await createUiStateStore(path, () => roots).read())?.home).toEqual(home);
+  roots = ["/repo"];
+  expect((await store.read())?.home).toEqual({ lastProvider: "claude", models: { claude: { model: "opus", effort: "max" } } });
+});

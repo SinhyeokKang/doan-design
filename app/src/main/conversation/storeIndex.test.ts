@@ -155,3 +155,76 @@ describe("start recovery across index versions", () => {
     expect([f.path("legacy-1"), f.path("new"), f.journal].map(path => readFileSync(path))).toEqual(logs);
   });
 });
+
+describe("home conversation fields in index v2", () => {
+  it("reads the optional model, effort and start canvases without changing the version", () => {
+    const raw = JSON.parse(fixture("index-v2-home.json"));
+    expect(raw.v).toBe(2);
+    expect(parseIndex(fixture("index-v2-home.json"))).toEqual({ ok: true, entries: raw.conversations });
+  });
+  it("round-trips the fields and leaves entries without them unchanged", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const home = { ...owned("home"), model: "gemini-3-pro", effort: "low", canvasesAtStart: [{ path: ".doan/canvases/a.html", id: "a" }] };
+    const empty = { ...owned("empty"), canvasesAtStart: [] };
+    store.save([legacy("old"), home, empty]);
+    expect(new ConversationStore(f.root).list()).toEqual([legacy("old"), home, empty]);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).conversations[0]).not.toHaveProperty("model");
+  });
+  it("rejects malformed fields like any other entry field", () => {
+    const invalid = [
+      (m: any) => { m.model = ""; },
+      (m: any) => { m.model = 1; },
+      (m: any) => { m.effort = null; },
+      (m: any) => { m.effort = ""; },
+      (m: any) => { m.canvasesAtStart = {}; },
+      (m: any) => { m.canvasesAtStart = [{ path: "a.html" }]; },
+      (m: any) => { m.canvasesAtStart = [".doan/canvases/a.html"]; },
+    ];
+    for (const mutate of invalid) {
+      const copy = JSON.parse(fixture("index-v2-home.json")); mutate(copy.conversations[1]);
+      expect(parseIndex(JSON.stringify(copy))).toEqual({ ok: false, code: "invalid" });
+    }
+  });
+  it("keeps a v3 index with the new fields as an unknown version and never overwrites it", () => {
+    const future = JSON.stringify({ ...JSON.parse(fixture("index-v2-home.json")), v: 3 });
+    expect(parseIndex(future)).toEqual({ ok: false, code: "unknown_version" });
+    const f = seed({ "index.json": future }); const store = new ConversationStore(f.root);
+    expect(() => store.save([legacy("old")])).toThrow("Unsupported conversation index version");
+    expect(readFileSync(f.index, "utf8")).toBe(future);
+  });
+});
+
+describe("user.message attachments in event v1", () => {
+  const attachments = [
+    { name: "shot.png", size: 2048, kind: "image", path: "/Users/me/Desktop/shot.png" },
+    { name: "notes.md", size: 0, kind: "file", path: "/tmp/notes.md" },
+  ] as const;
+  const message = (extra: Record<string, unknown>) => JSON.stringify({ type: "user.message", text: "hi", anchors: [], v: 1, conversationId: "c", turnId: "t", seq: 1, at: "2026-10-29T00:00:00.000Z", ...extra }) + "\n";
+  it("round-trips attachment metadata in version 1", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const saved = store.append("c", "t", { type: "user.message", text: "hi", anchors: [], attachments: [...attachments] });
+    expect(saved.v).toBe(1);
+    expect(new ConversationStore(f.root).read("c")).toEqual([saved]);
+    expect(saved).toMatchObject({ attachments });
+  });
+  it("reads a message without attachments and ignores unknown fields", () => {
+    const f = seed({ "c.jsonl": message({ future: { x: 1 } }) });
+    expect(new ConversationStore(f.root).read("c")).toHaveLength(1);
+  });
+  it("rejects malformed attachment metadata", () => {
+    const bad = [
+      {},
+      [null],
+      [{ ...attachments[0], kind: "pdf" }],
+      [{ ...attachments[0], path: "shot.png" }],
+      [{ ...attachments[0], size: -1 }],
+      [{ ...attachments[0], size: 1.5 }],
+      [{ ...attachments[0], name: "" }],
+      [{ name: "shot.png", kind: "image", path: "/a.png" }],
+    ];
+    for (const value of bad) {
+      const f = seed({ "c.jsonl": message({ attachments: value }) });
+      expect(() => new ConversationStore(f.root).read("c")).toThrow("Invalid conversation event");
+    }
+  });
+});

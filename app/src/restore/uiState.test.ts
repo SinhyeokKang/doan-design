@@ -158,3 +158,64 @@ test("drops a canvas id that comes without a canvas", () => {
   expect(parse({ screen: "workspace", root: "/elsewhere", canvas: "billing.html", canvasId: "billing", expanded: {}, lastByRoot: {} }))
     .toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
 });
+
+const home = {
+  lastRoot: "/repo/b",
+  lastProvider: "codex",
+  models: { claude: { model: "opus", effort: "high" }, codex: { model: "gpt-5" } },
+};
+
+test("round-trips the home composer's last root, provider and models", () => {
+  const state = { screen: "home", expanded: {}, lastByRoot: {}, home };
+  expect(parse(state)).toEqual(state);
+});
+
+test("a file without home memory has none", () => {
+  expect(parse({ screen: "home" })).not.toHaveProperty("home");
+});
+
+test("an older file's fields read the same beside home memory", () => {
+  // The same file without `home` must parse to the same rest, so an app that
+  // predates home memory reads a newer file and only loses that key.
+  const rest = { screen: "workspace", root: "/repo/a", canvas: "a.html", view, expanded: { "/repo/a": ["a"] }, lastByRoot: {} };
+  const { home: _home, ...read } = parse({ ...rest, home }) ?? {};
+  expect(read).toEqual(rest);
+  expect(parse(rest)).toEqual(rest);
+});
+
+test("drops home fields one by one and keeps the rest", () => {
+  const state = {
+    screen: "home",
+    home: {
+      lastRoot: "/repo/gone",
+      lastProvider: "gemini",
+      models: {
+        claude: { model: "opus", effort: 3 },
+        codex: { model: "" },
+        cursor: "auto",
+        unknown: { model: "x" },
+        copilot: { model: 1 },
+        antigravity: { model: "flash", effort: "low", extra: true },
+      },
+      extra: 1,
+    },
+  };
+  expect(parse(state)).toEqual({
+    screen: "home",
+    expanded: {},
+    lastByRoot: {},
+    home: { models: { claude: { model: "opus" }, antigravity: { model: "flash", effort: "low" } } },
+  });
+  for (const bad of [null, [], "home", 1]) expect(parse({ screen: "home", home: bad })).not.toHaveProperty("home");
+  expect(parse({ screen: "home", home: { lastRoot: 1, lastProvider: null, models: [] } })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+});
+
+test("home memory never keeps a removed root", () => {
+  expect(parse({ screen: "home", home: { lastRoot: "/repo/a" } }, ["/repo/b"])).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+});
+
+test("a prototype-polluting provider key is not a provider", () => {
+  const state = parseUiState('{"screen":"home","home":{"models":{"__proto__":{"model":"x"}}}}', saved);
+  expect(state?.home?.models).toEqual({});
+  expect(Object.getPrototypeOf(state?.home?.models)).toBe(Object.prototype);
+});

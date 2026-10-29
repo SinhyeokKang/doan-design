@@ -1,0 +1,25 @@
+{
+  "v": 2,
+  "conversations": [
+    {
+      "conversationId": "legacy-1",
+      "root": "/repo",
+      "canvas": { "path": ".doan/canvases/a.html", "id": "a" },
+      "title": "Legacy",
+      "state": "current",
+      "owner": { "kind": "legacy-external" },
+      "session": { "runtime": "claude", "origin": "resumed", "sessionId": "session-1", "configDir": "/profiles/claude", "cwd": "/repo" }
+    },
+    {
+      "conversationId": "home-1",
+      "root": "/repo",
+      "title": "From Home",
+      "state": "current",
+      "model": "opus",
+      "effort": "high",
+      "canvasesAtStart": [{ "path": ".doan/canvases/a.html", "id": "a" }, { "path": ".doan/canvases/b.html" }],
+      "owner": { "kind": "doan", "provider": "claude", "connectionId": "conn-claude-1", "accountId": "acct-claude-1", "workspaceId": null, "profile": "claude" },
+      "session": { "runtime": "claude", "origin": "newDesign", "sessionId": "session-2", "configDir": "/profiles/claude", "cwd": "/repo" }
+    }
+  ]
+}
