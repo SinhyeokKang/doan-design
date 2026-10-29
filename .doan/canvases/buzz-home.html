@@ -188,16 +188,21 @@ body:has(.shell-top) { background: transparent; }
    rest, 8px inline padding at the sm height, the backdrop fill on hover and while open. Used by the project, model and effort
    triggers. The [data-ui-size] part keeps it above the shared sm padding instead of overriding it per screen. */
 .doan-button[data-ui-variant="trigger"],.doan-button[data-ui-variant="trigger"][data-ui-size="sm"]{padding-inline:var(--space-2);background:transparent}
-.doan-button[data-ui-variant="trigger"]:hover,.doan-button[data-ui-variant="trigger"][data-state="open"],.doan-button[data-ui-variant="trigger"][aria-expanded="true"]{background:var(--affordance-backdrop-hover)}
+.doan-button[data-ui-variant="trigger"]:not(:disabled):hover{background:var(--affordance-backdrop-hover)}
+.doan-button[data-ui-variant="trigger"][data-ui-size]:not(:disabled):is([aria-haspopup][aria-expanded="true"],[data-state="open"]){background:var(--affordance-backdrop-hover)}
+.doan-button[data-ui-variant="trigger"][data-ui-size]:not(:disabled):active{background:var(--affordance-backdrop-pressed)}
 /* Proposed shared variant quiet (ds/controls.css at implementation): the header capsule's backdrop fill with standard ink and a backdrop blur;
    hover and pressed step the backdrop like the header tabs. Drawn here because drafts do not edit ds/. */
 .doan-button[data-ui-variant="quiet"]{background:var(--affordance-backdrop-hover);color:var(--text-standard);-webkit-backdrop-filter:blur(var(--blur-md));backdrop-filter:blur(var(--blur-md))}
 @media (prefers-reduced-transparency:reduce){.doan-button[data-ui-variant="quiet"]{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--affordance-subtle)}}
 /* Hover like the header tabs: one more backdrop layer over the chip's own (an inset shadow, so it eases), no colour flip;
    pressed adds the pressed layer. */
+/* The shared hover and pressed rules (ds/controls.css) paint every non-prominent button an opaque grey at 0,4,0 and
+   0,5,0; these selectors match or beat them so the variant keeps its translucent backdrop. At implementation the
+   variants join those rules' :not() exclusions instead. */
 .doan-button[data-ui-variant="quiet"]{transition:box-shadow var(--time-state) var(--ease-state)}
-.doan-button[data-ui-variant="quiet"]:hover,.doan-button[data-ui-variant="quiet"].is-hover{box-shadow:inset 0 0 0 100vmax var(--affordance-backdrop-hover)}
-.doan-button[data-ui-variant="quiet"]:active{box-shadow:inset 0 0 0 100vmax var(--affordance-backdrop-pressed)}
+.doan-button[data-ui-variant="quiet"]:not(:disabled):is(:hover,.is-hover){background:var(--affordance-backdrop-hover);box-shadow:inset 0 0 0 100vmax var(--affordance-backdrop-hover)}
+.doan-button[data-ui-variant="quiet"][data-ui-size]:not(:disabled):is(:active,[aria-haspopup][aria-expanded="true"],[data-state="open"]){background:var(--affordance-backdrop-hover);box-shadow:inset 0 0 0 100vmax var(--affordance-backdrop-pressed)}
 .suggestion{max-width:100%;gap:var(--space-1h);padding-inline:var(--space-3) var(--space-4);font-weight:var(--type-weight-regular)}
 .suggestion span{overflow:hidden;text-overflow:ellipsis}
 /* Canvas-only: the pointer that shows the second chip is hovered. */
