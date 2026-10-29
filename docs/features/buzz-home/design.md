@@ -286,11 +286,11 @@ PRODUCT §5 항목 0·1과 ARCHITECTURE §7 'Home, workspace and project IPC'의
 ### 7.4 마지막 요청 되돌리기 (2026-10-29 user)
 
 - root마다 마지막으로 보낸 요청(텍스트, 프리셋, 첨부, 공급자·모델·effort)을 실행 중 renderer 메모리에 둔다.
-- 실패·중단 상태줄의 `Edit on Home`은 홈으로 가서 그 요청을 입력창에 되돌린다. 홈 입력창에 이미 다른 초안이 있으면 확인 없이 바꾸지 않고 `Replace your draft with the last request?`를 묻는다. 첨부는 다시 확인한다(§4.8).
+- 실패·중단 상태줄의 `Edit on Home`은 홈으로 가서 그 요청을 입력창에 되돌린다. 홈 입력창에 이미 다른 초안이 있으면 확인 없이 바꾸지 않고 compact 다이얼로그로 묻는다(초안 `home-restore-request`): 제목 `Replace your draft?`, 설명 `Your draft will be replaced by the last request you sent to <project>.`, 버튼 `Keep Draft` / `Replace`(prominent). 첨부는 다시 확인한다(§4.8).
 
 ### 7.5 진행 중 프로젝트 제거 (2026-10-29 user)
 
-- 홈 대화가 진행 중인 프로젝트를 LNB나 Settings에서 제거하면, 기존 제거 보호(`comments:transition`) 자리에 `A conversation from Home is still running in <project>. Stop it and remove?`를 묻는다. 확인하면 `interruptConversation` 뒤 제거하고, 취소하면 제거하지 않는다. Undo로 프로젝트를 되돌려도 대화는 다시 시작되지 않는다.
+- 홈 대화가 진행 중인 프로젝트를 LNB나 Settings에서 제거하면, 기존 제거 보호(`comments:transition`) 자리에서 compact 다이얼로그로 묻는다(초안 `home-remove-running`). 제목 `Stop the conversation and remove <project>?`, 설명 `A conversation from Home is still running in <project>. Doan stops it, then removes the project from the list. Files stay on disk.`, 버튼 Cancel / `Stop and Remove`(prominent). 확인하면 `interruptConversation` 뒤 제거하고, 취소하면 제거하지 않는다. Undo로 프로젝트를 되돌려도 대화는 다시 시작되지 않는다.
 
 ### 7.1 공용 토스트 변경 (2026-10-29 user)
 
@@ -382,7 +382,7 @@ doan이 다르게 가는 점:
 - 캔버스: `.doan/canvases/buzz-home.html`, id `buzz-home`, 폭 2560.
 - 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`(추천 프롬프트 포함), `home-filled`, `home-drop`, `home-presets`, `home-agent`, `home-effort`, `workspace-strip`.
 - 1차 확정(2026-10-29 user: "디자인은 지금 좋아").
-- 2차(2026-10-29): 창 프레임 `home-preset-only`, `home-slash`, `home-long`, `home-over-limit`, `home-project-menu`, `home-worktree-menu`, `home-no-project`, `home-no-agent`, `home-sending`, `home-refused`, `home-running`, `home-toast`, `workspace-working`, `home-narrow`(960 × 600)과 상태 보드 `states-presets`, `states-agents`, `states-attachments`, `states-strip`, `states-controls`. 모두 26개이고 `/design-sync`는 이 전부를 대조한다. reduced transparency와 forced colors 화면은 그리지 않았고 CSS 규칙으로만 남겼다(실제 앱에서 측정).
+- 2차(2026-10-29): 창 프레임 `home-preset-only`, `home-slash`, `home-long`, `home-over-limit`, `home-project-menu`, `home-worktree-menu`, `home-no-project`, `home-no-agent`, `home-sending`, `home-refused`, `home-running`, `home-toast`, `workspace-working`, `home-narrow`(960 × 600)과 상태 보드 `states-presets`, `states-agents`, `states-attachments`, `states-strip`, `states-controls`. 모두 26개다. feature-review 반영(D2, 2026-10-29)으로 창 프레임 `home-remove-running`, `home-restore-request`와 보드 `states-slots`, `states-reasons`를 더해 30개가 됐고, 상태줄 실패·중단에 `Edit on Home`과 `turn.failed` 문구를, 공급자 행에 짧은 상태 문구를, `workspace-strip`·`workspace-working`·`home-running`·`home-toast`에 LNB 상태 슬롯을 그렸다. `/design-sync`는 이전 CLI 타일을 뺀 전부를 대조한다. reduced transparency와 forced colors 화면은 그리지 않았고 CSS 규칙으로만 남겼다(실제 앱에서 측정).
 - 프리미티브·토큰 점검(2026-10-29 user 요청). 초안의 새 CSS에서 리터럴을 찾아 분류했다.
   - 같은 값의 토큰이 있던 리터럴 63건 중 53건을 토큰으로 바꿨다. 아이콘 14/20px → 새 `--size-icon-sm`·`--size-icon-lg`, 미리보기 상자 32px → `--size-control-sm`, 안쪽 모서리 → `calc(var(--radius-chip) - var(--space-1))`, 입력 최소 높이 → `2 × --type-label-line-height`, 프리셋 칩 → `--size-control`, 첨부 메타 11/14px → caption 역할이다.
   - 남은 10건은 캔버스 전용(목업 그림, 포인터)이거나 출하 CSS에서 복사한 값(`.toast` bottom 20px)이다.

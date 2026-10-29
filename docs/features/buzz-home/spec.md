@@ -55,7 +55,7 @@ buzz-restyle의 자식 C3이다(부모: [../buzz-restyle/](../buzz-restyle/spec.
 14. 문제 4의 체크리스트는 없어지고, 준비된 공급자 여부는 공급자 선택기가 agent-auth readiness로 보인다. 확인: 컴포넌트 테스트.
 15. 홈 대화가 진행 중인 프로젝트를 제거하면 확인을 묻고, 확인하면 대화를 멈춘 뒤 제거한다. 확인: App 테스트.
 16. 인사 문구와 placeholder는 그라디언트가 가장 진한 자리에서 대비 4.5:1 이상이다(`/design-sync`에서 입력창 아래 타원 중심 근처를 측정). 인사 문구는 홈에 들어올 때 한 번 고르고 그 방문 동안 바뀌지 않는다(프로젝트 이름만 선택기를 따른다). 확인: `pickGreeting` 단위 테스트, `/design-sync` 측정.
-17. 새 초안 `.doan/canvases/buzz-home.html`(26 프레임)과 구현을 `/design-sync`로 맞추고, DESIGN.md의 'Projects home'과 'Settings and Home setup'의 Home 부분을 새 기록으로 바꾼다.
+17. 새 초안 `.doan/canvases/buzz-home.html`(30 프레임)과 구현을 `/design-sync`로 맞추고, DESIGN.md의 'Projects home'과 'Settings and Home setup'의 Home 부분을 새 기록으로 바꾼다.
 
 ## 비목표
 

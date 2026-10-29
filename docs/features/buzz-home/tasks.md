@@ -15,8 +15,8 @@
 
 - [x] D1. `/design-draft`로 `.doan/canvases/buzz-home.html`을 새로 그렸다(26 프레임: 창 21, 상태 보드 5). 홈 전용 violet 타원 배경(grain 없음), 인사 문구, 워크스페이스 임시 상태줄. 사용자가 2026-10-29에 확정했다(`da67ab1e`). 기존 `projects-home.html`은 고치지 않았다.
   - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`에 `buzz-home`(26 프레임) 표시.
-- [ ] D2. 리뷰로 생긴 화면 변경을 초안에 반영한다: LNB 상태 슬롯(design §7.2), 실패·중단 상태줄의 `Edit on Home`과 실패 문구 표(§7), 미준비 공급자의 짧은 상태 문구(§4.3), `{{`·첨부 확인 중 이유 줄(§4.5), 진행 중 제거 확인(§7.5), 마지막 요청 되돌리기 확인(§7.4).
-  - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`의 프레임 목록이 design §14와 같음. 사용자가 앱에서 확인.
+- [x] D2. 리뷰로 생긴 화면 변경을 초안에 반영했다(30 프레임, 2026-10-29): LNB 상태 슬롯(design §7.2), 실패·중단 상태줄의 `Edit on Home`과 실패 문구 표(§7), 미준비 공급자의 짧은 상태 문구(§4.3), `{{`·첨부 확인 중 이유 줄(§4.5), 진행 중 제거 확인(§7.5), 마지막 요청 되돌리기 확인(§7.4).
+  - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`의 프레임 30개가 design §14와 같음. 사용자 확인은 구현 전에 받는다.
 
 ── commit: `docs(design): buzz-home draft revision` ──
 
@@ -81,7 +81,7 @@
 
 ── commit: `docs(product): record buzz-home runtime results` ──
 
-- [ ] V2. `/design-sync`: 확정 초안 26 프레임(이전 CLI 상태 제외)과 구현을 측정해 맞춘다. 그라디언트 위 인사 문구·placeholder 대비 4.5:1, 실제 포인터 hover, 토스트 위치를 포함한다. DESIGN.md에 홈 절을 새로 쓰고 'Projects home'·'Settings and Home setup'의 Home 부분을 대체 표시한다. 한계를 기록한다(renderer 새로고침 시 상태줄·슬롯·마지막 요청 소실과 프로젝트당 1개 제한 해제, start 대기 중 취소 불가, 붙여넣기 파일이 다음 시작까지 남음). 홈과 온보딩 Agent 단계·Quick Open의 용어를 대조한다.
+- [ ] V2. `/design-sync`: 확정 초안 30 프레임(이전 CLI 상태 제외)과 구현을 측정해 맞춘다. 그라디언트 위 인사 문구·placeholder 대비 4.5:1, 실제 포인터 hover, 토스트 위치를 포함한다. DESIGN.md에 홈 절을 새로 쓰고 'Projects home'·'Settings and Home setup'의 Home 부분을 대체 표시한다. 한계를 기록한다(renderer 새로고침 시 상태줄·슬롯·마지막 요청 소실과 프로젝트당 1개 제한 해제, start 대기 중 취소 불가, 붙여넣기 파일이 다음 시작까지 남음). 홈과 온보딩 Agent 단계·Quick Open의 용어를 대조한다.
   - 검증: `/design-sync` 리포트의 남은 차이 0 또는 DESIGN.md의 문서화된 차이, `grep -n 'Projects home' docs/DESIGN.md`가 대체 표시를 가리킴.
 
 ── commit: `fix(app): match buzz-home to its draft` (코드 수정) / `docs(design): record buzz-home measurements` ──
