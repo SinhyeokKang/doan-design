@@ -113,7 +113,7 @@
   - 캔버스 0개 → `Gather design context`(context), `Shape a first screen`(shape), `Document the design system`(document)
   - 캔버스 있음 → `Document the design system of <project>`(design-system 캔버스가 없을 때만), `Critique the <가장 최근에 바뀐 캔버스> canvas`(critique), `Polish the details of <그다음으로 최근 캔버스, 없으면 같은 캔버스>`(polish)
   - CLI 목록에 없는 프리셋은 건너뛰고, 3개가 안 되면 있는 만큼만 보인다.
-- 칩은 sm 버튼의 새 공용 변형 `quiet`이다(2026-10-29 user). 배경은 헤더 캡슐과 같은 `--affordance-backdrop-hover`(hover·pressed는 `--affordance-backdrop-pressed`)이고 배경 블러(`--blur-md`, reduced transparency에서는 블러 없이 `--affordance-subtle`)가 있다. 글자는 `--text-standard`, 그룹 아이콘은 `--affordance-accent`다(2026-10-29 user). 아이콘은 그 프리셋 그룹의 아이콘이다. 칩 문구는 대상까지 담고(`Critique the buzz-onboarding canvas`), 채우는 문장은 경로까지 명시한다. 예를 들어 `Critique the buzz-onboarding canvas`를 누르면 Critique 프리셋 칩과 `Critique the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html).`이 채워지고 포커스는 입력 끝에 간다. 바로 보내지 않는다.
+- 칩은 sm 버튼의 새 공용 변형 `quiet`이다(2026-10-29 user). 배경은 헤더 캡슐과 같은 `--affordance-backdrop-hover`(hover·pressed는 `--affordance-backdrop-pressed`)이고 배경 블러(`--blur-md`, reduced transparency에서는 블러 없이 `--affordance-subtle`)가 있다. hover는 더 어두워지지 않고 반투명 흰색(`--surface-panel` 72%)과 `--shadow-xs`로 살짝 떠오르며, pressed만 `--affordance-backdrop-pressed`로 어두워진다(2026-10-29 user). 글자는 `--text-standard`, 그룹 아이콘은 `--affordance-accent`다(2026-10-29 user). 아이콘은 그 프리셋 그룹의 아이콘이다. 칩 문구는 대상까지 담고(`Critique the buzz-onboarding canvas`), 채우는 문장은 경로까지 명시한다. 예를 들어 `Critique the buzz-onboarding canvas`를 누르면 Critique 프리셋 칩과 `Critique the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html).`이 채워지고 포커스는 입력 끝에 간다. 바로 보내지 않는다.
 - 프로젝트를 바꾸면 다시 계산한다. 같은 방문 동안 프로젝트가 같으면 바뀌지 않는다.
 
 ### 4.4a 프리셋 그룹 (2026-10-29 user)
@@ -179,6 +179,7 @@
 - 저장소 밖 경로는 공급자의 샌드박스·권한 설정에 따라 읽기 권한 요청을 만들 수 있다. 임시 상태줄이 그 요청에 답하게 한다(§7). doan은 권한 설정을 바꾸거나 우회하지 않는다(PRODUCT §3 'Resume and permissions').
 - 수명: 로컬 파일은 doan이 건드리지 않는다. 붙여넣기 파일은 보내지 않고 칩에서 지우면 지우고, 앱 종료 때 남은 미전송 파일은 다음 시작 때 정리한다. 보낸 붙여넣기 파일은 그 대화 기록과 함께 남는다. 대화 기록처럼 보존 정책은 없고, 기기 사이에 옮겨지지 않는다.
 - 기록: `user.message` 이벤트에 첨부 메타데이터(`{name, size, kind, path}`)를 더한다. 이벤트 v1에 선택 필드로 더할지는 `/tdd`에서 판독기를 읽고 정한다.
+- 드롭 대상(2026-10-29 user, 초안 `home-drop`): 파일을 입력창 위로 끌고 오면 입력 카드 전체가 대상이 된다. 카드는 `--surface-accent-subtle` 채움에 `--affordance-accent` 2px 점선 외곽선(가장자리 띠가 아닌 전체 외곽선)으로 바뀌고, 가운데에 `file-plus` 아이콘, `Drop to attach`, `Files stay where they are. Your agent reads them on this Mac.`을 보인다(`role="status"`). 그동안 창 전체의 프로젝트 드롭 오버레이는 보이지 않는다. 놓으면 파일마다 칩이 생기고 텍스트는 유지된다. 폴더를 놓으면 `Folders can’t be attached. Drop a folder outside the message to add a project.`을 보이고 아무것도 더하지 않는다. 카드 밖으로 나가면 원래 모습으로 돌아온다.
 - UI: 칩은 입력 위 한 줄에 놓이고, 넘치면 가로 스크롤하지 않고 줄을 바꾼다. 이미지 칩은 썸네일, 파일 칩은 아이콘·이름·크기를 보이고 툴팁에 전체 경로(`~/…` 축약)를 단다. 칩마다 × 제거가 있다. 키보드로 칩에 가서 Delete/Backspace로 지울 수 있다.
 
 ## 5. 꾸밈 요소 (2026-10-29 user)
@@ -297,5 +298,5 @@ doan이 다르게 가는 점:
 ## 14. 초안 요청
 
 - 캔버스: `.doan/canvases/buzz-home.html`, id `buzz-home`, 폭 2560.
-- 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`(추천 프롬프트 포함), `home-filled`, `home-presets`, `home-agent`, `home-effort`, `workspace-strip`.
+- 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`(추천 프롬프트 포함), `home-filled`, `home-drop`, `home-presets`, `home-agent`, `home-effort`, `workspace-strip`.
 - 2차: 1차가 확정되면 §3.1의 상태 목록을 상태별 프레임으로 넓힌다. `/design-sync`는 2차에 남은 프레임을 대조한다.
