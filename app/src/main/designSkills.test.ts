@@ -27,13 +27,13 @@ describe("shared design-skill fixtures", () => {
     for (const file of [cases.list.file, cases.get.file, ...cases.rejected.map(entry => entry.file)]) expect(validateEnvelope(fixture(file)), file).toBe(true);
   });
 
-  test("a list row carries exactly id, title, description and scope, and no body or sources", () => {
+  test("a list row carries exactly id, title, description, scope and group, and no body or sources", () => {
     expect(Object.keys(LIST.result).sort()).toEqual(["presets", "version"]);
     expect(LIST.result.version).toBe(cases.version);
     // The catalog grows in parallel batches; only the shape is fixed.
     expect(LIST.result.presets.length).toBeGreaterThan(0);
     for (const row of LIST.result.presets) {
-      expect(Object.keys(row).sort()).toEqual(["description", "id", "scope", "title"]);
+      expect(Object.keys(row).sort()).toEqual(["description", "group", "id", "scope", "title"]);
       for (const value of Object.values(row)) expect(typeof value).toBe("string");
     }
   });
@@ -65,6 +65,17 @@ describe("shared design-skill fixtures", () => {
 });
 
 describe("interpretList", () => {
+  test("accepts an older CLI list without groups", () => {
+    const presets = LIST.result.presets.map(({ group, ...row }) => row);
+    const older = withResult(LIST, { presets });
+    expect(interpretList(run(older))).toEqual(older);
+  });
+
+  test("keeps an unknown group for a newer CLI", () => {
+    const newer = withResult(LIST, { presets: [{ ...LIST.result.presets[0], group: "future" }] });
+    expect(interpretList(run(newer))).toEqual(newer);
+  });
+
   test("a list usage_error (a CLI without the command) stays the CLI's failure", () => {
     const unsupported = { v: 1, ok: false, error: { code: "usage_error", message: "unknown command \"design-skill\"", nextSteps: ["Run `doan help`."] } };
     expect(interpretList(run(unsupported, { exitCode: 2 }))).toEqual(unsupported);
@@ -80,7 +91,7 @@ describe("interpretList", () => {
     expect(interpretList(run(empty))).toEqual(empty);
   });
 
-  test("keeps only the four list fields of each row", () => {
+  test("keeps only the five list fields of each row", () => {
     const [first] = LIST.result.presets;
     const extra = withResult(LIST, { presets: [{ ...first, body: "full text", sources: [] }] });
     expect(interpretList(run(extra))).toEqual(withResult(LIST, { presets: [first] }));
@@ -101,6 +112,7 @@ describe("interpretList", () => {
     ["an unknown envelope version", { ...LIST, v: 2 }, 0],
     ["a success without a version", { v: 1, ok: true, result: { presets: LIST.result.presets } }, 0],
     ["presets that are not a list", withResult(LIST, { presets: {} }), 0],
+    ["a non-string group", withResult(LIST, { presets: [{ ...LIST.result.presets[0], group: 1 }] }), 0],
     ["a row without a title", withResult(LIST, { presets: [{ id: "clarify", description: "d", scope: "s" }] }), 0],
     ["a row with a non-string field", withResult(LIST, { presets: [{ id: "clarify", title: 1, description: "d", scope: "s" }] }), 0],
     ["a failure with exit code 0", { v: 1, ok: false, error: { code: "usage_error", message: "m", nextSteps: [] } }, 0],
@@ -134,6 +146,13 @@ describe("interpretList", () => {
 describe("interpretGet", () => {
   const id = cases.get.id;
 
+  test("accepts an older CLI preset without a group", () => {
+    const preset = { ...GET.result.preset };
+    Reflect.deleteProperty(preset, "group");
+    const older = withResult(GET, { preset });
+    expect(interpretGet(run(older), id)).toEqual(older);
+  });
+
   test.each([
     ["a body without the completeness marker", withResult(GET, { body: GET.result.body.replace(/\[doan:design-skill\][^\n]*\n$/, "") })],
     ["a truncated body", withResult(GET, { body: GET.result.body.slice(0, 200) })],
@@ -144,6 +163,7 @@ describe("interpretGet", () => {
     ["a list result", LIST],
     ["sources that are not a list", withResult(GET, { sources: {} })],
     ["a source without a commit", withResult(GET, { sources: [{ repository: "r", path: "p" }] })],
+    ["a non-string group", withResult(GET, { preset: { ...GET.result.preset, group: null } })],
     ["a body that is not text", withResult(GET, { body: 1 })],
   ])("%s is an invalid response", (_name, stdout) => {
     expect(interpretGet(run(stdout), id)).toEqual(cliError("invalid_response"));

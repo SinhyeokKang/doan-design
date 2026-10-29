@@ -286,7 +286,7 @@ func envelopeFixture(t *testing.T, name string) map[string]any {
 }
 
 func row(p Preset) map[string]any {
-	return map[string]any{"id": p.ID, "title": p.Title, "description": p.Description, "scope": p.Scope}
+	return map[string]any{"id": p.ID, "title": p.Title, "description": p.Description, "scope": p.Scope, "group": p.Group}
 }
 
 func TestFixturesMatchCatalog(t *testing.T) {
@@ -303,7 +303,7 @@ func TestFixturesMatchCatalog(t *testing.T) {
 		rows = append(rows, row(p))
 	}
 	if list["version"] != cases.Version || !reflect.DeepEqual(list["presets"], rows) || len(list) != 2 {
-		t.Fatalf("%s differs from the catalog projection (id, title, description, scope in catalog order)", cases.List.File)
+		t.Fatalf("%s differs from the catalog projection (id, title, description, scope, group in catalog order)", cases.List.File)
 	}
 
 	get := envelopeFixture(t, cases.Get.File)["result"].(map[string]any)
@@ -366,7 +366,7 @@ func TestSummaryIsTheListProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(got, row(p)) {
-			t.Fatalf("summary of %s carries more than id, title, description and scope: %s", p.ID, b)
+			t.Fatalf("summary of %s carries more than id, title, description, scope and group: %s", p.ID, b)
 		}
 	}
 }
@@ -439,5 +439,37 @@ func TestPresetsKeepNoUpstreamEngine(t *testing.T) {
 		if got := engineLeftovers(string(b)); got != nil {
 			t.Errorf("%s keeps upstream engine text: %q", e.Name(), got)
 		}
+	}
+}
+
+func TestEmbeddedCatalogGroups(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	type groupPresets struct {
+		group string
+		ids   []string
+	}
+	want := []groupPresets{
+		{"start", []string{"context", "shape", "document", "extract"}},
+		{"review", []string{"critique", "audit"}},
+		{"refine", []string{"polish", "bolder", "quieter", "layout", "typeset", "colorize"}},
+		{"content", []string{"distill", "clarify", "harden", "onboard"}},
+		{"explore", []string{"adapt", "animate", "delight", "generate"}},
+	}
+	var got []groupPresets
+	positions := map[string]int{}
+	for _, p := range c.Presets() {
+		i, seen := positions[p.Group]
+		if !seen {
+			i = len(got)
+			positions[p.Group] = i
+			got = append(got, groupPresets{group: p.Group})
+		}
+		got[i].ids = append(got[i].ids, p.ID)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("catalog group membership, first-appearance order and within-group order: got %v, want %v", got, want)
 	}
 }
