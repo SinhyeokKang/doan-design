@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
 import { join, resolve } from "node:path";
@@ -121,15 +121,17 @@ export function fakeAuthStatus(a: FakeAuth): Obj {
 interface Operation {
   operationId: string; requestId: string; kind: string; state: string; cancelling?: true;
   provider?: string; error?: { code: string; message: string }; inspection?: Obj; project?: { root: string };
-  // Not sent: what inspect looked at.
-  path?: string; url?: string;
+  // Not sent: what inspect looked at and whether select was asked to set up.
+  path?: string; url?: string; initialize?: boolean;
 }
 
 const v2error = (code: string, message: string) => ({ v: 2, ok: false, error: { code, message } });
 const ACTIVE = ["pending", "running", "awaiting_user"];
 
 // Operations move one step per status read, so an agent that never polls never sees a result.
-export function onboardingApp(script: OnboardingScript, root: string) {
+// `initialize` runs once when a select asked to set up a folder that needs it
+// succeeds, with the planned changes; without it the fake only reports success.
+export function onboardingApp(script: OnboardingScript, root: string, initialize?: (changes: string[]) => void) {
   const keys = ["providers", "changes", "readyAfterCheck"];
   if (!isObj(script) || !only(script, keys, keys) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
     throw new Error("onboarding script must be { providers, changes, readyAfterCheck }");
@@ -151,7 +153,7 @@ export function onboardingApp(script: OnboardingScript, root: string) {
   const requests = new Map<string, { key: string; operationId: string }>();
 
   const view = (o: Operation): Obj => {
-    const { path: _path, url: _url, ...shown } = o;
+    const { path: _path, url: _url, initialize: _initialize, ...shown } = o;
     return shown;
   };
   const state = (only?: Operation) => ({
@@ -189,7 +191,10 @@ export function onboardingApp(script: OnboardingScript, root: string) {
       latestInspection = `insp_${++inspections}`;
       o.inspection = { inspectionId: latestInspection, candidates: [{ path: root, changes: [...script.changes] }] };
     }
-    if (o.kind === "project_select") project = o.project = { root };
+    if (o.kind === "project_select") {
+      project = o.project = { root };
+      if (o.initialize && script.changes.length > 0) initialize?.([...script.changes]);
+    }
     if (o.kind === "complete") { o.project = { root }; completed = true; }
   };
   const create = (r: Obj, fields: Partial<Operation>): Operation => {
@@ -241,7 +246,7 @@ export function onboardingApp(script: OnboardingScript, root: string) {
         if (r.inspectionId !== latestInspection) return v2error("inspection_stale", "Inspect the project again.");
         if (resolve(r.path as string) !== root) return v2error("not_candidate", "The path is not a candidate of this inspection.");
         if (script.changes.length > 0 && r.initialize !== true) return v2error("initialize_required", "This folder needs setup; nothing was written.");
-        return { operation: create(r, {}) };
+        return { operation: create(r, r.initialize === true ? { initialize: true } : {}) };
       }
       case "project_clone":
         return v2error("not_candidate", "This inspection has no repository to clone.");
@@ -295,8 +300,38 @@ export function onboardingApp(script: OnboardingScript, root: string) {
   };
 }
 
+// What the app's initialize writes: `doan init` without token CSS (cli/internal/cli/init.go).
+const MERGE_LINE = ".doan/comments/*.jsonl merge=union";
+const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
+
+// Sets `root` up as the real app would for the planned changes, so an agent
+// that trusts the app finds a project afterwards. Every file written is
+// recorded with its content in `manifest`, which changedFiles() reads to keep
+// the app's writes apart from the agent's.
+export function initializeRepo(root: string, changes: string[], manifest: string): void {
+  const written: Record<string, string> = existsSync(manifest) ? JSON.parse(readFileSync(manifest, "utf8")) : {};
+  if (changes.includes(".doan/canvases/")) mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  if (changes.includes(".doan/config.json")) {
+    mkdirSync(join(root, ".doan"), { recursive: true });
+    writeFileSync(join(root, ".doan/config.json"), INIT_CONFIG);
+    written[".doan/config.json"] = INIT_CONFIG;
+  }
+  if (changes.includes(".gitattributes")) {
+    let attributes = existsSync(join(root, ".gitattributes")) ? readFileSync(join(root, ".gitattributes"), "utf8") : "";
+    const newline = attributes.includes("\r\n") ? "\r\n" : "\n";
+    if (attributes !== "" && !attributes.endsWith("\n")) attributes += newline;
+    attributes += MERGE_LINE + newline;
+    writeFileSync(join(root, ".gitattributes"), attributes);
+    written[".gitattributes"] = attributes;
+  }
+  writeFileSync(manifest, JSON.stringify(written) + "\n", { mode: 0o600 });
+}
+
 export interface FakeApp { runtimePath: string; onboardingLog: string; close(): Promise<void> }
 interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null }
+
+// The manifest initializeRepo keeps beside the runtime file.
+export const APP_WRITES = "app-writes.json";
 
 // `dir` must be short: macOS sun_path is 104 bytes.
 export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
@@ -305,7 +340,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const socketPath = join(o.dir, "app.sock");
   const runtimePath = join(o.dir, "runtime.json");
   const onboardingLog = join(o.dir, "onboarding.jsonl");
-  const onboarding = o.onboarding ? onboardingApp(o.onboarding, o.root) : null;
+  const onboarding = o.onboarding ? onboardingApp(o.onboarding, o.root, changes => initializeRepo(o.root, changes, join(o.dir, APP_WRITES))) : null;
   // Without a script the fake is an older app: a v2 line gets the v1 bad_request.
   const reply = (line: string): Obj => {
     let parsed: unknown;

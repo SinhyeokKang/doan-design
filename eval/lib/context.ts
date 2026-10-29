@@ -69,6 +69,8 @@ export interface ContextOptions {
   env: NodeJS.ProcessEnv;
   seedCommit: string;
   onboardingLog?: string;
+  // The fake app's record of the files it wrote into `repo` (socket.ts initializeRepo).
+  appWrites?: string;
 }
 
 export function sh(cmd: string, args: string[], cwd: string, env: NodeJS.ProcessEnv) {
@@ -89,17 +91,28 @@ function checkedGit(repo: string, args: string[], env: NodeJS.ProcessEnv) {
   return sh("git", ["-C", repo, ...overrides, ...args], repo, env);
 }
 
-function diffSinceSeed(dir: string, env: NodeJS.ProcessEnv, seedCommit: string): string {
+// The files the fake app wrote that still hold exactly what it wrote: the app's
+// work, not the agent's. One the agent changed afterwards counts as the agent's.
+export function appWritten(repo: string, manifest: string | undefined): string[] {
+  if (!manifest || !existsSync(manifest)) return [];
+  const written: Record<string, string> = JSON.parse(readFileSync(manifest, "utf8"));
+  return Object.keys(written).filter(path => {
+    try { return readFileSync(resolveOnDisk(repo, path), "utf8") === written[path]; } catch { return false; }
+  });
+}
+
+function diffSinceSeed(dir: string, env: NodeJS.ProcessEnv, seedCommit: string, exclude: string[] = []): string {
   const added = checkedGit(dir, ["add", "-A", "-N", "-f"], env);
   if (added.code !== 0) throw new Error(`git add failed: ${added.stderr}`);
-  const diff = checkedGit(dir, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", seedCommit], env);
+  const pathspec = exclude.length ? ["--", ".", ...exclude.map(path => `:(exclude,literal)${path}`)] : [];
+  const diff = checkedGit(dir, ["diff", "--no-color", "--no-ext-diff", "--no-textconv", seedCommit, ...pathspec], env);
   if (diff.code !== 0) throw new Error(`git diff failed: ${diff.stderr}`);
   return diff.stdout;
 }
 
 // The agent's own worktree is labelled so the judge can tell it from the root.
-export function judgeMaterial(ws: { repo: string; cwd?: string; env: NodeJS.ProcessEnv; seedCommit: string }, ctx: CheckContext) {
-  const diff = diffSinceSeed(ws.repo, ws.env, ws.seedCommit);
+export function judgeMaterial(ws: { repo: string; cwd?: string; env: NodeJS.ProcessEnv; seedCommit: string; appWrites?: string }, ctx: CheckContext) {
+  const diff = diffSinceSeed(ws.repo, ws.env, ws.seedCommit, appWritten(ws.repo, ws.appWrites));
   if (!ws.cwd || ws.cwd === ws.repo) return { changed: ctx.changedFiles(), diff };
   const cwdDiff = diffSinceSeed(ws.cwd, ws.env, ws.seedCommit);
   return {
@@ -117,7 +130,8 @@ export function createContext(o: ContextOptions): CheckContext {
     const untracked = git(["ls-files", "-z", "--others"], dir);
     // git's last stderr line names the cause; the rest is a usage dump.
     if (tracked.code !== 0 || untracked.code !== 0) throw new Error(`git failed: ${(tracked.stderr || untracked.stderr).trim().split("\n").pop()}`);
-    return [...new Set([...tracked.stdout.split("\0"), ...untracked.stdout.split("\0")].filter(Boolean))].sort();
+    const app = dir === o.repo ? appWritten(o.repo, o.appWrites) : [];
+    return [...new Set([...tracked.stdout.split("\0"), ...untracked.stdout.split("\0")].filter(path => path && !app.includes(path)))].sort();
   };
   const seed = (path: string): string | null => {
     const result = git(["show", `${o.seedCommit}:${repoPath(o.repo, path)}`]);

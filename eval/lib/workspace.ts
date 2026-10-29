@@ -4,7 +4,7 @@ import type { Agent } from "./args.ts";
 import { sh } from "./context.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
 import type { LoadedScenario } from "./scenario.ts";
-import { startFakeApp, type FakeApp } from "./socket.ts";
+import { APP_WRITES, startFakeApp, type FakeApp } from "./socket.ts";
 
 export interface Workspace {
   // `/tmp/doan-eval-<id>-<agent>-XXXXXX/`: repo/, bin/doan, rt/ (runtime file and socket),
@@ -19,6 +19,8 @@ export interface Workspace {
   app: FakeApp | null;
   // The fake app's app-socket v2 exchanges (eval/lib/socket.ts); absent until the first one.
   onboardingLog: string;
+  // Files the fake app wrote into `repo` with their content; absent until it writes one.
+  appWrites: string;
   dispose(): Promise<void>;
 }
 
@@ -85,7 +87,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue })
       : null;
     return {
-      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"),
+      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"), appWrites: join(base, "rt", APP_WRITES),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });
