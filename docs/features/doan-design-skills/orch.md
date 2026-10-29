@@ -78,3 +78,7 @@
 - 2026-10-29: 2차 통합 HEAD(90fa660) `verify.mjs --eval` PASS(9단계). 3차 E(`ctx_77e6356c97de`)·V(`ctx_3b2e3e0e7546`)를 시작했다.
 - 2026-10-29: V 질문 — 격리한 CLAUDE_CONFIG_DIR에는 Claude 인증이 없다(Keychain 전용). 지휘자 판단으로 실제 CLAUDE_CONFIG_DIR를 읽기용으로만 쓰고 나머지는 격리하며, 전후 비교와 transcript로 읽은 SKILL.md를 판정하게 했다.
 - 2026-10-29: E 1차 완료(168c9c35·2a208780, D1–D12, round 7개 38 run). 미완료: D10(U-009), D4-codex(U-010), judge partial D2·D3·D7·D11(Claude). 리뷰(Claude Opus medium, `ctx_513795091da0`)와 수정 배치 F를 시작했다. E 터미널은 재측정을 위해 retain했다.
+- 2026-10-29: V 보고 — E1 실제 에이전트 두 사례 PASS. 실행 전후 비교에서 Keychain 'Claude Code-credentials-36e67382'의 수정 시각만 바뀌었다(E round와 같은 항목, OAuth 갱신으로 추정, 내용 미열람). doan 상태·skill·settings·MCP 등록은 그대로였다.
+- 2026-10-29: V(D2·E1) 완료(`handoff-V.md`). D2 PASS(실제 격리 Electron, 목록·단건이 CLI와 같음, iframe·Settings sender는 `request_refused`, real-state 불변). E1 PASS(패키지 CLI 20개·고지 4파일, 두 호환 사례). 미검증: 제품 설치 경로(user skill)로의 발견, Codex. 범위 밖 발견: `app/runtime/environment.ts`의 `isolatedEnv`가 `onboarding.json`에 `{}`를 써서 현재 v1 완료 기록과 맞지 않아 첫 실행 마법사가 뜬다(probe에서 우회). D3는 F 통합 뒤 같은 터미널로 보낸다.
+- 2026-10-29: E 리뷰(`review-E.md`) 🔴0 🟡4 ⚪4. 🟡: D3·D4의 우회 금지가 judge에만 걸림, D7 partial 1/3은 rubric 모호함, MCP `init` 경로 미검증 누락, U-009 근거 순서 오기. 지휘자 판단: 시나리오 결함은 저장소 관례대로 새 id(D2b·D3b·D4b·D7b·D11b)로 고치고, MCP `init` 경로는 D10b로 더한다. F 통합 뒤 E에 수정·재측정 라운드로 보낸다.
+- 2026-10-29: F 완료(44782e82·6df2914d·1d9010e1)를 지휘자가 확인했다. stub에 두 경로 실패 규칙, document에 context 선행, clarify·harden에 미확인 결과 주장 금지·실제 다음 행동만 쓰는 빈 상태 규칙이 들어갔다. F와 E 1차(168c9c35·2a208780)를 통합한다.
