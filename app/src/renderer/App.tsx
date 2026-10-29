@@ -32,7 +32,7 @@ import { unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import type { HomeMemory, UiState, ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
-import { ConversationStrip } from "./ConversationStripView";
+import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
 import { HomeRun } from "./homeRun";
@@ -573,7 +573,7 @@ export function App() {
     setRunTick(tick => tick + 1);
   }, [screen, loadedRoot, state.open?.canvas, run.conversations]);
   const shown = run.strip(loadedRoot);
-  const strip = shown && <div className="strip-slot"><ConversationStrip key={shown.conversation.conversationId} conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
+  const strip = shown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
     onEditOnHome={() => run.editOnHome(shown.conversation.root)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;

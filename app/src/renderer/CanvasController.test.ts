@@ -1349,7 +1349,7 @@ it.each(["id", "url"])("reports a changed %s after guarded cross-root navigation
     h.controller.updateEntries([source, changed]);
     expect(messages).toEqual([]);
     draft = false; approve(true); await Promise.resolve();
-    expect(messages).toEqual(["Canvas changed while opening. Choose it again from the Sidebar or Quick Open."]);
+    expect(messages).toEqual(["Canvas changed while opening. Choose it again from the sidebar or Quick Open."]);
     expect(h.changed.mock.lastCall?.[0].open).toBeNull();
   } finally { h.controller.dispose(); }
 });

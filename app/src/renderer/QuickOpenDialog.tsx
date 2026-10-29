@@ -60,7 +60,7 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
   const scope = entries.filter(entry => currentRoot === null || entry.path === currentRoot);
   const emptyText = query.trim() ? "No canvases or frames match"
     : scope.some(entry => entry.kind === "loading") ? "Project is still being read. Try again shortly."
-    : scope.some(entry => entry.kind !== "list") ? "Project is unavailable. Check its status on Home."
+    : scope.some(entry => entry.kind !== "list") ? "Project is unavailable. Fix it from its menu in the sidebar."
     : "No canvases to show";
   const dismiss = () => {
     dialog.current?.close();

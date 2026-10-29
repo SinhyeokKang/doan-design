@@ -81,5 +81,5 @@ test("empty query distinguishes no available canvases from no search matches", (
   const reading = renderToStaticMarkup(<QuickOpen entries={[{ kind: "loading", path: "/repo" }]} currentRoot="/repo" pick={() => {}} close={() => {}} />);
   expect(reading).toContain("Project is still being read");
   const problem = renderToStaticMarkup(<QuickOpen entries={[{ kind: "notFound", path: "/repo" }]} currentRoot="/repo" pick={() => {}} close={() => {}} />);
-  expect(problem).toContain("Project is unavailable");
+  expect(problem).toContain("Project is unavailable. Fix it from its menu in the sidebar.");
 });

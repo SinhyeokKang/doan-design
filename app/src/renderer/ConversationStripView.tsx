@@ -59,3 +59,9 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     })}</span>
   </div>;
 }
+
+// One strip instance per conversation: its Stop-focus memory must not carry over when the project's strip switches to
+// another conversation (review BV2 🟡2).
+export function KeyedConversationStrip(props: Props) {
+  return <ConversationStrip key={props.conversationId} {...props} />;
+}

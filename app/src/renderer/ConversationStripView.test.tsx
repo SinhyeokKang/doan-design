@@ -1,7 +1,7 @@
 import { Children, isValidElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { ConversationStrip } from "./ConversationStripView";
+import { ConversationStrip, KeyedConversationStrip } from "./ConversationStripView";
 import { stripView, type StripContext, type StripState } from "./conversationStrip";
 
 // With `mock`, hooks run outside React: refs are plain objects (kept across calls while `reuse` is set, so a second
@@ -148,4 +148,11 @@ test("a person whose focus was elsewhere when Stop went away keeps it", () => {
   detach(); doc.activeElement = doc.body;
   draw({ kind: "done" }); effects();
   expect(dismissFocus).not.toHaveBeenCalled();
+});
+
+test("the strip App draws is keyed by its conversation, so another conversation gets a fresh instance", () => {
+  const strip = (conversationId: string) => KeyedConversationStrip({ conversationId, provider: "claude", state: ASK, view: stripView(ASK, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop });
+  expect(strip("c1").type).toBe(ConversationStrip);
+  expect(strip("c1").key).toBe("c1");
+  expect(strip("c2").key).toBe("c2");
 });
