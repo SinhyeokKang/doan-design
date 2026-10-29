@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -379,6 +380,64 @@ func TestValidID(t *testing.T) {
 	for _, id := range []string{"", "../clarify", "clarify.md", "a/b", "CLARIFY", "-clarify", "clarify-", "a--b", "a1"} {
 		if ValidID(id) {
 			t.Errorf("accepted %q", id)
+		}
+	}
+}
+
+// The upstream engine check from SOURCES.md. Go's regexp has no lookbehind, so the three exact source-notice tokens
+// are blanked first and every remaining "impeccable" is caught, which matches the rg pattern there.
+var (
+	engineAllowed = []string{
+		"pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860",
+		"`skill/agents/impeccable-documenter.md`",
+		"`skill/agents/impeccable-finish-reviewer.md`",
+	}
+	enginePattern = regexp.MustCompile(`(?i)impeccable|\{\{|\}\}|<skill-base-dir>|<!-- rule:|</?(codex|claude)>|CONTEXT_STALE|NO_PRODUCT_MD|IMAGE_GEN_AVAILABLE`)
+)
+
+func engineLeftovers(body string) []string {
+	for _, token := range engineAllowed {
+		body = strings.ReplaceAll(body, token, " ")
+	}
+	return enginePattern.FindAllString(body, -1)
+}
+
+func TestEngineCheckPattern(t *testing.T) {
+	for _, text := range []string{
+		"run `impeccable context` first",
+		"{{command_prefix}}impeccable polish",
+		"write .impeccable/design.json",
+		"spawn impeccable-finish-reviewer",
+		"`skill/agents/impeccable context`",
+		"skill/agents/impeccable-documenter.md",
+		"Adapted from Impeccable.",
+		"pbakaus/impeccable at commit 0000000",
+		"{{model}}", "}}", "<skill-base-dir>/x", "<!-- rule: r1 -->", "<codex>", "</CLAUDE>",
+		"CONTEXT_STALE", "no_product_md", "IMAGE_GEN_AVAILABLE",
+	} {
+		if engineLeftovers(text) == nil {
+			t.Errorf("missed %q", text)
+		}
+	}
+	for _, text := range append(engineAllowed, "Source: pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, `skill/agents/impeccable-finish-reviewer.md`.") {
+		if got := engineLeftovers(text); got != nil {
+			t.Errorf("flagged allowed %q: %v", text, got)
+		}
+	}
+}
+
+func TestPresetsKeepNoUpstreamEngine(t *testing.T) {
+	entries, err := os.ReadDir("presets")
+	if err != nil || len(entries) == 0 {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join("presets", e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := engineLeftovers(string(b)); got != nil {
+			t.Errorf("%s keeps upstream engine text: %q", e.Name(), got)
 		}
 	}
 }

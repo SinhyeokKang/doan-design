@@ -39,7 +39,7 @@ Every preset body also ends with its own source line naming the upstream commit 
 
 ## Upstream engine check
 
-No preset body may keep an upstream engine command, placeholder, rule tag, or harness block. Run from the repository root:
+No preset body may keep an upstream engine command, placeholder, rule tag, or harness block. `go test ./cli/internal/designskill` enforces this (`TestPresetsKeepNoUpstreamEngine`, with the pattern itself pinned by `TestEngineCheckPattern` in `designskill_test.go`); Go's regexp has no lookbehind, so the test blanks the allowed tokens below and then matches the rest. The same check by hand, from the repository root:
 
 ```sh
 rg -n -i -P '(?<!pbakaus/)(?<!`skill/agents/)impeccable|pbakaus/impeccable(?! at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860)|`skill/agents/impeccable(?!-(documenter|finish-reviewer)\.md`)|\{\{|\}\}|<skill-base-dir>|<!-- rule:|</?(codex|claude)>|CONTEXT_STALE|NO_PRODUCT_MD|IMAGE_GEN_AVAILABLE' cli/internal/designskill/presets/
