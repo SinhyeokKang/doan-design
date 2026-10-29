@@ -3,7 +3,8 @@ import claude from "./fixtures/claude.json";
 import claudeInterrupted from "./fixtures/claude-interrupted.json";
 import codex from "./fixtures/codex.json";
 import codexInterrupted from "./fixtures/codex-interrupted.json";
-import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, codexPermission, permissionAnswer, transportError } from "./transport";
+import codexHome from "./fixtures/codex-home.json";
+import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
   let state: TransportState = { ...initialTransport(), stop };
@@ -98,7 +99,46 @@ it("keeps multiple Claude text blocks distinct while connecting each delta to it
 });
 it("shows Codex tool activity when it starts, before completion", () => {
   const message = { method: "item/started", params: { threadId: "session-1", turnId: "turn-1", item: { type: "commandExecution", id: "cmd", command: "ls" } } };
-  expect(collect("codex", [message]).events).toContainEqual({ type: "activity", kind: "command", summary: "commandExecution" });
+  expect(collect("codex", [message]).events).toContainEqual({ type: "activity", kind: "command", summary: "ls" });
+});
+describe("readable activity and permission summaries", () => {
+  it("describes the recorded Codex Home run from each item's own data, never its raw type", () => {
+    const events = collect("codex", codexHome).events;
+    expect(events.filter(e => e.type === "activity" || e.type === "permission.request").map(e => [e.type, e.type === "activity" || e.type === "permission.request" ? e.summary : ""])).toEqual([
+      ["activity", "doan skill"],
+      ["activity", ".doan/canvases/hello.html"],
+      ["permission.request", ".doan/canvases/hello.html"],
+    ]);
+    expect(events.filter(e => e.type === "turn.done")).toHaveLength(1);
+  });
+  const context = { root: "/repo", sessionId: "session-1", turnId: "turn-1" };
+  const started = (item: Record<string, unknown>) => ({ method: "item/started", params: { threadId: "session-1", turnId: "turn-1", item } });
+  const approval = (method: string, params: Record<string, unknown>) => ({ id: 3, method, params: { threadId: "session-1", turnId: "turn-1", itemId: "f", ...params } });
+  const summaries = (messages: unknown[]) => collect("codex", messages).events.flatMap(e => e.type === "activity" || e.type === "permission.request" ? [e.summary] : []);
+  it("names the first changed file and how many more a Codex file approval covers", () => {
+    const changes = ["/repo/a.html", "/repo/b.html", "/elsewhere/c.html"].map(path => ({ path, kind: { type: "update" }, diff: "" }));
+    expect(summaries([started({ type: "fileChange", id: "f", changes }), approval("item/fileChange/requestApproval", { reason: null })]))
+      .toEqual(["a.html", "b.html", "/elsewhere/c.html", "a.html and 2 more"]);
+    expect(summaries([started({ type: "fileChange", id: "f", changes }), approval("item/fileChange/requestApproval", { reason: "Allow writes outside the repo" })]).at(-1)).toBe("Allow writes outside the repo");
+  });
+  it("falls back to a short phrase when a Codex item carries nothing readable", () => {
+    expect(summaries([approval("item/fileChange/requestApproval", { reason: null })])).toEqual(["Editing files"]);
+    expect(summaries([approval("item/commandExecution/requestApproval", { reason: null, command: null })])).toEqual(["Running a command"]);
+    expect(summaries([started({ type: "commandExecution", id: "c", command: "", commandActions: [] }), started({ type: "fileChange", id: "f", changes: [{ kind: { type: "add" } }] })]))
+      .toEqual(["Running a command", "Editing files"]);
+    expect(summaries([started({ type: "mcpToolCall", id: "m", server: "doan", tool: "check", arguments: {} }), started({ type: "mcpToolCall", id: "n", server: "", tool: "", arguments: {} })]))
+      .toEqual(["check (doan)", "Using a tool"]);
+    expect(normalizeCodex(initialTransport(), approval("item/commandExecution/requestApproval", { command: "/bin/zsh -c 'rm x'", commandActions: [{ type: "unknown", command: "rm x" }] }), context).events)
+      .toMatchObject([{ type: "permission.request", tool: "commandExecution", summary: "rm x" }]);
+  });
+  it("describes Claude tools by their input, never by the bare tool name", () => {
+    const tool = (name: string, input: Record<string, unknown>) => ({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: name, name, input }] } });
+    expect(collect("claude", [tool("Bash", { command: "ls -la", description: "List files" }), tool("Write", { file_path: "/repo/.doan/canvases/a.html" }), tool("Grep", { pattern: "frame" }), tool("WebFetch", {})]).events.map(e => e.type === "activity" ? e.summary : ""))
+      .toEqual(["List files", ".doan/canvases/a.html", "frame", "Using a tool"]);
+    expect(claudePermissionSummary("Edit", { file_path: "/repo/x.css" }, "/repo")).toBe("x.css");
+    expect(claudePermissionSummary("Bash", { command: "npm test" }, "/repo")).toBe("npm test");
+    expect(claudePermissionSummary("WebFetch", {}, "/repo")).toBe("Using a tool");
+  });
 });
 it("fails closed for an unsupported request rather than silently waiting forever", () => {
   expect(collect("codex", [{ id: 9, method: "item/future/requestApproval", params: { threadId: "session-1", turnId: "turn-1" } }]).events).toContainEqual({ type: "turn.failed", code: "session_unavailable" });

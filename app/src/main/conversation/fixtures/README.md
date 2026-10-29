@@ -60,3 +60,13 @@ recorded (`{currentModelId, availableModels: [{modelId, name}]}`), an answer to
 `session/set_config_option`, `FAKE_ACP_LOG` to record client requests and
 `FAKE_ACP_NO_IMAGE` for a server without `promptCapabilities.image`. The
 model IDs the tests pass are synthetic; the recorded turns are unchanged.
+
+`codex-home.json` (2026-10-30, buzz-home BF1) is trimmed from the BV1 real-app
+run with Codex app-server 0.164.0: the raw records come from the redacted spawn
+tap `.scratch/runtime-test/buzz-home/ev/real/tap/007-codex.jsonl`, and the doan
+events that run produced are in `ev/real/events-d.json` (raw item types as
+activity and permission summaries). Kept: a `commandExecution` start with
+`commandActions`, an `imageView` start, a `fileChange` start, the
+`item/fileChange/requestApproval` with `reason: null` that refers to it only by
+`itemId`, its completion and `turn/completed`. Paths, IDs and the diff are
+synthetic; output, `rootTurnId` and the turn's items are omitted.

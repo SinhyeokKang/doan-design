@@ -149,6 +149,21 @@ it("takes a tool call's path from a later update, such as the permission request
     .toEqual([{ type: "activity", kind: "edit", path: "/repo/.doan/canvases/a.html", insideDesign: true, summary: "Create file" }]);
 });
 
+it("falls back to the path or a short phrase, not the raw ACP kind, when a tool call has no title", () => {
+  let state = initialAcp("t");
+  const events: EventPayload[] = [];
+  for (const update of [
+    { sessionUpdate: "tool_call", toolCallId: "e", kind: "edit", status: "completed", locations: [{ path: "/repo/.doan/canvases/a.html" }] },
+    { sessionUpdate: "tool_call", toolCallId: "x", kind: "execute", status: "completed" },
+    { sessionUpdate: "tool_call", toolCallId: "o", kind: "fetch", status: "completed" },
+  ]) { const result = normalizeAcp(state, update, "/repo"); state = result.state; events.push(...result.events); }
+  expect(events.map(e => e.type === "activity" ? e.summary : "")).toEqual([".doan/canvases/a.html", "Running a command", "Using a tool"]);
+  const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id")?.event.summary;
+  expect(ask({ kind: "edit" })).toBe("Editing files");
+  expect(ask({ kind: "execute", title: "Run `ls`" })).toBe("Run `ls`");
+  expect(ask({})).toBe("Using a tool");
+});
+
 it("fails the connection on output that is not JSON-RPC and rejects every pending request", async () => {
   const failures: string[] = [];
   const connection = new AcpConnection(() => {}, () => {}, () => {}, detail => failures.push(detail));

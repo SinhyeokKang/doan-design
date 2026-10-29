@@ -1,0 +1,85 @@
+[
+  {
+    "method": "item/started",
+    "params": {
+      "item": {
+        "type": "commandExecution",
+        "id": "exec-1",
+        "pluginId": null,
+        "scriptPath": null,
+        "command": "/bin/zsh -c 'doan skill'",
+        "cwd": "/repo",
+        "processId": "1001",
+        "source": "unifiedExecStartup",
+        "status": "inProgress",
+        "commandActions": [{ "type": "unknown", "command": "doan skill" }],
+        "aggregatedOutput": null,
+        "exitCode": null,
+        "durationMs": null
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "startedAtMs": 1793287861789
+    },
+    "emittedAtMs": 1793287861789
+  },
+  {
+    "method": "item/started",
+    "params": {
+      "item": { "type": "imageView", "id": "exec-2", "path": "/files/shape.png" },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "startedAtMs": 1793287865281
+    },
+    "emittedAtMs": 1793287865281
+  },
+  {
+    "method": "item/started",
+    "params": {
+      "item": {
+        "type": "fileChange",
+        "id": "exec-3",
+        "changes": [{ "path": "/repo/.doan/canvases/hello.html", "kind": { "type": "add" }, "diff": "Sample text" }],
+        "status": "inProgress"
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "startedAtMs": 1793287875616
+    },
+    "emittedAtMs": 1793287875616
+  },
+  {
+    "method": "item/fileChange/requestApproval",
+    "id": 0,
+    "params": {
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "itemId": "exec-3",
+      "startedAtMs": 1793287875616,
+      "reason": null,
+      "grantRoot": null
+    }
+  },
+  {
+    "method": "item/completed",
+    "params": {
+      "item": {
+        "type": "fileChange",
+        "id": "exec-3",
+        "changes": [{ "path": "/repo/.doan/canvases/hello.html", "kind": { "type": "add" }, "diff": "Sample text" }],
+        "status": "completed"
+      },
+      "threadId": "session-1",
+      "turnId": "turn-1",
+      "completedAtMs": 1793288032300
+    },
+    "emittedAtMs": 1793288032300
+  },
+  {
+    "method": "turn/completed",
+    "params": {
+      "threadId": "session-1",
+      "turn": { "id": "turn-1", "items": [], "itemsView": "notLoaded", "status": "completed", "error": null }
+    }
+  }
+]
