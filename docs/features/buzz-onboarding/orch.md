@@ -48,7 +48,8 @@
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 통합(U1 5 + U2 18 커밋, 끝 `dfc868a`), U1 2회차·U2 2회차 |
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
 | R | D20 remote 확인 | `schema/**`(v2 path+url), `app/src/formats/**`, `cli/internal/formats/**`, `cli/internal/cli/onboarding*.go`·MCP·`skill.md`, `app/src/main/onboarding/{service,projects}.ts` | C·M·G 통합 | Claude Opus high — 공개 계약 변경과 remote 판정 | `verify.mjs` | 통합(4 커밋), 1회차 |
-| A | V 결함 2(교체 로그인 취소가 연결을 잃음) | `app/src/main/agentAuth/**`(필요하면 `onboarding/service.ts`), `docs/POSTMORTEM.md` | V | Claude Opus high — 사용자 자격 증명 손실 버그의 원인 조사 | `verify.mjs` | 통합(13 커밋, 끝 `e253b42`), 3회차 |
+| A | V 결함 2(교체 로그인 취소가 연결을 잃음) | `app/src/main/agentAuth/**`(필요하면 `onboarding/service.ts`), `docs/POSTMORTEM.md` | G2 | agent-eval 결과 수정(온보딩 sandbox 안내, 변경 안내 순서, 가짜 앱 파일 생성) | `cli/internal/cli/**`(`skill.md` 포함), `eval/lib/socket.ts`와 테스트 | eval 라운드 | Claude Opus medium — 가이드 문구와 runner 보정 | `verify.mjs --eval` | 진행 중 |
+| V | Claude Opus high — 사용자 자격 증명 손실 버그의 원인 조사 | `verify.mjs` | 통합(13 커밋, 끝 `e253b42`), 3회차 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 완료(재확인 포함) |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
@@ -114,3 +115,4 @@
 - 2026-10-29: 리포 링크 probe(`4fce45d` 패키지 앱) 5개 항목 통과: D20/D21 일치·불일치·읽기 실패(UI·CLI), 오류 notice 복구도 url 전송, 세 checkout 선택, 'Use existing folder' remote 확인, 잘못된 URL inline 거절, Retry가 고친 URL 사용. 재현 안 된 1건: clone 화면에서 일치하는 미초기화 폴더를 고르자 'Set up and continue' 클릭 없이 초기화·등록됐다(3회 반복은 정상). D23 뒤 U에 조사를 보낸다. Keychain 기준선 일치. GUI 슬롯을 U에 넘겼다.
 - 2026-10-29: D23 통합(18cc21d..3ecf656, 마크업 측정은 초안 chosen 카드와 일치, 실제 흐름 확인은 V). U에 동의 없는 초기화 조사 Task를 보냈다.
 - 2026-10-29: U 조사(837f4c0..fd91ffa): 동의 없이 initialize를 보내는 경로는 찾지 못했고, 동의를 inspectionId·경로에 묶인 토큰으로 바꿨다. 통합. 남은 의심(포커스 복구가 'Set up and continue'에 감)은 D24로 U에 보냈다.
+- 2026-10-29: `/agent-eval` 라운드 `buzz-onboarding-261029`(`0564054`, Claude Code 2.1.312·Codex 0.164.0): 기존 시나리오는 이전과 같다(R1b·R2 Codex는 알려진 실패, H3·R6 Codex는 판정자만 partial). O1 두 에이전트 fail, O2 Codex fail. 원인: Codex sandbox가 socket을 막는데 온보딩 안내에 sandbox·MCP 안내가 없음, Claude가 변경 계획을 select 뒤에 보고, 가짜 앱이 초기화 파일을 만들지 않음(runner 결함). 실제 상태 점검의 Keychain 차이는 실제 Codex가 사용자 설정의 `malmoi` MCP 자격 증명을 갱신한 것(02:10:51Z, doan 무관). 배치 G2 시작 `ctx_f6d415a0a0b0`. 수정 뒤 O1·O2를 다시 잰다.
