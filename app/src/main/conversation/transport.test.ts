@@ -55,13 +55,13 @@ describe("transport normalization", () => {
 });
 describe("permission choices", () => {
   it("maps Claude callback allow/deny and only exposes suggested persistent updates", () => {
-    const request = claudePermission("r", "Write", { file_path: "/repo/.doan/canvases/a.html" }, []);
+    const request = claudePermission("r", "Write", { file_path: "/repo/.doan/canvases/a.html" }, [], "/repo");
     expect(request.event.options.map(o => o.kind)).toEqual(["allow", "deny"]);
     expect(permissionAnswer(request, "deny")).toMatchObject({ response: { behavior: "deny", message: "Denied by the user." }, event: { type: "permission.resolved", optionId: "deny" } });
     expect(permissionAnswer(request, "allow")?.response).toEqual({ behavior: "allow", updatedInput: { file_path: "/repo/.doan/canvases/a.html" } });
     expect(permissionAnswer(request, "always")).toBeNull();
     const suggestion = { type: "addRules", rules: [{ toolName: "Write" }], behavior: "allow", destination: "session" };
-    expect(permissionAnswer(claudePermission("r", "Write", {}, [suggestion]), "always")?.response).toEqual({ behavior: "allow", updatedInput: {}, updatedPermissions: [suggestion] });
+    expect(permissionAnswer(claudePermission("r", "Write", {}, [suggestion], "/repo"), "always")?.response).toEqual({ behavior: "allow", updatedInput: {}, updatedPermissions: [suggestion] });
   });
   it("maps Codex file decline separately from cancel and preserves RPC request id zero", () => {
     const raw = codex.find(m => m.method === "item/fileChange/requestApproval");
@@ -128,6 +128,9 @@ describe("readable activity and permission summaries", () => {
       .toEqual(["Running a command", "Editing files"]);
     expect(summaries([started({ type: "mcpToolCall", id: "m", server: "doan", tool: "check", arguments: {} }), started({ type: "mcpToolCall", id: "n", server: "", tool: "", arguments: {} })]))
       .toEqual(["check (doan)", "Using a tool"]);
+    const long = "x".repeat(5000);
+    expect(summaries([started({ type: "commandExecution", id: "c", command: long, commandActions: [] }), approval("item/commandExecution/requestApproval", { command: long })]).map(s => s.length)).toEqual([512, 512]);
+    expect(claudePermissionSummary("Bash", { command: long }, "/repo")).toHaveLength(512);
     expect(normalizeCodex(initialTransport(), approval("item/commandExecution/requestApproval", { command: "/bin/zsh -c 'rm x'", commandActions: [{ type: "unknown", command: "rm x" }] }), context).events)
       .toMatchObject([{ type: "permission.request", tool: "commandExecution", summary: "rm x" }]);
   });

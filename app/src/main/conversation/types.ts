@@ -55,6 +55,7 @@ export interface TransportState {
   textBlock: number | null;
   completedMessages: string[];
   activities: string[];
+  fileSummaries: Record<string, string>;
 }
 export interface TransportResult { state: TransportState; events: EventPayload[] }
 export interface PermissionChoice { option: PermissionOption; response: unknown }

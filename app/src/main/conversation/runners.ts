@@ -8,7 +8,7 @@ import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeV
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { parseClaudeModels, parseCodexModels } from "./models";
-import { endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
+import { claudePermissionSummary, endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
@@ -157,7 +157,7 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
       const requestId = randomUUID(); const suggestions = options.suggestions ?? [];
       return new Promise<PermissionResult>(resolve => {
         pending.set(requestId, { input: toolInput, suggestions, resolve });
-        emit({ type: "permission.request", requestId, tool, summary: tool, options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
+        emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
       });
     },
   } });
