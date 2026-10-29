@@ -47,7 +47,7 @@
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
 | R | D20 remote 확인 | `schema/**`(v2 path+url), `app/src/formats/**`, `cli/internal/formats/**`, `cli/internal/cli/onboarding*.go`·MCP·`skill.md`, `app/src/main/onboarding/{service,projects}.ts` | C·M·G 통합 | Claude Opus high — 공개 계약 변경과 remote 판정 | `verify.mjs` | 통합(4 커밋), 1회차 |
 | A | V 결함 2(교체 로그인 취소가 연결을 잃음) | `app/src/main/agentAuth/**`(필요하면 `onboarding/service.ts`), `docs/POSTMORTEM.md` | V | Claude Opus high — 사용자 자격 증명 손실 버그의 원인 조사 | `verify.mjs` | 통합(13 커밋, 끝 `e253b42`), 3회차 |
-| V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 진행 중 |
+| V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 완료(재확인 포함) |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
 독립 리뷰(`/code-review`, 보고만): C·M·G·E는 Codex `gpt-6-astra` medium, P·U·T는 Claude Opus high(T는 medium). 구현과 다른 계열을 섞는다(체인 파일 허가, 사용자 메모 2026-10-26).
@@ -106,3 +106,4 @@
 - 2026-10-29: A 리뷰 Codex `gpt-6-astra` medium: 🔴 1(vault commit 뒤 정리 실패 시 옛 연결이 새 자격 증명 위에 verified로 남음)·🟡 2(staging 로그아웃 실패를 무시하고 삭제, 중단된 staging·retired 프로필 복구 없음). 수정 1회차를 보냈다.
 - 2026-10-29: A 재리뷰: 🔴 0·🟡 2(연결이 없는데 기본 프로필 정리를 영구히 건너뜀, 기록 저장 실패 뒤 미기록 프로필 생성). 수정 2회차를 보냈다.
 - 2026-10-29: A 수정 2회차(a1c95c6, 6f4ddea, f317086)를 지휘자 확인 뒤 통합했다(끝 `e253b42`). 통합 HEAD `verify.mjs --eval` PASS. A 작업자 release. V에 재확인 Task를 보냈다(결함 1·2, D22, staged Codex 중 종료 뒤 sweep).
+- 2026-10-29: V 재확인(`e253b42` 패키지 앱): 결함 1과 D22 전 항목 통과. CLI 교체 취소·Claude/Codex 교체 실패에서 다섯 연결·자격 증명·vault 유지, Codex 교체 성공 시 새 프로필로 전환하고 옛 프로필·Keychain 항목 정리, 대화 turn.done까지 확인, staged 교체 중 SIGKILL 뒤 재시작 sweep이 live 프로필을 건드리지 않고 정리. 잔여 결함 1건(URL 접근 오류 화면의 Retry가 고친 URL을 무시) → U에 수정. 관찰: 앱 SIGKILL 뒤 고아 codex login 프로세스가 남음(무해), 기본 Claude Code-credentials mdat 변경 원인 미상(다른 Claude 세션 실행 중, 항목 유지). Keychain은 doan 항목 모두 제거. V 작업자 release.
