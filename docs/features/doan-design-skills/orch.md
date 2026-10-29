@@ -53,3 +53,5 @@
 - 2026-10-29: intake. 결정 D1–D8.
 - 2026-10-29: run `run_a4cd59bab3c2`. 1차 G1(`dds-g1`)·S(`dds-s`)·R(`dds-r`, Codex) 시작, 세 작업자 모두 착수를 확인했다. A0 완료(5bcbca9). PoC 파일에는 `doan check` 출력이 남아 있지 않아 그 사실을 PRODUCT §6에 함께 적었다.
 - 2026-10-29: G1 질문 — ehmo MIT 원문이 고정 클론에 없다. 지휘자가 `gh api`로 ehmo/platform-design-skills `dc2be825`의 LICENSE를 받아 전달했다(저작권 줄에 권리자 이름 없음, 그대로 보존). R 질문 — child worktree의 `npm --prefix app ci`·package 실행을 허가했다.
+- 2026-10-29: R 완료(4244ee6·96eeef2, verify --eval PASS). 리뷰 작업자 `ctx_dadb841537fe`(Claude Opus medium) 시작. 수정 라운드에 대비해 R 터미널은 retain했다.
+- 2026-10-29: R 리뷰(`review-R.md`) 🔴0 🟡0 ⚪4. ⚪1(Claude 경로의 긴 본문 상한)·⚪2(조회 횟수는 transcript에서 따로 센다)는 E 브리프로 넘긴다. R을 통합한다.
