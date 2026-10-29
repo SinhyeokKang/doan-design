@@ -13,12 +13,204 @@
       ]
     },
     {
+      "id": "shape",
+      "title": "Shape a feature",
+      "description": "Work out a feature or screen's purpose, users, flow, states, and scope as a confirmed brief before anything is built.",
+      "scope": "feature brief",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/shape.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/new-work.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/mode-operate.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/mode-persuade.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/mode-read.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/SKILL.src.md"}
+      ]
+    },
+    {
+      "id": "document",
+      "title": "Document the design system",
+      "description": "Record the shipped design system as a rules document for agents and a design-system canvas that references the project's token CSS.",
+      "scope": "design system",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/document.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/agents/impeccable-documenter.md"}
+      ]
+    },
+    {
+      "id": "extract",
+      "title": "Extract reusable patterns",
+      "description": "Find tokens, components, and patterns the design repeats and propose how to consolidate them; refactor app code only on request.",
+      "scope": "tokens and patterns",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/extract.md"}
+      ]
+    },
+    {
+      "id": "critique",
+      "title": "Critique the design",
+      "description": "Review the UX, hierarchy, and communication of a named design and report prioritized findings without editing.",
+      "scope": "design review",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/critique.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/agents/impeccable-finish-reviewer.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/craft-floor.md"}
+      ]
+    },
+    {
+      "id": "audit",
+      "title": "Audit the design",
+      "description": "Check accessibility, responsiveness, theming, and performance risks, separating what was verified from what was not.",
+      "scope": "technical quality",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/audit.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/craft-floor.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/optimize.md"}
+      ]
+    },
+    {
+      "id": "polish",
+      "title": "Polish the details",
+      "description": "Finish a design for consistency and completeness while keeping its identity, content, and function.",
+      "scope": "visual finish",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/polish.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/live.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/craft-floor.md"}
+      ]
+    },
+    {
+      "id": "distill",
+      "title": "Simplify the design",
+      "description": "Remove redundant elements, noise, and complexity without dropping function or product facts the user has not agreed to cut.",
+      "scope": "content and structure",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/distill.md"}
+      ]
+    },
+    {
+      "id": "bolder",
+      "title": "Make it bolder",
+      "description": "Strengthen the visual emphasis of the requested target using the design system's own vocabulary.",
+      "scope": "visual emphasis",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/bolder.md"}
+      ]
+    },
+    {
+      "id": "quieter",
+      "title": "Calm the design",
+      "description": "Soften excessive color, weight, decoration, and motion while keeping hierarchy and character.",
+      "scope": "visual intensity",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/quieter.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/operate.md"}
+      ]
+    },
+    {
+      "id": "layout",
+      "title": "Improve the layout",
+      "description": "Improve arrangement, spacing, grouping, and reading order so product priority reads clearly at every covered width.",
+      "scope": "layout and spacing",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/layout.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/operate.md"}
+      ]
+    },
+    {
+      "id": "typeset",
+      "title": "Improve the typography",
+      "description": "Improve fonts, type hierarchy, and readability using the project's type tokens, without replacing an established identity.",
+      "scope": "typography",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/typeset.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/operate.md"}
+      ]
+    },
+    {
+      "id": "colorize",
+      "title": "Improve the color",
+      "description": "Improve color roles and contrast with token CSS variables while keeping brand colors and meaning intact.",
+      "scope": "color and contrast",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/colorize.md"}
+      ]
+    },
+    {
       "id": "clarify",
       "title": "Clarify copy",
       "description": "Clarify labels, errors, and next actions without changing meaning.",
       "scope": "copy",
       "sources": [
         {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/clarify.md"}
+      ]
+    },
+    {
+      "id": "harden",
+      "title": "Harden for real conditions",
+      "description": "Add error, empty, loading, permission, offline, and extreme-content states so a design holds up with real data.",
+      "scope": "edge-case states",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/harden.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/operate.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/optimize.md"}
+      ]
+    },
+    {
+      "id": "onboard",
+      "title": "Design first use",
+      "description": "Design first-run flows, empty states, and next actions that get new users to a real result without invented claims.",
+      "scope": "first use",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/onboard.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/harden.md"}
+      ]
+    },
+    {
+      "id": "adapt",
+      "title": "Adapt to other contexts",
+      "description": "Restructure a screen for other widths, devices, inputs, or contexts instead of stretching it.",
+      "scope": "responsive layout",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/adapt.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/adapt.native.md"}
+      ]
+    },
+    {
+      "id": "animate",
+      "title": "Add purposeful motion",
+      "description": "Design motion that explains state, relationship, and feedback, with reduced-motion and performance care.",
+      "scope": "motion",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/animate.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/overdrive.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/optimize.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/craft-floor.md"}
+      ]
+    },
+    {
+      "id": "delight",
+      "title": "Add moments of delight",
+      "description": "Add product-specific personality at moments that earn it, without slowing tasks or touching serious moments.",
+      "scope": "personality",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/delight.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/overdrive.md"}
+      ]
+    },
+    {
+      "id": "generate",
+      "title": "Generate design alternatives",
+      "description": "Draw the design alternatives the user asked for on a canvas, varied on distinct axes, without choosing or adopting one.",
+      "scope": "design alternatives",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/generate.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/live.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/craft-floor.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/new-work.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/mode-operate.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/mode-persuade.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/mode-read.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/SKILL.src.md"}
       ]
     }
   ]
