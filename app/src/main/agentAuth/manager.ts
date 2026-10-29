@@ -144,14 +144,16 @@ export class AuthManager {
         // so its replacement signs in to a fresh profile that becomes the connection's only on success (D22).
         const staged = this.adapters[provider].loginClears && previous ? `${provider}-${this.newId()}` : null;
         const touch = { live: false };
-        let outcome: SignInResult | null;
+        let outcome: SignInResult | null, recorded = false;
         try {
           // Recorded before the profile exists, so a crash at any later point leaves a cleanup the next start finishes.
           if (staged) await this.storageStep(() => this.options.storage.markCleanup(provider, staged));
+          recorded = true;
           outcome = { status: "stored", connection: await this.signInFlow(provider, attemptId, owner, touch, staged ?? this.profileOf(provider)) };
         }
         catch (error) {
-          await this.discard(provider, attemptId, previous !== null, staged);
+          // An unrecorded stage was never created: cleaning it would create the directory it must not leave behind.
+          if (recorded) await this.discard(provider, attemptId, previous !== null, staged);
           outcome = error instanceof Cancelled || this.cancelled(provider, attemptId) ? null
             : { status: "failed", code: error instanceof Failure ? error.code : "sign_in_failed", detail: message(error) };
         }
@@ -375,11 +377,12 @@ export class AuthManager {
     } catch (error) { console.error(`doan: ${provider} profile ${profile} could not be cleaned up`, message(error)); return false; }
   }
   // Cleanups a previous run left: one at a time in the write slot, so no sign-in shares a profile being logged out.
-  // The stored connection's profile is live whatever a record says; a busy slot leaves the rest for the next start.
+  // A busy slot leaves the rest for the next start.
   private async sweep(records: CleanupRecord[]): Promise<void> {
     for (const record of records) {
       if (this.closed || this.writer) return;
-      if (record.profile === this.profileOf(record.provider)) continue;
+      // Only a stored connection makes a profile live; a signed-out provider's own name is just another leftover.
+      if (record.profile === this.state(record.provider).connection?.profile) continue;
       const id = this.newId();
       this.writer = id;
       try { await this.cleanProfile(record.provider, id, record.profile); } finally { if (this.writer === id) this.writer = null; }
