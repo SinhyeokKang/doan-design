@@ -47,7 +47,7 @@
 
 ## U. UI
 
-- [ ] U0. 공용 버튼 변형 `quiet`를 `app/src/renderer/ds/controls.css`에 더한다(배경 `--affordance-backdrop-hover`, hover·pressed `--affordance-backdrop-pressed`, 글자 `--text-standard`, disabled는 기존 역할). 공통 결정 10의 공용 요소 변경이며 2026-10-29 사용자가 승인했다.
+- [ ] U0. 공용 버튼 변형 두 개를 `app/src/renderer/ds/controls.css`에 더한다. `quiet`: 배경 `--affordance-backdrop-hover`, hover·pressed `--affordance-backdrop-pressed`, 글자 `--text-standard`(추천 프롬프트). `trigger`: 평소 채움 없음, sm 높이에서 좌우 8px(`--space-2`), hover·열림(`data-state="open"`, `aria-expanded="true"`)에서 `--affordance-backdrop-hover`(프로젝트·모델·effort 트리거). disabled는 기존 역할. 화면 CSS에서 공용 버튼의 여백을 덮어쓰지 않는다. 공통 결정 10의 공용 요소 변경이며 2026-10-29 사용자가 승인했다.
   - 검증: `npm --prefix app test`(ds 대비·변수 검사에 새 변형 포함) 통과.
 - [ ] U1. `HomeComposer.tsx`와 홈 교체: 입력·도구 줄·선택기 셋·프리셋 팝오버와 `/`·첨부 칩·드롭·전송·오류 줄, 장식 배경, 인사 문구. 홈 카드·체크리스트 제거와 그 orphan CSS 삭제(design §6). `ProblemActions` 등 다른 화면이 쓰는 export는 유지.
   - 검증: `npm --prefix app test`(Home·HomeComposer 컴포넌트 테스트: 카드 없음, 키보드 순서, Escape, 칩 제거) 통과, `npm --prefix app run typecheck` 통과.
