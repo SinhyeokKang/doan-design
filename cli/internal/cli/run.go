@@ -71,6 +71,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   onboarding check --session <id> --provider <id> --request <id> [--spend-copilot-request]
   onboarding sign-in --session <id> --provider <id> --request <id>
   onboarding cancel --session <id> --operation <id> --request <id>
+      (cancels only a sign_in or project_clone operation; any other kind returns the target unchanged)
   onboarding project inspect --session <id> (--path <absolute> [--url <github-url>] | --url <github-url> [--destination <absolute>]) --request <id>
   onboarding project select --session <id> --inspection <id> --path <absolute> [--initialize] --request <id>
   onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id>

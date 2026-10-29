@@ -902,3 +902,19 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 		}
 	}
 }
+
+// cancel only reaches sign_in and project_clone (buzz-onboarding D15); the guide, help and tool text must say so.
+func TestOnboardingCancelWordingStatesScope(t *testing.T) {
+	want := "only a `sign_in` or `project_clone` operation; for any other kind it returns the target unchanged"
+	if !strings.Contains(skillBody, want) {
+		t.Errorf("guide misses cancel scope")
+	}
+	if !strings.Contains(usage, "cancels only a sign_in or project_clone operation; any other kind returns the target unchanged") {
+		t.Errorf("usage misses cancel scope")
+	}
+	for _, tool := range mcpTools {
+		if tool.name == "onboarding_cancel" && !strings.Contains(tool.description, "Only a sign_in or project_clone operation is cancelled; for any other kind the target is returned unchanged") {
+			t.Errorf("tool description misses cancel scope: %s", tool.description)
+		}
+	}
+}
