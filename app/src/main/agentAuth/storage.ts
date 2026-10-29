@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { parseAuthMetadata, serializeAuthMetadata } from "./metadata";
+import { parseAuthMetadata, serializeAuthMetadata, validAuthId } from "./metadata";
 import type { AuthMetadata, Provider } from "./types";
 
 // Electron safeStorage in the app; an OS-keyed cipher is the only thing allowed to touch credential bytes at rest.
@@ -14,10 +14,17 @@ export type VaultFiles = Record<string, Buffer>;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 function absent(error: unknown): boolean { return typeof error === "object" && error !== null && (error as NodeJS.ErrnoException).code === "ENOENT"; }
 
-// Layout under <userData>/agent-auth: metadata.json, vault/<provider>.bin, profiles/<provider>/.
+// Layout under <userData>/agent-auth: metadata.json, vault/<provider>.bin, profiles/<profile>/. A profile is the
+// provider's name, or <provider>-<id> for a replacement staged apart from the stored login (Codex, D22).
 export class AuthStorage {
   constructor(readonly root: string, private readonly cipher: Cipher) {}
-  profileDir(provider: Provider): string { const dir = join(this.root, "profiles", provider); mkdirSync(dir, { recursive: true, mode: 0o700 }); return dir; }
+  profileDir(provider: Provider, profile: string = provider): string {
+    if (profile !== provider && !(profile.startsWith(`${provider}-`) && validAuthId(profile))) throw new StorageError("write_failed", "invalid profile");
+    const dir = join(this.root, "profiles", profile); mkdirSync(dir, { recursive: true, mode: 0o700 }); return dir;
+  }
+  removeProfile(provider: Provider, profile: string): void {
+    try { rmSync(this.profileDir(provider, profile), { recursive: true, force: true }); } catch (error) { throw new StorageError("delete_failed", message(error)); }
+  }
   readMetadata(): AuthMetadata {
     let text: string;
     try { text = readFileSync(join(this.root, "metadata.json"), "utf8"); }
@@ -82,8 +89,8 @@ export class AuthStorage {
     try { chmodSync(path, 0o700); accessSync(path, constants.X_OK); } catch (error) { throw new StorageError("write_failed", message(error)); }
     return path;
   }
-  writeSetting(provider: Provider, rel: string, text: string): void {
-    const path = this.working(provider, rel);
+  writeSetting(provider: Provider, rel: string, text: string, profile: string = provider): void {
+    const path = this.working(provider, rel, profile);
     try { if (readFileSync(path, "utf8") === text) return; } catch (error) { if (!absent(error)) throw new StorageError("unreadable", message(error)); }
     this.replace(path, Buffer.from(text));
   }
@@ -113,8 +120,8 @@ export class AuthStorage {
     catch (error) { throw new StorageError("key_unavailable", message(error)); }
   }
   private vaultPath(provider: Provider): string { return join(this.root, "vault", `${provider}.bin`); }
-  private working(provider: Provider, rel: string): string {
-    const base = this.profileDir(provider), path = join(base, rel);
+  private working(provider: Provider, rel: string, profile: string = provider): string {
+    const base = this.profileDir(provider, profile), path = join(base, rel);
     // Never follow a link out of the profile: the provider or a stale run may have replaced a parent.
     for (let dir = dirname(path); dir.length > base.length; dir = dirname(dir)) {
       try { if (lstatSync(dir).isSymbolicLink()) throw new StorageError("write_failed", `symlinked profile path ${rel}`); }
