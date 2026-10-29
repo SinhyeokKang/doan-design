@@ -104,3 +104,4 @@
 - 2026-10-29: U가 V 결함 1을 고쳤다(e545f93, e015cc5): 취소·실패한 clone 화면에 'Edit repository URL'을 추가하고 Back은 URL 입력으로 돌아간다. 통합했다. V가 다시 확인한다.
 - 2026-10-29: A 완료(7 커밋, `verify.mjs` PASS, POSTMORTEM 포함). 원인: Codex 0.164.0 `codex login`이 로그인 서버 시작 전에 `logout_with_revoke`를 부른다. 독립 리뷰 Codex `gpt-6-astra` medium 시작.
 - 2026-10-29: A 리뷰 Codex `gpt-6-astra` medium: 🔴 1(vault commit 뒤 정리 실패 시 옛 연결이 새 자격 증명 위에 verified로 남음)·🟡 2(staging 로그아웃 실패를 무시하고 삭제, 중단된 staging·retired 프로필 복구 없음). 수정 1회차를 보냈다.
+- 2026-10-29: A 재리뷰: 🔴 0·🟡 2(연결이 없는데 기본 프로필 정리를 영구히 건너뜀, 기록 저장 실패 뒤 미기록 프로필 생성). 수정 2회차를 보냈다.
