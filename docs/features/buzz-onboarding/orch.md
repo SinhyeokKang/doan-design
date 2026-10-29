@@ -108,3 +108,4 @@
 - 2026-10-29: A 수정 2회차(a1c95c6, 6f4ddea, f317086)를 지휘자 확인 뒤 통합했다(끝 `e253b42`). 통합 HEAD `verify.mjs --eval` PASS. A 작업자 release. V에 재확인 Task를 보냈다(결함 1·2, D22, staged Codex 중 종료 뒤 sweep).
 - 2026-10-29: V 재확인(`e253b42` 패키지 앱): 결함 1과 D22 전 항목 통과. CLI 교체 취소·Claude/Codex 교체 실패에서 다섯 연결·자격 증명·vault 유지, Codex 교체 성공 시 새 프로필로 전환하고 옛 프로필·Keychain 항목 정리, 대화 turn.done까지 확인, staged 교체 중 SIGKILL 뒤 재시작 sweep이 live 프로필을 건드리지 않고 정리. 잔여 결함 1건(URL 접근 오류 화면의 Retry가 고친 URL을 무시) → U에 수정. 관찰: 앱 SIGKILL 뒤 고아 codex login 프로세스가 남음(무해), 기본 Claude Code-credentials mdat 변경 원인 미상(다른 Claude 세션 실행 중, 항목 유지). Keychain은 doan 항목 모두 제거. V 작업자 release.
 - 2026-10-29: 사용자 요청으로 리포 링크 실제 앱 probe(D20 remote 일치·불일치, 여러 checkout, 'Use existing folder', 잘못된 URL, Retry 수정)를 U 잔여 수정 통합 뒤 V에 보낸다. `/agent-eval` 라운드 `buzz-onboarding-261029` 진행 중(통합 HEAD `0564054` 패키지).
+- 2026-10-29: U 잔여 수정(8b92a0b, 959e1b0: Retry가 고친 URL을 검사) 통합. 리포 링크 probe V 시작.
