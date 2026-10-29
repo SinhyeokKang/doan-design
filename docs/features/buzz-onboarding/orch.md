@@ -46,7 +46,7 @@
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 통합(U1 5 + U2 18 커밋, 끝 `dfc868a`), U1 2회차·U2 2회차 |
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
 | R | D20 remote 확인 | `schema/**`(v2 path+url), `app/src/formats/**`, `cli/internal/formats/**`, `cli/internal/cli/onboarding*.go`·MCP·`skill.md`, `app/src/main/onboarding/{service,projects}.ts` | C·M·G 통합 | Claude Opus high — 공개 계약 변경과 remote 판정 | `verify.mjs` | 통합(4 커밋), 1회차 |
-| A | V 결함 2(교체 로그인 취소가 연결을 잃음) | `app/src/main/agentAuth/**`(필요하면 `onboarding/service.ts`), `docs/POSTMORTEM.md` | V | Claude Opus high — 사용자 자격 증명 손실 버그의 원인 조사 | `verify.mjs` | 진행 중 |
+| A | V 결함 2(교체 로그인 취소가 연결을 잃음) | `app/src/main/agentAuth/**`(필요하면 `onboarding/service.ts`), `docs/POSTMORTEM.md` | V | Claude Opus high — 사용자 자격 증명 손실 버그의 원인 조사 | `verify.mjs` | 통합(13 커밋, 끝 `e253b42`), 3회차 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 진행 중 |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
@@ -105,3 +105,4 @@
 - 2026-10-29: A 완료(7 커밋, `verify.mjs` PASS, POSTMORTEM 포함). 원인: Codex 0.164.0 `codex login`이 로그인 서버 시작 전에 `logout_with_revoke`를 부른다. 독립 리뷰 Codex `gpt-6-astra` medium 시작.
 - 2026-10-29: A 리뷰 Codex `gpt-6-astra` medium: 🔴 1(vault commit 뒤 정리 실패 시 옛 연결이 새 자격 증명 위에 verified로 남음)·🟡 2(staging 로그아웃 실패를 무시하고 삭제, 중단된 staging·retired 프로필 복구 없음). 수정 1회차를 보냈다.
 - 2026-10-29: A 재리뷰: 🔴 0·🟡 2(연결이 없는데 기본 프로필 정리를 영구히 건너뜀, 기록 저장 실패 뒤 미기록 프로필 생성). 수정 2회차를 보냈다.
+- 2026-10-29: A 수정 2회차(a1c95c6, 6f4ddea, f317086)를 지휘자 확인 뒤 통합했다(끝 `e253b42`). 통합 HEAD `verify.mjs --eval` PASS. A 작업자 release. V에 재확인 Task를 보냈다(결함 1·2, D22, staged Codex 중 종료 뒤 sweep).
