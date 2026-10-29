@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"path"
 	"regexp"
@@ -42,7 +43,10 @@ type Catalog struct {
 var (
 	idPattern     = regexp.MustCompile(`^[a-z]+(-[a-z]+)*$`)
 	commitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
-	markdownLink  = regexp.MustCompile(`\]\(([^)\s]*)`)
+	markdownLink  = regexp.MustCompile(`\]\(\s*<?([^)\s>]*)`)
+	// A link reference definition ("[floor]: ./craft-floor.md") resolves like an inline link; its destination may sit
+	// on the next line or inside angle brackets.
+	linkDefinition = regexp.MustCompile(`(?m)^ {0,3}\[[^\]]+\]:\s*<?([^\s>]*)`)
 	// skill/reference/... in a source line names a file at the pinned commit; a bare reference/... or agents/... is a
 	// link the upstream skill resolved against its own folder, which a returned body cannot follow.
 	upstreamPath = regexp.MustCompile(`(?:^|[^\w/.-])((?:reference|agents|scripts)/[\w./-]+)`)
@@ -108,6 +112,9 @@ func parse(fsys fs.FS) (*Catalog, error) {
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&data); err != nil {
 		return nil, fmt.Errorf("catalog.json: %w", err)
+	}
+	if err := dec.Decode(&struct{}{}); err != io.EOF {
+		return nil, errors.New("catalog.json: unexpected data after the catalog object")
 	}
 	if len(data.Presets) == 0 {
 		return nil, errors.New("catalog.json lists no presets")
@@ -189,7 +196,8 @@ func checkBody(name string, p Preset, body string) []string {
 	for _, m := range placeholders.FindAllString(body, -1) {
 		problems = append(problems, fmt.Sprintf("%s keeps upstream placeholder %q", name, m))
 	}
-	for _, m := range markdownLink.FindAllStringSubmatch(body, -1) {
+	links := append(markdownLink.FindAllStringSubmatch(body, -1), linkDefinition.FindAllStringSubmatch(body, -1)...)
+	for _, m := range links {
 		target := m[1]
 		if !strings.HasPrefix(target, "https://") && !strings.HasPrefix(target, "http://") && !strings.HasPrefix(target, "#") {
 			problems = append(problems, fmt.Sprintf("%s keeps unresolved relative path %q", name, target))

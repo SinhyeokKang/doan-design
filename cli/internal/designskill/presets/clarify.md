@@ -107,6 +107,6 @@ Report any check you could not perform, such as a width or language you could no
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/clarify.md`, under the Apache License 2.0. Doan modified it: removed the upstream launcher setup, command hand-off, and template placeholders, and added target selection, review-only, canvas, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/clarify.md`, under the Apache License 2.0. Doan modified it: replaced the additional-context note with a "Before you start" section, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan.
 
 [doan:design-skill] end of preset clarify

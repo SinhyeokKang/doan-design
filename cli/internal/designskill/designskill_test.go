@@ -27,7 +27,7 @@ func validFS() fstest.MapFS {
 	return fstest.MapFS{
 		"catalog.json":                           {Data: []byte(`{"presets": [` + entry("clarify") + `, ` + entry("bolder-copy") + `]}`)},
 		"presets/clarify.md":                     {Data: []byte(body("clarify", "Rewrite labels."))},
-		"presets/bolder-copy.md":                 {Data: []byte(body("bolder-copy", "See [the spec](https://example.com/spec) and [below](#verify)."))},
+		"presets/bolder-copy.md":                 {Data: []byte(body("bolder-copy", "See [the spec](https://example.com/spec), [below](#verify) and [the docs][docs].\n\n[docs]: https://example.com/docs\n[top]: <#top>"))},
 		"notices/LICENSE":                        {Data: []byte("Apache License\n")},
 		"notices/NOTICE.md":                      {Data: []byte("# Third-Party Notices\n")},
 		"notices/platform-design-skills-LICENSE": {Data: []byte("MIT License\n")},
@@ -121,6 +121,18 @@ func TestParseRejectsBrokenCatalogs(t *testing.T) {
 		}},
 		{"relative markdown link", `presets/clarify.md keeps unresolved relative path "craft-floor.md"`, func(m fstest.MapFS) {
 			m["presets/clarify.md"] = &fstest.MapFile{Data: []byte(body("clarify", "Read [craft-floor.md](craft-floor.md) first."))}
+		}},
+		{"reference-style relative link", `presets/clarify.md keeps unresolved relative path "./craft-floor.md"`, func(m fstest.MapFS) {
+			m["presets/clarify.md"] = &fstest.MapFile{Data: []byte(body("clarify", "Read [shared guidance][floor].\n\n[floor]: ./craft-floor.md"))}
+		}},
+		{"reference-style link in angle brackets", `presets/clarify.md keeps unresolved relative path "craft-floor.md"`, func(m fstest.MapFS) {
+			m["presets/clarify.md"] = &fstest.MapFile{Data: []byte(body("clarify", "Read [shared guidance][floor].\n\n  [Floor]: <craft-floor.md> \"Floor\""))}
+		}},
+		{"reference-style link with destination on the next line", `presets/clarify.md keeps unresolved relative path "craft-floor.md"`, func(m fstest.MapFS) {
+			m["presets/clarify.md"] = &fstest.MapFile{Data: []byte(body("clarify", "Read [floor].\n\n[floor]:\n  craft-floor.md"))}
+		}},
+		{"trailing JSON after catalog", `catalog.json`, func(m fstest.MapFS) {
+			m["catalog.json"] = &fstest.MapFile{Data: []byte(`{"presets": [` + entry("clarify") + `, ` + entry("bolder-copy") + `]} {"aliases": {"craft": "clarify"}}`)}
 		}},
 		{"upstream reference path", `presets/clarify.md keeps unresolved relative path "reference/new-work.md"`, func(m fstest.MapFS) {
 			m["presets/clarify.md"] = &fstest.MapFile{Data: []byte(body("clarify", "Follow reference/new-work.md for new surfaces."))}
