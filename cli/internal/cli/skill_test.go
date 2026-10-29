@@ -150,3 +150,31 @@ func TestSkillGuideListErrorsAndOrphans(t *testing.T) {
 		}
 	}
 }
+
+// Codex's exec tool keeps at most 6,000 tokens of output and cuts the middle, which the end marker cannot detect.
+// It counted the guide that lost a preset (stderr 183 B + plain guide 24,528 B = 24,711 B) as 6,178 tokens,
+// 4.00 B/token. Main's guide before design presets was 18,830 B, already about 78% of the cap, and other
+// sections stay as they are, so the budget is 90%: 5,400 tokens × 4.00 B/token = 21,600 B. It covers the
+// plain output and the --json envelope, each with the note the app's own CLI appends for /Applications/doan.app.
+const skillOutputBudget = 21600
+
+func TestSkillGuideFitsToolOutputCap(t *testing.T) {
+	note := len(bundleNote("/Applications/doan.app"))
+	root := t.TempDir()
+	for _, args := range [][]string{{"skill"}, {"skill", "--json"}} {
+		var out, errout bytes.Buffer
+		if code := Run(append(args, "--repo", root), strings.NewReader(""), &out, &errout); code != 0 {
+			t.Fatalf("%v: %d %s", args, code, &errout)
+		}
+		if size := out.Len() + note; size > skillOutputBudget {
+			t.Errorf("%v: %d bytes with the bundle note, budget %d", args, size, skillOutputBudget)
+		}
+	}
+}
+
+func TestSkillGuideNamesMidOutputTruncation(t *testing.T) {
+	head, _, _ := strings.Cut(skillBody, "# Doan Design guide")
+	if !strings.Contains(head, "If your tool marks this output truncated (e.g. “tokens truncated”), it is incomplete despite the end marker: save `doan skill` output to a file and read it in parts.") {
+		t.Fatal("missing truncation notice guidance near the top")
+	}
+}

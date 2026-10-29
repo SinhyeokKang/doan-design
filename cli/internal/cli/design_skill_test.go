@@ -223,22 +223,25 @@ func TestSkillGuideListsPresetsFromCatalog(t *testing.T) {
 		t.Fatal("the guide must have exactly one preset list slot, filled on output")
 	}
 	c := catalog(t)
+	var ids []string
 	for _, p := range c.Presets() {
-		line := "- `" + p.ID + "` — " + p.Title + " (" + p.Scope + "). " + p.Description + "\n"
-		if !strings.Contains(body, line) {
-			t.Errorf("guide lacks %q", line)
+		ids = append(ids, p.ID)
+		if strings.Contains(skillBody, "`"+p.ID+"`") {
+			t.Errorf("skill.md names %s instead of leaving the list to the catalog", p.ID)
 		}
-		// The list comes from the catalog, not from a copy kept in skill.md.
-		if strings.Contains(skillBody, p.Description) {
-			t.Errorf("skill.md copies the description of %s", p.ID)
+		// Descriptions and bodies are read on demand; the guide carries neither, to stay under tool-output caps.
+		if strings.Contains(body, p.Description) {
+			t.Errorf("guide includes the description of %s", p.ID)
 		}
-		// Bodies are read on demand; the guide carries none of their text.
 		full, _ := c.Body(p.ID, Version)
 		for _, paragraph := range strings.Split(full, "\n\n")[1:3] {
 			if strings.Contains(body, strings.TrimSpace(paragraph)) {
 				t.Errorf("guide includes the body of %s", p.ID)
 			}
 		}
+	}
+	if line := "\nPreset ids: " + strings.Join(ids, ", ") + ".\n"; !strings.Contains(body, line) {
+		t.Errorf("guide lacks %q", line)
 	}
 	if !strings.HasSuffix(body, "[doan:skill] end of guide v"+Version+"\n") {
 		t.Fatal("guide marker moved")
@@ -247,27 +250,27 @@ func TestSkillGuideListsPresetsFromCatalog(t *testing.T) {
 
 func TestSkillGuidePresetRules(t *testing.T) {
 	for _, required := range []string{
-		"`doan design-skill --json`",
-		"`doan design-skill <id> --json`",
-		"`design_skill`",
-		"`[doan:design-skill] end of preset <id> v<version>`",
-		"no project and no running app",
+		"`doan design-skill --json` lists descriptions",
+		"`doan design-skill <id> --json` returns a `body`",
+		"MCP `design_skill`, optional `id`",
+		"`[doan:design-skill] end of preset <id> v<version>`; else read it again",
+		"no project or app needed",
 		// Design §3 rules 1–5.
-		"If the user names a Doan preset, read that one. If it does not exist, say so; do not run a similar id instead.",
-		"compare the request's purpose, target and negations with the descriptions",
-		"ask only about ambiguity that would change the result",
-		"If none fits, do not read a body",
-		"move this button 4px left",
-		"A review request ends with a report",
-		"The user's request and existing constraints take precedence over a preset",
-		"report checks you could not run as unverified",
+		"A preset the user names: read it; if missing, say so and run no similar id.",
+		"its description clearly fits the request's purpose, target and negations",
+		"ask only about ambiguity that changes the result",
+		"No fit, or a concrete edit like “move this button 4px left”: read no body.",
+		"a review ends with a report; change only the requested scope; start no unrequested diagnosis",
+		"The request, existing constraints, these rules and canvas conventions outrank a preset.",
+		"skip unneeded handoffs, subagents and engines",
+		"report unrun checks as unverified",
 		// Failure rules.
-		"If the shell CLI is unavailable, use the MCP `skill` and `design_skill` tools.",
+		"Without the shell CLI, use MCP `skill` and `design_skill`.",
 		"say the preset was not applied",
-		"only then suggest connecting or repairing this agent in Doan's Settings… > Connections",
-		"say in one line that it was not applied and continue",
-		"Do not install anything, change PATH, permissions or MCP registration, or retry a refused call.",
-		"When the doan app's conversation instructions say otherwise, follow them.",
+		"Named preset: never claim or substitute it; only then suggest repairing this agent in Doan's Settings… > Connections.",
+		"Self-chosen: say so in one line and continue, without guessing an unconfirmed target or conventions.",
+		"Never install, change PATH, permissions or MCP registration, or retry a refused call.",
+		"Doan app conversation instructions override these rules.",
 	} {
 		if !strings.Contains(skillBody, required) {
 			t.Errorf("missing preset guidance: %s", required)
