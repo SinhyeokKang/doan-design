@@ -42,6 +42,7 @@
 | V | D2, D3, E1 | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus medium — 격리·정리 절차가 길지만 판단보다 단계가 많다. D3 로그인 승인은 지휘자(D3 결정) | `/runtime-test` | 진행(D2·E1 먼저, D3는 같은 터미널 다음 Task) |
 | F | U-009·U-010·D3/D7 보강(E 결과의 수정) | `presets/{document,clarify,harden,onboard}.md`, `SOURCES.md`, `get-clarify.json`, `app/src/main/onboarding/SKILL.md`와 stub 테스트 | E 1차 round | Claude Opus medium — 문구 수정이지만 stub 두 설치 경로와 앱 대화 지시의 충돌을 피해야 한다 | `verify.mjs` | 진행(`ctx_b0d12bf988e3`) |
 | F2 | D3에서 찾은 가이드 잘림 회귀 수정 | `cli/internal/cli/skill.md`·`skill.go`와 가이드 테스트, stub과 stub 테스트 | V D3 | Claude Opus high — 모든 Codex 세션에 영향을 주는 가이드 회귀이고 상한 근거를 정해야 한다 | `verify.mjs` | 진행(`ctx_699109337b7d`) |
+| F3 | U-011: `document`이 근거 없는 판단을 확정 규칙으로 쓰는 문제 | `presets/document.md`, `SOURCES.md` | E 재측정 2 | Claude Opus medium — 본문 한 절의 규칙 보강 | `verify.mjs` | 진행 |
 | 지휘자 | A0, D4, E3, Z1 | `orch.md`, PRODUCT, ARCHITECTURE, DIRECTORY, buzz-restyle 문서, 통합 커밋 | A0: 없음. 나머지: 전부 | — | 통합 HEAD `verify.mjs --eval` | 대기 |
 
 독립 리뷰(`/code-review`, 보고만): G1·G2·A·P는 Codex `gpt-6-astra` medium, S·R·E는 Claude Opus medium. 구현과 다른 계열을 섞는다(D1). E3의 최종 리뷰는 통합 diff 전체를 Claude Opus high로 한 번 더 본다.
@@ -89,3 +90,4 @@
 - 2026-10-29: E 수정·재측정 라운드 1(`ctx_f6933a67e9a6`)과 V D3(`start-V-D3.json`)를 시작했다.
 - 2026-10-29: E 수정·재측정 1(3555548f·65322bac·48ba14cd): U-010 fixed(D3b·D4b 양쪽 pass), D2b·D7b 양쪽 pass. U-009는 Claude가 README를 제품 맥락 문서로 보아 `context`를 생략해 0/3, D11b seed에 근거 없는 spacing 문구가 남았다. D10c·D11c로 재측정 2를 보냈다.
 - 2026-10-29: V D3 완료: Cursor·Antigravity·Copilot PASS, Copilot 조회 실패 사례 PASS. Codex 미완료(가이드 가운데 잘림으로 `clarify` 줄 누락, 실제 HOME의 이전 user stub을 읽음). Claude는 사용자가 직접 로그인을 승인했으나 계정 주간 한도(10-31 13시 재설정)로 미검증. sign-out으로 profile Keychain 항목 2개가 지워졌고 2차 real-state는 불변. 관찰: Copilot·Claude의 권한 요청 요약은 실행 명령을 보여 주지 않는다, Antigravity 로그인은 5분에 만료된다. F2를 시작했다.
+- 2026-10-29: E 재측정 1·2 통합(b4a997e9…36a9b813). U-009 fixed(D10c 4/4가 산출물 전에 `context`를 읽음), U-010 fixed, D2b·D3b·D4b·D7b 양쪽 pass. 남은 것: U-011(Claude가 새 디자인 시스템 문서에 근거 없는 판단을 규칙으로 씀) → F3, D11c seed에 근거 없는 링크 주장 1건 → 지휘자 판단으로 D11d를 만든다. F2·F3 통합 뒤 E가 D11d와 `/agent-eval` 전체 suite를 돌린다.
