@@ -1,0 +1,8 @@
+{
+  "id": "D7b",
+  "title": "Handle a compound copy-and-states request where the product offers no empty-state action",
+  "focus": "preset",
+  "init": null,
+  "selection": null,
+  "timeoutSec": 900
+}
