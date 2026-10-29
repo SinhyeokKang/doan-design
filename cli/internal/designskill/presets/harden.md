@@ -54,6 +54,7 @@ Every interactive component needs default, hover, focus, active, disabled, loadi
 ### Errors
 
 - Say what failed, why when known, and how to recover. Offer retry for network failures and keep the user's input on every error.
+- Do not add claims about outcomes or guarantees the product or repository does not confirm, such as that no charge was made or that work was saved. When a message needs such a fact and none is confirmed, ask or mark it as an open question.
 - Put validation errors inline next to the field, specific and correctable; do not block submission unnecessarily.
 - Map request errors to states: validation messages for 400, a sign-in path for 401, a permission explanation for 403, a not-found state for 404, a wait message for 429, and a generic error with a support path for 500.
 - One failing component must not take down the whole screen; contain the error to its region.
@@ -68,7 +69,7 @@ For the wording of error, empty, and loading messages, read the `clarify` preset
 
 ### Empty, permission, and offline states
 
-- Distinguish first use, no results, filters that hide everything, user-cleared, missing permission, and failure; each needs a different message and next action. Empty states teach the interface instead of saying "nothing here". First-use design belongs to the `onboard` preset.
+- Distinguish first use, no results, filters that hide everything, user-cleared, missing permission, and failure; each needs a different message and a next action the product actually offers. When the product offers none that fits, say so or ask; do not invent one. Empty states teach the interface instead of saying "nothing here". First-use design belongs to the `onboard` preset.
 - For permission states (cannot view, cannot edit, read-only), explain why and how to get access. Do not show controls the user cannot use without saying so.
 - Offline: say what still works, what is queued, and what will happen when the connection returns.
 
@@ -120,6 +121,6 @@ Anything you could not exercise, such as a real network failure, throttled conne
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/harden.md`, `skill/reference/operate.md` (component states, loading, empty states, overlays, product constraints), and `skill/reference/optimize.md` (performance cautions for huge lists, heavy media, and expensive effects), under the Apache License 2.0. Doan modified them: condensed the code samples into design rules, dropped server-side validation, memory-leak, framework, bundle, network, and API optimization guidance and the automated test lists, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, state frames, review-only, canvas, and unverified-check rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/harden.md`, `skill/reference/operate.md` (component states, loading, empty states, overlays, product constraints), and `skill/reference/optimize.md` (performance cautions for huge lists, heavy media, and expensive effects), under the Apache License 2.0. Doan modified them: condensed the code samples into design rules, dropped server-side validation, memory-leak, framework, bundle, network, and API optimization guidance and the automated test lists, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, state frames, review-only, canvas, and unverified-check rules for Doan, a rule against unconfirmed outcome or guarantee claims in error messages, and the rule that an empty state's next action is one the product offers.
 
 [doan:design-skill] end of preset harden

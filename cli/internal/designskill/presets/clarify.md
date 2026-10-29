@@ -9,6 +9,7 @@ Use this preset when the user asks to improve labels, button text, form guidance
 - Find the target. For pointing words like "this screen" or "this button", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
 - Read the surrounding product: existing copy, terminology, design or product documents the project already has, and the code the canvas implements (`data-doan-implements`). Infer the audience and their situation from that evidence; ask when it is missing and it would change the words.
 - Ask before changing factual claims, legal meaning, prices, or a term that may be domain-specific.
+- Do not add claims about outcomes or guarantees the product or repository does not confirm, such as whether a charge, save, delivery, or refund happened. When the copy needs such a fact and none is confirmed, ask or mark it as an open question.
 
 ## Audit the language
 
@@ -62,7 +63,7 @@ Do not expose internal codes as the primary message. Do not promise a cause or r
 
 Loading text names the real operation and sets an honest expectation when the wait is meaningful. Show determinate progress when it is available; never invent progress.
 
-An empty state distinguishes first use, no results, active filters, missing permission, and failure. Explain the state and offer the next useful action.
+An empty state distinguishes first use, no results, active filters, missing permission, and failure. Explain the state and offer the next useful action, one the product actually offers.
 
 Success confirms the completed outcome and mentions the next consequence only when it changes what the user should do. Routine success is brief.
 
@@ -97,7 +98,7 @@ Read the flow in context and check:
 
 - comprehension without hidden product knowledge;
 - actionability at errors, empty states, and decision points;
-- factual accuracy and consistent terminology;
+- factual accuracy, no unconfirmed outcome or guarantee, and consistent terminology;
 - scanability at target widths and 200% zoom;
 - long names, localization expansion, pluralization, and dynamic values;
 - accessible names and announced state changes;
@@ -107,6 +108,6 @@ Report any check you could not perform, such as a width or language you could no
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/clarify.md`, under the Apache License 2.0. Doan modified it: replaced the additional-context note with a "Before you start" section, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, file `skill/reference/clarify.md`, under the Apache License 2.0. Doan modified it: replaced the additional-context note with a "Before you start" section, removed the closing hand-off to the upstream `polish` command and its template placeholder, and added target selection, review-only, canvas, and verification rules for Doan, a rule against unconfirmed outcome or guarantee claims, and the rule that an empty state's next action is one the product offers.
 
 [doan:design-skill] end of preset clarify
