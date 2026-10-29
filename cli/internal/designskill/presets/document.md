@@ -64,6 +64,14 @@ Some parts of a design system are judgment, not extraction: a one-line character
 
 Ask about these only when the document needs them. Ask in small rounds of at most three focused questions, offer two or three options grounded in the evidence, and wait between rounds. Do not invent rules and present them as facts. A rule nobody confirmed is either settled with the user or marked as open in both artifacts.
 
+Policies for future screens are judgment too, even when they look like extraction: how many primary actions a view may have, whether radii or shapes may mix, whether depth stays flat or tonal, which colors are reserved for which uses, the spacing between components, and whether a choice was deliberate. The code shows what exists today, not what is allowed tomorrow:
+
+- A rule is grounded when it cites the token, component, or file that makes it true, or a decision the user confirmed. Anything else is an open item, not a rule.
+- Absence is not a prohibition. One radius in the code is a fact to record ("buttons and inputs use `--radius-md`"); "do not add another radius" is an open decision.
+- Do not call a choice deliberate unless the user or a product context document says so. Record what the code does.
+- No rule may presuppose an answer to an open item. If flat depth is open, do not also write "tone, not shadow" as a rule.
+- When the user asked you to mark decisions as open instead of waiting, mark them open and continue. Never upgrade an open item to a rule because no one answered.
+
 Carry a product fact into the design document only when it is a durable brand commitment that constrains the visual system. The design document is strictly visual; do not duplicate product context.
 
 ## Step 4: Write the rules document
@@ -88,6 +96,7 @@ Structure: follow the existing document's structure when there is one. For a new
 ## Shapes
 ## Components
 ## Do's and Don'ts
+## Open Decisions
 ```
 
 Writing style:
@@ -95,10 +104,11 @@ Writing style:
 - **Descriptive before technical.** "Gently curved edges (`--radius-md`, 8px)" reads better than a class name. Do not paste raw CSS class names.
 - **Functional over decorative.** For each token, say where and why it is used, not only what it is.
 - **Name the token.** Refer to the token variable and the file that defines it. Quote a value only where it helps reading, and never one that disagrees with the token CSS.
-- **Named rules.** A short, citable doctrine ("The One Voice Rule. The accent covers at most 10% of any screen.") sticks better than a bullet list. Use one to three per section, only when the code or a confirmed user decision grounds them.
+- **Named rules.** A short, citable doctrine ("The One Voice Rule. The accent covers at most 10% of any screen.") sticks better than a bullet list. Use one to three per section, only when the code or a confirmed user decision grounds them, and cite that token, component, file, or decision with the rule.
 - **Decisive where evidence is decisive.** Use hard language for real invariants and softer language for provisional guidance.
 - **Concrete tests.** A one-sentence test grounded in the observed system beats a paragraph of principle.
-- **Do's and Don'ts** are concrete visual guardrails from the shipped system or the user's decisions. Do not turn a task-specific concept into a system-wide prohibition.
+- **Do's and Don'ts** are concrete visual guardrails from the shipped system or the user's decisions, each citing its source. Do not turn a task-specific concept, or a device the code merely does not use, into a system-wide prohibition.
+- **Open decisions** list every judgment call nobody confirmed, in the document and on the canvas, with the evidence that leaves it open.
 
 ## Step 5: Draw the design-system canvas
 
@@ -129,7 +139,8 @@ The rules document and the canvas describe the same system. They use the same to
 
 ## Verify
 
-- Every token and rule in the document traces to a file in the code or a decision the user confirmed.
+- Every token and rule in the document traces to a file in the code or a decision the user confirmed; every named rule, do, and don't cites it.
+- Judgment calls nobody confirmed are open items in both artifacts, and no rule presupposes an answer to one.
 - Every color and type sample on the canvas uses a token CSS variable, and the canvas links the token CSS relative to its own location.
 - Components and states shown on the canvas exist in code, or the canvas says they do not.
 - Frames, element ids, and sections outside the request are unchanged.
@@ -140,6 +151,6 @@ Report anything you could not check, such as how the canvas renders in the Doan 
 
 ---
 
-Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/document.md` and `skill/agents/impeccable-documenter.md` (the shipped-evidence principle and the rule against recording defects as house style), under the Apache License 2.0. Doan modified them: replaced the fixed root `DESIGN.md` with an existing design document or a user-chosen location; removed the YAML token frontmatter, the JSON sidecar, the live panel, the linter, seed mode's workshop hand-off, the subagent contract, and template placeholders; replaced the panel's component snippets with a `design-system` canvas that references token CSS variables and real component CSS; and added scope, review-only, reuse, agreement, and verification rules for Doan, and a rule to read the `context` preset before writing unless product context already exists (upstream requires product context first only in seed mode). Doan also replaced the documenter's fixed list of quality-floor violations with a rule that a defect needs a confirmed problem, and records aesthetic choices the code uses consistently or the user chose as rules.
+Source: adapted by Doan from pbakaus/impeccable at commit d34c87e1a00989ae8dbdd7f6b30b70f23319e860, files `skill/reference/document.md` and `skill/agents/impeccable-documenter.md` (the shipped-evidence principle and the rule against recording defects as house style), under the Apache License 2.0. Doan modified them: replaced the fixed root `DESIGN.md` with an existing design document or a user-chosen location; removed the YAML token frontmatter, the JSON sidecar, the live panel, the linter, seed mode's workshop hand-off, the subagent contract, and template placeholders; replaced the panel's component snippets with a `design-system` canvas that references token CSS variables and real component CSS; and added scope, review-only, reuse, agreement, and verification rules for Doan, and a rule to read the `context` preset before writing unless product context already exists (upstream requires product context first only in seed mode). Doan also replaced the documenter's fixed list of quality-floor violations with a rule that a defect needs a confirmed problem, and records aesthetic choices the code uses consistently or the user chose as rules. Doan added rules that every named rule, do, and don't cites its token, component, file, or user decision; that a device the code does not use is not a prohibition; that policies for future screens nobody confirmed stay open items, even when the user asks to mark decisions open instead of waiting; and an `Open Decisions` section in the rules document.
 
 [doan:design-skill] end of preset document
