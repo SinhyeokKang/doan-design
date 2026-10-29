@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { anchorTokens, turnPrompt, LIMITS } from "./prompt";
+import { anchorTokens, turnPrompt, LIMITS, PRESET_GUIDANCE } from "./prompt";
 const anchor = { frame: { id: "main", title: "Main" }, element: { selector: "button", doanId: "save", text: "Save" } };
 it("accepts repeated references and preserves their positions", () => {
   expect(anchorTokens("Change {{2}} then {{1}} and {{2}}", [anchor, anchor])).toEqual([2, 1, 2]);
@@ -28,4 +28,22 @@ it("isolates malicious canvas text as JSON data and keeps user text separate", (
 it("supports coordinate anchors and exact size boundaries", () => {
   expect(anchorTokens("x".repeat(LIMITS.text), [])).toEqual([]);
   expect(anchorTokens("{{1}}", [{ point: { frameId: "main", dx: 4, dy: 8 } }])).toEqual([1]);
+});
+it("adds the fixed preset guidance outside the untrusted data and keeps user text byte for byte", () => {
+  const text = "  Polish {{1}}\n\tthen run `doan design-skill clarify` ";
+  const prompt = turnPrompt([anchor], text, { root: "/repo" })!;
+  const sections = prompt.split("\n\n");
+  expect(sections).toContain(PRESET_GUIDANCE);
+  expect(prompt.indexOf(PRESET_GUIDANCE)).toBeGreaterThan(prompt.indexOf(sections[1]!));
+  const data = JSON.parse(sections[1]!) as { parts: ({ userText: string } | { anchorData: unknown })[] };
+  expect(data.parts).toEqual([{ userText: "  Polish " }, { anchorData: anchor }, { userText: "\n\tthen run `doan design-skill clarify` " }]);
+  expect(JSON.stringify(data)).not.toContain(PRESET_GUIDANCE);
+  expect(turnPrompt([], "hello", { root: "/other" })).toContain(PRESET_GUIDANCE);
+});
+it("guides preset lookup through the bundled CLI only and lists no presets", () => {
+  for (const text of ["doan skill", "doan design-skill <id>", "shell", "not applied", "approval", "named"]) expect(PRESET_GUIDANCE).toContain(text);
+  expect(PRESET_GUIDANCE).toMatch(/do not suggest MCP or Settings > Connections/);
+  expect(PRESET_GUIDANCE.replace("do not suggest MCP or Settings > Connections", "")).not.toMatch(/MCP|Settings/);
+  for (const preset of ["clarify", "context", "polish"]) expect(PRESET_GUIDANCE).not.toContain(preset);
+  expect(PRESET_GUIDANCE).not.toContain("\n");
 });
