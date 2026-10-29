@@ -4,12 +4,22 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ConversationStrip } from "./ConversationStripView";
 import { stripView, type StripContext, type StripState } from "./conversationStrip";
 
-const hooks = vi.hoisted(() => ({ mock: false, refs: [] as { current: unknown }[] }));
+// With `mock`, hooks run outside React: refs are plain objects (kept across calls while `reuse` is set, so a second
+// call is the same strip redrawn) and effects are collected to be run by the test.
+const hooks = vi.hoisted(() => ({ mock: false, reuse: false, at: 0, refs: [] as { current: unknown }[], effects: [] as (() => void)[] }));
 vi.mock("react", async original => {
   const actual = await original<typeof import("react")>();
-  return { ...actual, useRef: (value: unknown) => { if (!hooks.mock) return actual.useRef(value); const ref = { current: value }; hooks.refs.push(ref); return ref; } };
+  return {
+    ...actual,
+    useRef: (value: unknown) => {
+      if (!hooks.mock) return actual.useRef(value);
+      if (hooks.reuse && hooks.refs[hooks.at]) return hooks.refs[hooks.at++];
+      const ref = { current: value }; hooks.refs.push(ref); hooks.at++; return ref;
+    },
+    useEffect: (effect: () => void, deps?: unknown[]) => { if (!hooks.mock) return actual.useEffect(effect, deps); hooks.effects.push(effect); },
+  };
 });
-beforeEach(() => { hooks.refs = []; });
+beforeEach(() => { hooks.refs = []; hooks.effects = []; hooks.at = 0; hooks.reuse = false; });
 afterEach(() => { hooks.mock = false; vi.unstubAllGlobals(); });
 
 const CTX: StripContext = { provider: "claude", project: "doan-design", branch: "main", canvas: null };
@@ -96,4 +106,46 @@ test("the alert line keeps its key across redraws of one request and changes it 
   expect(working.key).not.toBe(first.key);
   expect(render(ASK)).toMatch(/<button data-strip-stop="" type="button" class="doan-button" data-ui-size="sm"><svg/);
   expect(render(ASK).match(/data-strip-stop/g)).toHaveLength(1);
+});
+
+// BV1 defect (2026-10-30): a Copilot Deny ended the turn right after the answer; Stop went away with focus on it and
+// focus fell to the page. Review BV2 🟡1/🟡2: the move depends on Stop holding focus when it leaves, not on an answer
+// made earlier, and a strip is keyed by its conversation in App.
+function strip() {
+  const dismissFocus = vi.fn();
+  const draw = (state: StripState) => { hooks.mock = true; hooks.at = 0; hooks.effects = []; const all = elements(ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop })); hooks.reuse = true; return all; };
+  const effects = () => { hooks.refs[1]!.current = { focus: dismissFocus }; for (const effect of hooks.effects) effect(); };
+  // The Stop button's callback ref, as React attaches it; its cleanup runs when React detaches Stop, before removal.
+  const attachStop = (all: Record<string, unknown>[]) => { const node = { focus: vi.fn() }; const ref = all.find(props => props["data-strip-stop"] === "")!.ref as (node: unknown) => (() => void); return { node, detach: ref(node) }; };
+  return { dismissFocus, draw, effects, attachStop };
+}
+
+test("when the turn ends while Stop has focus, focus moves from the vanished Stop to Dismiss", () => {
+  vi.stubGlobal("window", { doan: { answerConversationPermission: vi.fn(async () => {}), interruptConversation: vi.fn() } });
+  const { dismissFocus, draw, effects, attachStop } = strip();
+  const { node, detach } = attachStop(draw({ kind: "working", activity: null }));
+  const doc = { activeElement: node as unknown, body: {} };
+  vi.stubGlobal("document", doc);
+  // Still running: Stop stays, nothing moves.
+  draw({ kind: "working", activity: "Editing" }); effects();
+  expect(dismissFocus).not.toHaveBeenCalled();
+  // The turn ends: React detaches Stop while it is focused, then focus is on the page.
+  detach(); doc.activeElement = doc.body;
+  draw({ kind: "failed", code: "process_exited" }); effects();
+  expect(dismissFocus).toHaveBeenCalledTimes(1);
+  // Once per loss: a later redraw does not take focus again.
+  draw({ kind: "failed", code: "process_exited" }); effects();
+  expect(dismissFocus).toHaveBeenCalledTimes(1);
+});
+
+test("a person whose focus was elsewhere when Stop went away keeps it", () => {
+  vi.stubGlobal("window", { doan: { answerConversationPermission: vi.fn(async () => {}), interruptConversation: vi.fn() } });
+  const { dismissFocus, draw, effects, attachStop } = strip();
+  const { detach } = attachStop(draw(ASK));
+  // Answered, then the person clicked a blank part of the page: the body is active but Stop did not hold focus.
+  const doc = { activeElement: {} as unknown, body: {} };
+  vi.stubGlobal("document", doc);
+  detach(); doc.activeElement = doc.body;
+  draw({ kind: "done" }); effects();
+  expect(dismissFocus).not.toHaveBeenCalled();
 });

@@ -714,11 +714,12 @@ body:has(.shell-top) { background: transparent; }
 .composer-agent { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 .composer-agent .muted { color: var(--text-metadata); }
 .composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
-.composer-effort svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
+.composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-send .doan-spinner { color: var(--text-on-accent); }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
-.composer-tray :is(.doan-button, .tray-branch) svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* One worktree: the branch is read-only text in the trigger's place (design §4.2). */
 .tray-branch { display: inline-flex; align-items: center; gap: var(--space-1h); }
 .tray-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-metadata); }
@@ -738,7 +739,6 @@ body:has(.shell-top) { background: transparent; }
 /* Accent marks the chosen preset only (2026-10-29 user); the preset button, tabs and suggestions stay neutral so Send keeps the strongest accent. */
 .preset-chip { height: var(--size-control); padding: 0 var(--space-1) 0 var(--space-3); font-weight: var(--type-weight-medium); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); }
 .preset-chip > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: currentColor; }
-.preset-chip .chip-remove.doan-icon-button { color: currentColor; }
 /* Popovers: shared floating material and menu rows (ds/surfaces.css); the preset popover has search and tabs, so it is wider than a menu. */
 .preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }
 /* The / list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover. */
@@ -757,7 +757,8 @@ body:has(.shell-top) { background: transparent; }
 .preset-item { gap: var(--space-3); }
 .preset-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preset-item .sub { flex: none; font-size: var(--type-caption-size); }
-.popover-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); color: var(--text-subtle); }
+/* A portalled popover inherits the page's 13px body; its status line is body-sm like the menu rows around it. */
+.popover-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
 .popover-actions { display: flex; justify-content: flex-end; padding-top: var(--space-2); }
 .agent-group { padding: var(--space-1) 0; }
 .agent-head { display: flex; align-items: center; gap: var(--space-2); }
@@ -767,6 +768,10 @@ body:has(.shell-top) { background: transparent; }
 .model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); }
 .inline { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
+/* Lucide draws 24px unless sized; menu rows are 32px, so a bare icon would make them 40. The check keeps the shared
+   menu check's 12px width (ds/surfaces.css) and takes only the height. */
+.check-slot > svg { height: var(--size-icon); }
+:is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }
 .menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 /* Drop target (2026-10-29 user): a white, translucent, blurred cover over the whole composer (card and tray) with a dashed accent outline; no text or icon. */
 .drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--affordance-accent); outline-offset: -2px; }

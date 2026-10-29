@@ -151,6 +151,13 @@ test("a second Home send to a root with a running Home conversation says so and 
     .toEqual({ enabled: false, reason: { kind: "running", text: "A conversation from Home is still running in doan-design.", open: "conv-1" } });
 });
 
+// design-sync V2: the draft's home-toast and home-remove-running frames show an empty composer, with suggestions and
+// no reason line, while a Home conversation runs in the chosen project; the line appears once something is typed.
+test("an empty composer has no reason line even while a Home conversation runs in its project", () => {
+  expect(sendAvailability(base({ text: "", running: "conv-1" }))).toEqual({ enabled: false, reason: null });
+  expect(sendAvailability(base({ text: "", preset: PRESETS[0]!, running: "conv-1" })).reason?.kind).toBe("running");
+});
+
 test("while sending, Send is disabled without a reason line", () => {
   expect(sendAvailability(base({ sending: true }))).toEqual({ enabled: false, reason: null });
 });

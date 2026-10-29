@@ -66,6 +66,13 @@ const FAILURES: Record<string, (p: string) => { title: string; body: string }> =
 // process_exited, unknown and codes without a row of their own.
 const STOPPED = (p: string) => ({ title: `${p} stopped unexpectedly`, body: "Edit your request on Home and send it again." });
 
+// Where focus goes when Stop, holding focus, leaves the strip (design §7): a turn that ends at once after an answer (a
+// Deny can finish it in ~300 ms) or a stop takes Stop away; focus moves on to Dismiss instead of falling to the page.
+// While Stop is still drawn it keeps focus.
+export function focusAfterStop(actions: readonly StripAction[]): "stop" | "dismiss" | null {
+  return actions.some(a => a.command === "stop") ? "stop" : actions.some(a => a.command === "dismiss") ? "dismiss" : null;
+}
+
 export function stripView(state: StripState, ctx: StripContext): StripView {
   const p = PROVIDER_NAMES[ctx.provider];
   const stop: StripAction = { command: "stop", label: "Stop" }, dismiss: StripAction = { command: "dismiss", label: "Dismiss" };

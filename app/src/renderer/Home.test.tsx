@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { Home } from "./Home";
@@ -112,4 +113,25 @@ test("near the limit a counter shows what is left; over it Send is disabled and 
   const over = render([project("/code/doan-design")], { text: "x".repeat(33000) });
   expect(over).toContain('<div class="composer-count over" aria-live="polite">232 characters over the limit</div>');
   expect(over).toContain("<span>Shorten the message to send it.</span>");
+});
+
+// design-sync V2 (2026-10-30): values measured against the confirmed draft in the real app, pinned where a later edit
+// would silently move them. Each was a measured mismatch or a value the draft relies on.
+test("Home CSS keeps the draft's measured icon sizes, popover status type, chip ink and shared button paddings", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  // Effort and tray chevrons step down to 14px with their icons; the model and project chevrons stay 16px.
+  expect(css).toContain(".composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }");
+  expect(css).toContain(".composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }");
+  // Lucide's default 24px made menu rows 40px instead of 32px and the search glyph 24px.
+  expect(css).toContain(".check-slot > svg { height: var(--size-icon); }");
+  expect(css).toContain(":is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8")).toContain(".doan-menu-item .check { flex: none; width: 12px;");
+  // A portalled popover inherits the page's 13px body; the loading and no-match line is body-sm 14/20.
+  expect(css).toMatch(/\.popover-state \{[^}]*font-size: var\(--type-body-sm-size\); line-height: var\(--type-body-sm-line-height\);/);
+  // The preset chip's x renders in the shared chip-remove metadata ink, as the confirmed draft does.
+  expect(css).toContain(".chip-remove.doan-icon-button { color: var(--text-metadata); }");
+  expect(css).not.toMatch(/\.preset-chip \.chip-remove[^{]*\{[^}]*color/);
+  // Send keeps the shared disabled fill while sending, as the draft renders it; suggestions keep the shared sm padding.
+  expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
+  expect(css).not.toMatch(/\.suggestion[^{]*\{[^}]*padding/);
 });

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { ConversationEvent, EventPayload, FailureCode } from "../main/conversation/types";
-import { mergeConversationEvents, stripState, stripView, type StripContext } from "./conversationStrip";
+import { focusAfterStop, mergeConversationEvents, stripState, stripView, type StripContext, type StripState } from "./conversationStrip";
 
 function events(...payloads: (EventPayload & { turnId?: string })[]): ConversationEvent[] {
   return payloads.map(({ turnId, ...payload }, i) => ({ ...payload, v: 1, conversationId: "c1", seq: i + 1, turnId: turnId ?? "t1", at: "2026-10-29T00:00:00Z" }) as ConversationEvent);
@@ -99,4 +99,15 @@ test("the read snapshot and buffered events merge by seq, once each, for this co
   const other = { ...all[1]!, conversationId: "other", seq: 99 };
   const merged = mergeConversationEvents(all.slice(0, 2), [...all.slice(2).reverse(), all[1]!, other, { ...all[2]!, seq: 0 }], all[0]!.conversationId);
   expect(merged.map(e => e.seq)).toEqual(all.map(e => e.seq));
+});
+
+// BV1 defect (2026-10-30): a Copilot Deny ended the turn ~300 ms after the answer, Stop went away with focus on it and
+// focus fell to the page. After an answer focus stays on Stop while the turn runs; once Stop is gone it goes to Dismiss.
+test("focus stays on Stop while it is drawn; once a finished turn takes it away, focus goes to Dismiss", () => {
+  const view = (state: StripState) => stripView(state, CTX).actions;
+  expect(focusAfterStop(view({ kind: "working", activity: null }))).toBe("stop");
+  expect(focusAfterStop(view({ kind: "permission", requestId: "r2", summary: "s", options: [{ id: "a", label: "Allow", kind: "allow" }] }))).toBe("stop");
+  expect(focusAfterStop(view({ kind: "failed", code: "process_exited" }))).toBe("dismiss");
+  expect(focusAfterStop(view({ kind: "interrupted", reason: "crashed" }))).toBe("dismiss");
+  expect(focusAfterStop(stripView({ kind: "done" }, { ...CTX, canvas: "design-system" }).actions)).toBe("dismiss");
 });

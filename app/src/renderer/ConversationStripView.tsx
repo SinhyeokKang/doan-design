@@ -1,7 +1,7 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { CircleAlert, CircleCheck, CircleStop } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
-import type { StripAction, StripState, StripView } from "./conversationStrip";
+import { focusAfterStop, type StripAction, type StripState, type StripView } from "./conversationStrip";
 import { providerLogo } from "./homeComposer";
 
 interface Props {
@@ -13,10 +13,27 @@ interface Props {
 // notice with actions, until buzz-conversation's panel replaces it.
 export function ConversationStrip({ conversationId, provider, state, view, onEditOnHome, onDismiss, onOpen }: Props) {
   const stop = useRef<HTMLButtonElement | null>(null);
+  const dismiss = useRef<HTMLButtonElement | null>(null);
+  // Whether Stop held focus when it left the page. React detaches a ref before it removes the node, so the node is
+  // still the active element then; afterwards Chromium has already moved focus to the body.
+  const stopLeftFocused = useRef(false);
+  const stopRef = useRef((node: HTMLButtonElement | null) => {
+    stop.current = node;
+    if (!node) return;
+    return () => { stopLeftFocused.current = document.activeElement === node; stop.current = null; };
+  }).current;
+  // A turn that ends while Stop has focus (an answer that finishes it at once, Stop itself, a send's arrival focus)
+  // takes Stop away; focus moves on to Dismiss instead of falling to the page (design §7).
+  useEffect(() => {
+    if (!stopLeftFocused.current) return;
+    stopLeftFocused.current = false;
+    const active = document.activeElement;
+    if (!stop.current && focusAfterStop(view.actions) === "dismiss" && (!active || active === document.body)) dismiss.current?.focus();
+  });
   const run = (action: StripAction) => {
     if (action.command === "answer") {
       void window.doan.answerConversationPermission({ conversationId, requestId: state.kind === "permission" ? state.requestId : "", optionId: action.optionId }).catch(console.error);
-      // The answered choices go away; Stop is the one control left in both states (design §7).
+      // The answered choices go away; Stop is the one control left while the turn runs (design §7).
       stop.current?.focus();
     } else if (action.command === "stop") void window.doan.interruptConversation({ conversationId }).catch(console.error);
     else if (action.command === "editOnHome") onEditOnHome();
@@ -36,7 +53,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
       const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "subtle") : action.command === "editOnHome" || action.command === "open" ? "subtle" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
       // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer (design §4.9, §7).
-      return <button key={key} ref={action.command === "stop" ? stop : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
+      return <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
         {action.command === "stop" && <CircleStop aria-hidden="true" />}{action.label}
       </button>;
     })}</span>
