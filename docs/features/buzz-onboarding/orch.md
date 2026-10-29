@@ -131,3 +131,4 @@
 - 2026-10-29: D 정본 승격 통합(4bf670e..a6bc8d1)과 PRODUCT 보정 2건. U D25 후속(5c78f25..4efdae0: URL 경로의 setup 화면이 URL·Choose another folder·Edit repository URL을 유지, Back은 URL 입력으로) 통합. G4(cancel 가이드 문구, Sonnet medium) 진행 중.
 - 2026-10-29: G4(cancel 범위 가이드 문구) 통합. 문구만 바뀌어 실제 에이전트 재측정은 하지 않았다.
 - 2026-10-29: V5 D25 후속 확인(`d925b03`) 통과, 결함 없음. Keychain 기준선 일치. GUI 슬롯을 DR에 넘겼다.
+- 2026-10-29: DR 초안 재작성 통합(8250de4, e762afe, 937e948): 73개 전체 창 프레임(Welcome 1, Agent 40, Project 32), doan check 새 finding 0, 격리 렌더 확인 통과. 사용자 확인 대기. DR 작업자는 수정에 대비해 retain.
