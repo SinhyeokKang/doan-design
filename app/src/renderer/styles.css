@@ -337,6 +337,10 @@ code, kbd { font-family: var(--type-family); }
 .ob-spaced { margin-top: var(--space-6); }
 .ob-url-action { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
 .ob-recovery { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); width: 100%; margin-top: var(--space-4); }
+/* D29: mid-window the Agent/Project glass is about --affordance-subtle's own colour, so a subtle button standing on it
+   lost its fill. It takes the step capsule's fill on the same glass; panels, dialogs, the Welcome surface and the DS
+   hover, pressed and disabled fills are left alone. */
+.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }
 .ob-scene > .doan-notice { margin-top: var(--space-4); }
 /* Inside the setup panel the notice follows the chosen card, where the rule above does not reach; it keeps the same
    16px the panel uses between the card and its actions. */
