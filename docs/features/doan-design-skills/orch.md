@@ -64,3 +64,6 @@
 - 2026-10-29: G1 수정 라운드 1(8f7dee3·7f56691)을 지휘자가 확인했다(참조형 링크 정의·후행 JSON 거부와 회귀 테스트). G1을 통합하고 2차 G2·P·A를 시작한다.
 - 2026-10-29: 2차 G2(`dds-g2`)·P(`dds-p`)·A(`dds-a`)를 통합 HEAD 97ecdea에서 시작했다. G1·S worktree는 Orca로 제거했다(handoff 사본은 `.scratch/orch-dds/`).
 - 2026-10-29: 1차 통합 HEAD(d1c8b7b) `verify.mjs --eval` 첫 실행은 app-test 1건에서 FAIL했다. 주 checkout의 `app/node_modules`가 오래되어 SDK 0.3.310이 설치돼 있었다(manifest 0.3.312). `npm --prefix app ci` 뒤 다시 실행해 PASS했다.
+- 2026-10-29: G2(46a5b1c·43ac5fe·69da0f3)·P(fea447b·8647d5a)·A(4edaea9·cffad35) 완료. 앱 argv `design-skill --json -- <id>`가 G2 CLI에서 동작함을 지휘자가 확인했다. 리뷰 작업자 셋(Codex `gpt-6-astra` medium)을 시작하고 세 작업자 터미널은 retain했다.
+- 2026-10-29: 2차 7커밋을 임시 worktree에서 합쳐 보았다. 충돌 없이 합쳐졌고 `go test ./...` PASS, 앱 관련 vitest 4파일 PASS, 목록 20개, 목록 4,065B, 최장 단건 envelope critique 15,543B, `doan skill` envelope 25,230B였다(임시 worktree는 지웠다).
+- 2026-10-29: G2 리뷰(`review-G2.md`, Codex) 🔴0 🟡0 🟢2. 🟢1(design·tasks의 'init result는 바꾸지 않음' 문구를 D10에 맞춘다)은 Z1에서 정리한다. G2를 통합한다.
