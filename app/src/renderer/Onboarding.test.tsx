@@ -406,3 +406,25 @@ test("D24: an agent row's recovery skips Sign out, which signs out at once", asy
     connection: { provider: "codex", connectionId: "c", profile: "codex", account: { id: "a", workspace: "w" } } }, { cli: "found", version: "supported", tools: "ready" }, 1));
   expect(firstUsable(failed)).toBe("notice");
 });
+
+test("UX: a clone destination inside a doan project names it and offers Change location (D26)", () => {
+  const n = projectNotice("path_unavailable", "x", "/Users/ada/code/doan-design/studio", true, "doan-design");
+  expect([n.body, n.actions.map(a => `${a.variant}:${a.label}:${a.command}`)]).toEqual(["This location is inside the doan project doan-design. Choose a location outside it.", ["prominent:Change location:changeLocation"]]);
+  const html = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: null, destination: "/Users/ada/code/doan-design/studio" }, error: { code: "path_unavailable" } },
+    { projects: ["/Users/ada/code/doan-design"] });
+  expect(html).toContain("This location is inside the doan project doan-design. Choose a location outside it.");
+  expect(html).not.toContain("This folder is no longer available");
+});
+
+test("UX: checking a folder shows its own status, not 'Setting up your project'", () => {
+  const html = screen({ phase: { kind: "checking", path: "/Users/ada/code/app" } }, { busy: true });
+  expect(html).toContain('role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Checking this folder</strong><span class="ob-notice-body">~/code/app</span>');
+  expect(html).not.toContain("Setting up your project");
+  expect(projectFocusTarget({ ...base2, phase: { kind: "checking", path: "/p" } }, true)).toBe("status");
+});
+
+test("UX: after Edit repository URL the URL field takes focus", () => {
+  expect(projectFocusTarget(base2, true, true)).toBe("url");
+  expect(projectFocusTarget({ ...base2, error: { code: "invalid_url" } }, true, true)).toBe("url");
+  expect(projectFocusTarget(base2, true)).toBe("action");
+});

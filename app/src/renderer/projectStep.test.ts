@@ -666,3 +666,17 @@ test("D25: the main checkout is read from the folder list's git facts", () => {
   expect(isMainCheckout(entries, "/x")).toBe(false);
   expect(isMainCheckout(entries, "/unregistered")).toBe(false);
 });
+
+test("UX: inspecting a chosen folder is 'checking', not the setup progress; nothing is written then", async () => {
+  const h = harness();
+  let release: (r: OnboardingResponse) => void = () => {};
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
+  h.queue.inspect!.push(new Promise(resolve => { release = resolve; }));
+  const choosing = h.session.chooseFolder();
+  await flush();
+  expect(phase(h)).toEqual({ kind: "checking", path: "/code/app" });
+  expect(h.session.busy()).toBe(true);
+  release(ok(op("project_inspect", { inspection: inspection([["/code/app", [".doan/config.json"]]]) })));
+  await choosing;
+  expect(phase(h)).toMatchObject({ kind: "setup" });
+});
