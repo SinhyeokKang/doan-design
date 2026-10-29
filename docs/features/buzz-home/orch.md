@@ -26,6 +26,7 @@
 | 2026-10-29 | PoC P1 반영(design §4.7): Copilot도 모델 목록을 자동으로 읽는다('Load models' 지연 읽기 행 없앰), runner는 매 send마다 모델·effort를 다시 적용, 세 ACP 공급자는 effort 캡슐 없음. BT2 `modelPickerView`의 Copilot 지연 읽기는 BU3가 없앤다 | 사용자 |
 | 2026-10-29 | PoC P2 반영(design §4.8): Antigravity에만 이미지 첨부를 ACP 이미지 블록으로도 넣는다(시그니처 확인, 50 MB 이하). Claude·Cursor P2는 계정 한도로 미확인, V1에서 확인 | 사용자 |
 | 2026-10-29 | BP의 키체인 항목 3개와 로그인된 격리 userData(`.scratch/buzz-home/bp-run/userData`)는 V1까지 남기고 V1 담당이 지운다 | 지휘자 판단 — 다시 로그인하지 않게 |
+| 2026-10-29 | Home 고정 문단은 design §4.5대로 홈에서 시작한 대화의 모든 턴에 붙인다(캔버스에 묶인 뒤에도). 시작 경로는 index 선택 필드로 남긴다 | 지휘자 판단 — design §4.5·§8 그대로, BM 리뷰 🟡3 |
 
 ## 배치
 
@@ -67,3 +68,4 @@
 - 2026-10-29 BP 중간 보고: P1은 다섯 공급자 모두 목록을 얻음(모델 요청 불필요, Copilot은 이 계정에서 `auto`만). P2는 Codex·Antigravity·Copilot 완료. Claude(주간 한도, 10/31 13:00 KST 초기화)·Cursor('Upgrade your plan')는 계정 한도로 P2를 관찰하지 못해 미확인으로 기록한다(사용자 결정).
 - 2026-10-29 BP 완료(`802f205c`), 통합 `3060e762`. P1·P2 결과가 design §4.7·§4.8과 달라 그 절을 고치고 사용자 확인을 받았다. BM 시작 조건 충족.
 - 2026-10-29 BP 작업자 해제, 워크트리 제거(증거는 지휘자 `.scratch/buzz-home/poc-*`에 복사 확인). BM 시작(`6898979d`, Claude Opus high).
+- 2026-10-29 BM 완료(`020fcd44`·`cf4efae2`·`18a18f0c`). 리뷰(Codex `gpt-6-astra` medium): 🔴 1(모델 목록 프로세스가 종료 관리 밖, lease 조기 해제) / 🟡 3(첨부 경로 교체 시 먼저 읽음, 수락 직전 재확인 없음, Home 문단 조건) / ⚪ 2. 같은 작업자에게 수정 1차를 보냈다.
