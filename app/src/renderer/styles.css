@@ -353,8 +353,6 @@ code, kbd { font-family: var(--type-family); }
 /* The radio stays in the tab order for arrows and Space; the card shows its state and focus instead. */
 .ob-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .ob-choice:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
-/* The sidebar's worktree row glyph, in the 32px slot a thumbnail takes. */
-.ob-branch-icon { flex: none; width: 32px; display: grid; place-items: center; color: var(--text-subtle); }
 .ob-setup { margin-top: var(--space-4); padding: var(--space-6); }
 .ob-setup > p { margin: var(--space-3) 0; color: var(--text-subtle); }
 /* The sidebar thumbnail at card size: 28px in a 32px slot (draft component constants). */

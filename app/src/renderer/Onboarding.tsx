@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Folder, GitBranch } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Folder } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { OnboardingState } from "../formats/types";
 import { nextFocusIndex } from "./onboardingView";
@@ -231,15 +231,14 @@ export function ChosenProject({ path, home }: { path: string; home: string | nul
   return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
 // D23 (2026-10-29 user): each choice is a card like the chosen project, the selected one with its check. A native
-// radio keeps arrow keys and Space; Enter picks too. Checkouts of one repository show the sidebar's worktree row:
-// the branch icon with the branch (else the folder name).
-export function ProjectChoice({ paths, choice, home, pick, name, branch }: {
-  paths: readonly string[]; choice: string | null; home: string | null; pick: (path: string) => void; name: string; branch?: (path: string) => string | null;
+// radio keeps arrow keys and Space; Enter picks too.
+export function ProjectChoice({ paths, choice, home, pick, name }: {
+  paths: readonly string[]; choice: string | null; home: string | null; pick: (path: string) => void; name: string;
 }) {
   return <div role="radiogroup" aria-label={name} className="ob-choice-list">{paths.map(path => <label className="doan-panel ob-choice" key={path}>
     <input type="radio" name={name} checked={choice === path} onChange={() => pick(path)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); pick(path); } }} />
-    {branch ? <span className="ob-branch-icon" aria-hidden="true"><GitBranch /></span> : <ProjectThumbnail path={path} />}
-    <span className="ob-choice-text"><strong>{branch?.(path) ?? nameOf(path)}</strong><small>{shown(path, home)}</small></span>
+    <ProjectThumbnail path={path} />
+    <span className="ob-choice-text"><strong>{nameOf(path)}</strong><small>{shown(path, home)}</small></span>
     {choice === path && <Check aria-hidden="true" />}
   </label>)}</div>;
 }
@@ -309,8 +308,6 @@ const HEADINGS = {
 
 export interface ProjectScreenProps {
   state: ProjectStepState; busy: boolean; agentReady: boolean; projects: readonly string[]; home: string | null; urlValid: boolean;
-  // A registered checkout's branch, from the folder list the window already has (no git is run).
-  branch?: (path: string) => string | null;
   heading: (node: HTMLHeadingElement | null) => void;
   on: {
     back(): void; backToAgents(): void; chooseFolder(): void; chooseExisting(): void; setUrl(url: string): void; find(): void; cancelInspect(): void; edit(): void;
@@ -320,7 +317,7 @@ export interface ProjectScreenProps {
 }
 // One screen per phase (draft frames project, project-local, repository-found, repository-clone, repository-error and
 // the Project states tiles). Errors sit above the footer; the footer's Back always returns to the Agent step.
-export function ProjectScreen({ state, busy, agentReady, projects, home, urlValid, heading, on, branch = () => null }: ProjectScreenProps) {
+export function ProjectScreen({ state, busy, agentReady, projects, home, urlValid, heading, on }: ProjectScreenProps) {
   const p = state.phase, error = state.error;
   const destination = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? p.destination : null;
   const run = (command: ProjectAction) => {
@@ -394,8 +391,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     body = <>
       {p.url !== null && urlField(true)}
       {one ? <ChosenProject path={one.path} home={home} /> : <>
-        {p.url !== null && <p className="ob-provider-help">Choose a local folder for this repository.</p>}
-        <ProjectChoice paths={p.candidates.map(c => c.path)} choice={p.choice} home={home} pick={on.pickCandidate} name="Local checkouts" {...(p.url !== null ? { branch } : {})} />
+        <ProjectChoice paths={p.candidates.map(c => c.path)} choice={p.choice} home={home} pick={on.pickCandidate} name="Repositories in this folder" />
       </>}
       {notice && <ProjectNoticeView notice={notice} run={run} />}
       {p.url !== null && <p className="ob-fine">Use your existing files and current branch.</p>}
@@ -460,17 +456,19 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
 
 // The full-window first run: Welcome → Agent → Project → Home, mounted once per main onboarding session. A CLI or MCP
 // client may drive the same session; its completion closes this window too.
-export function Wizard({ session, projects, homeDirectory, onClose, branch }: { session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; branch: (path: string) => string | null }) {
+export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout }: { session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall: openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, remember: rememberOwned, recall: recallOwned }));
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
   const homeRef = useRef(homeDirectory);
   homeRef.current = homeDirectory;
+  const mainRef = useRef(mainCheckout);
+  mainRef.current = mainCheckout;
   const closed = useRef(false);
   const finish = (root: string | null) => { if (closed.current) return; closed.current = true; onClose(root); };
   const [project] = useState(() => new ProjectStepSession({
-    api: window.doan, sessionId: session, projects: () => projectsRef.current, homeDirectory: () => homeRef.current,
+    api: window.doan, sessionId: session, projects: () => projectsRef.current, homeDirectory: () => homeRef.current, mainCheckout: path => mainRef.current(path),
     requestId: () => crypto.randomUUID(), changed: redraw, completed: root => finish(root),
   }));
   const [scene, setScene] = useState(() => initialScene(false));
@@ -563,7 +561,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, branch }: { 
       {welcome && <div className="ob-welcome-scene" ref={node => setHeading(node?.querySelector("h1") ?? null)}><Welcome start={() => move({ type: "start" })} /></div>}
       {scene.scene === "agent" && <AgentStep session={agents} heading={setHeading}
         back={leave.back} next={leave.forward} />}
-      {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} branch={branch} on={{
+      {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} on={{
         back: () => { if (p.backToUrl()) p.restart(); else move({ type: "back" }); }, backToAgents: () => move({ type: "step", to: "agent" }),
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
         pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),

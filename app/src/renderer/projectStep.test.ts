@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { OnboardingOperation, OnboardingResponse, OnboardingState } from "../formats/types";
-import { ProjectStepSession } from "./projectStep";
+import { isMainCheckout, ProjectStepSession } from "./projectStep";
 
 type Reply = OnboardingResponse | Promise<OnboardingResponse>;
 const op = (kind: OnboardingOperation["kind"], over: Partial<OnboardingOperation> = {}): OnboardingOperation => ({ operationId: `op-${kind}-${Math.random().toString(36).slice(2)}`, requestId: "r", kind, state: "succeeded", ...over });
@@ -655,4 +655,14 @@ test("consent: a re-inspection after a stale select needs Set up and continue ag
   await h.session.retry();
   expect(h.api.selectOnboardingProject).toHaveBeenCalledTimes(1);
   expect(phase(h)).toMatchObject({ kind: "setup" });
+});
+
+
+test("D25: the main checkout is read from the folder list's git facts", () => {
+  const list = (path: string, git: { common: string; main?: string; worktrees: string[] }) => ({ path, kind: "list" as const, canvases: [], servedRev: 0, git });
+  const entries = [list("/code/s", { common: "/code/s/.git", worktrees: ["/code/s", "/wt/s"] }), list("/wt/s", { common: "/code/s/.git", main: "/code/s", worktrees: [] }), { path: "/x", kind: "loading" as const }];
+  expect(isMainCheckout(entries, "/code/s")).toBe(true);
+  expect(isMainCheckout(entries, "/wt/s")).toBe(false);
+  expect(isMainCheckout(entries, "/x")).toBe(false);
+  expect(isMainCheckout(entries, "/unregistered")).toBe(false);
 });

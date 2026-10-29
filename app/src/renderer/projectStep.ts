@@ -2,6 +2,7 @@ import type {
   OnboardingChange, OnboardingOperation, OnboardingOperationErrorCode, OnboardingResponse, OnboardingSocketErrorCode, OnboardingState,
 } from "../formats/types";
 import type { DoanApi } from "../preload";
+import type { FolderEntry } from "../main/view";
 import { parseGitHubUrl } from "../main/onboarding/repository";
 
 type Api = Pick<DoanApi, "readOnboardingSession" | "onOnboardingSession" | "inspectOnboardingProject" | "selectOnboardingProject" |
@@ -12,10 +13,19 @@ export interface ProjectStepDeps {
   // Registered projects in stored order; the last one names the default clone parent (2026-10-29 user).
   projects(): readonly string[];
   homeDirectory(): string | null;
+  // Whether a registered folder is its repository's main checkout (from the folder list's git facts; no git runs).
+  mainCheckout?(path: string): boolean;
   requestId(): string;
   changed(): void;
   // Completion saved: Home takes over with this canonical root.
   completed(root: string): void;
+}
+
+// The main checkout's .git is the repository's common directory (a worktree's .git is a file pointing there), read from
+// the folder list's git facts without running git.
+export function isMainCheckout(entries: readonly FolderEntry[], path: string): boolean {
+  const entry = entries.find(candidate => candidate.path === path);
+  return entry?.kind === "list" && !!entry.git && (entry.git.main === path || entry.git.common === `${path}/.git`);
 }
 
 export type ProjectError = OnboardingOperationErrorCode | OnboardingSocketErrorCode | "access_failed";
@@ -203,10 +213,18 @@ export class ProjectStepSession {
   }
   // The inspection each candidate list came from, so a stale one is inspected again rather than retried.
   private source: Inspect | null = null;
-  private offer(inspectionId: string, url: string | null, candidates: { path: string; changes: OnboardingChange[] }[], source: Inspect): void {
+  // D25 (2026-10-29 user): a URL with several local checkouts is not a choice. One is taken: a checkout that needs
+  // no setup, then the main checkout, then the most recently registered; worktrees are switched later from the shell.
+  private pickCheckout(candidates: { path: string; changes: OnboardingChange[] }[]): { path: string; changes: OnboardingChange[] } {
+    const order = this.deps.projects();
+    const rank = (c: { path: string; changes: OnboardingChange[] }) => [c.changes.length === 0 ? 0 : 1, this.deps.mainCheckout?.(c.path) ? 0 : 1, -order.lastIndexOf(c.path)];
+    return [...candidates].sort((a, b) => { const x = rank(a), y = rank(b); return x[0]! - y[0]! || x[1]! - y[1]! || x[2]! - y[2]!; })[0]!;
+  }
+  private offer(inspectionId: string, url: string | null, found: { path: string; changes: OnboardingChange[] }[], source: Inspect): void {
     this.source = source;
     // A new inspection needs its own consent.
     this.consent = null;
+    const candidates = url !== null && found.length > 1 ? [this.pickCheckout(found)] : found;
     const first = candidates[0]!;
     if (candidates.length === 1 && first.changes.length > 0) this.set({ phase: { kind: "setup", inspectionId, url, path: first.path, changes: first.changes }, error: null });
     else this.set({ phase: { kind: "candidates", inspectionId, url, candidates, choice: first.path }, error: null });
