@@ -27,6 +27,10 @@
 | 2026-10-29 | PoC P2 반영(design §4.8): Antigravity에만 이미지 첨부를 ACP 이미지 블록으로도 넣는다(시그니처 확인, 50 MB 이하). Claude·Cursor P2는 계정 한도로 미확인, V1에서 확인 | 사용자 |
 | 2026-10-29 | BP의 키체인 항목 3개와 로그인된 격리 userData(`.scratch/buzz-home/bp-run/userData`)는 V1까지 남기고 V1 담당이 지운다 | 지휘자 판단 — 다시 로그인하지 않게 |
 | 2026-10-29 | Home 고정 문단은 design §4.5대로 홈에서 시작한 대화의 모든 턴에 붙인다(캔버스에 묶인 뒤에도). 시작 경로는 index 선택 필드로 남긴다 | 지휘자 판단 — design §4.5·§8 그대로, BM 리뷰 🟡3 |
+| 2026-10-29 | Edit on Home은 복원할 때 첨부를 다시 확인한다(design §7.4 그대로). main에 id 재확인 IPC를 더하고, 이 수정 라운드만 BU3가 main attachments·preload를 맡는다 | 사용자 / 소유 확장은 지휘자 판단 — BM은 끝났고 겹치는 작업자 없음 |
+| 2026-10-29 | BU3가 정한 첨부 거절 문구 네 개와 `Only 10 files can be attached.`를 그대로 쓴다 | 사용자 |
+| 2026-10-29 | DOM 테스트 의존성(jsdom 등)은 더하지 않는다. App의 홈 흐름을 App이 호출하는 컨트롤러 모듈로 옮겨 가짜 `window.doan`으로 끝까지 테스트하고, 실제 포커스·OS 붙여넣기·드래그는 V1이 확인한다 | 지휘자 판단 — ARCHITECTURE의 고정 devDependencies, 요청 없는 의존성 추가 금지 |
+| 2026-10-29 | 컴포넌트 파일 이름은 `HomeComposerView.tsx`·`ConversationStripView.tsx`(macOS 대소문자 무시 해석 충돌) | 지휘자 판단 — BU3 리뷰가 수용, BZ에서 문서 경로 갱신 |
 
 ## 배치
 
@@ -71,3 +75,4 @@
 - 2026-10-29 BM 완료(`020fcd44`·`cf4efae2`·`18a18f0c`). 리뷰(Codex `gpt-6-astra` medium): 🔴 1(모델 목록 프로세스가 종료 관리 밖, lease 조기 해제) / 🟡 3(첨부 경로 교체 시 먼저 읽음, 수락 직전 재확인 없음, Home 문단 조건) / ⚪ 2. 같은 작업자에게 수정 1차를 보냈다.
 - 2026-10-29 BM 수정 1차(`fdac542a`·`71b6181f`) 재리뷰(같은 리뷰어): 이전 🔴·🟡 모두 해결, 새 결함 없음. 인계서의 'Codex model/list 타임아웃 없음'은 틀렸다(dispatcher가 모든 RPC에 10초 타임아웃, 실패 시 캐시 제거). 통합 `30a81d10`·`eaaa5042`·`96fd98ca`·`c7fa6bbe`·`21cc03cb`. 작업자·리뷰어 해제, 워크트리 제거.
 - 2026-10-29 통합 `/verify`(`21cc03cb`): PASS. BU3 시작(Claude Opus high).
+- 2026-10-29 BU3 완료(`1b505fdd`·`61d5bdb1`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 7(온보딩 인계가 선택을 계속 덮음, 대기 중 전송 잠금 수명, 이동 이력·바인딩 기준 경합, 읽는 중 root 비활성, 도착 포커스, App 연결 테스트 부족) / ⚪ 4, 사용자 결정 2건. 같은 작업자에게 수정 1차를 보냈다.
