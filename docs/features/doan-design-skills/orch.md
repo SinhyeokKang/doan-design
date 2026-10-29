@@ -24,9 +24,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
-| G1 | A1-R, A2(Go·fixture), B1a | `cli/internal/designskill/**`(새: Go 코드, 카탈로그 데이터, `clarify`·`context` 본문, `LICENSE`·`NOTICE` 고지, `SOURCES.md`), `schema/fixtures/cli-envelope/design-skill/**`(새) | 없음 | Claude Opus high — 라이선스 고지·공개 계약·validator가 이후 모든 배치의 기준이다 | `verify.mjs` | 대기 |
-| S | C2, B3(앱 `turnPrompt` 안내) | `app/src/main/onboarding/SKILL.md`와 onboarding 테스트, `app/src/main/agentAuth/providers.ts` 테스트, `app/src/main/conversation/prompt.ts`·`service.ts`와 테스트 | 없음 | Claude Opus medium — 설치 경쟁 회귀와 앵커 비신뢰 경계를 지켜야 하지만 변경은 문구 중심이다 | `verify.mjs` | 대기 |
-| R | E2a | `eval/lib/scenario.ts`·`judge.ts`와 테스트, 필요하면 `eval/lib/transcript.ts` | 없음 | Codex `gpt-6.1-sol` medium — 기존 패턴을 확장하는 기계적 runner 변경 | `verify.mjs --eval` | 대기 |
+| G1 | A1-R, A2(Go·fixture), B1a | `cli/internal/designskill/**`(새: Go 코드, 카탈로그 데이터, `clarify`·`context` 본문, `LICENSE`·`NOTICE` 고지, `SOURCES.md`), `schema/fixtures/cli-envelope/design-skill/**`(새) | 없음 | Claude Opus high — 라이선스 고지·공개 계약·validator가 이후 모든 배치의 기준이다 | `verify.mjs` | 진행(`ctx_91a9bc81a3c6`) |
+| S | C2, B3(앱 `turnPrompt` 안내) | `app/src/main/onboarding/SKILL.md`와 onboarding 테스트, `app/src/main/agentAuth/providers.ts` 테스트, `app/src/main/conversation/prompt.ts`·`service.ts`와 테스트 | 없음 | Claude Opus medium — 설치 경쟁 회귀와 앵커 비신뢰 경계를 지켜야 하지만 변경은 문구 중심이다 | `verify.mjs` | 진행(`ctx_9cdacb16a68a`) |
+| R | E2a | `eval/lib/scenario.ts`·`judge.ts`와 테스트, 필요하면 `eval/lib/transcript.ts` | 없음 | Codex `gpt-6.1-sol` medium — 기존 패턴을 확장하는 기계적 runner 변경 | `verify.mjs --eval` | 진행(`ctx_353641535557`) |
 | G2 | B2(Go), B3(가이드 `skill.md` 매핑 규칙·짧은 목록 생성), C1 | `cli/**`(`cli/internal/designskill/`의 카탈로그 데이터·`*.md` 본문·`SOURCES.md` 제외) | G1 | Claude Opus high — CLI/MCP parity, `init` `nextSteps`, 가이드 계약 | `verify.mjs` | 대기 |
 | P | B1b | `cli/internal/designskill/`의 카탈로그 데이터, 나머지 18개 본문, `SOURCES.md`, `schema/fixtures/cli-envelope/design-skill/`의 목록 fixture | G1 | Claude Opus high — 원본을 각색하며 엔진 절차 제거·출처 보존·프리셋 간 연계를 판단한다 | `verify.mjs` | 대기 |
 | A | A2(TS), B2(TS 앱 결과 해석), D1 | `app/src/main/`의 새 designSkills 모듈과 테스트, `app/src/main/index.ts`·`senderAllowed.ts`·`cli.ts`(필요한 연결만), `app/src/preload/index.ts`와 테스트 | G1 | Claude Opus high — 신뢰된 호출자 경계와 실패를 빈 성공으로 바꾸지 않는 해석 | `verify.mjs` | 대기 |
@@ -50,3 +50,4 @@
 ## 진행 기록
 
 - 2026-10-29: intake. 결정 D1–D8.
+- 2026-10-29: run `run_a4cd59bab3c2`. 1차 G1(`dds-g1`)·S(`dds-s`)·R(`dds-r`, Codex) 시작, 세 작업자 모두 착수를 확인했다. A0 완료(5bcbca9). PoC 파일에는 `doan check` 출력이 남아 있지 않아 그 사실을 PRODUCT §6에 함께 적었다.
