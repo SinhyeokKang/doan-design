@@ -178,13 +178,15 @@ body:has(.shell-top) { background: transparent; }
    triggers. The [data-ui-size] part keeps it above the shared sm padding instead of overriding it per screen. */
 .doan-button[data-ui-variant="trigger"],.doan-button[data-ui-variant="trigger"][data-ui-size="sm"]{padding-inline:var(--space-2);background:transparent}
 .doan-button[data-ui-variant="trigger"]:hover,.doan-button[data-ui-variant="trigger"][data-state="open"],.doan-button[data-ui-variant="trigger"][aria-expanded="true"]{background:var(--affordance-backdrop-hover)}
-/* Proposed shared variant quiet (ds/controls.css at implementation): the header capsule's backdrop fill with standard ink;
+/* Proposed shared variant quiet (ds/controls.css at implementation): the header capsule's backdrop fill with standard ink and a backdrop blur;
    hover and pressed step the backdrop like the header tabs. Drawn here because drafts do not edit ds/. */
-.doan-button[data-ui-variant="quiet"]{background:var(--affordance-backdrop-hover);color:var(--text-standard)}
+.doan-button[data-ui-variant="quiet"]{background:var(--affordance-backdrop-hover);color:var(--text-standard);-webkit-backdrop-filter:blur(var(--blur-md));backdrop-filter:blur(var(--blur-md))}
+@media (prefers-reduced-transparency:reduce){.doan-button[data-ui-variant="quiet"]{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--affordance-subtle)}}
 .doan-button[data-ui-variant="quiet"]:hover{background:var(--affordance-backdrop-pressed)}
 .suggestion{max-width:100%;gap:var(--space-1h);padding-inline:var(--space-3) var(--space-4);font-weight:var(--type-weight-regular)}
 .suggestion span{overflow:hidden;text-overflow:ellipsis}
-.suggestion svg{width:14px;height:14px}
+/* The suggestion's group icon carries the accent; its sentence stays standard ink (2026-10-29 user). */
+.suggestion svg{width:14px;height:14px;color:var(--affordance-accent)}
 /* Workspace strip (temporary until buzz-conversation). */
 .workspace-panel{display:flex;flex-direction:column;overflow:hidden}
 /* White elevation, the approved onboarding notice treatment, so subtle actions keep their fill. */
