@@ -103,3 +103,4 @@
 - 2026-10-29: V 완료(`ctx_08d593134cb3`): V1(design-sync 제외)·V1b(a)(b)·V1c를 패키지 앱에서 실행, 대부분 통과. 결함 2건: (1) clone 취소 화면에서 URL을 바꿀 수 없어 갇힘 → U에 수정 Task, (2) CLI로 시작한 교체 로그인을 취소하면 모든 공급자가 unverified가 되고 Codex 자격 증명이 지워짐 → 새 배치 A. 홈 포커스·홈 체크리스트 관찰은 buzz-home 인계(V3). 미검증: dev 빌드, 실제 Cmd+W·포커스·폴더 시트 Escape, stop 대화상자, Claude 10초 훅 실패, 긴 프로젝트 경로·최소 창 크기(Agent 외). Keychain은 기준선으로 돌아왔고 36e67382 갱신만 허용 부작용이다. V 작업자는 재확인을 위해 retain.
 - 2026-10-29: U가 V 결함 1을 고쳤다(e545f93, e015cc5): 취소·실패한 clone 화면에 'Edit repository URL'을 추가하고 Back은 URL 입력으로 돌아간다. 통합했다. V가 다시 확인한다.
 - 2026-10-29: A 완료(7 커밋, `verify.mjs` PASS, POSTMORTEM 포함). 원인: Codex 0.164.0 `codex login`이 로그인 서버 시작 전에 `logout_with_revoke`를 부른다. 독립 리뷰 Codex `gpt-6-astra` medium 시작.
+- 2026-10-29: A 리뷰 Codex `gpt-6-astra` medium: 🔴 1(vault commit 뒤 정리 실패 시 옛 연결이 새 자격 증명 위에 verified로 남음)·🟡 2(staging 로그아웃 실패를 무시하고 삭제, 중단된 staging·retired 프로필 복구 없음). 수정 1회차를 보냈다.
