@@ -5,7 +5,7 @@
 ## 순서
 
 1. `agent-cli-versions` — 끝났다. feature 디렉터리는 지웠고 결론은 PRODUCT §3·§6·§7·§8과 ARCHITECTURE §7('Agent conversation runtime and IPC', 'Agent authentication')에 있다.
-2. `buzz-onboarding` — [spec](../buzz-onboarding/spec.md)·[design](../buzz-onboarding/design.md)·[tasks](../buzz-onboarding/tasks.md). F4는 확정이다(2026-10-28). F5(PRODUCT 기록)는 이 링크의 intake에서 한다. F6은 링크 1 병합을 확인하고 상태 대응 표를 갱신한다. T1(새 토큰)은 B2 앞이다.
+2. `buzz-onboarding` — 끝났다. feature 디렉터리는 지웠고 결론은 PRODUCT §2·§3·§5·§6·§7·§8, ARCHITECTURE §4–§7·§10–§14, DESIGN, USABILITY-EVAL에 있다.
 
 각 링크는 새 세션·새 Orca worktree(최신 `origin/main`에서 생성)에서 시작하고, 병합한 뒤 다음 링크의 세션을 띄워 인계하고 물러난다.
 
@@ -28,7 +28,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 agent-cli-versions | Claude Code 세션 · Orca worktree `agent-cli-versions-orch`(브랜치 `feat-agent-cli-versions`) | 2026-10-28 | [PR #34](https://github.com/SinhyeokKang/doan-design/pull/34) · 병합 `e517c22`(2026-10-29) | 완료 |
-| 2 buzz-onboarding | Claude Code 세션 · Orca worktree `buzz-onboarding-orch`(브랜치 `feat-buzz-onboarding`) | 2026-10-29 | | 진행 중 |
+| 2 buzz-onboarding | Claude Code 세션 · Orca worktree `buzz-onboarding-orch`(브랜치 `feat-buzz-onboarding`) | 2026-10-29 | PR(병합 예정) | 병합 대기 |
 
 ## 링크 2가 알아야 할 것 (링크 1, 2026-10-29)
 
@@ -45,3 +45,4 @@
 - 2026-10-28 링크 1 시작: `agent-cli-versions-orch` worktree에서 main `f884c73`으로부터 `feat-agent-cli-versions`를 만들고 `/orchestrate agent-cli-versions`를 시작했다. 체인 작성 세션은 물러나도 된다.
 - 2026-10-29 링크 1 완료: PR #34를 main에 병합했다(`e517c22`). 통합 HEAD `/verify` 통과, 실제 앱 확인(B2) 통과, `/agent-eval`은 사용자 결정으로 생략했다. 미검증: 실제 비호환 handshake의 기록·거절·예약 해제, 버전 원인일 때의 check, 최소보다 새 CLI, 패키지 앱. 모델 교차: 두 배치의 독립 리뷰에 Codex `gpt-6-astra` medium을 썼다. 링크 2가 알아야 할 것은 위 절에 있다. 링크 1 → 링크 2 인계를 시작한다.
 - 2026-10-29 링크 2 시작: `buzz-onboarding-orch` worktree에서 main `9ebfff6`으로부터 `feat-buzz-onboarding`을 만들고 `/orchestrate buzz-onboarding`을 시작했다. 링크 1 세션은 물러나도 된다. 같은 이름의 옛 로컬 브랜치(0d3ff70, main의 조상)를 쓰던 `/private/tmp/doan-buzz-onboarding-draft` worktree는 사용자 결정으로 detach했고 추적 안 된 파일은 그대로 두었다.
+- 2026-10-29 링크 2 완료: 배치 C·P·T·G·M·U·E·R·A·G2·G3·G4·D·DR와 V(실인증·패키지·clone 확인 여러 차례)를 통합했다. 통합 HEAD `verify.mjs --eval` 통과, `/agent-eval` 라운드 3회(O1·O2 Claude pass, Codex O1·O2는 sandbox+MCP 없음으로 알려진 조건), 실제 앱 확인 통과. 사용자 결정 D3·D4·D5·D12·D13·D17·D18·D20·D22·D23·D25·D27, 지휘자 결정은 PRODUCT §7에 승격했다. 미검증: dev 빌드, 실제 Cmd+W·네이티브 폴더 시트 Escape, `stop_required` 대화상자(ready 공급자에서 진입 경로 없음), Codex sandbox용 MCP 변형 시나리오. 모델 교차: 독립 리뷰 다수에 Codex `gpt-6-astra` medium, T 구현에 Codex `gpt-6.1-sol` high. 링크 2가 마지막이므로 병합 뒤 이 디렉터리를 지운다.
