@@ -1,10 +1,10 @@
 # Agent usability evaluation
 
-How we find and fix places where coding agents struggle to write and read doan designs (2026-10-24 user). Bugs and regressions go to [POSTMORTEM.md](./POSTMORTEM.md); this document tracks usability for agents — guide text, CLI and MCP output, `doan check` rules and product behavior as agents experience them.
+How we find and fix places where coding agents struggle to write and read Doan designs (2026-10-24 user). Bugs and regressions go to [POSTMORTEM.md](./POSTMORTEM.md); this document tracks usability for agents — guide text, CLI and MCP output, `doan check` rules and product behavior as agents experience them.
 
 ## Loop
 
-1. **Discover** — `/agent-eval` rounds (fixed scenarios in `eval/`, real Claude Code and Codex), and moments where an agent stalls while we use doan ourselves (dogfooding).
+1. **Discover** — `/agent-eval` rounds (fixed scenarios in `eval/`, real Claude Code and Codex), and moments where an agent stalls while we use Doan ourselves (dogfooding).
 2. **Record** — one issue row below: how it was found, the layer, evidence.
 3. **Improve** — guide or output wording through `/ship`; product changes through `/feature`.
 4. **Re-measure** — run the same scenario again with `/agent-eval <id>`.
