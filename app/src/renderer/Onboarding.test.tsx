@@ -439,3 +439,12 @@ test("D25 follow-up: a setup screen reached from a URL keeps the URL, Choose ano
   expect(folder).not.toContain("Edit repository URL");
   expect(folder).not.toContain('id="ob-project-url"');
 });
+
+test("spacing: a project notice keeps the step's 16px gap wherever it stacks, also under the card inside the setup panel", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ob-project-notice \{[^}]*margin-top: var\(--space-4\);/);
+  const html = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/p", changes: [".doan/config.json"] }, error: { code: "init_failed" } });
+  // The notice follows the chosen card inside .ob-setup, where .ob-scene > .doan-notice does not reach.
+  expect(html).toMatch(/<div class="doan-panel ob-chosen">.*?<\/div><div class="doan-notice error doan-panel ob-project-notice"/);
+});
