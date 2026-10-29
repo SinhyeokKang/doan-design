@@ -124,6 +124,21 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
   return attempt?.kind === "check" ? disable(settled) : settled;
 }
 
+// Home's agent picker lists connected providers only and has no recovery buttons (2026-10-29 user), so a row
+// that can't run gets a short status without action words; buzz-settings later puts the action in the same place.
+// null: ready, or not connected (Home doesn't list it). Unverified stays selectable because main checks it on send.
+export function providerShortStatus(status: AuthStatusDto): string | null {
+  const r = status.readiness;
+  if (r.ready) return null;
+  switch (r.cause) {
+    case "not_connected": return null;
+    case "unverified": return "Checks your connection when you send.";
+    case "reauth_required": return status.phase === "reauthRequired" ? "Sign-in expired" : "Not available right now";
+    case "version_unsupported": case "version_incompatible": return "Needs an update";
+    default: return "Not available right now";
+  }
+}
+
 // show: the row displays it. dialog: confirm stopping runs, then resend with stop. reread: read the latest state.
 export function replyEffect(reason: AuthReason): "show" | "dialog" | "reread" {
   switch (reason) {
