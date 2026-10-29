@@ -550,7 +550,7 @@ Reasons are `busy`, `stale`, `not_owner`, `stop_required`, `not_connected`, `sig
 - Current state (2026-10-24, onboard): the only package is the unsigned local arm64 `doan.app` from `npm --prefix app run package` (§7), used to check the bundled CLI, onboarding and the MCP command path on this machine. Everything below — Developer ID signing and notarization, dmg, Homebrew cask, `electron-updater` with Releases CI, x64/universal and `docs/OPERATIONS.md` — is #9 `dist`, deferred (PRODUCT §5).
 - Download a Developer ID notarized dmg from doan.design, or install with `brew install --cask`.
 - Updates use `electron-updater` + GitHub Releases. The CLI is inside the app bundle and updates with the app.
-- **It will be released as open source** (2026-10-21). The specific license is undecided.
+- **It will be released as open source** (2026-10-21) under Apache-2.0 (2026-10-29); the standard text is the root `LICENSE`.
 - **Doan (app and CLI) does not handle GitHub tokens** (2026-10-21). It neither reads nor stores them, with one exception: the Doan Copilot connection holds the official Copilot CLI's GitHub token, encrypted and only for Copilot agent authentication (2026-10-28 user decision; §7 'Agent authentication'). The agent does git and PRs with the user's credentials, updates are fetched without a token from the public repo's Releases, and release uploads use CI secrets. Reference: Orca's `app-update.yml` is also `provider: github` with no token setting (verified in local bundle).
 - Rationale: Orca uses the same combination. dmg (arm64, x64), `brew install --cask stablyai/orca/orca`, and `provider: github` in `app-update.yml` (verified in local bundle).
 
