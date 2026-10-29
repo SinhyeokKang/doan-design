@@ -109,4 +109,8 @@ describe("provider auth adapters", () => {
       Object.entries(PROVIDER_AUTH[provider].settings).filter(([rel]) => rel.endsWith("skills/doan/SKILL.md")).map(([, text]) => text));
     expect(stubs).toEqual([[stub], [stub], [stub], [stub], [stub]]);
   });
+  it("tells agents that a truncation notice means the guide is incomplete, since a cut in the middle keeps the end marker", () => {
+    const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
+    expect(stub).toContain('A truncation notice (such as\n"tokens truncated") means the same even with that line: save `doan skill`\noutput to a file and read it in parts.\n');
+  });
 });
