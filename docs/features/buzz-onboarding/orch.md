@@ -45,6 +45,7 @@
 | U | U1(B2 일부) → U2(B2 나머지 + design-sync) | U1: `app/src/renderer/**`(P의 새 모듈은 import만), `app/src/renderer/ds/controls.css`. U2: 위에 더해 고아 채널 제거를 위한 `app/src/main/index.ts`·`app/src/main/onboarding/machine.ts`·`app/src/preload/**`·`app/src/setup/**`, `docs/DESIGN.md` 측정값, `.scratch/design-sync/` | U1: T, P. U2: M | Claude Opus high — 포커스·중첩 모달·경합 표시와 승인 디자인 대조 | `verify.mjs`, U2는 `/design-sync` | 통합(U1 5 + U2 18 커밋, 끝 `dfc868a`), U1 2회차·U2 2회차 |
 | E | D5 시나리오 | `eval/scenarios/**`의 새 시나리오와 fixture, eval 가짜 앱의 v2 응답(`eval/lib/socket.ts`와 테스트) | G | Claude Opus medium — 시나리오 판정 기준 설계 | `verify.mjs --eval`, `node eval/run.ts --self-test` | 통합(11 커밋, 끝 `300e3e3`), 2회차 |
 | R | D20 remote 확인 | `schema/**`(v2 path+url), `app/src/formats/**`, `cli/internal/formats/**`, `cli/internal/cli/onboarding*.go`·MCP·`skill.md`, `app/src/main/onboarding/{service,projects}.ts` | C·M·G 통합 | Claude Opus high — 공개 계약 변경과 remote 판정 | `verify.mjs` | 통합(4 커밋), 1회차 |
+| A | V 결함 2(교체 로그인 취소가 연결을 잃음) | `app/src/main/agentAuth/**`(필요하면 `onboarding/service.ts`), `docs/POSTMORTEM.md` | V | Claude Opus high — 사용자 자격 증명 손실 버그의 원인 조사 | `verify.mjs` | 진행 중 |
 | V | V1(design-sync 제외), V1b, V1c | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus high — 실제 인증·clone·패키지 앱 probe와 사용자 상태 보호 | `/runtime-test` | 진행 중 |
 | 지휘자 | V2, V3 | 통합 커밋, 정본 승격, feature 디렉터리 삭제 | 전부 | — | 통합 HEAD `verify.mjs --eval`, `/agent-eval` | 대기 |
 
@@ -98,3 +99,4 @@
 - 2026-10-29: U2 리뷰 Claude Opus high: 🔴 0·🟡 3(URL 화면 복구 버튼이 url 없이 폴더 선택, main의 no_ready_agent 거절이 ready 뒤에도 남음, R 전 path+url 거절)·⚪ 8. design-sync 차이 25개는 근거가 있고 마크업 측정은 표시돼 있다. 결정 D21.
 - 2026-10-29: R 리뷰 Codex `gpt-6-astra` medium: 🔴 0·🟡 0. R을 통합했다. R 작업자·리뷰어 release. U2 수정 Task를 보냈다(R 위로 rebase, cast 제거, 🟡 3, D21).
 - 2026-10-29: U2 수정(R 위로 rebase, 6828709..b152f53)을 통합했다(끝 `dfc868a`). 통합 HEAD `verify.mjs --eval` PASS. design-sync 측정은 rebase 전(960020b)이고 그 뒤 변경은 동작 수정이다. V 시작(bo-V, GUI 슬롯 보유).
+- 2026-10-29: V 완료(`ctx_08d593134cb3`): V1(design-sync 제외)·V1b(a)(b)·V1c를 패키지 앱에서 실행, 대부분 통과. 결함 2건: (1) clone 취소 화면에서 URL을 바꿀 수 없어 갇힘 → U에 수정 Task, (2) CLI로 시작한 교체 로그인을 취소하면 모든 공급자가 unverified가 되고 Codex 자격 증명이 지워짐 → 새 배치 A. 홈 포커스·홈 체크리스트 관찰은 buzz-home 인계(V3). 미검증: dev 빌드, 실제 Cmd+W·포커스·폴더 시트 Escape, stop 대화상자, Claude 10초 훅 실패, 긴 프로젝트 경로·최소 창 크기(Agent 외). Keychain은 기준선으로 돌아왔고 36e67382 갱신만 허용 부작용이다. V 작업자는 재확인을 위해 retain.
