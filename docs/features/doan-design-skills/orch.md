@@ -20,6 +20,7 @@
 | D7 | A0(PRODUCT §6 기록)·D4(ARCHITECTURE §7 초안과 buzz-restyle 인계)·Z1(승격)은 지휘자가 문서 커밋으로 한다 | 지휘자 판단 — `.scratch/design-tools-poc/`는 주 checkout에만 있고, 이 셋은 문서 신선도 커밋 범위이다 |
 | D8 | A1-R에서 공개 20개나 `document` 표시 이름을 바꿔야 하면 G1은 바꾸지 않고 질문으로 올린다. 지휘자가 사용자에게 묻는다 | spec §3.1: 선정은 사용자 결정이다 |
 | D9 | A1-R 재검토 결과 공개 20개 ID를 유지한다. `document`의 표시 이름은 `Document the design system`이다 | 사용자 결정(2026-10-29), G1 권고 |
+| D10 | `doan init`·MCP `init`의 `context` 안내는 성공 result에 `nextSteps: string[]` 키 하나를 더해 싣는다. 기존 키와 envelope v1·schema는 바꾸지 않는다 | 사용자 결정(2026-10-29). G2 질문 — 성공 envelope에는 `nextSteps` 자리가 없다 |
 
 ## 배치
 
@@ -62,3 +63,4 @@
 - 2026-10-29: S 수정 라운드 1(2868851·63351f8)을 지휘자가 확인했다. 안내에 design §3 실패 규칙이 모두 있다. S를 통합한다.
 - 2026-10-29: G1 수정 라운드 1(8f7dee3·7f56691)을 지휘자가 확인했다(참조형 링크 정의·후행 JSON 거부와 회귀 테스트). G1을 통합하고 2차 G2·P·A를 시작한다.
 - 2026-10-29: 2차 G2(`dds-g2`)·P(`dds-p`)·A(`dds-a`)를 통합 HEAD 97ecdea에서 시작했다. G1·S worktree는 Orca로 제거했다(handoff 사본은 `.scratch/orch-dds/`).
+- 2026-10-29: 1차 통합 HEAD(d1c8b7b) `verify.mjs --eval` 첫 실행은 app-test 1건에서 FAIL했다. 주 checkout의 `app/node_modules`가 오래되어 SDK 0.3.310이 설치돼 있었다(manifest 0.3.312). `npm --prefix app ci` 뒤 다시 실행해 PASS했다.
