@@ -69,6 +69,8 @@ export class CodexDispatcher {
   stop(reason: "user" | "appQuit"): void { this.state = { ...this.state, stop: reason }; this.expire(); }
   close(): void {
     if (this.closed) return; this.closed = true; this.expire();
+    // A protocol failure closes before the transport ends and end() then returns early, so the cache goes here.
+    this.state = { ...this.state, fileSummaries: {} };
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error("process_exited")); }
     this.pending.clear();
   }

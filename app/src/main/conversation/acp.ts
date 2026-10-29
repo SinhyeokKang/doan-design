@@ -105,7 +105,7 @@ function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
   const segment = state.segment + 1;
   return { state: { ...state, text: "", segment, messageId: `${state.turn}:${segment}` }, events: [done] };
 }
-const ACTIVITY: Record<string, "edit" | "read" | "command"> = { edit: "edit", delete: "edit", move: "edit", read: "read", search: "read", execute: "command" };
+const ACTIVITY: Record<string, "edit" | "read" | "command"> = { edit: "edit", delete: "edit", move: "edit", read: "read", search: "read", execute: "command", terminal: "command" };
 function str(value: unknown): string { return typeof value === "string" ? value : ""; }
 function toolPath(update: Record<string, unknown>): string {
   if (Array.isArray(update.locations)) for (const location of update.locations) if (object(location) && str(location.path)) return str(location.path);
