@@ -255,3 +255,9 @@ doan이 다르게 가는 점:
 - **2026-10-24 모달 뒤 포커스**: 팝오버가 열린 채 다이얼로그가 뜨면 팝오버 뒤 요소에 포커스를 주지 않는다.
 - **2026-10-25 action before read finishes**: 전송 직후 이동은 대상 root의 목록 읽기를 기다리고, 그 사이 사람이 다른 곳으로 이동했으면 따라가지 않는다(`rg -n 'kind !== "list"\) retur' app/src/renderer`).
 - **2026-10-25 CSS JS import / cascade layer**: 새 CSS는 진입 스타일시트의 `@import`로 싣고, 대체한 projects-home 규칙은 지운다.
+
+## 14. 초안 요청
+
+- 캔버스: `.doan/canvases/buzz-home.html`, id `buzz-home`, 폭 2560.
+- 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`, `home-filled`, `home-presets`, `home-agent`, `workspace-strip`.
+- 2차: 1차가 확정되면 §3.1의 상태 목록을 상태별 프레임으로 넓힌다. `/design-sync`는 2차에 남은 프레임을 대조한다.
