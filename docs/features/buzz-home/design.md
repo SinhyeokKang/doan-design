@@ -145,6 +145,22 @@
 - 같은 root에 진행 중인 홈 대화가 있으면 그 줄에 Open을 둔다. 한 프로젝트에 홈 대화를 동시에 두 개 두지 않는 이유는 임시 상태줄이 하나만 보여 다른 대화의 권한 요청이 가려지기 때문이다.
 - 호출: `startConversation({root, mode: "newDesign", runtime, text})`. 전송 중에는 입력을 읽기 전용으로 두고 Send에 spinner를 보인다.
 - 성공: 초안을 비우고, 마지막 root·공급자를 저장하고, 그 root의 워크스페이스(Overview)로 이동한다. 기존 전환 보호를 통과해야 이동한다. 전환이 거절되면 홈에 남아 상태줄 대신 토스트 'Started in <project>' + Open을 보인다.
+- 거절 문구(초안 `home-refused`, `doan-notice error`; 영어 UI 문구). `<P>`는 공급자 이름이다.
+
+  | code | 문구 | 동작 |
+  |---|---|---|
+  | `not_logged_in` | Couldn’t start with `<P>`: its sign-in has expired. Choose another agent. | 없음 |
+  | `cli_missing` | Couldn’t start with `<P>`: it isn’t installed on this Mac. Choose another agent. | 없음 |
+  | `runtime_unsupported` | Couldn’t start with `<P>`: Doan doesn’t support this version. Update it, then try again. | Retry |
+  | `busy` | `<P>` is finishing a previous run. Try again in a moment. | Retry |
+  | `credential_override` | `<P>` refused to run: this project’s Claude settings supply their own API key. Remove it, or choose another agent. | 없음 |
+  | `cli_install_failed` | Couldn’t download the Antigravity server. Check your connection, then try again. | Retry |
+  | `rate_limited` | `<P>` is rate limited. Try again later. | 없음 |
+  | `project_not_open` | `<project>` isn’t available. Fix it from its menu in the sidebar. | 없음 |
+  | `no_agent` | No agent is ready to run. | 없음 |
+  | `bad_request`·`unknown` | Couldn’t start the conversation. Try again. | Retry |
+
+- 비활성 이유(초안의 caption 줄): 프로젝트 없음 `Add a project to send.`, 준비된 공급자 없음 `No agent is ready to run.`, 한도 초과 `Shorten the message to send it.`, 같은 프로젝트의 홈 대화 진행 중 `A conversation from Home is still running in <project>.` + Open. 빈 입력은 문구 없이 Send만 비활성이다.
 - 거절: 입력을 유지하고 입력창 아래에 `startErrorView(code)`의 문구를 보인다. 공급자 계열 코드(`not_logged_in`, `cli_missing`, `runtime_unsupported`, `no_agent`)는 그 공급자의 `readiness.action`을 복구로 쓴다(ARCHITECTURE §7). `busy`는 잠시 뒤 다시 보내기, `credential_override`는 저장소 `.claude/settings*.json`의 API 키 설정 때문이라는 설명, `cli_install_failed`는 Antigravity 서버 다운로드 실패와 Retry, `project_not_open`·`bad_request`·`rate_limited`·`unknown`은 각자 문구. 자동 재시도는 없다.
 
 ### 4.6 `newDesign` 자유 텍스트 (main 변경)
@@ -299,4 +315,12 @@ doan이 다르게 가는 점:
 
 - 캔버스: `.doan/canvases/buzz-home.html`, id `buzz-home`, 폭 2560.
 - 1차(2026-10-29 user: 대표 프레임만 먼저 그려 느낌을 정한다): `home-empty`(추천 프롬프트 포함), `home-filled`, `home-drop`, `home-presets`, `home-agent`, `home-effort`, `workspace-strip`.
-- 2차: 1차가 확정되면 §3.1의 상태 목록을 상태별 프레임으로 넓힌다. `/design-sync`는 2차에 남은 프레임을 대조한다.
+- 1차 확정(2026-10-29 user: "디자인은 지금 좋아").
+- 2차(2026-10-29): 창 프레임 `home-preset-only`, `home-slash`, `home-long`, `home-over-limit`, `home-project-menu`, `home-worktree-menu`, `home-no-project`, `home-no-agent`, `home-sending`, `home-refused`, `home-running`, `home-toast`, `workspace-working`, `home-narrow`(960 × 600)과 상태 보드 `states-presets`, `states-agents`, `states-attachments`, `states-strip`, `states-controls`. 모두 26개이고 `/design-sync`는 이 전부를 대조한다. reduced transparency와 forced colors 화면은 그리지 않았고 CSS 규칙으로만 남겼다(실제 앱에서 측정).
+- 프리미티브·토큰 점검(2026-10-29 user 요청). 초안의 새 CSS에서 리터럴을 찾아 분류했다.
+  - 같은 값의 토큰이 있던 리터럴 63건 중 53건을 토큰으로 바꿨다. 아이콘 14/20px → 새 `--size-icon-sm`·`--size-icon-lg`, 미리보기 상자 32px → `--size-control-sm`, 안쪽 모서리 → `calc(var(--radius-chip) - var(--space-1))`, 입력 최소 높이 → `2 × --type-label-line-height`, 프리셋 칩 → `--size-control`, 첨부 메타 11/14px → caption 역할이다.
+  - 남은 10건은 캔버스 전용(목업 그림, 포인터)이거나 출하 CSS에서 복사한 값(`.toast` bottom 20px)이다.
+  - 따로 만들었던 컴포넌트는 공용 프리미티브로 바꿨다. 그룹 탭 → `doan-button` sm(`prominent`/`trigger`), 트레이 워크트리 → `doan-button` sm `trigger`, 오류 줄 → `doan-notice error` + `doan-alert-icon`, 검색 입력 → `doan-input` sm, 토스트 → `doan-toast`.
+  - 칩 × 버튼은 맞는 공용 크기가 없어서 `doan-icon-button` `xs`(24px, 새 `--size-control-xs`)를 제안했다(U0).
+  - 토큰이 없는 리터럴 20건은 컴포넌트 상수로 둔다. 레이아웃 폭(입력창 680, 위 여백 152, 팝오버 580/320/300/200, 목록 최대 276, 칩 최대 280), 썸네일 20px의 모서리 5px·글자 11px(출하 썸네일 16/4/10, 온보딩 28/7/17과 같은 비율 규칙), 캔버스 창 상자(1238 × 780, 960 × 600), 출하 LNB 폭 260이다.
+  - 새 토큰 세 개(`--size-icon-sm` 14, `--size-icon-lg` 20, `--size-control-xs` 24)는 DESIGN 'Tokens first' 규칙에 따라 `tokens.css`와 DESIGN.md 토큰 목록에 더했다.

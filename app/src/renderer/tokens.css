@@ -182,6 +182,11 @@
   --size-chrome: 56px;
   --size-row: 72px;
   --size-icon: 16px;
+  /* Home composer (buzz-home): small icons inside chips and triggers, large marks in the strip and pickers,
+     and the extra-small control (a chip's remove button). */
+  --size-icon-sm: 14px;
+  --size-icon-lg: 20px;
+  --size-control-xs: 24px;
 
   /* Containers stop at 28px; capsules and pills are separate shapes. A nested
      corner is max(0, outer − inset − border), not the next step down. */
