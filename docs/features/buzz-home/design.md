@@ -77,7 +77,7 @@
 - **프로젝트 선택기**는 입력창 위에 놓인다(`▣ <project> ⌄`, 프로젝트 썸네일 + 이름). LNB와 같은 묶음·순서로 저장소(프로젝트 묶음) 단위를 고른다(`groupProjects`).
 - **워크트리 트레이**는 입력 카드 아래에 붙은 줄이다. 고른 프로젝트의 등록된 워크트리를 브랜치 이름(분리된 HEAD면 `detached <7자 SHA>`)과 경로(`~/…` 축약)로 보이고, 워크트리가 둘 이상일 때만 ⌄로 고를 수 있다. 고르는 단위는 root다. 브랜치는 읽기 전용이다. 새 워크트리 만들기와 브랜치 전환은 없다(Out of scope 6). git이 아닌 프로젝트는 경로만 보인다.
 - `list`가 아닌 root(Missing, Not set up, Config error, CLI error, 읽는 중)는 칩과 함께 비활성으로 보이고, '이 프로젝트를 고치려면 LNB의 프로젝트 메뉴를 쓴다'는 문구를 단다. 묶음의 모든 root가 비활성이면 프로젝트 선택기에서 그 프로젝트도 같은 칩으로 비활성이다. 홈에서 복구 동작을 다시 만들지 않는다.
-- 기본 선택 순서(root 기준): (1) 온보딩 완료 기록의 root(인계), (2) 지금 로드된 워크스페이스 root, (3) 이 기기에서 마지막으로 홈에서 보낸 root, (4) LNB 순서의 첫 healthy root. 프로젝트를 바꾸면 그 프로젝트에서 LNB가 기억하는 워크트리(`selectedRoot`), 없으면 첫 healthy root가 트레이에 선택된다. (3)은 기존 ui-state에 한 키를 더해 저장한다(§8).
+- 기본 선택 순서(root 기준): (1) 온보딩 완료 기록의 root(인계), (2) 지금 로드된 워크스페이스 root, (3) 이 기기에서 마지막으로 홈에서 보낸 root, (4) LNB 순서의 첫 healthy root. healthy root가 하나도 없으면 첫 root를 고르고 Send 옆 이유 줄에 `project_not_open` 문구를 보인다(2026-10-29 user). 프로젝트를 바꾸면 그 프로젝트에서 LNB가 기억하는 워크트리(`selectedRoot`), 없으면 첫 healthy root가 트레이에 선택된다. (3)은 기존 ui-state에 한 키를 더해 저장한다(§8).
 - 프로젝트가 없으면 프로젝트 선택기 자리에 Add Projects…를 두고, 트레이와 추천 프롬프트는 그리지 않고, Send는 `Add a project to send.`로 막는다. 창 전체 폴더 드롭은 그대로 쓴다.
 - 고른 대상이 바뀔 때(`defaultProject`·`sendAvailability`가 다시 계산한다): 고른 root가 unhealthy가 되면 선택을 유지하고 Send를 막는다(이유는 `project_not_open` 문구). 고른 root가 목록에서 사라지면 기본 순서(4)로 다시 고르고 `role="status"`로 `<project> was removed. Choose another project.`를 알린다. Undo로 돌아와도 원래 선택으로 되돌리지 않는다. 팝오버가 열린 동안 목록이 바뀌면 강조된 행을 root로 유지한다.
 
@@ -96,7 +96,7 @@
 
 - 도구 줄의 프리셋 버튼이 Radix Popover를 연다. 위에 검색 입력, 아래에 그룹 탭과 목록이 있다. 입력이 비어 있을 때 맨 앞에서 `/`를 치면 탭 없이 순위 목록만 열리고, 이어 치는 글자가 검색어가 된다. 포커스는 textarea에 남고 combobox 패턴(§4.9)을 따른다. 고르면 `/검색어`는 지워진다.
 - 목록은 홈에 들어올 때 `designSkills.list()`로 읽는다. 추천 프롬프트(§4.4b)도 같은 목록이 필요하기 때문이다. 그 실행 동안 결과를 재사용하고, 실패하면 팝오버를 열 때 다시 읽는다. renderer에 카탈로그 사본을 두지 않는다.
-- 검색: 제목·id·설명에 대해 NFC 정규화·대소문자 무시, 모든 토큰 일치. 순위는 Quick Open과 같은 방식(접두 > 단어 시작 > 부분 문자열)을 쓴다.
+- 검색: 제목·id·scope·설명에 대해(scope는 확정 초안 frame 04를 따라 더했다, 2026-10-29) NFC 정규화·대소문자 무시, 모든 토큰 일치. 순위는 Quick Open과 같은 방식(접두 > 단어 시작 > 부분 문자열)을 쓴다.
 - 목록 구성: 검색창 아래에 그룹 탭 한 줄(`Suggested`, Start, Review, Refine, Content, Explore, §4.4a)을 두고 고른 탭의 프리셋만 보인다. 기본 탭은 Suggested('<project>에 맞는 프리셋')이다. 처음에는 추천 아래에 그룹 묶음을 이어 붙였는데, 목록 높이 안에 추천과 Start만 들어가고 추천 프리셋이 두 번 나와서 탭으로 바꿨다(1차 초안 수정). 검색어가 있으면 탭과 상관없이 전체에서 순위대로 찾고, 행 오른쪽에 그룹 이름을 메타데이터로 보인다. 탭은 `role="tablist"`의 별도 Tab 정지점이고 그 안에서 ←/→로 옮긴다. 검색 input에서 ←/→는 캐럿을 옮기고 ↓는 목록으로 간다. 추천이 비면 Suggested 탭을 숨기고 Start를 기본으로 한다. 이전 CLI(`group` 없음)에서는 탭이 없다.
 - 맨 위 '<project>에 맞는 프리셋' 묶음(최대 3개, 검색어가 없을 때만): 순수 함수 `suggestedPresets(entry)`.
   - 캔버스 0개 → `context`, `shape`
@@ -249,7 +249,7 @@ PRODUCT §5 항목 0·1과 ARCHITECTURE §7 'Home, workspace and project IPC'의
 - 위치: 워크스페이스 본문 위(Overview와 캔버스 화면 모두). `doan-notice doan-panel`에 동작 버튼을 붙인 조합이다. 그 root에서 홈이 시작한 대화 중 가장 최근 것 하나를 보인다(§4.5로 동시에 하나뿐).
 - 알림: 상태줄 안에 `role="status"` 한 줄을 두고 상태가 바뀔 때마다 알린다. 권한 요청은 `role="alert"`로 한 번 알린다. Allow에 자동 포커스나 기본 버튼을 두지 않고, 답한 뒤에는 포커스를 Stop으로 보낸다.
 - 상태(reducer `stripState(events)`, 순수 함수, `state.ts:mergeEvents`로 합친 이벤트를 받는다):
-  - starting/streaming: '<Provider> is working' + 마지막 `activity.summary` 한 줄 + Stop
+  - starting: 확정 초안 상태 보드대로 `Starting <P>` / `<project> · <branch>`(2026-10-29 정정). streaming: '<Provider> is working' + 마지막 `activity.summary` 한 줄 + Stop
   - waitingPermission: `permission.request.summary` + 공급자가 준 선택지 버튼(`allow`/`allowAlways`/`deny`) + Stop
   - failed: `turn.failed.code`별 문구(아래 표) + `Edit on Home`(§7.4) + Dismiss
   - interrupted: `Stopped` + `You stopped this conversation.` + `Edit on Home` + Dismiss
@@ -262,7 +262,8 @@ PRODUCT §5 항목 0·1과 ARCHITECTURE §7 'Home, workspace and project IPC'의
   | `not_logged_in` | `<P>’s sign-in expired` / `Edit your request on Home and choose another agent.` |
   | `rate_limited` | `<P> is rate limited` / `Try again later from Home.` |
   | `session_unavailable`·`session_in_use` | `<P> couldn’t continue` / `Edit your request on Home and send it again.` |
-  | `credential_override` | `<P> refused to run` / `This project’s Claude settings supply their own API key.` |
+
+  `credential_override`는 턴 실패가 아니라 시작 거절이라 §4.5 시작 오류 표의 문구로 홈에 보인다(2026-10-29 정정). 표에 없는 코드(`runtime_unsupported`, `cli_missing`, 모르는 값)는 `process_exited` 행을 쓴다. 초안에 없던 문구(CLI 오류 이유 세 개, 프리셋 목록 일반 실패, 사람이 멈추지 않은 중단 `This conversation stopped before it finished.`, effort 표시 `Extra high`·첫 글자 대문자·미선택 `Default`)는 BT2가 정했고 2026-10-29 사용자가 승인했다.
 
 - 구독 순서는 ARCHITECTURE §7의 규칙(구독 먼저, read 뒤 seq 병합)을 지킨다.
 - 이 대화가 캔버스에 묶이면(§7.3), 사람이 그 사이 다른 캔버스를 열지 않았을 때만 그 캔버스를 자동으로 연다. 다른 화면에 있으면 토스트 'New canvas in <project>' + Open(기존 FirstPrompt 도착 문구와 같음).
@@ -273,7 +274,7 @@ PRODUCT §5 항목 0·1과 ARCHITECTURE §7 'Home, workspace and project IPC'의
 
 - LNB 행 오른쪽(buzz-shell이 예약한 미확인 Dot 자리)에 한 번에 하나를 보인다. 우선순위는 권한 요청 아이콘(lucide `hand`) > 작업 중 스피너(`doan-spinner`) > 미확인 Dot(accent)이다.
 - 대상 행: 대화가 캔버스에 묶였으면 그 캔버스 행, 아니면(만들기 전이거나 critique처럼 만들지 않는 요청) 프로젝트 행이다.
-- 미확인 Dot: 홈 대화의 턴이 끝났는데 사람이 그 뒤 그 캔버스(묶이지 않았으면 그 프로젝트 워크스페이스)를 아직 열지 않은 상태다. 열면 지워지고, 실행 중 메모리라 재시작 때 사라진다. 다른 경로(터미널 에이전트 등)의 변경을 판별·저장하는 일반 Dot은 buzz-shell 후속 그대로다.
+- 미확인 Dot: 홈 대화의 턴이 끝났는데(성공·실패·중단 모두, 2026-10-29 user) 사람이 그 뒤 그 캔버스(묶이지 않았으면 그 프로젝트 워크스페이스)를 아직 열지 않은 상태다. 열면 지워지고, 실행 중 메모리라 재시작 때 사라진다. 다른 경로(터미널 에이전트 등)의 변경을 판별·저장하는 일반 Dot은 buzz-shell 후속 그대로다.
 - 접근 가능한 설명: `Claude Code needs your answer` / `Claude Code is working` / `New changes from Claude Code`. 행을 누르면 지금처럼 그 캔버스·워크스페이스로 가고, 거기에 상태줄이 있다.
 - 순수 함수 `slotState(conversations, visits)`가 행별 상태를 정한다.
 
