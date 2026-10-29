@@ -55,3 +55,8 @@
 - 2026-10-29: G1 질문 — ehmo MIT 원문이 고정 클론에 없다. 지휘자가 `gh api`로 ehmo/platform-design-skills `dc2be825`의 LICENSE를 받아 전달했다(저작권 줄에 권리자 이름 없음, 그대로 보존). R 질문 — child worktree의 `npm --prefix app ci`·package 실행을 허가했다.
 - 2026-10-29: R 완료(4244ee6·96eeef2, verify --eval PASS). 리뷰 작업자 `ctx_dadb841537fe`(Claude Opus medium) 시작. 수정 라운드에 대비해 R 터미널은 retain했다.
 - 2026-10-29: R 리뷰(`review-R.md`) 🔴0 🟡0 ⚪4. ⚪1(Claude 경로의 긴 본문 상한)·⚪2(조회 횟수는 transcript에서 따로 센다)는 E 브리프로 넘긴다. R을 통합한다.
+- 2026-10-29: S 완료(82ffb93·ebdab82, verify PASS). 리뷰 작업자 `ctx_1701a0dd4e6c`(Claude Opus medium) 시작, S 터미널은 retain했다. R worktree `dds-r`는 Orca로 제거했다(handoff 사본 `.scratch/orch-dds/handoff-R.md`).
+- 2026-10-29: G1 완료(f5b37f1·639efce·1b7fc76, verify PASS). 리뷰 작업자 Codex `gpt-6-astra` medium 시작, G1 터미널은 retain했다. 2차(G2·P·A)는 G1 리뷰와 통합 뒤 시작한다.
+- 2026-10-29: S 리뷰(`review-S.md`) 🔴0 🟡2 ⚪4. 🟡1(turnPrompt 안내에 design §3 실패 규칙 누락)·🟡2(stub 승인 전 변경 테스트 없음)를 같은 S 터미널에 수정 라운드 1(`ctx_ddf5b5e5e07b`)로 보냈다.
+- 2026-10-29: G1 리뷰(`review-G1.md`, Codex) 🔴0 🟡1 🟢3. 🟡(참조형 상대 링크가 validator를 통과)와 🟢 셋을 G1 수정 라운드 1로 보냈다.
+- 2026-10-29: S 수정 라운드 1(2868851·63351f8)을 지휘자가 확인했다. 안내에 design §3 실패 규칙이 모두 있다. S를 통합한다.
