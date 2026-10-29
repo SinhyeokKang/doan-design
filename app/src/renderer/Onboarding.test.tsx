@@ -5,7 +5,7 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
@@ -383,4 +383,36 @@ test("D23: choice cards take the chosen card's box and show keyboard focus on th
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.ob-chosen, \.ob-choice \{[^}]*min-height: var\(--size-row\);[^}]*padding: var\(--space-4\);/);
   expect(css).toMatch(/\.ob-choice:has\(input:focus-visible\) \{[^}]*outline:/);
+});
+
+test("D24: buttons that write or consent are marked, so focus recovery skips them", () => {
+  const setup = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/p", changes: [".doan/config.json"] } });
+  expect(setup).toMatch(/<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="">Set up and continue<\/button>/);
+  const clone = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: "i", destination: "/Users/ada/code/studio" } });
+  expect(clone).toMatch(/data-ui-variant="prominent" data-consent="">Clone and continue<svg/);
+  expect(screen({ phase: { kind: "ready", root: "/r" } })).toMatch(/data-ui-variant="prominent" data-consent="">Open doan<svg/);
+  expect(screen({ phase: { kind: "cloneCancelled", url: "u", destination: "/d" } })).toContain('data-ui-size="sm" data-consent="">Retry</button>');
+  expect(screen({ url: "u", error: { code: "access_failed" } })).toContain('data-ui-variant="prominent" data-consent="">Retry</button>');
+  const stop = renderToStaticMarkup(<StopDialog view={stopDialog("claude", "signOut")} busy={false} confirm={noop} close={noop} />);
+  expect(stop).toContain('data-ui-size="sm" data-consent="">Stop and sign out</button>');
+  expect(stop).not.toMatch(/data-consent="" autofocus|autofocus="" data-consent/);
+});
+
+test("D24: lost focus never lands on a consent button: it goes to the heading instead", () => {
+  const node = (consent: boolean) => ({ matches: (selector: string) => selector === "[data-consent]" && consent });
+  const plain = node(false);
+  expect(recoveryControl(plain)).toBe(plain);
+  expect(recoveryControl(node(true))).toBeNull();
+  expect(recoveryControl(null)).toBeNull();
+});
+
+test("D24: an agent row's recovery skips Sign out, which signs out at once", async () => {
+  const { authStatus } = await import("../main/agentAuth/state");
+  const view = providerView(authStatus({ provider: "codex", generation: 1, verified: true, expired: true, phase: "reauthRequired", error: null, attempt: null,
+    connection: { provider: "codex", connectionId: "c", profile: "codex", account: { id: "a", workspace: "w" } } }, { cli: "found", version: "supported", tools: "ready" }, 1));
+  expect(view.notice?.actions.map(a => a.command)).toEqual(["signOut", "reauth"]);
+  expect(firstUsable(view)).toBe("reauth");
+  const failed = providerView(authStatus({ provider: "codex", generation: 1, verified: true, expired: false, phase: "connected", error: { code: "sign_out_failed" }, attempt: null,
+    connection: { provider: "codex", connectionId: "c", profile: "codex", account: { id: "a", workspace: "w" } } }, { cli: "found", version: "supported", tools: "ready" }, 1));
+  expect(firstUsable(failed)).toBe("notice");
 });
