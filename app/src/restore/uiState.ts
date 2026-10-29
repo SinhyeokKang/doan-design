@@ -1,6 +1,8 @@
 // `<userData>/ui-state.json` (design-nav 'Restart restore'). Pure and shared:
 // main validates what the renderer saves, and the restore plan reads the result.
 
+import { validProvider, type Provider } from "../main/agentAuth/types";
+
 export interface UiView {
   scale: number;
   x: number;
@@ -14,6 +16,19 @@ export interface ShellProject {
   expanded: boolean;
 }
 
+export interface HomeModel {
+  model: string;
+  effort?: string;
+}
+
+// The Home composer's last choices on this device (buzz-home). Readiness and
+// model lists are only known at run time, so their users ignore stale values.
+export interface HomeMemory {
+  lastRoot?: string;
+  lastProvider?: Provider;
+  models?: Partial<Record<Provider, HomeModel>>;
+}
+
 export interface UiState {
   shellProjects?: Record<string, ShellProject>;
   screen: "home" | "workspace";
@@ -24,6 +39,7 @@ export interface UiState {
   view?: UiView;
   expanded: Record<string, string[]>;
   lastByRoot: Record<string, { canvas: string; view: UiView }>;
+  home?: HomeMemory;
 }
 
 export const UI_STATE_MAX_BYTES = 64 * 1024;
@@ -76,6 +92,7 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
     }
     state.shellProjects = Object.fromEntries(projects);
   }
+  if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
   if (root !== undefined) state.root = root;
   if (canvas !== undefined) state.canvas = canvas;
   if (canvasId !== undefined) state.canvasId = canvasId;
@@ -85,6 +102,25 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseHome(value: Record<string, unknown>, saved: ReadonlySet<string>): HomeMemory {
+  const home: HomeMemory = {};
+  if (typeof value["lastRoot"] === "string" && saved.has(value["lastRoot"])) home.lastRoot = value["lastRoot"];
+  if (validProvider(value["lastProvider"])) home.lastProvider = value["lastProvider"];
+  if (isRecord(value["models"])) {
+    const models: [Provider, HomeModel][] = [];
+    for (const [provider, item] of Object.entries(value["models"])) {
+      if (!validProvider(provider) || !isRecord(item) || !nonEmpty(item["model"])) continue;
+      models.push([provider, nonEmpty(item["effort"]) ? { model: item["model"], effort: item["effort"] } : { model: item["model"] }]);
+    }
+    home.models = Object.fromEntries(models);
+  }
+  return home;
+}
+
+function nonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value !== "";
 }
 
 function parseView(value: unknown): UiView | undefined {

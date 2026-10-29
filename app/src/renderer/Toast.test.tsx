@@ -7,8 +7,9 @@ const hooks = vi.hoisted(() => ({
   state: null as ToastState | null,
   effects: [] as (() => void | (() => void))[],
   useReducer(reducer: (state: ToastState, event: ToastEvent) => ToastState, initial: ToastState) {
-    hooks.state = initial;
-    return [initial, (event: ToastEvent) => { hooks.state = reducer(hooks.state!, event); }];
+    // Keep the state across calls so a second call renders what the first one dispatched.
+    hooks.state ??= initial;
+    return [hooks.state, (event: ToastEvent) => { hooks.state = reducer(hooks.state!, event); }];
   },
   useRef<T>(initial: T) { return { current: initial }; },
   useEffect(effect: () => void | (() => void)) { hooks.effects.push(effect); },
@@ -19,7 +20,7 @@ import { useToast } from "./Toast";
 let cleanups: (() => void)[] = [];
 afterEach(() => {
   cleanups.splice(0).forEach(cleanup => cleanup());
-  hooks.effects = [];
+  hooks.effects = []; hooks.state = null;
   vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers();
 });
 
@@ -86,4 +87,11 @@ test("an App modal pauses the hook clock and resumes only the remaining time", (
   expect(h.remaining()).toBe(100);
   h.tick(100);
   expect(hooks.state?.ended).toMatchObject({ reason: "expired" });
+});
+
+test("the action sits to the right of the message as a prominent small button", () => {
+  setup();
+  const [message, action] = useToast().element!.props.children;
+  expect(message.props.className).toBe("msg");
+  expect(action.props).toMatchObject({ "data-ui-variant": "prominent", "data-ui-size": "sm", children: "Undo" });
 });

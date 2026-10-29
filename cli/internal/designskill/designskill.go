@@ -31,6 +31,7 @@ type Preset struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	Scope       string   `json:"scope"`
+	Group       string   `json:"group"`
 	Sources     []Source `json:"sources"`
 }
 
@@ -40,10 +41,11 @@ type Summary struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Scope       string `json:"scope"`
+	Group       string `json:"group"`
 }
 
 func (p Preset) Summary() Summary {
-	return Summary{ID: p.ID, Title: p.Title, Description: p.Description, Scope: p.Scope}
+	return Summary{ID: p.ID, Title: p.Title, Description: p.Description, Scope: p.Scope, Group: p.Group}
 }
 
 type Catalog struct {

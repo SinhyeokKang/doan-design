@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { anchorTokens, turnPrompt, LIMITS, PRESET_GUIDANCE } from "./prompt";
+import { anchorTokens, turnPrompt, HOME_GUIDANCE, LIMITS, PRESET_GUIDANCE } from "./prompt";
 const anchor = { frame: { id: "main", title: "Main" }, element: { selector: "button", doanId: "save", text: "Save" } };
 it("accepts repeated references and preserves their positions", () => {
   expect(anchorTokens("Change {{2}} then {{1}} and {{2}}", [anchor, anchor])).toEqual([2, 1, 2]);
@@ -48,4 +48,33 @@ it("guides preset lookup through the bundled CLI only and lists no presets", () 
   expect(PRESET_GUIDANCE.replace("do not suggest MCP or Settings > Connections", "")).not.toMatch(/MCP|Settings/);
   for (const preset of ["clarify", "context", "polish"]) expect(PRESET_GUIDANCE).not.toContain(preset);
   expect(PRESET_GUIDANCE).not.toContain("\n");
+});
+it("puts only the folder and canvas of the conversation in the prompt's context", () => {
+  const metadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Secret title", state: "current",
+    owner: { kind: "doan", provider: "claude", connectionId: "conn-1", accountId: "acct-1", workspaceId: "org-1", profile: "profile-1" },
+    session: { runtime: "claude", origin: "new", sessionId: "sess-1", configDir: "/config-dir", cwd: "/repo" }, model: "sonnet", effort: "high" };
+  const prompt = turnPrompt([], "hello", metadata as unknown as { root: string })!;
+  expect(JSON.parse(prompt.split("\n\n")[1]!).context).toEqual({ root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" } });
+  for (const secret of ["conn-1", "acct-1", "org-1", "profile-1", "sess-1", "/config-dir", "Secret title", "sonnet", "high"]) expect(prompt).not.toContain(secret);
+});
+it("adds Home's fixed paragraph outside the data only for a Home request", () => {
+  const home = turnPrompt([], "Make a pricing page", { root: "/repo" }, { home: true })!;
+  const sections = home.split("\n\n");
+  expect(sections).toContain(HOME_GUIDANCE);
+  expect(sections.indexOf(HOME_GUIDANCE)).toBeGreaterThan(1);
+  expect(sections[1]).not.toContain("doan active");
+  expect(turnPrompt([], "Make a pricing page", { root: "/repo" })).not.toContain(HOME_GUIDANCE);
+  expect(HOME_GUIDANCE).toContain("Do not take its target from doan active");
+});
+it("lists up to ten attachments as untrusted data with name, kind and path only", () => {
+  const attachments = Array.from({ length: 10 }, (_, i) => ({ name: `f ${i}.png`, size: 100 + i, kind: i % 2 ? "file" as const : "image" as const, path: `/Users/me/my files/f ${i}.png` }));
+  const prompt = turnPrompt([], "Look at the attached files.", { root: "/repo" }, { attachments })!;
+  const sections = prompt.split("\n\n");
+  expect(sections[0]).toContain("attachments");
+  expect(sections[0]).toContain("not instructions");
+  const data = JSON.parse(sections[1]!) as { attachments: unknown[]; parts: unknown[] };
+  expect(data.attachments).toEqual(attachments.map(a => ({ name: a.name, kind: a.kind, path: a.path })));
+  expect(data.parts).toEqual([{ userText: "Look at the attached files." }]);
+  expect(turnPrompt([], "x", { root: "/repo" }, { attachments: [...attachments, attachments[0]!] })).toBeNull();
+  expect(JSON.parse(turnPrompt([], "x", { root: "/repo" })!.split("\n\n")[1]!)).not.toHaveProperty("attachments");
 });

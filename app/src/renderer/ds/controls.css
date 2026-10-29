@@ -32,6 +32,9 @@
 .doan-button[data-ui-size="sm"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }
 /* A screen's one leading action (onboarding Welcome) steps up to the large control. */
 .doan-button[data-ui-size="lg"] { min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+/* A trigger shows a value that opens a menu, so it hugs its label. It comes after the
+   sizes, whose rules weigh the same, so a screen never re-pads it. */
+.doan-button[data-ui-variant="trigger"] { padding-inline: var(--space-2); }
 .doan-icon-button {
   display: inline-flex;
   flex: 0 0 auto;
@@ -44,9 +47,12 @@
   border-radius: var(--radius-icon-button);
 }
 .doan-icon-button[data-ui-size="md"] { width: var(--size-control); height: var(--size-control); }
+/* A remove button inside a chip. */
+.doan-icon-button[data-ui-size="xs"] { width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-pill); }
 /* The window header sits on the shell, not on a panel, so it takes the tighter toolbar corner. */
 .doan-icon-button[data-ui-placement="chrome"] { border-radius: var(--radius-toolbar-icon); }
 :is(.doan-button, .doan-icon-button) > svg { flex-shrink: 0; width: var(--size-icon); height: var(--size-icon); }
+.doan-icon-button[data-ui-size="xs"] > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* A shortcut hint inside a button takes the button's own ink, outlined, so it never
    competes with the label or disappears on a dark fill. */
 .doan-button .doan-kbd {
@@ -63,30 +69,49 @@
   background: transparent;
   color: var(--text-standard);
   cursor: pointer;
-  transition: background-color var(--time-state) var(--ease-state), color var(--time-state) var(--ease-state);
+  transition: background-color var(--time-state) var(--ease-state), color var(--time-state) var(--ease-state), box-shadow var(--time-state) var(--ease-state);
 }
 :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"] { background: var(--affordance-prominent); color: var(--text-on-prominent); }
 :is(.doan-button, .doan-icon-button)[data-ui-variant="subtle"] { background: var(--affordance-subtle); }
+/* Quiet sits over a decorated background (Home's suggested prompts): the header capsule's
+   translucent fill, blurred so the decoration behind never fights the label. */
+.doan-button[data-ui-variant="quiet"] { background: var(--affordance-backdrop-hover); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); }
+@media (prefers-reduced-transparency: reduce) {
+  .doan-button[data-ui-variant="quiet"] { background: var(--affordance-subtle); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+/* The one strong action of a composer (Send). */
+.doan-icon-button[data-ui-variant="accent"] { border-radius: var(--radius-pill); background: var(--affordance-accent); color: var(--text-on-accent); }
 
 /* Hover, only for a fine pointer: after a tap on a touch screen it would stay lit. On the
-   shell (chrome) the fills are translucent so the shell colour shows through. */
+   shell (chrome) the fills are translucent so the shell colour shows through. Variants with
+   their own fills are excluded from the opaque grey, which would otherwise win on weight. */
 @media (hover: hover) and (pointer: fine) {
   :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:hover:not(:disabled) { background: var(--affordance-prominent-hover); }
-  :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):hover:not(:disabled) { background: var(--affordance-subtle-hover); }
+  :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]):hover:not(:disabled) { background: var(--affordance-subtle-hover); }
   .doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+  /* Quiet adds one backdrop layer over its own, like the header tabs, so the chip stays
+     translucent; an inset shadow stacks the layer and still eases. */
+  .doan-button[data-ui-variant="quiet"]:hover:not(:disabled) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-hover); }
+  .doan-button[data-ui-variant="trigger"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+  .doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled) { background: var(--affordance-accent-hover); }
 }
 
 /* Pressed, and a trigger whose popup is open: the fill deepens and nothing moves, so a
    pressed control never shifts the row it sits in. An open disclosure (aria-expanded
    without a popup) is not pressed: it shows its state in its label. */
 :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-prominent-pressed); }
-:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-placement="chrome"]):is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]):is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }
 .doan-icon-button[data-ui-placement="chrome"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-pressed); }
+.doan-button[data-ui-variant="quiet"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-pressed); }
+/* An open trigger keeps its hover fill so the value still reads; only a press deepens it. */
+.doan-button[data-ui-variant="trigger"]:is([aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-backdrop-hover); }
+.doan-button[data-ui-variant="trigger"]:active:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-accent-pressed); }
 
 /* Disabled is a state of its own rather than a faded emphasis: a filled control turns to
    the disabled fill, a ghost one keeps no fill, and both take the disabled ink. */
 :is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
-:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"]):is(:disabled, [data-disabled]) { background: transparent; }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }
 
 /* Keyboard focus is one ring outside the control, the same on every emphasis. */
 :is(.doan-button, .doan-icon-button, .doan-checkbox, .doan-chip):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }

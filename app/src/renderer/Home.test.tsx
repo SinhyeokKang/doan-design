@@ -1,8 +1,15 @@
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
 import { Home } from "./Home";
-import type { FolderEntry } from "../main/view";
-import type { ProjectCanvasComments } from "../main/projectComments";
+import type { AuthSnapshot } from "../main/agentAuth/ipc";
+import { authStatus } from "../main/agentAuth/state";
+import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
+import type { CanvasRow, FolderEntry } from "../main/view";
+import { emptyComposer, type ComposerMemory, type HomeComposerProps } from "./HomeComposerView";
+import type { PresetListReply, PresetSummary } from "./homeComposer";
+import { ShellSidebar } from "./ShellSidebar";
+import { groupProjects } from "./homeCards";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 vi.mock("./components/ui/tooltip", async importOriginal => {
@@ -10,62 +17,121 @@ vi.mock("./components/ui/tooltip", async importOriginal => {
   return { ...actual, TooltipContent: ({ children }: { children: React.ReactNode }) => <span role="tooltip">{children}</span> };
 });
 
-const render = (entries: FolderEntry[], loaded: string | null = null, comments: ReadonlyMap<string, readonly ProjectCanvasComments[]> = new Map()) => renderToStaticMarkup(<TooltipProvider><Home homeDirectory={null} entries={entries} loaded={loaded} selection={null} highlight={[]} comments={comments} enter={() => {}} action={() => {}} remove={() => {}} /></TooltipProvider>);
-test("empty home explains how to add a project", () => {
-  expect(render([])).toContain("Add a project to see its design canvases.");
-});
-test("home groups worktrees and exposes the loaded workspace without exposing canvas controls", () => {
-  const rows: FolderEntry[] = ["main", "feature"].map(branch => ({ kind: "list", path: `/code/${branch}`, servedRev: 0, canvases: [], git: { common: "/code/main/.git", main: "/code/main", branch, worktrees: [] } }));
-  const html = render(rows, "/code/main");
-  expect(html.match(/class="card"/g)).toHaveLength(1);
-  expect(html).toContain('aria-current="true"');
-  expect(html).toContain("Open</span>");
-  expect(html).not.toContain("Zoom");
-});
-test("problem rows use the action table and do not leak CLI error reasons", () => {
-  const html = render([{ kind: "cliError", path: "/code/failed", reason: "private failure" }, { kind: "notFound", path: "/code/missing" }]);
-  expect(html).toContain("Retry");
-  expect(html).toContain("Locate…");
-  expect(html).toContain("Remove");
-  expect(html).not.toContain("private failure");
+const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
+const ACCOUNT: AccountIdentity = { id: "acct", workspace: "org", email: "ada@example.com" };
+function dto(provider: Provider, f: { expired?: boolean } = {}): AuthStatusDto {
+  const state: AuthState = { provider, generation: 1, verified: true, expired: f.expired ?? false, connection: { provider, connectionId: "c", profile: provider, account: ACCOUNT }, attempt: null, error: null, phase: f.expired ? "reauthRequired" : "connected" };
+  return authStatus(state, FACTS, 1);
+}
+const AUTH: AuthSnapshot = { revision: 1, providers: [dto("claude")] };
+const PRESETS: PresetSummary[] = [["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["critique", "Critique the design", "review"], ["polish", "Polish the details", "refine"]]
+  .map(([id, title, group]) => ({ id: id!, title: title!, description: `About ${id}.`, scope: `${id} scope`, group: group! }));
+const LISTED: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
+const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u", open: 0, resolved: 0 });
+const project = (path: string, canvases: CanvasRow[] = [row("buzz-onboarding")]): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases, git: { common: `${path}/.git`, main: path, branch: "main", worktrees: [] } });
+
+function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
+  const cards = groupProjects(entries, new Map());
+  const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} />;
+  return renderToStaticMarkup(<TooltipProvider><Home header={<header className="top shell-top" />} sidebar={sidebar} entries={entries} homeDirectory="/Users/ada" shellProjects={{}} loaded={null} select={null}
+    prefs={{}} memory={{ current: { ...emptyComposer(), auth: AUTH, presets: LISTED, greeting: null, ...memory } }} running={new Map()} restore={null}
+    start={async () => ({ ok: true })} openConversation={() => {}} {...props} /></TooltipProvider>);
+}
+
+test("Home is the shell with the sidebar and a composer body: no project cards, setup checklist or connection banner", () => {
+  const html = render([project("/code/doan-design")]);
+  expect(html).not.toContain('class="card');
+  expect(html).not.toContain("Finish setting up doan");
+  expect(html).not.toContain("Connection problem");
+  expect(html).toContain('<main class="app-shell home-shell"><header class="top shell-top"></header><aside class="side shell-side"');
+  expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-atmosphere" aria-hidden="true"></div><div class="home-stage"><h1 class="home-greeting">');
+  // The sidebar marks no current project or canvas on Home (design §3).
+  expect(html).not.toContain("aria-current=\"location\"");
 });
 
-const counted = (open: number): FolderEntry => ({ kind: "list", path: "/code/main", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", id: "a", url: "u", open, resolved: 1 }], git: { common: "/code/main/.git", main: "/code/main", branch: "main", worktrees: [] } });
-test("a row shows open, then resolved to review, from the project read", () => {
-  const html = render([counted(2)], null, new Map([["/code/main", [{ id: "a", open: 2, resolved: 1, toReview: 1 }]]]));
-  expect(html).toMatch(/<span class="hot">2 open<\/span> · <span class="review">1 resolved to review<\/span> · <span>/);
-  expect(html).toContain('aria-label="Project main · 1 canvas · 2 open comments · 1 resolved to review · /code/main"');
-});
-test("a zero count, a missing read and a failed canvas show no resolved to review", () => {
-  for (const comments of [[{ id: "a", open: 1, resolved: 1, toReview: 0 }], undefined, [{ id: "a", error: "EACCES" }]]) {
-    const html = render([counted(1)], null, new Map(comments ? [["/code/main", comments]] : []));
-    expect(html).not.toContain("resolved to review");
-    expect(html).toContain('aria-label="Project main · 1 canvas · 1 open comment · /code/main"');
-  }
+test("the greeting is one of the five questions, with the chosen project's name", () => {
+  const html = render([project("/code/doan-design")], { greeting: "Where should we start?" });
+  expect(html).toMatch(/<h1 class="home-greeting">(What should we design today\?|What are we making next\?|What would you like to change\?|What’s next for doan-design\?|Where should we start\?)<\/h1>/);
 });
 
-// project-feedback draft `home-summary`: "· N without a canvas" right after
-// the review count, plain, and in the row's accessible name.
-test("a row adds comments without a canvas after resolved to review", () => {
-  const entry = { ...counted(2), orphans: [{ id: "old", file: ".doan/comments/old.jsonl", comments: { open: 3, resolved: 1 }, uncertain: false }] } as FolderEntry;
-  const html = render([entry], null, new Map([["/code/main", [{ id: "a", open: 2, resolved: 1, toReview: 1 }]]]));
-  expect(html).toMatch(/<span class="wt-sum"><span>1 canvas<\/span> · <span class="hot">2 open<\/span> · <span class="review">1 resolved to review<\/span> · <span>3 without a canvas<\/span> · <span>/);
-  expect(html).toContain('aria-label="Project main · 1 canvas · 2 open comments · 1 resolved to review · 3 without a canvas · /code/main"');
-});
-test("a row with only comments without a canvas starts after the canvas count", () => {
-  const entry: FolderEntry = { kind: "list", path: "/code/main", servedRev: 0, canvases: [], orphans: [{ id: "old", file: ".doan/comments/old.jsonl", comments: { open: 2, resolved: 0 }, uncertain: false }], git: { common: "/code/main/.git", main: "/code/main", branch: "main", worktrees: [] } };
-  expect(render([entry])).toMatch(/<span class="wt-sum"><span>0 canvases<\/span> · <span>2 without a canvas<\/span> · <span>/);
-});
-test("a row whose canvas comments could not be read shows no open count", () => {
-  const entry: FolderEntry = { ...counted(0), kind: "list", canvases: [{ path: ".doan/canvases/a.html", id: "a", url: "u", open: 0, resolved: 0, commentsError: { code: "unreadable_comments", message: "m" } }] } as FolderEntry;
-  const html = render([entry]);
-  expect(html).not.toContain("open");
-  expect(html).toContain('aria-label="Project main · 1 canvas · /code/main"');
+test("an empty composer for a project with canvases: project above, tray below, three suggested prompts and no reason line", () => {
+  const html = render([project("/code/doan-design")]);
+  expect(html).toContain('aria-label="Project: doan-design"');
+  expect(html).toContain('<textarea class="composer-input" aria-label="Message" rows="2" placeholder="Describe what to design, / for presets"></textarea>');
+  expect(html).toMatch(/<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled=""/);
+  expect(html).toContain('<div class="composer-tray"><span class="tray-branch">');
+  expect(html).toContain('<span class="tray-path">/code/doan-design</span>');
+  expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
+  expect(html.match(/class="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet"/g)).toHaveLength(3);
+  expect(html).toContain("<span>Critique the buzz-onboarding canvas</span>");
+  expect(html).not.toContain("composer-reason");
 });
 
-test("names the current selection for the agent in the row and tooltip", () => {
-  const selection = { tag: "button", element: { doanId: "pay-button", selector: "button", html: "<button></button>" }, path: [] };
-  const html = renderToStaticMarkup(<TooltipProvider><Home homeDirectory={null} entries={[counted(0)]} loaded="/code/main" selection={selection} highlight={[]} enter={() => {}} action={() => {}} remove={() => {}} /></TooltipProvider>);
-  expect(html).toContain('Selected for your agent: <b>button · pay-button</b>');
-  expect(html).toContain('<span role="tooltip">Selected for your agent: button · pay-button</span>');
+test("with no project the picker is Add Projects…, the tray and suggestions are gone and Send explains why", () => {
+  const html = render([], { text: "Draw a pricing page." });
+  expect(html).toContain('<button type="button" class="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger"><svg');
+  expect(html).toContain("<span>Add Projects…</span>");
+  expect(html).not.toContain("composer-tray");
+  expect(html).not.toContain("home-suggestions");
+  expect(html).toContain('<div class="composer-reason" role="status"><span>Add a project to send.</span></div>');
+});
+
+test("with no ready agent the picker says so, Send is disabled and no suggestion shows", () => {
+  const html = render([project("/code/doan-design")], { text: "Draw a pricing page.", auth: { revision: 1, providers: [] } });
+  expect(html).toContain('<span class="muted">No agent ready</span>');
+  expect(html).toContain('<div class="composer-reason" role="status"><span>No agent is ready to run.</span></div>');
+  expect(html).not.toContain("home-suggestions");
+});
+
+test("a preset chip and attachments sit above the request; Send is enabled; the chip carries the preset's group icon", () => {
+  const html = render([project("/code/doan-design")], {
+    text: "Turn the onboarding screens into a documented design system.", preset: PRESETS[2]!,
+    attachments: [{ key: "a", id: "1", name: "brand-guidelines.pdf", kind: "file", pasted: false, status: "ready", size: 1258291, path: "/Users/ada/Desktop/brand-guidelines.pdf" }],
+  });
+  expect(html).toContain('<span class="attach-text"><b>brand-guidelines.pdf</b><small>PDF · 1.2 MB</small></span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove brand-guidelines.pdf">');
+  expect(html).toMatch(/<span class="preset-chip"><svg[^>]*class="lucide lucide-compass[^"]*"[^>]*>.*?<\/svg><span>Document the design system<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove preset Document the design system">/);
+  expect(html).toContain('<span role="tooltip">~/Desktop/brand-guidelines.pdf</span>');
+  expect(html).toMatch(/aria-label="Send" data-state/);
+  expect(html).not.toMatch(/aria-label="Send" disabled/);
+  expect(html).not.toContain("home-suggestions");
+});
+
+test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open (design §4.9)", () => {
+  const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
+  const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", "c1"]]) });
+  const order = [...html.matchAll(/<(button|textarea)[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
+  const at = (label: string) => order.findIndex(item => item.startsWith(label));
+  const sequence = ["Project:", "Remove preset", "Message", "Attach files", "Design presets", "Agent:", "Send", "Worktree:", "Open"].map(at);
+  expect(sequence.every(index => index >= 0)).toBe(true);
+  expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
+  expect(html).toContain('<div class="composer-reason" role="status"><span>A conversation from Home is still running in doan-design.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Open</button></div>');
+});
+
+test("near the limit a counter shows what is left; over it Send is disabled and the reason says to shorten", () => {
+  const near = render([project("/code/doan-design")], { text: "x".repeat(30000) });
+  expect(near).toContain('<div class="composer-count" aria-live="polite">2,768 characters left</div>');
+  const over = render([project("/code/doan-design")], { text: "x".repeat(33000) });
+  expect(over).toContain('<div class="composer-count over" aria-live="polite">232 characters over the limit</div>');
+  expect(over).toContain("<span>Shorten the message to send it.</span>");
+});
+
+// design-sync V2 (2026-10-30): values measured against the confirmed draft in the real app, pinned where a later edit
+// would silently move them. Each was a measured mismatch or a value the draft relies on.
+test("Home CSS keeps the draft's measured icon sizes, popover status type, chip ink and shared button paddings", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  // Effort and tray chevrons step down to 14px with their icons; the model and project chevrons stay 16px.
+  expect(css).toContain(".composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }");
+  expect(css).toContain(".composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }");
+  // Lucide's default 24px made menu rows 40px instead of 32px and the search glyph 24px.
+  expect(css).toContain(".check-slot > svg { height: var(--size-icon); }");
+  expect(css).toContain(":is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(readFileSync(new URL("./ds/surfaces.css", import.meta.url), "utf8")).toContain(".doan-menu-item .check { flex: none; width: 12px;");
+  // A portalled popover inherits the page's 13px body; the loading and no-match line is body-sm 14/20.
+  expect(css).toMatch(/\.popover-state \{[^}]*font-size: var\(--type-body-sm-size\); line-height: var\(--type-body-sm-line-height\);/);
+  // The preset chip's x renders in the shared chip-remove metadata ink, as the confirmed draft does.
+  expect(css).toContain(".chip-remove.doan-icon-button { color: var(--text-metadata); }");
+  expect(css).not.toMatch(/\.preset-chip \.chip-remove[^{]*\{[^}]*color/);
+  // Send keeps the shared disabled fill while sending, as the draft renders it; suggestions keep the shared sm padding.
+  expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
+  expect(css).not.toMatch(/\.suggestion[^{]*\{[^}]*padding/);
 });

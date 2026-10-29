@@ -1,17 +1,24 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
-import { query, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { openAcp } from "./acpRunner";
 import { CodexDispatcher, RpcError } from "./dispatcher";
 import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeVerdict } from "./handshake";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
-import { endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
-import type { OpenRunner, Prepared, Runner } from "./service";
+import { parseClaudeModels, parseCodexModels } from "./models";
+import { claudePermissionSummary, endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
+import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
   input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
+// Opens the provider only to read its model list for this folder: no prompt, no model request (PRODUCT §6 buzz-home
+// P1). The caller owns the lease and the stop (ConversationService.listModels).
+export const listModels: ReadModels = async (input, exited, registerStop) => {
+  const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input, () => {}, exited, registerStop);
+  try { return await runner.models!(); } finally { await runner.close(); }
+};
 // Account and ownership answers say nothing about the protocol shape, so they never record an installed version.
 const NOT_EVIDENCE: readonly FailureCode[] = ["not_logged_in", "rate_limited", "session_in_use"];
 function codexFailure(error: unknown): HandshakeReply {
@@ -37,7 +44,11 @@ function timeout<T>(promise: Promise<T>): Promise<T> {
     promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
-async function openCodex(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
+function openCodexList(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
+  return openCodex(input, emit, exited, registerStop, true);
+}
+// list: model/list after initialize instead of a thread, so reading the list starts no session.
+async function openCodex(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void, list = false): Promise<Runner> {
   // Doan-account args select the dedicated credential store; they must precede the subcommand.
   const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
@@ -77,6 +88,10 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     // A new session refuses the handshake it just recorded as incompatible; a resume keeps accepting it unjudged.
     if (!resume && !object(initialized)) throw new Error("Malformed initialize result");
     write({ method: "initialized" });
+    if (list) {
+      const models = parseCodexModels(await dispatcher.request("model/list", {}));
+      return { sessionId: "", models: async () => models, send: async () => { throw new Error("session_unavailable"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
+    }
     const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
     sessionId = result.thread.id;
@@ -90,7 +105,8 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
       activeTurn = turnId; startingTurn = true;
       dispatcher.begin({ root: input.cwd, sessionId, turnId });
       let result: unknown;
-      try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }] }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+      // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
+      try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort } : {}) }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
       if (dead) throw new Error("process_exited");
       if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
       activeTurn = result.turn.id; dispatcher.started(activeTurn);
@@ -124,6 +140,8 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
     // code.claude.com/docs/en/managed-settings) makes Claude Code refuse such a run instead (B3 live check, 2.1.312).
     ...(organization ? { managedSettings: { forceLoginOrgUUID: organization } } : {}),
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
+    // A resume without them starts on the default model (P1), so every run passes the conversation's choice.
+    ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     spawnClaudeCodeProcess(options) {
       const child = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {
@@ -139,7 +157,7 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
       const requestId = randomUUID(); const suggestions = options.suggestions ?? [];
       return new Promise<PermissionResult>(resolve => {
         pending.set(requestId, { input: toolInput, suggestions, resolve });
-        emit({ type: "permission.request", requestId, tool, summary: tool, options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
+        emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
       });
     },
   } });
@@ -153,6 +171,7 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
   }
   return {
     sessionId,
+    models: async () => parseClaudeModels(await timeout(q.supportedModels())),
     async send(prompt) {
       if (finished) throw new Error("process_exited");
       const consume = (async () => {

@@ -49,3 +49,24 @@ The fixtures above stay as recorded: Codex from 0.163.0 (schemas compared with
 0.164.0, the current minimum) and Claude from CLI 2.1.310 / SDK 0.3.310. No
 version newer than the minimums is represented or verified here; such versions
 are judged only by the new-session handshake shape at run time.
+
+`index-v2-home.json` (2026-10-29, buzz-home) is a synthetic v2 index whose
+`newDesign` entry carries the optional `model`, `effort` and `canvasesAtStart`
+fields; the version stays 2.
+
+On 2026-10-29 (buzz-home) `fake-acp-server.cjs` gained `FAKE_ACP_MODELS`, a
+`models` member for session/new and session/load in the shape the P1 PoC
+recorded (`{currentModelId, availableModels: [{modelId, name}]}`), an answer to
+`session/set_config_option`, `FAKE_ACP_LOG` to record client requests and
+`FAKE_ACP_NO_IMAGE` for a server without `promptCapabilities.image`. The
+model IDs the tests pass are synthetic; the recorded turns are unchanged.
+
+`codex-home.json` (2026-10-30, buzz-home BF1) is trimmed from the BV1 real-app
+run with Codex app-server 0.164.0: the raw records come from the redacted spawn
+tap `.scratch/runtime-test/buzz-home/ev/real/tap/007-codex.jsonl`, and the doan
+events that run produced are in `ev/real/events-d.json` (raw item types as
+activity and permission summaries). Kept: a `commandExecution` start with
+`commandActions`, an `imageView` start, a `fileChange` start, the
+`item/fileChange/requestApproval` with `reason: null` that refers to it only by
+`itemId`, its completion and `turn/completed`. Paths, IDs and the diff are
+synthetic; output, `rootTurnId` and the turn's items are omitted.

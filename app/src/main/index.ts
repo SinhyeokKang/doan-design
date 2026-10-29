@@ -2,7 +2,9 @@ import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
 import { createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
-import { openRunner } from "./conversation/runners";
+import { listModels, openRunner } from "./conversation/runners";
+import { ModelCatalog } from "./conversation/models";
+import { AttachmentStore, type AttachmentResult } from "./attachments";
 import { conversationHandler, conversationMethods } from "./conversation/ipc";
 import { AuthManager, removeStaleLinkDirs, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
 import { AuthStorage } from "./agentAuth/storage";
@@ -23,7 +25,7 @@ import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
 import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -706,12 +708,37 @@ async function start(): Promise<void> {
       if (project.kind !== "list") throw new Error("canvas_not_found");
       return resolveListedCanvas(canvas, project.canvases);
     }
+  }, undefined, root => {
+    const project = ready.entries().find(entry => entry.path === root);
+    return project?.kind === "list" ? project.canvases : [];
   });
   conversations = conversationService;
-  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries());
+  const attachments = new AttachmentStore(join(userData, "attachments"), {
+    thumbnail: bytes => {
+      const image = nativeImage.createFromBuffer(Buffer.from(bytes)); if (image.isEmpty()) return null;
+      const { width, height } = image.getSize();
+      return new Uint8Array(image.resize(width >= height ? { width: Math.min(width, 160) } : { height: Math.min(height, 160) }).toPNG());
+    },
+    // Re-encoding keeps only pixels: whatever else the pasted bytes carried is not written to disk.
+    reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
+  });
+  attachments.cleanup();
+  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels)), attachments });
   for (const method of conversationMethods) {
     ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));
   }
+
+  // Home attachments: paths the person chose, checked and kept by main; the page never names a path main did not give it.
+  handle("attachments:choose", [], async (event): Promise<AttachmentResult[]> => {
+    if (!fromWindow(event) || !win) return [];
+    const picked = await dialog.showOpenDialog(win, { title: "Attach Files", properties: ["openFile", "multiSelections"] });
+    return picked.canceled || picked.filePaths.length === 0 ? [] : attachments.addPaths({ paths: picked.filePaths.slice(0, 64) }) ?? [];
+  });
+  handle("attachments:add-paths", null, (event, value: unknown) => fromWindow(event) ? attachments.addPaths(value) : null);
+  handle("attachments:add-pasted", null, (event, value: unknown) => fromWindow(event) ? attachments.addPasted(value) : null);
+  handle("attachments:remove", false, (event, value: unknown) => fromWindow(event) && attachments.remove(value));
+  handle("attachments:recheck", null, (event, value: unknown) => fromWindow(event) ? attachments.recheck(value) : null);
+  handle("attachments:release", false, (event, value: unknown) => fromWindow(event) && attachments.release(value));
 
   const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
   const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");

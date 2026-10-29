@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 import { insideRoot, object } from "./sessions";
-import { transportError } from "./transport";
+import { displayPath, GENERIC_SUMMARY, transportError } from "./transport";
 import type { EventPayload, PermissionOption, TransportResult, TransportState } from "./types";
 
 // Agent Client Protocol (https://agentclientprotocol.com) over newline-delimited JSON-RPC 2.0 on stdio, as Cursor
@@ -91,13 +91,13 @@ export function acpPermission(params: Record<string, unknown>, requestId: string
   if (deny) choices.push({ optionId: deny, option: { id: "deny", label: "Deny", kind: "deny" } });
   if (!allow && !always) return null;
   const tool = object(params.toolCall) ? params.toolCall : {};
-  const title = typeof tool.title === "string" && tool.title ? tool.title.slice(0, 512) : typeof tool.kind === "string" ? tool.kind : "tool";
+  const title = typeof tool.title === "string" && tool.title ? tool.title.slice(0, 512) : GENERIC_SUMMARY[ACTIVITY[str(tool.kind)] ?? "other"];
   return { event: { type: "permission.request", requestId, tool: typeof tool.kind === "string" ? tool.kind : "other", summary: title, options: choices.map(c => c.option) }, choices };
 }
 
 export interface AcpTransport extends TransportState { turn: string; segment: number; text: string; tools: Record<string, { kind: string; path: string; title: string }> }
 export function initialAcp(turn: string): AcpTransport {
-  return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], turn, segment: 0, text: "", tools: {} };
+  return { terminal: false, stop: null, messageId: `${turn}:0`, textBlock: null, completedMessages: [], activities: [], fileSummaries: {}, turn, segment: 0, text: "", tools: {} };
 }
 function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
   if (!state.text) return { state, events: [] };
@@ -105,7 +105,7 @@ function flush(state: AcpTransport): TransportResult & { state: AcpTransport } {
   const segment = state.segment + 1;
   return { state: { ...state, text: "", segment, messageId: `${state.turn}:${segment}` }, events: [done] };
 }
-const ACTIVITY: Record<string, "edit" | "read" | "command"> = { edit: "edit", delete: "edit", move: "edit", read: "read", search: "read", execute: "command" };
+const ACTIVITY: Record<string, "edit" | "read" | "command"> = { edit: "edit", delete: "edit", move: "edit", read: "read", search: "read", execute: "command", terminal: "command" };
 function str(value: unknown): string { return typeof value === "string" ? value : ""; }
 function toolPath(update: Record<string, unknown>): string {
   if (Array.isArray(update.locations)) for (const location of update.locations) if (object(location) && str(location.path)) return str(location.path);
@@ -131,8 +131,9 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   const next = { ...flushed.state, tools: { ...state.tools, [id]: tool } };
   // One activity per tool call, once it completed: a rejected or failed call changed nothing.
   if (update.status !== "completed") return { state: next, events: flushed.events };
-  const summary = (tool.title || tool.kind || "tool").slice(0, 512);
   const activityKind = ACTIVITY[tool.kind] ?? "other";
+  // A shell command's title is the command itself; activity is stored and published, so it gets the generic phrase.
+  const summary = activityKind === "command" ? GENERIC_SUMMARY.command : (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[activityKind]).slice(0, 512);
   const event: EventPayload = tool.path
     ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: insideRoot(posix.join(root, ".doan/canvases"), posix.resolve(root, tool.path)), summary }
     : { type: "activity", kind: activityKind, summary };

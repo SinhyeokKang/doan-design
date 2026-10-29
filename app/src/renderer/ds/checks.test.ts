@@ -38,6 +38,19 @@ const violetAllowed = [
   ".comment-pin",
   // The onboarding Welcome glow (buzz-onboarding approved draft, 2026-10-28 user).
   ".ob-atmosphere",
+  // Home's Send, the shared accent icon button (buzz-home approved draft, 2026-10-29 user).
+  '.doan-icon-button[data-ui-variant="accent"]',
+  '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
+  '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)',
+  // The rest of Home's accent places (buzz-home design §4.4, §4.4b, §4.8, §5, §7.2): Send's spinner ink, the chosen
+  // preset chip, the suggested prompts' group icons, the Home-only glow, the drop outline and the sidebar status slot.
+  ".composer-send .doan-spinner",
+  ".preset-chip",
+  ".suggestion svg",
+  ".home-atmosphere",
+  ".drop-target",
+  ".row-slot.permission",
+  ".row-slot.unseen i",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

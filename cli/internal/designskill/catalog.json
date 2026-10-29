@@ -2,6 +2,7 @@
   "presets": [
     {
       "id": "context",
+      "group": "start",
       "title": "Gather design context",
       "description": "Understand the product, users, existing design, and constraints before design work, and connect to the design system preset when the work needs one.",
       "scope": "project context",
@@ -14,6 +15,7 @@
     },
     {
       "id": "shape",
+      "group": "start",
       "title": "Shape a feature",
       "description": "Work out a feature or screen's purpose, users, flow, states, and scope as a confirmed brief before anything is built.",
       "scope": "feature brief",
@@ -28,6 +30,7 @@
     },
     {
       "id": "document",
+      "group": "start",
       "title": "Document the design system",
       "description": "Record the shipped design system as a rules document for agents and a design-system canvas that references the project's token CSS.",
       "scope": "design system",
@@ -38,6 +41,7 @@
     },
     {
       "id": "extract",
+      "group": "start",
       "title": "Extract reusable patterns",
       "description": "Find tokens, components, and patterns the design repeats and propose how to consolidate them; refactor app code only on request.",
       "scope": "tokens and patterns",
@@ -47,6 +51,7 @@
     },
     {
       "id": "critique",
+      "group": "review",
       "title": "Critique the design",
       "description": "Review the UX, hierarchy, and communication of a named design and report prioritized findings without editing.",
       "scope": "design review",
@@ -58,6 +63,7 @@
     },
     {
       "id": "audit",
+      "group": "review",
       "title": "Audit the design",
       "description": "Check accessibility, responsiveness, theming, and performance risks, separating what was verified from what was not.",
       "scope": "technical quality",
@@ -69,6 +75,7 @@
     },
     {
       "id": "polish",
+      "group": "refine",
       "title": "Polish the details",
       "description": "Finish a design for consistency and completeness while keeping its identity, content, and function.",
       "scope": "visual finish",
@@ -80,6 +87,7 @@
     },
     {
       "id": "distill",
+      "group": "content",
       "title": "Simplify the design",
       "description": "Remove redundant elements, noise, and complexity without dropping function or product facts the user has not agreed to cut.",
       "scope": "content and structure",
@@ -89,6 +97,7 @@
     },
     {
       "id": "bolder",
+      "group": "refine",
       "title": "Make it bolder",
       "description": "Strengthen the visual emphasis of the requested target using the design system's own vocabulary.",
       "scope": "visual emphasis",
@@ -98,6 +107,7 @@
     },
     {
       "id": "quieter",
+      "group": "refine",
       "title": "Calm the design",
       "description": "Soften excessive color, weight, decoration, and motion while keeping hierarchy and character.",
       "scope": "visual intensity",
@@ -108,6 +118,7 @@
     },
     {
       "id": "layout",
+      "group": "refine",
       "title": "Improve the layout",
       "description": "Improve arrangement, spacing, grouping, and reading order so product priority reads clearly at every covered width.",
       "scope": "layout and spacing",
@@ -118,6 +129,7 @@
     },
     {
       "id": "typeset",
+      "group": "refine",
       "title": "Improve the typography",
       "description": "Improve fonts, type hierarchy, and readability using the project's type tokens, without replacing an established identity.",
       "scope": "typography",
@@ -128,6 +140,7 @@
     },
     {
       "id": "colorize",
+      "group": "refine",
       "title": "Improve the color",
       "description": "Improve color roles and contrast with token CSS variables while keeping brand colors and meaning intact.",
       "scope": "color and contrast",
@@ -137,6 +150,7 @@
     },
     {
       "id": "clarify",
+      "group": "content",
       "title": "Clarify copy",
       "description": "Clarify labels, errors, and next actions without changing meaning.",
       "scope": "copy",
@@ -146,6 +160,7 @@
     },
     {
       "id": "harden",
+      "group": "content",
       "title": "Harden for real conditions",
       "description": "Add error, empty, loading, permission, offline, and extreme-content states so a design holds up with real data.",
       "scope": "edge-case states",
@@ -157,6 +172,7 @@
     },
     {
       "id": "onboard",
+      "group": "content",
       "title": "Design first use",
       "description": "Design first-run flows, empty states, and next actions that get new users to a real result without invented claims.",
       "scope": "first use",
@@ -167,6 +183,7 @@
     },
     {
       "id": "adapt",
+      "group": "explore",
       "title": "Adapt to other contexts",
       "description": "Restructure a screen for other widths, devices, inputs, or contexts instead of stretching it.",
       "scope": "responsive layout",
@@ -177,6 +194,7 @@
     },
     {
       "id": "animate",
+      "group": "explore",
       "title": "Add purposeful motion",
       "description": "Design motion that explains state, relationship, and feedback, with reduced-motion and performance care.",
       "scope": "motion",
@@ -189,6 +207,7 @@
     },
     {
       "id": "delight",
+      "group": "explore",
       "title": "Add moments of delight",
       "description": "Add product-specific personality at moments that earn it, without slowing tasks or touching serious moments.",
       "scope": "personality",
@@ -199,6 +218,7 @@
     },
     {
       "id": "generate",
+      "group": "explore",
       "title": "Generate design alternatives",
       "description": "Draw the design alternatives the user asked for on a canvas, varied on distinct axes, without choosing or adopting one.",
       "scope": "design alternatives",

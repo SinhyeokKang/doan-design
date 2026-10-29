@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, it, vi } from "vitest";
-import { ShellSidebar } from "./ShellSidebar";
+import { expect, it, test, vi } from "vitest";
+import { projectSlot, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 const row = { path: ".doan/canvases/folder/canvas.html", url: "u", open: 2, resolved: 0, frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
@@ -69,4 +69,29 @@ it("keeps every thumbnail letter readable on its tint, for the sidebar's 10px le
   const extra = `:root { ${palette} ${hues.map(h => `--t-bg-${h}: color-mix(in srgb, var(--identity-project-${h}) 14%, var(--surface-panel)); --t-ink-${h}: color-mix(in srgb, var(--identity-project-${h}) 65%, var(--text-standard));`).join(" ")} }`;
   const results = contrastPairs(`${tokens}\n${extra}`, hues.map(h => ({ fg: `--t-ink-${h}`, bg: `--t-bg-${h}`, kind: "body" as const })));
   expect(results.filter(r => !r.ok).map(r => `${r.fg} ${r.wcag.toFixed(2)} Lc ${r.apca.toFixed(0)}`)).toEqual([]);
+});
+
+// buzz-home design §3, §6, §7.2: Home shows the sidebar without a current row, the status slot sits at the right of
+// a row (before a project's menu), and an added project's row flashes.
+test("on Home no row is current; the slot shows a permission hand, a spinner or an unseen Dot with its label", () => {
+  const Sidebar = ShellSidebar;
+  const canvas = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
+  const entries: FolderEntry[] = [{ path: "/a", kind: "list", servedRev: 0, canvases: [canvas] }, { path: "/b", kind: "list", servedRev: 0, canvases: [] }];
+  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {} };
+  const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
+  const home = renderToStaticMarkup(<Sidebar {...props} home slots={slots} highlight={["/b"]} />);
+  expect(home).not.toContain("aria-current");
+  expect(home).toContain('<span>a</span><span class="row-slot working" role="img" aria-label="Claude Code is working"><span class="doan-spinner" aria-hidden="true"></span></span>');
+  expect(home).toMatch(/class="shell-project-row row flash"[^>]*aria-label="beta"/);
+  expect(home).toMatch(/<span class="shell-project-name">beta<\/span><span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg[^>]*lucide-hand/);
+  expect(renderToStaticMarkup(<Sidebar {...props} />)).toContain('aria-current="location"');
+  const unseen = renderToStaticMarkup(<Sidebar {...props} slots={new Map([["/b", { kind: "unseen" as const, label: "New changes from Codex" }]])} />);
+  expect(unseen).toContain('<span class="row-slot unseen" role="img" aria-label="New changes from Codex"><i></i></span>');
+});
+
+test("a project row carries a bound canvas's slot only while that canvas row is not shown, the highest state first", () => {
+  const slots = new Map([["/a\n.doan/canvases/x.html", { kind: "unseen" as const, label: "u" }], ["/a", { kind: "working" as const, label: "w" }], ["/b", { kind: "permission" as const, label: "p" }]]);
+  expect(projectSlot(slots, ["/a"], [])).toEqual({ kind: "working", label: "w" });
+  expect(projectSlot(new Map([["/a\n.doan/canvases/x.html", { kind: "permission" as const, label: "p" }]]), ["/a"], [])).toEqual({ kind: "permission", label: "p" });
+  expect(projectSlot(new Map([["/a\n.doan/canvases/x.html", { kind: "permission" as const, label: "p" }]]), ["/a"], ["/a\n.doan/canvases/x.html"])).toBeUndefined();
 });

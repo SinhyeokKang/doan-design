@@ -3,9 +3,13 @@
 // Test-only knobs come from FAKE_ACP: "auth-link" asks for a browser sign-in at session/new, "hang" never answers a prompt,
 // "stop:<reason>" answers a prompt at once with that stopReason ("stop:" with none), "protocol:<n>" answers initialize
 // with that protocol version, "no-session" answers session/new without a session ID, "exit-init" exits at initialize.
+// FAKE_ACP_MODELS (JSON) is the `models` member of the session/new and session/load results, in the shape the
+// buzz-home P1 PoC recorded; FAKE_ACP_LOG names a file that receives every client line; FAKE_ACP_NO_IMAGE answers
+// initialize with promptCapabilities.image false.
 const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
+const models = process.env.FAKE_ACP_MODELS ? { models: JSON.parse(process.env.FAKE_ACP_MODELS) } : {};
 const sessionId = fixture.turn[0].params.sessionId;
 const send = value => process.stdout.write(JSON.stringify(value) + "\n");
 let waiting = null, rejected = new Set(), promptId = null, step = 0;
@@ -21,6 +25,7 @@ function play() {
 }
 readline.createInterface({ input: process.stdin }).on("line", line => {
   const request = JSON.parse(line);
+  if (process.env.FAKE_ACP_LOG) require("node:fs").appendFileSync(process.env.FAKE_ACP_LOG, line + "\n");
   if (!request.method) {
     if (waiting && request.id === waiting.id) {
       const outcome = request.result.outcome;
@@ -33,15 +38,18 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
   switch (request.method) {
     case "initialize":
       if (mode === "exit-init") process.exit(7);
-      send({ jsonrpc: "2.0", id: request.id, result: mode.startsWith("protocol:") ? { ...fixture.initialize, protocolVersion: Number(mode.slice(9)) } : fixture.initialize }); break;
+      // "hang-init" never answers initialize, a server still starting.
+      if (mode === "hang-init") break;
+      send({ jsonrpc: "2.0", id: request.id, result: mode.startsWith("protocol:") ? { ...fixture.initialize, protocolVersion: Number(mode.slice(9)) } : process.env.FAKE_ACP_NO_IMAGE ? { ...fixture.initialize, agentCapabilities: { ...fixture.initialize.agentCapabilities, promptCapabilities: { image: false } } } : fixture.initialize }); break;
     case "authenticate": send({ jsonrpc: "2.0", id: request.id, result: {} }); break;
     case "session/new":
       if (mode === "auth-link") { process.stderr.write("__DOAN_AUTH_URL__https://accounts.google.com/o/oauth2/v2/auth?response_type=code&state=s1&redirect_uri=http%3A%2F%2F127.0.0.1%3A4321%2F\n"); break; }
-      send({ jsonrpc: "2.0", id: request.id, result: mode === "no-session" ? {} : { sessionId } }); break;
+      send({ jsonrpc: "2.0", id: request.id, result: mode === "no-session" ? {} : { sessionId, ...models } }); break;
     case "session/load":
       if (request.params.sessionId !== sessionId) { send({ jsonrpc: "2.0", id: request.id, error: { code: -32002, message: "Session not found" } }); break; }
       for (const message of fixture.load) send(message);
-      send({ jsonrpc: "2.0", id: request.id, result: {} }); break;
+      send({ jsonrpc: "2.0", id: request.id, result: models }); break;
+    case "session/set_config_option": send({ jsonrpc: "2.0", id: request.id, result: { configOptions: [] } }); break;
     case "session/prompt":
       promptId = request.id;
       if (mode.startsWith("stop:")) { send({ jsonrpc: "2.0", id: promptId, result: mode === "stop:" ? {} : { stopReason: mode.slice(5) } }); promptId = null; break; }

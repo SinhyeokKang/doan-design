@@ -16,7 +16,9 @@ export async function isolatedEnv(userData: string, cli: string): Promise<NodeJS
   await mkdir(home, { recursive: true });
   await mkdir(userData, { recursive: true });
   await writeFile(shell, '#!/bin/sh\nPATH=/usr/bin:/bin; export PATH\neval "$2"\n', { mode: 0o755 });
-  await writeFile(join(userData, "onboarding.json"), "{}\n");
+  // Only a v1 completion record ends first run (app/src/main/onboarding/completion.ts); the app does not read
+  // projectRoot back, so any absolute directory of this environment will do.
+  await writeFile(join(userData, "onboarding.json"), `${JSON.stringify({ v: 1, completed: true, projectRoot: home })}\n`);
   return {
     ...inheritable(process.env), HOME: home, TMPDIR: dirname(userData), SHELL: shell,
     CLAUDE_CONFIG_DIR: join(home, ".claude"), CODEX_HOME: join(home, ".codex"),

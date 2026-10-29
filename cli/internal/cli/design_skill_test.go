@@ -120,7 +120,7 @@ func TestDesignSkillListIsCatalogProjection(t *testing.T) {
 		t.Fatalf("%d rows for %d presets", len(rows), len(presets))
 	}
 	for i, p := range presets {
-		want := map[string]any{"id": p.ID, "title": p.Title, "description": p.Description, "scope": p.Scope}
+		want := map[string]any{"id": p.ID, "title": p.Title, "description": p.Description, "scope": p.Scope, "group": p.Group}
 		if !reflect.DeepEqual(rows[i], want) {
 			t.Errorf("row %d: %v, want %v (no body or sources, catalog order)", i, rows[i], want)
 		}
@@ -137,7 +137,7 @@ func TestDesignSkillReturnsEveryCompleteBody(t *testing.T) {
 		if len(got) != 4 || got["version"] != Version || body != want || !strings.HasSuffix(body, designskill.Marker(p.ID, Version)) || strings.Count(body, "[doan:design-skill]") != 1 {
 			t.Fatalf("%s: incomplete result %v", p.ID, got)
 		}
-		if row := got["preset"].(map[string]any); row["id"] != p.ID || row["title"] != p.Title || row["description"] != p.Description || row["scope"] != p.Scope || len(row) != 4 {
+		if row := got["preset"].(map[string]any); row["id"] != p.ID || row["title"] != p.Title || row["description"] != p.Description || row["scope"] != p.Scope || row["group"] != p.Group || len(row) != 5 {
 			t.Fatalf("%s: preset %v", p.ID, row)
 		}
 		var sources []designskill.Source

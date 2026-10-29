@@ -1,9 +1,13 @@
 import { expect, it, vi } from "vitest";
-import { mkdtempSync, realpathSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { acpPermission, acpPromptDone, initialAcp, normalizeAcp, AcpConnection } from "./acp";
 import { openAcp } from "./acpRunner";
+import { listModels } from "./runners";
+import { ConversationService } from "./service";
+import { ConversationStore } from "./store";
+import { MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared } from "./service";
 import type { EventPayload } from "./types";
 import cursor from "./fixtures/acp-cursor.json";
@@ -34,7 +38,7 @@ it("runs a recorded Cursor turn: streamed text, completed tool calls as activiti
   expect(request).toMatchObject({ tool: "execute", options: [{ id: "allow", kind: "allow" }, { id: "always", kind: "allowAlways" }, { id: "deny", kind: "deny" }] });
   expect(events.filter(e => e.type === "activity")).toEqual([
     { type: "activity", kind: "edit", path: "/repo/hello.txt", insideDesign: false, summary: "Edit `/repo/hello.txt`" },
-    { type: "activity", kind: "command", summary: "`command -v doan; echo $PATH | cut -c1-200`" }]);
+    { type: "activity", kind: "command", summary: "Running a command" }]);
   expect(events).toContainEqual({ type: "permission.resolved", requestId: (request as { requestId: string }).requestId, optionId: "allow" });
   expect(events.at(-1)).toEqual({ type: "turn.done" });
   const done = events.filter(e => e.type === "message.done").map(e => (e as { text: string }).text).join("");
@@ -52,7 +56,7 @@ it("reports a denied Copilot edit as no activity and still completes the turn", 
   }, exited, () => {});
   await runner.send("hi", "turn-1");
   expect(events.filter(e => e.type === "permission.resolved").map(e => (e as { optionId: string }).optionId)).toEqual(["allow", "deny"]);
-  expect(events.filter(e => e.type === "activity")).toEqual([{ type: "activity", kind: "command", summary: "Run the requested shell command" }]);
+  expect(events.filter(e => e.type === "activity")).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
   expect(events.at(-1)).toEqual({ type: "turn.done" });
 });
 
@@ -145,6 +149,27 @@ it("takes a tool call's path from a later update, such as the permission request
     .toEqual([{ type: "activity", kind: "edit", path: "/repo/.doan/canvases/a.html", insideDesign: true, summary: "Create file" }]);
 });
 
+it("falls back to the path or a short phrase, not the raw ACP kind, when a tool call has no title", () => {
+  let state = initialAcp("t");
+  const events: EventPayload[] = [];
+  for (const update of [
+    { sessionUpdate: "tool_call", toolCallId: "e", kind: "edit", status: "completed", locations: [{ path: "/repo/.doan/canvases/a.html" }] },
+    { sessionUpdate: "tool_call", toolCallId: "x", kind: "execute", status: "completed" },
+    { sessionUpdate: "tool_call", toolCallId: "o", kind: "fetch", status: "completed" },
+  ]) { const result = normalizeAcp(state, update, "/repo"); state = result.state; events.push(...result.events); }
+  expect(events.map(e => e.type === "activity" ? e.summary : "")).toEqual([".doan/canvases/a.html", "Running a command", "Using a tool"]);
+  const secret = normalizeAcp(initialAcp("s"), { sessionUpdate: "tool_call", toolCallId: "s", kind: "execute", title: "`API_TOKEN=SYNTH_ENV_SECRET curl https://u:SYNTH_URL_PASSWORD@example.invalid`", rawInput: { command: "SYNTH_HEREDOC_SECRET" }, status: "completed" }, "/repo").events;
+  expect(secret).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
+  expect(JSON.stringify(secret)).not.toMatch(/SYNTH_/);
+  const terminal = normalizeAcp(initialAcp("s"), { sessionUpdate: "tool_call", toolCallId: "term", kind: "terminal", title: "API_TOKEN=SYNTH_ENV_SECRET curl https://example.invalid", description: "SYNTH_BEARER_SECRET", rawInput: { command: "SYNTH_HEREDOC_SECRET" }, status: "completed" }, "/repo").events;
+  expect(terminal).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }]);
+  expect(JSON.stringify(terminal)).not.toMatch(/SYNTH_/);
+  const ask = (toolCall: Record<string, unknown>) => acpPermission({ options: [{ optionId: "a", kind: "allow_once" }], toolCall }, "id")?.event.summary;
+  expect(ask({ kind: "edit" })).toBe("Editing files");
+  expect(ask({ kind: "execute", title: "Run `ls`" })).toBe("Run `ls`");
+  expect(ask({})).toBe("Using a tool");
+});
+
 it("fails the connection on output that is not JSON-RPC and rejects every pending request", async () => {
   const failures: string[] = [];
   const connection = new AcpConnection(() => {}, () => {}, () => {}, detail => failures.push(detail));
@@ -180,4 +205,77 @@ it("never records an ACP resume, a server exit at initialize, or an Antigravity 
   expect((exited.opened as Error).message).toBe("process_exited"); expect(exited.order).toEqual(["refused"]);
   const antigravity = await handshake("cursor", { runtime: "antigravity" }, "protocol:2");
   expect((antigravity.opened as Error).message).toBe("runtime_unsupported"); expect(antigravity.order).toEqual(["refused"]);
+});
+
+// buzz-home: ACP model lists from session/new, the chosen model after every open, and Antigravity's image blocks.
+const MODELS = { currentModelId: "gemini-3.8-flash-high", availableModels: [{ modelId: "gemini-3.8-flash-high", name: "Gemini 3.8 Flash (High)" }, { modelId: "gemini-3.8-flash-low", name: "Gemini 3.8 Flash (Low)" }] };
+function logged(log: string): { method?: string; params?: Record<string, unknown> }[] {
+  return readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
+}
+function logFile(): string { return join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-log-"))), "log.jsonl"); }
+it("lists an ACP provider's models from session/new without a prompt and reports the process gone", async () => {
+  const log = logFile(), release = vi.fn();
+  const models = await listModels(input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP_MODELS: JSON.stringify(MODELS), FAKE_ACP_LOG: log } }), release, () => {});
+  expect(models).toEqual([{ id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash (High)", default: true }, { id: "gemini-3.8-flash-low", label: "Gemini 3.8 Flash (Low)", default: false }]);
+  expect(logged(log).map(r => r.method)).toEqual(["initialize", "authenticate", "session/new"]);
+  await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
+});
+it("sets the chosen model after session/new and again after session/load, before the prompt", async () => {
+  const log = logFile();
+  const env = { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log };
+  for (const over of [{}, { sessionId: SESSION }]) {
+    const runner = await openAcp(input("cursor", { env, model: "gemini-3.8-flash-low", ...over }), () => {}, () => {}, () => {});
+    await runner.send("hi", "turn");
+  }
+  const requests = logged(log).filter(r => r.method && ["session/new", "session/load", "session/set_config_option", "session/prompt"].includes(r.method));
+  expect(requests.map(r => r.method)).toEqual(["session/new", "session/set_config_option", "session/prompt", "session/load", "session/set_config_option", "session/prompt"]);
+  for (const set of requests.filter(r => r.method === "session/set_config_option")) expect(set.params).toEqual({ sessionId: SESSION, configId: "model", value: "gemini-3.8-flash-low" });
+  // Without a choice the provider's default stands.
+  const plain = logFile();
+  await (await openAcp(input("cursor", { env: { ...env, FAKE_ACP_LOG: plain } }), () => {}, () => {}, () => {})).send("hi", "turn");
+  expect(logged(plain).some(r => r.method === "session/set_config_option")).toBe(false);
+});
+it("adds verified images up to 50 MB as ACP image blocks for Antigravity only", async () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-images-")));
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const small = join(dir, "small.png"), big = join(dir, "big.png"), changed = join(dir, "changed.png"), text = join(dir, "notes.txt");
+  writeFileSync(small, png); writeFileSync(big, png); truncateSync(big, MAX_IMAGE_BYTES + 1); writeFileSync(changed, "no longer an image"); writeFileSync(text, "hello");
+  const attachments = [
+    { name: "small.png", size: png.length, kind: "image" as const, path: small }, { name: "big.png", size: MAX_IMAGE_BYTES + 1, kind: "image" as const, path: big },
+    { name: "changed.png", size: 3, kind: "image" as const, path: changed }, { name: "notes.txt", size: 5, kind: "file" as const, path: text }];
+  const prompts: Record<string, unknown[]> = {};
+  for (const runtime of ["antigravity", "cursor"] as const) {
+    const log = logFile();
+    const runner = await openAcp({ ...input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log } }), runtime }, () => {}, () => {}, () => {});
+    await runner.send("hi", "turn", attachments);
+    prompts[runtime] = logged(log).find(r => r.method === "session/prompt")!.params!.prompt as unknown[];
+  }
+  expect(prompts.antigravity).toEqual([{ type: "text", text: "hi" }, { type: "image", mimeType: "image/png", data: png.toString("base64") }]);
+  expect(prompts.cursor).toEqual([{ type: "text", text: "hi" }]);
+});
+it("sends no image block to an Antigravity server that does not take images", async () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-images-"))), small = join(dir, "a.png");
+  writeFileSync(small, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  const log = logFile();
+  // Copilot's recorded initialize has promptCapabilities.image true too, so only a server without it is synthetic here.
+  const runner = await openAcp({ ...input("copilot", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_NO_IMAGE: "1" } }), runtime: "antigravity" }, () => {}, () => {}, () => {});
+  await runner.send("hi", "turn", [{ name: "a.png", size: 8, kind: "image", path: small }]);
+  expect(logged(log).find(r => r.method === "session/prompt")!.params!.prompt).toEqual([{ type: "text", text: "hi" }]);
+});
+it("does not set a model the opened session already runs", async () => {
+  const log = logFile();
+  const runner = await openAcp(input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_MODELS: JSON.stringify(MODELS) }, model: MODELS.currentModelId }), () => {}, () => {}, () => {});
+  await runner.send("hi", "turn");
+  expect(logged(log).some(r => r.method === "session/set_config_option")).toBe(false);
+});
+it.each(["quit", "stopRuns"] as const)("stops a real ACP model-list read hanging in its handshake on %s and frees the lease after the server is gone", async how => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-listing-"))), log = logFile();
+  const release = vi.fn(async () => {});
+  const service = new ConversationService(new ConversationStore(dir), async () => ({ ...input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "hang-init", FAKE_ACP_LOG: log } }), release }), vi.fn(), () => {});
+  // Settled as soon as the stop ends the handshake, while quit still waits for the group.
+  const reading = service.listModels(await service.prepareListing(CWD, "cursor"), listModels).then(() => null, (error: Error) => error);
+  await vi.waitFor(() => expect(logged(log).map(r => r.method)).toContain("initialize"));
+  await (how === "quit" ? service.quit() : service.stopRuns("cursor"));
+  expect(await reading).toBeInstanceOf(Error);
+  await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });

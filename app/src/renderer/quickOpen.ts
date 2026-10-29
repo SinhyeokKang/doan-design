@@ -125,8 +125,8 @@ export function pickTarget(result: SearchResult, loadedRoot: string | null, open
 }
 
 export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string): string {
-  if (entry?.kind === "list" && entry.canvases.some(row => row.path === path)) return "Canvas changed while opening. Choose it again from the Sidebar or Quick Open.";
+  if (entry?.kind === "list" && entry.canvases.some(row => row.path === path)) return "Canvas changed while opening. Choose it again from the sidebar or Quick Open.";
   if (entry?.kind === "list") return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in .doan/canvases/`;
   if (entry?.kind === "loading") return "Project is still being read. Try Open again shortly.";
-  return "Project is unavailable. Check its status on Home and try again.";
+  return "Project is unavailable. Fix it from its menu in the sidebar, then try again.";
 }

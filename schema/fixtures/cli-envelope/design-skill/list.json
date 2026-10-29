@@ -8,121 +8,141 @@
         "id": "context",
         "title": "Gather design context",
         "description": "Understand the product, users, existing design, and constraints before design work, and connect to the design system preset when the work needs one.",
-        "scope": "project context"
+        "scope": "project context",
+        "group": "start"
       },
       {
         "id": "shape",
         "title": "Shape a feature",
         "description": "Work out a feature or screen's purpose, users, flow, states, and scope as a confirmed brief before anything is built.",
-        "scope": "feature brief"
+        "scope": "feature brief",
+        "group": "start"
       },
       {
         "id": "document",
         "title": "Document the design system",
         "description": "Record the shipped design system as a rules document for agents and a design-system canvas that references the project's token CSS.",
-        "scope": "design system"
+        "scope": "design system",
+        "group": "start"
       },
       {
         "id": "extract",
         "title": "Extract reusable patterns",
         "description": "Find tokens, components, and patterns the design repeats and propose how to consolidate them; refactor app code only on request.",
-        "scope": "tokens and patterns"
+        "scope": "tokens and patterns",
+        "group": "start"
       },
       {
         "id": "critique",
         "title": "Critique the design",
         "description": "Review the UX, hierarchy, and communication of a named design and report prioritized findings without editing.",
-        "scope": "design review"
+        "scope": "design review",
+        "group": "review"
       },
       {
         "id": "audit",
         "title": "Audit the design",
         "description": "Check accessibility, responsiveness, theming, and performance risks, separating what was verified from what was not.",
-        "scope": "technical quality"
+        "scope": "technical quality",
+        "group": "review"
       },
       {
         "id": "polish",
         "title": "Polish the details",
         "description": "Finish a design for consistency and completeness while keeping its identity, content, and function.",
-        "scope": "visual finish"
+        "scope": "visual finish",
+        "group": "refine"
       },
       {
         "id": "distill",
         "title": "Simplify the design",
         "description": "Remove redundant elements, noise, and complexity without dropping function or product facts the user has not agreed to cut.",
-        "scope": "content and structure"
+        "scope": "content and structure",
+        "group": "content"
       },
       {
         "id": "bolder",
         "title": "Make it bolder",
         "description": "Strengthen the visual emphasis of the requested target using the design system's own vocabulary.",
-        "scope": "visual emphasis"
+        "scope": "visual emphasis",
+        "group": "refine"
       },
       {
         "id": "quieter",
         "title": "Calm the design",
         "description": "Soften excessive color, weight, decoration, and motion while keeping hierarchy and character.",
-        "scope": "visual intensity"
+        "scope": "visual intensity",
+        "group": "refine"
       },
       {
         "id": "layout",
         "title": "Improve the layout",
         "description": "Improve arrangement, spacing, grouping, and reading order so product priority reads clearly at every covered width.",
-        "scope": "layout and spacing"
+        "scope": "layout and spacing",
+        "group": "refine"
       },
       {
         "id": "typeset",
         "title": "Improve the typography",
         "description": "Improve fonts, type hierarchy, and readability using the project's type tokens, without replacing an established identity.",
-        "scope": "typography"
+        "scope": "typography",
+        "group": "refine"
       },
       {
         "id": "colorize",
         "title": "Improve the color",
         "description": "Improve color roles and contrast with token CSS variables while keeping brand colors and meaning intact.",
-        "scope": "color and contrast"
+        "scope": "color and contrast",
+        "group": "refine"
       },
       {
         "id": "clarify",
         "title": "Clarify copy",
         "description": "Clarify labels, errors, and next actions without changing meaning.",
-        "scope": "copy"
+        "scope": "copy",
+        "group": "content"
       },
       {
         "id": "harden",
         "title": "Harden for real conditions",
         "description": "Add error, empty, loading, permission, offline, and extreme-content states so a design holds up with real data.",
-        "scope": "edge-case states"
+        "scope": "edge-case states",
+        "group": "content"
       },
       {
         "id": "onboard",
         "title": "Design first use",
         "description": "Design first-run flows, empty states, and next actions that get new users to a real result without invented claims.",
-        "scope": "first use"
+        "scope": "first use",
+        "group": "content"
       },
       {
         "id": "adapt",
         "title": "Adapt to other contexts",
         "description": "Restructure a screen for other widths, devices, inputs, or contexts instead of stretching it.",
-        "scope": "responsive layout"
+        "scope": "responsive layout",
+        "group": "explore"
       },
       {
         "id": "animate",
         "title": "Add purposeful motion",
         "description": "Design motion that explains state, relationship, and feedback, with reduced-motion and performance care.",
-        "scope": "motion"
+        "scope": "motion",
+        "group": "explore"
       },
       {
         "id": "delight",
         "title": "Add moments of delight",
         "description": "Add product-specific personality at moments that earn it, without slowing tasks or touching serious moments.",
-        "scope": "personality"
+        "scope": "personality",
+        "group": "explore"
       },
       {
         "id": "generate",
         "title": "Generate design alternatives",
         "description": "Draw the design alternatives the user asked for on a canvas, varied on distinct axes, without choosing or adopting one.",
-        "scope": "design alternatives"
+        "scope": "design alternatives",
+        "group": "explore"
       }
     ]
   }

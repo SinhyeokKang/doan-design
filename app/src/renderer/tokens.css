@@ -144,6 +144,9 @@
   --affordance-accent-hover: var(--violet-10);
   --affordance-accent-pressed: var(--violet-pressed);
   --text-on-accent: var(--violet-contrast);
+  /* The chosen design preset in the Home composer (buzz-home): a soft accent fill with dark ink, like an anchor chip. */
+  --surface-accent-subtle: var(--violet-3);
+  --text-accent-subtle: var(--violet-11);
   /* Pins sit on any canvas: the dark rim holds on light ones, the white halo on dark ones.
      The rim is black, not a violet step: it must reach 3:1 against the violet 9 fill, and
      a violet that dark would fall below step 12. */
@@ -179,6 +182,11 @@
   --size-chrome: 56px;
   --size-row: 72px;
   --size-icon: 16px;
+  /* Home composer (buzz-home): small icons inside chips and triggers, large marks in the strip and pickers,
+     and the extra-small control (a chip's remove button). */
+  --size-icon-sm: 14px;
+  --size-icon-lg: 20px;
+  --size-control-xs: 24px;
 
   /* Containers stop at 28px; capsules and pills are separate shapes. A nested
      corner is max(0, outer − inset − border), not the next step down. */

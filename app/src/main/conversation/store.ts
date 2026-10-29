@@ -9,7 +9,13 @@ import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
 export type ExternalSession = SessionBinding<Runtime>;
-interface MetadataBase { conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived" }
+// model and effort are what the conversation started with; canvasesAtStart is the root's canvas list at acceptance,
+// so a newDesign conversation binds only to a canvas that appeared after it; fromHome marks a newDesign started from
+// Home, whose turns carry Home's fixed paragraph (entries without it never do).
+interface MetadataBase {
+  conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived";
+  model?: string; effort?: string; canvasesAtStart?: Canvas[]; fromHome?: true;
+}
 // Legacy-external conversations keep the shared two-runtime session; doan-owned ones run on an app provider.
 export type ConversationMetadata = MetadataBase & (
   | { owner: { kind: "legacy-external" }; session: ExternalSession }
@@ -22,9 +28,12 @@ export function validCanvas(value: unknown): value is Canvas {
     !value.path.includes("\0") && !value.path.split("/").some(p => p === ".." || p === "." || !p) &&
     (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
 }
+function label(value: unknown): value is string { return str(value) && value.length > 0; }
 function metadata(value: unknown, version: 1 | 2): value is ConversationMetadata {
   if (!object(value) || !validId(value.conversationId) || typeof value.root !== "string" || !absolutePath(value.root) || !str(value.title) ||
-      (value.state !== "current" && value.state !== "archived") || (value.canvas !== undefined && !validCanvas(value.canvas)) || !object(value.session)) return false;
+      (value.state !== "current" && value.state !== "archived") || (value.canvas !== undefined && !validCanvas(value.canvas)) || !object(value.session) ||
+      (value.fromHome !== undefined && value.fromHome !== true) || (value.model !== undefined && !label(value.model)) || (value.effort !== undefined && !label(value.effort)) ||
+      (value.canvasesAtStart !== undefined && (!Array.isArray(value.canvasesAtStart) || ![...value.canvasesAtStart].every(validCanvas)))) return false;
   const s = value.session;
   if (!["resumed", "new", "newDesign"].includes(String(s.origin)) ||
     typeof s.sessionId !== "string" || s.sessionId.length === 0 || s.sessionId.length > 512 || s.sessionId.startsWith("-") || s.sessionId.includes("\0") ||
@@ -50,7 +59,8 @@ export function parseIndex(text: string): IndexRead {
 function payload(value: Record<string, unknown>): value is Record<string, unknown> & EventPayload {
   switch (value.type) {
     case "turn.started": case "turn.done": case "conversation.archived": return true;
-    case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) && anchorTokens(value.text, value.anchors) !== null;
+    case "user.message": return str(value.text) && Array.isArray(value.anchors) && [...value.anchors].every(validAnchor) && anchorTokens(value.text, value.anchors) !== null &&
+      (value.attachments === undefined || (Array.isArray(value.attachments) && [...value.attachments].every(attachment)));
     case "message.delta": case "message.done": return str(value.messageId) && str(value.text);
     case "activity": return ["edit", "read", "command", "other"].includes(String(value.kind)) && str(value.summary) && (value.path === undefined || str(value.path)) && (value.insideDesign === undefined || typeof value.insideDesign === "boolean");
     case "permission.request": return str(value.requestId) && str(value.tool) && str(value.summary) && Array.isArray(value.options) && value.options.length > 0 && [...value.options].every(o => object(o) && str(o.id) && str(o.label) && ["allow", "allowAlways", "deny"].includes(String(o.kind)));
@@ -59,6 +69,10 @@ function payload(value: Record<string, unknown>): value is Record<string, unknow
     case "turn.failed": return ["runtime_unsupported", "cli_missing", "not_logged_in", "session_unavailable", "session_in_use", "process_exited", "rate_limited", "unknown"].includes(String(value.code)) && (value.detail === undefined || str(value.detail));
     default: return false;
   }
+}
+function attachment(value: unknown): boolean {
+  return object(value) && label(value.name) && typeof value.size === "number" && Number.isSafeInteger(value.size) && value.size >= 0 &&
+    (value.kind === "image" || value.kind === "file") && typeof value.path === "string" && absolutePath(value.path);
 }
 function event(value: unknown, id: string, seq: number): value is ConversationEvent {
   return object(value) && value.v === 1 && value.conversationId === id && value.seq === seq && validId(value.turnId) &&

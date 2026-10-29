@@ -198,11 +198,11 @@ it("uses the tree fallback for blank frame labels", () => {
 it("only calls a canvas missing when its project was successfully listed", () => {
   expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, ".doan/canvases/moved.html")).toBe("moved is no longer in .doan/canvases/");
   expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, ".doan/canvases/moved.html")).toBe("Project is still being read. Try Open again shortly.");
-  expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, ".doan/canvases/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
-  expect(unavailableCanvasMessage(undefined, ".doan/canvases/moved.html")).toBe("Project is unavailable. Check its status on Home and try again.");
+  expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
+  expect(unavailableCanvasMessage(undefined, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
 });
 
 it("does not call a still-listed canvas deleted when its captured identity became stale", () => {
   expect(unavailableCanvasMessage({ kind: "list", path: "/repo", servedRev: 0, canvases: [canvas(".doan/canvases/a.html")] }, ".doan/canvases/a.html"))
-    .toBe("Canvas changed while opening. Choose it again from the Sidebar or Quick Open.");
+    .toBe("Canvas changed while opening. Choose it again from the sidebar or Quick Open.");
 });
