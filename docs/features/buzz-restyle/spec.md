@@ -20,7 +20,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 모든 자식 feature가 따른다. `buzz-ds`가 main에 들어간 뒤로는 PRODUCT §7이 정본이고, 이 목록은 요약이다.
 
 1. **테마**는 라이트 단일이다. 다크 전용 결정을 대체한다.
-2. **색**: 주요 버튼은 무채색이다. 액센트는 **doan 고유 violet 램프**를 쓰고(9단계 `#973be1`, 흰 글자. 12단계와 contrast·ink·pressed·link 쌍은 레퍼런스 iris 램프의 단계별 밝기 구조에 violet 색상을 얹어 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus와 중간에 고른 오렌지를 대체), 기본적으로 **Buzz가 액센트를 쓰는 용례에 대응하는 자리**에 쓴다. 승인된 doan 예외는 아래 앵커 칩과 Welcome 배경이다.
+2. **색**: 주요 버튼은 무채색이다. 액센트는 **doan 고유 violet 램프**를 쓰고(9단계 `#973be1`, 흰 글자. 12단계와 contrast·ink·pressed·link 쌍은 레퍼런스 iris 램프의 단계별 밝기 구조에 violet 색상을 얹어 doan이 만든다. 2026-10-26 user, 처음 결정한 Buzz citrus와 중간에 고른 오렌지를 대체), 기본적으로 **Buzz가 액센트를 쓰는 용례에 대응하는 자리**에 쓴다. 승인된 doan 예외는 아래 앵커 칩, Welcome 배경, `buzz-home` 홈의 accent 자리다.
    - 메시지 버블 → 대화의 내 메시지(연한 액센트 채움, Buzz의 Chillin' 수준)
    - Send 버튼 → 대화 전송 버튼(진한 액센트 채움)
    - LNB hover·선택은 무채색 음영으로 변경한다(2026-10-27 user, buzz-shell). Accent는 캔버스 우측 미확인 Dot의 시각 표시에 사용하되 상태 판별·저장은 후속이다.
