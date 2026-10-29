@@ -144,6 +144,9 @@
   --affordance-accent-hover: var(--violet-10);
   --affordance-accent-pressed: var(--violet-pressed);
   --text-on-accent: var(--violet-contrast);
+  /* The chosen design preset in the Home composer (buzz-home): a soft accent fill with dark ink, like an anchor chip. */
+  --surface-accent-subtle: var(--violet-3);
+  --text-accent-subtle: var(--violet-11);
   /* Pins sit on any canvas: the dark rim holds on light ones, the white halo on dark ones.
      The rim is black, not a violet step: it must reach 3:1 against the violet 9 fill, and
      a violet that dark would fall below step 12. */

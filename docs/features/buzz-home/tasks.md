@@ -68,7 +68,7 @@
 ## Z. 승격과 정리
 
 - [ ] Z1. 결론을 승격한다(영어).
-  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, Welcome 밖 그라디언트 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 추천 프롬프트 3개(채우기만, 같은 날 '제안 카드 없음' 결정 대체), 프리셋 행의 scope 표시와 프리셋 선택 뒤 placeholder, 홈 요청의 `doan active` 제외 문장). PRODUCT §8: 프리셋 목록의 대상 필요 여부 필드(doan-design-skills 후속). PRODUCT §5 Skills 13과 §7에 프리셋 그룹. ARCHITECTURE §12 목록 결과의 `group`, §7 'Design preset reads'의 요약 형식.
+  - PRODUCT: §3 In scope 7의 'Not yet built'에서 홈 제거, §5 항목 0(체크리스트·배너)·항목 1(홈 카드 → 대화 시작 화면), §5 Skills 13(프리셋 UI 완료), §6 PoC·실제 앱 결과, §7 결정 줄(홈 카드 제거와 행방, Welcome 밖 그라디언트 예외, 프리셋 버튼·칩 accent 예외, 인사 문구, 프리셋 요청 문장 형식, 공급자 보고 모델만 표시, 첨부 기기 로컬 보관·한도, 홈 대화 동시 1개, 임시 상태줄과 buzz-conversation 대체 인계, 추천 프롬프트 3개(채우기만, 같은 날 '제안 카드 없음' 결정 대체), 프리셋 행의 scope 표시와 프리셋 선택 뒤 placeholder, 홈 요청의 `doan active` 제외 문장). PRODUCT §8: 프리셋 목록의 대상 필요 여부 필드(doan-design-skills 후속). PRODUCT §5 Skills 13과 §7에 프리셋 그룹. ARCHITECTURE §12 목록 결과의 `group`, §7 'Design preset reads'의 요약 형식.
   - ARCHITECTURE §7: 'Home, workspace and project IPC'의 홈 서술, 대화 IPC 표(`newDesign` 텍스트, `model`, 첨부), `conversation:models`, 'Design preset reads'의 'no renderer UI yet', 첨부 저장·IPC·정리, ui-state 키.
   - 부모: `docs/features/buzz-restyle/tasks.md` C3 체크, C8에 임시 상태줄 대체 인계 한 줄, 공통 결정 2 요약에 홈 예외.
   - 검증: `grep -n 'buzz-home' docs/PRODUCT.md docs/ARCHITECTURE.md`에 위 항목이 있고, `grep -n 'no renderer UI yet\|user-facing UI is not done' docs/PRODUCT.md docs/ARCHITECTURE.md` 결과 없음.

@@ -99,6 +99,7 @@
   - 캔버스가 있음 → `critique`, `polish`
   - CLI 목록에 없는 id는 건너뛴다. 규칙이 id를 참조하는 것은 카탈로그 사본이 아니다(제목·설명은 항상 CLI 결과에서 읽는다).
 - 행은 한 줄로 제목과 `scope`(CLI 목록의 2~3단어 주제, 예: `design review`, `edge-case states`)를 보이고, description과 id는 툴팁에만 둔다(2026-10-29 user). description은 93~148자의 에이전트용 문장이라 팝오버 폭에서 잘려 읽히지 않았다(1차 초안).
+- accent(2026-10-29 user): 도구 줄 프리셋 버튼의 아이콘(`--affordance-accent`)과 고른 프리셋 칩(새 역할 `--surface-accent-subtle` violet 3 채움 + `--text-accent-subtle` violet 11 글자, 앵커 칩과 같은 연한 채움 + 진한 글자 방식)에만 쓴다. 그룹 탭과 추천 프롬프트 칩은 무채색으로 둔다. 그래야 Send가 가장 강한 accent로 남는다. 공통 결정 2의 accent 자리에 더하는 예외라서 PRODUCT §7과 부모 공통 결정 2 요약에 기록한다.
 - 고른 프리셋은 입력 위에 칩(제목, × 제거)으로 보인다. 프리셋을 고르고 입력이 비어 있으면 placeholder가 `Which canvas or screen? Add details…`로 바뀐다. `critique`·`polish`·`harden`·`audit` 등 많은 프리셋이 사람이 지목한 디자인을 다루는데 홈에는 선택한 캔버스가 없어서, 프리셋만 보내면 에이전트가 대상을 되묻는 왕복이 생기기 때문이다. 어떤 프리셋이 대상을 요구하는지는 UI가 알 수 없으므로(ARCHITECTURE §7) 모든 프리셋에 같은 문구를 쓴다. 하나만 고를 수 있고 새로 고르면 바뀐다. Backspace를 빈 입력 맨 앞에서 누르면 칩이 지워진다.
 - 상태: 읽는 중(spinner, '프리셋을 불러오는 중'), 실패(`cli_error`의 `reason`별 문구와 Retry, `request_refused`는 Retry 없이 문구만), 이전 CLI(`list()`가 `usage_error` → '이 doan CLI에는 디자인 프리셋이 없다. Doan을 업데이트한다'), 검색 결과 없음. 어느 실패에서도 프리셋 없이 보낼 수 있다.
 
