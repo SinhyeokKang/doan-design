@@ -111,3 +111,4 @@
 - 2026-10-29: 사용자 요청으로 리포 링크 실제 앱 probe(D20 remote 일치·불일치, 여러 checkout, 'Use existing folder', 잘못된 URL, Retry 수정)를 U 잔여 수정 통합 뒤 V에 보낸다. `/agent-eval` 라운드 `buzz-onboarding-261029` 진행 중(통합 HEAD `0564054` 패키지).
 - 2026-10-29: U 잔여 수정(8b92a0b, 959e1b0: Retry가 고친 URL을 검사) 통합. 리포 링크 probe V 시작.
 - 2026-10-29: 리포 링크 probe(`4fce45d` 패키지 앱) 5개 항목 통과: D20/D21 일치·불일치·읽기 실패(UI·CLI), 오류 notice 복구도 url 전송, 세 checkout 선택, 'Use existing folder' remote 확인, 잘못된 URL inline 거절, Retry가 고친 URL 사용. 재현 안 된 1건: clone 화면에서 일치하는 미초기화 폴더를 고르자 'Set up and continue' 클릭 없이 초기화·등록됐다(3회 반복은 정상). D23 뒤 U에 조사를 보낸다. Keychain 기준선 일치. GUI 슬롯을 U에 넘겼다.
+- 2026-10-29: D23 통합(18cc21d..3ecf656, 마크업 측정은 초안 chosen 카드와 일치, 실제 흐름 확인은 V). U에 동의 없는 초기화 조사 Task를 보냈다.
