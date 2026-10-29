@@ -15,7 +15,7 @@
 | renderer `Home.tsx` | 프로젝트 카드·체크리스트·연결 배너 본문을 없애고 `HomeComposer`와 장식 배경을 둔다. `ProblemActions`, `useProjectComments`, `PathTip`, `ChangedTime`은 다른 화면이 쓰므로 남긴다 |
 | renderer 새 파일 | `HomeComposer.tsx`(입력창), `homeComposer.ts`(순수 함수), `ConversationStrip.tsx`(임시 상태줄), `conversationStrip.ts`(상태 reducer·문구) |
 | renderer `App.tsx` | 온보딩 완료 인계, 홈 대화 ID 보관, 전송 뒤 워크스페이스 이동, 첫 캔버스 자동 열기, 권한 요청 토스트 |
-| renderer `ShellSidebar.tsx` | 추가·중복 프로젝트 강조를 LNB 행으로 옮긴다(§6). 구조는 바꾸지 않는다 |
+| renderer `ShellSidebar.tsx`·`App.tsx` 셸 | Home에도 LNB를 보인다(2026-10-29 user). Home은 워크스페이스와 같은 셸(헤더 + LNB + 흰 본문 Panel)이고 본문에 입력창이 놓인다. Home에서 LNB는 현재 프로젝트 표시(`aria-current`)가 없고, 프로젝트·캔버스 행을 누르면 지금처럼 그 워크스페이스로 간다. 추가·중복 프로젝트 강조를 LNB 행으로 옮긴다(§6). LNB 자체의 구조·동작은 바꾸지 않는다 |
 | renderer CSS | 홈 레이아웃·입력창·팝오버·상태줄. `app/src/renderer/ds/`의 프리미티브를 쓰고, 대체한 projects-home 규칙은 지운다 |
 | main `conversation/ipc.ts` | `newDesign`이 자유 텍스트를 받도록 넓힌다(§4.6). `model`과 첨부 ID를 받는다(§4.7, §4.8) |
 | main `conversation/` runner·prompt | 고른 모델로 실행, 첨부 경로 목록을 프롬프트에 직렬화 |
@@ -78,7 +78,7 @@
 
 ### 4.3 공급자·모델 선택기 — 공급자 (2026-10-29 user: 연결 안 된 공급자는 그리지 않는다, 모델과 한 선택기)
 
-- 공급자와 모델은 도구 줄의 한 선택기다. 닫혀 있을 때 `<Provider> · <model label>`(모델이 Default면 `<Provider>`만)을 보인다. 펼치면 공급자별 묶음 제목 아래 그 공급자의 모델 행이 있고, 모델 행을 고르면 공급자와 모델이 함께 정해진다. 모델 목록이 아직 없는 공급자는 'Default' 행 하나이고, 묶음을 펼칠 때 목록을 읽는다(§4.7).
+- 공급자와 모델은 도구 줄의 한 선택기다(2026-10-29 user). 공급자는 **로고로만** 보이고 이름은 접근 가능한 이름과 툴팁에 둔다. 모델만 텍스트로 보인다. 닫혀 있을 때 `[로고] <model label> ⌄`(모델이 Default면 `[로고] Default ⌄`)이다. 로고는 온보딩이 쓰는 `app/src/renderer/public/provider-logos/`를 재사용한다. 펼치면 공급자별 묶음(머리에 로고와 공급자 이름) 아래 그 공급자의 모델 행이 있고, 모델 행을 고르면 공급자와 모델이 함께 정해진다. 모델 목록이 아직 없는 공급자는 'Default' 행 하나이고, 묶음을 펼칠 때 목록을 읽는다(§4.7).
 
 - agent-auth의 다섯 공급자 중 **저장된 연결이 있는 공급자만** 정해진 순서로 보인다. 연결이 없는 공급자(`not_connected`, 즉 상태 DTO의 phase `disconnected`)는 목록에 없다. 로그인·설치 동작은 홈에 두지 않는다.
 - 연결은 있지만 지금 실행할 수 없는 공급자(재인증, 버전 미달·불명, 확인 전, 도구 누락)는 상태 문구와 함께 비활성 행으로 보인다. 문구는 공용 view-model `agentAuthView.ts`에서 가져오고 새로 쓰지 않는다. 복구 버튼은 두지 않는다(2026-10-29 user).
@@ -118,16 +118,17 @@
 - 대화 제목은 지금처럼 `(subject ?? text).slice(0, 512)`이다. 프리셋을 고르면 머리말 문장이 제목 앞부분이 되지만 제목 계산은 바꾸지 않는다. 제목을 어떻게 보일지는 buzz-conversation이 정한다.
 - 이 변경은 IPC 요청 형식의 확장이다. `conversation:start` 표(ARCHITECTURE §7)를 갱신한다.
 
-### 4.7 공급자·모델 선택기 — 모델 (2026-10-29 user)
+### 4.7 공급자·모델 선택기 — 모델과 effort (2026-10-29 user)
 
 - §4.3의 통합 선택기 안 공급자 묶음의 행이다. 고른 공급자가 실행 중에 알려준 모델 목록만 보인다. renderer와 main에 모델 목록을 하드코딩하지 않는다. 목록을 읽지 못하거나 공급자가 목록을 주지 않으면 'Default' 하나만 보이고 비활성 이유를 툴팁에 단다.
 - 출처 후보(구현 전 PoC P1에서 공급자별로 확인한다. 기억으로 정하지 않는다):
   - Claude Code: 번들 Agent SDK 0.3.312의 `Query.supportedModels(): Promise<ModelInfo[]>`와 `setModel()`(`sdk.d.ts` 3096, 2979행 확인). 시작 옵션의 `model`도 후보.
   - Codex: direct app-server의 모델 목록 RPC와 `thread/start`·`turn/start`의 모델 인자. 0.164.0에서 존재·형식 확인 필요.
   - Cursor·Copilot·Antigravity(ACP): `session/new` 결과의 모델 정보와 모델 변경 요청. 기록된 `initialize` fixture에는 모델 정보가 없다(`acp-cursor.json`, `acp-copilot.json`). 세션을 만들어야 목록이 나오는 경우의 비용과 Copilot 요청 비용을 확인한다.
-- 새 main API `conversation:models {runtime}` → `{models: {id, label, default}[]} | {error}`. 결과는 공급자의 연결 세대·설치 버전이 바뀔 때까지 main이 메모리에 보관한다. 목록을 얻으려고 모델 요청(과금 요청)을 쓰는 공급자는 사람이 선택기를 열 때만 읽는다.
+- 새 main API `conversation:models {runtime}` → `{models: {id, label, default, efforts?: string[]}[]} | {error}`. 결과는 공급자의 연결 세대·설치 버전이 바뀔 때까지 main이 메모리에 보관한다. 목록을 얻으려고 모델 요청(과금 요청)을 쓰는 공급자는 사람이 선택기를 열 때만 읽는다.
 - 선택: `startConversation`의 `model?: string`. main은 마지막으로 받은 그 공급자의 목록에 있는 id만 받는다(그 외 `bad_request`). 고른 모델은 index 메타데이터에 남겨 같은 대화의 다음 send가 같은 모델을 쓴다(buzz-conversation이 소비). index 버전을 올릴지 선택 필드로 v2에 더할지는 `/tdd`에서 기존 판독기를 읽고 정한다.
 - 기본값: 공급자별로 이 기기에서 마지막으로 고른 모델(ui-state `home.models[provider]`). 목록에 없으면 공급자 기본값.
+- **effort**(2026-10-29 user, 가능하면): 고른 모델이 effort 단계를 알려줄 때만 같은 선택기 안 모델 행 아래(또는 펼친 모델 행의 하위 줄)에 단계 선택을 보인다. 닫힌 선택기는 `<model label> · <effort>`를 보인다. 단계를 알려주지 않는 모델·공급자에는 effort UI가 없다. Claude Agent SDK 0.3.312의 `ModelInfo.supportsEffort`·`supportedEffortLevels`(low/medium/high/xhigh/max)와 시작 옵션 `effort`(`sdk.d.ts` 1433·1965행 확인)가 출처 후보다. Codex·ACP 공급자의 effort 출처는 P1에서 확인한다. `startConversation`에 `effort?: string`을 더하고, main은 그 모델의 마지막 목록에 있는 단계만 받는다. 기본값은 모델별로 마지막에 고른 단계, 없으면 공급자 기본값(값을 보내지 않음)이다.
 
 ### 4.8 첨부 (2026-10-29 user: 파일을 보내지 않고 로컬 경로를 알려준다)
 
@@ -158,7 +159,7 @@
 
 | 지금 홈 카드·본문의 동작 | 새 위치 |
 |---|---|
-| 프로젝트 목록·워크트리 행·Open 표시 | LNB(buzz-shell 완료). 홈에서는 없앤다 |
+| 프로젝트 목록·워크트리 행·Open 표시 | Home에도 보이는 LNB(2026-10-29 user). 홈 본문에서는 없앤다 |
 | 문제 행의 Set Up…/Locate…/Retry/Details | LNB 프로젝트 메뉴(이미 있음). 홈 선택기는 비활성 + 안내만 |
 | 행 단위 Remove, 카드 Remove all, Undo 토스트 | LNB 'Remove from doan'(프로젝트 전체), Settings Projects(행 단위). Undo 토스트는 그대로 |
 | 추가·중복 프로젝트로 돌아가 카드 강조 | 홈에서는 추가된 첫 root를 프로젝트 선택기 선택으로 바꾸고, LNB의 그 프로젝트 행을 같은 시간(2.4초) 강조한다 |
@@ -243,7 +244,7 @@ doan이 다르게 가는 점:
 - **컨벤션**: ARCHITECTURE §1과 `doan check` 규칙 변경 없음.
 - **결정**: 공통 결정 2(그라디언트는 Welcome만)에 홈 예외를 더한다. PRODUCT §5 항목 1(projects-home 홈 카드)·항목 0의 홈 체크리스트·배너 서술을 바꾼다. 프리셋 요청 문장 형식을 새로 정한다. 모두 PRODUCT §7에 기록한다. 직접 git·서버·자동 실행 결정은 건드리지 않는다. 대화는 사람이 보낼 때만 시작한다(Out of scope 4 유지).
 - **PoC**: 두 개를 구현 전에 둔다. 결과는 날짜와 함께 PRODUCT §6에 기록한다. 대화·인증·프리셋 백엔드 자체는 PRODUCT §6에 실제 앱 확인 기록이 있고, 실제 토큰 만료·갱신이 관찰되지 않았다는 한계는 그대로다.
-  - P1 모델: 다섯 공급자 각각에서 모델 목록을 얻는 방법·비용, 고른 모델로 새 세션을 시작하는 방법, 같은 세션의 다음 턴이 그 모델을 유지하는지. 목록이 없는 공급자는 'Default'만 보이는 것으로 확정한다.
+  - P1 모델·effort: 다섯 공급자 각각에서 모델 목록과 모델별 effort 단계를 얻는 방법·비용, 고른 모델·effort로 새 세션을 시작하는 방법, 같은 세션의 다음 턴이 그 값을 유지하는지. 목록이 없는 공급자는 'Default'만 보이는 것으로 확정한다.
   - P2 첨부: 다섯 공급자 각각이 요청에 적힌 저장소 밖 절대 경로의 이미지와 텍스트·PDF 파일을 읽고 이미지 내용을 볼 수 있는지, 기본 권한 설정에서 권한 요청이 생기는지, 거절되면 어떤 이벤트가 오는지.
 - **agent-eval**: 가이드·CLI/MCP 출력·스텁은 바뀌지 않는다. 앱 대화 요청 문장이 새로 생기므로, 실제 공급자 하나로 '프리셋 칩을 고른 요청 → 에이전트가 그 프리셋을 읽음'을 `/runtime-test` probe에서 확인한다. 전체 `/agent-eval`은 요구하지 않는다.
 

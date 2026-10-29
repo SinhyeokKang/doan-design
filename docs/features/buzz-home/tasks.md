@@ -4,7 +4,7 @@
 
 ## P. PoC (구현 전, design §12)
 
-- [ ] P1. 모델: 다섯 공급자의 모델 목록 출처·형식·비용, 고른 모델로 새 세션 시작, 다음 턴의 모델 유지(design §4.7). 격리 userData·`DOAN_RUNTIME`, `.scratch/buzz-home/poc-models/`.
+- [ ] P1. 모델·effort: 다섯 공급자의 모델 목록과 effort 단계의 출처·형식·비용, 고른 값으로 새 세션 시작, 다음 턴의 값 유지(design §4.7). 격리 userData·`DOAN_RUNTIME`, `.scratch/buzz-home/poc-models/`.
   - 검증: 명령 미정 — 사용자 확인 필요(실제 로그인 필요). 통과 기준: 공급자별 '목록 있음(형식)/Default만'과 선택 실행 결과가 PRODUCT §6에 날짜와 함께 기록됨.
 - [ ] P2. 첨부: 다섯 공급자가 요청에 적힌 저장소 밖 절대 경로의 이미지·텍스트·PDF를 읽고 이미지 내용을 보는지, 기본 권한 설정의 권한 요청 여부와 거절 이벤트(design §4.8). `.scratch/buzz-home/poc-attachments/`.
   - 검증: 명령 미정 — 사용자 확인 필요. 통과 기준: 공급자별 결과와 확정한 한도가 PRODUCT §6에 기록됨. 이미지를 경로로 볼 수 없는 공급자는 이미지 입력 형식을 더할지 사용자에게 묻는다.
@@ -22,7 +22,7 @@
 
 - [ ] T1. 기기 로컬 형식 결정과 판독기: ui-state `home: {lastRoot?, lastProvider?, models?}`, 대화 index의 모델 필드, `user.message` 첨부 메타데이터. 각 판독기가 모르는 필드를 다루는 방식을 읽고, 버전 유지/상승을 정한다(상승이면 사용자 확인 후 PRODUCT §7 기록 task 추가).
   - 검증: `npm --prefix app test`에서 기존 v1/v2 fixture 판독과 새 필드 round-trip 테스트 통과.
-- [ ] T2. `homeComposer.ts`: `composeRequest`, `sendAvailability`, `defaultProject`, `defaultProvider`, `defaultModel`, `suggestedPresets`, `searchPresets`, `presetListView`, `startErrorView`, `pickGreeting`, `slashQuery`, `isSubmitKey`, `attachmentLimit`, `attachmentChipView`, `modelPickerView`, `dropTarget`.
+- [ ] T2. `homeComposer.ts`: `composeRequest`, `sendAvailability`, `defaultProject`, `defaultProvider`, `defaultModel`, `suggestedPresets`, `searchPresets`, `presetListView`, `startErrorView`, `pickGreeting`, `slashQuery`, `isSubmitKey`, `attachmentLimit`, `attachmentChipView`, `modelPickerView`(로고·모델·effort), `defaultEffort`, `dropTarget`.
   - 검증: `npm --prefix app test` 해당 테스트 통과(IME 조합 Enter, 한도 경계 32,768, 프리셋 머리말 형식, 이전 CLI `usage_error`, 직전 인사 문구 제외).
 - [ ] T3. `conversationStrip.ts`: `stripState`, `stripView`(시작·진행·권한·실패 코드별·중단·완료, 병합된 이벤트 기준).
   - 검증: `npm --prefix app test` 통과.
@@ -44,7 +44,7 @@
 
 - [ ] U1. `HomeComposer.tsx`와 홈 교체: 입력·도구 줄·선택기 셋·프리셋 팝오버와 `/`·첨부 칩·드롭·전송·오류 줄, 장식 배경, 인사 문구. 홈 카드·체크리스트 제거와 그 orphan CSS 삭제(design §6). `ProblemActions` 등 다른 화면이 쓰는 export는 유지.
   - 검증: `npm --prefix app test`(Home·HomeComposer 컴포넌트 테스트: 카드 없음, 키보드 순서, Escape, 칩 제거) 통과, `npm --prefix app run typecheck` 통과.
-- [ ] U2. `App.tsx`·`ShellSidebar.tsx` 연결: 온보딩 완료 root 인계와 입력창 포커스, 전송 뒤 이동(전환 보호·목록 읽기 대기), 임시 상태줄, 첫 캔버스 자동 열기·토스트, 다른 화면의 권한 요청 토스트, 추가·중복 프로젝트의 선택기 선택과 LNB 행 강조, ui-state 저장.
+- [ ] U2. `App.tsx`·`ShellSidebar.tsx` 연결: Home을 LNB가 있는 셸 안에 두기(현재 프로젝트 표시 없음), 온보딩 완료 root 인계와 입력창 포커스, 전송 뒤 이동(전환 보호·목록 읽기 대기), 임시 상태줄, 첫 캔버스 자동 열기·토스트, 다른 화면의 권한 요청 토스트, 추가·중복 프로젝트의 선택기 선택과 LNB 행 강조, ui-state 저장.
   - 검증: `npm --prefix app test`(App 테스트: 온보딩 인계 포커스, 전송 거절 시 홈 유지, 이동 중 사람의 다른 이동 우선) 통과.
 
 ── commit: `feat(app): replace home with the conversation composer` ──
