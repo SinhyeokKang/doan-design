@@ -42,6 +42,8 @@ it("adds the fixed preset guidance outside the untrusted data and keeps user tex
 });
 it("guides preset lookup through the bundled CLI only and lists no presets", () => {
   for (const text of ["doan skill", "doan design-skill <id>", "shell", "not applied", "approval", "named"]) expect(PRESET_GUIDANCE).toContain(text);
+  // design §3: a self-chosen preset's failure is one line, then the request continues; a named one is never faked.
+  for (const text of ["do not repeat the command or change settings", "chose the preset yourself", "in one line", "continue the request", "never claim it was applied or substitute another preset"]) expect(PRESET_GUIDANCE).toContain(text);
   expect(PRESET_GUIDANCE).toMatch(/do not suggest MCP or Settings > Connections/);
   expect(PRESET_GUIDANCE.replace("do not suggest MCP or Settings > Connections", "")).not.toMatch(/MCP|Settings/);
   for (const preset of ["clarify", "context", "polish"]) expect(PRESET_GUIDANCE).not.toContain(preset);
