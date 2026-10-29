@@ -3,7 +3,7 @@ import type { AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import { PROVIDERS, type AccountIdentity, type AuthAttempt, type AuthErrorCode, type AuthPhase, type AuthState, type AuthStatusDto, type Provider, type RecoveryAction, type ToolFacts } from "../main/agentAuth/types";
 import {
-  authListView, cancelledAnnouncement, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, PROVIDER_NAMES, providerView, readyAnnouncements, replyEffect, stopDialog,
+  authListView, cancelledAnnouncement, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, PROVIDER_NAMES, providerShortStatus, providerView, readyAnnouncements, replyEffect, stopDialog,
   type AuthButton, type ProviderView,
 } from "./agentAuthView";
 
@@ -297,4 +297,22 @@ test("copy never ends with an ellipsis", () => {
   for (const provider of PROVIDERS) for (const f of [{}, { facts: { cli: "missing" } }, { attempt: { kind: "signIn" } }, { account: ACCOUNT }] as Fixture[]) collect(providerView(dto(provider, f), { prompt: "a1" }));
   collect(authListView(undefined)); collect(pasteDialog()); collect(stopDialog("claude", "signIn"));
   expect(texts.filter(t => /…|\.\.\.$/.test(t))).toEqual([]);
+});
+
+test("Home's short status names why a connected provider can't run, with no action words", () => {
+  const short = (status: AuthStatusDto) => providerShortStatus(status);
+  expect(short(ready("claude"))).toBeNull();
+  expect(short(dto("claude"))).toBeNull();
+  expect(short(dto("antigravity", { account: ACCOUNT }))).toBe("Checks your connection when you send.");
+  expect(short(dto("codex", { account: ACCOUNT, expired: true }))).toBe("Sign-in expired");
+  expect(short(dto("cursor", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toBe("Needs an update");
+  expect(short(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toBe("Needs an update");
+  for (const facts of [{ version: "unknown" }, { cli: "missing" }, { tools: "missing" }] as Partial<ToolFacts>[])
+    expect(short(dto("copilot", { account: ACCOUNT, verified: true, facts }))).toBe("Not available right now");
+});
+
+test("the short status leaves the onboarding row copy unchanged", () => {
+  const status = dto("codex", { account: ACCOUNT, expired: true });
+  providerShortStatus(status);
+  expect(only(providerView(status)).notice?.body).toBe("Your Codex connection expired. Sign in again.");
 });

@@ -38,6 +38,10 @@ const violetAllowed = [
   ".comment-pin",
   // The onboarding Welcome glow (buzz-onboarding approved draft, 2026-10-28 user).
   ".ob-atmosphere",
+  // Home's Send, the shared accent icon button (buzz-home approved draft, 2026-10-29 user).
+  '.doan-icon-button[data-ui-variant="accent"]',
+  '.doan-icon-button[data-ui-variant="accent"]:hover:not(:disabled)',
+  '.doan-icon-button[data-ui-variant="accent"]:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled)',
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {
