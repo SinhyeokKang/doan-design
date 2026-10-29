@@ -85,16 +85,17 @@
 .doan-popover { width: 320px; padding: var(--space-3); }
 .doan-popover[data-ui-size="compact"] { width: 224px; }
 
-/* Toasts: one message and at most one action under it, on the same material. */
+/* Toasts: one message and at most one action on its right, on the same material. A long
+   message wraps on its own while the action stays centred beside it. */
 .doan-toast {
-  display: grid;
-  justify-items: start;
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
   width: min(384px, calc(100vw - 2 * var(--space-4)));
   padding: var(--space-3);
   overflow-wrap: anywhere;
 }
-.doan-toast .msg { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-toast .msg { flex: 1; min-width: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 
 /* ── Tooltip ─────────────────────────────────────────────────────────────────
    A near-black capsule. Its corner is half of its one-line height, so a short label stays

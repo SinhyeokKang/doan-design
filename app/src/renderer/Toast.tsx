@@ -46,7 +46,7 @@ export function useToast(restoreFocus?: (previous: HTMLElement | null) => void) 
       }}
       onMouseEnter={() => dispatch({ type: "hover", on: true })} onMouseLeave={() => { timerAt.current = performance.now(); dispatch({ type: "hover", on: false }); }}
       onFocus={event => { if (!event.currentTarget.contains(event.relatedTarget)) previousFocus.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null; dispatch({ type: "focus", on: true }); }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) { timerAt.current = performance.now(); dispatch({ type: "focus", on: false }); } }}>
-      <span className="msg">{state.toast.message}</span>{state.toast.action && <button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={action}>{state.toast.action}</button>}
+      <span className="msg">{state.toast.message}</span>{state.toast.action && <button className="btn doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={action}>{state.toast.action}</button>}
     </div>,
   };
 }
