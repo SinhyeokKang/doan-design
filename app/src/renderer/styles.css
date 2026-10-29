@@ -338,6 +338,9 @@ code, kbd { font-family: var(--type-family); }
 .ob-url-action { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
 .ob-recovery { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); width: 100%; margin-top: var(--space-4); }
 .ob-scene > .doan-notice { margin-top: var(--space-4); }
+/* Inside the setup panel the notice follows the chosen card, where the rule above does not reach; it keeps the same
+   16px the panel uses between the card and its actions. */
+.ob-project-notice { margin-top: var(--space-4); }
 /* Choice cards (D23) take the chosen card's box, so a picked project reads the same before and after it is chosen. */
 .ob-chosen, .ob-choice { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
 .ob-chosen { margin-top: var(--space-6); }
