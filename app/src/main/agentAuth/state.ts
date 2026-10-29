@@ -45,7 +45,7 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       if (event.type === "signedIn") {
         const result = event.result;
         // A replacement shares the dedicated profile and may have overwritten the previous login before failing.
-        if (result.status === "failed") return apply({ attempt: null, verified: false, error: failure(result.code, result.detail) });
+        if (result.status === "failed") return apply({ attempt: null, verified: event.kept === true && state.verified, error: failure(result.code, result.detail) });
         if (!validConnection(result.connection) || result.connection.provider !== state.provider) return reject("invalid");
         return apply({ attempt: null, connection: result.connection, generation: state.generation + 1, verified: true, expired: false, error: null });
       }
@@ -80,7 +80,7 @@ export function transition(state: AuthState, event: AuthEvent): AuthTransition {
       // Only cancellation waits for cleanup; finished attempts end with their result.
       if (!attempt.cancelled) return reject("invalid");
       // Only sign-ins are cancellable, and one may have rewritten the profile before it stopped.
-      return apply({ attempt: null, verified: false });
+      return apply({ attempt: null, verified: event.kept === true && state.verified });
     case "runConfirmed": {
       // Only the run's own connection outside any attempt: a check's or a write-back's verdict stands.
       if (!state.connection || state.connection.connectionId !== event.connectionId || state.error || state.attempt) return { ok: true, outcome: "unchanged", state };

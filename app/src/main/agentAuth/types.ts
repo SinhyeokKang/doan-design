@@ -30,18 +30,19 @@ export type CheckResult =
 export type SignInResult =
   | { status: "stored"; connection: AccountConnection }
   | { status: "failed"; code: "sign_in_failed" | "network" | "storage_failed" | "cli_install_failed"; detail?: string };
-// Report a result only after the attempt's processes and listeners are gone.
+// Report a result only after the attempt's processes and listeners are gone. kept on a failed signedIn or a settled
+// sign-in: the attempt provably left the stored connection's login as it was; absent, it may have replaced it.
 export type AuthEvent =
   | { type: "check"; attemptId: string }
   | { type: "signIn"; attemptId: string; owner: number }
   // stop: the user chose to stop the provider's runs, which the attempt waits for before changing anything.
   | { type: "signOut"; attemptId: string; running: boolean; stop?: boolean }
   | { type: "checked"; attemptId: string; result: CheckResult }
-  | { type: "signedIn"; attemptId: string; result: SignInResult }
+  | { type: "signedIn"; attemptId: string; result: SignInResult; kept?: boolean }
   | { type: "signedOut"; attemptId: string; result: { status: "removed" } | { status: "failed"; detail?: string } }
   | { type: "cancel"; attemptId: string; owner: number }
   | { type: "ownerClosed"; owner: number }
-  | { type: "settled"; attemptId: string }
+  | { type: "settled"; attemptId: string; kept?: boolean }
   | { type: "writeBackFailed"; detail?: string }
   | { type: "runConfirmed"; connectionId: string; account: AccountIdentity };
 export type AuthRejection = "busy" | "stale" | "not_owner" | "stop_required" | "not_connected" | "sign_out_failed" | "invalid";

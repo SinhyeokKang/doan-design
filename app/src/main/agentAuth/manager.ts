@@ -132,19 +132,20 @@ export class AuthManager {
         await check;
         if (options.stop && !await this.drain(provider, attemptId)) {
           // Nothing was touched: the previous login stays as it was, still used by the run that did not stop.
-          this.apply(provider, this.cancelled(provider, attemptId) ? { type: "settled", attemptId }
-            : { type: "signedIn", attemptId, result: { status: "failed", code: "sign_in_failed", detail: "running conversations did not stop" } });
+          this.apply(provider, this.cancelled(provider, attemptId) ? { type: "settled", attemptId, kept: true }
+            : { type: "signedIn", attemptId, result: { status: "failed", code: "sign_in_failed", detail: "running conversations did not stop" }, kept: true });
           return this.state(provider);
         }
         const hadConnection = this.state(provider).connection !== null;
+        const touch = { live: false };
         let outcome: SignInResult | null;
-        try { outcome = { status: "stored", connection: await this.signInFlow(provider, attemptId, owner) }; }
+        try { outcome = { status: "stored", connection: await this.signInFlow(provider, attemptId, owner, touch) }; }
         catch (error) {
           await this.discard(provider, attemptId, hadConnection);
           outcome = error instanceof Cancelled || this.cancelled(provider, attemptId) ? null
             : { status: "failed", code: error instanceof Failure ? error.code : "sign_in_failed", detail: message(error) };
         }
-        this.apply(provider, outcome ? { type: "signedIn", attemptId, result: outcome } : { type: "settled", attemptId });
+        this.apply(provider, outcome ? { type: "signedIn", attemptId, result: outcome, kept: !touch.live } : { type: "settled", attemptId, kept: !touch.live });
       } finally { if (this.writer === attemptId) this.writer = null; this.stopRequests.delete(attemptId); this.links.delete(attemptId); }
       return this.state(provider);
     })());
@@ -252,7 +253,9 @@ export class AuthManager {
     for (const provider of PROVIDERS) if ((this.holds.get(provider) ?? 0) > 0) { this.holds.set(provider, 1); await this.drop(provider); }
   }
 
-  private async signInFlow(provider: Provider, attemptId: string, owner: number): Promise<AccountConnection> {
+  // touch.live turns true once the attempt may have changed the login the stored connection uses; until then a
+  // cancel or failure leaves that connection exactly as it was.
+  private async signInFlow(provider: Provider, attemptId: string, owner: number, touch: { live: boolean }): Promise<AccountConnection> {
     const auth = this.adapters[provider];
     // A login starts from no working copy so a failed or cancelled replacement cannot leave the old one exposed.
     if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
@@ -286,6 +289,9 @@ export class AuthManager {
           }
         }, hooked?.env);
       } finally { clearTimeout(deadline); hooked?.close(); }
+      // A keychain login stores its credential into the live profile when it succeeds; before that, Claude keeps
+      // (or on a refused login restores) the previous one. Vault providers log in on a scrubbed working copy.
+      if (!auth.vault && login.code === 0) touch.live = true;
       if (this.cancelled(provider, attemptId)) throw new Cancelled();
       if (missing) throw new Failure("sign_in_failed", "no browser-hook link was accepted");
       if (login.code !== 0) throw new Failure("sign_in_failed", tail(login.stderr) ?? tail(login.stdout));
@@ -294,15 +300,25 @@ export class AuthManager {
     const checked = await this.statusRun(provider, attemptId);
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
     if (checked.status !== "connected") throw new Failure("sign_in_failed", `status after login: ${checked.status}`);
-    const profileDir = this.options.storage.profileDir(provider);
-    if (auth.vault) await this.storageStep(() => this.options.storage.absorb(provider, auth.vault!));
+    const profileDir = this.options.storage.profileDir(provider), storage = this.options.storage;
+    let sealed: Buffer | null = null;
+    if (auth.vault) await this.storageStep(async () => { sealed = await storage.seal(provider, auth.vault!); });
     else if (auth.plaintext.some(rel => existsSync(join(profileDir, rel)))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
     const connection: AccountConnection = { provider, connectionId: this.newId(), profile: provider, account: checked.account };
-    // Last cancellation point: from the metadata write to the signedIn transition only microtasks run, so no
-    // cancel or window-close event can land between a persisted connection and its state.
+    // Last cancellation point: from the vault and metadata writes to the signedIn transition only microtasks run, so
+    // no cancel or window-close event can land between a persisted connection and its state.
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
-    await this.storageStep(() => this.options.storage.writeMetadata(replaceAccount(this.options.storage.readMetadata(), provider, connection, false)));
-    if (auth.vault) await this.storageStep(() => this.options.storage.scrub(provider, auth.vault!));
+    await this.storageStep(() => {
+      const previous = sealed && storage.sealedVault(provider);
+      if (sealed) storage.storeSealed(provider, sealed);
+      try { storage.writeMetadata(replaceAccount(storage.readMetadata(), provider, connection, false)); }
+      catch (error) {
+        // The stored connection must keep the credential it was verified with.
+        if (sealed) { try { storage.storeSealed(provider, previous); } catch (restore) { touch.live = true; console.error(`doan: ${provider} previous credential could not be restored`, message(restore)); } }
+        throw error;
+      }
+    });
+    if (auth.vault) await this.storageStep(() => storage.scrub(provider, auth.vault!));
     return connection;
   }
 

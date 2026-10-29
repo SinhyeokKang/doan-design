@@ -28,13 +28,16 @@ export class AuthStorage {
     return read.metadata;
   }
   writeMetadata(metadata: AuthMetadata): void { this.replace(join(this.root, "metadata.json"), Buffer.from(serializeAuthMetadata(metadata))); }
-  async saveVault(provider: Provider, files: VaultFiles): Promise<void> {
-    const plain = JSON.stringify({ v: 1, files: Object.fromEntries(Object.entries(files).map(([rel, bytes]) => [rel, bytes.toString("base64")])) });
-    let sealed: Buffer;
-    try { if (!await this.cipher.available()) throw new Error("OS encryption is unavailable"); sealed = await this.cipher.encrypt(plain); }
-    catch (error) { throw new StorageError("key_unavailable", message(error)); }
-    this.replace(this.vaultPath(provider), sealed);
+  async saveVault(provider: Provider, files: VaultFiles): Promise<void> { this.replace(this.vaultPath(provider), await this.sealFiles(files)); }
+  // The working copy sealed as a vault image but not stored: a sign-in stores it only at its commit point, so a
+  // cancelled or failed replacement never reaches the vault the stored connection still uses.
+  async seal(provider: Provider, rels: readonly string[]): Promise<Buffer> { return this.sealFiles(this.collect(provider, rels)); }
+  // The stored image as it is on disk, or null; a sign-in puts it back when its metadata write fails.
+  sealedVault(provider: Provider): Buffer | null {
+    try { return readFileSync(this.vaultPath(provider)); }
+    catch (error) { if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
   }
+  storeSealed(provider: Provider, sealed: Buffer | null): void { if (sealed) this.replace(this.vaultPath(provider), sealed); else this.remove(this.vaultPath(provider)); }
   async loadVault(provider: Provider): Promise<VaultFiles | null> {
     let sealed: Buffer;
     try { sealed = readFileSync(this.vaultPath(provider)); }
@@ -63,16 +66,7 @@ export class AuthStorage {
   }
   // Returns whether the provider's copy differed from the vault (a refresh, a new login or a logout).
   async absorb(provider: Provider, rels: readonly string[]): Promise<boolean> {
-    const current: VaultFiles = {};
-    for (const rel of rels) {
-      try {
-        const path = this.working(provider, rel);
-        // A link would let a provider process pull an arbitrary file into the vault.
-        if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
-        current[rel] = readFileSync(path);
-      }
-      catch (error) { if (error instanceof StorageError) throw error; if (!absent(error)) throw new StorageError("unreadable", message(error)); }
-    }
+    const current = this.collect(provider, rels);
     const stored = await this.loadVault(provider);
     const same = stored !== null && Object.keys(stored).length === Object.keys(current).length && Object.entries(current).every(([rel, bytes]) => stored[rel]?.equals(bytes));
     if (same) return false;
@@ -100,6 +94,24 @@ export class AuthStorage {
     });
   }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
+  private collect(provider: Provider, rels: readonly string[]): VaultFiles {
+    const current: VaultFiles = {};
+    for (const rel of rels) {
+      try {
+        const path = this.working(provider, rel);
+        // A link would let a provider process pull an arbitrary file into the vault.
+        if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
+        current[rel] = readFileSync(path);
+      }
+      catch (error) { if (error instanceof StorageError) throw error; if (!absent(error)) throw new StorageError("unreadable", message(error)); }
+    }
+    return current;
+  }
+  private async sealFiles(files: VaultFiles): Promise<Buffer> {
+    const plain = JSON.stringify({ v: 1, files: Object.fromEntries(Object.entries(files).map(([rel, bytes]) => [rel, bytes.toString("base64")])) });
+    try { if (!await this.cipher.available()) throw new Error("OS encryption is unavailable"); return await this.cipher.encrypt(plain); }
+    catch (error) { throw new StorageError("key_unavailable", message(error)); }
+  }
   private vaultPath(provider: Provider): string { return join(this.root, "vault", `${provider}.bin`); }
   private working(provider: Provider, rel: string): string {
     const base = this.profileDir(provider), path = join(base, rel);
