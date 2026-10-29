@@ -337,6 +337,9 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
   - **Keyboard:** a native radio still sits in each card, so the arrows and Space keep working, and Enter also picks. The card draws a 2px `--border-focus` outline, offset 2px, while its radio has keyboard focus.
   - **Checkouts of one repository** (a URL inspection) show the sidebar's worktree row instead of a thumbnail: the lucide GitBranch glyph in the 32px slot (`--text-subtle`) and the branch name when the window's folder list knows it, else the folder name. Repositories found inside a picked folder keep the thumbnail.
   - **Draft:** the draft's tile draws plain radio rows.
+  - **Measured** (2026-10-29, injected markup, `.scratch/design-sync/buzz-onboarding/measure-d23.log`): every card in both lists matches the draft's chosen card in the same Electron build, with no difference. The compared parts were the box (padding, background, radius, shadow, min-height, height 72, gap), the title, the path caption and the check glyph.
+  - **The checkout tile ('Multiple local checkouts')** now differs from its radio-row drawing by 12 documented rows: the box, padding, radius, shadow and min-height of the card, and no thumbnail. This takes the total for the injected markup and real runs to 39.
+  - **Not yet re-checked:** the cards in the real flow (batch V re-checks them visually).
 - **Not in the draft — clone destination default** (user decision 2026-10-29). The default is `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
 - **Not in the draft — copy.**
   - Install failures read "Couldn’t open the <Provider> install page." Antigravity has no install page.
