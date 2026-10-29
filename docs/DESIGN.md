@@ -292,7 +292,7 @@ Evidence: the conductor's `.scratch/orch/comments-readability/evidence-E/measure
 
 ## Onboarding — buzz-onboarding first run (2026-10-29)
 
-Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 completed): ten frames and 47 state tiles. This replaces the four-step wizard measured in the next section. That wizard (CLI, Agents, Project, First prompt) was removed, and the next section is kept as history only.
+Reference: `.doan/canvases/buzz-onboarding.html`. The measurement below compared the draft approved on 2026-10-28 (F4 completed): ten frames and 47 state tiles. On 2026-10-29 the draft was redrawn from the shipped implementation as 73 full-window frames (orch D27, 'Draft redraw' below). This replaces the four-step wizard measured in the next section. That wizard (CLI, Agents, Project, First prompt) was removed, and the next section is kept as history only.
 
 ### Measurement and contracts
 
@@ -322,18 +322,21 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
 
 ### Documented differences
 
+These are differences from the 2026-10-28 draft. The D27 redraw draws each shipped state, so a difference it resolves is marked with the redrawn frame id.
+
 - **Agent frame in the real app.** The isolated app has no agent installed, so every row shows Install with its helper line. The rows are taller, and the footer's free margin is 0 instead of the draft's 68.8px. The markup run with Sign in rows matches the draft's positions.
 - **Tiles that draw the step footer.** Seven tiles draw the step footer's buttons as an sm row inside the tile: 'Checking connections', 'Connection storage failed', 'doan tools check failed', 'Multiple local checkouts', 'Setting up project', 'Finishing setup' and 'Completion could not be saved'.
   - In the app these buttons are the step's own footer: Back, Continue / Open doan / Use this folder / Retry, 40 high, at the bottom.
   - A row's single recovery action is right-aligned alone.
   - This accounts for 24 of the 25 remaining differences.
   - Buttons are paired by index, so in 'Connection storage failed' and 'doan tools check failed' the draft's Back is compared with the app's Sign in or Check again. Those rows show up as colour and alignment differences. The real buttons match exactly: Sign in is 77×32 and Check again is 114×32, with no property differences.
-- **Tile margins.** `.tile > *` margins place a tile in the specimen grid, so they are not compared.
-- **Not in the draft — 'Your projects'** (user decision 2026-10-29). When projects are registered, they are listed above 'Open a local folder' under the caption 'Your projects', as choice cards (D23 below) with the project thumbnail, followed by an sm Use this folder.
+  - Resolved by the D27 redraw: it has no tiles, and every state is a full window with the step's own footer.
+- **Tile margins.** `.tile > *` margins place a tile in the specimen grid, so they are not compared. The D27 redraw has no tiles.
+- **'Your projects'** (user decision 2026-10-29; drawn since D27: `project-your-projects`, `project-your-projects-selected`). When projects are registered, they are listed above 'Open a local folder' under the caption 'Your projects', as choice cards (D23 below) with the project thumbnail, followed by an sm Use this folder.
 - **No checkout choice on the URL path** (D25, 2026-10-29 user).
   - **What happens:** when a GitHub URL matches several local checkouts or worktrees, the app does not show 'Multiple local checkouts'. It picks one and shows it as the single 'Already on your Mac' card, with Choose another folder and Edit repository URL.
   - **Pick order:** a checkout that needs no setup; then the main checkout, whose `.git` is the common directory, read from the folder list's git facts without running git; then the most recently registered project.
-  - **If the picked checkout needs setup:** the setup screen keeps the URL context. It shows the 'Already on your Mac' heading, the read-only URL, Choose another folder (D21 remote check) and Edit repository URL, and Back returns to the editable URL (V's D25 check, 2026-10-29).
+  - **If the picked checkout needs setup:** the setup screen keeps the URL context. It shows the 'Already on your Mac' heading, the read-only URL, Choose another folder (D21 remote check) and Edit repository URL, and Back returns to the editable URL (V's D25 check, 2026-10-29). Drawn since D27: `repository-found-setup`.
   - **Other worktrees:** the user switches to them later from the shell project card's Worktrees menu.
   - **CLI and MCP:** `onboarding project inspect` still returns every candidate.
 - **Choice cards instead of radio rows** (D23, 2026-10-29 user).
@@ -342,20 +345,32 @@ Reference: `.doan/canvases/buzz-onboarding.html` (approved 2026-10-28, F4 comple
   - **Selection:** the selected card shows the chosen card's check.
   - **Keyboard:** a native radio still sits in each card, so the arrows and Space keep working, and Enter also picks. The card draws a 2px `--border-focus` outline, offset 2px, while its radio has keyboard focus.
   - **Lists that use the cards:** 'Your projects' and repositories found inside a picked folder, both with the project thumbnail. The D23 checkout list with branch rows was removed by D25.
-  - **Draft:** the draft's tile draws plain radio rows.
+  - **Draft:** the 2026-10-28 tile drew plain radio rows; the D27 redraw draws the cards (`project-your-projects-selected`, `project-repositories-in-folder`).
   - **Measured** (2026-10-29, injected markup, `.scratch/design-sync/buzz-onboarding/measure-d23.log`): every card in both lists matches the draft's chosen card in the same Electron build, with no difference. The compared parts were the box (padding, background, radius, shadow, min-height, height 72, gap), the title, the path caption and the check glyph.
-  - **The checkout tile ('Multiple local checkouts')** is no longer drawn by the app (D25), so its 12 D23 rows no longer describe a screen. The radio cards it measured are now used only for repositories inside a picked folder.
+  - **The checkout tile ('Multiple local checkouts')** is no longer drawn by the app (D25), so its 12 D23 rows no longer describe a screen. The D27 redraw has no checkout frame. The radio cards it measured are now used only for repositories inside a picked folder.
   - **Not yet re-checked:** the cards in the real flow (batch V re-checks them visually).
-- **Not in the draft — clone destination default** (user decision 2026-10-29). The default is `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
-- **Not in the draft — copy.**
+- **Clone destination default** (user decision 2026-10-29; drawn since D27: `repository-clone`). The default is `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
+- **Copy outside the 2026-10-28 draft** (drawn since D27: `agent-install-page-failed`, `agent-paste-too-long`, `repository-cleanup-failed`).
   - Install failures read "Couldn’t open the <Provider> install page." Antigravity has no install page.
   - A paste over 16,384 characters shows "This address is too long to submit." (D16) in caption `--text-danger` under the field.
   - Main's fixed messages are shown for refusals without draft copy, for example a kept clone folder: "Couldn't remove <path>. Remove it, then try again."
-- **Cancelled and failed clone** (batch V defect 1, 2026-10-29). The cancelled clone adds an sm subtle Edit repository URL under its Choose local folder / Retry row; the draft tile draws only those two. Back from a cancelled or failed clone returns to the editable URL, and the old inspection is dropped. Back→Continue would otherwise bring the same clone screen back with no way to change the URL.
-- **Folder inspection progress** (2026-10-29, batch V final check). Inspecting a picked or listed folder shows its own status, "Checking this folder" with the path (role=status). Nothing is written then; the 'Setting up your project' progress is kept for the select that writes.
-- **Clone destination inside a doan project** (D26, 2026-10-29). Main refuses it as `path_unavailable`. When the destination sits under a registered project, the clone screen says "This location is inside the doan project <name>. Choose a location outside it." with Change location (prominent). Otherwise the generic 'no longer available' notice stays, because the renderer cannot name an unregistered project.
+- **Cancelled and failed clone** (batch V defect 1, 2026-10-29). The cancelled clone adds an sm subtle Edit repository URL under its Choose local folder / Retry row; the 2026-10-28 tile drew only those two (drawn since D27: `repository-cancelled`, `repository-clone-failed`). Back from a cancelled or failed clone returns to the editable URL, and the old inspection is dropped. Back→Continue would otherwise bring the same clone screen back with no way to change the URL.
+- **Folder inspection progress** (2026-10-29, batch V final check). Inspecting a picked or listed folder shows its own status, "Checking this folder" with the path (role=status). Nothing is written then; the 'Setting up your project' progress is kept for the select that writes. Drawn since D27: `project-checking-folder`.
+- **Clone destination inside a doan project** (D26, 2026-10-29). Main refuses it as `path_unavailable`. When the destination sits under a registered project, the clone screen says "This location is inside the doan project <name>. Choose a location outside it." with Change location (prominent). Otherwise the generic 'no longer available' notice stays, because the renderer cannot name an unregistered project. Drawn since D27: `repository-inside-project`.
 - **Edit repository URL** and Back from a cancelled or failed clone move focus to the URL field.
-- **Existing folder from the URL path** (D20 and D21, 2026-10-29 user). Every folder action on the URL screens sends the folder together with the repository URL, so main checks its remote. This covers Choose existing folder, Use existing folder and Choose another folder, and the notices' Choose folder / Choose another folder / Choose local folder recoveries. A mismatch stays on that screen with Edit repository URL (subtle) and Choose another folder. The draft's mismatch tile draws Choose another folder alone.
+- **Existing folder from the URL path** (D20 and D21, 2026-10-29 user). Every folder action on the URL screens sends the folder together with the repository URL, so main checks its remote. This covers Choose existing folder, Use existing folder and Choose another folder, and the notices' Choose folder / Choose another folder / Choose local folder recoveries. A mismatch stays on that screen with Edit repository URL (subtle) and Choose another folder. The 2026-10-28 tile drew Choose another folder alone; the D27 redraw draws both (`repository-mismatch`).
+
+### Draft redraw — 2026-10-29 (D27)
+
+- **What:** the canvas now shows the shipped onboarding, one 1238 × 780 window with the shipped chrome and stepper per state: Welcome, 40 Agent states and 32 Project states (73 frames, canvas id unchanged). The tile grids are gone.
+- **How:** each frame's markup is the real components (`Welcome`, `SetupSteps`, `AgentStep`, `ProjectScreen`) rendered with controlled props at `feat-buzz-onboarding` `3331207`. The onboarding rules of `styles.css` are copied into the canvas verbatim, next to the linked `tokens.css` and `ds/index.css`.
+- **Canvas-only parts:** the wallpaper and glass behind Agent and Project (as before, not a native measurement), schematic traffic lights, modals drawn in place over a scrim, and dialogs without `autofocus`, so the canvas does not scroll on load. Announcements and focus moves are in the captions.
+- **Render check** (isolated Electron, draft served over HTTP; `.scratch/design-draft/buzz-onboarding/`):
+  - every frame is 1238 × 780 with no horizontal overflow; the 1,277 `data-doan-id` values are unique; Geist, the 190 provider marks and the grain mask load;
+  - every frame's markup put into the running app's onboarding overlay, with dialogs opened by `showModal()`: 3,870 elements, 0 computed-style or box differences from the draft;
+  - the real app's Welcome against the draft frame: 0 differences (wordmark at y 248, sentence at y 376, Get started 173 × 48 at y 468, as measured above).
+- **Scrolling:** the scene scrolls at 780px in 33 frames, as it does in the app; their captions say so.
+- **Not re-measured:** the redraw copies the code, so it checks the copy, not the design. The measured contracts above still come from the design-sync run.
 
 ### Coverage, limits and regression evidence
 
