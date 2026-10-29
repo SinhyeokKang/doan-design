@@ -35,6 +35,8 @@ export type ProjectPhase =
   | { kind: "inspecting"; url: string }
   | { kind: "candidates"; inspectionId: string; url: string | null; candidates: { path: string; changes: OnboardingChange[] }[]; choice: string }
   | { kind: "setup"; inspectionId: string; url: string | null; path: string; changes: OnboardingChange[] }
+  // A chosen folder being inspected: nothing is written yet, so it is not 'Setting up'.
+  | { kind: "checking"; path: string }
   | { kind: "selecting"; path: string }
   | { kind: "clone"; url: string; inspectionId: string | null; destination: string }
   // operationId is null until main answers; the step is busy from the click on, so nothing races the reply.
@@ -87,7 +89,7 @@ export class ProjectStepSession {
     this.waiting.clear();
   }
   // Long work (clone, setup, saving) holds Back and the stepper (design '이동·취소·포커스 계약').
-  busy(): boolean { return this.acting !== null || ["inspecting", "selecting", "cloning", "completing"].includes(this.state.phase.kind); }
+  busy(): boolean { return this.acting !== null || ["inspecting", "checking", "selecting", "cloning", "completing"].includes(this.state.phase.kind); }
   picking(): boolean { return this.choosing; }
   urlValid(): boolean { return parseGitHubUrl(this.state.url) !== null; }
 
@@ -199,7 +201,7 @@ export class ProjectStepSession {
     const at = this.fence();
     // From a URL screen a failure (a mismatch above all) stays on that screen, with the URL.
     const back: ProjectPhase = url === undefined ? { kind: "choose" } : this.state.phase;
-    this.set({ phase: { kind: "selecting", path }, error: null });
+    this.set({ phase: { kind: "checking", path }, error: null });
     const source: Inspect = url === undefined ? { path } : { path, url };
     const reply = await this.inspect(source);
     if (!this.current(at)) return;
