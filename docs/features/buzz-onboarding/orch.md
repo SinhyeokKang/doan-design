@@ -37,6 +37,7 @@
 | D24 | 자동 포커스 복구는 파일을 쓰거나 동의하는 버튼('Set up and continue', clone 시작, 'Stop and …' 확인)에 떨어지지 않고 제목이나 notice로 간다. 초기화 동의는 버튼이 보인 inspectionId·경로에 묶인 토큰으로만 보낸다 | 지휘자 판단(V 재현 안 된 동의 없는 초기화 1건) — 무심코 누른 키가 동의가 되지 않게 한다 |
 | D25 | GitHub URL이 로컬 checkout·worktree 여러 개와 맞으면 목록을 보이지 않고 하나를 자동으로 고른다: 설정이 필요 없는 것 → 본 checkout → 최근 등록 순. 'Already on your Mac' 카드 하나로 보이고 Choose another folder는 남는다. worktree 전환은 AppShell 프로젝트 카드의 'Worktrees' 메뉴에서 한다. CLI/MCP는 그대로 모든 후보를 돌려준다 | 사용자 결정(2026-10-29) — 후보는 모두 이미 등록된 프로젝트라 선택은 홈을 여는 checkout만 정하고, LNB에서 바꿀 수 있다 |
 | D26 | clone 목적지가 doan 프로젝트 안이면 "This location is inside the doan project <name>. Choose a location outside it."와 Change location을 보인다. 폴더 검사 중에는 "Checking this folder"를 보인다. 'Edit repository URL' 뒤 포커스는 URL 입력칸이다 | 지휘자 판단(V 최종 확인 메모) — 원인을 말하지 않는 문구와 아직 쓰지 않는데 설정 중이라는 문구를 바로잡는다 |
+| D27 | `.doan/canvases/buzz-onboarding.html`을 출하된 구현 기준으로 다시 그린다. 상태마다 1238×780 전체 창 프레임 하나를 두고 tile 격자는 없앤다 | 사용자 요청(2026-10-29) — 확정 디자인을 상태별로 1:1로 보고 대조한다 |
 
 ## 배치
 
@@ -125,3 +126,4 @@
 - 2026-10-29: V 최종 확인(`fdd9d8d`): D23 'Your projects' 카드 통과, 동의 시나리오 7회(키 섞은 4회 포함) 모두 setup 화면에서 멈춤, D24 포커스 통과. 미검증: stop 확인 대화상자(ready Claude 행에서 진입 경로 없음). Keychain 기준선 일치. D26으로 U에 작은 수정을 보냈다. V release.
 - 2026-10-29: O1·O2 Claude 재측정(`buzz-onboarding-261029-o2`, `020a76c`) 둘 다 pass, 실제 상태 변화 없음. V3 정본 승격을 배치 D(Opus high, bo-D)에 맡겼다(DESIGN.md·feature 디렉터리 삭제 제외).
 - 2026-10-29: D26 통합(bf2e665..7254806, 등록된 프로젝트 안이면 이름을 넣은 문구, 미등록이면 기존 문구 유지). V D25·D26 확인 시작.
+- 2026-10-29: 사용자 요청으로 초안 재작성 배치 DR(Opus high, bo-DR) 시작. 결정 D27.
