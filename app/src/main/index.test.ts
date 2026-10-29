@@ -46,6 +46,7 @@ const mocks = await vi.hoisted(async () => {
     startShell: vi.fn(),
     cliCommand: vi.fn(() => "/bundled/doan"),
     runConfig: vi.fn(),
+    runDesignSkill: vi.fn(),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
@@ -84,7 +85,7 @@ vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOrig
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/completion", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/completion")>(), readCompletion: mocks.readCompletion }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: vi.fn(async () => ({ ok: false })), PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
-vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder }));
+vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./folderStore", () => ({ readFoldersFileForPruning: mocks.readFoldersFileForPruning }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
@@ -506,6 +507,46 @@ test.each(["orphan-mutate", "orphan-status"])("comments %s refuses iframe and ot
     expect(await invoke(`comments:${method}`, sender, parent, {})).toEqual({ ok: false, identity: null, error: "The request was refused." });
   }
   expect(await invoke(`comments:${method}`, window().webContents, null, { forged: true })).toMatchObject({ ok: false });
+});
+
+describe("design skills", () => {
+  const LIST = { v: 1, ok: true, result: { version: "9.8.7", presets: [{ id: "clarify", title: "Clarify copy", description: "d", scope: "copy" }] } };
+  const BODY = "# Clarify copy\n\n[doan:design-skill] end of preset clarify v9.8.7\n";
+  const GET = { v: 1, ok: true, result: { version: "9.8.7", preset: LIST.result.presets[0], body: BODY, sources: [{ repository: "r", commit: "c", path: "p" }] } };
+  const USAGE = { v: 1, ok: false, error: { code: "usage_error", message: "unknown design preset \"nonexistent\"", nextSteps: ["Run `doan design-skill --json` to list design preset ids."] } };
+  const REFUSED = { v: 1, ok: false, error: { code: "request_refused", message: expect.any(String), nextSteps: [] } };
+  const cliRun = (envelope: unknown, exitCode = 0) => ({ exitCode, timedOut: false, stdout: JSON.stringify(envelope), stderr: "" });
+
+  test("the main window lists and reads presets through the bundled CLI", async () => {
+    mocks.runDesignSkill.mockResolvedValueOnce(cliRun(LIST)).mockResolvedValueOnce(cliRun(GET));
+    expect(await invoke("design-skills:list", window().webContents, null)).toEqual(LIST);
+    expect(mocks.runDesignSkill).toHaveBeenLastCalledWith("/bundled/doan");
+    expect(await invoke("design-skills:get", window().webContents, null, { id: "clarify" })).toEqual(GET);
+    expect(mocks.runDesignSkill).toHaveBeenLastCalledWith("/bundled/doan", "clarify");
+  });
+
+  test("keeps a CLI failure and reports a broken run as cli_error", async () => {
+    mocks.runDesignSkill.mockResolvedValueOnce(cliRun(USAGE, 2))
+      .mockResolvedValueOnce({ exitCode: null, timedOut: true, stdout: "", stderr: "" })
+      .mockResolvedValueOnce(cliRun({ ...GET, result: { ...GET.result, body: "# Clarify copy\n" } }));
+    expect(await invoke("design-skills:get", window().webContents, null, { id: "nonexistent" })).toEqual(USAGE);
+    expect(await invoke("design-skills:list", window().webContents, null)).toMatchObject({ v: 1, ok: false, error: { code: "cli_error", reason: "timeout" } });
+    expect(await invoke("design-skills:get", window().webContents, null, { id: "clarify" })).toMatchObject({ v: 1, ok: false, error: { code: "cli_error", reason: "invalid_response" } });
+    // No automatic retry: one request, one run.
+    expect(mocks.runDesignSkill).toHaveBeenCalledTimes(3);
+  });
+
+  test("refuses canvas iframes, other senders and malformed requests without running the CLI", async () => {
+    for (const [sender, parent] of [[window().webContents, {}], [{}, null]]) {
+      expect(await invoke("design-skills:list", sender, parent)).toEqual(REFUSED);
+      expect(await invoke("design-skills:get", sender, parent, { id: "clarify" })).toEqual(REFUSED);
+    }
+    for (const bad of [undefined, "clarify", { id: 1 }, { id: "clarify", args: ["--repo", "/"] }]) {
+      expect(await invoke("design-skills:get", window().webContents, null, bad)).toEqual(REFUSED);
+    }
+    expect(await invoke("design-skills:list", window().webContents, null, { all: true })).toEqual(REFUSED);
+    expect(mocks.runDesignSkill).not.toHaveBeenCalled();
+  });
 });
 
 test("an orphan write is judged on a fresh ls of its root", async () => {
@@ -1306,6 +1347,14 @@ describe("settings window", () => {
   test("opens on the last saved tab", async () => {
     mocks.uiState.readSettingsTab.mockReturnValue("projects");
     expect((await openSettings()).options.title).toBe("Projects");
+  });
+
+  test("Settings cannot read design presets", async () => {
+    const contents = (await openSettings()).webContents;
+    const refused = { v: 1, ok: false, error: { code: "request_refused", message: expect.any(String), nextSteps: [] } };
+    expect(await invoke("design-skills:list", contents, null)).toEqual(refused);
+    expect(await invoke("design-skills:get", contents, null, { id: "clarify" })).toEqual(refused);
+    expect(mocks.runDesignSkill).not.toHaveBeenCalled();
   });
 
   test("Settings refuses main-only channels like a foreign sender, and only Settings gets config", async () => {

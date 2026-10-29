@@ -381,3 +381,13 @@ test("delivers this window's sign-in links until unsubscribed", () => {
   expect(prompts).toEqual([{ provider: "copilot", attemptId: "a1", url: "https://github.com/login" }]);
   expect(emitter.listenerCount("agent-auth:prompt")).toBe(0);
 });
+
+test("design skills read through two fixed channels and pass the id as data", async () => {
+  const reply = { v: 1, ok: true, result: { version: "dev", presets: [] } };
+  mocks.invoke.mockResolvedValueOnce(reply);
+  expect(await api.designSkills.list()).toBe(reply);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("design-skills:list");
+  await api.designSkills.get("clarify");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("design-skills:get", { id: "clarify" });
+  expect(Object.keys(api.designSkills).sort()).toEqual(["get", "list"]);
+});
