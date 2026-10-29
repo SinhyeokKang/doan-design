@@ -449,7 +449,7 @@ test("D20: an existing folder chosen from the URL path is inspected with that UR
   h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "remote_mismatch", message: "x" } })));
   await h.session.chooseExisting();
   expect(h.api.inspectOnboardingProject.mock.calls.at(-1)![0]).toMatchObject({ path: "/code/other", url: "https://github.com/acme/studio" });
-  expect(h.session.state.error?.code).toBe("remote_mismatch");
+  expect(h.session.state.error).toMatchObject({ code: "remote_mismatch", path: "/code/other" });
   expect(phase(h)).toMatchObject({ kind: "clone", destination: "/Users/ada/studio" });
   h.queue.inspect!.push(refused("destination_exists"));
   await h.session.retry();

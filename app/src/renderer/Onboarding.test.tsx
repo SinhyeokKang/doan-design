@@ -448,3 +448,64 @@ test("spacing: a project notice keeps the step's 16px gap wherever it stacks, al
   // The notice follows the chosen card inside .ob-setup, where .ob-scene > .doan-notice does not reach.
   expect(html).toMatch(/<div class="doan-panel ob-chosen">.*?<\/div><div class="doan-notice error doan-panel ob-project-notice"/);
 });
+
+test("D28: a notice's recovery actions and the screen's own actions never repeat", () => {
+  const count = (html: string, label: string) => html.split(`>${label}</button>`).length - 1;
+  const url = "https://github.com/acme/studio";
+  const clone = { url, phase: { kind: "clone" as const, url, inspectionId: null, destination: "/Users/ada/code/studio" } };
+  // 56: the notice keeps only Back to agents; the screen keeps its Choose another folder.
+  expect(projectNotice("no_ready_agent", undefined, null).actions.map(a => `${a.variant}:${a.label}`)).toEqual(["prominent:Back to agents"]);
+  const blocked = screen({ phase: { kind: "ready", root: "/Users/ada/code/doan-design" } }, { agentReady: false });
+  expect(count(blocked, "Choose another folder")).toBe(1);
+  expect(count(blocked, "Back to agents")).toBe(1);
+  // 65: the notice offers both, so the 'Already have this repository?' row goes.
+  const mismatch = screen({ ...clone, error: { code: "remote_mismatch", path: "/Users/ada/code/other" } });
+  expect(mismatch).not.toContain("Already have this repository?");
+  expect(mismatch).not.toContain(">Choose existing folder</button>");
+  expect(count(mismatch, "Edit repository URL")).toBe(1);
+  expect(count(mismatch, "Choose another folder")).toBe(1);
+  const found = screen({ url, phase: { kind: "candidates", inspectionId: "i", url, candidates: [{ path: "/Users/ada/code/studio", changes: [] }], choice: "/Users/ada/code/studio" }, error: { code: "remote_mismatch", path: "/Users/ada/code/other" } });
+  expect(count(found, "Edit repository URL")).toBe(1);
+  expect(count(found, "Choose another folder")).toBe(1);
+  // 66: Use existing folder answers 'Already have this repository?'; Change location replaces the card's Change.
+  const exists = screen({ ...clone, error: { code: "destination_exists" } });
+  expect(exists).not.toContain("Already have this repository?");
+  expect(exists).not.toContain(">Choose existing folder</button>");
+  expect(count(exists, "Edit repository URL")).toBe(1);
+  expect(count(exists, "Change")).toBe(0);
+  expect(count(exists, "Change location")).toBe(1);
+  // 67 and 71: only the card's Change repeats Change location; the row stays.
+  for (const html of [screen({ ...clone, error: { code: "path_unavailable" } }, { projects: ["/Users/ada/code"] }), screen({ ...clone, error: { code: "clone_failed" } })]) {
+    expect(count(html, "Change")).toBe(0);
+    expect(count(html, "Change location")).toBe(1);
+    expect(html).toContain("Already have this repository?");
+  }
+  // 72: Retry repeats nothing, so the screen is unchanged.
+  const cleanup = screen({ ...clone, error: { code: "cleanup_failed", message: "Couldn't remove /Users/ada/.studio.doan-clone-x. Remove it, then try again." } });
+  expect(count(cleanup, "Change")).toBe(1);
+  expect(cleanup).toContain("Already have this repository?");
+  // The same rule wherever a notice sits next to a small-action row.
+  const setup = screen({ url, phase: { kind: "setup", inspectionId: "i", url, path: "/Users/ada/code/studio", changes: [".doan/config.json"] }, error: { code: "init_failed" } });
+  expect(count(setup, "Choose another folder")).toBe(1);
+  expect(count(setup, "Edit repository URL")).toBe(1);
+  const gone = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/a" }, { path: "/b" }].map(c => ({ ...c, changes: [] })), choice: "/a" }, error: { code: "project_unavailable" } });
+  expect(count(gone, "Choose folder")).toBe(1);
+  expect(count(gone, "Choose another folder")).toBe(0);
+});
+
+test("D28: a mismatch names the chosen folder on both URL screens", () => {
+  expect(projectNotice("remote_mismatch", "x", null, true, null, "/Users/ada/code/other").body).toBe("other belongs to a different repository.");
+  expect(projectNotice("remote_mismatch", "x", null, true).body).toBe("This folder belongs to a different repository.");
+  const url = "https://github.com/acme/studio";
+  const clone = screen({ url, phase: { kind: "clone", url, inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "remote_mismatch", path: "/Users/ada/code/other" } });
+  expect(clone).toContain("other belongs to a different repository.");
+  const found = screen({ url, phase: { kind: "setup", inspectionId: "i", url, path: "/Users/ada/code/studio", changes: [".doan/config.json"] }, error: { code: "remote_mismatch", path: "/Users/ada/code/other" } });
+  expect(found).toContain("other belongs to a different repository.");
+});
+
+test("D28: Cloning was cancelled is a status notice panel like the other states", () => {
+  const url = "https://github.com/acme/studio";
+  const cancelled = screen({ url, phase: { kind: "cloneCancelled", url, destination: "/Users/ada/code/studio" } });
+  expect(cancelled).toMatch(/<div class="doan-notice doan-panel ob-project-notice" role="status" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Cloning was cancelled\. Choose a folder or try again\.<\/span><\/div>/);
+  expect(cancelled).not.toContain('<p class="ob-provider-help">Cloning was cancelled');
+});
