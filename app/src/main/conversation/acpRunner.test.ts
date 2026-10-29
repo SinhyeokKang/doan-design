@@ -239,3 +239,9 @@ it("sends no image block to an Antigravity server that does not take images", as
   await runner.send("hi", "turn", [{ name: "a.png", size: 8, kind: "image", path: small }]);
   expect(logged(log).find(r => r.method === "session/prompt")!.params!.prompt).toEqual([{ type: "text", text: "hi" }]);
 });
+it("does not set a model the opened session already runs", async () => {
+  const log = logFile();
+  const runner = await openAcp(input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_MODELS: JSON.stringify(MODELS) }, model: MODELS.currentModelId }), () => {}, () => {}, () => {});
+  await runner.send("hi", "turn");
+  expect(logged(log).some(r => r.method === "session/set_config_option")).toBe(false);
+});

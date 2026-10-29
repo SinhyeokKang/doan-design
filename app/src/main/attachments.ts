@@ -1,4 +1,4 @@
-import { closeSync, constants, fstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmSync, statSync, writeFileSync, lstatSync } from "node:fs";
+import { closeSync, constants, fstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmSync, writeFileSync, lstatSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { basename, extname, isAbsolute, join } from "node:path";
 import type { AttachmentRecord } from "./conversation/types";
@@ -62,10 +62,12 @@ export class AttachmentStore {
   }
   addPaths(value: unknown): AttachmentResult[] | null {
     if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return null;
-    const paths: unknown = value.paths;
-    if (!Array.isArray(paths) || paths.length === 0 || paths.length > 64 || !paths.every(p => typeof p === "string" && p.length <= MAX_PATH && isAbsolute(p) && !p.includes("\0"))) return null;
+    if (!Array.isArray(value.paths)) return null;
+    // Spread first: IPC keeps an array's holes and every() skips them.
+    const paths: unknown[] = [...value.paths];
+    if (paths.length === 0 || paths.length > 64 || !paths.every(p => typeof p === "string" && p.length <= MAX_PATH && isAbsolute(p) && !p.includes("\0"))) return null;
     let accepted = 0;
-    return paths.map((path: string) => {
+    return (paths as string[]).map(path => {
       const name = basename(path);
       if (accepted >= MAX_ATTACHMENTS) return { ok: false, name, error: "limit" };
       const checked = this.check(path); if ("error" in checked) return { ok: false, name, error: checked.error };
@@ -91,12 +93,13 @@ export class AttachmentStore {
     this.entries.set(id, entry);
     return { ok: true, attachment: this.info(entry) };
   }
-  // A pasted image removed before sending is deleted; a local file is only forgotten.
+  // A pasted image removed before sending is deleted, even one a refused start marked sent; a local file is only
+  // forgotten. An accepted start consumed its entries, so its files never reach here.
   remove(value: unknown): boolean {
     const id = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "id" in value && typeof value.id === "string" ? value.id : null;
     const entry = id ? this.entries.get(id) : undefined; if (!entry) return false;
     this.entries.delete(entry.id);
-    if (entry.dir && !this.sent(entry.dir)) rmSync(entry.dir, { recursive: true, force: true });
+    if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
     return true;
   }
   // The send-time recheck: each file must still be the regular file at the path that was checked.
@@ -130,7 +133,6 @@ export class AttachmentStore {
     if (!Array.isArray(value)) return;
     for (const item of value) if (typeof item === "object" && item !== null && "id" in item && typeof item.id === "string") this.entries.delete(item.id);
   }
-  private sent(dir: string): boolean { try { return statSync(join(dir, SENT)).isFile(); } catch { return false; } }
   private check(path: string): Omit<AttachmentRecord, "path"> & { path: string } | { error: AttachmentError } {
     let real: string, size: number, head: Uint8Array;
     try { real = realpathSync.native(path); ({ size, head } = readHead(real)); }

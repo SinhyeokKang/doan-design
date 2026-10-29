@@ -121,3 +121,15 @@ it("keeps the attachment channels to the main window", () => {
     expect(senderAllowed(channel, "settings")).toBe(false);
   }
 });
+it("refuses a sparse path list as IPC delivers it", () => {
+  const f = fixture(); const local = join(f.files, "a.txt"); writeFileSync(local, "a");
+  // eslint-disable-next-line no-sparse-arrays
+  expect(f.store.addPaths(structuredClone({ paths: [local, , local] }))).toBeNull();
+});
+it("deletes a paste marked sent by a start that was then refused, once its chip is removed", () => {
+  const f = fixture();
+  const pasted = ok(f.store.addPasted({ bytes: new Uint8Array(PNG) }));
+  f.store.markSent([{ id: pasted.id }]);
+  expect(f.store.remove({ id: pasted.id })).toBe(true);
+  expect(existsSync(pasted.path)).toBe(false);
+});
