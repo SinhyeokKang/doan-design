@@ -120,3 +120,4 @@
 - 2026-10-29: D24 통합(00fba93, c97b81e → `fdd9d8d`). V 최종 확인(D23 카드, 동의 시나리오 재시도, D24 포커스) 시작.
 - 2026-10-29: G2 통합(eb341c7..3aa40fb → `7b58596`). O1·O2 재측정 라운드 `buzz-onboarding-261029-o` 시작. 결정 D25를 U에 보냈고 V에 부탁한 checkout 스크린샷은 취소했다.
 - 2026-10-29: O1·O2 재측정(`buzz-onboarding-261029-o`, `7b58596`): O2-Claude pass, O1-Claude fail(이미 허락했는데 다시 물음 — G2 지시가 과했음), Codex O1·O2 fail(가이드대로 sandbox 안내 후 멈춤, MCP 없는 시나리오라 통과 불가). 실제 상태 변화 없음. G3: 가이드 동의 규칙 보정, Codex O1·O2를 R2처럼 알려진 조건으로 표시(MCP 변형 시나리오는 후속).
+- 2026-10-29: D25 통합(d705a03..55ac9e0): URL 후보가 여럿이면 자동 선택(설정 불필요 → 본 checkout → 최근 등록), 본 checkout은 창의 folder-list git 정보로 판별(git 실행·schema 변경 없음). URL checkout 목록과 D23 브랜치 행 제거, 'Your projects'는 카드 유지.
