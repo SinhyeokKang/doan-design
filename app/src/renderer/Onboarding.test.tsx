@@ -5,7 +5,7 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
@@ -199,7 +199,8 @@ test("U2 Choose your project: local folder card, divider, URL field and a disabl
 test("U2 Your projects lists registered projects with the sidebar thumbnail rule", () => {
   const html = screen({ listChoice: "/Users/ada/code/doan-design" }, { projects: ["/Users/ada/code/doan-design"] });
   expect(html).toContain('<div class="ob-field-label">Your projects</div>');
-  expect(html).toMatch(/<label class="ob-choice"><input type="radio" name="Your projects" checked=""\/><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><span><strong>doan-design<\/strong><small>~\/code\/doan-design<\/small><\/span><\/label>/);
+  // D23: each project is a selectable card like the chosen card; the selected one carries its check.
+  expect(html).toMatch(/<div role="radiogroup" aria-label="Your projects" class="ob-choice-list"><label class="doan-panel ob-choice"><input type="radio" name="Your projects" checked=""\/><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><span class="ob-choice-text"><strong>doan-design<\/strong><small>~\/code\/doan-design<\/small><\/span><svg[^>]*lucide-check[^>]*>/);
   expect(html).toContain('data-ui-size="sm">Use this folder</button>');
 });
 
@@ -348,4 +349,38 @@ test("V fix: a cancelled clone offers Edit repository URL under its Choose local
   expect(html).toContain('data-ui-variant="subtle" data-ui-size="sm">Choose local folder</button><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Retry</button></div><div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Edit repository URL</button></div>');
   const failed = screen({ url: "https://github.com/acme/studio", phase: { kind: "clone", url: "https://github.com/acme/studio", inspectionId: null, destination: "/Users/ada/code/studio" }, error: { code: "clone_failed" } });
   expect(failed).toContain(">Edit repository URL</button>");
+});
+
+
+test("D23: checkouts of one repository are cards with the branch icon and the branch name when known, else the folder name", () => {
+  const candidates = [{ path: "/Users/ada/code/doan-design", changes: [] }, { path: "/Users/ada/worktrees/doan-design/auth", changes: [] }];
+  const html = screen({ phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/x/doan-design", candidates, choice: "/Users/ada/worktrees/doan-design/auth" } },
+    { branch: path => path.endsWith("/auth") ? "feat-auth" : null });
+  expect(html.match(/class="doan-panel ob-choice"/g)).toHaveLength(2);
+  expect(html.match(/lucide-git-branch/g)).toHaveLength(2);
+  expect(html).not.toContain("onboarding-thumbnail");
+  expect(html).toContain('<span class="ob-choice-text"><strong>doan-design</strong><small>~/code/doan-design</small></span></label>');
+  expect(html).toMatch(/<span class="ob-choice-text"><strong>feat-auth<\/strong><small>~\/worktrees\/doan-design\/auth<\/small><\/span><svg[^>]*lucide-check/);
+  // Repositories found inside a picked folder are different projects: they keep the thumbnail.
+  const folders = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates, choice: candidates[0]!.path } });
+  expect(folders).toContain("onboarding-thumbnail");
+  expect(folders).not.toContain("lucide-git-branch");
+});
+
+test("D23: a choice card keeps radio keys: Enter on the focused radio picks it", () => {
+  const pick = vi.fn();
+  const tree = ProjectChoice({ paths: ["/a/one", "/b/two"], choice: "/a/one", home: null, pick, name: "Local checkouts" }) as ReactElement<{ children: ReactElement<{ children: ReactElement<{ onKeyDown?: (e: unknown) => void; type?: string }>[] }>[] }>;
+  const second = tree.props.children[1]!;
+  const input = (second.props.children as unknown as ReactElement<{ onKeyDown: (e: unknown) => void; type: string }>[]).find(c => c?.props?.type === "radio")!;
+  const event = { key: "Enter", preventDefault: vi.fn() };
+  input.props.onKeyDown(event);
+  expect(pick).toHaveBeenCalledWith("/b/two");
+  expect(event.preventDefault).toHaveBeenCalled();
+});
+
+test("D23: choice cards take the chosen card's box and show keyboard focus on the card", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ob-chosen, \.ob-choice \{[^}]*min-height: var\(--size-row\);[^}]*padding: var\(--space-4\);/);
+  expect(css).toMatch(/\.ob-choice:has\(input:focus-visible\) \{[^}]*outline:/);
 });
