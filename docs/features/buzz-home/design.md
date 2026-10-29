@@ -80,6 +80,7 @@
 
 ### 4.3 공급자·모델 선택기 — 공급자 (2026-10-29 user: 연결 안 된 공급자는 그리지 않는다, 모델과 한 선택기)
 
+- 도구 줄의 `+`·프리셋 버튼·모델·effort는 모두 `--text-standard` 글자·아이콘이고, 모델과 effort는 평소에는 채움 없는 sm 버튼이라 hover·열림에서만 바탕이 보인다(2026-10-29 user).
 - 공급자와 모델은 도구 줄의 한 선택기다(2026-10-29 user). 공급자는 **로고로만** 보이고 이름은 접근 가능한 이름과 툴팁에 둔다. 모델만 텍스트로 보인다. 닫혀 있을 때 `[로고] <model label> ⌄`(모델이 Default면 `[로고] Default ⌄`)이다. effort는 별도 캡슐이다(§4.7). 로고는 온보딩이 쓰는 `app/src/renderer/public/provider-logos/`를 재사용한다. 펼치면 공급자별 묶음(머리에 로고와 공급자 이름) 아래 그 공급자의 모델 행이 있고, 모델 행을 고르면 공급자와 모델이 함께 정해진다. 모델 목록이 아직 없는 공급자는 'Default' 행 하나이고, 묶음을 펼칠 때 목록을 읽는다(§4.7).
 
 - agent-auth의 다섯 공급자 중 **저장된 연결이 있는 공급자만** 정해진 순서로 보인다. 연결이 없는 공급자(`not_connected`, 즉 상태 DTO의 phase `disconnected`)는 목록에 없다. 로그인·설치 동작은 홈에 두지 않는다.
@@ -164,7 +165,7 @@
 - 새 main API `conversation:models {runtime}` → `{models: {id, label, default, efforts?: string[]}[]} | {error}`. 결과는 공급자의 연결 세대·설치 버전이 바뀔 때까지 main이 메모리에 보관한다. 목록을 얻으려고 모델 요청(과금 요청)을 쓰는 공급자는 사람이 선택기를 열 때만 읽는다.
 - 선택: `startConversation`의 `model?: string`. main은 마지막으로 받은 그 공급자의 목록에 있는 id만 받는다(그 외 `bad_request`). 고른 모델은 index 메타데이터에 남겨 같은 대화의 다음 send가 같은 모델을 쓴다(buzz-conversation이 소비). index 버전을 올릴지 선택 필드로 v2에 더할지는 `/tdd`에서 기존 판독기를 읽고 정한다.
 - 기본값: 공급자별로 이 기기에서 마지막으로 고른 모델(ui-state `home.models[provider]`). 목록에 없으면 공급자 기본값.
-- **effort**(2026-10-29 user): 모델과 나눈 별도 컨트롤이다. 고른 모델이 effort 단계를 알려줄 때만 모델 선택기 오른쪽에 effort 캡슐(`◔ High ⌄`, subtle sm 버튼, Gauge 아이콘은 Buzz `ComposerModels.tsx`의 effort 아이콘과 같다)이 생기고, 누르면 그 모델의 단계만 담은 compact 메뉴가 열린다. 모델 선택기 안에서는 effort를 고르지 않고, effort를 지원하는 모델 행에 'Effort' 표시만 단다. 단계가 없는 모델로 바꾸면 캡슐이 사라지고, 다시 돌아오면 그 모델에 마지막으로 고른 단계가 돌아온다. 단계를 알려주지 않는 모델·공급자에는 effort UI가 없다. Claude Agent SDK 0.3.312의 `ModelInfo.supportsEffort`·`supportedEffortLevels`(low/medium/high/xhigh/max)와 시작 옵션 `effort`(`sdk.d.ts` 1433·1965행 확인)가 출처 후보다. Codex·ACP 공급자의 effort 출처는 P1에서 확인한다. `startConversation`에 `effort?: string`을 더하고, main은 그 모델의 마지막 목록에 있는 단계만 받는다. 기본값은 모델별로 마지막에 고른 단계, 없으면 공급자 기본값(값을 보내지 않음)이다.
+- **effort**(2026-10-29 user): 모델과 나눈 별도 컨트롤이다. 고른 모델이 effort 단계를 알려줄 때만 모델 선택기 오른쪽에 effort 캡슐(`◔ High ⌄`, Gauge 아이콘은 Buzz `ComposerModels.tsx`의 effort 아이콘과 같다)이 생기고, 누르면 그 모델의 단계만 담은 compact 메뉴가 열린다. 모델 선택기 안에서는 effort를 고르지 않고, effort를 지원하는 모델 행에 'Effort' 표시만 단다. 단계가 없는 모델로 바꾸면 캡슐이 사라지고, 다시 돌아오면 그 모델에 마지막으로 고른 단계가 돌아온다. 단계를 알려주지 않는 모델·공급자에는 effort UI가 없다. Claude Agent SDK 0.3.312의 `ModelInfo.supportsEffort`·`supportedEffortLevels`(low/medium/high/xhigh/max)와 시작 옵션 `effort`(`sdk.d.ts` 1433·1965행 확인)가 출처 후보다. Codex·ACP 공급자의 effort 출처는 P1에서 확인한다. `startConversation`에 `effort?: string`을 더하고, main은 그 모델의 마지막 목록에 있는 단계만 받는다. 기본값은 모델별로 마지막에 고른 단계, 없으면 공급자 기본값(값을 보내지 않음)이다.
 
 ### 4.8 첨부 (2026-10-29 user: 파일을 보내지 않고 로컬 경로를 알려준다)
 
