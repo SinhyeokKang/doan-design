@@ -463,3 +463,29 @@ exit 1
     kind: "error", message: raw ? "raw claude /codex/path failed\n" : `${agent === "claude" ? "Claude Code" : "Codex"} failed. Choose Check Again.`,
   });
 });
+
+const BUNDLED_STUB = readFileSync(join(__dirname, "SKILL.md"), "utf8");
+// The stub shipped from c994913 until design presets; existing installs hold these bytes.
+const PRESET_LESS_STUB = readFileSync(join(__dirname, "fixtures/SKILL-c994913.md"), "utf8");
+test("the bundled stub points to design presets through the guide without listing them", () => {
+  for (const text of ["doan skill", "`skill`", "doan design-skill", "doan design-skill <id>", "design_skill", "[doan:skill] end of guide"]) expect(BUNDLED_STUB).toContain(text);
+  for (const preset of ["clarify", "context", "polish"]) expect(BUNDLED_STUB).not.toContain(preset);
+  expect(BUNDLED_STUB).not.toBe(PRESET_LESS_STUB);
+});
+test("connect writes the exact bundled stub bytes", async () => {
+  agent("claude"); const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  expect(await m.run({ step: "connect", agent: "claude", expected: (await m.read("2")).expected })).toEqual({ kind: "success" });
+  expect(readFileSync(join(home, ".agents/skills/doan/SKILL.md"), "utf8")).toBe(BUNDLED_STUB);
+  expect((await m.read("3")).stub.state).toBe("ours");
+});
+test("a stub installed before design presets differs and is replaced only after confirmation", async () => {
+  agent("claude"); const m = machine(); await m.run({ step: "cli", expected: (await m.read("1")).expected });
+  const stub = join(home, ".agents/skills/doan/SKILL.md"); file(stub, PRESET_LESS_STUB);
+  const state = await m.read("2"); expect(state.stub.state).toBe("differs");
+  const asked = await m.run({ step: "connect", agent: "claude", expected: state.expected });
+  if (asked.kind !== "confirm") throw new Error("confirmation absent");
+  expect(asked).toMatchObject({ target: "stub", message: "Your edits to SKILL.md will be replaced." });
+  expect(readFileSync(stub, "utf8")).toBe(PRESET_LESS_STUB);
+  expect(await m.answer({ id: asked.id, allow: true })).toEqual({ kind: "success" });
+  expect(readFileSync(stub, "utf8")).toBe(BUNDLED_STUB);
+});

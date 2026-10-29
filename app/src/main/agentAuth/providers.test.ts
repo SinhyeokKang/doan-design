@@ -103,4 +103,10 @@ describe("provider auth adapters", () => {
     const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
     for (const provider of ["claude", "codex"] as const) expect(PROVIDER_AUTH[provider].settings).toEqual({ "skills/doan/SKILL.md": stub });
   });
+  it("gives every dedicated profile the same stub bytes as the shared machine install", () => {
+    const stub = readFileSync(join(__dirname, "../onboarding/SKILL.md"), "utf8");
+    const stubs = (["claude", "codex", "cursor", "antigravity", "copilot"] as const).map(provider =>
+      Object.entries(PROVIDER_AUTH[provider].settings).filter(([rel]) => rel.endsWith("skills/doan/SKILL.md")).map(([, text]) => text));
+    expect(stubs).toEqual([[stub], [stub], [stub], [stub], [stub]]);
+  });
 });
