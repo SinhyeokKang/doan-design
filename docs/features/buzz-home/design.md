@@ -322,5 +322,16 @@ doan이 다르게 가는 점:
   - 남은 10건은 캔버스 전용(목업 그림, 포인터)이거나 출하 CSS에서 복사한 값(`.toast` bottom 20px)이다.
   - 따로 만들었던 컴포넌트는 공용 프리미티브로 바꿨다. 그룹 탭 → `doan-button` sm(`prominent`/`trigger`), 트레이 워크트리 → `doan-button` sm `trigger`, 오류·안내 줄 → `doan-notice error doan-panel` + `doan-alert-icon`(흰 패널·panel elevation·12/16px 여백·진한 글자, 온보딩 `ob-project-notice`·`ob-list-notice`와 같은 조합; 처음에 inset 회색 기본형을 썼다가 2026-10-29 사용자 지적으로 바꿈), 검색 입력 → `doan-input` sm, 토스트 → `doan-toast`.
   - 칩 × 버튼은 맞는 공용 크기가 없어서 `doan-icon-button` `xs`(24px, 새 `--size-control-xs`)를 제안했다(U0).
+- 프리미티브 패턴 대조(2026-10-29 user 요청). 기준은 리디자인이 끝난 화면(buzz-ds 프리미티브, buzz-shell, buzz-onboarding)의 출하 사용 방식이다. 리디자인 전인 Quick Open(`qo-*`)과 워크스페이스 상태 줄(`ws-status`)은 기준에서 뺐다. 어긋난 곳과 바꾼 것:
+  1. 메뉴에 `doan-menu`가 없었다 → 공급자·모델, effort, 프로젝트, 워크트리 메뉴를 `doan-floating doan-menu`로. 프리셋 팝오버는 검색·탭이 있는 팝오버라 메뉴 폭 상한(320)을 따르지 않는 컴포넌트 상수(600)로 둔다.
+  2. 워크트리 메뉴가 LNB 프로젝트 메뉴와 달랐다 → `shell-project-menu` + `doan-menu-head` "Worktrees" + `shell-worktree` 두 줄 행(244px, 경로 11/14)을 그대로 쓴다.
+  3. 문제 상태 칩이 `doan-chip`이었다 → 출하 상태 칩 `.ob-chip`(Missing `warn`, Not set up 무채색, Home 카드와 같은 매핑).
+  4. 공급자 묶음 머리가 따로 만든 `.agent-head`였다 → `doan-menu-head`에 로고만 더한다.
+  5. 팝오버 안의 알림이 패널형이었다 → 표면 안에서는 기본형 `doan-notice`(HandOff·Settings와 같음). 패널형은 본문 위에 따로 놓이는 알림(입력창 아래 오류, 대화 상태줄)에만 쓴다.
+  6. `doan-input`을 div에 썼다 → 실제 `input.doan-input` sm, 앞 아이콘은 겹쳐 놓는다.
+  7. 입력창 포커스를 그리지 않았다 → 텍스트 입력 포커스 규칙(자기 테두리 `--border-prominent`, DESIGN 'Focus')에 따라 포커스된 카드 테두리를 진하게 한다. 1차 확정 화면보다 테두리가 진해지므로 사용자 확인이 필요하다.
+  8. 그룹 탭이 검은 `prominent` 버튼이었다 → 헤더 `.shell-modes` 캡슐 패턴(회색 캡슐, 현재 탭만 흰 바탕 + `shadow-panel`).
+  9. 대화 상태줄이 따로 만든 카드였다 → `doan-notice doan-panel`에 동작 버튼.
+  - Send는 공용 아이콘 버튼의 배경을 화면 CSS에서 덮어쓰고 있었다 → 공용 변형 `accent` 제안(U0).
   - 토큰이 없는 리터럴 20건은 컴포넌트 상수로 둔다. 레이아웃 폭(입력창 680, 위 여백 152, 팝오버 580/320/300/200, 목록 최대 276, 칩 최대 280), 썸네일 20px의 모서리 5px·글자 11px(출하 썸네일 16/4/10, 온보딩 28/7/17과 같은 비율 규칙), 캔버스 창 상자(1238 × 780, 960 × 600), 출하 LNB 폭 260이다.
   - 새 토큰 세 개(`--size-icon-sm` 14, `--size-icon-lg` 20, `--size-control-xs` 24)는 DESIGN 'Tokens first' 규칙에 따라 `tokens.css`와 DESIGN.md 토큰 목록에 더했다.
