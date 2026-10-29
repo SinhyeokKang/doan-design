@@ -15,8 +15,8 @@ export type CliFailureReason = "unavailable" | "timeout" | "invalid_response" | 
 // A failure the CLI reported itself, unchanged. Its code set belongs to the CLI
 // (usage_error, internal_error, ...), so it is a string, not this module's union.
 export interface CliReportedFailure { code: string; message: string; nextSteps: string[] }
-// Failures the app produced. Only these carry `reason`, which is how a caller
-// tells them from a CLI failure.
+// Failures the app produced. Only `cli_error` carries `reason`; a caller tells
+// these from a CLI failure by their code, which the CLI may not use.
 export type AppFailure =
   | { code: "request_refused"; message: string; nextSteps: string[] }
   | { code: "cli_error"; reason: CliFailureReason; message: string; nextSteps: string[] };

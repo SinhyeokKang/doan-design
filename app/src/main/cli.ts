@@ -35,8 +35,11 @@ export function runConfig(cli: string, root: string, args: readonly string[], ti
 
 // No repo and no cwd: the presets are embedded in the CLI. The id goes after
 // `--` so a value like `--repo` stays the positional id, never an option.
+// `spawn` throws synchronously on argv it cannot pass (an id with NUL), which
+// would reject the page's call; it is a CLI that could not start instead.
 export function runDesignSkill(cli: string, id?: string, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
-  return runCli(cli, id === undefined ? ["design-skill", "--json"] : ["design-skill", "--json", "--", id], undefined, timeoutMs);
+  return runCli(cli, id === undefined ? ["design-skill", "--json"] : ["design-skill", "--json", "--", id], undefined, timeoutMs)
+    .catch((error: unknown) => ({ exitCode: null, timedOut: false, spawnError: error instanceof Error ? error.message : String(error), stdout: "", stderr: "" }));
 }
 
 // Checked before running, because a missing folder must show as "folder not

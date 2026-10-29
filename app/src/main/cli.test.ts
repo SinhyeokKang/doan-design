@@ -9,7 +9,7 @@ vi.mock("node:child_process", async importOriginal => {
   return { ...real, spawn: vi.fn(real.spawn) };
 });
 import { cliCommand, readFolder, runConfig, runDesignSkill, runLs, runInit } from "./cli";
-import { interpretGet, interpretList } from "./designSkills";
+import { designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { configReply } from "./configBridge";
 import { folderState, initOutcome } from "./folderState";
 
@@ -215,6 +215,16 @@ describe("runDesignSkill", () => {
     expect(spawn).toHaveBeenLastCalledWith(fake, ["design-skill", "--json", "--", id], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
     expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["[design-skill]", "[--json]", "[--]", `[${id}]`]);
     expect(interpretGet(run, id)).toMatchObject({ ok: false, error: { code: "usage_error" } });
+  });
+
+  test("an id spawn cannot pass (NUL) is an app failure, not a rejected call", async () => {
+    const marker = join(dir(), "ran");
+    const fake = fakeCli(`touch '${marker}'`);
+    const id = designSkillGetRequest({ id: "clarify\u0000" });
+    expect(id).toBe("clarify\u0000");
+    const reply = interpretGet(await runDesignSkill(fake, id ?? ""), id ?? "");
+    expect(reply).toEqual({ v: 1, ok: false, error: { code: "cli_error", reason: "unavailable", message: expect.any(String), nextSteps: [] } });
+    expect(existsSync(marker)).toBe(false);
   });
 
   test("settles timeout and spawn errors as app failures", async () => {
