@@ -124,18 +124,22 @@ export function StopDialog({ view, busy, confirm, close }: { view: ReturnType<ty
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="ob-stop-title">{view.title}</h3><p className="doan-dialog-description" id="ob-stop-body">{view.body}</p></div></div>
     <div className="doan-dialog-actions">
       <button type="button" className="doan-button" data-ui-variant={view.cancel.variant} data-ui-size="sm" autoFocus onClick={close}>{view.cancel.label}</button>
-      <button type="button" className="doan-button" data-ui-variant={view.confirm.variant} data-ui-size="sm" disabled={busy} onClick={confirm}>{view.confirm.label}</button>
+      <button type="button" className="doan-button" data-ui-variant={view.confirm.variant} data-ui-size="sm" disabled={busy} data-consent="" onClick={confirm}>{view.confirm.label}</button>
     </div>
   </dialog>;
 }
 
 // Where focus goes when the control the user just used is removed or disabled (design '이동·취소·포커스 계약'): the
 // row's first usable control in DOM order (row button, notice actions, paste), else its notice, else the step heading.
+// Sign out acts at once, so recovery never lands on it (D24).
 export function firstUsable(view: ProviderView): AuthCommand | "notice" | null {
-  const usable = [view.button, ...(view.notice?.actions ?? []), view.paste?.button].find(button => button && !button.disabled);
+  const usable = [view.button, ...(view.notice?.actions ?? []), view.paste?.button].find(button => button && !button.disabled && button.command !== "signOut");
   return usable ? usable.command : view.notice ? "notice" : null;
 }
 interface FocusNode { isConnected: boolean; matches(selector: string): boolean }
+// D24: automatic focus never lands on a button that writes or consents (data-consent); the caller falls back to the
+// heading. The user's own Tab still reaches it.
+export function recoveryControl<T extends Pick<FocusNode, "matches">>(first: T | null): T | null { return first && !first.matches("[data-consent]") ? first : null; }
 // active is null when focus fell to <body>. Focus the user moved elsewhere is theirs and is released.
 export function focusLost(active: FocusNode | null, watched: FocusNode): "keep" | "recover" | "release" {
   const usable = watched.isConnected && !watched.matches(":disabled");
@@ -275,7 +279,7 @@ function ProjectNoticeView({ notice, run, id }: { notice: ProjectNotice; run: (c
     {notice.detail && <p className="ob-path ob-notice-detail">{notice.detail}</p>}
     {notice.note && <p className="ob-provider-help">{notice.note}</p>}
     {notice.actions.length > 0 && <div className={notice.actions.length === 1 ? "ob-state-actions submit-only" : "ob-state-actions"}>
-      {notice.actions.map(button => <button key={button.command} type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" onClick={() => run(button.command)}>{button.label}</button>)}
+      {notice.actions.map(button => <button key={button.command} type="button" className="doan-button" data-ui-variant={button.variant} data-ui-size="sm" data-consent={button.command === "retry" ? "" : undefined} onClick={() => run(button.command)}>{button.label}</button>)}
     </div>}
   </>;
 }
@@ -285,7 +289,7 @@ function Progress({ title, body }: { title: string; body?: string }) {
 function Footer({ back, next, label, enabled, busy }: { back: () => void; next: () => void; label: string; enabled: boolean; busy: boolean }) {
   return <div className="ob-footer">
     <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={back}><ArrowLeft aria-hidden="true" />Back</button>
-    <button type="button" className="doan-button" data-ui-variant="prominent" disabled={!enabled || busy} onClick={next}>{label}<ArrowRight aria-hidden="true" /></button>
+    <button type="button" className="doan-button" data-ui-variant="prominent" disabled={!enabled || busy} data-consent="" onClick={next}>{label}<ArrowRight aria-hidden="true" /></button>
   </div>;
 }
 
@@ -368,7 +372,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {error.code === "access_failed"
           ? <div className="ob-recovery">
             <button type="button" className="doan-button" data-ui-variant="subtle" onClick={on.chooseFolder}>Choose local folder</button>
-            <button type="button" className="doan-button" data-ui-variant="prominent" onClick={on.retry}>Retry</button>
+            <button type="button" className="doan-button" data-ui-variant="prominent" data-consent="" onClick={on.retry}>Retry</button>
           </div>
           : <div className="ob-state-actions">
             <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseFolder}>Choose local folder</button>
@@ -405,7 +409,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
         <ChosenProject path={p.path} home={home} />
         {notice ? <ProjectNoticeView notice={notice} run={run} />
-          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
+          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
       </section>}
       {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
     </>;
@@ -426,7 +430,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       </> : p.kind === "cloneCancelled" ? <>
         <p className="ob-provider-help">Cloning was cancelled. Choose a folder or try again.</p>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
-          <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={on.retry}>Retry</button></div>
+          <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" onClick={on.retry}>Retry</button></div>
         {smallActions(["Edit repository URL", on.edit])}
       </> : <>
         {notice && <ProjectNoticeView notice={notice} run={run} />}
@@ -510,7 +514,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, branch }: { 
       const root = overlay.current, active = document.activeElement;
       if (!root || (active instanceof HTMLElement && active !== document.body && active.isConnected && !active.matches(":disabled"))) return;
       const target = projectFocusTarget(project.state, canAdvance(agents.state.auth ?? null));
-      const node = target === "action" ? root.querySelector<HTMLElement>(".ob-scene button:not(:disabled), .ob-scene input:not(:disabled)")
+      const node = target === "action" ? recoveryControl(root.querySelector<HTMLElement>(".ob-scene button:not(:disabled), .ob-scene input:not(:disabled)"))
         : root.querySelector<HTMLElement>(`.ob-scene .ob-project-notice[role="${target}"]`);
       (node ?? heading.current)?.focus();
     });
