@@ -4,7 +4,7 @@
 
 판정 규칙(spec '결정'): 산문의 `doan` → `Doan`. 명령어(`doan check`, `doan CLI`, `doan MCP`, 백틱 안), 경로(`.doan/`, `bin/doan`), 식별자(`doan:canvas`, `data-doan-*`, `window.doan`, 리터럴 전체가 `doan`인 코드 토큰, 따옴표 안 서버 이름)는 소문자 그대로다. 메뉴 라벨·요소 텍스트처럼 화면에 그대로 보이는 자리의 `doan` 한 단어는 산문으로 본다.
 
-## 1. 앱 문구 — 바꿈 61줄
+## 1. 앱 문구 — 바꿈 60줄
 
 A2 앱 검사(`app/src/brand/appText.test.ts`)의 위반 목록과 같다. 코드는 문자열 리터럴마다, HTML·스텁은 출현마다 한 줄이다.
 
@@ -47,7 +47,6 @@ A2 앱 검사(`app/src/brand/appText.test.ts`)의 위반 목록과 같다. 코�
 | `app/src/renderer/connectionRowView.ts:31` | Agents can’t run doan until the command is connected. | 산문 | 바꿈 | 사람이 읽는 제품 이름 |
 | `app/src/renderer/connectionRowView.ts:38` | nger exists, so agents can’t reach doan. | 산문 | 바꿈 | 사람이 읽는 제품 이름 |
 | `app/src/renderer/connectionRowView.ts:39` | Agents run a different doan, not the one in this app. | 산문 | 바꿈 | 사람이 읽는 제품 이름 |
-| `app/src/renderer/connectionRowView.ts:40` | ’s doan server runs | 산문 | 바꿈 | 사람이 읽는 제품 이름 |
 | `app/src/renderer/connectionRowView.ts:40` | , not this app’s doan. | 산문 | 바꿈 | 사람이 읽는 제품 이름 |
 | `app/src/renderer/connectionRowView.ts:55` | Fix the doan link? | 산문 | 바꿈 | 사람이 읽는 제품 이름 |
 | `app/src/renderer/connectionRowView.ts:65` | doan is running outside Applications, so | 산문 | 바꿈 | 사람이 읽는 제품 이름 |
@@ -73,6 +72,7 @@ A2 앱 검사(`app/src/brand/appText.test.ts`)의 위반 목록과 같다. 코�
 | `app/src/main/onboarding/SKILL.md:17` | doan also bundles design presets. The gu | 산문 | 바꿈 | 스킬 스텁 산문 |
 
 결정 메모:
+- 처음 표에는 `connectionRowView.ts:40`의 `’s doan server runs`가 바꿈으로 있었다. 이 `doan`은 MCP 서버 이름이므로 분류기의 명령어 명사에 `server`를 더하고(fixture `command-server-noun`) 둠으로 옮겼다(2026-10-30).
 - `app/src/renderer/Onboarding.tsx`의 Welcome 워드마크 `doan`도 바꾼다. 온보딩 Welcome을 포함하라는 결정(spec)이 가리키는 제품 이름은 이 워드마크뿐이고, 비목표인 '워드마크 디자인'(글꼴·크기·자간)은 바꾸지 않는다.
 - `app/src/main/index.ts`의 앱 메뉴 라벨 `doan`은 `Doan`이 된다. macOS는 앱 메뉴 제목을 번들 이름으로 그리므로 화면은 B2의 `productName`이 정한다.
 - `thumbnailWindow.ts`의 숨은 창 제목 `doan thumbnails`도 바꾸고, 이를 찾는 `app/runtime/windows.ts`의 상수를 함께 고친다.
