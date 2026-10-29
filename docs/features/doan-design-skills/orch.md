@@ -24,6 +24,7 @@
 | D11 | E1의 실제 에이전트 확인은 실제 HOME·`CLAUDE_CONFIG_DIR`를 읽기용으로 써서 사례마다 `claude -p`를 한 번씩 실행한다(세션 저장 없음, MCP 없음, `CODEX_HOME`·`DOAN_RUNTIME` 격리, 전후 비교). 새 stub과 구 CLI의 사례는 skill 로딩을 끄고 stub 본문을 system prompt로 주며, stub 설치 경로는 미검증으로 남긴다 | 사용자 허가(2026-10-29). Claude 인증은 Keychain에만 있어 격리 HOME에서는 로그인되지 않는다 |
 | D12 | U-009: `document`은 이 대화에서 `context`를 읽지 않았고 프로젝트 맥락 문서가 없으면 `context`를 먼저 읽게 한다. D10으로 다시 잰다 | 사용자 결정(2026-10-29). D10에서 Claude 0/3·Codex 1/3만 `context`를 읽었다 |
 | D13 | U-010(stub에 두 경로 모두 실패할 때의 규칙), D3·D7 Claude의 사실 지어내기(clarify·harden 규칙 보강)는 새 수정 배치 F가 고친다. D2·D11의 시나리오 결함은 아직 병합 전 시나리오라 E가 제자리에서 고치고 다시 잰다 | 지휘자 판단 — 셋 다 design §3과 spec §4에 이미 정해진 규칙을 반영하는 수정이다 |
+| D14 | D3는 실제 HOME에 격리 userData·`DOAN_RUNTIME`·`TMPDIR`·fake SHELL을 써서 진행한다. 끝나면 sign-out으로 doan profile용 Keychain 항목이 지워지는지 확인한다 | 사용자 허가(2026-10-29). 격리 HOME에는 login keychain이 없어 Codex·Claude 인증을 저장하지 못한다(ARCHITECTURE §7, PoC 10) |
 
 ## 배치
 
