@@ -8,7 +8,7 @@ This file maps every upstream source behind Doan's design presets to the public 
 
 ## Public catalog
 
-The public catalog is `catalog.json`, not this file. It holds 20 IDs (user decision 2026-10-28; `context` ID 2026-10-29), in this order:
+The public catalog is the 20 IDs below (user decision 2026-10-28; `context` ID 2026-10-29), in this order. `catalog.json`, not this file, is the shipped catalog; it holds the presets whose bodies have been adapted so far, which are marked **adapted** in the tables below.
 
 `context`, `shape`, `document`, `extract`, `critique`, `audit`, `polish`, `distill`, `bolder`, `quieter`, `layout`, `typeset`, `colorize`, `clarify`, `harden`, `onboard`, `adapt`, `animate`, `delight`, `generate`.
 
@@ -45,7 +45,7 @@ No preset body may keep an upstream engine command, placeholder, rule tag, or ha
 rg -n -i -P '(?<!pbakaus/)impeccable|\{\{|\}\}|<skill-base-dir>|<!-- rule:|</?(codex|claude)>|CONTEXT_STALE|NO_PRODUCT_MD|IMAGE_GEN_AVAILABLE' cli/internal/designskill/presets/
 ```
 
-The expected result is no output (exit status 1). The only allowed `impeccable` is the repository name `pbakaus/impeccable` in a body's source line, so a source line must spell the repository that way and must not call it "Impeccable" bare. The pattern catches launcher and slash commands (`impeccable context`, `{{command_prefix}}impeccable polish`), `.impeccable/` paths, subagent names (`impeccable-finish-reviewer`), template placeholders, upstream rule tags, harness-conditional blocks, and engine directives. The validator separately rejects `{{...}}`, `<skill-base-dir>`, relative Markdown links, and bare `reference/`, `agents/`, or `scripts/` paths.
+The expected result is no output (exit status 1). The only allowed `impeccable` is the repository name `pbakaus/impeccable` in a body's source line, so a source line must spell the repository that way and must not call it "Impeccable" bare. The pattern catches launcher and slash commands (`impeccable context`, `{{command_prefix}}impeccable polish`), `.impeccable/` paths, subagent names (`impeccable-finish-reviewer`), template placeholders, upstream rule tags, harness-conditional blocks, and engine directives. The validator separately rejects `{{...}}`, `<skill-base-dir>`, relative Markdown link destinations (inline links and link reference definitions), and bare `reference/`, `agents/`, or `scripts/` paths.
 
 ## Status values
 
