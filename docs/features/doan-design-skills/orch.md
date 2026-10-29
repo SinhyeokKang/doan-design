@@ -96,3 +96,4 @@
 - 2026-10-29: F3 통합(c62dbf21·1575bdab). E에 D11d와 `/agent-eval` 전체 suite를 보냈고(`ctx_785924863259`), 통합 diff 전체의 최종 리뷰(Claude Opus high)를 시작했다.
 - 2026-10-29: V D3 Codex 재확인 PASS(F2 뒤 가이드 잘림 없음, `design-skill --json`→`design-skill clarify --json` 실제 호출, 대상 frame만 수정, check 0). 정리 실수로 남은 profile Keychain 'Codex Auth'는 `codex logout`으로 그 항목만 지웠다. 관찰: sign-out이 `stop_required`인 채 앱을 닫으면 profile Keychain 항목이 남는다. V worktree를 제거했다(근거 사본 `.scratch/orch-dds/handoff-V.md`, `runtime-test-V/`).
 - 2026-10-29: 최종 리뷰(`review-final.md`) 🔴0 🟡3 ⚪6. D17로 처리를 정하고 F4를 시작했다.
+- 2026-10-29: F4 통합(dcbec62c·045b1073·cf7414f8): 목록·모든 본문 출력 예산 테스트, 본문 완결 문장에 잘림 표시 처리, 엔진 명령 검사의 Go 테스트화, document의 `ls` 문구. 가이드 --json 여유 30B. POSTMORTEM에 가이드 가운데 잘림 회귀를 남겼다.
