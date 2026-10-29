@@ -238,11 +238,16 @@ test("U2 an existing checkout: Already on your Mac, the chosen card and Use this
   expect(html).toMatch(/data-ui-variant="prominent" data-consent="">Use this folder<svg/);
 });
 
-test("U2 several checkouts are radios under the repository's line", () => {
-  const html = screen({ phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/s", candidates: [{ path: "/a/s", changes: [] }, { path: "/b/s", changes: [] }], choice: "/b/s" } });
-  expect(html).toContain('<p class="ob-provider-help">Choose a local folder for this repository.</p>');
+test("D25: repositories inside a picked folder are radio cards; a URL never shows a checkout list or branch rows", () => {
+  const html = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/a/s", changes: [] }, { path: "/b/t", changes: [] }], choice: "/b/t" } });
   expect(html.match(/type="radio"/g)).toHaveLength(2);
+  expect(html).not.toContain("Choose a local folder for this repository.");
+  const url = screen({ url: "https://github.com/acme/s", phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/acme/s", candidates: [{ path: "/a/s", changes: [] }], choice: "/a/s" } });
+  expect(url).not.toContain('type="radio"');
+  expect(url).not.toContain("lucide-git-branch");
+  expect(url).toContain('<div class="doan-panel ob-chosen">');
 });
+
 
 test("U2 a folder that needs setup asks before writing", () => {
   const html = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/Users/ada/plain", changes: [".doan/config.json"] } });
@@ -351,21 +356,6 @@ test("V fix: a cancelled clone offers Edit repository URL under its Choose local
   expect(failed).toContain(">Edit repository URL</button>");
 });
 
-
-test("D23: checkouts of one repository are cards with the branch icon and the branch name when known, else the folder name", () => {
-  const candidates = [{ path: "/Users/ada/code/doan-design", changes: [] }, { path: "/Users/ada/worktrees/doan-design/auth", changes: [] }];
-  const html = screen({ phase: { kind: "candidates", inspectionId: "i", url: "https://github.com/x/doan-design", candidates, choice: "/Users/ada/worktrees/doan-design/auth" } },
-    { branch: path => path.endsWith("/auth") ? "feat-auth" : null });
-  expect(html.match(/class="doan-panel ob-choice"/g)).toHaveLength(2);
-  expect(html.match(/lucide-git-branch/g)).toHaveLength(2);
-  expect(html).not.toContain("onboarding-thumbnail");
-  expect(html).toContain('<span class="ob-choice-text"><strong>doan-design</strong><small>~/code/doan-design</small></span></label>');
-  expect(html).toMatch(/<span class="ob-choice-text"><strong>feat-auth<\/strong><small>~\/worktrees\/doan-design\/auth<\/small><\/span><svg[^>]*lucide-check/);
-  // Repositories found inside a picked folder are different projects: they keep the thumbnail.
-  const folders = screen({ phase: { kind: "candidates", inspectionId: "i", url: null, candidates, choice: candidates[0]!.path } });
-  expect(folders).toContain("onboarding-thumbnail");
-  expect(folders).not.toContain("lucide-git-branch");
-});
 
 test("D23: a choice card keeps radio keys: Enter on the focused radio picks it", () => {
   const pick = vi.fn();

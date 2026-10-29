@@ -8,7 +8,7 @@ const ok = (operation: OnboardingOperation): OnboardingResponse => ({ v: 2, ok: 
 const refused = (code: string): OnboardingResponse => ({ v: 2, ok: false, error: { code, message: `m:${code}` } } as OnboardingResponse);
 const inspection = (candidates: [string, string[]?][], clone?: string) => ({ inspectionId: `i-${Math.random()}`, candidates: candidates.map(([path, changes]) => ({ path, changes: (changes ?? []) as never })), ...(clone ? { clone: { destination: clone, changes: [] } } : {}) });
 
-function harness(projects: string[] = [], home: string | null = "/Users/ada") {
+function harness(projects: string[] = [], home: string | null = "/Users/ada", mains: string[] = []) {
   let listener: ((state: OnboardingState) => void) | null = null;
   const queue: Record<string, Reply[]> = { inspect: [], select: [], clone: [], cancel: [], complete: [] };
   const next = (name: string) => queue[name]!.shift() ?? refused("bad_request");
@@ -24,7 +24,7 @@ function harness(projects: string[] = [], home: string | null = "/Users/ada") {
   };
   let ids = 0, revision = 0;
   const completed = vi.fn();
-  const session = new ProjectStepSession({ api, sessionId: "s1", projects: () => projects, homeDirectory: () => home, requestId: () => `req-${++ids}`, changed: () => {}, completed });
+  const session = new ProjectStepSession({ api, sessionId: "s1", projects: () => projects, homeDirectory: () => home, mainCheckout: path => mains.includes(path), requestId: () => `req-${++ids}`, changed: () => {}, completed });
   session.start();
   return {
     session, api, queue, completed,
@@ -66,18 +66,23 @@ test("a folder that needs setup asks first, and Set up and continue sends initia
   expect(phase(h)).toEqual({ kind: "ready", root: "/code/plain" });
 });
 
-test("several checkouts are offered as a choice and the chosen one is selected", async () => {
-  const h = harness();
+test("D25: several checkouts of the URL are not offered as a list: one is picked (no setup, then main checkout, then newest)", async () => {
+  const h = harness(["/code/studio-main", "/wt/studio-old", "/wt/studio-new", "/code/plain"], "/Users/ada", ["/code/studio-main"]);
   h.session.setUrl("https://github.com/acme/studio");
-  const found = inspection([["/code/studio"], ["/wt/studio-auth"]]);
-  h.queue.inspect!.push(ok(op("project_inspect", { inspection: found })));
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]], ["/wt/studio-old"], ["/code/studio-main"], ["/wt/studio-new"]]) })));
   await h.session.findRepository();
-  expect(phase(h)).toMatchObject({ kind: "candidates", url: "https://github.com/acme/studio", choice: "/code/studio" });
-  h.session.pickCandidate("/wt/studio-auth");
-  h.queue.select!.push(ok(op("project_select", { project: { root: "/wt/studio-auth" } })));
+  expect(phase(h)).toMatchObject({ kind: "candidates", url: "https://github.com/acme/studio", candidates: [{ path: "/code/studio-main", changes: [] }], choice: "/code/studio-main" });
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/studio-main" } })));
   await h.session.select();
-  expect(h.api.selectOnboardingProject.mock.calls[0]![0]).toMatchObject({ path: "/wt/studio-auth" });
+  expect(h.api.selectOnboardingProject.mock.calls[0]![0]).toMatchObject({ path: "/code/studio-main" });
+  // Without a main checkout among them, the most recently registered one wins.
+  const g = harness(["/wt/studio-old", "/wt/studio-new"]);
+  g.session.setUrl("https://github.com/acme/studio");
+  g.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/wt/studio-old"], ["/wt/studio-new"]]) })));
+  await g.session.findRepository();
+  expect(g.session.state.phase).toMatchObject({ candidates: [{ path: "/wt/studio-new" }] });
 });
+
 
 test("an invalid URL is refused locally; editing it clears the error", async () => {
   const h = harness();
@@ -308,16 +313,23 @@ test("events of another session are ignored and dispose unsubscribes", async () 
   void finding;
 });
 
-test("a chosen checkout that needs setup asks before any select", async () => {
-  const h = harness();
+test("D25: when every checkout needs setup, the picked one goes to the setup screen without a select", async () => {
+  const h = harness(["/code/studio", "/wt/plain"], "/Users/ada", ["/code/studio"]);
   h.session.setUrl("https://github.com/acme/studio");
-  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/studio"], ["/wt/plain", [".doan/config.json"]]]) })));
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/wt/plain", [".doan/config.json"]], ["/code/studio", [".doan/config.json"]]]) })));
   await h.session.findRepository();
-  h.session.pickCandidate("/wt/plain");
-  await h.session.select();
   expect(h.api.selectOnboardingProject).not.toHaveBeenCalled();
-  expect(phase(h)).toMatchObject({ kind: "setup", path: "/wt/plain", url: "https://github.com/acme/studio" });
+  expect(phase(h)).toMatchObject({ kind: "setup", path: "/code/studio", url: "https://github.com/acme/studio" });
 });
+
+test("D25: repositories found inside a picked folder are still a list", async () => {
+  const h = harness();
+  h.api.chooseOnboardingFolder.mockResolvedValueOnce("/code");
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/a"], ["/code/b"]]) })));
+  await h.session.chooseFolder();
+  expect(phase(h)).toMatchObject({ kind: "candidates", url: null, candidates: [{ path: "/code/a" }, { path: "/code/b" }] });
+});
+
 
 test("review: Clone and continue is busy before main answers, so a second click sends nothing and the reply is kept", async () => {
   const h = harness();
