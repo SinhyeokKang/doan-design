@@ -169,6 +169,24 @@ describe("auth transitions", () => {
     }
     expect(failed.map(s => s.error)).toEqual([{ code: "sign_in_failed" }, { code: "storage_failed" }]);
   });
+  it("keeps a verified connection as it was when a replacement that never touched its login fails or is cancelled", () => {
+    const signing = step(connected(), { type: "signIn", attemptId: "a2", owner: 1 });
+    const failed = step(signing, { type: "signedIn", attemptId: "a2", result: { status: "failed", code: "sign_in_failed" }, kept: true });
+    const cancelled = step(step(signing, { type: "cancel", attemptId: "a2", owner: 1 }), { type: "settled", attemptId: "a2", kept: true });
+    const closed = step(step(signing, { type: "ownerClosed", owner: 1 }), { type: "settled", attemptId: "a2", kept: true });
+    for (const state of [failed, cancelled, closed]) {
+      expect(state).toMatchObject({ phase: "connected", connection: connection(), generation: 1, verified: true, expired: false, attempt: null });
+      expect(readiness(state, tools)).toEqual({ ready: true });
+      expect(judgeConnection(owner, state, free)).toEqual({ decision: "resume", rebind: false });
+    }
+    expect([failed.error, cancelled.error]).toEqual([{ code: "sign_in_failed" }, null]);
+    // Kept means unchanged, not verified: an unchecked or expired connection stays so.
+    const unchecked = step(initialAuthState("claude", connection()), { type: "signIn", attemptId: "a2", owner: 1 });
+    expect(step(step(unchecked, { type: "cancel", attemptId: "a2", owner: 1 }), { type: "settled", attemptId: "a2", kept: true })).toMatchObject({ verified: false });
+    const expired = step(step(connected(), { type: "check", attemptId: "c1" }), { type: "checked", attemptId: "c1", result: { status: "expired" } });
+    const retried = step(step(expired, { type: "signIn", attemptId: "a2", owner: 1 }), { type: "signedIn", attemptId: "a2", result: { status: "failed", code: "network" }, kept: true });
+    expect(retried).toMatchObject({ phase: "reauthRequired", expired: true });
+  });
   it("shows the checked account for a connection without a stable account id", () => {
     // Codex: its status names no account (a Claude login without an organization would not be runnable).
     const anonymous = connection({ provider: "codex", account: { id: null, workspace: null, displayName: "Ada", email: "ada@example.com" } });

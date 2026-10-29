@@ -435,15 +435,89 @@ describe("sign-in", () => {
     expect(await run.done).toMatchObject({ connection: null, error: { code: "storage_failed" } });
     expect(existsSync(join(storage.profileDir("codex"), "auth.json"))).toBe(false);
   });
-  it("keeps the previous vault as the live profile when a replacement fails, and unverifies it", async () => {
+  it("keeps the previous vault as the live, still verified profile when a replacement fails", async () => {
     const m = manager(); await m.load();
     const first = await signedInCursor(m, "u1");
     const run = started(await m.signIn("cursor", 7));
     await finish("login", 1, p => writeToken(p, { id: "u2" }));
     const state = await run.done;
-    expect(state).toMatchObject({ connection: first.connection, verified: false, error: { code: "sign_in_failed" } });
+    expect(state).toMatchObject({ connection: first.connection, verified: true, error: { code: "sign_in_failed" } });
     expect(await storage.loadVault("cursor")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) });
     expect(existsSync(tokenFile("cursor"))).toBe(false);
+  });
+});
+
+// V defect 2 (2026-10-29): a cancelled replacement sign-in unverified every connection it was tried on.
+describe("a replacement that does not finish", () => {
+  const vaultU1 = { "creds/token.json": Buffer.from(JSON.stringify({ id: "u1" })) };
+  it("leaves a vault provider's connection, vault and metadata as they were when the owner cancels", async () => {
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    keychain = { status: "connected", account: { id: "c1", workspace: null } };
+    const claude = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0); await claude.done;
+    const run = started(await m.signIn("cursor", 7));
+    await next("login");
+    await m.cancel("cursor", run.attemptId, 7);
+    expect(await run.done).toMatchObject({ phase: "connected", connection: first.connection, verified: true, error: null, attempt: null });
+    expect(await storage.loadVault("cursor")).toEqual(vaultU1);
+    expect(storage.readMetadata().accounts.find(a => a.provider === "cursor")).toEqual(first.connection);
+    expect(m.state("claude")).toMatchObject({ phase: "connected", verified: true });
+  });
+  it("does not store the new login in the vault before its last cancellation point", async () => {
+    let hold: (() => void) | undefined;
+    const gate = () => new Promise<void>(resolve => { hold = resolve; });
+    let gated = false;
+    storage = new AuthStorage(root, fakeCipher({ encrypt: async text => { if (gated) await gate(); return Buffer.from("ENC:" + Buffer.from(text, "utf8").toString("base64")); } }));
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    gated = true;
+    const run = started(await m.signIn("cursor", 7));
+    await finish("login", 0, p => writeToken(p, { id: "u2" }));
+    await finish("status", 0);
+    await vi.waitFor(() => expect(hold).toBeDefined());
+    // The user cancels while the new login is being sealed, after the provider reported it connected.
+    await m.cancel("cursor", run.attemptId, 7);
+    hold!();
+    expect(await run.done).toMatchObject({ phase: "connected", connection: first.connection, verified: true });
+    expect(await storage.loadVault("cursor")).toEqual(vaultU1);
+    expect(storage.readMetadata().accounts).toEqual([first.connection]);
+  });
+  it("restores the previous vault when the new login's metadata cannot be written", async () => {
+    const m = manager(); await m.load();
+    const first = await signedInCursor(m, "u1");
+    const write = vi.spyOn(storage, "writeMetadata").mockImplementation(() => { throw new Error("disk full"); });
+    const run = started(await m.signIn("cursor", 7));
+    await finish("login", 0, p => writeToken(p, { id: "u2" }));
+    await finish("status", 0);
+    const state = await run.done;
+    write.mockRestore();
+    expect(state).toMatchObject({ connection: first.connection, verified: true, error: { code: "storage_failed" } });
+    expect(await storage.loadVault("cursor")).toEqual(vaultU1);
+  });
+  it("keeps a keychain connection verified when its login is stopped or fails before it stored anything", async () => {
+    const m = manager(); await m.load();
+    keychain = { status: "connected", account: { id: "c1", workspace: null } };
+    const first = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    const connection = (await first.done).connection;
+    const cancelled = started(await m.signIn("claude", 7));
+    await next("login");
+    await m.cancel("claude", cancelled.attemptId, 7);
+    expect(await cancelled.done).toMatchObject({ phase: "connected", connection, verified: true, error: null });
+    const failed = started(await m.signIn("claude", 7));
+    await finish("login", 1);
+    expect(await failed.done).toMatchObject({ phase: "connected", connection, verified: true, error: { code: "sign_in_failed" } });
+    // The live login is never logged out for a replacement.
+    expect(processes.filter(p => p.step === "logout")).toEqual([]);
+  });
+  it("unverifies a keychain connection once its login finished, since the profile may hold the new login", async () => {
+    const m = manager(); await m.load();
+    keychain = { status: "connected", account: { id: "c1", workspace: null } };
+    const first = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    const connection = (await first.done).connection;
+    const run = started(await m.signIn("claude", 7));
+    keychain = { status: "disconnected" };
+    await finish("login", 0); await finish("status", 0);
+    expect(await run.done).toMatchObject({ connection, verified: false, error: { code: "sign_in_failed" } });
   });
 });
 
