@@ -153,6 +153,25 @@ func TestDesignSkillReturnsEveryCompleteBody(t *testing.T) {
 	}
 }
 
+// Preset bodies reach the same tool as the guide, so they share its budget and derivation (skillOutputBudget).
+// The app's CLI appends no bundle note to design-skill output.
+func TestDesignSkillFitsToolOutputCap(t *testing.T) {
+	t.Chdir(t.TempDir())
+	args := [][]string{{"design-skill", "--json"}}
+	for _, p := range catalog(t).Presets() {
+		args = append(args, []string{"design-skill", p.ID, "--json"})
+	}
+	for _, a := range args {
+		var out, errout bytes.Buffer
+		if code := Run(a, strings.NewReader(""), &out, &errout); code != 0 {
+			t.Fatalf("%v: %d %s", a, code, &errout)
+		}
+		if out.Len() > skillOutputBudget {
+			t.Errorf("%v: %d bytes, budget %d", a, out.Len(), skillOutputBudget)
+		}
+	}
+}
+
 func TestDesignSkillNeedsNoProjectOrApp(t *testing.T) {
 	cwd := t.TempDir()
 	t.Chdir(cwd)
@@ -253,7 +272,7 @@ func TestSkillGuidePresetRules(t *testing.T) {
 		"`doan design-skill --json` lists descriptions",
 		"`doan design-skill <id> --json` returns a `body`",
 		"MCP `design_skill`, optional `id`",
-		"`[doan:design-skill] end of preset <id> v<version>`; else read it again",
+		"`[doan:design-skill] end of preset <id> v<version>`, with no truncation notice; else read it again, in parts if truncated",
 		"no project or app needed",
 		// Design §3 rules 1–5.
 		"A preset the user names: read it; if missing, say so and run no similar id.",

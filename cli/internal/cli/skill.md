@@ -65,7 +65,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 
 <!-- design preset list -->
 
-`doan design-skill --json` lists descriptions; `doan design-skill <id> --json` returns a `body` (MCP `design_skill`, optional `id`; no project or app needed), complete only if it ends with `[doan:design-skill] end of preset <id> v<version>`; else read it again.
+`doan design-skill --json` lists descriptions; `doan design-skill <id> --json` returns a `body` (MCP `design_skill`, optional `id`; no project or app needed), complete only if it ends with `[doan:design-skill] end of preset <id> v<version>`, with no truncation notice; else read it again, in parts if truncated.
 
 1. A preset the user names: read it; if missing, say so and run no similar id.
 2. Otherwise use one only if its description clearly fits the request's purpose, target and negations; ask only about ambiguity that changes the result. No fit, or a concrete edit like “move this button 4px left”: read no body.
