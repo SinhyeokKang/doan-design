@@ -23,8 +23,6 @@ export interface ImageCodec { thumbnail(bytes: Uint8Array): Uint8Array | null; r
 // sent: a conversation already holds this file, so forgetting it never deletes a paste (Edit on Home brings it back).
 interface Entry extends AttachmentRecord { id: string; pasted: boolean; dir?: string; dev: number; ino: number; sent?: true }
 export type RecheckResult = { id: string; ok: true; attachment: AttachmentInfo } | { id: string; ok: false; error: AttachmentError };
-// Consumed entries kept for Edit on Home's recheck; older ones are forgotten (their files stay where they are).
-const SENT_KEPT = 200;
 
 // The leading bytes of the image formats doan accepts; a mismatch is never decoded.
 export function imageType(head: Uint8Array): "image/png" | "image/jpeg" | "image/gif" | "image/webp" | null {
@@ -148,7 +146,8 @@ export class AttachmentStore {
       if (entry?.dir) writeFileSync(join(entry.dir, SENT), "", { mode: 0o600 });
     }
   }
-  // After an accepted start; a refused one keeps them for the next try. A consumed entry is kept aside for recheck.
+  // After an accepted start; a refused one keeps them for the next try. A consumed entry is kept aside for Edit on
+  // Home's recheck until the renderer releases it (its last request for that root was replaced).
   consume(value: unknown): void {
     if (!Array.isArray(value)) return;
     for (const item of value) {
@@ -156,8 +155,15 @@ export class AttachmentStore {
       if (!entry) continue;
       this.entries.delete(entry.id);
       this.sent.set(entry.id, { ...entry, sent: true });
-      if (this.sent.size > SENT_KEPT) this.sent.delete(this.sent.keys().next().value!);
     }
+  }
+  // No last request uses these sent ids any more; their files stay where they are. False for a malformed request.
+  release(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("ids" in value) || !Array.isArray(value.ids)) return false;
+    const ids: unknown[] = [...value.ids];
+    if (ids.length > 64 || !ids.every(id => typeof id === "string" && id.length <= 64)) return false;
+    for (const id of ids as string[]) this.sent.delete(id);
+    return true;
   }
   // Edit on Home (design §7.4): the acceptance checks again, on the canonical paths main recorded for these ids only.
   // A passing consumed id becomes a draft attachment again; null for a malformed request.

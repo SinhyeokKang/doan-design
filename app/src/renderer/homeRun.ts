@@ -17,7 +17,10 @@ export interface HomeRunHost {
   view(): { screen: "home" | "workspace"; loadedRoot: string | null; entries: readonly FolderEntry[] };
   label(root: string): string;
   // The move after a send goes through the draft guard and waits for the project's read; it is not the person's move.
-  openOverview(root: string, arrived: () => void, unavailable: () => void): void;
+  // `arrived` says whether the run still wants it: App commits the screen only when it returns true.
+  openOverview(root: string, arrived: () => boolean, unavailable: () => void): void;
+  // The person moved first: a move still waiting for the project's read must not land later.
+  cancelMove(): void;
   openCanvas(root: string, row: CanvasRow): void;
   goHome(): void;
   removeNow(paths: string[]): Promise<void>;
@@ -50,6 +53,8 @@ export class HomeRun {
   private canvasOpens = 0;
   private ownOpen: { root: string; canvas: string } | null = null;
   private arrival: Pending | null = null;
+  // The project an accepted arrival is taking the window to; App's view catches up only after its commit.
+  private destination: string | null = null;
   // A canvas bound while the move after its send is still under way; decided once the move ends.
   private boundDuringMove: { conversationId: string; row: CanvasRow } | null = null;
   private focus: "stop" | null = null;
@@ -68,6 +73,8 @@ export class HomeRun {
   // Any navigation the person makes; a pending move after a send gives way to it.
   personNavigated(): void {
     this.moves++;
+    this.destination = null;
+    if (this.arrival) this.host.cancelMove();
     this.settle();
   }
   // A canvas on screen; one the run opened itself is not the person's.
@@ -89,7 +96,7 @@ export class HomeRun {
     const atStart = listed?.kind === "list" ? listed.canvases.map(row => row.path) : [];
     const moves = this.moves, canvasOpens = this.canvasOpens;
     const result = await window.doan.startConversation(request).catch(() => ({ error: "unknown" }));
-    if ("error" in result) return { error: result.error, ...("missing" in result && result.missing ? { missing: result.missing } : {}) };
+    if ("error" in result) { this.host.changed(); return { error: result.error, ...("missing" in result && result.missing ? { missing: result.missing } : {}) }; }
     const { conversationId } = result;
     this.extras.set(conversationId, { atStart, checked: [], canvasOpens, toasted: null });
     this.events.set(conversationId, mergeConversationEvents([], this.unclaimed, conversationId));
@@ -110,12 +117,14 @@ export class HomeRun {
     else {
       this.arrival = { conversationId, root: request.root, moves, sawModal: false };
       this.host.openOverview(request.root, () => {
-        if (this.arrival?.conversationId !== conversationId || this.moves !== moves) return;
+        if (this.arrival?.conversationId !== conversationId || this.moves !== moves) return false;
         this.arrival = null;
+        this.destination = request.root;
         // Stop, never a permission answer that came in before the reply (design §4.9, §7).
         this.focus = "stop";
         this.afterMove();
         this.host.changed();
+        return true;
       }, () => this.settle());
     }
     this.host.changed();
@@ -129,7 +138,7 @@ export class HomeRun {
     const listed = this.host.view().entries.find(entry => entry.path === conversation.root);
     const row = conversation.canvas && listed?.kind === "list" ? listed.canvases.find(item => item.path === conversation.canvas) : undefined;
     if (row) this.host.openCanvas(conversation.root, row);
-    else this.host.openOverview(conversation.root, () => {}, () => {});
+    else this.host.openOverview(conversation.root, () => true, () => {});
   }
 
   editOnHome(root: string): void {
@@ -207,6 +216,7 @@ export class HomeRun {
   }
 
   private viewing(root: string): boolean {
+    if (this.destination === root) return true;
     const view = this.host.view();
     return view.screen === "workspace" && view.loadedRoot === root;
   }

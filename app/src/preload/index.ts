@@ -76,6 +76,8 @@ const api = {
   removeAttachment: (id: string): Promise<boolean> => ipcRenderer.invoke("attachments:remove", { id }),
   // Edit on Home: the acceptance checks again for these ids, in order; null when main refused the request.
   recheckAttachments: (ids: readonly string[]): Promise<RecheckResult[] | null> => ipcRenderer.invoke("attachments:recheck", { ids: [...ids] }),
+  // Sent ids no last request uses any more; main forgets them and leaves their files alone.
+  releaseAttachments: (ids: readonly string[]): Promise<boolean> => ipcRenderer.invoke("attachments:release", { ids: [...ids] }),
   onConversationEvent(listener: (event: ConversationEvent) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, event: ConversationEvent) => listener(event);
     ipcRenderer.on("conversation:event", receive);

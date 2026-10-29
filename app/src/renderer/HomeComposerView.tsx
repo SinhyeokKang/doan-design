@@ -32,8 +32,10 @@ export interface ComposerMemory {
   lists: Record<string, ModelsState>; presets: PresetListReply | undefined;
   auth: AuthSnapshot | null | undefined;
   thumbnails: Record<string, string>;
-  // Attachment keys of each root's last sent request, whose thumbnails Edit on Home shows again.
+  // Attachment keys and main's ids of each root's last sent request: Edit on Home shows their thumbnails again and
+  // main keeps the ids for its recheck until no last request or draft uses them (review BU3 r2 🟡4, 🟡5).
   lastKeys: Record<string, string[]>;
+  lastIds: Record<string, string[]>;
   // A start still waiting for main, kept here so a later visit stays locked and its reply clears only the draft it
   // sent (review BU3 🟡2); and the refusal or attachment notice under the composer.
   sending: { generation: number; text: string; preset: string | null; keys: string[] } | null;
@@ -44,7 +46,14 @@ export interface ComposerMemory {
   seen: { select: number; restore: number };
 }
 export function emptyComposer(): ComposerMemory {
-  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
+  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
+}
+
+const mountsByMemory = new WeakMap<object, Set<() => void>>();
+function viewers(memory: { current: ComposerMemory }): Set<() => void> {
+  let mounts = mountsByMemory.get(memory);
+  if (!mounts) { mounts = new Set(); mountsByMemory.set(memory, mounts); }
+  return mounts;
 }
 
 export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; attachments?: { id: string }[] }
@@ -118,12 +127,16 @@ function chipClass(chip: string | undefined): string {
 export function HomeComposer(props: HomeComposerProps) {
   const { memory } = props;
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const mounted = useRef(true);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // A reply that lands after this mount left (and another took its place) redraws whichever mount is on screen.
+  useEffect(() => {
+    const mounts = viewers(memory);
+    mounts.add(redraw);
+    return () => { mounts.delete(redraw); };
+  }, [memory]);
   const update = (patch: Partial<ComposerMemory> | ((current: ComposerMemory) => Partial<ComposerMemory>)) => {
     const current = memory.current;
     memory.current = { ...current, ...(typeof patch === "function" ? patch(current) : patch) };
-    if (mounted.current) redraw();
+    for (const draw of viewers(memory)) draw();
   };
   const m = memory.current;
   const sending = m.sending !== null, notice = m.notice;
@@ -299,7 +312,13 @@ export function HomeComposer(props: HomeComposerProps) {
     const removed = attachments[removal.remove];
     if (removal.remove >= attachments.length) edit({ preset: null });
     else if (removed) {
-      if (removed.id) void window.doan.removeAttachment(removed.id).catch(console.error);
+      if (removed.id) {
+        const id = removed.id;
+        // A restored sent file goes back to main's sent set; with no last request using it, main can forget it.
+        void window.doan.removeAttachment(id).then(() => {
+          if (!Object.values(memory.current.lastIds).some(ids => ids.includes(id))) return window.doan.releaseAttachments([id]);
+        }).catch(console.error);
+      }
       const url = memory.current.thumbnails[removed.key];
       if (url && !Object.values(memory.current.lastKeys).some(keys => keys.includes(removed.key))) URL.revokeObjectURL(url);
       edit({ attachments: attachments.filter(a => a.key !== removed.key) });
@@ -358,12 +377,19 @@ export function HomeComposer(props: HomeComposerProps) {
     // The reply may come after the person left and came back to Home; it settles only its own send.
     if (memory.current.sending?.generation !== mine.generation) return;
     if ("ok" in outcome) {
+      const ids = attachments.flatMap(a => a.id ? [a.id] : []);
       update(current => {
         const same = current.text === mine.text && (current.preset?.id ?? null) === mine.preset && current.attachments.map(a => a.key).join("\n") === mine.keys.join("\n");
-        // The previous last request of this root is replaced; its thumbnails are no longer shown anywhere.
+        const draft = same ? [] : current.attachments;
+        const lastKeys = { ...current.lastKeys, [root]: mine.keys }, lastIds = { ...current.lastIds, [root]: ids };
+        // This root's previous last request is replaced: what no root's last request and no draft still uses goes.
+        const usedKeys = new Set([...Object.values(lastKeys).flat(), ...draft.map(a => a.key)]);
+        const usedIds = new Set([...Object.values(lastIds).flat(), ...draft.flatMap(a => a.id ? [a.id] : [])]);
         const thumbnails = { ...current.thumbnails };
-        for (const key of current.lastKeys[root] ?? []) if (!mine.keys.includes(key) && thumbnails[key]) { URL.revokeObjectURL(thumbnails[key]!); delete thumbnails[key]; }
-        return { sending: null, thumbnails, lastKeys: { ...current.lastKeys, [root]: mine.keys }, root, provider, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+        for (const key of current.lastKeys[root] ?? []) if (!usedKeys.has(key) && thumbnails[key]) { URL.revokeObjectURL(thumbnails[key]!); delete thumbnails[key]; }
+        const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
+        if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
+        return { sending: null, thumbnails, lastKeys, lastIds, root, provider, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
       });
       return;
     }

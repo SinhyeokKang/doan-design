@@ -127,8 +127,10 @@ export function App() {
     // The move after a send cancels the restore like any navigation but is not the person's own move.
     openOverview: (root, arrived, unavailable) => {
       navigationIntent.current++; restoreCancelled.current = true; setRestore("done");
-      controller.current?.openWorkspace(root, next => { arrived(); workspaceFocus.current = null; live.current.completeNavigation(next); }, false, () => unavailable(), true);
+      controller.current?.openWorkspace(root, next => { if (!arrived()) return; workspaceFocus.current = null; live.current.completeNavigation(next); }, false, () => unavailable(), true);
     },
+    // The controller's own wait for the project's read; the person's next navigation starts after this.
+    cancelMove: () => controller.current?.cancelWorkspaceOpen(),
     openCanvas: (root, row) => live.current.openShellCanvas(root, row),
     goHome: () => live.current.home(),
     removeNow: paths => live.current.removeNow(paths),
