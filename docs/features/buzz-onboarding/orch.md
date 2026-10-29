@@ -127,3 +127,4 @@
 - 2026-10-29: O1·O2 Claude 재측정(`buzz-onboarding-261029-o2`, `020a76c`) 둘 다 pass, 실제 상태 변화 없음. V3 정본 승격을 배치 D(Opus high, bo-D)에 맡겼다(DESIGN.md·feature 디렉터리 삭제 제외).
 - 2026-10-29: D26 통합(bf2e665..7254806, 등록된 프로젝트 안이면 이름을 넣은 문구, 미등록이면 기존 문구 유지). V D25·D26 확인 시작.
 - 2026-10-29: 사용자 요청으로 초안 재작성 배치 DR(Opus high, bo-DR) 시작. 결정 D27.
+- 2026-10-29: V D25·D26 확인(`2734d3e`) 통과. 결함 후보 1: 맞는 checkout이 모두 설정이 필요하면 setup 화면에 URL·대안 버튼이 없고 Back이 되돌아옴 → U에 수정. Keychain 기준선 일치. V release, GUI 슬롯을 DR에 넘김.
