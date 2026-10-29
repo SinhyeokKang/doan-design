@@ -13,7 +13,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 2026-10-26 시작 시 앱은 다크·오렌지·시스템 sans의 Sorcerer 기반 UI였고, 토큰 25개와 화면/공용 규칙이 섞인 스타일을 사용했다. 사용자는 패널·헤더·사이드바·모서리·폰트·AppShell·온보딩을 Buzz의 시각 언어로 바꾸도록 요청했다. 이는 당시 문제의 기록이며 현재 앱 상태가 아니다.
 
-현재 라이트 역할 토큰·프리미티브와 Geist·네이티브 반투명 AppShell은 구현됐다. 나머지 화면의 본문·동작은 자식별로 바꾼다. 완료 증거와 남은 작업은 [tasks.md](./tasks.md), 구현 값은 [DESIGN](../../DESIGN.md), 아직 구현하지 않은 온보딩 결정은 [buzz-onboarding](../buzz-onboarding/spec.md)에 있다.
+현재 라이트 역할 토큰·프리미티브와 Geist·네이티브 반투명 AppShell은 구현됐다. 나머지 화면의 본문·동작은 자식별로 바꾼다. 완료 증거와 남은 작업은 [tasks.md](./tasks.md), 구현 값은 [DESIGN](../../DESIGN.md), 온보딩은 2026-10-29 buzz-onboarding으로 구현됐고 결정은 [PRODUCT §5·§7](../../PRODUCT.md), 구조는 [ARCHITECTURE](../../ARCHITECTURE.md)에 있다.
 
 ## 공통 결정 (2026-10-26 user, feature-review 반영)
 
@@ -49,7 +49,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 |---|---|---|---|---|
 | 0 | `buzz-ds` | 디자인 시스템 | 라이트 토큰·역할(기존 이름은 별칭), 액센트 violet 램프, `themeSource` light, 타입·모서리·재질·모션, shadcn 테마 연결, 공용 컴포넌트 스타일(버튼, `IconButton`, `Panel`, 툴팁, 메뉴·팝오버, 다이얼로그 틀, 토스트, 스피너, 포커스, disabled, 스크롤바), 공통 결정 10의 공유 요소, 모달 scrim 값, 대비·변수 검사, DESIGN.md 디자인 시스템 절. 완료·main 병합: [DESIGN](../../DESIGN.md#design-system--buzz-ds-2026-10-26) | 없음 |
 | 1 | `buzz-shell` | 앱 셸·LNB | 투명·블러 Shell/LNB와 흰 본문, 56px 헤더·이전/다음·Add Projects/Projects/Settings, 검색 진입점, 프로젝트→캔버스 LNB·프로젝트 메뉴·워크트리 선택·Overview 진입, Geist 로컬 제공·공통 칩·썸네일 폴백, 창 옵션. 오른쪽 내용과 최종 표시 정책은 후속 자식 | buzz-ds |
-| 2 | `buzz-onboarding` | 온보딩 | Welcome → Agent 로그인 → 로컬/GitHub 프로젝트 → Home. 최소 한 공급자 ready·프로젝트 필수, 기존 Git/gh로 로컬 재사용/clone, CLI/MCP setup을 같은 main 서비스로 제공한다. 미완료 재실행은 Welcome부터 저장된 연결/프로젝트 유지. 디자인·리뷰 완료, 구현 전: [자식 문서](../buzz-onboarding/spec.md) | buzz-ds, buzz-shell, agent-auth |
+| 2 | `buzz-onboarding` | 온보딩 | Welcome → Agent 로그인 → 로컬/GitHub 프로젝트 → Home. 최소 한 공급자 ready·프로젝트 필수, 기존 Git/gh로 로컬 재사용/clone, CLI/MCP setup을 같은 main 서비스로 제공한다. 미완료 재실행은 Welcome부터 저장된 연결/프로젝트 유지. 2026-10-29 구현·병합: [PRODUCT §5](../../PRODUCT.md) | buzz-ds, buzz-shell, agent-auth |
 | 3 | `buzz-home` | 프로젝트 선택 전 홈 | 단일 대화 입력창과 그 안의 프로젝트 선택 UI. 온보딩의 선택 root를 인수하고 agent-auth의 인증된 실행 기반을 사용한다. 상세 화면 설계는 미착수이며 OAuth/토큰을 재구현하지 않는다. LNB 메뉴는 buzz-shell 소유 | buzz-shell, agent-auth |
 | 4 | `buzz-search` | 검색 | Quick Open(Cmd+K) 다이얼로그 내용, 입력, 결과 행(`QuickOpenDialog.tsx`) | buzz-shell |
 | 5 | `buzz-project` | 프로젝트 Overview | Overview 카드·썸네일·빈 상태 본문. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell이 맡는다 | buzz-shell |
@@ -74,7 +74,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 - `agent-conversation`: main 병합 완료(`d6590a6`, PR #28). 대화 backend/preload 기반이며 완료된 대화 UI가 아니다. [PRODUCT 계약](../../PRODUCT.md#agent-conversation-foundation-contract-2026-10-27)의 검증 한계를 유지한다.
 - `agent-auth`: 2026-10-28 main에 병합됐다. 결론은 [ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication-2026-10-28-agent-auth)에 있다. Claude Code·Codex·Cursor·Antigravity·GitHub Copilot을 모두 제공하며 플랫폼별 한 계정이다. 온보딩·홈·Canvas 대화는 같은 인증 기반을 소비한다.
-- 온보딩 CLI/MCP는 인증·Git 처리를 복제하지 않고 main 서비스를 호출한다. 설치 직후 번들 CLI bootstrap, 브라우저 사용자 승인, 작업 ID/status, 기존 active v1 호환과 신규 socket v2는 [온보딩 설계](../buzz-onboarding/design.md)가 소유한다. 코멘트 CLI/MCP 제거와는 별개다.
+- 온보딩 CLI/MCP는 인증·Git 처리를 복제하지 않고 main 서비스를 호출한다. 설치 직후 번들 CLI bootstrap, 브라우저 사용자 승인, 작업 ID/status, 기존 active v1 호환과 신규 socket v2는 [ARCHITECTURE](../../ARCHITECTURE.md)에 승격됐다(buzz-onboarding, 2026-10-29). 코멘트 CLI/MCP 제거와는 별개다.
 
 ## 완료 조건
 
