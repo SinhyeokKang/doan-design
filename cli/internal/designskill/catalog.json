@@ -1,0 +1,25 @@
+{
+  "presets": [
+    {
+      "id": "context",
+      "title": "Gather design context",
+      "description": "Understand the product, users, existing design, and constraints before design work, and connect to the design system preset when the work needs one.",
+      "scope": "project context",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/init.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/new-work.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/routing.md"},
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/SKILL.src.md"}
+      ]
+    },
+    {
+      "id": "clarify",
+      "title": "Clarify copy",
+      "description": "Clarify labels, errors, and next actions without changing meaning.",
+      "scope": "copy",
+      "sources": [
+        {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/clarify.md"}
+      ]
+    }
+  ]
+}
