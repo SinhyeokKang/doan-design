@@ -310,7 +310,7 @@ export interface ProjectScreenProps {
   heading: (node: HTMLHeadingElement | null) => void;
   on: {
     back(): void; backToAgents(): void; chooseFolder(): void; chooseExisting(): void; setUrl(url: string): void; find(): void; cancelInspect(): void; edit(): void;
-    pickListed(path: string): void; useListed(): void; pickCandidate(path: string): void; select(initialize?: boolean): void;
+    pickListed(path: string): void; useListed(): void; pickCandidate(path: string): void; select(): void; setUp(inspectionId: string): void;
     changeDestination(): void; useExisting(): void; clone(): void; cancelClone(): void; complete(): void; retry(): void;
   };
 }
@@ -405,7 +405,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
         <ChosenProject path={p.path} home={home} />
         {notice ? <ProjectNoticeView notice={notice} run={run} />
-          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} onClick={() => on.select(true)}>Set up and continue</button></div>}
+          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
       </section>}
       {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
     </>;
@@ -562,7 +562,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, branch }: { 
       {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} branch={branch} on={{
         back: () => { if (p.backToUrl()) p.restart(); else move({ type: "back" }); }, backToAgents: () => move({ type: "step", to: "agent" }),
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
-        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: initialize => void p.select(initialize),
+        pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
       }} />}

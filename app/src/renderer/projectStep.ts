@@ -88,7 +88,7 @@ export class ProjectStepSession {
   pickCandidate(path: string): void { const p = this.state.phase; if (p.kind === "candidates") this.set({ phase: { ...p, choice: path } }); }
   // Edit repository URL: back to the first screen, keeping the URL.
   // The old inspection goes with it, so nothing later re-plans a repository the user has left (batch V defect 1).
-  restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.set({ phase: { kind: "choose" }, error: null }); }
+  restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.consent = null; this.set({ phase: { kind: "choose" }, error: null }); }
   // A cancelled or failed clone is left through its URL: Back returns there rather than to the Agent step, where
   // Continue would bring the same clone screen back.
   backToUrl(): boolean { const p = this.state.phase; return p.kind === "cloneCancelled" || (p.kind === "clone" && this.state.error !== null); }
@@ -124,8 +124,19 @@ export class ProjectStepSession {
     });
   }
   clone(): Promise<void> { return this.act(() => this.runClone()); }
-  // Use this folder (one or several candidates) and Set up and continue.
-  select(initialize = false): Promise<void> { return this.act(() => this.runSelect(initialize)); }
+  // Use this folder (one or several candidates). It never sets a folder up: a candidate with planned changes goes to
+  // the setup screen instead.
+  select(): Promise<void> { return this.act(() => this.runSelect()); }
+  // Set up and continue: the user's consent to write the planned changes, for the inspection that button was shown
+  // for (batch V saw a setup once without this click; no path was found, so consent is now an explicit token).
+  setUp(inspectionId: string): Promise<void> {
+    return this.act(async () => {
+      const p = this.state.phase;
+      if (p.kind !== "setup" || p.inspectionId !== inspectionId) return;
+      this.consent = { inspectionId, path: p.path };
+      await this.runSelect();
+    });
+  }
   // Open doan, and Retry after a failed save: main re-reads and saves only; nothing is selected or cloned again.
   complete(): Promise<void> { return this.act(() => this.runComplete()); }
   retry(): Promise<void> {
@@ -188,12 +199,14 @@ export class ProjectStepSession {
     this.offer(inspection.inspectionId, url ?? null, inspection.candidates, source);
     // One candidate with nothing to set up goes straight to selection, as Choose folder always did.
     const p = this.state.phase;
-    if (p.kind === "candidates" && p.candidates.length === 1 && p.candidates[0]!.changes.length === 0) await this.runSelect(false);
+    if (p.kind === "candidates" && p.candidates.length === 1 && p.candidates[0]!.changes.length === 0) await this.runSelect();
   }
   // The inspection each candidate list came from, so a stale one is inspected again rather than retried.
   private source: Inspect | null = null;
   private offer(inspectionId: string, url: string | null, candidates: { path: string; changes: OnboardingChange[] }[], source: Inspect): void {
     this.source = source;
+    // A new inspection needs its own consent.
+    this.consent = null;
     const first = candidates[0]!;
     if (candidates.length === 1 && first.changes.length > 0) this.set({ phase: { kind: "setup", inspectionId, url, path: first.path, changes: first.changes }, error: null });
     else this.set({ phase: { kind: "candidates", inspectionId, url, candidates, choice: first.path }, error: null });
@@ -212,7 +225,9 @@ export class ProjectStepSession {
     if (p.kind === "candidates" && keep.path && p.candidates.some(c => c.path === keep.path)) this.set({ phase: { ...p, choice: keep.path } });
   }
 
-  private async runSelect(initialize: boolean): Promise<void> {
+  // Consent given on Set up and continue: valid only for that inspection and folder.
+  private consent: { inspectionId: string; path: string } | null = null;
+  private async runSelect(): Promise<void> {
     const p = this.state.phase;
     let inspectionId: string, path: string, changes: OnboardingChange[], url: string | null;
     if (p.kind === "candidates") {
@@ -222,6 +237,7 @@ export class ProjectStepSession {
     } else if (p.kind === "setup") ({ inspectionId, url, path, changes } = p);
     else return;
     // Setup writes files in the user's folder, so it needs this explicit step (design '고정 명령·도구').
+    const initialize = changes.length > 0 && this.consent?.inspectionId === inspectionId && this.consent.path === path;
     if (changes.length > 0 && !initialize) { this.set({ phase: { kind: "setup", inspectionId, url, path, changes }, error: null }); return; }
     const at = this.fence();
     const back = p;
@@ -229,11 +245,11 @@ export class ProjectStepSession {
     const reply = await this.call(this.deps.api.selectOnboardingProject({ sessionId: this.deps.sessionId, requestId: this.deps.requestId(), inspectionId, path, ...(initialize ? { initialize: true } : {}) }));
     if (!this.current(at)) return;
     if (!reply.ok && reply.code === "inspection_stale") { this.set({ phase: back }); await this.reinspect({ path }); return; }
-    if (!reply.ok) { this.failed(reply, back, () => this.runSelect(initialize)); return; }
+    if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.runSelect(); }); return; }
     const done = await this.settled(reply.operation);
     if (!this.current(at)) return;
-    if (done.state === "succeeded" && done.project) this.set({ phase: { kind: "ready", root: done.project.root }, error: null });
-    else this.failed(this.error(done, "project_unavailable"), back, () => { this.set({ phase: back }); return this.runSelect(initialize); });
+    if (done.state === "succeeded" && done.project) { this.consent = null; this.set({ phase: { kind: "ready", root: done.project.root }, error: null }); }
+    else this.failed(this.error(done, "project_unavailable"), back, () => { this.set({ phase: back }); return this.runSelect(); });
   }
 
   private async planClone(url: string, destination: string, at: number): Promise<void> {
