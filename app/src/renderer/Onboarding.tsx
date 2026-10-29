@@ -418,6 +418,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <p className="ob-provider-help">Cloning was cancelled. Choose a folder or try again.</p>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={on.retry}>Retry</button></div>
+        {smallActions(["Edit repository URL", on.edit])}
       </> : <>
         {notice && <ProjectNoticeView notice={notice} run={run} />}
         <p className="ob-fine">Already have this repository?</p>
@@ -550,7 +551,7 @@ export function Wizard({ session, projects, homeDirectory, onClose }: { session:
       {scene.scene === "agent" && <AgentStep session={agents} heading={setHeading}
         back={leave.back} next={leave.forward} />}
       {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} on={{
-        back: () => move({ type: "back" }), backToAgents: () => move({ type: "step", to: "agent" }),
+        back: () => { if (p.backToUrl()) p.restart(); else move({ type: "back" }); }, backToAgents: () => move({ type: "step", to: "agent" }),
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: () => p.restart(),
         pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: initialize => void p.select(initialize),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),

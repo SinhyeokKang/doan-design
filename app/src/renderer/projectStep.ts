@@ -87,7 +87,11 @@ export class ProjectStepSession {
   pickListed(path: string): void { this.set({ listChoice: path }); }
   pickCandidate(path: string): void { const p = this.state.phase; if (p.kind === "candidates") this.set({ phase: { ...p, choice: path } }); }
   // Edit repository URL: back to the first screen, keeping the URL.
-  restart(): void { this.fence(); this.acting = null; this.again = null; this.set({ phase: { kind: "choose" }, error: null }); }
+  // The old inspection goes with it, so nothing later re-plans a repository the user has left (batch V defect 1).
+  restart(): void { this.fence(); this.acting = null; this.again = null; this.source = null; this.set({ phase: { kind: "choose" }, error: null }); }
+  // A cancelled or failed clone is left through its URL: Back returns there rather than to the Agent step, where
+  // Continue would bring the same clone screen back.
+  backToUrl(): boolean { const p = this.state.phase; return p.kind === "cloneCancelled" || (p.kind === "clone" && this.state.error !== null); }
   // Looking for a repository can be left at once: the inspection is read-only, so its late result is dropped.
   cancelInspect(): void { if (this.state.phase.kind === "inspecting") this.restart(); }
 
