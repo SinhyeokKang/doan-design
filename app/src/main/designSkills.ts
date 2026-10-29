@@ -5,7 +5,7 @@ import type { CliRun } from "./folderState";
 // Successes and the CLI's own failures pass through as the CLI's v1 envelope;
 // a run that produced neither becomes an app failure in the same envelope.
 
-export interface DesignPresetSummary { id: string; title: string; description: string; scope: string }
+export interface DesignPresetSummary { id: string; title: string; description: string; scope: string; group?: string }
 export interface DesignPresetSource { repository: string; commit: string; path: string }
 // `version` is the producing CLI's version, shown as provenance only.
 export interface DesignSkillList { version: string; presets: DesignPresetSummary[] }
@@ -105,7 +105,9 @@ function interpret<T>(run: CliRun, read: (result: object) => T | null): DesignSk
 function summary(value: unknown): DesignPresetSummary | null {
   if (typeof value !== "object" || value === null) return null;
   const id = text(value, "id"), title = text(value, "title"), description = text(value, "description"), scope = text(value, "scope");
-  return id === null || title === null || description === null || scope === null ? null : { id, title, description, scope };
+  const group: unknown = Reflect.get(value, "group");
+  if (id === null || title === null || description === null || scope === null || (group !== undefined && typeof group !== "string")) return null;
+  return { id, title, description, scope, ...(typeof group === "string" ? { group } : {}) };
 }
 
 function source(value: unknown): DesignPresetSource | null {
