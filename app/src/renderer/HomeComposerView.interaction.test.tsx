@@ -52,7 +52,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
-  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, handoff: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), ...props };
+  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), ...props };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer(all)); };
   return { box, start, render, props: all };
 }
@@ -175,7 +175,7 @@ test("a folder dropped on the composer is refused there and never reaches the wi
   expect(doan.addDroppedFiles).not.toHaveBeenCalled();
   expect(doan.addAttachmentFiles).not.toHaveBeenCalled();
   expect(box.current.attachments).toEqual([]);
-  expect(hooks.states.some(state => (state as { text?: string } | null)?.text === "Folders can’t be attached. Drop a folder outside the message to add a project.")).toBe(true);
+  expect(box.current.notice?.text).toBe("Folders can’t be attached. Drop a folder outside the message to add a project.");
 });
 
 test("dragging files over the composer shows the drop target and stops the window overlay", () => {
@@ -194,7 +194,7 @@ test("Send starts the composed request; a refusal keeps the draft and shows the 
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
   expect(start.mock.calls[0]![0]).toEqual({ root: "/code/doan-design", mode: "newDesign", runtime: "claude", text: "Use the doan design preset `critique` (Critique the design).\n\nCritique the buzz-onboarding canvas.", attachments: [{ id: "id-a" }] });
-  await vi.waitFor(() => expect(hooks.states.some(state => (state as { text?: string } | null)?.text === "Couldn’t start with Claude Code: its sign-in has expired. Choose another agent.")).toBe(true));
+  await vi.waitFor(() => expect(box.current.notice?.text).toBe("Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."));
   expect(box.current.text).toBe("Critique the buzz-onboarding canvas.");
   start.mockResolvedValueOnce({ error: "attachment_missing", missing: ["id-a"] } as never);
   call(field(render()), "onKeyDown", key("Enter"));
@@ -227,4 +227,102 @@ test("a dropped folder is recognised by its own item even when string items come
   const items = [{ kind: "string", webkitGetAsEntry: () => null }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }];
   call(composer, "onDrop", { preventDefault: vi.fn(), stopPropagation: vi.fn(), dataTransfer: { types: ["Files"], files: [folder, file], items } });
   expect(doan.addAttachmentFiles).toHaveBeenCalledWith([file]);
+});
+
+// Review BU3 fix round 1.
+const B: FolderEntry = { kind: "list", path: "/code/acme", servedRev: 0, canvases: [], git: { common: "/code/acme/.git", main: "/code/acme", branch: "main", worktrees: [] } };
+const runEffects = () => { for (const effect of hooks.effects) effect(); };
+const pending = () => { let resolve!: (value: { ok: true } | { error: string }) => void; const promise = new Promise<{ ok: true } | { error: string }>(r => { resolve = r; }); return { promise, resolve }; };
+
+test("first run's project is chosen once; the person's later choice wins and the request goes there", async () => {
+  const { box, start, render } = setup({ text: "Draw a pricing page." }, { entries: [ENTRY, B], select: { root: "/code/doan-design", seq: 1 } });
+  render(); runEffects();
+  expect(box.current.root).toBe("/code/doan-design");
+  const projects = find(render(), props => typeof props.onValueChange === "function" && props.value === "/code/doan-design/.git");
+  (projects.onValueChange as (key: string) => void)("/code/acme/.git");
+  render(); runEffects();
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalled());
+  expect((start.mock.calls[0]![0] as { root: string }).root).toBe("/code/acme");
+});
+
+test("a pending start keeps Home locked on a later visit, and a late reply clears only the draft it sent", async () => {
+  const first = setup({ text: "Draw a pricing page." });
+  const reply = pending();
+  first.start.mockReturnValueOnce(reply.promise as never);
+  call(field(first.render()), "onKeyDown", key("Enter"));
+  // Leave Home and come back: a new mount over the same memory.
+  hooks.states = []; hooks.refs = [];
+  const again = { ...first, render: () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer({ ...first.props })); } };
+  const tree = again.render();
+  expect(field(tree).readOnly).toBe(true);
+  expect(find(tree, props => props["aria-label"] === "Send").disabled).toBe(true);
+  call(field(tree), "onKeyDown", key("Enter"));
+  expect(first.start).toHaveBeenCalledTimes(1);
+  // A paste while pending changes nothing.
+  const paste = { preventDefault: vi.fn(), clipboardData: { files: [new File(["x"], "brief.pdf")], getData: () => "brief.pdf" } };
+  call(field(tree), "onPaste", paste);
+  expect(doan.addAttachmentFiles).not.toHaveBeenCalled();
+  // The draft changed meanwhile (Edit on Home): the late success leaves it alone and unlocks Send.
+  first.box.current = { ...first.box.current, text: "A newer idea" };
+  reply.resolve({ ok: true });
+  await vi.waitFor(() => expect(first.box.current.sending).toBeNull());
+  expect(first.box.current.text).toBe("A newer idea");
+});
+
+test("a late refusal after leaving Home is shown on the next visit and keeps the draft", async () => {
+  const { box, start, render } = setup({ text: "Draw a pricing page." });
+  const reply = pending();
+  start.mockReturnValueOnce(reply.promise as never);
+  call(field(render()), "onKeyDown", key("Enter"));
+  reply.resolve({ error: "busy" });
+  await vi.waitFor(() => expect(box.current.sending).toBeNull());
+  expect(box.current).toMatchObject({ text: "Draw a pricing page.", notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
+  expect(render().some(props => props.className === "doan-notice error doan-panel composer-notice")).toBe(true);
+});
+
+test("projects and worktrees that are still being read are disabled with their status chip", () => {
+  const loading = (path: string): FolderEntry => ({ kind: "loading", path, lastCommon: path === "/code/wt" ? "/code/doan-design/.git" : undefined } as FolderEntry);
+  const mixed: FolderEntry = { ...ENTRY, lastCommon: "/code/doan-design/.git" };
+  const tree = render3([mixed, loading("/code/wt"), loading("/code/only")]);
+  const items = tree.filter(props => props.className === "doan-menu-item project-item");
+  expect(items.map(props => !!props.disabled)).toEqual([false, true]);
+  const worktrees = tree.filter(props => props.className === "doan-menu-item shell-worktree");
+  expect(worktrees.map(props => !!props.disabled)).toEqual([false, true]);
+  expect(tree.filter(props => props.className === "ob-chip").map(props => props.children)).toEqual(["Reading…", "Reading…"]);
+  function render3(entries: FolderEntry[]) { return setup({}, { entries }).render(); }
+});
+
+test("a group tab's ←/→ selects the next tab and focuses it once drawn, with the list taken before React clears the event", () => {
+  const { render } = setup();
+  const tabs = render().filter(props => props.role === "tab");
+  const focus = vi.fn(), list = { querySelector: vi.fn(() => ({ focus })) };
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { queueMicrotask(run); return 0; });
+  const event = { key: "ArrowRight", preventDefault: vi.fn(), currentTarget: { parentElement: list } as { parentElement: unknown } | null };
+  const handler = tabs[0]!.onKeyDown as (event: unknown) => void;
+  // React nulls currentTarget right after the handler; the frame callback must not read it.
+  const realQueue = globalThis.queueMicrotask;
+  vi.stubGlobal("queueMicrotask", (run: () => void) => realQueue(run));
+  handler(event); event.currentTarget = null;
+  return new Promise<void>(resolve => realQueue(() => {
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(render().find(props => props.role === "tab" && props["aria-selected"])?.children).toContain("Start");
+    expect(list.querySelector).toHaveBeenCalledWith('[aria-selected="true"]');
+    expect(focus).toHaveBeenCalled();
+    resolve();
+  }));
+});
+
+test("Edit on Home checks the restored attachments again at once: checking, then ready or moved", async () => {
+  const sent = ["a.pdf", "b.pdf"].map(name => ({ key: name, id: `id-${name}`, name, kind: "file" as const, pasted: false, status: "ready" as const, size: 10, path: `/u/${name}` }));
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: sent, provider: "claude", model: null, effort: null };
+  let finish!: (value: unknown) => void;
+  doan.recheckAttachments = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+  const { box, render } = setup({}, { restore: { request: last, seq: 1 } });
+  render(); runEffects();
+  expect(doan.recheckAttachments).toHaveBeenCalledWith(["id-a.pdf", "id-b.pdf"]);
+  expect(box.current.attachments.map(a => a.status)).toEqual(["checking", "checking"]);
+  finish([{ id: "id-a.pdf", ok: true, attachment: { id: "id-a.pdf", name: "a.pdf", size: 12, kind: "file", path: "/u/a.pdf", pasted: false } }, { id: "id-b.pdf", ok: false, error: "not_found" }]);
+  await vi.waitFor(() => expect(box.current.attachments.map(a => a.status)).toEqual(["ready", "missing"]));
+  expect(box.current.attachments[0]?.size).toBe(12);
 });

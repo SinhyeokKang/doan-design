@@ -163,3 +163,45 @@ it("decodes the thumbnail from the bytes it checked, never by opening the path a
   expect(Buffer.from(f.thumbnail.mock.calls[0]![0])).toEqual(PNG);
   expect(opened.filter(p => p === image)).toHaveLength(1);
 });
+
+// buzz-home design §7.4 (2026-10-29 user): Edit on Home brings the last request's attachments back and checks them
+// again at once, with the acceptance checks, on the paths main recorded for those ids only.
+it("rechecks restored ids, including ones an accepted start consumed, and names the moved ones", () => {
+  const f = fixture();
+  const a = join(f.files, "a.txt"), b = join(f.files, "b.txt"); writeFileSync(a, "a"); writeFileSync(b, "b");
+  const [ra, rb] = f.store.addPaths({ paths: [a, b] })!.map(ok);
+  const pasted = ok(f.store.addPasted({ bytes: new Uint8Array(PNG) }));
+  const sent = [{ id: ra!.id }, { id: rb!.id }, { id: pasted.id }];
+  f.store.markSent(sent); f.store.consume(sent);
+  unlinkSync(b);
+  const results = f.store.recheck({ ids: [ra!.id, rb!.id, pasted.id, "unknown"] })!;
+  expect(results).toEqual([
+    { id: ra!.id, ok: true, attachment: { id: ra!.id, name: "a.txt", size: 1, kind: "file", path: a, pasted: false } },
+    { id: rb!.id, ok: false, error: "not_found" },
+    { id: pasted.id, ok: true, attachment: expect.objectContaining({ id: pasted.id, kind: "image", pasted: true }) },
+    { id: "unknown", ok: false, error: "not_found" },
+  ]);
+  // A rechecked id is the draft's again: the next start takes it.
+  expect(f.store.resolve([{ id: ra!.id }])).toMatchObject({ ok: true });
+  // A sent paste is part of a conversation's history: removing its restored chip forgets it but keeps the file.
+  expect(f.store.remove({ id: pasted.id })).toBe(true);
+  expect(existsSync(pasted.path)).toBe(true);
+  // …and a later Edit on Home of the same request finds it again.
+  expect(f.store.recheck({ ids: [pasted.id] })).toMatchObject([{ id: pasted.id, ok: true }]);
+});
+it("rechecks without opening another file when a restored path became a link elsewhere", () => {
+  const f = fixture();
+  const chosen = join(f.files, "a.txt"), secret = join(f.base, "secret.txt"); writeFileSync(chosen, "a"); writeFileSync(secret, "secret");
+  const added = ok(f.store.addPaths({ paths: [chosen] })![0]);
+  f.store.consume([{ id: added.id }]);
+  unlinkSync(chosen); symlinkSync(secret, chosen);
+  opened.length = 0;
+  expect(f.store.recheck({ ids: [added.id] })).toEqual([{ id: added.id, ok: false, error: "not_found" }]);
+  expect(opened).not.toContain(secret);
+});
+it.each([null, {}, { ids: "x" }, { ids: [1] }, { ids: ["a", "a"] }, { ids: ["a"], extra: 1 }, { ids: Array.from({ length: MAX_ATTACHMENTS + 1 }, (_, i) => `${i}`) }])(
+  "refuses a malformed recheck %j", value => { expect(fixture().store.recheck(value)).toBeNull(); });
+it("keeps the recheck channel to the main window", () => {
+  expect(senderAllowed("attachments:recheck", "main")).toBe(true);
+  expect(senderAllowed("attachments:recheck", "settings")).toBe(false);
+});

@@ -32,7 +32,7 @@ test("the strip is the shared panel notice with the provider mark, a status line
   expect(html).toContain('<div class="convo-strip doan-notice doan-panel" role="region" aria-label="Conversation">');
   expect(html).toContain('<span class="strip-agent"><img class="logo" src="provider-logos/claude.png" alt=""/></span>');
   expect(html).toContain('<span class="strip-text" role="status"><b>Claude Code is working</b><span>Editing .doan/canvases/design-system.html</span></span>');
-  expect(html).toMatch(/<button type="button" class="doan-button" data-ui-size="sm"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg>Stop<\/button>/);
+  expect(html).toMatch(/<button data-strip-stop="" type="button" class="doan-button" data-ui-size="sm"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg>Stop<\/button>/);
 });
 
 test("starting shows a spinner, failed an alert mark and done a check, as the states board draws them", () => {
@@ -77,4 +77,23 @@ test("failed and stopped offer Edit on Home (subtle) and Dismiss; done offers Op
   expect(render({ kind: "failed", code: "not_logged_in" })).toContain('<b>Claude Code’s sign-in expired</b><span>Edit your request on Home and choose another agent.</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Edit on Home</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
   expect(render({ kind: "interrupted", reason: "user" })).toContain("<b>Stopped</b><span>You stopped this conversation.</span>");
   expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Open</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button>');
+});
+
+// Review BU3 🟡6/🟡7: the alert line is keyed to its request, so React keeps the node (one announcement) while the
+// same request is redrawn and replaces it for a new one; Stop is marked for App's arrival focus.
+test("the alert line keeps its key across redraws of one request and changes it for the next; Stop carries its marker", () => {
+  hooks.mock = true;
+  const line = (state: StripState) => {
+    const tree = ConversationStrip({ conversationId: "c1", provider: "claude", state, view: stripView(state, CTX), onEditOnHome: noop, onDismiss: noop, onOpen: noop });
+    const children = Children.toArray((tree.props as { children: ReactNode }).children);
+    return children.find(child => isValidElement<{ className?: string; role?: string }>(child) && child.props.className === "strip-text") as { key: string | null; props: { role: string } };
+  };
+  const first = line(ASK), redraw = line(ASK), next = line({ ...ASK, requestId: "r2" }), working = line({ kind: "working", activity: null });
+  expect(first.props.role).toBe("alert");
+  expect(redraw.key).toBe(first.key);
+  expect(next.key).not.toBe(first.key);
+  expect(working.props.role).toBe("status");
+  expect(working.key).not.toBe(first.key);
+  expect(render(ASK)).toMatch(/<button data-strip-stop="" type="button" class="doan-button" data-ui-size="sm"><svg/);
+  expect(render(ASK).match(/data-strip-stop/g)).toHaveLength(1);
 });
