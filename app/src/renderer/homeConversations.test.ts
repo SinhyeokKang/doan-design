@@ -40,8 +40,11 @@ test("finished work stays unseen until its row is visited after it finished", ()
   expect(slotState([bound], visits([slotKey("/r/doan", ".doan/canvases/a.html"), 6])).size).toBe(0);
 });
 
-test("failed and stopped conversations leave no slot; their strip says what happened", () => {
-  expect(slotState([conv({ phase: "failed", finishedAt: 1 }), conv({ conversationId: "c2", phase: "interrupted", finishedAt: 1 })], visits())).toEqual(new Map());
+test("failed and stopped turns are unseen too, until their row is visited (2026-10-29 user)", () => {
+  for (const phase of ["failed", "interrupted"] as const) {
+    expect(slotState([conv({ phase, finishedAt: 1 })], visits())).toEqual(new Map([[slotKey("/r/doan"), { kind: "unseen", label: "New changes from Claude Code" }]]));
+    expect(slotState([conv({ phase, finishedAt: 1 })], visits([slotKey("/r/doan"), 2])).size).toBe(0);
+  }
 });
 
 test("the phase change stamps the finish time once, when the turn first ends", () => {
@@ -50,6 +53,8 @@ test("the phase change stamps the finish time once, when the turn first ends", (
   expect(done).toEqual({ ...working, phase: "done", finishedAt: 7 });
   expect(conversationPhase(done, "done", 9)).toBe(done);
   expect(conversationPhase(working, "permission", 7)).toEqual({ ...working, phase: "permission" });
+  expect(conversationPhase(working, "failed", 7)).toEqual({ ...working, phase: "failed", finishedAt: 7 });
+  expect(conversationPhase(working, "interrupted", 7)).toEqual({ ...working, phase: "interrupted", finishedAt: 7 });
   expect(conversationPhase(conv({ phase: "failed", finishedAt: 3 }), "working", 8)).toEqual(conv({ phase: "working" }));
 });
 

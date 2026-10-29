@@ -70,9 +70,9 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (input.sending) return off(null);
   if (input.projects === 0 || !input.root) return off({ kind: "noProject", text: "Add a project to send." });
   if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: unavailableProject(input.projectName) });
-  const choosable = connectedProviders(input.auth).filter(selectableProvider);
-  if (choosable.length === 0 || !input.provider) return off({ kind: "noAgent", text: "No agent is ready to run." });
-  if (!choosable.some(s => s.provider === input.provider)) return off({ kind: "agentUnavailable", text: `${PROVIDER_NAMES[input.provider]} can’t run right now. Choose another agent.` });
+  if (!input.provider) return off({ kind: "noAgent", text: "No agent is ready to run." });
+  // A chosen agent that expires or signs out stays chosen and names itself, even when it was the only one.
+  if (!connectedProviders(input.auth).filter(selectableProvider).some(s => s.provider === input.provider)) return off({ kind: "agentUnavailable", text: `${PROVIDER_NAMES[input.provider]} can’t run right now. Choose another agent.` });
   if (input.running) return off({ kind: "running", text: `A conversation from Home is still running in ${input.projectName}.`, open: input.running });
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
   const request = composeRequest(input.text, input.preset, input.attachments.length);

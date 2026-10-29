@@ -11,16 +11,17 @@ export interface HomeConversation {
   phase: StripState["kind"];
   // The canvas path main bound the conversation to (design §7.3).
   canvas?: string;
-  // The visit clock's tick when the turn ended as done; work finished before a visit to its row is seen.
+  // The visit clock's tick when the turn ended; a turn that ended after the last visit to its row is unseen.
   finishedAt?: number;
 }
 
 const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission"];
+const FINISHED: readonly StripState["kind"][] = ["done", "failed", "interrupted"];
 
 export function conversationPhase(conversation: HomeConversation, phase: StripState["kind"], tick: number): HomeConversation {
   if (conversation.phase === phase) return conversation;
   const { finishedAt: _finishedAt, ...rest } = conversation;
-  return phase === "done" ? { ...rest, phase, finishedAt: tick } : { ...rest, phase };
+  return FINISHED.includes(phase) ? { ...rest, phase, finishedAt: tick } : { ...rest, phase };
 }
 
 // One sidebar row: a canvas row when the conversation is bound, else its project row.
@@ -37,8 +38,8 @@ export function slotState(conversations: readonly HomeConversation[], visits: Re
     let slot: Slot | null = null;
     if (c.phase === "permission") slot = { kind: "permission", label: `${p} needs your answer` };
     else if (c.phase === "starting" || c.phase === "working") slot = { kind: "working", label: `${p} is working` };
-    // Failed and stopped turns are explained by their strip; only finished work waits to be seen.
-    else if (c.phase === "done" && c.finishedAt !== undefined && (visits.get(key) ?? -Infinity) <= c.finishedAt) slot = { kind: "unseen", label: `New changes from ${p}` };
+    // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
+    else if (FINISHED.includes(c.phase) && c.finishedAt !== undefined && (visits.get(key) ?? -Infinity) <= c.finishedAt) slot = { kind: "unseen", label: `New changes from ${p}` };
     const held = slots.get(key);
     if (slot && (!held || RANK[slot.kind] > RANK[held.kind])) slots.set(key, slot);
   }

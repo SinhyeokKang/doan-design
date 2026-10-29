@@ -112,11 +112,11 @@ test("an empty composer disables Send without a reason line; a preset or an atta
   expect(sendAvailability(base({ text: "", attachments: [attachment("brief.pdf")] }))).toEqual({ enabled: true, reason: null });
 });
 
-test("no project, an unhealthy project, and no ready agent each give their reason", () => {
+test("no project, an unhealthy project, and no chosen agent each give their reason", () => {
   expect(sendAvailability(base({ projects: 0, root: null, projectName: "" }))).toEqual({ enabled: false, reason: { kind: "noProject", text: "Add a project to send." } });
   expect(sendAvailability(base({ root: missing("/r/old-site"), projectName: "old-site" })))
     .toEqual({ enabled: false, reason: { kind: "projectUnavailable", text: "old-site isn’t available. Fix it from its menu in the sidebar." } });
-  expect(sendAvailability(base({ auth: snapshot(dto("claude", { expired: true })), provider: "claude" })))
+  expect(sendAvailability(base({ auth: snapshot(dto("claude", { expired: true })), provider: null })))
     .toEqual({ enabled: false, reason: { kind: "noAgent", text: "No agent is ready to run." } });
   expect(sendAvailability(base({ auth: snapshot(), provider: null }))).toEqual({ enabled: false, reason: { kind: "noAgent", text: "No agent is ready to run." } });
   expect(sendAvailability(base({ auth: undefined, provider: null })).enabled).toBe(false);
@@ -127,6 +127,12 @@ test("a chosen agent that is no longer ready keeps the choice and blocks Send wh
   expect(sendAvailability(base({ auth, provider: "claude" })))
     .toEqual({ enabled: false, reason: { kind: "agentUnavailable", text: "Claude Code can’t run right now. Choose another agent." } });
   expect(sendAvailability(base({ auth: snapshot(dto("claude"), dto("codex", { connected: false })), provider: "codex" })).reason?.kind).toBe("agentUnavailable");
+});
+
+test("the only agent, once chosen, keeps its own reason when its sign-in expires or it is signed out", () => {
+  const unavailable = { enabled: false, reason: { kind: "agentUnavailable", text: "Claude Code can’t run right now. Choose another agent." } };
+  expect(sendAvailability(base({ auth: snapshot(dto("claude", { expired: true })), provider: "claude" }))).toEqual(unavailable);
+  expect(sendAvailability(base({ auth: snapshot(dto("claude", { connected: false })), provider: "claude" }))).toEqual(unavailable);
 });
 
 test("an unverified agent after a restart can be sent with", () => {
