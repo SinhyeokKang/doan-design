@@ -26,6 +26,7 @@
 | D13 | U-010(stub에 두 경로 모두 실패할 때의 규칙), D3·D7 Claude의 사실 지어내기(clarify·harden 규칙 보강)는 새 수정 배치 F가 고친다. D2·D11의 시나리오 결함은 아직 병합 전 시나리오라 E가 제자리에서 고치고 다시 잰다 | 지휘자 판단 — 셋 다 design §3과 spec §4에 이미 정해진 규칙을 반영하는 수정이다 |
 | D14 | D3는 실제 HOME에 격리 userData·`DOAN_RUNTIME`·`TMPDIR`·fake SHELL을 써서 진행한다. 끝나면 sign-out으로 doan profile용 Keychain 항목이 지워지는지 확인한다 | 사용자 허가(2026-10-29). 격리 HOME에는 login keychain이 없어 Codex·Claude 인증을 저장하지 못한다(ARCHITECTURE §7, PoC 10) |
 | D15 | `document`의 예외(제품 맥락 문서가 있으면 `context` 생략)는 유지한다. U-009는 제품 맥락 문서가 없는 새 시나리오 D10c로 잰다. Codex `approval: never`가 MCP `init`을 거부한 D10b-codex는 알려진 조건으로 기록한다 | 사용자 결정(2026-10-29), D10b는 지휘자 판단 — ARCHITECTURE §6이 MCP 쓰기 도구에 사람 승인을 남긴다 |
+| D16 | 가이드의 프리셋 절을 id 한 줄과 조회 안내·압축한 규칙으로 줄이고, 가이드 본문 크기 상한 테스트와 '중간 잘림 표시가 보이면 나눠 다시 읽기' 안내를 가이드·stub에 넣는다(F2). 그 뒤 D3 Codex를 다시 확인하고, 가이드가 바뀌었으므로 마지막 통합 전에 `/agent-eval` 전체 suite를 돌린다 | 지휘자 판단(사용자 기준 '돌아가더라도 검증을 확실히'). D3에서 Codex exec가 6,000 token에서 가이드 가운데를 잘라 `clarify` 줄이 사라졌고 끝 마커는 남았다. 이 feature 전 가이드는 18,830B였다 |
 
 ## 배치
 
@@ -40,6 +41,7 @@
 | E | E2b, E2c, E2d | `eval/scenarios/`의 새 시나리오와 fixture, `docs/USABILITY-EVAL.md` | G2, P, S, R 통합 | Claude Opus high — 사례별 허용 선택·금지 수정 rubric 설계와 실제 round 실행 | `verify.mjs --eval`, `node eval/run.ts --self-test`, 실제 round | 진행 |
 | V | D2, D3, E1 | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus medium — 격리·정리 절차가 길지만 판단보다 단계가 많다. D3 로그인 승인은 지휘자(D3 결정) | `/runtime-test` | 진행(D2·E1 먼저, D3는 같은 터미널 다음 Task) |
 | F | U-009·U-010·D3/D7 보강(E 결과의 수정) | `presets/{document,clarify,harden,onboard}.md`, `SOURCES.md`, `get-clarify.json`, `app/src/main/onboarding/SKILL.md`와 stub 테스트 | E 1차 round | Claude Opus medium — 문구 수정이지만 stub 두 설치 경로와 앱 대화 지시의 충돌을 피해야 한다 | `verify.mjs` | 진행(`ctx_b0d12bf988e3`) |
+| F2 | D3에서 찾은 가이드 잘림 회귀 수정 | `cli/internal/cli/skill.md`·`skill.go`와 가이드 테스트, stub과 stub 테스트 | V D3 | Claude Opus high — 모든 Codex 세션에 영향을 주는 가이드 회귀이고 상한 근거를 정해야 한다 | `verify.mjs` | 진행(`ctx_699109337b7d`) |
 | 지휘자 | A0, D4, E3, Z1 | `orch.md`, PRODUCT, ARCHITECTURE, DIRECTORY, buzz-restyle 문서, 통합 커밋 | A0: 없음. 나머지: 전부 | — | 통합 HEAD `verify.mjs --eval` | 대기 |
 
 독립 리뷰(`/code-review`, 보고만): G1·G2·A·P는 Codex `gpt-6-astra` medium, S·R·E는 Claude Opus medium. 구현과 다른 계열을 섞는다(D1). E3의 최종 리뷰는 통합 diff 전체를 Claude Opus high로 한 번 더 본다.
@@ -86,3 +88,4 @@
 - 2026-10-29: F 완료(44782e82·6df2914d·1d9010e1)를 지휘자가 확인했다. stub에 두 경로 실패 규칙, document에 context 선행, clarify·harden에 미확인 결과 주장 금지·실제 다음 행동만 쓰는 빈 상태 규칙이 들어갔다. F와 E 1차(168c9c35·2a208780)를 통합한다.
 - 2026-10-29: E 수정·재측정 라운드 1(`ctx_f6933a67e9a6`)과 V D3(`start-V-D3.json`)를 시작했다.
 - 2026-10-29: E 수정·재측정 1(3555548f·65322bac·48ba14cd): U-010 fixed(D3b·D4b 양쪽 pass), D2b·D7b 양쪽 pass. U-009는 Claude가 README를 제품 맥락 문서로 보아 `context`를 생략해 0/3, D11b seed에 근거 없는 spacing 문구가 남았다. D10c·D11c로 재측정 2를 보냈다.
+- 2026-10-29: V D3 완료: Cursor·Antigravity·Copilot PASS, Copilot 조회 실패 사례 PASS. Codex 미완료(가이드 가운데 잘림으로 `clarify` 줄 누락, 실제 HOME의 이전 user stub을 읽음). Claude는 사용자가 직접 로그인을 승인했으나 계정 주간 한도(10-31 13시 재설정)로 미검증. sign-out으로 profile Keychain 항목 2개가 지워졌고 2차 real-state는 불변. 관찰: Copilot·Claude의 권한 요청 요약은 실행 명령을 보여 주지 않는다, Antigravity 로그인은 5분에 만료된다. F2를 시작했다.
