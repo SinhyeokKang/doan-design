@@ -66,3 +66,4 @@
 - 2026-10-29 통합 `/verify`(`8067150e`): PASS — verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build.
 - 2026-10-29 BP 중간 보고: P1은 다섯 공급자 모두 목록을 얻음(모델 요청 불필요, Copilot은 이 계정에서 `auto`만). P2는 Codex·Antigravity·Copilot 완료. Claude(주간 한도, 10/31 13:00 KST 초기화)·Cursor('Upgrade your plan')는 계정 한도로 P2를 관찰하지 못해 미확인으로 기록한다(사용자 결정).
 - 2026-10-29 BP 완료(`802f205c`), 통합 `3060e762`. P1·P2 결과가 design §4.7·§4.8과 달라 그 절을 고치고 사용자 확인을 받았다. BM 시작 조건 충족.
+- 2026-10-29 BP 작업자 해제, 워크트리 제거(증거는 지휘자 `.scratch/buzz-home/poc-*`에 복사 확인). BM 시작(`6898979d`, Claude Opus high).
