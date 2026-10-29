@@ -370,11 +370,11 @@ These are differences from the 2026-10-28 draft. The D27 redraw draws each shipp
 ### Draft redraw — 2026-10-29 (D27)
 
 - **What:** the canvas now shows the shipped onboarding, one 1238 × 780 window with the shipped chrome and stepper per state: Welcome, 40 Agent states and 32 Project states (73 frames, canvas id unchanged). The tile grids are gone.
-- **How:** each frame's markup is the real components (`Welcome`, `SetupSteps`, `AgentStep`, `ProjectScreen`) rendered with controlled props at `feat-buzz-onboarding` `3331207`. The onboarding rules of `styles.css` are copied into the canvas verbatim, next to the linked `tokens.css` and `ds/index.css`.
+- **How:** each frame's markup is the real components (`Welcome`, `SetupSteps`, `AgentStep`, `ProjectScreen`) rendered with controlled props at `feat-buzz-onboarding` `3331207`, re-synced at `b00ee20` after D28 and D29. The onboarding rules of `styles.css` are copied into the canvas verbatim, next to the linked `tokens.css` and `ds/index.css`.
 - **Canvas-only parts:** the wallpaper and glass behind Agent and Project (as before, not a native measurement), schematic traffic lights, modals drawn in place over a scrim, and dialogs without `autofocus`, so the canvas does not scroll on load. Announcements and focus moves are in the captions.
 - **Render check** (isolated Electron, draft served over HTTP; `.scratch/design-draft/buzz-onboarding/`):
-  - every frame is 1238 × 780 with no horizontal overflow; the 1,277 `data-doan-id` values are unique; Geist, the 190 provider marks and the grain mask load;
-  - every frame's markup put into the running app's onboarding overlay, with dialogs opened by `showModal()`: 3,870 elements, 0 computed-style or box differences from the draft;
+  - every frame is 1238 × 780 with no horizontal overflow; the 1,270 `data-doan-id` values are unique; Geist, the 190 provider marks and the grain mask load;
+  - every frame's markup put into the running app's onboarding overlay, with dialogs opened by `showModal()`: 3,863 elements, 0 computed-style or box differences from the draft;
   - the real app's Welcome against the draft frame: 0 differences (wordmark at y 248, sentence at y 376, Get started 173 × 48 at y 468, as measured above).
 - **Scrolling:** the scene scrolls at 780px in 33 frames, as it does in the app; their captions say so.
 - **Not re-measured:** the redraw copies the code, so it checks the copy, not the design. The measured contracts above still come from the design-sync run.
