@@ -82,3 +82,4 @@
 - 2026-10-29: V(D2·E1) 완료(`handoff-V.md`). D2 PASS(실제 격리 Electron, 목록·단건이 CLI와 같음, iframe·Settings sender는 `request_refused`, real-state 불변). E1 PASS(패키지 CLI 20개·고지 4파일, 두 호환 사례). 미검증: 제품 설치 경로(user skill)로의 발견, Codex. 범위 밖 발견: `app/runtime/environment.ts`의 `isolatedEnv`가 `onboarding.json`에 `{}`를 써서 현재 v1 완료 기록과 맞지 않아 첫 실행 마법사가 뜬다(probe에서 우회). D3는 F 통합 뒤 같은 터미널로 보낸다.
 - 2026-10-29: E 리뷰(`review-E.md`) 🔴0 🟡4 ⚪4. 🟡: D3·D4의 우회 금지가 judge에만 걸림, D7 partial 1/3은 rubric 모호함, MCP `init` 경로 미검증 누락, U-009 근거 순서 오기. 지휘자 판단: 시나리오 결함은 저장소 관례대로 새 id(D2b·D3b·D4b·D7b·D11b)로 고치고, MCP `init` 경로는 D10b로 더한다. F 통합 뒤 E에 수정·재측정 라운드로 보낸다.
 - 2026-10-29: F 완료(44782e82·6df2914d·1d9010e1)를 지휘자가 확인했다. stub에 두 경로 실패 규칙, document에 context 선행, clarify·harden에 미확인 결과 주장 금지·실제 다음 행동만 쓰는 빈 상태 규칙이 들어갔다. F와 E 1차(168c9c35·2a208780)를 통합한다.
+- 2026-10-29: E 수정·재측정 라운드 1(`ctx_f6933a67e9a6`)과 V D3(`start-V-D3.json`)를 시작했다.
