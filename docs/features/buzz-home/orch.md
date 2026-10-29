@@ -52,3 +52,5 @@
 - 2026-10-29 BT1 완료(`52cf0fb5` test, `793143fb` feat; app test 4414 통과, typecheck 통과). 인계 사항: main `uiState.ts`가 renderer 저장마다 main 창 상태를 통째로 바꾸므로 BU3는 저장할 때마다 `home`을 함께 보내야 한다. ui-state의 모르는 키는 design §8대로 버린다(브리프의 '유지' 표현이 틀렸다). 리뷰: Codex `gpt-6-astra` medium.
 - 2026-10-29 BT1 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 0 / ⚪ 2. 통합 `67043c1f`·`5a6e6403`. 작업자·리뷰어 해제, 워크트리 제거.
 - 2026-10-29 BT0 완료(Codex `gpt-6.1-sol` medium, `9b8af9d8`·`b4104036`). 리뷰(Claude Sonnet medium): 🔴 0 / 🟡 0 / ⚪ 2(동시 실행 중 app test 1건 flake, 재실행 통과). 통합 `20e9a2b0`·`8814b998`. 작업자·리뷰어 해제, 워크트리 제거. 통합 `/verify`는 1차 코드 배치(BT2·BU0)를 통합한 뒤 한 번에 돌린다(작업자 테스트와 겹치지 않게).
+- 2026-10-29 BU0 완료(`87ed9f6d`·`9e1fb33a`·`3945f2ef`·`631df8ca`). 리뷰(Codex `gpt-6-astra` medium): 🔴 0 / 🟡 0 / ⚪ 0. 통합 `d90fdd01`·`f260bc76`·`dc185500`·`0377484a`. 작업자·리뷰어 해제, 워크트리 제거. BU3로 넘김: 홈 선택자들의 `violetAllowed` 항목(프리셋 칩·추천 프롬프트 아이콘·그라디언트·드롭 외곽선·LNB 슬롯), 칩 × 색(홈 CSS, 색만). BZ로 넘김: DESIGN.md 34·72행과 ARCHITECTURE §7 'Toasts'의 옛 토스트 위치.
+- 2026-10-29 BP 로그인: Claude(사용자가 직접 로그인, 지휘자 확인)·Codex·Cursor·Copilot을 지휘자가 ego-browser로 승인했다.
