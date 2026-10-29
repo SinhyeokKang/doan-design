@@ -22,6 +22,8 @@
 | D9 | A1-R 재검토 결과 공개 20개 ID를 유지한다. `document`의 표시 이름은 `Document the design system`이다 | 사용자 결정(2026-10-29), G1 권고 |
 | D10 | `doan init`·MCP `init`의 `context` 안내는 성공 result에 `nextSteps: string[]` 키 하나를 더해 싣는다. 기존 키와 envelope v1·schema는 바꾸지 않는다 | 사용자 결정(2026-10-29). G2 질문 — 성공 envelope에는 `nextSteps` 자리가 없다 |
 | D11 | E1의 실제 에이전트 확인은 실제 HOME·`CLAUDE_CONFIG_DIR`를 읽기용으로 써서 사례마다 `claude -p`를 한 번씩 실행한다(세션 저장 없음, MCP 없음, `CODEX_HOME`·`DOAN_RUNTIME` 격리, 전후 비교). 새 stub과 구 CLI의 사례는 skill 로딩을 끄고 stub 본문을 system prompt로 주며, stub 설치 경로는 미검증으로 남긴다 | 사용자 허가(2026-10-29). Claude 인증은 Keychain에만 있어 격리 HOME에서는 로그인되지 않는다 |
+| D12 | U-009: `document`은 이 대화에서 `context`를 읽지 않았고 프로젝트 맥락 문서가 없으면 `context`를 먼저 읽게 한다. D10으로 다시 잰다 | 사용자 결정(2026-10-29). D10에서 Claude 0/3·Codex 1/3만 `context`를 읽었다 |
+| D13 | U-010(stub에 두 경로 모두 실패할 때의 규칙), D3·D7 Claude의 사실 지어내기(clarify·harden 규칙 보강)는 새 수정 배치 F가 고친다. D2·D11의 시나리오 결함은 아직 병합 전 시나리오라 E가 제자리에서 고치고 다시 잰다 | 지휘자 판단 — 셋 다 design §3과 spec §4에 이미 정해진 규칙을 반영하는 수정이다 |
 
 ## 배치
 
@@ -35,6 +37,7 @@
 | A | A2(TS), B2(TS 앱 결과 해석), D1 | `app/src/main/`의 새 designSkills 모듈과 테스트, `app/src/main/index.ts`·`senderAllowed.ts`·`cli.ts`(필요한 연결만), `app/src/preload/index.ts`와 테스트 | G1 | Claude Opus high — 신뢰된 호출자 경계와 실패를 빈 성공으로 바꾸지 않는 해석 | `verify.mjs` | 통합(bc89b5a…3eb7d21, 수정 1회) |
 | E | E2b, E2c, E2d | `eval/scenarios/`의 새 시나리오와 fixture, `docs/USABILITY-EVAL.md` | G2, P, S, R 통합 | Claude Opus high — 사례별 허용 선택·금지 수정 rubric 설계와 실제 round 실행 | `verify.mjs --eval`, `node eval/run.ts --self-test`, 실제 round | 진행 |
 | V | D2, D3, E1 | 보고만 한다. `.scratch/` 근거 | 모든 구현 통합 | Claude Opus medium — 격리·정리 절차가 길지만 판단보다 단계가 많다. D3 로그인 승인은 지휘자(D3 결정) | `/runtime-test` | 진행(D2·E1 먼저, D3는 같은 터미널 다음 Task) |
+| F | U-009·U-010·D3/D7 보강(E 결과의 수정) | `presets/{document,clarify,harden,onboard}.md`, `SOURCES.md`, `get-clarify.json`, `app/src/main/onboarding/SKILL.md`와 stub 테스트 | E 1차 round | Claude Opus medium — 문구 수정이지만 stub 두 설치 경로와 앱 대화 지시의 충돌을 피해야 한다 | `verify.mjs` | 진행(`ctx_b0d12bf988e3`) |
 | 지휘자 | A0, D4, E3, Z1 | `orch.md`, PRODUCT, ARCHITECTURE, DIRECTORY, buzz-restyle 문서, 통합 커밋 | A0: 없음. 나머지: 전부 | — | 통합 HEAD `verify.mjs --eval` | 대기 |
 
 독립 리뷰(`/code-review`, 보고만): G1·G2·A·P는 Codex `gpt-6-astra` medium, S·R·E는 Claude Opus medium. 구현과 다른 계열을 섞는다(D1). E3의 최종 리뷰는 통합 diff 전체를 Claude Opus high로 한 번 더 본다.
@@ -74,3 +77,4 @@
 - 2026-10-29: P 수정 라운드 1(9f24286·633cbde)을 지휘자가 확인했다(document의 시스템 폰트·glyph는 기본값으로, polish·distill·quieter 금지는 기존 시스템이 정당화하는 기본값으로, generate는 자유 탐색·방향 고정·departure로 분기). P를 통합하고 3차 E·V를 시작한다.
 - 2026-10-29: 2차 통합 HEAD(90fa660) `verify.mjs --eval` PASS(9단계). 3차 E(`ctx_77e6356c97de`)·V(`ctx_3b2e3e0e7546`)를 시작했다.
 - 2026-10-29: V 질문 — 격리한 CLAUDE_CONFIG_DIR에는 Claude 인증이 없다(Keychain 전용). 지휘자 판단으로 실제 CLAUDE_CONFIG_DIR를 읽기용으로만 쓰고 나머지는 격리하며, 전후 비교와 transcript로 읽은 SKILL.md를 판정하게 했다.
+- 2026-10-29: E 1차 완료(168c9c35·2a208780, D1–D12, round 7개 38 run). 미완료: D10(U-009), D4-codex(U-010), judge partial D2·D3·D7·D11(Claude). 리뷰(Claude Opus medium, `ctx_513795091da0`)와 수정 배치 F를 시작했다. E 터미널은 재측정을 위해 retain했다.
