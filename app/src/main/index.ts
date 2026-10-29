@@ -251,7 +251,7 @@ function setMenu(): void {
     : { role: "undo" };
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      { label: "doan", submenu: [
+      { label: "Doan", submenu: [
         { role: "about" },
         { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettings(null) },
         { type: "separator" }, { role: "services" }, { type: "separator" },

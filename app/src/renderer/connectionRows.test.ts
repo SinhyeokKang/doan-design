@@ -33,12 +33,12 @@ test("first read has no action or sentence; refresh keeps the settled status", (
 test("broken CLI offers Fix and a missing-target confirmation", () => {
   const state = machine({ cli: { state: "dangling", value: "/gone/doan", stamp: "s" } });
   expect(connectionRow(state, "cli", idleUi())).toMatchObject({ status: "Needs attention", cause: "Link is broken.", action: { label: "Fix…" } });
-  expect(connectionConfirm("cli", "claude", state)).toMatchObject({ title: "Fix the doan link?", current: "/gone/doan (missing)", verb: "Fix Link" });
-  expect(connectionBanner({ kind: "cli-dangling" }, "cli")).toEqual(["The doan command link is broken, so agents can’t reach doan."]);
+  expect(connectionConfirm("cli", "claude", state)).toMatchObject({ title: "Fix the Doan link?", current: "/gone/doan (missing)", verb: "Fix Link" });
+  expect(connectionBanner({ kind: "cli-dangling" }, "cli")).toEqual(["The doan command link is broken, so agents can’t reach Doan."]);
 });
 test("blocked and translocated connections never offer replacement", () => {
   expect(connectionRow(machine({ cli: { state: "blocked", value: null, stamp: "s" } }), "cli", idleUi())).toMatchObject({ action: { kind: "check" } });
-  expect(connectionRow(machine({ available: false, reason: "Move doan to Applications, then open it again." }), "cli", idleUi()).action).toBeUndefined();
+  expect(connectionRow(machine({ available: false, reason: "Move Doan to Applications, then open it again." }), "cli", idleUi()).action).toBeUndefined();
 });
 test("unknown and absent agents have distinct actions", () => {
   const state = machine(); state.agents.codex.executable = null;
@@ -50,7 +50,7 @@ test("shared skill and MCP conflict copy identifies the cause", () => {
   const state = machine(); state.stub.state = "differs";
   expect(connectionRow(state, "claude", idleUi()).cause).toBe("Skill was changed.");
   state.agents.claude.mcp = { state: "other", value: '{"command":"/other/doan","args":["mcp"]}' };
-  expect(connectionRow(state, "claude", idleUi())).toMatchObject({ cause: "MCP runs another command.", parts: ["Claude Code’s doan server runs ", { code: "/other/doan mcp" }, ", not this app’s doan."] });
+  expect(connectionRow(state, "claude", idleUi())).toMatchObject({ cause: "MCP runs another command.", parts: ["Claude Code’s doan server runs ", { code: "/other/doan mcp" }, ", not this app’s Doan."] });
 });
 
 test("blocked shared skill wins over a foreign Claude link and stays read-only", () => {
@@ -64,9 +64,9 @@ test("a development build without DOAN_CLI gives its reason as the row sentence,
   expect(connectionRow(state, "cli", idleUi())).toMatchObject({ status: "Not connected", parts: [reason], action: { label: "Connect", disabled: true } });
   const html = renderToStaticMarkup(createElement(ConnectionRows, { machine: state, ui: idleUi(), rows: ["cli"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
   expect(html.split(reason)).toHaveLength(2);
-  expect(html).not.toContain("Agents can’t run doan until the command is connected.");
+  expect(html).not.toContain("Agents can’t run Doan until the command is connected.");
   // Agent rows keep their own sentence; the reason follows it.
-  expect(connectionRow(state, "claude", idleUi()).parts).toEqual(["Claude Code is installed but can’t use doan yet."]);
+  expect(connectionRow(state, "claude", idleUi()).parts).toEqual(["Claude Code is installed but can’t use Doan yet."]);
   const agentHtml = renderToStaticMarkup(createElement(ConnectionRows, { machine: state, ui: idleUi(), rows: ["claude"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
   expect(agentHtml.split(reason)).toHaveLength(2);
 });

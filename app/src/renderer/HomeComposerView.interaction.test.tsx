@@ -193,7 +193,7 @@ test("Send starts the composed request; a refusal keeps the draft and shows the 
   start.mockResolvedValueOnce({ error: "not_logged_in" } as never);
   call(field(render()), "onKeyDown", key("Enter"));
   await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
-  expect(start.mock.calls[0]![0]).toEqual({ root: "/code/doan-design", mode: "newDesign", runtime: "claude", text: "Use the doan design preset `critique` (Critique the design).\n\nCritique the buzz-onboarding canvas.", attachments: [{ id: "id-a" }] });
+  expect(start.mock.calls[0]![0]).toEqual({ root: "/code/doan-design", mode: "newDesign", runtime: "claude", text: "Use the Doan design preset `critique` (Critique the design).\n\nCritique the buzz-onboarding canvas.", attachments: [{ id: "id-a" }] });
   await vi.waitFor(() => expect(box.current.notice?.text).toBe("Couldn’t start with Claude Code: its sign-in has expired. Choose another agent."));
   expect(box.current.text).toBe("Critique the buzz-onboarding canvas.");
   start.mockResolvedValueOnce({ error: "attachment_missing", missing: ["id-a"] } as never);

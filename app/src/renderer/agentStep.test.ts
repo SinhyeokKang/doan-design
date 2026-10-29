@@ -63,7 +63,7 @@ test("step entry checks connected, unverified and tool-check providers except Co
   await flush();
   expect(h.api.readAgentAuth).toHaveBeenCalledTimes(1);
   expect(checked(h)).toEqual(["claude", "codex"]);
-  expect(row(h, "claude").helper).toBe("doan checks this automatically when you open this step.");
+  expect(row(h, "claude").helper).toBe("Doan checks this automatically when you open this step.");
   expect(row(h, "copilot").button?.ariaLabel).toBe("Check GitHub Copilot again, uses one Copilot request");
 });
 
@@ -376,7 +376,7 @@ test("an unreadable account store shows Retry, which reads again", async () => {
   const h = harness(null);
   h.session.start(); h.session.enter();
   await flush();
-  expect(h.session.view().notice?.body).toBe("doan couldn’t read its agent connections.");
+  expect(h.session.view().notice?.body).toBe("Doan couldn’t read its agent connections.");
   h.setRead(snap(1));
   h.session.retryRead();
   await flush();

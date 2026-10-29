@@ -6,7 +6,7 @@ export const INSPECT_GROUPS: readonly (readonly [InspectGroup, string])[] = [["b
 // With CDP collecting, Unknown means a CSS-wide keyword, a variable invalid at
 // computed time or an unplaceable shorthand part, not an unreadable sheet
 // (2026-10-22 decision).
-export const UNKNOWN_SOURCE_TIP = "doan can't tell where this value comes from";
+export const UNKNOWN_SOURCE_TIP = "Doan can't tell where this value comes from";
 
 export interface SourceNote {
   text: string;

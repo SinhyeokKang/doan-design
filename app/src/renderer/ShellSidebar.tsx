@@ -52,7 +52,7 @@ const sortedCanvases = (rows: CanvasRow[]) => [...rows].sort((a, b) => {
   const name = (row: CanvasRow) => row.path.split("/").at(-1)!.replace(/\.html$/, "");
   return canvasOrder.compare(name(a), name(b)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 });
-const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
+const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ShellSidebar(props: Props) {
   const { cards, projects, loaded, canvas } = props;
   const descriptionPrefix = useId();
@@ -172,7 +172,7 @@ export function ShellSidebar(props: Props) {
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => {
                   const current = live.current.cards.find(item => item.key === card.key);
                   if (current) void props.remove(current.rows.map(row => row.path));
-                }}><CircleMinus />Remove from doan</DropdownMenu.Item>
+                }}><CircleMinus />Remove from Doan</DropdownMenu.Item>
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>
           </div>

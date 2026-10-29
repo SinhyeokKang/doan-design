@@ -475,7 +475,7 @@ test("the bundled stub points to design presets through the guide without listin
 // Without either path the guide's failure rule is unreachable, so the stub must carry it (U-010). The app
 // conversation's turn prompt forbids suggesting Settings > Connections, so the stub defers to it.
 test("the bundled stub says what to do when neither the shell nor MCP guide works", () => {
-  for (const text of ["neither", "were not applied", "Settings… > Connections", "other doan binaries", "doan's source files", "doan app's conversation instructions"]) expect(BUNDLED_STUB).toContain(text);
+  for (const text of ["neither", "were not applied", "Settings… > Connections", "other Doan binaries", "Doan's source files", "Doan app's conversation instructions"]) expect(BUNDLED_STUB).toContain(text);
   expect(BUNDLED_STUB.split("\n").length).toBeLessThanOrEqual(20);
 });
 test("connect writes the exact bundled stub bytes", async () => {

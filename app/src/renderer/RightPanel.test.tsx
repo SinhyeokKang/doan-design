@@ -53,7 +53,7 @@ describe("Inspector for an element", () => {
     expect(between(html, 'title="Margin"', '<div class="inspect-row">')).not.toContain("source-line");
     expect(between(html, 'title="Family"', "</div></div>")).toContain('<span class="truncate token" title="--font-sans">--font-sans</span><span class="state" title="Inherited from body">Inherited from body</span>');
     expect(between(html, 'title="Background"', "</div></div>")).toContain('<span class="truncate token" title="--button-background → --brand → #4f46e5">--button-background</span><span class="state" title="Hover state">Hover state</span>');
-    expect(between(html, 'title="Radius"', "</div></div>")).toContain(`<span class="state" title="doan can&#x27;t tell where this value comes from">Unknown source</span>`);
+    expect(between(html, 'title="Radius"', "</div></div>")).toContain(`<span class="state" title="Doan can&#x27;t tell where this value comes from">Unknown source</span>`);
   });
 
   test("draws Width and Height without a source line (draft)", () => {

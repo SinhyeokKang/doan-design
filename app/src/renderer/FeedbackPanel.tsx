@@ -33,7 +33,7 @@ export interface FeedbackPanelProps {
 
 const NOTICE = (id: string) => `No canvas uses the ID ${id}. Give a canvas this ID again to bring these comments back, or ask your agent.`;
 const READ_ONLY = "Some canvases couldn’t be read; these comments may belong to one of them.";
-const NOT_AN_ID = "Not a canvas ID — doan can't show or change these comments.";
+const NOT_AN_ID = "Not a canvas ID — Doan can't show or change these comments.";
 const cardKey = (key: string) => `card:${key}`;
 // How long Show may wait for a read that has the old id's file, like a
 // Feedback row's request (useComments ARRIVAL_MS).

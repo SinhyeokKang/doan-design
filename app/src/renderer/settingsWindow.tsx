@@ -113,7 +113,7 @@ function SettingsConnections({ target, onBusy }: { onBusy: (busy: boolean) => vo
   const rowTarget = useMemo(() => target?.connection ? { connection: target.connection } : null, [target]);
   const busy = !!status?.busy || ui.running !== null;
   const view = confirm && machine ? connectionConfirm(confirm.target, confirm.row === "cli" ? "claude" : confirm.row, machine) : null;
-  return <section className="st-body" role="tabpanel" aria-label="Connections"><div className="st-head"><p className="st-lead">Your agents reach doan through these three. Each row says whether that works right now.</p><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy || ui.checking} onClick={check}>Check Again</button></div>
+  return <section className="st-body" role="tabpanel" aria-label="Connections"><div className="st-head"><p className="st-lead">Your agents reach Doan through these three. Each row says whether that works right now.</p><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy || ui.checking} onClick={check}>Check Again</button></div>
     {status?.busy && !ui.running && <p className="st-notice doan-notice warning" role="status"><AlertIcon /><span>Another window is running a setup step. These buttons work again when it finishes.</span></p>}
     {installError && <p className="st-notice doan-notice error" role="alert"><AlertIcon /><span>{installError}</span></p>}
     {ui.readError && <p className="st-notice doan-notice error" role="alert"><AlertIcon /><span>{ui.readError}</span></p>}

@@ -28,7 +28,7 @@ const FOLDER_DROP = "Folders can’t be attached. Drop a folder outside the mess
 export function composeRequest(text: string, preset: PresetRef | null, attachments: number): string {
   const body = text.trim();
   if (preset) {
-    const header = `Use the doan design preset \`${preset.id}\` (${preset.title}).`;
+    const header = `Use the Doan design preset \`${preset.id}\` (${preset.title}).`;
     return body ? `${header}\n\n${body}` : header;
   }
   return body || (attachments > 0 ? ATTACHMENTS_ONLY : "");

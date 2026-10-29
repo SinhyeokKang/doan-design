@@ -47,8 +47,8 @@ describe("step 1 — CLI", () => {
     });
   });
   test("an unavailable CLI disables Install with the reason main gave", () => {
-    const translocated = cliItems(machine({ available: false, reason: "Move doan to Applications, then open it again.", display: { cliTarget: null } }), ui())[0];
-    expect(translocated).toMatchObject({ detail: [{ code: "~/.local/bin/doan" }], button: { disabled: true }, msg: { tone: "warn", parts: ["Move doan to Applications, then open it again."] } });
+    const translocated = cliItems(machine({ available: false, reason: "Move Doan to Applications, then open it again.", display: { cliTarget: null } }), ui())[0];
+    expect(translocated).toMatchObject({ detail: [{ code: "~/.local/bin/doan" }], button: { disabled: true }, msg: { tone: "warn", parts: ["Move Doan to Applications, then open it again."] } });
     const dev = cliItems(machine({ available: false, reason: "This build has no bundled CLI. Set DOAN_CLI.", display: { cliTarget: null } }), ui())[0];
     expect(dev).toMatchObject({ button: { disabled: true }, reason: "This build has no bundled CLI. Set DOAN_CLI." });
     expect(dev?.msg).toBeUndefined();
@@ -164,7 +164,7 @@ describe("step 2 — Agents", () => {
     const state = ours({ stub: { state: "ours", stamp: "s" }, claudeLink: { state: "ours", value: "../../.agents/skills/doan", stamp: "s" } });
     state.agents.claude = { ...state.agents.claude, mcp: { state: "ours", value: "" } };
     const claude = agentsView(state, ui()).agents[0];
-    expect(claude?.head).toMatchObject({ msg: { tone: "ok", parts: ["Connected. Start a new Claude Code session to use doan."] } });
+    expect(claude?.head).toMatchObject({ msg: { tone: "ok", parts: ["Connected. Start a new Claude Code session to use Doan."] } });
     expect(claude?.head.button).toBeUndefined();
     expect(claude?.items.map(item => item.chip)).toEqual([{ text: "Installed", tone: "ok" }, { text: "Registered", tone: "ok" }]);
   });
@@ -187,9 +187,9 @@ describe("step 2 — Agents", () => {
 describe("confirmations", () => {
   test("each replacement names the current and new target and a specific verb", () => {
     const state = ours({ cli: { state: "link-other", value: "/Users/alex/Downloads/doan.app/Contents/Resources/bin/doan", stamp: "s" }, claudeLink: { state: "link-other", value: "../../my-skills/doan", stamp: "s" } });
-    expect(confirmView("cli", "claude", state)).toEqual({ title: "Replace the doan link?", body: [{ code: "~/.local/bin/doan" }, " points to another copy of doan. Your terminal and agents will run this app’s copy instead."], current: "/Users/alex/Downloads/doan.app/Contents/Resources/bin/doan", next: app, verb: "Replace Link" });
+    expect(confirmView("cli", "claude", state)).toEqual({ title: "Replace the Doan link?", body: [{ code: "~/.local/bin/doan" }, " points to another copy of Doan. Your terminal and agents will run this app’s copy instead."], current: "/Users/alex/Downloads/doan.app/Contents/Resources/bin/doan", next: app, verb: "Replace Link" });
     expect(confirmView("claudeLink", "claude", state)).toEqual({ title: "Replace the Claude Code skill link?", body: [{ code: "~/.claude/skills/doan" }, " points to another folder. Claude Code will read the shared doan skill instead."], current: "../../my-skills/doan", next: "../../.agents/skills/doan", verb: "Replace Link" });
-    expect(confirmView("stub", "codex", state)).toEqual({ title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: "~/.agents/skills/doan" }, " are kept."], current: "~/.agents/skills/doan/SKILL.md — Modified or from another version", next: "The skill stub from this app (doan 0.1.0)", verb: "Replace Skill" });
+    expect(confirmView("stub", "codex", state)).toEqual({ title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: "~/.agents/skills/doan" }, " are kept."], current: "~/.agents/skills/doan/SKILL.md — Modified or from another version", next: "The skill stub from this app (Doan 0.1.0)", verb: "Replace Skill" });
     state.agents.claude = { ...state.agents.claude, mcp: { state: "other", value: JSON.stringify({ command: "/old/doan", args: ["mcp"] }) } };
     expect(confirmView("mcp", "claude", state)).toEqual({ title: "Replace the doan MCP registration?", body: ["Claude Code already has an MCP server named doan in ", { code: "~/.claude.json" }, " (user scope)."], current: "/old/doan mcp", next: `${home}/.local/bin/doan mcp`, verb: "Replace MCP Registration" });
     expect(confirmView("mcp", "codex", state).body).toEqual(["Codex already has an MCP server named doan in ", { code: "~/.codex/config.toml" }, "."]);
@@ -273,7 +273,7 @@ describe("install links and the no-agent notice", () => {
   test("with neither agent installed the notice says what to do", () => {
     const view = agentsView(machine({ agents: none }), ui());
     expect(view.agents.map(card => card.head.link?.target)).toEqual(["claude", "codex"]);
-    expect(view.notice).toBe("doan works through Claude Code or Codex. Install one, then choose Check Again.");
+    expect(view.notice).toBe("Doan works through Claude Code or Codex. Install one, then choose Check Again.");
     expect(view.notice).toBe(NO_AGENT_NOTICE);
   });
   test("one installed agent, an unread state, a running check or a failed probe show no notice", () => {

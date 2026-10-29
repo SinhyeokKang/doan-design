@@ -43,11 +43,11 @@ export const idleUi = (): MachineUi => ({ checking: false, running: null, readEr
 export const PATH_LINE_TEXT = 'export PATH="$HOME/.local/bin:$PATH"';
 export const COPY_FAILED = "Couldn’t copy. Your clipboard could not be updated. Try again.";
 const CHANGED = "It changed after you looked, so nothing was replaced.";
-const TRANSLOCATED = "Move doan to Applications, then open it again.";
+const TRANSLOCATED = "Move Doan to Applications, then open it again.";
 const IN_USE = " is in use by something else. Move or delete it, then Check Again.";
 const AGENT_NAMES: Record<Agent, string> = { claude: "Claude Code", codex: "Codex" };
 
-export const NO_AGENT_NOTICE = "doan works through Claude Code or Codex. Install one, then choose Check Again.";
+export const NO_AGENT_NOTICE = "Doan works through Claude Code or Codex. Install one, then choose Check Again.";
 const installLabel = (agent: Agent) => `Install ${AGENT_NAMES[agent]} ↗`;
 
 export function tilde(path: string, home: string): string {
@@ -147,7 +147,7 @@ function agentCard(state: MachineState | null, ui: MachineUi, agent: Agent): Age
   if (found.executable === null) return { agent, head: { key: agent, label, detail: ["Not installed"], link: { target: agent, label: installLabel(agent) } }, items: [] };
   const d = state.display, checking = readChip(state, ui);
   const head: ItemView = { key: agent, label, detail: ["Found at ", { code: found.executable }] };
-  if (connected(state, agent)) head.msg = { tone: "ok", parts: [`Connected. Start a new ${label} session to use doan.`] };
+  if (connected(state, agent)) head.msg = { tone: "ok", parts: [`Connected. Start a new ${label} session to use Doan.`] };
   else {
     const blocked = state.stub.state === "blocked" || (agent === "claude" && state.claudeLink.state === "blocked");
     head.button = { id: "connect", label: ui.running === agent ? "Connecting…" : "Connect", primary: true,
@@ -212,11 +212,11 @@ export function confirmView(target: "cli" | "stub" | "claudeLink" | "mcp", agent
   const d = state.display, short = (path: string) => tilde(path, d.home);
   switch (target) {
     case "cli":
-      return { title: "Replace the doan link?", body: [{ code: short(d.cliPath) }, " points to another copy of doan. Your terminal and agents will run this app’s copy instead."], current: state.cli.value ?? "", next: d.cliTarget ?? "", verb: "Replace Link" };
+      return { title: "Replace the Doan link?", body: [{ code: short(d.cliPath) }, " points to another copy of Doan. Your terminal and agents will run this app’s copy instead."], current: state.cli.value ?? "", next: d.cliTarget ?? "", verb: "Replace Link" };
     case "claudeLink":
       return { title: "Replace the Claude Code skill link?", body: [{ code: short(d.claudeLinkPath) }, " points to another folder. Claude Code will read the shared doan skill instead."], current: state.claudeLink.value ?? "", next: d.claudeLinkTarget, verb: "Replace Link" };
     case "stub":
-      return { title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: short(parent(d.stubPath)) }, " are kept."], current: `${short(d.stubPath)} — Modified or from another version`, next: `The skill stub from this app (doan ${d.appVersion})`, verb: "Replace Skill" };
+      return { title: "Replace SKILL.md?", body: ["Your edits to SKILL.md will be replaced. Other files in ", { code: short(parent(d.stubPath)) }, " are kept."], current: `${short(d.stubPath)} — Modified or from another version`, next: `The skill stub from this app (Doan ${d.appVersion})`, verb: "Replace Skill" };
     case "mcp": {
       const where = agent === "claude" ? (d.configFromEnv.claude ? " (CLAUDE_CONFIG_DIR, user scope)." : " (user scope).") : d.configFromEnv.codex ? " (CODEX_HOME)." : ".";
       return { title: "Replace the doan MCP registration?", body: [`${AGENT_NAMES[agent]} already has an MCP server named doan in `, { code: short(d.configFile[agent]) }, where], current: registrationText(agent, state.agents[agent].mcp.value), next: d.mcpCommand, verb: "Replace MCP Registration" };

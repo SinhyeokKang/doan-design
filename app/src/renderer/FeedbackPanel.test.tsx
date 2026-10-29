@@ -134,7 +134,7 @@ describe("FeedbackPanel orphan cards (draft orphan-cards)", () => {
     const html = render({ read: list([], [orphan("Checkout_Old", 3, 1)]) });
     expect(html).toContain('<div class="row fb-l2" role="treeitem" aria-level="2" tabindex="-1"');
     expect(html).toContain('<span class="g">Checkout_Old</span><span class="cnt hot">3</span>');
-    expect(html).toContain('<p class="fb-count"><b>3 open · 1 resolved.</b> Not a canvas ID — doan can&#x27;t show or change these comments.</p>');
+    expect(html).toContain('<p class="fb-count"><b>3 open · 1 resolved.</b> Not a canvas ID — Doan can&#x27;t show or change these comments.</p>');
   });
 
   test("an unreadable orphan file: the read failure with Details, no count", () => {

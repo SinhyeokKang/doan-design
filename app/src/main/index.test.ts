@@ -733,9 +733,9 @@ const state = (screen: string, modal = false, toast = false) => ({ screen, modal
 
 describe("menus", () => {
   test("pins the item names and accelerators", () => {
-    expect(template().map((menu) => menu.label ?? menu.role)).toEqual(["doan", "File", "Edit", "View", "Go", "windowMenu"]);
+    expect(template().map((menu) => menu.label ?? menu.role)).toEqual(["Doan", "File", "Edit", "View", "Go", "windowMenu"]);
     // Settings… replaces Set Up doan… right after About (orch.md decision).
-    expect(submenu("doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["about", "Settings…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"]);
+    expect(submenu("Doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["about", "Settings…", "separator", "services", "separator", "hide", "hideOthers", "unhide", "separator", "quit"]);
     expect(item("Settings…").accelerator).toBe("CmdOrCtrl+,");
     expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["Add Project…", "separator", "Close Window"]);
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");

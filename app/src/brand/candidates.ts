@@ -10,7 +10,7 @@ export interface BrandCandidate { index: number; form: "doan" | "Doan"; kind: Br
 // `doan` followed by one of these words is the command itself.
 const SUBCOMMANDS = ["active", "check", "comment", "comments", "config", "design-skill", "help", "init", "ls", "mcp", "onboarding", "skill", "version"];
 // Nouns that name the `doan` command or its MCP server rather than the product.
-const COMMAND_NOUNS = ["CLI", "command", "MCP"];
+const COMMAND_NOUNS = ["CLI", "command", "MCP", "server"];
 const COMMAND_AFTER = new RegExp(`^ (?:--?[a-z]|<|(?:${[...SUBCOMMANDS, ...COMMAND_NOUNS].join("|")})(?![\\w-]))`);
 const QUOTES = "'\"‘’“”";
 

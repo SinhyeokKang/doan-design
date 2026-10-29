@@ -7,7 +7,7 @@ import type { CopyState } from "./onboardingView";
 export const SUBJECT_LABEL = "What do you want to design?";
 export const SUBJECT_PLACEHOLDER = "a sign-in screen with SSO";
 export const INVALID_SUBJECT = `Use one line of plain text, up to ${MAX_SUBJECT_LENGTH} characters.`;
-export const HELPER_LINES = ["Paste it into a new Claude Code or Codex session.", "Your input stays in doan until you copy it."] as const;
+export const HELPER_LINES = ["Paste it into a new Claude Code or Codex session.", "Your input stays in Doan until you copy it."] as const;
 export const WAITING_TEXT = "Waiting for a canvas in .doan/canvases/…";
 export const newCanvasText = (project: string) => `New canvas in ${project}`;
 
