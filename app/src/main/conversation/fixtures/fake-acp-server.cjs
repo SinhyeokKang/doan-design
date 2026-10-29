@@ -38,6 +38,8 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
   switch (request.method) {
     case "initialize":
       if (mode === "exit-init") process.exit(7);
+      // "hang-init" never answers initialize, a server still starting.
+      if (mode === "hang-init") break;
       send({ jsonrpc: "2.0", id: request.id, result: mode.startsWith("protocol:") ? { ...fixture.initialize, protocolVersion: Number(mode.slice(9)) } : process.env.FAKE_ACP_NO_IMAGE ? { ...fixture.initialize, agentCapabilities: { ...fixture.initialize.agentCapabilities, promptCapabilities: { image: false } } } : fixture.initialize }); break;
     case "authenticate": send({ jsonrpc: "2.0", id: request.id, result: {} }); break;
     case "session/new":

@@ -1,4 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
+// Records every path attachments.ts opens, so a test can show a file was never opened.
+const { opened } = vi.hoisted(() => ({ opened: [] as string[] }));
+vi.mock("node:fs", async importOriginal => {
+  const fs = await importOriginal<typeof import("node:fs")>();
+  return { ...fs, openSync: (...args: Parameters<typeof fs.openSync>) => { opened.push(String(args[0])); return fs.openSync(...args); } };
+});
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync, unlinkSync, renameSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -12,7 +18,7 @@ const paths: string[] = []; afterEach(() => paths.splice(0).forEach(p => rmSync(
 function fixture(codec: Partial<ImageCodec> = {}) {
   const base = realpathSync(mkdtempSync(join(tmpdir(), "doan-attach-"))); paths.push(base);
   const files = join(base, "my files"), dir = join(base, "userData", "attachments"); mkdirSync(files);
-  const thumbnail = vi.fn(() => new Uint8Array([1, 2, 3])), reencode = vi.fn((bytes: Uint8Array) => new Uint8Array([...PNG, bytes.length & 0xff]));
+  const thumbnail = vi.fn((_bytes: Uint8Array) => new Uint8Array([1, 2, 3])), reencode = vi.fn((bytes: Uint8Array) => new Uint8Array([...PNG, bytes.length & 0xff]));
   const store = new AttachmentStore(dir, { thumbnail, reencode, ...codec });
   return { base, files, dir, store, thumbnail, reencode };
 }
@@ -132,4 +138,28 @@ it("deletes a paste marked sent by a start that was then refused, once its chip 
   f.store.markSent([{ id: pasted.id }]);
   expect(f.store.remove({ id: pasted.id })).toBe(true);
   expect(existsSync(pasted.path)).toBe(false);
+});
+it("refuses a path swapped to a link elsewhere without opening the other file", () => {
+  const f = fixture();
+  const chosen = join(f.files, "a.txt"), secret = join(f.base, "secret.txt"); writeFileSync(chosen, "a"); writeFileSync(secret, "secret");
+  const added = ok(f.store.addPaths({ paths: [chosen] })![0]);
+  unlinkSync(chosen); symlinkSync(secret, chosen);
+  opened.length = 0;
+  expect(f.store.resolve([{ id: added.id }])).toEqual({ ok: false, error: "attachment_missing", missing: [added.id] });
+  expect(opened).not.toContain(secret);
+});
+it("refuses a file replaced in place at the same path", () => {
+  const f = fixture();
+  const chosen = join(f.files, "a.txt"), other = join(f.files, "other.txt"); writeFileSync(chosen, "a"); writeFileSync(other, "b");
+  const added = ok(f.store.addPaths({ paths: [chosen] })![0]);
+  renameSync(other, chosen);
+  expect(f.store.resolve([{ id: added.id }])).toEqual({ ok: false, error: "attachment_missing", missing: [added.id] });
+});
+it("decodes the thumbnail from the bytes it checked, never by opening the path again", () => {
+  const f = fixture();
+  const image = join(f.files, "shot.png"); writeFileSync(image, PNG);
+  opened.length = 0;
+  ok(f.store.addPaths({ paths: [image] })![0]);
+  expect(Buffer.from(f.thumbnail.mock.calls[0]![0])).toEqual(PNG);
+  expect(opened.filter(p => p === image)).toHaveLength(1);
 });

@@ -2,9 +2,9 @@ import { expect, it, vi } from "vitest";
 import { conversationHandler } from "./ipc";
 import { ConversationService, type Prepare } from "./service";
 import { ModelCatalog, type ModelOption } from "./models";
-import type { AttachmentStore } from "../attachments";
+import { AttachmentStore } from "../attachments";
 import { ConversationStore } from "./store";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 it("rejects wrong senders, unsaved roots, unlisted canvases and sparse anchors before preparation", async () => {
@@ -35,7 +35,7 @@ function home(dir: string, models?: ModelOption[]) {
   const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime ?? "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
   const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
   const start = vi.spyOn(service, "start");
-  const catalog = new ModelCatalog(prepare, async () => models ?? []);
+  const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => models ?? []);
   const attachments = { resolve: vi.fn(), markSent: vi.fn(), consume: vi.fn() };
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
   return { handle, start, prepare, catalog, attachments };
@@ -95,11 +95,32 @@ it("passes rechecked attachments to the start, marks them sent before acceptance
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: 1 }] })).toEqual({ error: "bad_request" });
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: "x" })).toEqual({ error: "bad_request" });
     expect(h.start).not.toHaveBeenCalled();
-    h.attachments.resolve.mockReturnValueOnce({ ok: true, records });
+    // Checked at the request and again right before acceptance.
+    h.attachments.resolve.mockReturnValue({ ok: true, records });
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: "a" }] })).toHaveProperty("conversationId");
     expect(h.start.mock.calls[0]![0].attachments).toEqual(records);
     expect(h.attachments.markSent).toHaveBeenCalledWith([{ id: "a" }]);
     expect(h.attachments.consume).toHaveBeenCalledWith([{ id: "a" }]);
     expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder[0]!);
+    expect(h.attachments.resolve).toHaveBeenCalledTimes(4);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+it("refuses a start whose attachment vanished while the runner was opening, before anything is accepted", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-")), files = mkdtempSync(join(tmpdir(), "doan-ipc-files-"));
+  try {
+    let release!: () => void; const held = new Promise<void>(resolve => { release = resolve; });
+    const open = vi.fn(async () => { await held; return { sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }; });
+    const prepare = vi.fn<Prepare>(async () => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
+    const store = new ConversationStore(dir);
+    const service = new ConversationService(store, prepare, open, () => {});
+    const attachments = new AttachmentStore(join(dir, "attachments"), { thumbnail: () => null, reencode: () => null });
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments });
+    const file = join(realpathSync(files), "a.txt"); writeFileSync(file, "a");
+    const added = attachments.addPaths({ paths: [file] })![0]!; if (!added.ok) throw new Error("refused");
+    const starting = handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x", attachments: [{ id: added.attachment.id }] });
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    unlinkSync(file); release();
+    expect(await starting).toEqual({ error: "attachment_missing", missing: [added.attachment.id] });
+    expect(store.list()).toEqual([]);
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(files, { recursive: true, force: true }); }
 });

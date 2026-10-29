@@ -298,7 +298,7 @@ it("records attachments on user.message, lists them in the prompt and hands them
   const h = homeFixture();
   const attachments = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }, { name: "b.pdf", size: 9, kind: "file" as const, path: "/Users/me/b.pdf" }];
   let indexed: number | undefined;
-  const id = (await h.service.start({ ...homeRequest, attachments }, () => { indexed = h.store.list().length; })).conversationId;
+  const id = (await h.service.start({ ...homeRequest, attachments }, { recheck: () => attachments, sent: () => { indexed = h.store.list().length; } })).conversationId;
   expect(indexed).toBe(0);
   expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", attachments });
   const [prompt, , sent] = vi.mocked(h.runners[0]!.send).mock.calls[0]!;
@@ -307,9 +307,9 @@ it("records attachments on user.message, lists them in the prompt and hands them
 });
 it("does not mark attachments sent for a start refused before acceptance", async () => {
   const h = homeFixture(); h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
-  const beforeAccept = vi.fn();
-  await expect(h.service.start({ ...homeRequest, attachments: [{ name: "a", size: 1, kind: "file", path: "/a" }] }, beforeAccept)).rejects.toThrow("not_logged_in");
-  expect(beforeAccept).not.toHaveBeenCalled();
+  const attached = { recheck: vi.fn(() => []), sent: vi.fn() };
+  await expect(h.service.start({ ...homeRequest, attachments: [{ name: "a", size: 1, kind: "file", path: "/a" }] }, attached)).rejects.toThrow("not_logged_in");
+  expect(attached.recheck).not.toHaveBeenCalled(); expect(attached.sent).not.toHaveBeenCalled();
 });
 it("binds a new canvas only to a running or just-finished conversation that did not list it at its start", async () => {
   const h = homeFixture([{ path: ".doan/canvases/old.html", id: "old" }]);
@@ -347,4 +347,99 @@ it("binds to the most recent of two running conversations and ignores conversati
   const restarted = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => []);
   restarted.bind("/repo", { path: ".doan/canvases/b.html" });
   expect(h.store.list().find(m => m.conversationId === first)!.canvas).toBeUndefined();
+});
+
+// buzz-home fix round 1: model-list reads are owned runs (quit and sign-out stop them; the lease goes with the group).
+function listingFixture() {
+  const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
+  const release = vi.fn(async () => {});
+  let gate: Promise<void> = Promise.resolve();
+  const prepare = vi.fn<Prepare>(async request => { await gate; return { runtime: request.runtime!, configDir: "/p", cwd: "/repo", command: "/fake", env: {}, release }; });
+  const service = new ConversationService(new ConversationStore(dir), prepare, vi.fn(), () => {});
+  return { service, release, prepare, holdPrepare: () => { let open!: () => void; gate = new Promise(resolve => { open = resolve; }); return open; } };
+}
+it.each(["quit", "stopRuns"] as const)("stops a model-list read on %s during its handshake and frees the lease once the group is gone", async how => {
+  const h = listingFixture();
+  const input = await h.service.prepareListing("/repo", "cursor");
+  let exited!: () => void; const stop = vi.fn(async () => {});
+  const reading = h.service.listModels(input, async (_input, gone, registerStop) => {
+    exited = gone; registerStop(stop);
+    await new Promise((_resolve, reject) => { stop.mockImplementation(async () => { reject(new Error("process_exited")); }); });
+    return [];
+  });
+  await vi.waitFor(() => expect(exited).toBeDefined());
+  await (how === "quit" ? h.service.quit() : h.service.stopRuns("cursor"));
+  expect(stop).toHaveBeenCalledOnce();
+  await expect(reading).rejects.toThrow("process_exited");
+  // A stop request is not disappearance: the lease stays until the group is gone.
+  expect(h.release).not.toHaveBeenCalled();
+  exited(); await vi.waitFor(() => expect(h.release).toHaveBeenCalledOnce());
+});
+it("keeps a model-list read of another provider running on a sign-out", async () => {
+  const h = listingFixture();
+  const input = await h.service.prepareListing("/repo", "cursor");
+  const stop = vi.fn(async () => {});
+  void h.service.listModels(input, async (_input, _gone, registerStop) => { registerStop(stop); return new Promise(() => {}); });
+  await vi.waitFor(() => expect(h.prepare).toHaveBeenCalled());
+  await h.service.stopRuns("codex");
+  expect(stop).not.toHaveBeenCalled();
+});
+it("keeps the lease of a model-list group that never disappears, even after its list came back", async () => {
+  const h = listingFixture();
+  const input = await h.service.prepareListing("/repo", "copilot");
+  expect(await h.service.listModels(input, async (_input, _gone, registerStop) => { registerStop(async () => {}); return [{ id: "auto", label: "Auto", default: true }]; })).toHaveLength(1);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  expect(h.release).not.toHaveBeenCalled();
+});
+it("stops a model-list process that spawns after its provider was stopped", async () => {
+  const h = listingFixture();
+  const input = await h.service.prepareListing("/repo", "cursor");
+  let spawn!: () => void; const stop = vi.fn(async () => {});
+  const reading = h.service.listModels(input, async (_input, _gone, registerStop) => { await new Promise<void>(resolve => { spawn = resolve; }); registerStop(stop); return []; });
+  await vi.waitFor(() => expect(spawn).toBeDefined());
+  await h.service.stopRuns("cursor");
+  spawn(); await reading;
+  expect(stop).toHaveBeenCalledOnce();
+});
+it("refuses a model-list read stopped during its preparation and frees the lease without spawning", async () => {
+  const h = listingFixture(); const open = h.holdPrepare();
+  const preparing = h.service.prepareListing("/repo", "cursor");
+  await vi.waitFor(() => expect(h.prepare).toHaveBeenCalled());
+  await h.service.stopRuns("cursor"); open();
+  await expect(preparing).rejects.toThrow("busy");
+  await vi.waitFor(() => expect(h.release).toHaveBeenCalledOnce());
+  await h.service.quit();
+  await expect(h.service.prepareListing("/repo", "cursor")).rejects.toThrow("busy");
+});
+it("frees the lease at once when a model-list read fails before anything spawned", async () => {
+  const h = listingFixture();
+  const input = await h.service.prepareListing("/repo", "claude");
+  await expect(h.service.listModels(input, async () => { throw new Error("not_logged_in"); })).rejects.toThrow("not_logged_in");
+  await vi.waitFor(() => expect(h.release).toHaveBeenCalledOnce());
+});
+
+// buzz-home fix round 1: Home's paragraph follows the conversation's origin, not its binding.
+it("keeps Home's paragraph on a Home conversation's follow-up after it binds to its canvas", async () => {
+  const h = homeFixture();
+  const id = (await h.service.start(homeRequest)).conversationId;
+  expect(h.store.list()[0]).toMatchObject({ fromHome: true });
+  h.service.bind("/repo", { path: ".doan/canvases/made.html" });
+  h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+  await h.service.send(id, "make it darker", []);
+  expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/made.html" });
+  expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).toContain(HOME_GUIDANCE);
+});
+it("never adds Home's paragraph to a FirstPrompt conversation or an entry without the Home mark", async () => {
+  const h = homeFixture();
+  const id = (await h.service.start({ ...homeRequest, subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." })).conversationId;
+  expect(h.store.list()[0]).not.toHaveProperty("fromHome");
+  h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+  await h.service.send(id, "again", []);
+  expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
+  // An entry written before the mark existed (a Home start of an earlier build) reads and gets no paragraph.
+  const second = (await h.service.start(homeRequest)).conversationId;
+  h.store.save(h.store.list().map(m => { if (m.conversationId !== second) return m; const { fromHome: _mark, ...old } = m; return old; }));
+  h.service.receive(second, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+  await h.service.send(second, "again", []);
+  expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
 });

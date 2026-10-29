@@ -228,3 +228,10 @@ describe("user.message attachments in event v1", () => {
     }
   });
 });
+it("reads the optional Home mark only as true and keeps reading entries without it", () => {
+  const entry = { conversationId: "0f8fad5b-d9cb-469f-a165-70867728950e", root: "/repo", title: "t", state: "current", owner: { kind: "legacy-external" },
+    session: { runtime: "codex", origin: "newDesign", sessionId: "s", configDir: "/c", cwd: "/repo" } };
+  expect(parseIndex(JSON.stringify({ v: 2, conversations: [{ ...entry, fromHome: true }] }))).toMatchObject({ ok: true, entries: [{ fromHome: true }] });
+  expect(parseIndex(JSON.stringify({ v: 2, conversations: [entry] }))).toMatchObject({ ok: true });
+  expect(parseIndex(JSON.stringify({ v: 2, conversations: [{ ...entry, fromHome: "yes" }] }))).toEqual({ ok: false, code: "invalid" });
+});

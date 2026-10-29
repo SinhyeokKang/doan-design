@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { acpPermission, acpPromptDone, initialAcp, normalizeAcp, AcpConnection } from "./acp";
 import { openAcp } from "./acpRunner";
 import { listModels } from "./runners";
+import { ConversationService } from "./service";
+import { ConversationStore } from "./store";
 import { MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared } from "./service";
 import type { EventPayload } from "./types";
@@ -190,12 +192,12 @@ function logged(log: string): { method?: string; params?: Record<string, unknown
   return readFileSync(log, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
 }
 function logFile(): string { return join(realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-log-"))), "log.jsonl"); }
-it("lists an ACP provider's models from session/new without a prompt and releases the lease", async () => {
-  const log = logFile(), release = vi.fn(async () => {});
-  const models = await listModels(input("cursor", { release, env: { PATH: process.env.PATH ?? "", FAKE_ACP_MODELS: JSON.stringify(MODELS), FAKE_ACP_LOG: log } }));
+it("lists an ACP provider's models from session/new without a prompt and reports the process gone", async () => {
+  const log = logFile(), release = vi.fn();
+  const models = await listModels(input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP_MODELS: JSON.stringify(MODELS), FAKE_ACP_LOG: log } }), release, () => {});
   expect(models).toEqual([{ id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash (High)", default: true }, { id: "gemini-3.8-flash-low", label: "Gemini 3.8 Flash (Low)", default: false }]);
   expect(logged(log).map(r => r.method)).toEqual(["initialize", "authenticate", "session/new"]);
-  expect(release).toHaveBeenCalledOnce();
+  await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });
 it("sets the chosen model after session/new and again after session/load, before the prompt", async () => {
   const log = logFile();
@@ -244,4 +246,15 @@ it("does not set a model the opened session already runs", async () => {
   const runner = await openAcp(input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_MODELS: JSON.stringify(MODELS) }, model: MODELS.currentModelId }), () => {}, () => {}, () => {});
   await runner.send("hi", "turn");
   expect(logged(log).some(r => r.method === "session/set_config_option")).toBe(false);
+});
+it.each(["quit", "stopRuns"] as const)("stops a real ACP model-list read hanging in its handshake on %s and frees the lease after the server is gone", async how => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-listing-"))), log = logFile();
+  const release = vi.fn(async () => {});
+  const service = new ConversationService(new ConversationStore(dir), async () => ({ ...input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "hang-init", FAKE_ACP_LOG: log } }), release }), vi.fn(), () => {});
+  // Settled as soon as the stop ends the handshake, while quit still waits for the group.
+  const reading = service.listModels(await service.prepareListing(CWD, "cursor"), listModels).then(() => null, (error: Error) => error);
+  await vi.waitFor(() => expect(logged(log).map(r => r.method)).toContain("initialize"));
+  await (how === "quit" ? service.quit() : service.stopRuns("cursor"));
+  expect(await reading).toBeInstanceOf(Error);
+  await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });

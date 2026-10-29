@@ -311,13 +311,13 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 `, { mode: 0o700 });
   return command;
 }
-it("lists Claude's models from the SDK without sending a prompt and releases the lease after the process is gone", async () => {
+it("lists Claude's models from the SDK without sending a prompt and reports the process gone", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-models-")), command = listingClaude(root);
-  const release = vi.fn(async () => {});
+  const release = vi.fn();
   try {
-    const models = await listModels({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, release });
+    const models = await listModels({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } }, release, () => {});
     expect(models).toEqual([{ id: "default", label: "Default (recommended)", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }]);
-    expect(release).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
     expect(readFileSync(join(root, "seen"), "utf8")).not.toContain('"type":"user"');
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 15000);
@@ -353,12 +353,12 @@ readline.createInterface({input:process.stdin}).on('line', line => {
 }
 it("lists Codex models with model/list and starts no thread", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-models-")), command = listingCodex(root);
-  const release = vi.fn(async () => {});
+  const release = vi.fn();
   try {
-    expect(await listModels({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, release })).toEqual([{ id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "high"] }]);
+    expect(await listModels({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, release, () => {})).toEqual([{ id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "high"] }]);
     const methods = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => (JSON.parse(line) as { method?: string }).method);
     expect(methods).toEqual(["initialize", "initialized", "model/list"]);
-    expect(release).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 it("passes the chosen Codex model and effort on every turn/start of the same server", async () => {

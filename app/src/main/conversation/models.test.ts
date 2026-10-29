@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import { ModelCatalog, parseAcpModels, parseClaudeModels, parseCodexModels, type ModelOption } from "./models";
-import type { Prepare, Prepared } from "./service";
+import type { Prepared } from "./service";
+import type { Provider } from "../agentAuth/types";
 
 // Row shapes from the buzz-home P1 PoC (PRODUCT §6, 2026-10-29); IDs and names are trimmed to the fields doan reads.
 it("reads Claude's supportedModels rows with per-model effort levels and the default row", () => {
@@ -41,8 +42,8 @@ const LIST: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: false, ef
 function catalog(over: Partial<Prepared> = {}) {
   let connection = "c1";
   const release = vi.fn(async () => {});
-  const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime!, configDir: "/p", cwd: request.root, command: "/x", env: {}, release, installed: "1.0.0",
-    owner: { kind: "doan", provider: request.runtime!, connectionId: connection, accountId: "a", workspaceId: null, profile: "p" }, ...over }));
+  const prepare = vi.fn(async (root: string, runtime: Provider): Promise<Prepared> => ({ runtime, configDir: "/p", cwd: root, command: "/x", env: {}, release, installed: "1.0.0",
+    owner: { kind: "doan", provider: runtime, connectionId: connection, accountId: "a", workspaceId: null, profile: "p" }, ...over }));
   const list = vi.fn(async (input: Prepared) => { await input.release?.(); return LIST; });
   return { models: new ModelCatalog(prepare, list), prepare, list, release, reconnect: () => { connection = "c2"; } };
 }
