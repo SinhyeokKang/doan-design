@@ -78,6 +78,7 @@ function machine(cli: MachineState["cli"]["state"] = "dangling"): MachineState {
 const SUMMARY = { cli: "needs-attention", claude: "not-connected", codex: "not-installed" } as const;
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let statusListener: (status: SetupStatus) => void;
+let windowListeners: Record<string, () => void>;
 let props: Parameters<typeof SettingsConnections>[0];
 beforeEach(() => {
   resetHooks();
@@ -88,7 +89,8 @@ beforeEach(() => {
     answerSetupConfirm: vi.fn(async () => ({ kind: "success" })),
     openInstallPage: vi.fn(async () => true), copyPathLine: vi.fn(async () => ({ kind: "success" })),
   };
-  vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  windowListeners = {};
+  vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: () => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null });
   vi.stubGlobal("requestAnimationFrame", (callback: () => void) => { callback(); return 0; });
   vi.stubGlobal("HTMLButtonElement", class {});
@@ -136,13 +138,39 @@ test("leaving while locked is not possible, but unmounting releases the lock it 
   expect(props.onLock).toHaveBeenLastCalledWith(false);
 });
 
-test("main's focus re-read (its shared 60 s throttle) reaches the rows only when the summary changed; the page's own reads do not loop", async () => {
+// review BU2-1: the focus re-read is main's (its 60 s throttle shared with Git refresh); when that read finishes the
+// whole rows are read again, even with the same three statuses, and the page's own reads never start another.
+test("main's focus re-read refreshes the whole rows even with the same summary; the page's own reads do not loop", async () => {
   render(); await flush(); render();
-  statusListener(status({ checking: true })); statusListener(status({})); await flush();
-  expect(doan.readSetup).toHaveBeenCalledTimes(1);
-  statusListener(status({ summary: { ...SUMMARY, codex: "not-connected" } })); await flush(); render();
+  doan.readSetup!.mockResolvedValue({ kind: "state", state: { ...machine(), pathPresent: false }, summary: SUMMARY });
+  windowListeners.focus!();
+  statusListener(status({ checking: true })); statusListener(status({})); await flush(); render();
   expect(doan.readSetup).toHaveBeenCalledTimes(2);
-  expect(doan.readSetup).toHaveBeenLastCalledWith(expect.stringMatching(/^settings:/));
+  expect(rows().machine?.pathPresent).toBe(false);
+  // The page's own read (Check Again) publishes a read cycle too; it is not a focus read.
+  click("Check Again"); statusListener(status({ checking: true })); await flush(); statusListener(status({})); await flush();
+  expect(doan.readSetup).toHaveBeenCalledTimes(3);
+  // A focus whose throttle let no read through starts nothing either.
+  windowListeners.focus!(); await flush();
+  expect(doan.readSetup).toHaveBeenCalledTimes(3);
+});
+
+// review BU2-4: the lock App queues targets on is held from the step to its end, whichever way it ends.
+test("the lock spans a real confirmation and ends on Cancel, on an error and on an answer", async () => {
+  for (const end of ["cancel", "error", "answer"] as const) {
+    resetHooks(); (props.onLock as ReturnType<typeof vi.fn>).mockClear();
+    doan.answerSetupConfirm!.mockResolvedValueOnce(end === "error" ? { kind: "error", message: "write failed" } : end === "cancel" ? { kind: "cancelled" } : { kind: "success" });
+    render(); await flush(); render();
+    (rows().run as (row: string) => void)("cli");
+    await flush(); render();
+    expect(all(tree).some(element => element.type === SettingsDialog), end).toBe(true);
+    expect(props.onLock, end).toHaveBeenLastCalledWith(true);
+    (all(tree).find(element => element.type === SettingsDialog)!.props.answer as (allow: boolean) => void)(end !== "cancel");
+    expect(props.onLock, end).toHaveBeenLastCalledWith(true);
+    await flush(); render();
+    expect(props.onLock, end).toHaveBeenLastCalledWith(false);
+    expect((props.onLock as ReturnType<typeof vi.fn>).mock.calls.filter(([locked]) => locked === false), end).toHaveLength(1);
+  }
 });
 
 test("only the latest install page result is shown", async () => {

@@ -25,32 +25,38 @@ export function SettingsConnections({ onLock, actions }: { onLock(locked: boolea
   lockRef.current.onLock = onLock;
   // Reported as the step starts and ends, not after a render: a move between the two must already see the lock.
   const lock = (locked: boolean) => { if (lockRef.current.locked !== locked) { lockRef.current.locked = locked; lockRef.current.onLock(locked); } };
-  // The summary this page's rows were read with; main's own reads publish a summary too.
-  const shown = useRef<string | null>(null);
+  // A window focus waits for the read main runs then (its 60 s throttle, shared with Git refresh); the page's own reads
+  // clear it, so their read cycles never start another.
+  const focusRead = useRef(false), checking = useRef(false);
   const busyRead = useRef(false);
   busyRead.current = ui.running !== null || ui.checking || !!status?.busy;
   const returnFocus = useRef<HTMLButtonElement | null>(null);
   async function read() {
     const request = ++reads.current;
+    focusRead.current = false;
     setUi(current => ({ ...current, checking: true, readError: null }));
     try {
       const reply = await window.doan.readSetup(`settings:${request}`);
       if (!live.current || request !== reads.current) return;
-      if (reply.kind === "state") { setMachine(reply.state); shown.current = JSON.stringify(reply.summary); }
+      if (reply.kind === "state") setMachine(reply.state);
       setUi(current => ({ ...current, checking: false, readError: reply.kind === "stale" ? "Couldn’t read connections. Choose Check Again." : null }));
     } catch (error) { if (live.current && request === reads.current) setUi(current => ({ ...current, checking: false, readError: error instanceof Error ? error.message : String(error) })); }
   }
   useEffect(() => {
     live.current = true;
     void read();
-    // The Settings window's own focus re-read is the main window's now: main re-reads once a minute on focus (the
-    // throttle it shares with Git refresh) and publishes the summary, and the rows follow when it changed.
+    // The Settings window's own focus re-read is the main window's now: when main's read after a focus finishes, the
+    // whole rows are read again (details, PATH line and confirmation content, not only the three statuses).
     const unsubscribe = window.doan.onSetupStatus(next => {
       setStatus(next);
-      if (next.checking || !next.summary || busyRead.current || JSON.stringify(next.summary) === shown.current) return;
+      const finished = checking.current && !next.checking;
+      checking.current = next.checking;
+      if (!finished || !focusRead.current || busyRead.current) return;
       setJustConnected(null); void read();
     });
-    return () => { live.current = false; reads.current++; unsubscribe(); lock(false); };
+    const focused = () => { focusRead.current = true; };
+    window.addEventListener("focus", focused);
+    return () => { live.current = false; reads.current++; unsubscribe(); window.removeEventListener("focus", focused); lock(false); };
   }, []);
   async function settle(row: Row, promise: Promise<StepResult>) {
     let result: StepResult;
