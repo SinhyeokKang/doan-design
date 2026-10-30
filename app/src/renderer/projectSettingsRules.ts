@@ -6,7 +6,7 @@ import type { FolderEntry } from "../main/view";
 // component beyond capitalization (POSTMORTEM 2026-10-25 'A TS helper hid its TSX component on case-insensitive macOS').
 
 // A picker sheet, a confirmation or a config write is waiting on main; closing would drop its result, so Escape and
-// Done wait for it (the old Settings window refused to close for the same reason).
+// Done wait for it.
 export function canCloseProjectSettings(work: { picking: boolean; confirming: boolean; writing: boolean }): boolean {
   return !work.picking && !work.confirming && !work.writing;
 }

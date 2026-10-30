@@ -30,10 +30,8 @@ function shown(selector: string): HTMLElement | null {
     && !node.closest('[inert], [hidden], [aria-hidden="true"]') && getComputedStyle(node).visibility === "visible") ?? null;
 }
 
-// The Project Settings dialog (design 'Project Settings 다이얼로그'): one worktree's .doan/config.json, moved from the
-// Settings window's ProjectDetail with its copy, errors and focus return. It follows the worktree while open
-// (projectSettingsRules), runs a problem worktree's recovery in place, and cannot close while a pick, a confirmation
-// or a write waits on main.
+// The Project Settings dialog edits one worktree's .doan/config.json and follows it while open
+// (projectSettingsRules). Recovery stays in place, and a pending picker, confirmation or write holds the dialog open.
 export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroot, homeDirectory, onClose, onAction }: {
   root: string; projectKey: string; entries: readonly FolderEntry[]; reroot: (FolderFocus & { seq: number }) | null; homeDirectory: string | null;
   // notice: where a recovery's own feedback goes (a refused Locate…), since a toast behind the modal can't be read.
@@ -108,7 +106,7 @@ export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroo
 
   function rememberFocus(section: ConfigKind) {
     const button = document.activeElement;
-    if (button instanceof HTMLButtonElement && !button.closest("dialog.ob-dialog")) returnFocus.current = { button, section };
+    if (button instanceof HTMLButtonElement && !button.closest('dialog[role="alertdialog"]')) returnFocus.current = { button, section };
   }
   async function write(request: ConfigWrite, section: ConfigKind) {
     rememberFocus(section);
@@ -146,7 +144,7 @@ export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroo
     if (disabled || !returnFocus.current) return;
     const frame = requestAnimationFrame(() => {
       const origin = returnFocus.current; returnFocus.current = null;
-      if (!origin || !live.current || document.querySelector("dialog.ob-dialog[open]") || (document.activeElement !== document.body && document.activeElement !== origin.button && document.activeElement !== null)) return;
+      if (!origin || !live.current || document.querySelector('dialog[role="alertdialog"][open]') || (document.activeElement !== document.body && document.activeElement !== origin.button && document.activeElement !== null)) return;
       const next = origin.button.isConnected && !origin.button.disabled ? origin.button : origin.section === "tokenCss" ? tokenButton.current : serveButton.current;
       next?.focus();
     });

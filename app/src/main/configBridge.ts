@@ -18,12 +18,9 @@ export interface ConfigBridgeDeps {
   run(root: string, args: string[]): Promise<CliRun>;
   // The epoch of a stored, set-up root; null for anything else.
   epoch(root: string): number | null;
-  // A sheet on the window that asked; null when cancelled.
-  pick(root: string, kind: ConfigKind, from: ConfigWindow): Promise<string | null>;
+  // A sheet on the main window; null when cancelled.
+  pick(root: string, kind: ConfigKind): Promise<string | null>;
 }
-
-// The main window's Project Settings dialog.
-export type ConfigWindow = "main";
 
 interface Choice { root: string; kind: ConfigKind; path: string; epoch: number }
 
@@ -103,14 +100,14 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       return target === null ? Promise.resolve({ kind: "unavailable" }) : call(target, []);
     },
 
-    async choose(value: unknown, from: ConfigWindow): Promise<ConfigChoice> {
+    async choose(value: unknown): Promise<ConfigChoice> {
       if (!exact(value, ["root", "kind"]) || (value.kind !== "tokenCss" && value.kind !== "serve")) return { kind: "unavailable" };
       const target = root(value);
       const kind: ConfigKind = value.kind;
       const epoch = target === null ? null : deps.epoch(target);
       if (target === null || epoch === null) return { kind: "unavailable" };
       const generation = session;
-      const path = await deps.pick(target, kind, from);
+      const path = await deps.pick(target, kind);
       // The project may have been removed or re-rooted, or the dialog closed,
       // while the sheet was up.
       if (deps.epoch(target) !== epoch || generation !== session) return { kind: "unavailable" };

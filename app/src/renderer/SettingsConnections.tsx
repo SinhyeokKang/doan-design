@@ -45,8 +45,8 @@ export function SettingsConnections({ onLock, actions }: { onLock(locked: boolea
   useEffect(() => {
     live.current = true;
     void read();
-    // The Settings window's own focus re-read is the main window's now: when main's read after a focus finishes, the
-    // whole rows are read again (details, PATH line and confirmation content, not only the three statuses).
+    // After main's focus read finishes, reread the full rows: details, PATH line and confirmation content,
+    // as well as the three statuses.
     const unsubscribe = window.doan.onSetupStatus(next => {
       setStatus(next);
       const finished = checking.current && !next.checking;

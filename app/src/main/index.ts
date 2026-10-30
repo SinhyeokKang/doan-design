@@ -202,7 +202,7 @@ function senderKind(event: IpcMainInvokeEvent): WindowKind | undefined {
   return undefined;
 }
 
-// Every channel goes through the per-window allowlist; `refused` is what a
+// Every channel goes through the main-frame allowlist; `refused` is what a
 // sender that may not call it gets, the same as a forged request.
 function handle(channel: string, refused: unknown, handler: (event: IpcMainInvokeEvent, value: unknown, kind: WindowKind) => unknown): void {
   ipcMain.handle(channel, (event, value: unknown) => {
@@ -939,7 +939,6 @@ async function start(): Promise<void> {
     try { await clipboard.writeText(text); return { kind: "success" as const }; }
     catch (error) { return { kind: "error" as const, message: error instanceof Error ? error.message : String(error) }; }
   };
-  handle("setup:copy-path-line", { kind: "stale" }, (_event, value: unknown) => value === undefined ? copy(PATH_LINE) : { kind: "stale" });
   // Tool facts come from AuthIpc's cache (its first read probes once); only the doan version runs the CLI.
   let lastAbout: AboutRead | null = null;
   const readAbout = async (): Promise<AboutRead> => {
@@ -973,10 +972,6 @@ async function start(): Promise<void> {
   });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
-  handle("projects:reveal", undefined, (_event, value: unknown) => {
-    const path = storedPath(value);
-    if (path !== null) electronShell.showItemInFolder(path);
-  });
   const bridge = createConfigBridge({
     run: (root, args) => runConfig(command, root, args),
     epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,
@@ -992,7 +987,7 @@ async function start(): Promise<void> {
   configBridge = bridge;
   handle("config:read", { kind: "unavailable" }, (_event, value: unknown) => bridge.read(value));
   handle("config:choose", { kind: "unavailable" }, async (event, value: unknown, kind) => {
-    const choice = await bridge.choose(value, kind);
+    const choice = await bridge.choose(value);
     return senderKind(event) === kind ? choice : { kind: "unavailable" };
   });
   handle("config:write", { kind: "unavailable" }, (_event, value: unknown) => bridge.write(value));

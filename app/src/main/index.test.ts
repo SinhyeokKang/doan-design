@@ -1436,25 +1436,6 @@ describe("main-window setup and settings", () => {
     expect(mocks.electronShell.openExternal).toHaveBeenCalledOnce();
   });
 
-  test("the PATH line is copied for main after the clipboard settles", async () => {
-    const created = window();
-    let finish!: () => void;
-    mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
-    let settled = false;
-    const copied = Promise.resolve(invoke("setup:copy-path-line", created.webContents, null)).then(value => { settled = true; return value; });
-    await Promise.resolve(); expect(settled).toBe(false); finish();
-    expect(await copied).toEqual({ kind: "success" });
-    expect(mocks.clipboard.writeText).toHaveBeenCalledWith('export PATH="$HOME/.local/bin:$PATH"');
-    expect(await invoke("setup:copy-path-line", created.webContents, null, { text: "forged" })).toEqual({ kind: "stale" });
-  });
-
-  test("reveals only a stored project from the main frame", async () => {
-    mocks.shell.entries.mockReturnValue([{ path: "/plain", kind: "uninitialized" }]);
-    await invoke("projects:reveal", window().webContents, null, { path: "/plain" });
-    await invoke("projects:reveal", window().webContents, null, { path: "/other" });
-    expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith("/plain");
-  });
-
   test("first prompt takes a subject and builds the sentence with promptSentence", async () => {
     const contents = window().webContents;
     mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }]);

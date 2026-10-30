@@ -14,7 +14,7 @@ function deferred<T>() {
 }
 
 const run = vi.fn<(root: string, args: string[]) => Promise<CliRun>>();
-const pick = vi.fn<(root: string, kind: "tokenCss" | "serve", from: "main") => Promise<string | null>>();
+const pick = vi.fn<(root: string, kind: "tokenCss" | "serve") => Promise<string | null>>();
 let epochs: Map<string, number>;
 let bridge: ReturnType<typeof createConfigBridge>;
 beforeEach(() => {
@@ -51,10 +51,10 @@ test("CLI failures surface the message and change nothing", async () => {
 });
 
 test("a chosen file goes to the CLI by an id bound to its root and epoch, once", async () => {
-  const chosen = await bridge.choose({ root: ROOT, kind: "tokenCss" }, "main");
+  const chosen = await bridge.choose({ root: ROOT, kind: "tokenCss" });
   expect(chosen).toEqual({ kind: "selected", choiceId: expect.any(String), path: "/repo/tokens/new.css" });
   if (chosen.kind !== "selected") throw new Error("not selected");
-  expect(pick).toHaveBeenCalledExactlyOnceWith(ROOT, "tokenCss", "main");
+  expect(pick).toHaveBeenCalledExactlyOnceWith(ROOT, "tokenCss");
   run.mockResolvedValueOnce(config([], "tokens/new.css", true));
   expect(await bridge.write({ root: ROOT, op: "setTokenCss", choiceId: chosen.choiceId })).toEqual({ kind: "config", root: ROOT, tokenCss: "tokens/new.css", serve: [], changed: true });
   expect(run).toHaveBeenLastCalledWith(ROOT, ["--token-css", "/repo/tokens/new.css"]);
@@ -62,8 +62,8 @@ test("a chosen file goes to the CLI by an id bound to its root and epoch, once",
 });
 
 test("forged, mismatched or outdated choices are refused", async () => {
-  const token = await bridge.choose({ root: ROOT, kind: "tokenCss" }, "main");
-  const serve = await bridge.choose({ root: ROOT, kind: "serve" }, "main");
+  const token = await bridge.choose({ root: ROOT, kind: "tokenCss" });
+  const serve = await bridge.choose({ root: ROOT, kind: "serve" });
   if (token.kind !== "selected" || serve.kind !== "selected") throw new Error("not selected");
   epochs.set("/b", 1);
   expect(await bridge.write({ root: ROOT, op: "setTokenCss", choiceId: "forged" })).toEqual({ kind: "unavailable" });
@@ -77,20 +77,20 @@ test("forged, mismatched or outdated choices are refused", async () => {
 test("a picker that finishes after the project changed keeps no choice", async () => {
   const later = deferred<string | null>();
   pick.mockReturnValueOnce(later.promise);
-  const choosing = bridge.choose({ root: ROOT, kind: "serve" }, "main");
+  const choosing = bridge.choose({ root: ROOT, kind: "serve" });
   epochs.set(ROOT, 2);
   later.resolve("/repo/styles");
   expect(await choosing).toEqual({ kind: "unavailable" });
   pick.mockResolvedValueOnce(null);
-  expect(await bridge.choose({ root: ROOT, kind: "serve" }, "main")).toEqual({ kind: "cancelled" });
+  expect(await bridge.choose({ root: ROOT, kind: "serve" })).toEqual({ kind: "cancelled" });
   for (const request of [{ root: ROOT, kind: "other" }, { root: "/other", kind: "serve" }, { root: ROOT }]) {
-    expect(await bridge.choose(request, "main")).toEqual({ kind: "unavailable" });
+    expect(await bridge.choose(request)).toEqual({ kind: "unavailable" });
   }
 });
 
 test("adds a serve entry and clears token CSS", async () => {
   pick.mockResolvedValueOnce("/repo/assets");
-  const chosen = await bridge.choose({ root: ROOT, kind: "serve" }, "main");
+  const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
   if (chosen.kind !== "selected") throw new Error("not selected");
   await bridge.write({ root: ROOT, op: "addServe", choiceId: chosen.choiceId });
   expect(run).toHaveBeenLastCalledWith(ROOT, ["--add-serve", "/repo/assets"]);
@@ -134,7 +134,7 @@ test("writes to one root run one after another", async () => {
 
 test("clear forgets choices and reads (the Project Settings dialog closed)", async () => {
   await bridge.read({ root: ROOT });
-  const chosen = await bridge.choose({ root: ROOT, kind: "serve" }, "main");
+  const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
   if (chosen.kind !== "selected") throw new Error("not selected");
   bridge.clear();
   expect(await bridge.write({ root: ROOT, op: "addServe", choiceId: chosen.choiceId })).toEqual({ kind: "unavailable" });
@@ -145,7 +145,7 @@ test("a queued write rechecks the root epoch right before it runs", async () => 
   const slow = deferred<CliRun>();
   run.mockReturnValueOnce(slow.promise);
   const reading = bridge.read({ root: ROOT });
-  const chosen = await bridge.choose({ root: ROOT, kind: "serve" }, "main");
+  const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
   if (chosen.kind !== "selected") throw new Error("not selected");
   const writing = bridge.write({ root: ROOT, op: "addServe", choiceId: chosen.choiceId });
   epochs.set(ROOT, 2);
@@ -184,7 +184,7 @@ test("a read still running when Settings closes does not refill the serve list",
 test("a picker sheet that finishes after Settings closes returns no choice", async () => {
   const sheet = deferred<string | null>();
   pick.mockReturnValueOnce(sheet.promise);
-  const choosing = bridge.choose({ root: ROOT, kind: "serve" }, "main");
+  const choosing = bridge.choose({ root: ROOT, kind: "serve" });
   bridge.clear();
   sheet.resolve("/repo/tokens/new.css");
   expect(await choosing).toEqual({ kind: "unavailable" });
@@ -213,7 +213,7 @@ describe("dialog session", () => {
     const picking = deferred<string | null>();
     pick.mockReturnValueOnce(picking.promise);
     const read = bridge.read({ root: ROOT });
-    const choice = bridge.choose({ root: ROOT, kind: "tokenCss" }, "main");
+    const choice = bridge.choose({ root: ROOT, kind: "tokenCss" });
     await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
     bridge.clear();
     reading.resolve(config(["late"], "late.css"));
@@ -225,7 +225,7 @@ describe("dialog session", () => {
 
   test("a new dialog cannot use the previous dialog's choices or serve list", async () => {
     await bridge.read({ root: ROOT });
-    const chosen = await bridge.choose({ root: ROOT, kind: "serve" }, "main");
+    const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
     if (chosen.kind !== "selected") throw new Error("not selected");
     bridge.clear();
     expect(await bridge.write({ root: ROOT, op: "addServe", choiceId: chosen.choiceId })).toEqual({ kind: "unavailable" });
