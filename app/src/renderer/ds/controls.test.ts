@@ -68,3 +68,8 @@ test("a toast puts its message and action on one row and sits at the window's bo
   expect(rule(styles, ".toast")).toBe("position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6;");
   expect(styles).not.toContain("~ .toast");
 });
+
+test("menu rows are 32px from the primitive: 6px block insets around the 20px line, with no local project-menu override", () => {
+  expect(rule(read("./surfaces.css"), ".doan-menu-item")).toContain("min-height: var(--size-control-sm);\n  padding: var(--space-1h) var(--space-3);");
+  expect(read("../styles.css")).not.toMatch(/\.shell-project-menu \.doan-menu-item[^{]*\{[^}]*padding-block/);
+});

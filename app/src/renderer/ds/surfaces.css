@@ -57,7 +57,7 @@
   align-items: center;
   gap: var(--space-row-gap);
   min-height: var(--size-control-sm);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1h) var(--space-3);
   border-radius: max(0px, calc(var(--radius-container) - var(--space-1) - 1px));
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line-height);

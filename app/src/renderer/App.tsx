@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ShellSidebar } from "./ShellSidebar";
 import { commitVisit, emptyHistory, historyTarget, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
-import { canvasLabel } from "./canvasTree";
+import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { MenuCommand, ViewCommand } from "../main/index";
@@ -17,7 +17,6 @@ import type { AddOutcome } from "../main/addProjects";
 import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
-import { moveExpanded } from "./Sidebar";
 import { useComments } from "./useComments";
 import { RightPanel } from "./RightPanel";
 import { FeedbackPanel } from "./FeedbackPanel";
