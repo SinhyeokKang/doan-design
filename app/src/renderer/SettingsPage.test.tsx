@@ -31,6 +31,9 @@ vi.mock("react", async original => {
 
 const { SettingsPage } = await import("./SettingsPage");
 const { SettingsAgents } = await import("./SettingsAgents");
+const { SettingsNotifications } = await import("./SettingsNotifications");
+const { SettingsConnections } = await import("./SettingsConnections");
+const { SettingsAbout } = await import("./SettingsAbout");
 const { ShellSidebar } = await import("./ShellSidebar");
 
 beforeEach(() => {
@@ -73,8 +76,11 @@ test("the body is the scrolling white panel with a 48rem column, the category ti
     expect(words(heading().props.children)).toBe({ agents: "Agents", notifications: "Notifications", connections: "Connections", about: "About" }[section]);
     expect(all(tree).some(element => element.props.className === "settings-page")).toBe(true);
     expect(words(all(tree).find(element => element.props.className === "settings-lead")!.props.children)).toBe(lead);
-    // Only Agents has a body in this batch; the other categories mount none of its rows.
-    expect(all(tree).some(element => element.type === SettingsAgents), section).toBe(section === "agents");
+    // Each category mounts its own body, and only that one.
+    const bodies = { agents: SettingsAgents, notifications: SettingsNotifications, connections: SettingsConnections, about: SettingsAbout };
+    for (const [id, body] of Object.entries(bodies)) expect(all(tree).some(element => element.type === body), `${section} ${id}`).toBe(id === section);
+    // Check Again and Copy details go to the header's action slot.
+    expect(all(tree).some(element => element.props.className === "settings-header-actions")).toBe(true);
   }
 });
 
@@ -96,6 +102,8 @@ test("an arrival focuses the category title once; a provider arrival goes to Age
 
 test("a category's lock reaches App", () => {
   const onState = vi.fn();
+  render({ onState, section: "connections" });
+  expect((all(tree).find(element => element.type === SettingsConnections)!.props.onLock as (locked: boolean) => void)).toBeTypeOf("function");
   render({ onState });
   const body = all(tree).find(element => element.type === SettingsAgents)!;
   (body.props.onLock as (locked: boolean) => void)(true);
@@ -106,7 +114,7 @@ test("a category's lock reaches App", () => {
 
 function sidebar(settings: { section: PageProps["section"]; select(section: string): void }, locked = false) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
-  return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), home: true, locked, settings });
+  return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), home: true, locked, settings });
 }
 
 test("on the Settings page the sidebar keeps Search and lists the four categories as plain buttons", () => {

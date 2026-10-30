@@ -10,6 +10,7 @@ import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
 import { Home, ProblemActions, useProjectComments } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
+import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
 import { useToast } from "./Toast";
 import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
 import { addPageReturn, pageEnter, pageEscape, type AddPageEvent, type AddPageOrigin, type ShellScreen } from "./addProjectsNav";
@@ -78,6 +79,8 @@ export function App() {
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [setup, setSetup] = useState<string | null>(null);
+  // The project menu's Project Settings dialog; seq mounts each opening anew.
+  const [projectSettings, setProjectSettings] = useState<{ root: string; key: string; seq: number } | null>(null);
   // The Add Projects page (buzz-add-projects design '화면과 이동'): where it returns to, the page's own report, and a
   // counter File > Add Project… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
   const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
@@ -424,7 +427,7 @@ export function App() {
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || !!comments.dialog || setup !== null || quickOpen || homeRun.current.removing !== null;
+  const modal = wizard !== null || !!comments.dialog || setup !== null || quickOpen || homeRun.current.removing !== null || projectSettings !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
   const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root });
   live.current = { home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root) };
@@ -751,6 +754,7 @@ export function App() {
     onEditOnHome={() => run.editOnHome(shown.conversation.root)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}
+    projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
     home={home} slots={run.slots()} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
@@ -778,6 +782,8 @@ export function App() {
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>
   </main>
   {comments.dialog}
+  {projectSettings && <ProjectSettingsDialog key={projectSettings.seq} root={projectSettings.root} projectKey={projectSettings.key} entries={entries} reroot={reroot} homeDirectory={homeDirectory}
+    onClose={() => setProjectSettings(null)} onAction={(name, root) => action(name, root)} />}
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog" data-ui-size="compact" aria-label={run.removing.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>

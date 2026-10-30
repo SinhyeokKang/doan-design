@@ -73,6 +73,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { QuickOpen } = await import("./QuickOpenDialog");
 const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
+const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -354,4 +355,22 @@ test("Settings components never start or send a conversation", () => {
   const files = readdirSync(dir).filter(name => /^Settings.*\.tsx$/.test(name) && !name.includes(".test."));
   expect(files).toEqual(expect.arrayContaining(["SettingsAgents.tsx", "SettingsPage.tsx"]));
   for (const name of files) expect(readFileSync(new URL(name, dir), "utf8"), name).not.toMatch(/startConversation|sendConversation/);
+});
+
+// buzz-settings U5: Project Settings is a dialog over whatever screen is open, not a move; the Add Projects lock allows it.
+test("the project menu's Project Settings opens its dialog as a modal, even while Add Projects is locked", () => {
+  render();
+  folders([listed("/w/a")]);
+  find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
+  const dialog = find<{ root: string; projectKey: string; onClose(): void; onAction(action: string, root: string): void }>(ProjectSettingsDialog)[0]!;
+  expect(dialog.props).toMatchObject({ root: "/w/a", projectKey: "/w/a" });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith(expect.objectContaining({ modal: true }));
+  expect(doan.openSettings).not.toHaveBeenCalled();
+  dialog.props.onClose(); render();
+  expect(find(ProjectSettingsDialog)).toHaveLength(0);
+  click(topBar(homeEl()!.props.header).add);
+  find<{ onState(report: { locked: boolean; choose: boolean }): void }>(AddProjectsPage)[0]!.props.onState({ locked: true, choose: false }); render();
+  find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
+  expect(find(ProjectSettingsDialog)).toHaveLength(1);
+  expect(addPage()).toBeDefined();
 });

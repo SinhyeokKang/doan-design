@@ -6,7 +6,7 @@ const row = { path: ".doan/canvases/folder/canvas.html", url: "u", open: 2, reso
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
   const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, commentsError: { code: "bad", message: "Unreadable" } }] } : entry;
-  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} />);
+  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
 }
 it("renders project to canvas IA, locks current expansion, and keeps the branch passive", () => {
   const html = render("/repo");
@@ -77,7 +77,7 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   const Sidebar = ShellSidebar;
   const canvas = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
   const entries: FolderEntry[] = [{ path: "/a", kind: "list", servedRev: 0, canvases: [canvas] }, { path: "/b", kind: "list", servedRev: 0, canvases: [] }];
-  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {} };
+  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {} };
   const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
   const home = renderToStaticMarkup(<Sidebar {...props} home slots={slots} highlight={["/b"]} />);
   expect(home).not.toContain("aria-current");

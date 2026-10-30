@@ -17,7 +17,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function fixture(loaded: string | null = "/a") {
   const row = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}) };
+  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn() };
   const rendered = elements(ShellSidebar(props));
   const project = rendered.find(item => item["data-key"] === "common")!;
   const menuItems = rendered.filter(item => typeof item.onSelect === "function");

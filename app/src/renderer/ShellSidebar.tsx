@@ -25,6 +25,9 @@ interface Props {
   overview(root: string): void;
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
+  // The project menu's Project Settings: a dialog for the worktree the menu shows, not a move, so a locked page allows
+  // it (buzz-settings design '잠금').
+  projectSettings(root: string, projectKey: string): void;
   // On Home the sidebar marks no current project or canvas (buzz-home design §3).
   home?: boolean;
   // Home-conversation states by slotKey (design §7.2) and roots to flash after an add (design §6).
@@ -189,7 +192,7 @@ export function ShellSidebar(props: Props) {
                 <DropdownMenu.Separator className="doan-menu-sep" />
                 <DropdownMenu.Item className="doan-menu-item" disabled={menuEntry.kind !== "list"} aria-disabled={locked ?? (menuEntry.kind !== "list" || undefined)} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
-                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => { void window.doan.openSettings({ tab: "projects", project: menuEntry.path }); })}><Settings />Project Settings</DropdownMenu.Item>
+                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.projectSettings(menuEntry.path, card.key))}><Settings />Project Settings</DropdownMenu.Item>
                 {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{labels[action]}</DropdownMenu.Item>)}
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => {
                   const current = live.current.cards.find(item => item.key === card.key);

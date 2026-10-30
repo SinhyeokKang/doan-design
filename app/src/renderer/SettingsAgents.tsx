@@ -9,6 +9,7 @@ import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
 import { modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
 import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./Onboarding";
+import { preferencesNotice } from "./SettingsNotifications";
 
 export interface SettingsAgentsProps {
   // The renderer's sign-in controller: a sign-in outlives this page (design 'App 수준 로그인 컨트롤러').
@@ -154,7 +155,6 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
 }
 
 const SAVE_FAILED = "Couldn’t save your new conversation choices. Your last saved choices still apply.";
-const READ_NOTICES = { broken: "Doan couldn’t read its saved settings, so defaults apply.", newer: "These settings were saved by a newer version of Doan." } as const;
 
 // The defaults Home starts a new input with (design 'New conversations'). Last used hides Model and Effort, which then
 // follow the conversation sent last. The pickers are menus like Home's (role=menu): a listbox Select would let the
@@ -201,7 +201,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   return <section className="settings-section" aria-labelledby="settings-agents-defaults">
     <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-agents-defaults">New conversations</h2>
       <p className="settings-section-description">Home starts a new conversation with these. A conversation keeps the agent it started with.</p></div></div>
-    {preferences?.notice && <div className="doan-notice doan-panel settings-notice" role="status"><AlertIcon /><span>{READ_NOTICES[preferences.notice]}</span></div>}
+    {preferencesNotice(preferences?.notice)}
     <div className="doan-settings-group" data-layout="rows">
       <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Agent</span><span className="doan-preference-row-description">Choose Last used to start with the agent you sent with last.</span></div>
