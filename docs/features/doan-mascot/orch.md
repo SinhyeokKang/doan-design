@@ -49,3 +49,4 @@ P0(PoC)은 완료됐다.
 - 2026-10-31: intake. P0를 마쳤고, 결정과 배치 표를 작성했다.
 - 2026-10-31: Run `run_b9a812f71443`. BM(`ctx_dd00f2587f78`, Opus high, `doan-mascot-bm`), BL(`ctx_6a385f156e4d`, Opus high, `doan-mascot-bl`), BE(`ctx_1f33d33a6238`, Codex `gpt-6.1-sol` medium, `doan-mascot-be`)를 시작했다. 세 워크트리 모두 `69814ca4`에서 시작했고, `launch.effective`가 요청과 같다. 세 작업자 모두 브리프를 읽고 작업을 시작한 것을 터미널에서 확인했다.
 - 2026-10-31: BE 완료(`67a30df5`). package·typecheck·test(190 파일, 4,966개) 통과, `CFBundleIconFile=icon.icns`. RBE(Claude Sonnet medium, `ctx_1e85c3d25711`) 리뷰 결과 지적 없음. 통합 브랜치에 cherry-pick했다. 실행하지 않은 확인용 복사본은 `/tmp/doan-icon-tq_bys5x/Doan.app`이고, 사용자 외형 확인을 기다린다. 확인될 때까지 BE 워크트리를 남긴다. BE와 RBE 작업자는 해제했다.
+- 2026-10-31: BL 완료(`7921cb19`). test(4,976)·typecheck·build·verify 통과, red 7건 기록. 미룬 항목(Doany 삽입, `typing()`·`hop()` 연결)은 BM 통합 뒤 같은 작업자에게 보내려고 작업자를 retain했다. 계획과 다른 점 6개(handoff)를 리뷰에서 판정받는다. RBL(Codex `gpt-6-astra` medium, `ctx_7b61650f2b98`) 진행 중.
