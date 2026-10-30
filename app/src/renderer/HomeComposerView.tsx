@@ -676,9 +676,9 @@ export function HomeComposer(props: HomeComposerProps) {
           <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>;
         return <Tooltip key={prompt.label}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{prompt.label}</TooltipContent></Tooltip>;
       })}</div>}
-      {notice && <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
+      {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
       {!notice && reason && (reason.kind === "attachmentMissing"
-        ? <div className="doan-notice error composer-notice" role="alert"><AlertIcon /><span className="grow-text">{reason.text}</span></div>
+        ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{reason.text}</span></div>
         : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>

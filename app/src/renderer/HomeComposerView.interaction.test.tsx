@@ -278,7 +278,7 @@ test("a late refusal after leaving Home is shown on the next visit and keeps the
   reply.resolve({ error: "busy" });
   await vi.waitFor(() => expect(box.current.sending).toBeNull());
   expect(box.current).toMatchObject({ text: "Draw a pricing page.", notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
-  expect(render().some(props => props.className === "doan-notice error composer-notice")).toBe(true);
+  expect(render().some(props => props.className === "doan-notice error doan-panel composer-notice")).toBe(true);
 });
 
 test("projects and worktrees that are still being read are disabled with their status chip", () => {

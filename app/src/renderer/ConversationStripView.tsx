@@ -45,7 +45,7 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     : state.kind === "done" ? <CircleCheck className="strip-ok" aria-hidden="true" />
     : <img className="logo" src={providerLogo(provider)} alt="" />;
   // A permission request is announced once: its alert is a new element per request.
-  return <div className="convo-strip doan-notice doan-panel" role="region" aria-label="Conversation">
+  return <div className="convo-strip doan-notice" role="region" aria-label="Conversation">
     <span className="strip-agent">{mark}</span>
     <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
     <span className="strip-actions">{view.actions.map(action => {

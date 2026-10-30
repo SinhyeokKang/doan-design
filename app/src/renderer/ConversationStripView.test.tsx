@@ -37,9 +37,9 @@ function buttons(state: StripState, calls: { edit?: () => void; dismiss?: () => 
 }
 const text = (props: Record<string, unknown>) => Children.toArray(props.children as ReactNode).filter(child => typeof child === "string").join("");
 
-test("the strip is the shared panel notice with the provider mark, a status line and its actions (draft workspace-working)", () => {
+test("the strip is the shared notice with the provider mark, a status line and its actions (draft workspace-working)", () => {
   const html = render({ kind: "working", activity: "Editing .doan/canvases/design-system.html" });
-  expect(html).toContain('<div class="convo-strip doan-notice doan-panel" role="region" aria-label="Conversation">');
+  expect(html).toContain('<div class="convo-strip doan-notice" role="region" aria-label="Conversation">');
   expect(html).toContain('<span class="strip-agent"><img class="logo" src="provider-logos/claude.png" alt=""/></span>');
   expect(html).toContain('<span class="strip-text" role="status"><b>Claude Code is working</b><span>Editing .doan/canvases/design-system.html</span></span>');
   expect(html).toMatch(/<button data-strip-stop="" type="button" class="doan-button" data-ui-size="sm"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg>Stop<\/button>/);
