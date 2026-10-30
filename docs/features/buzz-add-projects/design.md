@@ -21,7 +21,7 @@
   - `menuState.ts`: `menuState(screen, modalOpen, toastOpen, context)`(`menuState.ts:19`)에 페이지 화면과 `locked`를 더하고, `menu:state` 파서와 비교(`index.ts:321, 331`)도 같이 고친다.
   - 공유 project 클래스(아래 'main의 project 처리').
   - `addProjects.ts`: 한 경로를 판정하는 store·duplicate·confirm만 남긴다. 체크리스트 스캔(`Scan`, `scanCandidates`, `progress`, 워크트리 제안), 여러 경로 처리, `droppedPaths`, `folders:add`·`folders:add-paths`·`folders:add-outcome`·`folders:scan`·`folders:scan-cancel`·`folders:add-candidates`·`folders:confirm-folder` 채널을 지운다. `gitChildren`·`hasGitEntry`는 `onboarding/projects.ts:4`가 쓰므로 남긴다.
-  - `senderAllowed.ts:5-6`: 지운 채널을 빼고 페이지 채널을 main 전용으로 더한다. ARCHITECTURE §7의 allowlist 표도 승격 때 고친다.
+  - `senderAllowed.ts:5-6`: 지운 채널을 빼고 페이지 채널을 main 전용으로 더한다(ARCHITECTURE는 이 파일을 가리킬 뿐 표를 두지 않는다).
 - **CLI, `doan mcp`, 스킬, 포맷**(코멘트 이벤트, `.doan/config.json`, CLI 응답, `runtime.json`, 앱 socket 메시지): 변경 없음. `onboarding_*` 응답 모양도 그대로다.
 - **ui-state.json**: 모양 변경 없음. 페이지는 저장하지 않는다(아래).
 

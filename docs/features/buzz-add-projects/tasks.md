@@ -94,7 +94,7 @@
   - PRODUCT §5 항목 1: Add Projects 문단(페이지, 하나씩, 그 자리 설정과 실패 예외, 카드 드롭, 완료 뒤 Home, origin 복귀, selecting·cloning 잠금), Home 입력창 폴더 드롭 문장, 'First run registers its chosen project through the same addition flow' 문장.
   - 대체되는 본문: design.md '포맷·컨벤션·결정 영향'의 대체 항목이 PRODUCT·ARCHITECTURE·DESIGN 본문에 남아 있으면 지우고 현재 규칙으로 고친다. 근거(spec 결정 1~10, Buzz에 대응 화면이 없어 온보딩 Project 단계를 정본으로 삼은 점)는 커밋 메시지에 쓴다.
   - PRODUCT §6 Open questions 후속: Git이 찾은 미등록 워크트리를 LNB에서 더하는 길.
-  - ARCHITECTURE §7: 'Screens'·'Memory'·'Focus'의 화면 모델과 `AddProjectsDialog`·`SetUpFolderConfirm`·`DropOverlay` 언급, preload 'Add' 줄(`ARCHITECTURE.md:395`, `folders:add`·`folders:add-paths`·`onAddOutcome` 계약)을 페이지 채널로 교체, 메뉴 표와 'Menus' 줄의 `addProjects`·`locked`, 공유 project 클래스, allowlist 표.
+  - ARCHITECTURE §7: 'Screens'·'Memory'·'Focus'의 화면 모델과 `AddProjectsDialog`·`SetUpFolderConfirm`·`DropOverlay` 언급, 남아 있는 add 채널 언급을 페이지 채널로 교체, 'Menus' 줄의 `addProjects`·`locked`, 공유 project 클래스. ARCHITECTURE에는 IPC 채널·메뉴 표·allowlist 표가 없고 `senderAllowed.ts`·`menuState.ts`를 가리키므로, 이 항목은 코드 변경만으로 맞춰진다.
   - 부모 spec 공통 결정 6(하나씩 추가·워크트리 제안 제거라는 보존 예외)과 공통 결정 10(`AddProjectsDialog` 삭제).
   - 검증:
     - `grep -nE 'AddProjectsDialog|SetUpFolderConfirm|suggested worktrees start unchecked' docs/PRODUCT.md docs/ARCHITECTURE.md` 결과가 없다.
