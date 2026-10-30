@@ -371,15 +371,9 @@ code, kbd { font-family: var(--type-family); }
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .ob-card > :first-child { border-top: 0; }
 .ob-card + .ob-card { margin-top: 14px; }
-.ob-item { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
-/* A dimmed item is waiting on another step, not disabled. */
-.ob-item.dimmed :is(.ob-label, .ob-detail) { color: var(--text-metadata); }
-.ob-item.ob-notice { padding-top: 0; }
-.ob-detail { color: var(--text-subtle); min-width: 0; overflow-wrap: anywhere; }
 /* Inline code reads as a chip on the surface it sits on. */
-.ob-detail code, .ob-msg code, .ob-dialog code, .ob-field code, .ob-reason code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
-.ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
 /* An inline error or warning is one line led by an icon, so colour is not the only signal. */
 .ob-msg:is(.warn, .error), .fp-error, .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
@@ -387,14 +381,11 @@ code, kbd { font-family: var(--type-family); }
 .ob-msg.error, .fp-error, .pj-msg { color: var(--text-danger); }
 .ob-msg.ok { color: var(--text-success); }
 .ob-msg.ob-wide { grid-column: 1 / -1; }
-.ob-reason { grid-column: 2 / -1; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 /* Status pill: a doan adjustment that keeps a row's state readable at a glance. */
 .ob-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--affordance-subtle); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: nowrap; }
 .ob-chip.ok { background: var(--affordance-success); color: var(--text-success); }
 .ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
 .ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
-.ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
-.ob-copyline output { flex: 1; min-width: 0; padding: var(--space-1h) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-panel); color: var(--text-standard); overflow-wrap: anywhere; }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
 /* Project names and paths share inline flow; Inspector values use flex. */
 .ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; }
@@ -416,9 +407,6 @@ code, kbd { font-family: var(--type-family); }
 /* The replace confirmation and the project setup dialog share the comments dialog surface. */
 .ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-dialog .ob-card { width: auto; }
-.ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-1h) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-row); background: var(--surface-panel); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.ob-compare dt { color: var(--text-metadata); }
-.ob-compare dd { color: var(--text-standard); overflow-wrap: anywhere; }
 
 .ocard-meta .review { color: var(--text-subtle); }
 .ocard-meta > span { white-space: nowrap; }

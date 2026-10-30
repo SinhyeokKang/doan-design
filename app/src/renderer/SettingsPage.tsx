@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SettingsAbout } from "./SettingsAbout";
 import { SettingsAgents, type SettingsAgentsProps } from "./SettingsAgents";
-import { SettingsConnections } from "./SettingsConnections";
 import { SettingsNotifications } from "./SettingsNotifications";
 import { SETTINGS_SECTIONS, type settingsArrival, type SettingsSection } from "./settingsSections";
 
@@ -9,9 +8,8 @@ import { SETTINGS_SECTIONS, type settingsArrival, type SettingsSection } from ".
 export interface SettingsArrival { focus: ReturnType<typeof settingsArrival>["focus"]; seq: number }
 
 const LEADS: Record<SettingsSection, string> = {
-  agents: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. To let the agent in your terminal use Doan, see Connections.",
+  agents: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup.",
   notifications: "macOS notifications for when an agent needs you while you work in another app.",
-  connections: "Your agents reach Doan through these three. Each row says whether that works right now. Signing in for conversations on Home is in Agents.",
   about: "Versions on this Mac, for checking an update or reporting a problem.",
 };
 
@@ -25,7 +23,7 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
   agents: Omit<SettingsAgentsProps, "arrival" | "onLock">;
 }) {
   const heading = useRef<HTMLHeadingElement | null>(null);
-  // The header's actions slot (Check Again, Copy details): the category that owns the action renders it there.
+  // The header's actions slot (Copy details): the category that owns the action renders it there.
   const [actions, setActions] = useState<HTMLDivElement | null>(null);
   const onLock = (locked: boolean) => onState({ locked });
   // Arrival and ⌘, on the page focus the title; a category picked in the sidebar brings no arrival, so focus stays on
@@ -50,7 +48,6 @@ export function SettingsPage({ header, sidebar, section, arrival, onState, agent
         <div className="settings-sections">
           {section === "agents" && <SettingsAgents key="agents" {...agents} arrival={provider} onLock={onLock} />}
           {section === "notifications" && <SettingsNotifications key="notifications" preferences={agents.preferences} save={agents.save} />}
-          {section === "connections" && <SettingsConnections key="connections" onLock={onLock} actions={actions} />}
           {section === "about" && <SettingsAbout key="about" actions={actions} />}
         </div>
       </div>

@@ -21,7 +21,7 @@ const mainOnly = [
   // buzz-home: Home attachments.
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
 ];
-const setupAndAuth = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external",
+const setupAndAuth = ["setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
   "config:read", "config:write", "config:choose"];
 // buzz-settings design '창 제거와 IPC': the Settings page's own requests, and the two events main sends it.
@@ -48,7 +48,10 @@ test("rejects unknown channels and every unregistered window", () => {
   for (const channel of [...mainOnly, ...setupAndAuth, ...settingsPage, "", "setup:delete", "comments:evil", "toString", "__proto__", "settings:", "projects:", "setup:"]) {
     for (const kind of [undefined, null, "thumbnail", "unknown", "", 1, {}]) expect(senderAllowed(channel, kind)).toBe(false);
   }
-  for (const kind of ["main", "settings"]) for (const channel of ["", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
+  // zero-setup-agents removed Settings > Connections and its setup channels.
+  // Built from the operation names so a search for the channel literals finds only live code.
+  const removed = ["read", "run", "answer", "check-again", "status"].map(op => `setup:${op}`);
+  for (const kind of ["main", "settings"]) for (const channel of [...removed, "", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
 test("restricts every onboarding session request channel to main", () => {
   const requests = Object.values(ONBOARDING_CHANNELS).filter(channel => channel !== ONBOARDING_CHANNELS.changed);

@@ -222,18 +222,24 @@ test("a prototype-polluting provider key is not a provider", () => {
 
 // buzz-settings design '포맷 변경': the Settings category is a plain renderer field; the old main-composed tab is read once.
 test("keeps a saved Settings section", () => {
-  for (const settingsSection of ["agents", "notifications", "connections", "about"])
+  for (const settingsSection of ["agents", "notifications", "about"])
     expect(parse({ screen: "home", settingsSection })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection });
 });
 
-test("an old settingsTab becomes the Settings section: connections stays, projects becomes Agents", () => {
-  expect(parse({ screen: "home", settingsTab: "connections" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "connections" });
+// Settings > Connections was removed; a stored one opens About.
+test("a saved Connections section restores as About", () => {
+  expect(parse({ screen: "home", settingsSection: "connections" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "about" });
+  expect(parse({ screen: "home", settingsSection: "connections", settingsTab: "projects" })?.settingsSection).toBe("about");
+});
+
+test("an old settingsTab becomes the Settings section: connections becomes About, projects becomes Agents", () => {
+  expect(parse({ screen: "home", settingsTab: "connections" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "about" });
   expect(parse({ screen: "home", settingsTab: "projects" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "agents" });
 });
 
 test("a saved Settings section wins over the old settingsTab, and an unknown one is dropped on its own", () => {
-  expect(parse({ screen: "home", settingsSection: "about", settingsTab: "connections" })?.settingsSection).toBe("about");
-  expect(parse({ screen: "home", settingsSection: "projects-old", settingsTab: "connections" })?.settingsSection).toBe("connections");
+  expect(parse({ screen: "home", settingsSection: "notifications", settingsTab: "connections" })?.settingsSection).toBe("notifications");
+  expect(parse({ screen: "home", settingsSection: "projects-old", settingsTab: "connections" })?.settingsSection).toBe("about");
   expect(parse({ screen: "home", settingsSection: 3 })).toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
   // The old name is only read: the section is the one field written back.
   expect(parse({ screen: "home", settingsTab: "connections" })).not.toHaveProperty("settingsTab");

@@ -1,2 +1,0 @@
-Added stdio MCP server doan with command: /tmp/doan-poc7/mcp-wrapper mcp to user config
-File modified: /tmp/doan-poc7/home/.claude/.claude.json

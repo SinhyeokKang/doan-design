@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, Info, LayoutGrid, Palette, Plug, Search, Settings } from "lucide-react";
+import { Bell, Bot, Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, Info, LayoutGrid, Palette, Search, Settings } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
@@ -40,7 +40,7 @@ interface Props {
   // 'LNB'). Choosing one leaves focus on its row.
   settings?: { section: SettingsSection; select(section: SettingsSection): void };
 }
-const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, notifications: Bell, connections: Plug, about: Info };
+const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, notifications: Bell, about: Info };
 const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
 // A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
 // permission request in a collapsed project is never hidden.

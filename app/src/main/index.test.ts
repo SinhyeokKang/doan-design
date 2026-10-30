@@ -72,8 +72,6 @@ const mocks = await vi.hoisted(async () => {
     inspector: { inspect: vi.fn() },
     createInspector: vi.fn(),
     mkdir: vi.fn(),
-    machine: { read: vi.fn(), run: vi.fn(), answer: vi.fn(), cancelConfirmation: vi.fn(), isBusy: vi.fn(() => false) },
-    createMachine: vi.fn(),
     readCompletion: vi.fn(), clipboard: { writeText: vi.fn() },
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
@@ -112,7 +110,7 @@ vi.mock("./conversation/service", async (importOriginal) => {
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/completion", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/completion")>(), readCompletion: mocks.readCompletion }));
-vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: vi.fn(async () => ({ ok: false })), PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
+vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: vi.fn(async () => ({ ok: false })) }));
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./folderStore", () => ({ readFoldersFileForPruning: mocks.readFoldersFileForPruning }));
@@ -126,12 +124,6 @@ vi.mock("./projectComments", async (importOriginal) => ({ ...await importOrigina
 vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
 const actualProjects = await vi.importActual<typeof import("./onboarding/projects")>("./onboarding/projects");
 
-// A machine read where everything is connected.
-const MACHINE = {
-  requestId: "r", cli: { state: "ours" }, stub: { state: "ours" }, claudeLink: { state: "ours" }, probe: { ok: true, path: "/bin" },
-  agents: { claude: { executable: "/bin/claude", mcp: { state: "ours" } }, codex: { executable: "/bin/codex", mcp: { state: "ours" } } },
-};
-
 // What onboarding.json holds at launch; a describe sets it in beforeAll, before each launch reads it.
 let launchCompletion: { kind: string; projectRoot?: string } = { kind: "missing" };
 const COMPLETE = { kind: "complete", projectRoot: "/repo" };
@@ -142,10 +134,6 @@ beforeEach(async () => {
   mocks.Window.instances.length = 0;
   mocks.ipc.clear();
   mocks.readCompletion.mockReturnValue(launchCompletion);
-  mocks.createMachine.mockReturnValue(mocks.machine);
-  mocks.machine.read.mockResolvedValue(MACHINE);
-  mocks.machine.run.mockResolvedValue({ kind: "success" });
-  mocks.machine.isBusy.mockReturnValue(false);
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
   mocks.readFoldersFileForPruning.mockResolvedValue(entries.map((entry) => entry.path));
@@ -672,7 +660,6 @@ test("an incomplete first run keeps Settings closed until the session saves comp
   expect(openSettingsPage()).toBe(false);
   await completeFirstRun();
   expect(openSettingsPage()).toBe(true);
-  await vi.waitFor(() => expect(window().webContents.send).toHaveBeenCalledWith("setup:status", expect.objectContaining({ onboardingClosed: true })));
 });
 test.each([false, true])("hiding and showing the window keeps the first-run session (hidden: %s)", async hidden => {
   const contents = window().webContents;
@@ -683,16 +670,19 @@ test.each([false, true])("hiding and showing the window keeps the first-run sess
   const again = await invoke("onboarding:start", contents, null, {}) as { result: { sessionId: string; completed: boolean } };
   expect(again.result).toMatchObject({ sessionId: first.result.sessionId, completed: false });
 });
-test("the old wizard channels are gone; first prompt and copy stay", () => {
-  for (const channel of ["onboarding:get-open", "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:close", "onboarding:open-project"]) expect(mocks.ipc.has(channel)).toBe(false);
+// Built from the operation names so a search for the channel literals finds only live code.
+const REMOVED_SETUP_CHANNELS = ["read", "run", "answer", "check-again", "status"].map(op => `setup:${op}`);
+test("the old wizard and Connections channels are gone; first prompt, copy and install pages stay", () => {
+  for (const channel of ["onboarding:get-open", "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:close", "onboarding:open-project",
+    ...REMOVED_SETUP_CHANNELS]) expect(mocks.ipc.has(channel)).toBe(false);
+  expect(mocks.ipc.has("setup:open-external")).toBe(true);
   for (const channel of ["onboarding:first-prompt", "onboarding:copy", "onboarding:choose-folder"]) expect(mocks.ipc.has(channel)).toBe(true);
 });
 describe("a launch with a v1 completion record", () => {
   beforeAll(() => { launchCompletion = COMPLETE; });
   afterAll(() => { launchCompletion = { kind: "missing" }; });
-  test("opens no first run: Settings is available and the home alerts are released", async () => {
+  test("opens no first run: Settings is available", async () => {
     expect(item("Settings…").enabled).not.toBe(false);
-    expect(await invoke("setup:check-again", window().webContents, null)).toMatchObject({ onboardingClosed: true });
   });
 });
 describe("a launch with the legacy {} marker", () => {
@@ -700,7 +690,6 @@ describe("a launch with the legacy {} marker", () => {
   afterAll(() => { launchCompletion = { kind: "missing" }; });
   test("still runs first run: the old closed marker is not a completion", async () => {
     expect(item("Settings…").enabled).toBe(false);
-    expect(await invoke("setup:check-again", window().webContents, null)).toMatchObject({ onboardingClosed: false });
   });
 });
 test("first prompt is read and copied only for a stored set-up project and a subject, after the clipboard settles", async () => {
@@ -732,24 +721,9 @@ test("first prompt is read and copied only for a stored set-up project and a sub
   expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject })).toEqual({ kind: "error", message: "denied" });
 });
 
-test("PATH copy awaits the clipboard and refuses arbitrary strings", async () => {
-  let finish!: () => void;
-  mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
-  let settled = false;
-  const copied = Promise.resolve(invoke("onboarding:copy", window().webContents, null, { kind: "pathLine" })).then(value => { settled = true; return value; });
-  await Promise.resolve(); expect(settled).toBe(false); finish();
-  expect(await copied).toEqual({ kind: "success" });
-  expect(mocks.clipboard.writeText).toHaveBeenCalledWith('export PATH="$HOME/.local/bin:$PATH"');
-  mocks.clipboard.writeText.mockRejectedValueOnce(new Error("denied"));
-  expect(await invoke("onboarding:copy", window().webContents, null, { kind: "pathLine" })).toMatchObject({ kind: "error" });
-  mocks.clipboard.writeText.mockClear();
-  await invoke("onboarding:copy", window().webContents, null, { kind: "pathLine", text: "forged" });
+test("the PATH line copy is gone: onboarding:copy refuses it and writes nothing", async () => {
+  expect(await invoke("onboarding:copy", window().webContents, null, { kind: "pathLine" })).toEqual({ kind: "stale" });
   expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
-});
-
-
-test("the wizard's machine shows this app's version", async () => {
-  await vi.waitFor(() => expect(mocks.createMachine).toHaveBeenCalledExactlyOnceWith({ command: "/bundled/doan", version: "9.8.7" }));
 });
 
 function click(label: string): void {
@@ -1368,7 +1342,6 @@ describe("main-window setup and settings", () => {
       expect(await invoke(channel, stranger.webContents, null, value), channel).toEqual(refused);
       expect(await invoke(channel, window().webContents, {}, value), channel).toEqual(refused);
     }
-    expect(await invoke("setup:status", stranger.webContents, null)).toBeNull();
     expect(await invoke("folders:get", stranger.webContents, null)).toEqual([]);
   });
 
@@ -1382,49 +1355,6 @@ describe("main-window setup and settings", () => {
     mocks.runConfig.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, tokenCss: "tokens.css", serve: [], changed: true } }) });
     expect(await invoke("config:write", created.webContents, null, { root: ROOT, op: "setTokenCss", choiceId: chosen.choiceId })).toMatchObject({ kind: "config", changed: true });
     expect(mocks.runConfig).toHaveBeenCalledWith("/bundled/doan", ROOT, ["--token-css", `${ROOT}/tokens.css`]);
-  });
-
-  test.each(["render-process-gone", "closed"])("the main window's %s releases its confirmation", async event => {
-    const contents = window().webContents;
-    mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
-    expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
-    mocks.machine.cancelConfirmation.mockClear();
-    if (event === "closed") window().emit("closed"); else contents.emit(event);
-    expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
-  });
-
-  test("hiding the main window keeps its confirmation", async () => {
-    const contents = window().webContents;
-    mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
-    expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
-    mocks.machine.cancelConfirmation.mockClear();
-    window().emit("close", { preventDefault: vi.fn() });
-    expect(mocks.machine.cancelConfirmation).not.toHaveBeenCalled();
-  });
-
-  test("the summary is read at start, on main focus once a minute and Check Again, and sent to main", async () => {
-    const now = Date.now();
-    const clock = vi.spyOn(Date, "now");
-    try {
-      await vi.waitFor(() => expect(mocks.machine.read).toHaveBeenCalledOnce());
-      await vi.waitFor(() => expect(window().webContents.send).toHaveBeenCalledWith("setup:status", { summary: { cli: "connected", claude: "connected", codex: "connected" }, causes: {}, checking: false, busy: false, onboardingClosed: false }));
-      clock.mockReturnValue(now + 1_000);
-      window().emit("focus");
-      clock.mockReturnValue(now + 120_000);
-      window().emit("focus");
-      await vi.waitFor(() => expect(mocks.machine.read).toHaveBeenCalledTimes(2));
-      mocks.readCompletion.mockReturnValue(COMPLETE);
-      const created = window();
-      expect(await invoke("setup:check-again", created.webContents, null)).toMatchObject({ onboardingClosed: true });
-      expect(mocks.machine.read).toHaveBeenCalledTimes(3);
-      expect(created.webContents.send).toHaveBeenCalledWith("setup:status", expect.objectContaining({ onboardingClosed: true }));
-    } finally { clock.mockRestore(); }
-  });
-
-  test("setup:read answers the main window with the state and its summary", async () => {
-    const created = window();
-    expect(await invoke("setup:read", created.webContents, null, { requestId: "x" })).toEqual({ kind: "state", state: MACHINE, summary: { cli: "connected", claude: "connected", codex: "connected" } });
-    for (const bad of [{}, { requestId: "" }, { requestId: "x", session: "s" }, null]) expect(await invoke("setup:read", created.webContents, null, bad)).toEqual({ kind: "stale" });
   });
 
   test("install pages: only the two fixed URLs open", async () => {
@@ -1963,21 +1893,16 @@ describe("settings page", () => {
       expect(await reading).toEqual({ kind: "unavailable" });
     });
 
-    test.each(["did-navigate", "render-process-gone"])("reload 뒤 대기 중 확인이 취소된다 (%s)", async event => {
+    test.each(["did-navigate", "render-process-gone"])("reload 뒤 대기 중인 config 읽기가 취소된다 (%s)", async event => {
       mocks.shell.entries.mockReturnValue([LIST]);
       const contents = window().webContents;
-      mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
-      expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
       let finish!: (value: unknown) => void;
       mocks.runConfig.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
       const reading = invoke("config:read", contents, null, { root: ROOT });
       await vi.waitFor(() => expect(mocks.runConfig).toHaveBeenCalledOnce());
-      mocks.machine.cancelConfirmation.mockClear();
       contents.emit(event);
-      expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
       finish(configRun([]));
       expect(await reading).toEqual({ kind: "unavailable" });
-      expect(await invoke("setup:answer", contents, null, { id: "q", allow: true })).toEqual({ kind: "stale" });
     });
   });
 

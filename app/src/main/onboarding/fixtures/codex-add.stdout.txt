@@ -1,1 +1,0 @@
-Added global MCP server 'doan'.

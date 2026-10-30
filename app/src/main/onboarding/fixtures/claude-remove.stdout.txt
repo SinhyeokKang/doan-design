@@ -1,2 +1,0 @@
-Removed MCP server doan from user config
-File modified: /tmp/doan-poc7/home/.claude/.claude.json
