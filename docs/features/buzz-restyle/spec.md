@@ -32,7 +32,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 3. **폰트**는 Geist를 로컬 번들로 제공하고 앱 공통 `--type-family`에 적용한다(2026-10-27 user, buzz-shell). 기존 시스템 스택은 대체 글꼴로 유지한다. 이는 Settings 등 모든 공통 폰트 사용처에 적용되는 결정이며 iframe 자체 스타일은 바꾸지 않는다. LNB·헤더는 14/20 400, 프로젝트 이름은 500이다. 다른 역할의 굵기는 승인 없이 일괄 변경하지 않는다.
 4. **UI 스택**은 Radix(shadcn) 그대로다. Base UI와 Buzz의 JS 훅은 들이지 않는다. 새로 쓰는 CSS는 처음부터 Radix `data-state`, 네이티브 `<dialog>[open]`, `:focus-visible`에 건다.
 5. Buzz는 **레퍼런스**다(2026-10-26 user). 화면이 Buzz와 같은 값과 규칙으로 보이는 것을 목표로 하되, 코드는 clone에서 값과 규칙을 읽고 doan이 새로 쓴다. Buzz 파일을 옮기지 않고, 코드에 Buzz 출처 주석이나 라이선스 사본을 두지 않는다. Buzz를 참고했다는 사실은 AGENTS.md 레퍼런스 규칙에 따라 PRODUCT §7과 DESIGN.md에만 적는다. Buzz와 다르게 가는 곳은 [design.md](./design.md) 표의 '조정' 열과 '가져오지 않는 Buzz 동작'에 적힌 것뿐이다.
-6. **기존 기능은 보존한다.** 승인된 예외(2026-10-27 user, buzz-shell)는 프로젝트→캔버스 LNB, 프레임 트리 제거, 실행 중 이전·다음 기록, 프로젝트 메뉴의 Overview·워크트리 선택·관리 액션이다. 프로젝트 제거는 등록된 워크트리 전체를 앱 목록에서 제거한다. 추가 승인(2026-10-27~28): 홈은 프로젝트 선택이 가능한 단일 대화 입력창을 buzz-home에서 설계하고, 인증 백엔드는 별도 agent-auth가 맡는다. buzz-onboarding은 필수 에이전트/프로젝트 설정과 CLI/MCP setup을 담당한다. 이 항목들은 계획이며 Shell 완료에 포함되지 않는다.
+6. **기존 기능은 보존한다.**  승인된 예외(2026-10-27 user, buzz-shell)는 프로젝트→캔버스 LNB, 프레임 트리 제거, 실행 중 이전·다음 기록, 프로젝트 메뉴의 Overview·워크트리 선택·관리 액션이다. 프로젝트 제거는 등록된 워크트리 전체를 앱 목록에서 제거한다. 추가 승인(2026-10-27~28): 홈은 프로젝트 선택이 가능한 단일 대화 입력창을 buzz-home에서 설계하고, 인증 백엔드는 별도 agent-auth가 맡는다. buzz-onboarding은 필수 에이전트/프로젝트 설정과 CLI/MCP setup을 담당한다. 이 항목들은 계획이며 Shell 완료에 포함되지 않는다. 추가 승인(2026-10-30 user, 계획): 헤더 캡슐 Add Projects / Projects / Settings는 페이지를 오가는 탭이 된다(지금 Projects는 이동 동작이 없는 선택 표시다, PRODUCT §5). 프로젝트 추가는 네이티브 폴더 선택 대신 온보딩 Project 단계를 재사용한 페이지, Settings는 별도 창 대신 LNB 설정 내비게이션과 본문 설정 UI를 가진 AppShell 페이지다(`buzz-add-projects`, `buzz-settings`). 구현 완료 때 PRODUCT §5·§7을 고친다.
 7. **Buzz 브랜드 자산**(워드마크, 로고, 셰이더 아트워크, `public/shell-gradient.png`)은 쓰지 않는다. Apache-2.0 §6은 상표 사용권을 주지 않고, 그라디언트 이미지는 NOTICE에 따로 제공된 자산으로 적혀 있다.
 8. 구현할 때는 **로컬 Buzz clone을 항상 참조**한다. 위치, 기준 커밋, 읽기 전용 규칙은 [design.md](./design.md)의 'Buzz clone 참조 규칙'을 따른다.
 9. **이름**: 새로 쓰는 디자인 시스템 클래스는 `doan-` 접두어를 쓴다(예: `doan-dialog`, `doan-shell-header`). 데이터 속성은 `data-doan-*`가 캔버스 컨벤션(ARCHITECTURE §1의 `data-doan-id` 등) 몫이라 `data-ui-*`를 쓴다.
@@ -53,14 +53,16 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 | 2 | `buzz-onboarding` | 온보딩 | Welcome → Agent 로그인 → 로컬/GitHub 프로젝트 → Home. 최소 한 공급자 ready·프로젝트 필수, 기존 Git/gh로 로컬 재사용/clone, CLI/MCP setup을 같은 main 서비스로 제공한다. 미완료 재실행은 Welcome부터 저장된 연결/프로젝트 유지. 2026-10-29 구현·병합: [PRODUCT §5](../../PRODUCT.md) | buzz-ds, buzz-shell, agent-auth |
 | 3 | `buzz-home` | 프로젝트 선택 전 홈 | 단일 대화 입력창과 그 안의 프로젝트 선택 UI. 온보딩의 선택 root를 인수하고 agent-auth의 인증된 실행 기반을 사용한다. 상세 화면 설계는 미착수이며 OAuth/토큰을 재구현하지 않는다. LNB 메뉴는 buzz-shell 소유 | buzz-shell, agent-auth |
 | 4 | `buzz-search` | 검색 | Quick Open(Cmd+K) 다이얼로그 내용, 입력, 결과 행(`QuickOpenDialog.tsx`) | buzz-shell |
-| 5 | `buzz-project` | 프로젝트 Overview | Overview 카드·썸네일·빈 상태 본문. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell이 맡는다 | buzz-shell |
-| 6 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 줌·프레임 컨트롤, 오버레이 표시(선택·hover·치수, 요소 피커가 쓰는 선택 모드), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
-| 7 | `buzz-inspector` | 인스펙터 | 오른쪽 패널 Inspector 탭의 내용(스타일·토큰 목록, 섹션, 값 행). 패널의 표시·숨김과 탭 틀은 `buzz-conversation` | buzz-shell |
-| 8 | `buzz-conversation` | 대화 | 에이전트와의 실시간 대화 UI(기존 `buzz-comment` 자리, 2026-10-26 user): 오른쪽 패널의 표시·숨김(요소를 고르거나 대화를 시작하면 열림)과 대화·인스펙터 탭 틀(`RightPanel.tsx`), 캔버스당 대화 하나인 대화 탭(메시지, 입력창, 입력창 옆 요소 피커, 인라인 앵커 칩, 권한 요청, 진행·실패 상태, 새 대화 시작), 보관한 대화를 여는 캔버스 구석 버튼, 남은 FirstPrompt 소비자의 Copy → Send 인계. 새 온보딩에는 위저드 4단계/첫 프롬프트를 넣지 않고 홈 입력창은 buzz-home이 맡는다. 앱의 코멘트 화면 제거(Comments 패널, 코멘트 핀, Review bar·배너, Feedback 패널, Hand Off 다이얼로그). CLI·MCP·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user). 기반은 [`agent-conversation`](../../PRODUCT.md#agent-conversation-foundation-contract-2026-10-27) | agent-conversation, agent-auth, buzz-canvas, buzz-inspector |
-| 9 | `buzz-settings` | 설정 창 | 별도 Settings 창(`settings.html`, `settingsWindow.tsx`, `settingsProjects.tsx`, `SettingsDialog.tsx`, `settings.css`)을 Buzz Settings 구성(48rem 열, `SettingsGroup`, `PreferenceRow`)으로. 창은 별도 창으로 유지한다 | buzz-ds |
+| 5 | `buzz-add-projects` | 프로젝트 추가 페이지 | 헤더 Add Projects(Cmd+O, File > Add Project…)가 네이티브 폴더 선택 대신 AppShell 안의 페이지를 연다. 온보딩 Project 단계(로컬 폴더, GitHub URL 재사용·clone, 설정이 필요한 폴더의 Set up)를 가능한 만큼 재사용한다(2026-10-30 user). 헤더 캡슐 Add Projects / Projects / Settings가 페이지를 오가는 진짜 탭이 되는 첫 자식이다(Add Projects ↔ Projects). 여러 폴더 선택·하위 저장소 체크리스트·폴더 드롭을 어떻게 옮길지는 이 자식의 `/feature`가 정한다. `AddProjectsDialog`(공통 결정 10의 buzz-ds 공유 요소)를 바꾸거나 걷어내는 일을 포함한다 | buzz-shell, buzz-onboarding |
+| 6 | `buzz-settings` | 설정 페이지 | 별도 Settings 창(`settings.html`, `settingsWindow.tsx`, `settingsProjects.tsx`, `SettingsDialog.tsx`, `settings.css`)을 AppShell 안의 페이지로 바꾼다(2026-10-30 user). LNB에는 설정 내비게이션(Connections, Projects 등 지금의 탭), 본문 패널에는 설정 UI를 둔다. 헤더 Settings 탭과 Settings…(Cmd+,)가 이 페이지를 연다. 시각 구성은 Buzz Settings(48rem 열, `SettingsGroup`, `PreferenceRow`)를 레퍼런스로 한다. 2026-10-25 app-setup 'Settings는 별도 창' 결정을 대체한다(구현 완료 때 PRODUCT §7 기록) | buzz-ds, buzz-add-projects |
+| 7 | `buzz-project` | 프로젝트 Overview | Overview 카드·썸네일·빈 상태 본문. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell이 맡는다 | buzz-shell |
+| 8 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 줌·프레임 컨트롤, 오버레이 표시(선택·hover·치수, 요소 피커가 쓰는 선택 모드), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
+| 9 | `buzz-inspector` | 인스펙터 | 오른쪽 패널 Inspector 탭의 내용(스타일·토큰 목록, 섹션, 값 행). 패널의 표시·숨김과 탭 틀은 `buzz-conversation` | buzz-shell |
+| 10 | `buzz-conversation` | 대화 | 에이전트와의 실시간 대화 UI(기존 `buzz-comment` 자리, 2026-10-26 user): 오른쪽 패널의 표시·숨김(요소를 고르거나 대화를 시작하면 열림)과 대화·인스펙터 탭 틀(`RightPanel.tsx`), 캔버스당 대화 하나인 대화 탭(메시지, 입력창, 입력창 옆 요소 피커, 인라인 앵커 칩, 권한 요청, 진행·실패 상태, 새 대화 시작), 보관한 대화를 여는 캔버스 구석 버튼, 남은 FirstPrompt 소비자의 Copy → Send 인계. 새 온보딩에는 위저드 4단계/첫 프롬프트를 넣지 않고 홈 입력창은 buzz-home이 맡는다. 앱의 코멘트 화면 제거(Comments 패널, 코멘트 핀, Review bar·배너, Feedback 패널, Hand Off 다이얼로그). CLI·MCP·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user). 기반은 [`agent-conversation`](../../PRODUCT.md#agent-conversation-foundation-contract-2026-10-27) | agent-conversation, agent-auth, buzz-canvas, buzz-inspector |
 
 나눈 기준:
 - 사용자가 예로 든 `buzz-onboarding`, `buzz-home`, `buzz-search`처럼 화면 하나를 단위로 했다.
+- 순서 변경(2026-10-30 user): `buzz-search` 다음에 `buzz-add-projects`, 그다음 `buzz-settings`를 둔다. 둘 다 별도 창·네이티브 대화상자를 AppShell 페이지로 바꾸고, 헤더 캡슐을 페이지 탭으로 만든다. 프로젝트 추가가 탭 이동을 먼저 깔고 설정이 그 위에 LNB 내비게이션을 더한다. `buzz-project` 이하는 그 뒤로 밀린다.
 - 디자인 시스템과 공유 요소는 모든 화면이 기대므로 맨 처음이다.
 - 셸은 다른 화면이 모두 그 안에 들어가므로 화면 자식보다 먼저다. 신호등 위치는 창마다 하나라서, Home 헤더 띠까지 셸이 맡는다. 설정 창의 시각 기반은 buzz-ds다. 온보딩은 승인된 AppShell 톤과 agent-auth의 인증/readiness 계약도 선행한다.
 - 대화는 오른쪽 패널과 캔버스 선택 모드를 함께 쓰므로 캔버스와 인스펙터 다음이다. 기반 feature `agent-conversation`(UI 없음)은 이미 main에 들어갔다. 새 계정 기반 실행은 2026-10-28 main에 병합된 agent-auth를 사용한다.
@@ -79,7 +81,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 ## 완료 조건
 
-- `buzz-ds`와 9개 화면 자식이 모두 main에 들어가고 각자 디렉터리를 지웠다. 확인: 각 자식의 main 병합·승격·검증 근거와 디렉터리 삭제를 함께 대조한다. 디렉터리가 없다는 사실만으로 미착수 자식을 완료로 보지 않는다.
+- `buzz-ds`와 10개 화면 자식이 모두 main에 들어가고 각자 디렉터리를 지웠다. 확인: 각 자식의 main 병합·승격·검증 근거와 디렉터리 삭제를 함께 대조한다. 디렉터리가 없다는 사실만으로 미착수 자식을 완료로 보지 않는다.
 - PRODUCT §7에 공통 결정이 기록되고, 다음 결정이 대체되었다고 적혔다.
   - 2026-10-22 테마 결정과 Sorcerer 레퍼런스: `buzz-ds`가 기록
   - 2026-10-25 공유 툴팁 패딩 12/6px: `buzz-ds`가 기록

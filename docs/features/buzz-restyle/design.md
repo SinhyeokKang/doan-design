@@ -85,7 +85,7 @@ Buzz 문서에 있지만 doan 동작을 바꾸므로 가져오지 않는다.
 
 - 타이틀바 클릭으로 다이얼로그 닫기, 4px 드래그 임계값(shell-design.md:186-194)
 - 타이틀바 더블클릭이 시스템 설정을 따르는 동작
-- Settings를 작업 공간 위 모달로 여는 구성(shell-design.md:14, 73). doan Settings는 별도 창으로 유지한다
+- Settings를 작업 공간 위 모달로 여는 구성(shell-design.md:14, 73). doan Settings는 모달이 아니라 AppShell 페이지가 된다(2026-10-30 user, `buzz-settings` 계획. 그 전까지는 별도 창)
 - 키보드 모달리티 속성(`data-keyboard-navigation`)과 그 훅
 - hover로만 드러나는 행 액션(DESIGN.md:873)
 - 헤더 캡슐 탭의 화살표 키 이동
