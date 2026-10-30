@@ -43,8 +43,9 @@ The reference for every screen.
   | `--surface-accent-subtle` | violet 3 | Chosen design preset chip in the Home composer |
   | `--text-accent-subtle` | violet 11 | Same chip's text |
   | `--size-icon-sm` | 14px | Icon inside chips, triggers and tabs |
-  | `--size-icon-lg` | 20px | Project thumbnail in a picker, provider mark in the conversation strip, strip status icon |
+  | `--size-icon-lg` | 20px | Project thumbnail in a picker, Settings row icon |
   | `--size-control-xs` | 24px | `xs` icon button (a chip's remove button) |
+  | `--affordance-panel-hover` | `var(--neutral-3)` (#e8e8e8) | Hover fill of the `panel` button variant, one step darker than the inset fill |
 
 - **Roles.** Code reads roles named by purpose (`surface-*`, `text-*`, `border-*`, `affordance-*`, `bg-*`), never palette steps. Text has three reading levels: `text-standard`, `text-subtle`, `text-metadata`; `text-disabled` is below the contrast targets on purpose. The primary button is the neutral prominent fill (black, white text). Status colours use the reference status roles (`text-danger`/`-warning`/`-success`, `affordance-danger`/`-warning`/`-success`, `border-danger`/`-warning`).
 - **Type roles.** Size, line height, tracking and weight travel together: caption 12/16, body-sm and body 14/20, label-sm 14/20 500, label 16/24 500, body-lg 20/28, heading 24 and title 32 at line height 1.1. Regular 400 is for reading and form labels, medium 500 for actions and structure. One sans stack; no monospace role.
@@ -63,7 +64,8 @@ The reference for every screen.
   - `doan-icon-button` size `xs`: 24px (`--size-control-xs`), pill corner, 14px icon; its ink comes from the screen (a chip × is `--text-metadata`).
   - `doan-icon-button` `accent` (Home Send): pill on `--affordance-accent` with `--text-on-accent`, hover and pressed on the accent hover/pressed roles; disabled takes the shared disabled fill, and `accent` is excluded from the ghost disabled transparent rule.
   - `.doan-dialog` with `data-ui-presentation="search"`: Quick Open (see Design navigation).
-  - `.doan-notice.doan-panel` (notice on a panel, `ds/surfaces.css`): see Onboarding.
+  - `doan-button` `panel` (`data-ui-variant="panel"`): the secondary button inside an inset notice, where `subtle` would lose its fill (both are `--neutral-2`). Rest `--surface-panel`, hover `--affordance-panel-hover`, pressed `--affordance-subtle-pressed`, disabled the shared filled disabled rule. On the inset fill the fill measures 1.09 (rest), 1.12 (hover) and 1.28 (pressed) to 1, the label 19.17, 15.64 and 13.71 to 1. Used by the conversation strip's Deny, Always allow, Edit on Home and Open.
+  - `.doan-notice.doan-panel` (notice on a non-white backdrop, `ds/surfaces.css`): see Notices.
 - **Scrollbars.** Native and thin (`scrollbar-width: thin`, `scrollbar-thumb-quiet` on a transparent track) through `.doan-scroll`; Radix ScrollArea is forbidden.
 - **Style loading.** The main window loads shared rows and code styles through HTML links, which preserve cascade order under the strict CSP, in production and DEV, with no entry CSP warning.
 
@@ -75,8 +77,8 @@ The reference for every screen.
 - **No coloured edge stripes.** No message, notice, card or row uses a coloured or thick start-side border (`edgeStripes` checks it). Errors take one of three forms, each with the lucide `CircleAlert` icon so colour is not the only signal:
   - a panel-level failure is a status block (1px `border-standard`, `radius-container`, centred 20px icon, label-sm title, body-sm `text-subtle` description, centred actions, opened detail on `surface-inset`);
   - an inline error is a 16px icon with one body-sm `text-danger` line (`text-warning` for warnings), which adds the icon to the reference's text-only field error;
-  - a neutral notice is a `surface-inset` fill with `radius-row` and body-sm `text-subtle` (icon and `text-warning` when it warns).
-- **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for connection and wizard status. It is a separate primitive from `.doan-chip`.
+  - a notice (see Notices).
+- **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for project and tool status (Home, Project Settings, About). It is a separate primitive from `.doan-chip`.
 - **Shared dialog sizes.** The confirmations (link replacement, Settings' Fix… and Add to serve?) and the three comment confirmations are compact and centred; Project Setup and Hand off are standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
 - **Toast without a type.** Success, error and undo toasts share the one neutral floating toast and differ only by their text; there is no type colour and no close button.
 - **Focus ring colour.** The ring is `border-focus` (`neutral-12`, black, 21:1 on white); the reference ring uses `text-standard`. Inset rings are −2px, matching the draft and the menu rows.
@@ -88,12 +90,12 @@ The reference for every screen.
 
 - **Dimension label = tooltip capsule.** The canvas dimension label (`.dims`) is the same black prominent capsule as a tooltip.
 - **Below 3:1 on purpose.** The non-text 3:1 target applies to `border-prominent`, focus rings and pins only. The decorative hairline (`border-standard` `#e8e8e8`, 1.23:1 on white) and fill-edged inputs (`surface-inset` `#f5f5f6`, 1.09:1 on white) follow the reference values.
-- **Subtle buttons on inset bands (interim).** `--affordance-subtle` and `--surface-inset` are both `--neutral-2`, so a subtle button on an inset band loses its resting fill and reads as plain text until hover. Affected: the Review bar and banner (`.review-bar`, `.review-banner`), the status bands (`.ws-status`) and connection details (`.cn-details`: Copy, the default `.ob-chip` pill). The draft `shared-connection-rows` draws the same pairing. Changing a band's surface is a screen-layout decision: `buzz-comment` owns the Review bar and banner; `.ws-status` was assigned to `buzz-home`, which has shipped without changing it, so it has no owner now; `.cn-details` sits in the shared connection rows, which a screen child changes only after asking the user (buzz-restyle spec 10).
+- **Subtle buttons on inset bands (interim).** `--affordance-subtle` and `--surface-inset` are both `--neutral-2`, so a subtle button on an inset band loses its resting fill and reads as plain text until hover. Affected: the Review bar and banner (`.review-bar`, `.review-banner`) and the status bands (`.ws-status`). Changing a band's surface is a screen-layout decision: `buzz-comment` owns the Review bar and banner; `.ws-status` was assigned to `buzz-home`, which has shipped without changing it, so it has no owner now. A notice is not affected: its secondary button uses the `panel` variant.
 - **Hand off dialog scrolls itself.** In a short window the whole dialog scrolls instead of only its list.
 
 ### Shared components and surfaces
 
-Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-button`, `panel`, `tooltip`, `menu`, `popover`, `dialog-sizes`, `dialog-anatomy`, `toast`, `spinner`, `forms`, `focus-disabled`; shared-element frames `shared-project-setup`, `shared-add-projects`, `shared-first-prompt`, `shared-connection-rows`, `shared-error-details`).
+Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-button`, `panel`, `tooltip`, `menu`, `popover`, `dialog-sizes`, `dialog-anatomy`, `toast`, `spinner`, `forms`, `focus-disabled`; shared-element frames `shared-project-setup`, `shared-add-projects`, `shared-first-prompt`, `shared-error-details`).
 
 **Measured values.**
 
@@ -113,7 +115,7 @@ Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-butt
 
 Notice icon: the 16px icon (or spinner) is centred on the notice's 20px first line by a 2px block margin; measured in Settings > Agents, the Notifications permission hint and first run's Agent step, its centre is on the first line's centre and within 0.03px of the cap-height centre, in development and production. A notice body has a top margin only under a title (`Onboarding.test.tsx`).
 
-Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is not drawn pressed; a focused button chip shows the ring only; the worktree menu keeps the 320px menu cap (320px wide at window widths 960 and 1238, inside the viewport); CLI and skill link paths in connection details stay on one line with the full path in `title`; form labels carry no label tracking; the FirstPrompt subject field is a block; a failure status block spaces its actions and opened detail with its own 8px gap. Unpinned: the checkbox tick, the open-disclosure rule, the worktree-menu cap and the one-line link paths.
+Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is not drawn pressed; a focused button chip shows the ring only; the worktree menu keeps the 320px menu cap (320px wide at window widths 960 and 1238, inside the viewport); form labels carry no label tracking; the FirstPrompt subject field is a block; a failure status block spaces its actions and opened detail with its own 8px gap. Unpinned: the checkbox tick, the open-disclosure rule, and the worktree-menu cap.
 
 **Documented differences.**
 
@@ -123,7 +125,7 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 - `.doan-popover` defines the material and width only; the draft's heading and paragraph type inside its sample is not implemented.
 - The Add Projects checklist keeps `max-height: 50vh` instead of the draft's 248px, so a bounded list grows with the window and still scrolls natively.
 - Only the Project Setup token path is one ellipsised line (`.value.token-path`); other field values wrap, because the wizard's Project value puts a name and a path in one value and must not hide either. The draft draws every value on one line.
-- `.meta` stays `nowrap` in a dialog action row; a status block's action row keeps `align-items: center`; connection names keep `text-align: left`; `.cn-end` keeps `justify-content: flex-end`, which has no effect in its auto column.
+- `.meta` stays `nowrap` in a dialog action row; a status block's action row keeps `align-items: center`.
 - `.doan-chip` uses the 12px/1.35/2px/6px values above instead of the inherited 13px top-bar or 14px draft sizing.
 - The subtle-button-on-inset-band pairing (Intended exceptions).
 
@@ -132,6 +134,17 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 **Not verified.** `canvas-marks` and `accent-places` are not design-sync frames by the draft's own description; their selector map is checked by `accentPlaces`, `contrastPairs` and `edgeStripes`. The pin focus ring and the comment card conflict block have no running check. Lucide icon stroke weight at 16px was not compared with the draft's inline icons. In `shared-error-details`, the Comments status block, its actions and the opened detail match.
 
 **Known console warning.** Production logs a pre-existing Radix inline-style CSP warning with exact hash `nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=` when the worktree menu invokes react-remove-scroll-bar; DEV logs none. No CSP permission was broadened for it. The menu stays operable; scroll-lock behaviour under it is not verified.
+
+### Notices
+
+Reference: `.doan/canvases/notice.html` (frames `anatomy`, `tones-surfaces`, `rules`), implemented in `app/src/renderer/ds/surfaces.css`.
+
+- **One style.** Every notice is `.doan-notice`: inset `--surface-inset` fill, 12px 16px padding (`--space-3` `--space-4`), 6px gap (`--space-1h`), `--radius-row`, 14/20 body-sm text in `--text-standard`, and a 16px icon on the first text line: the `doan-alert-icon` (CircleAlert, `aria-hidden`), or a spinner or the conversation strip's status mark in that slot. Every notice has the icon, whatever its tone. Notices differ only by tone and surface.
+- **Tone.** `warning`, `error` and `ok` colour the whole text (`--text-warning`, `--text-danger`, `--text-success`) and the icon follows it (`currentColor`); the parts of a notice's text take no ink of their own. At 14/20 the text measures, on the inset fill and on the panel fill: neutral 17.59 / 19.17, warning 10.44 / 11.37, error 11.41 / 12.44, ok 11.31 / 12.32 to 1.
+- **Surface.** On a plain opaque white backdrop (Settings and the other home-panel pages, the conversation strip's band, dialogs, side panels and white cards) the notice keeps the inset fill. On any other backdrop (first run's transparent overlay, Home's gradient, the preset popover's glass over Home) it adds `doan-panel`, which changes only the fill (`--surface-panel`) and adds the panel shadow.
+- **Alignment.** Every item in the row (icon, text, an inline action or an action group) centres on the first text line. An sm action reaches into the padding with −6px block margins, so a one-line notice is 44px with or without an action.
+- **Actions and margins.** A secondary button inside an inset notice uses the `panel` variant. Screens set only outer margins on a notice.
+- **Regression pointers.** `ds/controls.test.ts` (shared metrics, tones, `doan-panel` as fill only, no ink on text parts, margins only from screens, action alignment, the `panel` variant).
 
 ## App shell
 
@@ -248,7 +261,7 @@ Window 1238 × 780 (the draft's), 960 × 600 for `home-narrow`.
 | Send | Accent fill rgb(151,59,225), hover rgb(144,51,217); disabled while empty, blocked or sending, with the shared disabled fill rgb(232,232,232) and a spinner while a start is pending | The draft's `home-sending` renders the disabled fill too, and the rendered draft is the confirmed one. |
 | Reason and notices | Reason line caption, `--text-subtle`, centred, 12 px above; refusal and attachment notices `doan-notice error doan-panel` | An empty composer shows no reason line even while a Home conversation runs in its project; the line appears once something is typed. |
 | Drop target | Whole composer covered by `--surface-panel` 55% with `--blur-sm`, 2 px dashed `--affordance-accent` outline inset 2 px | |
-| Conversation strip | `doan-notice doan-panel` 64 px high at the top of the workspace body, 12 px from the panel's top and left; 20 px provider logo, spinner, alert or check; title 500, body `--text-subtle` ellipsized; sm actions (Allow prominent, other choices and Edit on Home subtle, Stop and Dismiss ghost) | Left and top positions match the draft. |
+| Conversation strip | The default `doan-notice` on the white strip-slot band at the top of the workspace body, 12 px from the panel's top and left; a 16 px provider logo, spinner, alert or check in the icon slot; title 500 and an ellipsized body in the tone's ink (failed `error`, done `ok`, otherwise neutral); sm actions on the first line (Allow prominent; Deny, Always allow, Edit on Home and Open `panel`; Stop and Dismiss ghost); 44 px with one line, 68 px with two lines, a permission request or a failure | Left and top positions match the draft; fill, size and tone follow Notices. |
 | Sidebar slot | 16 × 16 at the row's right before its menu: `hand` icon in `--affordance-accent`, 14 px spinner, or an 8 px accent dot | |
 | Toast | Right and bottom 16 px from the window on Home and over a workspace, 384 px wide, message and prominent sm action on one row | The shared toast. |
 
@@ -662,7 +675,7 @@ Reference: `.doan/canvases/project-feedback.html`, frames `feedback-panel`, `fee
 
 ## Settings
 
-Reference: `.doan/canvases/buzz-settings.html`, the ten windows `agents`, `agents-signing-in`, `notifications`, `notifications-off`, `connections`, `connections-locked`, `about`, `project-settings`, `project-problem` and `home-agent-picker`, plus the `states-project` Add to serve? confirmation. Measured by computed style beside the built app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/buzz-settings/measure.mjs`); the draft side is read with `ds/` and tokens as of the draft's commit, because the canvas links `ds/index.css` and the app's later rules would otherwise style the draft. Development and production builds give the same values for the panel, column, title, group, row, switch and notice (131 of 131).
+Reference: `.doan/canvases/buzz-settings.html`, the windows `agents`, `agents-signing-in`, `notifications`, `notifications-off`, `about`, `project-settings`, `project-problem` and `home-agent-picker`, plus the `states-project` Add to serve? confirmation. Measured by computed style beside the built app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/buzz-settings/measure.mjs`); the draft side is read with `ds/` and tokens as of the draft's commit, because the canvas links `ds/index.css` and the app's later rules would otherwise style the draft. Development and production builds give the same values for the panel, column, title, group, row, switch and notice (131 of 131).
 
 Settings is a page of the main window, like Add Projects: the shell's header and sidebar around Home's white panel.
 
@@ -671,10 +684,10 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 | Element | Measured contract | Reason |
 |---|---|---|
 | Header tab | Settings is the capsule's third tab; on the page it is the current white pill with standard ink (the App shell values) | |
-| Sidebar | 'Settings' heading in the Projects heading's place, then four 244 × 32 rows (Agents, Notifications, Connections, About) 2px apart with 10px insets, a 16px Lucide icon in `--text-subtle` and body-sm label; the current row takes the pressed fill rgba(0,0,0,.1) with standard ink and icon; Search stays | The shipped sidebar with its project tree replaced. |
+| Sidebar | 'Settings' heading in the Projects heading's place, then three 244 × 32 rows (Agents, Notifications, About) 2px apart with 10px insets, a 16px Lucide icon in `--text-subtle` and body-sm label; the current row takes the pressed fill rgba(0,0,0,.1) with standard ink and icon; Search stays | The shipped sidebar with its project tree replaced. |
 | Panel | Home's panel, the scroll container (`.doan-scroll`, thin); 14/20 body-sm with its tracking and plain numerals | Like the Add Projects panel. |
 | Column | max 768px (48rem), centred, padding 32 / 24 / 24 | Buzz's settings reading column. |
-| Header | 17px inline inset (the group's 16px plus its border, so text lines up with row text); title heading 24 / 26.4 / 500; lead caption 12 / 16 `--text-subtle`, 8px below; 32px to the first section; an action slot on the right (Check Again, Copy details), hidden while empty | |
+| Header | 17px inline inset (the group's 16px plus its border, so text lines up with row text); title heading 24 / 26.4 / 500; lead caption 12 / 16 `--text-subtle`, 8px below; 32px to the first section; an action slot on the right (About's Copy details), hidden while empty | |
 | Sections | 32px apart; title label-sm 14 / 20 / 500 with the same 17px inset, 12px above its group; a section description caption 2px under its title | |
 | Group | 1px `--border-standard`, 24px corner, 16px side inset, rows split by its own hairlines | Shared `.doan-settings-group`. |
 | Row | Padding 12px 0; columns 1fr / auto with a 16px column gap and no row gap; label body-sm 14 / 20 `--text-standard`; description caption 12 / 16 `--text-subtle` 2px below; a provider row leads with a 20px logo; a disabled row (`data-disabled`) dims its label, description and icon to `--text-disabled` | Shared `.doan-preference-row`. |
@@ -682,8 +695,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 | Switch | 36 × 20 track, 1px border, 2px padding, pill; off `--border-standard` on `--affordance-subtle-hover`; on `--affordance-prominent` border and fill (rgb(0,0,0)) with the 14px white thumb (`--shadow-xs`) moved 16px; disabled: transparent border, `--affordance-disabled` fill (rgb(232,232,232)), `--surface-panel` thumb, no shadow, default cursor, thumb kept where it was | Shared `.doan-switch`; 14px and 36px are the switch's own constants, not `--size-icon-sm`. |
 | Arrival | A provider row an arrival focuses carries a 2px inset `--border-focus` ring, −8px inline margin with 8px padding and a 16px corner for 2.4 s; the focused row group shows the 2px −2px focus outline | Like an added project's sidebar row. |
 | Controls | Row buttons `sm`; Settings' Check is `subtle` (first run's Retry stays `prominent`); Agent, Model and Effort are `sm` `trigger` menus (`role="menu"`) with a 6px gap, regular weight and a `--text-subtle` chevron | |
-| Connections | The three connection rows sit in the shared group; a row is 12px block padding, the group draws the dividers; Details open on the inset fill with white code chips | |
-| Lock ink | While a confirmation or write owns the page: header tabs (the current Settings tab included), Back, Search and the other categories take `--text-disabled` with the default cursor, a locked category's icon included; the current category keeps its fill | The Add Projects page rule. |
+| Lock ink | While Agents' `stop_required` confirmation owns the page: header tabs (the current Settings tab included), Back, Search and the other categories take `--text-disabled` with the default cursor, a locked category's icon included; the current category keeps its fill | The Add Projects page rule. |
 | Project Settings | Standard dialog, 640px, 128px from the top, 14 / 20 text with plain numerals; title the project name with the branch in `--text-metadata` body-sm; one settings group; Done is the only action (prominent, default size); serve list 1px border, row corner, items padding 4 / 4 / 4 / 12 | Values save at once, so there is nothing to cancel. |
 | Confirmations | Fix… and Add to serve? are compact and centred with Cancel focused and default-size actions; text without the page's body-sm tracking | |
 
@@ -696,7 +708,6 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 - **Codex's waiting copy.** codex login opens the default browser itself, so Doan no longer opens its link and the waiting notice says "A browser tab may already be open. Complete sign-in there, then return here.", as for Cursor and Copilot; the draft drew Claude's "Complete sign-in in your browser, then return here." The notice's text column is wider by the longer sentence.
 - **Waiting row keeps its vendor line.** A not-connected provider whose sign-in waits keeps its vendor line ("OpenAI"), as first run draws it; the Settings draft drops it (the shared provider view). The row is 22px taller than drawn.
 - **Lock ink on the current tab and Back.** The current Settings tab is `aria-disabled` and dimmed while the page is locked, like every header tab on a locked page; the draft leaves it unmarked. Locked Back takes the disabled ink and default cursor; the draft marks it without the shipped ink.
-- **Code chips in connection details** stay white on the inset fill. The canvas's own `.cn-details code` rule asks for the same and loses by order to its copied page code-chip rule.
 - **Switch thumb** is the button's `::before`, not a child span; its values match the draft's span.
 
 ### States not in the draft
@@ -715,17 +726,17 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 
 ### About setup notice
 
-Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`, `about-several` and `about-not-eligible` (the notice) and `agents` (the lead). Measured by computed style beside the packaged app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/zero-setup-agents/measure.mjs`): every element of the doan command row and its notice (17, 27 and 14 elements), and the Agents lead, match the draft (geometry, colour, type, attributes and text). The only differences are the probe CLI's own value and path in the doan command row (`dev` at a temporary path against the draft's 0.1.0 at `/Applications`). The states come from real causes in a temporary HOME (a file at `~/.local/bin/doan`; a folder at `~/.claude/skills/doan` and a read-only `~/.codex/rules`; the build launched outside Applications), except the cancelled administrator dialog, injected into main's `about:read` by the probe because the probe never takes the administrator path.
+Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`, `about-several` and `about-not-eligible` (the notice) and `agents` (the lead). Measured by computed style beside the packaged app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/zero-setup-agents/measure.mjs`): every element of the doan command row and its notice (17, 27 and 14 elements), and the Agents lead, match the draft (geometry, colour, type, attributes and text), also after the shared notice style (Notices) changed both. The only differences are the probe CLI's own value and path in the doan command row (`dev` at a temporary path against the draft's 0.1.0 at `/Applications`). The states come from real causes in a temporary HOME (a file at `~/.local/bin/doan`; a folder at `~/.claude/skills/doan` and a read-only `~/.codex/rules`; the build launched outside Applications), except the cancelled administrator dialog, injected into main's `about:read` by the probe because the probe never takes the administrator path.
 
 | Element | Measured contract | Reason |
 |---|---|---|
 | Place | A line under the doan command row (`doan-preference-row-extra`): full row width, 12px below the row | 'Lines under a row'. |
-| Surface | The default `doan-notice`: `--surface-inset` fill (rgb(245,245,246)), 8 / 12 padding, 16px corner, 6px gap, body-sm 14 / 20 in `--text-subtle`; no border or shadow | It sits on the opaque Settings panel. |
-| Icon | Every notice leads with a 16px CircleAlert, `aria-hidden`, 2px from the top of the first line: `--text-warning` on skipped items, the notice's `--text-subtle` ink on a copy that doesn't set up agents | Colour is never the only signal, and every notice looks like one. |
-| Skipped items | `warning`; title 500 `--text-standard`; one list item per skipped item, 4px apart and 4px under the title, in About's fixed order | Static text, no live region and no buttons: it reports what happened when Doan opened. |
-| Line | The agents a line affects lead it at 500 `--text-standard`, then " — " and the sentence in `--text-subtle` | The affected agents read first. |
+| Surface | The default `doan-notice` (Notices): `--surface-inset` fill (rgb(245,245,246)), 12 / 16 padding, 16px corner, 6px gap, body-sm 14 / 20; no border or shadow; 88px high with one skipped item, 200px with the three of `about-several` | It sits on the opaque Settings panel. |
+| Icon | A 16px CircleAlert, `aria-hidden`, centred on the first line, in the text's ink | Every notice has its icon (Notices). |
+| Skipped items | `warning`: title and lines in `--text-warning` (rgb(79,52,34)); title 500; one list item per skipped item, 4px apart and 4px under the title, in About's fixed order | Static text, no live region and no buttons: it reports what happened when Doan opened. |
+| Line | The agents a line affects lead it at 500, then " — " and the sentence, in the notice's ink | The affected agents read first. |
 | Code | Paths are `code` chips on `--surface-panel` (white) with standard ink, 4px corner and 0 / 4 padding; the PATH line is a block chip of its own, 4px below its sentence and as wide as its text | The page's inset chip would vanish on the inset fill; a block line selects and copies whole. |
-| Copy that doesn't set up agents | A neutral `doan-notice`: title 500 `--text-standard`, its sentence as a body 8px below (the column's 4px gap plus the body's 4px top margin) | |
+| Copy that doesn't set up agents | A neutral `doan-notice` in `--text-standard`: title 500, its sentence as a body 8px below (the column's 4px gap plus the body's 4px top margin) | |
 | Agents lead | "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup." | |
 
 - **Not verified.** About's Checking… rows while the administrator dialog is open (the dialog is never shown by a probe; `index.test.ts` pins that `about:read` and Copy details wait), the cancelled-dialog line from a real cancellation, the development build's and translocation's sentences in the real app (`notice.test.ts`), the line for a setup run that threw ("Doan stopped partway through setting up agents…", under the warning title before the CLI links; not drawn, `notice.test.ts` and `index.test.ts`), and a doan command row with both a read error and a notice (the notice comes after the error line). Roles were read from DOM attributes, not from the accessibility tree.
@@ -733,4 +744,4 @@ Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`,
 
 ### Regression pointers
 
-`ds/controls.test.ts` (switch, group, row), `SettingsPage.test.tsx` (sidebar ink, dialog type, group-level line), `connectionRows.test.ts` (rows in the settings group), `agentAuthView.test.ts` (Settings' Check), `rendererImports.test.ts` (the renderer never loads the ajv validators: a blank window under the CSP otherwise). Probes: `.scratch/design-sync/buzz-settings/measure.mjs`, `.scratch/runtime-test/buzz-settings/r2.mjs`.
+`ds/controls.test.ts` (switch, group, row), `SettingsPage.test.tsx` (sidebar ink, dialog type, group-level line), `agentAuthView.test.ts` (Settings' Check), `rendererImports.test.ts` (the renderer never loads the ajv validators: a blank window under the CSP otherwise). Probes: `.scratch/design-sync/buzz-settings/measure.mjs`, `.scratch/runtime-test/buzz-settings/r2.mjs`.
