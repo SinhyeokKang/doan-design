@@ -96,8 +96,10 @@
 ## 초안 (`/design-draft`)
 
 - 경로와 id: `.doan/canvases/buzz-add-projects.html`, `doan:canvas` `buzz-add-projects`.
-- 프레임(창 전체, 헤더·LNB 포함): Home에서 연 choose, 워크스페이스에서 연 choose(헤더 Add Projects 현재 표시), 카드 드롭 중, checking, candidates(저장소 여럿), setup, selecting, URL inspecting, repository-found, clone, cloning(헤더·LNB 잠금 표시), cloneCancelled, 오류(access_failed, remote_mismatch, project_unavailable).
-- 타일: 드롭 notice 두 개(여러 항목, 폴더 아님), 온보딩 Project 단계 카드의 드롭 중 상태, Home 입력창 폴더 드롭 안내.
+- 프레임(창 전체, 헤더·LNB 포함): `choose`, `drop`(카드 드롭 중), `checking`, `candidates`(저장소 7개, 긴 이름·경로), `setup`, `selecting`, `url-inspecting`, `repository-found`, `clone`, `cloning`(헤더 탭·Back·Search·LNB 행 잠금 표시와 이유 한 줄), `clone-cancelled`.
+- 타일: `states-errors`(access_failed, remote_mismatch, project_unavailable), `states-drop`(여러 항목, 폴더 아님), `states-onboarding-drop`(온보딩 Project 단계 카드의 드롭 중), `states-home-drop`(Home 입력창 폴더 드롭 안내).
+- 워크스페이스에서 연 choose는 따로 그리지 않는다. 페이지에서는 LNB 행에 `aria-current`가 없어 Home에서 연 것과 화면이 같다(초안 1차, 2026-10-30).
+- 초안 1차 제안 문구: 제목 "Add a project", 주 버튼 "Set up and add"·"Clone and add", 드롭 status "Drop to add this folder", notice "Drop one folder at a time.", Home 안내 "Folders can’t be attached. Add a project from Add Projects.", clone 중 "Stay on this page until the clone finishes, or cancel it."(critique: 잠긴 탭만으로는 떠날 수 없는 이유가 보이지 않는다).
 - 기존 `buzz-onboarding.html`은 고치지 않는다(공통 결정 11).
 
 ## 가져오지 않는 것
