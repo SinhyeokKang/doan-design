@@ -2219,6 +2219,17 @@ describe("settings page", () => {
     expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^Doan 9\.8\.7\ndoan command 1\.2\.3 \(\/bundled\/doan\)\n/));
   });
 
+  test("Copy details before any About read reads in main first; a later copy reads nothing more", async () => {
+    mocks.runDesignSkill.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) });
+    expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
+    expect(mocks.runDesignSkill).toHaveBeenCalledOnce();
+    expect(mocks.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringMatching(/^Doan 9\.8\.7\ndoan command 1\.2\.3 \(\/bundled\/doan\)\n/));
+    const first = mocks.clipboard.writeText.mock.calls.at(-1)?.[0];
+    expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
+    expect(mocks.runDesignSkill).toHaveBeenCalledOnce();
+    expect(mocks.clipboard.writeText).toHaveBeenLastCalledWith(first);
+  });
+
   test("the main window reads and writes project config, and its file sheet attaches to the main window", async () => {
     mocks.shell.entries.mockReturnValue([LIST]);
     mocks.runConfig.mockResolvedValue(configRun([]));
