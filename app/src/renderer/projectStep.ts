@@ -4,6 +4,7 @@ import type {
 import type { DoanApi } from "../preload";
 import type { FolderEntry } from "../main/view";
 import { parseGitHubUrl } from "../main/onboarding/repository";
+import { leaveLocked } from "./addProjectsNav";
 
 type Api = Pick<DoanApi, "readOnboardingSession" | "onOnboardingSession" | "inspectOnboardingProject" | "selectOnboardingProject" |
   "cloneOnboardingProject" | "cancelOnboardingOperation" | "completeOnboarding" | "chooseOnboardingFolder">;
@@ -386,4 +387,39 @@ export class ProjectStepSession {
     this.state = { ...this.state, ...patch };
     this.deps.changed();
   }
+}
+
+// The Project step serves first run and the Add Projects page; only the differences in design '온보딩과의 공유' depend
+// on the use.
+export type ProjectUse = "onboarding" | "addPage";
+export interface ProjectFooter {
+  back: { label: "Back" | "Cancel"; disabled: boolean };
+  primary: { label: string; action: "select" | "clone" | "complete" | "retry"; disabled: boolean } | null;
+}
+
+// First run keeps Back and its always-shown primary (Open Doan until the step has an action). The page's Cancel
+// returns to the origin and also drops an inspection in flight, so it stays usable; a locked phase has no footer.
+export function projectFooter(use: ProjectUse, state: ProjectStepState, { busy, agentReady }: { busy: boolean; agentReady: boolean }): ProjectFooter | null {
+  const p = state.phase, error = state.error;
+  const clone = (label: string) => ({ label, action: "clone" as const, disabled: busy || p.kind !== "clone" || p.inspectionId === null || error !== null });
+  const select = { label: "Use this folder", action: "select" as const, disabled: busy };
+  if (use === "addPage") {
+    if (leaveLocked(p)) return null;
+    return { back: { label: "Cancel", disabled: false }, primary: p.kind === "candidates" ? select : p.kind === "clone" ? clone("Clone and add") : null };
+  }
+  const primary = p.kind === "candidates" ? select
+    : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? clone("Clone and continue")
+    : (p.kind === "ready" || p.kind === "completing") && error?.code === "completion_save_failed" ? { label: "Retry", action: "retry" as const, disabled: busy }
+    : { label: "Open Doan", action: "complete" as const, disabled: busy || !((p.kind === "ready" || p.kind === "completing") && agentReady && error?.code !== "completion_unsupported_version") };
+  return { back: { label: "Back", disabled: busy }, primary };
+}
+
+export function setUpLabel(use: ProjectUse): string {
+  return use === "onboarding" ? "Set up and continue" : "Set up and add";
+}
+
+// Adding a project needs no agent, so the page never shows first run's no-agent notice.
+export function projectNoticeCode(use: ProjectUse, state: ProjectStepState, agentReady: boolean): ProjectError | null {
+  if (use === "addPage") return state.error && state.error.code !== "no_ready_agent" ? state.error.code : null;
+  return state.error?.code ?? (!agentReady && state.phase.kind === "ready" ? "no_ready_agent" : null);
 }
