@@ -90,8 +90,6 @@ const rolePairs: ContrastPair[] = [
   { fg: "--border-focus", bg: "--bg-app", kind: "nontext" },
   { fg: "--border-focus", bg: "--surface-navigation-selected", kind: "nontext" },
   { fg: "--border-prominent", bg: "--surface-panel", kind: "nontext" },
-  // The drop zone's dashed edge on the darkened window.
-  { fg: "--text-on-prominent", bg: "--bg-scrim-drop", kind: "nontext" },
   // Pins sit on arbitrary canvases: the dark rim carries light canvases, the white halo dark ones.
   { fg: "--border-pin", bg: "--halo-pin", kind: "nontext" },
   { fg: "--border-pin", bg: "--affordance-accent", kind: "nontext" },
