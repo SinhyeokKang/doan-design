@@ -45,7 +45,8 @@ ${mode === "suite-hang" ? "await new Promise(() => {});" : "try { await guard.fi
       const child = spawn(process.execPath, [source], { stdio: ["ignore", "pipe", "pipe"] });
       let output = "";
       child.stdout.on("data", data => { output += data; }); child.stderr.on("data", data => { output += data; });
-      const deadline = setTimeout(() => child.kill("SIGKILL"), 3000);
+      // Only a hang guard: starting node and loading harness.ts can take seconds on a loaded machine.
+      const deadline = setTimeout(() => child.kill("SIGKILL"), 20_000);
       const [code, signal] = await once(child, "exit"); clearTimeout(deadline);
       assert.equal(code, 1, output); assert.equal(signal, null, output);
       assert.match(output, /fixture verification attempted/);
