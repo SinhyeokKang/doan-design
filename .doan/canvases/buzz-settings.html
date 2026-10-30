@@ -351,6 +351,8 @@ body:has(.shell-top) { background: transparent; }
 .cn-opt{display:grid;gap:var(--space-2);padding:var(--space-3) 0;border-top:1px solid var(--border-standard);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
 .cn-opt-head{display:flex;align-items:center;gap:var(--space-2);color:var(--text-standard);font-weight:var(--type-weight-medium)}
 .cn-opt .ob-copyline{grid-column:auto}
+/* Copied from styles.css: no monospace role, code and kbd use the app family. */
+code,kbd{font-family:var(--type-family)}
 :is(.settings-page,.doan-dialog) code{color:var(--text-standard);background:var(--surface-inset);border-radius:var(--space-1);padding:0 var(--space-1)}
 
 /* ── Settings page (buzz-settings, not in code) ── */
