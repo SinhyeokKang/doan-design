@@ -11,7 +11,7 @@
 - **렌더러**
   - `App.tsx`: 화면 모델에 페이지를 더한다(아래 '화면과 이동'). 헤더 캡슐의 Add Projects / Projects 동작, `onAddOutcome`·체크리스트·확인 다이얼로그·`DropOverlay` 배선 제거.
   - 새 `AddProjectsPage.tsx`(페이지 껍데기: 제목, 본문, 하단 Cancel)와 그 세션. 본문은 온보딩 `ProjectScreen`을 재사용한다.
-  - `Onboarding.tsx`·`projectStep.ts`: `ProjectScreen`과 `ProjectStepSession`이 두 쓰임(온보딩, 페이지)을 받도록 넓힌다. 'Open a local folder' 카드에 드롭을 더한다(두 쓰임 공통).
+  - `Onboarding.tsx`·`projectStep.ts`: `ProjectScreen`과 `ProjectStepSession`이 두 쓰임(온보딩, 페이지)을 받도록 넓힌다. '온보딩과의 공유'의 개선 셋을 두 쓰임에 함께 넣는다(카드 드롭, 전체 폭 스크롤 컨테이너, clone 중 이유 한 줄).
   - `homeComposer.ts`: 폴더 드롭 안내 문구.
   - 삭제: `AddProjectsDialog.tsx`(`SetUpFolderConfirm` 포함), `DropOverlay.tsx`, `styles.css`의 `.add-dialog`·`.cl*`·`.drop`·`.drop-zone` 규칙 중 다른 사용처가 없는 것.
 - **preload**: `addProjects`, `addDroppedFiles`, `onAddOutcome`, `watchScan`, `cancelScan`, `addCandidates`, `confirmFolder` 중 페이지·온보딩이 쓰지 않는 것을 지운다. 페이지용 project 호출(아래 'main')과 드롭 경로 읽기(`webUtils.getPathForFile`, 한 항목)를 더한다.
@@ -60,6 +60,26 @@
 - 카드 밖: 창의 `dragover`·`drop`은 기본 동작만 막고 아무 일도 하지 않는다. 막지 않으면 Electron 창이 그 파일로 이동한다. 이 전역 방지는 `DropOverlay`를 지울 때 남겨야 하는 유일한 부분이다. 커서는 `dropEffect = "none"`이다.
 - Home 입력창 위 폴더 드롭 안내(`homeComposer.ts:25`): "Folders can’t be attached. Add a project from Add Projects."(제안).
 
+## 온보딩과의 공유 (2026-10-30 user)
+
+페이지와 온보딩 Project 단계는 한 화면(`ProjectScreen`, `projectStep.ts`, `.ob-*` 규칙)을 쓰고, 한쪽에서 생긴 디자인 개선은 다른 쪽에도 들어간다. 쓰임별로 다른 것은 아래 표뿐이다. 새 차이가 필요하면 이 표에 더하고 이유를 적는다.
+
+| 항목 | 온보딩 | 페이지 | 이유 |
+|---|---|---|---|
+| 제목·설명(choose) | "Choose your project" | "Add a project" | 첫 실행은 프로젝트를 정하는 단계, 페이지는 하나 더하는 일 |
+| 'Your projects' 목록 | 있음 | 없음 | 등록된 프로젝트는 이미 LNB에 있다 |
+| 하단 | Back(Agent로)·Open Doan | Cancel(origin으로)·단계 동작 | 페이지에는 앞뒤 단계가 없다 |
+| 주 버튼 문구 | "Set up and continue", "Clone and continue" | "Set up and add", "Clone and add" | 다음에 일어나는 일이 다르다 |
+| ready 단계 | "Your project is ready" 뒤 Open Doan | 없음, 바로 Home | 페이지는 완료 기록이 없다 |
+| `no_ready_agent` notice | 있음 | 없음 | 프로젝트 추가에는 에이전트가 필요 없다 |
+| 표면 | 창 전체 유리(AppShell 반투명) | 흰 본문 패널 | 첫 실행은 셸 밖, 페이지는 셸 안 |
+
+이번에 온보딩에 들어가는 개선:
+
+1. **카드 드롭**: 위 '폴더 드롭' 그대로. 온보딩 세션의 `chooseFolder`가 고른 경로 대신 드롭 경로를 쓴다(같은 main 검사).
+2. **스크롤 컨테이너**: 지금 온보딩은 `.ob-scene`(560px 열)이 `native-scroll`로 스크롤돼 스크롤바가 열 옆에 붙는다. 열 바깥에 화면 전체 폭의 스크롤 영역(`.ob-chrome` 아래, `overflow-y: auto`, `overscroll-behavior: contain`, `.doan-scroll`)을 두고 `.ob-scene`은 최소 그 높이의 열로 둔다. 페이지는 흰 패널(`.add-panel`)이 같은 역할이다. 스크롤바는 얇은 macOS 스타일(`scrollbar-width: thin`, `--scrollbar-thumb-quiet`)이고, `native-scroll`의 8px WebKit 스크롤바 규칙은 이 두 곳에서 쓰지 않는다. Agent·Project 단계가 같은 장면 구조라 함께 바뀌고, Welcome은 스크롤되지 않으므로 보이는 변화가 없다. 포커스 이동 코드가 쓰는 `.ob-scene` 선택자(`Onboarding.tsx:539-540`)는 그대로 둔다.
+3. **clone 중 이유 한 줄**: 진행 표시와 Cancel 아래 `.ob-fine` "Stay on this page until the clone finishes, or cancel it." 온보딩에서는 Back과 단계 pill이 이미 busy 중 비활성이고, 이 줄이 그 이유를 말한다.
+
 ## 메뉴
 
 - `menu:state`의 `screen`에 `"addProjects"`를 더하고 `locked`(clone 중)를 더한다.
@@ -90,16 +110,18 @@
 - **포맷**: 없음. JSON Schema와 `v` 변화 없음. `onboarding_*` socket·CLI·MCP 응답 fixture는 그대로다.
 - **컨벤션(ARCHITECTURE §1)·`doan check` 규칙**: 없음.
 - **구조 결정**: git 미조작 — clone은 온보딩과 같은 사용자의 기존 Git 자격으로 하고 새 git 동작을 더하지 않는다. 앱이 중첩 저장소를 만들지 않는 규칙(2026-10-24)은 `addFlow` 판단과 `ready.initialize`의 위쪽 확인을 그대로 쓰므로 유지된다. 렌더러가 경로를 고르는 곳은 드롭 하나뿐이고 main이 검사한다(지금 드롭과 같다).
-- **제품 결정(승격 때 PRODUCT §7)**: 확정한 결정 1~7. 대체: 2026-10-24 projects-home 결정 3(대화상자·창 드롭, 하위 저장소와 다른 워크트리 제안), 2026-10-25 R1의 체크리스트 부분, 2026-10-25 'Checking… candidates'·'Scan snapshots' 행, 2026-10-25 'File > Add Project… (Cmd+O) … opens the picker'의 picker 부분, PRODUCT §5 항목 0 헤더 문장(Projects는 이제 이동한다), §5 항목 1 Add Projects 문단, buzz-home의 "dropped elsewhere they still add a project". 부모 공통 결정 6(기존 기능 보존)의 예외와 공통 결정 10의 `AddProjectsDialog` 삭제를 부모 spec에 적는다.
+- **제품 결정(승격 때 PRODUCT §7)**: 확정한 결정 1~8. 대체: 2026-10-24 projects-home 결정 3(대화상자·창 드롭, 하위 저장소와 다른 워크트리 제안), 2026-10-25 R1의 체크리스트 부분, 2026-10-25 'Checking… candidates'·'Scan snapshots' 행, 2026-10-25 'File > Add Project… (Cmd+O) … opens the picker'의 picker 부분, PRODUCT §5 항목 0 헤더 문장(Projects는 이제 이동한다), §5 항목 1 Add Projects 문단, buzz-home의 "dropped elsewhere they still add a project". 부모 공통 결정 6(기존 기능 보존)의 예외와 공통 결정 10의 `AddProjectsDialog` 삭제를 부모 spec에 적는다.
 - **PoC 의존**: 없다.
 
 ## 초안 (`/design-draft`)
 
 - 경로와 id: `.doan/canvases/buzz-add-projects.html`, `doan:canvas` `buzz-add-projects`.
 - 프레임(창 전체, 헤더·LNB 포함): `choose`, `drop`(카드 드롭 중), `checking`, `candidates`(저장소 7개, 긴 이름·경로), `setup`, `selecting`, `url-inspecting`, `repository-found`, `clone`, `cloning`(헤더 탭·Back·Search·LNB 행 잠금 표시와 이유 한 줄), `clone-cancelled`.
-- 타일: `states-errors`(access_failed, remote_mismatch, project_unavailable), `states-drop`(여러 항목, 폴더 아님), `states-onboarding-drop`(온보딩 Project 단계 카드의 드롭 중), `states-home-drop`(Home 입력창 폴더 드롭 안내).
+- 타일: `states-errors`(access_failed, remote_mismatch, project_unavailable), `states-drop`(여러 항목, 폴더 아님), `states-onboarding-drop`(온보딩 Project 단계의 카드 드롭 중과 clone 중 이유 한 줄, 공유 개선 설명), `states-home-drop`(Home 입력창 폴더 드롭 안내).
 - 워크스페이스에서 연 choose는 따로 그리지 않는다. 페이지에서는 LNB 행에 `aria-current`가 없어 Home에서 연 것과 화면이 같다(초안 1차, 2026-10-30).
 - 초안 3차(2026-10-30 user, 2차의 "목록만 스크롤"을 되돌림): 페이지 전체가 스크롤되고 하단 버튼도 함께 내려간다. 스크롤 컨테이너는 흰 본문 패널 자체(`.add-panel`, `overflow-y: auto`, `overscroll-behavior: contain`)이고, 스크롤바는 패널 가장 오른쪽에 Quick Open 목록과 같은 얇은 macOS 스타일(`ds` `.doan-scroll`: `scrollbar-width: thin`, `--scrollbar-thumb-quiet`)로 나온다. 1차에는 560px 본문 열이 스크롤 컨테이너라 스크롤바가 열 옆에 붙었다. 본문 열은 최소 패널 높이라 내용이 짧으면 하단 버튼이 패널 아래에 붙는다.
+- 초안 4차(2026-10-30 user): 온보딩과의 공유 개선을 `states-onboarding-drop` 타일에 더했다(clone 중 이유 한 줄, 공유 개선 설명).
+- **확정**: 4차 초안(2026-10-30 user, "디자인은 확정"). 렌더링 근거는 Chrome headless 캡처이고, Electron 실제 렌더링은 `/design-sync`에서 잰다. 이 초안은 이 자식이 main에 병합될 때까지 정본이다. 사용자가 feature-review보다 초안 확정을 먼저 했다.
 - 아래 초안 1차 제안 문구는 사용자가 확정했다(2026-10-30 "문구는 괜찮"). 초안 1차 제안 문구: 제목 "Add a project", 주 버튼 "Set up and add"·"Clone and add", 드롭 status "Drop to add this folder", notice "Drop one folder at a time.", Home 안내 "Folders can’t be attached. Add a project from Add Projects.", clone 중 "Stay on this page until the clone finishes, or cancel it."(critique: 잠긴 탭만으로는 떠날 수 없는 이유가 보이지 않는다).
 - 기존 `buzz-onboarding.html`은 고치지 않는다(공통 결정 11).
 
