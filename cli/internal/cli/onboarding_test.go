@@ -726,7 +726,7 @@ func TestOnboardingStartWithoutBundleGivesGuidance(t *testing.T) {
 func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	for _, code := range []string{"app_not_running", "app_launch_failed"} {
 		steps := strings.Join(onboardingFailure(code, "m").NextSteps, "\n")
-		for _, want := range []string{"open Doan", "sandbox", "MCP `onboarding_start`", "outside the sandbox"} {
+		for _, want := range []string{"open Doan", "sandbox", "socket permission error", "Codex", "Settings… > About", "outside the sandbox"} {
 			if !strings.Contains(steps, want) {
 				t.Errorf("%s nextSteps miss %q: %s", code, want, steps)
 			}
@@ -878,7 +878,7 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 	}
 	for _, parts := range [][]string{
 		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
-		{"`app_not_running`", "`app_launch_failed`", "sandbox", "MCP `onboarding_start`", "outside the sandbox", "open Doan"},
+		{"`app_not_running`", "`app_launch_failed`", "sandbox", "socket permission error", "Codex", "Settings… > About", "outside the sandbox", "open Doan"},
 		// The changes are always told before the write, but a user who already agreed is not asked again (agent-eval 2026-10-29 O1, re-measure).
 		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "already agreed", "do not ask again", "Otherwise ask first"},
 	} {

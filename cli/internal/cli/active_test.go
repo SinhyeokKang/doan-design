@@ -456,12 +456,13 @@ func TestRunActiveOverRealSocket(t *testing.T) {
 	failure(t, root, "app_not_running", "active")
 }
 
-func TestActiveUnavailableOffersFallbackWithoutMCP(t *testing.T) {
+func TestActiveUnavailableOffersSandboxAndAboutGuidance(t *testing.T) {
 	root := initialized(t)
 	ctx := activeContext(t, root, func(string, time.Time) (net.Conn, error) { return nil, syscall.EACCES })
 	failure := activeCode(t, ctx, root, "app_not_running")
-	want := "If no MCP active tool is available, ask the user to name the target or connect this agent in Doan (Settings…)"
-	if !strings.Contains(strings.Join(failure.NextSteps, "\n"), want) {
-		t.Fatalf("missing no-MCP fallback: %v", failure.NextSteps)
+	for _, want := range []string{"Ask the user to open Doan", "socket permission error", "outside the sandbox", "approval", "Codex", "Settings… > About"} {
+		if !strings.Contains(strings.Join(failure.NextSteps, "\n"), want) {
+			t.Fatalf("missing recovery guidance %q: %v", want, failure.NextSteps)
+		}
 	}
 }
