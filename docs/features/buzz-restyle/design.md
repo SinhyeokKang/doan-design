@@ -4,7 +4,7 @@
 
 ## AppShell 승인에 따른 공통 계약 갱신 (2026-10-27)
 
-사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [승격된 구조 계약](../../ARCHITECTURE.md#7-app-stack-electron--typescript-2026-10-21)가 우선한다. Shell 구현·검증 결과는 [DESIGN.md](../../DESIGN.md)의 2026-10-27 완료 기록을 따른다.
+사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [승격된 구조 계약](../../ARCHITECTURE.md#7-app-stack-electron--typescript)가 우선한다. Shell 구현·검증 결과는 [DESIGN.md](../../DESIGN.md)의 2026-10-27 완료 기록을 따른다.
 
 - Shell/LNB는 투명·블러, 본문만 흰 Panel이다. LNB의 별도 Panel·점 격자·violet 선택은 사용하지 않는다.
 - LNB 프로젝트→캔버스 IA와 프로젝트 메뉴·워크트리 선택은 buzz-shell이 맡는다. buzz-project는 Overview 본문, buzz-home은 프로젝트 선택 전 본문, buzz-conversation은 오른쪽 패널 표시 정책과 대화 UI를 맡는다.
@@ -15,7 +15,7 @@
 
 ## 온보딩 승인과 후속 인계 (2026-10-28)
 
-buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.doan/canvases/buzz-onboarding.html`(상태별 전체 창 프레임 73개), 측정값과 초안과의 차이는 [DESIGN](../../DESIGN.md), 결정은 [PRODUCT §7](../../PRODUCT.md)에 있다.
+buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.doan/canvases/buzz-onboarding.html`(상태별 전체 창 프레임 73개), 측정값과 초안과의 차이는 [DESIGN](../../DESIGN.md), 결정은 [PRODUCT](../../PRODUCT.md) §5 항목 0에 있다.
 
 - Welcome → Agent → Project → Home. 한 공급자 ready와 한 프로젝트가 필수다. 단순 Close/Escape로 완료하거나 홈을 우회하는 과거 위저드 동작은 유지하지 않는다. 미완료 앱 재시작은 Welcome이며 저장된 연결/등록 프로젝트는 유지한다.
 - GitHub URL은 등록 로컬 리포/사용자 선택 폴더를 재사용하고 없으면 기존 Git/gh 인증으로 clone한다. 자체 GitHub OAuth·토큰 저장·저장소 목록은 없다.
@@ -48,7 +48,7 @@ buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.do
 
 - Buzz 파일은 옮기지 않는다. clone에서 값(색, 크기, 시간)과 규칙(구성, 상태, 위계)을 읽고 doan CSS와 TSX를 새로 쓴다. 값이 같아지는 것은 목표이고, 코드 구조와 문장까지 베끼지는 않는다.
 - 코드에는 Buzz 출처 주석, 라이선스 사본, `buzz` 이름을 두지 않는다. 그래서 패키징 변경도 없다.
-- Buzz를 참고했다는 사실과 기준 커밋은 AGENTS.md 레퍼런스 규칙에 따라 PRODUCT §7과 DESIGN.md에 적는다.
+- Buzz를 참고했다는 사실과 기준 커밋은 AGENTS.md 레퍼런스 규칙에 따라 DESIGN.md 'Design system'의 Reference에 적는다.
 - 브랜드 자산(공통 결정 7)은 레퍼런스로도 쓰지 않는다.
 
 ## CSS를 싣는 방법 (모든 자식 공통)
@@ -70,12 +70,12 @@ buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.do
 | 상태 | pressed는 위치 대신 채움만 바꾼다, 선택은 hover와 별개로 남는다, disabled는 강조 단계로 쓰지 않는다 | buzz-ds가 불투명도 일괄 감쇠를 disabled 역할로 교체했다 | buzz-ds |
 | 모션 | fast 120ms, state 150ms, panel-enter 180ms, settle 220ms. 정보 없는 애니메이션은 넣지 않는다. 오버레이·다이얼로그 모션은 Base UI의 `data-starting-style`/`data-ending-style`과 `@starting-style`에 건다(overlays.css:78-117) | doan은 Radix `data-state="open|closed"`(퇴장은 keyframes, `animationend`)와 네이티브 `<dialog>[open]`(`transition-behavior: allow-discrete`)에 건다. `prefers-reduced-motion`이면 이동을 없앤다(doan 기존 규칙 유지) | buzz-ds |
 | 밀도 | 패널 패딩 24px, 컨트롤 inset 16px, 그룹 간격 32px. 얇은 네이티브 스크롤바 `scrollbar-width: thin` + `scrollbar-thumb-quiet`(scrollbars.css) | 구현된 `.doan-scroll` 사용(Radix ScrollArea 금지 결정과 일치) | buzz-ds (토큰), 각 화면 자식 (적용) |
-| 툴팁 | 거의 검정인 prominent 캡슐: `text-caption`, 패딩 4/8px, `--affordance-prominent` 채움, 블러 등장 모션 (overlays.css:393-410, DESIGN.md:1269-1272) | 2026-10-25 공유 툴팁 패딩 12/6px 결정을 대체한다(PRODUCT §7 기록) | buzz-ds |
+| 툴팁 | 거의 검정인 prominent 캡슐: `text-caption`, 패딩 4/8px, `--affordance-prominent` 채움, 블러 등장 모션 (overlays.css:393-410, DESIGN.md:1269-1272) | 2026-10-25 공유 툴팁 패딩 12/6px 결정을 대체한다(본문 반영) | buzz-ds |
 | 플로팅 표면 | `floating-surface`: Menu·Select·Popover·PreviewCard 전용. 90% 불투명 배경, 블러, 24px 모서리, 투명 1px 테두리, 라이트는 윤곽+접촉+주변 그림자. 목록 inset 4px, 행 패딩 8/12px, 안쪽 모서리는 파생값. 짧은 액션 메뉴는 compact(16px 모서리, inset 2px) (materials.css:67, DESIGN.md:558) | Radix DropdownMenu·Popover와 doan 메뉴들에 적용 | buzz-ds |
 | 다이얼로그 | compact 25rem / standard 40 / wide 55 / expanded 72rem, 안쪽 패딩 2rem(뷰포트 30rem 이하 1rem), 상단 8rem, 불투명 `surface-popover`, 28px 모서리. 제목+설명이 헤더, Close는 옆, 액션은 Cancel → 완료 순서. 등장 0.75rem 상승·220ms·`easing-enter`, 퇴장 0.25rem·120ms (overlays.css) | 공용 틀은 buzz-ds, 화면 하나만 여는 다이얼로그 내용은 그 화면 자식. 일반 다이얼로그 포커스·닫기 계약은 유지하며, 필수 온보딩의 예외는 자식 설계를 따른다. 모달 scrim은 구현된 `--bg-scrim` 역할을 사용한다 | buzz-ds, 각 화면 자식 |
 | 패널 | 사이드바 `Panel`과 메인 `Panel joined`가 `space-panel-gap`(8px)으로 떨어져 떠 있다. 불투명 `surface-panel`, 모서리 `radius-container`(24px), `shadow-panel`(1px 윤곽 6% + 작은 그림자 두 겹). companion 패널은 메인 `Panel joined` 안에 도킹한 열이고 `border-inline-start: 1px solid var(--border-standard)`로만 나뉜다(AppShell.tsx:477-478, `features/panels/Panels.module.css` `.dock`) | 공용 doan-panel은 buzz-ds, 구현된 Shell/LNB는 별도 불투명 Panel 없이 native 반투명 재질이다. 흰 본문과 오른쪽 패널 최종 표시 정책은 담당 자식/현재 DESIGN을 따른다 | buzz-ds, buzz-shell |
 | 셸 배경 | `bg-app` 단색 + 24px 간격 `texture-dots` 점 격자. 점 색은 `bg-app`에서 파생(라이트는 94% + 검정). 셸 패널과 내비게이션에는 glass를 쓰지 않는다 (DESIGN.md "Surface and depth") | doan은 점 격자를 쓰지 않고 native sidebar vibrancy를 사용한다(buzz-shell 완료). reduced-transparency는 불투명 대체 배경이다 | buzz-ds (토큰), buzz-shell |
-| 앱 헤더 | 헤더 높이 `--size-topbar` 3.5rem = 56px(globals.css:195), macOS 신호등 (24, 30)(src-tauri/tauri.conf.json:21-24), 빈 헤더 배경만 드래그. 아이콘 버튼은 32px 상자·16px 아이콘·10px 모서리의 고스트, hover는 반투명 채움, pressed는 조금 더 진하게 (shell-design.md "Desktop chrome") | Electron `titleBarStyle: "hiddenInset"` + `trafficLightPosition`으로 같은 위치를 만들고 실측한다. 2026-10-22 Window 결정을 대체한다(PRODUCT §7 기록) | buzz-ds (`IconButton`), buzz-shell |
+| 앱 헤더 | 헤더 높이 `--size-topbar` 3.5rem = 56px(globals.css:195), macOS 신호등 (24, 30)(src-tauri/tauri.conf.json:21-24), 빈 헤더 배경만 드래그. 아이콘 버튼은 32px 상자·16px 아이콘·10px 모서리의 고스트, hover는 반투명 채움, pressed는 조금 더 진하게 (shell-design.md "Desktop chrome") | Electron `titleBarStyle: "hiddenInset"` + `trafficLightPosition`으로 같은 위치를 만들고 실측한다. 2026-10-22 Window 결정을 대체한다(본문 반영) | buzz-ds (`IconButton`), buzz-shell |
 | 사이드바 | `SidebarNavigation`: `text-navigation` 라벨, body-sm Regular, 28px 행, 블록 패딩 2px, 앞 8px/뒤 6px, 아이콘 간격 6px, 행 간격 2px, 그룹 간격 16px, 섹션 제목·접기 화살표는 `text-subtle`, 선택은 `surface-sidebar-selected` + `text-sidebar-selected`, hover는 `affordance-sidebar-hover` | 선택/hover는 무채색 backdrop 역할이다. 프로젝트→캔버스 구조·프로젝트/워크트리 메뉴·프레임 트리 제거는 buzz-shell의 확정 구현을 따른다 | buzz-ds (토큰), buzz-shell |
 | 온보딩 표면 | [DESIGN](../../DESIGN.md)·`.doan/canvases/buzz-onboarding.html` | 자체 doan 워드마크·Welcome CSS 그라디언트, 나머지 native 재질 근사 | buzz-onboarding |
 
@@ -129,7 +129,7 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 
 ### 인계 완료한 조사
 
-- AppShell: 구현·main 병합 완료(PR #30, `c625057`). 과거 헤더 배치·Home 포함 여부 질문과 점 격자/불투명 LNB 제안은 다시 적용하지 않는다. [DESIGN의 최종 완료 기록](../../DESIGN.md#buzz-shell--completed-implementation-and-unlocked-acceptance-2026-10-27)을 따른다.
+- AppShell: 구현·main 병합 완료(PR #30, `c625057`). 과거 헤더 배치·Home 포함 여부 질문과 점 격자/불투명 LNB 제안은 다시 적용하지 않는다. [DESIGN의 최종 완료 기록](../../DESIGN.md#app-shell)을 따른다.
 - 온보딩: Buzz 원본 `OnboardingScreen.tsx`·`IdentitySetup.module.css` 확인 근거와 채택/조정 내용은 buzz-onboarding이 [DESIGN](../../DESIGN.md)에 남겼다. 기존 네 단계·Close/Escape 유지 제안은 새 필수 설정 흐름이 대체한다.
 
 ### 조사 메모: 캔버스 영역 (`buzz-canvas`용)

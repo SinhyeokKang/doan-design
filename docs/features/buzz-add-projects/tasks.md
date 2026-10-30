@@ -92,13 +92,12 @@
   - PRODUCT §3 범위 밖 6: clone 예외를 "첫 실행과 Add Projects 페이지"로 넓힌다(spec 결정 10).
   - PRODUCT §5 항목 0: 헤더 문장(Add Projects / Projects가 페이지를 오간다), First run Project step 문장(카드 드롭, clone 중 줄, 출하된 setup 패널에 맞춘 "files setup adds" 문장).
   - PRODUCT §5 항목 1: Add Projects 문단(페이지, 하나씩, 그 자리 설정과 실패 예외, 카드 드롭, 완료 뒤 Home, origin 복귀, selecting·cloning 잠금), Home 입력창 폴더 드롭 문장, 'First run registers its chosen project through the same addition flow' 문장.
-  - PRODUCT §7: buzz-add-projects 줄(spec 결정 1~10, Buzz에 대응 화면이 없어 온보딩 Project 단계를 정본으로 삼은 점)과, design.md '포맷·컨벤션·결정 영향'의 대체 행 8개에 "(superseded 2026-10-30 by buzz-add-projects …)" 표시.
-  - PRODUCT §8 후속: Git이 찾은 미등록 워크트리를 LNB에서 더하는 길.
+  - 대체되는 본문: design.md '포맷·컨벤션·결정 영향'의 대체 항목이 PRODUCT·ARCHITECTURE·DESIGN 본문에 남아 있으면 지우고 현재 규칙으로 고친다. 근거(spec 결정 1~10, Buzz에 대응 화면이 없어 온보딩 Project 단계를 정본으로 삼은 점)는 커밋 메시지에 쓴다.
+  - PRODUCT §6 Open questions 후속: Git이 찾은 미등록 워크트리를 LNB에서 더하는 길.
   - ARCHITECTURE §7: 'Screens'·'Memory'·'Focus'의 화면 모델과 `AddProjectsDialog`·`SetUpFolderConfirm`·`DropOverlay` 언급, preload 'Add' 줄(`ARCHITECTURE.md:395`, `folders:add`·`folders:add-paths`·`onAddOutcome` 계약)을 페이지 채널로 교체, 메뉴 표와 'Menus' 줄의 `addProjects`·`locked`, 공유 project 클래스, allowlist 표.
   - 부모 spec 공통 결정 6(하나씩 추가·워크트리 제안 제거라는 보존 예외)과 공통 결정 10(`AddProjectsDialog` 삭제).
   - 검증:
-    - `grep -n '^| 2026-10-30 | buzz-add-projects' docs/PRODUCT.md`에 §7 줄이 있다.
-    - `grep -c 'superseded 2026-10-30 by buzz-add-projects' docs/PRODUCT.md`가 8 이상이다.
+    - `grep -nE 'AddProjectsDialog|SetUpFolderConfirm|suggested worktrees start unchecked' docs/PRODUCT.md docs/ARCHITECTURE.md` 결과가 없다.
     - `grep -n 'Add Projects page' docs/PRODUCT.md`에 §3 범위 밖 6 줄이 있다.
     - `grep -n 'dropped elsewhere they still add a project' docs/PRODUCT.md` 결과 없음.
     - `grep -n 'AddProjectsDialog\|DropOverlay\|folders:add\|onAddOutcome' docs/ARCHITECTURE.md` 결과가 없거나 대체 설명뿐이다. `grep -n 'menu:state.*addProjects' docs/ARCHITECTURE.md`에 'Menus' 줄이 있다(지금은 결과 없음).

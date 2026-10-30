@@ -3,7 +3,7 @@
 ## 레퍼런스
 
 - Buzz(`~/code/buzz-app`, 로컬 HEAD `ec1b9acc`, 기준 커밋 `c40dfdf4`)에는 프로젝트를 추가하는 페이지에 대응하는 화면이 없다. `src/app` 목록(`git ls-tree c40dfdf4 src/app`)에서 가장 가까운 것은 `CommunityRepositoriesSettings.tsx`(저장소 폴더 경로 하나를 고르는 설정 행)이고, 구성으로 참고할 만한 것이 아니다.
-- 그래서 시각과 문구의 정본은 이미 Buzz 온보딩을 레퍼런스로 출하된 doan 온보딩 Project 단계다. 화면은 `.doan/canvases/buzz-onboarding.html`의 `project`·`project-local`·`repository-found`·`repository-clone`·`repository-error` 프레임과 Project states 타일, 구현은 `Onboarding.tsx`의 `ProjectScreen`(326행~)과 `projectStep.ts`, 측정값은 [DESIGN 'Onboarding — buzz-onboarding'](../../DESIGN.md#onboarding--buzz-onboarding-first-run-2026-10-29)이다.
+- 그래서 시각과 문구의 정본은 이미 Buzz 온보딩을 레퍼런스로 출하된 doan 온보딩 Project 단계다. 화면은 `.doan/canvases/buzz-onboarding.html`의 `project`·`project-local`·`repository-found`·`repository-clone`·`repository-error` 프레임과 Project states 타일, 구현은 `Onboarding.tsx`의 `ProjectScreen`(326행~)과 `projectStep.ts`, 측정값은 [DESIGN 'Onboarding — buzz-onboarding'](../../DESIGN.md#onboarding)이다.
 - 드롭 표시: Home 입력창의 `.drop-target`(`styles.css:803-804`, accent 2px 점선 외곽선, 패널 55% 섞임과 `--blur-sm`, 투명도 줄이기에서 85%)과 그 이벤트 처리(`HomeComposerView.tsx:334-350`).
 
 ## 영향 범위
@@ -138,7 +138,7 @@
   - git: clone은 온보딩과 같은 코드와 사용자의 기존 Git 자격으로 하고 새 git 동작은 더하지 않는다. 다만 첫 실행 밖에서도 clone하므로 PRODUCT §3 범위 밖 6의 예외를 넓힌다(spec 결정 10).
   - 중첩 저장소: 앱이 중첩 저장소를 만들지 않는 규칙(2026-10-24)은 한 경로 `addFlow` 판단과 `ready.initialize`의 위쪽 확인을 그대로 쓰므로 유지된다.
   - 렌더러 경로: 렌더러가 보내는 경로는 Choose folder 결과, 드롭 경로, 고른 후보 경로, clone 위치다. 모두 main이 `canonicalFolder`와 inspect 세대로 검사한다. 고른 후보는 main이 그 inspect에서 낸 후보일 때만 받는다(`not_candidate`).
-- **제품 결정(승격 때 PRODUCT §7)**: spec 확정한 결정 1~10. 대체 표시를 붙일 행:
+- **제품 결정(승격 때 본문 반영)**: spec 확정한 결정 1~10. 승격 때 아래 규칙이 PRODUCT·ARCHITECTURE·DESIGN 본문에 남아 있으면 지우고 현재 규칙으로 바꾼다(옛 결정 로그 항목 기준으로 적었다):
   - 2026-10-24 projects-home 결정 3(대화상자·창 드롭, 하위 저장소와 다른 워크트리 제안)
   - 2026-10-25 R1의 체크리스트 부분
   - 2026-10-25 R6 "suggested worktrees start unchecked"
