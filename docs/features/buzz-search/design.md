@@ -47,10 +47,15 @@
 - 경로와 id: `.doan/canvases/buzz-search.html`, `doan:canvas` `buzz-search`, `doan:width` 2560.
 - 프레임(모두 새 프레임, `/design-sync` 비교 대상):
   - `results` — 워크스페이스, 검색어 "card", 캔버스·프레임 섞임, 첫 행 활성, 맞은 글자 밑줄, 긴 이름과 긴 경로의 줄임, 목록 스크롤
+  - `results-input` — `results`와 같고 입력창만 공용 `.doan-input`(비교용, 검토 뒤 `results`와 둘 중 하나만 남긴다)
   - `empty-query-home` — Home, 빈 검색어, 모든 프로젝트의 캔버스
   - `empty-query-workspace` — 워크스페이스, 빈 검색어, 현재 프로젝트의 캔버스
   - `no-match`, `reading`, `unavailable`, `no-canvases` — 빈 상태 네 가지. 창 없이 다이얼로그만 그린 타일
-- 제약: 배경의 헤더·LNB는 main 화면 복사본이다. 그 아래 Home·워크스페이스 본문은 scrim 아래라 단순화하고 비교하지 않는다. 키보드 포커스 테두리는 모든 프레임에 그린다(위 '입력' 행). 
+- 제약: 배경의 헤더·LNB는 main 화면 복사본이다. 그 아래 Home·워크스페이스 본문은 scrim 아래라 단순화하고 비교하지 않는다. 입력창의 포커스 표시는 아래 '입력창 비교'를 따른다.
+- 입력창 비교 (2026-10-30 user, 초안 2차): 1차 초안은 Buzz 팔레트 입력에 포커스 테두리를 늘 그려서 높고 각진 상자로 보였다. Buzz는 이 테두리를 키보드 탐색 모드(`useKeyboardFocusVisibility.ts`, Tab·화살표 키에서만 켜짐)에서만 보이므로 평소에는 투명하다. 사용자가 두 안을 나란히 그려 고르기로 했다.
+  - A(`results`와 나머지 프레임): Buzz 팔레트 입력. 78px 높이, `body-lg`, 테두리는 늘 투명하다. 위 '입력' 행의 포커스 테두리는 이 안에서 쓰지 않는다.
+  - B(`results-input`): 공용 `.doan-input` 기본 크기(40px, `body`, inset 채움, 포커스 시 `--border-prominent`)와 앞쪽 돋보기(Home 프리셋 검색 `.popover-search`와 같은 배치). 모서리 20px가 다이얼로그 12px 안쪽과 동심이다. 고르면 Buzz와 다른 조정으로 기록한다.
+  - 고른 안을 나머지 프레임에 적용하고, 고르지 않은 안의 프레임과 CSS는 지운다.
 - 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 최대 높이 429px(초안 한정: 780px 창에서 `min(55vh, 100vh − 256px)`을 계산한 값. 구현은 `min(55vh, calc(100dvh − 256px))`), 테두리·밑줄 1px.
 - 2026-10-30 user: feature-review보다 초안 확정을 먼저 한다.
 
