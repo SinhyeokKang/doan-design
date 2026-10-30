@@ -320,7 +320,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-overlay .ob-card { width: auto; }
 /* Project step (draft frames project, project-local, repository-found, repository-clone, repository-error). */
 .ob-scene svg { width: var(--size-icon); height: var(--size-icon); }
-.ob-local-option { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-6); }
+.ob-local-option { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-6); }
 .ob-local-option p { margin-top: var(--space-1); color: var(--text-subtle); }
 .ob-local-option strong, .ob-setup > strong { font-weight: var(--type-weight-medium); }
 .ob-folder-icon { width: var(--size-control); height: var(--size-control); display: grid; place-items: center; border-radius: var(--radius-chip); background: var(--surface-inset); }
@@ -676,6 +676,10 @@ body:has(.shell-top) { background: transparent; }
 /* Over the composer the window's project drop gives way, so the composer's own drag events decide (design §4.8). */
 .home-shell ~ .drop { pointer-events: none; }
 .home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+/* Add Projects page: the white panel is the scroll container and the 560px column grows with it (buzz-add-projects
+   draft round 3). The measured values are set with /design-sync. */
+.add-panel { overscroll-behavior: contain; }
+.add-scene { overflow: visible; min-height: 100%; }
 /* Home's own atmosphere (2026-10-29 user): a wide violet ellipse spreading from the composer's centre, smooth and
    still; unlike Welcome's bottom glow it has no grain. The panel clips it at its corners. */
 .home-atmosphere { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent) 0%, color-mix(in srgb, var(--affordance-accent) 15%, transparent) 32%, color-mix(in srgb, var(--affordance-accent) 6%, transparent) 62%, transparent 100%); }

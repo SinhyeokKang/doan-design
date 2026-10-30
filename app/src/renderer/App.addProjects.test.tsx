@@ -94,6 +94,7 @@ beforeEach(() => {
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
+  vi.stubGlobal("HTMLElement", class {});
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -138,7 +139,7 @@ function openFromWorkspace() {
   expect(onPage()).toBe(false);
   click(topBar(workspaceHeader()).add);
   expect(onPage()).toBe(true);
-  for (const mock of Object.values(harness.controller!)) mock.mockClear();
+  for (const mock of Object.values(harness.controller!)) if (vi.isMockFunction(mock)) mock.mockClear();
 }
 function lock() { page()!.props.onState({ locked: true, choose: false }); render(); }
 
@@ -150,7 +151,7 @@ test("the header tab opens the page: Add Projects is the current page, the sideb
   expect(bar.forward.props.disabled).toBe(true);
   expect(bar.back.props.disabled).toBe(false);
   expect(page()!.props.sidebar.props.home).toBe(true);
-  expect(doan.setMenuState).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, reviewing: false, choose: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, reviewing: false, choose: true });
   // Reopening from the page does nothing; File > Add Project… there runs Choose folder.
   const seq = page()!.props.choose;
   click(bar.add);
@@ -159,22 +160,25 @@ test("the header tab opens the page: Add Projects is the current page, the sideb
   expect(page()!.props.choose).toBe(seq + 1);
 });
 
-test("Projects tab, Back, Cancel and Escape return to the origin workspace without a history visit", () => {
+test("Projects tab, Back, Cancel and Escape return to the origin workspace without a history visit", async () => {
   for (const leave of [() => click(topBar(page()!.props.header).projects), () => click(topBar(page()!.props.header).back), () => { page()!.props.onCancel(); render(); },
     () => { windowListeners.keydown!({ key: "Escape", target: { tagName: "BUTTON" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render(); }]) {
     beforeEachReset();
     openFromWorkspace();
+    // Saves start once Home's memory is read.
+    readUiState(null); await Promise.resolve(); await Promise.resolve(); render();
+    expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "workspace", root: "/w/a" });
     leave();
     expect(onPage()).toBe(false);
     expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
     // The workspace's Back still has nowhere to go: the page made no visit.
     expect(topBar(workspaceHeader()).back.props.disabled).toBe(true);
-    expect(doan.saveUiState.mock.lastCall?.[0]).toMatchObject({ screen: "workspace", root: "/w/a" });
+    expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "workspace", root: "/w/a" });
   }
 });
 function beforeEachReset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
-  doan.saveUiState.mockClear();
+  doan.saveUiState!.mockClear();
 }
 
 test("Escape in a field, during an IME composition or under an open dialog stays on the page", () => {
@@ -197,7 +201,7 @@ test("the page is not saved: a restart restores the origin, and opening the page
   render();
   expect(onPage()).toBe(true);
   expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
-  expect(doan.saveUiState.mock.lastCall?.[0]).toMatchObject({ screen: "home" });
+  expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "home" });
 });
 
 test("while the page is locked every way out is ignored, one case per navigation function", () => {
@@ -242,7 +246,7 @@ test("the lock shows on the header tabs and Back, and reaches the menu", () => {
   lock();
   const bar = topBar(page()!.props.header);
   for (const button of [bar.add, bar.projects, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
-  expect(doan.setMenuState).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, reviewing: false, locked: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, reviewing: false, locked: true });
   page()!.props.onState({ locked: false, choose: false }); render();
   expect(topBar(page()!.props.header).projects.props["aria-disabled"]).toBeUndefined();
   click(topBar(page()!.props.header).projects);

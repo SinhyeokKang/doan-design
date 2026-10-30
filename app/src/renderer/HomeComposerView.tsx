@@ -63,8 +63,8 @@ export interface HomeComposerProps {
   entries: readonly FolderEntry[]; homeDirectory: string | null;
   shellProjects: Readonly<Record<string, ShellProject>>;
   loaded: string | null;
-  // A project to choose once: first run's handoff, or one the person just added or dropped (design §4.2, §6). The
-  // person's later choice wins over it.
+  // A project to choose once: first run's handoff, or one the person just added (design §4.2, §6). The person's later
+  // choice wins over it.
   select: { root: string; seq: number } | null;
   // ui-state's Home memory; null until the saved state is read.
   prefs: HomeMemory | null;
@@ -75,6 +75,8 @@ export interface HomeComposerProps {
   greeting: string;
   start(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   openConversation(conversationId: string): void;
+  // The project picker's Add Projects… opens the Add Projects page.
+  addProjects(): void;
 }
 
 const GROUP_ICONS: Record<string, typeof Compass> = { compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
@@ -331,7 +333,7 @@ export function HomeComposer(props: HomeComposerProps) {
     return true;
   };
 
-  // Drop over the composer attaches files only; the window's project drop never sees it (design §4.8).
+  // Drop over the composer attaches files only; the window's own drop handling never sees it (design §4.8).
   const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
   const dragHandlers = {
     onDragEnter: (event: DragEvent) => { if (!hasFiles(event)) return; event.preventDefault(); event.stopPropagation(); dragDepth.current++; setDropping(true); },
@@ -345,8 +347,7 @@ export function HomeComposer(props: HomeComposerProps) {
       const files = Array.from(event.dataTransfer.files);
       // String items (a URL list, say) can sit among the files; only file items line up with `files`.
       const items = Array.from(event.dataTransfer.items ?? []).filter(item => item.kind === "file");
-      const target = dropTarget(true, files.map((_file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry?.()?.isDirectory })));
-      if (target.kind !== "attach") return;
+      const target = dropTarget(files.map((_file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry?.()?.isDirectory })));
       if (target.notice) setNotice({ text: target.notice, retry: false });
       const chosen = target.files.map(i => files[i]!);
       if (chosen.length) { if (!target.notice) setNotice(null); addFiles(chosen, false); }
@@ -511,10 +512,10 @@ export function HomeComposer(props: HomeComposerProps) {
             })}
           </DropdownMenu.RadioGroup>
           <DropdownMenu.Separator className="doan-menu-sep" />
-          <DropdownMenu.Item className="doan-menu-item" onSelect={() => void window.doan.addProjects()}><Plus aria-hidden="true" /><span className="model-name">Add Projects…</span></DropdownMenu.Item>
+          <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.addProjects()}><Plus aria-hidden="true" /><span className="model-name">Add Projects…</span></DropdownMenu.Item>
         </DropdownMenu.Content></DropdownMenu.Portal>
       </DropdownMenu.Root>
-        : <button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => void window.doan.addProjects()}><Plus aria-hidden="true" /><span>Add Projects…</span></button>}
+        : <button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => props.addProjects()}><Plus aria-hidden="true" /><span>Add Projects…</span></button>}
       <div className="composer" {...dragHandlers}>
         {dropping && <div className="drop-target"><span className="sr-only" role="status">Drop to attach</span></div>}
         <div className={`composer-card${sending ? " readonly" : ""}`}>

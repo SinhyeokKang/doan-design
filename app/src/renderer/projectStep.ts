@@ -1,16 +1,44 @@
 import type {
   OnboardingChange, OnboardingOperation, OnboardingOperationErrorCode, OnboardingResponse, OnboardingSocketErrorCode, OnboardingState,
 } from "../formats/types";
-import type { DoanApi } from "../preload";
+import type { AddPageResponse, AddPageState, DoanApi } from "../preload";
 import type { FolderEntry } from "../main/view";
 import { parseGitHubUrl } from "../main/onboarding/repository";
 import { leaveLocked } from "./addProjectsNav";
+import { dropFolder } from "./folderDrop";
 
-type Api = Pick<DoanApi, "readOnboardingSession" | "onOnboardingSession" | "inspectOnboardingProject" | "selectOnboardingProject" |
-  "cloneOnboardingProject" | "cancelOnboardingOperation" | "completeOnboarding" | "chooseOnboardingFolder">;
+// The session's calls, named after first run's; the Add Projects page passes `addPageApi`, whose replies are the same
+// project DTOs over its own main instance (buzz-add-projects design 'main의 project 처리').
+type Request<K extends keyof DoanApi> = DoanApi[K] extends (request: infer R) => unknown ? R : never;
+interface Api {
+  readOnboardingSession(request: { sessionId: string; operationId?: string }): Promise<OnboardingResponse | AddPageResponse>;
+  onOnboardingSession(listener: (state: AddPageState) => void): () => void;
+  inspectOnboardingProject(request: Request<"inspectOnboardingProject">): Promise<OnboardingResponse | AddPageResponse>;
+  selectOnboardingProject(request: Request<"selectOnboardingProject">): Promise<OnboardingResponse | AddPageResponse>;
+  cloneOnboardingProject(request: Request<"cloneOnboardingProject">): Promise<OnboardingResponse | AddPageResponse>;
+  cancelOnboardingOperation(request: Request<"cancelOnboardingOperation">): Promise<OnboardingResponse | AddPageResponse>;
+  completeOnboarding(request: Request<"completeOnboarding">): Promise<OnboardingResponse | AddPageResponse>;
+  chooseOnboardingFolder(purpose: "project" | "destination"): Promise<string | null>;
+}
+type PageCalls = Pick<DoanApi, "readAddPage" | "onAddPageSession" | "inspectAddPageProject" | "selectAddPageProject" | "cloneAddPageProject" | "cancelAddPageOperation" | "chooseOnboardingFolder">;
+export function addPageApi(doan: PageCalls): Api {
+  return {
+    readOnboardingSession: request => doan.readAddPage(request),
+    onOnboardingSession: listener => doan.onAddPageSession(listener),
+    inspectOnboardingProject: request => doan.inspectAddPageProject(request),
+    selectOnboardingProject: request => doan.selectAddPageProject(request),
+    cloneOnboardingProject: request => doan.cloneAddPageProject(request),
+    cancelOnboardingOperation: request => doan.cancelAddPageOperation(request),
+    // The page has no completion record; a registered project is handed over at once (`use`).
+    completeOnboarding: () => Promise.reject(new Error("The Add Projects page has no completion")),
+    chooseOnboardingFolder: purpose => doan.chooseOnboardingFolder(purpose),
+  };
+}
 export interface ProjectStepDeps {
   api: Api;
   sessionId: string;
+  // First run by default; the page skips the ready step and its completion.
+  use?: ProjectUse;
   // Registered projects in stored order; the last one names the default clone parent (2026-10-29 user).
   projects(): readonly string[];
   homeDirectory(): string | null;
@@ -18,7 +46,7 @@ export interface ProjectStepDeps {
   mainCheckout?(path: string): boolean;
   requestId(): string;
   changed(): void;
-  // Completion saved: Home takes over with this canonical root.
+  // Completion saved (first run) or the project registered (the page): Home takes over with this canonical root.
   completed(root: string): void;
 }
 
@@ -70,7 +98,7 @@ export class ProjectStepSession {
   private generation = 0;
   private live = false;
   private stops: (() => void)[] = [];
-  private latest: OnboardingState | null = null;
+  private latest: AddPageState | null = null;
   private waiting = new Map<string, (operation: OnboardingOperation) => void>();
   // The user action in flight. A second click while it runs is ignored, so no request can race its reply
   // (POSTMORTEM 2026-10-25 'An older install failure replaced newer feedback'). Edit and Cancel clear it.
@@ -79,6 +107,8 @@ export class ProjectStepSession {
   private again: (() => Promise<void>) | null = null;
   // The native folder sheet is open: the step is busy, but focus belongs to the button that opened it.
   private choosing = false;
+  // A refused card drop's notice; the next drag or Choose folder clears it (design '폴더 드롭').
+  dropNotice: string | null = null;
   constructor(private readonly deps: ProjectStepDeps) {}
 
   start(): void {
@@ -110,7 +140,21 @@ export class ProjectStepSession {
   // Looking for a repository can be left at once: the inspection is read-only, so its late result is dropped.
   cancelInspect(): void { if (this.state.phase.kind === "inspecting") this.restart(); }
 
+  // Only the choose screen shows the card, and a drop while something runs (a first drop included) is refused.
+  canDrop(): boolean { return this.live && this.state.phase.kind === "choose" && !this.busy(); }
+  dragStarted(): void { this.clearDropNotice(); }
+  drop(items: readonly { isDirectory: boolean; path: string }[]): Promise<void> {
+    if (!this.canDrop()) return Promise.resolve();
+    const judged = dropFolder(items);
+    if (judged.kind === "notice") { this.dropNotice = judged.text; this.deps.changed(); return Promise.resolve(); }
+    this.clearDropNotice();
+    const path = items[judged.index]!.path;
+    return this.act(() => this.inspectPath(path));
+  }
+  private clearDropNotice(): void { if (this.dropNotice !== null) { this.dropNotice = null; this.deps.changed(); } }
+
   chooseFolder(): Promise<void> {
+    this.clearDropNotice();
     return this.act(async () => {
       const picked = await this.pick("project");
       if (this.live && picked !== null) await this.inspectPath(picked);
@@ -271,7 +315,7 @@ export class ProjectStepSession {
     if (!reply.ok) { this.failed(reply, back, () => { this.set({ phase: back }); return this.runSelect(); }); return; }
     const done = await this.settled(reply.operation);
     if (!this.current(at)) return;
-    if (done.state === "succeeded" && done.project) { this.consent = null; this.set({ phase: { kind: "ready", root: done.project.root }, error: null }); }
+    if (done.state === "succeeded" && done.project) { this.consent = null; this.registered(done.project.root); }
     else this.failed(this.error(done, "project_unavailable"), back, () => { this.set({ phase: back }); return this.runSelect(); });
   }
 
@@ -304,10 +348,14 @@ export class ProjectStepSession {
     const done = await this.settled(reply.operation);
     if (!this.current(at)) return;
     if (done.state === "cancelled") this.set({ phase: { kind: "cloneCancelled", url, destination } });
-    else if (done.state === "succeeded" && done.project) this.set({ phase: { kind: "ready", root: done.project.root }, error: null });
+    else if (done.state === "succeeded" && done.project) this.registered(done.project.root);
     else this.failed(this.error(done, "clone_failed"), { kind: "clone", url, inspectionId: null, destination }, retryPlan);
   }
 
+  private registered(root: string): void {
+    if (this.deps.use === "addPage") { this.deps.completed(root); return; }
+    this.set({ phase: { kind: "ready", root }, error: null });
+  }
   private async runComplete(): Promise<void> {
     const p = this.state.phase;
     if (p.kind !== "ready") return;
@@ -338,8 +386,8 @@ export class ProjectStepSession {
   private error(done: OnboardingOperation, fallback: ProjectError): Reply & { ok: false } {
     return { ok: false, code: done.error?.code ?? fallback, ...(done.error?.message ? { message: done.error.message } : {}) };
   }
-  private async call(request: Promise<OnboardingResponse>): Promise<Reply> {
-    let reply: OnboardingResponse;
+  private async call(request: Promise<OnboardingResponse | AddPageResponse>): Promise<Reply> {
+    let reply: OnboardingResponse | AddPageResponse;
     try { reply = await request; } catch { return { ok: false, code: "bad_request" }; }
     if (!reply.ok) return { ok: false, code: reply.error.code, message: reply.error.message };
     return "operation" in reply.result ? { ok: true, operation: reply.result.operation } : { ok: false, code: "bad_request" };
@@ -351,7 +399,7 @@ export class ProjectStepSession {
     if (seen && TERMINAL.has(seen.state)) return Promise.resolve(seen);
     return new Promise(resolve => this.waiting.set(operation.operationId, resolve));
   }
-  private received(state: OnboardingState): void {
+  private received(state: AddPageState): void {
     if (!this.live || state.sessionId !== this.deps.sessionId || (this.latest && state.revision < this.latest.revision)) return;
     this.latest = state;
     for (const operation of state.operations) {

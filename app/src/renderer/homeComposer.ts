@@ -433,11 +433,10 @@ export function attachmentChipView(a: AttachmentDraft, home: string | null): Att
   };
 }
 
-// Over the composer only files attach and a folder is refused rather than handed to the window's project drop.
-export function dropTarget(overComposer: boolean, entries: readonly { isDirectory: boolean }[]): { kind: "project" } | { kind: "attach"; files: number[]; notice: string | null } {
-  if (!overComposer) return { kind: "project" };
+// Over the composer only files attach; a folder is refused and pointed to Add Projects.
+export function dropTarget(entries: readonly { isDirectory: boolean }[]): { files: number[]; notice: string | null } {
   const files = entries.flatMap((e, i) => (e.isDirectory ? [] : [i]));
-  return { kind: "attach", files, notice: files.length < entries.length ? FOLDER_DROP : null };
+  return { files, notice: files.length < entries.length ? FOLDER_DROP : null };
 }
 
 // Chips in DOM order (attachments, then the preset). Backspace takes the preset first, then the last attachment;

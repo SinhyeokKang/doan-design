@@ -52,7 +52,14 @@ test("every error code shows first run's copy; the page never shows the no-agent
 test("a refused drop's notice sits under the card as an alert", () => {
   const html = renderToStaticMarkup(<ProjectScreen use="addPage" state={base} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on}
     drop={{ notice: "Drop one folder at a time.", allowed: () => true, started: noop, dropped: noop }} />);
-  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*><\/svg><span>Drop one folder at a time\.<\/span><\/div>/);
+  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Drop one folder at a time\.<\/span><\/div>/);
+});
+
+test("first run's Project step takes the same card drop", () => {
+  const html = renderToStaticMarkup(<ProjectScreen state={base} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on}
+    drop={{ notice: "Only folders can be added.", allowed: () => true, started: noop, dropped: noop }} />);
+  expect(html).toContain("Choose your project");
+  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1">.*?<span>Only folders can be added\.<\/span>/);
 });
 
 // The shared focus hook's decision (design '포커스'); the page and first run pass their own scene root.

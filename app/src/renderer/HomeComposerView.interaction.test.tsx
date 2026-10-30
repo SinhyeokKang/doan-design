@@ -52,7 +52,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
-  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), ...props };
+  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), ...props };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer(all)); };
   return { box, start, render, props: all };
 }

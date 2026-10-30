@@ -1,4 +1,5 @@
 import type { ProjectPhase } from "./projectStep";
+import { editableTarget } from "./selection";
 
 // Where the Add Projects page goes when it is left (buzz-add-projects design '화면과 이동'). The origin is the last
 // Projects-side screen, not the previous one, so a later Settings tab cannot become the return target.
@@ -7,13 +8,14 @@ export type AddPageEvent =
   | { kind: "projectsTab" } | { kind: "back" } | { kind: "cancel" } | { kind: "forward" } | { kind: "reopen" } | { kind: "home" }
   // editing: an edited field or an IME composition holds the key. overlay: Quick Open or a dialog closes itself first.
   | { kind: "escape"; editing: boolean; overlay: boolean }
-  | { kind: "added"; root: string }
-  // originDraft: the origin workspace holds a draft, so leaving it for another root goes through the draft guard.
-  | { kind: "row" | "quickOpen"; root: string; originDraft: boolean };
+  | { kind: "added"; root: string };
+// A sidebar row or a Quick Open pick is not an event here: it leaves through the shell's own navigation, whose
+// controller asks the draft guard canvas by canvas (only the canvas already open skips it). The page never decides
+// that a move may skip the guard.
 export type AddPageDestination =
   | { kind: "stay" }
   | { kind: "home"; select: string | null }
-  | { kind: "workspace"; root: string; guard: boolean };
+  | { kind: "workspace"; root: string };
 
 export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots: readonly string[]): AddPageDestination {
   switch (event.kind) {
@@ -21,10 +23,13 @@ export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots:
     case "escape": if (event.editing || event.overlay) return { kind: "stay" }; break;
     case "home": return { kind: "home", select: null };
     case "added": return { kind: "home", select: event.root };
-    case "row": case "quickOpen":
-      return { kind: "workspace", root: event.root, guard: event.originDraft && origin.screen === "workspace" && origin.root !== event.root };
   }
-  return origin.screen === "workspace" && roots.includes(origin.root) ? { kind: "workspace", root: origin.root, guard: false } : { kind: "home", select: null };
+  return origin.screen === "workspace" && roots.includes(origin.root) ? { kind: "workspace", root: origin.root } : { kind: "home", select: null };
+}
+
+// An IME may hold Escape without setting isComposing; keyCode 229 is its own key then (homeComposer isSubmitKey).
+export function pageEscape(event: { target: unknown; isComposing: boolean; keyCode: number }, overlay: boolean): AddPageEvent {
+  return { kind: "escape", editing: editableTarget(event.target) || event.isComposing || event.keyCode === 229, overlay };
 }
 
 // Selecting writes the project and a clone runs until it ends or is cancelled; neither result may be dropped, so the
