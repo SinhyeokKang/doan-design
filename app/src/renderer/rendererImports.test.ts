@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { builtinModules } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseSync } from "vite";
 import { describe, expect, it } from "vitest";
 
 // The renderer runs under a CSP without 'unsafe-eval', and ajv compiles its schemas with new Function when
@@ -27,20 +28,20 @@ function resolveImport(from: string, spec: string): string | null {
   throw new Error(`unresolved import ${spec} in ${relative(APP, from)}`);
 }
 
-// Value imports only: `import type`, `export type` and clauses whose every specifier is `type X` are erased.
-function valueImports(file: string): string[] {
-  const source = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+// Value imports only, read from the syntax (oxc, the parser family of the renderer's bundler): an import or re-export
+// survives unless every specifier is `type`; `import type`, `export type` and type queries such as
+// `import("node:fs").Stats` are erased; a side-effect import and a literal dynamic `import()` are kept.
+function valueImports(source: string, lang: "ts" | "tsx" = "ts"): string[] {
+  const { module, errors } = parseSync(`module.${lang}`, source, { lang, sourceType: "module" });
+  if (errors.length > 0) throw new Error(`cannot parse: ${errors[0]!.message}`);
   const found: string[] = [];
-  for (const match of source.matchAll(/(?:^|[;\n])\s*(import|export)\s+(type\s+)?([^;'"`]*?)\s*from\s*["']([^"']+)["']/g)) {
-    const [, , typeOnly, clause, spec] = match;
-    if (typeOnly) continue;
-    const named = clause!.match(/^\{([\s\S]*)\}$/);
-    if (named && named[1]!.split(",").map(part => part.trim()).filter(Boolean).every(part => part.startsWith("type "))) continue;
-    found.push(spec!);
+  for (const record of module.staticImports) if (record.entries.length === 0 || record.entries.some(entry => !entry.isType)) found.push(record.moduleRequest.value);
+  for (const record of module.staticExports) for (const entry of record.entries) if (entry.moduleRequest && !entry.isType) found.push(entry.moduleRequest.value);
+  for (const record of module.dynamicImports) {
+    const literal = source.slice(record.moduleRequest.start, record.moduleRequest.end).match(/^(["'`])([^"'`$]*)\1$/);
+    if (literal) found.push(literal[2]!);
   }
-  for (const match of source.matchAll(/(?:^|[;\n])\s*import\s*["']([^"']+)["']/g)) found.push(match[1]!);
-  for (const match of source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)) found.push(match[1]!);
-  return found;
+  return [...new Set(found)];
 }
 
 function closure(): { files: Map<string, string | null>; node: { spec: string; from: string }[]; ajv: { spec: string; from: string }[] } {
@@ -50,7 +51,7 @@ function closure(): { files: Map<string, string | null>; node: { spec: string; f
   while (queue.length > 0) {
     const file = queue.shift()!;
     if (!/\.tsx?$/.test(file)) continue;
-    for (const spec of valueImports(file)) {
+    for (const spec of valueImports(readFileSync(file, "utf8"), file.endsWith(".tsx") ? "tsx" : "ts")) {
       if (NODE.has(spec)) { node.push({ spec, from: relative(APP, file) }); continue; }
       if (spec === "ajv" || spec.startsWith("ajv/")) { ajv.push({ spec, from: relative(APP, file) }); continue; }
       const next = resolveImport(file, spec);
@@ -67,6 +68,27 @@ function chain(files: Map<string, string | null>, file: string): string {
   for (let at: string | null | undefined = file; at; at = files.get(at)) path.unshift(relative(APP, at));
   return path.join(" -> ");
 }
+
+// The walker must read syntax, not spacing: a missed value import lets ajv or a Node module back into the renderer, and a
+// type query read as a value import fails the guard for nothing (BS review).
+describe("value imports the renderer bundle keeps", () => {
+  it.each([
+    ["import { validateCanvas } from \"../formats/validate\";", ["../formats/validate"]],
+    ["import{validateCanvas}from\"../formats/validate\";", ["../formats/validate"]],
+    ["export{readFileSync}from\"node:fs\";", ["node:fs"]],
+    ["import type { Stats } from \"node:fs\";", []],
+    ["type Stats = import(\"node:fs\").Stats;", []],
+  ])("%s", (source, expected) => {
+    expect(valueImports(source)).toEqual(expected);
+  });
+  it("keeps side-effect, default, mixed and dynamic imports and drops every erased form", () => {
+    expect(valueImports([
+      "import \"./side.css\";", "import def, { type T } from \"./default\";", "import { a, type B } from \"./mixed\";",
+      "import { type C, type D } from \"./types-only\";", "export type * from \"./type-star\";", "export { type E } from \"./type-named\";",
+      "export * from \"./star\";", "const lazy = () => import(\"./lazy\");", "// import x from \"./commented\";",
+    ].join("\n")).sort()).toEqual(["./default", "./lazy", "./mixed", "./side.css", "./star"]);
+  });
+});
 
 describe("renderer import closure", () => {
   it("starts from the renderer's module entry", () => {
