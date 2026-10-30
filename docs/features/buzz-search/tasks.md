@@ -47,7 +47,9 @@
 ## Z. 승격과 정리
 
 - [ ] Z1. `node .agents/skills/verify/scripts/verify.mjs` 통과.
-- [ ] Z2. 결론 승격: PRODUCT §5 항목 1 Quick Open 문단에 바깥 클릭 닫기와 필터 탭(종류 필터, 빈 검색어 Frames 규칙)과 프로젝트 그룹(최고 점수 순)을 더한다. §7 결정 로그에 buzz-search 줄을 더한다(Buzz 기준 커밋 `c40dfdf4`와 참고 파일, 조정 항목, 2026-10-25 'Quick Open footer' 승인의 대체, 공통 결정 10에 따른 `.doan-dialog` 검색 변형 추가). 부모 spec 공통 결정 10에 검색 변형을 한 줄 더한다. ARCHITECTURE 변경 없음을 확인한다. 부모 [tasks.md](../buzz-restyle/tasks.md)의 C4 체크는 병합 뒤 다음 자식 시작 때 한다(부모 '자식 진행 규칙' 1).
+- [ ] Z2. PRODUCT §8 후속 추가: Home에서 일부 프로젝트를 읽는 중이면 Quick Open 결과가 빠진 사실을 알리지 않는다(2026-10-30 critique, 기존 동작).
+  - 검증: `grep -n 'Quick Open' docs/PRODUCT.md`에 §8 줄이 있다.
+- [ ] Z2b. 결론 승격: PRODUCT §5 항목 1 Quick Open 문단에 바깥 클릭 닫기와 필터 탭(종류 필터, 빈 검색어 Frames 규칙)과 프로젝트 그룹(최고 점수 순)을 더한다. §7 결정 로그에 buzz-search 줄을 더한다(Buzz 기준 커밋 `c40dfdf4`와 참고 파일, 조정 항목, 2026-10-25 'Quick Open footer' 승인의 대체, 공통 결정 10에 따른 `.doan-dialog` 검색 변형 추가). 부모 spec 공통 결정 10에 검색 변형을 한 줄 더한다. ARCHITECTURE 변경 없음을 확인한다. 부모 [tasks.md](../buzz-restyle/tasks.md)의 C4 체크는 병합 뒤 다음 자식 시작 때 한다(부모 '자식 진행 규칙' 1).
   - 검증: `grep -n 'buzz-search' docs/PRODUCT.md`에 §7 줄이 있다.
 - [ ] Z3. `docs/features/buzz-search/`를 지운다.
   - 검증: `ls docs/features/buzz-search` 실패.

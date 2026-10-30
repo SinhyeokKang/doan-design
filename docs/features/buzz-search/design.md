@@ -28,11 +28,11 @@
 | 입력 | 돋보기 없음, `body-lg` 20px, 패딩 24/11px, 테두리는 키보드 탐색 모드에서만 보임(평소 투명) | 공용 `.doan-input` 기본 크기(40px, `body`, `--surface-inset` 채움, 포커스 시 `--border-prominent`)와 앞쪽 16px 돋보기. 배치는 Home 프리셋 검색 `.popover-search`와 같다(왼쪽 `--space-3`, 입력 왼쪽 패딩 `--space-3 + --size-icon + --space-2`) | 조정(2026-10-30 user, 초안 2차 비교에서 B안): Buzz 팔레트 입력 대신 앱의 다른 검색 입력과 같은 프리미티브를 쓴다. 모서리 20px가 다이얼로그 12px 안쪽과 동심이다. placeholder는 doan 문구 `Search canvases and frames` 유지 |
 | `esc` 칩·안내줄 | 없음 | 없음(spec 확정 질문 1) | 없음 |
 | 필터 탭 | 없음(Buzz는 범위 칩만 둔다) | 입력 아래 8px에 `All` / `Canvases` / `Frames`. Home 프리셋 그룹 탭(`.group-tabs.shell-modes`, `HomeComposerView.tsx` 468행)과 같은 캡슐·`role="tablist"`·roving tabindex·←/→ 이동 | doan 추가(2026-10-30 user). 아래 '필터 탭' |
-| 결과 영역 | 입력(doan은 탭) 아래 `space-2`, 스크롤 `max-height: min(55vh, …)`(내용 높이), 위쪽 8px 페이드 | 탭 아래 `space-2`, 고정 높이 `height: 55dvh; min-height: 400px`, 위쪽 8px 페이드, `.doan-scroll` | 조정(2026-10-30 user, 초안 7차): 최대 높이 대신 고정 높이라 결과 수와 관계없이 다이얼로그 크기가 같다. Buzz `height="stable"`(검색 목록용 고정 높이)과 같은 취지다. 창이 작아 `128px + 내용`이 창을 넘으면 기본 `.doan-dialog`의 `max-height`·`overflow: auto`로 다이얼로그가 스크롤된다(예: 600px 창). 결과 높이 전환은 고정 높이라 필요 없다 |
-| 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3`, 최소 높이 `space-6 + space-1`(28px), 그룹 사이 `space-6` | 같은 값(`text-unavailable` = neutral-7 = doan `--text-disabled`). 제목은 프로젝트 썸네일 + 프로젝트 이름(아래 '결과 그룹'), 사이 `--space-2` | Buzz는 종류별로 묶고 doan은 프로젝트(root)별로 묶는다(2026-10-30 user) |
+| 결과 영역 | 입력(doan은 탭) 아래 `space-2`, 스크롤 `max-height: min(55vh, …)`(내용 높이), 위쪽 8px 페이드 | 탭 아래 `space-2`, 고정 높이 `height: min(55dvh, 576px); min-height: 400px`, 위쪽 8px 페이드, `.doan-scroll` | 조정(2026-10-30 user, 초안 7차): 최대 높이 대신 고정 높이라 결과 수와 관계없이 다이얼로그 크기가 같다. Buzz `height="stable"`(검색 목록용 고정 높이, 상한 36rem)과 같은 취지다. 상한 576px(= 36rem)은 큰 창에서 몇 개 결과 아래가 비지 않게 한다(critique, 2026-10-30 user). 창이 작아 `128px + 내용`이 창을 넘으면 기본 `.doan-dialog`의 `max-height`·`overflow: auto`로 다이얼로그가 스크롤된다(예: 600px 창). 결과 높이 전환은 고정 높이라 필요 없다 |
+| 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3`, 최소 높이 `space-6 + space-1`(28px), 그룹 사이 `space-6` | 글자 값은 같고 색은 `--text-metadata`(조정, 2026-10-30 user, critique: Buzz `text-unavailable` = neutral-7은 14px에서 3.0:1로 4.5:1에 못 미친다). 제목은 프로젝트 썸네일 + 프로젝트 이름(아래 '결과 그룹'), 사이 `--space-2` | Buzz는 종류별로 묶고 doan은 프로젝트(root)별로 묶는다(2026-10-30 user) |
 | 바깥 클릭 | `dismissOnOutsideClick`(Base UI) | 다이얼로그 사각형 밖에서 누르고 뗀 클릭이면 `dismiss()`(spec 확정 질문 3) | Base UI 대신 doan이 판정한다(아래 순수 함수 6) |
 | 결과 행 | `NavigationItem variant="search"`: 최소 44px, 패딩 12px, 모서리 20px, 아이콘 칸 24px(아이콘 21px), 이름 body-sm 400, 보조 줄 body-sm `text-subtle` | 같은 값, 이름만 `--type-weight-medium`(500). 아이콘은 lucide: 캔버스 `Palette`(LNB 캔버스 행과 같음), 프레임 `Hash`, 21px | 조정(2026-10-30 user): 이름을 한 단계 굵게 해 보조 줄과 위계를 나눈다 |
-| 행 강조 | 키보드·포인터 강조는 `interaction-row-hover`. 결과 목록에 `interaction-panel`이 걸려 있어(SearchChoices.tsx 227행) 그 값은 `affordance-row-hover` = `affordance-subtle`이고, 보조 글자는 `text-subtle` 그대로다(materials.css 153-163행) | `aria-selected` 행에 `--affordance-subtle` | doan에 `interaction-*` 역할이 없어 같은 값의 `--affordance-subtle`을 직접 쓴다 |
+| 행 강조 | 키보드·포인터 강조는 `interaction-row-hover`. 결과 목록에 `interaction-panel`이 걸려 있어(SearchChoices.tsx 227행) 그 값은 `affordance-row-hover` = `affordance-subtle`이고, 보조 글자는 `text-subtle` 그대로다(materials.css 153-163행) | `aria-selected` 행에 `--affordance-selected`(neutral-3) | 조정(2026-10-30 user, critique): Buzz 값(`affordance-subtle`, 흰 바탕 대비 1.09:1)은 Enter로 열릴 대상의 유일한 표시로 너무 옅다. 한 단계 진한 선택 역할을 쓴다(1.23:1, 출시된 Quick Open의 neutral-3과 같다). 공용 메뉴 강조(`--affordance-floating-hover`)보다 한 단계 진하다 |
 | 맞은 글자 | 1px 밑줄, offset 2px, 배경·색 상속 | 같은 값 | 없음 |
 | 빈 결과 | body-sm, `text-subtle`, 좌우 control inset, 목록 위쪽 한 줄 | 같은 글자 값. 고정 높이 목록의 너비·높이를 채우고 가로·세로 가운데 정렬한다. All 탭 문구는 기존 네 가지 그대로, 탭별 문구는 아래 '필터 탭' | 조정(2026-10-30 user, 초안 9차): 고정 높이 목록에서 문구가 위에 붙으면 아래가 비어 보이므로 가운데에 둔다 |
 | 등장 모션 | `motion="default"`: 0.75rem 상승, 220ms, 퇴장 120ms | `.doan-dialog` 모션 규칙과 같은 값 | Buzz DESIGN.md 1218행은 검색 팔레트에 `motion="none"`을 권하지만 실제 코드(`PageSearch.tsx:185`)는 `default`다. 출하된 코드를 따른다 |
@@ -59,7 +59,7 @@
 - 탭을 바꾸면 검색어는 그대로, 첫 행이 활성이 된다.
 - 키보드·포커스: 탭 목록은 고른 탭 하나만 Tab 정지점이고 ←/→로 옮긴다(Home 그룹 탭의 `tabKey`). 탭을 클릭하면 포커스는 입력에 남는다(행처럼 `mousedown` 기본 동작 막기). 입력에서 Tab을 누르면 탭 목록으로, Shift+Tab으로 입력에 돌아온다. ↑/↓/Enter는 지금처럼 입력에서만 처리한다.
 - 접근성: `role="tablist"` `aria-label="Result types"`, 각 탭 `role="tab"` `aria-selected` `aria-controls`=결과 listbox.
-- 빈 결과 문구: 검색어가 있고 결과가 없으면 `All` "No canvases or frames match"(기존), `Canvases` "No canvases match", `Frames` "No frames match". 검색어가 없고 범위에 프레임이 없으면 `Frames` "No frames to show". 읽는 중·사용할 수 없는 프로젝트 문구는 탭과 관계없이 기존 문구다.
+- 빈 결과 문구: 검색어가 있고 결과가 없으면 `All` "No canvases or frames match"(기존), `Canvases` "No canvases match", `Frames` "No frames match". 종류 탭이 모든 결과를 가렸고 다른 종류에는 결과가 있으면 그 수와 위치를 덧붙인다: "No frames match. 1 canvas matches in All.", "No canvases match. 4 frames match in All." 수는 50개 상한 전에 세고, 50을 넘으면 "50+"다. 단수·복수는 1과 그 밖으로 나눈다(critique·harden, 2026-10-30 user: 필터가 모두 가린 상태를 '결과 없음'과 구분한다). 검색어가 없고 범위에 프레임이 없으면 `Frames` "No frames to show". 읽는 중·사용할 수 없는 프로젝트 문구는 탭과 관계없이 기존 문구다.
 
 ## 초안 요청 (`/design-draft`)
 
@@ -76,15 +76,16 @@
   - A: Buzz 팔레트 입력(78px, `body-lg`, 테두리 투명). B: 공용 `.doan-input`과 앞쪽 돋보기.
   - 사용자가 B를 골랐다(초안 3차). 모든 프레임이 B이고 A의 프레임과 CSS는 지웠다. 값은 위 '입력' 행.
 - 초안 4차(2026-10-30 user): 필터 탭(위 '필터 탭')과 결과 이름 500을 더했다.
+- 초안 10차(2026-10-30 user, `harden`·`critique` 점검 반영): 활성 행 `--affordance-selected`, 그룹 제목 `--text-metadata`, 결과 높이 상한 576px, 필터가 모두 가린 상태의 덧붙임 문구. 점검의 5번(Home에서 일부 프로젝트를 읽는 중일 때 결과가 빠졌다는 표시)은 새 동작이라 이 feature에서 하지 않고 승격 때 PRODUCT §8 후속으로 남긴다.
 - 초안 5차(2026-10-30 user): 결과를 프로젝트(root) 단위로 묶었다(위 '결과 그룹'). 행 둘째 줄에서 프로젝트를 뺐다.
-- 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 높이 429px(초안 한정: 780px 창의 `55dvh`를 계산한 값. 구현은 `height: 55dvh`), 최소 높이 400px, 테두리·밑줄 1px.
+- 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 높이 429px(초안 한정: 780px 창의 `55dvh`를 계산한 값. 구현은 `height: min(55dvh, 576px)`), 상한 576px, 최소 높이 400px, 테두리·밑줄 1px.
 - 2026-10-30 user: feature-review보다 초안 확정을 먼저 한다.
 
 ## 순수 함수 (`/tdd` 대상)
 
 1. `matchPositions(label: string, query: string): number[]` (`quickOpen.ts`) — 이름에서 검색어 토큰과 맞은 글자의 코드포인트 위치. 규칙: 검색과 같은 NFC·소문자 정규화, 토큰마다 `tokenScore`와 같은 우선순위로 한 곳을 고른다(접두어 → 단어 시작 → 부분 문자열의 첫 위치). 이름이 아닌 필드(파일 이름, 경로, id)로만 맞은 결과는 빈 배열. NFD 파일 이름처럼 정규화 전후 길이가 다른 경우는 원래 이름 기준 위치로 되돌린다(못 맞추면 빈 배열, 밑줄 없음).
 2. `markRuns(label: string, positions: readonly number[]): { text: string; match: boolean }[]` — 위치를 연속 구간으로 묶는다. 렌더러는 `match` 구간만 `<mark>`로 감싼다.
-3. `searchMatch(index, query, currentRoot, commonOf, kind, openCanvas)` 확장 — `kind: "all" | "canvas" | "frame"`으로 50개 상한 전에 거르고, 빈 검색어에서 `frame`이면 같은 범위의 프레임을 열린 캔버스(`openCanvas`) 먼저, 저장 순서로 돌려준다. `all`·`canvas`의 기존 결과는 바뀌지 않는다(기존 순위 테스트 수정 없이 통과). 탭별 빈 결과 문구를 고르는 `emptyText(kind, query, scope)`도 순수 함수로 뺀다.
+3. `searchMatch(index, query, currentRoot, commonOf, kind, openCanvas)` 확장 — `kind: "all" | "canvas" | "frame"`으로 50개 상한 전에 거르고, 빈 검색어에서 `frame`이면 같은 범위의 프레임을 열린 캔버스(`openCanvas`) 먼저, 저장 순서로 돌려준다. `all`·`canvas`의 기존 결과는 바뀌지 않는다(기존 순위 테스트 수정 없이 통과). 탭별 빈 결과 문구를 고르는 `emptyText(kind, query, scope, otherCount)`도 순수 함수로 뺀다(다른 종류 결과 수로 덧붙임 문구, "50+", 단수·복수).
 4. `groupResults(results, where, proximity)` — 위 '결과 그룹' 규칙으로 `{ title, rows }[]`를 만든다. 점수는 `searchMatch`가 결과와 함께 돌려주도록 넓힌다(지금은 버린다). 사례: 다른 root의 정확한 일치가 현재 root보다 먼저인 경우, 같은 점수의 근접도 순서, 빈 검색어의 저장 순서, 그룹 안 순서 보존.
 5. `resultParts(result, where)` 개편 — `{ icon: "canvas" | "frame"; name; detail; accessibleName }`. 현재의 `glyph`·`context` 문자열 조합을 대체한다. `accessibleName`은 지금 option 텍스트와 같다.
 6. `outsideDialog(rect, x, y): boolean` — 점이 다이얼로그 테두리 사각형 밖인지. 네이티브 모달의 backdrop 클릭은 `event.target`이 `<dialog>` 자신으로 오고, 다이얼로그 패딩 안을 눌러도 target이 같으므로 target만으로는 바깥을 알 수 없다. `pointerdown`과 `click`이 모두 바깥일 때만 닫는다(안에서 입력 텍스트를 드래그해 바깥에서 뗀 경우 닫지 않음). 경계선 위는 안으로 본다.
