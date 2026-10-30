@@ -5,6 +5,30 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-30 — Packaged-app probes failed for reasons of their own: keychain, signature identity and focus
+
+- **Area**: `.scratch/runtime-test/buzz-settings/human*.mjs`, `r2.mjs`; `app/runtime/environment.ts` (`isolatedEnv`); electron-builder output `app/dist/mac-arm64/Doan.app`.
+- **Symptom**: with a real account and real notifications in the packaged app, (1) Codex finished OAuth in the browser but said "credentials could not be saved locally"; (2) the test notification failed at once ("Doan isn't allowed…") though System Settings showed a 'doan' row allowed, and no permission prompt appeared; (3) Playwright-driven pages never received window focus or blur, so focus re-reads looked broken; (4) a banner click also launched a stale PoC copy of the app. A probe also reported a notification PASS from "the window came back" alone.
+- **Root cause**: (1) an isolated `HOME` has no `~/Library/Keychains`, so `codex` (keyring store) and Electron `safeStorage` find no default keychain. (2) The allowed record belonged to the P1 PoC copy, an ad-hoc build re-signed as `design.doan.app`; electron-builder with `identity: null` leaves Electron's ad-hoc signature (identifier `Electron`, another cdhash), which macOS refuses silently. Many LaunchServices registrations of `design.doan.app` (old worktree builds) also let a click open another copy. (3) Playwright enables focus emulation on the pages it drives. (4) The PASS checked a side effect, not the event.
+- **Net**: caught because the user watched the browser and the banner; missed by the probe's own assertions, which looked only at window state.
+- **Prevention**: for a real sign-in, link `<temp HOME>/Library/Keychains` to the real folder (approved real-state change; delete the provider's keyring item and `<App> Safe Storage` afterwards and verify). For notifications, launch through LaunchServices (`open -n … --args --remote-debugging-port --inspect`) a temp copy re-signed with `codesign --force --deep --sign -` (identifier from Info.plist), count `Notification` events in main over the inspector, and `lsregister -u` the copy at the end. Turn focus emulation off (`Emulation.setFocusEmulationEnabled {enabled:false}`) and focus Doan before a Finder round trip. Pass only on the event itself (`show`, `click`), never on window visibility. Grep: `grep -rn 'isolatedEnv\|_electron.launch' .scratch/runtime-test` for probes that need these.
+
+### 2026-10-30 — Doan opened a second Codex sign-in page
+
+- **Area**: `app/src/renderer/agentSignIn.ts` (`AUTO_OPEN`), `app/src/main/onboarding/service.ts` (`AUTO_OPEN`), `app/src/renderer/agentAuthView.ts` (`OPENS_OWN_BROWSER`).
+- **Symptom**: a Codex sign-in from Settings > Agents opened two identical sign-in pages in the browser.
+- **Root cause**: `codex login` opens the default browser itself (its `webbrowser` crate; "If your browser did not open, navigate to this URL"), and Doan also opened the auth URL from the sign-in prompt. The auto-open list assumed only Cursor and Copilot open their own browser; nothing checked what each CLI does.
+- **Net**: caught by the user in a real sign-in. Missed by unit tests, which pinned the double open as intended behaviour, and by every probe that stubbed `agent-auth:open-link`.
+- **Prevention**: Codex is in the open-their-own-browser group in all three lists; tests pin that a Codex prompt opens nothing. Before adding a provider to an auto-open list, run its login once in a real terminal and count pages. Grep: `grep -rn 'AUTO_OPEN\|OPENS_OWN_BROWSER' app/src`.
+
+### 2026-10-30 — A model list read made sign-out ask to stop conversations
+
+- **Area**: `app/src/main/agentAuth/manager.ts` (`acquire`, `running`, `drain`), `app/src/main/conversation/service.ts` (`prepareListing`), `prepare.ts`.
+- **Symptom**: right after a Codex sign-in, Sign out in Settings > Agents showed "Stop Codex conversations? Codex is running a conversation…" although none existed.
+- **Root cause**: Home read the provider's model list right after the sign-in. A list read takes the same account lease as a conversation run, and `stop_required` counted every lease, so the person was asked about conversations that were a background read.
+- **Net**: caught in the packaged app with a real account. Missed by unit tests, which only took conversation leases before signing out.
+- **Prevention**: a lease says its use (`"run" | "listing"`); `stop_required` counts runs only, and sign-out still drains every lease. A new kind of lease (checks, warm starts) must pick its use. Grep: `grep -rn '\.acquire(' app/src/main`.
+
 ### 2026-10-30 — A renderer import of a main module left the built app's window blank
 
 - **Area**: `app/src/renderer/SettingsAbout.tsx`, `app/src/main/about.ts` (split into `aboutView.ts`), `app/src/main/conversation/sessions.ts` (`MINIMUM_VERSIONS` moved to `minimumVersions.ts`), `app/src/formats/validate.ts`.
