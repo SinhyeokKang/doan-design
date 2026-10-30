@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Copy } from "lucide-react";
-import { aboutView, type AboutRead, type AboutRow } from "../main/about";
+import { aboutView, type AboutRead, type AboutRow } from "../main/aboutView";
 import type { Provider } from "../main/agentAuth/types";
 import { AlertIcon } from "./AlertIcon";
 import { providerLogo } from "./homeComposer";
