@@ -91,8 +91,6 @@ The reference for every screen.
 - **Drop scrim value** as above, darker than `bg-scrim`.
 - **Below 3:1 on purpose.** The non-text 3:1 target applies to `border-prominent`, focus rings and pins only. The decorative hairline (`border-standard` `#e8e8e8`, 1.23:1 on white) and fill-edged inputs (`surface-inset` `#f5f5f6`, 1.09:1 on white) follow the reference values.
 - **Subtle buttons on inset bands (interim).** `--affordance-subtle` and `--surface-inset` are both `--neutral-2`, so a subtle button on an inset band loses its resting fill and reads as plain text until hover. Affected: the Review bar and banner (`.review-bar`, `.review-banner`), the status bands (`.ws-status`) and connection details (`.cn-details`: Copy, the default `.ob-chip` pill). The draft `shared-connection-rows` draws the same pairing. Changing a band's surface is a screen-layout decision: `buzz-comment` owns the Review bar and banner; `.ws-status` was assigned to `buzz-home`, which has shipped without changing it, so it has no owner now; `.cn-details` sits in the shared connection rows, which a screen child changes only after asking the user (buzz-restyle spec 10).
-- **`.tree-hint`** keeps 11.5px `text-metadata` and padding 2/12/6/46px against the draft's body-sm `text-warning` and 4/12/8/34px; the `.tree-detail` margin is also the tree host's. Both are left to the project-list child (`buzz-project`).
-- **`.warn-mark` on the current row** turns white with the rest of the row (`text-sidebar-selected`), so the warning colour is lost there; the text mark itself stays.
 - **Hand off dialog scrolls itself.** In a short window the whole dialog scrolls instead of only its list.
 
 ### Shared components and surfaces
@@ -105,7 +103,7 @@ Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-butt
 |---|---|
 | Buttons | 40px default and 32px `sm`, 34px capsule corner, label-sm 14/20 500. Dialog action rows use the default size, every other button `sm`, except FirstPrompt's Copy (default size, as drawn) and sidebar row actions (a compact local size). |
 | Icon buttons | 32px (40px `md`), 18px corner, 10px in the window header (`chrome`). |
-| Floating material | 24px corner (16px compact), 4px inset (2px), 90% white with an 8px blur; menu rows 32px with a 19px corner (13px compact). **Open for review:** shared menu row CSS (32px minimum, 8px block padding, 20px line height) computes 36px against this 32px contract. The project menu reaches 32px with local 6px block insets. |
+| Floating material | 24px corner (16px compact), 4px inset (2px), 90% white with an 8px blur; menu rows 32px (6px block insets around the 20px line, pinned in `ds/controls.test.ts`) with a 19px corner (13px compact). |
 | Dialog | 28px corner, 32px padding, 16px between parts; compact 400px centred; standard 640px, wide 880px and expanded 1152px 128px from the top. |
 | Spinner | 16px. |
 | Text fields | 40px (32px `sm`), 20px corner, inset fill with a reserved 1px border that turns `border-prominent` on focus and `border-danger` when invalid. |
@@ -130,7 +128,7 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 
 **Context, not component.** Panel sizes (the panel is definition-only), the expanded dialog's height (the draft draws a 440px mock window), `min-height` of a draft `div` versus a native `<dialog>`, the scroll sample box, inherited type on text-less icon buttons and on the menu surface, Project Setup at 544px in the anatomy column versus 640px in the app, the toast at 298px in a narrow draft tile versus 384px, and every shared-element row whose width, card padding or `err` class comes from a real parent.
 
-**Not verified.** `canvas-marks` and `accent-places` are not design-sync frames by the draft's own description; their selector map is checked by `accentPlaces`, `contrastPairs` and `edgeStripes`. The pin focus ring and the comment card conflict block have no running check. Lucide icon stroke weight at 16px was not compared with the draft's inline icons. In `shared-error-details`, the Comments status block, its actions and the opened detail match; `.tree-hint` and `.tree-detail` are the exception above.
+**Not verified.** `canvas-marks` and `accent-places` are not design-sync frames by the draft's own description; their selector map is checked by `accentPlaces`, `contrastPairs` and `edgeStripes`. The pin focus ring and the comment card conflict block have no running check. Lucide icon stroke weight at 16px was not compared with the draft's inline icons. In `shared-error-details`, the Comments status block, its actions and the opened detail match.
 
 **Known console warning.** Production logs a pre-existing Radix inline-style CSP warning with exact hash `nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=` when the worktree menu invokes react-remove-scroll-bar; DEV logs none. No CSP permission was broadened for it. The menu stays operable; scroll-lock behaviour under it is not verified.
 
@@ -142,7 +140,7 @@ Reference: `.doan/canvases/buzz-shell.html`, measured beside the implementation 
 
 **Sidebar.** 260px wide, 8px top padding and 12px gap. Search at x16/y64, 244×36px, 10px inline inset, subtle ink. Projects heading at y112, 24px tall, 10/16 with 0.08em tracking. First project at y140. Project and canvas rows 32px with 10px inline insets and body-sm tracking. Project thumbnail 16×16px at x26, 600 weight, 16px line height (identity colours: Onboarding, 'Project thumbnails'). Project name 14/20/500, tracking −0.035px, standard ink; long names ellipsize. The 4px space below the project row and the badge/options geometry match the default specimen. The empty-project paragraph has 6/10/10/34px padding and a 16px line height.
 
-**Project menu.** Actions 32px via local 6px block insets; shared 12px inline insets, 14/20 text, 19px row corner and 24px/90%-white floating material. The chosen worktree has the neutral pressed fill independently of keyboard focus; leading icons use subtle ink. The path is 11/14 with 4px separation. A two-line worktree row is 54px (draft 51px) because the shared name typography stays 14/20. Menu heading and separator insets keep the shared values. At 960×600 a bottom long menu opens upward at (16,8), 512px high, with 767px of content in a 510px client area, and End reaches its final action; Escape restores trigger focus. Native overlay scrollbars can temporarily cover the trigger's outer edge.
+**Project menu.** Actions use the shared 32px row; shared 12px inline insets, 14/20 text, 19px row corner and 24px/90%-white floating material. The chosen worktree has the neutral pressed fill independently of keyboard focus; leading icons use subtle ink. The path is 11/14 with 4px separation. A two-line worktree row is 50px (draft 51px) because the shared name typography stays 14/20. Menu heading and separator insets keep the shared values. At 960×600 a bottom long menu opens upward at (16,8), 512px high, with 767px of content in a 510px client area, and End reaches its final action; Escape restores trigger focus. Native overlay scrollbars can temporarily cover the trigger's outer edge.
 
 **Retained differences.** Ordinary ellipsis icon buttons keep 18px corners; icon-button zero padding keeps 16px glyphs centred; Search keeps the shared outward focus ring (+2px) rather than the draft's −2px; project-name/canvas text wrappers keep live flex/intrinsic sizing; the tree and menu keep functional ARIA roles and ellipsis; menus keep the shared 24px/19px corners. The project identity palette follows the hashed-name rule, so differing fixture names are not colour regressions. The missing-project recovery strip (with Locate, Remove and Go Home) is preserved as ARCHITECTURE §7 requires; it differs from the draft's minimum-window notice (50px/12px height/radius versus 47px/0px, different actions), and that difference is not permission to remove the actions. A minimum no-strip capture is not equivalence evidence for the draft's missing-project state; fixture counts, whole-list positions and total menu height are not claimed to match.
 
@@ -309,30 +307,13 @@ Reference: `.doan/canvases/projects-home.html` (eight frames).
 
 ## Design navigation
 
-> buzz-ds 이전 (tree and Overview; Quick Open is measured on the design system). Owner: `buzz-project`, which removes the mark.
+> buzz-ds 이전 (Overview; Quick Open is measured on the design system). Owner: `buzz-project`, which removes the mark.
 
 Reference: `.doan/canvases/design-nav.html` (frames `workspace-tree`, `tree-rows`, `overview`, `overview-empty`, `quick-open`, `frame-highlight`, `toasts`) and, for Quick Open, `.doan/canvases/buzz-search.html`.
 
-### Tree
-
-This subsection describes the `Sidebar` component in `Sidebar.tsx`; App renders `ShellSidebar`, not `Sidebar.tsx`.
-
-| Element | Measured contract | Reason |
-|---|---|---|
-| Rows | Rows 26px, canvas rows 44px two-line; level indent 14px; current row with a 2px bar (`::before`); selected mark a 7px hollow diamond; Select slot 11px button | |
-| Selected element row | Padding-left 74px under a level-3 frame (`32 + level × 14`) | Pinned by a Sidebar unit test. |
-| Row action slot | Shown on hover and on keyboard focus (`:focus-visible`) only | With `:focus-within`, a clicked row kept its Select up beside the hovered row's. Unpinned. |
-| Frame without id or title | "(no id)" in the dimmer fallback label colour | Unpinned by computed colour; the Sidebar unit test checks only the `.no-id` class. |
-| Jump highlight | 2px border with a 3px halo; animates its hold and fade | Reads as a transient mark, never as the selection. Its 1.2s timing is pinned in `CanvasController.test.ts`. |
-| Row error | `⚠` (`.row .warn-mark`, `aria-hidden`) replaces the count badge; the sentence is `p.tree-hint.warn`, linked by `aria-describedby`, inset `18 + level × 14` px (46px at level 2, 32px at level 1); Details (`aria-label` "Details", `aria-expanded`) shows `<code>: <message>` in `p.tree-detail` (the `ls` message is `Cannot read <path>: <cause>`). The Details button sits inside the tree in a `role="none"` wrapper and is a Tab stop. The "no data-doan-frame" hint is hidden on `error` rows | Draft `tree-errors` (project-feedback canvas); see also `.tree-hint` under Intended exceptions. |
-
-Roles: `tree` "Canvases"; rows `treeitem` with `aria-level` (Overview 1, folders and canvases by depth, frames one deeper), `expanded` on folders and canvases; frame rows "1 Plans", the selected one "2 Upgrade, selected in canvas", an id-less one "3 (no id)"; Chromium reports the focused row as `selected=true` (selection follows focus) since rows set no `aria-selected`. Select slot `button` "Select Card form" (`disabled` on a closed canvas's frame); the selected mark is hidden; the selected element row is a `generic` with static text, not a tree item; the frame-less hint a `paragraph`; the jump highlight a `generic` with no name.
-
-Order: cards and tree rows sort by display name (PRODUCT §5 item 3, Design navigation).
-
-Not verified: the typeahead, long-row, duplicate-id and truncated-hint tiles of `tree-rows`; the reduced-motion highlight; computed styles of the tree error row against its draft frame; the level-1 tree inset in the real window; closing Details.
-
 ### Overview
+
+Order: cards sort by display name (PRODUCT §5 item 3, Design navigation).
 
 | Element | Measured contract | Reason |
 |---|---|---|
