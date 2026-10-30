@@ -87,6 +87,8 @@ const mocks = await vi.hoisted(async () => {
     nativeTheme: { themeSource: "system" },
     // Folder work the Add Projects page and onboarding share; each delegates to the real module unless a test says otherwise.
     projects: { canonicalFolder: vi.fn(), inspectPath: vi.fn(), selectProject: vi.fn(), cloneDestination: vi.fn(), cloneProject: vi.fn() },
+    probeShell: vi.fn(),
+    runAgentSetup: vi.fn(), osascriptAdmin: vi.fn(),
   };
 });
 
@@ -110,7 +112,8 @@ vi.mock("./conversation/service", async (importOriginal) => {
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/completion", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/completion")>(), readCompletion: mocks.readCompletion }));
-vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: vi.fn(async () => ({ ok: false })) }));
+vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: mocks.probeShell }));
+vi.mock("./agentSetup/runner", () => ({ runAgentSetup: mocks.runAgentSetup, osascriptAdmin: mocks.osascriptAdmin }));
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./folderStore", () => ({ readFoldersFileForPruning: mocks.readFoldersFileForPruning }));
@@ -127,6 +130,12 @@ const actualProjects = await vi.importActual<typeof import("./onboarding/project
 // What onboarding.json holds at launch; a describe sets it in beforeAll, before each launch reads it.
 let launchCompletion: { kind: string; projectRoot?: string } = { kind: "missing" };
 const COMPLETE = { kind: "complete", projectRoot: "/repo" };
+// What the launch's login-shell probe answers and what its agent setup resolves to; a describe sets them in beforeAll.
+// A held setup stays pending until the test settles it, as while the administrator dialog is open.
+let launchProbe: unknown = { ok: false, reason: "Login shell failed." };
+let launchSetup: unknown = { home: "/Users/you", items: [], steps: [] };
+const HELD = Symbol("held");
+let settleSetup: (value: unknown) => void = () => {};
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -134,6 +143,8 @@ beforeEach(async () => {
   mocks.Window.instances.length = 0;
   mocks.ipc.clear();
   mocks.readCompletion.mockReturnValue(launchCompletion);
+  mocks.probeShell.mockResolvedValue(launchProbe);
+  mocks.runAgentSetup.mockReturnValue(launchSetup === HELD ? new Promise(resolve => { settleSetup = resolve; }) : Promise.resolve(launchSetup));
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
   mocks.readFoldersFileForPruning.mockResolvedValue(entries.map((entry) => entry.path));
@@ -1972,5 +1983,26 @@ describe("settings page", () => {
     expect(window().show).toHaveBeenCalledOnce();
     expect(window().webContents.send).toHaveBeenLastCalledWith("settings-page:open", { section: "agents", provider: "codex" });
     expect(window().show.mock.invocationCallOrder[0]).toBeLessThan(window().webContents.send.mock.invocationCallOrder.at(-1)!);
+  });
+});
+
+// zero-setup-agents: agent setup runs once per launch, beside the window.
+describe("agent setup on launch", () => {
+  test("runs the runner once with the launch's HOME, bundle, packaging, SHELL, userData and the administrator dialog", async () => {
+    await vi.waitFor(() => expect(mocks.runAgentSetup).toHaveBeenCalledOnce());
+    expect(mocks.runAgentSetup).toHaveBeenCalledWith({ home: process.env.HOME, resources: process.resourcesPath, isPackaged: true, loginPath: null,
+      shell: process.env.SHELL ?? "", userData: "/tmp/doan-index-test", runAdmin: mocks.osascriptAdmin });
+    await invoke("about:read", window().webContents, null);
+    await invoke("about:copy", window().webContents, null);
+    expect(mocks.runAgentSetup).toHaveBeenCalledOnce();
+  });
+
+  describe("with a login shell that answers", () => {
+    beforeAll(() => { launchProbe = { ok: true, path: "/Users/you/.local/bin:/usr/bin:/bin" }; });
+    afterAll(() => { launchProbe = { ok: false, reason: "Login shell failed." }; });
+    test("the runner gets the login shell's PATH", async () => {
+      await vi.waitFor(() => expect(mocks.runAgentSetup).toHaveBeenCalledOnce());
+      expect(mocks.runAgentSetup.mock.calls[0]?.[0]).toMatchObject({ loginPath: "/Users/you/.local/bin:/usr/bin:/bin" });
+    });
   });
 });

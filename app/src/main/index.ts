@@ -14,6 +14,7 @@ import { PROVIDER_AUTH } from "./agentAuth/providers";
 import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
 import { probeShell, runProcess } from "./onboarding/machine";
+import { osascriptAdmin, runAgentSetup } from "./agentSetup/runner";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
 import { projectLocks, type AdderProjects } from "./onboarding/projectAdder";
 import { ADD_PAGE_CHANNELS, AddPageSession } from "./addPage";
@@ -579,6 +580,15 @@ async function start(): Promise<void> {
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
   const shellForFacts = sharedShell(() => probeShell(process.env));
+  // Agent setup (zero-setup-agents design '언제, 어떤 복사본이 쓰는가'): once per launch, beside the window rather than
+  // before it.
+  const agentSetup = shellForFacts().then(probe => runAgentSetup({
+    home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged, loginPath: probe.ok ? probe.path : null,
+    shell: process.env.SHELL ?? "", userData, runAdmin: osascriptAdmin,
+  })).catch((error: unknown) => {
+    console.error("doan: agent setup failed", error);
+    return { home: homeDirectory(), items: [] };
+  });
   if (agentAuth) {
     authIpc = new AuthIpc({
       backend: agentAuth, openExternal: url => electronShell.openExternal(url),
