@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { useEffect, useReducer, useRef, useState, type ReactNode, type RefObject } from "react";
 import { leaveLocked } from "./addProjectsNav";
 import { ProjectScreen, useProjectFocus } from "./Onboarding";
 import { addPageApi, ProjectStepSession } from "./projectStep";
@@ -16,6 +16,9 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
   onState(report: AddPageReport): void; onCancel(): void; onAdded(root: string): void;
 }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // The `choose` already answered. Kept here, not in the body, so a ⌘O pressed before the session was read still
+  // runs Choose folder once the body mounts.
+  const chosen = useRef(choose);
   useEffect(() => {
     let current = true;
     window.doan.readAddPage().then(reply => { if (current && reply.ok && reply.op === "status") setSessionId(reply.result.sessionId); }).catch(console.error);
@@ -25,13 +28,13 @@ export function AddProjectsPage({ header, sidebar, projects, homeDirectory, main
     {header}
     {sidebar}
     <main className="home-panel add-panel doan-scroll" aria-labelledby="add-page-title">
-      {sessionId !== null && <PageBody sessionId={sessionId} projects={projects} homeDirectory={homeDirectory} mainCheckout={mainCheckout} choose={choose} onState={onState} onCancel={onCancel} onAdded={onAdded} />}
+      {sessionId !== null && <PageBody sessionId={sessionId} projects={projects} homeDirectory={homeDirectory} mainCheckout={mainCheckout} choose={choose} chosen={chosen} onState={onState} onCancel={onCancel} onAdded={onAdded} />}
     </main>
   </div>;
 }
 
-function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, onState, onCancel, onAdded }: {
-  sessionId: string; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean; choose: number;
+function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, chosen, onState, onCancel, onAdded }: {
+  sessionId: string; projects: readonly string[]; homeDirectory: string | null; mainCheckout: (path: string) => boolean; choose: number; chosen: RefObject<number>;
   onState(report: AddPageReport): void; onCancel(): void; onAdded(root: string): void;
 }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
@@ -60,10 +63,9 @@ function PageBody({ sessionId, projects, homeDirectory, mainCheckout, choose, on
     requestAnimationFrame(() => heading.current?.focus());
     return () => session.dispose();
   }, []);
-  const opened = useRef(choose);
   useEffect(() => {
-    if (choose === opened.current) return;
-    opened.current = choose;
+    if (choose === chosen.current) return;
+    chosen.current = choose;
     if (session.state.phase.kind === "choose") openPicker(() => void session.chooseFolder());
   }, [choose]);
   const p = session;

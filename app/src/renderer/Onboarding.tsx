@@ -374,7 +374,8 @@ export function projectFocusNode(input: {
   if (!root || (active && active !== input.body && active.isConnected && !active.matches(":disabled"))) return null;
   const target = projectFocusTarget(state, input.agentReady);
   const node = target === "action" ? recoveryControl(root.querySelector(".ob-scene button:not(:disabled), .ob-scene input:not(:disabled)"))
-    : root.querySelector(`.ob-scene .ob-project-notice[role="${target}"]`);
+    // A drop notice tells what a drop did and never takes focus, so the error after it is the one announced.
+    : root.querySelector(`.ob-scene .ob-project-notice[role="${target}"]:not(.ob-drop-notice)`);
   return node ?? input.heading;
 }
 // Within the Project step, a phase change that took the focused control away hands focus on, never to <body>; first

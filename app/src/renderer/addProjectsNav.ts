@@ -1,5 +1,4 @@
 import type { ProjectPhase } from "./projectStep";
-import { editableTarget } from "./selection";
 
 // Where the Add Projects page goes when it is left (buzz-add-projects design '화면과 이동'). The origin is the last
 // Projects-side screen, not the previous one, so a later Settings tab cannot become the return target.
@@ -27,9 +26,17 @@ export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots:
   return origin.screen === "workspace" && roots.includes(origin.root) ? { kind: "workspace", root: origin.root } : { kind: "home", select: null };
 }
 
-// An IME may hold Escape without setting isComposing; keyCode 229 is its own key then (homeComposer isSubmitKey).
+// Only a field you type into holds Escape (design '화면과 이동': the URL field, an IME composition); a focused radio of
+// the candidates list does not. An IME may hold Escape without setting isComposing; keyCode 229 is its own key then
+// (homeComposer isSubmitKey).
+const UNTYPED = new Set(["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"]);
+function typing(target: unknown): boolean {
+  if (typeof target !== "object" || target === null || !("tagName" in target)) return false;
+  if (target.tagName === "TEXTAREA" || ("isContentEditable" in target && target.isContentEditable === true)) return true;
+  return target.tagName === "INPUT" && !UNTYPED.has("type" in target && typeof target.type === "string" ? target.type : "text");
+}
 export function pageEscape(event: { target: unknown; isComposing: boolean; keyCode: number }, overlay: boolean): AddPageEvent {
-  return { kind: "escape", editing: editableTarget(event.target) || event.isComposing || event.keyCode === 229, overlay };
+  return { kind: "escape", editing: typing(event.target) || event.isComposing || event.keyCode === 229, overlay };
 }
 
 // Selecting writes the project and a clone runs until it ends or is cancelled; neither result may be dropped, so the

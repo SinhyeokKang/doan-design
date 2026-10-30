@@ -161,7 +161,7 @@ export class ProjectStepSession {
     });
   }
   useListed(): Promise<void> { const path = this.state.listChoice; return path ? this.act(() => this.inspectPath(path)) : Promise.resolve(); }
-  findRepository(): Promise<void> { return this.act(() => this.inspectUrl()); }
+  findRepository(): Promise<void> { this.clearDropNotice(); return this.act(() => this.inspectUrl()); }
   changeDestination(): Promise<void> {
     return this.act(async () => {
       const p = this.state.phase;

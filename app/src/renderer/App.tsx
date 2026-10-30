@@ -471,6 +471,9 @@ export function App() {
     choose(pendingAdd); setHighlight([pendingAdd]); setPendingAdd(null);
   }, [entries, pendingAdd]);
   const pageReport = (report: AddPageReport) => {
+    // A move started on the page before the lock (a project still being read, a row reading its worktrees'
+    // activity) would otherwise land after it and leave the page mid-clone.
+    if (report.locked && !pageRef.current.locked) { navigationIntent.current++; controller.current?.cancelWorkspaceOpen(); }
     pageRef.current = { ...pageRef.current, ...report };
     setPage(previous => ({ ...previous, ...report }));
   };
@@ -483,16 +486,17 @@ export function App() {
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || currentScreen.current !== "addProjects") return;
-      live.current.leavePage(pageEscape(event, live.current.modal || !!document.querySelector('dialog[open], [role="menu"]')));
+      live.current.leavePage(pageEscape(event, live.current.modal || !!document.querySelector('dialog[open], [role="menu"], [role="tooltip"]')));
     };
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
   }, []);
-  // Only the Open a local folder card takes a drop. Elsewhere the window refuses it, so the cursor shows no drop and
-  // the window never opens the file; a target that took the drag has already prevented the default.
+  // Only the Open a local folder card takes a file drop. Elsewhere the window refuses files, so the cursor shows no
+  // drop and the window never opens the file; a target that took the drag has already prevented the default. Text
+  // and links are left to the fields that take them.
   useEffect(() => {
     const refuse = (event: DragEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || !Array.from(event.dataTransfer?.types ?? []).includes("Files")) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
     };
