@@ -27,6 +27,9 @@ import type { ReviewMarker } from "../comments/review";
 import type { FolderEntry } from "../main/view";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
+import type { AddPageResponse, AddPageState } from "../main/addPage";
+
+export type { AddPageResponse, AddPageState };
 
 // Events with a current value: the value is asked for too, because the first
 // event can come before the listener. An event that arrives first wins.
@@ -153,7 +156,34 @@ const api = {
   // Resolves after the clipboard write settled.
   copyFirstPrompt: (root: string, subject: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root, subject }),
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
+  // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
+  // The Add Projects page's project session: the onboarding session's project calls and DTOs on channels of its own,
+  // with no agents, completion, CLI or MCP. Without a request the read answers the current state and its sessionId;
+  // with one it is the session's status (session_stale for another session).
+  readAddPage: (request?: { sessionId: string; operationId?: string }): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:read", request ?? {}),
+  inspectAddPageProject: (request: SessionRequest<OnboardingProjectInspectRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:inspect", request),
+  // initialize: true is the user's consent to the inspection's planned changes.
+  selectAddPageProject: (request: SessionRequest<OnboardingProjectSelectRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:select", request),
+  cloneAddPageProject: (request: SessionRequest<OnboardingProjectCloneRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:clone", request),
+  cancelAddPageOperation: (request: SessionRequest<OnboardingCancelRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:cancel", request),
+  onAddPageSession(listener: (state: AddPageState) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, state: AddPageState) => listener(state);
+    ipcRenderer.on("add-projects:changed", receive);
+    return () => ipcRenderer.removeListener("add-projects:changed", receive);
+  },
+  // File > Add Project… (⌘O): open the page, or its Choose folder when the page shows its choose phase. Main has
+  // already shown a hidden window.
+  onOpenAddProjects(listener: () => void): () => void {
+    const receive = () => listener();
+    ipcRenderer.on("add-projects:open", receive);
+    return () => ipcRenderer.removeListener("add-projects:open", receive);
+  },
+  // A dropped item's disk path, for the page's inspect; null for a file the page made itself.
+  droppedPath(file: File): string | null {
+    const path = webUtils.getPathForFile(file);
+    return path === "" ? null : path;
+  },
   // Home chips, banner and Finish card; null only if main refused.
   setupStatus: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:status"),
   checkSetupAgain: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:check-again"),

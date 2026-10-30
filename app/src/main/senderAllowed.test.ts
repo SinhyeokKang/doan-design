@@ -57,3 +57,14 @@ test("restricts every onboarding session request channel to main", () => {
   expect(requests.filter(channel => !mainOnly.includes(channel))).toEqual([]);
   for (const channel of requests) expect(senderAllowed(channel, "settings")).toBe(false);
 });
+// buzz-add-projects: the Add Projects page's session is the main window's; Settings has no Add Projects page.
+test("restricts every Add Projects page request channel to main", async () => {
+  const { ADD_PAGE_CHANNELS } = await import("./addPage");
+  const requests = Object.values(ADD_PAGE_CHANNELS).filter(channel => channel !== ADD_PAGE_CHANNELS.changed && channel !== ADD_PAGE_CHANNELS.open);
+  expect(requests).toEqual(["add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel"]);
+  for (const channel of requests) {
+    expect(senderAllowed(channel, "main"), channel).toBe(true);
+    expect(senderAllowed(channel, "settings"), channel).toBe(false);
+  }
+  for (const event of [ADD_PAGE_CHANNELS.changed, ADD_PAGE_CHANNELS.open]) for (const kind of ["main", "settings"]) expect(senderAllowed(event, kind)).toBe(false);
+});

@@ -14,6 +14,8 @@ const mainOnly = new Set([
   "design-skills:list", "design-skills:get",
   // buzz-home: Home attachments; Settings has no composer.
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
+  // buzz-add-projects: the Add Projects page's project session; Settings has no such page.
+  "add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel",
 ]);
 const shared = new Set([
   "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",

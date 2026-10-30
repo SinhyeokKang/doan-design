@@ -391,3 +391,41 @@ test("design skills read through two fixed channels and pass the id as data", as
   expect(mocks.invoke).toHaveBeenLastCalledWith("design-skills:get", { id: "clarify" });
   expect(Object.keys(api.designSkills).sort()).toEqual(["get", "list"]);
 });
+
+// buzz-add-projects: the page's project session mirrors the onboarding session's project calls on its own channels.
+test("Add Projects page calls use their own fixed channels and pass the request as data", async () => {
+  const ids = { sessionId: "s", requestId: "r" };
+  await api.readAddPage(); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:read", {});
+  await api.readAddPage({ sessionId: "s", operationId: "o" }); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:read", { sessionId: "s", operationId: "o" });
+  await api.inspectAddPageProject({ ...ids, path: "/work/studio" }); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:inspect", { ...ids, path: "/work/studio" });
+  await api.inspectAddPageProject({ ...ids, url: "https://github.com/acme/studio", destination: "/work/studio" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:inspect", { ...ids, url: "https://github.com/acme/studio", destination: "/work/studio" });
+  await api.selectAddPageProject({ ...ids, inspectionId: "i", path: "/work/studio", initialize: true });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:select", { ...ids, inspectionId: "i", path: "/work/studio", initialize: true });
+  await api.cloneAddPageProject({ ...ids, inspectionId: "i", destination: "/work/studio" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:clone", { ...ids, inspectionId: "i", destination: "/work/studio" });
+  await api.cancelAddPageOperation({ ...ids, operationId: "o" }); expect(mocks.invoke).toHaveBeenLastCalledWith("add-projects:cancel", { ...ids, operationId: "o" });
+  // The folder sheet is first run's, which belongs to no session.
+  await api.chooseOnboardingFolder("project"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:choose-folder", "project");
+});
+
+test("Add Projects page changes and the menu's open request are subscriptions that unsubscribe", () => {
+  const changed = vi.fn(); const stopChanged = api.onAddPageSession(changed);
+  const open = vi.fn(); const stopOpen = api.onOpenAddProjects(open);
+  const state = { sessionId: "s", revision: 1, project: null, operations: [] };
+  emitter.emit("add-projects:changed", {}, state);
+  emitter.emit("add-projects:open", {});
+  expect(changed).toHaveBeenCalledExactlyOnceWith(state);
+  expect(open).toHaveBeenCalledOnce();
+  expect(open.mock.calls[0]).toEqual([]);
+  stopChanged(); stopOpen();
+  expect(emitter.listenerCount("add-projects:changed")).toBe(0);
+  expect(emitter.listenerCount("add-projects:open")).toBe(0);
+});
+
+test("a dropped item's disk path is read in the preload; one the page made itself has none", () => {
+  mocks.pathForFile.mockImplementation((file) => (file as { name: string }).name === "folder" ? "/work/studio" : "");
+  expect(api.droppedPath({ name: "folder" } as unknown as File)).toBe("/work/studio");
+  expect(api.droppedPath({ name: "made-in-page" } as unknown as File)).toBeNull();
+  expect(mocks.invoke).not.toHaveBeenCalled();
+});
