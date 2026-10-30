@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-30 — Timing tests failed under machine load because their waits matched or beat the test limit
+
+- **Area**: `app/vitest.config.ts`, `app/src/main/shell.test.ts`, `watch.test.ts`, `agentAuth/manager.test.ts`, `app/src/renderer/quickOpen.test.ts`, `app/runtime/harness.test.ts`.
+- **Symptom**: at load averages of 11–30 (browser, design tool and Orca running), the shared verify gate failed in two to five tests per run, a different set each time, on main as well as on branches. The same tests passed alone.
+- **Root cause**: main-process tests wait up to 5 s with `vi.waitFor` for spawned CLI reads and file watchers, and Vitest's default test limit is also 5 s, so any slowdown ended the test before its own wait. Seven workers on eight cores each spawned children and starved each other. A sign-in test set a 40 ms link timeout below the 100 ms link poll; the harness fixture's 3 s outer kill guard was shorter than starting node and loading `harness.ts` under load; the Quick Open budget judged a single wall-clock run.
+- **Net**: alternating full-suite runs: 11 failures in 4 runs before, 5 after the limit and worker changes (at higher load); the remaining Quick Open failure is judged by the fastest of three runs.
+- **Prevention**: keep a test's limit well above every wait inside it; keep component timeouts above the poll that feeds them; judge wall-clock budgets by the fastest of several runs; treat outer kill timers as hang guards with generous values. When the gate fails only under load, compare against main before blaming the change.
+
 ### 2026-10-30 — Renaming the bundle to Doan left "About/Hide/Quit doan" in the menu, and the window title was never Doan Design
 
 - **Area**: `app/src/main/index.ts` (app menu, main `BrowserWindow`), `app/src/renderer/index.html` (`<title>`), `app/package.json` (`productName`).
