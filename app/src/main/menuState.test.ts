@@ -18,9 +18,10 @@ describe("menuState", () => {
     for (const screen of ["home", "workspace", "canvas"] as const) expect(menuState(screen, false, true).undoRemove).toBe(true);
   });
 
-  test("an open modal disables everything", () => {
+  // buzz-settings design '메뉴': Settings… is a page move now, so a modal disables it too.
+  test("an open modal disables everything, Settings… included", () => {
     for (const screen of ["home", "workspace", "canvas"] as const) {
-      expect(menuState(screen, true, true)).toEqual({ addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: true, resolvedNav: false });
+      expect(menuState(screen, true, true)).toEqual({ addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: false, resolvedNav: false });
     }
   });
 });
@@ -62,8 +63,8 @@ describe("Add Projects page", () => {
     for (const screen of ["home", "workspace", "canvas"] as const) expect(menuState(screen, false, false, { ...main, choose: false }).addProject, screen).toBe(true);
   });
 
-  test("locked disables every item that leaves the page, and keeps Settings…", () => {
-    const locked = { addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: true, resolvedNav: false };
+  test("locked disables every item that leaves the page, Settings… included", () => {
+    const locked = { addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: false, resolvedNav: false };
     expect(menuState("addProjects", false, true, { ...main, choose: true, locked: true, reviewing: true })).toEqual(locked);
     expect(menuState("addProjects", false, false, { ...main, locked: true })).toEqual(locked);
     expect(menuState("addProjects", false, false, { ...main, choose: true, locked: false }).addProject).toBe(true);
@@ -72,7 +73,35 @@ describe("Add Projects page", () => {
 
   test("an open modal and a focused Settings window disable the page's items as before", () => {
     const off = { addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: true, resolvedNav: false };
-    expect(menuState("addProjects", true, true, { ...main, choose: true })).toEqual(off);
+    expect(menuState("addProjects", true, true, { ...main, choose: true })).toEqual({ ...off, settings: false });
     expect(menuState("addProjects", false, true, { wizardOpen: false, focusedWindow: "settings", choose: true })).toEqual(off);
+  });
+});
+
+// buzz-settings design '메뉴' and '잠금': the Settings page is a screen of its own. Settings… there focuses the category
+// title again, Add Project… moves to the Add Projects page, and `locked` is the page's write or confirmation.
+describe("settings page", () => {
+  const main = { wizardOpen: false, focusedWindow: "main" as const };
+  test("Settings…, Add Project…, Home and Quick Open stay; no canvas items, no Review items", () => {
+    expect(menuState("settings", false, false, main)).toEqual({ settings: true, addProject: true, home: true, canvasView: false, undoRemove: false, quickOpen: true, resolvedNav: false });
+    expect(menuState("settings", false, false, { ...main, reviewing: true, choose: true })).toEqual({ settings: true, addProject: true, home: true, canvasView: false, undoRemove: false, quickOpen: true, resolvedNav: false });
+    expect(menuState("settings", false, true, main).undoRemove).toBe(true);
+  });
+
+  test("a locked Settings page disables everything that leaves it, Settings… included", () => {
+    const off = { settings: false, addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, resolvedNav: false };
+    expect(menuState("settings", false, true, { ...main, locked: true })).toEqual(off);
+    expect(menuState("settings", true, false, main)).toEqual(off);
+  });
+
+  test("the Add Projects page's lock disables Settings… so the page cannot be left for Settings", () => {
+    expect(menuState("addProjects", false, false, { ...main, choose: true, locked: true }).settings).toBe(false);
+    expect(menuState("addProjects", false, false, { ...main, choose: true }).settings).toBe(true);
+  });
+
+  test("first run still disables Settings… on every screen, the Settings page included", () => {
+    for (const screen of ["home", "workspace", "canvas", "addProjects", "settings"] as const) {
+      expect(menuState(screen, false, false, { wizardOpen: true, focusedWindow: "main" }).settings, screen).toBe(false);
+    }
   });
 });

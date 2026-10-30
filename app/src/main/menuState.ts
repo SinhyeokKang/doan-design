@@ -1,4 +1,4 @@
-export type Screen = "home" | "workspace" | "canvas" | "addProjects";
+export type Screen = "home" | "workspace" | "canvas" | "addProjects" | "settings";
 
 export interface MenuEnabled {
   settings: boolean;
@@ -17,9 +17,12 @@ export interface MenuEnabled {
 // canvas open. An open modal disables main-window actions so the window
 // cannot act behind it.
 // `addProjects` is the Add Projects page: Add Project… opens its Choose folder, so only in its choose phase (`choose`).
-// `locked`: the page's selecting and cloning phases, which nothing may leave (buzz-add-projects design '잠금').
+// `settings` is the Settings page: Settings… there focuses its category title again, Add Project… moves to Add Projects.
+// `locked`: a page phase nothing may leave — Add Projects' selecting and cloning (buzz-add-projects design '잠금'),
+// Settings' writes and confirmations (buzz-settings design '잠금'). Settings… is a page move, so a lock or a modal
+// disables it too.
 export function menuState(screen: Screen, modalOpen: boolean, toastOpen: boolean, context: { wizardOpen: boolean; focusedWindow: "main" | "settings"; reviewing?: boolean; choose?: boolean; locked?: boolean } = { wizardOpen: false, focusedWindow: "main" }): MenuEnabled {
-  const settings = !context.wizardOpen;
+  const settings = !context.wizardOpen && !modalOpen && context.locked !== true;
   if (modalOpen || context.focusedWindow === "settings" || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, resolvedNav: false };
   return { settings, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", undoRemove: toastOpen, quickOpen: true, resolvedNav: screen === "canvas" && context.reviewing === true };
 }
