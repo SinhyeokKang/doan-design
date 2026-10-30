@@ -316,6 +316,8 @@ code, kbd { font-family: var(--type-family); }
 .ob-provider > .doan-notice { margin-top: var(--space-3); }
 .ob-notice-title, .ob-notice-body { display: block; }
 .ob-notice-title { font-weight: var(--type-weight-medium); }
+/* The default notice sets subtle ink; its title keeps standard ink as on the panel notice (About draft). */
+.doan-notice .ob-notice-title { color: var(--text-standard); }
 /* Only under a title: a body alone is the first line, which the notice icon is centred on. */
 .ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
 .ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
