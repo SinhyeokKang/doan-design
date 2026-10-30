@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-30 — Renaming the bundle to Doan left "About/Hide/Quit doan" in the menu, and the window title was never Doan Design
+
+- **Area**: `app/src/main/index.ts` (app menu, main `BrowserWindow`), `app/src/renderer/index.html` (`<title>`), `app/package.json` (`productName`).
+- **Symptom**: with `productName` `Doan` and `app.setName("doan")` kept for userData, an Electron 45 probe listed the app menu roles as "About doan", "Hide doan", "Quit doan". The first packaged-app probe found the main window titled "Doan" (before the change, "doan"), although `BrowserWindow` was created with `title: "Doan Design"` and the feature spec said the window title already was Doan Design.
+- **Root cause**: Electron's `about`, `hide` and `quit` role labels are computed from `app.name`, not from the bundle name that macOS shows in the menu bar, so keeping `setName` for storage keeps the lowercase name in those items. A page `<title>` replaces the `BrowserWindow` title unless `page-title-updated` is prevented; only the Settings window prevents it, so the main window's effective title came from `index.html`.
+- **Net**: the static scan of string literals could not see either (the role labels are not in the source; the HTML title was scanned but its value was a design question). A one-file Electron probe caught the role labels and the packaged-app runtime probe caught the title. Unit tests pinned only the template (`label ?? role`).
+- **Prevention**: when `app.name` and the bundle name differ, give every name-bearing role (`about`, `hide`, `quit`, `appMenu` if used) an explicit label and check `Menu.getApplicationMenu()` labels in a runtime probe. For window titles, assert `BrowserWindow.getTitle()` after load, not the constructor option; grep `title:` in `new BrowserWindow` against each page's `<title>` and `page-title-updated`. The `safeStorage` Keychain item still follows `setName` (`doan Safe Storage`, probe 2026-10-30).
+
 ### 2026-10-29 — Codex cut the middle out of the doan guide and kept its end marker, so presets were never read
 
 - **Area**: `cli/internal/cli/skill.md`, `skill.go` (generated `## Design presets` section), `app/src/main/onboarding/SKILL.md` (stub).

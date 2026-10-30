@@ -10,7 +10,7 @@ export const LOAD_LIMIT_MS = 8000;
 export const JOB_LIMIT_MS = 20_000;
 // Tells the capture window apart from app windows (runtime/windows.ts) from the
 // moment it exists, before its host page has loaded.
-export const CAPTURE_WINDOW_TITLE = "doan thumbnails";
+export const CAPTURE_WINDOW_TITLE = "Doan thumbnails";
 
 // No script runs in the host but main's; the canvas iframe is the only frame
 // it may hold, and only from the local server.

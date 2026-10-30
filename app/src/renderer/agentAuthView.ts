@@ -53,7 +53,7 @@ function errorNotice(status: AuthStatusDto, ctx: ProviderContext): Notice | null
     case "sign_in_failed":
       return alert((ctx.failures ?? 0) >= 2 ? `Sign-in to ${name} keeps failing. Check your browser and network, or connect another agent.` : "Sign-in didn’t finish. Try again.", [signIn]);
     case "network": return alert(`Couldn’t reach ${name}. Check your connection and try again.`, [connected ? retry : signIn]);
-    case "storage_failed": return alert("Couldn’t save this connection securely. Allow doan to use your Keychain, then sign in again.", [signIn]);
+    case "storage_failed": return alert("Couldn’t save this connection securely. Allow Doan to use your Keychain, then sign in again.", [signIn]);
     case "cli_install_failed": return alert(`Couldn’t download ${name}’s sign-in server. Check your connection and try again.`, [connected ? retry : signIn]);
     case "check_failed": return alert("Couldn’t check your connections.", [connected ? retry : signIn]);
     default: return null;
@@ -65,20 +65,20 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
   const reauth = [button("signOut", "Sign out", "subtle"), button("reauth", "Sign in again")];
   if (r.ready) return { ...view, button: button("signIn", "Connected", "prominent", true, `Connected to ${name}`) };
   switch (r.cause) {
-    case "cli_missing": return { ...view, detail: "Not installed", button: button("install", "Install", "prominent", false, `Install ${name}`), helper: "After you install it, doan checks again when you return." };
-    case "version_unsupported": return { ...view, detail: "This version is older than doan supports.", button: button("update", "Update", "prominent", false, `Update ${name}`), helper: "After you update it, doan checks again when you return." };
+    case "cli_missing": return { ...view, detail: "Not installed", button: button("install", "Install", "prominent", false, `Install ${name}`), helper: "After you install it, Doan checks again when you return." };
+    case "version_unsupported": return { ...view, detail: "This version is older than Doan supports.", button: button("update", "Update", "prominent", false, `Update ${name}`), helper: "After you update it, Doan checks again when you return." };
     case "version_unknown": return { ...view, notice: alert(`Check that ${name} is installed correctly, then retry.`, [check(provider, "Retry", true)], `Couldn’t read the ${name} version`) };
     case "version_incompatible": return { ...view, notice: alert(`Update ${name} or wait for a Doan update, then retry.`, [check(provider, "Retry", true)], `Doan can’t run this ${name} version`) };
-    case "sign_out_failed": return { ...view, notice: alert(`doan couldn’t sign out of ${name}. Sign out again before you use it.`, [button("signOut", "Sign out")]) };
+    case "sign_out_failed": return { ...view, notice: alert(`Doan couldn’t sign out of ${name}. Sign out again before you use it.`, [button("signOut", "Sign out")]) };
     case "account_mismatch": return { ...view, notice: alert(`You signed in with a different ${name} account. Sign in again with the same account, or sign out first.`, reauth) };
     case "reauth_required": {
       // A failed Sign in again keeps the connection, so its error is shown with the same recovery buttons.
       const failed = errorNotice(status, ctx)?.body;
       // Expiry settles as phase reauthRequired; otherwise only a Claude connection without an organization needs reauth.
       const organization = provider === "claude" && status.phase !== "reauthRequired";
-      return { ...view, notice: alert(failed ?? (organization ? `Sign in to ${name} again so doan can confirm your organization.` : `Your ${name} connection expired. Sign in again.`), reauth) };
+      return { ...view, notice: alert(failed ?? (organization ? `Sign in to ${name} again so Doan can confirm your organization.` : `Your ${name} connection expired. Sign in again.`), reauth) };
     }
-    case "tools_missing": case "tools_failed": return { ...view, notice: alert("doan couldn’t find its command-line tool. Reinstall doan, then check again.", [check(provider, "Check again", false)]) };
+    case "tools_missing": case "tools_failed": return { ...view, notice: alert("Doan couldn’t find its command-line tool. Reinstall Doan, then check again.", [check(provider, "Check again", false)]) };
     case "not_connected": {
       const notice = errorNotice(status, ctx);
       return notice ? { ...view, notice } : { ...view, button: button("signIn", "Sign in", "prominent", false, `Sign in to ${name}`) };
@@ -90,7 +90,7 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
       return {
         ...view, detail: copilot ? "Connected · not checked · Retry uses one Copilot request" : "Connected · not checked",
         button: button("check", "Retry", "prominent", false, copilot ? `Check ${name} again, uses one Copilot request` : `Check ${name} again`),
-        helper: !copilot && ctx.autoCheck ? "doan checks this automatically when you open this step." : null,
+        helper: !copilot && ctx.autoCheck ? "Doan checks this automatically when you open this step." : null,
       };
     }
     // busy without a sign-in or sign-out attempt cannot come from agent-auth; keep the row inert until the next snapshot.
@@ -151,7 +151,7 @@ export function replyEffect(reason: AuthReason): "show" | "dialog" | "reread" {
 // undefined: not read yet. null: readAgentAuth returned null, the account store is unreadable and every other call fails.
 // shared: context every row gets, before its own (onboarding passes autoCheck).
 export function authListView(auth: AuthSnapshot | null | undefined, contexts: Partial<Record<Provider, ProviderContext>> = {}, shared: ProviderContext = {}): { notice: Notice | null; providers: ProviderView[]; anyReady: boolean } {
-  if (auth === null) return { notice: alert("doan couldn’t read its agent connections.", [button("read", "Retry")]), providers: [], anyReady: false };
+  if (auth === null) return { notice: alert("Doan couldn’t read its agent connections.", [button("read", "Retry")]), providers: [], anyReady: false };
   if (auth === undefined) return { notice: progress("Checking connections", []), providers: [], anyReady: false };
   const holder = auth.providers.find(p => p.attempt && p.attempt.kind !== "check")?.provider ?? null;
   return {

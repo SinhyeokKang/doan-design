@@ -9,7 +9,7 @@ export function appWindow(app: ElectronApplication, page: Page): Promise<JSHandl
 
 // `CAPTURE_WINDOW_TITLE` in src/main/thumbnailWindow.ts, which imports electron
 // and so cannot be loaded here.
-export const CAPTURE_WINDOW_TITLE = "doan thumbnails";
+export const CAPTURE_WINDOW_TITLE = "Doan thumbnails";
 
 // Windows other than the capture window. Told apart by its title, which it has
 // from creation: its URL stays empty until the host page loads.

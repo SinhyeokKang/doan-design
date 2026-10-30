@@ -871,7 +871,7 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 			t.Errorf("guide table misses %s", row)
 		}
 	}
-	for _, s := range []string{"<doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
+	for _, s := range []string{"<Doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
 		if !strings.Contains(skillBody, s) {
 			t.Errorf("guide misses %q", s)
 		}

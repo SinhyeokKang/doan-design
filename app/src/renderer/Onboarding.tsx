@@ -30,7 +30,7 @@ function recallOwned(): string[] {
 export function Welcome({ start }: { start: () => void }) {
   return <div className="ob-welcome-main">
     <div className="ob-atmosphere" aria-hidden="true"></div>
-    <div className="ob-wordmark">doan</div>
+    <div className="ob-wordmark">Doan</div>
     <h1 tabIndex={-1}>A place for your next idea.<br />Bring it to life on canvas.</h1>
     <div className="ob-welcome-action"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="lg" onClick={start}>Get started<ArrowRight aria-hidden="true" /></button></div>
   </div>;
@@ -260,18 +260,18 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
       ? [action("edit", "Edit repository URL", "subtle"), action("chooseExisting", "Choose another folder")] : [action("chooseFolder", "Choose another folder")] };
     case "project_unavailable": case "path_unavailable":
       // D26 copy: the destination never existed, so "no longer available" would not explain it.
-      if (insideProject !== null) return { body: `This location is inside the doan project ${insideProject}. Choose a location outside it.`, actions: [action("changeLocation", "Change location")] };
+      if (insideProject !== null) return { body: `This location is inside the Doan project ${insideProject}. Choose a location outside it.`, actions: [action("changeLocation", "Change location")] };
       return { body: "This folder is no longer available. Choose it again or select another folder.", actions: [action(choose, "Choose folder")] };
     case "destination_exists": return { body: "A folder already exists at this destination. Choose another location or use the existing folder.", actions: [action("changeLocation", "Change location", "subtle"), action("useExisting", "Use existing folder")] };
     case "init_failed": return { body: "Couldn’t set up this folder. Check folder access and try again.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
-    case "config_invalid": return { body: "This folder’s doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
+    case "config_invalid": return { body: "This folder’s Doan configuration couldn’t be read. Fix it and retry, or choose another folder.", actions: [action(choose, "Choose another folder", "subtle"), action("retry", "Retry")] };
     case "clone_failed": return { body: "Couldn’t clone this repository. Check your connection and folder access, then retry.", ...(destination ? { detail: destination } : {}), actions: [action("changeLocation", "Change location", "subtle"), action("retry", "Retry")] };
     case "git_missing": return { body: "Install Git to clone a repository, or choose a local folder.", actions: [action(choose, "Choose local folder", "subtle"), action("retry", "Check again")] };
     case "completion_save_failed": return { body: "Your project is ready, but setup completion couldn’t be saved. Retry to finish.", actions: [] };
     case "completion_unsupported_version": return { title: "Setup was saved by a newer version of Doan", body: "Open this project with that version, or update Doan.", actions: [] };
     case "no_ready_agent": { const notice = noAgentReadyNotice(null)!; return { body: notice.body!, ...(notice.note ? { note: notice.note } : {}), actions: [action("backToAgents", "Back to agents")] }; }
     // Main's fixed message (a kept clone folder names the path to remove); never tool output.
-    default: return { body: message ?? "Something changed while doan was checking. Try again.", actions: [action("retry", "Retry")] };
+    default: return { body: message ?? "Something changed while Doan was checking. Try again.", actions: [action("retry", "Retry")] };
   }
 }
 
@@ -352,7 +352,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const smallActions = (...buttons: [string, ProjectAction][]) => { const kept = buttons.filter(([, command]) => !repeats(command));
     return kept.length > 0 && <div className="ob-small-action">{kept.map(([label, command]) =>
       <button key={label} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={() => run(command)}>{label}</button>)}</div>; };
-  let body: React.ReactNode, footer: { label: string; next: () => void; enabled: boolean } = { label: "Open doan", next: on.complete, enabled: false };
+  let body: React.ReactNode, footer: { label: string; next: () => void; enabled: boolean } = { label: "Open Doan", next: on.complete, enabled: false };
 
   if (p.kind === "choose" || p.kind === "inspecting") {
     const urlNotice = error && (error.code === "invalid_url" || error.code === "access_failed");
@@ -418,7 +418,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL (D25). */}
       {p.kind === "setup" && p.url !== null && urlField(true)}
       {p.kind === "setup" && <section className="doan-panel ob-setup">
-        <strong>Set up this folder for doan</strong>
+        <strong>Set up this folder for Doan</strong>
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
         <ChosenProject path={p.path} home={home} />
         {notice ? <ProjectNoticeView notice={notice} run={run} />
@@ -463,7 +463,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       <p className="ob-fine">Your selected project will be ready on Home.</p>
     </>;
     footer = saveFailed ? { label: "Retry", next: on.retry, enabled: true }
-      : { label: "Open doan", next: on.complete, enabled: agentReady && error?.code !== "completion_unsupported_version" };
+      : { label: "Open Doan", next: on.complete, enabled: agentReady && error?.code !== "completion_unsupported_version" };
   }
   return <>
     <div className="ob-heading"><h2 tabIndex={-1} ref={heading}>{title}</h2><p>{lead}</p></div>
@@ -575,7 +575,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   const p = project;
   // A modal <dialog> sits above any app dialog already open (setup, comments),
   // which would otherwise stay on top and leave both unclickable.
-  return <dialog className={welcome ? "ob-overlay ob-welcome" : "ob-overlay"} aria-label="Set up doan"
+  return <dialog className={welcome ? "ob-overlay ob-welcome" : "ob-overlay"} aria-label="Set up Doan"
     ref={node => { overlay.current = node; if (node && !node.open) node.showModal(); }}
     onCancel={event => event.preventDefault()}>
     <div className="ob-chrome">

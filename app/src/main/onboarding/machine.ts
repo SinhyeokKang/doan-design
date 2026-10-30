@@ -154,7 +154,7 @@ export function createMachine(options: { command: string; version: string; env?:
   let busy = false;
   let pending: { id: string; request: StepRequest; target: "cli" | "stub" | "claudeLink" | "mcp" } | null = null;
   const available = isAbsolute(options.command) && !isTranslocated(options.command);
-  const reason = isTranslocated(options.command) ? "Move doan to Applications, then open it again." : !isAbsolute(options.command) ? "This build has no bundled CLI. Set DOAN_CLI." : null;
+  const reason = isTranslocated(options.command) ? "Move Doan to Applications, then open it again." : !isAbsolute(options.command) ? "This build has no bundled CLI. Set DOAN_CLI." : null;
   async function context() {
     const probe = await probeShell(env);
     const runEnv = { ...env };

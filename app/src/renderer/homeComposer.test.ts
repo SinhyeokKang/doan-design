@@ -60,12 +60,12 @@ test("a request without a preset is the user's text, trimmed", () => {
 
 test("a preset adds its one-line header, a blank line, then the user's text", () => {
   expect(composeRequest("Turn the onboarding screens into a design system.", preset("document"), 0))
-    .toBe("Use the doan design preset `document` (Document the design system).\n\nTurn the onboarding screens into a design system.");
+    .toBe("Use the Doan design preset `document` (Document the design system).\n\nTurn the onboarding screens into a design system.");
 });
 
 test("a preset alone sends only its header line, even with attachments", () => {
-  expect(composeRequest("   ", preset("critique"), 0)).toBe("Use the doan design preset `critique` (Critique the design).");
-  expect(composeRequest("", preset("critique"), 2)).toBe("Use the doan design preset `critique` (Critique the design).");
+  expect(composeRequest("   ", preset("critique"), 0)).toBe("Use the Doan design preset `critique` (Critique the design).");
+  expect(composeRequest("", preset("critique"), 2)).toBe("Use the Doan design preset `critique` (Critique the design).");
 });
 
 test("attachments alone send the fixed sentence; nothing at all sends nothing", () => {

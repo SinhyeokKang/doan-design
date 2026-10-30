@@ -10,7 +10,7 @@ const root = "/Users/alex/code/billing-api";
 const sentence = (subject: string) => `Use the doan skill to make a design canvas in ${root} for ${subject}.`;
 const base: FirstPromptViewProps = { id: "fp", root, subject: "", sentence: null, copy: "idle", copiedSubject: null, waiting: false, change: () => {}, copyIt: () => {} };
 const render = (props: Partial<FirstPromptViewProps> = {}) => renderToStaticMarkup(<FirstPromptView {...base} {...props} />);
-const HELPER = '<span class="ob-helper">Paste it into a new Claude Code or Codex session.<br/>Your input stays in doan until you copy it.</span>';
+const HELPER = '<span class="ob-helper">Paste it into a new Claude Code or Codex session.<br/>Your input stays in Doan until you copy it.</span>';
 
 describe("FirstPromptView", () => {
   test("empty: the label, the placeholder, the sentence with an ellipsis slot, both helper lines and a disabled Copy", () => {

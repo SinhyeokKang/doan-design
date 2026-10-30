@@ -38,5 +38,5 @@ describe("tokenTitle", () => {
 });
 
 test("the unknown tooltip says doan cannot tell the source (CDP decision)", () => {
-  expect(UNKNOWN_SOURCE_TIP).toBe("doan can't tell where this value comes from");
+  expect(UNKNOWN_SOURCE_TIP).toBe("Doan can't tell where this value comes from");
 });

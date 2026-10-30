@@ -41,7 +41,7 @@ test("readiness action install: Not installed with Install and the return check 
   const status = dto("cursor", { facts: { cli: "missing" } });
   expect(status.readiness).toEqual({ ready: false, cause: "cli_missing", action: "install" });
   const view = providerView(status);
-  expect(only(view)).toEqual({ detail: "Not installed", button: "prominent:Install:install", notice: null, helper: "After you install it, doan checks again when you return." });
+  expect(only(view)).toEqual({ detail: "Not installed", button: "prominent:Install:install", notice: null, helper: "After you install it, Doan checks again when you return." });
   expect(view.button?.ariaLabel).toBe("Install Cursor");
 });
 
@@ -49,7 +49,7 @@ test("readiness action update: below the minimum shows Update, even before sign-
   const status = dto("cursor", { facts: { version: "unsupported" } });
   expect(status.readiness).toMatchObject({ action: "update" });
   const view = providerView(status);
-  expect(only(view)).toEqual({ detail: "This version is older than doan supports.", button: "prominent:Update:update", notice: null, helper: "After you update it, doan checks again when you return." });
+  expect(only(view)).toEqual({ detail: "This version is older than Doan supports.", button: "prominent:Update:update", notice: null, helper: "After you update it, Doan checks again when you return." });
   expect(view.button?.ariaLabel).toBe("Update Cursor");
 });
 
@@ -65,7 +65,7 @@ test("readiness action repair: missing or failed doan tools show Check again", (
   for (const tools of ["missing", "failed"] as const) {
     const status = dto("claude", { account: ACCOUNT, verified: true, facts: { tools } });
     expect(status.readiness).toMatchObject({ action: "repair" });
-    expect(only(providerView(status)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "doan couldn’t find its command-line tool. Reinstall doan, then check again.", actions: ["prominent:Check again:check"] });
+    expect(only(providerView(status)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Doan couldn’t find its command-line tool. Reinstall Doan, then check again.", actions: ["prominent:Check again:check"] });
   }
   // Copilot's check spends a model request, so the cost is visible next to the button and in its accessible name.
   const copilot = providerView(dto("copilot", { account: ACCOUNT, verified: true, facts: { tools: "failed" } }));
@@ -77,9 +77,9 @@ test("readiness action retry for unverified: Connected · not checked, with the 
   const codex = providerView(dto("codex", { account: { id: null, workspace: null } }));
   expect(only(codex)).toEqual({ detail: "Connected · not checked", button: "prominent:Retry:check", notice: null, helper: null });
   // The automatic-check sentence is true only where the consumer checks on entry (the onboarding Agent step).
-  expect(providerView(dto("codex", { account: ACCOUNT }), { autoCheck: true }).helper).toBe("doan checks this automatically when you open this step.");
+  expect(providerView(dto("codex", { account: ACCOUNT }), { autoCheck: true }).helper).toBe("Doan checks this automatically when you open this step.");
   expect(providerView(dto("copilot", { account: ACCOUNT }), { autoCheck: true }).helper).toBeNull();
-  expect(authListView({ revision: 1, providers: [dto("codex", { account: ACCOUNT })] }, {}, { autoCheck: true }).providers[0]?.helper).toBe("doan checks this automatically when you open this step.");
+  expect(authListView({ revision: 1, providers: [dto("codex", { account: ACCOUNT })] }, {}, { autoCheck: true }).providers[0]?.helper).toBe("Doan checks this automatically when you open this step.");
   expect(authListView({ revision: 1, providers: [dto("codex", { account: ACCOUNT })] }).providers[0]?.helper).toBeNull();
   expect(codex.button?.ariaLabel).toBe("Check Codex again");
   const copilot = providerView(dto("copilot", { account: ACCOUNT }));
@@ -101,7 +101,7 @@ test("readiness action wait: a running check disables the row; a running sign-ou
 test("readiness action signOut: a failed sign-out is its own alert with Sign out only", () => {
   const status = dto("codex", { account: ACCOUNT, verified: true, error: "sign_out_failed", phase: "error" });
   expect(status.readiness).toEqual({ ready: false, cause: "sign_out_failed", action: "signOut" });
-  expect(only(providerView(status)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "doan couldn’t sign out of Codex. Sign out again before you use it.", actions: ["prominent:Sign out:signOut"] });
+  expect(only(providerView(status)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Doan couldn’t sign out of Codex. Sign out again before you use it.", actions: ["prominent:Sign out:signOut"] });
 });
 
 test("readiness action reauth: expiry, a missing Claude organization and a different account each have their own copy", () => {
@@ -110,7 +110,7 @@ test("readiness action reauth: expiry, a missing Claude organization and a diffe
   expect(only(providerView(expired)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "Your Codex connection expired. Sign in again.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
   const org = dto("claude", { account: { id: "acct-1", workspace: null, email: "ada@example.com" }, verified: true });
   expect(org).toMatchObject({ phase: "connected", readiness: { cause: "reauth_required" } });
-  expect(only(providerView(org))).toMatchObject({ button: null, notice: { body: "Sign in to Claude Code again so doan can confirm your organization.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] } });
+  expect(only(providerView(org))).toMatchObject({ button: null, notice: { body: "Sign in to Claude Code again so Doan can confirm your organization.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] } });
   const mismatch = dto("claude", { account: ACCOUNT, verified: true, error: "account_mismatch", phase: "error" });
   expect(mismatch.readiness).toMatchObject({ cause: "account_mismatch", action: "reauth" });
   expect(only(providerView(mismatch)).notice).toEqual({ role: "alert", spinner: false, title: undefined, body: "You signed in with a different Claude Code account. Sign in again with the same account, or sign out first.", actions: ["subtle:Sign out:signOut", "prominent:Sign in again:reauth"] });
@@ -183,7 +183,7 @@ test("a failed sign-in again on a reauth row shows the failure with the reauth a
 
 test("a Claude organization reauth keeps its copy while a check runs", () => {
   const view = providerView(dto("claude", { account: { id: "acct-1", workspace: null }, verified: true, attempt: { kind: "check" } }));
-  expect(view.notice?.body).toBe("Sign in to Claude Code again so doan can confirm your organization.");
+  expect(view.notice?.body).toBe("Sign in to Claude Code again so Doan can confirm your organization.");
   expect(view.notice?.actions.every(b => b.disabled)).toBe(true);
 });
 
@@ -225,7 +225,7 @@ test("every agent-auth error code maps to its alert and next action", () => {
   expect(only(providerView(dto("claude", { error: "sign_in_failed" }), { failures: 1 })).notice?.body).toBe("Sign-in didn’t finish. Try again.");
   expect(only(disconnected("network")).notice).toMatchObject({ body: "Couldn’t reach Codex. Check your connection and try again.", actions: ["prominent:Sign in:signIn"] });
   expect(only(connected("network")).notice).toMatchObject({ body: "Couldn’t reach Codex. Check your connection and try again.", actions: ["prominent:Retry:check"] });
-  expect(only(disconnected("storage_failed")).notice).toMatchObject({ body: "Couldn’t save this connection securely. Allow doan to use your Keychain, then sign in again.", actions: ["prominent:Sign in:signIn"] });
+  expect(only(disconnected("storage_failed")).notice).toMatchObject({ body: "Couldn’t save this connection securely. Allow Doan to use your Keychain, then sign in again.", actions: ["prominent:Sign in:signIn"] });
   expect(only(connected("storage_failed")).notice).toMatchObject({ actions: ["prominent:Sign in:signIn"] });
   expect(only(providerView(dto("antigravity", { error: "cli_install_failed" }))).notice).toMatchObject({ body: "Couldn’t download Antigravity’s sign-in server. Check your connection and try again.", actions: ["prominent:Sign in:signIn"] });
   expect(only(providerView(dto("antigravity", { account: ACCOUNT, error: "cli_install_failed" }))).notice).toMatchObject({ actions: ["prominent:Retry:check"] });
@@ -242,7 +242,7 @@ test("every agent-auth error code maps to its alert and next action", () => {
 });
 
 test("readAgentAuth null is an unreadable store with Retry; loading and checks show one status", () => {
-  expect(authListView(null)).toEqual({ notice: { role: "alert", spinner: false, title: undefined, body: "doan couldn’t read its agent connections.", actions: [{ command: "read", label: "Retry", variant: "prominent", disabled: false }] }, providers: [], anyReady: false });
+  expect(authListView(null)).toEqual({ notice: { role: "alert", spinner: false, title: undefined, body: "Doan couldn’t read its agent connections.", actions: [{ command: "read", label: "Retry", variant: "prominent", disabled: false }] }, providers: [], anyReady: false });
   expect(authListView(undefined)).toEqual({ notice: { role: "status", spinner: true, title: "Checking connections", body: undefined, actions: [] }, providers: [], anyReady: false });
   const checking: AuthSnapshot = { revision: 2, providers: [ready("claude"), dto("codex", { account: ACCOUNT, attempt: { kind: "check" } })] };
   expect(authListView(checking)).toMatchObject({ notice: { role: "status", title: "Checking connections" }, anyReady: true });
