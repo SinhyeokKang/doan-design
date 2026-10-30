@@ -2090,6 +2090,21 @@ describe("Add Projects page session", () => {
     held.get("/work/other")!.release();
   });
 
+  test.each(["did-navigate", "render-process-gone"])("a replaced renderer (%s) also stops a clone still checking its destination", async event => {
+    const held = heldClones();
+    const contents = window().webContents, sessionId = await pageSession();
+    const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "plan", url: "https://github.com/acme/studio", destination: "/work/studio" }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    let checked: (() => void) | undefined;
+    mocks.projects.cloneDestination.mockImplementationOnce(async (path: string) => { await new Promise<void>(resolve => { checked = resolve; }); return { state: "absent", path }; });
+    const clone = invoke("add-projects:clone", contents, null, { sessionId, requestId: "clone", inspectionId: plan.result.operation.inspection.inspectionId, destination: "/work/studio" });
+    await vi.waitFor(() => expect(checked).toBeDefined());
+    window().webContents.emit(event);
+    checked!();
+    expect(await clone).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    expect(mocks.projects.cloneProject).not.toHaveBeenCalled();
+    expect(held.size).toBe(0);
+  });
+
   test("hiding the window stops nothing", async () => {
     const held = heldClones();
     await cloneOnPage("/work/studio");

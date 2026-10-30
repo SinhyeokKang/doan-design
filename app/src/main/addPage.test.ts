@@ -30,7 +30,7 @@ function fakeProjects(options: { commit?: boolean } = {}) {
   const projects = {
     folder: vi.fn(async (path: string) => path),
     destination: vi.fn(async (path: string) => path.startsWith("/taken") ? { state: "exists" as const } : { state: "absent" as const, path }),
-    present: vi.fn(async () => true),
+    present: vi.fn(async (_path: string) => true),
     inspectPath: vi.fn(async (path: string) => ({ ok: true as const, candidates: [{ path, changes: [] as OnboardingChange[] }] })),
     inspectUrl: vi.fn(async () => []),
     select: vi.fn(async (path: string) => ({ ok: true as const, root: path })),
@@ -201,6 +201,65 @@ describe("two instances: onboarding and the page", () => {
     second.held[0]!.release();
     expect(await settled(p.session, cloning.operationId)).toMatchObject({ state: "succeeded" });
     expect(locks.leftovers.has("/work")).toBe(false);
+  });
+
+  test("failing at once under one parent, each instance's leftover is kept until that one is gone", async () => {
+    const locks = projectLocks();
+    const first = fakeProjects(), second = fakeProjects();
+    // Both clones run together, then fail to remove their own temporary directory.
+    const failing = (leftover: string, release: (resolve: () => void) => void) => async () => {
+      await new Promise<void>(release);
+      return { ok: false, code: "cleanup_failed", leftovers: [leftover] } as never;
+    };
+    let releaseA!: () => void, releaseB!: () => void;
+    first.projects.clone.mockImplementationOnce(failing("/work/.a.doan-clone-1", resolve => { releaseA = resolve; }));
+    second.projects.clone.mockImplementationOnce(failing("/work/.b.doan-clone-1", resolve => { releaseB = resolve; }));
+    const o = onboarding(first.projects, locks);
+    const p = page(second.projects, locks);
+    const a = operation(await o.ask({ op: "project_clone", inspectionId: inspectionId(await o.ask({ op: "project_inspect", url: URL, destination: "/work/a" })), destination: "/work/a" }));
+    const b = operation(await p.ask("clone", { inspectionId: inspectionId(await p.ask("inspect", { url: OTHER, destination: "/work/b" })), destination: "/work/b" }));
+    await vi.waitFor(() => { expect(releaseA).toBeDefined(); expect(releaseB).toBeDefined(); });
+    releaseA();
+    expect(await onboardingSettled(o.service, a.operationId)).toMatchObject({ state: "failed", error: { code: "cleanup_failed" } });
+    releaseB();
+    expect(await settled(p.session, b.operationId)).toMatchObject({ state: "failed", error: { code: "cleanup_failed" } });
+
+    // Only the last failure's directory was removed: the other still blocks both instances.
+    const present = async (path: string) => path === "/work/.a.doan-clone-1";
+    first.projects.present.mockImplementation(present);
+    second.projects.present.mockImplementation(present);
+    const blocked = { state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /work/.a.doan-clone-1. Remove it, then try again." } };
+    const fromPage = operation(await p.ask("clone", { inspectionId: inspectionId(await p.ask("inspect", { url: URL, destination: "/work/c" })), destination: "/work/c" }));
+    expect(await settled(p.session, fromPage.operationId)).toMatchObject(blocked);
+    const fromOnboarding = operation(await o.ask({ op: "project_clone", inspectionId: inspectionId(await o.ask({ op: "project_inspect", url: URL, destination: "/work/d" })), destination: "/work/d" }));
+    expect(await onboardingSettled(o.service, fromOnboarding.operationId)).toMatchObject(blocked);
+    expect(first.projects.clone).toHaveBeenCalledOnce();
+    expect(second.projects.clone).toHaveBeenCalledOnce();
+  });
+
+  test("a leftover recorded while another instance checks the old ones is not dropped by that check", async () => {
+    const locks = projectLocks();
+    const first = fakeProjects(), second = fakeProjects();
+    first.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftovers: ["/work/.a.doan-clone-1"] } as never);
+    const o = onboarding(first.projects, locks);
+    const p = page(second.projects, locks);
+    const a = operation(await o.ask({ op: "project_clone", inspectionId: inspectionId(await o.ask({ op: "project_inspect", url: URL, destination: "/work/a" })), destination: "/work/a" }));
+    await onboardingSettled(o.service, a.operationId);
+
+    // The page's check of A's leftover holds while onboarding finds it gone and fails again with its own.
+    let answerPage!: (present: boolean) => void;
+    second.projects.present.mockImplementationOnce(() => new Promise<boolean>(resolve => { answerPage = resolve; }));
+    const fromPage = operation(await p.ask("clone", { inspectionId: inspectionId(await p.ask("inspect", { url: OTHER, destination: "/work/b" })), destination: "/work/b" }));
+    await vi.waitFor(() => expect(answerPage).toBeDefined());
+    first.projects.present.mockResolvedValue(false);
+    first.projects.clone.mockResolvedValueOnce({ ok: false, code: "cleanup_failed", leftovers: ["/work/.c.doan-clone-1"] } as never);
+    const c = operation(await o.ask({ op: "project_clone", inspectionId: inspectionId(await o.ask({ op: "project_inspect", url: URL, destination: "/work/c" })), destination: "/work/c" }));
+    expect(await onboardingSettled(o.service, c.operationId)).toMatchObject({ state: "failed", error: { code: "cleanup_failed" } });
+    answerPage(false);
+
+    expect(await settled(p.session, fromPage.operationId)).toMatchObject({ state: "failed", error: { code: "cleanup_failed", message: "Couldn't remove /work/.c.doan-clone-1. Remove it, then try again." } });
+    expect(second.projects.clone).not.toHaveBeenCalled();
+    expect(locks.leftovers.get("/work")).toEqual(["/work/.c.doan-clone-1"]);
   });
 
   test("share the clone target: a second clone to the same folder is busy, another folder is not", async () => {
