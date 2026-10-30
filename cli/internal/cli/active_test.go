@@ -460,7 +460,7 @@ func TestActiveUnavailableOffersSandboxAndAboutGuidance(t *testing.T) {
 	root := initialized(t)
 	ctx := activeContext(t, root, func(string, time.Time) (net.Conn, error) { return nil, syscall.EACCES })
 	failure := activeCode(t, ctx, root, "app_not_running")
-	for _, want := range []string{"Ask the user to open Doan", "socket permission error", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Settings… > About"} {
+	for _, want := range []string{"Ask the user to open Doan", "If Doan is open, a sandbox may block this shell from its socket", "MCP `active` tool", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Settings… > About"} {
 		if !strings.Contains(strings.Join(failure.NextSteps, "\n"), want) {
 			t.Fatalf("missing recovery guidance %q: %v", want, failure.NextSteps)
 		}
