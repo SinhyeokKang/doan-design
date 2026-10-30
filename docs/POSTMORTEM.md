@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-30 — A dev-build measurement started an unisolated Electron and created the real Doan userData
+
+- **Area**: `.scratch/design-sync/buzz-add-projects/measure.mjs` (dev phase), `electron-vite dev`, `app/runtime/real-state.ts`.
+- **Symptom**: during buzz-add-projects `/design-sync`, the first dev-build measurement ran `electron-vite dev --rendererOnly` to get a dev renderer server. The real `~/Library/Application Support/doan/` (absent before the run) and a `doan-*` temporary folder appeared; the run's real-state fingerprint reported the change.
+- **Root cause**: `--rendererOnly` reads as "serve the renderer only", but electron-vite still launches Electron with the inherited environment. Without `--user-data-dir`, a temporary `HOME` and the other isolation from `app/runtime/environment.ts`, the app wrote the default userData. The script isolated its Playwright launches but treated the dev server as a build step.
+- **Net**: `app/runtime/real-state.ts` caught it on the same run (before/after fingerprints of the real userData); the worker removed both paths back to the absent pre-run state and every later check passed. Nothing in the script or the skills flagged `electron-vite dev` as an app launch.
+- **Prevention**: treat every `electron-vite dev` invocation (any flag) as an app launch: run it only through AGENTS.md's dev command form with `DOAN_CLI`, `--user-data-dir=<tmp>`, temporary `HOME`/`SHELL` and agent config directories, and keep the real-state fingerprint around the whole script, not only around Playwright launches. `rg -n 'electron-vite dev' .scratch .agents app/runtime` before reusing a measurement script.
+
 ### 2026-10-30 — Timing tests failed under machine load because their waits matched or beat the test limit
 
 - **Area**: `app/vitest.config.ts`, `app/src/main/shell.test.ts`, `watch.test.ts`, `agentAuth/manager.test.ts`, `app/src/renderer/quickOpen.test.ts`, `app/runtime/harness.test.ts`.

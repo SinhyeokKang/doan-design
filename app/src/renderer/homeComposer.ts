@@ -22,7 +22,7 @@ export const MAX_PASTED_BYTES = 50 * 1024 * 1024;
 const PLACEHOLDER = "Describe what to design, / for presets";
 const PRESET_PLACEHOLDER = "Which canvas or screen? Add details…";
 const ATTACHMENTS_ONLY = "Look at the attached files.";
-const FOLDER_DROP = "Folders can’t be attached. Drop a folder outside the message to add a project.";
+const FOLDER_DROP = "Folders can’t be attached. Add a project from Add Projects.";
 
 // The attachment list and main's Home paragraph travel outside this text, so neither counts toward the limit.
 export function composeRequest(text: string, preset: PresetRef | null, attachments: number): string {
@@ -433,11 +433,10 @@ export function attachmentChipView(a: AttachmentDraft, home: string | null): Att
   };
 }
 
-// Over the composer only files attach and a folder is refused rather than handed to the window's project drop.
-export function dropTarget(overComposer: boolean, entries: readonly { isDirectory: boolean }[]): { kind: "project" } | { kind: "attach"; files: number[]; notice: string | null } {
-  if (!overComposer) return { kind: "project" };
+// Over the composer only files attach; a folder is refused and pointed to Add Projects.
+export function dropTarget(entries: readonly { isDirectory: boolean }[]): { files: number[]; notice: string | null } {
   const files = entries.flatMap((e, i) => (e.isDirectory ? [] : [i]));
-  return { kind: "attach", files, notice: files.length < entries.length ? FOLDER_DROP : null };
+  return { files, notice: files.length < entries.length ? FOLDER_DROP : null };
 }
 
 // Chips in DOM order (attachments, then the preset). Backspace takes the preset first, then the last attachment;

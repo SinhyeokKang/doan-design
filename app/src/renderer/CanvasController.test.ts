@@ -2381,3 +2381,21 @@ it("reports a completed listed iframe link once, excluding reloads and unlisted 
     expect(visited).toHaveBeenCalledTimes(1);
   } finally { h.controller.dispose(); }
 });
+
+// buzz-add-projects (review-BP 🟡1): a Quick Open pick from the Add Projects page goes through openCanvas, which asks
+// the draft guard for another canvas of the same root and lets only the canvas already open through.
+it("asks the draft guard for another canvas of the open root, but not for the open canvas itself", () => {
+  const h = selectionHarness();
+  try {
+    const guard = vi.fn(() => false);
+    h.controller.setDraftGuard(true);
+    h.controller.setTransitionGuard(guard);
+    const opened = vi.fn();
+    h.controller.openCanvas("/repo", h.row, undefined, { opened });
+    expect(guard).not.toHaveBeenCalled();
+    expect(opened).toHaveBeenCalledOnce();
+    h.controller.openCanvas("/repo", h.other, undefined, { opened });
+    expect(guard).toHaveBeenCalledOnce();
+    expect(opened).toHaveBeenCalledOnce();
+  } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
+});

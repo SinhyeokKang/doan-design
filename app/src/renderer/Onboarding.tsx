@@ -1,11 +1,11 @@
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState, type DragEvent, type RefObject } from "react";
 import { ArrowLeft, ArrowRight, Check, Folder } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { OnboardingState } from "../formats/types";
 import { nextFocusIndex } from "./onboardingView";
 import { noAgentReadyNotice, type AuthCommand, type Button, type Notice, type ProviderView, type pasteDialog, type stopDialog } from "./agentAuthView";
 import { AgentStepSession } from "./agentStep";
-import { ProjectStepSession, type ProjectError, type ProjectStepState } from "./projectStep";
+import { projectFooter, projectNoticeCode, ProjectStepSession, setUpLabel, type ProjectError, type ProjectStepState, type ProjectUse } from "./projectStep";
 import { canAdvance, initialScene, nextScene, type Scene, type SceneEvent } from "./onboardingScene";
 import { projectHue, projectInitial } from "./shellNavigation";
 import { tilde } from "./onboardingView";
@@ -289,10 +289,64 @@ function ProjectNoticeView({ notice, run, id }: { notice: ProjectNotice; run: (c
 function Progress({ title, body }: { title: string; body?: string }) {
   return <div className="doan-notice doan-panel ob-project-notice" role="status" tabIndex={-1}><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
 }
-function Footer({ back, next, label, enabled, busy }: { back: () => void; next: () => void; label: string; enabled: boolean; busy: boolean }) {
-  return <div className="ob-footer">
-    <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={back}><ArrowLeft aria-hidden="true" />Back</button>
-    <button type="button" className="doan-button" data-ui-variant="prominent" disabled={!enabled || busy} data-consent="" onClick={next}>{label}<ArrowRight aria-hidden="true" /></button>
+// First run's Back carries its arrow; the page's Cancel leaves the page and has none (draft footers).
+function Footer({ use, footer, back, next }: { use: ProjectUse; footer: NonNullable<ReturnType<typeof projectFooter>>; back: () => void; next: () => void }) {
+  return <div className={use === "addPage" ? "ob-footer add-footer" : "ob-footer"}>
+    <button type="button" className="doan-button" data-ui-variant="subtle" disabled={footer.back.disabled} onClick={back}>{use === "onboarding" && <ArrowLeft aria-hidden="true" />}{footer.back.label}</button>
+    {footer.primary && <button type="button" className="doan-button" data-ui-variant="prominent" disabled={footer.primary.disabled} data-consent="" onClick={next}>{footer.primary.label}<ArrowRight aria-hidden="true" /></button>}
+  </div>;
+}
+
+export interface ProjectDrop {
+  notice: string | null;
+  allowed(): boolean;
+  // A new drag clears the last notice.
+  started(): void;
+  dropped(items: { isDirectory: boolean; path: string }[]): void;
+}
+// The 'Open a local folder' card takes a dropped folder on the page and in first run (buzz-add-projects design '폴더
+// 드롭'). A drop elsewhere is the window's, which only refuses it.
+export function LocalFolderCard({ busy, choose, drop }: { busy: boolean; choose: () => void; drop?: ProjectDrop }) {
+  const [dropping, setDropping] = useState(false);
+  const depth = useRef(0);
+  // A drop outside the card or a window that loses focus ends the drag without a leave on the card.
+  useEffect(() => {
+    const clear = () => { depth.current = 0; setDropping(false); };
+    window.addEventListener("blur", clear);
+    window.addEventListener("drop", clear);
+    return () => { window.removeEventListener("blur", clear); window.removeEventListener("drop", clear); };
+  }, []);
+  const files = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+  const handlers = drop && {
+    onDragEnter: (event: DragEvent) => {
+      if (!files(event)) return;
+      event.preventDefault();
+      if (depth.current++ === 0) drop.started();
+      setDropping(drop.allowed());
+    },
+    onDragOver: (event: DragEvent) => {
+      if (!files(event)) return;
+      event.preventDefault();
+      const allowed = drop.allowed();
+      event.dataTransfer.dropEffect = allowed ? "copy" : "none";
+      if (!allowed) setDropping(false);
+    },
+    onDragLeave: (event: DragEvent) => { if (files(event) && --depth.current <= 0) { depth.current = 0; setDropping(false); } },
+    onDrop: (event: DragEvent) => {
+      if (!files(event)) return;
+      event.preventDefault();
+      depth.current = 0; setDropping(false);
+      if (!drop.allowed()) return;
+      // String items can sit among the files; only file items line up with `files`.
+      const items = Array.from(event.dataTransfer.items ?? []).filter(item => item.kind === "file");
+      drop.dropped(Array.from(event.dataTransfer.files).map((file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry?.()?.isDirectory, path: window.doan.droppedPath(file) ?? "" })));
+    },
+  };
+  return <div className="doan-panel ob-local-option" {...handlers}>
+    {dropping && <div className="drop-target"><span className="sr-only" role="status">Drop to add this folder</span></div>}
+    <span className="ob-folder-icon"><Folder aria-hidden="true" /></span>
+    <div><strong>Open a local folder</strong><p>Use a project that’s already on your Mac.</p></div>
+    <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={choose}>Choose folder</button>
   </div>;
 }
 
@@ -305,8 +359,58 @@ export function projectFocusTarget(state: ProjectStepState, agentReady: boolean,
   return ["inspecting", "checking", "selecting", "cloning", "completing"].includes(state.phase.kind) ? "status" : "action";
 }
 
+type FocusTarget = FocusNode & { focus(): void };
+interface ScopeNode { querySelector(selector: string): FocusTarget | null }
+// The node the Project step's focus goes to after a change (design '포커스'): the button that opened a folder sheet
+// that closed on the same screen, the URL field when it was asked for, else projectFocusTarget's, else the heading.
+// null: the person holds focus somewhere usable, which is never moved.
+export function projectFocusNode(input: {
+  opened: { node: FocusTarget; phase: string } | null; asked: boolean; root: ScopeNode | null; active: FocusTarget | null; body: unknown;
+  heading: FocusTarget | null; state: ProjectStepState; agentReady: boolean; busy: boolean;
+}): FocusTarget | null {
+  const { opened, root, active, state } = input;
+  if (opened && !input.busy && opened.phase === state.phase.kind && opened.node.isConnected && !opened.node.matches(":disabled")) return opened.node;
+  if (input.asked && projectFocusTarget(state, true, true) === "url") return root?.querySelector("#ob-project-url") ?? null;
+  if (!root || (active && active !== input.body && active.isConnected && !active.matches(":disabled"))) return null;
+  const target = projectFocusTarget(state, input.agentReady);
+  const node = target === "action" ? recoveryControl(root.querySelector(".ob-scene button:not(:disabled), .ob-scene input:not(:disabled)"))
+    // A drop notice tells what a drop did and never takes focus, so the error after it is the one announced.
+    : root.querySelector(`.ob-scene .ob-project-notice[role="${target}"]:not(.ob-drop-notice)`);
+  return node ?? input.heading;
+}
+// Within the Project step, a phase change that took the focused control away hands focus on, never to <body>; first
+// run and the page share it. `scope` holds the step's .ob-scene.
+export function useProjectFocus(session: ProjectStepSession, scope: RefObject<ScopeNode | null>, heading: RefObject<FocusTarget | null>, agentReady: () => boolean, active: boolean) {
+  const phase = `${session.state.phase.kind}:${session.state.error?.code ?? ""}:${session.busy()}:${session.picking()}`;
+  // The button that opened a folder sheet gets focus back when the sheet closes and the screen did not change.
+  const picker = useRef<{ node: FocusTarget; phase: string } | null>(null);
+  // Edit repository URL (and Back from a cancelled or failed clone) lead to the URL field.
+  const urlRequested = useRef(false);
+  useEffect(() => {
+    if (!active || session.picking()) return;
+    requestAnimationFrame(() => {
+      const opened = picker.current;
+      if (opened && !session.busy()) picker.current = null;
+      const asked = urlRequested.current;
+      urlRequested.current = false;
+      const active = document.activeElement;
+      projectFocusNode({ opened, asked, root: scope.current, active: active instanceof HTMLElement ? active : null, body: document.body, heading: heading.current,
+        state: session.state, agentReady: agentReady(), busy: session.busy() })?.focus();
+    });
+  }, [phase]);
+  return {
+    toUrl: () => { urlRequested.current = true; session.restart(); },
+    openPicker: (open: () => void) => {
+      const node = document.activeElement;
+      picker.current = node instanceof HTMLElement ? { node, phase: session.state.phase.kind } : null;
+      open();
+    },
+  };
+}
+
 const HEADINGS = {
   choose: ["Choose your project", "Start with a folder on your Mac, or a GitHub repository."],
+  add: ["Add a project", "Start with a folder on your Mac, or a GitHub repository."],
   found: ["Already on your Mac", "This GitHub repository matches a local project."],
   clone: ["Clone repository", "Bring this project onto your Mac."],
   ready: ["Your project is ready", "Start creating with the tools and code you already have."],
@@ -315,6 +419,11 @@ const HEADINGS = {
 export interface ProjectScreenProps {
   state: ProjectStepState; busy: boolean; agentReady: boolean; projects: readonly string[]; home: string | null; urlValid: boolean;
   heading: (node: HTMLHeadingElement | null) => void;
+  // First run by default; the Add Projects page differs only by design '온보딩과의 공유'.
+  use?: ProjectUse;
+  // The heading's id, when a landmark is named by it (the page's panel).
+  headingId?: string;
+  drop?: ProjectDrop;
   on: {
     back(): void; backToAgents(): void; chooseFolder(): void; chooseExisting(): void; setUrl(url: string): void; find(): void; cancelInspect(): void; edit(): void;
     pickListed(path: string): void; useListed(): void; pickCandidate(path: string): void; select(): void; setUp(inspectionId: string): void;
@@ -322,8 +431,9 @@ export interface ProjectScreenProps {
   };
 }
 // One screen per phase (draft frames project, project-local, repository-found, repository-clone, repository-error and
-// the Project states tiles). Errors sit above the footer; the footer's Back always returns to the Agent step.
-export function ProjectScreen({ state, busy, agentReady, projects, home, urlValid, heading, on }: ProjectScreenProps) {
+// the Project states tiles). Errors sit above the footer; first run's Back returns to the Agent step, the page's Cancel
+// to the screen it was opened from.
+export function ProjectScreen({ state, busy, agentReady, projects, home, urlValid, heading, on, use = "onboarding", headingId, drop }: ProjectScreenProps) {
   const p = state.phase, error = state.error;
   const destination = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? p.destination : null;
   const run = (command: ProjectAction) => {
@@ -335,14 +445,15 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const fromUrl = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" || ((p.kind === "candidates" || p.kind === "setup") && p.url !== null);
   // A clone destination under a registered project is what main refuses as path_unavailable on the clone screen.
   const container = p.kind === "clone" && destination !== null ? projects.find(root => destination.startsWith(`${root.replace(/\/+$/, "")}/`)) ?? null : null;
-  const notice = error ? projectNotice(error.code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null) : !agentReady && (p.kind === "ready") ? projectNotice("no_ready_agent", undefined, null) : null;
+  const code = projectNoticeCode(use, state, agentReady);
+  const notice = code === null ? null : code === error?.code ? projectNotice(code, error.message, destination, fromUrl, container && nameOf(container), error.path ?? null) : projectNotice(code, undefined, null);
   // D28: a notice's recovery actions and the screen's own never repeat; the notice keeps its copy. Use existing folder
   // already answers 'Already have this repository?'.
   const offered = new Set(notice?.actions.map(button => button.command) ?? []);
   const repeats = (command: ProjectAction) => offered.has(command) || (command === "chooseExisting" && offered.has("useExisting"));
   const [title, lead] = p.kind === "ready" || p.kind === "completing" ? HEADINGS.ready
     : p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? HEADINGS.clone
-    : (p.kind === "candidates" || p.kind === "setup") && p.url !== null ? HEADINGS.found : HEADINGS.choose;
+    : (p.kind === "candidates" || p.kind === "setup") && p.url !== null ? HEADINGS.found : use === "addPage" ? HEADINGS.add : HEADINGS.choose;
   const urlField = (readOnly: boolean) => <>
     <label className="ob-field-label" htmlFor="ob-project-url">Repository URL</label>
     <input className="doan-input" id="ob-project-url" aria-label="GitHub repository URL" placeholder="https://github.com/owner/repository" value={state.url} readOnly={readOnly}
@@ -352,7 +463,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
   const smallActions = (...buttons: [string, ProjectAction][]) => { const kept = buttons.filter(([, command]) => !repeats(command));
     return kept.length > 0 && <div className="ob-small-action">{kept.map(([label, command]) =>
       <button key={label} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={() => run(command)}>{label}</button>)}</div>; };
-  let body: React.ReactNode, footer: { label: string; next: () => void; enabled: boolean } = { label: "Open Doan", next: on.complete, enabled: false };
+  let body: React.ReactNode;
 
   if (p.kind === "choose" || p.kind === "inspecting") {
     const urlNotice = error && (error.code === "invalid_url" || error.code === "access_failed");
@@ -360,22 +471,20 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     body = <>
       {/* An unreachable repository keeps the screen to the URL and its recovery (draft frame 'repository-error'). */}
       {error?.code !== "access_failed" && <>
-      {projects.length > 0 && <div className="ob-projects">
+      {use === "onboarding" && projects.length > 0 && <div className="ob-projects">
         <div className="ob-field-label">Your projects</div>
         <ProjectChoice paths={projects} choice={state.listChoice} home={home} pick={on.pickListed} name="Your projects" />
         <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.listChoice === null} onClick={on.useListed}>Use this folder</button></div>
       </div>}
-      <div className="doan-panel ob-local-option">
-        <span className="ob-folder-icon"><Folder aria-hidden="true" /></span>
-        <div><strong>Open a local folder</strong><p>Use a project that’s already on your Mac.</p></div>
-        <button type="button" className="doan-button" data-ui-variant="subtle" disabled={busy} onClick={on.chooseFolder}>Choose folder</button>
-      </div>
+      <LocalFolderCard busy={busy} choose={on.chooseFolder} {...(drop ? { drop } : {})} />
+      {drop?.notice && <div className="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabIndex={-1}><AlertIcon /><span>{drop.notice}</span></div>}
       <div className="ob-divider"><span>or use GitHub</span></div>
       </>}
       {urlField(p.kind === "inspecting")}
       {p.kind === "inspecting" ? <>
         <Progress title="Checking repository" body={p.url} />
-        <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.cancelInspect}>Cancel</button>
+        {/* The page's footer Cancel leaves the page; this one stops the check. */}
+        <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label={use === "addPage" ? "Cancel check" : undefined} onClick={on.cancelInspect}>Cancel</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Find repository</button></div>
       </> : urlNotice ? <>
         <ProjectNoticeView notice={notice!} run={run} id="ob-project-error" />
@@ -410,7 +519,6 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       {p.url !== null && <p className="ob-fine">Use your existing files and current branch.</p>}
       {p.url !== null ? smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"]) : smallActions(["Choose another folder", "chooseFolder"])}
     </>;
-    footer = { label: "Use this folder", next: () => on.select(), enabled: true };
   } else if (p.kind === "checking") {
     body = <Progress title="Checking this folder" body={shown(p.path, home)} />;
   } else if (p.kind === "setup" || p.kind === "selecting") {
@@ -422,9 +530,11 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <p>Doan will add its project configuration and a design folder. Existing files stay in place.</p>
         <ChosenProject path={p.path} home={home} />
         {notice ? <ProjectNoticeView notice={notice} run={run} />
-          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>Set up and continue</button></div>}
+          : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>{setUpLabel(use)}</button></div>}
       </section>}
       {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"])}
+      {/* The page's footer only leaves it, so the page offers another folder here; first run keeps its shipped panel. */}
+      {p.kind === "setup" && p.url === null && use === "addPage" && smallActions(["Choose another folder", "chooseFolder"])}
       {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
     </>;
   } else if (p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled") {
@@ -441,6 +551,8 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
             <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Retry</button></>
             : <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={p.operationId === null} onClick={on.cancelClone}>Cancel</button>}
         </div>
+        {/* The page's locked header and sidebar, and first run's disabled Back and steps, do not say why by themselves. */}
+        <p className="ob-fine">Stay on this page until the clone finishes, or cancel it.</p>
       </> : p.kind === "cloneCancelled" ? <>
         <div className="doan-notice doan-panel ob-project-notice" role="status" tabIndex={-1}><AlertIcon /><span>Cloning was cancelled. Choose a folder or try again.</span></div>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
@@ -452,24 +564,29 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {smallActions(["Choose existing folder", "chooseExisting"], ["Edit repository URL", "edit"])}
       </>}
     </>;
-    footer = { label: "Clone and continue", next: on.clone, enabled: p.kind === "clone" && p.inspectionId !== null && !error };
   } else {
     const root = p.root;
-    const saveFailed = error?.code === "completion_save_failed";
     body = <>
       <ChosenProject path={root} home={home} />
       {p.kind === "completing" ? <Progress title="Saving your setup" body="Your project is ready. Finishing setup before opening Home." /> : notice && <ProjectNoticeView notice={notice} run={run} />}
       {smallActions(["Choose another folder", "chooseFolder"])}
       <p className="ob-fine">Your selected project will be ready on Home.</p>
     </>;
-    footer = saveFailed ? { label: "Retry", next: on.retry, enabled: true }
-      : { label: "Open Doan", next: on.complete, enabled: agentReady && error?.code !== "completion_unsupported_version" };
   }
+  const footer = projectFooter(use, state, { busy, agentReady });
+  const next = () => { const action = footer?.primary?.action; if (action === "select") on.select(); else if (action === "clone") on.clone(); else if (action === "retry") on.retry(); else on.complete(); };
   return <>
-    <div className="ob-heading"><h2 tabIndex={-1} ref={heading}>{title}</h2><p>{lead}</p></div>
+    <div className="ob-heading"><h2 tabIndex={-1} ref={heading} id={headingId}>{title}</h2><p>{lead}</p></div>
     {body}
-    <Footer back={on.back} next={footer.next} label={footer.label} enabled={footer.enabled} busy={busy} />
+    {footer && <Footer use={use} footer={footer} back={on.back} next={next} />}
   </>;
+}
+
+// First run's steps scroll as one surface under the step capsule, so the thin scroll bar sits at the window's right
+// edge, not beside the 560px column; the Add Projects page's panel plays the same part (buzz-add-projects design
+// '온보딩과의 공유' 2).
+export function SceneScroll({ children }: { children: React.ReactNode }) {
+  return <div className="ob-scroll doan-scroll"><div className="ob-scene">{children}</div></div>;
 }
 
 // The full-window first run: Welcome → Agent → Project → Home, mounted once per main onboarding session. A CLI or MCP
@@ -510,37 +627,8 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   }, []);
   // A scene change moves focus to its heading; Tab then enters the controls (design '이동·취소·포커스 계약').
   useEffect(() => { requestAnimationFrame(() => heading.current?.focus()); }, [scene.generation]);
-  // Within the Project step, a phase change that took the focused control away hands focus on, never to <body>.
-  const projectPhase = `${project.state.phase.kind}:${project.state.error?.code ?? ""}:${project.busy()}:${project.picking()}`;
-  // The button that opened a folder sheet gets focus back when the sheet closes and the screen did not change.
-  const picker = useRef<{ node: HTMLElement; phase: string } | null>(null);
-  // Edit repository URL (and Back from a cancelled or failed clone) lead to the URL field.
-  const urlRequested = useRef(false);
-  const toUrl = () => { urlRequested.current = true; project.restart(); };
-  const openPicker = (open: () => void) => {
-    const node = document.activeElement;
-    picker.current = node instanceof HTMLElement ? { node, phase: project.state.phase.kind } : null;
-    open();
-  };
-  useEffect(() => {
-    if (scene.scene !== "project" || project.picking()) return;
-    requestAnimationFrame(() => {
-      const opened = picker.current;
-      if (opened && !project.busy()) {
-        picker.current = null;
-        if (opened.phase === project.state.phase.kind && opened.node.isConnected && !opened.node.matches(":disabled")) { opened.node.focus(); return; }
-      }
-      const root = overlay.current, active = document.activeElement;
-      const asked = urlRequested.current;
-      urlRequested.current = false;
-      if (asked && projectFocusTarget(project.state, true, true) === "url") { root?.querySelector<HTMLElement>("#ob-project-url")?.focus(); return; }
-      if (!root || (active instanceof HTMLElement && active !== document.body && active.isConnected && !active.matches(":disabled"))) return;
-      const target = projectFocusTarget(project.state, canAdvance(agents.state.auth ?? null));
-      const node = target === "action" ? recoveryControl(root.querySelector<HTMLElement>(".ob-scene button:not(:disabled), .ob-scene input:not(:disabled)"))
-        : root.querySelector<HTMLElement>(`.ob-scene .ob-project-notice[role="${target}"]`);
-      (node ?? heading.current)?.focus();
-    });
-  }, [projectPhase]);
+  const overlay = useRef<HTMLDialogElement | null>(null);
+  const { toUrl, openPicker } = useProjectFocus(project, overlay, heading, () => canAdvance(agents.state.auth ?? null), scene.scene === "project");
   // Guarded with the session's auth at the time of the move, not of the click: a cancel wait can outlive a ready provider.
   const move = (event: SceneEvent) => setScene(current => nextScene(current, event, { auth: agents.state.auth ?? null, busy: project.busy() }));
   const generation = useRef(0);
@@ -550,7 +638,6 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   // A stacked modal (the stop or paste dialog) answers its own keys.
   const stacked = useRef(false);
   stacked.current = agents.state.dialog !== null;
-  const overlay = useRef<HTMLDialogElement | null>(null);
   // On the window, in capture: a button that turns disabled while it runs drops
   // focus to <body>, and keys from there must still reach the onboarding window. Capture
   // also runs before the canvas's own Escape (selection clear) listener.
@@ -581,17 +668,18 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
     <div className="ob-chrome">
       {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => { if (to === "project") leave.forward(); else move({ type: "step", to }); }} />}
     </div>
-    <div className="ob-scene native-scroll">
+    <SceneScroll>
       {welcome && <div className="ob-welcome-scene" ref={node => setHeading(node?.querySelector("h1") ?? null)}><Welcome start={() => move({ type: "start" })} /></div>}
       {scene.scene === "agent" && <AgentStep session={agents} heading={setHeading}
         back={leave.back} next={leave.forward} />}
-      {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading} on={{
+      {scene.scene === "project" && <ProjectScreen state={p.state} busy={busy} agentReady={canAdvance(auth)} projects={projects} home={homeDirectory} urlValid={p.urlValid()} heading={setHeading}
+        drop={{ notice: p.dropNotice, allowed: () => p.canDrop(), started: () => p.dragStarted(), dropped: items => void p.drop(items) }} on={{
         back: () => { if (p.backToUrl()) toUrl(); else move({ type: "back" }); }, backToAgents: () => move({ type: "step", to: "agent" }),
         chooseFolder: () => openPicker(() => void p.chooseFolder()), chooseExisting: () => openPicker(() => void p.chooseExisting()), setUrl: url => p.setUrl(url), find: () => void p.findRepository(), cancelInspect: () => p.cancelInspect(), edit: toUrl,
         pickListed: path => p.pickListed(path), useListed: () => void p.useListed(), pickCandidate: path => p.pickCandidate(path), select: () => void p.select(), setUp: inspectionId => void p.setUp(inspectionId),
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
       }} />}
-    </div>
+    </SceneScroll>
   </dialog>;
 }

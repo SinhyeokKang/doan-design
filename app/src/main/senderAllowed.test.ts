@@ -4,7 +4,7 @@ import { AUTH_CHANNELS } from "./agentAuth/ipc";
 import { ONBOARDING_CHANNELS } from "./onboarding/service";
 const mainOnly = [
   "app:home", "comments:list", "comments:begin", "comments:mutate", "comments:status", "comments:author", "comments:copy", "comments:guard", "comments:transition-answer",
-  "project:choose-token-css", "project:init", "folders:add", "folders:add-paths", "folders:scan", "folders:scan-cancel", "folders:add-candidates", "folders:confirm-folder",
+  "project:choose-token-css", "project:init",
   "folders:remove", "folders:restore", "folders:forget-removal", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save", "onboarding:first-prompt", "onboarding:copy",
   // Settings reads setup through `setup:*` and projects through the projection only (orch.md R-A1).
@@ -56,4 +56,15 @@ test("restricts every onboarding session request channel to main", () => {
   const requests = Object.values(ONBOARDING_CHANNELS).filter(channel => channel !== ONBOARDING_CHANNELS.changed);
   expect(requests.filter(channel => !mainOnly.includes(channel))).toEqual([]);
   for (const channel of requests) expect(senderAllowed(channel, "settings")).toBe(false);
+});
+// buzz-add-projects: the Add Projects page's session is the main window's; Settings has no Add Projects page.
+test("restricts every Add Projects page request channel to main", async () => {
+  const { ADD_PAGE_CHANNELS } = await import("./addPage");
+  const requests = Object.values(ADD_PAGE_CHANNELS).filter(channel => channel !== ADD_PAGE_CHANNELS.changed && channel !== ADD_PAGE_CHANNELS.open);
+  expect(requests).toEqual(["add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel"]);
+  for (const channel of requests) {
+    expect(senderAllowed(channel, "main"), channel).toBe(true);
+    expect(senderAllowed(channel, "settings"), channel).toBe(false);
+  }
+  for (const event of [ADD_PAGE_CHANNELS.changed, ADD_PAGE_CHANNELS.open]) for (const kind of ["main", "settings"]) expect(senderAllowed(event, kind)).toBe(false);
 });

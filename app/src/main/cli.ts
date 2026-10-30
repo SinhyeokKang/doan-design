@@ -17,10 +17,9 @@ export function cliCommand(env: NodeJS.ProcessEnv = process.env, packaged = fals
 
 // `--repo` never walks up, so a saved folder is read as itself. `{cwd}` is for a
 // folder the human just picked: the CLI walks up and reports the repo `root`.
-// `signal` ends the run early (a cancelled scan); the result is then a CLI error.
-export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS, signal?: AbortSignal): Promise<CliRun> {
+export function runLs(cli: string, target: LsTarget, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
   const args = "repo" in target ? ["ls", "--json", "--repo", target.repo] : ["ls", "--json"];
-  return runCli(cli, args, "cwd" in target ? target.cwd : undefined, timeoutMs, signal);
+  return runCli(cli, args, "cwd" in target ? target.cwd : undefined, timeoutMs);
 }
 
 export function runInit(cli: string, folder: string, tokenCss: string | null, timeoutMs = CLI_TIMEOUT_MS): Promise<CliRun> {
@@ -56,8 +55,7 @@ export async function readFolder(cli: string, path: string, timeoutMs = CLI_TIME
 // Not `execFile`: its 1 MiB default `maxBuffer` is below a large repo's normal
 // `ls` output. stdin is ignored so the CLI never waits for an answer (POSTMORTEM
 // "A character device is not necessarily a terminal").
-function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs: number, signal?: AbortSignal): Promise<CliRun> {
-  if (signal?.aborted) return Promise.resolve({ exitCode: null, timedOut: false, spawnError: "cancelled", stdout: "", stderr: "" });
+function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs: number): Promise<CliRun> {
   return new Promise((resolve) => {
     const child = spawn(cli, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
     const stdout: Buffer[] = [];
@@ -67,7 +65,6 @@ function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs:
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      signal?.removeEventListener("abort", abort);
       resolve({ ...run, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString() });
     };
     // Resolve at the timeout instead of waiting for `close`: a child the CLI
@@ -79,8 +76,6 @@ function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs:
       finish(run);
     };
     const timer = setTimeout(() => kill({ exitCode: null, timedOut: true }), timeoutMs);
-    const abort = () => kill({ exitCode: null, timedOut: false, spawnError: "cancelled" });
-    signal?.addEventListener("abort", abort, { once: true });
     child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
     child.on("error", (error) => finish({ exitCode: null, timedOut: false, spawnError: error.message }));

@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vit
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
 import { displayPath } from "../renderer/projectDisplay";
 
-const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], scanId: null, confirms: [] };
+const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], confirm: null };
 
 const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
@@ -38,7 +38,7 @@ const mocks = await vi.hoisted(async () => {
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
       store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
-    flow: { add: vi.fn(), scan: vi.fn(), cancel: vi.fn(), addCandidates: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
+    flow: { add: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
     electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn() },
     // AppKit notifications by name, as main last subscribed to them.
@@ -68,6 +68,8 @@ const mocks = await vi.hoisted(async () => {
     readFolder: vi.fn(),
     readFoldersFileForPruning: vi.fn(),
     nativeTheme: { themeSource: "system" },
+    // Folder work the Add Projects page and onboarding share; each delegates to the real module unless a test says otherwise.
+    projects: { canonicalFolder: vi.fn(), inspectPath: vi.fn(), selectProject: vi.fn(), cloneDestination: vi.fn(), cloneProject: vi.fn() },
   };
 });
 
@@ -95,6 +97,8 @@ vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
 vi.mock("./reviewState", async (importOriginal) => ({ ...await importOriginal<typeof import("./reviewState")>(), createReviewStore: mocks.createReviewStore }));
 vi.mock("./projectComments", async (importOriginal) => ({ ...await importOriginal<typeof import("./projectComments")>(), readProjectComments: mocks.readProjectComments }));
+vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
+const actualProjects = await vi.importActual<typeof import("./onboarding/projects")>("./onboarding/projects");
 
 // A machine read where everything is connected.
 const MACHINE = {
@@ -137,6 +141,7 @@ beforeEach(async () => {
   mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
   mocks.thumbnails.removed.mockResolvedValue(undefined);
   mocks.createReviewStore.mockReturnValue(mocks.reviewStore);
+  for (const name of Object.keys(mocks.projects) as (keyof typeof mocks.projects)[]) mocks.projects[name].mockImplementation(actualProjects[name] as never);
   await import("./index");
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
 });
@@ -262,10 +267,11 @@ test("ignores activate without a window and disposes only on quit", () => {
   expect(mocks.shell.dispose).toHaveBeenCalledOnce();
 });
 
-test("File menu opens the add picker and closes the window", async () => {
+test("File menu opens the Add Projects page and closes the window", async () => {
   const open = item("Add Project…").click;
   Reflect.apply(open ?? (() => { throw new Error("no open handler"); }), undefined, []);
-  await vi.waitFor(() => expect(mocks.dialog.showOpenDialog).toHaveBeenCalledOnce());
+  expect(window().webContents.send).toHaveBeenCalledWith("add-projects:open");
+  expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
   expect(window().show).toHaveBeenCalledOnce();
   const close = item("Close Window").click;
   Reflect.apply(close ?? (() => { throw new Error("no close handler"); }), undefined, []);
@@ -837,78 +843,63 @@ describe("menus", () => {
     expect(window().webContents.send).toHaveBeenCalledWith("menu-command", "home");
   });
 
-  test("Add Project… shows a hidden window, then a multi-folder picker, and sends the outcome", async () => {
+  // buzz-add-projects: the page opens in the renderer; no native picker, and none with multiSelections, opens here.
+  test("Add Project… shows a hidden window first, then tells the renderer to open the Add Projects page", async () => {
     window().emit("close", { preventDefault: vi.fn() });
-    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/a", "/b"] });
+    expect(window().hide).toHaveBeenCalledOnce();
     click("Add Project…");
-    await vi.waitFor(() => expect(window().webContents.send).toHaveBeenCalledWith("folders:add-outcome", OUTCOME));
     expect(window().show).toHaveBeenCalledOnce();
-    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ properties: expect.arrayContaining(["openDirectory", "multiSelections"]) }));
-    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith(["/a", "/b"]);
+    expect(window().webContents.send).toHaveBeenCalledWith("add-projects:open");
+    expect(window().show.mock.invocationCallOrder[0]).toBeLessThan(window().webContents.send.mock.invocationCallOrder.at(-1) ?? 0);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(mocks.dialog.showOpenDialog).not.toHaveBeenCalled();
+    expect(mocks.flow.add).not.toHaveBeenCalled();
+  });
+
+  test("the Add Projects page: Add Project… only in its choose phase, Home and Quick Open, no canvas items", async () => {
+    const contents = window().webContents;
+    await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true });
+    expect(menuEnabled("Add Project…")).toBe(true);
+    expect(menuEnabled("Home")).toBe(true);
+    expect(menuEnabled("Quick Open…")).toBe(true);
+    for (const label of ["Zoom In", "Reload Canvas", "Next Resolved Comment"]) expect(menuEnabled(label), label).toBe(false);
+    await invoke("menu:state", contents, null, state("addProjects"));
+    expect(menuEnabled("Add Project…")).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("addProjects"), choose: false });
+    expect(menuEnabled("Add Project…")).toBe(false);
+  });
+
+  test("a locked page disables everything that leaves it; Undo Remove gives ⌘Z back", async () => {
+    const contents = window().webContents;
+    await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: true });
+    for (const label of ["Add Project…", "Home", "Quick Open…", "Next Resolved Comment", "Previous Resolved Comment"]) expect(menuEnabled(label), label).toBe(false);
+    expect(submenu("Edit")[0]?.role).toBe("undo");
+    await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: false });
+    expect(menuEnabled("Add Project…")).toBe(true);
+    expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });
+  });
+
+  test("refuses malformed page menu states", async () => {
+    const contents = window().webContents;
+    await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true });
+    const builds = mocks.menu.mock.calls.length;
+    for (const bad of [{ ...state("addProjects"), locked: "yes" }, { ...state("addProjects"), choose: 1 }, { ...state("addProjects"), locked: true, more: 1 },
+      { ...state("addProjects"), choose: true, locked: false, reviewing: false, more: 1 }, { ...state("add-projects") }]) {
+      await invoke("menu:state", contents, null, bad);
+    }
+    expect(mocks.menu.mock.calls.length).toBe(builds);
+    expect(menuEnabled("Add Project…")).toBe(true);
   });
 });
 
 describe("adding projects", () => {
-  test("folders:add from the window runs the picker; a cancelled picker adds nothing", async () => {
-    const contents = window().webContents;
-    await invoke("folders:add", contents, null);
-    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledOnce();
-    expect(mocks.flow.add).not.toHaveBeenCalled();
-    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/a"] });
-    await invoke("folders:add", contents, {});
-    await invoke("folders:add", {}, null);
-    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledOnce();
-    await invoke("folders:add", contents, null);
-    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith(["/a"]);
-    expect(contents.send).toHaveBeenCalledWith("folders:add-outcome", OUTCOME);
-  });
-
-  test("folders:add-paths accepts only validated absolute paths from the window", async () => {
-    const contents = window().webContents;
-    for (const bad of [null, ["/a"], { paths: ["rel"] }, { paths: [1] }, { paths: Array.from({ length: 33 }, (_, i) => `/p${i}`) }, { paths: ["/a"], more: 1 }]) {
-      await invoke("folders:add-paths", contents, null, bad);
-    }
-    await invoke("folders:add-paths", contents, {}, { paths: ["/a"] });
-    await invoke("folders:add-paths", {}, null, { paths: ["/a"] });
-    expect(mocks.flow.add).not.toHaveBeenCalled();
-    await invoke("folders:add-paths", contents, null, { paths: ["/a", "/b"] });
-    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith(["/a", "/b"]);
-    expect(contents.send).toHaveBeenCalledWith("folders:add-outcome", OUTCOME);
-  });
-
-  test("the add flow lists stored paths, stores through the shell and sends scan progress", async () => {
+  test("the add flow lists stored paths and stores through the shell", async () => {
     const deps = mocks.createAddFlow.mock.calls[0]?.[0];
     mocks.shell.entries.mockReturnValue([{ path: "/x" }, { path: "/y" }]);
     expect(deps.saved()).toEqual(["/x", "/y"]);
     mocks.shell.store.mockResolvedValue(["/z"]);
     expect(await deps.store(["/z"])).toEqual(["/z"]);
     expect(mocks.shell.store).toHaveBeenCalledWith(["/z"]);
-    const snapshot = { scanId: "s", seq: 1, finished: 0, total: 1, done: false, items: [] };
-    deps.progress(snapshot);
-    expect(window().webContents.send).toHaveBeenCalledWith("folders:scan-progress", snapshot);
-  });
-
-  test("scan, cancel, candidates and confirm go to the add flow only from the window", async () => {
-    const contents = window().webContents;
-    mocks.flow.scan.mockReturnValue({ scanId: "s" });
-    mocks.flow.addCandidates.mockResolvedValue({ kind: "added", added: ["/c"] });
-    mocks.flow.confirm.mockResolvedValue({ kind: "added", added: ["/p"] });
-    expect(await invoke("folders:scan", contents, null, { scanId: "s" })).toEqual({ scanId: "s" });
-    expect(mocks.flow.scan).toHaveBeenCalledWith("s");
-    await invoke("folders:scan-cancel", contents, null, { scanId: "s" });
-    expect(mocks.flow.cancel).toHaveBeenCalledWith("s");
-    expect(await invoke("folders:add-candidates", contents, null, { scanId: "s", ids: ["i"] })).toEqual({ kind: "added", added: ["/c"] });
-    expect(mocks.flow.addCandidates).toHaveBeenCalledWith({ scanId: "s", ids: ["i"] });
-    expect(await invoke("folders:confirm-folder", contents, null, { confirmId: "c" })).toEqual({ kind: "added", added: ["/p"] });
-    expect(mocks.flow.confirm).toHaveBeenCalledWith({ confirmId: "c" });
-    vi.clearAllMocks();
-    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
-      expect(await invoke("folders:scan", sender, parent, { scanId: "s" })).toBeNull();
-      await invoke("folders:scan-cancel", sender, parent, { scanId: "s" });
-      expect(await invoke("folders:add-candidates", sender, parent, { scanId: "s", ids: ["i"] })).toEqual({ kind: "unavailable" });
-      expect(await invoke("folders:confirm-folder", sender, parent, { confirmId: "c" })).toEqual({ kind: "unavailable" });
-    }
-    for (const fn of Object.values(mocks.flow)) expect(fn).not.toHaveBeenCalled();
   });
 });
 
@@ -1957,4 +1948,164 @@ test("shell activity refuses foreign windows, subframes, unknown roots, and spar
   expect(await invoke("shell:activity", contents, null, { roots: ["/not-registered"] })).toBeNull();
   expect(await invoke("shell:activity", contents, null, { roots: Array(1) })).toBeNull();
   expect(await invoke("shell:activity", contents, null, { roots: [] })).toEqual([]);
+});
+
+// buzz-add-projects: the page's own project instance, beside the onboarding session's (design 'main의 project 처리').
+describe("Add Projects page session", () => {
+  const PAGE = ["add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel"];
+  const REFUSED = { v: 2, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } };
+  async function pageSession(): Promise<string> {
+    const read = await invoke("add-projects:read", window().webContents, null, {}) as { ok: true; result: { sessionId: string } };
+    return read.result.sessionId;
+  }
+  // Clones that hold until released or aborted; destination tells the two instances' clones apart.
+  function heldClones() {
+    const held = new Map<string, { signal: AbortSignal; release(): void }>();
+    mocks.projects.cloneDestination.mockImplementation(async (path: string) => ({ state: "absent", path }));
+    mocks.projects.cloneProject.mockImplementation(async (_url: string, destination: string, signal: AbortSignal) => {
+      await new Promise<void>(resolve => { held.set(destination, { signal, release: resolve }); signal.addEventListener("abort", () => resolve()); });
+      return signal.aborted ? { ok: false, cancelled: true } : { ok: true, root: destination };
+    });
+    return held;
+  }
+  async function cloneOnPage(destination: string): Promise<string> {
+    const contents = window().webContents, sessionId = await pageSession();
+    const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: `plan-${destination.length}`, url: "https://github.com/acme/studio", destination }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    const clone = await invoke("add-projects:clone", contents, null, { sessionId, requestId: `clone-${destination.length}`, inspectionId: plan.result.operation.inspection.inspectionId, destination }) as { result: { operation: { operationId: string } } };
+    return clone.result.operation.operationId;
+  }
+  async function cloneInOnboarding(destination: string): Promise<void> {
+    const contents = window().webContents;
+    const started = await invoke("onboarding:start", contents, null, {}) as { result: { sessionId: string } };
+    const sessionId = started.result.sessionId;
+    const plan = await invoke("onboarding:inspect", contents, null, { sessionId, requestId: "first-plan", url: "https://github.com/acme/other", destination }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    await invoke("onboarding:clone", contents, null, { sessionId, requestId: "first-clone", inspectionId: plan.result.operation.inspection.inspectionId, destination });
+  }
+
+  test("every page channel answers the main window's main frame only, and only a valid request", async () => {
+    const contents = window().webContents, sessionId = await pageSession();
+    const valid: Record<string, unknown> = {
+      "add-projects:read": {}, "add-projects:inspect": { sessionId, requestId: "r", path: "/work/studio" },
+      "add-projects:select": { sessionId, requestId: "r", inspectionId: "i", path: "/work/studio" },
+      "add-projects:clone": { sessionId, requestId: "r", inspectionId: "i", destination: "/work/studio" }, "add-projects:cancel": { sessionId, requestId: "r", operationId: "o" },
+    };
+    for (const channel of PAGE) {
+      expect(await invoke(channel, contents, {}, valid[channel]), channel).toEqual(REFUSED);
+      expect(await invoke(channel, {}, null, valid[channel]), channel).toEqual(REFUSED);
+      for (const bad of [null, "x", [], { ...valid[channel] as object, more: 1 }]) expect(await invoke(channel, contents, null, bad), channel).toEqual(REFUSED);
+    }
+    expect(await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "r", path: "relative" })).toEqual(REFUSED);
+    expect(await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "r", url: "https://gitlab.com/acme/studio" })).toEqual(REFUSED);
+    expect(mocks.projects.canonicalFolder).not.toHaveBeenCalled();
+  });
+
+  test("the page has its own session, apart from first run's, and publishes its changes on its own channel", async () => {
+    const contents = window().webContents, sessionId = await pageSession();
+    const first = await invoke("onboarding:start", contents, null, {}) as { result: { sessionId: string } };
+    expect(sessionId).not.toBe(first.result.sessionId);
+    const inspected = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "url", url: "https://github.com/acme/studio" }) as { ok: boolean; result: { operation: { kind: string; state: string } } };
+    expect(inspected).toMatchObject({ ok: true, result: { operation: { kind: "project_inspect", state: "succeeded" } } });
+    expect(contents.send).toHaveBeenCalledWith("add-projects:changed", expect.objectContaining({ sessionId, operations: [expect.objectContaining({ kind: "project_inspect" })] }));
+    const onboardingState = await invoke("onboarding:status", contents, null, { sessionId: first.result.sessionId }) as { result: { operations: unknown[] } };
+    expect(onboardingState.result.operations).toEqual([]);
+  });
+
+  test("a folder the page selects registers through the same project deps as first run", async () => {
+    const contents = window().webContents, sessionId = await pageSession();
+    mocks.projects.canonicalFolder.mockResolvedValue("/picked");
+    mocks.projects.inspectPath.mockResolvedValue({ ok: true, candidates: [{ path: "/picked", changes: [] }] });
+    mocks.projects.selectProject.mockImplementation(async (path: string, _initialize: boolean, _repo: unknown, deps: { add(path: string): Promise<string | null> }) => {
+      const root = await deps.add(path);
+      return root === null ? { ok: false, code: "project_unavailable" } : { ok: true, root };
+    });
+    const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "pick", path: "/picked" }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    const selected = await invoke("add-projects:select", contents, null, { sessionId, requestId: "use", inspectionId: plan.result.operation.inspection.inspectionId, path: "/picked" });
+    expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "succeeded", project: { root: "/repo" } } } });
+    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith("/picked");
+  });
+
+  test("a folder Add Project would only confirm is confirmed, because selecting it was the user's setup intent", async () => {
+    const contents = window().webContents, sessionId = await pageSession();
+    mocks.projects.canonicalFolder.mockResolvedValue("/plain");
+    mocks.projects.inspectPath.mockResolvedValue({ ok: true, candidates: [{ path: "/plain", changes: [] }] });
+    mocks.projects.selectProject.mockImplementation(async (path: string, _initialize: boolean, _repo: unknown, deps: { add(path: string): Promise<string | null> }) => {
+      const root = await deps.add(path);
+      return root === null ? { ok: false, code: "project_unavailable" } : { ok: true, root };
+    });
+    mocks.flow.add.mockResolvedValueOnce({ added: [], duplicate: null, messages: [], confirm: { confirmId: "c1", path: "/plain" } });
+    mocks.flow.confirm.mockImplementationOnce(async () => {
+      mocks.shell.entries.mockReturnValue([{ path: "/plain" }]);
+      return { kind: "added" };
+    });
+    const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "pick", path: "/plain" }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    const selected = await invoke("add-projects:select", contents, null, { sessionId, requestId: "use", inspectionId: plan.result.operation.inspection.inspectionId, path: "/plain" });
+    expect(mocks.flow.confirm).toHaveBeenCalledExactlyOnceWith({ confirmId: "c1" });
+    expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "succeeded", project: { root: "/plain" } } } });
+  });
+
+  // review-BS ⚪3: a confirmation answered "added" counts only once the registry holds the path.
+  test("a confirmed folder the registry does not list is not registered", async () => {
+    const contents = window().webContents, sessionId = await pageSession();
+    mocks.projects.canonicalFolder.mockResolvedValue("/plain");
+    mocks.projects.inspectPath.mockResolvedValue({ ok: true, candidates: [{ path: "/plain", changes: [] }] });
+    mocks.projects.selectProject.mockImplementation(async (path: string, _initialize: boolean, _repo: unknown, deps: { add(path: string): Promise<string | null> }) => {
+      const root = await deps.add(path);
+      return root === null ? { ok: false, code: "project_unavailable" } : { ok: true, root };
+    });
+    mocks.flow.add.mockResolvedValueOnce({ added: [], duplicate: null, messages: [], confirm: { confirmId: "c1", path: "/plain" } });
+    mocks.flow.confirm.mockResolvedValueOnce({ kind: "added" });
+    const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "pick", path: "/plain" }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    const selected = await invoke("add-projects:select", contents, null, { sessionId, requestId: "use", inspectionId: plan.result.operation.inspection.inspectionId, path: "/plain" });
+    expect(mocks.flow.confirm).toHaveBeenCalledExactlyOnceWith({ confirmId: "c1" });
+    expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "failed" } } });
+  });
+
+  test.each(["did-navigate", "render-process-gone"])("a replaced renderer (%s) cancels the page's clone only", async event => {
+    const held = heldClones();
+    await cloneInOnboarding("/work/other");
+    const operationId = await cloneOnPage("/work/studio");
+    await vi.waitFor(() => expect(held.size).toBe(2));
+    window().webContents.emit(event);
+    expect(held.get("/work/studio")!.signal.aborted).toBe(true);
+    expect(held.get("/work/other")!.signal.aborted).toBe(false);
+    const sessionId = await pageSession();
+    await vi.waitFor(async () => expect(await invoke("add-projects:read", window().webContents, null, { sessionId, operationId })).toMatchObject({ result: { operations: [{ state: "cancelled" }] } }));
+    held.get("/work/other")!.release();
+  });
+
+  test.each(["did-navigate", "render-process-gone"])("a replaced renderer (%s) also stops a clone still checking its destination", async event => {
+    const held = heldClones();
+    const contents = window().webContents, sessionId = await pageSession();
+    const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "plan", url: "https://github.com/acme/studio", destination: "/work/studio" }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    let checked: (() => void) | undefined;
+    mocks.projects.cloneDestination.mockImplementationOnce(async (path: string) => { await new Promise<void>(resolve => { checked = resolve; }); return { state: "absent", path }; });
+    const clone = invoke("add-projects:clone", contents, null, { sessionId, requestId: "clone", inspectionId: plan.result.operation.inspection.inspectionId, destination: "/work/studio" });
+    await vi.waitFor(() => expect(checked).toBeDefined());
+    window().webContents.emit(event);
+    checked!();
+    expect(await clone).toMatchObject({ ok: false, error: { code: "inspection_stale" } });
+    expect(mocks.projects.cloneProject).not.toHaveBeenCalled();
+    expect(held.size).toBe(0);
+  });
+
+  test("hiding the window stops nothing", async () => {
+    const held = heldClones();
+    await cloneOnPage("/work/studio");
+    await vi.waitFor(() => expect(held.size).toBe(1));
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(window().hide).toHaveBeenCalledOnce();
+    expect(held.get("/work/studio")!.signal.aborted).toBe(false);
+    held.get("/work/studio")!.release();
+  });
+
+  test("an accepted quit stops and cleans up both instances' clones before the app quits", async () => {
+    const held = heldClones();
+    await cloneInOnboarding("/work/other");
+    await cloneOnPage("/work/studio");
+    await vi.waitFor(() => expect(held.size).toBe(2));
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    await vi.waitFor(() => expect(mocks.app.quit).toHaveBeenCalled());
+    expect(held.get("/work/studio")!.signal.aborted).toBe(true);
+    expect(held.get("/work/other")!.signal.aborted).toBe(true);
+  });
 });

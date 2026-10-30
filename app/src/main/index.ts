@@ -16,6 +16,9 @@ import { sharedShell, toolFacts } from "./agentAuth/facts";
 import { createMachine, PATH_LINE, probeShell, runProcess } from "./onboarding/machine";
 import { isTranslocated } from "./onboarding/states";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
+import { projectLocks, type AdderProjects } from "./onboarding/projectAdder";
+import { ADD_PAGE_CHANNELS, AddPageSession } from "./addPage";
+import { addPageRequest } from "./addPageRequest";
 import { onboardingComplete, readCompletion, writeCompletion } from "./onboarding/completion";
 import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
@@ -35,7 +38,7 @@ import type { Selection } from "../formats/types";
 import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
-import { createAddFlow, droppedPaths, type AddFlow } from "./addProjects";
+import { createAddFlow, type AddFlow } from "./addProjects";
 import { cliCommand, readFolder, runConfig, runDesignSkill, runLs } from "./cli";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
@@ -72,7 +75,8 @@ export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload"
 export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved";
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `reviewing`: a Review runs on the open canvas (revision-recheck); absent is false.
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean }
+// `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
+export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean; choose?: boolean; locked?: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -110,6 +114,7 @@ let conversations: ConversationService | undefined;
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
 let onboarding: OnboardingService | undefined;
+let addPage: AddPageSession | undefined;
 // The socket may take a v2 request before start() has the service and the main window that owns CLI sign-ins.
 let onboardingReady: (service: OnboardingService) => void = () => {};
 const onboardingStarted = new Promise<OnboardingService>(resolve => { onboardingReady = resolve; });
@@ -245,7 +250,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, focusedWindow, reviewing: menuInputs.reviewing === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, focusedWindow, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -262,7 +267,7 @@ function setMenu(): void {
       {
         label: "File",
         submenu: [
-          { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: () => { void addFromDialog(); } },
+          { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
           // Closes Settings when it has focus (destroyed), else hides the main window.
           // Electron names the focused window; an inactive app may name none.
@@ -318,18 +323,22 @@ function setMenu(): void {
 const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
-  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast && next.reviewing === menuInputs.reviewing) return;
+  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast && next.reviewing === menuInputs.reviewing &&
+    next.choose === menuInputs.choose && next.locked === menuInputs.locked) return;
   menuInputs = next;
   setMenu();
 }
 
+const MENU_FLAGS = ["reviewing", "choose", "locked"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
-  const reviewing: unknown = Reflect.get(value, "reviewing");
-  if (Object.keys(value).length !== ("reviewing" in value ? 4 : 3) || (reviewing !== undefined && typeof reviewing !== "boolean")) return null;
+  const flags = MENU_FLAGS.filter(flag => flag in value);
+  if (Object.keys(value).length !== 3 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
   const { screen, modal, toast } = value;
-  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
-  return reviewing === true ? { screen, modal, toast, reviewing } : { screen, modal, toast };
+  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
+  const inputs: MenuInputs = { screen, modal, toast };
+  for (const flag of flags) if (Reflect.get(value, flag) === true) inputs[flag] = true;
+  return inputs;
 }
 
 // Without handlers Electron grants permissions to the app's own main frame.
@@ -374,6 +383,10 @@ function createWindow(): BrowserWindow {
   // A new renderer starts on Home again with no toast up.
   window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
   window.webContents.on("did-navigate", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
+  // Only the renderer showed and could cancel the Add Projects page's clone. First run's may belong to a CLI or MCP
+  // client, so it keeps running.
+  window.webContents.on("render-process-gone", () => addPage?.rendererGone());
+  window.webContents.on("did-navigate", () => addPage?.rendererGone());
   // A lost or closed renderer takes its setup confirmation with it; hiding the
   // window does not. Read after destroy, webContents throws, so the id is kept now.
   const owner = window.webContents.id;
@@ -494,16 +507,13 @@ async function chooseFolder(purpose: unknown): Promise<string | null> {
   return picked.canceled || path === undefined ? null : path;
 }
 
-// Add Project…: several folders at once. A hidden window is shown first, as
-// for every other way of reaching the window.
-async function addFromDialog(): Promise<void> {
+// File > Add Project…: the Add Projects page, which the renderer opens (its Choose folder, when the page already shows
+// its choose phase). A hidden window is shown first, as for every other way of reaching the window.
+function openAddProjects(): void {
   const window = win;
-  const flow = addFlow;
-  if (!window || window.isDestroyed() || !flow) return;
+  if (!window || window.isDestroyed()) return;
   showWindow(window);
-  const picked = await dialog.showOpenDialog(window, { title: "Add Project…", properties: ["openDirectory", "multiSelections"] });
-  if (picked.canceled || picked.filePaths.length === 0) return;
-  send("folders:add-outcome", await flow.add(picked.filePaths));
+  send(ADD_PAGE_CHANNELS.open);
 }
 
 function storedPath(value: unknown): string | null {
@@ -645,11 +655,10 @@ async function start(): Promise<void> {
     async add(path) {
       const flow = addFlow;
       if (!flow) return null;
-      const outcome = await flow.add([path]);
-      if (outcome.scanId !== null) flow.cancel(outcome.scanId);
+      const outcome = await flow.add(path);
       const stored = outcome.added[0] ?? outcome.duplicate;
       if (stored) return stored;
-      const confirm = outcome.confirms[0];
+      const confirm = outcome.confirm;
       if (!confirm) return null;
       const confirmed = await flow.confirm({ confirmId: confirm.confirmId });
       return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
@@ -660,6 +669,23 @@ async function start(): Promise<void> {
   const realOrNull = (path: string) => { try { return realpathSync(path); } catch { return null; } };
   // The developer directory xcode-select would use, read without running it (see locateGit).
   const developerDir = () => { if (process.env.DEVELOPER_DIR) return process.env.DEVELOPER_DIR; try { return readlinkSync("/var/db/xcode_select_link"); } catch { return null; } };
+  // First run and the Add Projects page add projects with the same folder work and locks (design 'main의 project 처리').
+  const locks = projectLocks();
+  const projectWork: AdderProjects = {
+    folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
+    inspectPath: (real, repo) => inspectPath(real, projectDeps, repo), inspectUrl: repo => inspectUrl(repo, projectDeps),
+    select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
+    present: leftoverPresent,
+    clone: (url, destination, signal, commit) => cloneProject(url, destination, signal, {
+      ...projectDeps,
+      async git() {
+        const probe = await shellForFacts();
+        const path = probe.ok ? probe.path : null;
+        const git = locateGit({ path, executable, realpath: realOrNull, developerDir });
+        return git !== null && path !== null ? { git, env: cloneEnv(process.env, path) } : null;
+      },
+    }, commit),
+  };
   const onboardingService = new OnboardingService({
     auth: authIpc ?? null,
     mainOwner: () => win && !win.isDestroyed() ? win.webContents.id : null,
@@ -669,23 +695,8 @@ async function start(): Promise<void> {
       // Completion saved (from the window, the CLI or MCP): first run is over for this launch too.
       if (state.completed && onboardingOpen) { onboardingOpen = false; broker?.setOnboardingClosed(true); setMenu(); }
     },
-    projects: {
-      folder: canonicalFolder, destination: path => cloneDestination(path, projectDeps),
-      inspectPath: (real, repo) => inspectPath(real, projectDeps, repo), inspectUrl: repo => inspectUrl(repo, projectDeps),
-      select: (path, initialize, repo) => selectProject(path, initialize, repo, projectDeps),
-      present: leftoverPresent,
-      clone: (url, destination, signal, commit) => cloneProject(url, destination, signal, {
-        ...projectDeps,
-        async git() {
-          const probe = await shellForFacts();
-          const path = probe.ok ? probe.path : null;
-          const git = locateGit({ path, executable, realpath: realOrNull, developerDir });
-          return git !== null && path !== null ? { git, env: cloneEnv(process.env, path) } : null;
-        },
-      }, commit),
-      confirm: root => confirmProject(root, projectDeps),
-      saveCompletion: root => writeCompletion(userData, root),
-    },
+    projects: { ...projectWork, confirm: root => confirmProject(root, projectDeps), saveCompletion: root => writeCompletion(userData, root) },
+    locks,
   });
   onboarding = onboardingService;
   const sessionRefused = { v: 2, ok: false, error: { code: "bad_request", message: "Doan could not handle this request." } };
@@ -694,6 +705,14 @@ async function start(): Promise<void> {
     handle(ONBOARDING_CHANNELS[name], sessionRefused, (event, value: unknown) => {
       const request = rendererRequest(op, value);
       return fromWindow(event) && request !== null ? onboardingService.answer(request) : sessionRefused;
+    });
+  }
+  const page = new AddPageSession({ projects: projectWork, locks, publish: state => send(ADD_PAGE_CHANNELS.changed, state) });
+  addPage = page;
+  for (const op of ["read", "inspect", "select", "clone", "cancel"] as const) {
+    handle(ADD_PAGE_CHANNELS[op], sessionRefused, (event, value: unknown) => {
+      const request = addPageRequest(op, value);
+      return fromWindow(event) && request !== null ? page.answer(request) : sessionRefused;
     });
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
@@ -774,30 +793,11 @@ async function start(): Promise<void> {
   const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
   const reviews = createReviewStore(join(userData, "review-state.json"), () => savedRoots);
   const flow = createAddFlow({
-    ls: async (target, signal) => folderState(await runLs(cli, target, undefined, signal)),
+    ls: async target => folderState(await runLs(cli, target)),
     saved: () => ready.entries().map((entry) => entry.path),
     store: (paths) => ready.store(paths),
-    progress: (snapshot) => send("folders:scan-progress", snapshot),
   });
   addFlow = flow;
-  handle("folders:add", undefined, async (event) => { if (fromWindow(event)) await addFromDialog(); });
-  handle("folders:add-paths", undefined, async (event, value: unknown) => {
-    const paths = droppedPaths(value);
-    if (!fromWindow(event) || paths === null) return;
-    send("folders:add-outcome", await flow.add(paths));
-  });
-  const scanId = (value: unknown): string | null => typeof value === "object" && value !== null && Object.keys(value).length === 1 &&
-    "scanId" in value && typeof value.scanId === "string" ? value.scanId : null;
-  handle("folders:scan", null, (event, value: unknown) => {
-    const id = scanId(value);
-    return fromWindow(event) && id !== null ? flow.scan(id) : null;
-  });
-  handle("folders:scan-cancel", undefined, (event, value: unknown) => {
-    const id = scanId(value);
-    if (fromWindow(event) && id !== null) flow.cancel(id);
-  });
-  handle("folders:add-candidates", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.addCandidates(value) : { kind: "unavailable" }));
-  handle("folders:confirm-folder", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.confirm(value) : { kind: "unavailable" }));
   // Review markers outlive a removal while Undo can bring the project back;
   // a root stored again meanwhile keeps them.
   const removedForGood = (paths: readonly string[]) => {
@@ -1060,21 +1060,24 @@ app.on("before-quit", (event) => {
     // JS wrapper exists. Electron then crashes trying to emit its close event.
     // Let the native stack unwind before either disposal or app.quit().
     quitScheduled = true;
-    // Accepted: onboarding saves no completion and starts no project work from here, before any teardown is awaited.
+    // Accepted: onboarding saves no completion, and neither it nor the Add Projects page starts project work from here,
+    // before any teardown is awaited.
     onboarding?.closeForQuit();
+    addPage?.closeForQuit();
     setImmediate(async () => {
       // Stop the queue before Electron closes windows so it cannot reopen
       // the capture window and block will-quit. Persist state before teardown.
       try { await conversations?.quit(); } catch (error) {
         quitScheduled = false;
         onboarding?.reopenAfterAbortedQuit();
+        addPage?.reopenAfterAbortedQuit();
         console.error("doan: conversation persistence failed during quit", error);
         return;
       }
       // After conversations: their runs hold auth leases whose working credentials are written back here.
       await agentAuth?.quit();
-      // Onboarding owns only its clones; stopping them removes their temporary directories.
-      await onboarding?.quit();
+      // Each adder owns only its clones; stopping them removes their temporary directories.
+      await Promise.all([onboarding?.quit(), addPage?.quit()]);
       quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
       app.quit();
     });

@@ -29,6 +29,9 @@ interface Props {
   // Home-conversation states by slotKey (design §7.2) and roots to flash after an add (design §6).
   slots?: ReadonlyMap<string, Slot>;
   highlight?: readonly string[];
+  // The Add Projects page is selecting or cloning: moves away are shown unavailable and App ignores them
+  // (buzz-add-projects design '잠금'). aria-disabled keeps them in the focus order.
+  locked?: boolean;
 }
 const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
 // A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
@@ -126,8 +129,10 @@ export function ShellSidebar(props: Props) {
     else { if (elements.current.get(key)?.contains(document.activeElement)) ownedFocus.current = key; elements.current.delete(key); }
   };
   const active = rows.some(row => row.key === focused) ? focused : rows[0]?.key;
+  // Radix spreads props over the aria-disabled it derives from `disabled`, so Overview repeats its own disabled state.
+  const locked = props.locked || undefined;
   return <aside className="side shell-side" ref={host} aria-label="Projects">
-    <button ref={search} className="shell-search" onClick={props.search}><Search aria-hidden="true" />Search</button>
+    <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <div className="shell-projects">
       <h2 className="shell-projects-heading">Projects</h2>
       <div role="tree" aria-label="Projects and canvases">
@@ -143,7 +148,7 @@ export function ShellSidebar(props: Props) {
         const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === menuEntry.path);
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
-          <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
+          <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-disabled={locked} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
             <span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
@@ -157,14 +162,14 @@ export function ShellSidebar(props: Props) {
                 else if (!live.current.cards.some(item => item.key === card.key)) { event.preventDefault(); if (document.activeElement === document.body || document.activeElement?.closest(".shell-project-menu")) fallback(); }
               }}>
                 <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
-                {card.rows.map(row => <DropdownMenu.Item className="doan-menu-item shell-worktree" aria-current={row.path === menuEntry.path ? "true" : undefined} key={row.path} onSelect={event => {
+                {card.rows.map(row => <DropdownMenu.Item className="doan-menu-item shell-worktree" aria-current={row.path === menuEntry.path ? "true" : undefined} aria-disabled={locked} key={row.path} onSelect={event => {
                   const current = live.current.cards.find(item => item.key === card.key)?.rows.find(item => item.path === row.path);
                   if (!current) return;
                   if (current.kind === "list" || current.kind === "loading") props.worktree(current.path);
                   else { event.preventDefault(); setRepairRoot(current.path); menuRoot.current = current.path; }
                 }}><GitBranch aria-hidden="true" /><span><span>{cardRow(row, null, null).summary?.branch ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>{row.path === menuEntry.path && <Check aria-hidden="true" />}</DropdownMenu.Item>)}
                 <DropdownMenu.Separator className="doan-menu-sep" />
-                <DropdownMenu.Item className="doan-menu-item" disabled={menuEntry.kind !== "list"} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
+                <DropdownMenu.Item className="doan-menu-item" disabled={menuEntry.kind !== "list"} aria-disabled={locked ?? (menuEntry.kind !== "list" || undefined)} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => { void window.doan.openSettings({ tab: "projects", project: menuEntry.path }); })}><Settings />Project Settings</DropdownMenu.Item>
                 {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{labels[action]}</DropdownMenu.Item>)}
@@ -179,7 +184,7 @@ export function ShellSidebar(props: Props) {
             {entry.kind === "list" ? entry.canvases.length ? sortedCanvases(entry.canvases).map((row, canvasIndex) => {
               const descriptionId = `${descriptionPrefix}-${index}-${canvasIndex}`;
               const key = `${entry.path}\n${row.path}`, problem = rowProblem(row);
-              return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-level={2} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} />{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
+              return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-disabled={locked} aria-level={2} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} />{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
             }) : <p className="shell-empty">No canvases yet</p> : <p className="shell-empty">{info.chip}</p>}
           </div>}
         </div>;

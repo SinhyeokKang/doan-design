@@ -15,7 +15,6 @@ import type {
 import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, OrphanMutationRequest, OrphanRequest, SavedStatus } from "../main/comments/service";
 import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { AddOutcome, ScanSnapshot, StoreResult } from "../main/addProjects";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
@@ -27,6 +26,9 @@ import type { ReviewMarker } from "../comments/review";
 import type { FolderEntry } from "../main/view";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
+import type { AddPageResponse, AddPageState } from "../main/addPage";
+
+export type { AddPageResponse, AddPageState };
 
 // Events with a current value: the value is asked for too, because the first
 // event can come before the listener. An event that arrives first wins.
@@ -153,7 +155,34 @@ const api = {
   // Resolves after the clipboard write settled.
   copyFirstPrompt: (root: string, subject: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root, subject }),
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
+  // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
+  // The Add Projects page's project session: the onboarding session's project calls and DTOs on channels of its own,
+  // with no agents, completion, CLI or MCP. Without a request the read answers the current state and its sessionId;
+  // with one it is the session's status (session_stale for another session).
+  readAddPage: (request?: { sessionId: string; operationId?: string }): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:read", request ?? {}),
+  inspectAddPageProject: (request: SessionRequest<OnboardingProjectInspectRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:inspect", request),
+  // initialize: true is the user's consent to the inspection's planned changes.
+  selectAddPageProject: (request: SessionRequest<OnboardingProjectSelectRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:select", request),
+  cloneAddPageProject: (request: SessionRequest<OnboardingProjectCloneRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:clone", request),
+  cancelAddPageOperation: (request: SessionRequest<OnboardingCancelRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:cancel", request),
+  onAddPageSession(listener: (state: AddPageState) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, state: AddPageState) => listener(state);
+    ipcRenderer.on("add-projects:changed", receive);
+    return () => ipcRenderer.removeListener("add-projects:changed", receive);
+  },
+  // File > Add Project… (⌘O): open the page, or its Choose folder when the page shows its choose phase. Main has
+  // already shown a hidden window.
+  onOpenAddProjects(listener: () => void): () => void {
+    const receive = () => listener();
+    ipcRenderer.on("add-projects:open", receive);
+    return () => ipcRenderer.removeListener("add-projects:open", receive);
+  },
+  // A dropped item's disk path, for the page's inspect; null for a file the page made itself.
+  droppedPath(file: File): string | null {
+    const path = webUtils.getPathForFile(file);
+    return path === "" ? null : path;
+  },
   // Home chips, banner and Finish card; null only if main refused.
   setupStatus: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:status"),
   checkSetupAgain: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:check-again"),
@@ -221,41 +250,6 @@ const api = {
     ipcRenderer.on("view-command", receive);
     return () => ipcRenderer.removeListener("view-command", receive);
   },
-  // Add Project… and the home + button; the outcome arrives on onAddOutcome,
-  // as it does for the menu and for drops.
-  addProjects: (): Promise<void> => ipcRenderer.invoke("folders:add"),
-  // Paths are read here, so the page hands over File objects, not text. A
-  // file the page made itself has no path and is left out.
-  addDroppedFiles(files: readonly File[]): Promise<void> {
-    const paths = files.map((file) => webUtils.getPathForFile(file)).filter((path) => path !== "");
-    return paths.length === 0 ? Promise.resolve() : ipcRenderer.invoke("folders:add-paths", { paths });
-  },
-  onAddOutcome(listener: (outcome: AddOutcome) => void): () => void {
-    const receive = (_event: Electron.IpcRendererEvent, outcome: AddOutcome) => listener(outcome);
-    ipcRenderer.on("folders:add-outcome", receive);
-    return () => ipcRenderer.removeListener("folders:add-outcome", receive);
-  },
-  // Snapshots are whole; the current one is asked for too, because progress
-  // can be sent before the renderer learns the scan id. The newest `seq` wins.
-  watchScan(scanId: string, listener: (snapshot: ScanSnapshot) => void): () => void {
-    let active = true;
-    let seq = -1;
-    const deliver = (snapshot: ScanSnapshot | null) => {
-      if (!active || snapshot?.scanId !== scanId || snapshot.seq <= seq) return;
-      seq = snapshot.seq;
-      listener(snapshot);
-    };
-    const receive = (_event: Electron.IpcRendererEvent, snapshot: ScanSnapshot) => deliver(snapshot);
-    ipcRenderer.on("folders:scan-progress", receive);
-    void ipcRenderer.invoke("folders:scan", { scanId }).then(deliver);
-    return () => {
-      active = false;
-      ipcRenderer.removeListener("folders:scan-progress", receive);
-    };
-  },
-  cancelScan: (scanId: string): Promise<void> => ipcRenderer.invoke("folders:scan-cancel", { scanId }),
-  addCandidates: (scanId: string, ids: string[]): Promise<StoreResult> => ipcRenderer.invoke("folders:add-candidates", { scanId, ids }),
-  confirmFolder: (confirmId: string): Promise<StoreResult> => ipcRenderer.invoke("folders:confirm-folder", { confirmId }),
   removeProjects: (paths: string[]): Promise<RemoveResult> => ipcRenderer.invoke("folders:remove", { paths }),
   restoreProjects: (removalId: string): Promise<RestoreResult> => ipcRenderer.invoke("folders:restore", { removalId }),
   // The removal toast expired without Undo.

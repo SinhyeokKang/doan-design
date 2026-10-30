@@ -2,7 +2,7 @@ export type WindowKind = "main" | "settings";
 
 const mainOnly = new Set([
   "app:home", "comments:list", "comments:begin", "comments:mutate", "comments:status", "comments:author", "comments:copy", "comments:guard", "comments:transition-answer",
-  "project:choose-token-css", "project:init", "folders:add", "folders:add-paths", "folders:scan", "folders:scan-cancel", "folders:add-candidates", "folders:confirm-folder",
+  "project:choose-token-css", "project:init",
   "folders:remove", "folders:restore", "folders:forget-removal", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save", "onboarding:first-prompt", "onboarding:copy",
   // Settings reads setup through `setup:*` and projects through the projection only.
@@ -14,6 +14,8 @@ const mainOnly = new Set([
   "design-skills:list", "design-skills:get",
   // buzz-home: Home attachments; Settings has no composer.
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
+  // buzz-add-projects: the Add Projects page's project session; Settings has no such page.
+  "add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel",
 ]);
 const shared = new Set([
   "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",

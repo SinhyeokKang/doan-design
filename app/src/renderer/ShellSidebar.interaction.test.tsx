@@ -176,3 +176,20 @@ it("uses natural filename order for both visible rows and keyboard navigation", 
   expect(targets[1]!.focus).toHaveBeenCalledOnce();
   expect((props.cards[0]!.rows[0] as Extract<FolderEntry, { kind: "list" }>).canvases.map(row => row.url)).toEqual(names);
 });
+
+// buzz-add-projects design '잠금': while the Add Projects page selects or clones, the moves are shown as unavailable
+// (aria-disabled keeps them in the focus order); App ignores their activation.
+it("marks Search, project and canvas rows, Overview and worktree items aria-disabled while the page is locked", () => {
+  const { props } = fixture();
+  hooks.cursor = 0;
+  const rendered = elements(ShellSidebar({ ...props, locked: true }));
+  expect(rendered.find(item => item.className === "shell-search")?.["aria-disabled"]).toBe(true);
+  for (const row of rendered.filter(item => item.role === "treeitem")) expect(row["aria-disabled"]).toBe(true);
+  const menu = rendered.filter(item => typeof item.onSelect === "function");
+  expect(menu.filter(item => String(item.className).includes("shell-worktree")).map(item => item["aria-disabled"])).toEqual([true, true]);
+  // Overview, then Show in Finder and Project Settings, which stay allowed.
+  expect(menu.slice(2, 5).map(item => item["aria-disabled"])).toEqual([true, undefined, undefined]);
+  hooks.cursor = 0;
+  const open = elements(ShellSidebar(props));
+  expect(open.filter(item => item["aria-disabled"] !== undefined && item["aria-disabled"] !== false)).toEqual([]);
+});

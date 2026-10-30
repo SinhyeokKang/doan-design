@@ -9,11 +9,10 @@ import { CanvasController, initialCanvasState, type CanvasState } from "./Canvas
 import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
 import { Home, ProblemActions, useProjectComments } from "./Home";
-import { AddProjectsDialog, SetUpFolderConfirm } from "./AddProjectsDialog";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { useToast } from "./Toast";
-import { DropOverlay } from "./DropOverlay";
-import type { AddOutcome } from "../main/addProjects";
+import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
+import { addPageReturn, pageEscape, type AddPageEvent, type AddPageOrigin } from "./addProjectsNav";
 import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
@@ -68,13 +67,15 @@ export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit)
 
 export function App() {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
-  const [screen, setScreen] = useState<"home" | "workspace">("home");
+  const [screen, setScreen] = useState<"home" | "workspace" | "addProjects">("home");
   const [locating, setLocating] = useState<{ from: string; root: string | null } | null>(null);
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
-  const [scan, setScan] = useState<string | null>(null);
-  const [confirms, setConfirms] = useState<AddOutcome["confirms"]>([]);
   const [setup, setSetup] = useState<string | null>(null);
+  // The Add Projects page (buzz-add-projects design '화면과 이동'): where it returns to, the page's own report, and a
+  // counter File > Add Project… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
+  const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
+  const pageRef = useRef(page); pageRef.current = page;
   const beforeModal = useRef<HTMLElement | null>(null);
   const focusAfterModal = useRef(false);
   const toast = useToast(previous => {
@@ -91,8 +92,6 @@ export function App() {
   const controller = useRef<CanvasController | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   const [wizard, setWizard] = useState<string | null>(null);
-  const wizardOpen = useRef(false);
-  wizardOpen.current = wizard !== null;
   const beforeWizard = useRef<HTMLElement | null>(null);
   const restoreFocus = useRef(false);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -125,6 +124,8 @@ export function App() {
     label: root => live.current.projectLabel(root),
     // The move after a send cancels the restore like any navigation but is not the person's own move.
     openOverview: (root, arrived, unavailable) => {
+      // The run settles with its started toast instead of waiting for a move that cannot happen.
+      if (locked()) { unavailable(); return; }
       navigationIntent.current++; restoreCancelled.current = true; setRestore("done");
       controller.current?.openWorkspace(root, next => { if (!arrived()) return; workspaceFocus.current = null; live.current.completeNavigation(next); }, false, () => unavailable(), true);
     },
@@ -141,11 +142,12 @@ export function App() {
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
   function focusCurrent(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
-    const scope = currentScreen.current === "home" ? ".home-shell" : ".workspace";
+    const scope = currentScreen.current === "home" ? ".home-shell" : currentScreen.current === "addProjects" ? ".add-shell" : ".workspace";
     const usable = (node: HTMLElement | null): node is HTMLElement => !!node && node.isConnected && !!node.closest(scope)
       && !node.closest('[inert], [hidden], [aria-hidden="true"]') && !node.matches(":disabled")
       && node.getClientRects().length > 0 && getComputedStyle(node).visibility === "visible";
     const selectors = currentScreen.current === "home" ? [".home-shell .composer-input", ".home-shell button"]
+      : currentScreen.current === "addProjects" ? [".add-panel h2", ".add-shell button"]
       : ['.side [role="treeitem"][tabindex="0"]', '.shell-search', '.workspace .top button'];
     const fallback = selectors.flatMap(selector => Array.from(document.querySelectorAll<HTMLElement>(selector)));
     (usable(previous) ? previous : fallback.find(usable))?.focus();
@@ -215,15 +217,20 @@ export function App() {
   }, [wizard]);
   // Set once the project counts below exist; a raised review marker refreshes them.
   const reviewedRoot = useRef<(root: string) => void>(() => {});
+  // While the Add Projects page selects or clones, every move away is ignored here, in one place (design '잠금'):
+  // marking the controls alone would leak through toasts, the comment guard and keyboard activation.
+  const locked = () => currentScreen.current === "addProjects" && pageRef.current.locked;
   // The id-change notice's Show: the Overview's Feedback expands that id's
   // orphan group and focuses its head (project-feedback design §5).
   const [reveal, setReveal] = useState<{ root: string; id: string; seq: number } | null>(null);
   const showOrphans = (root: string, id: string) => {
+    if (locked()) return;
     cancelRestore();
     controller.current?.showOverview(() => { completeNavigation(root); setReveal(previous => ({ root, id, seq: (previous?.seq ?? 0) + 1 })); });
   };
-  const comments = useComments(state, controller, () => setScreen("workspace"), entries, root => reviewedRoot.current(root), homeDirectory, showOrphans);
+  const comments = useComments(state, controller, () => { if (!locked()) setScreen("workspace"); }, entries, root => reviewedRoot.current(root), homeDirectory, showOrphans);
   const home = () => {
+    if (locked()) return;
     cancelRestore();
     controller.current?.cancelWorkspaceOpen();
     if (currentScreen.current === "workspace") workspaceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -233,7 +240,7 @@ export function App() {
     controller.current?.setWorkspaceActive(screen === "workspace");
     if (screen === "home") {
       document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
-    } else {
+    } else if (screen === "workspace") {
       // A Home send lands on the strip's first action (design §4.9).
       if (homeRun.current.takeFocus() === "stop") { const stop = document.querySelector<HTMLElement>(".workspace .convo-strip [data-strip-stop]"); if (stop) { stop.focus(); return; } }
       if (comments.session.draft.draft) { document.querySelector<HTMLTextAreaElement>(".comments-panel textarea")?.focus(); return; }
@@ -304,10 +311,12 @@ export function App() {
     const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory() });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
-  const persisted = useRef({ screen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory });
-  persisted.current = { screen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory };
+  // The page is never restored; a restart opens the screen it came from.
+  const savedScreen = screen === "addProjects" ? page.origin.screen : screen;
+  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory });
+  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, screen, loadedRoot, state.open, expanded, shellProjects, homeMemory]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -322,15 +331,18 @@ export function App() {
     if (group) setShellProjects(previous => ({ ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now() } }));
   };
   const enter = (root: string) => {
+    if (locked()) return;
     cancelRestore();
     if (root === loadedRoot) { controller.current?.cancelWorkspaceOpen(); setScreen("workspace"); }
     else controller.current?.openWorkspace(root, next => completeNavigation(next), false);
   };
   const openShellCanvas = (root: string, row: CanvasRow, cursor?: number) => {
+    if (locked()) return;
     cancelRestore();
     controller.current?.openCanvas(root, row, undefined, { opened: () => completeNavigation(root, cursor), unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
   };
   const showShellOverview = (root: string, cursor?: number) => {
+    if (locked()) return;
     cancelRestore();
     if (root === loadedRoot) controller.current?.showOverview(() => completeNavigation(root, cursor));
     else controller.current?.openWorkspace(root, next => completeNavigation(next, cursor), false, undefined, true);
@@ -355,7 +367,7 @@ export function App() {
   const validVisit = (visit: Visit) => validHistoryVisit(entries, visit);
   const back = historyTarget(history, -1, validVisit), forward = historyTarget(history, 1, validVisit);
   const travel = (cursor: number | null) => {
-    if (cursor === null) return;
+    if (cursor === null || locked()) return;
     const visit = history.visits[cursor]; if (!visit) return;
     const entry = entries.find(entry => entry.path === visit.root);
     if (entry?.kind !== "list") { toast.show("This project is unavailable. Use its recovery actions."); return; }
@@ -365,8 +377,16 @@ export function App() {
   };
   const toggleProject = async (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
-    // Home shows the sidebar without a current project; its row goes back to the loaded workspace (design §3).
-    if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) { if (currentScreen.current === "home") enter(loadedRoot); return; }
+    // A locked page keeps the disclosure; only the move to a workspace is ignored (design '잠금'). The loaded project's
+    // row is always open, so activating it only ever navigates.
+    if (locked()) {
+      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
+        setShellProjects(previous => { const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }; return { ...previous, [key]: { ...memory, expanded: !memory.expanded } }; });
+      return;
+    }
+    // Home and the Add Projects page show the sidebar without a current project; its row goes back to the loaded
+    // workspace (design §3).
+    if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) { if (currentScreen.current !== "workspace") enter(loadedRoot); return; }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
     if (memory.expanded) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
@@ -382,13 +402,13 @@ export function App() {
       completeNavigation(next);
     });
   };
-  const search = () => { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
+  const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || !!comments.dialog || setup !== null || scan !== null || confirms.length > 0 || quickOpen || homeRun.current.removing !== null;
+  const modal = wizard !== null || !!comments.dialog || setup !== null || quickOpen || homeRun.current.removing !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, projectLabel: (root: string) => root });
-  live.current = { home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, projectLabel: root => projectLabelRef.current(root) };
+  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, projectLabel: (root: string) => root });
+  live.current = { home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, projectLabel: root => projectLabelRef.current(root) };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -414,26 +434,76 @@ export function App() {
     }
   }, [setup, entries, reroot]);
   useEffect(() => { if (!highlight.length) return; const timer = setTimeout(() => setHighlight([]), 2400); return () => clearTimeout(timer); }, [highlight]);
-  const added = (paths: string[]) => {
-    const root = paths.at(-1);
-    if (!root) return;
-    // Home chooses the first added root in the composer and flashes its sidebar row (design §6).
-    if (currentScreen.current === "home") { setHighlight(paths); choose(paths[0]); }
-    else live.current.toast.show(paths.length === 1 ? `Added ${root.split("/").at(-1)}` : `Added ${paths.length} projects`, "Open", () => {
-      cancelRestore();
-      controller.current?.openWorkspace(root, next => { workspaceFocus.current = null; completeNavigation(next); }, false,
-        () => { live.current.home(); setHighlight([root]); choose(root); });
-    });
+  // The page opens from Home or a workspace and remembers that screen as its origin; the workspace stays hidden as on
+  // Home, so its canvas, view, selection and drafts are kept.
+  function openAddProjects() {
+    if (live.current.modal) return;
+    if (currentScreen.current === "addProjects") return;
+    cancelRestore();
+    controller.current?.cancelWorkspaceOpen();
+    const workspace = currentScreen.current === "workspace" && loadedRootRef.current !== null;
+    if (workspace) workspaceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const next = { ...pageRef.current, origin: workspace ? { screen: "workspace" as const, root: loadedRootRef.current! } : { screen: "home" as const }, seq: pageRef.current.seq + 1, locked: false, choose: true };
+    pageRef.current = next; setPage(next);
+    setScreen("addProjects");
+  }
+  function leavePage(event: AddPageEvent) {
+    if (currentScreen.current !== "addProjects" || locked()) return;
+    const to = addPageReturn(pageRef.current.origin, event, entriesRef.current.map(entry => entry.path));
+    if (to.kind === "stay") return;
+    if (to.kind === "workspace") live.current.enter(to.root);
+    else { cancelRestore(); controller.current?.cancelWorkspaceOpen(); setScreen("home"); }
+  }
+  // A registered project goes Home with it chosen and its row flashed. The registration can answer before the folder
+  // list has the root, so the choice waits for the list rather than reading it once (POSTMORTEM 2026-10-25
+  // 'Navigation feedback read the previous React snapshot').
+  const [pendingAdd, setPendingAdd] = useState<string | null>(null);
+  function pageAdded(root: string) {
+    if (currentScreen.current !== "addProjects") return;
+    const to = addPageReturn(pageRef.current.origin, { kind: "added", root }, entriesRef.current.map(entry => entry.path));
+    if (to.kind !== "home") return;
+    pageRef.current = { ...pageRef.current, locked: false };
+    cancelRestore(); controller.current?.cancelWorkspaceOpen();
+    setScreen("home"); setPendingAdd(to.select);
+  }
+  useEffect(() => {
+    if (!pendingAdd || !entries.some(entry => entry.path === pendingAdd)) return;
+    choose(pendingAdd); setHighlight([pendingAdd]); setPendingAdd(null);
+  }, [entries, pendingAdd]);
+  const pageReport = (report: AddPageReport) => {
+    // A move started on the page before the lock (a project still being read, a row reading its worktrees'
+    // activity) would otherwise land after it and leave the page mid-clone.
+    if (report.locked && !pageRef.current.locked) { navigationIntent.current++; controller.current?.cancelWorkspaceOpen(); }
+    pageRef.current = { ...pageRef.current, ...report };
+    setPage(previous => ({ ...previous, ...report }));
   };
-  useEffect(() => window.doan.onAddOutcome(outcome => {
-    // Add Project… and drops are off while first run is open (modal); a late outcome is not shown behind it.
-    if (wizardOpen.current) return;
-    added(outcome.added);
-    if (outcome.duplicate) { live.current.home(); setHighlight([...outcome.added, outcome.duplicate]); choose(outcome.added[0] ?? outcome.duplicate); }
-    if (outcome.messages.length) live.current.toast.show(outcome.messages.join("\n"));
-    if (outcome.scanId || outcome.confirms.length) rememberFocus();
-    setScan(outcome.scanId); setConfirms(outcome.confirms);
+  // File > Add Project… (⌘O) opens the page; on the page it runs Choose folder, which main allows only in choose.
+  useEffect(() => window.doan.onOpenAddProjects(() => {
+    if (currentScreen.current !== "addProjects") { live.current.openAddProjects(); return; }
+    if (pageRef.current.choose) setPage(previous => ({ ...previous, chooseSeq: previous.chooseSeq + 1 }));
   }), []);
+  // Escape leaves the page unless a field or an IME composition holds it, or an overlay closes itself first.
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || currentScreen.current !== "addProjects") return;
+      live.current.leavePage(pageEscape(event, live.current.modal || !!document.querySelector('dialog[open], [role="menu"], [role="tooltip"]')));
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
+  // Only the Open a local folder card takes a file drop. Elsewhere the window refuses files, so the cursor shows no
+  // drop and the window never opens the file; a target that took the drag has already prevented the default. Text
+  // and links are left to the fields that take them.
+  useEffect(() => {
+    const refuse = (event: DragEvent) => {
+      if (event.defaultPrevented || !Array.from(event.dataTransfer?.types ?? []).includes("Files")) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
+    };
+    window.addEventListener("dragover", refuse);
+    window.addEventListener("drop", refuse);
+    return () => { window.removeEventListener("dragover", refuse); window.removeEventListener("drop", refuse); };
+  }, []);
   // A running Home conversation is stopped first, and only after the person agrees (design §7.5).
   function remove(paths: string[]): Promise<void> {
     cancelRestore();
@@ -486,16 +556,22 @@ export function App() {
     if (live.current.modal) return;
     menuCommand(name, {
       home: () => live.current.home(),
-      quickOpen: () => { cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); },
+      quickOpen: () => live.current.search(),
       undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
       review: move => live.current.comments.reviewStep(move),
     });
   }), []);
-  useEffect(() => { void window.doan.setMenuState({ screen: screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing }); }, [screen, state.open, modal, toast.toast?.action, comments.reviewing]);
-  // Home ends a Review like another canvas; the progress passed stays raised.
-  useEffect(() => { if (screen === "home") comments.closeReview(); }, [screen]);
+  const onPage = screen === "addProjects";
+  useEffect(() => {
+    void window.doan.setMenuState({ screen: onPage ? "addProjects" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing,
+      ...(onPage && page.choose ? { choose: true } : {}), ...(onPage && page.locked ? { locked: true } : {}) });
+  }, [screen, state.open, modal, toast.toast?.action, comments.reviewing, page.choose, page.locked]);
+  // Home and the Add Projects page end a Review like another canvas; the progress passed stays raised.
+  useEffect(() => { if (screen !== "workspace") comments.closeReview(); }, [screen]);
   const command = (name: ViewCommand) => controller.current?.command(name);
+  // A pick from the Add Projects page goes through openCanvas too, whose draft guard is per canvas.
   function pick(result: SearchResult) {
+    if (locked()) return;
     cancelRestore();
     setQuickOpen(false);
     const target = entries.find(entry => entry.path === result.root);
@@ -547,6 +623,7 @@ export function App() {
     toast: (message, label, run) => toast.show(message, label, run),
     projectName: root => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root,
     openCanvas: (root: string, row: CanvasRow, explicit: boolean) => {
+      if (locked()) return;
       cancelRestore();
       const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, row.path));
       controller.current?.openCanvas(root, row, undefined, { ...(explicit ? { unavailable } : {}), opened: () => completeNavigation(root) });
@@ -576,14 +653,20 @@ export function App() {
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
     onEditOnHome={() => run.editOnHome(shown.conversation.root)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
+  const pageLocked = onPage && page.locked;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}
-    home={home} slots={run.slots()} highlight={highlight} />;
+    home={home} slots={run.slots()} highlight={highlight} locked={pageLocked} />;
+  const topBar = <TopBar back={onPage || back !== null} forward={!onPage && forward !== null} page={onPage} locked={pageLocked}
+    previous={() => onPage ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
+    addProjects={() => onPage ? leavePage({ kind: "reopen" }) : openAddProjects()} projects={() => leavePage({ kind: "projectsTab" })} />;
   return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
-  {screen === "home" && <Home header={<TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />} sidebar={sidebar(true)}
+  {screen === "home" && <Home header={topBar} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
-    memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} />}
-  <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}${strip ? " with-strip" : ""}`} style={{ visibility: screen === "home" ? "hidden" : "visible" }} inert={screen === "home"} aria-hidden={screen === "home"}>
-    <TopBar back={back !== null} forward={forward !== null} previous={() => travel(back)} next={() => travel(forward)} />
+    memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects} />}
+  {onPage && <AddProjectsPage key={page.seq} header={topBar} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+    mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
+  <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}${strip ? " with-strip" : ""}`} style={{ visibility: screen !== "workspace" ? "hidden" : "visible" }} inert={screen !== "workspace"} aria-hidden={screen !== "workspace"}>
+    {topBar}
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
     {sidebar(false)}
     {strip}
@@ -592,8 +675,6 @@ export function App() {
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>
   </main>
   {comments.dialog}
-  {scan && <AddProjectsDialog homeDirectory={homeDirectory} key={scan} scanId={scan} close={() => { setScan(null); modalClosed(); }} added={added} />}
-  {!scan && !setup && confirms[0] && <SetUpFolderConfirm key={confirms[0].confirmId} name={confirms[0].name} path={confirms[0].path} cancel={() => { setConfirms(items => items.slice(1)); modalClosed(); }} confirm={async () => { const first = confirms[0]; if (!first) return; const result = await window.doan.confirmFolder(first.confirmId); if (result.kind !== "added") throw new Error("This confirmation is no longer available. Add the folder again."); setConfirms(items => items.slice(1)); setSetup(result.added[0] ?? first.path); choose(result.added[0] ?? first.path); added(result.added); }} />}
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog" data-ui-size="compact" aria-label={run.removing.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
@@ -602,7 +683,6 @@ export function App() {
       <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
   </dialog>}
   {toast.element}
-  <DropOverlay blocked={modal} />
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)}
     onClose={root => {
@@ -613,10 +693,13 @@ export function App() {
   </FirstPromptContext.Provider></TooltipProvider>;
 }
 
-function TopBar({ back, forward, previous, next }: { back: boolean; forward: boolean; previous(): void; next(): void }) {
+// Add Projects and Projects are page tabs; on the Add Projects page Back returns to where it was opened from.
+// `locked` marks the ways out unavailable while App ignores them (buzz-add-projects design '잠금').
+function TopBar({ back, forward, previous, next, page, locked, addProjects, projects }: { back: boolean; forward: boolean; previous(): void; next(): void; page: boolean; locked: boolean; addProjects(): void; projects(): void }) {
+  const unavailable = locked || undefined;
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
-    <div className="shell-history"><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
-    <div className="shell-modes"><button onClick={() => void window.doan.addProjects()}><Plus />Add Projects</button><button className="current" aria-current="page"><LayoutGrid />Projects</button><button onClick={() => void window.doan.openSettings({ tab: "connections" })}><Settings />Settings</button></div>
+    <div className="shell-history"><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
+    <div className="shell-modes"><button className={page ? "current" : undefined} aria-current={page ? "page" : undefined} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button className={page ? undefined : "current"} aria-current={page ? undefined : "page"} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button onClick={() => void window.doan.openSettings({ tab: "connections" })}><Settings />Settings</button></div>
   </header>;
 }
 

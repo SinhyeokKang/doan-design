@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { OnboardingOperation, OnboardingResponse, OnboardingState } from "../formats/types";
-import { isMainCheckout, ProjectStepSession } from "./projectStep";
+import { addPageApi, isMainCheckout, projectFooter, projectNoticeCode, ProjectStepSession, setUpLabel, type ProjectStepState } from "./projectStep";
 
 type Reply = OnboardingResponse | Promise<OnboardingResponse>;
 const op = (kind: OnboardingOperation["kind"], over: Partial<OnboardingOperation> = {}): OnboardingOperation => ({ operationId: `op-${kind}-${Math.random().toString(36).slice(2)}`, requestId: "r", kind, state: "succeeded", ...over });
@@ -693,4 +693,160 @@ test("D25 follow-up: Back from a URL setup screen returns to the editable URL; a
   g.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
   await g.session.chooseFolder();
   expect(g.session.backToUrl()).toBe(false);
+});
+
+const footerState = (phase: ProjectStepState["phase"], error: ProjectStepState["error"] = null): ProjectStepState => ({ phase, url: "", inspectedUrl: null, error, listChoice: null });
+const idle = { busy: false, agentReady: true };
+const cand: ProjectStepState["phase"] = { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/w/a", changes: [] }], choice: "/w/a" };
+const clonePlan = { kind: "clone", url: "https://github.com/o/r", inspectionId: "i", destination: "/w/r" } as const;
+const unplannedClone = { ...clonePlan, inspectionId: null };
+const setup: ProjectStepState["phase"] = { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] };
+const cloning = { kind: "cloning", url: "https://github.com/o/r", destination: "/w/r", operationId: "op", cancelling: false } as const;
+const cancelled = { kind: "cloneCancelled", url: "https://github.com/o/r", destination: "/w/r" } as const;
+const back = (disabled: boolean) => ({ label: "Back", disabled });
+const openDoan = (disabled: boolean) => ({ label: "Open Doan", action: "complete", disabled });
+
+test("first run's footer is Back and the step's action, as before the Add Projects page", () => {
+  for (const phase of [{ kind: "choose" }, { kind: "checking", path: "/w/a" }, setup, { kind: "selecting", path: "/w/a" }] as const)
+    expect(projectFooter("onboarding", footerState(phase), idle)).toEqual({ back: back(false), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "inspecting", url: "u" }), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState(cand), idle)).toEqual({ back: back(false), primary: { label: "Use this folder", action: "select", disabled: false } });
+  expect(projectFooter("onboarding", footerState(cand), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: { label: "Use this folder", action: "select", disabled: true } });
+  const clone = (disabled: boolean) => ({ label: "Clone and continue", action: "clone", disabled });
+  expect(projectFooter("onboarding", footerState(clonePlan), idle)).toEqual({ back: back(false), primary: clone(false) });
+  expect(projectFooter("onboarding", footerState(unplannedClone), idle)).toEqual({ back: back(false), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState(clonePlan, { code: "destination_exists" }), idle)).toEqual({ back: back(false), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState(cloning), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState(cancelled), idle)).toEqual({ back: back(false), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }), idle)).toEqual({ back: back(false), primary: openDoan(false) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }), { busy: false, agentReady: false })).toEqual({ back: back(false), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }, { code: "completion_unsupported_version" }), idle)).toEqual({ back: back(false), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }, { code: "completion_save_failed" }), idle)).toEqual({ back: back(false), primary: { label: "Retry", action: "retry", disabled: false } });
+  expect(projectFooter("onboarding", footerState({ kind: "completing", root: "/w/a" }), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: openDoan(true) });
+  expect(setUpLabel("onboarding")).toBe("Set up and continue");
+});
+
+test("the Add Projects page footer is Cancel and the step's own action, and none while locked", () => {
+  const cancel = { label: "Cancel", disabled: false };
+  // Leaving drops an inspection in flight, so Cancel stays usable while one runs.
+  for (const phase of [{ kind: "choose" }, { kind: "inspecting", url: "u" }, { kind: "checking", path: "/w/a" }, setup, cancelled] as const)
+    expect(projectFooter("addPage", footerState(phase), { busy: true, agentReady: true })).toEqual({ back: cancel, primary: null });
+  expect(projectFooter("addPage", footerState(cand), idle)).toEqual({ back: cancel, primary: { label: "Use this folder", action: "select", disabled: false } });
+  expect(projectFooter("addPage", footerState(clonePlan), idle)).toEqual({ back: cancel, primary: { label: "Clone and add", action: "clone", disabled: false } });
+  expect(projectFooter("addPage", footerState(unplannedClone), idle)).toEqual({ back: cancel, primary: { label: "Clone and add", action: "clone", disabled: true } });
+  expect(projectFooter("addPage", footerState({ kind: "selecting", path: "/w/a" }), idle)).toBeNull();
+  expect(projectFooter("addPage", footerState(cloning), idle)).toBeNull();
+  expect(projectFooter("addPage", footerState({ ...cloning, cancelling: true }), idle)).toBeNull();
+  expect(setUpLabel("addPage")).toBe("Set up and add");
+});
+
+test("the no-agent notice belongs to first run only", () => {
+  const ready = footerState({ kind: "ready", root: "/w/a" });
+  expect(projectNoticeCode("onboarding", ready, false)).toBe("no_ready_agent");
+  expect(projectNoticeCode("onboarding", ready, true)).toBeNull();
+  expect(projectNoticeCode("onboarding", footerState({ kind: "choose" }), false)).toBeNull();
+  expect(projectNoticeCode("onboarding", footerState(clonePlan, { code: "destination_exists" }), false)).toBe("destination_exists");
+  expect(projectNoticeCode("addPage", ready, false)).toBeNull();
+  expect(projectNoticeCode("addPage", footerState({ kind: "ready", root: "/w/a" }, { code: "no_ready_agent" }), true)).toBeNull();
+  expect(projectNoticeCode("addPage", footerState(clonePlan, { code: "destination_exists" }), true)).toBe("destination_exists");
+});
+
+// buzz-add-projects U2/U3: the same session over the page's main instance.
+function pageHarness() {
+  let listener: ((state: { sessionId: string; revision: number; project: null; operations: OnboardingOperation[] }) => void) | null = null;
+  const queue: Record<string, Reply[]> = { inspect: [], select: [], clone: [], cancel: [] };
+  const next = (name: string) => queue[name]!.shift() ?? refused("bad_request");
+  const doan = {
+    readAddPage: vi.fn(),
+    onAddPageSession: vi.fn((l: typeof listener) => { listener = l; return () => { listener = null; }; }),
+    inspectAddPageProject: vi.fn(async (_r: unknown) => next("inspect")),
+    selectAddPageProject: vi.fn(async (_r: unknown) => next("select")),
+    cloneAddPageProject: vi.fn(async (_r: unknown) => next("clone")),
+    cancelAddPageOperation: vi.fn(async (_r: unknown) => next("cancel")),
+    chooseOnboardingFolder: vi.fn(async (_p: "project" | "destination"): Promise<string | null> => null),
+  };
+  let ids = 0, revision = 0;
+  const completed = vi.fn(), changed = vi.fn();
+  const session = new ProjectStepSession({ api: addPageApi(doan as never), use: "addPage", sessionId: "p1", projects: () => [], homeDirectory: () => "/Users/ada", requestId: () => `req-${++ids}`, changed, completed });
+  session.start();
+  return { session, doan, queue, completed, changed, emit(operations: OnboardingOperation[]) { listener?.({ sessionId: "p1", revision: ++revision, project: null, operations }); } };
+}
+const folder = (path: string) => ({ isDirectory: true, path });
+
+test("the page session talks to the page instance and hands a registered root over at once, without a ready step", async () => {
+  const h = pageHarness();
+  h.doan.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
+  const found = inspection([["/code/app"]]);
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: found })));
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/app" } })));
+  await h.session.chooseFolder();
+  expect(h.doan.inspectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-1", path: "/code/app" });
+  expect(h.doan.selectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-2", inspectionId: found.inspectionId, path: "/code/app" });
+  expect(h.completed).toHaveBeenCalledWith("/code/app");
+  expect(phase(h as never).kind).not.toBe("ready");
+});
+
+test("the page: a folder that needs setup goes to setup, a plain folder too, an unreadable one says project_unavailable", async () => {
+  for (const [path, changes] of [["/code/plain", [".doan/config.json", ".doan/canvases/"]], ["/code/repo", [".doan/config.json"]]] as const) {
+    const h = pageHarness();
+    h.doan.chooseOnboardingFolder.mockResolvedValueOnce(path);
+    h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([[path, [...changes]]]) })));
+    await h.session.chooseFolder();
+    expect(h.session.state.phase.kind).toBe("setup");
+    expect(h.completed).not.toHaveBeenCalled();
+  }
+  const h = pageHarness();
+  h.doan.chooseOnboardingFolder.mockResolvedValueOnce("/code/locked");
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "project_unavailable", message: "m" } })));
+  await h.session.chooseFolder();
+  expect(h.session.state).toMatchObject({ phase: { kind: "choose" }, error: { code: "project_unavailable" } });
+});
+
+test("a folder dropped on the card is inspected like a chosen one; a refused drop leaves a notice the next drag or Choose folder clears", async () => {
+  const h = pageHarness();
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/app", [".doan/config.json"]]]) })));
+  expect(h.session.canDrop()).toBe(true);
+  await h.session.drop([folder("/code/app")]);
+  expect(h.doan.inspectAddPageProject.mock.calls[0]![0]).toMatchObject({ path: "/code/app" });
+  expect(h.session.state.phase.kind).toBe("setup");
+  const g = pageHarness();
+  await g.session.drop([folder("/a"), folder("/b")]);
+  expect(g.session.dropNotice).toBe("Drop one folder at a time.");
+  g.session.dragStarted();
+  expect(g.session.dropNotice).toBeNull();
+  await g.session.drop([{ isDirectory: false, path: "/a/file.txt" }]);
+  expect(g.session.dropNotice).toBe("Only folders can be added.");
+  await g.session.chooseFolder();
+  expect(g.session.dropNotice).toBeNull();
+  expect(g.doan.inspectAddPageProject).not.toHaveBeenCalled();
+});
+
+test("a drop is refused while the step is busy, and a second quick drop while the first is inspected is ignored", async () => {
+  const h = pageHarness();
+  let answer: (reply: OnboardingResponse) => void = () => {};
+  h.queue.inspect!.push(new Promise<OnboardingResponse>(resolve => { answer = resolve; }));
+  const first = h.session.drop([folder("/code/a")]);
+  expect(h.session.state.phase.kind).toBe("checking");
+  expect(h.session.canDrop()).toBe(false);
+  await h.session.drop([folder("/code/b")]);
+  expect(h.doan.inspectAddPageProject).toHaveBeenCalledTimes(1);
+  answer(ok(op("project_inspect", { inspection: inspection([["/code/a", [".doan/config.json"]]]) })));
+  await first;
+  // Only the choose screen shows the card.
+  expect(h.session.canDrop()).toBe(false);
+});
+
+// Conductor decision ⚪1: Find repository starts a new action, so the last drop notice goes with it (both uses).
+test("Find repository clears a refused drop's notice, on the page and in first run", async () => {
+  const page = pageHarness();
+  await page.session.drop([folder("/a"), folder("/b")]);
+  page.session.setUrl("https://github.com/acme/studio");
+  void page.session.findRepository();
+  expect(page.session.dropNotice).toBeNull();
+  const first = harness();
+  await first.session.drop([{ isDirectory: false, path: "/a/file.txt" }]);
+  expect(first.session.dropNotice).toBe("Only folders can be added.");
+  first.session.setUrl("https://github.com/acme/studio");
+  void first.session.findRepository();
+  expect(first.session.dropNotice).toBeNull();
 });

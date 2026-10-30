@@ -52,7 +52,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
-  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), ...props };
+  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), ...props };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer(all)); };
   return { box, start, render, props: all };
 }
@@ -175,7 +175,7 @@ test("a folder dropped on the composer is refused there and never reaches the wi
   expect(doan.addDroppedFiles).not.toHaveBeenCalled();
   expect(doan.addAttachmentFiles).not.toHaveBeenCalled();
   expect(box.current.attachments).toEqual([]);
-  expect(box.current.notice?.text).toBe("Folders can’t be attached. Drop a folder outside the message to add a project.");
+  expect(box.current.notice?.text).toBe("Folders can’t be attached. Add a project from Add Projects.");
 });
 
 test("dragging files over the composer shows the drop target and stops the window overlay", () => {
