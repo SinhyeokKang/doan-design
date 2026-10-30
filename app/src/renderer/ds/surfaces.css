@@ -192,6 +192,9 @@
 .doan-notice.error { color: var(--text-danger); }
 .doan-notice.ok { color: var(--text-success); }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+/* An inline action, or a group of them, centres on the first text line like the icon; the negative
+   margins let a sm button reach into the padding, so a one-line notice keeps its height. */
+.doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: flex-start; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }
 /* On a backdrop that is not plain opaque white (first run's transparent overlay, Home's gradient)
    the notice takes the white panel surface and shadow (from doan-panel); nothing else changes. */
 .doan-notice.doan-panel { background: var(--surface-panel); }
