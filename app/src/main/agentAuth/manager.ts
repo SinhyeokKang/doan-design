@@ -64,6 +64,7 @@ export class AuthManager {
   private checks = new Map<Provider, { attemptId: string; done: Promise<unknown> }>();
   private holds = new Map<Provider, number>();
   private runs = new Map<Provider, number>();
+  private conversations = new Map<Provider, number>();
   private queues = new Map<Provider, Promise<void>>();
   // The sign-in link of each ACP sign-in attempt; a pasted callback address must answer this one.
   private links = new Map<string, SignInLink>();
@@ -133,7 +134,7 @@ export class AuthManager {
     const done = this.track((async () => {
       try {
         await check;
-        if (options.stop && !await this.drain(provider, attemptId)) {
+        if ((options.stop || this.leased(provider)) && !await this.drain(provider, attemptId)) {
           // Nothing was touched: the previous login stays as it was, still used by the run that did not stop.
           this.apply(provider, this.cancelled(provider, attemptId) ? { type: "settled", attemptId, kept: true }
             : { type: "signedIn", attemptId, result: { status: "failed", code: "sign_in_failed", detail: "running conversations did not stop" }, kept: true });
@@ -210,7 +211,7 @@ export class AuthManager {
         await check;
         let removed: { status: "removed" } | { status: "failed"; detail?: string };
         try {
-          if (options.stop && !await this.drain(provider, attemptId)) throw new Error("running conversations did not stop");
+          if ((options.stop || this.leased(provider)) && !await this.drain(provider, attemptId)) throw new Error("running conversations did not stop");
           await this.signOutFlow(provider, attemptId); removed = { status: "removed" };
         } catch (error) {
           removed = { status: "failed", detail: message(error) };
@@ -227,19 +228,25 @@ export class AuthManager {
     return { ok: true, attemptId, done };
   }
 
-  async acquire(provider: Provider): Promise<Lease> {
+  // listing: a model list read. It holds the profile like a run, but it is not a conversation the person would be
+  // asked to stop: a sign-out or replacement stops it and waits for it without stop_required.
+  async acquire(provider: Provider, use: "run" | "listing" = "run"): Promise<Lease> {
     this.admit(provider);
     const { command, env, profileDir } = await this.launch(provider);
     // A sign-in or sign-out may have started while the CLI was being located.
     this.admit(provider);
-    this.runs.set(provider, (this.runs.get(provider) ?? 0) + 1);
-    try { await this.hold(provider); } catch (error) { this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); throw error; }
+    const counts = (delta: number) => {
+      this.runs.set(provider, (this.runs.get(provider) ?? 0) + delta);
+      if (use === "run") this.conversations.set(provider, (this.conversations.get(provider) ?? 0) + delta);
+    };
+    counts(1);
+    try { await this.hold(provider); } catch (error) { counts(-1); throw error; }
     let released = false;
     return { command, env, profileDir, release: async () => {
       if (released) return;
       released = true;
       // The run counts until its write-back lands, so a sign-out cannot delete a vault the write-back recreates.
-      try { this.lost(provider, await this.drop(provider)); } finally { this.runs.set(provider, (this.runs.get(provider) ?? 1) - 1); }
+      try { this.lost(provider, await this.drop(provider)); } finally { counts(-1); }
     } };
   }
 
@@ -411,10 +418,10 @@ export class AuthManager {
   // lease count, not stopRuns settling, ends the wait, so a close that never settles still meets the deadline.
   private async drain(provider: Provider, attemptId: string): Promise<boolean> {
     const deadline = Date.now() + (this.options.drainTimeoutMs ?? DRAIN_MS);
-    if (this.running(provider)) {
+    if (this.leased(provider)) {
       void (async () => { await this.options.stopRuns?.(provider); })().catch(error => console.error(`doan: ${provider} runs could not be stopped`, message(error)));
     }
-    while (this.running(provider)) {
+    while (this.leased(provider)) {
       if (this.stopRequests.has(attemptId) || Date.now() >= deadline) return false;
       await new Promise(resolve => setTimeout(resolve, 50));
     }
@@ -609,7 +616,9 @@ export class AuthManager {
   }
   // The stored connection's profile; a provider without one signs in to its own.
   private profileOf(provider: Provider): string { return this.state(provider).connection?.profile ?? provider; }
-  private running(provider: Provider): boolean { return (this.runs.get(provider) ?? 0) > 0; }
+  // running: conversation runs, which need the person's stop. leased: every lease, model list reads included.
+  private running(provider: Provider): boolean { return (this.conversations.get(provider) ?? 0) > 0; }
+  private leased(provider: Provider): boolean { return (this.runs.get(provider) ?? 0) > 0; }
   private cancelled(provider: Provider, attemptId: string): boolean {
     const attempt = this.state(provider).attempt;
     return !attempt || attempt.id !== attemptId || attempt.cancelled;

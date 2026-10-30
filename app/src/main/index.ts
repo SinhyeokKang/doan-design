@@ -671,7 +671,7 @@ async function start(): Promise<void> {
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc);
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
-    (request, stored) => agentAuth ? accountPrepare(request, stored) : Promise.reject(new Error("not_logged_in")));
+    (request, stored, use) => agentAuth ? accountPrepare(request, stored, use) : Promise.reject(new Error("not_logged_in")));
   const conversationStore = new ConversationStore(userData);
   const preferences = createPreferencesStore(join(userData, "preferences.json"));
   const notify = createNotifyService({

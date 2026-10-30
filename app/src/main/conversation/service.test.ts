@@ -375,6 +375,11 @@ it.each(["quit", "stopRuns"] as const)("stops a model-list read on %s during its
   expect(h.release).not.toHaveBeenCalled();
   exited(); await vi.waitFor(() => expect(h.release).toHaveBeenCalledOnce());
 });
+it("prepares a model-list read as a listing, not a conversation run, so a sign-out does not ask to stop it", async () => {
+  const h = listingFixture();
+  await h.service.prepareListing("/repo", "cursor");
+  expect(h.prepare).toHaveBeenCalledWith(expect.objectContaining({ runtime: "cursor" }), undefined, "listing");
+});
 it("keeps a model-list read of another provider running on a sign-out", async () => {
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "cursor");

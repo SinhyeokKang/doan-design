@@ -15,12 +15,12 @@ import { externalConversation, type ConversationMetadata, type ExternalSession }
 // than a check at run time.
 export const BUNDLED_CLAUDE_SDK = "0.3.312";
 export type ExternalPrepare = (request: StartRequest, stored?: ExternalSession) => Promise<Prepared>;
-export type AccountPrepare = (request: StartRequest, stored?: ConversationMetadata & { owner: { kind: "doan" } }) => Promise<Prepared>;
+export type AccountPrepare = (request: StartRequest, stored?: ConversationMetadata & { owner: { kind: "doan" } }, use?: "run" | "listing") => Promise<Prepared>;
 // New conversations run on the doan account; a resumed external association and legacy entries keep the external
 // profile. Neither path falls back to the other.
 export function routePrepare(external: ExternalPrepare, account: AccountPrepare): Prepare {
-  return (request, stored) => {
-    if (!stored) return request.mode === "resume" ? external(request) : account(request);
+  return (request, stored, use) => {
+    if (!stored) return request.mode === "resume" ? external(request) : account(request, undefined, use);
     if (externalConversation(stored)) return external(request, stored.session);
     if (stored.owner.kind !== "doan") throw new Error("session_unavailable");
     return account(request, { ...stored, owner: stored.owner });
@@ -70,7 +70,7 @@ export function claudeSessionExists(config: string, id: string): boolean {
 }
 
 export interface AccountRuntime {
-  state(provider: Provider): AuthState; check(provider: Provider): Promise<Started>; checked(provider: Provider): Promise<void>; acquire(provider: Provider): Promise<Lease>;
+  state(provider: Provider): AuthState; check(provider: Provider): Promise<Started>; checked(provider: Provider): Promise<void>; acquire(provider: Provider, use?: "run" | "listing"): Promise<Lease>;
   confirm(provider: Provider, connectionId: string): void;
 }
 // Account refusals that a sign-in or reauth resolves read as not_logged_in; the rest keep the conversation codes.
@@ -108,7 +108,7 @@ export interface VersionRecords {
 // The Antigravity server has no version run: it is the sha-pinned download (agentAuth/antigravity.ts) and its
 // initialize reply names its version.
 export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords): AccountPrepare {
-  return async (request, stored) => {
+  return async (request, stored, use = "run") => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
     if (!isAbsolute(cli) || basename(cli) !== "doan") throw new Error("cli_missing");
@@ -123,7 +123,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
     }
     const pinned = { generation: state.generation, connectionId: state.connection?.connectionId };
     let lease: Lease;
-    try { lease = await auth.acquire(provider); } catch (error) {
+    try { lease = await auth.acquire(provider, use); } catch (error) {
       const code = accountCode(error instanceof Error ? error.message : "");
       if (code === "cli_missing") toolsFailed(provider);
       throw new Error(code);
