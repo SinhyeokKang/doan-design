@@ -70,7 +70,7 @@
   - candidates 20개 이상에서 패널이 스크롤되어 마지막 카드와 주 버튼에 닿는지 잰다.
   - 남는 차이는 근거와 함께 DESIGN.md에 적는다.
   - 검증: `/design-sync`의 측정 스크립트(`node .scratch/design-sync/buzz-add-projects/measure.mjs`) 결과에 기록되지 않은 차이가 없다.
-- [ ] S2. `/runtime-test`로 바뀐 동작만 짧게 확인한다. probe 위치는 `.scratch/runtime-test/buzz-add-projects/`이고, 명령은 미정이다(사용자 확인 필요, AGENTS 'Commands'에 runtime-test probe 명령이 없다). `app/runtime/`로 격리하고, clone은 임시 HOME의 `.gitconfig`에 `url.<로컬 bare 저장소>.insteadOf=https://github.com/`을 두어 네트워크 없이 재현한다. 원격 판정은 전역 gitconfig를 include로만 읽으므로(ARCHITECTURE §12) checkout 재사용 판정에는 영향이 없다. Cancel과 잠금 확인을 위해 clone을 늦추는 장치를 둔다.
+- [ ] S2. `/runtime-test`로 바뀐 동작만 짧게 확인한다. probe 위치는 `.scratch/runtime-test/buzz-add-projects/`이고, 명령은 미정이다(사용자 확인 필요, AGENTS 'Commands'에 runtime-test probe 명령이 없다). `app/runtime/`로 격리하고, clone은 임시 HOME의 `.gitconfig`에 `url.<로컬 bare 저장소>.insteadOf=https://github.com/`을 두어 네트워크 없이 재현한다. 원격 판정은 전역 gitconfig를 include로만 읽으므로(ARCHITECTURE §7 'First-run onboarding'의 Remotes 줄) checkout 재사용 판정에는 영향이 없다. Cancel과 잠금 확인을 위해 clone을 늦추는 장치를 둔다.
   - 진입점 세 곳, 숨은 창에서 Cmd+O, Settings 창 포커스에서 Add Project… 비활성.
   - 설정된 저장소 추가 → Home 선택·LNB 강조. 설정 안 된 저장소 → Set up → Home. 저장소 여럿인 폴더 → 하나 고르기. 이미 등록된 폴더 → Home 선택.
   - GitHub URL: 등록된 checkout 재사용, clone과 Cancel 정리.
@@ -94,14 +94,14 @@
   - PRODUCT §5 항목 1: Add Projects 문단(페이지, 하나씩, 그 자리 설정과 실패 예외, 카드 드롭, 완료 뒤 Home, origin 복귀, selecting·cloning 잠금), Home 입력창 폴더 드롭 문장, 'First run registers its chosen project through the same addition flow' 문장.
   - PRODUCT §7: buzz-add-projects 줄(spec 결정 1~10, Buzz에 대응 화면이 없어 온보딩 Project 단계를 정본으로 삼은 점)과, design.md '포맷·컨벤션·결정 영향'의 대체 행 8개에 "(superseded 2026-10-30 by buzz-add-projects …)" 표시.
   - PRODUCT §8 후속: Git이 찾은 미등록 워크트리를 LNB에서 더하는 길.
-  - ARCHITECTURE §7: 'Screens'·'Memory'·'Focus'의 화면 모델과 `AddProjectsDialog`·`SetUpFolderConfirm`·`DropOverlay` 언급, 메뉴 표와 'Menus' 줄의 `addProjects`·`locked`, 공유 project 클래스와 페이지 채널, allowlist 표.
+  - ARCHITECTURE §7: 'Screens'·'Memory'·'Focus'의 화면 모델과 `AddProjectsDialog`·`SetUpFolderConfirm`·`DropOverlay` 언급, preload 'Add' 줄(`ARCHITECTURE.md:395`, `folders:add`·`folders:add-paths`·`onAddOutcome` 계약)을 페이지 채널로 교체, 메뉴 표와 'Menus' 줄의 `addProjects`·`locked`, 공유 project 클래스, allowlist 표.
   - 부모 spec 공통 결정 6(하나씩 추가·워크트리 제안 제거라는 보존 예외)과 공통 결정 10(`AddProjectsDialog` 삭제).
   - 검증:
     - `grep -n '^| 2026-10-30 | buzz-add-projects' docs/PRODUCT.md`에 §7 줄이 있다.
     - `grep -c 'superseded 2026-10-30 by buzz-add-projects' docs/PRODUCT.md`가 8 이상이다.
     - `grep -n 'Add Projects page' docs/PRODUCT.md`에 §3 범위 밖 6 줄이 있다.
     - `grep -n 'dropped elsewhere they still add a project' docs/PRODUCT.md` 결과 없음.
-    - `grep -n 'AddProjectsDialog\|DropOverlay\|folders:add-paths' docs/ARCHITECTURE.md` 결과가 없거나 대체 설명뿐이다. `grep -n 'addProjects' docs/ARCHITECTURE.md`에 'Menus' 줄이 있다.
+    - `grep -n 'AddProjectsDialog\|DropOverlay\|folders:add\|onAddOutcome' docs/ARCHITECTURE.md` 결과가 없거나 대체 설명뿐이다. `grep -n 'menu:state.*addProjects' docs/ARCHITECTURE.md`에 'Menus' 줄이 있다(지금은 결과 없음).
     - 부모 spec은 한국어다. `grep -n '하나씩 추가' docs/features/buzz-restyle/spec.md`에 공통 결정 6 줄이 있고, `grep -nE 'AddProjectsDialog.*(삭제|없앴)' docs/features/buzz-restyle/spec.md`에 공통 결정 10 줄이 있다(둘 다 지금은 결과 없음).
 - [ ] Z3. `docs/features/buzz-add-projects/`를 지운다.
   - 검증: `ls docs/features/buzz-add-projects` 실패.

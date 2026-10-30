@@ -37,7 +37,7 @@
   - `toggleProject`의 `=== "home"`(`App.tsx:371`): 페이지에서 로드된 프로젝트 행을 누르면 그 워크스페이스로 간다.
   - `homeRun.ts:17, 221`의 화면 타입, `savedUiState` 입력 타입(`App.tsx:52`): 페이지에서는 origin을 저장한다.
 - **origin**: 'Projects 쪽 마지막 화면'(`home` 또는 `workspace`)이다. 페이지를 열 때 정한다. `buzz-settings`가 Settings 탭을 더해도 Add Projects → Settings → Projects가 이 값으로 돌아오도록, 바로 앞 화면이 아니라 Projects 쪽 화면을 기억한다. 페이지마다 LNB 내용이 바뀌는 것을 막는 가정은 두지 않는다.
-- **돌아가기**: Projects 탭, 헤더 Back(Cmd+[), 페이지 Cancel, Escape는 origin으로 간다. origin이 워크스페이스인데 그 root가 목록에 없으면 Home이다. Forward(Cmd+])는 페이지에서 비활성이다. 편집 중인 입력(URL 필드, IME 조합)에서는 Escape가 페이지를 떠나지 않는다(캔버스의 `editableTarget` 가드와 같은 규칙).
+- **돌아가기**: Projects 탭, 헤더 Back 버튼, 페이지 Cancel, Escape는 origin으로 간다. origin이 워크스페이스인데 그 root가 목록에 없으면 Home이다. 헤더 Forward 버튼은 페이지에서 비활성이다. Back/Forward에는 키보드 단축키가 없다. Cmd+[ / Cmd+]는 Previous/Next Resolved Comment(`index.ts:309-310`)이고 페이지에서는 비활성이다('메뉴'). 편집 중인 입력(URL 필드, IME 조합)에서는 Escape가 페이지를 떠나지 않는다(캔버스의 `editableTarget` 가드와 같은 규칙).
 - **다시 열기**: 페이지에서 Add Projects 탭은 아무 일도 하지 않는다. Cmd+O는 choose phase에서 Choose folder를 열고, 다른 phase에서는 비활성이다('메뉴').
 - **추가 완료**: Home으로 간다. 입력창 프로젝트 선택기에 그 root를 고르고, LNB 행을 2.4초 강조한다(지금 중복 추가의 `setHighlight`·`choose`, `App.tsx:433`). 이미 등록된 폴더·저장소를 골랐을 때도 같다. Home에 오면 입력창에 포커스가 가고 선택기가 그 이름을 읽으므로, 화면 낭독기 사용자도 결과를 듣는다.
 - **LNB 행**: 페이지에서 LNB 행을 누르면 그 워크스페이스로 간다(페이지를 떠난다). origin 워크스페이스에 드래프트가 있으면 지금의 draft guard가 뜬다.
