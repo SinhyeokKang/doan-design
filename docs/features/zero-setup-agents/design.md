@@ -14,6 +14,7 @@ ego lite 0.6.2.5(`/Applications/ego lite.app`)와 공개 리포 `citrolabs/ego-l
 ~/.local/bin/ego-browser              -> ~/.local/share/ego/active_version_dir/Helpers/ego-browser
 ~/.claude/skills/ego-browser          -> ~/.local/share/ego/ego-skills
 ~/.agents/skills/ego-browser          -> ~/.local/share/ego/ego-skills
+~/.gemini/config/skills/ego-browser   -> ~/.local/share/ego/ego-skills
 ~/.codex/rules/default.rules          prefix_rule(pattern=["ego-browser"], decision="allow")
 ```
 
@@ -53,13 +54,13 @@ ego lite 0.6.2.5(`/Applications/ego lite.app`)와 공개 리포 `citrolabs/ego-l
 /usr/local/bin/doan           -> ~/.local/share/doan/current/bin/doan   (~/.local/bin이 PATH에 없을 때만, 관리자 권한)
 ~/.agents/skills/doan         -> ~/.local/share/doan/skill      (Codex)
 ~/.claude/skills/doan         -> ~/.local/share/doan/skill      (Claude Code, ~/.claude가 있을 때)
-<Antigravity 위치: T0 미확정>                       -> ~/.local/share/doan/skill  (폴더가 있을 때)
+~/.gemini/config/skills/doan  -> ~/.local/share/doan/skill      (Antigravity, ~/.gemini가 있을 때)
 ~/.codex/rules/doan.rules     prefix_rule(pattern=["doan"], decision="allow")   (~/.codex가 있을 때)
 ```
 
 - 표의 `~`는 설명용이다. 실제 링크 값은 주입받은 HOME으로 만든 절대경로다(ego도 절대경로). `current`의 값은 `process.resourcesPath`를 realpath로 푼 경로다.
 - 앱이 옮겨지거나 바뀌면 `current`만 다시 쓴다. 같은 경로에서 번들이 교체되면 아무것도 다시 쓰지 않아도 새 CLI·stub·guide가 쓰인다(완료 조건 2). 이 머신의 깨진 `~/.local/bin/doan`처럼 특정 빌드를 직접 가리키는 문제가 사라진다.
-- 프로바이더 personal skill 위치는 agent-auth가 Doan 프로필에서 확인한 값을 출발점으로 삼는다(`app/src/main/agentAuth/providers.ts`: Claude `<config>/skills`, Codex `<CODEX_HOME>/skills`, Cursor `~/.cursor/skills`, Copilot `~/.copilot/skills`, Antigravity `<GEMINI_HOME>/skills`). 외부 세션이 공유 위치(`~/.agents/skills`, `~/.claude/skills`)도 읽는지는 확인되지 않았다. 두 곳을 다 읽는 프로바이더에 링크를 둘 다 두면 `doan` skill이 두 번 보인다(PRODUCT 'Open questions': Codex가 두 `doan` skill을 나열한 관찰). T0 1차 측정: Codex·Copilot·Cursor(코드 근거)는 `~/.agents/skills`, Claude는 `~/.claude/skills`만 읽는다. 그래서 ego와 같은 두 링크면 넷 모두에 닿고, `~/.cursor/skills`·`~/.copilot/skills` 링크는 두지 않는다(두면 Copilot·Cursor에 중복). Cursor의 third-party 설정이 켜져 있으면 `~/.claude/skills`도 읽어 두 번 보일 수 있다(실행 확인 대기). Antigravity는 T0에서 정한다.
+- 프로바이더 personal skill 위치는 agent-auth가 Doan 프로필에서 확인한 값을 출발점으로 삼는다(`app/src/main/agentAuth/providers.ts`: Claude `<config>/skills`, Codex `<CODEX_HOME>/skills`, Cursor `~/.cursor/skills`, Copilot `~/.copilot/skills`, Antigravity `<GEMINI_HOME>/skills`). 외부 세션이 공유 위치(`~/.agents/skills`, `~/.claude/skills`)도 읽는지는 확인되지 않았다. 두 곳을 다 읽는 프로바이더에 링크를 둘 다 두면 `doan` skill이 두 번 보인다(PRODUCT 'Open questions': Codex가 두 `doan` skill을 나열한 관찰). T0 측정: Claude는 `~/.claude/skills`만, Codex·Copilot은 `~/.agents/skills`, Cursor는 `~/.agents/skills`(설정에 따라 `~/.claude/skills`도), Antigravity 2.0.6은 `~/.gemini/config/skills`만 읽는다. 그래서 ego와 같은 세 링크면 다섯 모두에 닿는다. `~/.cursor/skills`·`~/.copilot/skills` 링크는 두지 않는다(두면 중복). Cursor는 `~/.agents`와 `~/.claude`의 링크가 같은 디렉터리로 풀릴 때 한 번만 보였다.
 - Codex rule은 Doan 전용 파일 `doan.rules`에 쓴다. ego는 `default.rules`를 쓰지만, 그 파일은 Codex TUI가 사용자 승인을 저장하는 곳이라 Doan이 고치지 않는다. Codex는 `rules/` 아래 모든 `.rules`를 읽는다(Codex 문서). 허용 범위는 ego처럼 `doan` 전체다(사용자 결정). socket이 필요한 것은 `active`, `onboarding`뿐이지만, 모든 doan 명령이 sandbox 밖에서 승인 없이 실행된다. 그 결과 `--repo`가 가리키는 workspace 밖 임의 경로의 `.doan/`·`.gitattributes` 쓰기(`init`, `config`, `comment resolve`), userData `sessions.jsonl` 쓰기, socket을 거친 onboarding 쓰기(프로젝트 선택·초기화, clone, sign-in 시작)가 승인 없이 실행된다. ARCHITECTURE §5의 "keep human approval for MCP writes"와 반대 방향이므로 '결정 영향'에 적는다.
 - **`/usr/local/bin`**: 시작할 때 이미 도는 로그인 셸 프로브(`app/src/main/index.ts`의 `shellForFacts`, `probeShell`)의 PATH에 `~/.local/bin`이 없을 때만 쓴다. ego처럼 `/usr/bin/osascript`의 `do shell script … with administrator privileges`로 부모 디렉터리를 만들고 링크를 쓴다. 대상의 소유 판정은 아래 규칙과 같다(Doan이 만든 링크만 교체). 사람이 대화상자를 취소하면 그 사실을 userData에 기록하고 다시 자동으로 묻지 않는다. About 알림이 rc 파일과 `export PATH="$HOME/.local/bin:$PATH"` 줄을 보인다(지금 Connections가 쓰는 `rcFileFor`·`PATH_LINE`을 About 알림용으로 옮긴다). 앱은 rc 파일을 직접 고치지 않는다.
 
@@ -67,7 +68,7 @@ ego lite 0.6.2.5(`/Applications/ego lite.app`)와 공개 리포 `citrolabs/ego-l
 
 - main `app.whenReady` 뒤 한 번, 창 표시와 무관하게 비동기로 실행한다. 실패와 건너뛴 항목은 로그에 남기고, main이 이번 실행의 결과를 메모리에 둔다. 평소에는 UI가 없다(사용자 결정: 건너뛴 것이 있을 때만 About). 매 실행마다 같은 확인을 반복하므로, 사라지거나 깨진 링크와 나중에 생긴 프로바이더 폴더는 다음 실행에서 반영된다.
 - 쓰는 조건: `app.isPackaged`이고, 번들 경로가 `/Applications/` 또는 `<HOME>/Applications/` 바로 아래이며, translocation 상태가 아니다. 개발 빌드, `npm run package`가 만든 `app/dist/mac-arm64/Doan.app`, 다른 worktree의 빌드는 쓰지 않는다. 번들 이름은 보지 않는다. 두 허용 위치에 복사본이 있으면 마지막에 실행한 쪽이 `current`를 가져간다(사용자 결정). 버전은 비교하지 않는다.
-- 프로바이더 폴더(`~/.claude`, `~/.codex`, `~/.cursor`, `~/.copilot`, `~/.gemini`)는 만들지 않는다. 폴더가 있을 때만 그 안의 `skills/`(필요하면 생성)나 `rules/`에 쓴다. `~/.local/share/doan`, `~/.local/bin`, `~/.agents/skills`는 만든다(사용자 결정).
+- 프로바이더 폴더(`~/.claude`, `~/.codex`, `~/.gemini`)는 만들지 않는다. 폴더가 있을 때만 그 안의 `skills/`, `config/skills/`(필요하면 생성)나 `rules/`에 쓴다. `~/.local/share/doan`, `~/.local/bin`, `~/.agents/skills`는 만든다(사용자 결정).
 - HOME은 `os.homedir()`가 아니라 주입받는다. 테스트와 runtime 프로브는 임시 HOME 아래 `Applications/Doan.app` 복사본으로 실제 HOME을 건드리지 않고 같은 경로를 검증한다.
 - 첫 실행(first run)과 무관하다. 첫 실행 화면은 바뀌지 않는다.
 

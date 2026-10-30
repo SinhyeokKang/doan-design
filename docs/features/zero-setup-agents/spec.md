@@ -24,9 +24,9 @@ Doan을 설치한 뒤 사람이 아무 설정도 하지 않아도, 터미널이�
 2. 같은 경로의 앱 번들을 새 버전으로 바꾸면, 링크를 다시 쓰지 않아도 다음 호출부터 새 CLI, stub, guide가 쓰인다.
 3. 앱을 다른 허용 위치로 옮기면, 다음 실행에서 링크가 새 위치를 가리킨다. 두 허용 위치에 복사본이 모두 있으면 마지막에 실행한 복사본이 링크를 가져간다.
 4. 로그인 셸 PATH에 `~/.local/bin`이 없으면, 앱이 macOS 관리자 권한 대화상자로 `/usr/local/bin/doan` 링크를 만든다(ego와 같은 방식). 사람이 취소하면 다시 자동으로 묻지 않고, About 알림이 rc 파일에 넣을 PATH 줄을 보인다.
-5. Codex `workspace-write` + `approval_policy=never`에서 `doan active`와 `doan onboarding …`이 성공한다. ego처럼 모든 `doan` 명령이 sandbox 밖에서 승인 없이 실행된다. 나머지 네 프로바이더는 sandbox가 `doan active`를 막지 않는다(사람이 한 번 승인하면 앱에 닿는다). 기본 sandbox가 socket을 막는 프로바이더는 T0에서 찾은 허용 방식을 이 feature에 넣고, 허용 방식이 없으면 T0 표에 "sandbox 우회 없음"으로 적고 이 조건에서 빼서 T9로 넘긴다.
+5. Codex `workspace-write` + `approval_policy=never`에서 `doan active`와 `doan onboarding …`이 성공한다. ego처럼 모든 `doan` 명령이 sandbox 밖에서 승인 없이 실행된다. 나머지 네 프로바이더는 sandbox가 `doan active`를 막지 않는다(사람이 한 번 승인하면 앱에 닿는다). T0 측정에서 sandbox가 socket을 막은 것은 Codex뿐이었다.
 6. Doan이 만들지 않은 파일과 링크는 바꾸거나 지우지 않는다. 그런 대상이 있으면 그 항목과, 그 항목을 거쳐 가는 항목만 건너뛴다.
-7. 프로바이더 설정 폴더(`~/.claude`, `~/.codex`, `~/.cursor`, `~/.copilot`, `~/.gemini`)가 없으면 만들지 않는다. 그 프로바이더의 링크와 rule은 폴더가 생긴 뒤의 다음 실행에서 만든다.
+7. 프로바이더 설정 폴더(`~/.claude`, `~/.codex`, `~/.gemini`)가 없으면 만들지 않는다. 그 프로바이더의 링크와 rule은 폴더가 생긴 뒤의 다음 실행에서 만든다.
 8. 개발 빌드, translocation 상태의 앱, 허용 위치 밖의 패키지 복사본(`app/dist/…` 포함)은 아무것도 쓰지 않는다.
 9. Settings에 Connections 카테고리가 없고, 앱이 MCP를 등록하는 기능이 없다. 저장된 `settingsSection: "connections"`는 About으로 열린다. `doan mcp` 명령은 그대로 남는다.
 10. 건너뛴 항목이 있거나 쓰는 조건을 만족하지 않는 실행이면, Settings… > About의 doan command 행 아래에 항목마다 한 줄씩 영향받는 에이전트, 경로, 할 일이 보인다. 모두 설치됐으면 아무것도 보이지 않는다. 알림은 이번 실행의 결과이며, 원인을 치운 뒤 Doan을 다시 열면 다시 시도한다.
