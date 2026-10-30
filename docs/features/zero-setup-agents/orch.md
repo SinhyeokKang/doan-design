@@ -15,6 +15,9 @@
 | 4 | T2의 `index.ts` 연결(시작 시 실행, 로그인 셸 PATH 주입, 실제 osascript 실행기) | 배치 D로 옮긴다. A는 주입 가능한 실행기까지만 만든다 | 지휘자 판단 — C가 `index.ts`의 broker 호출을 지우므로 A와 C가 같은 파일을 병렬로 고치지 않게 한다 |
 | 5 | 새 모듈 위치 | `app/src/main/agentSetup/`. `aboutNotice`는 그 안의 `node:fs`를 import하지 않는 파일 | 지휘자 판단 — design.md '순수 함수로 뺄 부분'과 `rendererImports.test.ts` 경계 |
 | 6 | T6의 관리자 권한 대화상자 1회 확인 | E가 준비하고, 사용자가 지켜볼 수 있을 때 지휘자가 사용자 승인을 받아 실행한다 | tasks.md T6 — 실제 `/usr/local/bin`에 쓴다 |
+| 8 | `machine.test.ts`의 stub 내용 단언(B 에스컬레이션) | B가 새 `onboarding/stub.test.ts`로 옮기고 새 문구로 고친다. C는 `machine.test.ts`에서 그 두 테스트를 지운다. fixture `SKILL-c994913.md`는 남긴다 | 지휘자 판단 — 두 배치가 같은 파일을 고치지 않게 하고, stub 불변식은 문구 소유자가 갖는다 |
+| 9 | guide의 onboarding 절대경로 호출이 Codex rule `pattern=["doan"]`에 맞지 않음(B 리뷰 🟡1) | rule은 그대로 두고, guide가 `doan`이 PATH에 있으면 이름으로 부르게 고친다. 절대경로는 Doan을 한 번도 열지 않았을 때만 쓴다. "Codex는 자동"이라는 문장은 "Doan을 연 뒤 새로 시작한 Codex 세션"으로 조건을 단다 | 지휘자 판단 — rule 범위는 사용자 결정(design.md)이고, 완료 조건 5는 이름으로 부른 `doan onboarding …`을 말한다. 링크가 없으면 rule도 없으므로 절대경로 경우는 원래 sandbox 밖 승인이 필요하다 |
+| 10 | 앱 대화 `PRESET_GUIDANCE`의 Applications/About 안내(B 리뷰 ⚪1) | 앱 대화는 이미 Doan 안이므로 About 안내를 빼고, Connections 없는 옛 끝맺음으로 돌린다 | 지휘자 판단 — About 알림은 외부 세션 설치 결과라 앱 대화 실패를 설명하지 않는다 |
 | 7 | T9 | 이번 run 밖. PR이 main에 merge된 뒤 main에서 하는 문서 변경 | tasks.md T9 |
 
 ## 배치
