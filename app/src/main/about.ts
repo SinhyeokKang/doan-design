@@ -14,12 +14,17 @@ export interface AboutTool { provider: Provider; cli: ToolFacts["cli"]; installe
 // `tools` null: agent sign-in storage is unreadable, so no tool facts were ever read.
 export interface AboutRead { version: string; cli: AboutCli; tools: AboutTool[] | null }
 export type AboutTone = "neutral" | "ok" | "warning" | "error";
-// `value` and `status` are the right-hand column; `error` replaces them with a sentence and a Retry.
+// `value` and `status` are the right-hand column; `error` (a failed read, on the doan command or a tool row) replaces
+// them with a sentence and a Retry.
 export interface AboutRow { id: string; label: string; description: string | null; value: string | null; status: string | null; tone: AboutTone; error: string | null }
 export interface AboutView { app: AboutRow[]; tools: AboutRow[] }
 
 const CHECKING = "Checking…";
 const UNREAD = "Couldn’t read the version";
+// A failed read, unlike an answer such as Not installed, is an `error` the page pairs with Retry, as for the doan
+// command. Retry reads About again from the facts cache; it does not run the provider's CLI.
+const UNREAD_ERROR = "Couldn’t read the version.";
+const UNREAD_ROW = { status: null, tone: "error" as const, error: UNREAD_ERROR };
 
 // The version every `doan` reports in its design-skill list; a CLI too old to list presets has none to show.
 export function aboutCli(path: string, run: CliRun): AboutCli {
@@ -35,15 +40,15 @@ function needs(provider: Provider): string {
   return provider === "antigravity" ? "Doan downloads its sign-in server when you first sign in." : `Doan needs ${MINIMUM_VERSIONS[provider]} or later.`;
 }
 
-function toolStatus(tool: AboutTool): { status: string; tone: AboutTone } {
+function toolStatus(tool: AboutTool): { status: string | null; tone: AboutTone; error: string | null } {
   // Doan's own download: no CLI and no installed version of its own.
-  if (tool.provider === "antigravity") return { status: "Downloaded by Doan", tone: "neutral" };
-  if (tool.cli === "missing") return { status: "Not installed", tone: "neutral" };
+  if (tool.provider === "antigravity") return { status: "Downloaded by Doan", tone: "neutral", error: null };
+  if (tool.cli === "missing") return { status: "Not installed", tone: "neutral", error: null };
   switch (tool.support) {
-    case "supported": return { status: "Supported", tone: "ok" };
-    case "unsupported": return { status: "Update needed", tone: "warning" };
-    case "incompatible": return { status: "Doan can’t run this version", tone: "error" };
-    case "unknown": return { status: UNREAD, tone: "warning" };
+    case "supported": return { status: "Supported", tone: "ok", error: null };
+    case "unsupported": return { status: "Update needed", tone: "warning", error: null };
+    case "incompatible": return { status: "Doan can’t run this version", tone: "error", error: null };
+    case "unknown": return UNREAD_ROW;
   }
 }
 
@@ -61,7 +66,7 @@ export function aboutView(read: AboutRead | null): AboutView {
     : row("cli", "doan command", read.cli.path, read.cli.version);
   const tools = PROVIDERS.map(provider => {
     const tool = read.tools?.find(candidate => candidate.provider === provider);
-    const shown = tool ? toolStatus(tool) : { status: UNREAD, tone: "warning" as const };
+    const shown = tool ? toolStatus(tool) : UNREAD_ROW;
     const value = tool && tool.provider !== "antigravity" && tool.cli === "found" ? tool.installed : null;
     return { ...row(provider, PROVIDER_NAMES[provider], needs(provider), value), ...shown };
   });
@@ -73,7 +78,7 @@ export function aboutText(read: AboutRead): string {
   lines.push(read.cli.version === null ? `doan command: ${UNREAD} (${read.cli.path})` : `doan command ${read.cli.version} (${read.cli.path})`);
   for (const row of aboutView(read).tools) {
     const minimum = row.id === "antigravity" ? "" : ` (${row.description?.replace(/\.$/, "")})`;
-    lines.push(`${row.label}${row.value === null ? "" : ` ${row.value}`}: ${row.status}${minimum}`);
+    lines.push(`${row.label}${row.value === null ? "" : ` ${row.value}`}: ${row.status ?? UNREAD}${minimum}`);
   }
   return `${lines.join("\n")}\n`;
 }

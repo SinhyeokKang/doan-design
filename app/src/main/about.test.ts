@@ -61,8 +61,20 @@ describe("aboutView", () => {
     const view = aboutView({ ...READ, cli: { path: PATH, version: null }, tools: [{ provider: "claude", cli: "found", installed: null, support: "unknown" }, { provider: "cursor", cli: "found", installed: "2026.11.03", support: "incompatible" }] });
     expect(view.app[1]).toEqual({ id: "cli", label: "doan command", description: PATH, value: null, status: null, tone: "error", error: "Couldn’t read the doan command’s version." });
     expect(view.app[0]).toMatchObject({ value: "0.1.0", error: null });
-    expect(view.tools.find(row => row.id === "claude")).toMatchObject({ value: null, status: "Couldn’t read the version", tone: "warning", error: null });
+    // The same contract as the doan command row: `error` replaces value and status, and the page offers Retry.
+    expect(view.tools.find(row => row.id === "claude")).toEqual({ id: "claude", label: "Claude Code", description: "Doan needs 2.1.312 or later.", value: null, status: null, tone: "error", error: "Couldn’t read the version." });
     expect(view.tools.find(row => row.id === "cursor")).toMatchObject({ value: "2026.11.03", status: "Doan can’t run this version", tone: "error" });
+  });
+
+  test("not installed, update needed and can’t run are answers, not read failures: no error, no Retry", () => {
+    const view = aboutView({ ...READ, tools: [
+      { provider: "codex", cli: "found", installed: "0.163.0", support: "unsupported" },
+      { provider: "cursor", cli: "found", installed: "2026.11.03", support: "incompatible" },
+      { provider: "copilot", cli: "missing", installed: null, support: "unknown" },
+    ] });
+    expect(view.tools.filter(row => ["codex", "cursor", "copilot"].includes(row.id)).map(row => [row.id, row.status, row.error])).toEqual([
+      ["codex", "Update needed", null], ["cursor", "Doan can’t run this version", null], ["copilot", "Not installed", null],
+    ]);
   });
 
   test("while reading, every value is Checking… and the descriptions stay", () => {
@@ -75,7 +87,7 @@ describe("aboutView", () => {
 
   test("unreadable agent tools (no account storage) fail on each tool row", () => {
     const view = aboutView({ ...READ, tools: null });
-    for (const row of view.tools) expect(row).toMatchObject({ value: null, status: "Couldn’t read the version", tone: "warning" });
+    for (const row of view.tools) expect(row).toMatchObject({ value: null, status: null, tone: "error", error: "Couldn’t read the version." });
   });
 });
 
