@@ -10,9 +10,10 @@ import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
 import { Home, ProblemActions, useProjectComments } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
+import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
 import { useToast } from "./Toast";
 import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
-import { addPageReturn, pageEscape, type AddPageEvent, type AddPageOrigin } from "./addProjectsNav";
+import { addPageReturn, pageEnter, pageEscape, type AddPageEvent, type AddPageOrigin, type ShellScreen } from "./addProjectsNav";
 import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
@@ -30,10 +31,16 @@ import { unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import type { HomeMemory, UiState, ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
+import { defaultProject } from "./homeComposer";
 import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
 import { HomeRun } from "./homeRun";
+import { SettingsPage, type SettingsArrival } from "./SettingsPage";
+import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, type SettingsSection, type SettingsTarget } from "./settingsSections";
+import { agentSignIn } from "./agentSignIn";
+import { notificationTarget, type NotificationTarget } from "../main/notifications";
+import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
@@ -47,14 +54,14 @@ export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen
 
 // Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
 // sent before that memory was read (it would be dropped).
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"] }): UiState | null {
-  const { screen, loadedRoot, open, expanded, shellProjects, home, view } = input;
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection }): UiState | null {
+  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection } = input;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}) };
 }
 
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
@@ -67,15 +74,27 @@ export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit)
 
 export function App() {
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null);
-  const [screen, setScreen] = useState<"home" | "workspace" | "addProjects">("home");
+  const [screen, setScreen] = useState<"home" | "workspace" | "addProjects" | "settings">("home");
   const [locating, setLocating] = useState<{ from: string; root: string | null } | null>(null);
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [setup, setSetup] = useState<string | null>(null);
+  // The project menu's Project Settings dialog; seq mounts each opening anew.
+  const [projectSettings, setProjectSettings] = useState<{ root: string; key: string; seq: number } | null>(null);
   // The Add Projects page (buzz-add-projects design '화면과 이동'): where it returns to, the page's own report, and a
   // counter File > Add Project… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
   const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
   const pageRef = useRef(page); pageRef.current = page;
+  // The Settings page (buzz-settings design '화면과 내비게이션'): its category, what it was asked to focus on arrival, and
+  // whether a category holds a confirmation or a write. It shares the Add Projects page's origin, so moving between
+  // the two pages keeps where both return to.
+  const [settings, setSettingsState] = useState<{ section: SettingsSection; arrival: SettingsArrival | null; locked: boolean }>({ section: "agents", arrival: null, locked: false });
+  const settingsRef = useRef(settings); settingsRef.current = settings;
+  const setSettings = (next: typeof settings) => { settingsRef.current = next; setSettingsState(next); };
+  const settingsQueue = useRef(new SettingsTargetQueue());
+  const arrivals = useRef(0);
+  // A category the person or a target chose wins over the one ui-state read later.
+  const sectionChosen = useRef(false);
   const beforeModal = useRef<HTMLElement | null>(null);
   const focusAfterModal = useRef(false);
   const toast = useToast(previous => {
@@ -142,12 +161,13 @@ export function App() {
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
   function focusCurrent(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
-    const scope = currentScreen.current === "home" ? ".home-shell" : currentScreen.current === "addProjects" ? ".add-shell" : ".workspace";
+    const scope = currentScreen.current === "home" ? ".home-shell" : currentScreen.current === "addProjects" ? ".add-shell" : currentScreen.current === "settings" ? ".settings-shell" : ".workspace";
     const usable = (node: HTMLElement | null): node is HTMLElement => !!node && node.isConnected && !!node.closest(scope)
       && !node.closest('[inert], [hidden], [aria-hidden="true"]') && !node.matches(":disabled")
       && node.getClientRects().length > 0 && getComputedStyle(node).visibility === "visible";
     const selectors = currentScreen.current === "home" ? [".home-shell .composer-input", ".home-shell button"]
       : currentScreen.current === "addProjects" ? [".add-panel h2", ".add-shell button"]
+      : currentScreen.current === "settings" ? [".settings-panel h1", ".settings-shell button"]
       : ['.side [role="treeitem"][tabindex="0"]', '.shell-search', '.workspace .top button'];
     const fallback = selectors.flatMap(selector => Array.from(document.querySelectorAll<HTMLElement>(selector)));
     (usable(previous) ? previous : fallback.find(usable))?.focus();
@@ -217,9 +237,10 @@ export function App() {
   }, [wizard]);
   // Set once the project counts below exist; a raised review marker refreshes them.
   const reviewedRoot = useRef<(root: string) => void>(() => {});
-  // While the Add Projects page selects or clones, every move away is ignored here, in one place (design '잠금'):
-  // marking the controls alone would leak through toasts, the comment guard and keyboard activation.
-  const locked = () => currentScreen.current === "addProjects" && pageRef.current.locked;
+  // While the Add Projects page selects or clones, or a Settings category holds a confirmation or a write, every move
+  // away is ignored here, in one place (buzz-add-projects and buzz-settings design '잠금'): marking the controls alone
+  // would leak through toasts, the comment guard and keyboard activation.
+  const locked = () => (currentScreen.current === "addProjects" && pageRef.current.locked) || (currentScreen.current === "settings" && settingsRef.current.locked);
   // The id-change notice's Show: the Overview's Feedback expands that id's
   // orphan group and focuses its head (project-feedback design §5).
   const [reveal, setReveal] = useState<{ root: string; id: string; seq: number } | null>(null);
@@ -265,6 +286,7 @@ export function App() {
       // Main replaces the whole state on each save, so Home's memory is kept even when the restore was cancelled.
       // A send that finished before this read keeps its newer choices over the saved ones.
       if (active) setHomeMemory(previous => ({ ...state?.home, ...previous }));
+      if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
     });
     return () => { active = false; };
@@ -311,12 +333,12 @@ export function App() {
     const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory() });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
-  // The page is never restored; a restart opens the screen it came from.
-  const savedScreen = screen === "addProjects" ? page.origin.screen : screen;
-  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory });
-  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory };
+  // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
+  const savedScreen = screen === "addProjects" || screen === "settings" ? page.origin.screen : screen;
+  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section });
+  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -405,10 +427,10 @@ export function App() {
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || !!comments.dialog || setup !== null || quickOpen || homeRun.current.removing !== null;
+  const modal = wizard !== null || !!comments.dialog || setup !== null || quickOpen || homeRun.current.removing !== null || projectSettings !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, projectLabel: (root: string) => root });
-  live.current = { home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, projectLabel: root => projectLabelRef.current(root) };
+  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root });
+  live.current = { home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root) };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -434,21 +456,80 @@ export function App() {
     }
   }, [setup, entries, reroot]);
   useEffect(() => { if (!highlight.length) return; const timer = setTimeout(() => setHighlight([]), 2400); return () => clearTimeout(timer); }, [highlight]);
-  // The page opens from Home or a workspace and remembers that screen as its origin; the workspace stays hidden as on
-  // Home, so its canvas, view, selection and drafts are kept.
+  // A page opens from Home or a workspace and remembers that screen as its origin; the workspace stays hidden as on
+  // Home, so its canvas, view, selection and drafts are kept. From the other page the origin stays.
+  const shellScreen = (): ShellScreen => {
+    const now = currentScreen.current;
+    if (now === "addProjects" || now === "settings") return { screen: now };
+    return now === "workspace" && loadedRootRef.current !== null ? { screen: "workspace", root: loadedRootRef.current } : { screen: "home" };
+  };
+  // Entering cancels a pending startup restore and a workspace still opening (POSTMORTEM 2026-10-27), and so does
+  // entering the page already shown: it is the person's latest move too (that entry's no-op path rule).
+  const cancelPending = () => { cancelRestore(); controller.current?.cancelWorkspaceOpen(); };
+  function enterPage(to: "addProjects" | "settings"): AddPageOrigin | null {
+    const entered = pageEnter(shellScreen(), pageRef.current.origin, to, locked());
+    if (entered.kind === "stay") { if (currentScreen.current === to && !locked()) cancelPending(); return null; }
+    cancelPending();
+    if (currentScreen.current === "workspace" && loadedRootRef.current !== null) workspaceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return entered.origin;
+  }
   function openAddProjects() {
     if (live.current.modal) return;
-    if (currentScreen.current === "addProjects") return;
-    cancelRestore();
-    controller.current?.cancelWorkspaceOpen();
-    const workspace = currentScreen.current === "workspace" && loadedRootRef.current !== null;
-    if (workspace) workspaceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const next = { ...pageRef.current, origin: workspace ? { screen: "workspace" as const, root: loadedRootRef.current! } : { screen: "home" as const }, seq: pageRef.current.seq + 1, locked: false, choose: true };
+    const origin = enterPage("addProjects");
+    if (!origin) return;
+    const next = { ...pageRef.current, origin, seq: pageRef.current.seq + 1, locked: false, choose: true };
     pageRef.current = next; setPage(next);
     setScreen("addProjects");
   }
+  // Every way into Settings — the header tab, Settings… (⌘,), Home's agent picker, a sign-in toast — comes here
+  // (design '들어가는 길'). While a category holds a confirmation or a write, the latest target waits for it
+  // (POSTMORTEM 2026-10-25 'A forwarded Settings target discarded a pending setup confirmation').
+  function openSettings(target: SettingsTarget) {
+    if (live.current.modal) return;
+    if (currentScreen.current === "settings") {
+      const now = settingsQueue.current.offer(target, settingsRef.current.locked);
+      if (now) { cancelPending(); arrive(now); }
+      return;
+    }
+    const origin = enterPage("settings");
+    if (!origin) return;
+    const next = { ...pageRef.current, origin };
+    pageRef.current = next; setPage(next);
+    arrive(target);
+    setScreen("settings");
+  }
+  // Only an unlocked page takes a target: a fresh one, one not holding anything, or one whose lock just ended.
+  const arrive = (target: SettingsTarget) => {
+    const { section, focus } = settingsArrival(target, settingsRef.current.section);
+    sectionChosen.current = true;
+    setSettings({ section, locked: false, arrival: { focus, seq: ++arrivals.current } });
+  };
+  // A category picked in the sidebar keeps focus on its row, so it brings no arrival (design '포커스').
+  const selectSection = (section: SettingsSection) => {
+    if (currentScreen.current !== "settings" || locked()) return;
+    sectionChosen.current = true;
+    setSettings({ ...settingsRef.current, section, arrival: null });
+  };
+  // Reported as the category changes, not after a render; a target held meanwhile applies once the lock ends.
+  const settingsReport = ({ locked: next }: { locked: boolean }) => {
+    const current = settingsRef.current;
+    if (next === current.locked) return;
+    // A move started before the lock (a project still being read) would otherwise land after it.
+    if (next) { navigationIntent.current++; controller.current?.cancelWorkspaceOpen(); }
+    setSettings({ ...current, locked: next });
+    const held = next ? null : settingsQueue.current.release();
+    if (held) arrive(held);
+  };
+  // A notification's click, after main has shown the window (design 'Notifications' 클릭 해석).
+  function notificationClick(click: NotificationTarget) {
+    const known = homeRun.current.conversations.some(item => item.conversationId === click.conversationId);
+    const registered = entriesRef.current.some(entry => entry.path === click.root);
+    const to = notificationTarget(click, known, registered, locked() || live.current.modal);
+    if (to.kind === "conversation") homeRun.current.openConversation(to.conversationId);
+    else if (to.kind === "overview") showShellOverview(to.root);
+  }
   function leavePage(event: AddPageEvent) {
-    if (currentScreen.current !== "addProjects" || locked()) return;
+    if ((currentScreen.current !== "addProjects" && currentScreen.current !== "settings") || locked()) return;
     const to = addPageReturn(pageRef.current.origin, event, entriesRef.current.map(entry => entry.path));
     if (to.kind === "stay") return;
     if (to.kind === "workspace") live.current.enter(to.root);
@@ -479,13 +560,32 @@ export function App() {
   };
   // File > Add Project… (⌘O) opens the page; on the page it runs Choose folder, which main allows only in choose.
   useEffect(() => window.doan.onOpenAddProjects(() => {
-    if (currentScreen.current !== "addProjects") { live.current.openAddProjects(); return; }
-    if (pageRef.current.choose) setPage(previous => ({ ...previous, chooseSeq: previous.chooseSeq + 1 }));
+    live.current.openAddProjects();
+    if (currentScreen.current === "addProjects" && pageRef.current.choose) setPage(previous => ({ ...previous, chooseSeq: previous.chooseSeq + 1 }));
   }), []);
-  // Escape leaves the page unless a field or an IME composition holds it, or an overlay closes itself first.
+  // Settings… (⌘,) from main, after it has shown a hidden window; a payload that is not a target is dropped.
+  useEffect(() => window.doan.onOpenSettingsPage(value => { const target = parseSettingsTarget(value); if (target) live.current.openSettings(target); }), []);
+  useEffect(() => window.doan.onNotificationClick(click => live.current.notificationClick(click)), []);
+  // The renderer's one sign-in controller tells a sign-in that ended away from Agents in the shared toast, and hears
+  // when the window comes back to the front (design 'App 수준 로그인 컨트롤러').
+  useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
+  useEffect(() => {
+    const focused = () => agentSignIn().windowFocused();
+    window.addEventListener("focus", focused);
+    return () => window.removeEventListener("focus", focused);
+  }, []);
+  // Home and Settings share one renderer, so App holds the one preferences snapshot: read once, then each save's reply.
+  const [preferences, setPreferences] = useState<PreferencesSnapshot | null>(null);
+  useEffect(() => { void window.doan.readPreferences().then(snapshot => { if (snapshot) setPreferences(snapshot); }).catch(console.error); }, []);
+  const savePreferences = async (patch: PreferencesPatch) => {
+    const reply = await window.doan.savePreferences(patch).catch(() => null);
+    if (reply) setPreferences(reply.snapshot);
+    return reply;
+  };
+  // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || currentScreen.current !== "addProjects") return;
+      if (event.key !== "Escape" || (currentScreen.current !== "addProjects" && currentScreen.current !== "settings")) return;
       live.current.leavePage(pageEscape(event, live.current.modal || !!document.querySelector('dialog[open], [role="menu"], [role="tooltip"]')));
     };
     window.addEventListener("keydown", keydown);
@@ -527,10 +627,12 @@ export function App() {
       toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
     }
   }
-  function action(name: RowAction, root: string) {
+  // notice: a caller that shows the action's own feedback itself (the Project Settings dialog, over which a toast is
+  // inert); otherwise the toast.
+  function action(name: RowAction, root: string, notice: (text: string) => void = text => toast.show(text)) {
     cancelRestore();
     if ((name === "retry" || name === "locate") && document.activeElement instanceof HTMLElement) recoveryFocus.current = { element: document.activeElement, root };
-    if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") toast.show(entry.message); }
+    if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") notice(entry.message); }
     else if (name === "setUp") { rememberFocus(); setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
@@ -539,19 +641,12 @@ export function App() {
       const workspace = loadedRoot === root && currentScreen.current === "workspace";
       if (workspace) setLocating({ from: root, root: null });
       void window.doan.locateProject(root).then(result => {
-        if (result.kind === "refused") toast.show(result.message);
+        if (result.kind === "refused") notice(result.message);
         if (workspace && result.kind === "located") { setLoadedRoot(result.root); setLocating({ from: root, root: result.root }); }
         else if (workspace) setLocating(null);
       }).catch(error => { if (workspace) setLocating(null); console.error(error); });
     }
   }
-  useEffect(() => window.doan.onProjectAction(request => {
-    if (live.current.modal) return;
-    if (request.action === "details") {
-      const entry = entries.find(entry => entry.path === request.path);
-      if (entry?.kind === "error") toast.show(entry.message);
-    } else action(request.action, request.path);
-  }), [entries, loadedRoot]);
   useEffect(() => window.doan.onMenuCommand(name => {
     if (live.current.modal) return;
     menuCommand(name, {
@@ -561,12 +656,13 @@ export function App() {
       review: move => live.current.comments.reviewStep(move),
     });
   }), []);
-  const onPage = screen === "addProjects";
+  const onPage = screen === "addProjects", onSettings = screen === "settings";
+  const pageLocked = (onPage && page.locked) || (onSettings && settings.locked);
   useEffect(() => {
-    void window.doan.setMenuState({ screen: onPage ? "addProjects" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing,
-      ...(onPage && page.choose ? { choose: true } : {}), ...(onPage && page.locked ? { locked: true } : {}) });
-  }, [screen, state.open, modal, toast.toast?.action, comments.reviewing, page.choose, page.locked]);
-  // Home and the Add Projects page end a Review like another canvas; the progress passed stays raised.
+    void window.doan.setMenuState({ screen: onPage || onSettings ? screen : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing,
+      ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}) });
+  }, [screen, state.open, modal, toast.toast?.action, comments.reviewing, page.choose, pageLocked]);
+  // Home and the pages end a Review like another canvas; the progress passed stays raised.
   useEffect(() => { if (screen !== "workspace") comments.closeReview(); }, [screen]);
   const command = (name: ViewCommand) => controller.current?.command(name);
   // A pick from the Add Projects page goes through openCanvas too, whose draft guard is per canvas.
@@ -653,16 +749,23 @@ export function App() {
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
     onEditOnHome={() => run.editOnHome(shown.conversation.root)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
-  const pageLocked = onPage && page.locked;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}
-    home={home} slots={run.slots()} highlight={highlight} locked={pageLocked} />;
-  const topBar = <TopBar back={onPage || back !== null} forward={!onPage && forward !== null} page={onPage} locked={pageLocked}
-    previous={() => onPage ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
-    addProjects={() => onPage ? leavePage({ kind: "reopen" }) : openAddProjects()} projects={() => leavePage({ kind: "projectsTab" })} />;
+    projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
+    home={home} slots={run.slots()} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
+  const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
+    previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
+    addProjects={openAddProjects} projects={() => leavePage({ kind: "projectsTab" })} settings={() => { if (!locked()) openSettings({}); }} />;
+  // Settings > Agents lists models for the project Home would start with.
+  const modelRoot = defaultProject(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])), {
+    current: composerMemory.current.root ? { root: composerMemory.current.root, name: composerMemory.current.root } : null, loaded: loadedRoot, lastRoot: homeMemory?.lastRoot ?? null }).root;
+  const settingsProject = entries.some(entry => entry.path === modelRoot && entry.kind === "list") ? { root: modelRoot!, name: projectLabel(modelRoot!) } : null;
   return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
   {screen === "home" && <Home header={topBar} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
-    memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects} />}
+    memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
+    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} />}
+  {onSettings && <SettingsPage header={topBar} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
+    agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} />}
   {onPage && <AddProjectsPage key={page.seq} header={topBar} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
   <main className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}${strip ? " with-strip" : ""}`} style={{ visibility: screen !== "workspace" ? "hidden" : "visible" }} inert={screen !== "workspace"} aria-hidden={screen !== "workspace"}>
@@ -675,6 +778,8 @@ export function App() {
     <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>
   </main>
   {comments.dialog}
+  {projectSettings && <ProjectSettingsDialog key={projectSettings.seq} root={projectSettings.root} projectKey={projectSettings.key} entries={entries} reroot={reroot} homeDirectory={homeDirectory}
+    onClose={() => setProjectSettings(null)} onAction={(name, root, notice) => action(name, root, notice)} />}
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog" data-ui-size="compact" aria-label={run.removing.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
@@ -693,13 +798,14 @@ export function App() {
   </FirstPromptContext.Provider></TooltipProvider>;
 }
 
-// Add Projects and Projects are page tabs; on the Add Projects page Back returns to where it was opened from.
-// `locked` marks the ways out unavailable while App ignores them (buzz-add-projects design '잠금').
-function TopBar({ back, forward, previous, next, page, locked, addProjects, projects }: { back: boolean; forward: boolean; previous(): void; next(): void; page: boolean; locked: boolean; addProjects(): void; projects(): void }) {
+// Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
+// the tabs and Back unavailable while App ignores them (buzz-add-projects and buzz-settings design '잠금').
+function TopBar({ back, forward, previous, next, page, locked, addProjects, projects, settings }: { back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void }) {
   const unavailable = locked || undefined;
+  const tab = (name: typeof page) => name === page ? { className: "current", "aria-current": "page" as const } : {};
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
     <div className="shell-history"><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
-    <div className="shell-modes"><button className={page ? "current" : undefined} aria-current={page ? "page" : undefined} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button className={page ? undefined : "current"} aria-current={page ? undefined : "page"} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button onClick={() => void window.doan.openSettings({ tab: "connections" })}><Settings />Settings</button></div>
+    <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
   </header>;
 }
 

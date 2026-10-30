@@ -4,7 +4,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import {
-  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider, dropTarget,
+  attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
   GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
   presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
@@ -580,4 +580,42 @@ test("group keys map to their names and icons; an unknown key keeps its name and
   expect(["start", "review", "refine", "content", "explore", "lab", undefined].map(k => [groupLabel(k), groupIcon(k)])).toEqual([
     ["Start", "compass"], ["Review", "scan-eye"], ["Refine", "paintbrush"], ["Content", "text-align-start"], ["Explore", "shapes"], ["lab", "pencil-sparkles"], [null, "pencil-sparkles"],
   ]);
+});
+
+// buzz-settings design 'New conversations': the fixed preference from Settings comes first, then today's rules.
+test("new conversation default: the fixed agent wins over the last one sent while it can run", () => {
+  const auth = snapshot(dto("claude"), dto("codex"), dto("copilot", { verified: false }));
+  expect(defaultProvider(auth, "claude", { provider: "codex" })).toBe("codex");
+  // After a restart connections read unverified; main checks them on send, so the fixed one still applies.
+  expect(defaultProvider(auth, "claude", { provider: "copilot" })).toBe("copilot");
+  expect(defaultProvider(auth, "codex", null)).toBe("codex");
+});
+
+test("new conversation default: a fixed agent that is not signed in or cannot run falls back to the last one sent, then the first ready", () => {
+  const auth = snapshot(dto("claude"), dto("codex", { expired: true }), dto("cursor", { connected: false }));
+  expect(defaultProvider(auth, "claude", { provider: "codex" })).toBe("claude");
+  expect(defaultProvider(auth, undefined, { provider: "cursor" })).toBe("claude");
+  expect(defaultProvider(snapshot(dto("codex", { expired: true })), "claude", { provider: "codex" })).toBeNull();
+});
+
+test("new conversation default: the fixed preference applies only to its own agent", () => {
+  expect(fixedPreference({ provider: "claude", model: "sonnet" }, "claude")).toEqual({ provider: "claude", model: "sonnet" });
+  expect(fixedPreference({ provider: "claude", model: "sonnet" }, "codex")).toBeNull();
+  expect(fixedPreference(null, "claude")).toBeNull();
+});
+
+test("new conversation default: the fixed model when this project lists it, else the provider's default, never the remembered one", () => {
+  expect(defaultModel(CLAUDE_MODELS, { model: "sonnet" }, { provider: "claude", model: "haiku" })).toBe("haiku");
+  expect(defaultModel(CLAUDE_MODELS, { model: "sonnet" }, { provider: "claude", model: "retired" })).toBe("opus");
+  // Model Default in Settings is the provider's default, not the model sent last.
+  expect(defaultModel(CLAUDE_MODELS, { model: "sonnet" }, { provider: "claude" })).toBe("opus");
+  expect(defaultModel("loading", { model: "sonnet" }, { provider: "claude", model: "haiku" })).toBeNull();
+  expect(defaultModel(CLAUDE_MODELS, { model: "sonnet" }, null)).toBe("sonnet");
+});
+
+test("new conversation default: the fixed effort when the model offers it, else the provider's default, never the remembered one", () => {
+  expect(defaultEffort(OPUS, "low", { provider: "claude", model: "opus", effort: "high" })).toBe("high");
+  expect(defaultEffort(SONNET, "low", { provider: "claude", model: "opus", effort: "max" })).toBeNull();
+  expect(defaultEffort(OPUS, "low", { provider: "claude", model: "opus" })).toBeNull();
+  expect(defaultEffort(OPUS, "low", null)).toBe("low");
 });

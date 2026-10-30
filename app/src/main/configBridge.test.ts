@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { createConfigBridge } from "./configBridge";
 import type { CliRun } from "./folderState";
 
@@ -132,7 +132,7 @@ test("writes to one root run one after another", async () => {
   expect(run).toHaveBeenCalledTimes(2);
 });
 
-test("clear forgets choices and reads (the Settings window closed)", async () => {
+test("clear forgets choices and reads (the Project Settings dialog closed)", async () => {
   await bridge.read({ root: ROOT });
   const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
   if (chosen.kind !== "selected") throw new Error("not selected");
@@ -201,4 +201,35 @@ test("a request queued before Settings closed does not run after it", async () =
   await reading;
   expect(await writing).toEqual({ kind: "unavailable" });
   expect(run).toHaveBeenCalledOnce();
+});
+
+// buzz-settings design 'Project Settings 다이얼로그': `config:session-start`/`config:session-end` (and a replaced main
+// renderer) call clear(); whatever an earlier dialog asked for answers unavailable.
+describe("dialog session", () => {
+  test("다이얼로그를 닫은 뒤 늦게 온 읽기·선택 답은 버려진다", async () => {
+    bridge.clear();
+    const reading = deferred<CliRun>();
+    run.mockReturnValueOnce(reading.promise);
+    const picking = deferred<string | null>();
+    pick.mockReturnValueOnce(picking.promise);
+    const read = bridge.read({ root: ROOT });
+    const choice = bridge.choose({ root: ROOT, kind: "tokenCss" });
+    await vi.waitFor(() => expect(run).toHaveBeenCalledOnce());
+    bridge.clear();
+    reading.resolve(config(["late"], "late.css"));
+    picking.resolve("/repo/late.css");
+    expect(await read).toEqual({ kind: "unavailable" });
+    expect(await choice).toEqual({ kind: "unavailable" });
+    expect(await bridge.write({ root: ROOT, op: "removeServe", path: "late" })).toEqual({ kind: "unavailable" });
+  });
+
+  test("a new dialog cannot use the previous dialog's choices or serve list", async () => {
+    await bridge.read({ root: ROOT });
+    const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
+    if (chosen.kind !== "selected") throw new Error("not selected");
+    bridge.clear();
+    expect(await bridge.write({ root: ROOT, op: "addServe", choiceId: chosen.choiceId })).toEqual({ kind: "unavailable" });
+    expect(await bridge.write({ root: ROOT, op: "removeServe", path: "styles" })).toEqual({ kind: "unavailable" });
+    expect(await bridge.read({ root: ROOT })).toMatchObject({ kind: "config", serve: ["styles"] });
+  });
 });

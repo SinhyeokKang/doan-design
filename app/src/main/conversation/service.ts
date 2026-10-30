@@ -33,7 +33,8 @@ export interface Prepared {
 export interface StartAttachments { recheck(): AttachmentRecord[]; sent(): void }
 export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[]): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelOption[]> }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
-export type Prepare = (request: StartRequest, stored?: ConversationMetadata) => Promise<Prepared>;
+// use "listing": a model list read, which a sign-out stops without asking (agentAuth/manager.ts acquire).
+export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use?: "run" | "listing") => Promise<Prepared>;
 // Reads a model list through a provider process opened only for that, reporting its spawn and disappearance as
 // OpenRunner does; it never releases the lease itself.
 export type ReadModels = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<ModelOption[]>;
@@ -241,7 +242,7 @@ export class ConversationService {
     if (this.quitting) throw new Error("busy");
     const listing: Listing = { provider: runtime, since: this.stops }; this.listings.add(listing);
     let input: Prepared;
-    try { input = await this.prepare({ root, mode: "new", runtime, text: "", anchors: [] }); } catch (error) { this.listings.delete(listing); throw error; }
+    try { input = await this.prepare({ root, mode: "new", runtime, text: "", anchors: [] }, undefined, "listing"); } catch (error) { this.listings.delete(listing); throw error; }
     if (this.quitting || this.stopped(listing)) { this.listings.delete(listing); freeLease(input); throw new Error("busy"); }
     const release = input.release;
     const prepared: Prepared = { ...input, release: async () => { this.listings.delete(listing); await release?.(); } };

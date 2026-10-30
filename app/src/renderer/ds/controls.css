@@ -180,6 +180,42 @@
 .doan-checkbox:indeterminate::before { content: ""; width: 10px; height: 2px; background: currentColor; }
 .doan-checkbox:is(:disabled, [data-disabled]) { border-color: var(--affordance-disabled); background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
 
+/* ── Switch ──────────────────────────────────────────────────────────────────
+   An on/off setting that applies at once (buzz-settings design, Buzz's switch in doan
+   tokens). It is a button[role="switch"] and aria-checked is its state, so markup holds
+   no extra state class; the thumb is the button's ::before. The 36 × 20 track and the 14px
+   thumb are the switch's own sizes: the icon scale only happens to share 14px. */
+.doan-switch[role="switch"] {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  box-sizing: border-box;
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border: 1px solid var(--border-standard);
+  border-radius: var(--radius-pill);
+  background: var(--affordance-subtle-hover);
+  cursor: pointer;
+  transition: background-color var(--time-state) var(--ease-state), border-color var(--time-state) var(--ease-state);
+}
+.doan-switch[role="switch"]::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--text-on-prominent);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--time-settle) var(--ease-settle);
+}
+.doan-switch[role="switch"][aria-checked="true"] { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+/* 36 less the 1px borders, the 2px padding and the 14px thumb. */
+.doan-switch[role="switch"][aria-checked="true"]::before { transform: translateX(16px); }
+/* Disabled keeps the thumb where it is: the choice stays visible while it cannot change. */
+.doan-switch[role="switch"]:disabled { border-color: transparent; background: var(--affordance-disabled); cursor: default; }
+.doan-switch[role="switch"]:disabled::before { background: var(--surface-panel); box-shadow: none; }
+.doan-switch[role="switch"]:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
 /* ── Inline marks ────────────────────────────────────────────────────────────
    A keyboard hint and a chip sit inside a line of text, so they wrap with it instead of
    forcing the line wider. */
@@ -241,4 +277,5 @@ button.doan-chip:is(:hover, [data-state="open"]) { background: var(--affordance-
 @media (prefers-reduced-motion: reduce) {
   :is(.doan-button, .doan-icon-button, .doan-input, .doan-textarea) { transition: none; }
   .doan-spinner { animation: none; }
+  .doan-switch[role="switch"], .doan-switch[role="switch"]::before { transition: none; }
 }

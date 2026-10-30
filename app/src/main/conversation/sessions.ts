@@ -1,11 +1,11 @@
 import { posix } from "node:path";
 import { validateSessionRecord } from "../../formats/validate";
+import { MINIMUM_VERSIONS } from "./minimumVersions";
 import type { AvailabilityFacts, Canvas, Runtime, SessionRecord, UnavailableReason } from "./types";
 
+export { MINIMUM_VERSIONS };
+
 export const SESSION_TAIL_BYTES = 1024 * 1024;
-// The oldest provider CLI versions checked live in the real app. Newer ones run until a new-session handshake shows
-// a protocol shape doan cannot read; raising one is a decision backed by a live check of that version.
-export const MINIMUM_VERSIONS = { claude: "2.1.312", codex: "0.164.0", cursor: "2026.10.22", copilot: "1.0.105" } as const;
 export type VersionedProvider = keyof typeof MINIMUM_VERSIONS;
 // Stored sessions keep the version that wrote them, so these floors stay put when a minimum rises: the oldest Codex
 // doan supported, and the Claude version of every terminal sharing a registry. Raising one abandons those sessions.

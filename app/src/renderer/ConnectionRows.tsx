@@ -41,7 +41,7 @@ export function ConnectionRows({ machine, ui, rows, busy = false, target, justCo
     (node?.querySelector<HTMLButtonElement>(".cn-end button:not(:disabled)") ?? node?.querySelector<HTMLButtonElement>(".cn-name"))?.focus();
     focusTarget.current = null;
   }, [machine, ui.checking, expanded]);
-  return <div className="ob-card cn-card" ref={card}>{rows.map(row => {
+  return <div className="doan-settings-group" data-layout="rows" ref={card}>{rows.map(row => {
     const view = connectionRow(machine, row, ui, busy);
     const outcome = ui.outcome[row];
     return <div className="cn-row" key={row} data-connection={row}>

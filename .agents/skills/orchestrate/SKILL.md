@@ -43,6 +43,7 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
     # if every message in $out is a heartbeat: ack its deliveryId and continue; otherwise print and exit
   done
   ```
+- **Detect stalled workers in the same loop.** A worker can stop without `worker_done`, a question or an escalation: Codex on a capacity error, or any agent whose turn simply ends early. Heartbeats do not reveal this, because a worker's own background heartbeat script keeps sending the same `phase`, and Orca's `activity` can stay `working`. On each loop pass, for every in-progress dispatch, also wake the conductor when either check holds on two consecutive passes: `worker-list` `projection.stage.activity` is not `working`, or the tail of its `agentTerminalHandle` (`orca terminal read --terminal <handle> --json`) shows an idle prompt with no busy indicator (no spinner line such as `Brewing… (`, no `esc to interrupt`, no `Working (`). Then read the terminal. If the agent stopped mid-batch, send it a follow-up (`orchestration send --to dispatch:<id>`) naming the remaining steps and confirm it started. If a Codex session cannot continue, tell the user, because resuming it is the user's action.
 - An instruction sent to a worker does not count as delivered until you confirm **signs the worker started on it**. Do not queue the next job for a worker mid-turn. Send it as a new Task after completion.
 
 ## 3. Review → fix rounds

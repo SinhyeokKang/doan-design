@@ -1,8 +1,5 @@
 /* Shared rows from the accepted .doan/canvases/app-setup.html draft. */
-.cn-card { width: auto; overflow: hidden; }
-.cn-card > :first-child { border-top: 0; }
-.cn-card.w640 { width: 640px; }
-.cn-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); }
+.cn-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; }
 /* The disclosure name keeps its hit area inside the row edge: the negative margin cancels its padding. */
 .cn-name { display: inline-flex; align-items: center; gap: var(--space-1h); justify-self: start; margin-left: calc(-1 * var(--space-1h)); padding: var(--space-1) var(--space-1h); border-radius: var(--space-2); color: var(--text-standard); font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); text-align: left; }
 .cn-name .tw { flex: none; width: 12px; color: var(--text-subtle); font-size: var(--type-caption-size); font-weight: var(--type-weight-regular); text-align: center; }
@@ -19,7 +16,7 @@
    Settings loads no other .ob-notice rule. */
 .cn-details .ob-item.ob-notice { padding-top: 0; }
 /* Beats the shared code-chip rule wherever the bundler orders this file. */
-.cn-card .cn-details code { background: var(--surface-panel); }
+.cn-row .cn-details code { background: var(--surface-panel); }
 .ob-detail.path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cn-opt { display: grid; gap: var(--space-2); padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .cn-opt-head { display: flex; align-items: center; gap: var(--space-2); color: var(--text-standard); font-weight: var(--type-weight-medium); }

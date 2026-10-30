@@ -151,8 +151,19 @@ export function selectableProvider(status: AuthStatusDto): boolean {
   return status.readiness.ready || status.readiness.cause === "unverified";
 }
 
-export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Provider | undefined): Provider | null {
+// The agent, model and effort fixed in Settings > Agents > New conversations; null is Last used (buzz-settings
+// design 'New conversations'). Home starts each new input from it; the person's picks override it until they send.
+export interface NewConversationDefault { provider: Provider; model?: string; effort?: string }
+
+// The fixed preference speaks only for its own agent: a fallback agent keeps its own remembered model and effort.
+export function fixedPreference(preference: NewConversationDefault | null, provider: Provider): NewConversationDefault | null {
+  return preference?.provider === provider ? preference : null;
+}
+
+// A fixed agent that is not signed in or cannot run falls back to the last-used rule.
+export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Provider | undefined, fixed: NewConversationDefault | null = null): Provider | null {
   const choosable = connectedProviders(auth).filter(selectableProvider);
+  if (fixed && choosable.some(s => s.provider === fixed.provider)) return fixed.provider;
   if (choosable.some(s => s.provider === last)) return last!;
   return (choosable.find(s => s.readiness.ready) ?? choosable[0])?.provider ?? null;
 }
@@ -168,15 +179,19 @@ function receivedModels(state: ModelsState): ModelOption[] | null {
 }
 
 // ui-state's remembered model is only a preference: main accepts a model only from a list received in this run.
-export function defaultModel(state: ModelsState, saved: { model: string; effort?: string } | undefined): string | null {
+// fixed (this agent's fixed preference) replaces the remembered model; one this project does not list, or none, is
+// the provider's default.
+export function defaultModel(state: ModelsState, saved: { model: string; effort?: string } | undefined, fixed: NewConversationDefault | null = null): string | null {
   const models = receivedModels(state);
   if (!models) return null;
-  return models.find(m => m.id === saved?.model)?.id ?? models.find(m => m.default)?.id ?? null;
+  const wanted = fixed ? fixed.model : saved?.model;
+  return models.find(m => m.id === wanted)?.id ?? models.find(m => m.default)?.id ?? null;
 }
 
-// No level means the provider's default, which sends no effort.
-export function defaultEffort(model: ModelOption | null, remembered: string | undefined): string | null {
-  return remembered !== undefined && model?.efforts?.includes(remembered) ? remembered : null;
+// No level means the provider's default, which sends no effort. fixed replaces the remembered level the same way.
+export function defaultEffort(model: ModelOption | null, remembered: string | undefined, fixed: NewConversationDefault | null = null): string | null {
+  const wanted = fixed ? fixed.effort : remembered;
+  return wanted !== undefined && model?.efforts?.includes(wanted) ? wanted : null;
 }
 
 const EFFORT_LABELS: Record<string, string> = { minimal: "Minimal", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" };

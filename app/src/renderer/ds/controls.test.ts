@@ -73,3 +73,56 @@ test("menu rows are 32px from the primitive: 6px block insets around the 20px li
   expect(rule(read("./surfaces.css"), ".doan-menu-item")).toContain("min-height: var(--size-control-sm);\n  padding: var(--space-1h) var(--space-3);");
   expect(read("../styles.css")).not.toMatch(/\.shell-project-menu \.doan-menu-item[^{]*\{[^}]*padding-block/);
 });
+
+// buzz-settings design 'Buzz 레퍼런스' (buzz-app c40dfdf4 components.css .buzz-switch*, settings-group.css), in doan tokens.
+test("the switch is a 36 × 20 button[role=switch] with a 14px thumb as its own constants, prominent when on", () => {
+  const css = read("./controls.css");
+  const track = rule(css, '.doan-switch[role="switch"]');
+  expect(track).toContain("width: 36px;\n  height: 20px;\n  padding: 2px;");
+  expect(track).toContain("box-sizing: border-box;");
+  expect(track).toContain("border: 1px solid var(--border-standard);");
+  expect(track).toContain("border-radius: var(--radius-pill);");
+  expect(track).toContain("background: var(--affordance-subtle-hover);");
+  expect(track).not.toContain("--size-icon");
+  const thumb = rule(css, '.doan-switch[role="switch"]::before');
+  expect(thumb).toContain("width: 14px;\n  height: 14px;");
+  expect(thumb).toContain("background: var(--text-on-prominent);");
+  expect(thumb).not.toContain("--size-icon");
+  expect(css).toContain('.doan-switch[role="switch"][aria-checked="true"] { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }');
+  expect(css).toContain('.doan-switch[role="switch"][aria-checked="true"]::before { transform: translateX(16px); }');
+});
+
+test("a disabled switch takes the disabled fill and keeps its position; focus shows the shared ring", () => {
+  const css = read("./controls.css");
+  expect(css).toContain('.doan-switch[role="switch"]:disabled { border-color: transparent; background: var(--affordance-disabled); cursor: default; }');
+  expect(css).toContain('.doan-switch[role="switch"]:disabled::before { background: var(--surface-panel); box-shadow: none; }');
+  expect(css).toContain('.doan-switch[role="switch"]:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }');
+  const reduced = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce) {"));
+  expect(reduced).toMatch(/^@media \(prefers-reduced-motion: reduce\) \{(\n  [^\n]*)*\n  \.doan-switch\[role="switch"\], \.doan-switch\[role="switch"\]::before \{ transition: none; \}\n\}/);
+});
+
+test("a settings group is a bordered container of rows split by lines, and each row is a title column and a trailing control", () => {
+  const css = read("./surfaces.css");
+  const group = rule(css, ".doan-settings-group");
+  expect(group).toContain("padding: 0 var(--space-4);");
+  expect(group).toContain("border: 1px solid var(--border-standard);");
+  expect(group).toContain("border-radius: var(--radius-container);");
+  expect(css).toContain(".doan-settings-group > * + * { border-block-start: 1px solid var(--border-standard); }");
+  const row = rule(css, ".doan-preference-row");
+  expect(row).toContain("grid-template-columns: minmax(0, 1fr) auto;");
+  // No row gap: a line under the row (a notice, a helper) sets its own distance.
+  expect(row).toContain("gap: 0 var(--space-4);");
+  expect(row).toContain("padding: var(--space-3) 0;");
+  expect(rule(css, ".doan-preference-row-content")).toContain("gap: var(--space-half);");
+  expect(rule(css, ".doan-preference-row-label")).toContain("font-size: var(--type-body-sm-size);");
+  expect(rule(css, ".doan-preference-row-description")).toContain("font-size: var(--type-caption-size);");
+  expect(rule(css, ".doan-preference-row-description")).toContain("color: var(--text-subtle);");
+  expect(rule(css, ".doan-preference-row-trailing")).toContain("justify-content: flex-end;");
+  expect(css).toContain(".doan-preference-row[data-disabled] :is(.doan-preference-row-label, .doan-preference-row-description) { color: var(--text-disabled); }");
+});
+
+test("in a narrow group a button control moves under the title; a switch stays beside it", () => {
+  const css = read("./surfaces.css");
+  expect(rule(css, ".doan-settings-group")).toContain("container-type: inline-size;");
+  expect(css).toMatch(/@container \(max-width: 24rem\) \{\s*\.doan-preference-row-trailing:has\(button:not\(\[role="switch"\]\)\) \{ grid-column: 1 \/ -1; justify-content: flex-start; \}/);
+});

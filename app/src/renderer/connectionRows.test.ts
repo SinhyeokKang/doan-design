@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
@@ -76,4 +77,14 @@ test("Connect waiting for the doan command uses the row's wording, not the wizar
   const html = renderToStaticMarkup(createElement(ConnectionRows, { machine: machine({ cli: { state: "dangling", value: "/gone", stamp: "s" } }), ui, rows: ["claude"], run() {}, checkAgain() {}, install() {}, copyPath() {} }));
   expect(html).toContain("Connect the doan command first; MCP needs it.");
   expect(html).not.toContain("step 1");
+});
+// buzz-settings R3 (design-sync): Settings draws the three rows in the shared settings group, whose hairlines split
+// them, so a row draws no top border of its own.
+test("the rows are a settings group of rows split by the group's lines", () => {
+  const html = renderToStaticMarkup(createElement(ConnectionRows, { machine: machine(), ui: idleUi(), rows: ["cli", "claude", "codex"], busy: false, justConnected: null, run() {}, checkAgain() {}, install() {}, copyPath() {} }));
+  expect(html).toMatch(/^<div class="doan-settings-group" data-layout="rows">/);
+  expect(html).not.toContain("ob-card");
+  const css = readFileSync(new URL("./connectionRows.css", import.meta.url), "utf8");
+  expect(css).not.toMatch(/\.cn-row \{[^}]*border-top/);
+  expect(css).not.toContain(".cn-card");
 });

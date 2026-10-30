@@ -14,7 +14,7 @@ import type { StartInput, StartOutcome } from "./HomeComposerView";
 // navigation; everything is decided here so it can be driven without a DOM.
 
 export interface HomeRunHost {
-  view(): { screen: "home" | "workspace" | "addProjects"; loadedRoot: string | null; entries: readonly FolderEntry[] };
+  view(): { screen: "home" | "workspace" | "addProjects" | "settings"; loadedRoot: string | null; entries: readonly FolderEntry[] };
   label(root: string): string;
   // The move after a send goes through the draft guard and waits for the project's read; it is not the person's move.
   // `arrived` says whether the run still wants it: App commits the screen only when it returns true.

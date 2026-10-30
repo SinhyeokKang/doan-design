@@ -80,6 +80,14 @@ it("starts a new conversation on the doan account and keeps the lease until the 
   expect(h.auth.leases.open).toBe(0);
 });
 
+it("acquires a conversation start as a run and a model-list read as a listing", async () => {
+  const h = harness("claude"); version("claude");
+  await start(h, "claude");
+  expect(h.auth.runtime.acquire).toHaveBeenLastCalledWith("claude", "run");
+  const input = await h.service.prepareListing(h.root, "claude");
+  expect(h.auth.runtime.acquire).toHaveBeenLastCalledWith("claude", "listing");
+  await input.release?.();
+});
 it("passes Codex's dedicated credential-store and non-login shell arguments to the runner", async () => {
   const h = harness("codex");
   await start(h, "codex");

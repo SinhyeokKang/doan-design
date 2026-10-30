@@ -28,7 +28,7 @@ import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
 import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -41,6 +41,11 @@ import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
 import { cliCommand, readFolder, runConfig, runDesignSkill, runLs } from "./cli";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
+import { aboutCli, aboutText, aboutTool, type AboutRead } from "./about";
+import { PROVIDERS } from "./agentAuth/types";
+import type { NotificationTarget } from "./notifications";
+import { conversationNames, createNotifyService } from "./notifyService";
+import { createPreferencesStore } from "./preferences";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
@@ -53,7 +58,7 @@ import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewSt
 import { readFoldersFileForPruning } from "./folderStore";
 import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
-import { INSTALL_URLS, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsTab, type SettingsTarget } from "./settings";
+import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createSetupBroker, type SetupBroker } from "./setupBroker";
 import { promptSentence } from "../firstPrompt/promptSentence";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
@@ -100,12 +105,6 @@ app.on("web-contents-created", (_event, contents) => {
 // --bg-app in renderer/tokens.css: windows paint it before the renderer's first frame.
 const SHELL_BACKGROUND = "#f1f1f2";
 let win: BrowserWindow | undefined;
-// Settings is its own window, made on demand and destroyed on close. Its
-// webContents is the only other one IPC accepts; the capture window never is.
-let settingsWin: BrowserWindow | undefined;
-let focusedWindow: WindowKind = "main";
-// Where the next Settings window, or the open one, should go; taken once.
-let settingsTarget: SettingsTarget | null = null;
 let broker: SetupBroker | undefined;
 let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
@@ -192,10 +191,6 @@ function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, ...args);
 }
 
-function sendSettings(channel: string, ...args: unknown[]): void {
-  if (settingsWin && !settingsWin.isDestroyed() && !settingsWin.webContents.isDestroyed()) settingsWin.webContents.send(channel, ...args);
-}
-
 function fromWindow(event: IpcMainInvokeEvent): boolean {
   return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
 }
@@ -204,23 +199,16 @@ function fromWindow(event: IpcMainInvokeEvent): boolean {
 // and windows that are gone are not senders.
 function senderKind(event: IpcMainInvokeEvent): WindowKind | undefined {
   if (fromWindow(event)) return "main";
-  if (settingsWin !== undefined && !settingsWin.isDestroyed() && fromAppFrame(event, settingsWin)) return "settings";
   return undefined;
 }
 
-// Every channel goes through the per-window allowlist; `refused` is what a
+// Every channel goes through the main-frame allowlist; `refused` is what a
 // sender that may not call it gets, the same as a forged request.
 function handle(channel: string, refused: unknown, handler: (event: IpcMainInvokeEvent, value: unknown, kind: WindowKind) => unknown): void {
   ipcMain.handle(channel, (event, value: unknown) => {
     const kind = senderKind(event);
     return kind !== undefined && senderAllowed(channel, kind) ? handler(event, value, kind) : refused;
   });
-}
-
-function setFocusedWindow(kind: WindowKind): void {
-  if (focusedWindow === kind) return;
-  focusedWindow = kind;
-  setMenu();
 }
 
 const canvasScriptText = canvasScriptSource();
@@ -250,7 +238,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, focusedWindow, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -259,7 +247,7 @@ function setMenu(): void {
       // Role labels would read "About doan" from app.name, which stays "doan" for userData.
       { label: "Doan", submenu: [
         { role: "about", label: "About Doan" },
-        { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettings(null) },
+        { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettingsPage() },
         { type: "separator" }, { role: "services" }, { type: "separator" },
         { role: "hide", label: "Hide Doan" }, { role: "hideOthers" }, { role: "unhide" },
         { type: "separator" }, { role: "quit", label: "Quit Doan" },
@@ -269,13 +257,8 @@ function setMenu(): void {
         submenu: [
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
-          // Closes Settings when it has focus (destroyed), else hides the main window.
-          // Electron names the focused window; an inactive app may name none.
-          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
-            const settings = settingsWin && !settingsWin.isDestroyed() ? settingsWin : undefined;
-            const target = focused !== undefined && (focused === win || focused === settings) ? focused
-              : focusedWindow === "settings" && settings ? settings : win;
-            if (target && !target.isDestroyed()) target.close();
+          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => {
+            if (win && !win.isDestroyed()) win.close();
           } },
         ],
       },
@@ -335,7 +318,7 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
   const flags = MENU_FLAGS.filter(flag => flag in value);
   if (Object.keys(value).length !== 3 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
   const { screen, modal, toast } = value;
-  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
+  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects" && screen !== "settings") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
   const inputs: MenuInputs = { screen, modal, toast };
   for (const flag of flags) if (Reflect.get(value, flag) === true) inputs[flag] = true;
   return inputs;
@@ -391,13 +374,14 @@ function createWindow(): BrowserWindow {
   // window does not. Read after destroy, webContents throws, so the id is kept now.
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
-  window.webContents.on("render-process-gone", () => { broker?.drop(owner); void agentAuth?.ownerClosed(owner); });
+  window.webContents.on("render-process-gone", () => { broker?.drop(owner); configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
+  // A reloaded renderer has no Project Settings dialog or setup confirmation left to answer (buzz-settings S4).
+  window.webContents.on("did-navigate", () => { broker?.drop(owner); configBridge?.clear(); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
   // The connection summary shares that throttle (app-setup design 'Connections').
   const reread = createThrottle(60_000);
   window.on("focus", () => {
-    setFocusedWindow("main");
     if (reread()) { shell?.rereadAll(); void broker?.refresh(); }
   });
   window.on("close", (event) => {
@@ -426,57 +410,26 @@ function createWindow(): BrowserWindow {
   return window;
 }
 
-function createSettingsWindow(tab: SettingsTab): BrowserWindow {
-  const window = new BrowserWindow({
-    ...SETTINGS_WINDOW,
-    title: SETTINGS_TITLES[tab],
-    backgroundColor: SHELL_BACKGROUND,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      preload: fileURLToPath(new URL("../preload/settings.cjs", import.meta.url)),
-    },
-  });
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
-  if (!app.isPackaged && devUrl) void window.loadURL(`${devUrl.replace(/\/+$/, "")}/settings.html`);
-  else void window.loadFile(fileURLToPath(new URL("../renderer/settings.html", import.meta.url)));
-  // The title names the current tab, which main sets; the page's <title> must not replace it.
-  window.on("page-title-updated", (event) => event.preventDefault());
-  window.on("focus", () => setFocusedWindow("settings"));
-  // Read after destroy, webContents throws, so the owner id is kept now.
-  const owner = window.webContents.id;
-  // The wizard's Close refuses while busy; Settings holds its close the same
-  // way, for the red button, ⌘W and Close Window alike. Quit closes it anyway.
-  window.on("close", (event) => { if (!quitting && broker?.isWriting(owner)) event.preventDefault(); });
-  const forget = () => { broker?.drop(owner); configBridge?.clear(); void agentAuth?.ownerClosed(owner); };
-  window.webContents.on("render-process-gone", forget);
-  window.on("closed", () => {
-    forget();
-    if (settingsWin === window) { settingsWin = undefined; settingsTarget = null; }
-    setFocusedWindow("main");
-  });
-  return window;
+// The open-Settings command (buzz-settings design '들어가는 길'): a hidden window is shown first, then the renderer
+// moves to the page. Not while first run is open, like Settings….
+export function openSettingsPage(target: SettingsPageTarget = {}): boolean {
+  const window = win;
+  if (onboardingOpen || !window || window.isDestroyed()) return false;
+  showWindow(window);
+  send("settings-page:open", target);
+  return true;
 }
 
-// Settings…, a home chip, the banner's Fix… or a row's Project Settings….
-// Not while the wizard is open (the menu item is disabled then too), and not
-// before setup can answer it.
-function openSettings(target: SettingsTarget | null): boolean {
-  if (onboardingOpen || broker === undefined || uiState === undefined) return false;
-  settingsTarget = target;
-  if (settingsWin && !settingsWin.isDestroyed()) {
-    if (target) {
-      settingsWin.setTitle(SETTINGS_TITLES[target.tab]);
-      sendSettings("settings:target", target);
-    }
-    settingsWin.show();
-    settingsWin.focus();
-  } else settingsWin = createSettingsWindow(target?.tab ?? uiState.readSettingsTab() ?? "connections");
-  // Its focus event does not come while the app is inactive.
-  setFocusedWindow("settings");
-  void broker.refresh();
-  return true;
+// A notification's click: the window comes forward even from a hidden app or the Dock, then the renderer decides
+// where to go (notificationTarget). The test notification only shows the window.
+function showFromNotification(target: NotificationTarget | null): void {
+  const window = win;
+  if (!window || window.isDestroyed()) return;
+  if (appHidden) app.show();
+  if (window.isMinimized()) window.restore();
+  showWindow(window);
+  window.focus();
+  if (target) send("notifications:click", target);
 }
 
 // Resolves to the stored root so the setup wizard can show the project it opened.
@@ -550,7 +503,6 @@ async function start(): Promise<void> {
     }
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
-    sendSettings("projects", projectRows(entries, homeDirectory()));
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
   // The capture window is made on the first capture and stays out of the
@@ -638,8 +590,8 @@ async function start(): Promise<void> {
     authIpc = new AuthIpc({
       backend: agentAuth, openExternal: url => electronShell.openExternal(url),
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); sendSettings(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); },
-      prompt: (owner, event) => { for (const window of [win, settingsWin]) if (window && !window.isDestroyed() && window.webContents.id === owner) window.webContents.send(AUTH_CHANNELS.prompt, event); },
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); },
+      prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
   // Without readable account storage every auth call is refused like a forged one; reads answer null.
@@ -719,9 +671,25 @@ async function start(): Promise<void> {
   const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc);
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
-    (request, stored) => agentAuth ? accountPrepare(request, stored) : Promise.reject(new Error("not_logged_in")));
+    (request, stored, use) => agentAuth ? accountPrepare(request, stored, use) : Promise.reject(new Error("not_logged_in")));
   const conversationStore = new ConversationStore(userData);
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
+  const preferences = createPreferencesStore(join(userData, "preferences.json"));
+  const notify = createNotifyService({
+    preferences: () => preferences.current().notifications,
+    visibility: () => ({ focused: win !== undefined && !win.isDestroyed() && win.isFocused(), shown: windowShown, minimized: win !== undefined && !win.isDestroyed() && win.isMinimized(), appHidden }),
+    names(conversationId) {
+      // An unreadable conversation index fails the conversation calls themselves, which report it; here it only
+      // leaves the event without a notification.
+      try { return conversationNames(conversationStore.list(), ready.entries(), conversationId); } catch { return null; }
+    },
+    create(content) {
+      const notification = new Notification(content);
+      return { show: () => notification.show(), close: () => notification.close(), on: (event, listener) => notification.on(event as "click", listener) };
+    },
+    clicked: showFromNotification,
+    log: (message, detail) => console.error(message, detail),
+  });
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -879,6 +847,15 @@ async function start(): Promise<void> {
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
+  // buzz-settings: the Settings page's preferences, notifications and About. Main fixes the URL, the notification
+  // and the clipboard text; the renderer sends a change or nothing.
+  handle("preferences:read", null, () => preferences.read());
+  handle("preferences:write", null, (_event, value: unknown) => preferences.update(value));
+  handle("notifications:test", null, (_event, value: unknown) => value === undefined ? notify.test() : null);
+  handle("notifications:open-settings", false, async (_event, value: unknown) => {
+    if (value !== undefined) return false;
+    try { await electronShell.openExternal(NOTIFICATION_SETTINGS_URL); return true; } catch { return false; }
+  });
   // revision-recheck: the renderer reads markers and may only ask for raises.
   handle("review-state:get", null, (event, value: unknown): ReviewMarker | null => {
     const request = parseReviewRead(value);
@@ -937,7 +914,7 @@ async function start(): Promise<void> {
     machine: setup, translocated: isTranslocated(command),
     // The home alerts wait for a completed first run (v1 marker), not for the old wizard's `{}`.
     onboardingClosed: async () => onboardingComplete(readCompletion(userData)),
-    publish: (status) => { send("setup:status", status); sendSettings("setup:status", status); },
+    publish: (status) => { send("setup:status", status); },
   });
   broker = setupBroker;
   const requestId = (value: unknown, keys: number): string | null => typeof value === "object" && value !== null && Object.keys(value).length === keys &&
@@ -962,7 +939,18 @@ async function start(): Promise<void> {
     try { await clipboard.writeText(text); return { kind: "success" as const }; }
     catch (error) { return { kind: "error" as const, message: error instanceof Error ? error.message : String(error) }; }
   };
-  handle("setup:copy-path-line", { kind: "stale" }, (_event, value: unknown) => value === undefined ? copy(PATH_LINE) : { kind: "stale" });
+  // Tool facts come from AuthIpc's cache (its first read probes once); only the doan version runs the CLI.
+  let lastAbout: AboutRead | null = null;
+  const readAbout = async (): Promise<AboutRead> => {
+    const [run] = await Promise.all([runDesignSkill(command), authIpc?.read()]);
+    const ipc = authIpc;
+    const tools = ipc ? PROVIDERS.flatMap(provider => { const facts = ipc.toolFacts(provider); return facts ? [aboutTool(provider, facts)] : []; }) : null;
+    lastAbout = { version: app.getVersion(), cli: aboutCli(command, run), tools };
+    return lastAbout;
+  };
+  handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
+  // Copies what About last showed, so the text matches the page.
+  handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout())) : { kind: "stale" });
   // The sentence names only a stored, set-up project. `subject` is the one
   // free text the renderer sends; promptSentence checks it.
   const readyRoot = (value: unknown): string | null => typeof value === "string" &&
@@ -984,37 +972,11 @@ async function start(): Promise<void> {
   });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
-  handle("settings:open", false, (_event, value: unknown) => {
-    const target = parseSettingsTarget(value, storedRoot);
-    return target !== null && openSettings(target);
-  });
-  handle("settings:take-target", null, () => { const target = settingsTarget; settingsTarget = null; return target; });
-  handle("settings:tab-get", null, () => store.readSettingsTab() ?? "connections");
-  handle("settings:tab-save", false, (_event, value: unknown) => {
-    const tab = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "tab" in value ? parseSettingsTab(value.tab) : null;
-    if (tab === null || !store.saveSettingsTab(tab)) return false;
-    settingsWin?.setTitle(SETTINGS_TITLES[tab]);
-    return true;
-  });
-  handle("projects:get", [], () => projectRows(ready.entries(), homeDirectory()));
-  handle("projects:reveal", undefined, (_event, value: unknown) => {
-    const path = storedPath(value);
-    if (path !== null) electronShell.showItemInFolder(path);
-  });
-  // A problem row's action runs where the home is: the main window comes forward and does it.
-  handle("projects:forward-action", false, (_event, value: unknown) => {
-    const request = parseForwardedAction(value, storedRoot);
-    if (request === null || !win || win.isDestroyed() || menuInputs.modal) return false;
-    showWindow(win);
-    win.focus();
-    send("projects:action", request);
-    return true;
-  });
   const bridge = createConfigBridge({
     run: (root, args) => runConfig(command, root, args),
     epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,
     async pick(root, kind) {
-      const window = settingsWin;
+      const window = win;
       if (!window || window.isDestroyed()) return null;
       const picked = await dialog.showOpenDialog(window, kind === "tokenCss"
         ? { title: "Choose Token CSS", properties: ["openFile"], defaultPath: root, filters: [{ name: "CSS", extensions: ["css"] }] }
@@ -1024,11 +986,14 @@ async function start(): Promise<void> {
   });
   configBridge = bridge;
   handle("config:read", { kind: "unavailable" }, (_event, value: unknown) => bridge.read(value));
-  handle("config:choose", { kind: "unavailable" }, async (event, value: unknown) => {
+  handle("config:choose", { kind: "unavailable" }, async (event, value: unknown, kind) => {
     const choice = await bridge.choose(value);
-    return senderKind(event) === "settings" ? choice : { kind: "unavailable" };
+    return senderKind(event) === kind ? choice : { kind: "unavailable" };
   });
   handle("config:write", { kind: "unavailable" }, (_event, value: unknown) => bridge.write(value));
+  // The Project Settings dialog opened or closed: a new session, and late replies of the old one answer unavailable.
+  handle("config:session-start", undefined, () => { bridge.clear(); });
+  handle("config:session-end", undefined, () => { bridge.clear(); });
 
   onboardingOpen = !onboardingComplete(readCompletion(userData));
   setMenu();

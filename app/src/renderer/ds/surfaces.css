@@ -193,6 +193,62 @@
 .doan-notice.doan-panel { padding: var(--space-3) var(--space-4); background: var(--surface-panel); color: var(--text-standard); }
 .doan-notice.error.doan-panel > .doan-alert-icon { color: inherit; }
 
+/* ── Settings group ──────────────────────────────────────────────────────────
+   A bordered container of preference rows split by lines: a title column with an optional
+   description, and the row's controls trailing on the right (buzz-settings design, Buzz's
+   SettingsGroup and PreferenceRow in doan tokens). The group is the rows' query container,
+   so a narrow group puts a button control under its title while a switch stays beside it. */
+.doan-settings-group {
+  container-type: inline-size;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--radius-container);
+}
+.doan-settings-group > * + * { border-block-start: 1px solid var(--border-standard); }
+.doan-preference-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  /* No row gap: a line under the row (a notice, a helper) sets its own distance. */
+  gap: 0 var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) 0;
+}
+.doan-preference-row-content {
+  display: grid;
+  gap: var(--space-half);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.doan-preference-row-label {
+  color: var(--text-standard);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+}
+label.doan-preference-row-label { cursor: pointer; }
+.doan-preference-row-description {
+  color: var(--text-subtle);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line-height);
+  letter-spacing: var(--type-caption-letter-spacing);
+}
+.doan-preference-row-trailing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+.doan-preference-row[data-disabled] :is(.doan-preference-row-label, .doan-preference-row-description) { color: var(--text-disabled); }
+@container (max-width: 24rem) {
+  .doan-preference-row-trailing:has(button:not([role="switch"])) { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
 /* A thin native scrollbar: Radix ScrollArea is not used, so lists keep native scrolling. */
 .doan-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 

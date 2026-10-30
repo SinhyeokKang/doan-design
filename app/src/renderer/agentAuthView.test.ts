@@ -3,7 +3,7 @@ import type { AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import { PROVIDERS, type AccountIdentity, type AuthAttempt, type AuthErrorCode, type AuthPhase, type AuthState, type AuthStatusDto, type Provider, type RecoveryAction, type ToolFacts } from "../main/agentAuth/types";
 import {
-  authListView, cancelledAnnouncement, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, PROVIDER_NAMES, providerShortStatus, providerView, readyAnnouncements, replyEffect, stopDialog,
+  agentsSettingsView, authListView, cancelledAnnouncement, MAX_PASTE, noAgentReadyNotice, pasteDialog, pasteSubmittable, pickerAction, pickerFooter, PROVIDER_NAMES, providerShortStatus, providerView, readyAnnouncements, replyEffect, signInToast, stopDialog,
   type AuthButton, type ProviderView,
 } from "./agentAuthView";
 
@@ -148,7 +148,7 @@ test("a running sign-in shows preparing, then waiting, with per-provider browser
   expect(only(providerView(signingIn("claude"), { prompt: "a1" })).notice).toEqual({
     role: "status", spinner: true, title: "Finish signing in to Claude Code", body: "Complete sign-in in your browser, then return here.", actions: ["subtle:Cancel:cancel", "subtle:Open again:openLink"],
   });
-  for (const provider of ["cursor", "copilot"] as const) {
+  for (const provider of ["codex", "cursor", "copilot"] as const) {
     expect(only(providerView(signingIn(provider), { prompt: "a1" })).notice?.body).toBe("A browser tab may already be open. Complete sign-in there, then return here.");
   }
   const antigravity = providerView(signingIn("antigravity"), { prompt: "a1" });
@@ -315,4 +315,109 @@ test("the short status leaves the onboarding row copy unchanged", () => {
   const status = dto("codex", { account: ACCOUNT, expired: true });
   providerShortStatus(status);
   expect(only(providerView(status)).notice?.body).toBe("Your Codex connection expired. Sign in again.");
+});
+
+// buzz-settings design 'Agents': the Settings page reuses the same rows with a Settings context.
+const S = { settings: true } as const;
+const signOutOf = (view: ProviderView) => view.signOut && labels([view.signOut])[0];
+
+test("settings context: a ready connection shows its account and Sign out only", () => {
+  const view = providerView(ready("claude"), S);
+  expect(only(view)).toEqual({ detail: "ada@example.com", button: null, notice: null, helper: null });
+  expect(signOutOf(view)).toBe("subtle:Sign out:signOut");
+  expect(view.signOut?.ariaLabel).toBe("Sign out of Claude Code");
+  expect(providerView(ready("codex", { id: null, workspace: null }), S).detail).toBeNull();
+  // First run keeps its disabled Connected and no row Sign out.
+  expect(providerView(ready("claude")).signOut).toBeNull();
+});
+
+test("settings context: an unchecked connection says so after the account, with Check and Sign out", () => {
+  const codex = providerView(dto("codex", { account: ACCOUNT }), { ...S, autoCheck: true });
+  expect(only(codex)).toEqual({ detail: "ada@example.com · not checked", button: "subtle:Check:check", notice: null, helper: "Doan checks this automatically when you open Agents." });
+  expect(codex.button?.ariaLabel).toBe("Check Codex");
+  expect(signOutOf(codex)).toBe("subtle:Sign out:signOut");
+  expect(providerView(dto("codex", { account: { id: null, workspace: null } }), S).detail).toBe("Not checked");
+  expect(providerView(dto("codex", { account: ACCOUNT }), S).helper).toBeNull();
+});
+
+test("settings context: Copilot is checked only by Check, and the row says what a check costs", () => {
+  const copilot = providerView(dto("copilot", { account: ACCOUNT }), { ...S, autoCheck: true });
+  expect(only(copilot)).toEqual({ detail: "ada@example.com · not checked", button: "subtle:Check:check", notice: null, helper: "Checking uses one Copilot request." });
+  expect(copilot.button?.ariaLabel).toBe("Check GitHub Copilot, uses one Copilot request");
+  expect(copilot.button?.note).toBeUndefined();
+});
+
+test("settings context: Sign out stays on every connected row unless the row already offers it or an attempt runs", () => {
+  // An expired connection's notice already has Sign out; a second one would repeat it.
+  expect(providerView(dto("codex", { account: ACCOUNT, verified: true, expired: true }), S).signOut).toBeNull();
+  expect(providerView(dto("codex", { account: ACCOUNT, verified: true, error: "sign_out_failed", phase: "error" }), S).signOut).toBeNull();
+  expect(signOutOf(providerView(dto("codex", { account: ACCOUNT, verified: true, facts: { version: "unknown" } }), S))).toBe("subtle:Sign out:signOut");
+  expect(signOutOf(providerView(dto("cursor", { account: ACCOUNT, verified: true, facts: { cli: "missing" } }), S))).toBe("subtle:Sign out:signOut");
+  expect(providerView(dto("codex", { account: ACCOUNT, verified: true, attempt: { kind: "signOut" } }), S).signOut).toBeNull();
+  expect(providerView(dto("codex", { account: ACCOUNT, verified: true, expired: true, attempt: { kind: "signIn" } }), S).signOut).toBeNull();
+  // A running check disables the row, Sign out included.
+  expect(signOutOf(providerView(dto("codex", { account: ACCOUNT, attempt: { kind: "check" } }), S))).toBe("subtle-disabled:Sign out:signOut");
+  // Not connected rows have nothing to sign out of.
+  expect(providerView(dto("cursor"), S).signOut).toBeNull();
+});
+
+test("settings context: a sign-in owned elsewhere says to finish it where it started", () => {
+  const view = providerView(dto("codex", { attempt: { kind: "signIn" } }), { ...S, reply: "not_owner" });
+  expect(view.detail).toBe("Finish this sign-in where it started.");
+  expect(providerView(dto("codex", { attempt: { kind: "signIn" } }), { reply: "not_owner" }).detail).toBe("Finish this sign-in in the window that started it.");
+});
+
+test("settings context: rows split into Connected (any saved account) and Not connected, and an empty section is hidden", () => {
+  const auth: AuthSnapshot = { revision: 1, providers: [
+    ready("claude"), dto("codex", { account: ACCOUNT, verified: true, expired: true }), dto("cursor", { facts: { cli: "missing" } }),
+    dto("antigravity", { attempt: { kind: "signIn" } }), dto("copilot", { account: ACCOUNT }),
+  ] };
+  const view = agentsSettingsView(auth);
+  expect(view.sections.map(s => [s.title, s.providers.map(p => p.provider)])).toEqual([
+    ["Connected", ["claude", "codex", "copilot"]], ["Not connected", ["cursor", "antigravity"]],
+  ]);
+  expect(view.sections[0]!.providers[0]!.signOut?.command).toBe("signOut");
+  expect(agentsSettingsView({ revision: 1, providers: [ready("claude")] }).sections.map(s => s.title)).toEqual(["Connected"]);
+  expect(agentsSettingsView({ revision: 1, providers: [dto("claude")] }).sections.map(s => s.title)).toEqual(["Not connected"]);
+  expect(agentsSettingsView(undefined)).toMatchObject({ sections: [], notice: { title: "Checking connections" } });
+  expect(agentsSettingsView(null)).toMatchObject({ sections: [], notice: { body: "Doan couldn’t read its agent connections." } });
+});
+
+test("settings context: a provider moves to the other section when its connection changes, keeping its row group", () => {
+  const before = agentsSettingsView({ revision: 1, providers: [dto("codex", { attempt: { kind: "signIn" } })] });
+  const after = agentsSettingsView({ revision: 2, providers: [ready("codex")] });
+  expect(before.sections.map(s => [s.id, s.providers[0]?.provider])).toEqual([["notConnected", "codex"]]);
+  expect(after.sections.map(s => [s.id, s.providers[0]?.provider])).toEqual([["connected", "codex"]]);
+});
+
+test("settings context: Home's picker offers one Settings action per group that cannot run", () => {
+  const target = (provider: Provider) => ({ section: "agents", provider });
+  expect(pickerAction(dto("codex", { account: ACCOUNT, verified: true, expired: true }))).toEqual({ label: "Sign in again…", target: target("codex") });
+  expect(pickerAction(dto("copilot", { account: ACCOUNT, verified: true, facts: { version: "unsupported" } }))).toEqual({ label: "Update…", target: target("copilot") });
+  expect(pickerAction(dto("cursor", { account: ACCOUNT, verified: true, facts: { version: "incompatible" } }))).toEqual({ label: "Update…", target: target("cursor") });
+  expect(pickerAction(dto("claude", { account: ACCOUNT, verified: true, facts: { tools: "failed" } }))).toEqual({ label: "Open Agents settings…", target: target("claude") });
+  expect(pickerAction(dto("claude", { account: { id: "acct-1", workspace: null, email: "ada@example.com" }, verified: true }))).toEqual({ label: "Open Agents settings…", target: target("claude") });
+  // Ready and unverified run (main checks on send); a provider without a connection is not in the picker.
+  expect(pickerAction(ready("claude"))).toBeNull();
+  expect(pickerAction(dto("codex", { account: ACCOUNT }))).toBeNull();
+  expect(pickerAction(dto("cursor"))).toBeNull();
+});
+
+test("settings context: the picker ends with Manage agents…, or with no agent ready only Sign in to an agent…", () => {
+  expect(pickerFooter(true)).toEqual({ note: null, action: { label: "Manage agents…", target: { section: "agents" } } });
+  expect(pickerFooter(false)).toEqual({ note: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" } } });
+});
+
+test("settings context: a sign-in that ends while Agents is not shown is told once in a toast", () => {
+  expect(signInToast("codex", true)).toEqual({ text: "Codex connected.", action: null });
+  expect(signInToast("codex", false)).toEqual({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } });
+});
+
+test("settings context: a connected row refused as busy keeps its account and a disabled Sign out, never a Sign in", () => {
+  const view = providerView(ready("claude"), { ...S, reply: "busy", busyWith: "codex" });
+  expect(view.detail).toBe("Finish or cancel the Codex sign-in first.");
+  expect(view.button).toBeNull();
+  expect(signOutOf(view)).toBe("subtle-disabled:Sign out:signOut");
+  // A row without a connection keeps first run's disabled Sign in.
+  expect(only(providerView(dto("cursor"), { ...S, reply: "busy", busyWith: "codex" })).button).toBe("prominent-disabled:Sign in:signIn");
 });

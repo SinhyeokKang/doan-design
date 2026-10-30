@@ -148,3 +148,15 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 - **projects-home checklist** (`overflow: hidden` + `max-height`): 정적 초안의 overflow를 그대로 복사해 네이티브 스크롤을 덮었다. Buzz를 보고 CSS를 쓸 때도 bounded 목록은 넘칠 만큼의 데이터와 실제 입력으로 스크롤 도달을 확인한다.
 - **2026-10-24 — 모달 뒤 포커스**: 다이얼로그 마크업을 감싸는 래퍼를 바꿀 때 `showModal`·포커스 복귀 순서를 건드리지 않는다.
 - **cascade layer**: 대체한 doan 규칙이 layer 밖에 남아 있으면 Buzz 규칙을 조용히 이긴다('CSS를 싣는 방법').
+
+## 도니 시안 구현 인계
+
+도니를 구현하는 워커는 [buzz-mascot 시안](../../../.doan/canvases/doan-mascot.html)과
+[에셋·레이아웃 인계](../../../.doan/assets/doany/README.md)를 함께 읽는다. 아직 앱에는 적용하지 않았다.
+단순히 기존 화면 위에 마스코트를 추가하는 변경이 아니라, 본문 배치도 바꾼다.
+
+- 홈: ContentShell 본문 가용 높이 기준으로 도니·인사·입력창·추천 묶음을 중앙 정렬한 뒤 위로 64px 보정한다. 실제 도니는 약 64px, 모션 영역은 114px이다.
+- Welcome: 창 크롬을 제외한 가용 높이 기준으로 도니·Doan·소개·Get started 묶음을 중앙 정렬한 뒤 위로 72px 보정한다. 실제 도니는 약 80px, 모션 영역은 142.5px이다. 버튼은 묶음 안에 둔다.
+- 기존 152px 상단 여백이나 고정 `margin-top`으로 배치하지 않는다. 먼저 높이 기준 중앙 정렬을 하고 음수 보정을 적용한다. 도니는 일반 흐름에서 공간을 차지한다.
+- 시안은 `min-height: 100%`, 세로 flex 중앙 정렬, 위 32px·아래 `32px + 보정량 × 2` padding으로 구현한다. 홈 아래 padding은 160px, Welcome은 176px이다. 낮은 창에서는 위를 자르지 않고 스크롤한다.
+- 검증: 여러 본문 높이에서 묶음 중심과 보정량을 측정하고, 낮은 창에서 전체 콘텐츠·CTA 접근과 점프 시 베레모 잘림을 확인한다. 앱 구현 뒤 PRODUCT·ARCHITECTURE·DESIGN에 실제 결과를 반영한다.

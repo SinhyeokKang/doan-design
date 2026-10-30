@@ -52,7 +52,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
-  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), ...props };
+  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(), ...props };
   const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer(all)); };
   return { box, start, render, props: all };
 }
@@ -399,4 +399,85 @@ test("removing a restored chip that no last request uses releases its sent id", 
   const loose = setup({ attachments: [chip] });
   call(find(loose.render(), props => props["aria-label"] === "Remove a.pdf"), "onClick", {});
   await vi.waitFor(() => expect(doan.releaseAttachments).toHaveBeenCalledWith(["id-k"]));
+});
+
+// buzz-settings U3: a group that cannot run sends the person to its Agents row; the fixed new-conversation default
+// starts each input, and a pick lasts until the input is sent (design '홈 공급자 선택기', 'New conversations').
+function status(provider: Provider, patch: { expired?: boolean; facts?: Partial<ToolFacts> } = {}): AuthStatusDto {
+  const state: AuthState = { provider, generation: 1, verified: true, expired: patch.expired ?? false, connection: { provider, connectionId: "c", profile: provider, account: ACCOUNT }, attempt: null, error: null, phase: patch.expired ? "reauthRequired" : "connected" };
+  return authStatus(state, { ...FACTS, ...patch.facts }, 1);
+}
+const words = (props: Record<string, unknown>): string => [props.children].flat(Infinity).map(child => typeof child === "string" ? child : isValidElement<Record<string, unknown>>(child) ? words(child.props) : "").join("");
+const item = (tree: Record<string, unknown>[], label: string) => find(tree, props => typeof props.onSelect === "function" && words(props) === label);
+
+test("settings action: a group that cannot run offers its fix, and Manage agents… opens Agents, each after the menu closes", () => {
+  const openSettings = vi.fn();
+  const { render } = setup({ auth: { revision: 1, providers: [dto("claude"), status("codex", { expired: true }), status("copilot", { facts: { version: "unsupported" } })] } }, { openSettings });
+  const tree = render();
+  expect(tree.some(props => props.className === "agent-note" && words(props) === "Sign-in expired")).toBe(true);
+  for (const [label, target] of [["Sign in again…", { section: "agents", provider: "codex" }], ["Update…", { section: "agents", provider: "copilot" }], ["Manage agents…", { section: "agents" }]] as const) {
+    openSettings.mockClear();
+    const select = item(tree, label);
+    expect(select.disabled).toBeFalsy();
+    (select.onSelect as () => void)();
+    expect(openSettings, label).toHaveBeenCalledTimes(1);
+    expect(openSettings).toHaveBeenCalledWith(target);
+  }
+});
+
+test("settings action: with no agent able to run, Sign in to an agent… sits under the note", () => {
+  for (const providers of [[], [status("codex", { expired: true })]]) {
+    const openSettings = vi.fn();
+    const tree = setup({ auth: { revision: 1, providers } }, { openSettings }).render();
+    expect(tree.some(props => props.className === "menu-note" && words(props) === "No agent is ready to run.")).toBe(true);
+    expect(() => item(tree, "Manage agents…")).toThrow();
+    (item(tree, "Sign in to an agent…").onSelect as () => void)();
+    expect(openSettings).toHaveBeenCalledWith({ section: "agents" });
+  }
+});
+
+test("settings action: the fixed default starts each input; a pick lasts until a successful send, then the default returns", async () => {
+  doan.listConversationModels = vi.fn(async () => ({ models: [{ id: "gpt-y", label: "GPT Y", default: true }, { id: "gpt-x", label: "GPT X", default: false, efforts: ["low", "high"] }] }));
+  const { box, start, render } = setup({ text: "One", auth: { revision: 1, providers: [dto("claude"), dto("codex")] } },
+    { prefs: { lastProvider: "claude", models: { codex: { model: "gpt-y" } } }, defaults: { provider: "codex", model: "gpt-x", effort: "high" } });
+  render();
+  for (const effect of hooks.effects) effect();
+  await vi.waitFor(() => expect(box.current.lists["/code/doan-design\ncodex"]).toMatchObject({ models: expect.any(Array) }));
+  const send = async () => { const calls = start.mock.calls.length; call(field(render()), "onKeyDown", key("Enter")); await vi.waitFor(() => expect(start.mock.calls.length).toBe(calls + 1)); await vi.waitFor(() => expect(box.current.sending).toBeNull()); return start.mock.calls.at(-1)![0] as Record<string, unknown>; };
+  // The person picks Low for the fixed model: kept until this input is sent.
+  const effort = find(render(), props => typeof props.onValueChange === "function" && props.value === "high");
+  (effort.onValueChange as (value: string) => void)("low");
+  expect(await send()).toMatchObject({ runtime: "codex", model: "gpt-x", effort: "low" });
+  box.current = { ...box.current, text: "Two" };
+  expect(await send()).toMatchObject({ runtime: "codex", model: "gpt-x", effort: "high" });
+  // Claude picked from the agent menu (its group is the empty radio group): kept until sent, then back to Codex.
+  const claude = find(render(), props => typeof props.onValueChange === "function" && props.value === "");
+  (claude.onValueChange as (value: string) => void)("default");
+  box.current = { ...box.current, text: "Three" };
+  expect((await send()).runtime).toBe("claude");
+  expect(box.current).toMatchObject({ provider: null, models: {}, efforts: {} });
+  box.current = { ...box.current, text: "Four" };
+  expect((await send()).runtime).toBe("codex");
+});
+
+// review BU1 ❓1 (design 'New conversations' 적용 규칙): a default changed in Settings applies from the next new input;
+// an input already started keeps the default it started with.
+test("settings action: a changed default waits for the next input; the draft keeps the one it started with", async () => {
+  const { box, start, render, props } = setup({ auth: { revision: 1, providers: [dto("claude"), dto("codex")] } }, { defaults: { provider: "codex" } });
+  render();
+  for (const effect of hooks.effects) effect();
+  call(field(render()), "onChange", { target: { value: "Draft" } });
+  props.defaults = { provider: "claude" };
+  render();
+  for (const effect of hooks.effects) effect();
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  expect((start.mock.calls[0]![0] as { runtime: string }).runtime).toBe("codex");
+  await vi.waitFor(() => expect(box.current.sending).toBeNull());
+  render();
+  for (const effect of hooks.effects) effect();
+  box.current = { ...box.current, text: "Next" };
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+  expect((start.mock.calls[1]![0] as { runtime: string }).runtime).toBe("claude");
 });

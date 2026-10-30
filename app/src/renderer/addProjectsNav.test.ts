@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { addPageReturn, leaveLocked, pageEscape, type AddPageOrigin } from "./addProjectsNav";
+import { addPageReturn, leaveLocked, pageEnter, pageEscape, type AddPageOrigin } from "./addProjectsNav";
 import type { ProjectPhase } from "./projectStep";
 
 const home: AddPageOrigin = { screen: "home" };
@@ -71,4 +71,40 @@ test("a radio, a checkbox or a select is not editing; text fields and textareas 
     expect(pageEscape({ target, isComposing: false, keyCode: 27 }, false), target.tagName).toEqual(escape);
   for (const target of [{ tagName: "INPUT", type: "text" }, { tagName: "INPUT", type: "url" }, { tagName: "INPUT" }, { tagName: "TEXTAREA" }])
     expect(pageEscape({ target, isComposing: false, keyCode: 27 }, false)).toEqual({ ...escape, editing: true });
+});
+
+// buzz-settings design '화면과 내비게이션': Settings and Add Projects are both pages and share one origin.
+test("settings page: entering from Home or a workspace records it as the origin and cancels pending moves", () => {
+  expect(pageEnter({ screen: "home" }, ws, "settings", false)).toEqual({ kind: "enter", origin: home, cancelPending: true });
+  expect(pageEnter({ screen: "workspace", root: "/w/b" }, home, "settings", false)).toEqual({ kind: "enter", origin: { screen: "workspace", root: "/w/b" }, cancelPending: true });
+  expect(pageEnter({ screen: "workspace", root: "/w/b" }, home, "addProjects", false)).toEqual({ kind: "enter", origin: { screen: "workspace", root: "/w/b" }, cancelPending: true });
+});
+
+test("settings page: moving between the two pages keeps the origin", () => {
+  expect(pageEnter({ screen: "addProjects" }, ws, "settings", false)).toEqual({ kind: "enter", origin: ws, cancelPending: true });
+  expect(pageEnter({ screen: "settings" }, ws, "addProjects", false)).toEqual({ kind: "enter", origin: ws, cancelPending: true });
+});
+
+test("settings page: entering the page already shown, or any page while one is locked, does nothing", () => {
+  expect(pageEnter({ screen: "settings" }, ws, "settings", false)).toEqual({ kind: "stay" });
+  expect(pageEnter({ screen: "addProjects" }, ws, "addProjects", false)).toEqual({ kind: "stay" });
+  // Add Projects locked (a write or a clone) keeps Settings out, and a locked Settings keeps Add Projects out.
+  expect(pageEnter({ screen: "addProjects" }, ws, "settings", true)).toEqual({ kind: "stay" });
+  expect(pageEnter({ screen: "settings" }, ws, "addProjects", true)).toEqual({ kind: "stay" });
+});
+
+test("settings page: Projects tab, Back and Escape return to the origin, a removed workspace returns Home", () => {
+  for (const event of [{ kind: "projectsTab" }, { kind: "back" }, escape] as const) {
+    expect(addPageReturn(ws, event, roots, false)).toEqual({ kind: "workspace", root: "/w/a" });
+    expect(addPageReturn(home, event, roots, false)).toEqual({ kind: "home", select: null });
+    expect(addPageReturn(ws, event, ["/w/b"], false)).toEqual({ kind: "home", select: null });
+  }
+  expect(addPageReturn(ws, { kind: "forward" }, roots, false)).toEqual({ kind: "stay" });
+});
+
+test("settings page: every leaving move is ignored while the page is locked", () => {
+  for (const event of [{ kind: "projectsTab" }, { kind: "back" }, { kind: "cancel" }, { kind: "home" }, escape] as const)
+    expect(addPageReturn(ws, event, roots, true)).toEqual({ kind: "stay" });
+  // The page's own completion is not a move away from it.
+  expect(addPageReturn(ws, { kind: "added", root: "/w/new" }, roots, true)).toEqual({ kind: "home", select: "/w/new" });
 });

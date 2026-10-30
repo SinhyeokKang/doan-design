@@ -312,7 +312,8 @@ code, kbd { font-family: var(--type-family); }
 .ob-provider > .doan-notice { margin-top: var(--space-3); }
 .ob-notice-title, .ob-notice-body { display: block; }
 .ob-notice-title { font-weight: var(--type-weight-medium); }
-.ob-notice-body { margin-top: var(--space-1); }
+/* Only under a title: a body alone is the first line, which the notice icon is centred on. */
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
 .ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
 .ob-state-actions.submit-only { justify-content: flex-end; }
 .ob-page-help { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); margin-top: var(--space-3); color: var(--text-subtle); }
@@ -794,3 +795,76 @@ body:has(.shell-top) { background: transparent; }
 .row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
+
+/* buzz-settings: the Settings page (.doan/canvases/buzz-settings.html, confirmed 2026-10-30). The sidebar lists the four
+   categories with the canvas-row geometry; Home's white panel scrolls a 48rem reading column (Buzz Settings.module.css
+   .detail). Its body text is 14/20 with plain numerals, like the Add Projects panel. */
+.shell-settings-nav { display: flex; flex-direction: column; gap: var(--space-half); }
+.shell-side .shell-settings-row { width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-settings-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-settings-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-current="page"] svg { color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }
+.settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
+.settings-header, .settings-section-header { display: flex; align-items: start; gap: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-header { margin-bottom: var(--space-8); }
+.settings-section-header { margin-bottom: var(--space-3); }
+.settings-header-copy { flex: 1; min-width: 0; }
+.settings-title { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.settings-lead, .settings-section-description { margin-top: var(--space-2); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A section description sits as close to its title as a row's description to its label. */
+.settings-section-description { margin-top: var(--space-half); }
+.settings-section-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.settings-sections { display: grid; gap: var(--space-section-gap); }
+/* A provider row leads with its mark; what belongs to a row but sits under it (a notice and its actions, a helper)
+   starts at the text column. */
+.doan-preference-row[data-has-icon] { grid-template-columns: auto minmax(0, 1fr) auto; }
+.doan-preference-row-icon { display: flex; align-items: center; justify-content: center; width: var(--size-icon-lg); height: var(--size-icon-lg); color: var(--text-subtle); }
+.doan-preference-row-icon > :is(svg, img) { width: 100%; height: 100%; object-fit: contain; }
+.doan-preference-row[data-disabled] .doan-preference-row-icon { color: var(--text-disabled); }
+.doan-preference-row-extra { grid-column: 1 / -1; margin-top: var(--space-3); }
+.doan-preference-row[data-has-icon] > .doan-preference-row-extra { grid-column: 2 / -1; }
+.doan-preference-row > .doan-preference-row-extra + .doan-preference-row-extra { margin-top: 0; }
+.doan-preference-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+/* An arrival from Home's agent picker or a toast flashes the provider's row for 2.4 s, like an added project's sidebar
+   row (.shell-project-row.flash). */
+.doan-preference-row[data-flash] { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); border-radius: var(--radius-row); box-shadow: inset 0 0 0 2px var(--border-focus); }
+.settings-help { margin-top: var(--space-1); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-select { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.settings-select .chev { color: var(--text-subtle); }
+.settings-notice { margin-bottom: var(--space-3); }
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-msg.warn { color: var(--text-warning); }
+.settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.settings-save-error { margin-top: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-loading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); }
+/* Home's agent picker: the link to Settings at the bottom of the menu. */
+.settings-menu-link { display: flex; gap: var(--space-2); align-items: center; }
+.settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
+/* buzz-settings U4/U5: the header's action slot (Check Again, Copy details), the category bodies and the Project
+   Settings dialog, from the same draft. An empty slot takes no room beside the lead. */
+:is(.settings-page, .settings-dialog) code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.settings-header-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
+.settings-header-actions:empty { display: none; }
+.settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+.settings-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
+.doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
+.doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
+.settings-recovery { margin-top: 0; }
+.settings-saved { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-success); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-saved.pending { color: var(--text-metadata); }
+.settings-saved svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* A confirmation over the page is rendered inside the panel and would take its body-sm tracking; the Project Settings
+   dialog opens over any screen and would take the app body's 13px and tabular numerals. Both read like the page. */
+.settings-panel .doan-dialog { letter-spacing: normal; }
+.settings-dialog { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
+.settings-dialog .doan-dialog-title { display: flex; align-items: center; gap: var(--space-2); }
+.settings-dialog-branch { color: var(--text-metadata); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-regular); }
+.settings-serve { display: grid; list-style: none; border: 1px solid var(--border-standard); border-radius: var(--radius-row); overflow: hidden; }
+.settings-serve li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.settings-serve li + li { border-top: 1px solid var(--border-standard); }
+.settings-serve code { background: transparent; padding: 0; }

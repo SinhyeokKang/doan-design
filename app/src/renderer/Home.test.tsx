@@ -32,10 +32,10 @@ const project = (path: string, canvases: CanvasRow[] = [row("buzz-onboarding")])
 
 function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
   const cards = groupProjects(entries, new Map());
-  const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} />;
+  const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} projectSettings={() => {}} />;
   return renderToStaticMarkup(<TooltipProvider><Home header={<header className="top shell-top" />} sidebar={sidebar} entries={entries} homeDirectory="/Users/ada" shellProjects={{}} loaded={null} select={null}
     prefs={{}} memory={{ current: { ...emptyComposer(), auth: AUTH, presets: LISTED, greeting: null, ...memory } }} running={new Map()} restore={null}
-    start={async () => ({ ok: true })} openConversation={() => {}} addProjects={() => {}} {...props} /></TooltipProvider>);
+    start={async () => ({ ok: true })} openConversation={() => {}} addProjects={() => {}} openSettings={() => {}} {...props} /></TooltipProvider>);
 }
 
 test("Home is the shell with the sidebar and a composer body: no project cards, setup checklist or connection banner", () => {

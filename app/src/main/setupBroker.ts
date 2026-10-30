@@ -4,8 +4,7 @@ import { connectionCauses, type ConnectionCauses } from "./setupCauses";
 import type { MachineState, StepResult } from "./onboarding/machine";
 import { setupLock, type SetupLock, type SetupLockAction } from "./setupLock";
 
-// What both windows see: home chips, banner and Finish card in the main
-// window, the busy state of the other window's setup buttons.
+// The main renderer shares this setup summary and busy state between Home and Connections.
 export interface SetupStatus {
   // null until the first read finishes ("Checking…").
   summary: ConnectionSummary | null;
@@ -39,13 +38,12 @@ export interface SetupBrokerDeps {
 
 const failure = (error: unknown): StepResult => ({ kind: "error", message: error instanceof Error ? error.message : String(error) });
 
-// Owners are webContents ids. The machine keeps one pending confirmation of
-// its own; the lock records which window owns it, so another window gets
-// `busy` and a window that goes away cannot leave it behind.
+// Owners are main-renderer webContents ids. The machine keeps one pending confirmation;
+// the lock binds it to the renderer so a replacement cannot inherit it or leave it behind.
 export function createSetupBroker(deps: SetupBrokerDeps) {
   let lock: SetupLock = { kind: "idle" };
   let status: SetupStatus = { summary: null, causes: {}, checking: false, busy: false, onboardingClosed: false };
-  // Each window's newest read; a window's older read answers stale.
+  // Each renderer's newest read; its older read answers stale.
   const reads = new Map<number, string>();
   let started = 0, shown = 0, running = 0;
   let refreshing: Promise<SetupStatus> | null = null;

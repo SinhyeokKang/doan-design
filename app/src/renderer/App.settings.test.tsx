@@ -1,0 +1,419 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { CanvasRow, FolderEntry } from "../main/view";
+import type { PreferencesSnapshot } from "../main/preferences";
+
+// buzz-settings U2: App's Settings page — entry, return, lock, the incoming-target queue and notification clicks —
+// driven with hooks as plain state so App's own navigation functions run (App.addProjects.test.tsx).
+const hooks = vi.hoisted(() => ({
+  states: [] as unknown[], refs: [] as { current: unknown }[], effects: [] as ({ deps: unknown[] | undefined; cleanup?: () => void } | undefined)[],
+  pending: [] as (() => void)[], cursor: 0, refCursor: 0, effectCursor: 0, dirty: false,
+}));
+vi.mock("react", async original => {
+  const actual = await original<typeof import("react")>();
+  const effect = (run: () => unknown, deps?: unknown[]) => {
+    const index = hooks.effectCursor++, previous = hooks.effects[index];
+    if (previous && deps && previous.deps && deps.length === previous.deps.length && deps.every((dep, i) => Object.is(dep, previous.deps![i]))) return;
+    const slot: { deps: unknown[] | undefined; cleanup?: () => void } = { deps };
+    hooks.effects[index] = slot;
+    hooks.pending.push(() => { previous?.cleanup?.(); const cleanup = run(); if (typeof cleanup === "function") slot.cleanup = cleanup as () => void; });
+  };
+  return {
+    ...actual,
+    useState: (initial: unknown) => {
+      const index = hooks.cursor++;
+      if (!(index in hooks.states)) hooks.states[index] = typeof initial === "function" ? (initial as () => unknown)() : initial;
+      return [hooks.states[index], (next: unknown) => {
+        const value = typeof next === "function" ? (next as (value: unknown) => unknown)(hooks.states[index]) : next;
+        if (!Object.is(value, hooks.states[index])) { hooks.states[index] = value; hooks.dirty = true; }
+      }];
+    },
+    useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
+    useEffect: effect, useLayoutEffect: effect,
+    useMemo: <T,>(factory: () => T) => factory(),
+    useCallback: <T,>(callback: T) => callback,
+  };
+});
+const harness = vi.hoisted(() => ({
+  controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
+  toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
+  signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn() },
+}));
+vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
+vi.mock("./agentSignIn", () => ({
+  agentSignIn: () => ({ onToast: (listener: typeof harness.signIn.onToast) => { harness.signIn.onToast = listener; return () => {}; }, windowFocused: harness.signIn.windowFocused }),
+}));
+vi.mock("./CanvasController", async original => ({
+  ...await original<typeof import("./CanvasController")>(),
+  CanvasController: class {
+    constructor() {
+      const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath"]) self[name] = vi.fn();
+      self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
+      self.showOverview = vi.fn((done: () => void) => done());
+      self.destination = vi.fn((root: string) => ({ root }));
+      self.currentView = vi.fn(() => ({ scale: 1, x: 0, y: 0 }));
+      self.memory = vi.fn(() => ({}));
+      harness.controller = self;
+    }
+  },
+}));
+vi.mock("./useComments", () => ({
+  useComments: () => ({ session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), orphans: {}, orphanIntent: vi.fn(), reviewStep: vi.fn(), openAt: vi.fn() }),
+}));
+vi.mock("./Home", async original => ({ ...await original<typeof import("./Home")>(), useProjectComments: () => ({ comments: new Map(), reads: new Map(), refresh: vi.fn() }) }));
+vi.mock("./ProjectOverview", async original => ({ ...await original<typeof import("./ProjectOverview")>(), useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
+vi.mock("./FirstPrompt", async original => ({ ...await original<typeof import("./FirstPrompt")>(), useFirstPromptWait: () => ({}) }));
+
+const { App } = await import("./App");
+const { SettingsPage } = await import("./SettingsPage");
+const { AddProjectsPage } = await import("./AddProjectsPage");
+const { ShellSidebar } = await import("./ShellSidebar");
+const { QuickOpen } = await import("./QuickOpenDialog");
+const { Home } = await import("./Home");
+const { HomeRun } = await import("./homeRun");
+const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
+
+const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
+const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
+const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
+let listeners: Record<string, (...args: never[]) => void>;
+let windowListeners: Record<string, (event: never) => void>;
+let readUiState: (state: unknown) => void;
+let doan: Record<string, ReturnType<typeof vi.fn>>;
+let tree: ReactNode;
+
+function reset() {
+  hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+  listeners = {}; windowListeners = {};
+  harness.toast.show.mockClear(); harness.signIn.windowFocused.mockClear();
+  const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
+  doan = {
+    onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onOpenAddProjects: on("openAddProjects"),
+    onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
+    homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
+    readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
+    readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
+    readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
+  };
+  vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
+  vi.stubGlobal("HTMLElement", class {});
+}
+beforeEach(reset);
+afterEach(() => vi.unstubAllGlobals());
+
+function render(): ReactNode {
+  for (let round = 0; round < 20; round++) {
+    hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = []; hooks.dirty = false;
+    tree = App();
+    const pane = all(tree).find(element => "viewport" in (element.props as object))?.props as Record<string, { current: unknown }> | undefined;
+    for (const ref of [pane?.viewport, pane?.board, pane?.overlay]) if (ref && !ref.current) ref.current = {};
+    for (const run of hooks.pending) run();
+    if (!hooks.dirty) return tree;
+  }
+  throw new Error("App did not settle");
+}
+function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(node)) return node.flatMap(all);
+  if (!isValidElement<Record<string, unknown>>(node)) return [];
+  return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
+}
+const find = <P,>(type: unknown) => all(tree).filter(element => element.type === type) as unknown as ReactElement<P>[];
+type Sidebar = ReactElement<{ locked?: boolean; settings?: { section: string; select(section: string): void } } & Record<string, (...args: never[]) => void>>;
+type PageProps = { section: string; arrival: { focus: { kind: string; provider?: string }; seq: number } | null; onState(report: { locked: boolean }): void; header: ReactElement; sidebar: Sidebar;
+  agents: { preferences: PreferencesSnapshot | null; save(patch: unknown): Promise<unknown>; project: { root: string; name: string } | null } };
+const settings = () => find<PageProps>(SettingsPage)[0];
+const onSettings = () => settings() !== undefined;
+const addPage = () => find<{ header: ReactElement }>(AddProjectsPage)[0];
+const homeEl = () => find<{ header: ReactElement; openSettings(target: unknown): void; defaults: unknown }>(Home)[0];
+function topBar(header: ReactElement) {
+  const bar = (header.type as (props: unknown) => ReactNode)(header.props);
+  const buttons = all(bar).filter(element => element.type === "button");
+  const text = (button: ReactElement<Record<string, unknown>>) => [button.props["aria-label"], ...[button.props.children].flat()].filter(item => typeof item === "string");
+  const named = (label: string) => buttons.find(button => text(button).includes(label))!;
+  return { back: named("Back"), forward: named("Forward"), add: named("Add Projects"), projects: named("Projects"), settings: named("Settings") };
+}
+const workspaceHeader = () => all(tree).find(element => typeof element.type === "function" && element.type.name === "TopBar" && !all(settings()?.props.header).includes(element) && !all(addPage()?.props.header).includes(element))!;
+function folders(entries: FolderEntry[]) { listeners.folders!(entries as never); render(); }
+const click = (element: ReactElement<Record<string, unknown>>) => { (element.props.onClick as () => void)(); render(); };
+const escape = () => { windowListeners.keydown!({ key: "Escape", target: { tagName: "BUTTON" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render(); };
+const cmdComma = (target: unknown = {}) => { listeners.openSettingsPage!(target as never); render(); };
+const lock = (locked = true) => { settings()!.props.onState({ locked }); render(); };
+const clearController = () => { for (const mock of Object.values(harness.controller!)) if (vi.isMockFunction(mock)) mock.mockClear(); };
+
+// From a workspace on /w/a, open Settings with the header tab.
+function openFromWorkspace() {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  click(topBar(workspaceHeader()).settings);
+  expect(onSettings()).toBe(true);
+  clearController();
+}
+
+test("the header Settings tab opens the page on the last category's title; the sidebar lists categories; the menu knows the screen", () => {
+  openFromWorkspace();
+  const bar = topBar(settings()!.props.header);
+  expect(bar.settings.props["aria-current"]).toBe("page");
+  expect([bar.add.props["aria-current"], bar.projects.props["aria-current"]]).toEqual([undefined, undefined]);
+  expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
+  expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
+  expect(settings()!.props.sidebar.props.settings?.section).toBe("agents");
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, reviewing: false });
+  expect(doan.openSettings).not.toHaveBeenCalled();
+});
+
+test("Projects tab, Back and Escape return to the origin workspace; a sidebar category keeps focus and is remembered", async () => {
+  for (const leave of [() => click(topBar(settings()!.props.header).projects), () => click(topBar(settings()!.props.header).back), escape]) {
+    reset();
+    openFromWorkspace();
+    readUiState(null); await Promise.resolve(); await Promise.resolve(); render();
+    settings()!.props.sidebar.props.settings!.select("about"); render();
+    expect(settings()!.props.section).toBe("about");
+    // No arrival: focus stays on the sidebar row, and a later remount of a category finds nothing to apply.
+    expect(settings()!.props.arrival).toBeNull();
+    expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "workspace", root: "/w/a", settingsSection: "about" });
+    leave();
+    expect(onSettings()).toBe(false);
+    expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+    // Settings… later opens the remembered category.
+    cmdComma();
+    expect(settings()!.props.section).toBe("about");
+  }
+});
+
+test("Settings… (⌘,) and Home's picker open the page; on the page ⌘, focuses the title again and a provider target its row", () => {
+  render();
+  folders([listed("/w/a")]);
+  homeEl()!.props.openSettings({ section: "agents", provider: "codex" }); render();
+  expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "provider", provider: "codex" } } });
+  const seq = settings()!.props.arrival!.seq;
+  cmdComma();
+  expect(settings()!.props.arrival).toEqual({ focus: { kind: "heading" }, seq: seq + 1 });
+  // A malformed IPC target is dropped.
+  cmdComma({ section: "projects", extra: 1 });
+  expect(settings()!.props.arrival!.seq).toBe(seq + 1);
+  // The page returns to Home, where it came from.
+  click(topBar(settings()!.props.header).projects);
+  expect(homeEl()).toBeDefined();
+});
+
+test("while a category holds a confirmation or a write, incoming targets wait and the latest applies after; every way out is ignored", () => {
+  const moves: [string, () => void][] = [
+    ["Projects tab", () => click(topBar(settings()!.props.header).projects)],
+    ["Back", () => click(topBar(settings()!.props.header).back)],
+    ["Add Projects tab", () => click(topBar(settings()!.props.header).add)],
+    ["Escape", escape],
+    ["Go > Home", () => { listeners.menu!("home" as never); render(); }],
+    ["Quick Open", () => { listeners.menu!("quickOpen" as never); render(); }],
+    ["Search", () => { settings()!.props.sidebar.props.search!(); render(); }],
+    ["sidebar category", () => { settings()!.props.sidebar.props.settings!.select("about"); render(); }],
+    ["File > Add Project…", () => { listeners.openAddProjects!(); render(); }],
+    ["notification click", () => { listeners.notificationClick!({ conversationId: "c1", root: "/w/b" } as never); render(); }],
+  ];
+  for (const [name, move] of moves) {
+    reset();
+    openFromWorkspace();
+    lock();
+    expect(settings()!.props.sidebar.props.locked, name).toBe(true);
+    move();
+    expect(onSettings(), name).toBe(true);
+    expect(settings()!.props.section, name).toBe("agents");
+    for (const method of ["openWorkspace", "openCanvas", "showOverview"]) expect(harness.controller![method], `${name}: ${method}`).not.toHaveBeenCalled();
+    expect(find(QuickOpen), name).toHaveLength(0);
+  }
+  reset();
+  openFromWorkspace();
+  lock();
+  const bar = topBar(settings()!.props.header);
+  for (const button of [bar.add, bar.projects, bar.settings, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, reviewing: false, locked: true });
+  const before = settings()!.props.arrival;
+  cmdComma({ section: "about" });
+  harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } });
+  (harness.toast.show.mock.lastCall![2] as () => void)(); render();
+  expect(settings()!.props.arrival).toBe(before);
+  expect(settings()!.props.section).toBe("agents");
+  lock(false);
+  expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "provider", provider: "codex" } } });
+  expect(settings()!.props.arrival!.seq).toBe(before!.seq + 1);
+  click(topBar(settings()!.props.header).projects);
+  expect(onSettings()).toBe(false);
+});
+
+test("while Add Projects is locked the Settings tab, Settings… and a toast's Open Agents settings do nothing", () => {
+  render();
+  folders([listed("/w/a")]);
+  click(topBar(homeEl()!.props.header).add);
+  find<{ onState(report: { locked: boolean; choose: boolean }): void }>(AddProjectsPage)[0]!.props.onState({ locked: true, choose: false }); render();
+  const bar = topBar(addPage()!.props.header);
+  expect(bar.settings.props["aria-disabled"]).toBe(true);
+  click(bar.settings);
+  cmdComma();
+  harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } });
+  (harness.toast.show.mock.lastCall![2] as () => void)(); render();
+  expect(onSettings()).toBe(false);
+  expect(addPage()).toBeDefined();
+});
+
+test("Settings and Add Projects move between each other without changing where they return to", () => {
+  openFromWorkspace();
+  click(topBar(settings()!.props.header).add);
+  expect(addPage()).toBeDefined();
+  click(topBar(addPage()!.props.header).settings);
+  expect(onSettings()).toBe(true);
+  click(topBar(settings()!.props.header).projects);
+  expect(onSettings()).toBe(false);
+  expect(addPage()).toBeUndefined();
+  expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+});
+
+test("entering the page cancels a pending startup restore and a workspace still opening", async () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  let pending: (() => void) | null = null;
+  harness.controller!.openWorkspace!.mockImplementation((root: string, done: (root: string) => void) => { pending = () => done(root); });
+  harness.controller!.cancelWorkspaceOpen!.mockImplementation(() => { pending = null; });
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/b"); render();
+  expect(pending).not.toBeNull();
+  cmdComma();
+  (pending as (() => void) | null)?.(); render();
+  expect(onSettings()).toBe(true);
+  readUiState({ screen: "workspace", root: "/w/a", expanded: {}, lastByRoot: {}, home: {} });
+  await Promise.resolve(); await Promise.resolve(); render();
+  expect(onSettings()).toBe(true);
+  expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "home" });
+});
+
+// review BU1 🟡1: a target on the page is a navigation too, so a move still in flight must not land after it
+// (POSTMORTEM 2026-10-27 no-op path rule); the same for Add Projects' own re-entry.
+test("on a page, ⌘, or the page's own tab cancels a navigation still in flight", () => {
+  for (const reenter of ["cmdComma", "toast"] as const) {
+    reset();
+    openFromWorkspace();
+    let pending: (() => void) | null = null;
+    harness.controller!.openWorkspace!.mockImplementation((root: string, done: (root: string) => void) => { pending = () => done(root); });
+    harness.controller!.cancelWorkspaceOpen!.mockImplementation(() => { pending = null; });
+    listeners.notificationClick!({ conversationId: "gone", root: "/w/b" } as never); render();
+    expect(pending, reenter).not.toBeNull();
+    if (reenter === "cmdComma") cmdComma();
+    else { harness.signIn.onToast!({ text: "x", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } }); (harness.toast.show.mock.lastCall![2] as () => void)(); render(); }
+    (pending as (() => void) | null)?.(); render();
+    expect(onSettings(), reenter).toBe(true);
+  }
+  for (const reenter of ["tab", "menu"] as const) {
+    reset();
+    render();
+    folders([listed("/w/a"), listed("/w/b")]);
+    click(topBar(homeEl()!.props.header).add);
+    let pending: (() => void) | null = null;
+    harness.controller!.openWorkspace!.mockImplementation((root: string, done: (root: string) => void) => { pending = () => done(root); });
+    harness.controller!.cancelWorkspaceOpen!.mockImplementation(() => { pending = null; });
+    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/b"); render();
+    expect(pending, reenter).not.toBeNull();
+    if (reenter === "tab") click(topBar(addPage()!.props.header).add);
+    else { listeners.openAddProjects!(); render(); }
+    (pending as (() => void) | null)?.(); render();
+    expect(addPage(), reenter).toBeDefined();
+  }
+});
+
+// review BU1 ⚪3: the Settings tab is a control the lock shows unavailable; only targets from outside wait.
+test("while the page is locked a click on the Settings tab is ignored, not queued", () => {
+  openFromWorkspace();
+  lock();
+  const before = settings()!.props.arrival;
+  click(topBar(settings()!.props.header).settings);
+  lock(false);
+  expect(settings()!.props.arrival).toBe(before);
+});
+
+test("a notification click: a known conversation goes where the permission toast's Open goes, an unknown one to its registered project's Overview, else nowhere", () => {
+  const click = (target: { conversationId: string; root: string }) => { listeners.notificationClick!(target as never); render(); };
+  // Known: the run's own conversation in /w/b opens its project, like the toast's Open.
+  openFromWorkspace();
+  const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
+  run.conversations = [{ conversationId: "c1", root: "/w/b", provider: "codex", phase: "permission" } as never];
+  const open = vi.spyOn(run, "openConversation");
+  click({ conversationId: "c1", root: "/w/b" });
+  expect(open).toHaveBeenCalledWith("c1");
+  expect(harness.controller!.openWorkspace).toHaveBeenCalledWith("/w/b", expect.any(Function), false, expect.any(Function), true);
+  expect(onSettings()).toBe(false);
+  // Unknown with a registered root: that project's Overview.
+  reset(); openFromWorkspace();
+  click({ conversationId: "gone", root: "/w/b" });
+  expect(harness.controller!.openWorkspace).toHaveBeenCalledWith("/w/b", expect.any(Function), false, undefined, true);
+  expect(onSettings()).toBe(false);
+  // Unknown and unregistered: the window only.
+  reset(); openFromWorkspace();
+  click({ conversationId: "gone", root: "/w/elsewhere" });
+  expect(onSettings()).toBe(true);
+  for (const method of ["openWorkspace", "openCanvas", "showOverview"]) expect(harness.controller![method]).not.toHaveBeenCalled();
+  // A modal: the window only (the locked page is in the lock test above).
+  reset(); openFromWorkspace();
+  settings()!.props.sidebar.props.search!(); render();
+  expect(find(QuickOpen)).toHaveLength(1);
+  click({ conversationId: "gone", root: "/w/b" });
+  for (const method of ["openWorkspace", "openCanvas", "showOverview"]) expect(harness.controller![method]).not.toHaveBeenCalled();
+});
+
+test("a sign-in toast's Open Agents settings opens that provider's row; the window's focus reaches the sign-in controller", () => {
+  render();
+  folders([listed("/w/a")]);
+  harness.signIn.onToast!({ text: "Codex connected.", action: null });
+  expect(harness.toast.show).toHaveBeenLastCalledWith("Codex connected.", undefined, undefined);
+  harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } });
+  expect(harness.toast.show.mock.lastCall![1]).toBe("Open Agents settings");
+  (harness.toast.show.mock.lastCall![2] as () => void)(); render();
+  expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "provider", provider: "codex" } } });
+  windowListeners.focus!({} as never);
+  expect(harness.signIn.windowFocused).toHaveBeenCalledTimes(1);
+});
+
+test("App reads preferences once; Home starts from the saved default and Settings' saves update it", async () => {
+  render();
+  folders([listed("/w/a")]);
+  await Promise.resolve(); await Promise.resolve(); render();
+  expect(doan.readPreferences).toHaveBeenCalledTimes(1);
+  expect(homeEl()!.props.defaults).toEqual({ provider: "codex" });
+  cmdComma();
+  expect(settings()!.props.agents).toMatchObject({ preferences: PREFS, project: { root: "/w/a", name: "a" } });
+  const saved: PreferencesSnapshot = { ...PREFS, preferences: { ...PREFS.preferences, newConversation: null } };
+  doan.savePreferences!.mockResolvedValueOnce({ ok: true, snapshot: saved });
+  await settings()!.props.agents.save({ newConversation: null }); render();
+  expect(doan.savePreferences).toHaveBeenCalledWith({ newConversation: null });
+  expect(settings()!.props.agents.preferences).toEqual(saved);
+  click(topBar(settings()!.props.header).projects);
+  expect(homeEl()!.props.defaults).toBeNull();
+  expect(doan.readPreferences).toHaveBeenCalledTimes(1);
+});
+
+// design '창 제거와 IPC' 잃는 보장: the Settings page shares the main window's preload, so only this convention keeps it
+// from starting or sending a conversation.
+test("Settings components never start or send a conversation", () => {
+  const dir = new URL(".", import.meta.url);
+  const files = readdirSync(dir).filter(name => /^Settings.*\.tsx$/.test(name) && !name.includes(".test."));
+  expect(files).toEqual(expect.arrayContaining(["SettingsAgents.tsx", "SettingsPage.tsx"]));
+  for (const name of files) expect(readFileSync(new URL(name, dir), "utf8"), name).not.toMatch(/startConversation|sendConversation/);
+});
+
+// buzz-settings U5: Project Settings is a dialog over whatever screen is open, not a move; the Add Projects lock allows it.
+test("the project menu's Project Settings opens its dialog as a modal, even while Add Projects is locked", () => {
+  render();
+  folders([listed("/w/a")]);
+  find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
+  const dialog = find<{ root: string; projectKey: string; onClose(): void; onAction(action: string, root: string): void }>(ProjectSettingsDialog)[0]!;
+  expect(dialog.props).toMatchObject({ root: "/w/a", projectKey: "/w/a" });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith(expect.objectContaining({ modal: true }));
+  expect(doan.openSettings).not.toHaveBeenCalled();
+  dialog.props.onClose(); render();
+  expect(find(ProjectSettingsDialog)).toHaveLength(0);
+  click(topBar(homeEl()!.props.header).add);
+  find<{ onState(report: { locked: boolean; choose: boolean }): void }>(AddProjectsPage)[0]!.props.onState({ locked: true, choose: false }); render();
+  find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
+  expect(find(ProjectSettingsDialog)).toHaveLength(1);
+  expect(addPage()).toBeDefined();
+});

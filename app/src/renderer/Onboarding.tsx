@@ -5,6 +5,7 @@ import type { OnboardingState } from "../formats/types";
 import { nextFocusIndex } from "./onboardingView";
 import { noAgentReadyNotice, type AuthCommand, type Button, type Notice, type ProviderView, type pasteDialog, type stopDialog } from "./agentAuthView";
 import { AgentStepSession } from "./agentStep";
+import { agentSignIn } from "./agentSignIn";
 import { projectFooter, projectNoticeCode, ProjectStepSession, setUpLabel, type ProjectError, type ProjectStepState, type ProjectUse } from "./projectStep";
 import { canAdvance, initialScene, nextScene, type Scene, type SceneEvent } from "./onboardingScene";
 import { projectHue, projectInitial } from "./shellNavigation";
@@ -19,12 +20,6 @@ const LOGOS: Record<Provider, string> = { claude: "claude.png", codex: "codex.pn
 // Antigravity has no install page: Doan downloads its sign-in server itself (design 'Install·Update 안내 URL').
 function openInstallPage(provider: Provider): Promise<boolean> {
   return provider === "antigravity" ? Promise.resolve(false) : window.doan.openInstallPage(provider);
-}
-// Kept in the window's sessionStorage, which a renderer reload keeps; failures only cost the reload case.
-const OWNED_KEY = "doan.onboarding.ownedSignIns";
-function rememberOwned(ids: readonly string[]): void { try { sessionStorage.setItem(OWNED_KEY, JSON.stringify(ids)); } catch { /* reload case only */ } }
-function recallOwned(): string[] {
-  try { const value: unknown = JSON.parse(sessionStorage.getItem(OWNED_KEY) ?? "[]"); return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : []; } catch { return []; }
 }
 
 export function Welcome({ start }: { start: () => void }) {
@@ -593,7 +588,7 @@ export function SceneScroll({ children }: { children: React.ReactNode }) {
 // client may drive the same session; its completion closes this window too.
 export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout }: { session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
-  const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall: openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, remember: rememberOwned, recall: recallOwned }));
+  const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall: openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, signIn: agentSignIn() }));
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
   const homeRef = useRef(homeDirectory);

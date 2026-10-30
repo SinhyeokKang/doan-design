@@ -214,3 +214,19 @@ describe("run-time version incompatibility records", () => {
     expect(await t.ipc.handle(AUTH_CHANNELS.check, { provider: "claude" }, 7)).toEqual({ ok: true, attemptId: "check-10" });
   });
 });
+
+// buzz-settings About: tool versions come from this cache, never from a CLI run of their own.
+describe("toolFacts", () => {
+  it("answers the cached facts with a recorded incompatible version applied, without probing", async () => {
+    const t = ipc(async provider => provider === "codex" ? { cli: "found", version: "supported", installed: "0.170.0", tools: "ready" } : ready);
+    await t.ipc.read();
+    t.options.probe.mockClear();
+    expect(t.ipc.toolFacts("codex")).toEqual({ cli: "found", version: "supported", installed: "0.170.0", tools: "ready" });
+    t.ipc.incompatible("codex", "0.170.0");
+    expect(t.ipc.toolFacts("codex")).toMatchObject({ version: "incompatible", installed: "0.170.0" });
+    expect(t.options.probe).not.toHaveBeenCalled();
+  });
+  it("answers null for a provider not probed yet", () => {
+    expect(ipc().ipc.toolFacts("claude")).toBeNull();
+  });
+});

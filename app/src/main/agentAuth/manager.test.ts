@@ -1032,6 +1032,27 @@ describe("stopping runs for sign-out and replacement", () => {
     const out = started(await m.signOut("cursor", { stop: true }));
     expect(await out.done).toMatchObject({ phase: "error", error: { code: "sign_out_failed" }, connection: { account: { id: "u1" } } });
   }, 2000);
+  // buzz-settings R2: Home lists models right after a sign-in. A list read holds a lease but is not a conversation, so
+  // a sign-out must not ask the person to stop conversations; it stops the read itself and waits for its group.
+  it("a model list read does not need stop: sign-out stops the read, waits for its lease, then signs out", async () => {
+    let stopRuns!: ReturnType<typeof runs>["stopRuns"];
+    const m = manager({ stopRuns: provider => stopRuns(provider) }); await m.load();
+    await signedInCursor(m, "u1");
+    const r = runs(m); stopRuns = r.stopRuns;
+    r.leases.push(await m.acquire("cursor", "listing"));
+    const out = started(await m.signOut("cursor"));
+    expect(r.stopRuns).toHaveBeenCalledWith("cursor");
+    const status = await next("status");
+    expect(r.leases).toEqual([]);
+    settledSet.add(status); status.finish(0);
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+  });
+  it("a conversation run still needs stop when a model list read is also running", async () => {
+    const m = manager(); await m.load();
+    await signedInCursor(m, "u1");
+    await m.acquire("cursor", "listing"); await m.acquire("cursor");
+    expect(await m.signOut("cursor")).toEqual(expect.objectContaining({ ok: false, reason: "stop_required" }));
+  });
   it("keeps a failed sign-out blocking runs and sign-ins after a restart until a sign-out succeeds", async () => {
     const m = manager(); await m.load();
     await signedInCursor(m, "u1");

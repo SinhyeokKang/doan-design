@@ -123,7 +123,7 @@ test("a failed install page open is shown and no return check is armed", async (
   expect(checked(h)).toEqual([]);
 });
 
-test("sign-in success: links open automatically for Claude, Codex and Antigravity only, once per attempt", async () => {
+test("sign-in success: links open automatically for Claude and Antigravity only, once per attempt", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();
@@ -136,14 +136,14 @@ test("sign-in success: links open automatically for Claude, Codex and Antigravit
   expect(ids).toBe(5);
   h.prompt({ provider: "claude", attemptId: "sign-1", url: "https://claude.ai/oauth/authorize?x=1" });
   h.prompt({ provider: "claude", attemptId: "sign-1", url: "https://claude.ai/oauth/authorize?x=2" });
-  // Codex prints its local callback server first; only the auth page is worth opening.
+  // Codex prints its local callback server, then its auth page, which codex login has already opened itself.
   h.prompt({ provider: "codex", attemptId: "sign-2", url: "http://localhost:1455" });
   h.prompt({ provider: "codex", attemptId: "sign-2", url: "https://auth.openai.com/oauth/authorize?x=1" });
   h.prompt({ provider: "cursor", attemptId: "sign-3", url: "https://cursor.com/loginDeepControl" });
   h.prompt({ provider: "antigravity", attemptId: "sign-4", url: "https://accounts.google.com/o/oauth2/auth" });
   h.prompt({ provider: "copilot", attemptId: "sign-5", url: "https://github.com/login/device" });
   await flush();
-  expect(h.api.openAgentSignInLink.mock.calls).toEqual([["claude", "sign-1"], ["codex", "sign-2"], ["antigravity", "sign-4"]]);
+  expect(h.api.openAgentSignInLink.mock.calls).toEqual([["claude", "sign-1"], ["antigravity", "sign-4"]]);
   h.emit(snap(2, { claude: connected }));
   await flush();
   expect(row(h, "claude").button).toMatchObject({ label: "Connected", disabled: true });
