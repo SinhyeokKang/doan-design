@@ -129,7 +129,7 @@
   - 페이지 잠금·모달 중이면 창만 보이고 이동하지 않는다. 남은 권한 토스트의 Open이 나중에 같은 곳으로 데려간다.
   - 테스트 알림은 창만 보이고 Notifications에 머문다.
 - **Send test notification**은 지금 설정과 관계없이 알림 하나를 띄운다. 띄우면 안내가 "Test notification sent. If you didn’t see it, allow Doan in System Settings › Notifications."로 바뀐다. **Open System Settings ↗**는 main이 고정한 macOS 알림 설정 URL만 연다(renderer가 URL을 정하지 않는다, `INSTALL_URLS`와 같은 방식).
-- **첫 권한 요청**: 기본이 켬이라 macOS 첫 권한 요청이 첫 백그라운드 알림과 겹칠 수 있다. PoC에서 첫 알림이 버려지는지 본다. 버려지면 Notifications 카테고리에 처음 들어갈 때 권한을 먼저 요청하도록 범위를 사용자와 다시 정한다.
+- **첫 권한 요청**: PoC에서 허용 요청은 첫 알림 전 실행 직후에 떴고 첫 알림은 버려지지 않았다('PoC 의존'). 범위는 그대로 둔다.
 
 ### Connections
 
@@ -210,13 +210,19 @@
 
 ## PoC 의존
 
-- **macOS 알림**: Electron 45 `Notification`이 다음과 같이 동작하는지 모른다. 알림 구현 전에 `.scratch/`에서 확인하고, 실패하면 알림 카테고리 범위를 사용자와 다시 정한다.
-  - (a) 서명하지 않은 로컬 패키지 앱(`npm --prefix app run package`)과 (b) dev 빌드에서 실제로 뜨는가.
-  - 처음 띄울 때 권한 요청이 어떻게 보이고, 그때 띄운 첫 알림이 버려지는가.
-  - 클릭 이벤트가 앱 재활성화와 함께 오는가. 객체 참조를 붙잡지 않으면 click·close가 사라지는가.
-  - 시스템 권한 상태를 읽을 방법이 있는가.
-  - macOS 알림 설정 URL(`x-apple.systempreferences:com.apple.Notifications-Settings.extension` 후보)이 열리는가.
-- macOS 알림 권한은 userData·HOME을 격리해도 dev Electron과 `Doan.app` 번들 id 기준으로 시스템에 등록된다. 알림 배너 클릭은 사람이 해야 한다. 그래서 PoC는 사용자와 함께 하고, 시작 전에 사용자에게 알린다.
+- **macOS 알림 PoC 결과**(P1, 2026-10-30, 사용자와 함께 확인. 스크립트 `.scratch/buzz-settings/notify/main.cjs`, 로그 `poc-dev.log`·`poc-pkg.log`). Electron 45.0.0.
+  - **dev 빌드에서는 알림이 뜨지 않는다.** `Electron.app`(`com.github.Electron`, ad-hoc 서명)의 `new Notification().show()`는 `failed` 이벤트로 "UNErrorDomain 오류 1"(알림 허용 안 됨)을 내고, 허용 요청도 시스템 설정 알림 목록 항목도 생기지 않았다. 원인이 ad-hoc 서명인지는 확정하지 못했다(같은 ad-hoc 서명인 패키지 복사본은 동작했다). 그래서 알림의 실제 앱 확인은 패키지 빌드에서만 한다.
+  - **패키지 빌드에서는 뜬다.** 패키지 `Doan.app` 복사본(`design.doan.app`, ad-hoc 서명, `app.asar` 대신 PoC 폴더)을 `open`으로 실행했다. 허용 요청은 첫 알림을 보내기 전, 실행 직후에 떴다. PoC는 시작 때 `Notification.isSupported()`만 불렀다. 사용자가 허용한 뒤 `show` 이벤트와 배너가 정상이었다. 실행 직후에 요청이 뜨므로 "첫 알림이 버려지는가" 문제는 생기지 않았다. 다만 요청 시점이 실제 Doan 첫 실행과 겹치는지는 구현 때 확인한다.
+  - **클릭**: 참조를 붙잡은 알림은 모든 경우 `click`이 왔다. 창 포커스, 다른 앱이 앞, 앱 숨김(`app.isHidden()` true), 최소화가 모두 해당한다. 클릭 순간 창은 포커스가 없고 숨김·최소화 상태 그대로다. 앱이 직접 `show()`·`focus()`해야 앞으로 온다.
+  - **참조를 붙잡지 않은 알림**(`gc()` 실행 뒤): 배너는 남았지만 `click` 이벤트가 기록되지 않았다. 알림 클릭으로 앱만 활성화된 것으로 보인다. 그래서 대화별로 참조를 붙잡는다는 설계를 유지한다.
+  - **`close()`**: 알림 센터에서 항목이 지워진다(사용자 확인). `close` 이벤트는 아직 떠 있는 알림에서만 온다.
+  - **권한 상태**: 읽는 API는 없다. 허용되지 않으면 `failed` 이벤트가 온다. 그래서 테스트 알림의 `failed`로 상태를 안다.
+  - **설정 URL**: `x-apple.systempreferences:com.apple.Notifications-Settings.extension`이 시스템 설정의 알림 화면을 연다(`openExternal` resolve, 사용자 확인).
+- PoC가 바꾼 실제 상태: 시스템 설정 알림 목록에 `design.doan.app`(Doan) 항목이 생겼고 사용자가 허용했다. 실제 Doan 앱도 같은 번들 id라서 이 허용을 그대로 쓴다.
+- 설계 반영:
+  - `Notification`의 `failed`를 받는다. 테스트 알림이 실패하면 안내를 "Doan isn’t allowed to show notifications. Allow it in System Settings › Notifications."(error)로 바꾼다. 실제 알림이 실패하면 기록만 남기고 사람에게 다시 묻지 않는다.
+  - 클릭 처리에서 main이 창을 `show()`·`focus()`한다. 최소화 상태면 `restore()`도 부른다.
+  - dev 빌드에서 Notifications를 열면 테스트 알림이 실패 안내를 보인다. 이는 정상 동작이다.
 - 나머지는 이미 있는 기반(agent-auth IPC, setupBroker, configBridge, ShellSidebar, Add Projects 페이지 내비게이션) 위에서 동작한다.
 
 ## POSTMORTEM 함정

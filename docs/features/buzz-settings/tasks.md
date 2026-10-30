@@ -10,7 +10,7 @@
 
 ## P. PoC
 
-- [ ] P1. macOS 알림 PoC(`.scratch/buzz-settings/notify/`). 위 격리로 dev 빌드와 `npm --prefix app run package`로 만든 로컬 앱에서 Electron `Notification`을 띄운다. 확인할 것: 표시 여부, 첫 권한 요청 모양과 그때 띄운 첫 알림이 버려지는지, 클릭 이벤트와 창 재활성화, 객체 참조를 붙잡지 않으면 click·close가 사라지는지, 시스템 권한 상태를 읽을 방법, macOS 알림 설정 URL 열기. 결과(관찰·날짜)를 design.md 'PoC 의존'에 적는다.
+- [x] P1. macOS 알림 PoC(`.scratch/buzz-settings/notify/`). 위 격리로 dev 빌드와 `npm --prefix app run package`로 만든 로컬 앱에서 Electron `Notification`을 띄운다. 확인할 것: 표시 여부, 첫 권한 요청 모양과 그때 띄운 첫 알림이 버려지는지, 클릭 이벤트와 창 재활성화, 객체 참조를 붙잡지 않으면 click·close가 사라지는지, 시스템 권한 상태를 읽을 방법, macOS 알림 설정 URL 열기. 결과(관찰·날짜)를 design.md 'PoC 의존'에 적는다.
   - 검증: 두 빌드에서 알림 표시·클릭 이벤트 관찰 기록이 design.md에 있다. 실패하거나 첫 알림이 버려지면 알림 범위를 사용자에게 다시 묻고 이후 task를 고친다.
 
 ── commit: `docs(feature): record buzz-settings notification PoC` ──
@@ -76,7 +76,7 @@
   - Cmd+,·헤더 탭·홈 선택기 진입과 복귀, 공급자 행 포커스·강조
   - Connections 쓰기 중 잠금과 들어오는 대상 큐
   - Codex 로그인·로그아웃 1회(사용자 계정), 로그인 도중 페이지를 떠났다 돌아오기와 완료 토스트
-  - 알림 표시·클릭 1회(사용자 클릭)
+  - 알림 표시·클릭 1회(사용자 클릭). dev 빌드에서는 알림이 뜨지 않으므로 `npm --prefix app run package`로 만든 패키지 앱에서 한다(P1)
   - Project Settings Token CSS 변경·Clear 1회
   - dev와 production 빌드 모두에서 설정 그룹·행·스위치의 computed style(CSS extraction 함정)
   - 공급자 다섯 개와 펼친 notice로 960 × 600 창에서 본문 끝까지 스크롤(overflow 함정)
