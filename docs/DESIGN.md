@@ -1,6 +1,6 @@
 # Design measurements
 
-Measured values the app UI relies on, deviations from the draft canvases that are in force, and surfaces that are not verified. Draft canvases live in `.doan/canvases/`. Colour and size roles come from `app/src/renderer/tokens.css` (palette → roles → legacy aliases) and `app/src/renderer/ds/` (`controls.css`, `surfaces.css`, loaded through CSS `@import` from `styles.css` and `settings.css`).
+Measured values the app UI relies on, deviations from the draft canvases that are in force, and surfaces that are not verified. Draft canvases live in `.doan/canvases/`. Colour and size roles come from `app/src/renderer/tokens.css` (palette → roles → legacy aliases) and `app/src/renderer/ds/` (`controls.css`, `surfaces.css`, loaded through CSS `@import` from `styles.css`).
 
 ## Evidence and verification policy
 
@@ -65,7 +65,7 @@ The reference for every screen.
   - `.doan-dialog` with `data-ui-presentation="search"`: Quick Open (see Design navigation).
   - `.doan-notice.doan-panel` (notice on a panel, `ds/surfaces.css`): see Onboarding.
 - **Scrollbars.** Native and thin (`scrollbar-width: thin`, `scrollbar-thumb-quiet` on a transparent track) through `.doan-scroll`; Radix ScrollArea is forbidden.
-- **Style loading.** Main and Settings load shared rows and code styles through HTML links, which preserve cascade order under the strict CSP, in production and DEV, with no entry CSP warning.
+- **Style loading.** The main window loads shared rows and code styles through HTML links, which preserve cascade order under the strict CSP, in production and DEV, with no entry CSP warning.
 
 ### Doan adjustments
 
