@@ -27,6 +27,17 @@ test("the page footer is Cancel, plus the step's primary only for candidates and
   expect(page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] } })).toContain(">Set up and add</button>");
 });
 
+// S1 (design-sync, conductor decision B): the page's footer only leaves, so a local folder's setup offers Choose
+// another folder under its panel, as drawn; first run keeps its shipped setup panel (spec 완료 조건 12·13).
+test("a local folder's setup offers Choose another folder on the page only", () => {
+  const setup: Partial<ProjectStepState> = { phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] } };
+  const other = '<div class="ob-small-action"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose another folder</button></div>';
+  expect(page(setup)).toContain(`</section>${other}<div class="ob-footer add-footer">`);
+  const firstRun = renderToStaticMarkup(<ProjectScreen state={{ ...base, ...setup }} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on} />);
+  expect(firstRun).toContain("Set up and continue");
+  expect(firstRun).not.toContain("Choose another folder");
+});
+
 test("selecting and cloning have no footer; cloning says why the page cannot be left", () => {
   expect(page({ phase: { kind: "selecting", path: "/w/a" } }, true)).not.toContain("ob-footer");
   const html = page({ phase: cloning }, true);
@@ -90,12 +101,23 @@ test("focus: a closed folder sheet hands focus back to its button, else the aler
 test("U5: the panel scrolls whole, the card holds its drop target, and the lock takes the disabled ink", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toMatch(/\.add-panel \{ display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; \}/);
+  expect(css).toMatch(/\.add-panel \{ display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;/);
   expect(css).toMatch(/\.ob-local-option \{ position: relative;/);
   expect(css).toMatch(/\.drop-target \{ position: absolute; inset: 0;[^}]*outline: 2px dashed var\(--affordance-accent\);/);
   for (const selector of ['.shell-modes button[aria-disabled="true"]', '.shell-search[aria-disabled="true"]', '.shell-side .row[aria-disabled="true"]', '.shell-history .doan-icon-button[aria-disabled="true"]', '.doan-menu-item[aria-disabled="true"]'])
     expect(css).toMatch(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^{]*\\{ color: var\\(--text-disabled\\); cursor: default; \\}`));
   for (const source of ["./AddProjectsPage.tsx", "./Onboarding.tsx"]) expect(readFileSync(new URL(source, import.meta.url), "utf8")).not.toMatch(/import .*\.css/);
+});
+
+// S1 (design-sync): the page's shared Project screen is drawn in first run's 14/20 body text with plain numerals,
+// like the onboarding overlay; the panel otherwise passes on the app body's 13px/normal and tabular numerals. The
+// panel scrolls only vertically, as drawn.
+test("S1: the page panel sets first run's body text and clips sideways", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const rule = /\.add-panel \{([^}]*)\}/.exec(css)?.[1] ?? "";
+  for (const declaration of ["overflow-x: hidden;", "overflow-y: auto;", "font-size: var(--type-body-sm-size);", "line-height: var(--type-body-sm-line-height);", "font-variant-numeric: normal;"])
+    expect(rule).toContain(declaration);
 });
 
 // review-BU2 🟡1: a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
