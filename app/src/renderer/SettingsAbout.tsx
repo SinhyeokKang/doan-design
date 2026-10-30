@@ -18,15 +18,23 @@ export function SettingsAbout({ actions }: { actions: HTMLElement | null }) {
   // The read itself failed (main never answered with versions), as opposed to a row main could not read.
   const [failed, setFailed] = useState(false);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
-  const reads = useRef(0);
-  const load = () => {
+  const reads = useRef(0), inFlight = useRef(false);
+  // Entry and Retry say Checking…; a re-read on focus keeps the shown versions until the new ones arrive, and a read
+  // already running (a CLI run in main) is not started again.
+  const load = (fresh: boolean) => {
+    if (!fresh && inFlight.current) return;
     const request = ++reads.current;
-    setRead(null); setFailed(false);
-    void window.doan.readAbout().catch(() => null).then(reply => { if (request === reads.current) { setRead(reply); setFailed(reply === null); } });
+    inFlight.current = true;
+    if (fresh) { setRead(null); setFailed(false); }
+    void window.doan.readAbout().catch(() => null).then(reply => {
+      if (request !== reads.current) return;
+      inFlight.current = false;
+      if (reply || fresh) { setRead(reply); setFailed(reply === null); }
+    });
   };
   useEffect(() => {
-    load();
-    const focused = () => load();
+    load(true);
+    const focused = () => load(false);
     window.addEventListener("focus", focused);
     return () => { reads.current++; window.removeEventListener("focus", focused); };
   }, []);
@@ -48,7 +56,7 @@ export function SettingsAbout({ actions }: { actions: HTMLElement | null }) {
         {item.status !== null && <span className={TONES[item.tone]}>{item.status}</span>}
       </div>}
       {item.error !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>{item.error}</span></p>
-        <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={load}>Retry</button></div>}
+        <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
     </div>;
   };
   const copyDetails = () => { void window.doan.copyAbout().catch(() => ({ kind: "error" as const })).then(reply => setCopy(reply.kind === "success" ? "copied" : "failed")); };
@@ -57,7 +65,7 @@ export function SettingsAbout({ actions }: { actions: HTMLElement | null }) {
       {copy === "copied" ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}{copy === "copied" ? "Copied" : "Copy details"}</button>, actions)}
     {copy === "failed" && <p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t copy the details. Try again.</span></p>}
     {failed && <div className="settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t read the versions.</span></p>
-      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={load}>Retry</button></div>}
+      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
     {!failed && <>
     <section className="settings-section" aria-labelledby="settings-about-doan">
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id="settings-about-doan">Doan</h2></div></div>

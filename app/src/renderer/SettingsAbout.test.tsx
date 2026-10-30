@@ -101,11 +101,20 @@ test("a row whose version couldn’t be read says so with Retry, which reads Abo
   expect(doan.readAbout).toHaveBeenCalledTimes(2);
 });
 
-test("returning to the window reads About again", async () => {
+// review BU2-3: a focus re-read keeps the shown versions, and a read in flight is not started again.
+test("returning to the window reads About again without Checking…; a focus during a read starts no other", async () => {
   render();
+  windowListeners.focus!();
+  expect(doan.readAbout).toHaveBeenCalledTimes(1);
   reply(READ); await flush(); render();
+  windowListeners.focus!(); render();
+  expect(doan.readAbout).toHaveBeenCalledTimes(2);
+  expect(words(row("claude").props.children)).toContain("2.1.330");
+  expect(words(row("claude").props.children)).not.toContain("Checking…");
   windowListeners.focus!();
   expect(doan.readAbout).toHaveBeenCalledTimes(2);
+  reply({ ...READ, tools: READ.tools!.map(tool => tool.provider === "claude" ? { ...tool, installed: "2.1.400" } : tool) }); await flush(); render();
+  expect(words(row("claude").props.children)).toContain("2.1.400");
 });
 
 test("Copy details asks main to copy, then reads Copied for a moment", async () => {
