@@ -25,6 +25,7 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 export function Welcome({ start }: { start: () => void }) {
   return <div className="ob-welcome-main">
     <div className="ob-atmosphere" aria-hidden="true"></div>
+    <div className="doany-slot"></div>
     <div className="ob-wordmark">Doan</div>
     <h1 tabIndex={-1}>A place for your next idea.<br />Bring it to life on canvas.</h1>
     <div className="ob-welcome-action"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="lg" onClick={start}>Get started<ArrowRight aria-hidden="true" /></button></div>
@@ -644,7 +645,10 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
       if (stacked.current) return;
       if (event.key === "Tab" && overlay.current) {
         const nodes = Array.from(overlay.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(node => node.closest("dialog") === overlay.current);
-        const next = nextFocusIndex(nodes.length, nodes.indexOf(document.activeElement as HTMLElement), event.shiftKey);
+        const active = document.activeElement;
+        const index = nodes.indexOf(active as HTMLElement);
+        const before = index < 0 && active && overlay.current.contains(active) ? nodes.filter(node => node.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING).length : null;
+        const next = nextFocusIndex(nodes.length, index, event.shiftKey, before);
         if (next !== null) { event.preventDefault(); nodes[next]?.focus(); }
       }
     };

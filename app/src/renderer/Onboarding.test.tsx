@@ -16,8 +16,19 @@ test("Welcome: wordmark, two-line heading and the lg Get started button with an 
   expect(html).toContain('<div class="ob-wordmark">Doan</div>');
   expect(html).toContain('<h1 tabindex="-1">A place for your next idea.<br/>Bring it to life on canvas.</h1>');
   expect(html).toMatch(/<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="lg">Get started<svg[^>]*aria-hidden="true"/);
-  expect(html).toContain('<div class="ob-atmosphere" aria-hidden="true"></div>');
+  expect(html).toContain('<div class="ob-atmosphere" aria-hidden="true"></div><div class="doany-slot"></div><div class="ob-wordmark">Doan</div>');
   expect(html).not.toMatch(/…|\.\.\./);
+});
+
+// doan-mascot design '배치': the group's centre sits 72px above .ob-scroll's centre; the offset shrinks before the
+// window scrolls and leaves no empty scroll. The spacer after the group grows to at most twice the offset (stageInsets).
+test("Welcome centres its group 72px high in the area under the chrome, with a 142.5px Doany slot", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".ob-welcome .ob-scene { max-width: 640px; padding: 0 var(--space-6); align-items: center; }");
+  expect(css).toContain(".ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8) 0; }");
+  expect(css).toContain('.ob-welcome-main::after { content: ""; flex: 1 0 0; max-height: 144px; }');
+  expect(css).toContain(".ob-welcome-main .doany-slot { flex: none; width: 142.5px; height: 142.5px; }");
 });
 
 test("the setup steps are the shell capsule drawn with sm buttons: current is aria-current, a done step shows a check and goes back", () => {
