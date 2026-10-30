@@ -5,7 +5,7 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SceneScroll, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, openOverlay, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SceneScroll, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
@@ -28,6 +28,20 @@ test("Welcome centres its group 72px high in the area under the chrome", async (
   expect(css).toContain(".ob-welcome .ob-scene { max-width: 640px; padding: 0 var(--space-6); align-items: center; }");
   expect(css).toContain(".ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8) 0; }");
   expect(css).toContain('.ob-welcome-main::after { content: ""; flex: 1 0 0; max-height: 144px; }');
+});
+
+// showModal() first focuses Doany, the dialog's first control; a heading focused a frame later leaves a frame in which
+// Doany's focus ring can paint (doan-mascot V1 measured Doany :focus-visible for ~42ms on Welcome).
+test("the overlay opens with its heading focused in the same task as showModal", () => {
+  const calls: string[] = [];
+  const dialog = { open: false, showModal() { calls.push("showModal"); this.open = true; } };
+  const heading = { focus() { calls.push("focus heading"); } };
+  openOverlay(dialog, heading);
+  expect(calls).toEqual(["showModal", "focus heading"]);
+  openOverlay(dialog, heading);
+  expect(calls).toEqual(["showModal", "focus heading"]);
+  openOverlay({ open: false, showModal() { calls.push("showModal without heading"); } }, null);
+  expect(calls.at(-1)).toBe("showModal without heading");
 });
 
 test("the setup steps are the shell capsule drawn with sm buttons: current is aria-current, a done step shows a check and goes back", () => {

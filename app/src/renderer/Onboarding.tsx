@@ -97,6 +97,13 @@ function dialogKeys(close: () => void) {
   };
 }
 const openModal = (node: HTMLDialogElement | null) => { if (node && !node.open) node.showModal(); };
+// showModal() focuses the dialog's first control, Doany on Welcome, and the scene effect reaches the heading only a
+// frame later; focusing the heading in the same task leaves no frame in which Doany's focus ring can paint.
+export function openOverlay(node: Pick<HTMLDialogElement, "open" | "showModal"> | null, heading: { focus(): void } | null) {
+  if (!node || node.open) return;
+  node.showModal();
+  heading?.focus();
+}
 
 export function PasteDialog({ view, value, submittable, tooLong, busy, change, submit, close }: {
   view: ReturnType<typeof pasteDialog>; value: string; submittable: boolean; tooLong: boolean; busy: boolean; change: (value: string) => void; submit: () => void; close: () => void;
@@ -663,7 +670,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   // A modal <dialog> sits above any app dialog already open (setup, comments),
   // which would otherwise stay on top and leave both unclickable.
   return <dialog className={welcome ? "ob-overlay ob-welcome" : "ob-overlay"} aria-label="Set up Doan"
-    ref={node => { overlay.current = node; if (node && !node.open) node.showModal(); }}
+    ref={node => { overlay.current = node; openOverlay(node, heading.current); }}
     onCancel={event => event.preventDefault()}>
     <div className="ob-chrome">
       {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => { if (to === "project") leave.forward(); else move({ type: "step", to }); }} />}
