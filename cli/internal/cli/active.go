@@ -24,8 +24,8 @@ type runtimeFile struct{ Socket, Token string }
 
 func appError(code, message string) *Error {
 	steps := map[string][]string{
-		// A sandboxed agent shell can be denied the socket while the app is running; the MCP server runs outside that sandbox.
-		"app_not_running":       {"Ask the user to open Doan", "If Doan is open, a sandbox may block this shell from its socket; call the MCP `active` tool instead", "If no MCP active tool is available, ask the user to name the target or connect this agent in Doan (Settings…)"},
+		// A sandbox can deny the socket even while the app is running.
+		"app_not_running":       {"Ask the user to open Doan", "If a socket permission error occurs inside an agent sandbox, run `doan` outside the sandbox or request approval; Codex gets this automatically after Doan is opened", "Ask the user to open Doan from Applications and check Settings… > About"},
 		"app_protocol_mismatch": {"Ask the user to update Doan and the doan CLI to matching versions"},
 		"project_not_open":      {"Ask the user to add this project in Doan (Add Project…), or work in the worktree that is open in Doan"},
 	}[code]

@@ -248,7 +248,7 @@ func TestActiveAppErrors(t *testing.T) {
 		{"bad_request", reply(`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`), "internal_error", ""},
 		{"response v 2", reply(`{"v":2}`), "app_protocol_mismatch", ""},
 		{"not json", reply(`<html>`), "internal_error", ""},
-		{"closed without response", func(c net.Conn, _ []byte) { c.Close() }, "app_not_running", "MCP `active`"},
+		{"closed without response", func(c net.Conn, _ []byte) { c.Close() }, "app_not_running", "outside the sandbox"},
 		{"partial line then close", func(c net.Conn, _ []byte) { c.Write([]byte(`{"v":1`)); c.Close() }, "internal_error", ""},
 		{"oversized line", func(c net.Conn, _ []byte) { c.Write(bytes.Repeat([]byte(" "), 64<<10+1)); c.Close() }, "internal_error", ""},
 		{"valid json over the cap", func(c net.Conn, _ []byte) {
