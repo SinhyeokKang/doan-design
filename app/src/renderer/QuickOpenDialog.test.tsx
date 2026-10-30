@@ -193,6 +193,13 @@ test("a row click that already closed the dialog does not dismiss it again on th
   expect(closesOnClick(dialog, dialog, null, { x: 50, y: 50 })).toBe(false);
 });
 
+test("a click on the header strip, read from the page at click time, does not close Quick Open", () => {
+  const dialog = { open: true, getBoundingClientRect: () => ({ left: 299, top: 128, right: 939, bottom: 679 }) };
+  const strip = { left: 0, top: 0, right: 1238, bottom: 56 };
+  expect(closesOnClick(dialog, dialog, { x: 619, y: 28, button: 0 }, { x: 619, y: 28 }, strip)).toBe(false);
+  expect(closesOnClick(dialog, dialog, { x: 100, y: 700, button: 0 }, { x: 100, y: 700 }, strip)).toBe(true);
+});
+
 test("tab list keys: Tab and Shift+Tab go back to the input keeping the active row, ↓ goes back to the first row, ←/→ choose a tab", () => {
   expect(quickOpenTabKey("Tab", "canvas")).toEqual({ kind: "input", first: false });
   expect(quickOpenTabKey("ArrowDown", "canvas")).toEqual({ kind: "input", first: true });

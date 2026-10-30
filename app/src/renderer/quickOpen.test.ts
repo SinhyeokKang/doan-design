@@ -482,4 +482,17 @@ describe("quick open outside click", () => {
       expect(outsideDialog(rect, press(x, y), { x, y })).toBe(false);
     }
   });
+
+  it("never closes for a press or a release on the header strip, its no-drag controls included", () => {
+    const strip = { left: 0, top: 0, right: 1238, bottom: 56 };
+    // The mode capsule and the history buttons sit inside the strip; the backdrop below it still closes.
+    expect(outsideDialog(rect, press(620, 28), { x: 620, y: 28 }, strip)).toBe(false);
+    expect(outsideDialog(rect, press(400, 28), { x: 400, y: 400 }, strip)).toBe(false);
+    expect(outsideDialog(rect, press(50, 400), { x: 50, y: 20 }, strip)).toBe(false);
+    // The strip's bottom edge belongs to the strip.
+    expect(outsideDialog(rect, press(50, 56), { x: 50, y: 56 }, strip)).toBe(false);
+    expect(outsideDialog(rect, press(50, 57), { x: 50, y: 57 }, strip)).toBe(true);
+    expect(outsideDialog(rect, press(50, 400), { x: 50, y: 400 }, strip)).toBe(true);
+    expect(outsideDialog(rect, press(50, 400), { x: 50, y: 400 }, null)).toBe(true);
+  });
 });
