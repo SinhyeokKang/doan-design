@@ -1,5 +1,6 @@
 import type { AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
 import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
+import type { SettingsTarget } from "./settingsSections";
 
 // Shared by onboarding, Settings, Home and conversations (2026-10-28 user). Copy follows the approved
 // buzz-onboarding draft's Authentication states tiles; states come from agent-auth DTOs only, never re-judged here.
@@ -23,12 +24,15 @@ export interface ProviderView {
   button: AuthButton | null; helper: string | null; notice: Notice | null;
   // Antigravity's secondary line under a waiting notice, outside its button row.
   paste: { prompt: string; button: AuthButton } | null;
+  // Settings only: a connected row's own Sign out beside its button, unless the row already offers one.
+  signOut: AuthButton | null;
 }
 // What this window knows beyond the snapshot. prompt: the attemptId of the last sign-in link it received.
 // reply: its last refused call for this provider. failures: sign_in_failed results in a row.
 // busyWith: the provider whose sign-in or sign-out holds the lock. autoCheck: the consumer checks unverified
 // connections itself when its screen opens (the onboarding Agent step), so the row may say so.
-export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null; autoCheck?: boolean }
+// settings: the row is on Settings > Agents rather than the first-run Agent step (buzz-settings design 'Agents').
+export interface ProviderContext { prompt?: string | null; reply?: AuthReason | null; failures?: number; busyWith?: Provider | null; autoCheck?: boolean; settings?: boolean }
 
 function button<C extends string>(command: C, label: string, variant: Button["variant"] = "prominent", disabled = false, ariaLabel?: string): Button<C> {
   return { command, label, variant, disabled, ...(ariaLabel ? { ariaLabel } : {}) };
@@ -37,7 +41,7 @@ function alert<C extends string>(body: string, actions: Button<C>[], title?: str
 function progress(title: string, actions: AuthButton[], body?: string): Notice { return { role: "status", spinner: true, title, ...(body ? { body } : {}), actions }; }
 function disable(view: ProviderView): ProviderView {
   const off = (b: AuthButton): AuthButton => ({ ...b, disabled: true });
-  return { ...view, button: view.button && off(view.button), notice: view.notice && { ...view.notice, actions: view.notice.actions.map(off) }, paste: view.paste && { ...view.paste, button: off(view.paste.button) } };
+  return { ...view, button: view.button && off(view.button), notice: view.notice && { ...view.notice, actions: view.notice.actions.map(off) }, paste: view.paste && { ...view.paste, button: off(view.paste.button) }, signOut: view.signOut && off(view.signOut) };
 }
 
 // Copilot's check spends one model request; a version cause only re-reads tool facts and spends nothing.
@@ -63,7 +67,8 @@ function errorNotice(status: AuthStatusDto, ctx: ProviderContext): Notice | null
 function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: ProviderView): ProviderView {
   const { provider } = status, name = PROVIDER_NAMES[provider], r = status.readiness;
   const reauth = [button("signOut", "Sign out", "subtle"), button("reauth", "Sign in again")];
-  if (r.ready) return { ...view, button: button("signIn", "Connected", "prominent", true, `Connected to ${name}`) };
+  // Settings sorts rows into Connected and Not connected, so a ready row needs no Connected button of its own.
+  if (r.ready) return ctx.settings ? view : { ...view, button: button("signIn", "Connected", "prominent", true, `Connected to ${name}`) };
   switch (r.cause) {
     case "cli_missing": return { ...view, detail: "Not installed", button: button("install", "Install", "prominent", false, `Install ${name}`), helper: "After you install it, Doan checks again when you return." };
     case "version_unsupported": return { ...view, detail: "This version is older than Doan supports.", button: button("update", "Update", "prominent", false, `Update ${name}`), helper: "After you update it, Doan checks again when you return." };
@@ -87,6 +92,12 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
       const notice = errorNotice(status, ctx);
       if (notice) return { ...view, notice };
       const copilot = provider === "copilot";
+      // Settings checks with Check, not first run's Retry (2026-10-30 draft review), and says the Copilot cost below the row.
+      if (ctx.settings) return {
+        ...view, detail: view.detail === null ? "Not checked" : `${view.detail} · not checked`,
+        button: button("check", "Check", "prominent", false, copilot ? `Check ${name}, uses one Copilot request` : `Check ${name}`),
+        helper: copilot ? "Checking uses one Copilot request." : ctx.autoCheck ? "Doan checks this automatically when you open Agents." : null,
+      };
       return {
         ...view, detail: copilot ? "Connected · not checked · Retry uses one Copilot request" : "Connected · not checked",
         button: button("check", "Retry", "prominent", false, copilot ? `Check ${name} again, uses one Copilot request` : `Check ${name} again`),
@@ -101,11 +112,12 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
 export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): ProviderView {
   const { provider, attempt } = status, name = PROVIDER_NAMES[provider];
   const account = status.account && (status.account.email ?? status.account.displayName ?? null);
-  const view: ProviderView = { provider, name, detail: status.account ? account : VENDORS[provider], detailRole: null, button: null, helper: null, notice: null, paste: null };
+  const view: ProviderView = { provider, name, detail: status.account ? account : VENDORS[provider], detailRole: null, button: null, helper: null, notice: null, paste: null, signOut: null };
   const signInDisabled = button("signIn", "Sign in", "prominent", true, `Sign in to ${name}`);
   // Ownership is not inferred: after a reload, or for a CLI-started sign-in, this window may own the attempt without
   // knowing its id, and must keep Cancel ('agent-auth 인계'). Only agent-auth's not_owner reply says otherwise.
-  if (ctx.reply === "not_owner") return { ...view, detail: "Finish this sign-in in the window that started it.", detailRole: "status", button: signInDisabled };
+  // Settings is in the only window, so the other owner is the CLI or MCP client that started it.
+  if (ctx.reply === "not_owner") return { ...view, detail: ctx.settings ? "Finish this sign-in where it started." : "Finish this sign-in in the window that started it.", detailRole: "status", button: signInDisabled };
   if (attempt?.kind === "signIn") {
     const prompted = ctx.prompt === attempt.id, cancel = button("cancel", "Cancel", "subtle");
     let waiting: ProviderView;
@@ -119,9 +131,21 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
     return attempt.cancelling ? disable(waiting) : waiting;
   }
   if (attempt?.kind === "signOut") return { ...view, notice: progress(`Signing out of ${name}`, []) };
-  if (ctx.reply === "busy") return { ...view, detail: `Finish or cancel the ${ctx.busyWith ? PROVIDER_NAMES[ctx.busyWith] : "other"} sign-in first.`, detailRole: "status", button: signInDisabled };
-  const settled = readinessView(status, ctx, view);
+  if (ctx.reply === "busy") {
+    const busy = { ...view, detail: `Finish or cancel the ${ctx.busyWith ? PROVIDER_NAMES[ctx.busyWith] : "other"} sign-in first.`, detailRole: "status" as const };
+    // A refused Sign out on a Settings Connected row: the row keeps its own action, not first run's Sign in.
+    if (ctx.settings && status.account !== null) return disable(withSignOut(status, ctx, busy));
+    return { ...busy, button: signInDisabled };
+  }
+  const settled = withSignOut(status, ctx, readinessView(status, ctx, view));
   return attempt?.kind === "check" ? disable(settled) : settled;
+}
+
+// Settings keeps Sign out on every connected row (first run shows it only to recover), once per row.
+function withSignOut(status: AuthStatusDto, ctx: ProviderContext, view: ProviderView): ProviderView {
+  if (!ctx.settings || status.account === null) return view;
+  if ([view.button, ...(view.notice?.actions ?? [])].some(b => b?.command === "signOut")) return view;
+  return { ...view, signOut: button("signOut", "Sign out", "subtle", false, `Sign out of ${view.name}`) };
 }
 
 // Home's agent picker lists connected providers only and has no recovery buttons (2026-10-29 user), so a row
@@ -159,6 +183,44 @@ export function authListView(auth: AuthSnapshot | null | undefined, contexts: Pa
     providers: auth.providers.map(p => providerView(p, { busyWith: holder, ...shared, ...contexts[p.provider] })),
     anyReady: auth.providers.some(p => p.readiness.ready),
   };
+}
+
+// Settings > Agents: rows split by whether a connection is saved, an expired one included; an empty section is hidden.
+// A row keeps its provider, so focus on its group follows it into the other section.
+export interface AgentsSection { id: "connected" | "notConnected"; title: string; providers: ProviderView[] }
+export function agentsSettingsView(auth: AuthSnapshot | null | undefined, contexts: Partial<Record<Provider, ProviderContext>> = {}, shared: ProviderContext = {}): { notice: Notice | null; sections: AgentsSection[]; anyReady: boolean } {
+  const list = authListView(auth, contexts, { ...shared, settings: true });
+  const saved = new Set(auth?.providers.filter(p => p.account !== null).map(p => p.provider));
+  const sections: AgentsSection[] = [
+    { id: "connected", title: "Connected", providers: list.providers.filter(view => saved.has(view.provider)) },
+    { id: "notConnected", title: "Not connected", providers: list.providers.filter(view => !saved.has(view.provider)) },
+  ];
+  return { notice: list.notice, sections: sections.filter(section => section.providers.length > 0), anyReady: list.anyReady };
+}
+
+// Home's agent picker sends a group that cannot run to its Agents row (buzz-settings design '홈 공급자 선택기'). A row
+// that can run (ready, or unverified, which main checks on send) and a provider without a connection have none.
+export interface SettingsAction { label: string; target: SettingsTarget }
+export function pickerAction(status: AuthStatusDto): SettingsAction | null {
+  const r = status.readiness;
+  if (status.account === null || r.ready || r.cause === "unverified") return null;
+  const target: SettingsTarget = { section: "agents", provider: status.provider };
+  if (r.cause === "reauth_required" && status.phase === "reauthRequired") return { label: "Sign in again…", target };
+  if (r.cause === "version_unsupported" || r.cause === "version_incompatible") return { label: "Update…", target };
+  return { label: "Open Agents settings…", target };
+}
+// Providers without a connection are not listed, so the last item is how a new one is added; with nothing able to run
+// it is the menu's only focus target.
+export function pickerFooter(anyRunnable: boolean): { note: string | null; action: SettingsAction } {
+  return anyRunnable
+    ? { note: null, action: { label: "Manage agents…", target: { section: "agents" } } }
+    : { note: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" } } };
+}
+
+// A sign-in that ends while Settings > Agents is not shown (design 'App 수준 로그인 컨트롤러'); the window is not raised.
+export function signInToast(provider: Provider, ok: boolean): { text: string; action: SettingsAction | null } {
+  const name = PROVIDER_NAMES[provider];
+  return ok ? { text: `${name} connected.`, action: null } : { text: `${name} sign-in didn’t finish.`, action: { label: "Open Agents settings", target: { section: "agents", provider } } };
 }
 
 // Project step: completion needs a ready agent at the moment it is saved.

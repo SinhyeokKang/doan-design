@@ -1,11 +1,12 @@
-import type { AuthPromptEvent, AuthReason, AuthSnapshot } from "../main/agentAuth/ipc";
+import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { DoanApi } from "../preload";
 import {
-  authListView, cancelledAnnouncement, MAX_PASTE, PROVIDER_NAMES, pasteDialog, pasteSubmittable, readyAnnouncements, replyEffect, stopDialog,
+  authListView, MAX_PASTE, PROVIDER_NAMES, pasteDialog, pasteSubmittable, stopDialog,
   type AuthCommand, type ProviderContext,
 } from "./agentAuthView";
-import { canAdvance, newerAuth, ownedSignIns } from "./onboardingScene";
+import { AgentSignIn } from "./agentSignIn";
+import { canAdvance } from "./onboardingScene";
 
 type Api = Pick<DoanApi, "readAgentAuth" | "onAgentAuth" | "checkAgentAuth" | "signInAgent" | "signOutAgent" | "cancelAgentSignIn" |
   "submitAgentSignInCode" | "openAgentSignInLink" | "onAgentSignInPrompt">;
@@ -18,6 +19,8 @@ export interface AgentStepDeps {
   // Attempt ids this window started, kept across a renderer reload; agent-auth still names the window their owner.
   remember?(ids: readonly string[]): void;
   recall?(): string[];
+  // The renderer's sign-in controller. Without one the step keeps a private controller and disposes it with itself.
+  signIn?: AgentSignIn;
 }
 export type AgentDialog =
   | { kind: "stop"; provider: Provider; intent: "signIn" | "signOut" }
@@ -33,95 +36,86 @@ export interface AgentStepState {
   installError: string | null;
   continuing: boolean;
 }
+type OwnState = Omit<AgentStepState, "auth" | "contexts">;
 
 // Providers whose check is free and whose state a check can settle: re-checked on step entry and on return from
 // an install page (design '이동·취소·포커스 계약'). Copilot's check spends a model request, so only its Retry checks.
 const AUTO_CHECK = new Set(["unverified", "tools_missing", "tools_failed"]);
-// Cursor and Copilot open the browser themselves (2026-10-28 user), so only these links open on the first prompt.
-const AUTO_OPEN: readonly Provider[] = ["claude", "codex", "antigravity"];
-// Codex prints its local callback server before the auth page; opening the server's address shows nothing useful.
-function loopback(url: string): boolean {
-  try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname); } catch { return false; }
-}
 
-// The onboarding Agent step's state over agent-auth. It never judges readiness itself (authListView does), and it
-// cancels only attempts this window started.
+// The onboarding Agent step's state over the renderer's sign-in controller. It never judges readiness itself
+// (authListView does), and it cancels only attempts this renderer started.
 export class AgentStepSession {
-  state: AgentStepState = { auth: undefined, contexts: {}, dialog: null, announcement: null, focus: null, installError: null, continuing: false };
+  private own: OwnState = { dialog: null, announcement: null, focus: null, installError: null, continuing: false };
   private live = false;
   private stops: (() => void)[] = [];
   private seq = 0;
-  // Attempt ids this window started: Continue and Back cancel only these.
-  private owned: string[];
-  private opened = new Set<string>();
-  // Sign-in calls of this window still waiting for their attempt id, and prompts that came before that id: a main
-  // event and an invoke reply have no guaranteed order, so a prompt cannot be judged until the reply lands.
-  private starting = 0;
-  private held: AuthPromptEvent[] = [];
-  // The provider of each sign-in this window started, until it settles: its ready change is announced here.
-  private ownedBy = new Map<Provider, string>();
+  private readonly signIn: AgentSignIn;
+  private readonly owner: boolean;
   // Replies that open a dialog belong to the Agent step only; one landing after Back or Continue is dropped.
   private onStep = false;
-  private cancelled = new Set<Provider>();
   // Install pages opened, checked again when the window regains focus.
   private installs = new Set<Provider>();
-  private pending: string[] = [];
-  constructor(private readonly deps: AgentStepDeps) { this.owned = deps.recall?.() ?? []; }
+  constructor(private readonly deps: AgentStepDeps) {
+    this.owner = !deps.signIn;
+    this.signIn = deps.signIn ?? new AgentSignIn({ api: deps.api, hasFocus: () => deps.hasFocus(), remember: ids => deps.remember?.(ids), recall: () => deps.recall?.() ?? [] });
+  }
 
+  get state(): AgentStepState { return { ...this.own, auth: this.signIn.state.auth, contexts: this.signIn.state.contexts }; }
+
+  // The wizard shows the rows for its whole life, so first-run announcements stay on its live region as before.
   start(): void {
     this.live = true;
-    const { api } = this.deps;
-    this.stops.push(api.onAgentAuth(snapshot => this.apply(snapshot)), api.onAgentSignInPrompt(event => this.prompted(event)));
+    this.signIn.start();
+    this.stops.push(this.signIn.subscribe(() => { this.followPaste(); this.deps.changed(); }), this.signIn.show({
+      announce: (text, returning) => {
+        this.announce(text);
+        if (returning && canAdvance(this.signIn.state.auth ?? null)) this.focusOn("continue");
+      },
+      dialog: (provider, intent) => { if (this.onStep) this.set({ dialog: { kind: "stop", provider, intent } }); },
+    }));
   }
   // Each entry to the Agent step reads, then checks what a free check can settle.
   enter(): void {
     this.onStep = true;
-    void this.read().then(() => {
+    void this.signIn.read().then(() => {
       if (!this.live) return;
-      for (const status of this.providers()) if (status.provider !== "copilot" && !status.attempt && !status.readiness.ready && AUTO_CHECK.has(status.readiness.cause)) this.check(status.provider);
+      for (const status of this.providers()) if (status.provider !== "copilot" && !status.attempt && !status.readiness.ready && AUTO_CHECK.has(status.readiness.cause)) this.signIn.check(status.provider);
     });
   }
   dispose(): void {
     this.live = false;
     for (const stop of this.stops.splice(0)) stop();
+    if (this.owner) this.signIn.dispose();
   }
-  view() { return authListView(this.state.auth, this.state.contexts, { autoCheck: true }); }
-  canContinue(): boolean { return canAdvance(this.state.auth ?? null) && !this.state.continuing; }
+  view() { return authListView(this.signIn.state.auth, this.signIn.state.contexts, { autoCheck: true }); }
+  canContinue(): boolean { return canAdvance(this.signIn.state.auth ?? null) && !this.own.continuing; }
 
-  retryRead(): void { void this.read(); }
+  retryRead(): void { void this.signIn.read(); }
   // Returning from a browser or an install page: read everything; only install returns check. Copilot is checked only
   // while its cause is the CLI or its version, when a check re-reads tool facts and spends no request (D21).
   windowFocused(): void {
     const installed = [...this.installs];
     this.installs.clear();
-    void this.read().then(() => {
+    void this.signIn.read().then(() => {
       if (!this.live) return;
       for (const provider of installed) {
         const r = this.status(provider)?.readiness;
-        if (provider !== "copilot" || (r && !r.ready && (r.cause === "cli_missing" || r.cause.startsWith("version_")))) this.check(provider);
+        if (provider !== "copilot" || (r && !r.ready && (r.cause === "cli_missing" || r.cause.startsWith("version_")))) this.signIn.check(provider);
       }
     });
-    this.flushAnnouncements();
+    this.signIn.windowFocused();
   }
 
   command(provider: Provider, command: AuthCommand): void {
     if (!this.live) return;
     const attempt = this.status(provider)?.attempt;
     switch (command) {
-      case "signIn": case "reauth": this.write(provider, "signIn"); return;
-      case "signOut": this.write(provider, "signOut"); return;
-      case "check": this.context(provider, { reply: null }); this.check(provider); return;
+      case "signIn": case "reauth": void this.signIn.signIn(provider); return;
+      case "signOut": void this.signIn.signOut(provider); return;
+      case "check": this.signIn.checkAgain(provider); return;
       case "install": case "update": void this.install(provider); return;
-      case "cancel":
-        if (attempt?.kind !== "signIn") return;
-        this.cancelled.add(provider);
-        void this.reply(provider, this.deps.api.cancelAgentSignIn(provider, attempt.id), "signIn");
-        return;
-      case "openLink":
-        if (attempt?.kind !== "signIn") return;
-        this.context(provider, { reply: null });
-        void this.reply(provider, this.deps.api.openAgentSignInLink(provider, attempt.id), "signIn");
-        return;
+      case "cancel": this.signIn.cancel(provider); return;
+      case "openLink": this.signIn.openLink(provider); return;
       case "pasteAddress":
         if (attempt?.kind !== "signIn") return;
         this.set({ dialog: { kind: "paste", provider, attemptId: attempt.id, value: "", submitting: false } });
@@ -131,147 +125,50 @@ export class AgentStepSession {
     }
   }
 
-  stopView() { const d = this.state.dialog; return d?.kind === "stop" ? stopDialog(d.provider, d.intent) : null; }
-  pasteView() { return this.state.dialog?.kind === "paste" ? pasteDialog() : null; }
-  pasteSubmittable(): boolean { const d = this.state.dialog; return d?.kind === "paste" && !d.submitting && pasteSubmittable(d.value); }
+  stopView() { const d = this.own.dialog; return d?.kind === "stop" ? stopDialog(d.provider, d.intent) : null; }
+  pasteView() { return this.own.dialog?.kind === "paste" ? pasteDialog() : null; }
+  pasteSubmittable(): boolean { const d = this.own.dialog; return d?.kind === "paste" && !d.submitting && pasteSubmittable(d.value); }
   // The field keeps the whole paste so a cut-off address is never submitted; the limit is shown instead.
-  pasteTooLong(): boolean { const d = this.state.dialog; return d?.kind === "paste" && d.value.length > MAX_PASTE; }
-  setPaste(value: string): void { const d = this.state.dialog; if (d?.kind === "paste") this.set({ dialog: { ...d, value } }); }
+  pasteTooLong(): boolean { const d = this.own.dialog; return d?.kind === "paste" && d.value.length > MAX_PASTE; }
+  setPaste(value: string): void { const d = this.own.dialog; if (d?.kind === "paste") this.set({ dialog: { ...d, value } }); }
   async submitPaste(): Promise<void> {
-    const d = this.state.dialog;
+    const d = this.own.dialog;
     if (d?.kind !== "paste" || !this.pasteSubmittable()) return;
     this.set({ dialog: { ...d, submitting: true } });
-    const result = await this.settle(this.deps.api.submitAgentSignInCode(d.provider, d.attemptId, d.value));
-    if (!this.live || this.state.dialog?.kind !== "paste") return;
+    const result = await this.signIn.submitCode(d.provider, d.attemptId, d.value);
+    if (!this.live || this.own.dialog?.kind !== "paste") return;
     this.set({ dialog: null });
     this.focusOn("paste", d.provider);
-    if (!result.ok) this.refused(d.provider, result.reason, "signIn");
+    if (!result.ok) this.signIn.refuse(d.provider, result.reason, "signIn");
   }
   async confirmStop(): Promise<void> {
-    const d = this.state.dialog;
+    const d = this.own.dialog;
     if (d?.kind !== "stop") return;
     this.set({ dialog: null });
-    await this.write(d.provider, d.intent, true);
+    await (d.intent === "signIn" ? this.signIn.signIn(d.provider, true) : this.signIn.signOut(d.provider, true));
   }
   // Escape or Cancel: a paste modal hands focus back to its Paste its address button.
   closeDialog(): void {
-    const d = this.state.dialog;
+    const d = this.own.dialog;
     // A submitted address is answered before the modal goes, so a late reply cannot close a newer one.
     if (!d || (d.kind === "paste" && d.submitting)) return;
     this.set({ dialog: null });
     if (d.kind === "paste") this.focusOn("paste", d.provider);
   }
 
-  // Continue with another provider ready cancels this window's own sign-ins still running (2026-10-28 user).
+  // Continue with another provider ready cancels this renderer's own sign-ins still running (2026-10-28 user).
   async continue(): Promise<boolean> {
     if (!this.canContinue()) return false;
     this.set({ continuing: true });
     this.leave();
-    await this.cancelOwned();
+    await this.signIn.cancelOwned();
     if (this.live) this.set({ continuing: false });
     return true;
   }
-  // Back keeps saved connections; only this window's running sign-ins are cancelled.
-  async back(): Promise<void> { this.leave(); await this.cancelOwned(); }
-  private leave(): void { this.onStep = false; if (this.state.dialog) this.set({ dialog: null }); }
+  // Back keeps saved connections; only this renderer's running sign-ins are cancelled.
+  async back(): Promise<void> { this.leave(); await this.signIn.cancelOwned(); }
+  private leave(): void { this.onStep = false; if (this.own.dialog) this.set({ dialog: null }); }
 
-  private async cancelOwned(): Promise<void> {
-    const auth = this.state.auth ?? null;
-    await Promise.all(ownedSignIns(auth, this.owned).map(({ provider, attemptId }) => this.settle(this.deps.api.cancelAgentSignIn(provider, attemptId))));
-  }
-  private async read(): Promise<void> {
-    let snapshot: AuthSnapshot | null;
-    try { snapshot = await this.deps.api.readAgentAuth(); } catch {
-      // A failed call is not an unreadable store: a list already shown stays until the next read or event.
-      snapshot = this.state.auth ? this.state.auth : null;
-    }
-    if (!this.live) return;
-    if (snapshot === null) { this.set({ auth: null }); return; }
-    this.apply(snapshot);
-  }
-  private apply(incoming: AuthSnapshot): void {
-    if (!this.live) return;
-    const previous = this.state.auth ?? null;
-    const next = newerAuth(previous, incoming);
-    if (next === previous) return;
-    const contexts = { ...this.state.contexts };
-    const holder = next.providers.find(p => p.attempt && p.attempt.kind !== "check");
-    for (const status of next.providers) {
-      const { provider, attempt } = status, old = previous?.providers.find(p => p.provider === provider);
-      const ctx = { ...contexts[provider] };
-      if (ctx.reply === "busy" && !holder) ctx.reply = null;
-      if ((ctx.reply === "not_owner" || ctx.reply === "open_failed") && (attempt?.kind !== "signIn" || attempt.id !== this.replyAttempt.get(provider))) ctx.reply = null;
-      if (old?.attempt?.kind === "signIn" && attempt?.kind !== "signIn" && status.error?.code === "sign_in_failed") ctx.failures = (ctx.failures ?? 0) + 1;
-      if (status.readiness.ready) ctx.failures = 0;
-      contexts[provider] = ctx;
-      if (this.cancelled.has(provider) && attempt?.kind !== "signIn") {
-        this.cancelled.delete(provider);
-        if (!status.readiness.ready && !status.error) this.announce(cancelledAnnouncement(provider));
-      }
-    }
-    const paste = this.state.dialog?.kind === "paste" ? this.state.dialog : null;
-    const pasteLive = paste && next.providers.some(p => p.provider === paste.provider && p.attempt?.kind === "signIn" && p.attempt.id === paste.attemptId);
-    this.set({ auth: next, contexts, ...(paste && !pasteLive ? { dialog: null } : {}) });
-    // The attempt behind the modal ended (the page loaded after all, or it was cancelled): nothing is left to submit.
-    if (paste && !pasteLive) this.focusOn("paste", paste.provider);
-    // A sign-in finishes in the browser: the change is announced once with role=status when the window regains focus,
-    // which never raises the window (2026-10-28 user). One seen while the window has focus (a check, a Retry) is on
-    // screen already and must not pull focus away from where the user is.
-    // Conductor 2026-10-29: a sign-in this window started that turns ready while the window has focus (a pasted address,
-    // a quick return) is still announced once, without moving focus.
-    const focused = this.deps.hasFocus();
-    for (const status of next.providers) {
-      const became = readyAnnouncements(previous, { revision: next.revision, providers: [status] });
-      if (became.length === 0) continue;
-      if (!focused) this.pending.push(...became);
-      else if (this.ownedBy.has(status.provider)) this.announce(became.join(". "));
-      this.ownedBy.delete(status.provider);
-    }
-  }
-  private flushAnnouncements(): void {
-    if (!this.live || this.pending.length === 0) return;
-    const text = this.pending.splice(0).join(". ");
-    this.announce(text);
-    if (canAdvance(this.state.auth ?? null)) this.focusOn("continue");
-  }
-  private prompted(event: AuthPromptEvent): void {
-    if (!this.live) return;
-    this.context(event.provider, { prompt: event.attemptId });
-    if (this.owned.includes(event.attemptId)) this.autoOpen(event);
-    else if (this.starting > 0) this.held.push(event);
-    // Otherwise the attempt was started elsewhere (CLI or MCP, owned by this window too): main opens its link (D15).
-  }
-  private autoOpen(event: AuthPromptEvent): void {
-    if (!AUTO_OPEN.includes(event.provider) || this.opened.has(event.attemptId) || loopback(event.url)) return;
-    this.opened.add(event.attemptId);
-    void this.reply(event.provider, this.deps.api.openAgentSignInLink(event.provider, event.attemptId), "signIn");
-  }
-  // A check already on its way is not sent again (a second entry before its snapshot shows the attempt).
-  private checking = new Set<Provider>();
-  private check(provider: Provider): void {
-    if (this.checking.has(provider)) return;
-    this.checking.add(provider);
-    void this.settle(this.deps.api.checkAgentAuth(provider)).then(result => {
-      this.checking.delete(provider);
-      if (!result.ok) this.refused(provider, result.reason, "signIn");
-    });
-  }
-  private async write(provider: Provider, intent: "signIn" | "signOut", stop = false): Promise<void> {
-    this.context(provider, { reply: null });
-    const signIn = intent === "signIn";
-    if (signIn) this.starting++;
-    const call = signIn ? this.deps.api.signInAgent(provider, stop ? { stop: true } : {}) : this.deps.api.signOutAgent(provider, stop ? { stop: true } : {});
-    const result = await this.settle(call);
-    if (signIn) this.starting--;
-    if (!this.live) return;
-    if (result.ok && "attemptId" in result && signIn) { this.owned.push(result.attemptId); this.ownedBy.set(provider, result.attemptId); this.deps.remember?.(this.owned); }
-    if (signIn) {
-      const held = this.held;
-      this.held = this.starting > 0 ? held.filter(event => !this.owned.includes(event.attemptId)) : [];
-      for (const event of held) if (this.owned.includes(event.attemptId)) this.autoOpen(event);
-    }
-    if (!result.ok) this.refused(provider, result.reason, intent);
-  }
   // Only the latest Install or Update result is shown (POSTMORTEM 2026-10-25, an older install failure).
   private installRequests = 0;
   private async install(provider: Provider): Promise<void> {
@@ -283,36 +180,18 @@ export class AgentStepSession {
     if (opened) this.installs.add(provider);
     if (request === this.installRequests && !opened) this.set({ installError: `Couldn’t open the ${PROVIDER_NAMES[provider]} install page.` });
   }
-  private async reply(provider: Provider, call: Promise<{ ok: true } | { ok: false; reason: AuthReason }>, intent: "signIn" | "signOut"): Promise<void> {
-    const result = await this.settle(call);
-    if (this.live && !result.ok) this.refused(provider, result.reason, intent);
-  }
-  private replyAttempt = new Map<Provider, string>();
-  private refused(provider: Provider, reason: AuthReason, intent: "signIn" | "signOut"): void {
-    if (!this.live) return;
-    switch (replyEffect(reason)) {
-      case "dialog": if (this.onStep) this.set({ dialog: { kind: "stop", provider, intent } }); return;
-      case "reread": void this.read(); return;
-      case "show": {
-        const attempt = this.status(provider)?.attempt;
-        if (attempt) this.replyAttempt.set(provider, attempt.id);
-        this.context(provider, { reply: reason });
-      }
-    }
-  }
-  // A rejected IPC call reads like a forged one: the latest state is read again.
-  private settle<T>(call: Promise<T>): Promise<T | { ok: false; reason: "invalid" }> {
-    return call.catch(() => ({ ok: false as const, reason: "invalid" as const }));
+  // The attempt behind the paste modal ended (the page loaded after all, or it was cancelled): nothing is left to submit.
+  private followPaste(): void {
+    const d = this.own.dialog, auth = this.signIn.state.auth;
+    if (d?.kind !== "paste" || !auth || auth.providers.some(p => p.provider === d.provider && p.attempt?.kind === "signIn" && p.attempt.id === d.attemptId)) return;
+    this.own = { ...this.own, dialog: null, focus: { target: "paste", provider: d.provider, seq: ++this.seq } };
   }
   private announce(text: string): void { this.set({ announcement: { text, seq: ++this.seq } }); }
   private focusOn(target: "continue" | "paste", provider?: Provider): void { this.set({ focus: { target, ...(provider ? { provider } : {}), seq: ++this.seq } }); }
-  private providers() { return this.state.auth?.providers ?? []; }
+  private providers() { return this.signIn.state.auth?.providers ?? []; }
   private status(provider: Provider) { return this.providers().find(p => p.provider === provider); }
-  private context(provider: Provider, patch: ProviderContext): void {
-    this.set({ contexts: { ...this.state.contexts, [provider]: { ...this.state.contexts[provider], ...patch } } });
-  }
-  private set(patch: Partial<AgentStepState>): void {
-    this.state = { ...this.state, ...patch };
+  private set(patch: Partial<OwnState>): void {
+    this.own = { ...this.own, ...patch };
     this.deps.changed();
   }
 }

@@ -2,6 +2,7 @@
 // main validates what the renderer saves, and the restore plan reads the result.
 
 import { validProvider, type Provider } from "../main/agentAuth/types";
+import { parseSettingsSection, type SettingsSection } from "../renderer/settingsSections";
 
 export interface UiView {
   scale: number;
@@ -40,6 +41,8 @@ export interface UiState {
   expanded: Record<string, string[]>;
   lastByRoot: Record<string, { canvas: string; view: UiView }>;
   home?: HomeMemory;
+  // The Settings page's last category. The page itself is not restored; only where it opens next.
+  settingsSection?: SettingsSection;
 }
 
 export const UI_STATE_MAX_BYTES = 64 * 1024;
@@ -93,6 +96,9 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
     state.shellProjects = Object.fromEntries(projects);
   }
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
+  // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
+  const section = parseSettingsSection(value["settingsSection"]) ?? parseSettingsSection(value["settingsTab"]);
+  if (section !== null) state.settingsSection = section;
   if (root !== undefined) state.root = root;
   if (canvas !== undefined) state.canvas = canvas;
   if (canvasId !== undefined) state.canvasId = canvasId;

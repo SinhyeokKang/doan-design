@@ -9,7 +9,7 @@ import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectCh
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
-const base: ProviderView = { provider: "claude", name: "Claude Code", detail: "Anthropic", detailRole: null, button: null, helper: null, notice: null, paste: null };
+const base: ProviderView = { provider: "claude", name: "Claude Code", detail: "Anthropic", detailRole: null, button: null, helper: null, notice: null, paste: null, signOut: null };
 
 test("Welcome: wordmark, two-line heading and the lg Get started button with an arrow", () => {
   const html = renderToStaticMarkup(<Welcome start={noop} />);

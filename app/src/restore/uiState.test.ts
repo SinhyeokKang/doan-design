@@ -219,3 +219,22 @@ test("a prototype-polluting provider key is not a provider", () => {
   expect(state?.home?.models).toEqual({});
   expect(Object.getPrototypeOf(state?.home?.models)).toBe(Object.prototype);
 });
+
+// buzz-settings design '포맷 변경': the Settings category is a plain renderer field; the old main-composed tab is read once.
+test("keeps a saved Settings section", () => {
+  for (const settingsSection of ["agents", "notifications", "connections", "about"])
+    expect(parse({ screen: "home", settingsSection })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection });
+});
+
+test("an old settingsTab becomes the Settings section: connections stays, projects becomes Agents", () => {
+  expect(parse({ screen: "home", settingsTab: "connections" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "connections" });
+  expect(parse({ screen: "home", settingsTab: "projects" })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, settingsSection: "agents" });
+});
+
+test("a saved Settings section wins over the old settingsTab, and an unknown one is dropped on its own", () => {
+  expect(parse({ screen: "home", settingsSection: "about", settingsTab: "connections" })?.settingsSection).toBe("about");
+  expect(parse({ screen: "home", settingsSection: "projects-old", settingsTab: "connections" })?.settingsSection).toBe("connections");
+  expect(parse({ screen: "home", settingsSection: 3 })).toEqual({ screen: "home", expanded: {}, lastByRoot: {} });
+  // The old name is only read: the section is the one field written back.
+  expect(parse({ screen: "home", settingsTab: "connections" })).not.toHaveProperty("settingsTab");
+});

@@ -1,8 +1,11 @@
 import type { ProjectPhase } from "./projectStep";
 
-// Where the Add Projects page goes when it is left (buzz-add-projects design '화면과 이동'). The origin is the last
-// Projects-side screen, not the previous one, so a later Settings tab cannot become the return target.
+// Where a page (Add Projects or Settings) goes when it is left (buzz-add-projects design '화면과 이동', buzz-settings
+// design '화면과 내비게이션'). The origin is the last Projects-side screen, not the previous one, so moving from one page
+// to the other never makes a page the return target.
 export type AddPageOrigin = { screen: "home" } | { screen: "workspace"; root: string };
+export type PageName = "addProjects" | "settings";
+export type ShellScreen = AddPageOrigin | { screen: PageName };
 export type AddPageEvent =
   | { kind: "projectsTab" } | { kind: "back" } | { kind: "cancel" } | { kind: "forward" } | { kind: "reopen" } | { kind: "home" }
   // editing: an edited field or an IME composition holds the key. overlay: Quick Open or a dialog closes itself first.
@@ -16,7 +19,18 @@ export type AddPageDestination =
   | { kind: "home"; select: string | null }
   | { kind: "workspace"; root: string };
 
-export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots: readonly string[]): AddPageDestination {
+// Entering hides the Projects-side screen and keeps its state; a start-up restore or a workspace still opening would
+// otherwise land after the entry and take the window away from the page (POSTMORTEM 2026-10-27 'Shell navigation
+// shortcuts lost destination ownership and recovery access'). A locked page cannot be left, not even for the other one.
+export function pageEnter(from: ShellScreen, origin: AddPageOrigin, to: PageName, locked: boolean): { kind: "stay" } | { kind: "enter"; origin: AddPageOrigin; cancelPending: true } {
+  if (locked || from.screen === to) return { kind: "stay" };
+  return { kind: "enter", origin: from.screen === "home" || from.screen === "workspace" ? from : origin, cancelPending: true };
+}
+
+// locked: the page owns a write, a clone or a confirmation, so every move away is ignored; the page's own completion
+// (added) is not a move away.
+export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots: readonly string[], locked = false): AddPageDestination {
+  if (locked && event.kind !== "added") return { kind: "stay" };
   switch (event.kind) {
     case "forward": case "reopen": return { kind: "stay" };
     case "escape": if (event.editing || event.overlay) return { kind: "stay" }; break;
