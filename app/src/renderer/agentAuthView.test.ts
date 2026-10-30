@@ -333,7 +333,7 @@ test("settings context: a ready connection shows its account and Sign out only",
 
 test("settings context: an unchecked connection says so after the account, with Check and Sign out", () => {
   const codex = providerView(dto("codex", { account: ACCOUNT }), { ...S, autoCheck: true });
-  expect(only(codex)).toEqual({ detail: "ada@example.com · not checked", button: "prominent:Check:check", notice: null, helper: "Doan checks this automatically when you open Agents." });
+  expect(only(codex)).toEqual({ detail: "ada@example.com · not checked", button: "subtle:Check:check", notice: null, helper: "Doan checks this automatically when you open Agents." });
   expect(codex.button?.ariaLabel).toBe("Check Codex");
   expect(signOutOf(codex)).toBe("subtle:Sign out:signOut");
   expect(providerView(dto("codex", { account: { id: null, workspace: null } }), S).detail).toBe("Not checked");
@@ -342,7 +342,7 @@ test("settings context: an unchecked connection says so after the account, with 
 
 test("settings context: Copilot is checked only by Check, and the row says what a check costs", () => {
   const copilot = providerView(dto("copilot", { account: ACCOUNT }), { ...S, autoCheck: true });
-  expect(only(copilot)).toEqual({ detail: "ada@example.com · not checked", button: "prominent:Check:check", notice: null, helper: "Checking uses one Copilot request." });
+  expect(only(copilot)).toEqual({ detail: "ada@example.com · not checked", button: "subtle:Check:check", notice: null, helper: "Checking uses one Copilot request." });
   expect(copilot.button?.ariaLabel).toBe("Check GitHub Copilot, uses one Copilot request");
   expect(copilot.button?.note).toBeUndefined();
 });

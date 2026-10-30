@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -139,4 +140,27 @@ test("while the page is locked the other categories and Search show as unavailab
   const rows = all(side.find(element => element.type === "nav")!.props.children as ReactNode).filter(element => element.type === "button");
   expect(rows.map(button => button.props["aria-disabled"])).toEqual([undefined, true, true, true]);
   expect(side.find(element => element.props.className === "shell-search")!.props["aria-disabled"]).toBe(true);
+});
+
+// buzz-settings R3 (design-sync against .doan/canvases/buzz-settings.html): values a jsdom render cannot show.
+test("the current category takes the pressed fill with standard ink, and a locked category's icon dims with its label", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain('.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }');
+  expect(css).toContain('.shell-side .shell-settings-row[aria-current="page"] svg { color: var(--text-standard); }');
+  expect(css).toContain('.shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }');
+});
+
+test("dialogs over Settings keep the page's 14/20 text and plain numerals without the page's tracking", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  // The Fix… confirmation is rendered inside the panel and would inherit its body-sm tracking.
+  expect(css).toContain(".settings-panel .doan-dialog { letter-spacing: normal; }");
+  expect(css).toContain(".settings-dialog { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }");
+});
+
+test("a line that belongs to the group, not a row (the recovery actions), is a row of its own under a hairline", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }");
+  expect(css).not.toContain(".doan-settings-group > .settings-recovery");
+  // The permission hint under Desktop notifications is the same kind of line but hugs the row above: its rule comes later.
+  expect(css.indexOf(".doan-settings-group > .doan-preference-row-extra {")).toBeLessThan(css.indexOf(".doan-settings-group > .settings-permission {"));
 });

@@ -211,7 +211,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-4);
+  /* No row gap: a line under the row (a notice, a helper) sets its own distance. */
+  gap: 0 var(--space-4);
   min-width: 0;
   padding: var(--space-3) 0;
 }
@@ -243,7 +244,7 @@ label.doan-preference-row-label { cursor: pointer; }
   min-width: 0;
   max-width: 100%;
 }
-.doan-preference-row[data-disabled] :is(.doan-preference-row-label, .doan-preference-row-description) { color: var(--text-disabled); cursor: not-allowed; }
+.doan-preference-row[data-disabled] :is(.doan-preference-row-label, .doan-preference-row-description) { color: var(--text-disabled); }
 @container (max-width: 24rem) {
   .doan-preference-row-trailing:has(button:not([role="switch"])) { grid-column: 1 / -1; justify-content: flex-start; }
 }

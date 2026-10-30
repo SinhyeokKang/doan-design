@@ -94,8 +94,8 @@ test("the switch is a 36 × 20 button[role=switch] with a 14px thumb as its own 
 
 test("a disabled switch takes the disabled fill and keeps its position; focus shows the shared ring", () => {
   const css = read("./controls.css");
-  expect(css).toContain('.doan-switch[role="switch"]:disabled { border-color: var(--affordance-disabled); background: var(--affordance-disabled); cursor: not-allowed; }');
-  expect(css).toContain('.doan-switch[role="switch"]:disabled::before { background: var(--affordance-subtle-pressed); box-shadow: none; }');
+  expect(css).toContain('.doan-switch[role="switch"]:disabled { border-color: transparent; background: var(--affordance-disabled); cursor: default; }');
+  expect(css).toContain('.doan-switch[role="switch"]:disabled::before { background: var(--surface-panel); box-shadow: none; }');
   expect(css).toContain('.doan-switch[role="switch"]:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }');
   const reduced = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce) {"));
   expect(reduced).toMatch(/^@media \(prefers-reduced-motion: reduce\) \{(\n  [^\n]*)*\n  \.doan-switch\[role="switch"\], \.doan-switch\[role="switch"\]::before \{ transition: none; \}\n\}/);
@@ -110,14 +110,15 @@ test("a settings group is a bordered container of rows split by lines, and each 
   expect(css).toContain(".doan-settings-group > * + * { border-block-start: 1px solid var(--border-standard); }");
   const row = rule(css, ".doan-preference-row");
   expect(row).toContain("grid-template-columns: minmax(0, 1fr) auto;");
-  expect(row).toContain("gap: var(--space-4);");
+  // No row gap: a line under the row (a notice, a helper) sets its own distance.
+  expect(row).toContain("gap: 0 var(--space-4);");
   expect(row).toContain("padding: var(--space-3) 0;");
   expect(rule(css, ".doan-preference-row-content")).toContain("gap: var(--space-half);");
   expect(rule(css, ".doan-preference-row-label")).toContain("font-size: var(--type-body-sm-size);");
   expect(rule(css, ".doan-preference-row-description")).toContain("font-size: var(--type-caption-size);");
   expect(rule(css, ".doan-preference-row-description")).toContain("color: var(--text-subtle);");
   expect(rule(css, ".doan-preference-row-trailing")).toContain("justify-content: flex-end;");
-  expect(css).toContain(".doan-preference-row[data-disabled] :is(.doan-preference-row-label, .doan-preference-row-description) { color: var(--text-disabled); cursor: not-allowed; }");
+  expect(css).toContain(".doan-preference-row[data-disabled] :is(.doan-preference-row-label, .doan-preference-row-description) { color: var(--text-disabled); }");
 });
 
 test("in a narrow group a button control moves under the title; a switch stays beside it", () => {

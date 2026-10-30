@@ -802,6 +802,9 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-settings-row { width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
 .shell-side .shell-settings-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
 .shell-side .shell-settings-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-current="page"] svg { color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }
 .settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
 .settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
 .settings-header, .settings-section-header { display: flex; align-items: start; gap: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
@@ -848,12 +851,16 @@ body:has(.shell-top) { background: transparent; }
 .settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
 .settings-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 /* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
+.doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
 .doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
 .settings-recovery { margin-top: 0; }
-.doan-settings-group > .settings-recovery { padding: 0 0 var(--space-3); border-top: 0; }
 .settings-saved { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-success); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .settings-saved.pending { color: var(--text-metadata); }
 .settings-saved svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* A confirmation over the page is rendered inside the panel and would take its body-sm tracking; the Project Settings
+   dialog opens over any screen and would take the app body's 13px and tabular numerals. Both read like the page. */
+.settings-panel .doan-dialog { letter-spacing: normal; }
+.settings-dialog { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
 .settings-dialog .doan-dialog-title { display: flex; align-items: center; gap: var(--space-2); }
 .settings-dialog-branch { color: var(--text-metadata); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-regular); }
 .settings-serve { display: grid; list-style: none; border: 1px solid var(--border-standard); border-radius: var(--radius-row); overflow: hidden; }

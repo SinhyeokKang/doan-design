@@ -212,8 +212,8 @@
 /* 36 less the 1px borders, the 2px padding and the 14px thumb. */
 .doan-switch[role="switch"][aria-checked="true"]::before { transform: translateX(16px); }
 /* Disabled keeps the thumb where it is: the choice stays visible while it cannot change. */
-.doan-switch[role="switch"]:disabled { border-color: var(--affordance-disabled); background: var(--affordance-disabled); cursor: not-allowed; }
-.doan-switch[role="switch"]:disabled::before { background: var(--affordance-subtle-pressed); box-shadow: none; }
+.doan-switch[role="switch"]:disabled { border-color: transparent; background: var(--affordance-disabled); cursor: default; }
+.doan-switch[role="switch"]:disabled::before { background: var(--surface-panel); box-shadow: none; }
 .doan-switch[role="switch"]:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 
 /* ── Inline marks ────────────────────────────────────────────────────────────

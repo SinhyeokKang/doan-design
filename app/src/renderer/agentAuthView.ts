@@ -95,7 +95,7 @@ function readinessView(status: AuthStatusDto, ctx: ProviderContext, view: Provid
       // Settings checks with Check, not first run's Retry (2026-10-30 draft review), and says the Copilot cost below the row.
       if (ctx.settings) return {
         ...view, detail: view.detail === null ? "Not checked" : `${view.detail} · not checked`,
-        button: button("check", "Check", "prominent", false, copilot ? `Check ${name}, uses one Copilot request` : `Check ${name}`),
+        button: button("check", "Check", "subtle", false, copilot ? `Check ${name}, uses one Copilot request` : `Check ${name}`),
         helper: copilot ? "Checking uses one Copilot request." : ctx.autoCheck ? "Doan checks this automatically when you open Agents." : null,
       };
       return {
