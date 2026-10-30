@@ -28,9 +28,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | BM | A1, T0, T1, T4, C1, S1 | 새 `app/src/renderer/public/doany/**`, 새 `doanyMotion.ts`·`doanyRig.ts`·`Doany.tsx`·`doany.css`와 그 테스트·고정 JSON, `app/src/renderer/index.html`(`<link>` 한 줄), `.scratch/doan-mascot/golden.mjs` | — | Claude Opus high (시안과 비트 단위로 같아야 하는 포팅, vm 기대값 추출, WebGL 수명과 해제 순서. 틀리면 동작이 시안과 어긋나거나 컨텍스트가 샌다) | 구현 전 red 기록, tasks A1·T0·T1·T4·C1·S1 검증, `npm --prefix app test`, typecheck, build | 통합 |
-| BL | T2, T3, U1·U2의 배치·포커스 부분 (미룬 항목: Doany 삽입과 `typing()`·`hop()` 연결) | 새 `stageInsets.ts`와 테스트, `onboardingView.ts`, `Onboarding.tsx`, `HomeComposerView.tsx`, `styles.css`, `Home.test.tsx`, `Onboarding.test.tsx`, `onboardingView` 테스트 | 미룬 항목은 BM 통합 뒤 | Claude Opus high (첫 실행 Tab 트랩 회귀가 POSTMORTEM에 있다. 기준 높이 측정과 추천 자리 유지가 입력창 위치 계약을 좌우한다) | 구현 전 red 기록, tasks T2·T3·U1·U2 검증, test, typecheck, build | 통합 (리뷰 통과, 미룬 항목 대기) |
+| BL | T2, T3, U1·U2의 배치·포커스 부분 (미룬 항목: Doany 삽입과 `typing()`·`hop()` 연결) | 새 `stageInsets.ts`와 테스트, `onboardingView.ts`, `Onboarding.tsx`, `HomeComposerView.tsx`, `styles.css`, `Home.test.tsx`, `Onboarding.test.tsx`, `onboardingView` 테스트 | 미룬 항목은 BM 통합 뒤 | Claude Opus high (첫 실행 Tab 트랩 회귀가 POSTMORTEM에 있다. 기준 높이 측정과 추천 자리 유지가 입력창 위치 계약을 좌우한다) | 구현 전 red 기록, tasks T2·T3·U1·U2 검증, test, typecheck, build | 통합 |
 | BE | A2, E1 | 새 `app/resources/icon.png`, `app/package.json`(`build.mac.icon`) | — | Codex `gpt-6.1-sol` medium (기계적: 이미지 축소, 설정 한 줄, 패키징 확인) | tasks A2·E1 검증(`git check-ignore`, `sips`, `npm --prefix app run package`, `Info.plist`), 새 임시 경로 복사본 준비 | 통합 (리뷰 통과, 아이콘 외형 사용자 확인) |
-| BD | V1, V2와 그 수정 | 위 배치들의 파일 수정, `.scratch/runtime-test/doan-mascot/`, `.scratch/design-sync/doan-mascot/`, `docs/DESIGN.md` | BM·BL(미룬 항목 포함)·BE 통합 | Claude Opus high (실제 앱 probe, 여러 높이 측정, 시안과의 차이 수정, 회귀 테스트) | V1 항목별 통과, V2 기록되지 않은 차이 0, `docs/DESIGN.md` 측정 기록 | 대기 |
+| BD | V1, V2와 그 수정 | 위 배치들의 파일 수정, `.scratch/runtime-test/doan-mascot/`, `.scratch/design-sync/doan-mascot/`, `docs/DESIGN.md` | BM·BL(미룬 항목 포함)·BE 통합 | Claude Opus high (실제 앱 probe, 여러 높이 측정, 시안과의 차이 수정, 회귀 테스트) | V1 항목별 통과, V2 기록되지 않은 차이 0, `docs/DESIGN.md` 측정 기록 | 진행 중 |
 | BZ | Z1, Z2 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, `.doan/assets/doany/README.md`, `docs/features/buzz-restyle/tasks.md`(C11), `docs/features/doan-mascot/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z1·Z2 grep·`ls` | 대기 |
 
 P0(PoC)은 완료됐다.
@@ -58,3 +58,4 @@ P0(PoC)은 완료됐다.
 - 2026-10-31: 사용자가 Finder에서 아이콘 외형을 확인했다("확인했어"). BE·BM 워크트리는 Orca로 제거를 요청했다(status 깨끗, `git cherry` 결과 `+` 없음). golden·mutation 스크립트와 증거는 지휘자 `.scratch/doan-mascot/bm/`에 복사했다.
 - 2026-10-31: BL2 완료(`b73566d3`). verify 통과, 승인된 상호작용 테스트 3건과 red 기록이 있다. 작업자는 retain했다. RBL2(Codex `gpt-6-astra` medium, `ctx_6a2e0b58284c`) 진행 중.
 - 2026-10-31: RBL2(Codex) 결과 🔴·🟡 없음. ⚪ 1건은 pending 중 홉 차단 테스트가 없다는 것이다. 지휘자 판단(검증을 더 확실히 하는 쪽): 같은 작업자에게 테스트 1건을 BL3(`ctx_3658825f1176`)로 보냈다. RBL2는 해제했다.
+- 2026-10-31: BL3 완료(`a69aaf52`). 테스트 1건을 추가했다(hop을 가드 앞으로 옮기면 red). BL2·BL3을 `a1a05fc7`·`e194fdec`로 통합했다. BL 워크트리 제거를 요청했다. BD(`ctx_6ad717017240`, Opus high, `doan-mascot-bd`)를 `e194fdec`에서 시작했다. 지휘자는 통합 HEAD에서 verify를 돌린다.
