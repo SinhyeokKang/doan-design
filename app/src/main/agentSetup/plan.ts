@@ -23,7 +23,9 @@ export type Step = { target: SetupTarget; path: string } & (
   | { action: "shared"; with: SetupTarget }
   // Goes through a target that was skipped or failed; About names only that one.
   | { action: "skip"; on: SetupTarget }
-  | { action: "skip"; item: SetupItem });
+  | { action: "skip"; item: SetupItem }
+  // The runner found the target changed while it was writing and left it; the next run decides again.
+  | { action: "changed" });
 export interface Outcome { ok: boolean; real: string | null; item?: SetupItem }
 
 const MISSING: Observation = { kind: "missing" };
@@ -62,7 +64,8 @@ export function classifyTarget(target: SetupTarget, home: string, observation: P
   return "foreign";
 }
 
-export function plannedTargets(home: string, resources: string, providerDirs: readonly ProviderDir[], systemLink: boolean): PlannedTarget[] {
+// `systemBin` is replaced only by tests: the real one needs an administrator dialog.
+export function plannedTargets(home: string, resources: string, providerDirs: readonly ProviderDir[], systemLink: boolean, systemBin = "/usr/local/bin"): PlannedTarget[] {
   const share = `${home}/.local/share/doan`, cli = `${share}/current/bin/doan`, skill = `${share}/skill`, all = [...PROVIDERS];
   const skillLink = (target: SetupTarget, dir: string, sub: string, providers: Provider[]): PlannedTarget =>
     ({ target, path: `${home}/${dir}/${sub}/doan`, want: skill, root: dir === ".agents" ? home : `${home}/${dir}`, providers, after: ["current", "skill"] });
@@ -70,7 +73,7 @@ export function plannedTargets(home: string, resources: string, providerDirs: re
     { target: "current", path: `${share}/current`, want: resources, root: home, providers: all, after: [] },
     { target: "skill", path: skill, want: `${share}/current/skills/doan`, root: home, providers: all, after: ["current"] },
     { target: "cli", path: `${home}/.local/bin/doan`, want: cli, root: home, providers: all, after: ["current"] },
-    ...(systemLink ? [{ target: "system-cli", path: "/usr/local/bin/doan", want: cli, root: "/", providers: all, after: ["current"] } satisfies PlannedTarget] : []),
+    ...(systemLink ? [{ target: "system-cli", path: `${systemBin}/doan`, want: cli, root: "/", providers: all, after: ["current"] } satisfies PlannedTarget] : []),
     skillLink("agents-skill", ".agents", "skills", ["codex", "cursor", "copilot"]),
     ...(providerDirs.includes("claude") ? [skillLink("claude-skill", ".claude", "skills", ["claude"])] : []),
     ...(providerDirs.includes("gemini") ? [skillLink("gemini-skill", ".gemini", "config/skills", ["antigravity"])] : []),

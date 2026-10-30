@@ -1,0 +1,186 @@
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative } from "node:path";
+import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
+import { classifyTarget, decide, installEligibility, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
+
+// Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
+// Doan's own links, and never creates a provider folder.
+
+export type AdminResult = { kind: "ok" } | { kind: "cancelled" } | { kind: "failed"; message: string };
+export interface AgentSetupOptions {
+  home: string;
+  // process.resourcesPath; `current` gets its realpath.
+  resources: string;
+  isPackaged: boolean;
+  // The login shell's PATH; null when the probe failed.
+  loginPath: string | null;
+  shell: string;
+  userData: string;
+  // Runs a shell command as an administrator (osascriptAdmin in the app).
+  runAdmin: (command: string) => Promise<AdminResult>;
+  log?: (message: string) => void;
+  systemBin?: string;
+}
+// `items` is what About shows (aboutNotice); `steps` is what happened to each target, for the log and tests.
+export interface AgentSetupResult { home: string; items: SetupItem[]; steps: Step[] }
+
+const CANCELLED_FILE = "agent-setup.json";
+interface Seen extends Observation { stamp: string }
+
+function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
+function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
+function isDirectory(path: string): boolean { try { return statSync(path).isDirectory(); } catch { return false; } }
+function kindOf(path: string): Observation["kind"] | { error: string } {
+  try { const s = lstatSync(path); return s.isSymbolicLink() ? "symlink" : s.isDirectory() ? "directory" : s.isFile() ? "file" : "other"; }
+  catch (error) { const code = errorCode(error); return code === "ENOENT" ? "missing" : { error: code }; }
+}
+// The nearest ancestor that is not a directory: a file, or a link that is broken, loops or names a file.
+function blockedParent(path: string): string | null {
+  const parent = dirname(path);
+  if (parent === path) return null;
+  const ancestor = blockedParent(parent);
+  if (ancestor) return ancestor;
+  const kind = kindOf(parent);
+  if (kind === "symlink") return isDirectory(parent) ? null : parent;
+  return kind === "directory" || kind === "missing" ? null : parent;
+}
+// Missing suffixes keep their names under the nearest existing real directory.
+function realDirectory(path: string): string | null {
+  if (kindOf(path) === "missing") {
+    const parent = dirname(path);
+    if (parent === path) return null;
+    const real = realDirectory(parent);
+    return real === null ? null : join(real, basename(path));
+  }
+  return isDirectory(path) ? canonical(path) : null;
+}
+function realTarget(path: string): string | null {
+  const parent = realDirectory(dirname(path));
+  return parent === null ? null : join(parent, basename(path));
+}
+
+function observe(target: PlannedTarget): Seen {
+  const blocked = blockedParent(target.path);
+  if (blocked) return { kind: "missing", blockedParent: blocked, real: null, stamp: `blocked:${blocked}` };
+  const kind = kindOf(target.path), real = realTarget(target.path);
+  if (typeof kind !== "string") return { kind: "missing", error: kind.error, real, stamp: `error:${kind.error}` };
+  let value: string | null = null, content: string | null = null, stamp = `${real}:${kind}`;
+  try {
+    if (kind === "symlink") value = readlinkSync(target.path);
+    if (kind === "file" && target.file) content = readFileSync(target.path, "utf8");
+    if (kind !== "missing") { const s = lstatSync(target.path); stamp += `:${s.dev}:${s.ino}:${s.mtimeMs}:${s.ctimeMs}`; }
+  } catch (error) { return { kind: "missing", error: errorCode(error), real, stamp: `error:${errorCode(error)}` }; }
+  return { kind, value, content, real, stamp: `${stamp}:${value}:${content}` };
+}
+
+// Creates the folders below `root` one at a time, so a provider folder removed mid-run is never recreated.
+function ensureDirectory(root: string, dir: string): void {
+  if (!statSync(root).isDirectory()) throw Object.assign(new Error(`${root} is not a directory`), { code: "ENOTDIR" });
+  let at = root;
+  for (const part of relative(root, dir).split("/").filter(Boolean)) {
+    at = join(at, part);
+    try { mkdirSync(at); } catch (error) { if (errorCode(error) !== "EEXIST") throw error; }
+  }
+}
+
+type Written = { ok: true } | { ok: false; item?: SetupItem };
+// Something else took the target while Doan was writing: name it only if it is now someone else's.
+function changed(target: PlannedTarget, home: string): Written {
+  const now = observe(target);
+  if (now.blockedParent || now.error || classifyTarget(target.target, home, now) !== "foreign") return { ok: false };
+  const step = decide(target, now, home, new Map());
+  return { ok: false, ...(step.action === "skip" && "item" in step ? { item: step.item } : {}) };
+}
+
+function write(target: PlannedTarget, action: "create" | "replace", before: Seen, home: string): Written {
+  const real = before.real;
+  if (real === null || real === undefined) return { ok: false, item: writeFailure(target, before.error ?? "UNKNOWN") };
+  const temporary = join(dirname(real), `.doan-${randomUUID()}.tmp`);
+  try {
+    ensureDirectory(target.root, dirname(target.path));
+    if (blockedParent(target.path) || realTarget(target.path) !== real) return changed(target, home);
+    if (action === "create") {
+      if (observe(target).stamp !== before.stamp) return changed(target, home);
+      // symlink(2) fails on an existing name, so a competitor that wins the race is kept.
+      symlinkSync(target.want, real);
+    } else {
+      symlinkSync(target.want, temporary);
+      if (observe(target).stamp !== before.stamp) return changed(target, home);
+      renameSync(temporary, real);
+    }
+    return { ok: true };
+  } catch (error) {
+    const code = errorCode(error);
+    return code === "EEXIST" ? changed(target, home) : { ok: false, item: writeFailure(target, code) };
+  } finally { rmSync(temporary, { force: true }); }
+}
+
+function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'`; }
+// The administrator shell checks the old value itself: Doan cannot recheck between the dialog and the write.
+export function adminCommand(target: Pick<PlannedTarget, "path" | "want">, old: string | null): string {
+  if (old === null) return `/bin/mkdir -p ${quote(dirname(target.path))} && /bin/ln -s ${quote(target.want)} ${quote(target.path)}`;
+  const temporary = quote(join(dirname(target.path), `.doan-${randomUUID()}.tmp`));
+  return `/bin/test "$(/usr/bin/readlink ${quote(target.path)})" = ${quote(old)} && /bin/ln -s ${quote(target.want)} ${temporary} && { /bin/mv -fh ${temporary} ${quote(target.path)} || { /bin/rm -f ${temporary}; exit 1; }; }`;
+}
+
+function cancelledBefore(userData: string): boolean {
+  try { return JSON.parse(readFileSync(join(userData, CANCELLED_FILE), "utf8")).adminCancelled === true; } catch { return false; }
+}
+
+async function writeSystem(target: PlannedTarget, action: "create" | "replace", before: Seen, options: AgentSetupOptions, log: (message: string) => void): Promise<Written> {
+  const cancelled: Written = { ok: false, item: { target: target.target, path: target.path, providers: [...target.providers], reason: "admin-cancelled", rcFile: rcFileFor(options.shell) } };
+  if (cancelledBefore(options.userData)) return cancelled;
+  const result = await options.runAdmin(adminCommand(target, action === "replace" ? before.value ?? null : null));
+  if (result.kind === "cancelled") {
+    try { writeFileSync(join(options.userData, CANCELLED_FILE), `${JSON.stringify({ adminCancelled: true })}\n`); }
+    catch (error) { log(`cannot record the cancelled administrator dialog: ${errorCode(error)}`); }
+    return cancelled;
+  }
+  if (result.kind === "failed") log(`administrator command failed: ${result.message}`);
+  const now = observe(target);
+  return result.kind === "ok" && now.kind === "symlink" && now.value === target.want ? { ok: true } : { ok: false, item: writeFailure(target, "administrator command failed") };
+}
+
+export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSetupResult> {
+  const log = options.log ?? ((message: string) => console.log(`doan: agent setup: ${message}`));
+  // Links are built from the canonical HOME, as the eligibility check compares real paths.
+  const home = canonical(options.home) ?? options.home, resources = canonical(options.resources) ?? options.resources;
+  const bundle = dirname(dirname(resources));
+  const eligibility = installEligibility(bundle, home, options.isPackaged);
+  if (eligibility !== "eligible") {
+    log(`not set up: ${eligibility} (${bundle})`);
+    return { home, items: [{ target: "copy", path: bundle, providers: ["claude", "codex", "cursor", "antigravity", "copilot"], reason: "not-eligible", eligibility }], steps: [] };
+  }
+  const providerDirs = (["claude", "codex", "gemini"] as const satisfies readonly ProviderDir[]).filter(dir => isDirectory(join(home, `.${dir}`)));
+  const targets = plannedTargets(home, resources, providerDirs, needsSystemLink(options.loginPath, home), options.systemBin);
+  const outcomes = new Map<SetupTarget, Outcome>(), items: SetupItem[] = [], steps: Step[] = [];
+  for (const target of targets) {
+    const before = observe(target);
+    let step = decide(target, before, home, outcomes);
+    let written: Written = { ok: step.action !== "skip", ...(step.action === "skip" && "item" in step ? { item: step.item } : {}) };
+    if (step.action === "create" || step.action === "replace") {
+      written = target.target === "system-cli" ? await writeSystem(target, step.action, before, options, log) : write(target, step.action, before, home);
+      if (!written.ok) step = { target: target.target, path: target.path, ...(written.item ? { action: "skip", item: written.item } : { action: "changed" }) };
+    }
+    const item = written.ok ? undefined : written.item;
+    record(outcomes, target, step, before, written.ok, item);
+    if (item) items.push(item);
+    steps.push(step);
+    log(`${target.path}: ${step.action}${step.action === "skip" ? ` (${"item" in step ? step.item.reason : `after ${step.on}`})` : ""}`);
+  }
+  return { home, items, steps };
+}
+
+function appleScriptString(value: string): string { return `"${value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")}"`; }
+// The macOS administrator dialog, as ego lite does. No timeout: the dialog waits for the person.
+export function osascriptAdmin(command: string): Promise<AdminResult> {
+  return new Promise(resolve => {
+    execFile("/usr/bin/osascript", ["-e", `do shell script ${appleScriptString(command)} with administrator privileges`], (error, _stdout, stderr) => {
+      if (!error) resolve({ kind: "ok" });
+      else if (/\(-128\)/.test(String(stderr))) resolve({ kind: "cancelled" });
+      else resolve({ kind: "failed", message: String(stderr).trim() || error.message });
+    });
+  });
+}

@@ -54,6 +54,10 @@
       {
         "from": "build/bin/doan",
         "to": "bin/doan"
+      },
+      {
+        "from": "src/main/onboarding/SKILL.md",
+        "to": "skills/doan/SKILL.md"
       }
     ],
     "mac": {
