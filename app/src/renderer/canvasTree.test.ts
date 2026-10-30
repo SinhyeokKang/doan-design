@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { CanvasRow } from "../main/view";
-import { buildCanvasTree, canvasLabel, frameLabel, rowAction, typeaheadKey, typeaheadNext, type CanvasNode, type FolderNode, type TreeNode } from "./canvasTree";
+import { buildCanvasTree, canvasLabel, frameLabel, moveExpanded, rowAction, typeaheadKey, typeaheadNext, type CanvasNode, type FolderNode, type TreeNode } from "./canvasTree";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
 
@@ -224,4 +224,10 @@ test("canvas labels strip HTML extensions case-insensitively and keep title prio
     expect(canvasLabel(row(path, { title: " Named " }))).toBe("Named");
   }
   expect(canvasLabel(row(".doan/canvases/.HTML"))).toBe(".HTML");
+});
+
+test("a move into another folder expands the new ancestors and moves the canvas row's expansion", () => {
+  expect(moveExpanded([".doan/canvases/old", ".doan/canvases/old/a.html"], ".doan/canvases/old/a.html", ".doan/canvases/flows/sub/a.html"))
+    .toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows", ".doan/canvases/flows/sub", ".doan/canvases/flows/sub/a.html"]);
+  expect(moveExpanded([".doan/canvases/old"], ".doan/canvases/old/a.html", ".doan/canvases/flows/a.html")).toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows"]);
 });
