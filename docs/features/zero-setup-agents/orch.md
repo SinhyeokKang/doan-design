@@ -47,14 +47,14 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T2(실행기·패키징·real-state, `index.ts` 연결 제외), T3 | `app/src/main/agentSetup/**`(새), `app/package.json` `build.extraResources`, `app/runtime/real-state.ts`(+테스트) | 없음 | Claude Opus high — 실제 HOME에 쓰고 foreign 보호·재판정·EEXIST가 틀리면 사용자 파일을 덮어쓴다 | `npm --prefix app test`, 보호 분기 제거 시 red, `node --test 'app/runtime/*.test.ts'`, typecheck, package 후 번들 SKILL.md·bin 확인, `codex execpolicy check` | 대기 |
-| B | T4 | `app/src/main/onboarding/SKILL.md`, `cli/internal/cli/{active,onboarding}.go`·`skill.md`와 문구 단언 테스트, `app/src/main/conversation/prompt.ts`(+테스트), `eval/scenarios/D4/rubric.md`, `D4b/rubric.md` | 없음 | Codex gpt-6-astra medium — 에이전트가 읽는 문구 판단이 중심이고 범위가 작다. 교차 모델 구현 한 자리 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `rg` 판정 | 대기 |
+| A | T1, T2(실행기·패키징·real-state, `index.ts` 연결 제외), T3 | `app/src/main/agentSetup/**`(새), `app/package.json` `build.extraResources`, `app/runtime/real-state.ts`(+테스트) | 없음 | Claude Opus high — 실제 HOME에 쓰고 foreign 보호·재판정·EEXIST가 틀리면 사용자 파일을 덮어쓴다 | `npm --prefix app test`, 보호 분기 제거 시 red, `node --test 'app/runtime/*.test.ts'`, typecheck, package 후 번들 SKILL.md·bin 확인, `codex execpolicy check` | 통합 |
+| B | T4 | `app/src/main/onboarding/SKILL.md`, `cli/internal/cli/{active,onboarding}.go`·`skill.md`와 문구 단언 테스트, `app/src/main/conversation/prompt.ts`(+테스트), `eval/scenarios/D4/rubric.md`, `D4b/rubric.md` | 없음 | Codex gpt-6-astra medium — 에이전트가 읽는 문구 판단이 중심이고 범위가 작다. 교차 모델 구현 한 자리 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `rg` 판정 | 통합 |
 | C | T5 | design.md '지우는 것' 전체, `app/src/main/index.ts`(broker 호출 제거), preload, `senderAllowed`, renderer Settings·Connections 파일, `restore/uiState.ts`, `SettingsPage.tsx` lead | 없음 | Claude Opus medium — 삭제 범위는 넓지만 판단은 적다. Agents 잠금·`SettingsTargetQueue` 유지 회귀만 조심 | typecheck, `npm --prefix app test`, `go vet ./...`, `rg -n 'setup:(read\|run\|answer\|check-again\|status)' app/src` 없음, `verify.mjs` | 통합 |
-| D | A의 `index.ts` 연결 + T5b(`/design-sync` 포함) | `app/src/main/index.ts`, `aboutView.ts`, `about.ts`, preload 타입(필요 시), `SettingsAbout.tsx`(+테스트), `docs/DESIGN.md`(측정값), `.scratch/design-sync/zero-setup-agents/` | A, C 통합 | Claude Opus high — 설치 promise를 기다리는 IPC와 실제 앱 computed style 측정 | `npm --prefix app test`, typecheck, `node .scratch/design-sync/zero-setup-agents/measure.mjs` | 대기 |
-| E | T6, T6b | `docs/features/zero-setup-agents/tasks.md` T6b 표, `.scratch/runtime-test/zero-setup-agents/`, `.scratch/zero-setup-agents/t6b/` | D 통합 | Claude Opus high — 실제 상태 보호와 실제 외부 에이전트 측정 | real-state 전후 비교, lsregister 전후, 스크린샷·파일 목록, T6b 표 | 대기 |
-| F | T7 | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/zero-setup-agents/` | B, C, D 통합 | Claude Opus medium — 실행은 정해진 절차, issue 판정에 판단이 필요 | `node eval/run.ts --self-test` PASS, 라운드 결과 기록, 새 issue 행 없음 | 대기 |
-| G | T8 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`('Settings'), `docs/DIRECTORY.md`, `AGENTS.md` 'Commands' | D, E, F 통합 | Claude Opus medium — 결정 문서를 현재 규칙으로 고쳐 쓰는 판단 | tasks.md T8의 `rg` 결과 없음 | 대기 |
-| H | 알림 표면 규칙 전수조사와 수정(결정 18) | 위반 알림이 있는 renderer `.tsx`와 그 테스트, `.scratch/notice-survey.md`. `SettingsAbout.tsx`, `styles.css`, `ds/surfaces.css`, `app/src/main/**`, `docs/**`는 제외 | 없음(D와 병렬, 파일 겹침 없음) | Claude Opus medium — 실제 앱에서 바탕을 확인하는 판단, 고치는 것은 클래스뿐 | `npm --prefix app test`, typecheck, `verify.mjs`, 바뀐 곳마다 전후 스크린샷과 computed style | 진행 |
+| D | A의 `index.ts` 연결 + T5b(`/design-sync` 포함) | `app/src/main/index.ts`, `aboutView.ts`, `about.ts`, preload 타입(필요 시), `SettingsAbout.tsx`(+테스트), `docs/DESIGN.md`(측정값), `.scratch/design-sync/zero-setup-agents/` | A, C 통합 | Claude Opus high — 설치 promise를 기다리는 IPC와 실제 앱 computed style 측정 | `npm --prefix app test`, typecheck, `node .scratch/design-sync/zero-setup-agents/measure.mjs` | 통합 |
+| E | T6, T6b | `docs/features/zero-setup-agents/tasks.md` T6b 표, `.scratch/runtime-test/zero-setup-agents/`, `.scratch/zero-setup-agents/t6b/` | D 통합 | Claude Opus high — 실제 상태 보호와 실제 외부 에이전트 측정 | real-state 전후 비교, lsregister 전후, 스크린샷·파일 목록, T6b 표 | 통합 |
+| F | T7 | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/zero-setup-agents/` | B, C, D 통합 | Claude Opus medium — 실행은 정해진 절차, issue 판정에 판단이 필요 | `node eval/run.ts --self-test` PASS, 라운드 결과 기록, 새 issue 행 없음 | 통합 |
+| G | T8 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`('Settings'), `docs/DIRECTORY.md`, `AGENTS.md` 'Commands' | D, E, F 통합 | Claude Opus medium — 결정 문서를 현재 규칙으로 고쳐 쓰는 판단 | tasks.md T8의 `rg` 결과 없음 | 통합 |
+| H | 알림 표면 규칙 전수조사와 수정(결정 18) | 위반 알림이 있는 renderer `.tsx`와 그 테스트, `.scratch/notice-survey.md`. `SettingsAbout.tsx`, `styles.css`, `ds/surfaces.css`, `app/src/main/**`, `docs/**`는 제외 | 없음(D와 병렬, 파일 겹침 없음) | Claude Opus medium — 실제 앱에서 바탕을 확인하는 판단, 고치는 것은 클래스뿐 | `npm --prefix app test`, typecheck, `verify.mjs`, 바뀐 곳마다 전후 스크린샷과 computed style | 통합 |
 
 리뷰(보고만, 별도 워커): A → Codex gpt-6-astra medium, B → Claude Opus medium, C → Codex gpt-6-astra medium, D → Codex gpt-6-astra medium, G → Codex gpt-6.1-sol medium(문서와 코드 대조, 판단보다 단계가 많다). E·F는 지휘자가 증거를 직접 대조한다.
 
@@ -76,3 +76,9 @@ A+B+C 통합 HEAD `9298117e`에서 `verify.mjs` PASS(7단계). A·B·C worktree�
 | H | 2(수정 3회, 리뷰는 round 3 뒤) | `0e5423f6`, `47e8b9d6`, `108ad0c6`, `ddfd6ef0` | 워커 `5c1aadee`, `c10c3588`, `c980ee4c`, `d2527dca` |
 | E | 0(지휘자가 증거 대조: T6 16항목 PASS 로그, T6b 표, 실제 상태 전후 목록) | `e1253eb9` | 워커 `b6e015ea`. 관리자 대화상자 1회 확인은 사용자와 함께 남음 |
 | H | 3(round 3 + 캔버스) | `ad08efa6`, `91a566ed`, `a68b5023`, `7b6aac39` | 워커 `b1b5f889`, `a231edc5`, `b6962908`, `000aec77`. 시안 톤 반영은 지휘자 `62b5f065` |
+| H | 5(리뷰 Codex astra: 🔴0 🟡1 ⚪2 → round 5) | `836bf6c3`, `6ab9385a` | round 4 워커 `784e6787`, round 5 워커 `d059d6d1` |
+| B2 | 1(리뷰 Codex sol: 🔴0 🟡1 → 테스트 보강) | `2f66706d`, `27bd50f2` | 워커 `355a8710`, `b51bd7ab`. eval 회귀 U-014 수정 |
+| G | 1(리뷰 Codex sol: 🔴0 🟡4 → 3건 수정, U-006은 F) | `e39f7c5c`…`1c900b49`(8개) | README는 지휘자 `37e27454` |
+| F | 0(지휘자가 증거 대조) | `9086fd28` | 워커 `0945622b`. B2 뒤 R2·R2b·R7·O1·O2·D4b 재측정 |
+
+최종 통합 HEAD `9086fd28`에서 `verify.mjs --eval` PASS(9단계). 남은 것: 관리자 대화상자 1회 확인(사용자 입회, merge 전), T9(merge 뒤). 남은 worktree: `zsa-e`(관리자 확인 스크립트와 패키지 빌드).
