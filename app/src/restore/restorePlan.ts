@@ -22,7 +22,7 @@ export function restorePlan(state: UiState | null, entries: readonly FolderEntry
   const entry = entries.find((candidate) => candidate.path === root);
   if (entry === undefined) return { kind: "home" };
   if (entry.kind === "loading") return elapsedMs >= RESTORE_LOADING_WAIT_MS ? { kind: "home" } : { kind: "wait" };
-  // A problem row never enters a workspace (ARCHITECTURE §3 'Memory'), restored or not.
+  // A problem row never enters a workspace (ARCHITECTURE §7 'Memory'), restored or not.
   if (entry.kind !== "list") return { kind: "home" };
   if (state.canvas === undefined) return { kind: "workspace", root, canvas: null };
   // The saved id wins over the saved path: the file may have moved, or another
