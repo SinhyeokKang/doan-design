@@ -22,7 +22,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | BT | T1–T4 | `app/src/renderer/quickOpen.ts`, `app/src/renderer/quickOpen.test.ts` | — | Claude Opus medium (코드포인트·정규화 경계와 상한 전 거르기. 명세가 자세해 판단 폭은 좁다) | 구현 전 red 기록, `npm --prefix app test`, typecheck, 기존 순위 단언 무수정 | 통합 `914db15c` |
-| BS0 | S0, S1 준비(초안 열 프레임 측정) | `.scratch/design-sync/buzz-search/` | — | Claude Opus high (측정 스크립트가 S1 판정의 근거) | `node .scratch/design-sync/buzz-search/measure.mjs`가 기준값·초안 측정 파일을 남김 | 진행 중 |
+| BS0 | S0, S1 준비(초안 열 프레임 측정) | `.scratch/design-sync/buzz-search/` | — | Claude Opus high (측정 스크립트가 S1 판정의 근거) | `node .scratch/design-sync/buzz-search/measure.mjs`가 기준값·초안 측정 파일을 남김 | 완료(커밋 없음) |
 | BU | U1, U2 | `QuickOpenDialog.tsx`, `QuickOpenDialog.test.tsx`, `ds/surfaces.css`, `styles.css`의 `.qo*` 규칙 | BT 통합 | Claude Opus high (포커스·모달·접근성·바깥 클릭 함정, POSTMORTEM 2건) | tasks U1·U2 검증, `npm --prefix app test`, typecheck, build | 진행 중 |
 | BS | S1–S3 | U 배치 파일의 수정, `.scratch/design-sync/buzz-search/`, `.scratch/runtime-test/buzz-search/`, `docs/DESIGN.md` | BU 통합, BS0 | Claude Opus high (측정·수정·회귀 테스트) | 기록되지 않은 차이 0, probe exit 0, tasks S3 grep | 대기 |
 | BZ | Z1–Z4 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/buzz-restyle/spec.md`, `docs/features/buzz-search/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z2·Z3 grep, Z4 디렉터리 없음 | 대기 |
@@ -43,3 +43,4 @@ D1(초안)은 이미 완료됐다(`c56a544f`, 기록 `df23dd4f`).
 - 2026-10-30: BT(`buzz-search-BT`, dispatch `ctx_ecc49a1bf2f2`)·BS0(`buzz-search-BS0`, dispatch `ctx_1d891c434901`) 시작, Run `run_92eb71e2ecf1`.
 - 2026-10-30: BT 완료. 커밋 `6d1525a0`(test, red 27/46)·`914db15c`(feat), 브랜치 `SinhyeokKang/feat-buzz-search-bt`. 작업자 보고 `npm --prefix app test` 4721 통과, typecheck 통과. 리뷰는 Codex `gpt-6-astra` medium(dispatch `ctx_28e831b00d6e`). 첫 시작은 handoff에 적힌 옛 브랜치 이름으로 worktree 생성에 실패해 재시도했다.
 - 2026-10-30: BT 리뷰(Codex) 🔴0·🟡0·⚪0. red 27/46과 46/46 통과를 리뷰어가 재현했다. `feat-buzz-search`를 `914db15c`로 fast-forward했고, 지휘자가 typecheck와 Quick Open 테스트 53개 통과를 확인했다. 리뷰어와 BT 작업자를 해제했다. BU 시작(dispatch `ctx_8ea18845bfc1`, 워크트리 `buzz-search-BT`).
+- 2026-10-30: BS0 완료. `measure.mjs`(BS0 워크트리 `.scratch/design-sync/buzz-search/`) exit 0. Add Projects 기준값은 640×304, top 128, padding 32, radius 28, `corner-shape` `superellipse(1)`이다. 초안 열 프레임 값은 design.md '화면 구성'과 일치한다. Electron 45는 `corner-shape`를 지원한다. S1이 판단할 초안 사항은 행 squircle, `.qo-height` clip에 잘리는 스크롤바 4px, 초안 예시 데이터 불일치다. 작업자는 BS를 위해 남겨 둔다.
