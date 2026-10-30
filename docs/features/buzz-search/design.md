@@ -24,14 +24,14 @@
 | 부분 | Buzz | doan 구현 | 조정 |
 |---|---|---|---|
 | 다이얼로그 위치·폭 | 위 8rem, 폭 `min(40rem, 100% - 2rem)` | 위 128px, 폭 `min(640px, 100% - 2 * --space-4)` | 없음 |
-| 표면 | `surface-panel`, 모서리 `radius-panel + space-1`, 패딩 `space-3`(위 0, 본문이 위 패딩을 가짐), squircle | `.doan-dialog[data-ui-presentation="search"]`: `--surface-panel`, `calc(--radius-panel + --space-1)` = 32px, 패딩 `--space-3`(아래 '공용 다이얼로그와의 관계') | `corner-shape: squircle`은 Chromium 지원 여부를 초안에서 확인하고, 지원하지 않으면 일반 모서리 |
-| 입력 | 돋보기 없음, `body-lg` 20px, 패딩 24/11px, 투명 테두리, 키보드 포커스 시 테두리 한 줄 | 같은 값, 포커스 테두리는 `:focus-visible`로 | 공통 결정 4·포커스 행: doan은 `data-keyboard-navigation` 훅 없이 `:focus-visible`. placeholder는 doan 문구 `Search canvases and frames` 유지(검색 대상을 알려 주는 내용) |
+| 표면 | `surface-panel`, 모서리 `radius-panel + space-1`, 패딩 `space-3`(위 0, 본문이 위 패딩을 가짐), squircle. 테두리 1px `border-standard`와 `shadow-sm`은 base 다이얼로그 값을 그대로 둔다(overlays.css 26-33행) | `.doan-dialog[data-ui-presentation="search"]`: `--surface-panel`, `calc(--radius-panel + --space-1)` = 32px, 패딩 `--space-3`(아래 '공용 다이얼로그와의 관계') | `corner-shape: squircle`은 Chromium 지원 여부를 초안에서 확인하고, 지원하지 않으면 일반 모서리 |
+| 입력 | 돋보기 없음, `body-lg` 20px, 패딩 24/11px, 투명 테두리, 키보드 포커스 시 테두리 한 줄 | 같은 값, 포커스 테두리는 `.qo-input:has(.q:focus-visible)`로 | 공통 결정 4·포커스 행: doan은 `data-keyboard-navigation` 훅 없이 `:focus-visible`을 쓴다. 텍스트 입력은 포인터로 열어도 `:focus-visible`이 맞으므로, Quick Open이 열려 있는 동안 테두리는 늘 보인다(초안 모든 프레임). placeholder는 doan 문구 `Search canvases and frames` 유지(검색 대상을 알려 주는 내용) |
 | `esc` 칩·안내줄 | 없음 | 없음(spec 확정 질문 1) | 없음 |
 | 결과 영역 | 입력 아래 `space-2`, 스크롤 `max-height: min(55vh, …)`, 위쪽 8px 페이드 | 같은 값, `.doan-scroll` | 결과 높이 180ms 전환은 가져오지 않는다(아래 '가져오지 않는 것') |
 | 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3` | 없음. 한 목록(spec 확정 질문 2) | 그룹이 없으므로 목록 위 여백은 Buzz의 첫 그룹 제목 높이 없이 입력 아래 `space-2`만 둔다 |
 | 바깥 클릭 | `dismissOnOutsideClick`(Base UI) | 다이얼로그 사각형 밖에서 누르고 뗀 클릭이면 `dismiss()`(spec 확정 질문 3) | Base UI 대신 doan이 판정한다(아래 순수 함수 4) |
 | 결과 행 | `NavigationItem variant="search"`: 최소 44px, 패딩 12px, 모서리 20px, 아이콘 칸 24px(아이콘 21px), 이름 body-sm, 보조 줄 body-sm `text-subtle` | 같은 값. 아이콘은 lucide: 캔버스 `Palette`(LNB 캔버스 행과 같음), 프레임 `Hash` | 아이콘 크기 21px는 Buzz 값. doan lucide 기본 16px와 다르므로 초안에서 보고 정한다 |
-| 행 강조 | 키보드·포인터 강조는 `interaction-row-hover`(hover와 같은 단계), selected는 별도 | `aria-selected` 행에 `--affordance-subtle-hover` | doan에 `interaction-row-hover` 역할이 없어 같은 값의 hover 역할을 쓴다. 초안에서 대비 확인 |
+| 행 강조 | 키보드·포인터 강조는 `interaction-row-hover`. 결과 목록에 `interaction-panel`이 걸려 있어(SearchChoices.tsx 227행) 그 값은 `affordance-row-hover` = `affordance-subtle`이고, 보조 글자는 `text-subtle` 그대로다(materials.css 153-163행) | `aria-selected` 행에 `--affordance-subtle` | doan에 `interaction-*` 역할이 없어 같은 값의 `--affordance-subtle`을 직접 쓴다 |
 | 맞은 글자 | 1px 밑줄, offset 2px, 배경·색 상속 | 같은 값 | 없음 |
 | 빈 결과 | body-sm, `text-subtle`, 좌우 control inset | 같은 값, 문구는 기존 네 가지 그대로 | 없음 |
 | 등장 모션 | `motion="default"`: 0.75rem 상승, 220ms, 퇴장 120ms | `.doan-dialog` 모션 규칙과 같은 값 | Buzz DESIGN.md 1218행은 검색 팔레트에 `motion="none"`을 권하지만 실제 코드(`PageSearch.tsx:185`)는 `default`다. 출하된 코드를 따른다 |
@@ -41,6 +41,18 @@
 - 첫 줄: 이름(`result.label`) + 맞은 글자 밑줄.
 - 둘째 줄(보조): 캔버스는 `<.doan/canvases/ 뒤 경로> · <프로젝트 · 브랜치>`, 프레임은 `<캔버스 이름> › <번호> · <프로젝트 · 브랜치>`. 프로젝트 부분은 지금처럼 `projectWhere`가 만든다. 지금 한 줄에서 잘리지 않던 프로젝트 부분은 둘째 줄 끝에 있으므로, 둘째 줄이 넘치면 경로 쪽을 먼저 줄인다(프로젝트 부분 `flex: none`).
 - option의 접근성 이름은 지금과 같은 문자열(`이름 — 맥락 · 프로젝트`)을 유지한다. 테스트와 DESIGN.md 접근성 표가 이 이름을 쓴다.
+
+## 초안 요청 (`/design-draft`)
+
+- 경로와 id: `.doan/canvases/buzz-search.html`, `doan:canvas` `buzz-search`, `doan:width` 2560.
+- 프레임(모두 새 프레임, `/design-sync` 비교 대상):
+  - `results` — 워크스페이스, 검색어 "card", 캔버스·프레임 섞임, 첫 행 활성, 맞은 글자 밑줄, 긴 이름과 긴 경로의 줄임, 목록 스크롤
+  - `empty-query-home` — Home, 빈 검색어, 모든 프로젝트의 캔버스
+  - `empty-query-workspace` — 워크스페이스, 빈 검색어, 현재 프로젝트의 캔버스
+  - `no-match`, `reading`, `unavailable`, `no-canvases` — 빈 상태 네 가지. 창 없이 다이얼로그만 그린 타일
+- 제약: 배경의 헤더·LNB는 main 화면 복사본이다. 그 아래 Home·워크스페이스 본문은 scrim 아래라 단순화하고 비교하지 않는다. 키보드 포커스 테두리는 모든 프레임에 그린다(위 '입력' 행). 
+- 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 최대 높이 429px(초안 한정: 780px 창에서 `min(55vh, 100vh − 256px)`을 계산한 값. 구현은 `min(55vh, calc(100dvh − 256px))`), 테두리·밑줄 1px.
+- 2026-10-30 user: feature-review보다 초안 확정을 먼저 한다.
 
 ## 순수 함수 (`/tdd` 대상)
 
@@ -61,8 +73,9 @@
 
 `.doan-dialog`는 buzz-ds 소유 프리미티브다(공통 결정 10). 사용자가 검색 변형 추가를 승인했다(2026-10-30, spec 확정 질문 4).
 
-- `<dialog className="doan-dialog qo" data-ui-presentation="search">`. `ds/surfaces.css`에 `.doan-dialog[data-ui-presentation="search"]` 규칙을 더한다: 패딩 `--space-3`(위 0), 모서리 `calc(--radius-panel + --space-1)`, 배경 `--surface-panel`, `gap: 0`. 폭·위치(위 128px, 640px)·backdrop·등장 모션은 기본 `.doan-dialog` 그대로 쓴다. 기본 규칙의 Buzz 값(위 8rem, 40rem, 상승 0.75rem·220ms, 퇴장 120ms)이 검색 팔레트와 같기 때문이다.
-- 테두리·그림자: 기본 `.doan-dialog`는 1px `--border-standard`와 `--shadow-sm`이다. Buzz search presentation이 base 다이얼로그의 테두리·그림자를 덮는지는 `/design-draft`가 `overlays.css` base 규칙(11-60행)에서 다시 읽고 정한다.
+- `<dialog className="doan-dialog qo" data-ui-presentation="search">`. `ds/surfaces.css`에 `.doan-dialog[data-ui-presentation="search"]` 규칙을 더한다: 패딩 `--space-3`(네 방향), 모서리 `calc(--radius-panel + --space-1)`, 배경 `--surface-panel`, `corner-shape: squircle`, 열린 상태 `gap: 0`. 폭·위치(위 128px, 640px)·backdrop·등장 모션은 기본 `.doan-dialog` 그대로 쓴다. 기본 규칙의 값(위 128px, 640px, 상승 12px·220ms, 퇴장 4px·120ms)이 Buzz 검색 팔레트(8rem, 40rem, 0.75rem, 0.25rem)와 같기 때문이다.
+- 위 패딩: Buzz는 다이얼로그 위 패딩을 0으로 두고 본문 스크롤 영역이 12px을 가진다. doan에는 따로 스크롤되는 본문이 없으므로 다이얼로그가 네 방향 12px을 가진다. 보이는 위치는 같다.
+- 테두리·그림자: Buzz search presentation은 base 다이얼로그의 1px `border-standard`와 `shadow-sm`을 덮지 않는다(overlays.css 26-33행, 2026-10-30 확인). doan 기본 `.doan-dialog`의 같은 값을 그대로 쓴다.
 - `.qo`에는 입력·목록·행처럼 Quick Open 내용 규칙만 남긴다. 표면(위치·폭·모서리·배경·테두리·그림자·backdrop) 규칙은 `.qo`에서 지운다.
 - 기존 사용처는 `data-ui-presentation`이 없으므로 영향이 없다. 사용처 목록은 `rg -n 'doan-dialog' app/src/renderer`로 확인한다.
 - 드래그 영역: 열린 다이얼로그와 backdrop이 56px 헤더 띠와 겹친다. Electron 드래그 영역은 쌓임 순서와 따로 판정되므로(부모 '드래그 영역') 헤더 띠 위 backdrop 클릭이 창 드래그로 먹히는지 probe로 본다. 먹히면 헤더 띠의 바깥 클릭이 닫기로 가도록 `no-drag` 처리 방법을 그때 정하고 이 문서에 적는다.
