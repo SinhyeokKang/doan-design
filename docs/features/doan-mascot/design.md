@@ -23,9 +23,9 @@
 - `app/src/renderer/public/doany/`: `doany.png`(정지), `body.png`, `hat.png`를 `.doan/assets/doany/`에서 바이트 그대로 복사하고, `README.md`를 둔다.
   - README에는 복사 출처, 생성 방식, MIT 코드 라이선스가 아트워크에 적용되지 않는다는 점을 적는다. `public/provider-logos/README.md`와 같은 방식이다.
   - 상대 경로(`doany/body.png`)로 읽어 패키지 앱의 file URL에서도 풀리게 한다(`homeComposer.ts` `providerLogo`와 같은 이유).
-- 스타일: `.doany` 규칙을 `styles.css`에 둔다. 시안 `mascot.css`를 옮긴다(호스트 크기, `img` 20% 패딩, `[hidden]`, `:focus-visible` 링).
+- 스타일: `.doany` 규칙을 새 스타일시트 `app/src/renderer/doany.css`에 두고 `index.html`에서 `<link>`로 읽는다(`connectionRows.css`와 같은 방식, ARCHITECTURE §7 'Renderer styles'). 시안 `mascot.css`를 옮긴다(호스트 크기, `img` 20% 패딩, `[hidden]`, `:focus-visible` 링).
   - 링 반경은 `var(--radius-container)`(24px)다.
-  - 스타일시트는 `<link>`로만 읽는다(ARCHITECTURE §7 'Renderer styles').
+  - `styles.css`와 나눈 이유: Doany 배치(무대)는 `styles.css`를, Doany 자체는 `doany.css`를 고치므로 두 배치를 병렬로 진행할 수 있다(orch.md).
 - 아이콘: `app/resources/icon.png`.
   - `app/build/`는 git이 무시하므로 그곳에 둘 수 없다.
   - electron-builder는 `mac.icon`의 `resources/icon.png`를 `app/build/resources/`에서 먼저 찾고, 없으면 `app/resources/`에서 찾는다(`app-builder-lib/out/platformPackager.js`).
@@ -42,7 +42,7 @@
 |---|---|
 | `getContext('webgl', {alpha:true, antialias:true, premultipliedAlpha:false})`, `BLEND` + `SRC_ALPHA, ONE_MINUS_SRC_ALPHA`, 64 × 64 메시, 텍스처 `CLAMP_TO_EDGE`·`LINEAR` | 같다 |
 | 셰이더 컴파일·링크 실패, 컨텍스트 없음 → `static` | 같다 |
-| `img.crossOrigin = "anonymous"` | P0 결과에 따른다 |
+| `img.crossOrigin = "anonymous"` | 같다. P0에서 일반 file://·asar 안 경로 모두 통과했다 |
 | 텍스처 실패 → `static`, 성공 → PNG 숨김·캔버스 표시·`resize()` | 같다. 언마운트 뒤 늦게 끝난 Promise는 무시한다 |
 | `resize`: `canvas.width = min(1024, ceil(clientWidth × min(dpr‖1, 2)))` 뒤 `render()` | 같다(캔버스 크기를 다시 정하면 그림이 지워지므로 render가 필요하다) |
 | `tick`: 매 rAF마다 `last`를 갱신, 첫 dt 1/60, dt 상한 0.035. 준비·보임·문서 보임·줄인 모션이 아닐 때만 시간이 흐름. 줄인 모션은 상태가 바뀔 때만 render | 같다. rAF는 계속 돌리고 게이트로 멈춘다(재개 첫 dt가 시안과 같도록) |
@@ -149,7 +149,7 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다.
 
 ## PoC 의존
 
-- **file:// 텍스처 로드 (미검증)**: 패키지 앱은 renderer를 `loadFile`로 연다(`app/src/main/index.ts`). 창의 `webPreferences`는 `webSecurity`를 바꾸지 않는다. 에셋 README에는 "direct `file:` URLs may block texture loading"이라고 적혀 있다. 시안 스크립트는 `img.crossOrigin = "anonymous"`를 건다.
+- **file:// 텍스처 로드 (P0 통과, tasks P0 결과)**: 패키지 앱은 renderer를 `loadFile`로 연다(`app/src/main/index.ts`). 창의 `webPreferences`는 `webSecurity`를 바꾸지 않는다. 에셋 README에는 "direct `file:` URLs may block texture loading"이라고 적혀 있다. 시안 스크립트는 `img.crossOrigin = "anonymous"`를 건다.
   - P0: 일반 file:// 경로와 asar 안 경로(`app.asar/out/renderer/`) 두 곳에서 `crossOrigin` 있음과 없음을 확인한다.
   - 둘 다 실패하면 구현 전에 멈추고 보고한다. 대안(예: `fetch` → `createImageBitmap`)은 CSP `connect-src` 경로를 따로 검증해야 하므로 미리 정하지 않는다.
   - 최종 판정은 V1의 패키지 앱이다.
