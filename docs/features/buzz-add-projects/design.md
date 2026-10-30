@@ -99,7 +99,7 @@
 - 프레임(창 전체, 헤더·LNB 포함): `choose`, `drop`(카드 드롭 중), `checking`, `candidates`(저장소 7개, 긴 이름·경로), `setup`, `selecting`, `url-inspecting`, `repository-found`, `clone`, `cloning`(헤더 탭·Back·Search·LNB 행 잠금 표시와 이유 한 줄), `clone-cancelled`.
 - 타일: `states-errors`(access_failed, remote_mismatch, project_unavailable), `states-drop`(여러 항목, 폴더 아님), `states-onboarding-drop`(온보딩 Project 단계 카드의 드롭 중), `states-home-drop`(Home 입력창 폴더 드롭 안내).
 - 워크스페이스에서 연 choose는 따로 그리지 않는다. 페이지에서는 LNB 행에 `aria-current`가 없어 Home에서 연 것과 화면이 같다(초안 1차, 2026-10-30).
-- 초안 2차(2026-10-30 user): 긴 저장소 목록은 Quick Open 결과처럼 목록만 스크롤한다. 제목·Choose another folder·하단 버튼은 고정이고, 목록이 그 사이 남은 높이를 쓰며(최소 행 2개), 위쪽 8px 페이드, `overscroll-behavior: contain`, 카드 그림자·포커스 링을 위한 4px 안쪽 여백을 둔다(`styles.css`의 `.qo-height`·`.qo-list`와 같은 방식). 창이 고정 부분보다 낮을 때만 열 전체가 스크롤된다.
+- 초안 3차(2026-10-30 user, 2차의 "목록만 스크롤"을 되돌림): 페이지 전체가 스크롤되고 하단 버튼도 함께 내려간다. 스크롤 컨테이너는 흰 본문 패널 자체(`.add-panel`, `overflow-y: auto`, `overscroll-behavior: contain`)이고, 스크롤바는 패널 가장 오른쪽에 Quick Open 목록과 같은 얇은 macOS 스타일(`ds` `.doan-scroll`: `scrollbar-width: thin`, `--scrollbar-thumb-quiet`)로 나온다. 1차에는 560px 본문 열이 스크롤 컨테이너라 스크롤바가 열 옆에 붙었다. 본문 열은 최소 패널 높이라 내용이 짧으면 하단 버튼이 패널 아래에 붙는다.
 - 아래 초안 1차 제안 문구는 사용자가 확정했다(2026-10-30 "문구는 괜찮"). 초안 1차 제안 문구: 제목 "Add a project", 주 버튼 "Set up and add"·"Clone and add", 드롭 status "Drop to add this folder", notice "Drop one folder at a time.", Home 안내 "Folders can’t be attached. Add a project from Add Projects.", clone 중 "Stay on this page until the clone finishes, or cancel it."(critique: 잠긴 탭만으로는 떠날 수 없는 이유가 보이지 않는다).
 - 기존 `buzz-onboarding.html`은 고치지 않는다(공통 결정 11).
 
