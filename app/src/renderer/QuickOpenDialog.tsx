@@ -60,6 +60,19 @@ const TABS: readonly { kind: SearchKind; label: string; Icon: typeof Layers }[] 
   { kind: "frame", label: "Frames", Icon: Hash },
 ];
 
+// Leaving the tab list by Tab keeps the row the person was on; only ↓ asks for the first row again.
+export function quickOpenTabKey(key: string, current: SearchKind): { kind: "input"; first: boolean } | { kind: "select"; tab: SearchKind } | null {
+  if (key === "Tab") return { kind: "input", first: false };
+  if (key === "ArrowDown") return { kind: "input", first: true };
+  const tab = tabKey(TABS.map(item => item.kind), current, key) as SearchKind | null;
+  return tab ? { kind: "select", tab } : null;
+}
+
+// Scrolling to the first row itself would leave its group title and the list's top padding hidden.
+export function activeScroll(index: number): "top" | "nearest" {
+  return index === 0 ? "top" : "nearest";
+}
+
 interface QuickOpenProps {
   // Every saved project; reading and problem rows are left out of the index.
   entries: readonly FolderEntry[];
@@ -107,7 +120,11 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
   const filter = (next: SearchKind) => { setKind(next); setActiveKey(null); };
   const focusTab = () => dialog.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
   const activeId = rows[current] ? optionId(id, rows[current]) : undefined;
-  useEffect(() => { if (activeId) document.getElementById(activeId)?.scrollIntoView({ block: "nearest" }); }, [activeId]);
+  useEffect(() => {
+    if (!activeId) return;
+    if (activeScroll(current) === "top") { if (list.current) list.current.scrollTop = 0; }
+    else document.getElementById(activeId)?.scrollIntoView({ block: "nearest" });
+  }, [activeId, current]);
   useEffect(() => { if (list.current) list.current.scrollTop = 0; }, [query, kind]);
   return <dialog className="doan-dialog qo" data-ui-presentation="search" aria-label="Quick Open" ref={node => {
     dialog.current = node;
@@ -144,11 +161,15 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
       {TABS.map(tab => <button key={tab.kind} type="button" role="tab" className={tab.kind === kind ? "current" : ""} aria-selected={tab.kind === kind} tabIndex={tab.kind === kind ? 0 : -1} aria-controls={id}
         onClick={() => { filter(tab.kind); input.current?.focus(); }}
         onKeyDown={event => {
-          if (event.key === "ArrowDown" || event.key === "Tab") { event.preventDefault(); setActiveKey(null); input.current?.focus(); return; }
-          const next = tabKey(TABS.map(item => item.kind), tab.kind, event.key) as SearchKind | null;
-          if (!next) return;
+          const step = quickOpenTabKey(event.key, tab.kind);
+          if (!step) return;
           event.preventDefault();
-          filter(next);
+          if (step.kind === "input") {
+            if (step.first) setActiveKey(null);
+            input.current?.focus();
+            return;
+          }
+          filter(step.tab);
           // The tab that becomes the Tab stop is drawn on the next render.
           requestAnimationFrame(focusTab);
         }}><tab.Icon aria-hidden="true" />{tab.label}</button>)}
