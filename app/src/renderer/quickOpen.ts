@@ -228,11 +228,15 @@ export function resultParts(result: SearchResult, title: string | undefined): { 
 }
 
 // A native modal reports its own element for backdrop and padding clicks, so only geometry tells them apart.
+// The header strip never closes it: its drag region takes real clicks before the page, but its no-drag controls
+// (the mode capsule, the history buttons) reach the backdrop under them.
 export function outsideDialog(
   rect: Pick<DOMRect, "left" | "top" | "right" | "bottom">,
   down: { x: number; y: number; button: number }, up: { x: number; y: number },
+  strip: Pick<DOMRect, "left" | "top" | "right" | "bottom"> | null = null,
 ): boolean {
-  const outside = ({ x, y }: { x: number; y: number }) => x < rect.left || x > rect.right || y < rect.top || y > rect.bottom;
+  const within = (box: Pick<DOMRect, "left" | "top" | "right" | "bottom">, { x, y }: { x: number; y: number }) => x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+  const outside = (point: { x: number; y: number }) => !within(rect, point) && !(strip && within(strip, point));
   return down.button === 0 && outside(down) && outside(up);
 }
 

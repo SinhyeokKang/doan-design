@@ -41,8 +41,9 @@ export function activeIndex(rows: readonly SearchResult[], key: string | null): 
 export function closesOnClick(
   target: unknown, dialog: { open: boolean; getBoundingClientRect(): Pick<DOMRect, "left" | "top" | "right" | "bottom"> },
   down: { x: number; y: number; button: number } | null, up: { x: number; y: number },
+  strip: Pick<DOMRect, "left" | "top" | "right" | "bottom"> | null = null,
 ): boolean {
-  return down !== null && target === dialog && dialog.open && outsideDialog(dialog.getBoundingClientRect(), down, up);
+  return down !== null && target === dialog && dialog.open && outsideDialog(dialog.getBoundingClientRect(), down, up, strip);
 }
 
 export function quickOpenKey(key: string, active: number, count: number): { kind: "move"; active: number } | { kind: "pick" } | { kind: "close" } | null {
@@ -136,7 +137,9 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
     onClick={event => {
       const down = press.current;
       press.current = null;
-      if (closesOnClick(event.target, event.currentTarget, down, { x: event.clientX, y: event.clientY })) dismiss();
+      // The strip is measured now: the header is the same element on Home and in a workspace, but its size is not ours.
+      const strip = document.querySelector(".top")?.getBoundingClientRect() ?? null;
+      if (closesOnClick(event.target, event.currentTarget, down, { x: event.clientX, y: event.clientY }, strip)) dismiss();
     }}>
     <label className="qo-search">
       <Search aria-hidden="true" />
