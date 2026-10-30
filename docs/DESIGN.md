@@ -53,7 +53,7 @@ The reference for every screen.
 - **States.** Pressed changes the fill only, never the position. Selection stays visible apart from hover. Disabled is a role (`text-disabled` on `affordance-disabled`), never `opacity`.
 - **Motion.** `time-fast` 120ms, `time-state` 150ms, `time-panel-enter` 180ms, `time-settle` 220ms; `ease-enter`, `ease-settle`, `ease-state`. A dialog rises 12px over 220ms as it opens and drops 4px over 120ms as it closes (`@starting-style`, `transition-behavior: allow-discrete` on `display` and `overlay`). A tooltip that waited for its delay settles in (fade, 2px rise, scale 0.97, 2px blur); one opened instantly from a neighbour does not animate. Under `prefers-reduced-motion: reduce` the fades stay and every movement, scale and blur goes.
 - **Floating material** (menus, popovers): 24px corner (16px compact), 4px list inset (2px compact), a transparent 1px border that still counts in the nested-corner arithmetic, `shadow-panel` drawing the visible edge (`CanvasText` border under forced colours). Glass (`surface-elevated-glass`, 90% white with an 8px blur) applies only under `prefers-reduced-transparency: no-preference`, outside forced colours, where `backdrop-filter` is supported; otherwise the surface is opaque. Menu rows are 32px with the derived 19px corner (13px compact). Menus are capped at 320px.
-- **Dialogs.** Four widths: compact 400px, standard 640px, wide 880px, expanded 1152px. Compact is centred; the others hang 128px from the top and may grow to 16px above the window edge. 32px padding (16px in a window 480px wide or less), 28px corner, opaque `surface-popover`, 16px between parts. The header is the title over an optional description; actions sit at the end of the row, Cancel first and the completing action last. There is no Close button; Cancel and Escape close every Doan dialog. The modal scrim is `bg-scrim` (black at `#00000060`).
+- **Dialogs.** Four widths: compact 400px, standard 640px, wide 880px, expanded 1152px. Compact is centred; the others hang 128px from the top and may grow to 16px above the window edge. 32px padding (16px in a window 480px wide or less), 28px corner, opaque `surface-popover`, 16px between parts. The header is the title over an optional description; actions sit at the end of the row, Cancel first and the completing action last, at the default button size. One exception: Project Settings saves each value at once, so Done is its only action. There is no Close button; Cancel and Escape close every Doan dialog (Project Settings: Done and Escape, refused while a pick, confirmation or write runs). Unresolved: first run's Stop and Paste dialogs, which Settings > Agents reuses, use `sm` actions. The modal scrim is `bg-scrim` (black at `#00000060`).
 - **Tooltip.** A near-black capsule (`affordance-prominent`, `text-on-prominent`): caption type, 4/8px padding, corner half its one-line height (12px; 24px tall), no arrow, at most 384px wide with long paths wrapping. PathTip shares the padding.
 - **Toast.** Floating material, 384px wide, 12px inset; the message and its one action share a row, the action a `prominent` sm button on the right that stays vertically centred while only the message wraps. It sits at the window's bottom right, `--space-4` (16px) from both edges, on Home and over a workspace or canvas.
 - **Shared variants.** Screens add variants instead of overriding shared sizes or fills.
@@ -77,12 +77,12 @@ The reference for every screen.
   - an inline error is a 16px icon with one body-sm `text-danger` line (`text-warning` for warnings), which adds the icon to the reference's text-only field error;
   - a neutral notice is a `surface-inset` fill with `radius-row` and body-sm `text-subtle` (icon and `text-warning` when it warns).
 - **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for connection and wizard status. It is a separate primitive from `.doan-chip`.
-- **Shared dialog sizes.** The `.ob-dialog` confirmations (link replacement, Settings confirmations) and the three comment confirmations are compact and centred; Project Setup and Hand off are standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
+- **Shared dialog sizes.** The confirmations (link replacement, Settings' Fix… and Add to serve?) and the three comment confirmations are compact and centred; Project Setup and Hand off are standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
 - **Toast without a type.** Success, error and undo toasts share the one neutral floating toast and differ only by their text; there is no type colour and no close button.
 - **Focus ring colour.** The ring is `border-focus` (`neutral-12`, black, 21:1 on white); the reference ring uses `text-standard`. Inset rings are −2px, matching the draft and the menu rows.
 - **Tooltip offset.** The shared tooltip defaults to `sideOffset` 4.
 - **Type family.** `--type-family` (locally bundled Geist, followed by the system sans stack with `Apple SD Gothic Neo`) is the role the renderer reads; `--font-sans` is only a legacy alias.
-- **Light only.** Main sets `nativeTheme.themeSource = "light"` and Settings' `backgroundColor` `#f1f1f2` (`bg-app`); the main window is transparent with native sidebar material and an opaque reduced-transparency fallback. Main-window options are pinned by `app/src/main/index.test.ts`. The canvas iframe stays light under a dark macOS appearance by two routes: the renderer's `color-scheme: light` on the `<iframe>` element decides the canvas's `prefers-color-scheme` (dark on the element gives dark, light gives light, `normal` follows `nativeTheme`), and main pins `nativeTheme` light. With `nativeTheme.themeSource` forced dark, the app page matches dark while the sandbox iframe still matches light, also after the iframe is recreated. A probe must not use `page.emulateMedia` for this, because it overrides every frame, the canvas included. Not checked with an actual macOS appearance switch.
+- **Light only.** Main sets `nativeTheme.themeSource = "light"`; the main window is transparent with native sidebar material and an opaque reduced-transparency fallback. Main-window options are pinned by `app/src/main/index.test.ts`. The canvas iframe stays light under a dark macOS appearance by two routes: the renderer's `color-scheme: light` on the `<iframe>` element decides the canvas's `prefers-color-scheme` (dark on the element gives dark, light gives light, `normal` follows `nativeTheme`), and main pins `nativeTheme` light. With `nativeTheme.themeSource` forced dark, the app page matches dark while the sandbox iframe still matches light, also after the iframe is recreated. A probe must not use `page.emulateMedia` for this, because it overrides every frame, the canvas included. Not checked with an actual macOS appearance switch.
 
 ### Intended exceptions
 
@@ -108,7 +108,8 @@ Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-butt
 | Checkbox | 20px, 4px corner; the tick is a 5×10 content box inside 2px strokes (content-box sizing; Tailwind's preflight border-box would make it 3×8). |
 | Status chip | 20px pill in the status roles. |
 | `.doan-chip` | 12px caption size, 1.35 line height, 2px block and 6px inline padding; a branch chip measures 12px/16.2px Geist, 20.1953125px tall, with a 12×12px branch icon. Other `.doan-chip` uses have not been remeasured in the native app. |
-| Settings-style group | 1px `border-standard`, 24px corner, 16px side inset, rows split by hairlines. |
+| Settings group and row | `.doan-settings-group`: 1px `border-standard`, 24px corner, 16px side inset, rows split by its own hairlines, an inline-size container. `.doan-preference-row`: 12px block padding, 1fr / auto with a 16px column gap and no row gap, body-sm label over a caption description 2px apart. Measured in Settings (see Settings). |
+| Switch | `.doan-switch` on `button[role="switch"]`: 36 × 20 track, 1px border, 2px padding; 14px thumb (`::before`) moved 16px when on; on is `affordance-prominent`; disabled is `affordance-disabled` with a transparent border, a `surface-panel` thumb and the default cursor. 36px and 14px are the switch's own constants. |
 
 Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is not drawn pressed; a focused button chip shows the ring only; the worktree menu keeps the 320px menu cap (320px wide at window widths 960 and 1238, inside the viewport); CLI and skill link paths in connection details stay on one line with the full path in `title`; form labels carry no label tracking; the FirstPrompt subject field is a block; a failure status block spaces its actions and opened detail with its own 8px gap. Unpinned: the checkbox tick, the open-disclosure rule, the worktree-menu cap and the one-line link paths.
 
@@ -134,7 +135,7 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 
 Reference: `.doan/canvases/buzz-shell.html`, measured beside the implementation in Electron 45.0.0 / Chromium 156.0.8078.48 at content viewports 1238×780 and 960×600. This covers the header and sidebar (LNB), not Home, Overview, Inspector or comments content.
 
-**Header.** Height 56px. History controls at x104/y12, 32px, with the documented header corner 10. The centred mode capsule is 371.2578125×40px at a 1238px window width; its actions are 32px high with 16px inline insets, Plus/Grid/Settings glyphs, subtle ink when inactive and standard ink with the panel shadow when selected. Finite capsule/button radii are geometrically equivalent to the draft's clamped pills. Settled Back is transparent; hover is the shared chrome 6%-black fill on Back and 10%-black on Search.
+**Header.** Height 56px. History controls at x104/y12, 32px, with the documented header corner 10. The centred mode capsule is 371.2578125×40px at a 1238px window width; its actions are 32px high with 16px inline insets, Plus/Grid/Settings glyphs, subtle ink when inactive and standard ink with the panel shadow when selected; on the Settings page the Settings tab is the selected one, and while a page is locked every tab, the selected one included, is `aria-disabled` with `--text-disabled` ink. Finite capsule/button radii are geometrically equivalent to the draft's clamped pills. Settled Back is transparent; hover is the shared chrome 6%-black fill on Back and 10%-black on Search.
 
 **Sidebar.** 260px wide, 8px top padding and 12px gap. Search at x16/y64, 244×36px, 10px inline inset, subtle ink. Projects heading at y112, 24px tall, 10/16 with 0.08em tracking. First project at y140. Project and canvas rows 32px with 10px inline insets and body-sm tracking. Project thumbnail 16×16px at x26, 600 weight, 16px line height (identity colours: Onboarding, 'Project thumbnails'). Project name 14/20/500, tracking −0.035px, standard ink; long names ellipsize. The 4px space below the project row and the badge/options geometry match the default specimen. The empty-project paragraph has 6/10/10/34px padding and a 16px line height.
 
@@ -247,6 +248,10 @@ Window 1238 × 780 (the draft's), 960 × 600 for `home-narrow`.
 
 Read on `home-empty`, equal to the draft's attributes: `region` "Home"; `button` "Project: doan-design"; `textbox` "Message"; `button` "Attach files", "Design presets", "Agent: Claude Code, model Opus 5.5", "Effort: High", "Send", "Worktree: main"; `group` "Suggested prompts" with one `button` per sentence. Other states were not read.
 
+### Agent picker actions
+
+Reference: `buzz-settings.html` `home-agent-picker`, measured with the Settings windows (see Settings). A group that cannot run keeps its short status in the head and offers one `menuitem` under it: "Sign in again…" (expired), "Update…" (old version) or "Open Agents settings…"; the menu ends with "Manage agents…" (Settings icon), or with "No agent is ready to run." over "Sign in to an agent…" when nothing can run. Choosing one closes the menu before Settings opens; focus lands on that provider's row group, which flashes 2.4 s (real-app probe). The menu itself is the shipped one: it inherits the app body type, and a pointer on an item shows the shared `.doan-menu-item:focus-visible` ring in the probe (the draft draws the highlight only).
+
 ### Approved copy beyond the draft
 
 - The preset list's CLI reasons ("the doan CLI couldn’t start", "the doan CLI didn’t answer in time", "Doan couldn’t read the CLI’s answer", "the doan CLI stopped without a result") and its general failure "Doan couldn’t read the design presets. You can still send without one."
@@ -257,8 +262,9 @@ Read on `home-empty`, equal to the draft's attributes: `region` "Home"; `button`
 ### Terms shared with onboarding
 
 - **Agent:** Home says "agent" for a provider ("Choose another agent", "No agent is ready to run.", trigger name "Agent: Claude Code, model …"), as the onboarding Agent step does ("Connect your agent", "Sign in to at least one agent to continue."). Provider names come from the same `PROVIDER_NAMES`.
-- **Sign-in:** Home's "Sign-in expired" and "its sign-in has expired" use the onboarding noun; onboarding's action is "Sign in again", which Home does not offer.
-- **Unverified:** onboarding shows "Connected · not checked" with Retry; Home, without an action, says "Checks your connection when you send." Same state, different wording because only onboarding can act.
+- **Sign-in:** Home's "Sign-in expired" and "its sign-in has expired" use the onboarding noun. Home offers "Sign in again…" in the agent picker, which opens Settings > Agents at that provider, where the row's "Sign in again" acts.
+- **Unverified:** onboarding shows "Connected · not checked" with Retry; Home, without an action, says "Checks your connection when you send." Same state, different wording because only onboarding can act there.
+- **Settings:** Settings > Agents checks an unverified connection with Check (`subtle`), not first run's Retry, shows the account then "· not checked", and says the cost under Copilot's row ("Checking uses one Copilot request.") where first run puts "Uses one Copilot request" beside the button. Every connected row keeps Sign out. A sign-in owned elsewhere says "Finish this sign-in where it started."
 - **Product name:** human-facing text says Doan; only commands, paths and identifiers such as "the doan CLI" stay lowercase.
 
 ### Limits
@@ -620,33 +626,54 @@ Reference: `.doan/canvases/project-feedback.html`, frames `feedback-panel`, `fee
 
 ## Settings
 
-> buzz-ds 이전 (except the values marked as measured on the design system). Owner: `buzz-settings`, which removes the mark.
+Reference: `.doan/canvases/buzz-settings.html`, the ten windows `agents`, `agents-signing-in`, `notifications`, `notifications-off`, `connections`, `connections-locked`, `about`, `project-settings`, `project-problem` and `home-agent-picker`, plus the `states-project` Add to serve? confirmation. Measured by computed style beside the built app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/buzz-settings/measure.mjs`); the draft side is read with `ds/` and tokens as of the draft's commit, because the canvas links `ds/index.css` and the app's later rules would otherwise style the draft. Development and production builds give the same values for the panel, column, title, group, row, switch and notice (131 of 131).
 
-Reference: `.doan/canvases/app-setup.html`, frames `settings-connections`, `connection-rows`, `settings-projects`, `first-prompt` (FirstPrompt: Design navigation, Overview).
+Settings is a page of the main window, like Add Projects: the shell's header and sidebar around Home's white panel.
+
+### Measured contracts
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Settings window | 640 × 560 outside, not resizable, no minimize or zoom; renderer 640 × 528 (the macOS title bar measured 32 px; the draft assumed 28 px, so panes are 4 px shorter than drawn) | Fixed pane layout; the title is the current tab. |
-| Tab bar | Padding 4px 20px 10px with a 1px bottom divider; segment 240px wide, padding 3, gap 4, radius 7, 1px border; tab 11.5px, padding 5px 7px, radius 4 | The Comments segment, centred. |
-| Connections pane | Padding 16px 20px 20px; lead 12px / 19.2px with Check Again at its right | Result-first lead, one refresh action. |
-| Connection row | Card radius 10, 1px border; row padding 12px 14px, grid (1fr, auto), gaps 4px 12px, 1px divider; name 12.5px / 600 with a 10px disclosure glyph, focusable (radius 5); sentence 11.5px / 17.25px, 16px left inset, 12px top padding; cause 600 | One line of state and action, one line of result; Details on demand. |
-| Row details | Band with margin 8px −14px −12px and a 1px top divider; items grid 96px / 1fr / auto, padding 10px 14px 10px 30px, label 500; MCP wait reason right under its item (padding-top 0); terminal line padding 10px 14px 12px 30px with the PATH output and Copy labels | Paths and config locations stay out of the row until asked for. |
-| Main reason code | Text rgb(15,15,15), radius 4px, padding 0 4px, `surface-panel` background (measured on the design system) | e.g. the dangling-CLI reason. |
-| Confirmations | `.ob-dialog`, compact; comparison grid 64px / 1fr; Cancel focused | "Fix the doan link?" and "Add to serve?". |
-| Project Setup | Standard shared dialog; error content keeps the selected fields | |
-| Projects pane | List 220px with a 1px right divider, padding 2px 0 8px; group heading 11.5px, padding 12px 14px 4px; row padding 6px 10px 6px 14px, gaps 2px 8px, selected with a 2px bar; detail padding 16px 18px | One row per worktree. |
-| Project detail | Heading 13px / 600 with the branch as `.meta` after a space; sections 14px apart with a 1px top divider and 12px padding; section label `.ihead` with ✓ Saved (11px) or Saving…; serve list radius 8, 1px border, items padding 5px 6px 5px 10px; helper 11px / 16.5px; Reading… 10px under the heading; CLI messages 11.5px | Shows exactly root, token CSS and serve. |
-| Unbroken branch | A 224-character segment: heading 60.5px tall, detail scrollWidth/clientWidth 420/420, Change…/Add… right edge 622px, no horizontal overflow; full value in `title` (measured on the design system) | |
+| Header tab | Settings is the capsule's third tab; on the page it is the current white pill with standard ink (the App shell values) | |
+| Sidebar | 'Settings' heading in the Projects heading's place, then four 244 × 32 rows (Agents, Notifications, Connections, About) 2px apart with 10px insets, a 16px Lucide icon in `--text-subtle` and body-sm label; the current row takes the pressed fill rgba(0,0,0,.1) with standard ink and icon; Search stays | The shipped sidebar with its project tree replaced. |
+| Panel | Home's panel, the scroll container (`.doan-scroll`, thin); 14/20 body-sm with its tracking and plain numerals | Like the Add Projects panel. |
+| Column | max 768px (48rem), centred, padding 32 / 24 / 24 | Buzz's settings reading column. |
+| Header | 17px inline inset (the group's 16px plus its border, so text lines up with row text); title heading 24 / 26.4 / 500; lead caption 12 / 16 `--text-subtle`, 8px below; 32px to the first section; an action slot on the right (Check Again, Copy details), hidden while empty | |
+| Sections | 32px apart; title label-sm 14 / 20 / 500 with the same 17px inset, 12px above its group; a section description caption 2px under its title | |
+| Group | 1px `--border-standard`, 24px corner, 16px side inset, rows split by its own hairlines | Shared `.doan-settings-group`. |
+| Row | Padding 12px 0; columns 1fr / auto with a 16px column gap and no row gap; label body-sm 14 / 20 `--text-standard`; description caption 12 / 16 `--text-subtle` 2px below; a provider row leads with a 20px logo; a disabled row (`data-disabled`) dims its label, description and icon to `--text-disabled` | Shared `.doan-preference-row`. |
+| Lines under a row | A notice, its actions or a helper start at the text column 12px below the row; a helper is caption `--text-subtle` 4px below; a line that belongs to the group (Project Settings recovery actions) is a row of its own, 12px block padding under a hairline; the notification permission hint hugs Desktop notifications (no hairline, 12px below it) | |
+| Switch | 36 × 20 track, 1px border, 2px padding, pill; off `--border-standard` on `--affordance-subtle-hover`; on `--affordance-prominent` border and fill (rgb(0,0,0)) with the 14px white thumb (`--shadow-xs`) moved 16px; disabled: transparent border, `--affordance-disabled` fill (rgb(232,232,232)), `--surface-panel` thumb, no shadow, default cursor, thumb kept where it was | Shared `.doan-switch`; 14px and 36px are the switch's own constants, not `--size-icon-sm`. |
+| Arrival | A provider row an arrival focuses carries a 2px inset `--border-focus` ring, −8px inline margin with 8px padding and a 16px corner for 2.4 s; the focused row group shows the 2px −2px focus outline | Like an added project's sidebar row. |
+| Controls | Row buttons `sm`; Settings' Check is `subtle` (first run's Retry stays `prominent`); Agent, Model and Effort are `sm` `trigger` menus (`role="menu"`) with a 6px gap, regular weight and a `--text-subtle` chevron | |
+| Connections | The three connection rows sit in the shared group; a row is 12px block padding, the group draws the dividers; Details open on the inset fill with white code chips | |
+| Lock ink | While a confirmation or write owns the page: header tabs (the current Settings tab included), Back, Search and the other categories take `--text-disabled` with the default cursor, a locked category's icon included; the current category keeps its fill | The Add Projects page rule. |
+| Project Settings | Standard dialog, 640px, 128px from the top, 14 / 20 text with plain numerals; title the project name with the branch in `--text-metadata` body-sm; one settings group; Done is the only action (prominent, default size); serve list 1px border, row corner, items padding 4 / 4 / 4 / 12 | Values save at once, so there is nothing to cancel. |
+| Confirmations | Fix… and Add to serve? are compact and centred with Cancel focused and default-size actions; text without the page's body-sm tracking | |
 
-- **Connection status pills** are `.ob-chip`, not `.doan-chip`.
-- **Development build without DOAN_CLI:** main's reason ("This build has no bundled CLI. Set DOAN_CLI.") is the doan command row's sentence, with a disabled Connect. Agent rows keep "<Agent> is installed but can’t use doan yet." with the reason under it. Pinned in `connectionRows.test.ts`, together with the MCP wait wording.
-- **Errors:** connection read and install errors use the inline error form (`CircleAlert` and `text-danger`, no left rule); another-window busy is a warning notice.
-- **Projects:** failed config reads offer Retry and keep the prior config; the forwarding action is labelled `Open Details in Main`; the selected project and a pending confirmation stay visible during protected operations. Keyboard checks covered lost focus after Clear, after the last Serve removal and after a successful Retry.
-- **Scrolling:** the Settings panes, the Projects list and the detail scroll instead of clipping.
-- **Copy:** Projects shows main's CLI timeout copy (`doan config timed out after 10 s.`) and the CLI's own error message. Three row sentences the draft does not draw: Claude Code skill link broken, skill path blocked, Claude link blocked. Couldn't check shows main's reason; for an unreadable `~/.claude.json` main says "Unreadable registration.". CODEX_HOME paths under HOME show as `~/…`.
-- **Behaviour:** closing Settings during its own write is refused; Settings re-reads on focus with a 60 s throttle.
-- **Tile crops:** the serve helper, the optional terminal line, the root path of other problem rows (with its 8 px action gap), Found at during Connect and the other rows of a card are present in the app where a draft tile leaves them out.
-- While Connect runs, Details keep the last read (Skill link Not installed, MCP Registering…) because main exposes no per-item progress.
-- Roles: `tablist` "Settings"; `tab` "Connections", "Projects"; `tabpanel` named by the tab. Connection rows: disclosure `button` named by the row ("doan command", `expanded`) and one action `button` (Fix…, Connect, Install Codex ↗, Check Again; disabled while another step runs). Projects: `listbox` "Projects"; `option` "main ~/code/acme-web", "~/code/old-site Missing"; detail `region` "acme-web (main) settings". Confirmations: `alertdialog` "Fix the doan link?", "Add to serve?".
-- Unpinned: the MCP wait reason padding and the project heading and region name.
-- Not verified: the another-window busy notice against its draft; Fixing… on the doan command row (the link write is instant); native title bar, traffic lights and window shadow; replacement confirmations other than Fix the doan link?, the "It changed after you looked" outcome, the install-page failure notice and the Settings read error (no draft specimen); the Serve section of a timed-out write; minimum window sizes; native title-tooltip painting and an actual OS picker interaction.
+### Documented deviations from the draft
+
+- **Sideways clip.** The panel clips sideways (`overflow-x: hidden`) like the Add Projects panel; the draft leaves `auto`. Nothing in the column is wider than the panel (also at 960 × 600).
+- **Group query container.** `.doan-settings-group` is an inline-size container so that at 24rem a button control moves under its title (Buzz's narrow rule); the draft draws no narrow state. Groups measured 574–720px wide in every placement (page column at 1238 and 960 windows, Project Settings dialog), never collapsed.
+- **Notice actions.** `.ob-state-actions` keeps first run's 16px top margin; the draft copied 12px. A row with a notice is 4px taller than drawn.
+- **Waiting row keeps its vendor line.** A not-connected provider whose sign-in waits keeps its vendor line ("OpenAI"), as first run draws it; the Settings draft drops it (the shared provider view). The row is 22px taller than drawn.
+- **Lock ink on the current tab and Back.** The current Settings tab is `aria-disabled` and dimmed while the page is locked, like every header tab on a locked page; the draft leaves it unmarked. Locked Back takes the disabled ink and default cursor; the draft marks it without the shipped ink.
+- **Code chips in connection details** stay white on the inset fill. The canvas's own `.cn-details code` rule asks for the same and loses by order to its copied page code-chip rule.
+- **Switch thumb** is the button's `::before`, not a child span; its values match the draft's span.
+
+### States not in the draft
+
+- The read-stage notice "Doan couldn’t read its saved settings, so defaults apply." and the newer-file notice above a category's groups (`.settings-notice`, 12px below); the save failure under New conversations (`.settings-save-error`, 12px above, 17px inset). Not measured against a draft.
+- About's "Checking…" rows, the sign-in toast, and the Project Settings recovery rows other than Missing (Config error with Retry, Show in Finder and Details, whose detail opens inside the dialog; CLI error with Retry). Seen in the real-app probe, not compared.
+- The `states-*` tiles are not windows and were not paired, except the Add to serve? confirmation.
+
+### Not verified and unresolved
+
+- **Stop and Paste dialogs.** Settings reuses first run's Stop and Paste dialogs, whose actions are `sm`; the draft's `states-agents` tile and 'Dialogs' draw the default size. Unresolved with the same first-run mismatch.
+- The 24rem narrow layout in a real placement (no placement is that narrow at the 960 × 600 minimum).
+- Roles and names were read from DOM attributes, not from the accessibility tree: rows `group` named by the provider; Agent, Model and Effort `button` with `aria-haspopup="menu"`; switches `switch` with `aria-checked`; confirmations `alertdialog`.
+- Hover and keyboard focus on the sidebar rows, the switch focus ring and menu contents of Agent, Model and Effort were not measured.
+
+### Regression pointers
+
+`ds/controls.test.ts` (switch, group, row), `SettingsPage.test.tsx` (sidebar ink, dialog type, group-level line), `connectionRows.test.ts` (rows in the settings group), `agentAuthView.test.ts` (Settings' Check), `rendererImports.test.ts` (the renderer never loads the ajv validators: a blank window under the CSP otherwise). Probes: `.scratch/design-sync/buzz-settings/measure.mjs`, `.scratch/runtime-test/buzz-settings/r2.mjs`.
