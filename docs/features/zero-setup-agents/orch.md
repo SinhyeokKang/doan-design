@@ -40,6 +40,7 @@
 | 30 | Antigravity 2.28.2가 기본으로 명령을 sandbox에 넣어 첫 `doan active`가 막힘(E 보고) | 완료 조건 5의 "사람이 한 번 승인하면 앱에 닿는다"를 만족한다고 본다. 에이전트가 `nextSteps`("run `doan` outside the sandbox or request approval")대로 sandbox 밖 실행을 요청하면 한 번 승인으로 닿았다. 에이전트가 스스로 다시 요청하는지는 미검증으로 남기고 T9(MCP 제거 feature)의 입력으로 넘긴다 | 지휘자 판단 — tasks.md T6b 표 |
 | 31 | T6b Cursor(계정 사용 한도로 측정 못 함) | 미검증으로 남긴다. 링크 집합은 T0과 같으므로 T0의 Cursor 결과(두 링크가 한 디렉터리로 풀려 한 번만 보임)를 근거로 둔다 | 지휘자 판단 — 다른 계정을 쓰는 것은 허락받은 범위 밖 |
 | 32 | 한 줄 알림에서 글자가 위에 붙고 버튼이 어긋남(H round 3 스크린샷) | 아이콘처럼 알림 줄의 모든 항목(아이콘, 글자, 버튼·버튼 묶음)을 첫 줄 가운데에 맞추는 공유 규칙 하나를 기본 클래스에 둔다. 화면별 예외 없음. 배치 H round 4 | 지휘자 판단 — 결정 25의 공유 원칙, 기존 아이콘 정렬과 같은 방식 |
+| 33 | eval 회귀: R2b·R7 Codex가 MCP `active`를 쓰지 않음(F 에스컬레이션) | 배치 B가 지운 MCP fallback을 되돌린다. 순서: Doan 열기 → MCP가 있으면 `active`/`onboarding_*` → 없으면 sandbox 밖 실행·승인 → Applications의 Doan과 Settings… > About. 배치 B2(Claude Opus medium), `clarify` preset 먼저. F가 B2 커밋으로 다시 돌린다 | 지휘자 판단 — MCP는 아직 제공되며(T9에서 제거 여부 결정) 완료 조건 11은 문구로 생긴 새 issue를 허용하지 않는다 |
 | 7 | T9 | 이번 run 밖. PR이 main에 merge된 뒤 main에서 하는 문서 변경 | tasks.md T9 |
 
 ## 배치
