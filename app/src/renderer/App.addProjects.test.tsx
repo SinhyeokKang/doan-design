@@ -87,6 +87,8 @@ beforeEach(() => {
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onProjectAction: on("projectAction"), onConversationEvent: on("conversation"), onOpenAddProjects: on("openAddProjects"),
+    // buzz-settings: App also listens for Settings…, notification clicks and sign-in changes, and reads preferences.
+    onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"), onAgentAuth: on("agentAuth"), onAgentSignInPrompt: on("prompt"), readPreferences: vi.fn(async () => null),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(),

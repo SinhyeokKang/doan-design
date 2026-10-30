@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, LayoutGrid, Palette, Search, Settings } from "lucide-react";
+import { Bell, Bot, Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, Info, LayoutGrid, Palette, Plug, Search, Settings } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
@@ -9,6 +9,7 @@ import { rowProblem, typeaheadNext } from "./canvasTree";
 import { ErrorDetails } from "./ErrorDetails";
 import { displayPath } from "./projectDisplay";
 import { slotKey, type Slot } from "./homeConversations";
+import { SETTINGS_SECTIONS, type SettingsSection } from "./settingsSections";
 
 interface Props {
   cards: HomeCard[];
@@ -32,7 +33,11 @@ interface Props {
   // The Add Projects page is selecting or cloning: moves away are shown unavailable and App ignores them
   // (buzz-add-projects design '잠금'). aria-disabled keeps them in the focus order.
   locked?: boolean;
+  // The Settings page: the project tree gives way to its categories, a plain list of buttons (buzz-settings design
+  // 'LNB'). Choosing one leaves focus on its row.
+  settings?: { section: SettingsSection; select(section: SettingsSection): void };
 }
+const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, notifications: Bell, connections: Plug, about: Info };
 const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
 // A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
 // permission request in a collapsed project is never hidden.
@@ -131,6 +136,19 @@ export function ShellSidebar(props: Props) {
   const active = rows.some(row => row.key === focused) ? focused : rows[0]?.key;
   // Radix spreads props over the aria-disabled it derives from `disabled`, so Overview repeats its own disabled state.
   const locked = props.locked || undefined;
+  if (props.settings) {
+    const { section, select } = props.settings;
+    return <aside className="side shell-side" ref={host} aria-label="Settings">
+      <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
+      <div className="shell-projects">
+        <h2 className="shell-projects-heading">Settings</h2>
+        <nav className="shell-settings-nav" aria-label="Settings">{SETTINGS_SECTIONS.map(item => {
+          const Icon = SECTION_ICONS[item.id], current = item.id === section;
+          return <button key={item.id} type="button" className="shell-settings-row row" aria-current={current ? "page" : undefined} aria-disabled={locked && !current ? true : undefined} onClick={() => select(item.id)}><Icon aria-hidden="true" /><span>{item.title}</span></button>;
+        })}</nav>
+      </div>
+    </aside>;
+  }
   return <aside className="side shell-side" ref={host} aria-label="Projects">
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <div className="shell-projects">

@@ -1,31 +1,33 @@
 import { Fragment, useEffect, useId, useReducer, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, GitBranch, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Shapes, TextAlignStart, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, GitBranch, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { AttachmentResult } from "../main/attachments";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
-import { providerShortStatus } from "./agentAuthView";
+import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider,
-  dropTarget, greetingText, groupIcon, isSubmitKey, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder, providerLogo,
+  dropTarget, fixedPreference, greetingText, groupIcon, isSubmitKey, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder, providerLogo,
   rootForProject, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
-  type AttachmentDraft, type ModelsState, type PresetListReply, type PresetRow, type PresetSummary,
+  type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetRow, type PresetSummary,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 import { restoreRequest } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
+import type { SettingsTarget } from "./settingsSections";
 
 // Everything the composer keeps between Home visits for this run (design §4.1: a draft survives leaving Home, not a
 // restart). App owns the object so a visit's unmount does not lose it; reads finishing after an unmount still land.
 export interface ComposerMemory {
   text: string; preset: PresetSummary | null; attachments: AttachmentDraft[];
-  // Choices the person made; absent ones follow the defaults (design §4.2, §4.3, §4.7).
+  // Choices the person made; absent ones follow the defaults (design §4.2, §4.3, §4.7). The agent, model and effort
+  // picks last until the input is sent (buzz-settings design 'New conversations'); the project stays.
   root: string | null; provider: Provider | null;
   models: Partial<Record<Provider, string>>; efforts: Record<string, string>;
   // Model lists by root and provider, and the preset list, as read in this run.
@@ -77,6 +79,10 @@ export interface HomeComposerProps {
   openConversation(conversationId: string): void;
   // The project picker's Add Projects… opens the Add Projects page.
   addProjects(): void;
+  // Settings > Agents' New conversations; null is Last used.
+  defaults?: NewConversationDefault | null;
+  // The agent picker's way into Settings > Agents (buzz-settings design '홈 공급자 선택기').
+  openSettings(target: SettingsTarget): void;
 }
 
 const GROUP_ICONS: Record<string, typeof Compass> = { compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
@@ -181,16 +187,20 @@ export function HomeComposer(props: HomeComposerProps) {
   // Providers: the person's choice stays even when it stops being ready (design §4.3); until then the default.
   const auth = m.auth;
   useEffect(() => window.doan.onAgentAuth(snapshot => update({ auth: snapshot })), []);
-  const provider = m.provider ?? defaultProvider(auth, props.prefs?.lastProvider);
+  const provider = m.provider ?? defaultProvider(auth, props.prefs?.lastProvider, props.defaults ?? null);
+  const fixed = provider ? fixedPreference(props.defaults ?? null, provider) : null;
   const lists: Partial<Record<Provider, ModelsState>> = root ? Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, m.lists[listKey(root, status.provider)]])) : {};
   const listState = provider ? lists[provider] : undefined;
   const saved = provider ? props.prefs?.models?.[provider] : undefined;
   const explicitModel = provider ? m.models[provider] : undefined;
-  const model = provider ? (modelOption(listState, explicitModel ?? null)?.id ?? defaultModel(listState, saved)) : null;
+  const model = provider ? (modelOption(listState, explicitModel ?? null)?.id ?? defaultModel(listState, saved, fixed)) : null;
   const option = modelOption(listState, model);
-  const remembered = provider && model ? m.efforts[effortKey(provider, model)] ?? (saved?.model === model ? saved.effort : undefined) : undefined;
-  const effort = defaultEffort(option, remembered);
+  const pickedEffort = provider && model ? m.efforts[effortKey(provider, model)] : undefined;
+  const effort = pickedEffort !== undefined ? defaultEffort(option, pickedEffort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, fixed);
   const picker = modelPickerView(auth, lists, { provider, model, effort });
+  const footer = pickerFooter(picker.groups.some(group => group.selectable));
+  // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
+  const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 
   const readModels = (forRoot: string, forProvider: Provider) => {
     const key = listKey(forRoot, forProvider);
@@ -390,7 +400,8 @@ export function HomeComposer(props: HomeComposerProps) {
         for (const key of current.lastKeys[root] ?? []) if (!usedKeys.has(key) && thumbnails[key]) { URL.revokeObjectURL(thumbnails[key]!); delete thumbnails[key]; }
         const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
         if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
-        return { sending: null, thumbnails, lastKeys, lastIds, root, provider, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+        // The next input starts from the defaults again: the fixed one, or with Last used the run App just recorded.
+        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, efforts: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
       });
       return;
     }
@@ -554,24 +565,30 @@ export function HomeComposer(props: HomeComposerProps) {
                 {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><span>{picker.trigger.label}</span></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
               </button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu agent-popover" aria-label="Agent and model" side="top" align="end" sideOffset={8} collisionPadding={8}>
-                {picker.groups.length === 0 && <p className="menu-note">No agent is ready to run.</p>}
                 {picker.groups.map((group, index) => {
                   const status = auth?.providers.find(item => item.provider === group.provider);
                   const short = status ? providerShortStatus(status) : null;
+                  const fix = !group.selectable && status ? pickerAction(status) : null;
                   const selected = group.rows.find(row => row.selected);
+                  // A group that cannot run says why in its head and offers its fix in Settings below it.
+                  const note = group.note ?? (group.selectable ? null : short);
                   return <Fragment key={group.provider}>{index > 0 && <DropdownMenu.Separator className="doan-menu-sep" />}<div className="agent-group">
                     <DropdownMenu.Label className="doan-menu-head agent-head"><img className="logo" src={providerLogo(group.provider)} alt="" /><span>{group.name}</span>
-                      {group.note && <span className="agent-note">{group.note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{group.note}</span>}</DropdownMenu.Label>
+                      {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
                     {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"}
                       onValueChange={value => edit({ provider: group.provider, ...(value === "default" ? {} : { models: { ...memory.current.models, [group.provider]: value } }) })}>
                       {group.rows.map(row => <DropdownMenu.RadioItem key={row.kind === "model" ? row.id : "default"} value={row.kind === "model" ? row.id : "default"} className="doan-menu-item model-item">
                         <span className="model-name">{row.label}</span>{row.kind === "model" && row.effort && <span className="sub"><Gauge className="inline" aria-hidden="true" />Effort</span>}
                         <span className="check-slot">{row.selected && <Check className="check" aria-hidden="true" />}</span>
                       </DropdownMenu.RadioItem>)}
-                    </DropdownMenu.RadioGroup> : <DropdownMenu.Item className="doan-menu-item" disabled><span className="sub">{short ?? "Not available right now"}</span></DropdownMenu.Item>}
+                    </DropdownMenu.RadioGroup> : fix ? <DropdownMenu.Item className="doan-menu-item" onSelect={() => openSettings(fix.target)}>{fix.label}</DropdownMenu.Item>
+                      : <DropdownMenu.Item className="doan-menu-item" disabled><span className="sub">{short ?? "Not available right now"}</span></DropdownMenu.Item>}
                     {group.selectable && short && <p className="menu-note">{short}</p>}
                   </div></Fragment>;
                 })}
+                {picker.groups.length > 0 && <DropdownMenu.Separator className="doan-menu-sep" />}
+                {footer.note && <p className="menu-note">{footer.note}</p>}
+                <DropdownMenu.Item className="doan-menu-item settings-menu-link" onSelect={() => openSettings(footer.action.target)}><Settings aria-hidden="true" />{footer.action.label}</DropdownMenu.Item>
               </DropdownMenu.Content></DropdownMenu.Portal>
             </DropdownMenu.Root>
             {picker.effort && provider && model && <DropdownMenu.Root>

@@ -1355,20 +1355,26 @@ describe("settings window", () => {
     if (!found) throw new Error("no settings window");
     return found;
   }
+  // Settings… opens the Settings page now (buzz-settings U2); the window stays reachable through settings:open until R1
+  // removes it.
+  const open = (tab = "connections") => invoke("settings:open", window().webContents, null, { tab });
   async function openSettings() {
     await closeWizard();
-    click("Settings…");
+    await open();
     return settings();
   }
 
-  test("Settings… is disabled while the wizard is open and opens one 640×560 window", async () => {
+  test("Settings… is disabled while the wizard is open, then opens the Settings page; settings:open opens one 640×560 window", async () => {
     expect(menuEnabled("Settings…")).toBe(false);
     click("Settings…");
     expect(mocks.Window.instances).toHaveLength(1);
     await closeWizard();
     expect(menuEnabled("Settings…")).toBe(true);
     click("Settings…");
-    click("Settings…");
+    expect(mocks.Window.instances).toHaveLength(1);
+    expect(window().webContents.send).toHaveBeenLastCalledWith("settings-page:open", {});
+    await open();
+    await open();
     expect(mocks.Window.instances).toHaveLength(2);
     const created = settings();
     expect(created.options).toMatchObject({ width: 640, height: 560, resizable: false, minimizable: false, maximizable: false, fullscreenable: false, title: "Connections", backgroundColor: shellColour(),
@@ -1378,11 +1384,6 @@ describe("settings window", () => {
     const titled = { preventDefault: vi.fn() };
     created.emit("page-title-updated", titled);
     expect(titled.preventDefault).toHaveBeenCalled();
-  });
-
-  test("opens on the last saved tab", async () => {
-    mocks.uiState.readSettingsTab.mockReturnValue("projects");
-    expect((await openSettings()).options.title).toBe("Projects");
   });
 
   test("Settings cannot read design presets", async () => {
@@ -1570,7 +1571,7 @@ describe("settings window", () => {
     const contents = window().webContents;
     let finish!: (value: unknown) => void;
     await closeWizard();
-    click("Settings…");
+    await open();
     mocks.machine.run.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
     const fromSettings = invoke("setup:run", settings().webContents, null, { step: "cli", expected: {} });
     expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toEqual({ kind: "busy" });
@@ -2162,7 +2163,7 @@ describe("settings page", () => {
   const CHANNELS = ["preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy", "config:session-start", "config:session-end"];
   async function settingsWindow() {
     await completeFirstRun();
-    click("Settings…");
+    await invoke("settings:open", window().webContents, null, { tab: "connections" });
     const found = mocks.Window.instances.find((candidate) => candidate.options.width === 640);
     if (!found) throw new Error("no settings window");
     return found;

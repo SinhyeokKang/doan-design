@@ -264,7 +264,7 @@ function setMenu(): void {
       // Role labels would read "About doan" from app.name, which stays "doan" for userData.
       { label: "Doan", submenu: [
         { role: "about", label: "About Doan" },
-        { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettings(null) },
+        { label: "Settings…", accelerator: "CmdOrCtrl+,", enabled: enabled.settings, click: () => openSettingsPage() },
         { type: "separator" }, { role: "services" }, { type: "separator" },
         { role: "hide", label: "Hide Doan" }, { role: "hideOthers" }, { role: "unhide" },
         { type: "separator" }, { role: "quit", label: "Quit Doan" },
