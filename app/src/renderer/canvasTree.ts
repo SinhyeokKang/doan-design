@@ -54,18 +54,6 @@ export function frameLabel(frame: { id: string; title?: string }, index: number)
   return { number: index + 1, name: frame.title?.trim() || frame.id || "(no id)" };
 }
 
-// The name a row answers to in type-ahead; a frame's number is not part of it.
-export function typeaheadKey(node: RowNode): string {
-  switch (node.kind) {
-    case "overview":
-      return "Overview";
-    case "frame":
-      return frameLabel(node.frame, node.index).name;
-    default:
-      return node.name;
-  }
-}
-
 function compare(a: TreeNode, b: TreeNode): number {
   const byName = collator.compare(a.name, b.name);
   if (byName !== 0) return byName;
@@ -130,21 +118,21 @@ export function typeaheadNext(visibleKeys: readonly string[], currentIndex: numb
   return search(needle, Math.max(currentIndex, 0));
 }
 
-export type RowActionKind = "overview" | "toggle" | "open" | "jump" | "select" | "open-jump" | "none";
+// Expanded tree keys after the open canvas moved: its own row keeps its
+// state, and the folders it moved into open.
+export function moveExpanded(paths: readonly string[], from: string, to: string): string[] {
+  const next = new Set(paths.filter(path => path !== from));
+  const parts = to.split("/");
+  for (let i = 2; i < parts.length; i++) next.add(parts.slice(0, i).join("/"));
+  if (paths.includes(from)) next.add(to);
+  return [...next];
+}
 
-// Click/Enter is `primary`; Space and the default (double-click) action is
-// `secondary`. `openCanvas` is the open canvas's path, or null.
-export function rowAction(node: RowNode, openCanvas: string | null): { primary: RowActionKind; secondary: RowActionKind } {
-  switch (node.kind) {
-    case "overview":
-      return { primary: "overview", secondary: "overview" };
-    case "folder":
-      return { primary: "toggle", secondary: "toggle" };
-    case "canvas": {
-      const action = node.key === openCanvas ? "none" : "open";
-      return { primary: action, secondary: action };
-    }
-    case "frame":
-      return node.canvas === openCanvas ? { primary: "jump", secondary: "select" } : { primary: "open-jump", secondary: "none" };
-  }
+// A row ls could not fully read: the fixed sentence under it, and the raw
+// error for Details. A canvas file error wins, as its row has no comment
+// counts at all.
+export function rowProblem(row: CanvasRow): { sentence: string; detail: string } | null {
+  const error = row.error ?? row.commentsError;
+  if (!error) return null;
+  return { sentence: row.error ? "Can't read this canvas — run doan check" : "Couldn’t read this canvas’s comments — run doan check", detail: `${error.code}: ${error.message}` };
 }

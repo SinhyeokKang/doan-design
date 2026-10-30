@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { CanvasRow } from "../main/view";
-import { buildCanvasTree, canvasLabel, frameLabel, moveExpanded, rowAction, typeaheadKey, typeaheadNext, type CanvasNode, type FolderNode, type TreeNode } from "./canvasTree";
+import { buildCanvasTree, canvasLabel, frameLabel, moveExpanded, rowProblem, typeaheadNext, type CanvasNode, type FolderNode, type TreeNode } from "./canvasTree";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
 
@@ -112,16 +112,6 @@ test("frameLabel does not shorten a long id or title; the cap is applied where f
   expect(frameLabel({ id: long }, 0).name).toBe(long);
 });
 
-test("typeaheadKey is the display name without a frame number", () => {
-  const design = at(buildCanvasTree([row(".doan/canvases/login.html", { title: "Sign in" })]), 0);
-  const canvas = at(folder(design).children, 0);
-  expect(typeaheadKey(design)).toBe(".doan/canvases");
-  expect(typeaheadKey(canvas)).toBe("Sign in");
-  expect(typeaheadKey({ kind: "overview" })).toBe("Overview");
-  expect(typeaheadKey({ kind: "frame", key: ".doan/canvases/login.html#3", canvas: ".doan/canvases/login.html", index: 3, frame: { id: "x", title: "Card declined" } })).toBe("Card declined");
-  expect(typeaheadKey({ kind: "frame", key: ".doan/canvases/login.html#0", canvas: ".doan/canvases/login.html", index: 0, frame: { id: "" } })).toBe("(no id)");
-});
-
 test("typeaheadNext finds the first matching row after the current one", () => {
   const keys = ["Overview", "doan", "login", "logout", "billing"];
   expect(typeaheadNext(keys, 0, "l")).toBe(2);
@@ -178,46 +168,6 @@ test("typeaheadNext matches a prefix, not a substring", () => {
   expect(typeaheadNext(["alpha", "beta"], 0, "lp")).toBeNull();
 });
 
-test("typeaheadNext ignores a frame number because keys never carry it", () => {
-  const frame = { kind: "frame", key: "k#0", canvas: "k", index: 3, frame: { id: "x", title: "Card declined" } } as const;
-  const keys = ["Overview", typeaheadKey(frame)];
-  expect(typeaheadNext(keys, 0, "4")).toBeNull();
-  expect(typeaheadNext(keys, 0, "c")).toBe(1);
-});
-
-const canvasRowNode = (): CanvasNode => {
-  const design = at(buildCanvasTree([row(".doan/canvases/login.html")]), 0);
-  return at(folder(design).children, 0) as CanvasNode;
-};
-const frameNode = (canvas: string) => ({ kind: "frame", key: `${canvas}#0`, canvas, index: 0, frame: { id: "f" } }) as const;
-
-test("rowAction: Overview goes to the overview either way", () => {
-  expect(rowAction({ kind: "overview" }, null)).toEqual({ primary: "overview", secondary: "overview" });
-  expect(rowAction({ kind: "overview" }, ".doan/canvases/login.html")).toEqual({ primary: "overview", secondary: "overview" });
-});
-
-test("rowAction: a folder toggles either way", () => {
-  const design = at(buildCanvasTree([row(".doan/canvases/login.html")]), 0);
-  expect(rowAction(design, null)).toEqual({ primary: "toggle", secondary: "toggle" });
-  expect(rowAction(design, ".doan/canvases/login.html")).toEqual({ primary: "toggle", secondary: "toggle" });
-});
-
-test("rowAction: a canvas opens, and does nothing when it is already open", () => {
-  const canvas = canvasRowNode();
-  expect(rowAction(canvas, null)).toEqual({ primary: "open", secondary: "open" });
-  expect(rowAction(canvas, ".doan/canvases/other.html")).toEqual({ primary: "open", secondary: "open" });
-  expect(rowAction(canvas, ".doan/canvases/login.html")).toEqual({ primary: "none", secondary: "none" });
-});
-
-test("rowAction: a frame of the open canvas jumps, and Select is secondary", () => {
-  expect(rowAction(frameNode(".doan/canvases/login.html"), ".doan/canvases/login.html")).toEqual({ primary: "jump", secondary: "select" });
-});
-
-test("rowAction: a frame of a closed canvas opens and jumps, with Select disabled", () => {
-  expect(rowAction(frameNode(".doan/canvases/login.html"), null)).toEqual({ primary: "open-jump", secondary: "none" });
-  expect(rowAction(frameNode(".doan/canvases/login.html"), ".doan/canvases/other.html")).toEqual({ primary: "open-jump", secondary: "none" });
-});
-
 test("canvas labels strip HTML extensions case-insensitively and keep title priority", () => {
   for (const path of [".doan/canvases/A.HTML", ".doan/canvases/A.HtMl"]) {
     expect(canvasLabel(row(path))).toBe("A");
@@ -230,4 +180,11 @@ test("a move into another folder expands the new ancestors and moves the canvas 
   expect(moveExpanded([".doan/canvases/old", ".doan/canvases/old/a.html"], ".doan/canvases/old/a.html", ".doan/canvases/flows/sub/a.html"))
     .toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows", ".doan/canvases/flows/sub", ".doan/canvases/flows/sub/a.html"]);
   expect(moveExpanded([".doan/canvases/old"], ".doan/canvases/old/a.html", ".doan/canvases/flows/a.html")).toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows"]);
+});
+
+test("rowProblem names an unreadable canvas first, else unreadable comments, with the raw error as detail", () => {
+  const error = { code: "canvas_unreadable", message: "EACCES" };
+  expect(rowProblem(row(".doan/canvases/a.html"))).toBeNull();
+  expect(rowProblem(row(".doan/canvases/a.html", { error, commentsError: { code: "comments_unreadable", message: "bad" } }))).toEqual({ sentence: "Can't read this canvas — run doan check", detail: "canvas_unreadable: EACCES" });
+  expect(rowProblem(row(".doan/canvases/a.html", { commentsError: { code: "comments_unreadable", message: "bad" } }))).toEqual({ sentence: "Couldn’t read this canvas’s comments — run doan check", detail: "comments_unreadable: bad" });
 });
