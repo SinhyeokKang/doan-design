@@ -36,6 +36,15 @@ export function activeIndex(rows: readonly SearchResult[], key: string | null): 
   return Math.max(0, key === null ? 0 : rows.findIndex(row => resultKey(row) === key));
 }
 
+// A row click closes the dialog before the event bubbles to it, and a closed dialog measures as an empty box at 0,0,
+// so only a click on the open dialog itself (its backdrop or padding) is judged by geometry.
+export function closesOnClick(
+  target: unknown, dialog: { open: boolean; getBoundingClientRect(): Pick<DOMRect, "left" | "top" | "right" | "bottom"> },
+  down: { x: number; y: number; button: number } | null, up: { x: number; y: number },
+): boolean {
+  return down !== null && target === dialog && dialog.open && outsideDialog(dialog.getBoundingClientRect(), down, up);
+}
+
 export function quickOpenKey(key: string, active: number, count: number): { kind: "move"; active: number } | { kind: "pick" } | { kind: "close" } | null {
   if (key === "Escape") return { kind: "close" };
   if (count === 0) return null;
@@ -110,7 +119,7 @@ export function QuickOpen({ entries, currentRoot, rendered, pick, close }: Quick
     onClick={event => {
       const down = press.current;
       press.current = null;
-      if (down && outsideDialog(event.currentTarget.getBoundingClientRect(), down, { x: event.clientX, y: event.clientY })) dismiss();
+      if (closesOnClick(event.target, event.currentTarget, down, { x: event.clientX, y: event.clientY })) dismiss();
     }}>
     <label className="qo-search">
       <Search aria-hidden="true" />

@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { activeIndex, optionId, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
-import { groupResults, resultKey, searchIndex, searchMatch, type SearchFolder, type SearchResult } from "./quickOpen";
+import { activeIndex, closesOnClick, optionId, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
+import { groupResults, outsideDialog, resultKey, searchIndex, searchMatch, type SearchFolder, type SearchResult } from "./quickOpen";
 import { projectHue } from "./shellNavigation";
 
 const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, open: 0, resolved: 0, url: "u", ...extra });
@@ -173,4 +173,21 @@ test("empty query distinguishes no available canvases from no search matches", (
   expect(reading).toContain("Project is still being read");
   const problem = renderToStaticMarkup(<QuickOpen entries={[{ kind: "notFound", path: "/repo" }]} currentRoot="/repo" pick={() => {}} close={() => {}} />);
   expect(problem).toContain("Project is unavailable. Fix it from its menu in the sidebar.");
+});
+
+test("a row click that already closed the dialog does not dismiss it again on the way up", () => {
+  const rect = { left: 100, top: 128, right: 740, bottom: 600 };
+  const dialog = { open: true, getBoundingClientRect: () => rect };
+  const row = {};
+  const at = { x: 300, y: 300 };
+  // A closed dialog measures as an empty box at 0,0, so every point looks outside it.
+  const closed = { open: false, getBoundingClientRect: () => ({ left: 0, top: 0, right: 0, bottom: 0 }) };
+  expect(outsideDialog(closed.getBoundingClientRect(), { ...at, button: 0 }, at)).toBe(true);
+  expect(closesOnClick(row, closed, { ...at, button: 0 }, at)).toBe(false);
+  expect(closesOnClick(closed, closed, { ...at, button: 0 }, at)).toBe(false);
+  // Backdrop and padding clicks report the dialog itself; only geometry tells them apart.
+  expect(closesOnClick(dialog, dialog, { x: 50, y: 50, button: 0 }, { x: 50, y: 50 })).toBe(true);
+  expect(closesOnClick(dialog, dialog, { ...at, button: 0 }, at)).toBe(false);
+  expect(closesOnClick(row, dialog, { x: 50, y: 50, button: 0 }, { x: 50, y: 50 })).toBe(false);
+  expect(closesOnClick(dialog, dialog, null, { x: 50, y: 50 })).toBe(false);
 });
