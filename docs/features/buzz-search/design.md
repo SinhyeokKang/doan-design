@@ -29,8 +29,8 @@
 | `esc` 칩·안내줄 | 없음 | 없음(spec 확정 질문 1) | 없음 |
 | 필터 탭 | 없음(Buzz는 범위 칩만 둔다) | 입력 아래 8px에 `All` / `Canvases` / `Frames`. Home 프리셋 그룹 탭(`.group-tabs.shell-modes`, `HomeComposerView.tsx` 468행)과 같은 캡슐·`role="tablist"`·roving tabindex·←/→ 이동 | doan 추가(2026-10-30 user). 아래 '필터 탭' |
 | 결과 영역 | 입력(doan은 탭) 아래 `space-2`, 스크롤 `max-height: min(55vh, …)`, 위쪽 8px 페이드 | 같은 값, `.doan-scroll` | 결과 높이 180ms 전환은 가져오지 않는다(아래 '가져오지 않는 것') |
-| 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3` | 없음. 한 목록(spec 확정 질문 2) | 그룹이 없으므로 목록 위 여백은 Buzz의 첫 그룹 제목 높이 없이 탭 아래 `space-2`만 둔다 |
-| 바깥 클릭 | `dismissOnOutsideClick`(Base UI) | 다이얼로그 사각형 밖에서 누르고 뗀 클릭이면 `dismiss()`(spec 확정 질문 3) | Base UI 대신 doan이 판정한다(아래 순수 함수 5) |
+| 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3`, 최소 높이 `space-6 + space-1`(28px), 그룹 사이 `space-6` | 같은 값(`text-unavailable` = neutral-7 = doan `--text-disabled`). 제목은 프로젝트 이름(아래 '결과 그룹') | Buzz는 종류별로 묶고 doan은 프로젝트(root)별로 묶는다(2026-10-30 user) |
+| 바깥 클릭 | `dismissOnOutsideClick`(Base UI) | 다이얼로그 사각형 밖에서 누르고 뗀 클릭이면 `dismiss()`(spec 확정 질문 3) | Base UI 대신 doan이 판정한다(아래 순수 함수 6) |
 | 결과 행 | `NavigationItem variant="search"`: 최소 44px, 패딩 12px, 모서리 20px, 아이콘 칸 24px(아이콘 21px), 이름 body-sm 400, 보조 줄 body-sm `text-subtle` | 같은 값, 이름만 `--type-weight-medium`(500). 아이콘은 lucide: 캔버스 `Palette`(LNB 캔버스 행과 같음), 프레임 `Hash`, 21px | 조정(2026-10-30 user): 이름을 한 단계 굵게 해 보조 줄과 위계를 나눈다 |
 | 행 강조 | 키보드·포인터 강조는 `interaction-row-hover`. 결과 목록에 `interaction-panel`이 걸려 있어(SearchChoices.tsx 227행) 그 값은 `affordance-row-hover` = `affordance-subtle`이고, 보조 글자는 `text-subtle` 그대로다(materials.css 153-163행) | `aria-selected` 행에 `--affordance-subtle` | doan에 `interaction-*` 역할이 없어 같은 값의 `--affordance-subtle`을 직접 쓴다 |
 | 맞은 글자 | 1px 밑줄, offset 2px, 배경·색 상속 | 같은 값 | 없음 |
@@ -40,8 +40,16 @@
 ### 결과 행 내용
 
 - 첫 줄: 이름(`result.label`) + 맞은 글자 밑줄.
-- 둘째 줄(보조): 캔버스는 `<.doan/canvases/ 뒤 경로> · <프로젝트 · 브랜치>`, 프레임은 `<캔버스 이름> › <번호> · <프로젝트 · 브랜치>`. 프로젝트 부분은 지금처럼 `projectWhere`가 만든다. 지금 한 줄에서 잘리지 않던 프로젝트 부분은 둘째 줄 끝에 있으므로, 둘째 줄이 넘치면 경로 쪽을 먼저 줄인다(프로젝트 부분 `flex: none`).
+- 둘째 줄(보조): 캔버스는 `<.doan/canvases/ 뒤 경로>`, 프레임은 `<캔버스 이름> › <번호>`. 넘치면 끝을 줄인다. 프로젝트는 그룹 제목으로 올라갔다.
 - option의 접근성 이름은 지금과 같은 문자열(`이름 — 맥락 · 프로젝트`)을 유지한다. 테스트와 DESIGN.md 접근성 표가 이 이름을 쓴다.
+
+### 결과 그룹 (2026-10-30 user, 초안 5차)
+
+- root 하나가 한 그룹이다. 같은 저장소의 다른 워크트리는 따로 묶는다. 제목은 `projectWhere`가 만드는 이름(`acme-web · main`, `acme-web · feat-billing`, 깃 밖 폴더는 폴더 이름)이다.
+- 순서: 50개 상한까지 고른 결과를 root로 묶는다. 그룹은 그룹 안 최고 점수가 높은 순이고, 같으면 기존 근접도(현재 root → 같은 저장소 → 다른 저장소), 그다음 기존 결과 순서다. 그룹 안 행은 기존 순서(점수 → 인덱스 순)를 지킨다. 그래서 첫 행은 늘 전체 최고 일치이고 Enter의 결과가 지금과 같다.
+- 빈 검색어: 결과가 저장 순서이므로 root별로 저장 순서대로 묶인다. 워크스페이스는 현재 root 하나라 그룹도 하나다.
+- ↑/↓는 그룹을 가로질러 행만 옮긴다. 제목은 활성 대상이 아니다.
+- 접근성: listbox 안에 `role="group"` `aria-labelledby`=제목. option 접근성 이름은 프로젝트를 포함한 지금 문자열을 유지한다.
 
 ### 필터 탭 (2026-10-30 user)
 
@@ -68,6 +76,7 @@
   - A: Buzz 팔레트 입력(78px, `body-lg`, 테두리 투명). B: 공용 `.doan-input`과 앞쪽 돋보기.
   - 사용자가 B를 골랐다(초안 3차). 모든 프레임이 B이고 A의 프레임과 CSS는 지웠다. 값은 위 '입력' 행.
 - 초안 4차(2026-10-30 user): 필터 탭(위 '필터 탭')과 결과 이름 500을 더했다.
+- 초안 5차(2026-10-30 user): 결과를 프로젝트(root) 단위로 묶었다(위 '결과 그룹'). 행 둘째 줄에서 프로젝트를 뺐다.
 - 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 최대 높이 429px(초안 한정: 780px 창에서 `min(55vh, 100vh − 256px)`을 계산한 값. 구현은 `min(55vh, calc(100dvh − 256px))`), 테두리·밑줄 1px.
 - 2026-10-30 user: feature-review보다 초안 확정을 먼저 한다.
 
@@ -76,15 +85,16 @@
 1. `matchPositions(label: string, query: string): number[]` (`quickOpen.ts`) — 이름에서 검색어 토큰과 맞은 글자의 코드포인트 위치. 규칙: 검색과 같은 NFC·소문자 정규화, 토큰마다 `tokenScore`와 같은 우선순위로 한 곳을 고른다(접두어 → 단어 시작 → 부분 문자열의 첫 위치). 이름이 아닌 필드(파일 이름, 경로, id)로만 맞은 결과는 빈 배열. NFD 파일 이름처럼 정규화 전후 길이가 다른 경우는 원래 이름 기준 위치로 되돌린다(못 맞추면 빈 배열, 밑줄 없음).
 2. `markRuns(label: string, positions: readonly number[]): { text: string; match: boolean }[]` — 위치를 연속 구간으로 묶는다. 렌더러는 `match` 구간만 `<mark>`로 감싼다.
 3. `searchMatch(index, query, currentRoot, commonOf, kind, openCanvas)` 확장 — `kind: "all" | "canvas" | "frame"`으로 50개 상한 전에 거르고, 빈 검색어에서 `frame`이면 같은 범위의 프레임을 열린 캔버스(`openCanvas`) 먼저, 저장 순서로 돌려준다. `all`·`canvas`의 기존 결과는 바뀌지 않는다(기존 순위 테스트 수정 없이 통과). 탭별 빈 결과 문구를 고르는 `emptyText(kind, query, scope)`도 순수 함수로 뺀다.
-4. `resultParts(result, where)` 개편 — `{ icon: "canvas" | "frame"; name; detail; where; accessibleName }`. 현재의 `glyph`·`context` 문자열 조합을 대체한다. `accessibleName`은 지금 option 텍스트와 같다.
-5. `outsideDialog(rect, x, y): boolean` — 점이 다이얼로그 테두리 사각형 밖인지. 네이티브 모달의 backdrop 클릭은 `event.target`이 `<dialog>` 자신으로 오고, 다이얼로그 패딩 안을 눌러도 target이 같으므로 target만으로는 바깥을 알 수 없다. `pointerdown`과 `click`이 모두 바깥일 때만 닫는다(안에서 입력 텍스트를 드래그해 바깥에서 뗀 경우 닫지 않음). 경계선 위는 안으로 본다.
+4. `groupResults(results, where, proximity)` — 위 '결과 그룹' 규칙으로 `{ title, rows }[]`를 만든다. 점수는 `searchMatch`가 결과와 함께 돌려주도록 넓힌다(지금은 버린다). 사례: 다른 root의 정확한 일치가 현재 root보다 먼저인 경우, 같은 점수의 근접도 순서, 빈 검색어의 저장 순서, 그룹 안 순서 보존.
+5. `resultParts(result, where)` 개편 — `{ icon: "canvas" | "frame"; name; detail; accessibleName }`. 현재의 `glyph`·`context` 문자열 조합을 대체한다. `accessibleName`은 지금 option 텍스트와 같다.
+6. `outsideDialog(rect, x, y): boolean` — 점이 다이얼로그 테두리 사각형 밖인지. 네이티브 모달의 backdrop 클릭은 `event.target`이 `<dialog>` 자신으로 오고, 다이얼로그 패딩 안을 눌러도 target이 같으므로 target만으로는 바깥을 알 수 없다. `pointerdown`과 `click`이 모두 바깥일 때만 닫는다(안에서 입력 텍스트를 드래그해 바깥에서 뗀 경우 닫지 않음). 경계선 위는 안으로 본다.
 
 ## 포맷·컨벤션·결정 영향
 
 - **포맷**: 없음. JSON Schema와 `v` 변화 없음.
 - **컨벤션(ARCHITECTURE §1)·`doan check` 규칙**: 없음.
 - **구조 결정**: 없음. 서빙 범위, sandbox iframe, append-only 이벤트, 토큰 미처리, git 미조작과 무관하다.
-- **제품 결정**: PRODUCT §5 항목 1의 검색·순위·열기 동작은 그대로다. 바뀌는 것은 셋이다. (1) 2026-10-25 design-nav의 'Quick Open footer' 승인을 안내줄·`esc` 칩 제거로 대체한다. (2) "Escape closes and restores focus"에 바깥 클릭 닫기가 더해진다. (3) 결과 종류 필터 탭과 빈 검색어 Frames 탭 규칙이 더해진다. 셋 다 승격 때 PRODUCT §5 항목 1 문장과 §7에 날짜·근거로 적는다. 공통 결정 10의 buzz-ds 공유 요소 변경(검색 변형)도 §7에 적는다.
+- **제품 결정**: PRODUCT §5 항목 1의 검색·순위·열기 동작은 그대로다. 바뀌는 것은 셋이다. (1) 2026-10-25 design-nav의 'Quick Open footer' 승인을 안내줄·`esc` 칩 제거로 대체한다. (2) "Escape closes and restores focus"에 바깥 클릭 닫기가 더해진다. (3) 결과 종류 필터 탭과 빈 검색어 Frames 탭 규칙이 더해진다. (4) 결과가 프로젝트별 그룹으로 묶이고 그룹 순서는 최고 점수 순이다(순위의 첫 행은 그대로). 넷 다 승격 때 PRODUCT §5 항목 1 문장과 §7에 날짜·근거로 적는다. 공통 결정 10의 buzz-ds 공유 요소 변경(검색 변형)도 §7에 적는다.
 - **PoC 의존**: 없다.
 
 ## 공용 다이얼로그와의 관계
