@@ -81,7 +81,7 @@ func TestSkillGuideActive(t *testing.T) {
 		{"`doan active --json`", "selection"},
 		{"`selection`", "ask the user"},
 		{"`project_not_open`", "add this project in Doan (Add Project…)", "work in the worktree that is open in Doan"},
-		{"`app_not_running`", "sandbox", "socket permission error", "outside the sandbox", "Codex", "Settings… > About"},
+		{"`app_not_running`", "sandbox", "socket permission error", "outside the sandbox", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Settings… > About"},
 		{"frame", "`doan ls`", "script"},
 		{"| `active`", "`repo?`"},
 		{"3", "`app_not_running`", "`app_protocol_mismatch`", "`project_not_open`"},

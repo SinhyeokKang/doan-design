@@ -60,8 +60,8 @@ func onboardingFailure(code, message string) *Error {
 	// A sandbox can deny the socket even while the app is running.
 	unreachable := []string{
 		"Ask the user to open Doan, then run `doan onboarding start` again",
-		"If a socket permission error occurs inside an agent sandbox, run `doan` outside the sandbox or request approval; Codex gets this automatically after Doan is opened",
-		"Ask the user to open Doan from Applications and check Settings… > About",
+		"If a socket permission error occurs inside an agent sandbox, run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions",
+		"If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About",
 	}
 	steps := map[string][]string{
 		"app_not_running":       unreachable,

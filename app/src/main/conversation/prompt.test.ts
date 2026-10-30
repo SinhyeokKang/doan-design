@@ -45,7 +45,8 @@ it("guides preset lookup through the bundled CLI only and lists no presets", () 
   // design §3: a self-chosen preset's failure is one line, then the request continues; a named one is never faked.
   for (const text of ["do not repeat the command or change settings", "chose the preset yourself", "in one line", "continue the request", "never claim it was applied or substitute another preset"]) expect(PRESET_GUIDANCE).toContain(text);
   expect(PRESET_GUIDANCE).toContain("do not suggest MCP");
-  expect(PRESET_GUIDANCE).toContain("open Doan from Applications and check Settings… > About");
+  expect(PRESET_GUIDANCE).toContain("approve the doan command, or ask again once Doan runs");
+  expect(PRESET_GUIDANCE).not.toMatch(/Applications|Settings/);
   expect(PRESET_GUIDANCE.replace("do not suggest MCP", "")).not.toMatch(/MCP|Connections/);
   for (const preset of ["clarify", "context", "polish"]) expect(PRESET_GUIDANCE).not.toContain(preset);
   expect(PRESET_GUIDANCE).not.toContain("\n");

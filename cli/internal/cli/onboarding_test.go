@@ -726,7 +726,7 @@ func TestOnboardingStartWithoutBundleGivesGuidance(t *testing.T) {
 func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	for _, code := range []string{"app_not_running", "app_launch_failed"} {
 		steps := strings.Join(onboardingFailure(code, "m").NextSteps, "\n")
-		for _, want := range []string{"open Doan", "sandbox", "socket permission error", "Codex", "Settings… > About", "outside the sandbox"} {
+		for _, want := range []string{"open Doan", "sandbox", "socket permission error", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Settings… > About", "outside the sandbox"} {
 			if !strings.Contains(steps, want) {
 				t.Errorf("%s nextSteps miss %q: %s", code, want, steps)
 			}
@@ -871,14 +871,14 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 			t.Errorf("guide table misses %s", row)
 		}
 	}
-	for _, s := range []string{"<Doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
+	for _, s := range []string{"Prefer `doan onboarding start --json` on PATH", "Only if `doan` is not on PATH", "<Doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
 		if !strings.Contains(skillBody, s) {
 			t.Errorf("guide misses %q", s)
 		}
 	}
 	for _, parts := range [][]string{
 		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
-		{"`app_not_running`", "`app_launch_failed`", "sandbox", "socket permission error", "Codex", "Settings… > About", "outside the sandbox", "open Doan"},
+		{"`app_not_running`", "`app_launch_failed`", "sandbox", "socket permission error", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Settings… > About", "outside the sandbox", "open Doan"},
 		// The changes are always told before the write, but a user who already agreed is not asked again (agent-eval 2026-10-29 O1, re-measure).
 		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "already agreed", "do not ask again", "Otherwise ask first"},
 	} {
