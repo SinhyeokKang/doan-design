@@ -197,56 +197,14 @@ describe("save", () => {
   });
 });
 
-describe("Settings tab", () => {
-  test("is kept beside the main window's state: neither save drops the other", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    const path = file();
-    writeFileSync(path, JSON.stringify(workspace(".doan/canvases/a.html")));
-    const store = createUiStateStore(path, saved);
-    expect(store.readSettingsTab()).toBeNull();
-    expect(store.saveSettingsTab("projects")).toBe(true);
-    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
-    await store.idle();
-    expect(onDisk(path)).toMatchObject({ canvas: ".doan/canvases/a.html", settingsTab: "projects" });
-    store.save(workspace(".doan/canvases/b.html"));
-    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
-    await store.idle();
-    expect(onDisk(path)).toMatchObject({ canvas: ".doan/canvases/b.html", settingsTab: "projects" });
-    expect(await store.read()).toMatchObject({ canvas: ".doan/canvases/b.html" });
-    expect(createUiStateStore(path, saved).readSettingsTab()).toBe("projects");
-  });
-
-  test("a saved tab survives the main window's first save in a new run", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    const path = file();
-    writeFileSync(path, JSON.stringify({ ...workspace(".doan/canvases/a.html"), settingsTab: "projects" }));
-    const store = createUiStateStore(path, saved);
-    store.save(workspace(".doan/canvases/b.html"));
-    store.flushSync();
-    expect(onDisk(path)).toMatchObject({ canvas: ".doan/canvases/b.html", settingsTab: "projects" });
-  });
-
-  test("refuses anything but a tab name, and reads a broken value as none", async () => {
-    const path = file();
-    writeFileSync(path, JSON.stringify({ ...workspace(".doan/canvases/a.html"), settingsTab: "general" }));
-    const store = createUiStateStore(path, saved);
-    expect(store.readSettingsTab()).toBeNull();
-    for (const bad of ["general", "", null, 1, {}]) expect(store.saveSettingsTab(bad)).toBe(false);
-    store.flushSync();
-    expect(onDisk(path).settingsTab).toBe("general");
-  });
-});
-
-test("round-trips shell memory beside Settings and prunes removed roots on read and save", async () => {
+test("round-trips shell memory and prunes removed roots on read and save", async () => {
   const path = file();
   let roots = ["/repo", "/other"];
   const store = createUiStateStore(path, () => roots);
   const shellProjects = { common: { roots, selectedRoot: "/other", selectedAt: 8.64e15, expanded: true } };
   expect(store.save({ ...workspace(".doan/canvases/a.html"), shellProjects })).toBe(true);
-  expect(store.saveSettingsTab("projects")).toBe(true);
   store.flushSync();
   expect((await store.read())?.shellProjects).toEqual(shellProjects);
-  expect(createUiStateStore(path, () => roots).readSettingsTab()).toBe("projects");
   roots = ["/repo"];
   expect((await store.read())?.shellProjects).toEqual({ common: { roots, expanded: true } });
   expect(store.save({ ...workspace(".doan/canvases/a.html"), shellProjects })).toBe(true);
@@ -254,15 +212,14 @@ test("round-trips shell memory beside Settings and prunes removed roots on read 
   expect(onDisk(path).shellProjects).toEqual({ common: { roots, expanded: true } });
 });
 
-test("keeps home memory beside Settings across saves and drops it with its root", async () => {
+test("keeps home memory across saves and drops it with its root", async () => {
   const path = file();
   let roots = ["/repo", "/other"];
   const store = createUiStateStore(path, () => roots);
   const home = { lastRoot: "/other", lastProvider: "claude", models: { claude: { model: "opus", effort: "max" } } };
   expect(store.save({ screen: "home", expanded: {}, lastByRoot: {}, home })).toBe(true);
-  expect(store.saveSettingsTab("projects")).toBe(true);
   store.flushSync();
-  expect(onDisk(path)).toMatchObject({ home, settingsTab: "projects" });
+  expect(onDisk(path)).toMatchObject({ home });
   expect((await createUiStateStore(path, () => roots).read())?.home).toEqual(home);
   roots = ["/repo"];
   expect((await store.read())?.home).toEqual({ lastProvider: "claude", models: { claude: { model: "opus", effort: "max" } } });

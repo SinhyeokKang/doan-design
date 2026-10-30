@@ -58,7 +58,7 @@ import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewSt
 import { readFoldersFileForPruning } from "./folderStore";
 import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
-import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsPageTarget, type SettingsTab, type SettingsTarget } from "./settings";
+import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { createSetupBroker, type SetupBroker } from "./setupBroker";
 import { promptSentence } from "../firstPrompt/promptSentence";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
@@ -105,12 +105,6 @@ app.on("web-contents-created", (_event, contents) => {
 // --bg-app in renderer/tokens.css: windows paint it before the renderer's first frame.
 const SHELL_BACKGROUND = "#f1f1f2";
 let win: BrowserWindow | undefined;
-// Settings is its own window, made on demand and destroyed on close. Its
-// webContents is the only other one IPC accepts; the capture window never is.
-let settingsWin: BrowserWindow | undefined;
-let focusedWindow: WindowKind = "main";
-// Where the next Settings window, or the open one, should go; taken once.
-let settingsTarget: SettingsTarget | null = null;
 let broker: SetupBroker | undefined;
 let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
@@ -197,10 +191,6 @@ function send(channel: string, ...args: unknown[]): void {
   if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, ...args);
 }
 
-function sendSettings(channel: string, ...args: unknown[]): void {
-  if (settingsWin && !settingsWin.isDestroyed() && !settingsWin.webContents.isDestroyed()) settingsWin.webContents.send(channel, ...args);
-}
-
 function fromWindow(event: IpcMainInvokeEvent): boolean {
   return win !== undefined && !win.isDestroyed() && fromAppFrame(event, win);
 }
@@ -209,7 +199,6 @@ function fromWindow(event: IpcMainInvokeEvent): boolean {
 // and windows that are gone are not senders.
 function senderKind(event: IpcMainInvokeEvent): WindowKind | undefined {
   if (fromWindow(event)) return "main";
-  if (settingsWin !== undefined && !settingsWin.isDestroyed() && fromAppFrame(event, settingsWin)) return "settings";
   return undefined;
 }
 
@@ -220,12 +209,6 @@ function handle(channel: string, refused: unknown, handler: (event: IpcMainInvok
     const kind = senderKind(event);
     return kind !== undefined && senderAllowed(channel, kind) ? handler(event, value, kind) : refused;
   });
-}
-
-function setFocusedWindow(kind: WindowKind): void {
-  if (focusedWindow === kind) return;
-  focusedWindow = kind;
-  setMenu();
 }
 
 const canvasScriptText = canvasScriptSource();
@@ -255,7 +238,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, focusedWindow, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -274,13 +257,8 @@ function setMenu(): void {
         submenu: [
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
-          // Closes Settings when it has focus (destroyed), else hides the main window.
-          // Electron names the focused window; an inactive app may name none.
-          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: (_item, focused) => {
-            const settings = settingsWin && !settingsWin.isDestroyed() ? settingsWin : undefined;
-            const target = focused !== undefined && (focused === win || focused === settings) ? focused
-              : focusedWindow === "settings" && settings ? settings : win;
-            if (target && !target.isDestroyed()) target.close();
+          { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => {
+            if (win && !win.isDestroyed()) win.close();
           } },
         ],
       },
@@ -404,7 +382,6 @@ function createWindow(): BrowserWindow {
   // The connection summary shares that throttle (app-setup design 'Connections').
   const reread = createThrottle(60_000);
   window.on("focus", () => {
-    setFocusedWindow("main");
     if (reread()) { shell?.rereadAll(); void broker?.refresh(); }
   });
   window.on("close", (event) => {
@@ -431,59 +408,6 @@ function createWindow(): BrowserWindow {
     if (win === window) win = undefined;
   });
   return window;
-}
-
-function createSettingsWindow(tab: SettingsTab): BrowserWindow {
-  const window = new BrowserWindow({
-    ...SETTINGS_WINDOW,
-    title: SETTINGS_TITLES[tab],
-    backgroundColor: SHELL_BACKGROUND,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      preload: fileURLToPath(new URL("../preload/settings.cjs", import.meta.url)),
-    },
-  });
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
-  if (!app.isPackaged && devUrl) void window.loadURL(`${devUrl.replace(/\/+$/, "")}/settings.html`);
-  else void window.loadFile(fileURLToPath(new URL("../renderer/settings.html", import.meta.url)));
-  // The title names the current tab, which main sets; the page's <title> must not replace it.
-  window.on("page-title-updated", (event) => event.preventDefault());
-  window.on("focus", () => setFocusedWindow("settings"));
-  // Read after destroy, webContents throws, so the owner id is kept now.
-  const owner = window.webContents.id;
-  // The wizard's Close refuses while busy; Settings holds its close the same
-  // way, for the red button, ⌘W and Close Window alike. Quit closes it anyway.
-  window.on("close", (event) => { if (!quitting && broker?.isWriting(owner)) event.preventDefault(); });
-  const forget = () => { broker?.drop(owner); configBridge?.clear(); void agentAuth?.ownerClosed(owner); };
-  window.webContents.on("render-process-gone", forget);
-  window.on("closed", () => {
-    forget();
-    if (settingsWin === window) { settingsWin = undefined; settingsTarget = null; }
-    setFocusedWindow("main");
-  });
-  return window;
-}
-
-// Settings…, a home chip, the banner's Fix… or a row's Project Settings….
-// Not while the wizard is open (the menu item is disabled then too), and not
-// before setup can answer it.
-function openSettings(target: SettingsTarget | null): boolean {
-  if (onboardingOpen || broker === undefined || uiState === undefined) return false;
-  settingsTarget = target;
-  if (settingsWin && !settingsWin.isDestroyed()) {
-    if (target) {
-      settingsWin.setTitle(SETTINGS_TITLES[target.tab]);
-      sendSettings("settings:target", target);
-    }
-    settingsWin.show();
-    settingsWin.focus();
-  } else settingsWin = createSettingsWindow(target?.tab ?? uiState.readSettingsTab() ?? "connections");
-  // Its focus event does not come while the app is inactive.
-  setFocusedWindow("settings");
-  void broker.refresh();
-  return true;
 }
 
 // The open-Settings command (buzz-settings design '들어가는 길'): a hidden window is shown first, then the renderer
@@ -579,7 +503,6 @@ async function start(): Promise<void> {
     }
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
-    sendSettings("projects", projectRows(entries, homeDirectory()));
   }, { response: record => documents.response(record), invalidate });
   shell = ready;
   // The capture window is made on the first capture and stays out of the
@@ -667,8 +590,8 @@ async function start(): Promise<void> {
     authIpc = new AuthIpc({
       backend: agentAuth, openExternal: url => electronShell.openExternal(url),
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); sendSettings(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); },
-      prompt: (owner, event) => { for (const window of [win, settingsWin]) if (window && !window.isDestroyed() && window.webContents.id === owner) window.webContents.send(AUTH_CHANNELS.prompt, event); },
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); },
+      prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
   // Without readable account storage every auth call is refused like a forged one; reads answer null.
@@ -991,7 +914,7 @@ async function start(): Promise<void> {
     machine: setup, translocated: isTranslocated(command),
     // The home alerts wait for a completed first run (v1 marker), not for the old wizard's `{}`.
     onboardingClosed: async () => onboardingComplete(readCompletion(userData)),
-    publish: (status) => { send("setup:status", status); sendSettings("setup:status", status); },
+    publish: (status) => { send("setup:status", status); },
   });
   broker = setupBroker;
   const requestId = (value: unknown, keys: number): string | null => typeof value === "object" && value !== null && Object.keys(value).length === keys &&
@@ -1050,37 +973,15 @@ async function start(): Promise<void> {
   });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
-  handle("settings:open", false, (_event, value: unknown) => {
-    const target = parseSettingsTarget(value, storedRoot);
-    return target !== null && openSettings(target);
-  });
-  handle("settings:take-target", null, () => { const target = settingsTarget; settingsTarget = null; return target; });
-  handle("settings:tab-get", null, () => store.readSettingsTab() ?? "connections");
-  handle("settings:tab-save", false, (_event, value: unknown) => {
-    const tab = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "tab" in value ? parseSettingsTab(value.tab) : null;
-    if (tab === null || !store.saveSettingsTab(tab)) return false;
-    settingsWin?.setTitle(SETTINGS_TITLES[tab]);
-    return true;
-  });
-  handle("projects:get", [], () => projectRows(ready.entries(), homeDirectory()));
   handle("projects:reveal", undefined, (_event, value: unknown) => {
     const path = storedPath(value);
     if (path !== null) electronShell.showItemInFolder(path);
   });
-  // A problem row's action runs where the home is: the main window comes forward and does it.
-  handle("projects:forward-action", false, (_event, value: unknown) => {
-    const request = parseForwardedAction(value, storedRoot);
-    if (request === null || !win || win.isDestroyed() || menuInputs.modal) return false;
-    showWindow(win);
-    win.focus();
-    send("projects:action", request);
-    return true;
-  });
   const bridge = createConfigBridge({
     run: (root, args) => runConfig(command, root, args),
     epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,
-    async pick(root, kind, from) {
-      const window = from === "main" ? win : settingsWin;
+    async pick(root, kind) {
+      const window = win;
       if (!window || window.isDestroyed()) return null;
       const picked = await dialog.showOpenDialog(window, kind === "tokenCss"
         ? { title: "Choose Token CSS", properties: ["openFile"], defaultPath: root, filters: [{ name: "CSS", extensions: ["css"] }] }

@@ -7,14 +7,12 @@ import { fileURLToPath } from "node:url";
 // local server, whose port changes every run. electron-vite dev serves the
 // renderer over http with an HMR websocket, so only dev names that origin.
 // Overview thumbnails arrive as PNG bytes over IPC and show as blob: URLs.
-// The Settings window shows no canvas and no thumbnail, so it gets neither.
 function contentSecurityPolicy(): Plugin {
   return {
     name: "doan-csp",
     transformIndexHtml(_html, ctx) {
       const devUrl = ctx.server?.resolvedUrls?.local[0];
-      const settings = ctx.path.endsWith("/settings.html");
-      const frames = settings ? "" : "; frame-src http://127.0.0.1:*; img-src 'self' blob:";
+      const frames = "; frame-src http://127.0.0.1:*; img-src 'self' blob:";
       const policy = devUrl
         ? `default-src 'self' ${new URL(devUrl).origin} ${new URL(devUrl).origin.replace(/^http/, "ws")}${frames}`
         : `default-src 'self'${frames}`;
@@ -34,7 +32,7 @@ export default defineConfig({
       // A sandboxed preload cannot load ESM, and package.json is "type": "module",
       // so electron-vite would otherwise emit index.mjs.
       rolldownOptions: {
-        input: { index: fileURLToPath(new URL("./src/preload/index.ts", import.meta.url)), settings: fileURLToPath(new URL("./src/preload/settings.ts", import.meta.url)) },
+        input: { index: fileURLToPath(new URL("./src/preload/index.ts", import.meta.url)) },
         output: { format: "cjs", entryFileNames: "[name].cjs" },
       },
     },
@@ -44,7 +42,7 @@ export default defineConfig({
     plugins: [contentSecurityPolicy(), tailwindcss()],
     build: {
       rolldownOptions: {
-        input: { index: fileURLToPath(new URL("./src/renderer/index.html", import.meta.url)), settings: fileURLToPath(new URL("./src/renderer/settings.html", import.meta.url)) },
+        input: { index: fileURLToPath(new URL("./src/renderer/index.html", import.meta.url)) },
       },
     },
   },

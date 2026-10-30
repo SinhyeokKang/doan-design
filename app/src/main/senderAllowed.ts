@@ -1,12 +1,11 @@
-export type WindowKind = "main" | "settings";
+export type WindowKind = "main";
 
 const mainOnly = new Set([
   "app:home", "comments:list", "comments:begin", "comments:mutate", "comments:status", "comments:author", "comments:copy", "comments:guard", "comments:transition-answer",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:restore", "folders:forget-removal", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save", "onboarding:first-prompt", "onboarding:copy",
-  // Settings reads setup through `setup:*` and projects through the projection only.
-  "onboarding:choose-folder", "folders:get", "settings:open",
+  "onboarding:choose-folder", "folders:get",
   "window:visible", "comments:project", "review-state:get", "review-state:raise", "comments:orphan-mutate", "comments:orphan-status",
   // buzz-onboarding: the first-run session the CLI and MCP share; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
@@ -20,21 +19,13 @@ const mainOnly = new Set([
   // notification itself; these carry choices and requests only.
   "preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy",
   "config:session-start", "config:session-end",
-]);
-const shared = new Set([
-  "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",
-  // Agent accounts: either window may sign in or out. Conversation runs stay main-only (`conversation:*`).
+  "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
-  // Project config: the Settings window's Projects tab and the main window's Project Settings dialog.
   "config:read", "config:write", "config:choose",
-]);
-const settingsOnly = new Set([
-  "setup:copy-path-line", "settings:tab-get", "settings:tab-save", "settings:take-target",
-  "projects:reveal", "projects:forward-action",
+  "setup:copy-path-line", "projects:reveal",
 ]);
 
 // The caller must first identify a registered window and check its main frame.
 export function senderAllowed(channel: string, windowKind: unknown): boolean {
-  if (windowKind !== "main" && windowKind !== "settings") return false;
-  return shared.has(channel) || (windowKind === "main" ? mainOnly : settingsOnly).has(channel);
+  return windowKind === "main" && mainOnly.has(channel);
 }

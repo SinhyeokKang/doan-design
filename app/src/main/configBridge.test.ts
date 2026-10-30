@@ -14,7 +14,7 @@ function deferred<T>() {
 }
 
 const run = vi.fn<(root: string, args: string[]) => Promise<CliRun>>();
-const pick = vi.fn<(root: string, kind: "tokenCss" | "serve", from: "main" | "settings") => Promise<string | null>>();
+const pick = vi.fn<(root: string, kind: "tokenCss" | "serve", from: "main") => Promise<string | null>>();
 let epochs: Map<string, number>;
 let bridge: ReturnType<typeof createConfigBridge>;
 beforeEach(() => {
@@ -132,7 +132,7 @@ test("writes to one root run one after another", async () => {
   expect(run).toHaveBeenCalledTimes(2);
 });
 
-test("clear forgets choices and reads (the Settings window closed)", async () => {
+test("clear forgets choices and reads (the Project Settings dialog closed)", async () => {
   await bridge.read({ root: ROOT });
   const chosen = await bridge.choose({ root: ROOT, kind: "serve" }, "main");
   if (chosen.kind !== "selected") throw new Error("not selected");

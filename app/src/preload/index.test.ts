@@ -224,17 +224,9 @@ test("setup status: the current value is asked for, and an event that came first
   expect(emitter.listenerCount("setup:status")).toBe(0);
 });
 
-test("settings, install pages and forwarded row actions use their channels", async () => {
-  await api.openSettings({ tab: "projects", project: "/repo" });
-  expect(mocks.invoke).toHaveBeenLastCalledWith("settings:open", { tab: "projects", project: "/repo" });
+test("install pages use their fixed target channel", async () => {
   await api.openInstallPage("claude");
   expect(mocks.invoke).toHaveBeenLastCalledWith("setup:open-external", { target: "claude" });
-  const listener = vi.fn();
-  const stop = api.onProjectAction(listener);
-  emitter.emit("projects:action", {}, { path: "/repo", action: "remove" });
-  stop();
-  emitter.emit("projects:action", {}, { path: "/repo", action: "remove" });
-  expect(listener).toHaveBeenCalledExactlyOnceWith({ path: "/repo", action: "remove" });
 });
 
 test("conversation listener precedes read and drains the final buffered event without resubscribing", async () => {

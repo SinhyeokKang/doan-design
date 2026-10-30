@@ -18,7 +18,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
-import type { ExternalTarget, ForwardedAction, SettingsPageTarget, SettingsSection, SettingsTarget } from "../main/settings";
+import type { ExternalTarget, SettingsPageTarget, SettingsSection } from "../main/settings";
 import type { SetupRead, SetupStatus } from "../main/setupBroker";
 import type { ConfigChoice, ConfigKind, ConfigReply } from "../main/configBridge";
 import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
@@ -202,14 +202,6 @@ const api = {
   checkSetupAgain: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:check-again"),
   onSetupStatus: (listener: (status: SetupStatus) => void): (() => void) => subscribe("setup:status", "setup:status", listener),
   openInstallPage: (target: ExternalTarget): Promise<boolean> => ipcRenderer.invoke("setup:open-external", { target }),
-  // Opens Settings, or brings it forward, at a tab and optionally one row.
-  openSettings: (target: SettingsTarget): Promise<boolean> => ipcRenderer.invoke("settings:open", target),
-  // A Settings problem row asked the home to run one of its actions.
-  onProjectAction(listener: (request: { path: string; action: ForwardedAction }) => void): () => void {
-    const receive = (_event: Electron.IpcRendererEvent, request: { path: string; action: ForwardedAction }) => listener(request);
-    ipcRenderer.on("projects:action", receive);
-    return () => ipcRenderer.removeListener("projects:action", receive);
-  },
   commentsList: (request: CommentRequest): Promise<CommentReply<CommentList>> => ipcRenderer.invoke("comments:list", request),
   commentsBegin: (request: BeginRequest): Promise<CommentReply<BeginResult>> => ipcRenderer.invoke("comments:begin", request),
   commentsMutate: (request: MutationRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:mutate", request),

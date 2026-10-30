@@ -22,8 +22,8 @@ export interface ConfigBridgeDeps {
   pick(root: string, kind: ConfigKind, from: ConfigWindow): Promise<string | null>;
 }
 
-// The Settings window's Projects tab, or the main window's Project Settings dialog.
-export type ConfigWindow = "main" | "settings";
+// The main window's Project Settings dialog.
+export type ConfigWindow = "main";
 
 interface Choice { root: string; kind: ConfigKind; path: string; epoch: number }
 
@@ -66,7 +66,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
   // `doan config` takes no lock, so calls for one root run one at a time.
   const queues = new Map<string, Promise<unknown>>();
   // Bumped by clear(): reads, picker sheets and queued calls of an older
-  // session (a closed dialog or window, a replaced renderer) must not touch
+  // session (a closed dialog or a replaced renderer) must not touch
   // the next one's choices or serve lists, nor answer it.
   let session = 0;
 
@@ -78,7 +78,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
     const generation = session;
     const current = () => generation === session && deps.epoch(target) === epoch;
     const next = (queues.get(target) ?? Promise.resolve()).then(async (): Promise<ConfigReply> => {
-      // The project may have been removed and re-added, or Settings closed,
+      // The project may have been removed and re-added, or the dialog closed,
       // while this call waited behind a slower one.
       if (!current()) return { kind: "unavailable" };
       const reply = configReply(target, await deps.run(target, args));
@@ -111,7 +111,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       if (target === null || epoch === null) return { kind: "unavailable" };
       const generation = session;
       const path = await deps.pick(target, kind, from);
-      // The project may have been removed or re-rooted, or Settings closed,
+      // The project may have been removed or re-rooted, or the dialog closed,
       // while the sheet was up.
       if (deps.epoch(target) !== epoch || generation !== session) return { kind: "unavailable" };
       if (path === null) return { kind: "cancelled" };
@@ -144,8 +144,8 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       return unavailable;
     },
 
-    // A Project Settings dialog opened or closed, the Settings window closed, or the
-    // main renderer was replaced: the earlier session's choices and reads go with it.
+    // A Project Settings dialog opened or closed, or the main renderer was replaced:
+    // the earlier session's choices and reads go with it.
     clear(): void {
       session++;
       choices.clear();

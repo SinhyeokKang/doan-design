@@ -21,8 +21,8 @@ export interface MenuEnabled {
 // `locked`: a page phase nothing may leave — Add Projects' selecting and cloning (buzz-add-projects design '잠금'),
 // Settings' writes and confirmations (buzz-settings design '잠금'). Settings… is a page move, so a lock or a modal
 // disables it too.
-export function menuState(screen: Screen, modalOpen: boolean, toastOpen: boolean, context: { wizardOpen: boolean; focusedWindow: "main" | "settings"; reviewing?: boolean; choose?: boolean; locked?: boolean } = { wizardOpen: false, focusedWindow: "main" }): MenuEnabled {
+export function menuState(screen: Screen, modalOpen: boolean, toastOpen: boolean, context: { wizardOpen: boolean; reviewing?: boolean; choose?: boolean; locked?: boolean } = { wizardOpen: false }): MenuEnabled {
   const settings = !context.wizardOpen && !modalOpen && context.locked !== true;
-  if (modalOpen || context.focusedWindow === "settings" || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, resolvedNav: false };
+  if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, resolvedNav: false };
   return { settings, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", undoRemove: toastOpen, quickOpen: true, resolvedNav: screen === "canvas" && context.reviewing === true };
 }
