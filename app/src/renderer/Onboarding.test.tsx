@@ -319,6 +319,16 @@ test("review: the Project step's lost focus goes to the error, else the progress
   expect(screen({ phase: { kind: "selecting", path: "/p" } }, { busy: true })).toContain('role="status" tabindex="-1"');
 });
 
+// A notice's 16px icon is centred on a 20px first line (ds/surfaces.css .doan-alert-icon). A body without a title, such
+// as "Your Codex connection expired. Sign in again.", must start on that line: a top margin there put the icon 4px
+// above the text in Settings and first run (measured in the built app, buzz-settings R3).
+test("a notice body takes its top margin only under a title, so a body alone stays centred on its icon", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }");
+  expect(css).not.toMatch(/(^|\n)\.ob-notice-body \{[^}]*margin-top/);
+});
+
 test("design-sync: onboarding text drops the shell's tabular figures and the stepper keeps the draft capsule", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");

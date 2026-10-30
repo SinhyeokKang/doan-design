@@ -312,7 +312,8 @@ code, kbd { font-family: var(--type-family); }
 .ob-provider > .doan-notice { margin-top: var(--space-3); }
 .ob-notice-title, .ob-notice-body { display: block; }
 .ob-notice-title { font-weight: var(--type-weight-medium); }
-.ob-notice-body { margin-top: var(--space-1); }
+/* Only under a title: a body alone is the first line, which the notice icon is centred on. */
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
 .ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
 .ob-state-actions.submit-only { justify-content: flex-end; }
 .ob-page-help { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); margin-top: var(--space-3); color: var(--text-subtle); }
