@@ -32,6 +32,7 @@
 - [ ] C8. `buzz-canvas` — 미착수. 캔버스 보드·컨트롤·선택 표시·오류.
 - [ ] C9. `buzz-inspector` — 미착수. Inspector 내용. 오른쪽 패널 표시 정책은 buzz-conversation.
 - [ ] C10. `buzz-conversation` — 미착수. agent-conversation 기반은 PR #28, `d6590a6`로 main 병합됐다. agent-auth(2026-10-28 main 병합)·buzz-canvas·buzz-inspector가 선행한다. 도안 연결 대화의 오류 코드, 끝난 턴 뒤 send의 최대 10초 종료 대기, 공급자별 권한 선택지는 [ARCHITECTURE §7](../../ARCHITECTURE.md#agent-authentication)에 있다. 대화 UI와 앱 코멘트 UI 교체 범위는 spec 표 8번. 온보딩 첫 프롬프트 단계는 buzz-onboarding이 제거했다(2026-10-29). 새 홈 입력창은 buzz-home 담당이다. buzz-home 인계(2026-10-30): (1) 홈 대화의 임시 상태줄(`ConversationStripView.tsx`), LNB 상태 슬롯, 프로젝트당 홈 대화 1개 규칙은 임시다. 대화 패널이 이를 대체하고 규칙을 다시 정한다. (2) 입력창은 대화 패널과 나눠 쓰도록 미리 분리하지 않았다(`HomeComposerView.tsx`, `homeComposer.ts`). 재사용 구조는 이 자식이 정한다. (3) 권한 요청 토스트의 Open은 root가 아니라 대화 id를 가리킨다(`homeRun.ts`). 대화 패널은 그 대화를 바로 열 수 있다. 고른 모델·effort는 index에 남아 같은 대화의 다음 send가 그 값을 쓴다([ARCHITECTURE §7](../../ARCHITECTURE.md#agent-conversation-runtime-and-ipc)).
+- [ ] C11. `doan-mascot` — 계획 확정, 미구현([자식 문서](../doan-mascot/spec.md)). Welcome과 Home에 마스코트 Doany(시안과 같은 WebGL 모션)를 넣고 두 화면의 그룹을 높이 기준 중앙에 배치하며, 패키지 앱 아이콘을 Doany로 바꾼다. 새 시안 `.doan/canvases/doan-mascot.html`(`mascot-home`·`mascot-welcome`)이 이 자식이 머지될 때까지 두 화면의 정본이다(공통 결정 11). design.md '도니 시안 구현 인계'를 이 자식이 맡는다.
 
 ### 외부 선행과 다음 순서
 
