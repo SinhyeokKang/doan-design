@@ -552,11 +552,10 @@ test("chips show type and size, a checking state, a pasted image and a moved fil
     .toMatchObject({ meta: "Moved or deleted", problem: true, notice: "brand-guidelines.pdf was moved or deleted. Remove it, or attach it again." });
 });
 
-test("a drop on the composer attaches files and refuses folders; elsewhere it adds projects", () => {
-  expect(dropTarget(false, [{ isDirectory: true }])).toEqual({ kind: "project" });
-  expect(dropTarget(true, [{ isDirectory: false }, { isDirectory: false }])).toEqual({ kind: "attach", files: [0, 1], notice: null });
-  expect(dropTarget(true, [{ isDirectory: true }])).toEqual({ kind: "attach", files: [], notice: "Folders can’t be attached. Add a project from Add Projects." });
-  expect(dropTarget(true, [{ isDirectory: true }, { isDirectory: false }])).toEqual({ kind: "attach", files: [1], notice: "Folders can’t be attached. Add a project from Add Projects." });
+test("a drop on the composer attaches files and refuses folders, pointing to Add Projects", () => {
+  expect(dropTarget([{ isDirectory: false }, { isDirectory: false }])).toEqual({ files: [0, 1], notice: null });
+  expect(dropTarget([{ isDirectory: true }])).toEqual({ files: [], notice: "Folders can’t be attached. Add a project from Add Projects." });
+  expect(dropTarget([{ isDirectory: true }, { isDirectory: false }])).toEqual({ files: [1], notice: "Folders can’t be attached. Add a project from Add Projects." });
 });
 
 test("Backspace at the start of an empty field removes the preset chip first, then the last attachment", () => {

@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { OnboardingOperation, OnboardingResponse, OnboardingState } from "../formats/types";
-import { isMainCheckout, projectFooter, projectNoticeCode, ProjectStepSession, setUpLabel, type ProjectStepState } from "./projectStep";
+import { addPageApi, isMainCheckout, projectFooter, projectNoticeCode, ProjectStepSession, setUpLabel, type ProjectStepState } from "./projectStep";
 
 type Reply = OnboardingResponse | Promise<OnboardingResponse>;
 const op = (kind: OnboardingOperation["kind"], over: Partial<OnboardingOperation> = {}): OnboardingOperation => ({ operationId: `op-${kind}-${Math.random().toString(36).slice(2)}`, requestId: "r", kind, state: "succeeded", ...over });
@@ -749,4 +749,89 @@ test("the no-agent notice belongs to first run only", () => {
   expect(projectNoticeCode("addPage", ready, false)).toBeNull();
   expect(projectNoticeCode("addPage", footerState({ kind: "ready", root: "/w/a" }, { code: "no_ready_agent" }), true)).toBeNull();
   expect(projectNoticeCode("addPage", footerState(clonePlan, { code: "destination_exists" }), true)).toBe("destination_exists");
+});
+
+// buzz-add-projects U2/U3: the same session over the page's main instance.
+function pageHarness() {
+  let listener: ((state: { sessionId: string; revision: number; project: null; operations: OnboardingOperation[] }) => void) | null = null;
+  const queue: Record<string, Reply[]> = { inspect: [], select: [], clone: [], cancel: [] };
+  const next = (name: string) => queue[name]!.shift() ?? refused("bad_request");
+  const doan = {
+    readAddPage: vi.fn(),
+    onAddPageSession: vi.fn((l: typeof listener) => { listener = l; return () => { listener = null; }; }),
+    inspectAddPageProject: vi.fn(async (_r: unknown) => next("inspect")),
+    selectAddPageProject: vi.fn(async (_r: unknown) => next("select")),
+    cloneAddPageProject: vi.fn(async (_r: unknown) => next("clone")),
+    cancelAddPageOperation: vi.fn(async (_r: unknown) => next("cancel")),
+    chooseOnboardingFolder: vi.fn(async (_p: "project" | "destination"): Promise<string | null> => null),
+  };
+  let ids = 0, revision = 0;
+  const completed = vi.fn(), changed = vi.fn();
+  const session = new ProjectStepSession({ api: addPageApi(doan as never), use: "addPage", sessionId: "p1", projects: () => [], homeDirectory: () => "/Users/ada", requestId: () => `req-${++ids}`, changed, completed });
+  session.start();
+  return { session, doan, queue, completed, changed, emit(operations: OnboardingOperation[]) { listener?.({ sessionId: "p1", revision: ++revision, project: null, operations }); } };
+}
+const folder = (path: string) => ({ isDirectory: true, path });
+
+test("the page session talks to the page instance and hands a registered root over at once, without a ready step", async () => {
+  const h = pageHarness();
+  h.doan.chooseOnboardingFolder.mockResolvedValueOnce("/code/app");
+  const found = inspection([["/code/app"]]);
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: found })));
+  h.queue.select!.push(ok(op("project_select", { project: { root: "/code/app" } })));
+  await h.session.chooseFolder();
+  expect(h.doan.inspectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-1", path: "/code/app" });
+  expect(h.doan.selectAddPageProject.mock.calls[0]![0]).toEqual({ sessionId: "p1", requestId: "req-2", inspectionId: found.inspectionId, path: "/code/app" });
+  expect(h.completed).toHaveBeenCalledWith("/code/app");
+  expect(phase(h as never).kind).not.toBe("ready");
+});
+
+test("the page: a folder that needs setup goes to setup, a plain folder too, an unreadable one says project_unavailable", async () => {
+  for (const [path, changes] of [["/code/plain", [".doan/config.json", ".doan/canvases/"]], ["/code/repo", [".doan/config.json"]]] as const) {
+    const h = pageHarness();
+    h.doan.chooseOnboardingFolder.mockResolvedValueOnce(path);
+    h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([[path, [...changes]]]) })));
+    await h.session.chooseFolder();
+    expect(h.session.state.phase.kind).toBe("setup");
+    expect(h.completed).not.toHaveBeenCalled();
+  }
+  const h = pageHarness();
+  h.doan.chooseOnboardingFolder.mockResolvedValueOnce("/code/locked");
+  h.queue.inspect!.push(ok(op("project_inspect", { state: "failed", error: { code: "project_unavailable", message: "m" } })));
+  await h.session.chooseFolder();
+  expect(h.session.state).toMatchObject({ phase: { kind: "choose" }, error: { code: "project_unavailable" } });
+});
+
+test("a folder dropped on the card is inspected like a chosen one; a refused drop leaves a notice the next drag or Choose folder clears", async () => {
+  const h = pageHarness();
+  h.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/app", [".doan/config.json"]]]) })));
+  expect(h.session.canDrop()).toBe(true);
+  await h.session.drop([folder("/code/app")]);
+  expect(h.doan.inspectAddPageProject.mock.calls[0]![0]).toMatchObject({ path: "/code/app" });
+  expect(h.session.state.phase.kind).toBe("setup");
+  const g = pageHarness();
+  await g.session.drop([folder("/a"), folder("/b")]);
+  expect(g.session.dropNotice).toBe("Drop one folder at a time.");
+  g.session.dragStarted();
+  expect(g.session.dropNotice).toBeNull();
+  await g.session.drop([{ isDirectory: false, path: "/a/file.txt" }]);
+  expect(g.session.dropNotice).toBe("Only folders can be added.");
+  await g.session.chooseFolder();
+  expect(g.session.dropNotice).toBeNull();
+  expect(g.doan.inspectAddPageProject).not.toHaveBeenCalled();
+});
+
+test("a drop is refused while the step is busy, and a second quick drop while the first is inspected is ignored", async () => {
+  const h = pageHarness();
+  let answer: (reply: OnboardingResponse) => void = () => {};
+  h.queue.inspect!.push(new Promise<OnboardingResponse>(resolve => { answer = resolve; }));
+  const first = h.session.drop([folder("/code/a")]);
+  expect(h.session.state.phase.kind).toBe("checking");
+  expect(h.session.canDrop()).toBe(false);
+  await h.session.drop([folder("/code/b")]);
+  expect(h.doan.inspectAddPageProject).toHaveBeenCalledTimes(1);
+  answer(ok(op("project_inspect", { inspection: inspection([["/code/a", [".doan/config.json"]]]) })));
+  await first;
+  // Only the choose screen shows the card.
+  expect(h.session.canDrop()).toBe(false);
 });

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { addPageReturn, leaveLocked, type AddPageOrigin } from "./addProjectsNav";
+import { addPageReturn, leaveLocked, pageEscape, type AddPageOrigin } from "./addProjectsNav";
 import type { ProjectPhase } from "./projectStep";
 
 const home: AddPageOrigin = { screen: "home" };
@@ -10,7 +10,7 @@ const escape = { kind: "escape", editing: false, overlay: false } as const;
 test("Projects tab, Back, Cancel and Escape return to the origin", () => {
   for (const event of [{ kind: "projectsTab" }, { kind: "back" }, { kind: "cancel" }, escape] as const) {
     expect(addPageReturn(home, event, roots)).toEqual({ kind: "home", select: null });
-    expect(addPageReturn(ws, event, roots)).toEqual({ kind: "workspace", root: "/w/a", guard: false });
+    expect(addPageReturn(ws, event, roots)).toEqual({ kind: "workspace", root: "/w/a" });
   }
 });
 
@@ -34,13 +34,21 @@ test("a finished add goes Home with that root chosen, new or already registered"
   expect(addPageReturn(home, { kind: "added", root: "/w/b" }, roots)).toEqual({ kind: "home", select: "/w/b" });
 });
 
-test("a sidebar row or a Quick Open pick leaves for its workspace, through the draft guard when the origin has a draft", () => {
-  expect(addPageReturn(home, { kind: "row", root: "/w/b", originDraft: false }, roots)).toEqual({ kind: "workspace", root: "/w/b", guard: false });
-  expect(addPageReturn(ws, { kind: "row", root: "/w/b", originDraft: true }, roots)).toEqual({ kind: "workspace", root: "/w/b", guard: true });
-  // The origin itself is revealed, not left, so its draft needs no guard.
-  expect(addPageReturn(ws, { kind: "row", root: "/w/a", originDraft: true }, roots)).toEqual({ kind: "workspace", root: "/w/a", guard: false });
-  expect(addPageReturn(ws, { kind: "quickOpen", root: "/w/b", originDraft: true }, roots)).toEqual({ kind: "workspace", root: "/w/b", guard: true });
-  expect(addPageReturn(home, { kind: "quickOpen", root: "/w/b", originDraft: false }, roots)).toEqual({ kind: "workspace", root: "/w/b", guard: false });
+// A sidebar row and a Quick Open pick leave through the shell's own navigation, whose controller asks the draft guard
+// canvas by canvas (review-BP 🟡1); the page never decides that a move may skip it, so they are not events here.
+test("the destination never carries a guard decision", () => {
+  for (const event of [{ kind: "projectsTab" }, { kind: "back" }, { kind: "cancel" }, escape] as const)
+    expect(Object.keys(addPageReturn(ws, event, roots)).sort()).toEqual(["kind", "root"]);
+});
+
+test("Escape in a field or during an IME composition (isComposing or keyCode 229) is editing", () => {
+  const button = { tagName: "BUTTON" }, input = { tagName: "INPUT" };
+  expect(pageEscape({ target: button, isComposing: false, keyCode: 27 }, false)).toEqual(escape);
+  expect(pageEscape({ target: input, isComposing: false, keyCode: 27 }, false)).toEqual({ ...escape, editing: true });
+  expect(pageEscape({ target: { tagName: "DIV", isContentEditable: true }, isComposing: false, keyCode: 27 }, false)).toEqual({ ...escape, editing: true });
+  expect(pageEscape({ target: button, isComposing: true, keyCode: 27 }, false)).toEqual({ ...escape, editing: true });
+  expect(pageEscape({ target: button, isComposing: false, keyCode: 229 }, false)).toEqual({ ...escape, editing: true });
+  expect(pageEscape({ target: button, isComposing: false, keyCode: 27 }, true)).toEqual({ ...escape, overlay: true });
 });
 
 test("Go > Home goes Home whatever the origin", () => {
