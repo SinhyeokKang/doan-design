@@ -27,8 +27,9 @@ export interface AgentSignInState {
   contexts: Partial<Record<Provider, ProviderContext>>;
 }
 
-// Providers whose links open on the first prompt; Cursor and Copilot open the browser themselves (2026-10-28 user).
-const AUTO_OPEN: readonly Provider[] = ["claude", "codex", "antigravity"];
+// Providers whose links open on the first prompt. Cursor and Copilot (2026-10-28 user) and codex login (its webbrowser
+// crate) open the default browser themselves; opening again showed a second sign-in page.
+const AUTO_OPEN: readonly Provider[] = ["claude", "antigravity"];
 // Codex prints its local callback server before the auth page; opening the server's address shows nothing useful.
 function loopback(url: string): boolean {
   try { return ["localhost", "127.0.0.1", "[::1]"].includes(new URL(url).hostname); } catch { return false; }

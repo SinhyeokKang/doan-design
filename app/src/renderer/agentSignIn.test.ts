@@ -81,6 +81,22 @@ test("a prompt that arrives while no page shows the rows is kept: shown again, t
   expect(row.paste?.button.label).toBe("Paste its address");
 });
 
+// buzz-settings R2: codex login opens the default browser itself (its webbrowser crate), so a second open from Doan
+// showed the user two sign-in pages. Its prompt only lights Open again.
+test("a Codex sign-in opens nothing: the CLI opens its own browser page", async () => {
+  const h = harness();
+  h.controller.start();
+  h.controller.show(h.rows);
+  h.controller.signIn("codex");
+  await flush();
+  h.emit(snap(2, { codex: signingIn("sign-1") }));
+  h.prompt({ provider: "codex", attemptId: "sign-1", url: "http://localhost:1455" });
+  h.prompt({ provider: "codex", attemptId: "sign-1", url: "https://auth.openai.com/oauth/authorize?client_id=x" });
+  await flush();
+  expect(h.api.openAgentSignInLink).not.toHaveBeenCalled();
+  expect(h.row("codex").notice?.actions.map(a => a.label)).toEqual(["Cancel", "Open again"]);
+});
+
 test("a prompt that comes before this renderer's sign-in reply is held, then opened once the reply names it", async () => {
   const h = harness();
   h.controller.start();

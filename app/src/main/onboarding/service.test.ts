@@ -222,7 +222,7 @@ describe("sign-in through the session", () => {
     expect(t.b.api.signIn).not.toHaveBeenCalled();
   });
 
-  it("follows the attempt to awaiting_user and opens the first link only for Claude, Codex and Antigravity", async () => {
+  it("follows the attempt to awaiting_user and opens the first link only for Claude and Antigravity", async () => {
     for (const provider of PROVIDERS) {
       const t = setup();
       const id = await session(t);
@@ -231,23 +231,23 @@ describe("sign-in through the session", () => {
       t.prompt(provider, "sign-1", "https://example.com/second");
       expect(t.service.snapshot().operations[0]!.state).toBe("awaiting_user");
       await new Promise(resolve => setTimeout(resolve, 0));
-      const opens = ["claude", "codex", "antigravity"].includes(provider) ? [["https://example.com/first"]] : [];
+      const opens = ["claude", "antigravity"].includes(provider) ? [["https://example.com/first"]] : [];
       expect(t.openExternal.mock.calls, provider).toEqual(opens);
       expect(op.provider).toBe(provider);
     }
   });
 
-  it("skips Codex's local listener line and opens its auth URL", async () => {
+  // codex login opens the default browser itself, so a Doan open would show the user a second sign-in page.
+  it("opens nothing for Codex, whose login opens its own browser page, and waits for the user at its auth URL", async () => {
     const t = setup();
     const id = await session(t);
     await t.ask({ op: "sign_in", sessionId: id, requestId: "r1", provider: "codex" });
     t.prompt("codex", "sign-1", "http://localhost:1455");
     await settle();
-    expect(t.openExternal).not.toHaveBeenCalled();
     expect(t.service.snapshot().operations[0]!.state).toBe("pending");
     t.prompt("codex", "sign-1", "https://auth.openai.com/oauth/authorize?client_id=x");
     await settle();
-    expect(t.openExternal.mock.calls).toEqual([["https://auth.openai.com/oauth/authorize?client_id=x"]]);
+    expect(t.openExternal).not.toHaveBeenCalled();
     expect(t.service.snapshot().operations[0]!.state).toBe("awaiting_user");
   });
 

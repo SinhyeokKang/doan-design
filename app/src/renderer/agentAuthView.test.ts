@@ -148,7 +148,7 @@ test("a running sign-in shows preparing, then waiting, with per-provider browser
   expect(only(providerView(signingIn("claude"), { prompt: "a1" })).notice).toEqual({
     role: "status", spinner: true, title: "Finish signing in to Claude Code", body: "Complete sign-in in your browser, then return here.", actions: ["subtle:Cancel:cancel", "subtle:Open again:openLink"],
   });
-  for (const provider of ["cursor", "copilot"] as const) {
+  for (const provider of ["codex", "cursor", "copilot"] as const) {
     expect(only(providerView(signingIn(provider), { prompt: "a1" })).notice?.body).toBe("A browser tab may already be open. Complete sign-in there, then return here.");
   }
   const antigravity = providerView(signingIn("antigravity"), { prompt: "a1" });

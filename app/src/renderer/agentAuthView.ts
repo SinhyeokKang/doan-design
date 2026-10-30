@@ -6,8 +6,9 @@ import type { SettingsTarget } from "./settingsSections";
 // buzz-onboarding draft's Authentication states tiles; states come from agent-auth DTOs only, never re-judged here.
 export const PROVIDER_NAMES: Record<Provider, string> = { claude: "Claude Code", codex: "Codex", cursor: "Cursor", antigravity: "Antigravity", copilot: "GitHub Copilot" };
 const VENDORS: Record<Provider, string> = { claude: "Anthropic", codex: "OpenAI", cursor: "Cursor", antigravity: "Google", copilot: "GitHub" };
-// Cursor and Copilot sign-in CLIs open the default browser themselves (accepted limit, 2026-10-28 user).
-const OPENS_OWN_BROWSER: readonly Provider[] = ["cursor", "copilot"];
+// These sign-in CLIs open the default browser themselves: Cursor and Copilot (accepted limit, 2026-10-28 user) and
+// codex login.
+const OPENS_OWN_BROWSER: readonly Provider[] = ["codex", "cursor", "copilot"];
 export const MAX_PASTE = 16384;
 
 export type AuthCommand = "install" | "update" | "signIn" | "reauth" | "signOut" | "check" | "cancel" | "openLink" | "pasteAddress" | "submitCode" | "read" | "dismiss";

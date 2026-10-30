@@ -52,8 +52,8 @@ export interface OnboardingServiceOptions {
   quickReplyMs?: number;
 }
 
-// Cursor and Copilot open the browser themselves; opening again would show a second tab.
-const AUTO_OPEN: ReadonlySet<Provider> = new Set(["claude", "codex", "antigravity"]);
+// Codex, Cursor and Copilot open the browser themselves; opening again would show a second tab.
+const AUTO_OPEN: ReadonlySet<Provider> = new Set(["claude", "antigravity"]);
 // Below the socket's 2 s limit, so a slow first tool probe still leaves time to answer.
 const SNAPSHOT_WAIT_MS = 1500;
 // Codex prints its local listener before the auth URL (ARCHITECTURE §7); that line is not where the user signs in.
