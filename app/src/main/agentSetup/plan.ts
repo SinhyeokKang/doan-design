@@ -52,9 +52,17 @@ function underNamespace(value: string, home: string): boolean {
   return posix.isAbsolute(value) && posix.normalize(value) === value && value.startsWith(`${home}/.local/share/doan/`);
 }
 
+// Codex runs a command an `allow` rule matches outside the sandbox without asking (Codex docs 'Rules'); the app socket
+// needs that. Doan's own file, not default.rules, where the Codex TUI saves the person's approvals.
+export function codexRuleText(): string {
+  return '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n';
+}
+
 export function classifyTarget(target: SetupTarget, home: string, observation: Pick<Observation, "kind" | "value" | "content">): Ownership {
   const { kind, value } = observation;
   if (kind === "missing") return "missing";
+  // Ownership of the rule is its exact content; when the text changes, the old text joins this check.
+  if (target === "codex-rule") return kind === "file" && observation.content === codexRuleText() ? "ours" : "foreign";
   if (kind !== "symlink" || value == null) return "foreign";
   // ~/.local/share/doan is Doan's namespace: any link there is ours, whichever bundle it names.
   if (target === "current" || target === "skill" || underNamespace(value, home)) return "ours";
@@ -77,6 +85,8 @@ export function plannedTargets(home: string, resources: string, providerDirs: re
     skillLink("agents-skill", ".agents", "skills", ["codex", "cursor", "copilot"]),
     ...(providerDirs.includes("claude") ? [skillLink("claude-skill", ".claude", "skills", ["claude"])] : []),
     ...(providerDirs.includes("gemini") ? [skillLink("gemini-skill", ".gemini", "config/skills", ["antigravity"])] : []),
+    // The rule lets the `doan` an agent finds on PATH run unsandboxed, so it waits for Doan's links on that PATH.
+    ...(providerDirs.includes("codex") ? [{ target: "codex-rule", path: `${home}/.codex/rules/doan.rules`, want: codexRuleText(), file: true, root: `${home}/.codex`, providers: ["codex"], after: ["current", "cli", "system-cli"] } satisfies PlannedTarget] : []),
   ];
 }
 
@@ -87,7 +97,8 @@ export function writeFailure(target: PlannedTarget, code: string, at = posix.dir
 
 export function decide(target: PlannedTarget, observation: Observation, home: string, outcomes: ReadonlyMap<SetupTarget, Outcome>): Step {
   const base = { target: target.target, path: target.path };
-  const blocked = target.after.find(dep => outcomes.get(dep)?.ok === false);
+  // A cancelled administrator dialog leaves no doan in /usr/local/bin to go through.
+  const blocked = target.after.find(dep => outcomes.get(dep)?.ok === false && outcomes.get(dep)?.item?.reason !== "admin-cancelled");
   if (blocked) return { ...base, action: "skip", on: blocked };
   if (observation.blockedParent) {
     return { ...base, action: "skip", item: { target: target.target, path: target.path, providers: [...target.providers], reason: "write-failed", cause: "blocked-parent", at: observation.blockedParent, code: "ENOTDIR" } };

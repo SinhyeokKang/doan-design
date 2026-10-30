@@ -4,6 +4,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { codexRuleText } from "./plan";
 import { adminCommand, runAgentSetup, type AdminResult, type AgentSetupOptions } from "./runner";
 
 // The race test swaps one symlink call; everything else is the real file system.
@@ -127,15 +128,16 @@ describe("runAgentSetup", () => {
     ["a relative link", (path: string) => symlinkSync("../share/doan/current/bin/doan", path), "link"],
     ["a regular file", (path: string) => writeFileSync(path, "mine"), "file"],
     ["a folder", (path: string) => mkdirSync(path), "folder"],
-  ] as const)("leaves %s at ~/.local/bin/doan alone", async (_, place, found) => {
-    mkdirSync(join(home, ".local/bin"), { recursive: true });
+  ] as const)("leaves %s at ~/.local/bin/doan alone and skips the Codex rule behind it", async (_, place, found) => {
+    mkdirSync(join(home, ".local/bin"), { recursive: true }); mkdirSync(join(home, ".codex"));
     const cli = join(home, ".local/bin/doan");
     place(cli);
     const before = tree(join(home, ".local/bin"));
     const result = await runAgentSetup(options());
     expect(result.items).toEqual([{ target: "cli", path: cli, providers: ALL, reason: "foreign", found }]);
     expect(tree(join(home, ".local/bin"))).toEqual(before);
-    expect(actions(result)).toMatchObject({ current: "create", cli: "skip:foreign", "agents-skill": "create" });
+    expect(actions(result)).toMatchObject({ current: "create", cli: "skip:foreign", "agents-skill": "create", "codex-rule": "skip:cli" });
+    expect(existsSync(join(home, ".codex/rules"))).toBe(false);
   });
 
   it("skips everything behind a foreign current and names current only", async () => {
@@ -191,6 +193,45 @@ describe("runAgentSetup", () => {
     const result = await runAgentSetup(options({ ...overrides, resources: res }));
     expect(result.items).toEqual([{ target: "copy", path: dirname(dirname(res)), providers: ALL, reason: "not-eligible", eligibility }]);
     expect(tree()).toEqual(before);
+  });
+});
+
+describe("the Codex rule", () => {
+  const rule = () => join(home, ".codex/rules/doan.rules");
+
+  it("is written only when ~/.codex exists, and kept on the next run", async () => {
+    expect(actions(await runAgentSetup(options()))["codex-rule"]).toBeUndefined();
+    expect(existsSync(join(home, ".codex"))).toBe(false);
+    mkdirSync(join(home, ".codex"));
+    expect(actions(await runAgentSetup(options()))["codex-rule"]).toBe("create");
+    expect(readFileSync(rule(), "utf8")).toBe(codexRuleText());
+    expect(lstatSync(rule()).mode & 0o777).toBe(0o644);
+    expect(readdirSync(join(home, ".codex/rules"))).toEqual(["doan.rules"]);
+    const before = tree(join(home, ".codex"));
+    expect(actions(await runAgentSetup(options()))["codex-rule"]).toBe("keep");
+    expect(tree(join(home, ".codex"))).toEqual(before);
+  });
+
+  it("leaves an edited rule file alone", async () => {
+    mkdirSync(join(home, ".codex/rules"), { recursive: true });
+    writeFileSync(rule(), `${codexRuleText()}# mine\n`);
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([{ target: "codex-rule", path: rule(), providers: ["codex"], reason: "foreign", found: "file" }]);
+    expect(readFileSync(rule(), "utf8")).toBe(`${codexRuleText()}# mine\n`);
+  });
+
+  it("reports a read-only rules folder", async () => {
+    mkdirSync(join(home, ".codex/rules"), { recursive: true }); chmodSync(join(home, ".codex/rules"), 0o555);
+    try {
+      const result = await runAgentSetup(options());
+      expect(result.items).toEqual([{ target: "codex-rule", path: rule(), providers: ["codex"], reason: "write-failed", cause: "permission", at: join(home, ".codex/rules"), code: "EACCES" }]);
+    } finally { chmodSync(join(home, ".codex/rules"), 0o755); }
+  });
+
+  it("is still written after the administrator dialog was cancelled", async () => {
+    mkdirSync(join(home, ".codex"));
+    const result = await runAgentSetup(options({ loginPath: "/usr/bin:/bin", runAdmin: async () => ({ kind: "cancelled" }) }));
+    expect(actions(result)).toMatchObject({ "system-cli": "skip:admin-cancelled", "codex-rule": "create" });
   });
 });
 

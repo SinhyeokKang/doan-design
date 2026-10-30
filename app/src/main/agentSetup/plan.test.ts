@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTarget, installEligibility, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
+import { classifyTarget, codexRuleText, installEligibility, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
 
 const HOME = "/Users/u";
 const SHARE = `${HOME}/.local/share/doan`;
@@ -71,6 +71,12 @@ describe("classifyTarget", () => {
     ["agents-skill", link("/opt/homebrew"), "foreign"],
     ["gemini-skill", link(`${SHARE}/skill`), "ours"],
     ["gemini-skill", MISSING, "missing"],
+    ["codex-rule", { kind: "file", content: codexRuleText() }, "ours"],
+    ["codex-rule", { kind: "file", content: `${codexRuleText()}prefix_rule(pattern=["rm"], decision="allow")\n` }, "foreign"],
+    ["codex-rule", { kind: "file", content: 'prefix_rule(pattern=["doan"], decision="allow")\n' }, "foreign"],
+    ["codex-rule", link(`${SHARE}/current/doan.rules`), "foreign"],
+    ["codex-rule", { kind: "directory" }, "foreign"],
+    ["codex-rule", MISSING, "missing"],
   ] as const)("%s %j is %s", (target, observation, expected) => {
     expect(classifyTarget(target, HOME, observation)).toBe(expected);
   });
@@ -86,7 +92,12 @@ describe("plannedTargets", () => {
       ["agents-skill", `${HOME}/.agents/skills/doan`, `${SHARE}/skill`],
       ["claude-skill", `${HOME}/.claude/skills/doan`, `${SHARE}/skill`],
       ["gemini-skill", `${HOME}/.gemini/config/skills/doan`, `${SHARE}/skill`],
+      ["codex-rule", `${HOME}/.codex/rules/doan.rules`, codexRuleText()],
     ]);
+  });
+
+  it("allows every doan command, as ego lite does for its CLI", () => {
+    expect(codexRuleText()).toMatch(/^prefix_rule\(pattern=\["doan"\], decision="allow"\)$/m);
   });
 
   it("leaves out missing provider folders and the system link when PATH has ~/.local/bin", () => {
@@ -140,6 +151,15 @@ describe("plan", () => {
   it("reports a blocked ancestor as a write failure", () => {
     const steps = plan(targets, settled({ "gemini-skill": { kind: "missing", blockedParent: `${HOME}/.gemini/config`, real: null } }), HOME);
     expect(steps.at(-1)).toMatchObject({ action: "skip", item: { target: "gemini-skill", reason: "write-failed", cause: "blocked-parent", at: `${HOME}/.gemini/config` } });
+  });
+
+  it("writes the Codex rule only when the doan on PATH is Doan's", () => {
+    const codex = plannedTargets(HOME, RESOURCES, ["codex"], true);
+    const fresh = (overrides: Record<string, Observation>) => Object.fromEntries(codex.map(t => [t.target, overrides[t.target] ?? { ...MISSING, real: t.path }]));
+    expect(actions(plan(codex, fresh({}), HOME)).at(-1)).toEqual(["codex-rule", "create"]);
+    expect(actions(plan(codex, fresh({ cli: { kind: "file", real: `${HOME}/.local/bin/doan` } }), HOME)).at(-1)).toEqual(["codex-rule", "skip:cli"]);
+    expect(actions(plan(codex, fresh({ "system-cli": { kind: "file", real: "/usr/local/bin/doan" } }), HOME)).at(-1)).toEqual(["codex-rule", "skip:system-cli"]);
+    expect(actions(plan(codex, fresh({ "codex-rule": { kind: "file", content: codexRuleText(), real: `${HOME}/.codex/rules/doan.rules` } }), HOME)).at(-1)).toEqual(["codex-rule", "keep"]);
   });
 
   it("counts ~/.claude/skills resolving to ~/.agents/skills as one target", () => {

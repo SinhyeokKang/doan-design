@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { classifyTarget, decide, installEligibility, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
@@ -101,7 +101,12 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
   try {
     ensureDirectory(target.root, dirname(target.path));
     if (blockedParent(target.path) || realTarget(target.path) !== real) return changed(target, home);
-    if (action === "create") {
+    if (action === "create" && target.file) {
+      writeFileSync(temporary, target.want, { flag: "wx", mode: 0o644 });
+      if (observe(target).stamp !== before.stamp) return changed(target, home);
+      // link(2) publishes the staged regular file exclusively; never link a symlink (macOS follows it).
+      linkSync(temporary, real);
+    } else if (action === "create") {
       if (observe(target).stamp !== before.stamp) return changed(target, home);
       // symlink(2) fails on an existing name, so a competitor that wins the race is kept.
       symlinkSync(target.want, real);
