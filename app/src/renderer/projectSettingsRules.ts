@@ -2,7 +2,8 @@ import type { FolderFocus } from "../main/shell";
 import type { FolderEntry } from "../main/view";
 
 // The Project Settings dialog's rules (buzz-settings design 'Project Settings 다이얼로그'). The dialog shows one
-// worktree, chosen from the project menu, and follows that worktree while it is open.
+// worktree, chosen from the project menu, and follows that worktree while it is open. Named apart from the dialog
+// component beyond capitalization (POSTMORTEM 2026-10-25 'A TS helper hid its TSX component on case-insensitive macOS').
 
 // A picker sheet, a confirmation or a config write is waiting on main; closing would drop its result, so Escape and
 // Done wait for it (the old Settings window refused to close for the same reason).

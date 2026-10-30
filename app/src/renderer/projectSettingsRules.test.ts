@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
-import { canCloseProjectSettings, closedFocus, followProjectSettings, problemActionCloses, projectSettingsView } from "./projectSettingsDialog";
+import { canCloseProjectSettings, closedFocus, followProjectSettings, problemActionCloses, projectSettingsView } from "./projectSettingsRules";
 
 const list = (path: string): FolderEntry => ({ path, kind: "list", canvases: [], servedRev: 1 });
 const entry = (path: string, kind: "loading" | "uninitialized" | "notFound"): FolderEntry => ({ path, kind });
