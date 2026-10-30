@@ -2024,6 +2024,25 @@ describe("Add Projects page session", () => {
     expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith("/picked");
   });
 
+  test("a folder Add Project would only confirm is confirmed, because selecting it was the user's setup intent", async () => {
+    const contents = window().webContents, sessionId = await pageSession();
+    mocks.projects.canonicalFolder.mockResolvedValue("/plain");
+    mocks.projects.inspectPath.mockResolvedValue({ ok: true, candidates: [{ path: "/plain", changes: [] }] });
+    mocks.projects.selectProject.mockImplementation(async (path: string, _initialize: boolean, _repo: unknown, deps: { add(path: string): Promise<string | null> }) => {
+      const root = await deps.add(path);
+      return root === null ? { ok: false, code: "project_unavailable" } : { ok: true, root };
+    });
+    mocks.flow.add.mockResolvedValueOnce({ added: [], duplicate: null, messages: [], confirm: { confirmId: "c1", path: "/plain" } });
+    mocks.flow.confirm.mockImplementationOnce(async () => {
+      mocks.shell.entries.mockReturnValue([{ path: "/plain" }]);
+      return { kind: "added" };
+    });
+    const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "pick", path: "/plain" }) as { result: { operation: { inspection: { inspectionId: string } } } };
+    const selected = await invoke("add-projects:select", contents, null, { sessionId, requestId: "use", inspectionId: plan.result.operation.inspection.inspectionId, path: "/plain" });
+    expect(mocks.flow.confirm).toHaveBeenCalledExactlyOnceWith({ confirmId: "c1" });
+    expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "succeeded", project: { root: "/plain" } } } });
+  });
+
   test.each(["did-navigate", "render-process-gone"])("a replaced renderer (%s) cancels the page's clone only", async event => {
     const held = heldClones();
     await cloneInOnboarding("/work/other");
