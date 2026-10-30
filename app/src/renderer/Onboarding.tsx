@@ -533,6 +533,8 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
           : <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy} data-consent="" onClick={() => on.setUp(p.inspectionId)}>{setUpLabel(use)}</button></div>}
       </section>}
       {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"])}
+      {/* The page's footer only leaves it, so the page offers another folder here; first run keeps its shipped panel. */}
+      {p.kind === "setup" && p.url === null && use === "addPage" && smallActions(["Choose another folder", "chooseFolder"])}
       {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
     </>;
   } else if (p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled") {

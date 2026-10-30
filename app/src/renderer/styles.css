@@ -656,8 +656,9 @@ body:has(.shell-top) { background: transparent; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
 .home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (buzz-add-projects
-   draft round 3); the page scrolls whole, its footer included. */
-.add-panel { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+   draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
+   14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
+.add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
 /* The ways out of a locked Add Projects page are aria-disabled, not disabled, so they keep their place in the focus
    order; they take the disabled ink and no hover (design '잠금', draft frames cloning and selecting). */
 .shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
