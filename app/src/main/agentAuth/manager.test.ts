@@ -304,7 +304,8 @@ describe("sign-in", () => {
 
     it("ends as sign_in_failed, stops the login, removes the link directory and logs why", async () => {
       const prompts: unknown[] = [];
-      const m = manager({ hookLinkTimeoutMs: 40, onPrompt: prompt => prompts.push(prompt), adapters: { ...withAcp(), claude: hooked() } }); await m.load();
+      // The rejected link is read by the 100 ms poll before it can be logged, so the timeout stays above it.
+      const m = manager({ hookLinkTimeoutMs: 500, onPrompt: prompt => prompts.push(prompt), adapters: { ...withAcp(), claude: hooked() } }); await m.load();
       const run = started(await m.signIn("claude", 7));
       const login = await next("login");
       const dir = dirname(login.env.DOAN_AUTH_LINK!);
