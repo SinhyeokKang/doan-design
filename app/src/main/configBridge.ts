@@ -18,9 +18,12 @@ export interface ConfigBridgeDeps {
   run(root: string, args: string[]): Promise<CliRun>;
   // The epoch of a stored, set-up root; null for anything else.
   epoch(root: string): number | null;
-  // A sheet on the Settings window; null when cancelled.
-  pick(root: string, kind: ConfigKind): Promise<string | null>;
+  // A sheet on the window that asked; null when cancelled.
+  pick(root: string, kind: ConfigKind, from: ConfigWindow): Promise<string | null>;
 }
+
+// The Settings window's Projects tab, or the main window's Project Settings dialog.
+export type ConfigWindow = "main" | "settings";
 
 interface Choice { root: string; kind: ConfigKind; path: string; epoch: number }
 
@@ -63,7 +66,8 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
   // `doan config` takes no lock, so calls for one root run one at a time.
   const queues = new Map<string, Promise<unknown>>();
   // Bumped by clear(): reads, picker sheets and queued calls of an older
-  // Settings session must not touch the next one's choices or serve lists.
+  // session (a closed dialog or window, a replaced renderer) must not touch
+  // the next one's choices or serve lists, nor answer it.
   let session = 0;
 
   const root = (value: Record<string, unknown>): string | null =>
@@ -78,6 +82,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       // while this call waited behind a slower one.
       if (!current()) return { kind: "unavailable" };
       const reply = configReply(target, await deps.run(target, args));
+      if (generation !== session) return { kind: "unavailable" };
       if (reply.kind === "config" && current()) lastServe.set(target, reply.serve);
       return reply;
     });
@@ -98,14 +103,14 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       return target === null ? Promise.resolve({ kind: "unavailable" }) : call(target, []);
     },
 
-    async choose(value: unknown): Promise<ConfigChoice> {
+    async choose(value: unknown, from: ConfigWindow): Promise<ConfigChoice> {
       if (!exact(value, ["root", "kind"]) || (value.kind !== "tokenCss" && value.kind !== "serve")) return { kind: "unavailable" };
       const target = root(value);
       const kind: ConfigKind = value.kind;
       const epoch = target === null ? null : deps.epoch(target);
       if (target === null || epoch === null) return { kind: "unavailable" };
       const generation = session;
-      const path = await deps.pick(target, kind);
+      const path = await deps.pick(target, kind, from);
       // The project may have been removed or re-rooted, or Settings closed,
       // while the sheet was up.
       if (deps.epoch(target) !== epoch || generation !== session) return { kind: "unavailable" };
@@ -139,7 +144,8 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       return unavailable;
     },
 
-    // The Settings window closed: its choices and reads go with it.
+    // A Project Settings dialog opened or closed, the Settings window closed, or the
+    // main renderer was replaced: the earlier session's choices and reads go with it.
     clear(): void {
       session++;
       choices.clear();

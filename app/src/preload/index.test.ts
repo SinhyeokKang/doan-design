@@ -373,3 +373,44 @@ test("a dropped item's disk path is read in the preload; one the page made itsel
   expect(api.droppedPath({ name: "made-in-page" } as unknown as File)).toBeNull();
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
+
+// buzz-settings S2: the Settings page and the Project Settings dialog live in the main window.
+test("settings page calls use fixed channels and pass their requests as data", async () => {
+  const calls: [() => Promise<unknown>, unknown[]][] = [
+    [() => api.readPreferences(), ["preferences:read"]],
+    [() => api.savePreferences({ notifications: { finished: false } }), ["preferences:write", { notifications: { finished: false } }]],
+    [() => api.savePreferences({ newConversation: null }), ["preferences:write", { newConversation: null }]],
+    [() => api.sendTestNotification(), ["notifications:test"]],
+    [() => api.openNotificationSettings(), ["notifications:open-settings"]],
+    [() => api.readAbout(), ["about:read"]],
+    [() => api.copyAbout(), ["about:copy"]],
+    [() => api.startConfigSession(), ["config:session-start"]],
+    [() => api.endConfigSession(), ["config:session-end"]],
+    [() => api.readConfig("/repo"), ["config:read", { root: "/repo" }]],
+    [() => api.chooseConfigPath("/repo", "serve"), ["config:choose", { root: "/repo", kind: "serve" }]],
+    [() => api.writeConfig({ root: "/repo", op: "removeServe", path: "styles" }), ["config:write", { root: "/repo", op: "removeServe", path: "styles" }]],
+    [() => api.readSetup("r1"), ["setup:read", { requestId: "r1" }]],
+    [() => api.runSetupStep({ step: "cli", expected: {} } as never), ["setup:run", { step: "cli", expected: {} }]],
+    [() => api.answerSetupConfirm({ id: "q", allow: false }), ["setup:answer", { id: "q", allow: false }]],
+  ];
+  for (const [call, args] of calls) {
+    await call();
+    expect(mocks.invoke).toHaveBeenLastCalledWith(...args);
+  }
+});
+
+test("notification clicks and the open-Settings command are subscriptions that unsubscribe", () => {
+  const clicked = vi.fn();
+  const opened = vi.fn();
+  const stopClick = api.onNotificationClick(clicked);
+  const stopOpen = api.onOpenSettingsPage(opened);
+  emitter.emit("notifications:click", {}, { conversationId: "c1", root: "/repo" });
+  emitter.emit("settings-page:open", {}, { section: "agents", provider: "codex" });
+  stopClick();
+  stopOpen();
+  emitter.emit("notifications:click", {}, { conversationId: "c2", root: "/repo" });
+  emitter.emit("settings-page:open", {}, {});
+  expect(clicked).toHaveBeenCalledExactlyOnceWith({ conversationId: "c1", root: "/repo" });
+  expect(opened).toHaveBeenCalledExactlyOnceWith({ section: "agents", provider: "codex" });
+  expect(emitter.listenerCount("notifications:click") + emitter.listenerCount("settings-page:open")).toBe(0);
+});

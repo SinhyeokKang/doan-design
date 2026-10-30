@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import type { MachineState, StepResult } from "./onboarding/machine";
 import { createSetupBroker, type SetupStatus } from "./setupBroker";
 
@@ -226,4 +226,27 @@ test("late read failure cannot overwrite a newer success", async () => {
   await broker.read(MAIN, "new");
   reject(new Error("old failure")); await old;
   expect(broker.status()).toMatchObject({ checking: false, summary: { cli: "connected" } });
+});
+
+// buzz-settings design '창 제거와 IPC': the main window's renderer is replaced (reload, crash); main calls drop(owner).
+describe("dialog session", () => {
+  test("reload 뒤 대기 중 확인이 취소된다", async () => {
+    machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" } as StepResult);
+    expect(await broker.run(MAIN, { step: "cli" })).toMatchObject({ kind: "confirm" });
+    expect(broker.status().busy).toBe(true);
+    broker.drop(MAIN);
+    expect(machine.cancelConfirmation).toHaveBeenCalledOnce();
+    expect(broker.status().busy).toBe(false);
+    expect(await broker.answer(MAIN, { id: "q", allow: true })).toEqual({ kind: "stale" });
+    expect(machine.answer).not.toHaveBeenCalled();
+  });
+
+  test("a read the old renderer started answers stale after the reload", async () => {
+    const later = deferred<MachineState>();
+    machine.read.mockReturnValueOnce(later.promise);
+    const reading = broker.read(MAIN, "r1");
+    broker.drop(MAIN);
+    later.resolve(state("ours"));
+    expect(await reading).toEqual({ kind: "stale" });
+  });
 });

@@ -1,4 +1,5 @@
 import { displayPath } from "../renderer/projectDisplay";
+import type { Provider } from "./agentAuth/types";
 import type { FolderEntry } from "./view";
 
 // Keep request parsing independent of Electron so the Settings boundary can be
@@ -14,6 +15,14 @@ export type ExternalTarget = "claude" | "codex" | "cursor" | "copilot";
 export type ForwardedAction = "setUp" | "locate" | "remove" | "retry" | "details";
 
 export const SETTINGS_TITLES: Record<SettingsTab, string> = { connections: "Connections", projects: "Projects" };
+
+// The Settings page's categories, and the target main sends with its open-Settings command.
+export type SettingsSection = "agents" | "notifications" | "connections" | "about";
+export interface SettingsPageTarget { section?: SettingsSection; provider?: Provider }
+
+// macOS's Notifications pane; Open System Settings opens this and nothing else (buzz-settings P1, 2026-10-30:
+// `openExternal` resolved and opened the pane).
+export const NOTIFICATION_SETTINGS_URL = "x-apple.systempreferences:com.apple.Notifications-Settings.extension";
 
 export const SETTINGS_WINDOW = { width: 640, height: 560, resizable: false, minimizable: false, maximizable: false, fullscreenable: false } as const;
 

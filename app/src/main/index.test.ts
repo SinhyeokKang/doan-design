@@ -4,6 +4,7 @@ import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from
 import { displayPath } from "../renderer/projectDisplay";
 
 const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], confirm: null };
+const DEFAULTS = { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: null };
 
 const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
@@ -25,6 +26,9 @@ const mocks = await vi.hoisted(async () => {
     destroy = vi.fn(() => { this.destroyed = true; });
     setContentSize = vi.fn();
     isDestroyed = () => this.destroyed;
+    isFocused = vi.fn(() => false);
+    isMinimized = vi.fn(() => false);
+    restore = vi.fn();
     loadFile = vi.fn();
     loadURL = vi.fn();
     constructor(readonly options: BrowserWindowConstructorOptions) {
@@ -32,8 +36,24 @@ const mocks = await vi.hoisted(async () => {
       Window.instances.push(this);
     }
   }
+  // Electron's Notification as main uses it: shown, closed, clicked, refused.
+  class Notification extends EventEmitter {
+    static instances: Notification[] = [];
+    show = vi.fn();
+    close = vi.fn();
+    constructor(readonly options: { title: string; body: string }) {
+      super();
+      Notification.instances.push(this);
+    }
+  }
   return {
     Window,
+    Notification,
+    // Conversation metadata the mocked store lists, and the service's event publisher main passed it.
+    conversations: [] as unknown[],
+    publishConversation: undefined as ((event: unknown) => void) | undefined,
+    preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
+    createPreferencesStore: vi.fn(),
     app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
@@ -74,7 +94,7 @@ const mocks = await vi.hoisted(async () => {
 });
 
 vi.mock("electron", () => ({
-  clipboard: mocks.clipboard, app: mocks.app, BrowserWindow: mocks.Window, shell: mocks.electronShell,
+  clipboard: mocks.clipboard, app: mocks.app, BrowserWindow: mocks.Window, shell: mocks.electronShell, Notification: mocks.Notification,
   dialog: mocks.dialog,
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.ipc.set(channel, handler) },
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
@@ -83,7 +103,14 @@ vi.mock("electron", () => ({
   nativeTheme: mocks.nativeTheme,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
-vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return []; } } }));
+vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } } }));
+vi.mock("./conversation/service", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./conversation/service")>();
+  return { ...actual, ConversationService: class extends actual.ConversationService {
+    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; }
+  } };
+});
+vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
 vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/completion", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/completion")>(), readCompletion: mocks.readCompletion }));
 vi.mock("./onboarding/machine", () => ({ createMachine: mocks.createMachine, runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: vi.fn(async () => ({ ok: false })), PATH_LINE: 'export PATH="$HOME/.local/bin:$PATH"' }));
@@ -135,6 +162,11 @@ beforeEach(async () => {
   mocks.createAddFlow.mockReturnValue(mocks.flow);
   mocks.flow.add.mockResolvedValue(OUTCOME);
   mocks.createUiStateStore.mockReturnValue(mocks.uiState);
+  mocks.conversations = [];
+  mocks.Notification.instances.length = 0;
+  mocks.createPreferencesStore.mockReturnValue(mocks.preferences);
+  mocks.preferences.read.mockReturnValue({ preferences: DEFAULTS, notice: null });
+  mocks.preferences.current.mockReturnValue(DEFAULTS);
   mocks.uiState.readSettingsTab.mockReturnValue(null);
   mocks.uiState.saveSettingsTab.mockReturnValue(true);
   mocks.electronShell.openExternal.mockResolvedValue(undefined);
@@ -787,7 +819,7 @@ describe("menus", () => {
   test("refuses bad menu states and other senders", async () => {
     const contents = window().webContents;
     const builds = mocks.menu.mock.calls.length;
-    for (const bad of [null, "canvas", { screen: "canvas" }, state("settings"), { ...state("canvas"), more: 1 }, { screen: "canvas", modal: 1, toast: false },
+    for (const bad of [null, "canvas", { screen: "canvas" }, state("about"), { ...state("canvas"), more: 1 }, { screen: "canvas", modal: 1, toast: false },
       { ...state("canvas"), reviewing: 1 }, { ...state("canvas"), reviewing: true, more: 1 }]) {
       await invoke("menu:state", contents, null, bad);
     }
@@ -877,6 +909,19 @@ describe("menus", () => {
     await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: false });
     expect(menuEnabled("Add Project…")).toBe(true);
     expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });
+  });
+
+  // buzz-settings: the Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
+  test("the Settings page keeps Add Project…, Home and Quick Open; a lock on either page disables Settings…", async () => {
+    const contents = window().webContents;
+    await completeFirstRun();
+    await invoke("menu:state", contents, null, state("settings"));
+    for (const label of ["Settings…", "Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(true);
+    expect(menuEnabled("Zoom In")).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("settings"), locked: true });
+    for (const label of ["Settings…", "Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true, locked: true });
+    expect(menuEnabled("Settings…")).toBe(false);
   });
 
   test("refuses malformed page menu states", async () => {
@@ -1348,7 +1393,7 @@ describe("settings window", () => {
     expect(mocks.runDesignSkill).not.toHaveBeenCalled();
   });
 
-  test("Settings refuses main-only channels like a foreign sender, and only Settings gets config", async () => {
+  test("Settings refuses main-only channels like a foreign sender; config is the main window's too (Project Settings)", async () => {
     const { senderAllowed } = await import("./senderAllowed");
     mocks.shell.entries.mockReturnValue([LIST]);
     const contents = (await openSettings()).webContents;
@@ -1363,11 +1408,11 @@ describe("settings window", () => {
     expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
     expect(mocks.electronShell.showItemInFolder).not.toHaveBeenCalled();
     mocks.runConfig.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve: [], changed: false } }) });
-    expect(await invoke("config:read", window().webContents, null, { root: ROOT })).toEqual({ kind: "unavailable" });
     expect(await invoke("config:read", contents, {}, { root: ROOT })).toEqual({ kind: "unavailable" });
     expect(mocks.runConfig).not.toHaveBeenCalled();
     expect(await invoke("config:read", contents, null, { root: ROOT })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false });
     expect(mocks.runConfig).toHaveBeenCalledExactlyOnceWith("/bundled/doan", ROOT, []);
+    expect(await invoke("config:read", window().webContents, null, { root: ROOT })).toEqual({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: false });
     expect(await invoke("setup:status", contents, null)).toMatchObject({ busy: false });
   });
 
@@ -2107,5 +2152,180 @@ describe("Add Projects page session", () => {
     await vi.waitFor(() => expect(mocks.app.quit).toHaveBeenCalled());
     expect(held.get("/work/studio")!.signal.aborted).toBe(true);
     expect(held.get("/work/other")!.signal.aborted).toBe(true);
+  });
+});
+
+// buzz-settings S2–S4: the Settings page's main-window IPC, notifications and the dialog session, beside the window.
+describe("settings page", () => {
+  const LIST = { path: ROOT, kind: "list", canvases: [], servedRev: 0, git: { common: `${ROOT}/.git`, main: ROOT, branch: "main", worktrees: [ROOT] } };
+  const configRun = (serve: string[]) => ({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { repo: ROOT, serve, changed: false } }) });
+  const CHANNELS = ["preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy", "config:session-start", "config:session-end"];
+  async function settingsWindow() {
+    await completeFirstRun();
+    click("Settings…");
+    const found = mocks.Window.instances.find((candidate) => candidate.options.width === 640);
+    if (!found) throw new Error("no settings window");
+    return found;
+  }
+
+  test("settings page channels answer the main window's main frame only", async () => {
+    const other = (await settingsWindow()).webContents;
+    for (const channel of CHANNELS) {
+      const refused = await invoke(channel, {}, null);
+      expect(await invoke(channel, other, null), channel).toEqual(refused);
+      expect(await invoke(channel, window().webContents, {}), channel).toEqual(refused);
+    }
+    expect(mocks.preferences.update).not.toHaveBeenCalled();
+    expect(mocks.Notification.instances).toEqual([]);
+    expect(mocks.electronShell.openExternal).not.toHaveBeenCalled();
+    expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
+  });
+
+  test("preferences are read and changed through main's store; the renderer's value is data", async () => {
+    const contents = window().webContents;
+    expect(mocks.createPreferencesStore).toHaveBeenCalledWith("/tmp/doan-index-test/preferences.json");
+    expect(await invoke("preferences:read", contents, null)).toEqual({ preferences: DEFAULTS, notice: null });
+    mocks.preferences.update.mockResolvedValueOnce({ ok: true, snapshot: { preferences: DEFAULTS, notice: null } });
+    expect(await invoke("preferences:write", contents, null, { notifications: { finished: false } })).toEqual({ ok: true, snapshot: { preferences: DEFAULTS, notice: null } });
+    expect(mocks.preferences.update).toHaveBeenCalledExactlyOnceWith({ notifications: { finished: false } });
+  });
+
+  test("Open System Settings opens only the fixed notification settings URL", async () => {
+    expect(await invoke("notifications:open-settings", window().webContents, null, "https://evil.example")).toBe(false);
+    expect(mocks.electronShell.openExternal).not.toHaveBeenCalled();
+    expect(await invoke("notifications:open-settings", window().webContents, null)).toBe(true);
+    expect(mocks.electronShell.openExternal).toHaveBeenCalledExactlyOnceWith("x-apple.systempreferences:com.apple.Notifications-Settings.extension");
+    mocks.electronShell.openExternal.mockRejectedValueOnce(new Error("no handler"));
+    expect(await invoke("notifications:open-settings", window().webContents, null)).toBe(false);
+  });
+
+  test("the test notification reports what macOS answered", async () => {
+    const sending = invoke("notifications:test", window().webContents, null);
+    await vi.waitFor(() => expect(mocks.Notification.instances).toHaveLength(1));
+    const shown = mocks.Notification.instances[0]!;
+    expect(shown.options).toMatchObject({ title: "Test notification" });
+    shown.emit("failed", {}, "UNErrorDomain error 1");
+    expect(await sending).toEqual({ kind: "failed" });
+  });
+
+  test("About reads the bundled CLI's version and copies text main builds", async () => {
+    mocks.runDesignSkill.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) });
+    const read = await invoke("about:read", window().webContents, null) as { version: string; cli: unknown };
+    expect(read).toMatchObject({ version: "9.8.7", cli: { path: "/bundled/doan", version: "1.2.3" } });
+    expect(mocks.runDesignSkill).toHaveBeenCalledWith("/bundled/doan");
+    expect(await invoke("about:copy", window().webContents, null, "forged text")).toEqual({ kind: "stale" });
+    expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
+    expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
+    expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(expect.stringMatching(/^Doan 9\.8\.7\ndoan command 1\.2\.3 \(\/bundled\/doan\)\n/));
+  });
+
+  test("the main window reads and writes project config, and its file sheet attaches to the main window", async () => {
+    mocks.shell.entries.mockReturnValue([LIST]);
+    mocks.runConfig.mockResolvedValue(configRun([]));
+    const contents = window().webContents;
+    expect(await invoke("config:read", contents, null, { root: ROOT })).toMatchObject({ kind: "config", root: ROOT });
+    mocks.dialog.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [`${ROOT}/tokens.css`] });
+    expect(await invoke("config:choose", contents, null, { root: ROOT, kind: "tokenCss" })).toMatchObject({ kind: "selected", path: `${ROOT}/tokens.css` });
+    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledWith(window(), expect.objectContaining({ defaultPath: ROOT }));
+  });
+
+  describe("dialog session", () => {
+    test("다이얼로그를 닫은 뒤 늦게 온 읽기·선택 답은 버려진다", async () => {
+      mocks.shell.entries.mockReturnValue([LIST]);
+      const contents = window().webContents;
+      await invoke("config:session-start", contents, null);
+      let finish!: (value: unknown) => void;
+      mocks.runConfig.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const reading = invoke("config:read", contents, null, { root: ROOT });
+      await vi.waitFor(() => expect(mocks.runConfig).toHaveBeenCalledOnce());
+      await invoke("config:session-end", contents, null);
+      finish(configRun(["late"]));
+      expect(await reading).toEqual({ kind: "unavailable" });
+    });
+
+    test.each(["did-navigate", "render-process-gone"])("reload 뒤 대기 중 확인이 취소된다 (%s)", async event => {
+      mocks.shell.entries.mockReturnValue([LIST]);
+      const contents = window().webContents;
+      mocks.machine.run.mockResolvedValueOnce({ kind: "confirm", id: "q", target: "cli", message: "Replace?" });
+      expect(await invoke("setup:run", contents, null, { step: "cli", expected: {} })).toMatchObject({ kind: "confirm" });
+      let finish!: (value: unknown) => void;
+      mocks.runConfig.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const reading = invoke("config:read", contents, null, { root: ROOT });
+      await vi.waitFor(() => expect(mocks.runConfig).toHaveBeenCalledOnce());
+      mocks.machine.cancelConfirmation.mockClear();
+      contents.emit(event);
+      expect(mocks.machine.cancelConfirmation).toHaveBeenCalledOnce();
+      finish(configRun([]));
+      expect(await reading).toEqual({ kind: "unavailable" });
+      expect(await invoke("setup:answer", contents, null, { id: "q", allow: true })).toEqual({ kind: "stale" });
+    });
+  });
+
+  describe("notifications", () => {
+    const CONVERSATION = { conversationId: "c1", root: ROOT, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "new", sessionId: "s", configDir: "/c", cwd: ROOT } };
+    const turnDone = { v: 1, conversationId: "c1", seq: 2, turnId: "t1", at: "2026-10-30T10:00:00.000Z", type: "turn.done" };
+    function publish(event: unknown) {
+      if (!mocks.publishConversation) throw new Error("no conversation publisher");
+      mocks.publishConversation(event);
+    }
+    beforeEach(() => {
+      mocks.shell.entries.mockReturnValue([LIST]);
+      mocks.conversations = [CONVERSATION];
+    });
+
+    test("a conversation event reaches the renderer and, while the window is not focused, a notification", () => {
+      publish(turnDone);
+      expect(window().webContents.send).toHaveBeenCalledWith("conversation:event", turnDone);
+      expect(mocks.Notification.instances.map(n => n.options)).toEqual([{ title: "Codex finished", body: "app · main" }]);
+      expect(mocks.Notification.instances[0]!.show).toHaveBeenCalledOnce();
+      window().isFocused.mockReturnValue(true);
+      publish({ ...turnDone, seq: 3 });
+      expect(mocks.Notification.instances).toHaveLength(1);
+    });
+
+    test("Desktop notifications off shows nothing", () => {
+      mocks.preferences.current.mockReturnValue({ ...DEFAULTS, notifications: { ...DEFAULTS.notifications, enabled: false } });
+      publish(turnDone);
+      expect(mocks.Notification.instances).toEqual([]);
+    });
+
+    test("a click shows a hidden, minimized window of a hidden app, focuses it, then sends the conversation", () => {
+      window().emit("close", { preventDefault: vi.fn() });
+      mocks.notifications.get("NSApplicationDidHideNotification")?.();
+      window().isMinimized.mockReturnValue(true);
+      publish(turnDone);
+      window().webContents.send.mockClear();
+      window().show.mockClear();
+      mocks.Notification.instances[0]!.emit("click");
+      expect(mocks.app.show).toHaveBeenCalled();
+      expect(window().restore).toHaveBeenCalledOnce();
+      expect(window().show).toHaveBeenCalled();
+      expect(window().focus).toHaveBeenCalled();
+      expect(window().webContents.send).toHaveBeenCalledWith("notifications:click", { conversationId: "c1", root: ROOT });
+      expect(window().show.mock.invocationCallOrder[0]).toBeLessThan(window().webContents.send.mock.invocationCallOrder.at(-1)!);
+    });
+
+    test("clicking the test notification only shows the window", async () => {
+      window().emit("close", { preventDefault: vi.fn() });
+      void invoke("notifications:test", window().webContents, null);
+      await vi.waitFor(() => expect(mocks.Notification.instances).toHaveLength(1));
+      window().webContents.send.mockClear();
+      mocks.Notification.instances[0]!.emit("click");
+      expect(window().show).toHaveBeenCalled();
+      expect(window().webContents.send).not.toHaveBeenCalledWith("notifications:click", expect.anything());
+    });
+  });
+
+  test("the open-Settings command shows a hidden window first, then sends the target; not during first run", async () => {
+    const { openSettingsPage } = await import("./index");
+    expect(openSettingsPage({ section: "agents" })).toBe(false);
+    expect(window().webContents.send).not.toHaveBeenCalledWith("settings-page:open", expect.anything());
+    await completeFirstRun();
+    window().emit("close", { preventDefault: vi.fn() });
+    window().show.mockClear();
+    expect(openSettingsPage({ section: "agents", provider: "codex" })).toBe(true);
+    expect(window().show).toHaveBeenCalledOnce();
+    expect(window().webContents.send).toHaveBeenLastCalledWith("settings-page:open", { section: "agents", provider: "codex" });
+    expect(window().show.mock.invocationCallOrder[0]).toBeLessThan(window().webContents.send.mock.invocationCallOrder.at(-1)!);
   });
 });

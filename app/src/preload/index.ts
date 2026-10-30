@@ -7,7 +7,7 @@ import type { ModelsReply } from "../main/conversation/models";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
-import type { StepResult } from "../main/onboarding/machine";
+import type { StepRequest, StepResult } from "../main/onboarding/machine";
 import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
@@ -18,8 +18,13 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
-import type { ExternalTarget, ForwardedAction, SettingsTarget } from "../main/settings";
-import type { SetupStatus } from "../main/setupBroker";
+import type { ExternalTarget, ForwardedAction, SettingsPageTarget, SettingsSection, SettingsTarget } from "../main/settings";
+import type { SetupRead, SetupStatus } from "../main/setupBroker";
+import type { ConfigChoice, ConfigKind, ConfigReply } from "../main/configBridge";
+import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
+import type { NotificationTarget } from "../main/notifications";
+import type { TestNotificationReply } from "../main/notifyService";
+import type { AboutRead } from "../main/about";
 import type { InspectResult } from "../main/inspect";
 import type { ProjectComments } from "../main/projectComments";
 import type { ReviewMarker } from "../comments/review";
@@ -29,6 +34,15 @@ import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
 
 export type { AddPageResponse, AddPageState };
+export type {
+  AboutRead, ConfigChoice, ConfigKind, ConfigReply, NotificationTarget, Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply,
+  SettingsPageTarget, SettingsSection, SetupRead, TestNotificationReply,
+};
+// The Project Settings dialog's config writes; a chosen path goes back only as the choice id main gave.
+export type ConfigWrite =
+  | { root: string; op: "setTokenCss" | "addServe"; choiceId: string }
+  | { root: string; op: "clearTokenCss" }
+  | { root: string; op: "removeServe"; path: string };
 
 // Events with a current value: the value is asked for too, because the first
 // event can come before the listener. An event that arrives first wins.
@@ -276,6 +290,42 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
     ipcRenderer.on("menu-command", receive);
     return () => ipcRenderer.removeListener("menu-command", receive);
+  },
+  // Settings page (buzz-settings). Preferences: main validates the change, merges it and writes it; a refused or
+  // failed write answers the choices still in effect. null only when main refused the caller.
+  readPreferences: (): Promise<PreferencesSnapshot | null> => ipcRenderer.invoke("preferences:read"),
+  savePreferences: (patch: PreferencesPatch): Promise<PreferencesWriteReply | null> => ipcRenderer.invoke("preferences:write", patch),
+  // Shows one notification whatever the switches say; failed means macOS did not allow it.
+  sendTestNotification: (): Promise<TestNotificationReply | null> => ipcRenderer.invoke("notifications:test"),
+  // macOS's Notifications pane; the URL is main's.
+  openNotificationSettings: (): Promise<boolean> => ipcRenderer.invoke("notifications:open-settings"),
+  // Runs the bundled doan for its version; agent tool facts come from main's cache.
+  readAbout: (): Promise<AboutRead | null> => ipcRenderer.invoke("about:read"),
+  // Main writes what About last read; resolves after the clipboard write settled.
+  copyAbout: (): Promise<StepResult> => ipcRenderer.invoke("about:copy"),
+  // Project Settings dialog: start a session when it opens and end it when it closes; replies to calls of an ended
+  // session answer unavailable.
+  startConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-start"),
+  endConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-end"),
+  readConfig: (root: string): Promise<ConfigReply> => ipcRenderer.invoke("config:read", { root }),
+  // A sheet on this window; only the choice id goes back in writeConfig.
+  chooseConfigPath: (root: string, kind: ConfigKind): Promise<ConfigChoice> => ipcRenderer.invoke("config:choose", { root, kind }),
+  writeConfig: (request: ConfigWrite): Promise<ConfigReply> => ipcRenderer.invoke("config:write", request),
+  // Connections. A read older than this window's newest one answers stale.
+  readSetup: (requestId: string): Promise<SetupRead> => ipcRenderer.invoke("setup:read", { requestId }),
+  runSetupStep: (request: StepRequest): Promise<StepResult> => ipcRenderer.invoke("setup:run", request),
+  answerSetupConfirm: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("setup:answer", answer),
+  // A notification was clicked; main has already shown and focused the window. Interpret with notificationTarget.
+  onNotificationClick(listener: (target: NotificationTarget) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, target: NotificationTarget) => listener(target);
+    ipcRenderer.on("notifications:click", receive);
+    return () => ipcRenderer.removeListener("notifications:click", receive);
+  },
+  // Main asks for the Settings page, at a category and optionally a provider row; a hidden window is already shown.
+  onOpenSettingsPage(listener: (target: SettingsPageTarget) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, target: SettingsPageTarget) => listener(target);
+    ipcRenderer.on("settings-page:open", receive);
+    return () => ipcRenderer.removeListener("settings-page:open", receive);
   },
 };
 

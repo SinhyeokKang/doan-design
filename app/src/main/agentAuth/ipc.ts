@@ -69,6 +69,8 @@ export class AuthIpc {
     this.revision += 1;
     this.options.publish(this.snapshot());
   }
+  // Settings > About shows the cached facts as they are; null until the first probe of that provider finished.
+  toolFacts(provider: Provider): ToolFacts | null { return this.facts.has(provider) ? this.factsOf(provider) : null; }
   // A run found the CLI missing or its version not one doan checked: read that provider again instead of polling.
   refreshTools(provider: Provider): Promise<void> { return this.refresh(provider, true); }
   // Published directly: the facts of the refused build are unchanged, so a refresh would not publish it.

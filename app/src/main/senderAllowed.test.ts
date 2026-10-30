@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { senderAllowed } from "./senderAllowed";
 import { AUTH_CHANNELS } from "./agentAuth/ipc";
 import { ONBOARDING_CHANNELS } from "./onboarding/service";
@@ -23,11 +23,16 @@ const mainOnly = [
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
 ];
 const shared = ["setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",
-  "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out"];
+  "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
+  // buzz-settings: the Project Settings dialog in the main window, beside the Settings window until it is removed.
+  "config:read", "config:write", "config:choose"];
 const settingsOnly = [
-  "config:read", "config:write", "config:choose", "setup:copy-path-line", "settings:tab-get", "settings:tab-save", "settings:take-target",
+  "setup:copy-path-line", "settings:tab-get", "settings:tab-save", "settings:take-target",
   "projects:reveal", "projects:forward-action",
 ];
+// buzz-settings design '창 제거와 IPC': the Settings page's own requests, and the two events main sends it.
+const settingsPage = ["preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy", "config:session-start", "config:session-end"];
+const settingsPageEvents = ["notifications:click", "settings-page:open"];
 test.each(mainOnly)("restricts %s to main", channel => {
   expect(senderAllowed(channel, "main")).toBe(true);
   expect(senderAllowed(channel, "settings")).toBe(false);
@@ -47,7 +52,7 @@ test.each(settingsOnly)("restricts %s to Settings", channel => {
   expect(senderAllowed(channel, "settings")).toBe(true);
 });
 test("rejects unknown channels and every unregistered window", () => {
-  for (const channel of [...mainOnly, ...shared, ...settingsOnly, "", "setup:delete", "comments:evil", "toString", "__proto__", "settings:", "projects:", "setup:"]) {
+  for (const channel of [...mainOnly, ...shared, ...settingsOnly, ...settingsPage, "", "setup:delete", "comments:evil", "toString", "__proto__", "settings:", "projects:", "setup:"]) {
     for (const kind of [undefined, null, "thumbnail", "unknown", "", 1, {}]) expect(senderAllowed(channel, kind)).toBe(false);
   }
   for (const kind of ["main", "settings"]) for (const channel of ["", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
@@ -67,4 +72,13 @@ test("restricts every Add Projects page request channel to main", async () => {
     expect(senderAllowed(channel, "settings"), channel).toBe(false);
   }
   for (const event of [ADD_PAGE_CHANNELS.changed, ADD_PAGE_CHANNELS.open]) for (const kind of ["main", "settings"]) expect(senderAllowed(event, kind)).toBe(false);
+});
+describe("settings page channels", () => {
+  test.each(settingsPage)("restricts %s to the main window", channel => {
+    expect(senderAllowed(channel, "main")).toBe(true);
+    expect(senderAllowed(channel, "settings")).toBe(false);
+  });
+  test.each(settingsPageEvents)("%s is an event main sends, never a request", channel => {
+    for (const kind of ["main", "settings"]) expect(senderAllowed(channel, kind)).toBe(false);
+  });
 });

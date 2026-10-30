@@ -28,7 +28,7 @@ import { readCommentBytes, withCommentAppend } from "./comments/files";
 import { readAuthor } from "./comments/author";
 import { DocumentBindings, stableDiskHash } from "./comments/document";
 import { createTransitionGuard } from "./comments/transitions";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -41,6 +41,11 @@ import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
 import { cliCommand, readFolder, runConfig, runDesignSkill, runLs } from "./cli";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
+import { aboutCli, aboutText, aboutTool, type AboutRead } from "./about";
+import { PROVIDERS } from "./agentAuth/types";
+import type { NotificationTarget } from "./notifications";
+import { conversationNames, createNotifyService } from "./notifyService";
+import { createPreferencesStore } from "./preferences";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
@@ -53,7 +58,7 @@ import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewSt
 import { readFoldersFileForPruning } from "./folderStore";
 import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
-import { INSTALL_URLS, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsTab, type SettingsTarget } from "./settings";
+import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, parseForwardedAction, parseSettingsTab, parseSettingsTarget, projectRows, SETTINGS_TITLES, SETTINGS_WINDOW, type SettingsPageTarget, type SettingsTab, type SettingsTarget } from "./settings";
 import { createSetupBroker, type SetupBroker } from "./setupBroker";
 import { promptSentence } from "../firstPrompt/promptSentence";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
@@ -335,7 +340,7 @@ function parseMenuInputs(value: unknown): MenuInputs | null {
   const flags = MENU_FLAGS.filter(flag => flag in value);
   if (Object.keys(value).length !== 3 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
   const { screen, modal, toast } = value;
-  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
+  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects" && screen !== "settings") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
   const inputs: MenuInputs = { screen, modal, toast };
   for (const flag of flags) if (Reflect.get(value, flag) === true) inputs[flag] = true;
   return inputs;
@@ -391,7 +396,9 @@ function createWindow(): BrowserWindow {
   // window does not. Read after destroy, webContents throws, so the id is kept now.
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
-  window.webContents.on("render-process-gone", () => { broker?.drop(owner); void agentAuth?.ownerClosed(owner); });
+  window.webContents.on("render-process-gone", () => { broker?.drop(owner); configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
+  // A reloaded renderer has no Project Settings dialog or setup confirmation left to answer (buzz-settings S4).
+  window.webContents.on("did-navigate", () => { broker?.drop(owner); configBridge?.clear(); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
   // The connection summary shares that throttle (app-setup design 'Connections').
@@ -477,6 +484,28 @@ function openSettings(target: SettingsTarget | null): boolean {
   setFocusedWindow("settings");
   void broker.refresh();
   return true;
+}
+
+// The open-Settings command (buzz-settings design '들어가는 길'): a hidden window is shown first, then the renderer
+// moves to the page. Not while first run is open, like Settings….
+export function openSettingsPage(target: SettingsPageTarget = {}): boolean {
+  const window = win;
+  if (onboardingOpen || !window || window.isDestroyed()) return false;
+  showWindow(window);
+  send("settings-page:open", target);
+  return true;
+}
+
+// A notification's click: the window comes forward even from a hidden app or the Dock, then the renderer decides
+// where to go (notificationTarget). The test notification only shows the window.
+function showFromNotification(target: NotificationTarget | null): void {
+  const window = win;
+  if (!window || window.isDestroyed()) return;
+  if (appHidden) app.show();
+  if (window.isMinimized()) window.restore();
+  showWindow(window);
+  window.focus();
+  if (target) send("notifications:click", target);
 }
 
 // Resolves to the stored root so the setup wizard can show the project it opened.
@@ -721,7 +750,23 @@ async function start(): Promise<void> {
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
     (request, stored) => agentAuth ? accountPrepare(request, stored) : Promise.reject(new Error("not_logged_in")));
   const conversationStore = new ConversationStore(userData);
-  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => send("conversation:event", event), (root, canvas) => {
+  const preferences = createPreferencesStore(join(userData, "preferences.json"));
+  const notify = createNotifyService({
+    preferences: () => preferences.current().notifications,
+    visibility: () => ({ focused: win !== undefined && !win.isDestroyed() && win.isFocused(), shown: windowShown, minimized: win !== undefined && !win.isDestroyed() && win.isMinimized(), appHidden }),
+    names(conversationId) {
+      // An unreadable conversation index fails the conversation calls themselves, which report it; here it only
+      // leaves the event without a notification.
+      try { return conversationNames(conversationStore.list(), ready.entries(), conversationId); } catch { return null; }
+    },
+    create(content) {
+      const notification = new Notification(content);
+      return { show: () => notification.show(), close: () => notification.close(), on: (event, listener) => notification.on(event as "click", listener) };
+    },
+    clicked: showFromNotification,
+    log: (message, detail) => console.error(message, detail),
+  });
+  const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
     if (canvas) {
@@ -879,6 +924,15 @@ async function start(): Promise<void> {
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
+  // buzz-settings: the Settings page's preferences, notifications and About. Main fixes the URL, the notification
+  // and the clipboard text; the renderer sends a change or nothing.
+  handle("preferences:read", null, () => preferences.read());
+  handle("preferences:write", null, (_event, value: unknown) => preferences.update(value));
+  handle("notifications:test", null, (_event, value: unknown) => value === undefined ? notify.test() : null);
+  handle("notifications:open-settings", false, async (_event, value: unknown) => {
+    if (value !== undefined) return false;
+    try { await electronShell.openExternal(NOTIFICATION_SETTINGS_URL); return true; } catch { return false; }
+  });
   // revision-recheck: the renderer reads markers and may only ask for raises.
   handle("review-state:get", null, (event, value: unknown): ReviewMarker | null => {
     const request = parseReviewRead(value);
@@ -963,6 +1017,18 @@ async function start(): Promise<void> {
     catch (error) { return { kind: "error" as const, message: error instanceof Error ? error.message : String(error) }; }
   };
   handle("setup:copy-path-line", { kind: "stale" }, (_event, value: unknown) => value === undefined ? copy(PATH_LINE) : { kind: "stale" });
+  // Tool facts come from AuthIpc's cache (its first read probes once); only the doan version runs the CLI.
+  let lastAbout: AboutRead | null = null;
+  const readAbout = async (): Promise<AboutRead> => {
+    const [run] = await Promise.all([runDesignSkill(command), authIpc?.read()]);
+    const ipc = authIpc;
+    const tools = ipc ? PROVIDERS.flatMap(provider => { const facts = ipc.toolFacts(provider); return facts ? [aboutTool(provider, facts)] : []; }) : null;
+    lastAbout = { version: app.getVersion(), cli: aboutCli(command, run), tools };
+    return lastAbout;
+  };
+  handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
+  // Copies what About last showed, so the text matches the page.
+  handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout())) : { kind: "stale" });
   // The sentence names only a stored, set-up project. `subject` is the one
   // free text the renderer sends; promptSentence checks it.
   const readyRoot = (value: unknown): string | null => typeof value === "string" &&
@@ -1013,8 +1079,8 @@ async function start(): Promise<void> {
   const bridge = createConfigBridge({
     run: (root, args) => runConfig(command, root, args),
     epoch: root => ready.entries().some(entry => entry.path === root && entry.kind === "list") ? ready.epoch(root) : null,
-    async pick(root, kind) {
-      const window = settingsWin;
+    async pick(root, kind, from) {
+      const window = from === "main" ? win : settingsWin;
       if (!window || window.isDestroyed()) return null;
       const picked = await dialog.showOpenDialog(window, kind === "tokenCss"
         ? { title: "Choose Token CSS", properties: ["openFile"], defaultPath: root, filters: [{ name: "CSS", extensions: ["css"] }] }
@@ -1024,11 +1090,14 @@ async function start(): Promise<void> {
   });
   configBridge = bridge;
   handle("config:read", { kind: "unavailable" }, (_event, value: unknown) => bridge.read(value));
-  handle("config:choose", { kind: "unavailable" }, async (event, value: unknown) => {
-    const choice = await bridge.choose(value);
-    return senderKind(event) === "settings" ? choice : { kind: "unavailable" };
+  handle("config:choose", { kind: "unavailable" }, async (event, value: unknown, kind) => {
+    const choice = await bridge.choose(value, kind);
+    return senderKind(event) === kind ? choice : { kind: "unavailable" };
   });
   handle("config:write", { kind: "unavailable" }, (_event, value: unknown) => bridge.write(value));
+  // The Project Settings dialog opened or closed: a new session, and late replies of the old one answer unavailable.
+  handle("config:session-start", undefined, () => { bridge.clear(); });
+  handle("config:session-end", undefined, () => { bridge.clear(); });
 
   onboardingOpen = !onboardingComplete(readCompletion(userData));
   setMenu();

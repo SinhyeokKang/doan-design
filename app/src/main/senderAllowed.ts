@@ -16,14 +16,20 @@ const mainOnly = new Set([
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
   // buzz-add-projects: the Add Projects page's project session; Settings has no such page.
   "add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel",
+  // buzz-settings: the Settings page and the Project Settings dialog. Main fixes every URL, clipboard text and
+  // notification itself; these carry choices and requests only.
+  "preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy",
+  "config:session-start", "config:session-end",
 ]);
 const shared = new Set([
   "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external", "projects:get",
   // Agent accounts: either window may sign in or out. Conversation runs stay main-only (`conversation:*`).
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
+  // Project config: the Settings window's Projects tab and the main window's Project Settings dialog.
+  "config:read", "config:write", "config:choose",
 ]);
 const settingsOnly = new Set([
-  "config:read", "config:write", "config:choose", "setup:copy-path-line", "settings:tab-get", "settings:tab-save", "settings:take-target",
+  "setup:copy-path-line", "settings:tab-get", "settings:tab-save", "settings:take-target",
   "projects:reveal", "projects:forward-action",
 ]);
 
