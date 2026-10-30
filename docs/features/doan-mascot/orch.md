@@ -59,3 +59,4 @@ P0(PoC)은 완료됐다.
 - 2026-10-31: BL2 완료(`b73566d3`). verify 통과, 승인된 상호작용 테스트 3건과 red 기록이 있다. 작업자는 retain했다. RBL2(Codex `gpt-6-astra` medium, `ctx_6a2e0b58284c`) 진행 중.
 - 2026-10-31: RBL2(Codex) 결과 🔴·🟡 없음. ⚪ 1건은 pending 중 홉 차단 테스트가 없다는 것이다. 지휘자 판단(검증을 더 확실히 하는 쪽): 같은 작업자에게 테스트 1건을 BL3(`ctx_3658825f1176`)로 보냈다. RBL2는 해제했다.
 - 2026-10-31: BL3 완료(`a69aaf52`). 테스트 1건을 추가했다(hop을 가드 앞으로 옮기면 red). BL2·BL3을 `a1a05fc7`·`e194fdec`로 통합했다. BL 워크트리 제거를 요청했다. BD(`ctx_6ad717017240`, Opus high, `doan-mascot-bd`)를 `e194fdec`에서 시작했다. 지휘자는 통합 HEAD에서 verify를 돌린다.
+- 2026-10-31: 통합 HEAD `e194fdec`에서 `verify.mjs` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build). 로그: `.scratch/orch/doan-mascot/verify-integration.log`.
