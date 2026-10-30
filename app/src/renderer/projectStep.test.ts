@@ -835,3 +835,18 @@ test("a drop is refused while the step is busy, and a second quick drop while th
   // Only the choose screen shows the card.
   expect(h.session.canDrop()).toBe(false);
 });
+
+// Conductor decision ⚪1: Find repository starts a new action, so the last drop notice goes with it (both uses).
+test("Find repository clears a refused drop's notice, on the page and in first run", async () => {
+  const page = pageHarness();
+  await page.session.drop([folder("/a"), folder("/b")]);
+  page.session.setUrl("https://github.com/acme/studio");
+  void page.session.findRepository();
+  expect(page.session.dropNotice).toBeNull();
+  const first = harness();
+  await first.session.drop([{ isDirectory: false, path: "/a/file.txt" }]);
+  expect(first.session.dropNotice).toBe("Only folders can be added.");
+  first.session.setUrl("https://github.com/acme/studio");
+  void first.session.findRepository();
+  expect(first.session.dropNotice).toBeNull();
+});

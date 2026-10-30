@@ -97,3 +97,20 @@ test("U5: the panel scrolls whole, the card holds its drop target, and the lock 
     expect(css).toMatch(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^{]*\\{ color: var\\(--text-disabled\\); cursor: default; \\}`));
   for (const source of ["./AddProjectsPage.tsx", "./Onboarding.tsx"]) expect(readFileSync(new URL(source, import.meta.url), "utf8")).not.toMatch(/import .*\.css/);
 });
+
+// review-BU2 🟡1: a locked menu item shows no highlight fill, and its icon and path take the disabled ink; the selected
+// worktree keeps its own fill and check.
+test("U5: locked project-menu items get no highlight fill and disabled ink on their icon and path", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain('.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }');
+  expect(css).toContain('.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }');
+});
+
+// Conductor decision ⚪1: a drop notice never takes focus, so an error that follows it is the one announced.
+test("focus: the drop notice is never the alert focus goes to", () => {
+  const dropNotice = node(), error = node(), heading = node();
+  const scene = { querySelector: (selector: string) => !selector.includes('role="alert"') ? null : selector.includes(":not(.ob-drop-notice)") ? error : dropNotice };
+  for (const _use of ["page", "onboarding"])
+    expect(projectFocusNode({ opened: null, asked: false, root: scene as never, active: null, body: body as never, heading: heading as never, state: { ...base, error: { code: "remote_mismatch" } }, agentReady: true, busy: false })).toBe(error);
+});

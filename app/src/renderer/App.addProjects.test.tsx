@@ -207,7 +207,7 @@ test("the page is not saved: a restart restores the origin, and opening the page
 test("while the page is locked every way out is ignored, one case per navigation function", () => {
   const moves: [string, () => void][] = [
     ["Projects tab", () => click(topBar(page()!.props.header).projects)],
-    ["Back (travel)", () => click(topBar(page()!.props.header).back)],
+    ["header Back (leavePage back)", () => click(topBar(page()!.props.header).back)],
     ["Escape", () => { windowListeners.keydown!({ key: "Escape", target: { tagName: "BUTTON" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render(); }],
     ["Go > Home (home)", () => { listeners.menu!("home" as never); render(); }],
     ["Quick Open menu", () => { listeners.menu!("quickOpen" as never); render(); }],
@@ -343,4 +343,54 @@ test("while locked a project row's disclosure still expands and collapses, witho
   expect(onPage()).toBe(true);
   for (const method of ["openWorkspace", "openCanvas", "showOverview"]) expect(harness.controller![method]).not.toHaveBeenCalled();
   expect(doan.readShellActivity).not.toHaveBeenCalled();
+});
+
+// review-BU1 🟡1: a move started on the page before the lock must not land after it.
+test("locking cancels a workspace open still waiting for its project's read", () => {
+  openFromWorkspace();
+  let pending: (() => void) | null = null;
+  harness.controller!.openWorkspace!.mockImplementation((root: string, done: (root: string) => void) => { pending = () => done(root); });
+  // The controller drops its waiting open on cancelWorkspaceOpen; the held callback stands for that wait.
+  harness.controller!.cancelWorkspaceOpen!.mockImplementation(() => { pending = null; });
+  page()!.props.sidebar.props.worktree!("/w/b" as never); render();
+  expect(pending).not.toBeNull();
+  expect(onPage()).toBe(true);
+  lock();
+  (pending as (() => void) | null)?.();
+  render();
+  expect(onPage()).toBe(true);
+});
+
+test("locking supersedes a project row still reading its worktrees' activity", async () => {
+  openFromWorkspace();
+  let answer: (value: unknown) => void = () => {};
+  doan.readShellActivity!.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
+  page()!.props.sidebar.props.toggle!("/w/b" as never); render();
+  lock();
+  answer([]); await Promise.resolve(); await Promise.resolve(); render();
+  expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+  expect(onPage()).toBe(true);
+});
+
+// review-BU1 🟡2: only file drags are refused; text and links still reach fields that take them.
+test("text and link drags are left to the window's fields", () => {
+  render();
+  for (const type of ["text/plain", "text/uri-list"]) for (const name of ["dragover", "drop"]) {
+    const event = { defaultPrevented: false, preventDefault: vi.fn(), dataTransfer: { types: [type], dropEffect: "copy" } };
+    windowListeners[name]!(event as never);
+    expect(event.preventDefault, `${type} ${name}`).not.toHaveBeenCalled();
+    expect(event.dataTransfer.dropEffect).toBe("copy");
+  }
+});
+
+// Conductor decision ⚪3: a focused radio (the candidates list) is not editing; an open tooltip closes first.
+test("Escape on a focused radio leaves the page, and an open tooltip takes the Escape first", () => {
+  openFromWorkspace();
+  windowListeners.keydown!({ key: "Escape", target: { tagName: "INPUT", type: "radio" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render();
+  expect(onPage()).toBe(false);
+  beforeEachReset();
+  openFromWorkspace();
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: (selector: string) => selector.includes('[role="tooltip"]') ? {} : null, querySelectorAll: () => [] });
+  windowListeners.keydown!({ key: "Escape", target: { tagName: "BUTTON" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render();
+  expect(onPage()).toBe(true);
 });
