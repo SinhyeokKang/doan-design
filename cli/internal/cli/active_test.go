@@ -460,9 +460,26 @@ func TestActiveUnavailableOffersSandboxAndAboutGuidance(t *testing.T) {
 	root := initialized(t)
 	ctx := activeContext(t, root, func(string, time.Time) (net.Conn, error) { return nil, syscall.EACCES })
 	failure := activeCode(t, ctx, root, "app_not_running")
-	for _, want := range []string{"Ask the user to open Doan", "If Doan is open, a sandbox may block this shell from its socket", "MCP `active` tool", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Settings… > About"} {
-		if !strings.Contains(strings.Join(failure.NextSteps, "\n"), want) {
-			t.Fatalf("missing recovery guidance %q: %v", want, failure.NextSteps)
+	requireRecoveryOrder(t, failure.NextSteps, [][]string{
+		{"Ask the user to open Doan"},
+		{"If Doan is open, a sandbox may block this shell from its socket", "MCP `active` tool if it is available"},
+		{"Otherwise", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
+		{"If it still fails", "Applications", "Settings… > About"},
+	})
+}
+
+// requireRecoveryOrder pins the sandbox recovery order by step index: reordering
+// steps or dropping the MCP availability qualifier must fail.
+func requireRecoveryOrder(t *testing.T, steps []string, want [][]string) {
+	t.Helper()
+	if len(steps) != len(want) {
+		t.Fatalf("want %d steps, got %d: %v", len(want), len(steps), steps)
+	}
+	for i, parts := range want {
+		for _, p := range parts {
+			if !strings.Contains(steps[i], p) {
+				t.Errorf("step %d misses %q: %s", i, p, steps[i])
+			}
 		}
 	}
 }

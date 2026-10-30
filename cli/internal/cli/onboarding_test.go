@@ -725,12 +725,12 @@ func TestOnboardingStartWithoutBundleGivesGuidance(t *testing.T) {
 // that reads app_not_running as "not open" stops (agent-eval 2026-10-29 O1, O2).
 func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	for _, code := range []string{"app_not_running", "app_launch_failed"} {
-		steps := strings.Join(onboardingFailure(code, "m").NextSteps, "\n")
-		for _, want := range []string{"open Doan", "If Doan is open, a sandbox may block this shell from its socket", "MCP `onboarding_start` tool", "`onboarding_*` tools", "Otherwise", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Settings… > About", "outside the sandbox"} {
-			if !strings.Contains(steps, want) {
-				t.Errorf("%s nextSteps miss %q: %s", code, want, steps)
-			}
-		}
+		requireRecoveryOrder(t, onboardingFailure(code, "m").NextSteps, [][]string{
+			{"open Doan", "doan onboarding start"},
+			{"If Doan is open, a sandbox may block this shell from its socket", "MCP `onboarding_start` tool", "`onboarding_*` tools if they are available"},
+			{"Otherwise", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
+			{"If it still fails", "Applications", "Settings… > About"},
+		})
 	}
 }
 
