@@ -1,0 +1,107 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="notice"><meta name="doan:width" content="1200"><title>Notice — design system</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/mock.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent}ul{list-style:none}}
+/* Radix sets these at runtime; the linked surfaces.css reads them (same as zero-setup-agents.html). */
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center;--radix-dropdown-menu-content-available-height:384px}
+body{padding:var(--space-8);width:1200px;background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);-webkit-font-smoothing:antialiased}
+.intro{max-width:1080px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro code,.rule code{background:var(--surface-panel);border-radius:var(--space-1);padding:0 var(--space-1);color:var(--text-standard)}
+.frame{background:var(--surface-panel);border-radius:var(--radius-container);box-shadow:var(--shadow-panel);padding:var(--space-6);margin-bottom:var(--space-8)}
+.frame h2{font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.fnote{margin:var(--space-2) 0 var(--space-6);max-width:980px;color:var(--text-subtle)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-6);align-items:start}
+.tile-label{font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing);color:var(--text-metadata);margin-bottom:var(--space-2)}
+.tile-label b{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.stage{display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-6);border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard)}
+/* A non-white backdrop: Home's atmosphere over the white panel (copied from styles.css .home-atmosphere). */
+.stage.gradient{box-shadow:none;background:radial-gradient(ellipse 78% 64% at 50% 60%,color-mix(in srgb,var(--affordance-accent) 24%,transparent) 0%,color-mix(in srgb,var(--affordance-accent) 15%,transparent) 32%,color-mix(in srgb,var(--affordance-accent) 6%,transparent) 62%,transparent 100%),var(--surface-panel)}
+.rules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-4) var(--space-6)}
+.rule{padding:var(--space-4);border-radius:var(--radius-row);box-shadow:inset 0 0 0 1px var(--border-standard)}
+.rule b{display:block;font-weight:var(--type-weight-medium);margin-bottom:var(--space-1)}
+.rule p{color:var(--text-subtle)}
+.metrics{display:grid;grid-template-columns:max-content 1fr;gap:var(--space-1) var(--space-4);margin-top:var(--space-2);color:var(--text-subtle)}
+.metrics dt{color:var(--text-standard)}
+/* Static states drawn with draft-only helper classes, as in buzz-ds.html; the app reaches them through :hover and :active. */
+.doan-button[data-ui-variant="panel"].is-hover{background:var(--affordance-panel-hover)}
+.doan-button[data-ui-variant="panel"].is-pressed{background:var(--affordance-subtle-pressed)}
+
+/* ── Copied from app/src/renderer/styles.css ── */
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+.grow-text { flex: 1; min-width: 0; }
+.setup-notice-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.setup-notice-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-1); }
+.setup-notice-agents { font-weight: var(--type-weight-medium); }
+.doan-notice code { color: var(--text-standard); background: var(--surface-panel); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.setup-notice-command { display: block; width: fit-content; margin-top: var(--space-1); }
+</style></head><body>
+
+<header class="intro">
+<h1>Notice</h1>
+<p>One component for every inline message: <code>.doan-notice</code> in <code>app/src/renderer/ds/surfaces.css</code>. Every frame below is live markup on the shipped token and ds CSS, so it renders what the app renders. Screens set only outer margins on a notice (pinned by <code>ds/controls.test.ts</code>).</p>
+</header>
+
+<section class="frame" data-doan-frame="anatomy" data-doan-title="Anatomy" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Anatomy</h2>
+<p class="fnote">An icon slot on the first line, then the text: a title and a body, or lines, or a single sentence. Code chips and inline actions keep their own ink. An inline action on the inset fill uses the <code>panel</code> button variant, which rests on white so it keeps its shape.</p>
+<div class="tiles">
+<div><p class="tile-label"><b>Title and body</b> — alert icon</p>
+<div class="stage">
+<div class="doan-notice" data-doan-id="notice-titled"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span><strong class="ob-notice-title">These settings were saved by a newer version of Doan</strong><span class="ob-notice-body">Defaults apply here, and changes aren’t saved. Update Doan to use them.</span></span></div>
+</div></div>
+<div><p class="tile-label"><b>Pending</b> — a spinner in the icon slot</p>
+<div class="stage">
+<div class="doan-notice" role="status" data-doan-id="notice-pending"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>
+</div></div>
+<div><p class="tile-label"><b>Lines with code</b> — the code chip goes white on the inset fill</p>
+<div class="stage">
+<div class="doan-notice warning" data-doan-id="notice-lines"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><div class="setup-notice-body"><span class="ob-notice-title">Some agents can’t run doan yet</span><ul class="setup-notice-list"><li><span class="setup-notice-agents">Claude Code</span> — another doan skill is already installed.</li><li><span class="setup-notice-agents">Terminal</span> — add this line to <code>~/.zshrc</code>:<code class="setup-notice-command">export PATH="$HOME/.local/bin:$PATH"</code></li></ul></div></div>
+</div></div>
+<div><p class="tile-label"><b>Inline action</b> — <code>panel</code> button: rest · hover · pressed</p>
+<div class="stage">
+<div class="doan-notice error" role="alert" data-doan-id="notice-action"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span class="grow-text">Claude Code’s sign-in expired. Edit your request on Home.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-doan-id="notice-action-button">Edit on Home</button></div>
+<div class="doan-notice error" role="alert"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span class="grow-text">Hover</span><button type="button" class="doan-button is-hover" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button></div>
+<div class="doan-notice error" role="alert"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span class="grow-text">Pressed</span><button type="button" class="doan-button is-pressed" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button></div>
+</div></div>
+</div>
+</section>
+
+<section class="frame" data-doan-frame="tones-surfaces" data-doan-title="Tones × surfaces" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Tones × surfaces</h2>
+<p class="fnote">The tone colours the whole text and the icon follows it. On a plain opaque white backdrop the notice uses the inset fill; on any other backdrop (first run’s transparent overlay, Home’s gradient) it adds <code>doan-panel</code>, which changes only the fill and shadow. Measured text contrast (14/20): neutral 17.59 / 19.17, warning 10.44 / 11.37, error 11.41 / 12.44, ok 11.31 / 12.32 (inset / panel).</p>
+<div class="tiles">
+<div><p class="tile-label"><b>Default</b> — on plain opaque white</p>
+<div class="stage">
+<div class="doan-notice" data-doan-id="tone-default-neutral"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>If no notification appears, allow Doan in System Settings › Notifications.</span></div>
+<div class="doan-notice warning" data-doan-id="tone-default-warning"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Some canvases couldn’t be read; these comments may belong to one of them.</span></div>
+<div class="doan-notice error" data-doan-id="tone-default-error"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Doan couldn’t read its saved settings, so defaults apply.</span></div>
+<div class="doan-notice ok" data-doan-id="tone-default-ok"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Copied an instruction for 3 comments. Paste it into your agent session.</span></div>
+</div></div>
+<div><p class="tile-label"><b>doan-panel</b> — on a non-white backdrop (Home’s gradient)</p>
+<div class="stage gradient">
+<div class="doan-notice doan-panel" data-doan-id="tone-panel-neutral"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Cloning was cancelled. Choose a folder or try again.</span></div>
+<div class="doan-notice doan-panel warning" data-doan-id="tone-panel-warning"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>This canvas is in another worktree.</span></div>
+<div class="doan-notice doan-panel error" data-doan-id="tone-panel-error"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span class="grow-text">Claude Code is finishing a previous run. Try again in a moment.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Retry</button></div>
+<div class="doan-notice doan-panel ok" data-doan-id="tone-panel-ok"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>Your project is ready.</span></div>
+</div></div>
+</div>
+</section>
+
+<section class="frame" data-doan-frame="rules" data-doan-title="Rules" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Rules</h2>
+<p class="fnote">Each rule cites the file that makes it true.</p>
+<div class="rules">
+<div class="rule" data-doan-id="rule-backdrop"><b>Backdrop decides the surface</b><p>Plain opaque white (Settings and other pages, dialogs, popovers, side panels, white cards, the strip band) takes the default inset notice. Anything else — a transparent overlay, a gradient — adds <code>doan-panel</code>.</p></div>
+<div class="rule" data-doan-id="rule-icon"><b>Every notice has an icon</b><p>The alert icon, or a spinner or status mark in the same slot, on the first line of text (<code>.doan-alert-icon</code>).</p></div>
+<div class="rule" data-doan-id="rule-tone"><b>The tone colours the text</b><p><code>warning</code>, <code>error</code> and <code>ok</code> set the text colour; the icon follows it. Neutral is standard ink. The same tone reads the same on both surfaces.</p></div>
+<div class="rule" data-doan-id="rule-edge"><b>No coloured edge</b><p>A notice is a fill, never a coloured stripe or border.</p></div>
+<div class="rule" data-doan-id="rule-metrics"><b>One style for every notice</b><p>Only the tone and the surface differ. Measured in the app at 1238 × 780:</p>
+<dl class="metrics"><dt>Padding</dt><dd>12px 16px (<code>--space-3</code> <code>--space-4</code>)</dd><dt>Gap</dt><dd>6px (<code>--space-1h</code>)</dd><dt>Radius</dt><dd>16px (<code>--radius-row</code>)</dd><dt>Type</dt><dd>14/20 (<code>--type-body-sm-*</code>); title medium, 4px above the body</dd><dt>Icon</dt><dd>16 × 16 (<code>--size-icon</code>)</dd><dt>Height</dt><dd>44px for one line, 68px with a title and body</dd></dl></div>
+<div class="rule" data-doan-id="rule-action"><b>Actions on the inset fill</b><p>A secondary button inside a default notice uses <code>data-ui-variant="panel"</code>: white at rest, <code>--affordance-panel-hover</code> on hover, <code>--affordance-subtle-pressed</code> when pressed (<code>ds/controls.css</code>).</p></div>
+</div>
+</section>
+
+</body></html>
