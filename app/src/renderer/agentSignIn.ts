@@ -56,8 +56,9 @@ export class AgentSignIn {
   // The provider of each sign-in this renderer started, until it settles: its ready change is announced at once.
   private ownedBy = new Map<Provider, string>();
   private cancelled = new Set<Provider>();
-  // Ready changes seen while the window was in the background, told when it returns.
-  private pending: { provider: Provider; text: string }[] = [];
+  // Ready changes seen while the window was in the background, told when it returns. ended: a sign-in ended there,
+  // so the change is news even if the screen showing the rows has gone by then; a settled check is not.
+  private pending: { provider: Provider; text: string; ended: boolean }[] = [];
   private replyAttempt = new Map<Provider, string>();
   // A check already on its way is not sent again (a second entry before its snapshot shows the attempt).
   private checking = new Set<Provider>();
@@ -155,7 +156,7 @@ export class AgentSignIn {
     if (!this.live || this.pending.length === 0) return;
     const pending = this.pending.splice(0), rows = this.rows();
     if (rows) rows.announce(pending.map(item => item.text).join(". "), true);
-    else for (const { provider } of pending) this.toast(signInToast(provider, true));
+    else for (const { provider, ended } of pending) if (ended) this.toast(signInToast(provider, true));
   }
 
   refuse(provider: Provider, reason: AuthReason, intent: "signIn" | "signOut"): void {
@@ -203,13 +204,13 @@ export class AgentSignIn {
     for (const status of next.providers) {
       const { provider } = status, old = previous?.providers.find(p => p.provider === provider);
       const [text] = readyAnnouncements(previous, { revision: next.revision, providers: [status] });
+      const ended = old?.attempt?.kind === "signIn" && status.attempt?.kind !== "signIn";
       if (!rows) {
-        const ended = old?.attempt?.kind === "signIn" && status.attempt?.kind !== "signIn";
         if (ended && text) {
-          if (focused) this.toast(signInToast(provider, true)); else this.pending.push({ provider, text });
+          if (focused) this.toast(signInToast(provider, true)); else this.pending.push({ provider, text, ended });
         } else if (ended && status.error) this.toast(signInToast(provider, false));
       } else if (text) {
-        if (!focused) this.pending.push({ provider, text });
+        if (!focused) this.pending.push({ provider, text, ended });
         else if (this.ownedBy.has(provider)) rows.announce(text, false);
       }
       if (text) this.ownedBy.delete(provider);

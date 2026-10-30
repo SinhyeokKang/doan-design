@@ -23,18 +23,19 @@ const connected = { account: ACCOUNT, verified: true };
 const signingIn = (id: string) => ({ attempt: { id, kind: "signIn" as const } });
 
 function harness(focused = true) {
-  let auth: ((s: AuthSnapshot) => void) | null = null, prompt: ((e: AuthPromptEvent) => void) | null = null;
+  // Sets, so a subscription a dispose failed to remove would still be reached.
+  const auth = new Set<(s: AuthSnapshot) => void>(), prompt = new Set<(e: AuthPromptEvent) => void>();
   let attempts = 0;
   const api = {
     readAgentAuth: vi.fn(async (): Promise<AuthSnapshot | null> => snap(1)),
-    onAgentAuth: vi.fn((listener: (s: AuthSnapshot) => void) => { auth = listener; return () => { auth = null; }; }),
+    onAgentAuth: vi.fn((listener: (s: AuthSnapshot) => void) => { auth.add(listener); return () => { auth.delete(listener); }; }),
     checkAgentAuth: vi.fn(async (_p: Provider): Promise<AuthStartReply> => ({ ok: true, attemptId: `check-${++attempts}` })),
     signInAgent: vi.fn(async (_p: Provider, _o?: { stop?: boolean }): Promise<AuthStartReply> => ({ ok: true, attemptId: `sign-${++attempts}` })),
     signOutAgent: vi.fn(async (_p: Provider, _o?: { stop?: boolean }): Promise<AuthStartReply> => ({ ok: true, attemptId: `out-${++attempts}` })),
     cancelAgentSignIn: vi.fn(async (_p: Provider, _id: string): Promise<AuthReply> => ({ ok: true })),
     submitAgentSignInCode: vi.fn(async (_p: Provider, _id: string, _code: string): Promise<AuthReply> => ({ ok: true })),
     openAgentSignInLink: vi.fn(async (_p: Provider, _id: string): Promise<AuthReply> => ({ ok: true })),
-    onAgentSignInPrompt: vi.fn((listener: (e: AuthPromptEvent) => void) => { prompt = listener; return () => { prompt = null; }; }),
+    onAgentSignInPrompt: vi.fn((listener: (e: AuthPromptEvent) => void) => { prompt.add(listener); return () => { prompt.delete(listener); }; }),
   };
   const controller = new AgentSignIn({ api, hasFocus: () => focused });
   const toasts: unknown[] = [];
@@ -44,8 +45,9 @@ function harness(focused = true) {
   return {
     controller, api, toasts, announced, rows,
     setFocus(value: boolean) { focused = value; },
-    emit(next: AuthSnapshot) { auth?.(next); },
-    prompt(event: AuthPromptEvent) { prompt?.(event); },
+    emit(next: AuthSnapshot) { for (const listener of auth) listener(next); },
+    prompt(event: AuthPromptEvent) { for (const listener of prompt) listener(event); },
+    listening: () => ({ auth: auth.size, prompt: prompt.size }),
     row(provider: Provider) { return authListView(controller.state.auth, controller.state.contexts).providers.find(p => p.provider === provider)!; },
   };
 }
@@ -194,4 +196,71 @@ test("cancelOwned cancels only the sign-ins this renderer started", async () => 
   h.emit(snap(2, { claude: signingIn("sign-1"), codex: signingIn("cli-1") }));
   await h.controller.cancelOwned();
   expect(h.api.cancelAgentSignIn.mock.calls).toEqual([["claude", "sign-1"]]);
+});
+
+// review-BP 🟡1: a queued row announcement keeps where it came from, so a check is never told as a sign-in.
+test("a check that turned ready in the background is not a toast once the page that would announce it is gone", async () => {
+  const h = harness(false);
+  h.controller.start();
+  const hide = h.controller.show(h.rows);
+  h.emit(snap(2, { codex: { account: ACCOUNT, attempt: { id: "check-1", kind: "check" } } }));
+  h.emit(snap(3, { codex: connected }));
+  hide();
+  h.setFocus(true);
+  h.controller.windowFocused();
+  expect(h.toasts).toEqual([]);
+  expect(h.announced).toEqual([]);
+});
+
+test("a sign-in that finished in the background is one toast once the page that would announce it is gone", async () => {
+  const h = harness(false);
+  h.controller.start();
+  const hide = h.controller.show(h.rows);
+  h.emit(snap(2, { codex: signingIn("cli-1") }));
+  h.emit(snap(3, { codex: connected }));
+  hide();
+  h.setFocus(true);
+  h.controller.windowFocused();
+  h.controller.windowFocused();
+  expect(h.toasts).toEqual([{ text: "Codex connected.", action: null }]);
+  expect(h.announced).toEqual([]);
+});
+
+// review-BP ⚪1: the controller's own lifetime.
+test("start after dispose subscribes again, and each snapshot and prompt is handled once", async () => {
+  const h = harness();
+  const changed = vi.fn();
+  h.controller.subscribe(changed);
+  h.controller.start();
+  h.controller.dispose();
+  expect(h.listening()).toEqual({ auth: 0, prompt: 0 });
+  h.controller.start();
+  expect(h.listening()).toEqual({ auth: 1, prompt: 1 });
+  h.controller.signIn("claude");
+  await flush();
+  changed.mockClear();
+  h.emit(snap(2, { claude: signingIn("sign-1") }));
+  expect(changed).toHaveBeenCalledTimes(1);
+  h.prompt({ provider: "claude", attemptId: "sign-1", url: "https://claude.ai/oauth/authorize" });
+  await flush();
+  expect(h.api.openAgentSignInLink.mock.calls).toEqual([["claude", "sign-1"]]);
+});
+
+test("a reply that lands after dispose touches no screen, toast or subscriber", async () => {
+  const h = harness();
+  const changed = vi.fn();
+  h.controller.start();
+  h.controller.show(h.rows);
+  h.controller.subscribe(changed);
+  let reply: (r: AuthStartReply) => void = () => {};
+  h.api.signOutAgent.mockImplementationOnce(() => new Promise(resolve => { reply = resolve; }));
+  const pending = h.controller.signOut("codex");
+  changed.mockClear();
+  h.controller.dispose();
+  reply({ ok: false, reason: "stop_required" });
+  await pending;
+  h.emit(snap(2, { codex: connected }));
+  expect(h.rows.dialog).not.toHaveBeenCalled();
+  expect(changed).not.toHaveBeenCalled();
+  expect(h.toasts).toEqual([]);
 });
