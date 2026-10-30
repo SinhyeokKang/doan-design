@@ -18,22 +18,7 @@ export interface CanvasNode {
   row: CanvasRow;
 }
 
-// Frame rows hang under a canvas row. The key is the document position: ids can
-// be empty or repeat, so they cannot key a row.
-export interface FrameNode {
-  kind: "frame";
-  key: string;
-  canvas: string;
-  index: number;
-  frame: { id: string; title?: string };
-}
-
-export interface OverviewNode {
-  kind: "overview";
-}
-
 export type TreeNode = FolderNode | CanvasNode;
-export type RowNode = TreeNode | FrameNode | OverviewNode;
 
 // A single instance: building a collator per comparison is slow on big lists.
 const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
