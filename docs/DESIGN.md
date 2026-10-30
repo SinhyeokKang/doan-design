@@ -111,6 +111,8 @@ Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-butt
 | Settings group and row | `.doan-settings-group`: 1px `border-standard`, 24px corner, 16px side inset, rows split by its own hairlines, an inline-size container. `.doan-preference-row`: 12px block padding, 1fr / auto with a 16px column gap and no row gap, body-sm label over a caption description 2px apart. Measured in Settings (see Settings). |
 | Switch | `.doan-switch` on `button[role="switch"]`: 36 × 20 track, 1px border, 2px padding; 14px thumb (`::before`) moved 16px when on; on is `affordance-prominent`; disabled is `affordance-disabled` with a transparent border, a `surface-panel` thumb and the default cursor. 36px and 14px are the switch's own constants. |
 
+Notice icon: the 16px icon (or spinner) is centred on the notice's 20px first line by a 2px block margin; measured in Settings > Agents, the Notifications permission hint and first run's Agent step, its centre is on the first line's centre and within 0.03px of the cap-height centre, in development and production. A notice body has a top margin only under a title (`Onboarding.test.tsx`).
+
 Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is not drawn pressed; a focused button chip shows the ring only; the worktree menu keeps the 320px menu cap (320px wide at window widths 960 and 1238, inside the viewport); CLI and skill link paths in connection details stay on one line with the full path in `title`; form labels carry no label tracking; the FirstPrompt subject field is a block; a failure status block spaces its actions and opened detail with its own 8px gap. Unpinned: the checkbox tick, the open-disclosure rule, the worktree-menu cap and the one-line link paths.
 
 **Documented differences.**
@@ -655,7 +657,8 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 
 - **Sideways clip.** The panel clips sideways (`overflow-x: hidden`) like the Add Projects panel; the draft leaves `auto`. Nothing in the column is wider than the panel (also at 960 × 600).
 - **Group query container.** `.doan-settings-group` is an inline-size container so that at 24rem a button control moves under its title (Buzz's narrow rule); the draft draws no narrow state. Groups measured 574–720px wide in every placement (page column at 1238 and 960 windows, Project Settings dialog), never collapsed.
-- **Notice actions.** `.ob-state-actions` keeps first run's 16px top margin; the draft copied 12px. A row with a notice is 4px taller than drawn.
+- **Notice actions.** `.ob-state-actions` keeps first run's 16px top margin; the draft copied 12px. A row whose notice has a title is 4px taller than drawn.
+- **Body-only notice.** A notice body takes its 4px top margin only under a title, so a body alone ("Your Codex connection expired. Sign in again.") starts on the line its icon is centred on; the draft copied the old rule and draws the icon 4px above the text. The expired row therefore measures the draft's height.
 - **Codex's waiting copy.** codex login opens the default browser itself, so Doan no longer opens its link and the waiting notice says "A browser tab may already be open. Complete sign-in there, then return here.", as for Cursor and Copilot; the draft drew Claude's "Complete sign-in in your browser, then return here." The notice's text column is wider by the longer sentence.
 - **Waiting row keeps its vendor line.** A not-connected provider whose sign-in waits keeps its vendor line ("OpenAI"), as first run draws it; the Settings draft drops it (the shared provider view). The row is 22px taller than drawn.
 - **Lock ink on the current tab and Back.** The current Settings tab is `aria-disabled` and dimmed while the page is locked, like every header tab on a locked page; the draft leaves it unmarked. Locked Back takes the disabled ink and default cursor; the draft marks it without the shipped ink.
@@ -674,7 +677,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 - The 24rem narrow layout in a real placement (no placement is that narrow at the 960 × 600 minimum).
 - Roles and names were read from DOM attributes, not from the accessibility tree: rows `group` named by the provider; Agent, Model and Effort `button` with `aria-haspopup="menu"`; switches `switch` with `aria-checked`; confirmations `alertdialog`.
 - Hover and keyboard focus on the sidebar rows, the switch focus ring and menu contents of Agent, Model and Effort were not measured.
-- **Notifications in the packaged app.** A test notification showed and its banner click reached main only from an ad-hoc build re-signed with the identifier `design.doan.app`; electron-builder's unsigned output keeps Electron's signature identifier and was refused without a prompt. That the window stays on Notifications after the click was not observed.
+- **Notifications in the packaged app.** A test notification showed, its banner click reached main and the person saw Doan come forward on Settings > Notifications, only from an ad-hoc build re-signed with the identifier `design.doan.app`; electron-builder's unsigned output keeps Electron's signature identifier and was refused without a prompt. The probe could not read the window's focus after the click itself, because macOS also launched another registered copy of the app.
 
 ### Regression pointers
 
