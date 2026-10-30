@@ -267,3 +267,16 @@ test("keeps home memory beside Settings across saves and drops it with its root"
   roots = ["/repo"];
   expect((await store.read())?.home).toEqual({ lastProvider: "claude", models: { claude: { model: "opus", effort: "max" } } });
 });
+
+// Only the renderer parser migrates the old window tab; the next save writes the page section alone.
+test("migrates a legacy tab on read and drops it when saving the page section", async () => {
+  const path = file();
+  writeFileSync(path, JSON.stringify({ ...workspace(".doan/canvases/a.html"), settingsTab: "projects" }));
+  const store = createUiStateStore(path, saved);
+  const state = await store.read();
+  expect(state?.settingsSection).toBe("agents");
+  expect(store.save(state)).toBe(true);
+  store.flushSync();
+  expect(onDisk(path).settingsSection).toBe("agents");
+  expect(onDisk(path)).not.toHaveProperty("settingsTab");
+});
