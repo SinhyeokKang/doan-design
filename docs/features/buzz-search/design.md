@@ -34,7 +34,7 @@
 | 결과 행 | `NavigationItem variant="search"`: 최소 44px, 패딩 12px, 모서리 20px, 아이콘 칸 24px(아이콘 21px), 이름 body-sm 400, 보조 줄 body-sm `text-subtle` | 같은 값, 이름만 `--type-weight-medium`(500). 아이콘은 lucide: 캔버스 `Palette`(LNB 캔버스 행과 같음), 프레임 `Hash`, 21px | 조정(2026-10-30 user): 이름을 한 단계 굵게 해 보조 줄과 위계를 나눈다 |
 | 행 강조 | 키보드·포인터 강조는 `interaction-row-hover`. 결과 목록에 `interaction-panel`이 걸려 있어(SearchChoices.tsx 227행) 그 값은 `affordance-row-hover` = `affordance-subtle`이고, 보조 글자는 `text-subtle` 그대로다(materials.css 153-163행) | `aria-selected` 행에 `--affordance-subtle` | doan에 `interaction-*` 역할이 없어 같은 값의 `--affordance-subtle`을 직접 쓴다 |
 | 맞은 글자 | 1px 밑줄, offset 2px, 배경·색 상속 | 같은 값 | 없음 |
-| 빈 결과 | body-sm, `text-subtle`, 좌우 control inset | 같은 값. All 탭 문구는 기존 네 가지 그대로, 탭별 문구는 아래 '필터 탭' | 없음 |
+| 빈 결과 | body-sm, `text-subtle`, 좌우 control inset, 목록 위쪽 한 줄 | 같은 글자 값. 고정 높이 목록의 너비·높이를 채우고 가로·세로 가운데 정렬한다. All 탭 문구는 기존 네 가지 그대로, 탭별 문구는 아래 '필터 탭' | 조정(2026-10-30 user, 초안 9차): 고정 높이 목록에서 문구가 위에 붙으면 아래가 비어 보이므로 가운데에 둔다 |
 | 등장 모션 | `motion="default"`: 0.75rem 상승, 220ms, 퇴장 120ms | `.doan-dialog` 모션 규칙과 같은 값 | Buzz DESIGN.md 1218행은 검색 팔레트에 `motion="none"`을 권하지만 실제 코드(`PageSearch.tsx:185`)는 `default`다. 출하된 코드를 따른다 |
 
 ### 결과 행 내용
