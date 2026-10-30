@@ -372,6 +372,8 @@ body:has(.shell-top) { background: transparent; }
 .settings-header-actions{display:flex;flex:none;flex-wrap:wrap;gap:var(--space-2)}
 .settings-title{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);letter-spacing:var(--type-heading-letter-spacing);font-weight:var(--type-weight-medium);outline:none}
 .settings-lead,.settings-section-description{margin-top:var(--space-2);color:var(--text-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A section description sits as close to its title as a row's description to its label. */
+.settings-section-description{margin-top:var(--space-half)}
 .settings-section-title{font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);letter-spacing:var(--type-label-sm-letter-spacing);font-weight:var(--type-weight-medium)}
 .settings-sections{display:grid;gap:var(--space-section-gap)}
 /* Group and row: Buzz settings-group.css and components.css .buzz-preference-row, written with doan tokens. */
