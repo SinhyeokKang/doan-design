@@ -656,6 +656,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 - **Sideways clip.** The panel clips sideways (`overflow-x: hidden`) like the Add Projects panel; the draft leaves `auto`. Nothing in the column is wider than the panel (also at 960 × 600).
 - **Group query container.** `.doan-settings-group` is an inline-size container so that at 24rem a button control moves under its title (Buzz's narrow rule); the draft draws no narrow state. Groups measured 574–720px wide in every placement (page column at 1238 and 960 windows, Project Settings dialog), never collapsed.
 - **Notice actions.** `.ob-state-actions` keeps first run's 16px top margin; the draft copied 12px. A row with a notice is 4px taller than drawn.
+- **Codex's waiting copy.** codex login opens the default browser itself, so Doan no longer opens its link and the waiting notice says "A browser tab may already be open. Complete sign-in there, then return here.", as for Cursor and Copilot; the draft drew Claude's "Complete sign-in in your browser, then return here." The notice's text column is wider by the longer sentence.
 - **Waiting row keeps its vendor line.** A not-connected provider whose sign-in waits keeps its vendor line ("OpenAI"), as first run draws it; the Settings draft drops it (the shared provider view). The row is 22px taller than drawn.
 - **Lock ink on the current tab and Back.** The current Settings tab is `aria-disabled` and dimmed while the page is locked, like every header tab on a locked page; the draft leaves it unmarked. Locked Back takes the disabled ink and default cursor; the draft marks it without the shipped ink.
 - **Code chips in connection details** stay white on the inset fill. The canvas's own `.cn-details code` rule asks for the same and loses by order to its copied page code-chip rule.
@@ -673,6 +674,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 - The 24rem narrow layout in a real placement (no placement is that narrow at the 960 × 600 minimum).
 - Roles and names were read from DOM attributes, not from the accessibility tree: rows `group` named by the provider; Agent, Model and Effort `button` with `aria-haspopup="menu"`; switches `switch` with `aria-checked`; confirmations `alertdialog`.
 - Hover and keyboard focus on the sidebar rows, the switch focus ring and menu contents of Agent, Model and Effort were not measured.
+- **Notifications in the packaged app.** A test notification showed and its banner click reached main only from an ad-hoc build re-signed with the identifier `design.doan.app`; electron-builder's unsigned output keeps Electron's signature identifier and was refused without a prompt. That the window stays on Notifications after the click was not observed.
 
 ### Regression pointers
 
