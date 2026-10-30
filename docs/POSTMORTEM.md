@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-30 — Removing a shared dialog class silently disabled two focus guards
+
+- **Area**: `app/src/renderer/SettingsDialog.tsx`, `app/src/renderer/ProjectSettingsDialog.tsx` (confirmation focus guards), `app/src/renderer/ProjectSettingsDialog.test.tsx`.
+- **Symptom**: none visible yet. After the separate Settings window was removed, `SettingsDialog` lost its old-window `ob-dialog` class, while `ProjectSettingsDialog` still found its nested "Add to serve?" confirmation with `dialog.ob-dialog`. Both guards ("a button inside the open confirmation is not a focus-return target", "do not move focus while the confirmation is open") stopped matching anything. A write that finished while the confirmation was open would have moved focus behind it.
+- **Root cause**: modal ownership was identified by a styling class of another component. The class removal was checked against imports and callers, not against selector strings, and no test held a confirmation open while a write settled.
+- **Net**: caught by the independent review of the removal batch (BR); missed by typecheck, build and the existing unit tests, which never exercised the selector.
+- **Prevention**: identify a dialog by its rendered role (`dialog[role="alertdialog"]`), not a styling class; a focus guard needs a test that holds the dialog open while the pending operation settles. When removing or renaming a class, search selector strings too. Grep: `grep -rn "closest(.*dialog\|querySelector(.*dialog" app/src/renderer`.
+
 ### 2026-10-30 — Packaged-app probes failed for reasons of their own: keychain, signature identity and focus
 
 - **Area**: `.scratch/runtime-test/buzz-settings/human*.mjs`, `r2.mjs`; `app/runtime/environment.ts` (`isolatedEnv`); electron-builder output `app/dist/mac-arm64/Doan.app`.
