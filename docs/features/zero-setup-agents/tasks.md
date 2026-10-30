@@ -1,6 +1,6 @@
 # zero-setup-agents — tasks
 
-순서: PoC → 순수 함수 → 셸(I/O)·패키징 → 문구 → 제거(UI) → 실제 앱 확인 → 문서 승격.
+순서: PoC → 순수 함수 → 셸(I/O)·패키징 → 문구 → 제거(UI) → 실제 앱 확인 → 문서 승격 → MCP 제거 feature 착수.
 
 ## T0. 프로바이더 표 PoC (사용자 허락 필요)
 
@@ -81,7 +81,15 @@
 - PRODUCT: §2 직전 문단, §3 In scope 3, §5 item 0(첫 실행, Settings 카테고리, Connections 항목, 'Not included'), 8번 `doan init` 문장, 'Open questions'의 sandbox Codex 첫 실행·오래된 전역 stub 항목. MCP 제거 항목은 지우지 않고, T0 결과(MCP가 필요한 프로바이더가 있는지)를 덧붙인다.
 - ARCHITECTURE: §6 'Stub', §7 'Machine setup'을 새 배치·소유 판정·허용 위치 규칙으로 교체, 'Settings, setup status and first-prompt IPC'에서 setup 채널 제거, "never edits … agent config files" 문장 수정, §9 Distribution에 번들 skill 경로.
 - DESIGN.md의 Connections 행, DIRECTORY.md의 지운 파일, AGENTS.md 'Commands'의 packaged-app 실행 주의(실행만으로 HOME에 쓴다).
-- `docs/features/zero-setup-agents/` 삭제.
 - 검증: `/doc-check` 대상 문서에서 `Connections`, `setup:read`, `Connect` 검색 결과가 남지 않는다(`rg -n 'Settings > Connections|setup:read|ConnectionRows' docs app/src cli`).
 
-— commit: 문서별로 나눈다(`docs(product): …`, `docs(architecture): …`, `docs(design): …`, `docs(directory): …`, `docs(feature): complete zero-setup-agents`).
+— commit: 문서별로 나눈다(`docs(product): …`, `docs(architecture): …`, `docs(design): …`, `docs(directory): …`).
+
+## T9. MCP 제거 feature 착수와 정리
+
+- T1–T8이 main에 merge된 뒤 `/feature`로 MCP 제거 feature를 시작한다. 입력은 PRODUCT 'Open questions'의 MCP 제거 항목과 T0 프로바이더 표다. T0에서 sandbox를 비켜 갈 방법이 없어 MCP가 필요한 프로바이더가 나왔다면, 그 사실을 첫 결정 질문으로 올린다.
+- 그 feature의 `docs/features/<slug>/`가 커밋되면 PRODUCT 'Open questions'의 MCP 제거 항목을 지운다(계획은 feature 문서로 옮겨졌으므로).
+- `docs/features/zero-setup-agents/` 삭제. T0 표가 이 파일에만 있으므로, 새 feature 문서에 표를 옮긴 뒤 지운다.
+- 검증: 새 feature의 spec·design·tasks 커밋이 있고, `rg -n 'zero-setup-agents' docs`가 새 feature 문서의 출처 언급 말고는 결과가 없다.
+
+— commit: `docs(product): move MCP removal into its feature`, `docs(feature): complete zero-setup-agents`

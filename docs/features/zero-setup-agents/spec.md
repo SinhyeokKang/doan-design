@@ -32,7 +32,7 @@ Doan을 설치한 뒤 사람이 아무 설정도 하지 않아도, 터미널이�
 ## 비목표
 
 - MCP 자동 등록.
-- `doan mcp` 명령과 MCP 제거. 후속 feature로 남긴다(PRODUCT 'Open questions'). 착수 조건은 이 feature의 구현 완료이고, T0 프로바이더 표가 판단 근거다.
+- `doan mcp` 명령과 MCP 제거 구현. 이 feature의 마지막 task(T9)에서 별도 feature로 시작한다. 착수 조건은 T1–T8 구현 완료이고, T0 프로바이더 표가 판단 근거다.
 - 기존 Connect로 설치된 상태(복사된 `~/.agents/skills/doan/`, 상대 Claude 링크)의 자동 이전. 앱이 아직 배포되지 않았으므로, 이 머신의 기존 항목은 사람이 지운다. 단, Doan 번들을 가리키던 옛 링크는 Doan이 만든 것으로 보고 교체한다(design.md '소유 판정').
 - 언인스톨. 앱을 지우면 링크가 깨진 채 남는다.
 - 자동 업데이트(electron-updater, #9 `dist`). 번들 교체가 어떻게 일어나든 완료 조건 2가 성립하면 된다.
