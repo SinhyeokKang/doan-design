@@ -175,7 +175,7 @@ test("a folder dropped on the composer is refused there and never reaches the wi
   expect(doan.addDroppedFiles).not.toHaveBeenCalled();
   expect(doan.addAttachmentFiles).not.toHaveBeenCalled();
   expect(box.current.attachments).toEqual([]);
-  expect(box.current.notice?.text).toBe("Folders can’t be attached. Drop a folder outside the message to add a project.");
+  expect(box.current.notice?.text).toBe("Folders can’t be attached. Add a project from Add Projects.");
 });
 
 test("dragging files over the composer shows the drop target and stops the window overlay", () => {

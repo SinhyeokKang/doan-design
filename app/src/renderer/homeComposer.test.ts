@@ -555,8 +555,8 @@ test("chips show type and size, a checking state, a pasted image and a moved fil
 test("a drop on the composer attaches files and refuses folders; elsewhere it adds projects", () => {
   expect(dropTarget(false, [{ isDirectory: true }])).toEqual({ kind: "project" });
   expect(dropTarget(true, [{ isDirectory: false }, { isDirectory: false }])).toEqual({ kind: "attach", files: [0, 1], notice: null });
-  expect(dropTarget(true, [{ isDirectory: true }])).toEqual({ kind: "attach", files: [], notice: "Folders can’t be attached. Drop a folder outside the message to add a project." });
-  expect(dropTarget(true, [{ isDirectory: true }, { isDirectory: false }])).toEqual({ kind: "attach", files: [1], notice: "Folders can’t be attached. Drop a folder outside the message to add a project." });
+  expect(dropTarget(true, [{ isDirectory: true }])).toEqual({ kind: "attach", files: [], notice: "Folders can’t be attached. Add a project from Add Projects." });
+  expect(dropTarget(true, [{ isDirectory: true }, { isDirectory: false }])).toEqual({ kind: "attach", files: [1], notice: "Folders can’t be attached. Add a project from Add Projects." });
 });
 
 test("Backspace at the start of an empty field removes the preset chip first, then the last attachment", () => {

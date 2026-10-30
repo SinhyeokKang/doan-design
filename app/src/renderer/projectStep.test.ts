@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
 import type { OnboardingOperation, OnboardingResponse, OnboardingState } from "../formats/types";
-import { isMainCheckout, ProjectStepSession } from "./projectStep";
+import { isMainCheckout, projectFooter, projectNoticeCode, ProjectStepSession, setUpLabel, type ProjectStepState } from "./projectStep";
 
 type Reply = OnboardingResponse | Promise<OnboardingResponse>;
 const op = (kind: OnboardingOperation["kind"], over: Partial<OnboardingOperation> = {}): OnboardingOperation => ({ operationId: `op-${kind}-${Math.random().toString(36).slice(2)}`, requestId: "r", kind, state: "succeeded", ...over });
@@ -693,4 +693,60 @@ test("D25 follow-up: Back from a URL setup screen returns to the editable URL; a
   g.queue.inspect!.push(ok(op("project_inspect", { inspection: inspection([["/code/plain", [".doan/config.json"]]]) })));
   await g.session.chooseFolder();
   expect(g.session.backToUrl()).toBe(false);
+});
+
+const footerState = (phase: ProjectStepState["phase"], error: ProjectStepState["error"] = null): ProjectStepState => ({ phase, url: "", inspectedUrl: null, error, listChoice: null });
+const idle = { busy: false, agentReady: true };
+const cand: ProjectStepState["phase"] = { kind: "candidates", inspectionId: "i", url: null, candidates: [{ path: "/w/a", changes: [] }], choice: "/w/a" };
+const clonePlan = { kind: "clone", url: "https://github.com/o/r", inspectionId: "i", destination: "/w/r" } as const;
+const unplannedClone = { ...clonePlan, inspectionId: null };
+const setup: ProjectStepState["phase"] = { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] };
+const cloning = { kind: "cloning", url: "https://github.com/o/r", destination: "/w/r", operationId: "op", cancelling: false } as const;
+const cancelled = { kind: "cloneCancelled", url: "https://github.com/o/r", destination: "/w/r" } as const;
+const back = (disabled: boolean) => ({ label: "Back", disabled });
+const openDoan = (disabled: boolean) => ({ label: "Open Doan", action: "complete", disabled });
+
+test("first run's footer is Back and the step's action, as before the Add Projects page", () => {
+  for (const phase of [{ kind: "choose" }, { kind: "checking", path: "/w/a" }, setup, { kind: "selecting", path: "/w/a" }] as const)
+    expect(projectFooter("onboarding", footerState(phase), idle)).toEqual({ back: back(false), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "inspecting", url: "u" }), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState(cand), idle)).toEqual({ back: back(false), primary: { label: "Use this folder", action: "select", disabled: false } });
+  expect(projectFooter("onboarding", footerState(cand), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: { label: "Use this folder", action: "select", disabled: true } });
+  const clone = (disabled: boolean) => ({ label: "Clone and continue", action: "clone", disabled });
+  expect(projectFooter("onboarding", footerState(clonePlan), idle)).toEqual({ back: back(false), primary: clone(false) });
+  expect(projectFooter("onboarding", footerState(unplannedClone), idle)).toEqual({ back: back(false), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState(clonePlan, { code: "destination_exists" }), idle)).toEqual({ back: back(false), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState(cloning), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState(cancelled), idle)).toEqual({ back: back(false), primary: clone(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }), idle)).toEqual({ back: back(false), primary: openDoan(false) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }), { busy: false, agentReady: false })).toEqual({ back: back(false), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }, { code: "completion_unsupported_version" }), idle)).toEqual({ back: back(false), primary: openDoan(true) });
+  expect(projectFooter("onboarding", footerState({ kind: "ready", root: "/w/a" }, { code: "completion_save_failed" }), idle)).toEqual({ back: back(false), primary: { label: "Retry", action: "retry", disabled: false } });
+  expect(projectFooter("onboarding", footerState({ kind: "completing", root: "/w/a" }), { busy: true, agentReady: true })).toEqual({ back: back(true), primary: openDoan(true) });
+  expect(setUpLabel("onboarding")).toBe("Set up and continue");
+});
+
+test("the Add Projects page footer is Cancel and the step's own action, and none while locked", () => {
+  const cancel = { label: "Cancel", disabled: false };
+  // Leaving drops an inspection in flight, so Cancel stays usable while one runs.
+  for (const phase of [{ kind: "choose" }, { kind: "inspecting", url: "u" }, { kind: "checking", path: "/w/a" }, setup, cancelled] as const)
+    expect(projectFooter("addPage", footerState(phase), { busy: true, agentReady: true })).toEqual({ back: cancel, primary: null });
+  expect(projectFooter("addPage", footerState(cand), idle)).toEqual({ back: cancel, primary: { label: "Use this folder", action: "select", disabled: false } });
+  expect(projectFooter("addPage", footerState(clonePlan), idle)).toEqual({ back: cancel, primary: { label: "Clone and add", action: "clone", disabled: false } });
+  expect(projectFooter("addPage", footerState(unplannedClone), idle)).toEqual({ back: cancel, primary: { label: "Clone and add", action: "clone", disabled: true } });
+  expect(projectFooter("addPage", footerState({ kind: "selecting", path: "/w/a" }), idle)).toBeNull();
+  expect(projectFooter("addPage", footerState(cloning), idle)).toBeNull();
+  expect(projectFooter("addPage", footerState({ ...cloning, cancelling: true }), idle)).toBeNull();
+  expect(setUpLabel("addPage")).toBe("Set up and add");
+});
+
+test("the no-agent notice belongs to first run only", () => {
+  const ready = footerState({ kind: "ready", root: "/w/a" });
+  expect(projectNoticeCode("onboarding", ready, false)).toBe("no_ready_agent");
+  expect(projectNoticeCode("onboarding", ready, true)).toBeNull();
+  expect(projectNoticeCode("onboarding", footerState({ kind: "choose" }), false)).toBeNull();
+  expect(projectNoticeCode("onboarding", footerState(clonePlan, { code: "destination_exists" }), false)).toBe("destination_exists");
+  expect(projectNoticeCode("addPage", ready, false)).toBeNull();
+  expect(projectNoticeCode("addPage", footerState({ kind: "ready", root: "/w/a" }, { code: "no_ready_agent" }), true)).toBeNull();
+  expect(projectNoticeCode("addPage", footerState(clonePlan, { code: "destination_exists" }), true)).toBe("destination_exists");
 });
