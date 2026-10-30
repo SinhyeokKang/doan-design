@@ -134,6 +134,7 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 - Split commits per document.
 - **Write comments in English, and only the "why"** (the project will be open-sourced, so outside contributors must be able to read them). Do not repeat the "what" the code already says. Record non-obvious constraints and pitfalls.
 - Put one-off experiment files in `.scratch/` (gitignored).
+- Remove a local worktree (and its temporary branch) as soon as its work is merged, handed off or abandoned; check `git status` in it first and ask before discarding uncommitted work.
 - PoC experiment code also goes in `.scratch/`. `.scratch/` is not committed, so write what the PoC established as current facts in PRODUCT or ARCHITECTURE, and the observations (pass/fail, measurements, date) in the commit message or the feature documents.
 - Commits made in a Codex session end with `Co-Authored-By: Codex <noreply@openai.com>` as the last line. This is to tell from the history which runtime made a commit (the same rule as malmoi `.agents/PREAMBLE.md`).
 
