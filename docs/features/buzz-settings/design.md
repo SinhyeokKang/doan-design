@@ -23,7 +23,12 @@
   - `project-settings` — Project Settings 다이얼로그: 정상 워크트리
   - `project-problem` — Project Settings 다이얼로그: Missing 워크트리
   - `home-agent-picker` — 홈 공급자 선택기의 Settings 동작
-- 2차(`--revise`) 상태 타일 후보: 공급자 행 상태(업데이트, 로그아웃 실패, stop 확인, 주소 붙여넣기, 읽기 오류), New conversations 상태, 알림 저장 실패·테스트 보냄, About 읽기 실패, Project Settings 저장 중·저장됨·오류·Serve 확인·읽기 오류, 홈 "No agent is ready".
+- 초안 검토 결정(2026-10-30 user, 추천대로 확정). 구현 때 DESIGN에 적는다.
+  - 스위치 썸 14px과 트랙 폭 36px은 컴포넌트 상수다. 값이 같은 `--size-icon-sm`은 아이콘용이라 쓰지 않는다.
+  - Project Settings 다이얼로그는 값을 바로 저장하므로 액션이 Done 하나다. DESIGN 'Dialogs'의 "Cancel 먼저, 완료 동작 마지막" 규칙의 예외다.
+  - Settings에서 Copilot과 확인되지 않은 연결을 확인하는 버튼은 Check다. 첫 실행의 Retry와 다르다. DESIGN 'Terms shared with onboarding'에 Settings 줄을 더한다.
+- 2차(2026-10-30) 상태 타일 6개를 그렸다: `states-agents`, `states-defaults`, `states-notify`, `states-about`, `states-project`, `states-home`. 창이 아니라 본문 열만 그린 타일이며 창 비교 대상이 아니다.
+- 2차 전 상태 타일 후보(기록): 공급자 행 상태(업데이트, 로그아웃 실패, stop 확인, 주소 붙여넣기, 읽기 오류), New conversations 상태, 알림 저장 실패·테스트 보냄, About 읽기 실패, Project Settings 저장 중·저장됨·오류·Serve 확인·읽기 오류, 홈 "No agent is ready".
 
 ## Buzz 레퍼런스
 
