@@ -95,6 +95,7 @@
 | `no_ready_agent` notice | 있음 | 없음 | 프로젝트 추가에는 에이전트가 필요 없다 |
 | 표면 | 창 전체 유리(AppShell 반투명) | 흰 본문 패널 | 첫 실행은 셸 밖, 페이지는 셸 안 |
 | main 인스턴스 | `OnboardingService`의 project 인스턴스 | 페이지 project 인스턴스 | 세션·완료 기록·CLI·MCP는 첫 실행만 |
+| 로컬 setup의 Choose another folder | 없음(URL에서 온 setup에만) | 있음 | 확정 초안 `setup` 프레임. 페이지 하단은 Cancel뿐이라 이 버튼이 없으면 다른 폴더를 고르려고 페이지를 떠나야 한다. 첫 실행은 완료 조건 12·13대로 공유 개선 셋 밖의 변화를 받지 않는다 |
 
 이번에 온보딩에 들어가는 개선:
 
