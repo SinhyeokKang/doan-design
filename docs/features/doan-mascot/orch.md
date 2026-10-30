@@ -57,3 +57,4 @@ P0(PoC)은 완료됐다.
 - 2026-10-31: BL2 질문(가드 테스트를 `HomeComposerView.interaction.test.tsx`에 추가해도 되나)에 '추가만 허용'으로 답했다. 지휘자 판단: 다른 배치가 그 파일을 소유하지 않고, 단위 증거를 하나 더 두는 쪽이 확실하다.
 - 2026-10-31: 사용자가 Finder에서 아이콘 외형을 확인했다("확인했어"). BE·BM 워크트리는 Orca로 제거를 요청했다(status 깨끗, `git cherry` 결과 `+` 없음). golden·mutation 스크립트와 증거는 지휘자 `.scratch/doan-mascot/bm/`에 복사했다.
 - 2026-10-31: BL2 완료(`b73566d3`). verify 통과, 승인된 상호작용 테스트 3건과 red 기록이 있다. 작업자는 retain했다. RBL2(Codex `gpt-6-astra` medium, `ctx_6a2e0b58284c`) 진행 중.
+- 2026-10-31: RBL2(Codex) 결과 🔴·🟡 없음. ⚪ 1건은 pending 중 홉 차단 테스트가 없다는 것이다. 지휘자 판단(검증을 더 확실히 하는 쪽): 같은 작업자에게 테스트 1건을 BL3(`ctx_3658825f1176`)로 보냈다. RBL2는 해제했다.
