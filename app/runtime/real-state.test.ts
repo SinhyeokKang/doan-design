@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { promisify } from "node:util";
 
-for (const relative of ["sessions.jsonl", "conversations/index.json", "conversations/start-undo.json", "conversations/nested/session.jsonl", "agent-auth/vault/cursor.bin"]) {
+for (const relative of ["agent-setup.json", "sessions.jsonl", "conversations/index.json", "conversations/start-undo.json", "conversations/nested/session.jsonl", "agent-auth/vault/cursor.bin"]) {
   for (const mutation of ["create", "modify", "remove"]) {
     test(`real-state detects ${mutation} of ${relative} in a simulated HOME`, async () => {
       const home = await mkdtemp(join(tmpdir(), "doan-state-fixture-"));
