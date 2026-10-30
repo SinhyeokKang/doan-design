@@ -9,17 +9,24 @@
 - 측정: 다섯 프로바이더의 외부 CLI(`claude -p`, `codex exec`, `cursor-agent -p`, `copilot -p`, Antigravity CLI)에 (1) 사용 가능한 skill 목록에 `doan`이 몇 번 보이는지, (2) `doan skill`이 실행되는지, (3) `doan active --json --repo <tmp repo>`가 가짜 서버에 닿는지를 시킨다. 각 CLI의 기본 sandbox·승인 설정은 덮어쓰지 않는다. Codex는 `-s workspace-write -c approval_policy="never"`로 사용자 레이어 `doan.rules`가 있을 때와 없을 때를 비교한다.
 - 실제 상태 보호: 실행 전후로 실제 HOME의 skill 위치, `~/.local/bin`, `~/.codex/rules`, 각 에이전트 설정 파일의 목록과 해시를 비교한다.
 - 기록: 아래 표. 원본 로그는 `.scratch/zero-setup-agents/t0/`.
-- 검증: 다섯 행이 모두 채워지고, 배치 표의 링크 집합과 완료 조건 5의 처리가 design.md에 반영된다. Claude·Codex 명령은 AGENTS.md 'Real-agent MCP check'와 같은 일회성 호출이다. Cursor·Copilot·Antigravity 명령은 command undecided — needs user confirmation(T0에서 정해 이 줄을 고친다).
+- 검증: 다섯 행이 모두 채워지고, 배치 표의 링크 집합과 완료 조건 5의 처리가 design.md에 반영된다. Claude·Codex 명령은 AGENTS.md 'Real-agent MCP check'와 같은 일회성 호출이다. Copilot 명령은 아래 '측정 명령'. Cursor·Antigravity 명령은 command undecided — needs user confirmation.
 
-| 프로바이더 | 읽는 skill 위치 | `doan` 보인 횟수 | PATH의 `doan` | 기본 설정에서 `doan active` | 허용 방식 |
+2026-10-31 측정(1차). 임시 HOME에 후보 위치마다 이름이 다른 probe skill(`probe-agents`, `probe-claude`, `probe-codex`, `probe-cursor`, `probe-copilot`, `probe-gemini`, `probe-antigravity`)을 두고 skill 목록을 물었다(측정 A). 그다음 `~/.agents/skills/doan`과 `~/.claude/skills/doan`만 두고 `doan skill`과 `doan active`를 시켰다(측정 B). 가짜 앱 socket을 썼다. 실행 전후 실제 HOME 지문은 같았고, Codex는 실제 `~/.codex/auth.json` 사본을 쓴 뒤 지웠다(사본은 바뀌지 않았다).
+
+| 프로바이더 | 읽는 전역 skill 위치 | `doan` 보인 횟수 | `doan skill` | `doan active` | 허용 방식 |
 |---|---|---|---|---|---|
-| Claude Code | | | | | |
-| Codex | | | | `workspace-write`에서 막힘(2026-10-31 run1) | 프로젝트 레이어 `.codex/rules` `allow` rule로 성공(run2). 사용자 레이어 미확인 |
-| Cursor | | | | | |
-| Antigravity | | | | | |
-| GitHub Copilot | | | | | |
+| Claude Code 2.1.314 | `~/.claude/skills`만(측정 A) | 1 | 성공, end marker 있음 | 가짜 앱에 닿음(exit 0). sandbox 기본값 꺼짐 | 필요 없음 |
+| Codex 0.164.0 | `~/.agents/skills`, `<CODEX_HOME>/skills`(측정 A) | 1 | 성공, end marker 있음 | rule 없음: `connect: operation not permitted`(exit 3). 사용자 레이어 `~/.codex/rules/doan.rules` 있음: 닿음(exit 0) | 사용자 레이어 rule 확인 |
+| GitHub Copilot CLI 1.0.105 | `~/.copilot/skills`, `~/.agents/skills`(측정 A). `~/.claude/skills`는 읽지 않음 | 1 | 성공, end marker 있음 | 닿음(exit 0) | 필요 없음 |
+| Cursor CLI 2026.10.22 | 코드 근거: user 범위 `~/.cursor/skills`, `~/.agents/skills`는 항상, `~/.claude/skills`, `~/.codex/skills`, `~/.grok/skills`는 third-party 설정이 켜졌을 때(번들 `index.js`의 `Ds`, `Xs`). 실행 확인 못 함 | 미확인(third-party가 켜져 있으면 2일 수 있음) | 미확인 | 미확인 | 미확인 |
+| Antigravity 2.0.6 / IDE 2.5.5 | 미확인. 이 머신에 터미널 agent CLI가 없다(GUI 앱만). 비공식 자료는 `~/.gemini/antigravity/skills`(Google codelab 한 판본)와 `~/.gemini/config/skills`(다른 판본)로 엇갈린다. Doan 프로필 측정은 `<GEMINI_HOME>/skills` | 미확인 | 미확인 | 미확인 | 미확인 |
 
-— commit: `docs(feature): zero-setup-agents provider matrix` (문서만, 지금 브랜치)
+- 측정 명령: Claude `claude -p "<prompt>" --allowedTools 'Bash(doan:*)'`, Codex `codex exec -s workspace-write -c 'approval_policy="never"' "<prompt>"`, Copilot `copilot -p "<prompt>" --allow-tool 'shell(doan)'`, 모두 `env -i`로 임시 HOME과 깨끗한 환경에서 실행했다(`.scratch/zero-setup-agents/t0/run.sh`).
+- Cursor: 이 머신의 `cursor-agent`는 로그인돼 있지 않다(`cursor-agent status` → Not logged in). 임시 HOME에서 `AGENT_CLI_CREDENTIAL_STORE=file`로 로그인해야 실제 HOME과 공유 Keychain 항목을 건드리지 않는다. 사람의 브라우저 로그인이 필요하다.
+- Antigravity: GUI 앱의 agent에서 probe skill 목록과 `doan active`를 확인해야 한다. 사람이 앱을 조작해야 한다.
+- 결론(1차): Claude·Codex·Copilot은 ego와 같은 두 링크(`~/.agents/skills`, `~/.claude/skills`)로 충분하다. Cursor는 코드상 `~/.agents/skills`를 항상 읽으므로 추가 링크가 필요 없지만, third-party 설정이 켜져 있으면 `doan`이 두 번 보일 수 있다. Antigravity는 위치가 정해지지 않았다.
+
+— commit: `docs(feature): zero-setup-agents provider matrix` (문서만, 지금 브랜치). 1차 결과를 커밋했고, Cursor·Antigravity 행이 채워지면 다시 커밋한다.
 
 ## T0b. About 알림과 Agents lead draft (`/design-draft`)
 
