@@ -53,6 +53,8 @@ describe("classifyTarget", () => {
     ["cli", { kind: "other" }, "foreign"],
     ["cli", MISSING, "missing"],
     ["system-cli", link(`${SHARE}/current/bin/doan`), "ours"],
+    // Only the exact link is ours in /usr/local/bin: nothing there is ever replaced under root.
+    ["system-cli", link(`${SHARE}/old/bin/doan`), "foreign"],
     // Connect never wrote /usr/local/bin, so the legacy form is someone else's there.
     ["system-cli", link("/Applications/Doan.app/Contents/Resources/bin/doan"), "foreign"],
     ["current", link("/Applications/Doan 2.app/Contents/Resources"), "ours"],

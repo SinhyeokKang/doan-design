@@ -1,65 +1,53 @@
-// The last step of writing a link, shared by the app and the administrator shell, which runs this same source under
-// the app's executable as Node. It is plain JavaScript in a string so a bundler cannot rewrite what root runs.
+// Replacing one of Doan's own links in a folder the person owns.
 //
-// Node has no exclusive rename, so a replacement never renames onto the target: it moves the target aside to a name
-// Doan owns (rename(2) is atomic), checks that what it moved is Doan's link and that the folder is still the one Doan
-// read, and only then creates the new link exclusively. Anything else that was moved aside goes back without
-// replacing what arrived meanwhile; if that cannot be done it stays at the aside name and the result says where.
-// Agents may see no link for that moment. Limit: without *at() calls, a folder swapped for a link between the last
-// folder check and the new link's creation can leave Doan's new link in the swapped-in folder; creation is exclusive,
-// so nothing there is replaced.
+// Node has no exclusive rename, so a replacement never renames onto the target: it moves the target aside to a
+// Doan-named entry in the same folder (rename(2) is atomic), checks that what it moved is the link Doan read and that
+// the folder is still the one Doan read, and only then creates the new link exclusively. A moved link or file that is
+// not Doan's goes back with an exclusive symlink or link; a moved folder is never renamed back, since that rename could
+// replace an empty folder that arrived meanwhile, so it stays at the aside name and the result says where. Agents may
+// see no link for that moment.
+//
+// Accepted residuals: the guarantee is that no entry present before Doan's check is changed or removed, and no arrival
+// an exclusive call can detect is replaced. A process running as the same user already has the same power over these
+// targets, so the windows that need one writing concurrently are not defended: replacing the aside entry before Doan
+// unlinks it, and swapping the folder for a link between the last folder check and the following call (Node has no
+// *at() calls to pin it).
 
 // `parent` is the folder's "dev:ino" when Doan read the target; null skips the folder check.
 export interface SwapArgs { path: string; want: string; old: string; aside: string; parent: string | null }
-export interface CreateArgs { path: string; want: string; mkdir: boolean }
 export type SwapResult = { kind: "ok" | "changed" } | { kind: "displaced"; at: string } | { kind: "failed"; code: string };
-// The node:fs calls the source uses; tests pass the mocked module.
-export type SwapFs = Pick<typeof import("node:fs"), "lstatSync" | "readlinkSync" | "renameSync" | "symlinkSync" | "linkSync" | "unlinkSync" | "mkdirSync">;
+// The node:fs calls a swap makes; the runner passes its imports so tests can wrap them.
+export type SwapFs = Pick<typeof import("node:fs"), "lstatSync" | "readlinkSync" | "renameSync" | "symlinkSync" | "linkSync" | "unlinkSync">;
 
-// No line comments: the administrator shell receives this as one line.
-export const SWAP_SOURCE = [
-  "function code(e) { return e && e.code ? String(e.code) : 'UNKNOWN'; }",
-  "function parentOf(path) { return path.slice(0, path.lastIndexOf('/')) || '/'; }",
-  "function parentId(fs, path) { try { const s = fs.lstatSync(parentOf(path)); return s.isDirectory() ? s.dev + ':' + s.ino : null; } catch (e) { return null; } }",
-  "function restore(fs, path, aside) {",
-  "  try {",
-  "    const s = fs.lstatSync(aside);",
-  "    if (s.isSymbolicLink()) { fs.symlinkSync(fs.readlinkSync(aside), path); fs.unlinkSync(aside); }",
-  "    else if (s.isFile()) { fs.linkSync(aside, path); fs.unlinkSync(aside); }",
-  "    else {",
-  "      let free = false; try { fs.lstatSync(path); } catch (e) { free = code(e) === 'ENOENT'; }",
-  "      if (!free) return { kind: 'displaced', at: aside };",
-  "      fs.renameSync(aside, path);",
-  "    }",
-  "    return { kind: 'changed' };",
-  "  } catch (e) { return { kind: 'displaced', at: aside }; }",
-  "}",
-  "function swap(fs, a) {",
-  "  if (a.parent !== null && parentId(fs, a.path) !== a.parent) return { kind: 'changed' };",
-  "  try { fs.renameSync(a.path, a.aside); } catch (e) { return code(e) === 'ENOENT' ? { kind: 'changed' } : { kind: 'failed', code: code(e) }; }",
-  "  let ours = false;",
-  "  try { ours = fs.lstatSync(a.aside).isSymbolicLink() && fs.readlinkSync(a.aside) === a.old; } catch (e) { ours = false; }",
-  "  if (!ours || (a.parent !== null && parentId(fs, a.path) !== a.parent)) return restore(fs, a.path, a.aside);",
-  "  try { fs.symlinkSync(a.want, a.path); } catch (e) {",
-  "    if (code(e) !== 'EEXIST') { const back = restore(fs, a.path, a.aside); return back.kind === 'displaced' ? back : { kind: 'failed', code: code(e) }; }",
-  "    try { fs.unlinkSync(a.aside); } catch (e2) { return { kind: 'displaced', at: a.aside }; }",
-  "    return { kind: 'changed' };",
-  "  }",
-  "  try { fs.unlinkSync(a.aside); } catch (e) { return { kind: 'displaced', at: a.aside }; }",
-  "  return { kind: 'ok' };",
-  "}",
-  "function create(fs, a) {",
-  "  try { if (a.mkdir) fs.mkdirSync(parentOf(a.path), { recursive: true }); fs.symlinkSync(a.want, a.path); }",
-  "  catch (e) { return code(e) === 'EEXIST' ? { kind: 'changed' } : { kind: 'failed', code: code(e) }; }",
-  "  return { kind: 'ok' };",
-  "}",
-].join(" ");
+function code(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
+function parentOf(path: string): string { return path.slice(0, path.lastIndexOf("/")) || "/"; }
+function parentId(fs: SwapFs, path: string): string | null {
+  try { const s = fs.lstatSync(parentOf(path)); return s.isDirectory() ? `${s.dev}:${s.ino}` : null; } catch { return null; }
+}
 
-const compiled = new Function(`${SWAP_SOURCE} return { swap, create };`)() as {
-  swap: (fs: SwapFs, args: SwapArgs) => SwapResult;
-  create: (fs: SwapFs, args: CreateArgs) => SwapResult;
-};
-export const swapLink = compiled.swap, createLink = compiled.create;
+function restore(fs: SwapFs, path: string, aside: string): SwapResult {
+  try {
+    const s = fs.lstatSync(aside);
+    if (s.isSymbolicLink()) fs.symlinkSync(fs.readlinkSync(aside), path);
+    else if (s.isFile()) fs.linkSync(aside, path);
+    else return { kind: "displaced", at: aside };
+    fs.unlinkSync(aside);
+    return { kind: "changed" };
+  } catch { return { kind: "displaced", at: aside }; }
+}
 
-// What the administrator shell runs: `-e <ROOT_SCRIPT> <json>`, exit 0 only when the link is in place.
-export const ROOT_SCRIPT = `${SWAP_SOURCE} const fs = require('fs'); const a = JSON.parse(process.argv[1]); const r = 'old' in a ? swap(fs, a) : create(fs, a); process.exit(r.kind === 'ok' ? 0 : 3);`;
+export function swapLink(fs: SwapFs, a: SwapArgs): SwapResult {
+  if (a.parent !== null && parentId(fs, a.path) !== a.parent) return { kind: "changed" };
+  try { fs.renameSync(a.path, a.aside); } catch (error) { return code(error) === "ENOENT" ? { kind: "changed" } : { kind: "failed", code: code(error) }; }
+  let ours = false;
+  try { ours = fs.lstatSync(a.aside).isSymbolicLink() && fs.readlinkSync(a.aside) === a.old; } catch { ours = false; }
+  if (!ours || (a.parent !== null && parentId(fs, a.path) !== a.parent)) return restore(fs, a.path, a.aside);
+  try { fs.symlinkSync(a.want, a.path); } catch (error) {
+    if (code(error) !== "EEXIST") { const back = restore(fs, a.path, a.aside); return back.kind === "displaced" ? back : { kind: "failed", code: code(error) }; }
+    // Something arrived at the empty name: it stays, and Doan's old link goes.
+    try { fs.unlinkSync(a.aside); } catch { return { kind: "displaced", at: a.aside }; }
+    return { kind: "changed" };
+  }
+  try { fs.unlinkSync(a.aside); } catch { return { kind: "displaced", at: a.aside }; }
+  return { kind: "ok" };
+}

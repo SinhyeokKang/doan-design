@@ -64,6 +64,8 @@ export function classifyTarget(target: SetupTarget, home: string, observation: P
   // Ownership of the rule is its exact content; when the text changes, the old text joins this check.
   if (target === "codex-rule") return kind === "file" && observation.content === codexRuleText() ? "ours" : "foreign";
   if (kind !== "symlink" || value == null) return "foreign";
+  // Doan never placed another form in /usr/local/bin, so only the exact link is ours there and nothing is replaced as root.
+  if (target === "system-cli") return value === `${home}/.local/share/doan/current/bin/doan` ? "ours" : "foreign";
   // ~/.local/share/doan is Doan's namespace: any link there is ours, whichever bundle it names.
   if (target === "current" || target === "skill" || underNamespace(value, home)) return "ours";
   // Connect linked the bundled CLI directly and the Claude skill relatively; both are replaced.

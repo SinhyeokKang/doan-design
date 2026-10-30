@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { accessSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
-import { ROOT_SCRIPT, swapLink, type CreateArgs, type SwapArgs, type SwapResult } from "./swap";
+import { swapLink, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
 // Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
@@ -130,7 +130,7 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
       symlinkSync(target.want, real);
     } else {
       if (observe(target).stamp !== before.stamp || before.value == null) return changed(target, home);
-      return settled(target, home, swapLink({ lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync, mkdirSync },
+      return settled(target, home, swapLink({ lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
         { path: real, want: target.want, old: before.value, aside: asideName(real), parent: before.parent }));
     }
     return { ok: true };
@@ -141,30 +141,36 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
 }
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'`; }
-// Root runs swap.ts's source under this executable as Node: an exclusive symlink on the exact path, unlike `ln`,
-// which writes inside a folder that appears at the target while the dialog is open.
-export function adminCommand(args: SwapArgs | CreateArgs): string {
-  return `ELECTRON_RUN_AS_NODE=1 ${quote(process.execPath)} -e ${quote(ROOT_SCRIPT)} ${quote(JSON.stringify(args))}`;
+// When the dialog is needed, /usr/local/bin is root-owned (or absent under a root-owned /usr/local), so no process
+// running as the person can create an entry there while it is open. `ln` without -f refuses an existing file or link
+// and -h refuses to follow a link; a folder already there was classified foreign and never reaches this command. Only
+// SIP-protected system binaries run, with a cleared environment, so nothing the person can replace runs as root.
+export function adminCommand(target: Pick<PlannedTarget, "path" | "want">): string {
+  const run = "/usr/bin/env -i PATH=/usr/bin:/bin";
+  return `${run} /bin/mkdir -p ${quote(dirname(target.path))} && ${run} /bin/ln -s -h ${quote(target.want)} ${quote(target.path)}`;
+}
+
+function writableFolder(path: string): boolean {
+  try { accessSync(path, constants.W_OK); return statSync(path).isDirectory(); } catch { return false; }
 }
 
 function cancelledBefore(userData: string): boolean {
   try { return JSON.parse(readFileSync(join(userData, CANCELLED_FILE), "utf8")).adminCancelled === true; } catch { return false; }
 }
 
-async function writeSystem(target: PlannedTarget, action: "create" | "replace", before: Seen, options: AgentSetupOptions, home: string, log: (message: string) => void): Promise<Written> {
+// /usr/local/bin/doan is create-only (plan.ts classifyTarget): a writable folder gets the person's own exclusive
+// symlink, and only otherwise does Doan ask for administrator rights, once.
+async function writeSystem(target: PlannedTarget, before: Seen, options: AgentSetupOptions, home: string, log: (message: string) => void): Promise<Written> {
+  if (writableFolder(dirname(target.path))) return write(target, "create", before, home);
   const cancelled: Written = { ok: false, item: { target: target.target, path: target.path, providers: [...target.providers], reason: "admin-cancelled", rcFile: rcFileFor(options.shell) } };
   if (cancelledBefore(options.userData)) return cancelled;
-  const real = before.real ?? target.path, aside = asideName(real);
-  const result = await options.runAdmin(adminCommand(action === "replace" && before.value != null
-    ? { path: real, want: target.want, old: before.value, aside, parent: before.parent }
-    : { path: real, want: target.want, mkdir: true }));
+  const result = await options.runAdmin(adminCommand(target));
   if (result.kind === "cancelled") {
     try { writeFileSync(join(options.userData, CANCELLED_FILE), `${JSON.stringify({ adminCancelled: true })}\n`); }
     catch (error) { log(`cannot record the cancelled administrator dialog: ${errorCode(error)}`); }
     return cancelled;
   }
   if (result.kind === "failed") log(`administrator command failed: ${result.message}`);
-  if (kindOf(aside) !== "missing") return displaced(target, aside);
   const now = observe(target);
   if (now.kind === "symlink" && now.value === target.want) return { ok: true };
   return now.stamp !== before.stamp ? changed(target, home) : { ok: false, item: writeFailure(target, "administrator command failed") };
@@ -188,7 +194,7 @@ export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSe
     let step = decide(target, before, home, outcomes);
     let written: Written = { ok: step.action !== "skip", ...(step.action === "skip" && "item" in step ? { item: step.item } : {}) };
     if (step.action === "create" || step.action === "replace") {
-      written = target.target === "system-cli" ? await writeSystem(target, step.action, before, options, home, log) : write(target, step.action, before, home);
+      written = target.target === "system-cli" ? await writeSystem(target, before, options, home, log) : write(target, step.action, before, home);
       if (!written.ok) step = { target: target.target, path: target.path, ...(written.item ? { action: "skip", item: written.item } : { action: "changed" }) };
     }
     const item = written.ok ? undefined : written.item;

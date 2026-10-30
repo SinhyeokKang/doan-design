@@ -256,13 +256,25 @@ describe("the /usr/local/bin link", () => {
     expect(again.calls).toEqual([]);
   });
 
-  it("replaces only a link Doan made, rechecking its value in the administrator shell", async () => {
+  it("creates the link as the person, without the dialog, when /usr/local/bin is writable", async () => {
+    mkdirSync(systemBin, { recursive: true });
+    const admin = shellAdmin();
+    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: admin }));
+    expect(admin.calls).toEqual([]);
+    expect(result.items).toEqual([]);
+    expect(actions(result)["system-cli"]).toBe("create");
+    expect(readlinkSync(join(systemBin, "doan"))).toBe(`${share()}/current/bin/doan`);
+  });
+
+  // Doan never placed another form there, so nothing in /usr/local/bin is ever replaced under root.
+  it("leaves any other link there alone without asking, even one under Doan's folder", async () => {
     mkdirSync(systemBin, { recursive: true });
     symlinkSync(`${share()}/old/bin/doan`, join(systemBin, "doan"));
-    const result = await runAgentSetup(options({ loginPath: noLocalBin }));
-    expect(actions(result)["system-cli"]).toBe("replace");
-    expect(readlinkSync(join(systemBin, "doan"))).toBe(`${share()}/current/bin/doan`);
-    expect(readdirSync(systemBin)).toEqual(["doan"]);
+    const admin = shellAdmin();
+    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: admin }));
+    expect(admin.calls).toEqual([]);
+    expect(result.items).toEqual([{ target: "system-cli", path: join(systemBin, "doan"), providers: ALL, reason: "foreign", found: "link" }]);
+    expect(readlinkSync(join(systemBin, "doan"))).toBe(`${share()}/old/bin/doan`);
   });
 
   it("leaves a foreign /usr/local/bin/doan alone without asking", async () => {
@@ -325,6 +337,20 @@ describe("replacing a link", () => {
     expect(readlinkSync(cli())).toBe("/opt/homebrew/bin/doan");
     expect(result.items).toMatchObject([{ target: "cli", reason: "foreign", found: "link" }]);
     expect(leftovers(join(home, ".local/bin"))).toEqual([]);
+  });
+
+  // Node has no exclusive rename, so a folder is never moved back: it stays at the aside name and About says where.
+  it("keeps a foreign folder that arrives right before the swap at the aside name", async () => {
+    await outdated();
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (from === cli()) { rmSync(cli()); mkdirSync(cli()); writeFileSync(join(cli(), "mine"), "x"); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    const [aside] = leftovers(join(home, ".local/bin"));
+    expect(readFileSync(join(home, ".local/bin", aside!, "mine"), "utf8")).toBe("x");
+    expect(existsSync(cli())).toBe(false);
+    expect(result.items).toEqual([{ target: "cli", path: cli(), providers: ALL, reason: "write-failed", cause: "displaced", at: join(home, ".local/bin", aside!), code: "EEXIST" }]);
   });
 
   it("leaves a file that arrives right after the old link is moved aside", async () => {
@@ -391,28 +417,44 @@ describe("replacing a link", () => {
 describe("the administrator command", () => {
   const noLocalBin = "/usr/bin:/bin";
   const target = () => join(systemBin, "doan");
-  // Runs the command as the administrator shell would, after `before` changes the target during the dialog.
-  const pending = (before: () => void) => async (command: string): Promise<AdminResult> => {
-    before();
-    try { execFileSync("/bin/sh", ["-c", command], { stdio: "ignore" }); return { kind: "ok" }; } catch { return { kind: "failed", message: "exit" }; }
+  // A root-owned /usr/local/bin: read-only for this user except while the fake administrator shell runs the command,
+  // after `during` changes the target as something running as root could.
+  function rootOwned(): void { mkdirSync(systemBin, { recursive: true }); chmodSync(systemBin, 0o555); }
+  const asRoot = (during: () => void = () => {}) => async (command: string): Promise<AdminResult> => {
+    chmodSync(systemBin, 0o755);
+    try { during(); execFileSync("/bin/sh", ["-c", command], { stdio: "ignore" }); return { kind: "ok" }; }
+    catch { return { kind: "failed", message: "exit" }; }
+    finally { chmodSync(systemBin, 0o555); }
   };
+  afterEach(() => { if (existsSync(systemBin)) chmodSync(systemBin, 0o755); });
 
-  it.each([
-    ["a folder", () => mkdirSync(target(), { recursive: true }), "folder"],
-    ["a link to a folder", () => { mkdirSync(join(temp, "elsewhere")); mkdirSync(systemBin, { recursive: true }); symlinkSync(join(temp, "elsewhere"), target()); }, "link"],
-  ] as const)("writes nothing inside %s that appears while the dialog is open", async (_, appear, found) => {
-    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: pending(appear) }));
-    expect(result.items).toEqual([{ target: "system-cli", path: target(), providers: ALL, reason: "foreign", found }]);
-    expect(readdirSync(found === "folder" ? target() : join(temp, "elsewhere"))).toEqual([]);
+  it("runs only absolute system binaries under a cleared environment", () => {
+    const command = adminCommand({ path: "/usr/local/bin/doan", want: "/Users/o'neil/.local/share/doan/current/bin/doan" });
+    expect(command).toBe("/usr/bin/env -i PATH=/usr/bin:/bin /bin/mkdir -p '/usr/local/bin' && /usr/bin/env -i PATH=/usr/bin:/bin /bin/ln -s -h '/Users/o'\\''neil/.local/share/doan/current/bin/doan' '/usr/local/bin/doan'");
+    expect(command).not.toContain(process.execPath);
   });
 
-  it("puts back a foreign file that replaces Doan's old link while the dialog is open", async () => {
-    mkdirSync(systemBin, { recursive: true });
-    symlinkSync(`${share()}/old/bin/doan`, target());
-    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: pending(() => { rmSync(target()); writeFileSync(target(), "FOREIGN"); }) }));
+  it("asks when /usr/local/bin is not writable and creates the link there", async () => {
+    rootOwned();
+    const admin = vi.fn(asRoot());
+    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: admin }));
+    expect(admin).toHaveBeenCalledTimes(1);
+    expect(result.items).toEqual([]);
+    expect(readlinkSync(target())).toBe(`${share()}/current/bin/doan`);
+  });
+
+  it("does not follow a link to a folder that appears while the dialog is open", async () => {
+    rootOwned(); mkdirSync(join(temp, "elsewhere"));
+    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: asRoot(() => symlinkSync(join(temp, "elsewhere"), target())) }));
+    expect(result.items).toEqual([{ target: "system-cli", path: target(), providers: ALL, reason: "foreign", found: "link" }]);
+    expect(readdirSync(join(temp, "elsewhere"))).toEqual([]);
+  });
+
+  it("does not replace a file that appears while the dialog is open", async () => {
+    rootOwned();
+    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: asRoot(() => writeFileSync(target(), "FOREIGN")) }));
     expect(readFileSync(target(), "utf8")).toBe("FOREIGN");
     expect(result.items).toEqual([{ target: "system-cli", path: target(), providers: ALL, reason: "foreign", found: "file" }]);
-    expect(readdirSync(systemBin)).toEqual(["doan"]);
   });
 
   it("handles paths with spaces and quotes", async () => {
@@ -420,14 +462,5 @@ describe("the administrator command", () => {
     const created = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: shellAdmin() }));
     expect(created.items).toEqual([]);
     expect(readlinkSync(target())).toBe(`${share()}/current/bin/doan`);
-    rmSync(target()); symlinkSync(`${share()}/old/bin/doan`, target());
-    expect(actions(await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: shellAdmin() })))["system-cli"]).toBe("replace");
-    expect(readlinkSync(target())).toBe(`${share()}/current/bin/doan`);
-  });
-
-  it("runs the swap under this executable as Node", () => {
-    const command = adminCommand({ path: "/usr/local/bin/doan", want: "/Users/u/.local/share/doan/current/bin/doan", mkdir: true });
-    expect(command.startsWith(`ELECTRON_RUN_AS_NODE=1 '${process.execPath}' -e '`)).toBe(true);
-    expect(command).not.toMatch(/\/bin\/(ln|mv) /);
   });
 });
