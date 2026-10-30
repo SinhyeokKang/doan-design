@@ -31,6 +31,24 @@ test("every notice shares one style on the base class; tones colour the text onl
   expect(css).not.toMatch(/\.doan-notice[^{]*\.doan-alert-icon\s*\{[^}]*color/);
 });
 
+test("a notice's text parts take no ink of their own, so the title, body, lines and agent names follow the tone", () => {
+  // Code chips and buttons keep their own ink; every other text inside a notice inherits the notice's tone colour.
+  const parts = /\.(ob-notice-title|ob-notice-body|strip-text|setup-notice-body|setup-notice-list|setup-notice-item|setup-notice-agents|grow-text)(?![\w-])/;
+  const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
+  const inked: string[] = [];
+  for (const [, selectors, body] of sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const colours = body!.split(";").some(d => d.split(":")[0]!.trim() === "color");
+    if (!colours) continue;
+    // :not(...) arguments exclude elements, so they do not make a rule target a notice.
+    for (const selector of selectors!.split(",").map(s => s.trim().replace(/:not\([^)]*\)/g, ""))) {
+      const subject = selector.split(/[\s>+~]+/).at(-1)!;
+      const insideNotice = /\.(doan-notice|convo-strip|setup-notice)(?![\w-])/.test(selector) && !/^(code|button|a|\.doan-button|\.doan-kbd)\b/.test(subject) && selector.trim() !== subject;
+      if (parts.test(selector) || insideNotice) inked.push(`${selector} { ${body!.trim()} }`);
+    }
+  }
+  expect(inked).toEqual([]);
+});
+
 test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
   const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|fb-note|handoff-notice|handoff-status|convo-strip)(?![\w-])/;
   const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");

@@ -79,6 +79,14 @@ test("/ at the start opens a combobox on the field; arrows move, Enter picks and
   expect(focus).toHaveBeenCalled();
 });
 
+test("a preset read that fails, or an older CLI, shows its notice on the panel surface: the popover is glass over Home's gradient", () => {
+  const older = { v: 1, ok: false, error: { code: "usage_error", message: "unknown command", nextSteps: [] } } as unknown as PresetListReply;
+  const failed = { v: 1, ok: false, error: { code: "cli_error", reason: "failed", message: "The doan CLI stopped without a result.", nextSteps: [] } } as unknown as PresetListReply;
+  const notice = (presets: PresetListReply) => find(setup({ text: "/", presets }).render(), props => typeof props.className === "string" && props.className.startsWith("doan-notice"));
+  expect(notice(older).className).toBe("doan-notice doan-panel");
+  expect(notice(failed).className).toBe("doan-notice error doan-panel");
+});
+
 test("Enter while an IME composes neither picks a preset nor sends", () => {
   const { box, start, render } = setup({ text: "/cri" });
   call(field(render()), "onKeyDown", key("Enter", { nativeEvent: { isComposing: true } }));
