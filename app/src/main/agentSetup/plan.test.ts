@@ -1,0 +1,152 @@
+import { describe, expect, it } from "vitest";
+import { classifyTarget, installEligibility, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
+
+const HOME = "/Users/u";
+const SHARE = `${HOME}/.local/share/doan`;
+const RESOURCES = "/Applications/Doan.app/Contents/Resources";
+const link = (value: string): Observation => ({ kind: "symlink", value });
+const MISSING: Observation = { kind: "missing" };
+
+describe("installEligibility", () => {
+  it.each([
+    ["/Applications/Doan.app", true, "eligible"],
+    [`${HOME}/Applications/Doan.app`, true, "eligible"],
+    // The bundle name is not checked: a renamed copy in Applications sets up agents too.
+    ["/Applications/Doan 2.app", true, "eligible"],
+    ["/Applications/Doan.app", false, "dev"],
+    ["/Applications/Tools/Doan.app", true, "outside-applications"],
+    [`${HOME}/code/doan/app/dist/mac-arm64/Doan.app`, true, "outside-applications"],
+    ["/Users/other/Applications/Doan.app", true, "outside-applications"],
+    ["/private/var/folders/x/AppTranslocation/1234/d/Doan.app", true, "translocated"],
+  ] as const)("%s packaged=%s is %s", (bundle, packaged, expected) => {
+    expect(installEligibility(bundle, HOME, packaged)).toBe(expected);
+  });
+});
+
+describe("needsSystemLink", () => {
+  it("is true only when ~/.local/bin is not on the login shell's PATH", () => {
+    expect(needsSystemLink("/usr/bin:/bin", HOME)).toBe(true);
+    expect(needsSystemLink(`/usr/bin:${HOME}/.local/bin/`, HOME)).toBe(false);
+    expect(needsSystemLink(`/usr/bin:${HOME}/.local/bin`, HOME)).toBe(false);
+    // A relative entry is not the directory, whatever the working directory.
+    expect(needsSystemLink(".local/bin:/bin", HOME)).toBe(true);
+    // Without a PATH there is no evidence the dialog is needed.
+    expect(needsSystemLink(null, HOME)).toBe(false);
+  });
+});
+
+describe("classifyTarget", () => {
+  // Classification reads the link value only: an existing and a broken target with the same value classify alike, so
+  // each protected value appears with a path that exists on a Mac (/Applications, /opt) and one that does not.
+  it.each([
+    ["cli", link(`${SHARE}/current/bin/doan`), "ours"],
+    ["cli", link("/Applications/Doan.app/Contents/Resources/bin/doan"), "legacy-ours"],
+    ["cli", link("/Users/u/code/onboard-l2/app/dist/mac-arm64/doan.APP/Contents/Resources/bin/doan"), "legacy-ours"],
+    ["cli", link("../share/doan/current/bin/doan"), "foreign"],
+    ["cli", link("../../Applications/Doan.app/Contents/Resources/bin/doan"), "foreign"],
+    ["cli", link("/opt/homebrew/bin/doan"), "foreign"],
+    ["cli", link("/nowhere/bin/doan"), "foreign"],
+    ["cli", link(`${SHARE}/../../../../etc/doan`), "foreign"],
+    ["cli", link("/Users/other/.local/share/doan/current/bin/doan"), "foreign"],
+    ["cli", { kind: "file" }, "foreign"],
+    ["cli", { kind: "directory" }, "foreign"],
+    ["cli", { kind: "other" }, "foreign"],
+    ["cli", MISSING, "missing"],
+    ["system-cli", link(`${SHARE}/current/bin/doan`), "ours"],
+    // Connect never wrote /usr/local/bin, so the legacy form is someone else's there.
+    ["system-cli", link("/Applications/Doan.app/Contents/Resources/bin/doan"), "foreign"],
+    ["current", link("/Applications/Doan 2.app/Contents/Resources"), "ours"],
+    ["current", link("/nowhere/Doan.app/Contents/Resources"), "ours"],
+    ["current", { kind: "directory" }, "foreign"],
+    ["current", { kind: "file" }, "foreign"],
+    ["skill", link("/elsewhere"), "ours"],
+    ["claude-skill", link(`${SHARE}/skill`), "ours"],
+    ["claude-skill", link("../../.agents/skills/doan"), "legacy-ours"],
+    ["claude-skill", link("../.agents/skills/doan"), "foreign"],
+    ["claude-skill", link("/Users/u/.agents/skills/doan"), "foreign"],
+    ["claude-skill", { kind: "directory" }, "foreign"],
+    ["agents-skill", link("../../.agents/skills/doan"), "foreign"],
+    // Connect's copied stub folder is left for the person to delete.
+    ["agents-skill", { kind: "directory" }, "foreign"],
+    ["agents-skill", link("/opt/homebrew"), "foreign"],
+    ["gemini-skill", link(`${SHARE}/skill`), "ours"],
+    ["gemini-skill", MISSING, "missing"],
+  ] as const)("%s %j is %s", (target, observation, expected) => {
+    expect(classifyTarget(target, HOME, observation)).toBe(expected);
+  });
+});
+
+describe("plannedTargets", () => {
+  it("lists ego's layout with absolute values from HOME and the bundle", () => {
+    expect(plannedTargets(HOME, RESOURCES, ["claude", "codex", "gemini"], true).map(t => [t.target, t.path, t.want])).toEqual([
+      ["current", `${SHARE}/current`, RESOURCES],
+      ["skill", `${SHARE}/skill`, `${SHARE}/current/skills/doan`],
+      ["cli", `${HOME}/.local/bin/doan`, `${SHARE}/current/bin/doan`],
+      ["system-cli", "/usr/local/bin/doan", `${SHARE}/current/bin/doan`],
+      ["agents-skill", `${HOME}/.agents/skills/doan`, `${SHARE}/skill`],
+      ["claude-skill", `${HOME}/.claude/skills/doan`, `${SHARE}/skill`],
+      ["gemini-skill", `${HOME}/.gemini/config/skills/doan`, `${SHARE}/skill`],
+    ]);
+  });
+
+  it("leaves out missing provider folders and the system link when PATH has ~/.local/bin", () => {
+    expect(plannedTargets(HOME, RESOURCES, [], false).map(t => t.target)).toEqual(["current", "skill", "cli", "agents-skill"]);
+    expect(plannedTargets(HOME, RESOURCES, ["gemini"], false).map(t => t.target)).toEqual(["current", "skill", "cli", "agents-skill", "gemini-skill"]);
+  });
+});
+
+describe("plan", () => {
+  const targets = plannedTargets(HOME, RESOURCES, ["claude", "gemini"], false);
+  const settled = (overrides: Record<string, Observation> = {}): Record<string, Observation> =>
+    Object.fromEntries(targets.map(t => [t.target, overrides[t.target] ?? { ...link(t.want), real: t.path }]));
+  const actions = (steps: ReturnType<typeof plan>) => steps.map(step => [step.target, step.action === "skip" ? ("on" in step ? `skip:${step.on}` : `skip:${step.item.reason}`) : step.action]);
+
+  it("creates everything on a fresh HOME", () => {
+    const observations = Object.fromEntries(targets.map(t => [t.target, { ...MISSING, real: t.path }]));
+    expect(actions(plan(targets, observations, HOME)).map(([, action]) => action)).toEqual(Array(targets.length).fill("create"));
+  });
+
+  it("keeps everything on the second run", () => {
+    expect(actions(plan(targets, settled(), HOME)).map(([, action]) => action)).toEqual(Array(targets.length).fill("keep"));
+  });
+
+  it("replaces only current after the app moves", () => {
+    expect(actions(plan(targets, settled({ current: { ...link("/Users/u/Applications/Doan.app/Contents/Resources"), real: `${SHARE}/current` } }), HOME))).toEqual([
+      ["current", "replace"], ["skill", "keep"], ["cli", "keep"], ["agents-skill", "keep"], ["claude-skill", "keep"], ["gemini-skill", "keep"],
+    ]);
+  });
+
+  it("replaces Connect's legacy links", () => {
+    expect(actions(plan(targets, settled({
+      cli: { ...link("/Users/u/code/onboard-l2/app/dist/mac-arm64/Doan.app/Contents/Resources/bin/doan"), real: `${HOME}/.local/bin/doan` },
+      "claude-skill": { ...link("../../.agents/skills/doan"), real: `${HOME}/.claude/skills/doan` },
+    }), HOME)).filter(([, action]) => action !== "keep")).toEqual([["cli", "replace"], ["claude-skill", "replace"]]);
+  });
+
+  it("skips everything that goes through a foreign current and reports current only", () => {
+    const steps = plan(targets, settled({ current: { kind: "directory", real: `${SHARE}/current` } }), HOME);
+    expect(actions(steps)).toEqual([
+      ["current", "skip:foreign"], ["skill", "skip:current"], ["cli", "skip:current"], ["agents-skill", "skip:current"], ["claude-skill", "skip:current"], ["gemini-skill", "skip:current"],
+    ]);
+    expect(steps[0]).toMatchObject({ item: { target: "current", path: `${SHARE}/current`, reason: "foreign", found: "folder", providers: ["claude", "codex", "cursor", "antigravity", "copilot"] } });
+  });
+
+  it("skips the skill links behind a foreign skill link, not the CLI", () => {
+    expect(actions(plan(targets, settled({ skill: { kind: "file", real: `${SHARE}/skill` } }), HOME))).toEqual([
+      ["current", "keep"], ["skill", "skip:foreign"], ["cli", "keep"], ["agents-skill", "skip:skill"], ["claude-skill", "skip:skill"], ["gemini-skill", "skip:skill"],
+    ]);
+  });
+
+  it("reports a blocked ancestor as a write failure", () => {
+    const steps = plan(targets, settled({ "gemini-skill": { kind: "missing", blockedParent: `${HOME}/.gemini/config`, real: null } }), HOME);
+    expect(steps.at(-1)).toMatchObject({ action: "skip", item: { target: "gemini-skill", reason: "write-failed", cause: "blocked-parent", at: `${HOME}/.gemini/config` } });
+  });
+
+  it("counts ~/.claude/skills resolving to ~/.agents/skills as one target", () => {
+    const shared = `${HOME}/.agents/skills/doan`;
+    const steps = plan(targets, settled({ "agents-skill": { kind: "directory", real: shared }, "claude-skill": { kind: "directory", real: shared } }), HOME);
+    expect(actions(steps).slice(3, 5)).toEqual([["agents-skill", "skip:foreign"], ["claude-skill", "shared"]]);
+    expect(steps[3]).toMatchObject({ item: { providers: ["claude", "codex", "cursor", "copilot"] } });
+  });
+
+});
