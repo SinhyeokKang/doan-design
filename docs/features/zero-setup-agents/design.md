@@ -83,6 +83,8 @@ ego lite 0.6.2.5(`/Applications/ego lite.app`)와 공개 리포 `citrolabs/ego-l
 
 ## draft 요청 (T0b)
 
+- 상태: 사용자가 2026-10-31 draft round 1(`501db9fe`)을 확정했다. `/design-sync`는 `about-skipped`, `about-several`, `about-not-eligible`, `agents`를 비교 기준으로 쓴다.
+
 - canvas: `.doan/canvases/zero-setup-agents.html`, id `zero-setup-agents`, width 2560. 출시된 About·Agents 창(`buzz-settings.html`의 `about`, `agents` 창과 `SettingsAbout.tsx`, `SettingsPage.tsx`)을 옮겨 그리고, 사이드바에서 Connections만 뺀다.
 - frame:
   - `about` — Settings · About, 모두 설치됨(알림 없음).
