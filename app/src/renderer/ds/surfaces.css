@@ -171,10 +171,10 @@
 }
 
 /* ── Notices ─────────────────────────────────────────────────────────────────
-   An inset fill in standard ink, never a coloured edge. Every notice leads with an icon on its
-   first line of text: the alert icon, or a spinner or status mark in that slot; a warning or an
-   error tints it so that colour is not the only signal. Every notice has this one size (padding,
-   gap, radius, type, icon size); a variant changes only its surface. */
+   An inset fill, never a coloured edge. Every notice leads with an icon on its first line of
+   text: the alert icon, or a spinner or status mark in that slot, in the text's colour. Every
+   notice shares one style (padding, gap, radius, type, icon size and alignment); only the tone,
+   which colours the text, and the surface (inset, or doan-panel's fill and shadow) differ. */
 .doan-notice {
   display: flex;
   align-items: flex-start;
@@ -187,13 +187,14 @@
   line-height: var(--type-body-sm-line-height);
   overflow-wrap: anywhere;
 }
-.doan-notice.warning > .doan-alert-icon { color: var(--text-warning); }
-.doan-notice.error > .doan-alert-icon { color: var(--text-danger); }
+/* The tone colours the whole text and the icon follows it; code chips, links and buttons inside keep their own ink. */
+.doan-notice.warning { color: var(--text-warning); }
+.doan-notice.error { color: var(--text-danger); }
+.doan-notice.ok { color: var(--text-success); }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 /* On a backdrop that is not plain opaque white (first run's transparent overlay, Home's gradient)
-   the notice takes the white panel surface and shadow; an error's icon there follows the text ink. */
+   the notice takes the white panel surface and shadow (from doan-panel); nothing else changes. */
 .doan-notice.doan-panel { background: var(--surface-panel); }
-.doan-notice.error.doan-panel > .doan-alert-icon { color: inherit; }
 
 /* ── Settings group ──────────────────────────────────────────────────────────
    A bordered container of preference rows split by lines: a title column with an optional

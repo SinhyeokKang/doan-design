@@ -45,8 +45,10 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     : state.kind === "done" ? <CircleCheck className="strip-ok" aria-hidden="true" />
     : <img className="logo" src={providerLogo(provider)} alt="" />;
   // A permission request is announced once: its alert is a new element per request.
-  return <div className="convo-strip doan-notice" role="region" aria-label="Conversation">
-    <span className="strip-agent">{mark}</span>
+  // The state's tone colours the strip's text and its mark, as on every notice.
+  const tone = state.kind === "failed" ? " error" : state.kind === "done" ? " ok" : "";
+  return <div className={`convo-strip doan-notice${tone}`} role="region" aria-label="Conversation">
+    <span className="strip-agent doan-alert-icon">{mark}</span>
     <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
     <span className="strip-actions">{view.actions.map(action => {
       // The draft (workspace-strip, states-strip) fills Allow; the other answers, Edit on Home and Open rest on the panel

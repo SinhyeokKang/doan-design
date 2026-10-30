@@ -755,7 +755,7 @@ body:has(.shell-top) { background: transparent; }
 .drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--affordance-accent); outline-offset: -2px; }
 @media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
 .composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
-.composer-notice { margin-top: var(--space-3); align-items: center; }
+.composer-notice { margin-top: var(--space-3); }
 .grow-text { flex: 1; min-width: 0; }
 /* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
 .home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }
@@ -772,14 +772,11 @@ body:has(.shell-top) { background: transparent; }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
 .workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
 .workspace.with-strip > :is(.area, .ov) { border-top-left-radius: 0; }
-.convo-strip.doan-notice { align-items: center; }
 .strip-agent { display: inline-grid; place-items: center; flex: none; }
 .strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
-.strip-alert { color: var(--text-danger); }
-.strip-ok { color: var(--text-success); }
-.strip-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
 .strip-text b { font-weight: var(--type-weight-medium); }
-.strip-text span { color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .strip-actions { display: flex; align-items: center; gap: var(--space-2); }
 
 /* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */

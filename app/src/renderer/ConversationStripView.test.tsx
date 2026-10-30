@@ -40,15 +40,19 @@ const text = (props: Record<string, unknown>) => Children.toArray(props.children
 test("the strip is the shared notice with the provider mark, a status line and its actions (draft workspace-working)", () => {
   const html = render({ kind: "working", activity: "Editing .doan/canvases/design-system.html" });
   expect(html).toContain('<div class="convo-strip doan-notice" role="region" aria-label="Conversation">');
-  expect(html).toContain('<span class="strip-agent"><img class="logo" src="provider-logos/claude.png" alt=""/></span>');
+  expect(html).toContain('<span class="strip-agent doan-alert-icon"><img class="logo" src="provider-logos/claude.png" alt=""/></span>');
   expect(html).toContain('<span class="strip-text" role="status"><b>Claude Code is working</b><span>Editing .doan/canvases/design-system.html</span></span>');
   expect(html).toMatch(/<button data-strip-stop="" type="button" class="doan-button" data-ui-size="sm"><svg[^>]*aria-hidden="true"[^>]*>.*<\/svg>Stop<\/button>/);
 });
 
 test("starting shows a spinner, failed an alert mark and done a check, as the states board draws them", () => {
-  expect(render({ kind: "starting" })).toContain('<span class="strip-agent"><span class="doan-spinner" aria-hidden="true"></span></span>');
-  expect(render({ kind: "failed", code: "process_exited" })).toMatch(/<span class="strip-agent"><svg[^>]*class="lucide[^"]*strip-alert"/);
-  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toMatch(/<span class="strip-agent"><svg[^>]*class="lucide[^"]*strip-ok"/);
+  expect(render({ kind: "starting" })).toContain('<span class="strip-agent doan-alert-icon"><span class="doan-spinner" aria-hidden="true"></span></span>');
+  expect(render({ kind: "failed", code: "process_exited" })).toMatch(/<span class="strip-agent doan-alert-icon"><svg[^>]*class="lucide[^"]*strip-alert"/);
+  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toMatch(/<span class="strip-agent doan-alert-icon"><svg[^>]*class="lucide[^"]*strip-ok"/);
+  // The state's tone colours the strip's text and mark: failed is an error, done is ok, the rest neutral.
+  expect(render({ kind: "failed", code: "process_exited" })).toContain('<div class="convo-strip doan-notice error" role="region"');
+  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<div class="convo-strip doan-notice ok" role="region"');
+  expect(render({ kind: "starting" })).toContain('<div class="convo-strip doan-notice" role="region"');
 });
 
 test("a permission request is an alert keyed to the request; Allow is drawn prominent but never autofocused", () => {

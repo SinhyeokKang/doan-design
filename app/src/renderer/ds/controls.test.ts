@@ -16,12 +16,33 @@ test("the lg button is 48px with 16/24 text and 12/32 padding; default 40 and sm
   for (const [name, value] of [["--size-control-lg", "48px"], ["--size-control", "40px"], ["--size-control-sm", "32px"], ["--type-label-size", "16px"], ["--type-label-line-height", "24px"]]) expect(tokens).toContain(`${name}: ${value};`);
 });
 
-test("every notice has one size and standard ink; on a panel it changes only the fill, and an error's icon inherits the ink", () => {
+test("every notice shares one style on the base class; tones colour the text only and doan-panel changes only the surface", () => {
   const css = read("./surfaces.css");
   const base = rule(css, ".doan-notice")!;
-  for (const declaration of ["gap: var(--space-1h);", "padding: var(--space-3) var(--space-4);", "border-radius: var(--radius-row);", "color: var(--text-standard);", "font-size: var(--type-body-sm-size);", "line-height: var(--type-body-sm-line-height);"]) expect(base).toContain(declaration);
+  for (const declaration of ["align-items: flex-start;", "gap: var(--space-1h);", "padding: var(--space-3) var(--space-4);", "border-radius: var(--radius-row);", "color: var(--text-standard);", "font-size: var(--type-body-sm-size);", "line-height: var(--type-body-sm-line-height);"]) expect(base).toContain(declaration);
+  expect(rule(css, ".doan-notice.warning")).toBe("color: var(--text-warning);");
+  expect(rule(css, ".doan-notice.error")).toBe("color: var(--text-danger);");
+  expect(rule(css, ".doan-notice.ok")).toBe("color: var(--text-success);");
   expect(rule(css, ".doan-notice.doan-panel")).toBe("background: var(--surface-panel);");
-  expect(css).toContain(".doan-notice.error.doan-panel > .doan-alert-icon { color: inherit; }");
+  // The icon follows the text: no rule colours it on its own.
+  expect(css).not.toMatch(/\.doan-notice[^{]*\.doan-alert-icon\s*\{[^}]*color/);
+});
+
+test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
+  const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|fb-note|handoff-notice|handoff-status|convo-strip)(?![\w-])/;
+  const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
+  const shared = new Set([".doan-notice", ".doan-notice.warning", ".doan-notice.error", ".doan-notice.ok", ".doan-notice.doan-panel"]);
+  const offenders: string[] = [];
+  for (const [, selectors, body] of sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const selector of selectors!.split(",").map(s => s.trim())) {
+      // The rule's subject is the last compound selector, without :not(...) arguments.
+      const subject = selector.replace(/:not\([^)]*\)/g, "").split(/[\s>+~]+/).at(-1)!;
+      if (!notice.test(subject) || shared.has(selector)) continue;
+      const properties = body!.split(";").map(d => d.split(":")[0]!.trim()).filter(Boolean);
+      if (properties.some(prop => !prop.startsWith("margin"))) offenders.push(`${selector} { ${body!.trim()} }`);
+    }
+  }
+  expect(offenders).toEqual([]);
 });
 
 test("quiet, trigger and accent own their hover and pressed fills, so the shared opaque rules skip them", () => {
