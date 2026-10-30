@@ -54,7 +54,7 @@ test("starting shows a spinner, failed an alert mark and done a check, as the st
 test("a permission request is an alert keyed to the request; Allow is drawn prominent but never autofocused", () => {
   const html = render(ASK);
   expect(html).toContain('<span class="strip-text" role="alert"><b>Claude Code needs your answer</b><span>Edit .doan/canvases/design-system.html</span></span>');
-  expect(html).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Deny</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Always allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button>');
+  expect(html).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Deny</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Always allow</button><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Allow</button>');
   expect(html).not.toMatch(/autofocus/i);
 });
 
@@ -83,10 +83,10 @@ test("Stop calls interruptConversation; Edit on Home, Dismiss and Open call thei
   expect(dismiss).toHaveBeenCalledTimes(2);
 });
 
-test("failed and stopped offer Edit on Home (subtle) and Dismiss; done offers Open (subtle) and Dismiss", () => {
-  expect(render({ kind: "failed", code: "not_logged_in" })).toContain('<b>Claude Code’s sign-in expired</b><span>Edit your request on Home and choose another agent.</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Edit on Home</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
+test("failed and stopped offer Edit on Home (panel) and Dismiss; done offers Open (panel) and Dismiss", () => {
+  expect(render({ kind: "failed", code: "not_logged_in" })).toContain('<b>Claude Code’s sign-in expired</b><span>Edit your request on Home and choose another agent.</span></span><span class="strip-actions"><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button></span>');
   expect(render({ kind: "interrupted", reason: "user" })).toContain("<b>Stopped</b><span>You stopped this conversation.</span>");
-  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Open</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button>');
+  expect(render({ kind: "done" }, { ...CTX, canvas: "design-system" })).toContain('<button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Open</button><button type="button" class="doan-button" data-ui-size="sm">Dismiss</button>');
 });
 
 // Review BU3 🟡6/🟡7: the alert line is keyed to its request, so React keeps the node (one announcement) while the

@@ -73,6 +73,10 @@
 }
 :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"] { background: var(--affordance-prominent); color: var(--text-on-prominent); }
 :is(.doan-button, .doan-icon-button)[data-ui-variant="subtle"] { background: var(--affordance-subtle); }
+/* Panel stands on a notice's inset fill, where subtle's fill is the same grey: it rests on the panel
+   white; its hover steps darker than the inset fill (subtle's hover is lighter than it) and its
+   pressed fill is subtle's, so both read on the inset fill and on white. */
+:is(.doan-button, .doan-icon-button)[data-ui-variant="panel"] { background: var(--surface-panel); }
 /* Quiet sits over a decorated background (Home's suggested prompts): the header capsule's
    translucent fill, blurred so the decoration behind never fights the label. */
 .doan-button[data-ui-variant="quiet"] { background: var(--affordance-backdrop-hover); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); }
@@ -88,6 +92,8 @@
 @media (hover: hover) and (pointer: fine) {
   :is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"]:hover:not(:disabled) { background: var(--affordance-prominent-hover); }
   :is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]):hover:not(:disabled) { background: var(--affordance-subtle-hover); }
+  /* Same weight as the shared rule above, so it wins by coming after it. */
+  :is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled) { background: var(--affordance-panel-hover); }
   .doan-icon-button[data-ui-placement="chrome"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
   /* Quiet adds one backdrop layer over its own, like the header tabs, so the chip stays
      translucent; an inset shadow stacks the layer and still eases. */
@@ -111,7 +117,7 @@
 /* Disabled is a state of its own rather than a faded emphasis: a filled control turns to
    the disabled fill, a ghost one keeps no fill, and both take the disabled ink. */
 :is(.doan-button, .doan-icon-button):is(:disabled, [data-disabled]) { background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
-:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="panel"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }
 
 /* Keyboard focus is one ring outside the control, the same on every emphasis. */
 :is(.doan-button, .doan-icon-button, .doan-checkbox, .doan-chip):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }

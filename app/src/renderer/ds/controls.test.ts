@@ -30,7 +30,20 @@ test("quiet, trigger and accent own their hover and pressed fills, so the shared
   expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:hover:not(:disabled) { background: var(--affordance-subtle-hover); }`);
   expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }`);
   // A disabled Send keeps the disabled fill instead of vanishing like a ghost button.
-  expect(css).toContain(':is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }');
+  expect(css).toContain(':is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="panel"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }');
+});
+
+test("panel rests on the panel white for a notice's inset fill, hovers one step darker, takes subtle's pressed fill and the shared disabled fill", () => {
+  const css = read("./controls.css");
+  expect(css).toContain(':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"] { background: var(--surface-panel); }');
+  // Its hover comes after the shared opaque hover of the same weight, so it wins.
+  const hover = ':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled) { background: var(--affordance-panel-hover); }';
+  expect(css.indexOf(hover)).toBeGreaterThan(css.indexOf(":hover:not(:disabled) { background: var(--affordance-subtle-hover); }"));
+  expect(read("../tokens.css")).toContain("--affordance-panel-hover: var(--neutral-3);");
+  // Not excluded from the shared pressed rule, and a filled control when disabled.
+  expect(css).not.toMatch(/:not\([^)]*\[data-ui-variant="panel"\][^)]*\):hover/);
+  expect(css).not.toMatch(/:not\([^)]*\[data-ui-variant="panel"\][^)]*\):is\(:active/);
+  expect(css).toMatch(/:not\(\[data-ui-variant="prominent"\], \[data-ui-variant="subtle"\], \[data-ui-variant="panel"\], \[data-ui-variant="accent"\]\):is\(:disabled, \[data-disabled\]\) \{ background: transparent; \}/);
 });
 
 test("quiet is the header capsule's backdrop with a blur, and steps one backdrop layer on hover and pressed", () => {

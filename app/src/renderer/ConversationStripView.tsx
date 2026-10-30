@@ -49,8 +49,9 @@ export function ConversationStrip({ conversationId, provider, state, view, onEdi
     <span className="strip-agent">{mark}</span>
     <span key={view.alertKey ?? "status"} className="strip-text" role={view.live}><b>{view.title}</b>{view.body && <span>{view.body}</span>}</span>
     <span className="strip-actions">{view.actions.map(action => {
-      // The draft (workspace-strip, states-strip) fills Allow and keeps the other answers, Edit on Home and Open subtle.
-      const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "subtle") : action.command === "editOnHome" || action.command === "open" ? "subtle" : undefined;
+      // The draft (workspace-strip, states-strip) fills Allow; the other answers, Edit on Home and Open rest on the panel
+      // white, since the strip's inset fill is subtle's own grey.
+      const variant = action.command === "answer" ? (action.kind === "allow" ? "prominent" : "panel") : action.command === "editOnHome" || action.command === "open" ? "panel" : undefined;
       const key = action.command === "answer" ? `answer-${action.optionId}` : action.command;
       // data-strip-stop: App focuses Stop after a Home send's move, never a permission answer (design §4.9, §7).
       return <button key={key} ref={action.command === "stop" ? stopRef : action.command === "dismiss" ? dismiss : undefined} data-strip-stop={action.command === "stop" ? "" : undefined} type="button" className="doan-button" data-ui-size="sm" data-ui-variant={variant} onClick={() => run(action)}>
