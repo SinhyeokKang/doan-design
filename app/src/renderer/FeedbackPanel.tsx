@@ -245,7 +245,7 @@ export function FeedbackPanel(props: FeedbackPanelProps) {
     const lineAt = shownLine ? ids.indexOf(places.current.get(orphanKey(root, group.id, shownLine.comment)) ?? "") : -1;
     const statusLine = shownLine && <p key="status-line" className="comments-status" role="status">{shownLine.text}</p>;
     return <>
-      <p className={readOnly ? "fb-note doan-notice warning" : "fb-note doan-notice"}>{readOnly && <AlertIcon />}{readOnly ? READ_ONLY : NOTICE(group.id)}</p>
+      <p className={readOnly ? "fb-note doan-notice warning" : "fb-note doan-notice"}><AlertIcon />{readOnly ? READ_ONLY : NOTICE(group.id)}</p>
       {group.comments.flatMap((comment, index) => {
         const key = orphanKey(root, group.id, comment.comment);
         order.push(cardKey(key));

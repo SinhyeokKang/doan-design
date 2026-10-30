@@ -109,7 +109,7 @@ describe("FeedbackPanel orphan cards (draft orphan-cards)", () => {
 
   test("notice, then the shared card with Resolve and Delete, no Edit, no locate", () => {
     const html = render({ read: list([], [orphan("checkout-v1", 1, 1)], [{ id: "checkout-v1", comments: [open, done] }]) });
-    expect(html).toContain('<p class="fb-note doan-notice">No canvas uses the ID checkout-v1. Give a canvas this ID again to bring these comments back, or ask your agent.</p>');
+    expect(html).toContain(`<p class="fb-note doan-notice">${icon}No canvas uses the ID checkout-v1. Give a canvas this ID again to bring these comments back, or ask your agent.</p>`);
     expect(html).toContain('<article class="comments-card" tabindex="-1" data-comment="' + open.comment + '" aria-label="Comment by Kim Doe">');
     expect(html).toContain('<span class="comments-target static" title="[data-doan-id=&quot;address&quot;]">Element · label address · in shipping</span>');
     expect(html).toContain('<p class="comments-body">Accept two address lines.\nSay so in the placeholder.</p><div class="comments-tools"><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Resolve</button><button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Delete</button></div>');

@@ -85,7 +85,7 @@ export function HandOffDialog({ dialog, context, notice, onToggle, onQuick, onCo
     {notice && <p className="handoff-notice doan-notice warning"><AlertIcon /><span>{notice}</span></p>}
     {copy.status === "failed" && <p className="handoff-status doan-notice error" role="alert"><AlertIcon /><span>{COPY_FAILED}</span></p>}
     {copy.status === "stale" && <p className="handoff-status doan-notice warning" role="alert"><AlertIcon /><span>{staleText(copy.count)}</span></p>}
-    {copy.status === "copied" && <p className="handoff-status doan-notice ok" role="status">{handoffCopied(copy.count)}</p>}
+    {copy.status === "copied" && <p className="handoff-status doan-notice ok" role="status"><AlertIcon /><span>{handoffCopied(copy.count)}</span></p>}
     <div className="handoff-actions doan-dialog-actions">
       {n === 0 && !locked ? <span className="comments-helper">Choose at least one comment.</span> : <span className="spacer" />}
       {!copied && <button type="button" className="comments-btn doan-button" data-ui-variant="subtle" disabled={copying} onClick={close}>Cancel</button>}
