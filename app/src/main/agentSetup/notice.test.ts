@@ -19,6 +19,18 @@ describe("aboutNotice", () => {
     expect(lines(notice)).toEqual(["All agents — `~/.local/bin/doan` is a file Doan didn’t create, so Doan left it alone. Remove or rename it, then reopen Doan."]);
   });
 
+  it("a setup run that crashed is a warning of its own, before the CLI links, with no path", () => {
+    const items: SetupItem[] = [
+      { target: "cli", path: `${HOME}/.local/bin/doan`, providers: [...ALL], reason: "foreign", found: "file" },
+      { target: "setup", providers: [...ALL], reason: "crashed" },
+    ];
+    expect(aboutNotice(items, HOME)).toMatchObject({ tone: "warning", title: "Doan couldn’t set up every agent" });
+    expect(lines(aboutNotice(items, HOME))).toEqual([
+      "All agents — Doan stopped partway through setting up agents, so some may not be set up. Reopen Doan to try again. If this notice comes back, use Copy details to report the problem.",
+      "All agents — `~/.local/bin/doan` is a file Doan didn’t create, so Doan left it alone. Remove or rename it, then reopen Doan.",
+    ]);
+  });
+
   it("orders several items: CLI links, then skill links, then the Codex rule", () => {
     const items: SetupItem[] = [
       { target: "codex-rule", path: `${HOME}/.codex/rules/doan.rules`, providers: ["codex"], reason: "write-failed", cause: "permission", at: `${HOME}/.codex/rules`, code: "EACCES" },

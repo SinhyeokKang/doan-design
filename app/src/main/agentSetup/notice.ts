@@ -16,15 +16,17 @@ export type SetupItem =
     // displaced: something Doan didn't create was moved aside mid-replacement and could not go back; `at` is where it is.
     | { reason: "write-failed"; cause: "permission" | "blocked-parent" | "displaced" | "other"; at: string; code: string }
     | { reason: "admin-cancelled"; rcFile: string | null }))
-  | { target: "copy"; path: string; providers: Provider[]; reason: "not-eligible"; eligibility: Ineligible };
+  | { target: "copy"; path: string; providers: Provider[]; reason: "not-eligible"; eligibility: Ineligible }
+  // The run itself threw (main's catch), so nothing says which targets were set up; it must not read as success.
+  | { target: "setup"; providers: Provider[]; reason: "crashed" };
 
 // The renderer shows `agents`, an em dash, then the parts; `command` is a line of its own after them.
 export type NoticePart = { text: string } | { code: string };
 export interface NoticeLine { agents: string | null; parts: NoticePart[]; command?: string }
 export interface AboutNotice { tone: "warning" | "neutral"; title: string; lines: NoticeLine[] }
 
-// About's fixed order (design 'About 알림'): this copy, CLI links, skill links, the Codex rule.
-const ORDER: (SetupItem["target"])[] = ["copy", "current", "cli", "system-cli", "skill", "agents-skill", "claude-skill", "gemini-skill", "codex-rule"];
+// About's fixed order (design 'About 알림'): this copy, a run that crashed, CLI links, skill links, the Codex rule.
+const ORDER: (SetupItem["target"])[] = ["copy", "setup", "current", "cli", "system-cli", "skill", "agents-skill", "claude-skill", "gemini-skill", "codex-rule"];
 const REOPEN = ", then reopen Doan.";
 const NOT_ELIGIBLE: Record<Ineligible, string> = {
   "outside-applications": "It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it.",
@@ -49,6 +51,7 @@ function agents(providers: Provider[]): string {
 type Skipped = Exclude<SetupItem, { reason: "not-eligible" }>;
 
 function parts(item: Skipped, tilde: (path: string) => string): Pick<NoticeLine, "parts" | "command"> {
+  if (item.reason === "crashed") return { parts: [{ text: "Doan stopped partway through setting up agents, so some may not be set up. Reopen Doan to try again. If this notice comes back, use Copy details to report the problem." }] };
   const path = { code: tilde(item.path) };
   switch (item.reason) {
     case "foreign": return { parts: [path, { text: item.found === "folder" ? ` is a folder Doan didn’t create. Remove or rename it${REOPEN}` : ` is a ${item.found} Doan didn’t create, so Doan left it alone. Remove or rename it${REOPEN}` }] };

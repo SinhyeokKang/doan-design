@@ -1880,6 +1880,13 @@ describe("settings page", () => {
     expect(mocks.clipboard.writeText).toHaveBeenLastCalledWith(first);
   });
 
+  test("About carries this launch's agent setup result, and Copy details its notice", async () => {
+    mocks.runDesignSkill.mockResolvedValue({ exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) });
+    expect(await invoke("about:read", window().webContents, null)).toMatchObject({ setup: { home: "/Users/you", items: [] } });
+    expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
+    expect(mocks.clipboard.writeText.mock.calls.at(-1)?.[0]).not.toContain("set up");
+  });
+
   test("the main window reads and writes project config, and its file sheet attaches to the main window", async () => {
     mocks.shell.entries.mockReturnValue([LIST]);
     mocks.runConfig.mockResolvedValue(configRun([]));
@@ -1986,9 +1993,15 @@ describe("settings page", () => {
   });
 });
 
-// zero-setup-agents: agent setup runs once per launch, beside the window.
+// zero-setup-agents: agent setup runs once per launch, beside the window, and About waits for its result.
 describe("agent setup on launch", () => {
+  const LISTED = { exitCode: 0, timedOut: false, stderr: "", stdout: JSON.stringify({ v: 1, ok: true, result: { version: "1.2.3", presets: [] } }) };
+  const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
+  const FOREIGN = { home: "/Users/you", steps: [], items: [{ target: "cli", path: "/Users/you/.local/bin/doan", providers: ALL, reason: "foreign", found: "file" }] };
+  const settled = async (promise: unknown) => { let done = false; void Promise.resolve(promise).then(() => { done = true; }); for (let i = 0; i < 20; i++) await Promise.resolve(); return done; };
+
   test("runs the runner once with the launch's HOME, bundle, packaging, SHELL, userData and the administrator dialog", async () => {
+    mocks.runDesignSkill.mockResolvedValue(LISTED);
     await vi.waitFor(() => expect(mocks.runAgentSetup).toHaveBeenCalledOnce());
     expect(mocks.runAgentSetup).toHaveBeenCalledWith({ home: process.env.HOME, resources: process.resourcesPath, isPackaged: true, loginPath: null,
       shell: process.env.SHELL ?? "", userData: "/tmp/doan-index-test", runAdmin: mocks.osascriptAdmin });
@@ -2003,6 +2016,44 @@ describe("agent setup on launch", () => {
     test("the runner gets the login shell's PATH", async () => {
       await vi.waitFor(() => expect(mocks.runAgentSetup).toHaveBeenCalledOnce());
       expect(mocks.runAgentSetup.mock.calls[0]?.[0]).toMatchObject({ loginPath: "/Users/you/.local/bin:/usr/bin:/bin" });
+    });
+  });
+
+  describe("while setup is still running (the administrator dialog is open)", () => {
+    beforeAll(() => { launchSetup = HELD; });
+    afterAll(() => { launchSetup = { home: "/Users/you", items: [], steps: [] }; });
+    test("the window opens, and About's read and Copy details wait for the result", async () => {
+      mocks.runDesignSkill.mockResolvedValue(LISTED);
+      expect(mocks.Window.instances).toHaveLength(1);
+      await vi.waitFor(() => expect(mocks.runAgentSetup).toHaveBeenCalledOnce());
+      const read = invoke("about:read", window().webContents, null);
+      const copied = invoke("about:copy", window().webContents, null);
+      expect(await settled(read)).toBe(false);
+      expect(await settled(copied)).toBe(false);
+      expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
+      settleSetup(FOREIGN);
+      expect(await read).toMatchObject({ version: "9.8.7", setup: { home: "/Users/you", items: FOREIGN.items } });
+      expect(await copied).toEqual({ kind: "success" });
+      expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("Doan couldn’t set up every agent\nAll agents — ~/.local/bin/doan is a file Doan didn’t create"));
+    });
+  });
+
+  describe("when the runner fails", () => {
+    const failed = Promise.reject(new Error("boom"));
+    failed.catch(() => {});
+    beforeAll(() => { launchSetup = HELD; });
+    afterAll(() => { launchSetup = { home: "/Users/you", items: [], steps: [] }; });
+    // A crash must not read as "every agent was set up" (design 'About 알림').
+    test("the failure is logged and About answers with a crashed item, which Copy details names", async () => {
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+      mocks.runDesignSkill.mockResolvedValue(LISTED);
+      await vi.waitFor(() => expect(mocks.runAgentSetup).toHaveBeenCalledOnce());
+      settleSetup(failed);
+      expect(await invoke("about:read", window().webContents, null)).toMatchObject({ setup: { items: [{ target: "setup", providers: ALL, reason: "crashed" }] } });
+      expect(logged).toHaveBeenCalledWith("doan: agent setup failed", expect.any(Error));
+      expect(await invoke("about:copy", window().webContents, null)).toEqual({ kind: "success" });
+      expect(mocks.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("Doan couldn’t set up every agent\nAll agents — Doan stopped partway through setting up agents, so some may not be set up."));
+      logged.mockRestore();
     });
   });
 });

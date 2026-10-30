@@ -846,6 +846,16 @@ body:has(.shell-top) { background: transparent; }
 .settings-header-actions:empty { display: none; }
 .settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
 .settings-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* About's agent setup notice in the doan command row: the agents a line affects and its title take the standard ink
+   so they read before the subtle sentence; its code chips go white, since the page's inset chip vanishes on the
+   notice's inset fill (one class above the page's chip rule, so the order of the two rules does not decide it). The
+   PATH line stands alone so it can be selected and copied whole. */
+.setup-notice-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.setup-notice .ob-notice-title { color: var(--text-standard); }
+.setup-notice-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-1); }
+.setup-notice-agents { color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.doan-notice.setup-notice code { background: var(--surface-panel); }
+.setup-notice-command { display: block; width: fit-content; margin-top: var(--space-1); }
 /* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
 .doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
 .doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }

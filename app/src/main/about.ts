@@ -2,6 +2,7 @@ import { interpretList } from "./designSkills";
 import type { CliRun } from "./folderState";
 import type { Provider, ToolFacts } from "./agentAuth/types";
 import { aboutView, type AboutCli, type AboutRead, type AboutTool } from "./aboutView";
+import { aboutNotice } from "./agentSetup/notice";
 
 export * from "./aboutView";
 
@@ -23,6 +24,15 @@ export function aboutTool(provider: Provider, facts: ToolFacts): AboutTool {
 export function aboutText(read: AboutRead): string {
   const lines = [`Doan ${read.version}`];
   lines.push(read.cli.version === null ? `doan command: ${UNREAD} (${read.cli.path})` : `doan command ${read.cli.version} (${read.cli.path})`);
+  // The notice sits in the doan command row, so it follows that line; Copy details is how a keyboard copies its paths.
+  const notice = aboutNotice(read.setup.items, read.setup.home);
+  if (notice) {
+    lines.push(notice.title);
+    for (const line of notice.lines) {
+      const text = line.parts.map(part => "code" in part ? part.code : part.text).join("");
+      lines.push(line.agents === null ? text : `${line.agents} — ${text}`, ...(line.command ? [line.command] : []));
+    }
+  }
   for (const row of aboutView(read).tools) {
     const minimum = row.id === "antigravity" ? "" : ` (${row.description?.replace(/\.$/, "")})`;
     lines.push(`${row.label}${row.value === null ? "" : ` ${row.value}`}: ${row.status ?? UNREAD}${minimum}`);

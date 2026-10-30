@@ -15,6 +15,7 @@ import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
 import { probeShell, runProcess } from "./onboarding/machine";
 import { osascriptAdmin, runAgentSetup } from "./agentSetup/runner";
+import type { SetupItem } from "./agentSetup/notice";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
 import { projectLocks, type AdderProjects } from "./onboarding/projectAdder";
 import { ADD_PAGE_CHANNELS, AddPageSession } from "./addPage";
@@ -581,13 +582,15 @@ async function start(): Promise<void> {
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
   const shellForFacts = sharedShell(() => probeShell(process.env));
   // Agent setup (zero-setup-agents design '언제, 어떤 복사본이 쓰는가'): once per launch, beside the window rather than
-  // before it.
+  // before it. About waits for this result, which stays pending while the administrator dialog is open; a run that
+  // throws becomes a crashed item, so About never shows its failure as "every agent was set up".
   const agentSetup = shellForFacts().then(probe => runAgentSetup({
     home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged, loginPath: probe.ok ? probe.path : null,
     shell: process.env.SHELL ?? "", userData, runAdmin: osascriptAdmin,
   })).catch((error: unknown) => {
     console.error("doan: agent setup failed", error);
-    return { home: homeDirectory(), items: [] };
+    const crashed: SetupItem = { target: "setup", providers: [...PROVIDERS], reason: "crashed" };
+    return { home: homeDirectory(), items: [crashed] };
   });
   if (agentAuth) {
     authIpc = new AuthIpc({
@@ -924,10 +927,10 @@ async function start(): Promise<void> {
   // Tool facts come from AuthIpc's cache (its first read probes once); only the doan version runs the CLI.
   let lastAbout: AboutRead | null = null;
   const readAbout = async (): Promise<AboutRead> => {
-    const [run] = await Promise.all([runDesignSkill(command), authIpc?.read()]);
+    const [run, setup] = await Promise.all([runDesignSkill(command), agentSetup, authIpc?.read()]);
     const ipc = authIpc;
     const tools = ipc ? PROVIDERS.flatMap(provider => { const facts = ipc.toolFacts(provider); return facts ? [aboutTool(provider, facts)] : []; }) : null;
-    lastAbout = { version: app.getVersion(), cli: aboutCli(command, run), tools };
+    lastAbout = { version: app.getVersion(), cli: aboutCli(command, run), tools, setup: { home: setup.home, items: setup.items } };
     return lastAbout;
   };
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
