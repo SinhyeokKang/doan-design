@@ -57,6 +57,7 @@
       }
     ],
     "mac": {
+      "icon": "resources/icon.png",
       "identity": null
     }
   }

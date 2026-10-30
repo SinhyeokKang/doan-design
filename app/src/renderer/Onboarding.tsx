@@ -11,6 +11,7 @@ import { canAdvance, initialScene, nextScene, type Scene, type SceneEvent } from
 import { projectHue, projectInitial } from "./shellNavigation";
 import { tilde } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
+import { Doany } from "./Doany";
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
 // Local copies of the draft's marks; sources are in public/provider-logos/README.md. Relative, so the packaged
@@ -25,6 +26,7 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 export function Welcome({ start }: { start: () => void }) {
   return <div className="ob-welcome-main">
     <div className="ob-atmosphere" aria-hidden="true"></div>
+    <Doany size={142.5} />
     <div className="ob-wordmark">Doan</div>
     <h1 tabIndex={-1}>A place for your next idea.<br />Bring it to life on canvas.</h1>
     <div className="ob-welcome-action"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="lg" onClick={start}>Get started<ArrowRight aria-hidden="true" /></button></div>
@@ -95,6 +97,13 @@ function dialogKeys(close: () => void) {
   };
 }
 const openModal = (node: HTMLDialogElement | null) => { if (node && !node.open) node.showModal(); };
+// showModal() focuses the dialog's first control, Doany on Welcome, and the scene effect reaches the heading only a
+// frame later; focusing the heading in the same task leaves no frame in which Doany's focus ring can paint.
+export function openOverlay(node: Pick<HTMLDialogElement, "open" | "showModal"> | null, heading: { focus(): void } | null) {
+  if (!node || node.open) return;
+  node.showModal();
+  heading?.focus();
+}
 
 export function PasteDialog({ view, value, submittable, tooLong, busy, change, submit, close }: {
   view: ReturnType<typeof pasteDialog>; value: string; submittable: boolean; tooLong: boolean; busy: boolean; change: (value: string) => void; submit: () => void; close: () => void;
@@ -644,7 +653,10 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
       if (stacked.current) return;
       if (event.key === "Tab" && overlay.current) {
         const nodes = Array.from(overlay.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(node => node.closest("dialog") === overlay.current);
-        const next = nextFocusIndex(nodes.length, nodes.indexOf(document.activeElement as HTMLElement), event.shiftKey);
+        const active = document.activeElement;
+        const index = nodes.indexOf(active as HTMLElement);
+        const before = index < 0 && active && overlay.current.contains(active) ? nodes.filter(node => node.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING).length : null;
+        const next = nextFocusIndex(nodes.length, index, event.shiftKey, before);
         if (next !== null) { event.preventDefault(); nodes[next]?.focus(); }
       }
     };
@@ -658,7 +670,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
   // A modal <dialog> sits above any app dialog already open (setup, comments),
   // which would otherwise stay on top and leave both unclickable.
   return <dialog className={welcome ? "ob-overlay ob-welcome" : "ob-overlay"} aria-label="Set up Doan"
-    ref={node => { overlay.current = node; if (node && !node.open) node.showModal(); }}
+    ref={node => { overlay.current = node; openOverlay(node, heading.current); }}
     onCancel={event => event.preventDefault()}>
     <div className="ob-chrome">
       {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => { if (to === "project") leave.forward(); else move({ type: "step", to }); }} />}

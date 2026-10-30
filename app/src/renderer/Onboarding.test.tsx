@@ -5,19 +5,43 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SceneScroll, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, openOverlay, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SceneScroll, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
 const base: ProviderView = { provider: "claude", name: "Claude Code", detail: "Anthropic", detailRole: null, button: null, helper: null, notice: null, paste: null, signOut: null };
 
-test("Welcome: wordmark, two-line heading and the lg Get started button with an arrow", () => {
+test("Welcome: Doany (142.5px), wordmark, two-line heading and the lg Get started button with an arrow", () => {
   const html = renderToStaticMarkup(<Welcome start={noop} />);
   expect(html).toContain('<div class="ob-wordmark">Doan</div>');
   expect(html).toContain('<h1 tabindex="-1">A place for your next idea.<br/>Bring it to life on canvas.</h1>');
   expect(html).toMatch(/<button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="lg">Get started<svg[^>]*aria-hidden="true"/);
-  expect(html).toContain('<div class="ob-atmosphere" aria-hidden="true"></div>');
+  expect(html).toContain('<div class="ob-atmosphere" aria-hidden="true"></div><button type="button" class="doany" aria-label="Make Doany hop" style="width:142.5px;height:142.5px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><div class="ob-wordmark">Doan</div>');
   expect(html).not.toMatch(/…|\.\.\./);
+});
+
+// doan-mascot design '배치': the group's centre sits 72px above .ob-scroll's centre; the offset shrinks before the
+// window scrolls and leaves no empty scroll. The spacer after the group grows to at most twice the offset (stageInsets).
+test("Welcome centres its group 72px high in the area under the chrome", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".ob-welcome .ob-scene { max-width: 640px; padding: 0 var(--space-6); align-items: center; }");
+  expect(css).toContain(".ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8) 0; }");
+  expect(css).toContain('.ob-welcome-main::after { content: ""; flex: 1 0 0; max-height: 144px; }');
+});
+
+// showModal() first focuses Doany, the dialog's first control; a heading focused a frame later leaves a frame in which
+// Doany's focus ring can paint (doan-mascot V1 measured Doany :focus-visible for ~42ms on Welcome).
+test("the overlay opens with its heading focused in the same task as showModal", () => {
+  const calls: string[] = [];
+  const dialog = { open: false, showModal() { calls.push("showModal"); this.open = true; } };
+  const heading = { focus() { calls.push("focus heading"); } };
+  openOverlay(dialog, heading);
+  expect(calls).toEqual(["showModal", "focus heading"]);
+  openOverlay(dialog, heading);
+  expect(calls).toEqual(["showModal", "focus heading"]);
+  openOverlay({ open: false, showModal() { calls.push("showModal without heading"); } }, null);
+  expect(calls.at(-1)).toBe("showModal without heading");
 });
 
 test("the setup steps are the shell capsule drawn with sm buttons: current is aria-current, a done step shows a check and goes back", () => {

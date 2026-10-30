@@ -204,12 +204,25 @@ describe("confirmations", () => {
 
 describe("onboarding window", () => {
   test("Tab wraps inside the wizard", () => {
-    expect(nextFocusIndex(3, 2, false)).toBe(0);
-    expect(nextFocusIndex(3, 0, true)).toBe(2);
-    expect(nextFocusIndex(3, -1, false)).toBe(0);
-    expect(nextFocusIndex(3, -1, true)).toBe(2);
-    expect(nextFocusIndex(3, 1, false)).toBeNull();
-    expect(nextFocusIndex(0, -1, false)).toBeNull();
+    expect(nextFocusIndex(3, 2, false, null)).toBe(0);
+    expect(nextFocusIndex(3, 0, true, null)).toBe(2);
+    expect(nextFocusIndex(3, 1, false, null)).toBeNull();
+    expect(nextFocusIndex(0, -1, false, null)).toBeNull();
+  });
+  test("focus outside the wizard (body, after a control disabled itself) still enters at the first or last control", () => {
+    expect(nextFocusIndex(3, -1, false, null)).toBe(0);
+    expect(nextFocusIndex(3, -1, true, null)).toBe(2);
+  });
+  test("a focused element outside the list (a tabindex=-1 heading) moves in DOM order; only the ends wrap", () => {
+    // Welcome: Doany, h1, Get started. The browser moves to Get started on Tab and Doany on Shift+Tab.
+    expect(nextFocusIndex(2, -1, false, 1)).toBeNull();
+    expect(nextFocusIndex(2, -1, true, 1)).toBeNull();
+    // A heading before every control: Tab enters at the next control, Shift+Tab wraps to the last.
+    expect(nextFocusIndex(1, -1, false, 0)).toBeNull();
+    expect(nextFocusIndex(3, -1, true, 0)).toBe(2);
+    // An element after every control: Tab wraps to the first, Shift+Tab goes back in DOM order.
+    expect(nextFocusIndex(3, -1, false, 3)).toBe(0);
+    expect(nextFocusIndex(3, -1, true, 3)).toBeNull();
   });
 });
 

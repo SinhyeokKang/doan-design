@@ -224,12 +224,19 @@ export function confirmView(target: "cli" | "stub" | "claudeLink" | "mcp", agent
   }
 }
 
-// Tab is left to the browser except where it would leave the wizard.
-export function nextFocusIndex(count: number, index: number, shift: boolean): number | null {
+// Tab is left to the browser except where it would leave the wizard. `before` counts the controls that precede a
+// focused element that is not one of them (a tabindex=-1 heading), so it moves in DOM order from there; null means
+// focus is outside the wizard (on <body> after a control disabled itself) and enters at either end.
+export function nextFocusIndex(count: number, index: number, shift: boolean, before: number | null): number | null {
   if (count === 0) return null;
-  if (index < 0) return shift ? count - 1 : 0;
-  if (!shift && index === count - 1) return 0;
-  if (shift && index === 0) return count - 1;
+  if (index >= 0) {
+    if (!shift && index === count - 1) return 0;
+    if (shift && index === 0) return count - 1;
+    return null;
+  }
+  if (before === null) return shift ? count - 1 : 0;
+  if (!shift && before === count) return 0;
+  if (shift && before === 0) return count - 1;
   return null;
 }
 

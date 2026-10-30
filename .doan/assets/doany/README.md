@@ -1,7 +1,10 @@
 # Doany assets
 
-Source artwork and motion prototype for later implementation. These files do
-not install an app icon or change the application.
+Source artwork and motion prototype. The app ships copies of the still image and
+textures (`app/src/renderer/public/doany/`), a port of the motion
+(`app/src/renderer/doanyMotion.ts`, `doanyRig.ts`, `Doany.tsx`) and the icon
+resized from `white/doany.png` (`app/resources/icon.png`); these files are the
+sources, not loaded by the app.
 
 - `transparent/doany.png`: plush mascot, original pre-accent lavender,
   transparent background with no ground shadow.
@@ -71,4 +74,5 @@ center measured −72px at 780px and 900px frame heights; at 540px it kept 32px
 top access and scrolled (619px content in a 484px viewport). JavaScript syntax
 passed. Doan check reported no findings for this canvas/package; the repository
 still has seven unrelated missing implementation links in older canvases.
-Native-app integration is not tested or implemented.
+These draft-side checks predate the app integration; the app's own
+measurements are in `docs/DESIGN.md` (Home, Onboarding).

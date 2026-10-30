@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useReducer, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, GitBranch, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -8,6 +8,7 @@ import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { Doany, type DoanyHandle } from "./Doany";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
 import {
@@ -21,6 +22,7 @@ import { restoreRequest } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
+import { stageInsets } from "./stageInsets";
 
 // Everything the composer keeps between Home visits for this run (design §4.1: a draft survives leaving Home, not a
 // restart). App owns the object so a visit's unmount does not lose it; reads finishing after an unmount still land.
@@ -94,6 +96,40 @@ function GroupIcon({ name, className }: { name: string; className?: string }) {
   return <Icon className={className} aria-hidden="true" />;
 }
 
+// The group sits 64px above the panel's centre with at least --space-8 around it (doan-mascot design '배치').
+const STAGE_LIFT = 64, STAGE_MIN = 32;
+// The group's height in its reference state: an empty two-line field with the suggestions shown (their place is kept
+// while hidden). What a draft adds inside the card (chips, extra lines, the counter) and the reason line or notice
+// below the suggestions are left out, so they grow downward from a field that stays where it was.
+function referenceHeight(stage: HTMLElement): number {
+  const box = (node: Element) => node.getBoundingClientRect();
+  const card = stage.querySelector(".composer-card"), field = stage.querySelector(".composer-input");
+  const end = stage.querySelector(".home-suggestions") ?? stage.querySelector(".composer");
+  if (!stage.firstElementChild || !card || !field || !end) return 0;
+  const gap = parseFloat(getComputedStyle(card).rowGap) || 0;
+  const added = [card.querySelector(".composer-chips"), card.querySelector(".composer-count")].reduce((sum, node) => sum + (node ? box(node).height + gap : 0), 0);
+  const grown = box(field).height - parseFloat(getComputedStyle(field).minHeight);
+  return box(end).bottom - box(stage.firstElementChild).top - added - grown;
+}
+
+// Measured before paint and again whenever the panel or the group resizes. Typing changes only what the reference
+// leaves out, so the top inset stays where it was.
+function HomeStage({ children }: { children: ReactNode }) {
+  const stage = useRef<HTMLDivElement | null>(null);
+  const [top, setTop] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const node = stage.current, panel = node?.parentElement;
+    if (!node || !panel) return;
+    const place = () => setTop(stageInsets({ available: panel.clientHeight, group: referenceHeight(node), offset: STAGE_LIFT, min: STAGE_MIN }).top);
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(panel);
+    for (const child of Array.from(node.children)) observer.observe(child);
+    return () => observer.disconnect();
+  }, []);
+  return <div className="home-stage" ref={stage} style={top === null ? undefined : { paddingTop: top }}>{children}</div>;
+}
+
 const listKey = (root: string, provider: Provider) => `${root}\n${provider}`;
 const effortKey = (provider: Provider, model: string) => `${provider}\n${model}`;
 
@@ -164,6 +200,7 @@ export function HomeComposer(props: HomeComposerProps) {
   const pickedFocus = useRef(false);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const dragDepth = useRef(0);
+  const doany = useRef<DoanyHandle | null>(null);
   const listId = useId();
 
   const lastCommon = new Map(props.entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon] as const] : []));
@@ -241,7 +278,7 @@ export function HomeComposer(props: HomeComposerProps) {
   const slashView = slash !== null ? presetListView(m.presets, { project, suggested, query: slash, tab: null, slash: true }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !sending;
-  const prompts = text === "" && !preset && attachments.length === 0 && ready && healthy ? suggestedPrompts(entry, project, presets) : [];
+  const prompts = ready && healthy ? suggestedPrompts(entry, project, presets) : [];
   const edit = (patch: Partial<ComposerMemory>) => update({ ...patch, notice: null });
   useEffect(() => { if (text === "") setDismissed(false); }, [text]);
   useEffect(() => { setHighlight(0); }, [slash]);
@@ -384,6 +421,8 @@ export function HomeComposer(props: HomeComposerProps) {
   // Send
   const send = async () => {
     if (!availability.enabled || !root || !provider) return;
+    // A send that starts hops; one that cannot start does nothing (doan-mascot spec 'Home 전송').
+    doany.current?.hop();
     const request: StartInput = {
       root, mode: "newDesign", runtime: provider, text: composed,
       ...(model ? { model } : {}), ...(model && effort ? { effort } : {}),
@@ -508,7 +547,8 @@ export function HomeComposer(props: HomeComposerProps) {
   const iconButton = (label: string, node: ReactNode) => <Tooltip><TooltipTrigger asChild>{node}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
   const hasProjects = cards.length > 0;
 
-  return <div className="home-stage">
+  return <HomeStage>
+    <Doany size={114} ref={doany} />
     <h1 className="home-greeting">{greetingText(props.greeting, hasProjects ? project : null)}</h1>
     <div className="home-composer">
       {hasProjects ? <DropdownMenu.Root>
@@ -555,7 +595,7 @@ export function HomeComposer(props: HomeComposerProps) {
           <textarea ref={textarea} className="composer-input" aria-label="Message" rows={2} value={text} readOnly={sending} placeholder={presetPlaceholder(preset)}
             role={slashOpen ? "combobox" : undefined} aria-expanded={slashOpen ? true : undefined} aria-controls={slashOpen ? `${listId}-slash` : undefined}
             aria-autocomplete={slashOpen ? "list" : undefined} aria-activedescendant={slashOpen && slashRows[highlight] ? `${listId}-s-${highlight}` : undefined}
-            onChange={event => edit({ text: event.target.value })} onKeyDown={keyDown} onPaste={paste} />
+            onChange={event => edit({ text: event.target.value })} onInput={() => doany.current?.typing()} onKeyDown={keyDown} onPaste={paste} />
           {counter && <div className={`composer-count${composed.length > TEXT_LIMIT ? " over" : ""}`} aria-live="polite">{counter}</div>}
           <div className="composer-tools">
             {iconButton("Attach files", <button type="button" className="doan-icon-button" aria-label="Attach files" disabled={sending} onClick={choose}><Plus aria-hidden="true" /></button>)}
@@ -631,7 +671,7 @@ export function HomeComposer(props: HomeComposerProps) {
           <span className="tray-path">{displayPath(entry.path, props.homeDirectory)}</span>
         </div>}
       </div>
-      {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt => {
+      {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt => {
         const button = <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" onClick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }}>
           <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>;
         return <Tooltip key={prompt.label}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{prompt.label}</TooltipContent></Tooltip>;
@@ -646,6 +686,6 @@ export function HomeComposer(props: HomeComposerProps) {
       <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{confirm.title}</h3><p className="doan-dialog-description">{confirm.body}</p></div></div>
       <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { setConfirm(null); queueMicrotask(focusEnd); }}>{confirm.cancel}</button><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => apply(confirm.request)}>{confirm.confirm}</button></div>
     </dialog>}
-  </div>;
+  </HomeStage>;
 }
 

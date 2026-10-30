@@ -44,7 +44,7 @@ test("Home is the shell with the sidebar and a composer body: no project cards, 
   expect(html).not.toContain("Finish setting up doan");
   expect(html).not.toContain("Connection problem");
   expect(html).toContain('<main class="app-shell home-shell"><header class="top shell-top"></header><aside class="side shell-side"');
-  expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-atmosphere" aria-hidden="true"></div><div class="home-stage"><h1 class="home-greeting">');
+  expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-atmosphere" aria-hidden="true"></div><div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
   // The sidebar marks no current project or canvas on Home (design §3).
   expect(html).not.toContain("aria-current=\"location\"");
 });
@@ -93,7 +93,8 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
   expect(html).toContain('<span role="tooltip">~/Desktop/brand-guidelines.pdf</span>');
   expect(html).toMatch(/aria-label="Send" data-state/);
   expect(html).not.toMatch(/aria-label="Send" disabled/);
-  expect(html).not.toContain("home-suggestions");
+  // Suggestions are hidden, not removed: their place stays (see the layout test below).
+  expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts" inert="">');
 });
 
 test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open (design §4.9)", () => {
@@ -134,4 +135,25 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   // Send keeps the shared disabled fill while sending, as the draft renders it; suggestions keep the shared sm padding.
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
   expect(css).not.toMatch(/\.suggestion[^{]*\{[^}]*padding/);
+});
+
+// doan-mascot design '배치': the stage is placed from the reference group (empty two-line field, suggestions shown), so
+// typing keeps the field still and growth goes downward only.
+test("typing keeps the suggestions' place, out of the accessibility tree and the focus order", () => {
+  const empty = render([project("/code/doan-design")]);
+  expect(empty).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
+  const typed = render([project("/code/doan-design")], { text: "Draw a pricing page." });
+  expect(typed).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts" inert="">');
+  expect(typed.match(/class="suggestion doan-button"/g)).toHaveLength(3);
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".home-stage .home-suggestions[inert] { visibility: hidden; }");
+});
+
+test("Doany (114px) is the stage's first child, above the greeting; the stage has no fixed top padding", () => {
+  const html = render([project("/code/doan-design")]);
+  expect(html).toContain('<div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const stage = css.match(/\n\.home-stage \{[^}]*\}/)![0];
+  expect(stage).not.toContain("152px");
+  expect(stage).toContain("padding: var(--space-8);");
 });
