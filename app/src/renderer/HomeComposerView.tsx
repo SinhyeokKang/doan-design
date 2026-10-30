@@ -30,6 +30,9 @@ export interface ComposerMemory {
   // picks last until the input is sent (buzz-settings design 'New conversations'); the project stays.
   root: string | null; provider: Provider | null;
   models: Partial<Record<Provider, string>>; efforts: Record<string, string>;
+  // The Settings default this input started with: a change in Settings applies from the next new input
+  // (buzz-settings design 'New conversations'). undefined: not taken yet.
+  defaults?: NewConversationDefault | null;
   // Model lists by root and provider, and the preset list, as read in this run.
   lists: Record<string, ModelsState>; presets: PresetListReply | undefined;
   auth: AuthSnapshot | null | undefined;
@@ -79,8 +82,8 @@ export interface HomeComposerProps {
   openConversation(conversationId: string): void;
   // The project picker's Add Projects… opens the Add Projects page.
   addProjects(): void;
-  // Settings > Agents' New conversations; null is Last used.
-  defaults?: NewConversationDefault | null;
+  // Settings > Agents' New conversations; null is Last used, undefined not read yet.
+  defaults?: NewConversationDefault | null | undefined;
   // The agent picker's way into Settings > Agents (buzz-settings design '홈 공급자 선택기').
   openSettings(target: SettingsTarget): void;
 }
@@ -187,8 +190,13 @@ export function HomeComposer(props: HomeComposerProps) {
   // Providers: the person's choice stays even when it stops being ready (design §4.3); until then the default.
   const auth = m.auth;
   useEffect(() => window.doan.onAgentAuth(snapshot => update({ auth: snapshot })), []);
-  const provider = m.provider ?? defaultProvider(auth, props.prefs?.lastProvider, props.defaults ?? null);
-  const fixed = provider ? fixedPreference(props.defaults ?? null, provider) : null;
+  // An empty composer takes the current default; once something is typed, attached or picked as a preset, the input
+  // keeps the default it started with until it is sent.
+  const started = m.text !== "" || m.preset !== null || m.attachments.length > 0;
+  const defaults = started && m.defaults !== undefined ? m.defaults : props.defaults ?? null;
+  useEffect(() => { if (!started && props.defaults !== undefined && memory.current.defaults !== props.defaults) update({ defaults: props.defaults }); });
+  const provider = m.provider ?? defaultProvider(auth, props.prefs?.lastProvider, defaults);
+  const fixed = provider ? fixedPreference(defaults, provider) : null;
   const lists: Partial<Record<Provider, ModelsState>> = root ? Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, m.lists[listKey(root, status.provider)]])) : {};
   const listState = provider ? lists[provider] : undefined;
   const saved = provider ? props.prefs?.models?.[provider] : undefined;

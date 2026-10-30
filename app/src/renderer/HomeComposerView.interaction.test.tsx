@@ -459,3 +459,25 @@ test("settings action: the fixed default starts each input; a pick lasts until a
   box.current = { ...box.current, text: "Four" };
   expect((await send()).runtime).toBe("codex");
 });
+
+// review BU1 ❓1 (design 'New conversations' 적용 규칙): a default changed in Settings applies from the next new input;
+// an input already started keeps the default it started with.
+test("settings action: a changed default waits for the next input; the draft keeps the one it started with", async () => {
+  const { box, start, render, props } = setup({ auth: { revision: 1, providers: [dto("claude"), dto("codex")] } }, { defaults: { provider: "codex" } });
+  render();
+  for (const effect of hooks.effects) effect();
+  call(field(render()), "onChange", { target: { value: "Draft" } });
+  props.defaults = { provider: "claude" };
+  render();
+  for (const effect of hooks.effects) effect();
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  expect((start.mock.calls[0]![0] as { runtime: string }).runtime).toBe("codex");
+  await vi.waitFor(() => expect(box.current.sending).toBeNull());
+  render();
+  for (const effect of hooks.effects) effect();
+  box.current = { ...box.current, text: "Next" };
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+  expect((start.mock.calls[1]![0] as { runtime: string }).runtime).toBe("claude");
+});

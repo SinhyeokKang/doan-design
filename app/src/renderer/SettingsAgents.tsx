@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, ChevronDown, Gauge } from "lucide-react";
-import type { Provider } from "../main/agentAuth/types";
+import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
 import type { NewConversationPreference, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import { agentsSettingsView, PROVIDER_NAMES, type AuthButton, type AuthCommand, type ProviderView } from "./agentAuthView";
 import type { AgentSignIn } from "./agentSignIn";
@@ -154,6 +154,15 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   </>;
 }
 
+// Why a fixed default cannot start a conversation, by the same causes as Home's picker (providerShortStatus).
+function unavailable(name: string, status: AuthStatusDto | undefined): string {
+  if (!status || status.account === null) return `${name} isn’t signed in`;
+  const r = status.readiness;
+  if (!r.ready && r.cause === "reauth_required" && status.phase === "reauthRequired") return `${name}’s sign-in expired`;
+  if (!r.ready && (r.cause === "version_unsupported" || r.cause === "version_incompatible")) return `${name} needs an update`;
+  return `${name} isn’t available right now`;
+}
+
 const SAVE_FAILED = "Couldn’t save your new conversation choices. Your last saved choices still apply.";
 
 // The defaults Home starts a new input with (design 'New conversations'). Last used hides Model and Effort, which then
@@ -187,7 +196,12 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const model = models.find(item => item.kind === "model" && item.selected);
   const modelLabel = model?.label ?? "Default";
   const loadFailed = listState !== undefined && listState !== "loading" && "error" in listState;
-  const effort = picker?.effort ?? null;
+  // Effort follows the chosen model, or with Default the model the project lists as its default (spec 'New
+  // conversations'); a model that lists no efforts has no Effort row.
+  const listed = listState !== undefined && listState !== "loading" && "models" in listState ? listState.models : [];
+  const effortModel = model?.kind === "model" ? model.id : listed.find(item => item.default)?.id ?? null;
+  const effort = provider && effortModel ? modelPickerView(auth, { [provider]: listState }, { provider, model: effortModel, effort: pref?.effort ?? null }).effort : null;
+  const status = auth?.providers.find(item => item.provider === provider);
 
   const trigger = (label: string, aria: string, content: ReactNode, disabled: boolean, menu: ReactNode) => <DropdownMenu.Root>
     <DropdownMenu.Trigger asChild disabled={disabled}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" aria-label={`${aria}: ${label}`} disabled={disabled}>
@@ -211,11 +225,12 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
             {radio(LAST_USED, <span className="model-name">Last used</span>, provider === null)}
             {agents.map(item => radio(item, <><img className="logo" src={providerLogo(item)} alt="" /><span className="model-name">{PROVIDER_NAMES[item]}</span></>, item === provider))}
           </DropdownMenu.RadioGroup>)}</div>
-        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{name} isn’t signed in, so Home starts with the agent you sent with last.</span></p></div>}
+        {provider && auth && !runnable && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg warn" role="status"><AlertIcon /><span>{unavailable(name, status)}, so Home starts with the agent you sent with last.</span></p></div>}
       </div>
-      {provider && <div className="doan-preference-row" data-disabled={project ? undefined : ""}>
+      {provider && <div className="doan-preference-row" data-disabled={project && (runnable || !auth) ? undefined : ""}>
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Model</span>
           {!project ? <span className="doan-preference-row-description">Add a project to choose a model. Until then, Home uses {name}’s default.</span>
+            : auth && !runnable ? <span className="doan-preference-row-description">{name} can’t run right now, so its models can’t be listed.</span>
             : !loadFailed && <span className="doan-preference-row-description">Models listed for {project.name}.{listState !== "loading" && ` In a project without this model, Home uses ${name}’s default.`}</span>}</div>
         {project && listState === "loading" ? <div className="doan-preference-row-trailing"><span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />Loading models</span></div>
           : !loadFailed && <div className="doan-preference-row-trailing">{trigger(modelLabel, "Model for new conversations", <span>{modelLabel}</span>, off || !project || !runnable,
@@ -225,10 +240,10 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
         {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
           <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => setLists(current => { const next = { ...current }; delete next[key!]; return next; })}>Retry</button></div>}
       </div>}
-      {provider && model?.kind === "model" && effort && <div className="doan-preference-row">
+      {provider && effort && <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Effort</span></div>
         <div className="doan-preference-row-trailing">{trigger(effort.label, "Effort for new conversations", <><Gauge className="inline" aria-hidden="true" /><span>{effort.label}</span></>, off,
-          <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, model: model.id, ...(value === DEFAULT ? {} : { effort: value }) })}>
+          <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, ...(model?.kind === "model" ? { model: model.id } : {}), ...(value === DEFAULT ? {} : { effort: value }) })}>
             {radio(DEFAULT, <span className="model-name">Default</span>, !effort.options.some(item => item.selected))}
             {effort.options.map(item => radio(item.id, <span className="model-name">{item.label}</span>, item.selected))}
           </DropdownMenu.RadioGroup>)}</div>
