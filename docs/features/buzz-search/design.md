@@ -53,7 +53,7 @@
 
 ### 필터 탭 (2026-10-30 user)
 
-- 탭: `All`(기본) / `Canvases` / `Frames`. Quick Open을 열 때마다 `All`이다. 고른 탭은 기억하지 않는다.
+- 탭: `All`(기본) / `Canvases` / `Frames`. 탭마다 14px 아이콘을 앞에 둔다: `All` lucide `Layers`, `Canvases` `Palette`, `Frames` `Hash`(행 아이콘과 같다). 크기·간격은 Home 그룹 탭 규칙(`.group-tabs.shell-modes svg` `--size-icon-sm`, 간격 `--space-1h`)이다(2026-10-30 user, 초안 8차). `LayoutGrid`는 헤더 Projects와 Overview가 이미 써서 피했다. Quick Open을 열 때마다 `All`이다. 고른 탭은 기억하지 않는다.
 - 거르기: 탭은 50개 상한 **전에** 종류를 거른다. 그래서 다른 종류 결과가 상한을 채워 탭이 비는 일이 없다. 순위 규칙(점수 → 현재 root → 같은 저장소 → 다른 저장소)은 각 탭 안에서 그대로다.
 - 빈 검색어: `All`과 `Canvases`는 지금 규칙(워크스페이스는 현재 root, Home은 전체 캔버스, 저장 순서)이다. `Frames`는 같은 범위의 프레임을 저장 순서로 보이고, 열린 캔버스가 있으면 그 캔버스의 프레임이 먼저다(최대 50개, 2026-10-30 user). 열린 캔버스의 프레임은 지금처럼 렌더링된 프레임(`rendered`)을 쓴다.
 - 탭을 바꾸면 검색어는 그대로, 첫 행이 활성이 된다.
