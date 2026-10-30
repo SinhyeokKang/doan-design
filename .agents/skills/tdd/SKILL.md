@@ -28,7 +28,7 @@ ARCHITECTURE §11 'Shared formats': comment events, `.doan/config.json`, CLI res
 - Reproducible bugs.
 
 **Skippable** (report a one-line reason and stop):
-- Electron UI rendering and interaction, actual behavior of the script injected into the iframe (PRODUCT §6 PoC targets).
+- Electron UI rendering and interaction, actual behavior of the script injected into the iframe.
 - I/O shells such as sockets and file watching. The pure functions they call are still required.
 
 ## Procedure

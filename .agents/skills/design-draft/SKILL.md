@@ -5,7 +5,7 @@ description: Use to draw a feature's UI draft canvas in this repo's .doan/canvas
 
 Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, viewed in the doan app, and `/design-sync` later compares the first implementation with them. This skill is the drawing half. Either runtime may draw (Claude Code drew app-ui, Codex draws select-inspect), and the other runtime implements from the files alone, so the draft must stand on its own: everything the implementer needs is in the canvas, the token CSS and the feature documents, not in a conversation.
 
-**Language**: the canvas (UI copy, header, notes) is English — app UI copy is English (PRODUCT §7, app-ui). The report to the user is in Korean.
+**Language**: the canvas (UI copy, header, notes) is English — app UI copy is English (PRODUCT). The report to the user is in Korean.
 
 ## Usage
 
@@ -18,7 +18,7 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 - For screens whose first implementation is not on main yet.
 - For a redesign child of a parent feature (AGENTS.md 'Terms', e.g. buzz-restyle) whose `design.md` requests a new draft file for a screen already on main.
 
-**Not for**: restyling a screen already on main outside a redesign child. Once a screen ships, the code and `docs/DESIGN.md` are the reference (PRODUCT §7, design-sync); a new look for it is a change request through `/feature`, which may make it a redesign child.
+**Not for**: restyling a screen already on main outside a redesign child. Once a screen ships, the code and `docs/DESIGN.md` are the reference; a new look for it is a change request through `/feature`, which may make it a redesign child.
 
 ## Prerequisites (stop if any fails)
 
@@ -38,7 +38,7 @@ Read the files themselves; do not work from someone's summary of them.
 - The renderer code for any shipped screen the draft shows (`app/src/renderer/`).
 - `go run ./cli/cmd/doan ls --json --repo .` and `go run ./cli/cmd/doan check --json --repo .` before you start, so new findings are yours.
 
-**Design presets** (2026-10-29 user): list doan's own presets with `go run ./cli/cmd/doan design-skill --json` and read the ones this draft needs with `go run ./cli/cmd/doan design-skill <id> --json` — typically `shape` before drawing flows and states, `harden` or `onboard` for error, empty and first-use states, `clarify` for copy, and `critique` on the finished draft before handing it over. Read only what fits; do not run every preset. This skill's rules win over a preset (shipped screens copied, tokens first, no app-code edits, the feature documents' decisions). Name the presets you read in the report. If the command is unavailable (`usage_error` on an older checkout), say so and continue.
+**Design presets**: list doan's own presets with `go run ./cli/cmd/doan design-skill --json` and read the ones this draft needs with `go run ./cli/cmd/doan design-skill <id> --json` — typically `shape` before drawing flows and states, `harden` or `onboard` for error, empty and first-use states, `clarify` for copy, and `critique` on the finished draft before handing it over. Read only what fits; do not run every preset. This skill's rules win over a preset (shipped screens copied, tokens first, no app-code edits, the feature documents' decisions). Name the presets you read in the report. If the command is unavailable (`usage_error` on an older checkout), say so and continue.
 
 If spec and design leave a visible choice open (a state, a label, a placement), ask the user one question at a time with the runtime's question tool, one recommendation each. Record each answer in the feature's `design.md`.
 
@@ -48,8 +48,8 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 
 - **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or commented on.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
-- **Tokens first** (docs/DESIGN.md 'Adopted rules', 2026-10-28 user): link `../../app/src/renderer/tokens.css` by a relative path and write every app value a token covers as that token — color, type roles (size, line height and tracking together), spacing, radius, control/icon size, shadow, motion. A literal is allowed only when no token has the value and the value is needed; list each one in the report as a component constant or a new token. A new token that follows the rules in docs/DESIGN.md 'Tokens first' may be added to `app/src/renderer/tokens.css` in the same change (the one exception to 'Do not edit app code' below: add tokens only, never change an existing token's value), and recorded in docs/DESIGN.md. Never pick an approximate token without asking the user. Before handing over, scan the draft's CSS for literals that have an exact token and replace them; a replacement must leave the computed value unchanged. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `.doan/assets/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Follow the theme decision in PRODUCT §7 and the feature documents: dark only, one system sans, no monospace until buzz-ds lands (app-ui); a buzz-restyle redesign draft is light only and uses the role variables in `tokens.css`, never the legacy aliases kept for old drafts.
-- **No coloured edge stripes** (2026-10-26 user): never mark a message, notice, card or row with a coloured or thick left/start border. Errors use an icon plus danger text or a status block; notices use an inset fill. A 1px neutral divider between panes is fine.
+- **Tokens first** (docs/DESIGN.md 'Adopted rules'): link `../../app/src/renderer/tokens.css` by a relative path and write every app value a token covers as that token — color, type roles (size, line height and tracking together), spacing, radius, control/icon size, shadow, motion. A literal is allowed only when no token has the value and the value is needed; list each one in the report as a component constant or a new token. A new token that follows the rules in docs/DESIGN.md 'Tokens first' may be added to `app/src/renderer/tokens.css` in the same change (the one exception to 'Do not edit app code' below: add tokens only, never change an existing token's value), and recorded in docs/DESIGN.md. Never pick an approximate token without asking the user. Before handing over, scan the draft's CSS for literals that have an exact token and replace them; a replacement must leave the computed value unchanged. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `.doan/assets/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Follow the theme in DESIGN.md 'Design system' and the feature documents: light only, using the role variables in `tokens.css`, never the legacy aliases kept for old drafts.
+- **No coloured edge stripes**: never mark a message, notice, card or row with a coloured or thick left/start border. Errors use an icon plus danger text or a status block; notices use an inset fill. A 1px neutral divider between panes is fine.
 - **Shipped screens are copied, not redesigned** — except the screen a redesign child is redesigning, which is drawn as its feature documents ask. Any other screen already on main (top bar, sidebar, Canvas info panel) is drawn as the code and `docs/DESIGN.md` have it; put any change you would make into the report as a change request instead of drawing it.
 - **Every requested state gets a frame or a labelled tile**, with the real English copy from the design document (no placeholder text). Long values, empty values and error states are drawn, not described.
 - **Mark what is not in code** (agent rule G) the way existing drafts do, and say in the header which frames are new.
@@ -77,7 +77,7 @@ then add this repo with Add Project… on Home and open the canvas. Stop here an
 
 - Only the canvas, plus any new shared file under `.doan/canvases/` it needs: `docs(design): <slug> draft`. A revision is `docs(design): <slug> draft revision`.
 - Trailer: a Codex session ends the message with `Co-Authored-By: Codex <noreply@openai.com>` (AGENTS.md 'Commit conventions'); a Claude Code session uses its own attribution.
-- Commit on whichever branch is checked out (2026-10-30 user); do not switch or create a branch for the draft.
+- Commit on whichever branch is checked out; do not switch or create a branch for the draft.
 - No push. The draft reaches main with that branch (`/ship` or `/orchestrate` pushes a feature branch).
 
 ## Report

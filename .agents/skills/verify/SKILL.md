@@ -17,7 +17,7 @@ node .agents/skills/verify/scripts/verify.mjs --eval
 ```
 
 - Default: runner and runtime-support regression tests, `go test ./...`, `go vet ./...`, app typecheck, app tests, and app build, sequentially.
-- No full e2e gate and no `--runtime` flag (2026-10-27 user). App changes use a short affected-behavior check under [/runtime-test](../runtime-test/SKILL.md), separately from this static/unit/build runner. The screen-specific e2e scripts were removed; do not recreate them during feature work. Reuse unaffected runtime evidence; report the scope actually checked.
+- No full e2e gate and no `--runtime` flag. App changes use a short affected-behavior check under [/runtime-test](../runtime-test/SKILL.md), separately from this static/unit/build runner. The screen-specific e2e scripts were removed; do not recreate them during feature work. Reuse unaffected runtime evidence; report the scope actually checked.
 - Add `--eval` when `eval/` changed or runner validation is requested. It runs the runner unit tests and `node eval/run.ts --self-test` with fake agents; it never calls real models.
 - Changes covered by AGENTS' `/agent-eval` rule still require that separate skill. `--eval` does not substitute for real-agent evaluation.
 - Pure prose/link edits may skip the heavy command, with a stated reason and targeted reference/skill checks. Changes to this runner require its regression tests and an actual shared-gate run. Do not treat executable scripts as docs-only.

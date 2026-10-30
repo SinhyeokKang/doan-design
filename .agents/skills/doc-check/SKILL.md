@@ -5,7 +5,7 @@ description: Find and fix documentation drift across doan using document-owner s
 
 # Documentation drift check
 
-Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), and [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md). PRODUCT and ARCHITECTURE hold decisions; README is background. AGENTS holds working procedures. The user’s current instructions take precedence.
+Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), and [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md). PRODUCT and ARCHITECTURE hold decisions; README is an introduction that summarizes them. AGENTS holds working procedures. The user’s current instructions take precedence.
 
 ## Default outcome
 
@@ -47,9 +47,9 @@ Report review coverage separately from correction status. A fully inspected deci
 
 ## Preserve evidence
 
-- Keep historical PRODUCT decision rows, POSTMORTEM entries, and USABILITY-EVAL rounds intact. Add a dated correction when necessary instead of retroactively changing what was observed.
+- PRODUCT, ARCHITECTURE and DESIGN describe the current product only: correct them in place and delete stale text instead of adding dated corrections. Keep POSTMORTEM entries and USABILITY-EVAL rounds intact; add a dated correction when necessary instead of retroactively changing what was observed.
 - DESIGN measurements require new measurements to change their values or verification status. Source CSS does not prove the rendered result. Do not turn a failed, skipped, or unrun test into a pass.
-- Only record a new decision and its dated PRODUCT §7 rationale when the user actually makes that decision. Factual cleanup does not create a new product decision.
+- Only change a decision when the user actually makes that decision. Factual cleanup does not create a new product decision.
 - Follow AGENTS language rules and per-document commit conventions. Invocation authorizes factual documentation fixes; do not edit application code, fixtures, or tests to make the docs agree. Treat changes to executable examples or product skill guidance as meaningful behavior guidance requiring the applicable verification, not harmless prose.
 
 ## Verify and report

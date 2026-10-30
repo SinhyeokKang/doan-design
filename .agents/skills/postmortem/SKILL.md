@@ -12,7 +12,7 @@ Record a just-caught bug, regression, or non-obvious pitfall in `docs/POSTMORTEM
 - When you made a `fix:` commit.
 - When you hit an undocumented constraint or a silently failing behavior.
 - When the `/implement` report has a "postmortem candidate" flag.
-- When a PoC (PRODUCT §6) failed differently than expected. The observations themselves go in PRODUCT §6; only the pitfall goes here.
+- When a PoC failed differently than expected. The observations themselves go in the commit message or the feature documents; only the pitfall goes here.
 
 ## Trivial filter (apply first)
 

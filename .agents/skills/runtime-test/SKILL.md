@@ -5,7 +5,7 @@ description: Check the changed behavior in the real Electron app with a short is
 
 # Focused runtime verification
 
-The user retired the screen-specific e2e suite on 2026-10-27. Until the app is complete, use static/unit verification plus a short real-app check of the changed behavior. Do not rebuild a full workflow suite or require unrelated screens to pass. Future end-to-end scenarios must be designed against the completed app, not restored from the retired scripts.
+There is no screen-specific e2e suite. Until the app is complete, use static/unit verification plus a short real-app check of the changed behavior. Do not rebuild a full workflow suite or require unrelated screens to pass. Future end-to-end scenarios must be designed against the completed app, not restored from the retired scripts.
 
 ## Scope
 

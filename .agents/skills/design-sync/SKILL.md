@@ -3,11 +3,11 @@ name: design-sync
 description: Use when a doan app screen is implemented for the first time from a design draft canvas in this repo's .doan/canvases/. Measures the draft and the implementation as computed styles in the real app, fixes the implementation until they match, has it reviewed, pins regressions with tests, and records measured values in docs/DESIGN.md. Does not push.
 ---
 
-Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, and this skill compares a screen's implementation with its draft by computed style. Ported from malmoi `.claude/commands/design-sync.md` (2026-10-22); the DesignSync / Codex input split and the BugShot step were dropped because the drafts are local files in this repo.
+Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, and this skill compares a screen's implementation with its draft by computed style. Ported from malmoi `.claude/commands/design-sync.md`; the DesignSync / Codex input split and the BugShot step were dropped because the drafts are local files in this repo.
 
-> **The draft is the source of truth only for a screen's initial implementation** (2026-10-22 user). Once that implementation is on main, the code and `docs/DESIGN.md` are the source of truth. A new draft for an implemented screen is a change request (`/feature` or ordinary work), not a rerun of this loop.
+> **The draft is the source of truth only for a screen's initial implementation**. Once that implementation is on main, the code and `docs/DESIGN.md` are the source of truth. A new draft for an implemented screen is a change request (`/feature` or ordinary work), not a rerun of this loop.
 >
-> **Exception — redesign children** (2026-10-26 user, buzz-restyle): when a child of a parent feature (AGENTS.md 'Terms') draws a new draft file for a screen already on main, that new draft is the source of truth for the redesigned screen until the child's branch is merged, and this loop runs against it. The old draft stays untouched as history.
+> **Exception — redesign children**: when a child of a parent feature (AGENTS.md 'Terms') draws a new draft file for a screen already on main, that new draft is the source of truth for the redesigned screen until the child's branch is merged, and this loop runs against it. The old draft stays untouched as history.
 
 Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its draft was implemented with 29 deviations while 3,000 unit tests were green. Values that are right but rendered wrong are invisible to unit tests.
 
@@ -43,23 +43,23 @@ Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its dr
 
 ### 2. Comparison table — pair the elements
 
-Pair each draft element with its implementation element per run, as selector pairs in a table (2026-10-22 user: no new convention and no test-only attributes in product code). One row per property:
+Pair each draft element with its implementation element per run, as selector pairs in a table (no new convention and no test-only attributes in product code). One row per property:
 
 | frame / state | draft selector | implementation selector + how to reach the state | property | draft | implementation |
 
 Properties to cover: size, padding, gap, border and radius, colors (text, background, border, divider rules), font family / size / weight / line-height / letter-spacing, and hover, focus, selected and disabled states.
 
-- **Pair children, not only containers** (2026-10-22, app-ui): a child that carries its own text style, background or spacing (`<code>`, `<b>`, chips, glyphs) gets its own row, and every row records `textContent` on both sides. In app-ui a styled `<code>` inside a paired `<p>` passed a 0-mismatch table (POSTMORTEM). Grep `docs/POSTMORTEM.md` for `design-sync` before step 2.
+- **Pair children, not only containers**: a child that carries its own text style, background or spacing (`<code>`, `<b>`, chips, glyphs) gets its own row, and every row records `textContent` on both sides. In app-ui a styled `<code>` inside a paired `<p>` passed a 0-mismatch table (POSTMORTEM). Grep `docs/POSTMORTEM.md` for `design-sync` before step 2.
 
 - **A documented deviation is not a deviation.** When a feature document or `docs/DESIGN.md` records why the implementation differs on purpose, mark the row "documented" with the source. Without such a record, it is a real deviation.
 - **A shared primitive beats one screen.** If one screen's draft differs from a shared component, keep the component, unless the drafts draw every screen with the same new value; then change the component and list the other screens it moves in the report.
 
 ### 3. Measure — computed style on both sides, in the real app
 
-Both sides are read with `getComputedStyle` in the same Electron/Chromium build (2026-10-22 user), so units, fonts and token variables resolve the same way.
+Both sides are read with `getComputedStyle` in the same Electron/Chromium build, so units, fonts and token variables resolve the same way.
 
 - Write the script at `.scratch/design-sync/<screen>/measure.mjs`, using `app/runtime/environment.ts` and `harness.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir`, `DOAN_CLI` and `isolatedEnv` from `app/runtime/environment.ts` (temp `HOME`, `TMPDIR`, fake `SHELL`, `CLAUDE_CONFIG_DIR`/`CODEX_HOME` under that HOME, pre-written `onboarding.json`), the folder dialog replaced through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas.
-- **Draft side**: the canvas iframe is a Playwright `Frame`; read styles and `getBoundingClientRect()` inside it. Do not use `boundingBox()` for elements inside the iframe — it ignores the board scale (PRODUCT §6, PoC 3). Computed styles do not depend on the zoom.
+- **Draft side**: the canvas iframe is a Playwright `Frame`; read styles and `getBoundingClientRect()` inside it. Do not use `boundingBox()` for elements inside the iframe — it ignores the board scale. Computed styles do not depend on the zoom.
 - **Implementation side**: the app window's renderer page, brought to the state of each row.
 - Create the states for real (hover, focus, scroll, selection) before reading. Read values that load asynchronously at the same moment as the rest, after they settle.
 - **Do not judge from screenshots.** `#f5f5f5` and `#fff` look alike in a PNG; colors and sizes are read as values. Screenshots only show structure.
@@ -82,7 +82,7 @@ Run this repo's `/code-review` as an independent reviewer (same runtime as this 
 
 ### 7. Pin it
 
-Pin logic regressions with focused unit tests where practical. Keep geometry, input and native checks as short affected-state probes under `.scratch/`; do not add screen-specific e2e scripts or a full-flow gate (2026-10-27 user). Record the failing observation and corrected measurement. Do not add test-only paths or attributes to product code.
+Pin logic regressions with focused unit tests where practical. Keep geometry, input and native checks as short affected-state probes under `.scratch/`; do not add screen-specific e2e scripts or a full-flow gate. Record the failing observation and corrected measurement. Do not add test-only paths or attributes to product code.
 
 ### 8. Record and commit
 
