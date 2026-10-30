@@ -36,6 +36,9 @@
 | 26 | 알림 톤 색(사용자 지시) | 톤이 알림 글자 전체(제목·본문)에 색을 주고 아이콘은 `currentColor`로 따른다. 중립 `--text-standard`, 경고 `--text-warning`, 오류 `--text-danger`. 두 바탕에서 같다. 4.5:1 미만인 조합은 H가 보고한다 | 사용자 지시: "아이콘은 텍스트 색을 따른다", "텍스트에 색을 주고 아이콘이 따르게 해" |
 | 27 | doan-notice 정리 캔버스(사용자 지시: "병합 전에 doan-notice로 캔버스에 정리해놔") | 새 캔버스 `.doan/canvases/notice.html`에 알림을 정리한다(컴포넌트마다 캔버스 하나라는 사용자 선호). `buzz-ds.html`에는 `buttons` frame에 흰 button variant만 더하고, 지운 `ConnectionRows.tsx`를 가리키는 `shared-connection-rows` frame을 정리한다. `document`·`clarify` preset을 먼저 읽는다. 배치 H가 round 3 뒤에 한다 | 사용자 지시와 사용자 선호("한 파일에 몰아 넣는 게 아니고"). `.doan/ds/`는 아직 컨벤션이 아니므로 `.doan/canvases/`에 둔다 |
 | 28 | 흰 button variant `panel`의 hover(H 질문) | 새 role token `--affordance-panel-hover: var(--neutral-3)`. pressed는 공유 `--affordance-subtle-pressed` | 지휘자 판단 — 공유 subtle hover는 회색 채움 위에서 1.04:1로 거의 사라진다. 다른 role(selected·border)을 빌리지 않고 기존 ramp 값으로 목적을 밝힌 token을 둔다 |
+| 29 | 대화 strip의 상태 색과 알림 정렬(H 질문) | strip 상태를 톤으로 옮긴다: 실패 → error, 완료 → ok, 진행·대기 → 중립. 화면별 가운데 정렬 덮어쓰기를 지워 모든 알림이 같은 정렬을 쓴다. 전후 스크린샷을 지휘자가 본다 | 지휘자 판단 — 결정 25·26(스타일 공유, 톤은 글자 색) |
+| 30 | Antigravity 2.28.2가 기본으로 명령을 sandbox에 넣어 첫 `doan active`가 막힘(E 보고) | 완료 조건 5의 "사람이 한 번 승인하면 앱에 닿는다"를 만족한다고 본다. 에이전트가 `nextSteps`("run `doan` outside the sandbox or request approval")대로 sandbox 밖 실행을 요청하면 한 번 승인으로 닿았다. 에이전트가 스스로 다시 요청하는지는 미검증으로 남기고 T9(MCP 제거 feature)의 입력으로 넘긴다 | 지휘자 판단 — tasks.md T6b 표 |
+| 31 | T6b Cursor(계정 사용 한도로 측정 못 함) | 미검증으로 남긴다. 링크 집합은 T0과 같으므로 T0의 Cursor 결과(두 링크가 한 디렉터리로 풀려 한 번만 보임)를 근거로 둔다 | 지휘자 판단 — 다른 계정을 쓰는 것은 허락받은 범위 밖 |
 | 7 | T9 | 이번 run 밖. PR이 main에 merge된 뒤 main에서 하는 문서 변경 | tasks.md T9 |
 
 ## 배치
@@ -69,3 +72,4 @@
 A+B+C 통합 HEAD `9298117e`에서 `verify.mjs` PASS(7단계). A·B·C worktree는 Orca로 지웠고, handoff와 리뷰는 conductor `.scratch/orch/zero-setup-agents/evidence/`에 옮겼다.
 | D | 0(자체 리뷰 2회 + 리뷰 Codex astra: 🔴0 🟡0 ⚪2) | `09b35d58`, `7102fe1b`, `745d1f55` | 워커 `cdf48069`, `c830a5e5`, `2e4c4b9d`. 통합 HEAD `745d1f55`에서 `verify.mjs` PASS |
 | H | 2(수정 3회, 리뷰는 round 3 뒤) | `0e5423f6`, `47e8b9d6`, `108ad0c6`, `ddfd6ef0` | 워커 `5c1aadee`, `c10c3588`, `c980ee4c`, `d2527dca` |
+| E | 0(지휘자가 증거 대조: T6 16항목 PASS 로그, T6b 표, 실제 상태 전후 목록) | `e1253eb9` | 워커 `b6e015ea`. 관리자 대화상자 1회 확인은 사용자와 함께 남음 |
