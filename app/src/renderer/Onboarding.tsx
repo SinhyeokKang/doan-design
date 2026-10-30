@@ -548,8 +548,8 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
             <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Retry</button></>
             : <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={p.operationId === null} onClick={on.cancelClone}>Cancel</button>}
         </div>
-        {/* The locked header and sidebar alone do not say why the page cannot be left (design '잠금'). */}
-        {use === "addPage" && <p className="ob-fine">Stay on this page until the clone finishes, or cancel it.</p>}
+        {/* The page's locked header and sidebar, and first run's disabled Back and steps, do not say why by themselves. */}
+        <p className="ob-fine">Stay on this page until the clone finishes, or cancel it.</p>
       </> : p.kind === "cloneCancelled" ? <>
         <div className="doan-notice doan-panel ob-project-notice" role="status" tabIndex={-1}><AlertIcon /><span>Cloning was cancelled. Choose a folder or try again.</span></div>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
@@ -577,6 +577,13 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     {body}
     {footer && <Footer use={use} footer={footer} back={on.back} next={next} />}
   </>;
+}
+
+// First run's steps scroll as one surface under the step capsule, so the thin scroll bar sits at the window's right
+// edge, not beside the 560px column; the Add Projects page's panel plays the same part (buzz-add-projects design
+// '온보딩과의 공유' 2).
+export function SceneScroll({ children }: { children: React.ReactNode }) {
+  return <div className="ob-scroll doan-scroll"><div className="ob-scene">{children}</div></div>;
 }
 
 // The full-window first run: Welcome → Agent → Project → Home, mounted once per main onboarding session. A CLI or MCP
@@ -658,7 +665,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
     <div className="ob-chrome">
       {!welcome && <SetupSteps scene={scene.scene} canProject={canAdvance(auth)} busy={busy} go={to => { if (to === "project") leave.forward(); else move({ type: "step", to }); }} />}
     </div>
-    <div className="ob-scene native-scroll">
+    <SceneScroll>
       {welcome && <div className="ob-welcome-scene" ref={node => setHeading(node?.querySelector("h1") ?? null)}><Welcome start={() => move({ type: "start" })} /></div>}
       {scene.scene === "agent" && <AgentStep session={agents} heading={setHeading}
         back={leave.back} next={leave.forward} />}
@@ -670,6 +677,6 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
         changeDestination: () => openPicker(() => void p.changeDestination()), useExisting: () => void p.useExisting(), clone: () => void p.clone(), cancelClone: () => void p.cancelClone(),
         complete: () => void p.complete(), retry: () => void p.retry(),
       }} />}
-    </div>
+    </SceneScroll>
   </dialog>;
 }

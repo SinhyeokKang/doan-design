@@ -84,3 +84,16 @@ test("focus: a closed folder sheet hands focus back to its button, else the aler
     expect(at(base, { root: root({}) as never })).toBe(heading);
   }
 });
+
+// U5: the page's CSS lives in styles.css (POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing
+// development styles'), from the draft's add-panel, card drop and lock rules.
+test("U5: the panel scrolls whole, the card holds its drop target, and the lock takes the disabled ink", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.add-panel \{ display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; \}/);
+  expect(css).toMatch(/\.ob-local-option \{ position: relative;/);
+  expect(css).toMatch(/\.drop-target \{ position: absolute; inset: 0;[^}]*outline: 2px dashed var\(--affordance-accent\);/);
+  for (const selector of ['.shell-modes button[aria-disabled="true"]', '.shell-search[aria-disabled="true"]', '.shell-side .row[aria-disabled="true"]', '.shell-history .doan-icon-button[aria-disabled="true"]', '.doan-menu-item[aria-disabled="true"]'])
+    expect(css).toMatch(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^{]*\\{ color: var\\(--text-disabled\\); cursor: default; \\}`));
+  for (const source of ["./AddProjectsPage.tsx", "./Onboarding.tsx"]) expect(readFileSync(new URL(source, import.meta.url), "utf8")).not.toMatch(/import .*\.css/);
+});

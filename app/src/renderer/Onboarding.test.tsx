@@ -5,7 +5,7 @@ import { pasteDialog, stopDialog, type Notice, type ProviderView } from "./agent
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthAttempt, AuthState, Provider } from "../main/agentAuth/types";
 import { providerView } from "./agentAuthView";
-import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
+import { AgentFooter, firstUsable, focusLost, NoticeView, PasteDialog, ProjectChoice, recoveryControl, ProjectScreen, projectFocusTarget, projectNotice, ProviderRow, sceneMover, SceneScroll, SetupSteps, StopDialog, Welcome, type ProjectScreenProps } from "./Onboarding";
 import type { ProjectStepState } from "./projectStep";
 
 const noop = () => {};
@@ -516,4 +516,24 @@ test("D29: a subtle button directly on the Agent/Project glass takes the step ca
   // --affordance-subtle is about the glass's own colour mid-window, so the fill vanished there (68 Cancel, 46 Choose
   // another folder). Panels, the Welcome surface and hover/pressed/disabled keep the DS fills.
   expect(css).toContain('.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }');
+});
+
+// buzz-add-projects U4: first run shares the page's improvements (design '온보딩과의 공유' 2, 3).
+test("U4: the steps scroll as one full-width surface around the 560px column, with the thin scroll bar", async () => {
+  expect(renderToStaticMarkup(<SceneScroll><h2>Step</h2></SceneScroll>)).toBe('<div class="ob-scroll doan-scroll"><div class="ob-scene"><h2>Step</h2></div></div>');
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ob-scroll \{[^}]*flex: 1; min-height: 0;[^}]*overflow-y: auto; overscroll-behavior: contain;/);
+  // The column no longer scrolls itself; it is at least the surface's height, so Welcome stays centred.
+  const scene = css.match(/\n\.ob-scene \{[^}]*\}/)![0];
+  expect(scene).toContain("flex: 1 0 auto;");
+  expect(scene).not.toContain("overflow");
+  expect(css).toMatch(/\.ob-welcome-main \{ flex: 1;[^}]*justify-content: center;/);
+});
+
+test("U4: first run's cloning says why Back and the steps wait", () => {
+  const clone = { url: "https://github.com/acme/studio", destination: "/Users/ada/code/studio" };
+  const cloning = screen({ phase: { kind: "cloning", ...clone, operationId: "o", cancelling: false } }, { busy: true });
+  expect(cloning).toMatch(/data-ui-size="sm">Cancel<\/button><\/div><p class="ob-fine">Stay on this page until the clone finishes, or cancel it\.<\/p><div class="ob-footer">/);
+  expect(screen({ phase: { kind: "clone", ...clone, inspectionId: "i" } })).not.toContain("Stay on this page");
 });

@@ -281,8 +281,12 @@ code, kbd { font-family: var(--type-family); }
 .ob-steps .doan-button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); cursor: default; }
 @media (prefers-reduced-transparency: reduce) { .ob-steps { background: var(--surface-inset); backdrop-filter: none; } }
 @media (forced-colors: active) { .ob-steps { backdrop-filter: none; } }
-.ob-scene { position: relative; flex: 1; min-height: 0; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; padding: var(--space-10) var(--space-6) var(--space-12); display: flex; flex-direction: column; }
-/* The scene scrolls as a whole; a panel with overflow hidden must not shrink and clip its last rows. */
+/* First run's steps scroll as one surface under the step capsule (and the Add Projects page as its white panel), so
+   the thin scroll bar (ds .doan-scroll) sits at the right edge, not beside the column. The column is at least the
+   surface's height, which keeps Welcome's vertical centring and puts a short step's footer at the bottom. */
+.ob-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.ob-scene { position: relative; flex: 1 0 auto; width: 100%; max-width: 560px; margin: 0 auto; padding: var(--space-10) var(--space-6) var(--space-12); display: flex; flex-direction: column; }
+/* The surface scrolls the scene as a whole; a panel with overflow hidden must not shrink and clip its last rows. */
 .ob-scene > * { flex-shrink: 0; }
 .ob-welcome .ob-scene { max-width: 640px; padding-top: 0; align-items: center; }
 .ob-welcome-scene { display: contents; }
@@ -677,9 +681,12 @@ body:has(.shell-top) { background: transparent; }
 .home-shell ~ .drop { pointer-events: none; }
 .home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (buzz-add-projects
-   draft round 3). The measured values are set with /design-sync. */
-.add-panel { overscroll-behavior: contain; }
-.add-scene { overflow: visible; min-height: 100%; }
+   draft round 3); the page scrolls whole, its footer included. */
+.add-panel { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+/* The ways out of a locked Add Projects page are aria-disabled, not disabled, so they keep their place in the focus
+   order; they take the disabled ink and no hover (design '잠금', draft frames cloning and selecting). */
+.shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
 /* Home's own atmosphere (2026-10-29 user): a wide violet ellipse spreading from the composer's centre, smooth and
    still; unlike Welcome's bottom glow it has no grain. The panel clips it at its corners. */
 .home-atmosphere { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent) 0%, color-mix(in srgb, var(--affordance-accent) 15%, transparent) 32%, color-mix(in srgb, var(--affordance-accent) 6%, transparent) 62%, transparent 100%); }
