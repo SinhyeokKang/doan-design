@@ -78,7 +78,7 @@
 
 ## T8. 문서 승격과 정리
 
-- PRODUCT: §2 직전 문단, §3 In scope 3, §5 item 0(첫 실행, Settings 카테고리, Connections 항목, 'Not included'), 8번 `doan init` 문장, 'Open questions'의 sandbox Codex 첫 실행·오래된 전역 stub 항목.
+- PRODUCT: §2 직전 문단, §3 In scope 3, §5 item 0(첫 실행, Settings 카테고리, Connections 항목, 'Not included'), 8번 `doan init` 문장, 'Open questions'의 sandbox Codex 첫 실행·오래된 전역 stub 항목. MCP 제거 항목은 지우지 않고, T0 결과(MCP가 필요한 프로바이더가 있는지)를 덧붙인다.
 - ARCHITECTURE: §6 'Stub', §7 'Machine setup'을 새 배치·소유 판정·허용 위치 규칙으로 교체, 'Settings, setup status and first-prompt IPC'에서 setup 채널 제거, "never edits … agent config files" 문장 수정, §9 Distribution에 번들 skill 경로.
 - DESIGN.md의 Connections 행, DIRECTORY.md의 지운 파일, AGENTS.md 'Commands'의 packaged-app 실행 주의(실행만으로 HOME에 쓴다).
 - `docs/features/zero-setup-agents/` 삭제.
