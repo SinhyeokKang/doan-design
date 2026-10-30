@@ -75,7 +75,7 @@ ego lite 0.6.2.5(`/Applications/ego lite.app`)와 공개 리포 `citrolabs/ego-l
 ## About 알림
 
 - 설치 결과는 기존 `about:read`의 `AboutRead`(`app/src/main/aboutView.ts`)에 필드 하나로 더한다. 새 채널을 만들지 않으므로 Retry, 창 focus 때 다시 읽기, Copy details(`about:copy`)가 같은 읽기를 공유한다. `about:read`는 설치 promise가 끝날 때까지 기다렸다가 답한다(AuthIpc의 첫 probe를 기다리는 것과 같은 방식). 그래서 결과가 아직 없을 때 "알림 없음"이 성공처럼 보이지 않는다.
-- 결과는 항목 목록 `{target, path, reason, providers}`이다. 이유는 `foreign`, `write-failed`, `admin-cancelled`(PATH 줄 포함), `not-eligible`(`dev`, `outside-applications`, `translocated`)이다. 뒤에 오는 feature가 이유를 더할 수 있게 문자열이 아니라 목록으로 둔다.
+- 결과는 항목 목록 `{target, path, reason, providers}`이다. 이유는 `foreign`, `write-failed`, `admin-cancelled`(PATH 줄 포함), `not-eligible`(`dev`, `outside-applications`, `translocated`), `crashed`이다. `crashed`는 설치 실행기 자체가 예외로 끝난 경우로, 모든 에이전트에 해당하는 줄 하나("All agents — Doan stopped partway through setting up agents, so some may not be set up. Reopen Doan to try again. If this notice comes back, use Copy details to report the problem.")를 조건 불충족 다음에 보인다. 실행기가 실패했는데 알림이 없으면 모두 설치된 것처럼 보이기 때문이다. 뒤에 오는 feature가 이유를 더할 수 있게 문자열이 아니라 목록으로 둔다.
 - 항목마다 한 줄을 고정된 순서로 보인다: 조건 불충족 → CLI 링크(`current`, `~/.local/bin`, `/usr/local/bin`) → skill 링크 → Codex rule. 줄마다 영향받는 에이전트(CLI 링크는 전부, skill 링크는 해당 프로바이더, rule은 Codex), 경로, 할 일과 "then reopen Doan"을 담는다. 조건 불충족 문구는 에이전트 상태가 아니라 이 복사본을 말한다(예: "This copy doesn't set up agents. Open Doan directly from Applications."). Applications에 정상 복사본이 따로 있을 수 있기 때문이다.
 - 알림은 live region이 아닌 정적 텍스트로 doan command 행 안에 둔다(DESIGN.md 'Lines under a row' helper 재사용). 아이콘은 `aria-hidden`, 경로는 선택 가능한 `<code>`. 버튼은 없다. Copy details에 알림 줄 전체를 넣어 키보드로도 경로를 복사할 수 있게 한다.
 - 알림은 이번 실행의 결과다. 사람이 원인을 치워도 Doan을 다시 열기 전에는 바뀌지 않으며, 문구가 이것을 말한다.
