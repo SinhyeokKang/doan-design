@@ -93,7 +93,7 @@ ego lite 0.6.2.5(`/Applications/ego lite.app`)와 공개 리포 `citrolabs/ego-l
   - `about-not-eligible` — 이 복사본이 쓰는 조건을 만족하지 않음(Applications 밖).
   - `states-not-eligible` — 상태 타일: 개발 빌드, translocation.
   - `agents` — Settings · Agents, 새 lead 문장.
-- 알림은 doan command 행 안의 `doan-preference-row-extra`에 두는 `doan-notice`다. 건너뛴 항목은 `warning`(아이콘), 조건 불충족은 아이콘 없는 중립 알림이다. 문구:
+- 알림은 doan command 행 안의 `doan-preference-row-extra`에 두는 `doan-notice`다. 건너뛴 항목은 `warning`, 조건 불충족은 중립 알림이다. 둘 다 `CircleAlert` 아이콘을 단다(알림에는 항상 아이콘을 단다). 문구:
   - 제목(건너뛴 항목): "Doan couldn’t set up every agent"
   - 줄(항목마다, 영향받는 에이전트를 앞에): "All agents — `~/.local/bin/doan` is a file Doan didn’t create, so Doan left it alone. Remove or rename it, then reopen Doan." / "Claude Code — `~/.claude/skills/doan` is a folder Doan didn’t create. Remove or rename it, then reopen Doan." / "Codex — Doan couldn’t write `~/.codex/rules/doan.rules` (permission denied). Make `~/.codex/rules` writable, then reopen Doan." / "All agents — `~/.local/bin` isn’t on your shell’s PATH, and adding doan to `/usr/local/bin` was cancelled. Add this line to `~/.zshrc`, then open a new terminal:" + `export PATH="$HOME/.local/bin:$PATH"`. PATH 줄은 Doan을 다시 열 필요가 없으므로 "then reopen Doan"을 붙이지 않는다.
   - 조건 불충족 제목 "This copy doesn’t set up agents", 본문: Applications 밖 "It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it." / 개발 빌드 "Development builds never set up agents. Open the Doan in Applications so your agents can use it." / translocation "macOS is running it from a temporary location. Move Doan to the Applications folder, then open it again."
