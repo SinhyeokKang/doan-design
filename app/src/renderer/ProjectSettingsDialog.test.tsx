@@ -212,3 +212,23 @@ test("Set Up… closes the dialog first, then opens Project Setup", async () => 
   expect(props.onAction).toHaveBeenCalledWith("setUp", ROOT, expect.any(Function));
   expect((props.onClose as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((props.onAction as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]!);
 });
+
+// A confirmation can still own the modal layer when a pending operation settles.
+test("a completed write does not move focus behind an open confirmation", async () => {
+  let finish: (value: unknown) => void = () => {};
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  render(); await flush(); render();
+  const change = { focus: vi.fn() };
+  (button("Change…").props.ref as { current: unknown }).current = change;
+  const origin = Object.assign(new HTMLButtonElement(), { isConnected: false, closest: () => null });
+  Object.assign(document, { activeElement: origin });
+  click("Clear"); render();
+  Object.assign(document, { activeElement: document.body });
+  // SettingsDialog renders a dialog with role=alertdialog and no ob-dialog class.
+  const confirmation = { role: "alertdialog", open: true };
+  Object.assign(document, { querySelector: (selector: string) => selector === 'dialog[role="alertdialog"][open]' ? confirmation : null });
+  finish({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: true });
+  await flush(); render();
+  expect(button("Done").props.disabled).toBeFalsy();
+  expect(change.focus).not.toHaveBeenCalled();
+});
