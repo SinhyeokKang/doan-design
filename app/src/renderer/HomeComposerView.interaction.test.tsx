@@ -481,3 +481,54 @@ test("settings action: a changed default waits for the next input; the draft kee
   await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(2));
   expect((start.mock.calls[1]![0] as { runtime: string }).runtime).toBe("claude");
 });
+
+// doan-mascot spec 'Home 전송': Doany hops when a send starts, through Send, the submit key or the notice's Retry, and
+// not when the guard refuses; input draws its gaze (IME composition included).
+function withDoany(tree: Record<string, unknown>[]) {
+  const doany = { hop: vi.fn(), typing: vi.fn() };
+  (find(tree, props => props.size === 114).ref as { current: unknown }).current = doany;
+  return doany;
+}
+const sendButton = (tree: Record<string, unknown>[]) => find(tree, props => props["aria-label"] === "Send");
+
+test("Doany does not hop when Send or the submit key cannot start a send", () => {
+  const { start, render } = setup({ text: "" });
+  const tree = render();
+  const doany = withDoany(tree);
+  expect(sendButton(tree).disabled).toBe(true);
+  call(sendButton(tree), "onClick", {});
+  call(field(tree), "onKeyDown", key("Enter"));
+  expect(doany.hop).not.toHaveBeenCalled();
+  expect(start).not.toHaveBeenCalled();
+});
+
+test("Doany hops once when Send, the submit key or the notice's Retry starts a send", async () => {
+  const button = setup({ text: "Draw a pricing page." });
+  let tree = button.render();
+  const doany = withDoany(tree);
+  call(sendButton(tree), "onClick", {});
+  expect(doany.hop).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(button.start).toHaveBeenCalledTimes(1));
+  const submit = setup({ text: "Draw a pricing page." });
+  tree = submit.render();
+  const keyed = withDoany(tree);
+  call(field(tree), "onKeyDown", key("Enter"));
+  expect(keyed.hop).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(submit.start).toHaveBeenCalledTimes(1));
+  const retry = setup({ text: "Draw a pricing page.", notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } });
+  tree = retry.render();
+  const again = withDoany(tree);
+  call(find(tree, props => props.children === "Retry" && typeof props.onClick === "function"), "onClick", {});
+  expect(again.hop).toHaveBeenCalledTimes(1);
+  await vi.waitFor(() => expect(retry.start).toHaveBeenCalledTimes(1));
+});
+
+test("input in the field, an IME composition's included, draws Doany's gaze", () => {
+  const { render } = setup();
+  const tree = render();
+  const doany = withDoany(tree);
+  call(field(tree), "onInput", { nativeEvent: { isComposing: false } });
+  call(field(tree), "onInput", { nativeEvent: { isComposing: true } });
+  expect(doany.typing).toHaveBeenCalledTimes(2);
+  expect(doany.hop).not.toHaveBeenCalled();
+});

@@ -44,7 +44,7 @@ test("Home is the shell with the sidebar and a composer body: no project cards, 
   expect(html).not.toContain("Finish setting up doan");
   expect(html).not.toContain("Connection problem");
   expect(html).toContain('<main class="app-shell home-shell"><header class="top shell-top"></header><aside class="side shell-side"');
-  expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-atmosphere" aria-hidden="true"></div><div class="home-stage"><div class="doany-slot"></div><h1 class="home-greeting">');
+  expect(html).toContain('<section class="home-panel" aria-label="Home"><div class="home-atmosphere" aria-hidden="true"></div><div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
   // The sidebar marks no current project or canvas on Home (design §3).
   expect(html).not.toContain("aria-current=\"location\"");
 });
@@ -149,12 +149,11 @@ test("typing keeps the suggestions' place, out of the accessibility tree and the
   expect(css).toContain(".home-stage .home-suggestions[inert] { visibility: hidden; }");
 });
 
-test("the stage has a Doany slot above the greeting and no fixed top padding: its top inset comes from stageInsets", () => {
+test("Doany (114px) is the stage's first child, above the greeting; the stage has no fixed top padding", () => {
   const html = render([project("/code/doan-design")]);
-  expect(html.indexOf('<div class="doany-slot"></div>')).toBeLessThan(html.indexOf('<h1 class="home-greeting">'));
+  expect(html).toContain('<div class="home-stage"><button type="button" class="doany" aria-label="Make Doany hop" style="width:114px;height:114px"><img src="doany/doany.png" alt=""/><canvas hidden="" aria-hidden="true"></canvas></button><h1 class="home-greeting">');
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   const stage = css.match(/\n\.home-stage \{[^}]*\}/)![0];
   expect(stage).not.toContain("152px");
   expect(stage).toContain("padding: var(--space-8);");
-  expect(css).toContain(".home-stage .doany-slot { flex: none; width: 114px; height: 114px; }");
 });

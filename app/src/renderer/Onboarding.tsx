@@ -11,6 +11,7 @@ import { canAdvance, initialScene, nextScene, type Scene, type SceneEvent } from
 import { projectHue, projectInitial } from "./shellNavigation";
 import { tilde } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
+import { Doany } from "./Doany";
 
 const FOCUSABLE = 'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])';
 // Local copies of the draft's marks; sources are in public/provider-logos/README.md. Relative, so the packaged
@@ -25,7 +26,7 @@ function openInstallPage(provider: Provider): Promise<boolean> {
 export function Welcome({ start }: { start: () => void }) {
   return <div className="ob-welcome-main">
     <div className="ob-atmosphere" aria-hidden="true"></div>
-    <div className="doany-slot"></div>
+    <Doany size={142.5} />
     <div className="ob-wordmark">Doan</div>
     <h1 tabIndex={-1}>A place for your next idea.<br />Bring it to life on canvas.</h1>
     <div className="ob-welcome-action"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="lg" onClick={start}>Get started<ArrowRight aria-hidden="true" /></button></div>

@@ -8,6 +8,7 @@ import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { Doany, type DoanyHandle } from "./Doany";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
 import {
@@ -199,6 +200,7 @@ export function HomeComposer(props: HomeComposerProps) {
   const pickedFocus = useRef(false);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const dragDepth = useRef(0);
+  const doany = useRef<DoanyHandle | null>(null);
   const listId = useId();
 
   const lastCommon = new Map(props.entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon] as const] : []));
@@ -419,6 +421,8 @@ export function HomeComposer(props: HomeComposerProps) {
   // Send
   const send = async () => {
     if (!availability.enabled || !root || !provider) return;
+    // A send that starts hops; one that cannot start does nothing (doan-mascot spec 'Home 전송').
+    doany.current?.hop();
     const request: StartInput = {
       root, mode: "newDesign", runtime: provider, text: composed,
       ...(model ? { model } : {}), ...(model && effort ? { effort } : {}),
@@ -544,7 +548,7 @@ export function HomeComposer(props: HomeComposerProps) {
   const hasProjects = cards.length > 0;
 
   return <HomeStage>
-    <div className="doany-slot"></div>
+    <Doany size={114} ref={doany} />
     <h1 className="home-greeting">{greetingText(props.greeting, hasProjects ? project : null)}</h1>
     <div className="home-composer">
       {hasProjects ? <DropdownMenu.Root>
@@ -591,7 +595,7 @@ export function HomeComposer(props: HomeComposerProps) {
           <textarea ref={textarea} className="composer-input" aria-label="Message" rows={2} value={text} readOnly={sending} placeholder={presetPlaceholder(preset)}
             role={slashOpen ? "combobox" : undefined} aria-expanded={slashOpen ? true : undefined} aria-controls={slashOpen ? `${listId}-slash` : undefined}
             aria-autocomplete={slashOpen ? "list" : undefined} aria-activedescendant={slashOpen && slashRows[highlight] ? `${listId}-s-${highlight}` : undefined}
-            onChange={event => edit({ text: event.target.value })} onKeyDown={keyDown} onPaste={paste} />
+            onChange={event => edit({ text: event.target.value })} onInput={() => doany.current?.typing()} onKeyDown={keyDown} onPaste={paste} />
           {counter && <div className={`composer-count${composed.length > TEXT_LIMIT ? " over" : ""}`} aria-live="polite">{counter}</div>}
           <div className="composer-tools">
             {iconButton("Attach files", <button type="button" className="doan-icon-button" aria-label="Attach files" disabled={sending} onClick={choose}><Plus aria-hidden="true" /></button>)}
