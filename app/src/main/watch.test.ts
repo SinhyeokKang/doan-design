@@ -218,6 +218,10 @@ async function expectChange(w: Recorder, change: () => void, expected: Change): 
   w.reset();
   change();
   expect(await within(1_000, () => w.calls().length >= 1)).toBe(true);
+  // Wait for the expected flags, not only for a quiet spell: when fseventsd is backlogged one
+  // burst can arrive in batches more than 300 ms apart, and the refresher's later run still
+  // carries the flag. Settling afterwards keeps an unexpected late flag a failure.
+  await vi.waitFor(() => expect(w.merged()).toEqual(expected), { timeout: 5_000, interval: 20 });
   await settle(() => w.calls().length);
   expect(w.merged()).toEqual(expected);
 }
