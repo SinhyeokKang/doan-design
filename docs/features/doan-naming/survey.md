@@ -72,6 +72,7 @@ A2 앱 검사(`app/src/brand/appText.test.ts`)의 위반 목록과 같다. 코�
 | `app/src/main/onboarding/SKILL.md:17` | doan also bundles design presets. The gu | 산문 | 바꿈 | 스킬 스텁 산문 |
 
 결정 메모:
+- `index.html`의 `<title>`은 `Doan`이 아니라 `Doan Design`이 되었다. V1에서 메인 창 제목이 페이지 `<title>`을 따른다는 것을 확인했다(바꾸기 전 실제 제목은 `doan`). spec 완료 조건 3의 창 제목 'Doan Design'을 지키려면 `<title>`도 정식 이름이어야 한다(2026-10-30).
 - 처음 표에는 `connectionRowView.ts:40`의 `’s doan server runs`가 바꿈으로 있었다. 이 `doan`은 MCP 서버 이름이므로 분류기의 명령어 명사에 `server`를 더하고(fixture `command-server-noun`) 둠으로 옮겼다(2026-10-30).
 - `app/src/renderer/Onboarding.tsx`의 Welcome 워드마크 `doan`도 바꾼다. 온보딩 Welcome을 포함하라는 결정(spec)이 가리키는 제품 이름은 이 워드마크뿐이고, 비목표인 '워드마크 디자인'(글꼴·크기·자간)은 바꾸지 않는다.
 - `app/src/main/index.ts`의 앱 메뉴 라벨 `doan`은 `Doan`이 된다. macOS는 앱 메뉴 제목을 번들 이름으로 그리므로 화면은 B2의 `productName`이 정한다.
@@ -118,8 +119,8 @@ CLI 문자열 리터럴(MCP 도구 설명 포함)과 가이드 `skill.md`에는 
 | `cli/internal/cli/onboarding_test.go:819` | cli := fakeBundle(t, dir, "My Apps/doan.app", "design.doan.app") | 둠 | 번들 위치·셸 따옴표 처리용 임의 경로 입력 |
 | `cli/internal/cli/onboarding_test.go:874` | for _, s := range []string{"<doan.app>/Contents/Resources/bin/doan onboarding start --jso | 바꿈 | 가이드 문구 단언(가이드가 `<Doan.app>`으로 바뀜) |
 | `cli/internal/cli/skill.md:80` | Use these commands when the user asks you to set up Doan. They need the Doan app, but no P | 바꿈 | 가이드의 번들 안내(바이트 수 같음) |
-| `cli/internal/cli/skill_test.go:158` | // plain output and the --json envelope, each with the note the app's own CLI appends for | 둠 | 번들 안내 길이 계산용 입력(`Doan.app`과 바이트 수 같음) |
-| `cli/internal/cli/skill_test.go:162` | note := len(bundleNote("/Applications/doan.app")) | 둠 | 번들 안내 길이 계산용 입력(`Doan.app`과 바이트 수 같음) |
+| `cli/internal/cli/skill_test.go:158` | // plain output and the --json envelope, each with the note the app's own CLI appends for | 바꿈 | ARCHITECTURE §6 예산 문단과 함께 `Doan.app`(바이트 수 같음) |
+| `cli/internal/cli/skill_test.go:162` | note := len(bundleNote("/Applications/doan.app")) | 바꿈 | ARCHITECTURE §6 예산 문단과 함께 `Doan.app`(바이트 수 같음) |
 | `docs/ARCHITECTURE.md:288` | - **Output budget.** The guide and every `doan design-skill` output must fit `skillOutpu | 바꿈 | 현재 구조 문서의 패키지 경로 |
 | `docs/ARCHITECTURE.md:313` | - **CLI lookup and local package** (2026-10-24, onboard). `cliCommand(env, app.isPackaged, | 바꿈 | 현재 구조 문서의 패키지 경로 |
 | `docs/ARCHITECTURE.md:589` | {"v":1,"ok":false,"error":{"code":"cli_error","reason":"unavailable","message":"The doan C | 바꿈 | 현재 구조 문서의 패키지 경로 |
