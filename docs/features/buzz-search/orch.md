@@ -20,6 +20,8 @@
 | 2026-10-30 | 리뷰 BU 🟡1(`.qo-height` clip이 스크롤바 4px를 자를 수 있음)은 BS가 실제 앱에서 재고, 잘리면 BS가 CSS를 고치고 DESIGN.md에 초안과의 차이로 적는다 | 지휘자 판단 — 초안과 같은 값이라 정적 비교로는 드러나지 않는다 |
 | 2026-10-30 | 스크롤바 잘림(리뷰 BU 🟡1, BS 측정 (c)1)은 고친다. `.qo-height`를 세로축만 자르도록(`overflow-x: visible; overflow-y: clip`) 바꾸고, 초안과의 차이로 DESIGN.md에 적는다 | 지휘자 판단 — 클래식 스크롤바에서 11px 중 4px가 잘리는 것은 사용성 결함이다. 수정이 한 줄이고 측정으로 확인할 수 있다 |
 | 2026-10-30 | 행의 `corner-shape: squircle`은 초안과 구현이 같으므로 그대로 두고 DESIGN.md에 적는다 | 지휘자 판단 — 확정 초안 값이다 |
+| 2026-10-30 | 헤더 띠의 no-drag 컨트롤(모드 캡슐 등) 클릭도 Quick Open을 닫지 않는다. 지금은 닫히므로 결함으로 보고 BS가 고친다 | 지휘자 판단 — spec 확정 결정 3·완료 조건 11이 "헤더 띠 위 클릭은 닫지 않는다"고 적었고, 부모가 타이틀바 클릭 닫기를 가져오지 않았다 |
+| 2026-10-30 | AppKit Cmd+K 키 입력과 네이티브 IME는 미확인으로 남긴다. probe는 Cmd+K를 소유한 Go > Quick Open… 메뉴 항목으로 열었다 | 지휘자 판단 — 같은 메뉴 경로이고, Playwright로는 네이티브 가속키를 보낼 수 없다 |
 | 2026-10-30 | S0 기준값 측정과 초안 쪽 측정 스크립트 준비를 BT·BU와 병렬로 먼저 돌린다(BS0). 나머지 S1~S3는 BU 통합 뒤 같은 작업자에게 새 Task로 보낸다 | 지휘자 판단 — S0는 main 코드만 재고, 초안 측정은 구현이 필요 없다. 파일 겹침 없음 |
 | 2026-10-30 | BU는 BT의 워크트리를 이어 쓰되, 작업자는 Opus high로 새로 띄운다(BT 작업자는 해제) | 지휘자 판단 — 터미널 재사용은 모델·effort를 바꿀 수 없고, BU는 high가 필요하다. 맥락은 handoff-BT로 넘긴다 |
 
@@ -54,3 +56,4 @@ D1(초안)은 이미 완료됐다(`c56a544f`, 기록 `df23dd4f`).
 - 2026-10-30: BU 리뷰(Claude Opus high) 🔴0·🟡1·⚪3·❓1. 리뷰어가 test 4728·typecheck·U2 grep을 다시 돌려 통과를 확인했다. 'Differences from plan'은 모두 수용했다. 단, spec 완료 조건 2·10의 실시간 단언은 BS probe로 메운다. BU 수정 1차(⚪1·⚪2)를 보냈다(dispatch `ctx_8ad9d6455ad6`). 리뷰어는 해제했다.
 - 2026-10-30: BS 1단계 측정 완료(수정 없음). 열 프레임 모두 (a) 구현 결함 0이다. 남은 457행은 맥락이나 fixture 차이다. 개발 빌드는 14/14가 프로덕션과 같고, Add Projects는 S0 기준값과 같다. 600px 창에서 다이얼로그가 스크롤되지 않는다(454=454). 50개 결과는 끝까지 스크롤되고, preventDefault 아래에서도 스크롤바 드래그가 된다. 포커스, 바깥 클릭, 키보드, 접근성 트리 probe는 S2에서 한다.
 - 2026-10-30: BU 수정 1차 완료. 커밋 `1a61eadf`(test, red 2/16)·`3923caf2`(fix)이고, 지휘자가 diff를 직접 확인했다. BU 커밋 다섯 개를 cherry-pick했다(`c5d5b8a4` `95bbe6e1` `fdf59fa3` `b32e8bf6` `4f292fd9`). 통합 지점에서 typecheck와 app test 4730개 통과를 확인했다. BU 작업자는 해제했다. BS 2단계를 시작했다(dispatch `ctx_a0482ffeb4fc`).
+- 2026-10-30: BS 2단계 완료. 커밋 `1a59d2b4`(fix, 세로축만 clip, CSS 검사 red→green)·`496ca7b5`(DESIGN.md). app test 4731·typecheck·build 통과, measure exit 0((a) 0건, 문서화한 차이 d 10행), probe exit 0(20/20), S3 grep 통과. 실제 클릭으로 헤더 모드 캡슐을 누르면 Quick Open이 닫히는 것을 관찰했다. 이를 고치도록 BS 수정 1차를 보냈다(dispatch `ctx_f106dc706759`).
