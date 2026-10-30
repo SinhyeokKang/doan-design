@@ -288,6 +288,49 @@ test("entering the page cancels a pending startup restore and a workspace still 
   expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "home" });
 });
 
+// review BU1 🟡1: a target on the page is a navigation too, so a move still in flight must not land after it
+// (POSTMORTEM 2026-10-27 no-op path rule); the same for Add Projects' own re-entry.
+test("on a page, ⌘, or the page's own tab cancels a navigation still in flight", () => {
+  for (const reenter of ["cmdComma", "toast"] as const) {
+    reset();
+    openFromWorkspace();
+    let pending: (() => void) | null = null;
+    harness.controller!.openWorkspace!.mockImplementation((root: string, done: (root: string) => void) => { pending = () => done(root); });
+    harness.controller!.cancelWorkspaceOpen!.mockImplementation(() => { pending = null; });
+    listeners.notificationClick!({ conversationId: "gone", root: "/w/b" } as never); render();
+    expect(pending, reenter).not.toBeNull();
+    if (reenter === "cmdComma") cmdComma();
+    else { harness.signIn.onToast!({ text: "x", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } }); (harness.toast.show.mock.lastCall![2] as () => void)(); render(); }
+    (pending as (() => void) | null)?.(); render();
+    expect(onSettings(), reenter).toBe(true);
+  }
+  for (const reenter of ["tab", "menu"] as const) {
+    reset();
+    render();
+    folders([listed("/w/a"), listed("/w/b")]);
+    click(topBar(homeEl()!.props.header).add);
+    let pending: (() => void) | null = null;
+    harness.controller!.openWorkspace!.mockImplementation((root: string, done: (root: string) => void) => { pending = () => done(root); });
+    harness.controller!.cancelWorkspaceOpen!.mockImplementation(() => { pending = null; });
+    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/b"); render();
+    expect(pending, reenter).not.toBeNull();
+    if (reenter === "tab") click(topBar(addPage()!.props.header).add);
+    else { listeners.openAddProjects!(); render(); }
+    (pending as (() => void) | null)?.(); render();
+    expect(addPage(), reenter).toBeDefined();
+  }
+});
+
+// review BU1 ⚪3: the Settings tab is a control the lock shows unavailable; only targets from outside wait.
+test("while the page is locked a click on the Settings tab is ignored, not queued", () => {
+  openFromWorkspace();
+  lock();
+  const before = settings()!.props.arrival;
+  click(topBar(settings()!.props.header).settings);
+  lock(false);
+  expect(settings()!.props.arrival).toBe(before);
+});
+
 test("a notification click: a known conversation goes where the permission toast's Open goes, an unknown one to its registered project's Overview, else nowhere", () => {
   const click = (target: { conversationId: string; root: string }) => { listeners.notificationClick!(target as never); render(); };
   // Known: the run's own conversation in /w/b opens its project, like the toast's Open.

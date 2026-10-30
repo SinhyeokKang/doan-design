@@ -463,12 +463,13 @@ export function App() {
     if (now === "addProjects" || now === "settings") return { screen: now };
     return now === "workspace" && loadedRootRef.current !== null ? { screen: "workspace", root: loadedRootRef.current } : { screen: "home" };
   };
-  // Entering cancels a pending startup restore and a workspace still opening (POSTMORTEM 2026-10-27).
+  // Entering cancels a pending startup restore and a workspace still opening (POSTMORTEM 2026-10-27), and so does
+  // entering the page already shown: it is the person's latest move too (that entry's no-op path rule).
+  const cancelPending = () => { cancelRestore(); controller.current?.cancelWorkspaceOpen(); };
   function enterPage(to: "addProjects" | "settings"): AddPageOrigin | null {
     const entered = pageEnter(shellScreen(), pageRef.current.origin, to, locked());
-    if (entered.kind === "stay") return null;
-    cancelRestore();
-    controller.current?.cancelWorkspaceOpen();
+    if (entered.kind === "stay") { if (currentScreen.current === to && !locked()) cancelPending(); return null; }
+    cancelPending();
     if (currentScreen.current === "workspace" && loadedRootRef.current !== null) workspaceFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return entered.origin;
   }
@@ -487,7 +488,7 @@ export function App() {
     if (live.current.modal) return;
     if (currentScreen.current === "settings") {
       const now = settingsQueue.current.offer(target, settingsRef.current.locked);
-      if (now) arrive(now);
+      if (now) { cancelPending(); arrive(now); }
       return;
     }
     const origin = enterPage("settings");
@@ -559,8 +560,8 @@ export function App() {
   };
   // File > Add Project… (⌘O) opens the page; on the page it runs Choose folder, which main allows only in choose.
   useEffect(() => window.doan.onOpenAddProjects(() => {
-    if (currentScreen.current !== "addProjects") { live.current.openAddProjects(); return; }
-    if (pageRef.current.choose) setPage(previous => ({ ...previous, chooseSeq: previous.chooseSeq + 1 }));
+    live.current.openAddProjects();
+    if (currentScreen.current === "addProjects" && pageRef.current.choose) setPage(previous => ({ ...previous, chooseSeq: previous.chooseSeq + 1 }));
   }), []);
   // Settings… (⌘,) from main, after it has shown a hidden window; a payload that is not a target is dropped.
   useEffect(() => window.doan.onOpenSettingsPage(value => { const target = parseSettingsTarget(value); if (target) live.current.openSettings(target); }), []);
@@ -758,7 +759,7 @@ export function App() {
     home={home} slots={run.slots()} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
-    addProjects={() => onPage ? leavePage({ kind: "reopen" }) : openAddProjects()} projects={() => leavePage({ kind: "projectsTab" })} settings={() => openSettings({})} />;
+    addProjects={openAddProjects} projects={() => leavePage({ kind: "projectsTab" })} settings={() => { if (!locked()) openSettings({}); }} />;
   // Settings > Agents lists models for the project Home would start with.
   const modelRoot = defaultProject(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])), {
     current: composerMemory.current.root ? { root: composerMemory.current.root, name: composerMemory.current.root } : null, loaded: loadedRoot, lastRoot: homeMemory?.lastRoot ?? null }).root;
@@ -767,7 +768,7 @@ export function App() {
   {screen === "home" && <Home header={topBar} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
     memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
-    defaults={preferences?.preferences.newConversation ?? null} openSettings={openSettings} />}
+    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} />}
   {onSettings && <SettingsPage header={topBar} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} />}
   {onPage && <AddProjectsPage key={page.seq} header={topBar} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
