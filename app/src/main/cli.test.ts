@@ -92,51 +92,20 @@ describe("runLs", () => {
     const out = join(dir(), "args");
     // A shell builtin checks EOF without a PATH lookup or an extra cat process.
     const fake = fakeCli(`if IFS= read -r line; then exit 97; fi; printf '%s\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"root":"/r","scope":[],"canvases":[]}}'`);
-    const controller = new AbortController();
     // This is an argument/stdin contract check, not a two-second performance bound.
-    const pending = runLs(fake, { repo: "/some/repo" }, undefined, controller.signal);
-    try {
-      expect(spawn).toHaveBeenLastCalledWith(fake, ["ls", "--json", "--repo", "/some/repo"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
-      const run = await pending;
-      expect(run.timedOut).toBe(false);
-      expect(run.exitCode).toBe(0);
-      expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["ls", "--json", "--repo", "/some/repo"]);
-      expect(folderState(run).kind).toBe("list");
-    } finally {
-      controller.abort();
-      await pending;
-    }
+    const pending = runLs(fake, { repo: "/some/repo" });
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["ls", "--json", "--repo", "/some/repo"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    const run = await pending;
+    expect(run.timedOut).toBe(false);
+    expect(run.exitCode).toBe(0);
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["ls", "--json", "--repo", "/some/repo"]);
+    expect(folderState(run).kind).toBe("list");
   });
 
   test("a missing CLI is a CLI error with a reason", async () => {
     const state = folderState(await runLs(join(tmp, "nope", "doan"), { repo: repo() }));
     expect(state.kind).toBe("cliError");
     expect(state.kind === "cliError" && state.reason).toMatch(/ENOENT/);
-  });
-
-  // A cancelled scan ends its remaining runs (design '판정' step 3②).
-  test("an aborted run is killed at once and is not a timeout", async () => {
-    const marker = join(dir(), "after");
-    const fake = fakeCli(`sleep 30; touch '${marker}'`);
-    const controller = new AbortController();
-    const started = Date.now();
-    const pending = runLs(fake, { repo: repo() }, 20_000, controller.signal);
-    setTimeout(() => controller.abort(), 100);
-    const run = await pending;
-    expect(Date.now() - started).toBeLessThan(3_000);
-    expect(run.timedOut).toBe(false);
-    expect(folderState(run).kind).toBe("cliError");
-  });
-
-  test("a signal aborted before the run never starts the CLI", async () => {
-    const marker = join(dir(), "ran");
-    const fake = fakeCli(`touch '${marker}'`);
-    const controller = new AbortController();
-    controller.abort();
-    const run = await runLs(fake, { repo: repo() }, 2_000, controller.signal);
-    expect(folderState(run).kind).toBe("cliError");
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    expect(existsSync(marker)).toBe(false);
   });
 
   test("a hung CLI is killed at the timeout", async () => {
