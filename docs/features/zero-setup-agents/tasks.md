@@ -104,6 +104,22 @@
 - T6과 같은 임시 HOME에서 앱이 만든 링크와 rule로 T0의 측정을 다시 한다. 앱 대화 Codex의 skill 중복이 Codex를 헷갈리게 하지 않는지도 본다.
 - 검증: T0 표와 같은 열로 결과를 이 파일에 남기고, 링크 집합이 T0에서 정한 집합과 같다.
 
+2026-10-31 측정. T6 프로브가 남긴 임시 HOME에서 패키지 앱(`<임시 HOME>/Applications/Doan.app`)을 다시 띄웠다. 설치 실행기는 모든 항목을 `keep`으로 판정했다. 앱이 만든 배치는 `~/.local/share/doan/{current,skill}`, `~/.local/bin/doan`, `~/.agents/skills/doan`, `~/.claude/skills/doan`, `~/.gemini/config/skills/doan`, `~/.codex/rules/doan.rules`이고, `~/.cursor/skills/doan`과 `~/.copilot/skills/doan`은 없다. 이 링크 집합은 T0에서 정한 집합과 같다. 가짜 socket 대신 실행 중인 앱의 socket을 썼고, 앱에 임시 repo를 프로젝트로 등록했다. 측정 명령과 `env -i` 환경은 T0과 같고, PATH에서 실제 `~/.local/bin`은 뺐다(에이전트 CLI는 절대경로로 실행).
+
+| 프로바이더 | 읽는 전역 skill 위치 | `doan` 보인 횟수 | `doan skill` | `doan active` | 허용 방식 |
+|---|---|---|---|---|---|
+| Claude Code 2.1.314 | `~/.claude/skills/doan`(앱이 만든 링크, T0에서 Claude가 읽는 유일한 위치) | 1 | 성공, end marker `v0.1.0` 있음 | 앱에 닿음(exit 0) | 필요 없음 |
+| Codex 0.164.0 | `~/.agents/skills/doan`(Codex가 `r0/doan/SKILL.md`로 보고) | 1 | 성공, end marker 있음 | `-s workspace-write`, `approval_policy="never"`, 앱이 쓴 `~/.codex/rules/doan.rules`로 닿음(exit 0). `doan onboarding status`도 sandbox 밖에서 앱에 닿았다(앱이 `session_stale`로 답함, exit 3) | 앱이 쓴 사용자 레이어 rule |
+| GitHub Copilot CLI 1.0.105 | `~/.agents/skills/doan`(Copilot이 이 경로를 보고) | 1 | 성공, end marker 있음 | 앱에 닿음(exit 0) | 필요 없음 |
+| Cursor CLI 2026.10.22 | 측정 못 함 | – | – | – | – |
+| Antigravity 2.28.2(앱) | `~/.gemini/config/skills/doan`(Antigravity가 이 경로를 보고) | 1 | 성공(절대경로 CLI), end marker 있음 | 기본 preset에서는 승인을 묻지 않고 sandbox 안에서 실행해 `connect: operation not permitted`(exit 3). sandbox 밖 실행을 요청하라고 하자 "Allow run doan active --json?"가 떴고, "Yes, allow this time"을 고른 뒤 닿음(exit 0) | 에이전트가 sandbox 밖 실행을 요청하고 사람이 한 번 승인 |
+
+- Cursor: 임시 HOME 로그인(`AGENT_CLI_CREDENTIAL_STORE=file NO_OPEN_BROWSER=1 cursor-agent login`, ego 브라우저에서 승인)은 성공했다. 그러나 계정이 사용 한도에 걸려("You've hit your usage limit") `-p` 실행이 모두 exit 1로 끝났다(`--model auto`도 같음). 로그아웃한 뒤 `cursor-agent status`가 "Not logged in"이고, 임시 HOME에 토큰 파일이 남지 않았다.
+- Antigravity: 앱이 2.0.6(T0)에서 2.28.2로 바뀌었다. T0에서는 첫 실행에서 명령 승인 대화상자가 떴지만, 2.28.2는 기본 preset에서 명령을 sandbox에 넣어 승인 없이 실행하고 socket 연결을 막는다. 에이전트는 `app_not_running`의 `nextSteps`("run `doan` outside the sandbox or request approval")를 받았고, sandbox 밖 실행을 요청하자 승인 한 번으로 닿았다. 에이전트가 스스로 다시 요청하는지는 확인하지 않았다(프롬프트가 재시도를 막았다). T0과 같이 실제 HOME `~/.gemini/config/skills/doan`에 임시 HOME의 `~/.local/share/doan/skill`을 가리키는 링크를 측정 동안만 두었고, 끝난 뒤 지웠다. 앱의 bugshot-2 프로젝트에 "Doan Skill and Runtime Diagnostics" 대화가 남았다. 앱을 처음 띄울 때 보안 안내(데이터 공유 체크박스는 끈 채로)를 수락했다.
+- 앱 대화 Codex의 skill 중복: 실제 앱 대화 대신 같은 skill 배치를 `codex exec`로 재현했다(`CODEX_HOME`=프로필 stub `skills/doan/SKILL.md`를 둔 임시 폴더, HOME=임시 HOME). Codex는 `doan`을 두 번 나열했고(`r0`, `r1`), 하나를 골라 `doan skill`을 정상 실행했다. 헷갈린 흔적은 없다. 이 재현에서 `doan active`는 sandbox에 막혔다. `CODEX_HOME`이 프로필이면 `~/.codex/rules`가 사용자 레이어가 아니기 때문이다. 실제 앱 대화는 앱의 명령 승인 흐름을 쓰므로 이 결과로 판단하지 않는다.
+- 실제 상태 보호: 실행 전후로 실제 HOME 지문(T0 `snapshot.sh` 항목과 `app/runtime/real-state.ts`)을 비교했다. 바뀐 것은 Antigravity 앱이 스스로 쓴 것뿐이다(`~/.gemini/config/config.json`, `node_modules/`, `plugins/`, `~/.gemini/sandbox/`, `~/.gemini/jetski-standalone-oauth-token`, Keychain 항목 `gemini`의 수정 시각). 이것들은 Antigravity 상태라 지우지 않았다. `~/.claude`의 mtime 변화는 같은 시각 다른 워커의 Claude 실행(`~/.claude/projects/-private-tmp-doan-eval-…`)에서 왔다. Codex 인증은 실제 `~/.codex/auth.json` 사본을 쓴 뒤 지웠고, 원본 해시는 그대로다. 임시 HOME의 `Library/Keychains` 링크도 지웠다.
+- 원본 로그와 스크린샷: `.scratch/zero-setup-agents/t6b/`.
+
 ## T7. `/agent-eval`
 
 - 바뀐 stub·guide·nextSteps로 라운드를 돌린다. `/agent-eval`은 두 모델 계열을 쓰는 상시 예외라 따로 허락받지 않는다(AGENTS.md 'Runtime differences').
