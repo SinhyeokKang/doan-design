@@ -377,7 +377,13 @@ export function App() {
   };
   const toggleProject = async (key: string) => {
     const group = cards.find(card => card.key === key); if (!group) return;
-    if (locked()) return;
+    // A locked page keeps the disclosure; only the move to a workspace is ignored (design '잠금'). The loaded project's
+    // row is always open, so activating it only ever navigates.
+    if (locked()) {
+      if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
+        setShellProjects(previous => { const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }; return { ...previous, [key]: { ...memory, expanded: !memory.expanded } }; });
+      return;
+    }
     // Home and the Add Projects page show the sidebar without a current project; its row goes back to the loaded
     // workspace (design §3).
     if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) { if (currentScreen.current !== "workspace") enter(loadedRoot); return; }
