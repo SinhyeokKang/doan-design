@@ -81,7 +81,7 @@ let statusListener: (status: SetupStatus) => void;
 let props: Parameters<typeof SettingsConnections>[0];
 beforeEach(() => {
   resetHooks();
-  doan = {
+  doan = { startConversation: vi.fn(), sendConversation: vi.fn(),
     readSetup: vi.fn(async () => ({ kind: "state", state: machine(), summary: SUMMARY })),
     onSetupStatus: vi.fn((listener: typeof statusListener) => { statusListener = listener; return () => {}; }),
     runSetupStep: vi.fn(async () => ({ kind: "confirm", id: "c1", target: "cli", message: "" })),
@@ -94,6 +94,8 @@ beforeEach(() => {
   vi.stubGlobal("HTMLButtonElement", class {});
   props = { onLock: vi.fn(), actions: {} as HTMLElement };
 });
+// review BU1 ⚪4: nothing on the Settings page may start or send a conversation.
+afterEach(() => { expect(doan.startConversation).not.toHaveBeenCalled(); expect(doan.sendConversation).not.toHaveBeenCalled(); });
 afterEach(() => vi.unstubAllGlobals());
 const render = () => run(() => SettingsConnections(props));
 const rows = () => all(tree).find(element => element.type === ConnectionRows)!.props as Record<string, (...args: never[]) => void> & { machine: MachineState | null; busy: boolean };

@@ -40,14 +40,14 @@ const { NoticeView, StopDialog } = await import("./Onboarding");
 
 const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
 const ACCOUNT: AccountIdentity = { id: "acct", workspace: "org", email: "ada@example.com" };
-function dto(provider: Provider, f: { account?: boolean; attempt?: Pick<AuthAttempt, "kind" | "id"> } = {}, revision = 1): AuthStatusDto {
+function dto(provider: Provider, f: { account?: boolean; attempt?: Pick<AuthAttempt, "kind" | "id">; facts?: Partial<ToolFacts> } = {}, revision = 1): AuthStatusDto {
   const account = f.account ?? true;
   const state: AuthState = {
     provider, generation: 1, verified: true, expired: false, connection: account ? { provider, connectionId: "c", profile: provider, account: ACCOUNT } : null,
     attempt: f.attempt ? { owner: 7, cancelled: false, ...f.attempt } : null, error: null,
     phase: f.attempt ? "signingIn" : account ? "connected" : "disconnected",
   };
-  return authStatus(state, FACTS, revision);
+  return authStatus(state, { ...FACTS, ...f.facts }, revision);
 }
 const prefs = (newConversation: Preferences["newConversation"]): PreferencesSnapshot => ({ preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation }, notice: null });
 
@@ -79,7 +79,12 @@ beforeEach(() => {
   signIn.start();
   props = { signIn, arrival: null, onLock: vi.fn(), preferences: prefs(null), save: vi.fn(async () => null), project: { root: "/code/acme", name: "acme-web" } };
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+// review BU1 ⚪4: the Settings page shares the main window's preload, so nothing here may start or send a conversation.
+afterEach(() => {
+  expect(api.startConversation).not.toHaveBeenCalled();
+  expect(api.sendConversation).not.toHaveBeenCalled();
+  vi.unstubAllGlobals(); vi.useRealTimers();
+});
 
 function render(next: Partial<typeof props> = {}): ReactNode {
   props = { ...props, ...next };
@@ -121,6 +126,40 @@ test("a saved default whose agent is no longer signed in keeps its choice and sa
   const warning = all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("isn’t signed in"));
   expect(words(warning?.props.children)).toBe("Codex isn’t signed in, so Home starts with the agent you sent with last.");
 });
+
+// review BU1 ⚪1/⚪2: a fixed default that is connected but cannot run says why, and so does its Model row.
+test("a connected default that cannot run says the real cause, and Model says why it is off", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex", { facts: { version: "unsupported" } })] };
+  await settle({ preferences: prefs({ provider: "codex" }) });
+  const warning = all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"));
+  expect(words(warning?.props.children)).toBe("Codex needs an update, so Home starts with the agent you sent with last.");
+  const model = labelled("Model for new conversations")[0]!;
+  expect(model.props.disabled).toBe(true);
+  const modelRow = all(tree).find(element => element.props.className === "doan-preference-row" && all(element.props.children as ReactNode).includes(model))!;
+  expect(modelRow.props["data-disabled"]).toBe("");
+  expect(words(modelRow.props.children)).toContain("Codex can’t run right now, so its models can’t be listed.");
+});
+
+// review BU1 ❓2 (spec 'New conversations'): Effort is offered with Model Default too, from the default model's efforts.
+test("with Model Default, Effort lists the default model's efforts and saves without a model; a default without efforts hides it", async () => {
+  await settle({ preferences: prefs({ provider: "claude" }) });
+  await settle();
+  expect(labelled("Model for new conversations")[0]?.props["aria-label"]).toBe("Model for new conversations: Default");
+  expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: Default");
+  const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
+  (groups[2]!.props.onValueChange as (value: string) => void)("high");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", effort: "high" } });
+  await settle({ preferences: prefs({ provider: "claude", effort: "high" }) });
+  expect(labelled("Effort for new conversations")[0]?.props["aria-label"]).toBe("Effort for new conversations: High");
+  resetHooksAndList([{ id: "opus", label: "Opus 5.5", default: true }, { id: "haiku", label: "Haiku 5.5", default: false, efforts: ["low"] }]);
+  await settle({ preferences: prefs({ provider: "claude" }) });
+  await settle();
+  expect(labelled("Effort for new conversations")).toHaveLength(0);
+});
+function resetHooksAndList(models: unknown[]) {
+  hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
+  api.listConversationModels!.mockResolvedValue({ models });
+}
 
 test("without a healthy project Model is disabled and says why", async () => {
   await settle({ preferences: prefs({ provider: "claude" }), project: null });

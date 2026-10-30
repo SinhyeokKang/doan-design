@@ -65,9 +65,11 @@ let windowListeners: Record<string, () => void>;
 let reply: (value: AboutRead | null) => void;
 beforeEach(() => {
   resetHooks(); windowListeners = {};
-  doan = { readAbout: vi.fn(() => new Promise(resolve => { reply = resolve; })), copyAbout: vi.fn(async () => ({ kind: "success" })) };
+  doan = { startConversation: vi.fn(), sendConversation: vi.fn(), readAbout: vi.fn(() => new Promise(resolve => { reply = resolve; })), copyAbout: vi.fn(async () => ({ kind: "success" })) };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: () => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
 });
+// review BU1 ⚪4: nothing on the Settings page may start or send a conversation.
+afterEach(() => { expect(doan.startConversation).not.toHaveBeenCalled(); expect(doan.sendConversation).not.toHaveBeenCalled(); });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 const actions = {} as HTMLElement;
 const render = () => run(() => SettingsAbout({ actions }));
