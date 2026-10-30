@@ -38,7 +38,7 @@ import type { Selection } from "../formats/types";
 import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
-import { createAddFlow, droppedPaths, type AddFlow } from "./addProjects";
+import { createAddFlow, type AddFlow } from "./addProjects";
 import { cliCommand, readFolder, runConfig, runDesignSkill, runLs } from "./cli";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
@@ -516,17 +516,6 @@ function openAddProjects(): void {
   send(ADD_PAGE_CHANNELS.open);
 }
 
-// `folders:add`: several folders at once. A hidden window is shown first, as for every other way of reaching the window.
-async function addFromDialog(): Promise<void> {
-  const window = win;
-  const flow = addFlow;
-  if (!window || window.isDestroyed() || !flow) return;
-  showWindow(window);
-  const picked = await dialog.showOpenDialog(window, { title: "Add Project…", properties: ["openDirectory", "multiSelections"] });
-  if (picked.canceled || picked.filePaths.length === 0) return;
-  send("folders:add-outcome", await flow.add(picked.filePaths));
-}
-
 function storedPath(value: unknown): string | null {
   if (typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("path" in value) || typeof value.path !== "string") return null;
   const path = value.path;
@@ -666,11 +655,10 @@ async function start(): Promise<void> {
     async add(path) {
       const flow = addFlow;
       if (!flow) return null;
-      const outcome = await flow.add([path]);
-      if (outcome.scanId !== null) flow.cancel(outcome.scanId);
+      const outcome = await flow.add(path);
       const stored = outcome.added[0] ?? outcome.duplicate;
       if (stored) return stored;
-      const confirm = outcome.confirms[0];
+      const confirm = outcome.confirm;
       if (!confirm) return null;
       const confirmed = await flow.confirm({ confirmId: confirm.confirmId });
       return confirmed.kind === "added" && ready.entries().some(entry => entry.path === confirm.path) ? confirm.path : null;
@@ -805,30 +793,11 @@ async function start(): Promise<void> {
   const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
   const reviews = createReviewStore(join(userData, "review-state.json"), () => savedRoots);
   const flow = createAddFlow({
-    ls: async (target, signal) => folderState(await runLs(cli, target, undefined, signal)),
+    ls: async target => folderState(await runLs(cli, target)),
     saved: () => ready.entries().map((entry) => entry.path),
     store: (paths) => ready.store(paths),
-    progress: (snapshot) => send("folders:scan-progress", snapshot),
   });
   addFlow = flow;
-  handle("folders:add", undefined, async (event) => { if (fromWindow(event)) await addFromDialog(); });
-  handle("folders:add-paths", undefined, async (event, value: unknown) => {
-    const paths = droppedPaths(value);
-    if (!fromWindow(event) || paths === null) return;
-    send("folders:add-outcome", await flow.add(paths));
-  });
-  const scanId = (value: unknown): string | null => typeof value === "object" && value !== null && Object.keys(value).length === 1 &&
-    "scanId" in value && typeof value.scanId === "string" ? value.scanId : null;
-  handle("folders:scan", null, (event, value: unknown) => {
-    const id = scanId(value);
-    return fromWindow(event) && id !== null ? flow.scan(id) : null;
-  });
-  handle("folders:scan-cancel", undefined, (event, value: unknown) => {
-    const id = scanId(value);
-    if (fromWindow(event) && id !== null) flow.cancel(id);
-  });
-  handle("folders:add-candidates", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.addCandidates(value) : { kind: "unavailable" }));
-  handle("folders:confirm-folder", { kind: "unavailable" }, (event, value: unknown) => (fromWindow(event) ? flow.confirm(value) : { kind: "unavailable" }));
   // Review markers outlive a removal while Undo can bring the project back;
   // a root stored again meanwhile keeps them.
   const removedForGood = (paths: readonly string[]) => {

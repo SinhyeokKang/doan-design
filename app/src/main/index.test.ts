@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vit
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
 import { displayPath } from "../renderer/projectDisplay";
 
-const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], scanId: null, confirms: [] };
+const OUTCOME = { added: ["/repo"], duplicate: null, messages: [], confirm: null };
 
 const mocks = await vi.hoisted(async () => {
   const { EventEmitter } = await import("node:events");
@@ -38,7 +38,7 @@ const mocks = await vi.hoisted(async () => {
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
       store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
-    flow: { add: vi.fn(), scan: vi.fn(), cancel: vi.fn(), addCandidates: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
+    flow: { add: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
     electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn() },
     // AppKit notifications by name, as main last subscribed to them.
@@ -893,66 +893,13 @@ describe("menus", () => {
 });
 
 describe("adding projects", () => {
-  test("folders:add from the window runs the picker; a cancelled picker adds nothing", async () => {
-    const contents = window().webContents;
-    await invoke("folders:add", contents, null);
-    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledOnce();
-    expect(mocks.flow.add).not.toHaveBeenCalled();
-    mocks.dialog.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: ["/a"] });
-    await invoke("folders:add", contents, {});
-    await invoke("folders:add", {}, null);
-    expect(mocks.dialog.showOpenDialog).toHaveBeenCalledOnce();
-    await invoke("folders:add", contents, null);
-    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith(["/a"]);
-    expect(contents.send).toHaveBeenCalledWith("folders:add-outcome", OUTCOME);
-  });
-
-  test("folders:add-paths accepts only validated absolute paths from the window", async () => {
-    const contents = window().webContents;
-    for (const bad of [null, ["/a"], { paths: ["rel"] }, { paths: [1] }, { paths: Array.from({ length: 33 }, (_, i) => `/p${i}`) }, { paths: ["/a"], more: 1 }]) {
-      await invoke("folders:add-paths", contents, null, bad);
-    }
-    await invoke("folders:add-paths", contents, {}, { paths: ["/a"] });
-    await invoke("folders:add-paths", {}, null, { paths: ["/a"] });
-    expect(mocks.flow.add).not.toHaveBeenCalled();
-    await invoke("folders:add-paths", contents, null, { paths: ["/a", "/b"] });
-    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith(["/a", "/b"]);
-    expect(contents.send).toHaveBeenCalledWith("folders:add-outcome", OUTCOME);
-  });
-
-  test("the add flow lists stored paths, stores through the shell and sends scan progress", async () => {
+  test("the add flow lists stored paths and stores through the shell", async () => {
     const deps = mocks.createAddFlow.mock.calls[0]?.[0];
     mocks.shell.entries.mockReturnValue([{ path: "/x" }, { path: "/y" }]);
     expect(deps.saved()).toEqual(["/x", "/y"]);
     mocks.shell.store.mockResolvedValue(["/z"]);
     expect(await deps.store(["/z"])).toEqual(["/z"]);
     expect(mocks.shell.store).toHaveBeenCalledWith(["/z"]);
-    const snapshot = { scanId: "s", seq: 1, finished: 0, total: 1, done: false, items: [] };
-    deps.progress(snapshot);
-    expect(window().webContents.send).toHaveBeenCalledWith("folders:scan-progress", snapshot);
-  });
-
-  test("scan, cancel, candidates and confirm go to the add flow only from the window", async () => {
-    const contents = window().webContents;
-    mocks.flow.scan.mockReturnValue({ scanId: "s" });
-    mocks.flow.addCandidates.mockResolvedValue({ kind: "added", added: ["/c"] });
-    mocks.flow.confirm.mockResolvedValue({ kind: "added", added: ["/p"] });
-    expect(await invoke("folders:scan", contents, null, { scanId: "s" })).toEqual({ scanId: "s" });
-    expect(mocks.flow.scan).toHaveBeenCalledWith("s");
-    await invoke("folders:scan-cancel", contents, null, { scanId: "s" });
-    expect(mocks.flow.cancel).toHaveBeenCalledWith("s");
-    expect(await invoke("folders:add-candidates", contents, null, { scanId: "s", ids: ["i"] })).toEqual({ kind: "added", added: ["/c"] });
-    expect(mocks.flow.addCandidates).toHaveBeenCalledWith({ scanId: "s", ids: ["i"] });
-    expect(await invoke("folders:confirm-folder", contents, null, { confirmId: "c" })).toEqual({ kind: "added", added: ["/p"] });
-    expect(mocks.flow.confirm).toHaveBeenCalledWith({ confirmId: "c" });
-    vi.clearAllMocks();
-    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
-      expect(await invoke("folders:scan", sender, parent, { scanId: "s" })).toBeNull();
-      await invoke("folders:scan-cancel", sender, parent, { scanId: "s" });
-      expect(await invoke("folders:add-candidates", sender, parent, { scanId: "s", ids: ["i"] })).toEqual({ kind: "unavailable" });
-      expect(await invoke("folders:confirm-folder", sender, parent, { confirmId: "c" })).toEqual({ kind: "unavailable" });
-    }
-    for (const fn of Object.values(mocks.flow)) expect(fn).not.toHaveBeenCalled();
   });
 });
 
@@ -2074,7 +2021,7 @@ describe("Add Projects page session", () => {
     const plan = await invoke("add-projects:inspect", contents, null, { sessionId, requestId: "pick", path: "/picked" }) as { result: { operation: { inspection: { inspectionId: string } } } };
     const selected = await invoke("add-projects:select", contents, null, { sessionId, requestId: "use", inspectionId: plan.result.operation.inspection.inspectionId, path: "/picked" });
     expect(selected).toMatchObject({ ok: true, result: { operation: { kind: "project_select", state: "succeeded", project: { root: "/repo" } } } });
-    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith(["/picked"]);
+    expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith("/picked");
   });
 
   test.each(["did-navigate", "render-process-gone"])("a replaced renderer (%s) cancels the page's clone only", async event => {
