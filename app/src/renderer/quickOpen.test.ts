@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { FolderEntry } from "../main/view";
 import { countMatches, emptyText, groupResults, markRuns, matchPositions, outsideDialog, resultKey, resultParts, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
 
 function canvas(path: string, extra: Partial<SearchCanvas> = {}): SearchCanvas {
@@ -355,7 +356,7 @@ describe("quick open kind filter", () => {
 });
 
 describe("quick open empty text", () => {
-  const listed = [folder("/repo", [])];
+  const listed: FolderEntry[] = [{ path: "/repo", kind: "list", canvases: [], servedRev: 0 }];
   it("keeps the All texts and names each kind tab", () => {
     expect(emptyText("all", "card", listed, 3)).toBe("No canvases or frames match");
     expect(emptyText("canvas", "card", listed, 0)).toBe("No canvases match");
