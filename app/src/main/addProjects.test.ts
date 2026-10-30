@@ -172,6 +172,36 @@ describe.skipIf(process.getuid?.() === 0)("adding a folder that cannot be read",
 });
 
 describe("adding picked folders", () => {
+  test("registers one path without a worktree checklist", async () => {
+    const root = dir();
+    const tree = dir();
+    const { deps, saved, calls } = fake({ [root]: list(root, { common: `${root}/.git`, worktrees: [root, tree] }) });
+    const outcome = await createAddFlow(deps).add(root);
+    expect(outcome).toEqual({ added: [root], duplicate: null, messages: [], confirm: null });
+    expect(saved).toEqual([root]);
+    expect(calls.map(call => call.target)).toEqual([{ cwd: root }]);
+  });
+
+  test("a parent holding repositories is refused without reading or registering its children", async () => {
+    const parent = dir();
+    const child = gitDir(parent, "child");
+    const { deps, saved, calls } = fake({ [child]: list(child) });
+    const outcome = await createAddFlow(deps).add(parent);
+    expect(outcome).toEqual({ added: [], duplicate: null, messages: ["Choose one of the repositories inside this folder."], confirm: null });
+    expect(saved).toEqual([]);
+    expect(calls.map(call => call.target)).toEqual([{ cwd: parent }]);
+  });
+
+  test("registers a single symlink by its canonical root", async () => {
+    const root = dir();
+    const link = join(dir(), "alias");
+    symlinkSync(root, link);
+    const { deps, saved, calls } = fake({ [root]: list(root) });
+    expect(await createAddFlow(deps).add(link)).toEqual({ added: [root], duplicate: null, messages: [], confirm: null });
+    expect(saved).toEqual([root]);
+    expect(calls.map(call => call.target)).toEqual([{ cwd: root }]);
+  });
+
   test("a doan repo or its subfolder is stored by the root the CLI reports", async () => {
     const root = dir();
     const sub = dir(root, ".doan/canvases");
