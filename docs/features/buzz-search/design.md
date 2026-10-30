@@ -29,7 +29,7 @@
 | `esc` 칩·안내줄 | 없음 | 없음(spec 확정 질문 1) | 없음 |
 | 필터 탭 | 없음(Buzz는 범위 칩만 둔다) | 입력 아래 8px에 `All` / `Canvases` / `Frames`. Home 프리셋 그룹 탭(`.group-tabs.shell-modes`, `HomeComposerView.tsx` 468행)과 같은 캡슐·`role="tablist"`·roving tabindex·←/→ 이동 | doan 추가(2026-10-30 user). 아래 '필터 탭' |
 | 결과 영역 | 입력(doan은 탭) 아래 `space-2`, 스크롤 `max-height: min(55vh, …)`, 위쪽 8px 페이드 | 같은 값, `.doan-scroll` | 결과 높이 180ms 전환은 가져오지 않는다(아래 '가져오지 않는 것') |
-| 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3`, 최소 높이 `space-6 + space-1`(28px), 그룹 사이 `space-6` | 같은 값(`text-unavailable` = neutral-7 = doan `--text-disabled`). 제목은 프로젝트 이름(아래 '결과 그룹') | Buzz는 종류별로 묶고 doan은 프로젝트(root)별로 묶는다(2026-10-30 user) |
+| 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3`, 최소 높이 `space-6 + space-1`(28px), 그룹 사이 `space-6` | 같은 값(`text-unavailable` = neutral-7 = doan `--text-disabled`). 제목은 프로젝트 썸네일 + 프로젝트 이름(아래 '결과 그룹'), 사이 `--space-2` | Buzz는 종류별로 묶고 doan은 프로젝트(root)별로 묶는다(2026-10-30 user) |
 | 바깥 클릭 | `dismissOnOutsideClick`(Base UI) | 다이얼로그 사각형 밖에서 누르고 뗀 클릭이면 `dismiss()`(spec 확정 질문 3) | Base UI 대신 doan이 판정한다(아래 순수 함수 6) |
 | 결과 행 | `NavigationItem variant="search"`: 최소 44px, 패딩 12px, 모서리 20px, 아이콘 칸 24px(아이콘 21px), 이름 body-sm 400, 보조 줄 body-sm `text-subtle` | 같은 값, 이름만 `--type-weight-medium`(500). 아이콘은 lucide: 캔버스 `Palette`(LNB 캔버스 행과 같음), 프레임 `Hash`, 21px | 조정(2026-10-30 user): 이름을 한 단계 굵게 해 보조 줄과 위계를 나눈다 |
 | 행 강조 | 키보드·포인터 강조는 `interaction-row-hover`. 결과 목록에 `interaction-panel`이 걸려 있어(SearchChoices.tsx 227행) 그 값은 `affordance-row-hover` = `affordance-subtle`이고, 보조 글자는 `text-subtle` 그대로다(materials.css 153-163행) | `aria-selected` 행에 `--affordance-subtle` | doan에 `interaction-*` 역할이 없어 같은 값의 `--affordance-subtle`을 직접 쓴다 |
@@ -45,7 +45,7 @@
 
 ### 결과 그룹 (2026-10-30 user, 초안 5차)
 
-- root 하나가 한 그룹이다. 같은 저장소의 다른 워크트리는 따로 묶는다. 제목은 `projectWhere`가 만드는 이름(`acme-web · main`, `acme-web · feat-billing`, 깃 밖 폴더는 폴더 이름)이다.
+- root 하나가 한 그룹이다. 같은 저장소의 다른 워크트리는 따로 묶는다. 제목은 `projectWhere`가 만드는 이름(`acme-web · main`, `acme-web · feat-billing`, 깃 밖 폴더는 폴더 이름)이다. 이름 앞에 LNB·Home 프로젝트 선택기와 같은 썸네일(`.shell-thumbnail hue-${projectHue(name)}`, 글자 `projectInitial(name)`, 16px)을 둔다. 저장소 이름으로 색과 글자를 정하므로 같은 저장소의 워크트리 그룹은 같은 썸네일이다(2026-10-30 user, 초안 6차).
 - 순서: 50개 상한까지 고른 결과를 root로 묶는다. 그룹은 그룹 안 최고 점수가 높은 순이고, 같으면 기존 근접도(현재 root → 같은 저장소 → 다른 저장소), 그다음 기존 결과 순서다. 그룹 안 행은 기존 순서(점수 → 인덱스 순)를 지킨다. 그래서 첫 행은 늘 전체 최고 일치이고 Enter의 결과가 지금과 같다.
 - 빈 검색어: 결과가 저장 순서이므로 root별로 저장 순서대로 묶인다. 워크스페이스는 현재 root 하나라 그룹도 하나다.
 - ↑/↓는 그룹을 가로질러 행만 옮긴다. 제목은 활성 대상이 아니다.
