@@ -25,6 +25,7 @@
 | 15 | A 재리뷰 R1 잔여 경쟁(복원·aside 정리) | 같은 사용자로 도는 동시 프로세스는 위협 모델에 넣지 않는다. 그런 프로세스는 이미 대상에 같은 쓰기 권한을 갖는다. Doan이 확인하기 전에 있던 항목은 바꾸지 않고, 배타적 연산으로 알 수 있는 새 항목도 덮어쓰지 않는다. 옮겨 둔 디렉터리는 rename으로 되돌리지 않고 aside 이름에 둔 채 알린다 | 지휘자 판단 — 남은 창은 같은 사용자의 동시 쓰기가 있어야만 생기고, 그 프로세스는 막아도 얻는 보호가 없다 |
 | 16 | A 재리뷰 R3: 관리자 권한으로 사용자가 바꿀 수 있는 앱 실행 파일을 실행 | `process.execPath`를 root로 실행하지 않는다. `/usr/local/bin/doan`은 만들기만 한다(값이 늘 같으므로 교체가 필요 없다). `/usr/local/bin`에 사용자가 쓸 수 있으면 대화상자 없이 쓰고, 아니면 `env -i`와 SIP 보호 시스템 바이너리(`/bin/mkdir`, `/bin/ln -s -h`)만 실행한다 | 지휘자 판단 — 권한 상승 경계다. design.md의 ego 방식(osascript로 `ln`)으로 돌아간다. root 소유 디렉터리에는 같은 사용자 프로세스가 끼어들 수 없다 |
 | 17 | About 알림 스타일(사용자 질문: 시안이 primitive를 잘못 썼는가) | 시안대로 간다. 시안은 기존 `doan-notice` 기본형(`--surface-inset` 채움, 테두리·그림자 없음)을 쓴다 | 사용자 답: "존재하는 스타일이면 그냥 하면 돼" |
+| 18 | 알림 표면 규칙(사용자 지시, 이번 지휘에서 전수조사해 맞춘다) | 바탕이 불투명한 흰 단색일 때만 `doan-notice` 기본형을 쓴다. 그 밖의 바탕(투명·반투명, 그라데이션, 캔버스처럼 내용이 바뀌는 바탕)은 모두 `doan-notice doan-panel`. About 알림은 시안대로 기본형. 배치 H가 앱의 모든 `doan-notice`를 조사해 맞추고, 규칙 문장은 G가 DESIGN.md에 쓴다 | 사용자 지시: "하얀 불투명 백그라운드엔 기본형. 그외엔 doan-panel" |
 | 7 | T9 | 이번 run 밖. PR이 main에 merge된 뒤 main에서 하는 문서 변경 | tasks.md T9 |
 
 ## 배치
@@ -38,6 +39,7 @@
 | E | T6, T6b | `docs/features/zero-setup-agents/tasks.md` T6b 표, `.scratch/runtime-test/zero-setup-agents/`, `.scratch/zero-setup-agents/t6b/` | D 통합 | Claude Opus high — 실제 상태 보호와 실제 외부 에이전트 측정 | real-state 전후 비교, lsregister 전후, 스크린샷·파일 목록, T6b 표 | 대기 |
 | F | T7 | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/zero-setup-agents/` | B, C, D 통합 | Claude Opus medium — 실행은 정해진 절차, issue 판정에 판단이 필요 | `node eval/run.ts --self-test` PASS, 라운드 결과 기록, 새 issue 행 없음 | 대기 |
 | G | T8 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`('Settings'), `docs/DIRECTORY.md`, `AGENTS.md` 'Commands' | D, E, F 통합 | Claude Opus medium — 결정 문서를 현재 규칙으로 고쳐 쓰는 판단 | tasks.md T8의 `rg` 결과 없음 | 대기 |
+| H | 알림 표면 규칙 전수조사와 수정(결정 18) | 위반 알림이 있는 renderer `.tsx`와 그 테스트, `.scratch/notice-survey.md`. `SettingsAbout.tsx`, `styles.css`, `ds/surfaces.css`, `app/src/main/**`, `docs/**`는 제외 | 없음(D와 병렬, 파일 겹침 없음) | Claude Opus medium — 실제 앱에서 바탕을 확인하는 판단, 고치는 것은 클래스뿐 | `npm --prefix app test`, typecheck, `verify.mjs`, 바뀐 곳마다 전후 스크린샷과 computed style | 진행 |
 
 리뷰(보고만, 별도 워커): A → Codex gpt-6-astra medium, B → Claude Opus medium, C → Codex gpt-6-astra medium, D → Codex gpt-6-astra medium, G → Codex gpt-6.1-sol medium(문서와 코드 대조, 판단보다 단계가 많다). E·F는 지휘자가 증거를 직접 대조한다.
 
