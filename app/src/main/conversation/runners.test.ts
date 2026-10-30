@@ -293,7 +293,7 @@ it("never records on a Codex resume and clears once its initialize passes", asyn
   expect((await codexHandshake("", session)).order).toEqual(["cleared"]);
 });
 
-// buzz-home: model lists without a prompt, and the conversation's model and effort on every run (PRODUCT §6 P1).
+// buzz-home: model lists without a prompt, and the conversation's model and effort on every run.
 function listingClaude(root: string): string {
   const command = join(root, "claude");
   // Answers initialize with the supportedModels rows the P1 PoC recorded; records argv and stdin lines.

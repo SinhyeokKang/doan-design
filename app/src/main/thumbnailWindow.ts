@@ -1,6 +1,6 @@
 import { BrowserWindow, webFrameMain, type FrameCreatedDetails } from "electron";
 
-// PoC 8 (PRODUCT §6): `show: false` captured every case `offscreen` did, with
+// Measured: `show: false` captured every case `offscreen` did, with
 // less memory, so the window is an ordinary hidden one.
 export const THUMBNAIL_WIDTH = 480;
 // The iframe's `load` + 500 ms, or what is painted at 8 s when `load` never

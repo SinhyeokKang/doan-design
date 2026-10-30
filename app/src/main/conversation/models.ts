@@ -3,7 +3,7 @@ import type { Provider } from "../agentAuth/types";
 import type { Prepared } from "./service";
 
 // One model the provider listed for a folder. efforts: the levels that model takes, only from Claude and Codex
-// (Cursor and Antigravity put effort in the model ID, Copilot has none; PRODUCT §6 buzz-home P1).
+// (Cursor and Antigravity put effort in the model ID, Copilot has none).
 export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[] }
 export type ModelsReply = { models: ModelOption[] } | { error: string };
 const LIMIT = 256, TEXT = 512;

@@ -23,7 +23,7 @@ export interface Prepared {
   // The installed version the run read (doan-account runs with a version run), part of the model-list cache key.
   installed?: string;
   // The conversation's chosen model and effort, applied by the runner on every send: a Claude resume and an ACP
-  // session/load fall back to the default model otherwise (PRODUCT §6 buzz-home P1).
+  // session/load fall back to the default model otherwise.
   model?: string; effort?: string;
 }
 // attachments: the turn's files, which only Antigravity also receives as image blocks. models: the provider's list for

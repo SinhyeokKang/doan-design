@@ -3,7 +3,7 @@ import { ModelCatalog, parseAcpModels, parseClaudeModels, parseCodexModels, type
 import type { Prepared } from "./service";
 import type { Provider } from "../agentAuth/types";
 
-// Row shapes from the buzz-home P1 PoC (PRODUCT §6, 2026-10-29); IDs and names are trimmed to the fields doan reads.
+// Row shapes recorded from the real providers' model lists; IDs and names are trimmed to the fields doan reads.
 it("reads Claude's supportedModels rows with per-model effort levels and the default row", () => {
   expect(parseClaudeModels([
     { value: "default", resolvedModel: "claude-opus-5-5", displayName: "Default (recommended)", description: "Opus", supportsEffort: true, supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"] },

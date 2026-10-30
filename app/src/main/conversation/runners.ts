@@ -13,8 +13,8 @@ import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
   input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
-// Opens the provider only to read its model list for this folder: no prompt, no model request (PRODUCT §6 buzz-home
-// P1). The caller owns the lease and the stop (ConversationService.listModels).
+// Opens the provider only to read its model list for this folder: no prompt, no model request.
+// The caller owns the lease and the stop (ConversationService.listModels).
 export const listModels: ReadModels = async (input, exited, registerStop) => {
   const runner = await (input.runtime === "claude" ? openClaude : input.runtime === "codex" ? openCodexList : openAcp)(input, () => {}, exited, registerStop);
   try { return await runner.models!(); } finally { await runner.close(); }

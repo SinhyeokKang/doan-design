@@ -8,8 +8,8 @@ import { pipeline } from "node:stream/promises";
 
 // Google's Antigravity ACP server, as distributed for the Zed and JetBrains extensions
 // (https://antigravity.google/docs/ide/extensions). The release URL and hashes are not published by Google; they were
-// read from Orca 1.4.240 and re-verified on download (B3, 2026-10-28). User decision 2026-10-28 (PRODUCT §7) accepts the
-// download as an exception to "no CLI auto-install" and the undocumented AGY_ACP_FORCE_FILE_STORAGE switch.
+// read from Orca 1.4.240 and re-verified on download. The user accepted the download as an exception to
+// "no CLI auto-install", and the undocumented AGY_ACP_FORCE_FILE_STORAGE switch.
 export const ANTIGRAVITY_SERVER = {
   version: "1.3.0",
   url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.3.0-darwin-arm64.zip",
