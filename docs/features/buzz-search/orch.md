@@ -32,7 +32,7 @@
 | BT | T1–T4 | `app/src/renderer/quickOpen.ts`, `app/src/renderer/quickOpen.test.ts` | — | Claude Opus medium (코드포인트·정규화 경계와 상한 전 거르기. 명세가 자세해 판단 폭은 좁다) | 구현 전 red 기록, `npm --prefix app test`, typecheck, 기존 순위 단언 무수정 | 통합 `914db15c` |
 | BS0 | S0, S1 준비(초안 열 프레임 측정) | `.scratch/design-sync/buzz-search/` | — | Claude Opus high (측정 스크립트가 S1 판정의 근거) | `node .scratch/design-sync/buzz-search/measure.mjs`가 기준값·초안 측정 파일을 남김 | 완료(커밋 없음) |
 | BU | U1, U2 | `QuickOpenDialog.tsx`, `QuickOpenDialog.test.tsx`, `ds/surfaces.css`, `styles.css`의 `.qo*` 규칙 | BT 통합 | Claude Opus high (포커스·모달·접근성·바깥 클릭 함정, POSTMORTEM 2건) | tasks U1·U2 검증, `npm --prefix app test`, typecheck, build | 통합 `c5d5b8a4`..`4f292fd9` |
-| BS | S1–S3 | U 배치 파일의 수정, `.scratch/design-sync/buzz-search/`, `.scratch/runtime-test/buzz-search/`, `docs/DESIGN.md` | BU 통합, BS0 | Claude Opus high (측정·수정·회귀 테스트) | 기록되지 않은 차이 0, probe exit 0, tasks S3 grep | 진행 중 |
+| BS | S1–S3 | U 배치 파일의 수정, `.scratch/design-sync/buzz-search/`, `.scratch/runtime-test/buzz-search/`, `docs/DESIGN.md` | BU 통합, BS0 | Claude Opus high (측정·수정·회귀 테스트) | 기록되지 않은 차이 0, probe exit 0, tasks S3 grep | 리뷰 중 |
 | BZ | Z1–Z4 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/buzz-restyle/spec.md`, `docs/features/buzz-search/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z2·Z3 grep, Z4 디렉터리 없음 | 대기 |
 
 D1(초안)은 이미 완료됐다(`c56a544f`, 기록 `df23dd4f`).
@@ -57,3 +57,4 @@ D1(초안)은 이미 완료됐다(`c56a544f`, 기록 `df23dd4f`).
 - 2026-10-30: BS 1단계 측정 완료(수정 없음). 열 프레임 모두 (a) 구현 결함 0이다. 남은 457행은 맥락이나 fixture 차이다. 개발 빌드는 14/14가 프로덕션과 같고, Add Projects는 S0 기준값과 같다. 600px 창에서 다이얼로그가 스크롤되지 않는다(454=454). 50개 결과는 끝까지 스크롤되고, preventDefault 아래에서도 스크롤바 드래그가 된다. 포커스, 바깥 클릭, 키보드, 접근성 트리 probe는 S2에서 한다.
 - 2026-10-30: BU 수정 1차 완료. 커밋 `1a61eadf`(test, red 2/16)·`3923caf2`(fix)이고, 지휘자가 diff를 직접 확인했다. BU 커밋 다섯 개를 cherry-pick했다(`c5d5b8a4` `95bbe6e1` `fdf59fa3` `b32e8bf6` `4f292fd9`). 통합 지점에서 typecheck와 app test 4730개 통과를 확인했다. BU 작업자는 해제했다. BS 2단계를 시작했다(dispatch `ctx_a0482ffeb4fc`).
 - 2026-10-30: BS 2단계 완료. 커밋 `1a59d2b4`(fix, 세로축만 clip, CSS 검사 red→green)·`496ca7b5`(DESIGN.md). app test 4731·typecheck·build 통과, measure exit 0((a) 0건, 문서화한 차이 d 10행), probe exit 0(20/20), S3 grep 통과. 실제 클릭으로 헤더 모드 캡슐을 누르면 Quick Open이 닫히는 것을 관찰했다. 이를 고치도록 BS 수정 1차를 보냈다(dispatch `ctx_f106dc706759`).
+- 2026-10-30: BS 수정 1차 완료. 커밋 `e0f53682`(test, red 2/65)·`02b17e64`(fix, 클릭 때 `.top` 사각형을 읽음)·`f111332e`(DESIGN.md). app test 4733·typecheck·build 통과, probe exit 0(22/22). 네이티브 클릭으로 확인한 결과, 모드 캡슐과 Back 버튼을 눌러도 Quick Open이 열려 있다. 리뷰는 Codex `gpt-6-astra` medium(dispatch `ctx_4b4791769060`, 범위 `4f292fd9..f111332e`).
