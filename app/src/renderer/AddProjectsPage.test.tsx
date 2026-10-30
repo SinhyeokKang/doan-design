@@ -38,6 +38,15 @@ test("a local folder's setup offers Choose another folder on the page only", () 
   expect(firstRun).not.toContain("Choose another folder");
 });
 
+// review-BS ⚪4: a setup error whose recovery already offers Choose another folder does not repeat it underneath.
+test("a failed local setup shows Choose another folder once, in its recovery", () => {
+  for (const code of ["init_failed", "config_invalid"] as const) {
+    const html = page({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/w/a", changes: [] }, error: { code } });
+    expect(html.match(/Choose another folder/g)).toHaveLength(1);
+    expect(html).not.toContain("ob-small-action");
+  }
+});
+
 test("selecting and cloning have no footer; cloning says why the page cannot be left", () => {
   expect(page({ phase: { kind: "selecting", path: "/w/a" } }, true)).not.toContain("ob-footer");
   const html = page({ phase: cloning }, true);
