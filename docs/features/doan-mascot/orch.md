@@ -26,9 +26,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| BM | A1, T0, T1, T4, C1, S1 | 새 `app/src/renderer/public/doany/**`, 새 `doanyMotion.ts`·`doanyRig.ts`·`Doany.tsx`·`doany.css`와 그 테스트·고정 JSON, `app/src/renderer/index.html`(`<link>` 한 줄), `.scratch/doan-mascot/golden.mjs` | — | Claude Opus high (시안과 비트 단위로 같아야 하는 포팅, vm 기대값 추출, WebGL 수명과 해제 순서. 틀리면 동작이 시안과 어긋나거나 컨텍스트가 샌다) | 구현 전 red 기록, tasks A1·T0·T1·T4·C1·S1 검증, `npm --prefix app test`, typecheck, build | 대기 |
-| BL | T2, T3, U1·U2의 배치·포커스 부분 (미룬 항목: Doany 삽입과 `typing()`·`hop()` 연결) | 새 `stageInsets.ts`와 테스트, `onboardingView.ts`, `Onboarding.tsx`, `HomeComposerView.tsx`, `styles.css`, `Home.test.tsx`, `Onboarding.test.tsx`, `onboardingView` 테스트 | 미룬 항목은 BM 통합 뒤 | Claude Opus high (첫 실행 Tab 트랩 회귀가 POSTMORTEM에 있다. 기준 높이 측정과 추천 자리 유지가 입력창 위치 계약을 좌우한다) | 구현 전 red 기록, tasks T2·T3·U1·U2 검증, test, typecheck, build | 대기 |
-| BE | A2, E1 | 새 `app/resources/icon.png`, `app/package.json`(`build.mac.icon`) | — | Codex `gpt-6.1-sol` medium (기계적: 이미지 축소, 설정 한 줄, 패키징 확인) | tasks A2·E1 검증(`git check-ignore`, `sips`, `npm --prefix app run package`, `Info.plist`), 새 임시 경로 복사본 준비 | 대기 |
+| BM | A1, T0, T1, T4, C1, S1 | 새 `app/src/renderer/public/doany/**`, 새 `doanyMotion.ts`·`doanyRig.ts`·`Doany.tsx`·`doany.css`와 그 테스트·고정 JSON, `app/src/renderer/index.html`(`<link>` 한 줄), `.scratch/doan-mascot/golden.mjs` | — | Claude Opus high (시안과 비트 단위로 같아야 하는 포팅, vm 기대값 추출, WebGL 수명과 해제 순서. 틀리면 동작이 시안과 어긋나거나 컨텍스트가 샌다) | 구현 전 red 기록, tasks A1·T0·T1·T4·C1·S1 검증, `npm --prefix app test`, typecheck, build | 진행 중 |
+| BL | T2, T3, U1·U2의 배치·포커스 부분 (미룬 항목: Doany 삽입과 `typing()`·`hop()` 연결) | 새 `stageInsets.ts`와 테스트, `onboardingView.ts`, `Onboarding.tsx`, `HomeComposerView.tsx`, `styles.css`, `Home.test.tsx`, `Onboarding.test.tsx`, `onboardingView` 테스트 | 미룬 항목은 BM 통합 뒤 | Claude Opus high (첫 실행 Tab 트랩 회귀가 POSTMORTEM에 있다. 기준 높이 측정과 추천 자리 유지가 입력창 위치 계약을 좌우한다) | 구현 전 red 기록, tasks T2·T3·U1·U2 검증, test, typecheck, build | 진행 중 |
+| BE | A2, E1 | 새 `app/resources/icon.png`, `app/package.json`(`build.mac.icon`) | — | Codex `gpt-6.1-sol` medium (기계적: 이미지 축소, 설정 한 줄, 패키징 확인) | tasks A2·E1 검증(`git check-ignore`, `sips`, `npm --prefix app run package`, `Info.plist`), 새 임시 경로 복사본 준비 | 진행 중 |
 | BD | V1, V2와 그 수정 | 위 배치들의 파일 수정, `.scratch/runtime-test/doan-mascot/`, `.scratch/design-sync/doan-mascot/`, `docs/DESIGN.md` | BM·BL(미룬 항목 포함)·BE 통합 | Claude Opus high (실제 앱 probe, 여러 높이 측정, 시안과의 차이 수정, 회귀 테스트) | V1 항목별 통과, V2 기록되지 않은 차이 0, `docs/DESIGN.md` 측정 기록 | 대기 |
 | BZ | Z1, Z2 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DIRECTORY.md`, `.doan/assets/doany/README.md`, `docs/features/buzz-restyle/tasks.md`(C11), `docs/features/doan-mascot/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z1·Z2 grep·`ls` | 대기 |
 
@@ -46,4 +46,5 @@ P0(PoC)은 완료됐다.
 
 ## 진행 기록
 
-- 2026-10-31: intake. P0를 마쳤고, 결정과 배치 표를 작성했다. BM·BL·BE를 띄운다.
+- 2026-10-31: intake. P0를 마쳤고, 결정과 배치 표를 작성했다.
+- 2026-10-31: Run `run_b9a812f71443`. BM(`ctx_dd00f2587f78`, Opus high, `doan-mascot-bm`), BL(`ctx_6a385f156e4d`, Opus high, `doan-mascot-bl`), BE(`ctx_1f33d33a6238`, Codex `gpt-6.1-sol` medium, `doan-mascot-be`)를 시작했다. 세 워크트리 모두 `69814ca4`에서 시작했고, `launch.effective`가 요청과 같다. 세 작업자 모두 브리프를 읽고 작업을 시작한 것을 터미널에서 확인했다.
