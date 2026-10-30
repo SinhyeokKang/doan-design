@@ -76,6 +76,7 @@ export class ProjectAdder {
   private inspected = 0;
   private inspection: Inspection | null = null;
   private closing = false;
+  private clonesCancelled = 0;
   constructor(private readonly session: ProjectSession, private readonly projects: AdderProjects, private readonly locks: ProjectLocks, private readonly options: ProjectAdderOptions) {}
 
   get closed(): boolean { return this.closing; }
@@ -158,11 +159,12 @@ export class ProjectAdder {
     if (this.closing || this.busy(PROJECT_WORK)) return refuse("busy");
     const current = this.current(request.inspectionId);
     if (!current || !current.repo || !current.target || current.inspection.clone?.destination !== request.destination) return refuse("inspection_stale");
+    const cancelled = this.clonesCancelled;
     const destination = await this.projects.destination(request.destination);
     if (destination.state !== "absent") return refuse(destination.state === "exists" ? "destination_exists" : "path_unavailable");
-    // Read again after the await, with nothing awaited before the launch: a newer inspection, or a parent that now
-    // resolves elsewhere, makes this plan stale.
-    if (this.current(request.inspectionId) !== current || destination.path !== current.target) return refuse("inspection_stale");
+    // Read again after the await, with nothing awaited before the launch: a newer inspection, a parent that now
+    // resolves elsewhere, or a cancelClones() meanwhile makes this plan stale.
+    if (this.current(request.inspectionId) !== current || destination.path !== current.target || this.clonesCancelled !== cancelled) return refuse("inspection_stale");
     // The other adder may be cloning into the same folder; the destination check cannot see a clone not yet renamed there.
     if (this.closing || this.busy(PROJECT_WORK) || this.locks.targets.has(destination.path)) return refuse("busy");
     const repo = current.repo, target = destination.path, abort = new AbortController(), projects = this.projects, leftovers = this.locks.leftovers;
@@ -171,8 +173,10 @@ export class ProjectAdder {
       try {
         const parent = dirname(target), recorded = leftovers.get(parent);
         if (recorded !== undefined) {
-          const present = (await Promise.all(recorded.map(async path => await projects.present(path) ? [path] : []))).flat();
-          if (present.length > 0) { leftovers.set(parent, present); return { state: "failed", code: "cleanup_failed", message: leftoverMessage(present) }; }
+          const gone = new Set((await Promise.all(recorded.map(async path => await projects.present(path) ? [] : [path]))).flat());
+          // Read again after the checks: the other adder may have recorded its own leftover here meanwhile.
+          const remaining = (leftovers.get(parent) ?? []).filter(path => !gone.has(path));
+          if (remaining.length > 0) { leftovers.set(parent, remaining); return { state: "failed", code: "cleanup_failed", message: leftoverMessage(remaining) }; }
           leftovers.delete(parent);
         }
         // D19 (2026-10-29): the rename into the destination publishes the clone. After this commit a cancel returns the
@@ -182,7 +186,8 @@ export class ProjectAdder {
         const result = await projects.clone(repo.url, target, abort.signal, commit);
         if ("cancelled" in result) return { state: "cancelled" };
         if (!result.ok && result.leftovers !== undefined) {
-          leftovers.set(parent, result.leftovers);
+          // Merged, not replaced: the other adder's clone may have failed under the same parent.
+          leftovers.set(parent, [...new Set([...leftovers.get(parent) ?? [], ...result.leftovers])]);
           return { state: "failed", code: "cleanup_failed", message: leftoverMessage(result.leftovers) };
         }
         return this.selected(result);
@@ -198,7 +203,9 @@ export class ProjectAdder {
     tracked.abort.abort();
     this.session.changed();
   }
+  // Also refuses a clone still checking its destination: it has no operation to cancel yet.
   cancelClones(): void {
+    this.clonesCancelled += 1;
     for (const tracked of [...this.session.values()]) if (tracked.operation.kind === "project_clone") this.cancel(tracked);
   }
 
