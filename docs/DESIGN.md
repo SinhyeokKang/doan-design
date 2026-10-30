@@ -79,7 +79,7 @@ The reference for every screen.
   - an inline error is a 16px icon with one body-sm `text-danger` line (`text-warning` for warnings), which adds the icon to the reference's text-only field error;
   - a notice (see Notices).
 - **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for project and tool status (Home, Project Settings, About). It is a separate primitive from `.doan-chip`.
-- **Shared dialog sizes.** The confirmations (link replacement, Settings' Fix… and Add to serve?) and the three comment confirmations are compact and centred; Project Setup and Hand off are standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
+- **Shared dialog sizes.** The Add to serve? confirmation and the three comment confirmations are compact and centred; Project Setup and Hand off are standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
 - **Toast without a type.** Success, error and undo toasts share the one neutral floating toast and differ only by their text; there is no type colour and no close button.
 - **Focus ring colour.** The ring is `border-focus` (`neutral-12`, black, 21:1 on white); the reference ring uses `text-standard`. Inset rings are −2px, matching the draft and the menu rows.
 - **Tooltip offset.** The shared tooltip defaults to `sideOffset` 4.
@@ -140,7 +140,7 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 Reference: `.doan/canvases/notice.html` (frames `anatomy`, `tones-surfaces`, `rules`), implemented in `app/src/renderer/ds/surfaces.css`.
 
 - **One style.** Every notice is `.doan-notice`: inset `--surface-inset` fill, 12px 16px padding (`--space-3` `--space-4`), 6px gap (`--space-1h`), `--radius-row`, 14/20 body-sm text in `--text-standard`, and a 16px icon on the first text line: the `doan-alert-icon` (CircleAlert, `aria-hidden`), or a spinner or the conversation strip's status mark in that slot. Every notice has the icon, whatever its tone. Notices differ only by tone and surface.
-- **Tone.** `warning`, `error` and `ok` colour the whole text (`--text-warning`, `--text-danger`, `--text-success`) and the icon follows it (`currentColor`); the parts of a notice's text take no ink of their own. At 14/20 the text measures, on the inset fill and on the panel fill: neutral 17.59 / 19.17, warning 10.44 / 11.37, error 11.41 / 12.44, ok 11.31 / 12.32 to 1.
+- **Tone.** `warning`, `error` and `ok` colour the whole text (`--text-warning`, `--text-danger`, `--text-success`) and the icon follows it (`currentColor`); the parts of a notice's text take no ink of their own, except code chips, links and buttons, which keep theirs. At 14/20 the text measures, on the inset fill and on the panel fill: neutral 17.59 / 19.17, warning 10.44 / 11.37, error 11.41 / 12.44, ok 11.31 / 12.32 to 1.
 - **Surface.** On a plain opaque white backdrop (Settings and the other home-panel pages, the conversation strip's band, dialogs, side panels and white cards) the notice keeps the inset fill. On any other backdrop (first run's transparent overlay, Home's gradient, the preset popover's glass over Home) it adds `doan-panel`, which changes only the fill (`--surface-panel`) and adds the panel shadow.
 - **Alignment.** Every item in the row (icon, text, an inline action or an action group) centres on the first text line. An sm action reaches into the padding with −6px block margins, so a one-line notice is 44px with or without an action.
 - **Actions and margins.** A secondary button inside an inset notice uses the `panel` variant. Screens set only outer margins on a notice.
@@ -697,7 +697,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 | Controls | Row buttons `sm`; Settings' Check is `subtle` (first run's Retry stays `prominent`); Agent, Model and Effort are `sm` `trigger` menus (`role="menu"`) with a 6px gap, regular weight and a `--text-subtle` chevron | |
 | Lock ink | While Agents' `stop_required` confirmation owns the page: header tabs (the current Settings tab included), Back, Search and the other categories take `--text-disabled` with the default cursor, a locked category's icon included; the current category keeps its fill | The Add Projects page rule. |
 | Project Settings | Standard dialog, 640px, 128px from the top, 14 / 20 text with plain numerals; title the project name with the branch in `--text-metadata` body-sm; one settings group; Done is the only action (prominent, default size); serve list 1px border, row corner, items padding 4 / 4 / 4 / 12 | Values save at once, so there is nothing to cancel. |
-| Confirmations | Fix… and Add to serve? are compact and centred with Cancel focused and default-size actions; text without the page's body-sm tracking | |
+| Confirmations | Add to serve? is compact and centred with Cancel focused and default-size actions; text without the page's body-sm tracking | |
 
 ### Documented deviations from the draft
 
