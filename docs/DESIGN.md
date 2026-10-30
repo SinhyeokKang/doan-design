@@ -713,6 +713,24 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 - Hover and keyboard focus on the sidebar rows, the switch focus ring and menu contents of Agent, Model and Effort were not measured.
 - **Notifications in the packaged app.** A test notification showed, its banner click reached main and the person saw Doan come forward on Settings > Notifications, only from an ad-hoc build re-signed with the identifier `design.doan.app`; electron-builder's unsigned output keeps Electron's signature identifier and was refused without a prompt. The probe could not read the window's focus after the click itself, because macOS also launched another registered copy of the app.
 
+### About setup notice
+
+Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`, `about-several` and `about-not-eligible` (the notice) and `agents` (the lead). Measured by computed style beside the packaged app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/zero-setup-agents/measure.mjs`): every element of the doan command row and its notice (17, 27 and 14 elements), and the Agents lead, match the draft (geometry, colour, type, attributes and text). The only differences are the probe CLI's own value and path in the doan command row (`dev` at a temporary path against the draft's 0.1.0 at `/Applications`). The states come from real causes in a temporary HOME (a file at `~/.local/bin/doan`; a folder at `~/.claude/skills/doan` and a read-only `~/.codex/rules`; the build launched outside Applications), except the cancelled administrator dialog, injected into main's `about:read` by the probe because the probe never takes the administrator path.
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Place | A line under the doan command row (`doan-preference-row-extra`): full row width, 12px below the row | 'Lines under a row'. |
+| Surface | The default `doan-notice`: `--surface-inset` fill (rgb(245,245,246)), 8 / 12 padding, 16px corner, 6px gap, body-sm 14 / 20 in `--text-subtle`; no border or shadow | It sits on the opaque Settings panel. |
+| Icon | Every notice leads with a 16px CircleAlert, `aria-hidden`, 2px from the top of the first line: `--text-warning` on skipped items, the notice's `--text-subtle` ink on a copy that doesn't set up agents | Colour is never the only signal, and every notice looks like one. |
+| Skipped items | `warning`; title 500 `--text-standard`; one list item per skipped item, 4px apart and 4px under the title, in About's fixed order | Static text, no live region and no buttons: it reports what happened when Doan opened. |
+| Line | The agents a line affects lead it at 500 `--text-standard`, then " — " and the sentence in `--text-subtle` | The affected agents read first. |
+| Code | Paths are `code` chips on `--surface-panel` (white) with standard ink, 4px corner and 0 / 4 padding; the PATH line is a block chip of its own, 4px below its sentence and as wide as its text | The page's inset chip would vanish on the inset fill; a block line selects and copies whole. |
+| Copy that doesn't set up agents | A neutral `doan-notice`: title 500 `--text-standard`, its sentence as a body 8px below (the column's 4px gap plus the body's 4px top margin) | |
+| Agents lead | "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup." | |
+
+- **Not verified.** About's Checking… rows while the administrator dialog is open (the dialog is never shown by a probe; `index.test.ts` pins that `about:read` and Copy details wait), the cancelled-dialog line from a real cancellation, the development build's and translocation's sentences in the real app (`notice.test.ts`), the line for a setup run that threw ("Doan stopped partway through setting up agents…", under the warning title before the CLI links; not drawn, `notice.test.ts` and `index.test.ts`), and a doan command row with both a read error and a notice (the notice comes after the error line). Roles were read from DOM attributes, not from the accessibility tree.
+- **Regression pointers.** `SettingsAbout.test.tsx` (notice present, absent, not eligible, icon and code), `about.test.ts` (Copy details lines), `index.test.ts` ('agent setup on launch'), `agentSetup/notice.test.ts` (copy and order).
+
 ### Regression pointers
 
 `ds/controls.test.ts` (switch, group, row), `SettingsPage.test.tsx` (sidebar ink, dialog type, group-level line), `connectionRows.test.ts` (rows in the settings group), `agentAuthView.test.ts` (Settings' Check), `rendererImports.test.ts` (the renderer never loads the ajv validators: a blank window under the CSP otherwise). Probes: `.scratch/design-sync/buzz-settings/measure.mjs`, `.scratch/runtime-test/buzz-settings/r2.mjs`.
