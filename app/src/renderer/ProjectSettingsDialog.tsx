@@ -36,7 +36,8 @@ function shown(selector: string): HTMLElement | null {
 // or a write waits on main.
 export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroot, homeDirectory, onClose, onAction }: {
   root: string; projectKey: string; entries: readonly FolderEntry[]; reroot: (FolderFocus & { seq: number }) | null; homeDirectory: string | null;
-  onClose(): void; onAction(action: RowAction, root: string): void;
+  // notice: where a recovery's own feedback goes (a refused Locate…), since a toast behind the modal can't be read.
+  onClose(): void; onAction(action: RowAction, root: string, notice: (text: string) => void): void;
 }) {
   const initial = entries.find(item => item.path === opened);
   // A worktree still loading opens on the problem view, so becoming a list reads it (rule 2).
@@ -49,6 +50,9 @@ export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroo
   const [saved, setSaved] = useState<ConfigKind | null>(null);
   const [error, setError] = useState<{ section: ConfigKind; message: string } | null>(null);
   const [choice, setChoice] = useState<{ choiceId: string; path: string } | null>(null);
+  // The problem view's Details expands the error in place (Home's ProblemActions), and a recovery's feedback shows here.
+  const [details, setDetails] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const live = useRef(true), epoch = useRef(0), started = useRef<Promise<void> | null>(null), seenReroot = useRef(reroot?.seq ?? 0), closed = useRef(false);
   const tokenButton = useRef<HTMLButtonElement | null>(null), serveButton = useRef<HTMLButtonElement | null>(null), done = useRef<HTMLButtonElement | null>(null);
   const returnFocus = useRef<{ button: HTMLButtonElement; section: ConfigKind } | null>(null);
@@ -97,6 +101,7 @@ export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroo
     if (next.kind === "stay") return;
     epoch.current++;
     setView({ root: next.root, view: next.view });
+    setDetails(false); setNotice(null);
     if (next.root !== root) { setConfig(null); setError(null); setSaved(null); setChoice(null); }
     if (next.reread) void read(next.root);
   }, [entries, reroot?.seq]);
@@ -148,10 +153,22 @@ export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroo
     return () => cancelAnimationFrame(frame);
   }, [disabled]);
   function recover(action: RowAction) {
-    if (problemActionCloses(PROBLEM_ACTION[action])) { close(true); onAction(action, root); return; }
+    if (problemActionCloses(PROBLEM_ACTION[action])) { close(true); onAction(action, root, () => {}); return; }
+    if (action === "details") { setDetails(open => !open); return; }
+    setNotice(null);
     if (action === "showInFinder") { void window.doan.revealProject(root).catch(console.error); return; }
-    onAction(action, root);
+    onAction(action, root, text => { if (live.current) setNotice(text); });
   }
+  // A recovery that changes the view removes the button that had focus; focus stays in the dialog, on Done.
+  const drawnView = useRef(view.view);
+  useEffect(() => {
+    if (drawnView.current === view.view) return;
+    drawnView.current = view.view;
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body || !active.isConnected) done.current?.focus();
+    });
+  }, [view.view]);
 
   const lastCommon = new Map(entries.flatMap(item => item.lastCommon ? [[item.path, item.lastCommon] as const] : []));
   const title = groupProjects(entries, lastCommon).find(card => card.rows.some(row => row.path === root))?.name ?? root.split("/").filter(Boolean).at(-1) ?? root;
@@ -173,7 +190,9 @@ export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroo
         {row?.chip && <div className="doan-preference-row-trailing"><span className={chipClass(entry)}>{row.chip}</span></div>}
       </div>
       {row && row.actions.length > 0 && <div className="doan-preference-row-extra settings-inline-actions settings-recovery">{row.actions.map(action => <button key={action} type="button" className="doan-button"
-        data-ui-variant={action === "remove" || action === "details" ? "ghost" : "subtle"} data-ui-size="sm" onClick={() => recover(action)}>{LABELS[action]}</button>)}</div>}
+        data-ui-variant={action === "remove" || action === "details" ? "ghost" : "subtle"} data-ui-size="sm" aria-expanded={action === "details" ? details : undefined} onClick={() => recover(action)}>{LABELS[action]}</button>)}</div>}
+      {details && row?.detail && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error"><AlertIcon /><span>{row.detail}</span></p></div>}
+      {notice && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>{notice}</span></p></div>}
     </div> : <div className="doan-settings-group" data-layout="rows">
       <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Root</span><span className="doan-preference-row-description"><code>{root}</code></span></div>

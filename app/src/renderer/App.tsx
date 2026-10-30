@@ -627,10 +627,12 @@ export function App() {
       toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
     }
   }
-  function action(name: RowAction, root: string) {
+  // notice: a caller that shows the action's own feedback itself (the Project Settings dialog, over which a toast is
+  // inert); otherwise the toast.
+  function action(name: RowAction, root: string, notice: (text: string) => void = text => toast.show(text)) {
     cancelRestore();
     if ((name === "retry" || name === "locate") && document.activeElement instanceof HTMLElement) recoveryFocus.current = { element: document.activeElement, root };
-    if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") toast.show(entry.message); }
+    if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") notice(entry.message); }
     else if (name === "setUp") { rememberFocus(); setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
@@ -639,7 +641,7 @@ export function App() {
       const workspace = loadedRoot === root && currentScreen.current === "workspace";
       if (workspace) setLocating({ from: root, root: null });
       void window.doan.locateProject(root).then(result => {
-        if (result.kind === "refused") toast.show(result.message);
+        if (result.kind === "refused") notice(result.message);
         if (workspace && result.kind === "located") { setLoadedRoot(result.root); setLocating({ from: root, root: result.root }); }
         else if (workspace) setLocating(null);
       }).catch(error => { if (workspace) setLocating(null); console.error(error); });
@@ -784,7 +786,7 @@ export function App() {
   </main>
   {comments.dialog}
   {projectSettings && <ProjectSettingsDialog key={projectSettings.seq} root={projectSettings.root} projectKey={projectSettings.key} entries={entries} reroot={reroot} homeDirectory={homeDirectory}
-    onClose={() => setProjectSettings(null)} onAction={(name, root) => action(name, root)} />}
+    onClose={() => setProjectSettings(null)} onAction={(name, root, notice) => action(name, root, notice)} />}
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
   {run.removing && <dialog className="doan-dialog" data-ui-size="compact" aria-label={run.removing.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>

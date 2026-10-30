@@ -144,9 +144,9 @@ test("a healthy worktree that turns missing shows the problem view with its reco
   expect(text()).toContain("Doan can’t find this folder, so its settings can’t be read or changed.");
   expect(all(tree).some(element => String(element.props.className).startsWith("ob-chip") && words(element.props.children) === "Missing")).toBe(true);
   click("Locate…");
-  expect(props.onAction).toHaveBeenCalledWith("locate", ROOT);
+  expect(props.onAction).toHaveBeenCalledWith("locate", ROOT, expect.any(Function));
   click("Remove from Doan");
-  expect(props.onAction).toHaveBeenCalledWith("remove", ROOT);
+  expect(props.onAction).toHaveBeenCalledWith("remove", ROOT, expect.any(Function));
   // A config error's Show in Finder runs here too.
   render({ entries: [{ path: ROOT, kind: "error", message: "bad config" }] }); render();
   click("Show in Finder");
@@ -163,10 +163,52 @@ test("Locate… moving the worktree follows the reroot and reads the new root", 
   expect(text()).toContain("/Users/alex/code/acme-web-2");
 });
 
+// review BU2-4: a write main has not answered holds the dialog too.
+test("while a write is pending Done is disabled and Escape is refused", async () => {
+  let finish: (value: unknown) => void = () => {};
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  render(); await flush(); render();
+  click("Clear"); render();
+  expect(button("Done").props.disabled).toBe(true);
+  const escape = { preventDefault: vi.fn() };
+  (dialog().props.onCancel as (event: unknown) => void)(escape);
+  expect(escape.preventDefault).toHaveBeenCalled();
+  expect(props.onClose).not.toHaveBeenCalled();
+  finish({ kind: "config", root: ROOT, tokenCss: null, serve: [], changed: true }); await flush(); render();
+  expect(button("Done").props.disabled).toBeFalsy();
+});
+
+// review BU2-2: feedback for an in-place recovery stays in the modal; a toast behind it can't be read or reached.
+test("Details shows the error inside the dialog, and a refused Locate… says why there", async () => {
+  render({ entries: [{ path: ROOT, kind: "error", message: "Invalid .doan/config.json: serve must be a list." }] }); await flush(); render();
+  expect(button("Details").props["aria-expanded"]).toBe(false);
+  click("Details"); render();
+  expect(button("Details").props["aria-expanded"]).toBe(true);
+  expect(text()).toContain("Invalid .doan/config.json: serve must be a list.");
+  expect(props.onAction).not.toHaveBeenCalled();
+  render({ entries: [missing()] }); render();
+  click("Locate…");
+  const [action, root, notice] = (props.onAction as ReturnType<typeof vi.fn>).mock.lastCall!;
+  expect([action, root]).toEqual(["locate", ROOT]);
+  (notice as (text: string) => void)("That folder is already in Doan."); render();
+  const alert = all(tree).find(element => element.props.role === "alert")!;
+  expect(words(alert.props.children)).toBe("That folder is already in Doan.");
+});
+
+// review BU2-4: a recovery that turns the worktree healthy removes its button; focus stays in the dialog, on Done.
+test("after a recovery the view changes under focus, and focus moves to Done", async () => {
+  render({ entries: [missing()] }); await flush(); render();
+  const done = { focus: vi.fn() };
+  (button("Done").props.ref as { current: unknown }).current = done;
+  // The recovery button had focus; the problem view goes, and focus falls to the document.
+  render({ entries: [listed()] }); await flush(); render();
+  expect(done.focus).toHaveBeenCalled();
+});
+
 test("Set Up… closes the dialog first, then opens Project Setup", async () => {
   render({ entries: [{ path: ROOT, kind: "uninitialized" }] }); await flush(); render();
   click("Set Up…");
   expect(props.onClose).toHaveBeenCalledTimes(1);
-  expect(props.onAction).toHaveBeenCalledWith("setUp", ROOT);
+  expect(props.onAction).toHaveBeenCalledWith("setUp", ROOT, expect.any(Function));
   expect((props.onClose as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan((props.onAction as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]!);
 });
