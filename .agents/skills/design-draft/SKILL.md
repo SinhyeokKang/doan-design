@@ -23,8 +23,7 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 ## Prerequisites (stop if any fails)
 
 1. `docs/features/<slug>/design.md` has a draft request: canvas path and id, the frame ids to draw, and constraints. If the state list is missing, stop and ask; do not invent it.
-2. You are on the feature branch (`feat-<slug>` from `/ship` or `/orchestrate`), not main.
-3. `go run ./cli/cmd/doan check --json --repo .` runs (the repo's `.doan/config.json` is valid).
+2. `go run ./cli/cmd/doan check --json --repo .` runs (the repo's `.doan/config.json` is valid).
 
 ## Steps
 
@@ -78,7 +77,8 @@ then add this repo with Add Project… on Home and open the canvas. Stop here an
 
 - Only the canvas, plus any new shared file under `.doan/canvases/` it needs: `docs(design): <slug> draft`. A revision is `docs(design): <slug> draft revision`.
 - Trailer: a Codex session ends the message with `Co-Authored-By: Codex <noreply@openai.com>` (AGENTS.md 'Commit conventions'); a Claude Code session uses its own attribution.
-- No push. `/ship` or `/orchestrate` pushes the branch.
+- Commit on whichever branch is checked out (2026-10-30 user); do not switch or create a branch for the draft.
+- No push. The draft reaches main with that branch (`/ship` or `/orchestrate` pushes a feature branch).
 
 ## Report
 
