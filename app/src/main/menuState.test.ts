@@ -45,3 +45,34 @@ test("Next/Previous Resolved Comment are enabled only while reviewing on a canva
   expect(menuState("canvas", true, false, { ...main, reviewing: true }).resolvedNav).toBe(false);
   expect(menuState("canvas", false, false, { wizardOpen: false, focusedWindow: "settings", reviewing: true }).resolvedNav).toBe(false);
 });
+
+// buzz-add-projects design '메뉴': the page is a screen of its own; `choose` is its choose phase and `locked` its
+// selecting and cloning phases, which nothing may leave.
+describe("Add Projects page", () => {
+  const main = { wizardOpen: false, focusedWindow: "main" as const };
+  test("Add Project… only in the choose phase, where it opens Choose folder; Home and Quick Open stay; no canvas items", () => {
+    expect(menuState("addProjects", false, false, { ...main, choose: true })).toEqual({ addProject: true, home: true, canvasView: false, undoRemove: false, quickOpen: true, settings: true, resolvedNav: false });
+    expect(menuState("addProjects", false, false, { ...main, choose: false })).toEqual({ addProject: false, home: true, canvasView: false, undoRemove: false, quickOpen: true, settings: true, resolvedNav: false });
+    expect(menuState("addProjects", false, false, main).addProject).toBe(false);
+    expect(menuState("addProjects", false, false, { ...main, choose: true, reviewing: true }).resolvedNav).toBe(false);
+    expect(menuState("addProjects", false, true, { ...main, choose: true }).undoRemove).toBe(true);
+  });
+
+  test("choose has no effect outside the page", () => {
+    for (const screen of ["home", "workspace", "canvas"] as const) expect(menuState(screen, false, false, { ...main, choose: false }).addProject, screen).toBe(true);
+  });
+
+  test("locked disables every item that leaves the page, and keeps Settings…", () => {
+    const locked = { addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: true, resolvedNav: false };
+    expect(menuState("addProjects", false, true, { ...main, choose: true, locked: true, reviewing: true })).toEqual(locked);
+    expect(menuState("addProjects", false, false, { ...main, locked: true })).toEqual(locked);
+    expect(menuState("addProjects", false, false, { ...main, choose: true, locked: false }).addProject).toBe(true);
+    expect(menuState("addProjects", false, false, { wizardOpen: true, focusedWindow: "main", locked: true }).settings).toBe(false);
+  });
+
+  test("an open modal and a focused Settings window disable the page's items as before", () => {
+    const off = { addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, settings: true, resolvedNav: false };
+    expect(menuState("addProjects", true, true, { ...main, choose: true })).toEqual(off);
+    expect(menuState("addProjects", false, true, { wizardOpen: false, focusedWindow: "settings", choose: true })).toEqual(off);
+  });
+});
