@@ -145,6 +145,11 @@
   .doan-dialog { padding: var(--space-4); }
 }
 .doan-dialog::backdrop { background: var(--bg-scrim); }
+/* Search presentation (Quick Open): the panel fill and a corner of the panel radius plus 4px, so the field and rows
+   inset by 12px meet it concentrically. Width, position, backdrop and motion stay the base dialog's, which match the
+   Buzz search palette. Two classes beat the narrow-window padding above. */
+.doan-dialog[data-ui-presentation="search"] { padding: var(--space-3); border-radius: calc(var(--radius-panel) + var(--space-1)); background: var(--surface-panel); corner-shape: squircle; }
+.doan-dialog[data-ui-presentation="search"][open] { gap: 0; }
 /* Header: the title over an optional description. There is no Close button; Cancel and
    Escape close every doan dialog. */
 .doan-dialog-header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
