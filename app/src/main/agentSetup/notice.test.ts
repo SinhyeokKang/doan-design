@@ -43,6 +43,11 @@ describe("aboutNotice", () => {
     ]);
   });
 
+  it("says where a displaced entry was left", () => {
+    expect(lines(aboutNotice([{ target: "cli", path: `${HOME}/.local/bin/doan`, providers: [...ALL], reason: "write-failed", cause: "displaced", at: `${HOME}/.local/bin/.doan-1.aside`, code: "EEXIST" }], HOME)))
+      .toEqual(["All agents — Doan moved `~/.local/bin/doan`, which it didn’t create, to `~/.local/bin/.doan-1.aside` and couldn’t put it back. Move it back, then reopen Doan."]);
+  });
+
   it("asks for the shell's startup file when the shell is unknown", () => {
     expect(lines(aboutNotice([{ target: "system-cli", path: "/usr/local/bin/doan", providers: [...ALL], reason: "admin-cancelled", rcFile: null }], HOME))[0])
       .toContain("Add this line to your shell’s startup file, then open a new terminal:");

@@ -10,9 +10,9 @@ import { adminCommand, runAgentSetup, type AdminResult, type AgentSetupOptions }
 // The race test swaps one symlink call; everything else is the real file system.
 vi.mock("node:fs", async importOriginal => {
   const real = await importOriginal<typeof import("node:fs")>();
-  return { ...real, symlinkSync: vi.fn(real.symlinkSync) };
+  return { ...real, symlinkSync: vi.fn(real.symlinkSync), renameSync: vi.fn(real.renameSync), linkSync: vi.fn(real.linkSync) };
 });
-const realSymlink = (await vi.importActual<typeof import("node:fs")>("node:fs")).symlinkSync;
+const { symlinkSync: realSymlink, renameSync: realRename, linkSync: realLink } = await vi.importActual<typeof import("node:fs")>("node:fs");
 
 let temp: string, home: string, userData: string, systemBin: string, resources: string;
 const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
@@ -56,7 +56,7 @@ beforeEach(() => {
   resources = bundle(join(home, "Applications/Doan.app"));
 });
 afterEach(() => {
-  vi.mocked(fs.symlinkSync).mockImplementation(realSymlink);
+  vi.mocked(fs.symlinkSync).mockImplementation(realSymlink); vi.mocked(fs.renameSync).mockImplementation(realRename); vi.mocked(fs.linkSync).mockImplementation(realLink);
   for (const dir of [join(home, ".local/bin"), join(home, ".agents/skills")]) if (existsSync(dir)) chmodSync(dir, 0o755);
   rmSync(temp, { recursive: true, force: true });
 });
@@ -293,9 +293,141 @@ describe("the /usr/local/bin link", () => {
   });
 });
 
-describe("adminCommand", () => {
-  it("quotes every path for the shell", () => {
-    expect(adminCommand({ path: "/usr/local/bin/doan", want: "/Users/o'neil/.local/share/doan/current/bin/doan" }, null))
-      .toBe("/bin/mkdir -p '/usr/local/bin' && /bin/ln -s '/Users/o'\\''neil/.local/share/doan/current/bin/doan' '/usr/local/bin/doan'");
+// The final mutation boundaries of a replacement (review R1): a competitor arrives right before Doan moves the old link
+// aside, right before it creates the new one, or the parent folder is swapped in between.
+describe("replacing a link", () => {
+  const cli = () => join(home, ".local/bin/doan");
+  const leftovers = (dir: string) => readdirSync(dir).filter(name => name.startsWith(".doan-"));
+  async function outdated() {
+    await runAgentSetup(options());
+    rmSync(cli()); symlinkSync(`${share()}/old/bin/doan`, cli());
+  }
+
+  it("puts back a foreign file that arrives right before the swap", async () => {
+    await outdated();
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (from === cli()) { rmSync(cli()); writeFileSync(cli(), "FOREIGN"); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(readFileSync(cli(), "utf8")).toBe("FOREIGN");
+    expect(result.items).toEqual([{ target: "cli", path: cli(), providers: ALL, reason: "foreign", found: "file" }]);
+    expect(leftovers(join(home, ".local/bin"))).toEqual([]);
+  });
+
+  it("puts back a foreign link that arrives right before the swap", async () => {
+    await outdated();
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (from === cli()) { rmSync(cli()); realSymlink("/opt/homebrew/bin/doan", cli()); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(readlinkSync(cli())).toBe("/opt/homebrew/bin/doan");
+    expect(result.items).toMatchObject([{ target: "cli", reason: "foreign", found: "link" }]);
+    expect(leftovers(join(home, ".local/bin"))).toEqual([]);
+  });
+
+  it("leaves a file that arrives right after the old link is moved aside", async () => {
+    await outdated();
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      realRename(from, to);
+      if (from === cli()) writeFileSync(cli(), "ARRIVED");
+    });
+    const result = await runAgentSetup(options());
+    expect(readFileSync(cli(), "utf8")).toBe("ARRIVED");
+    expect(result.items).toMatchObject([{ target: "cli", reason: "foreign", found: "file" }]);
+    expect(leftovers(join(home, ".local/bin"))).toEqual([]);
+  });
+
+  it("leaves a file that arrives at the new link's creation", async () => {
+    await outdated();
+    vi.mocked(fs.symlinkSync).mockImplementation((value, path) => {
+      if (path === cli()) writeFileSync(cli(), "ARRIVED");
+      realSymlink(value, path);
+    });
+    const result = await runAgentSetup(options());
+    expect(readFileSync(cli(), "utf8")).toBe("ARRIVED");
+    expect(result.items).toMatchObject([{ target: "cli", reason: "foreign", found: "file" }]);
+    expect(leftovers(join(home, ".local/bin"))).toEqual([]);
+  });
+
+  it.each([
+    ["a foreign file", (path: string) => writeFileSync(path, "FOREIGN")],
+    ["a link with Doan's old value", (path: string) => realSymlink(`${share()}/old/bin/doan`, path)],
+  ] as const)("fails closed when ~/.local/bin is swapped for a link to a folder holding %s", async (_, place) => {
+    await outdated();
+    const elsewhere = join(temp, "elsewhere"), moved = join(home, ".local/bin-old");
+    mkdirSync(elsewhere); place(join(elsewhere, "doan"));
+    const before = tree(elsewhere);
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (from === cli()) { realRename(join(home, ".local/bin"), moved); realSymlink(elsewhere, join(home, ".local/bin")); }
+      realRename(from, to);
+    });
+    await runAgentSetup(options());
+    vi.mocked(fs.renameSync).mockImplementation(realRename);
+    expect(Object.values(tree(elsewhere)).map(entry => entry.split(":").slice(2).join(":"))).toEqual(Object.values(before).map(entry => entry.split(":").slice(2).join(":")));
+    expect(leftovers(elsewhere)).toEqual([]);
+    expect(readlinkSync(join(moved, "doan"))).toBe(`${share()}/old/bin/doan`);
+  });
+
+  it("keeps a displaced entry at a recoverable name when something else takes its place", async () => {
+    await outdated();
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (from === cli()) { rmSync(cli()); writeFileSync(cli(), "FOREIGN"); }
+      realRename(from, to);
+    });
+    vi.mocked(fs.linkSync).mockImplementation((from, to) => {
+      if (to === cli()) writeFileSync(cli(), "ARRIVED");
+      realLink(from, to);
+    });
+    const result = await runAgentSetup(options());
+    const [aside] = leftovers(join(home, ".local/bin"));
+    expect(readFileSync(join(home, ".local/bin", aside!), "utf8")).toBe("FOREIGN");
+    expect(readFileSync(cli(), "utf8")).toBe("ARRIVED");
+    expect(result.items).toEqual([{ target: "cli", path: cli(), providers: ALL, reason: "write-failed", cause: "displaced", at: join(home, ".local/bin", aside!), code: "EEXIST" }]);
+  });
+});
+
+describe("the administrator command", () => {
+  const noLocalBin = "/usr/bin:/bin";
+  const target = () => join(systemBin, "doan");
+  // Runs the command as the administrator shell would, after `before` changes the target during the dialog.
+  const pending = (before: () => void) => async (command: string): Promise<AdminResult> => {
+    before();
+    try { execFileSync("/bin/sh", ["-c", command], { stdio: "ignore" }); return { kind: "ok" }; } catch { return { kind: "failed", message: "exit" }; }
+  };
+
+  it.each([
+    ["a folder", () => mkdirSync(target(), { recursive: true }), "folder"],
+    ["a link to a folder", () => { mkdirSync(join(temp, "elsewhere")); mkdirSync(systemBin, { recursive: true }); symlinkSync(join(temp, "elsewhere"), target()); }, "link"],
+  ] as const)("writes nothing inside %s that appears while the dialog is open", async (_, appear, found) => {
+    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: pending(appear) }));
+    expect(result.items).toEqual([{ target: "system-cli", path: target(), providers: ALL, reason: "foreign", found }]);
+    expect(readdirSync(found === "folder" ? target() : join(temp, "elsewhere"))).toEqual([]);
+  });
+
+  it("puts back a foreign file that replaces Doan's old link while the dialog is open", async () => {
+    mkdirSync(systemBin, { recursive: true });
+    symlinkSync(`${share()}/old/bin/doan`, target());
+    const result = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: pending(() => { rmSync(target()); writeFileSync(target(), "FOREIGN"); }) }));
+    expect(readFileSync(target(), "utf8")).toBe("FOREIGN");
+    expect(result.items).toEqual([{ target: "system-cli", path: target(), providers: ALL, reason: "foreign", found: "file" }]);
+    expect(readdirSync(systemBin)).toEqual(["doan"]);
+  });
+
+  it("handles paths with spaces and quotes", async () => {
+    systemBin = join(temp, "sys bin's \"x\"");
+    const created = await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: shellAdmin() }));
+    expect(created.items).toEqual([]);
+    expect(readlinkSync(target())).toBe(`${share()}/current/bin/doan`);
+    rmSync(target()); symlinkSync(`${share()}/old/bin/doan`, target());
+    expect(actions(await runAgentSetup(options({ loginPath: noLocalBin, runAdmin: shellAdmin() })))["system-cli"]).toBe("replace");
+    expect(readlinkSync(target())).toBe(`${share()}/current/bin/doan`);
+  });
+
+  it("runs the swap under this executable as Node", () => {
+    const command = adminCommand({ path: "/usr/local/bin/doan", want: "/Users/u/.local/share/doan/current/bin/doan", mkdir: true });
+    expect(command.startsWith(`ELECTRON_RUN_AS_NODE=1 '${process.execPath}' -e '`)).toBe(true);
+    expect(command).not.toMatch(/\/bin\/(ln|mv) /);
   });
 });

@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
+import { ROOT_SCRIPT, swapLink, type CreateArgs, type SwapArgs, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
 // Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
@@ -27,7 +28,8 @@ export interface AgentSetupOptions {
 export interface AgentSetupResult { home: string; items: SetupItem[]; steps: Step[] }
 
 const CANCELLED_FILE = "agent-setup.json";
-interface Seen extends Observation { stamp: string }
+// `parent` is the resolved folder's "dev:ino", so a replacement can tell the folder was swapped.
+interface Seen extends Observation { stamp: string; parent: string | null }
 
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
 function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
@@ -61,18 +63,21 @@ function realTarget(path: string): string | null {
   return parent === null ? null : join(parent, basename(path));
 }
 
+function folderId(path: string): string | null {
+  try { const s = lstatSync(path); return s.isDirectory() ? `${s.dev}:${s.ino}` : null; } catch { return null; }
+}
 function observe(target: PlannedTarget): Seen {
   const blocked = blockedParent(target.path);
-  if (blocked) return { kind: "missing", blockedParent: blocked, real: null, stamp: `blocked:${blocked}` };
-  const kind = kindOf(target.path), real = realTarget(target.path);
-  if (typeof kind !== "string") return { kind: "missing", error: kind.error, real, stamp: `error:${kind.error}` };
+  if (blocked) return { kind: "missing", blockedParent: blocked, real: null, stamp: `blocked:${blocked}`, parent: null };
+  const kind = kindOf(target.path), real = realTarget(target.path), parent = real === null ? null : folderId(dirname(real));
+  if (typeof kind !== "string") return { kind: "missing", error: kind.error, real, stamp: `error:${kind.error}`, parent };
   let value: string | null = null, content: string | null = null, stamp = `${real}:${kind}`;
   try {
     if (kind === "symlink") value = readlinkSync(target.path);
     if (kind === "file" && target.file) content = readFileSync(target.path, "utf8");
     if (kind !== "missing") { const s = lstatSync(target.path); stamp += `:${s.dev}:${s.ino}:${s.mtimeMs}:${s.ctimeMs}`; }
-  } catch (error) { return { kind: "missing", error: errorCode(error), real, stamp: `error:${errorCode(error)}` }; }
-  return { kind, value, content, real, stamp: `${stamp}:${value}:${content}` };
+  } catch (error) { return { kind: "missing", error: errorCode(error), real, stamp: `error:${errorCode(error)}`, parent }; }
+  return { kind, value, content, real, stamp: `${stamp}:${value}:${content}`, parent };
 }
 
 // Creates the folders below `root` one at a time, so a provider folder removed mid-run is never recreated.
@@ -94,6 +99,19 @@ function changed(target: PlannedTarget, home: string): Written {
   return { ok: false, ...(step.action === "skip" && "item" in step ? { item: step.item } : {}) };
 }
 
+function asideName(path: string): string { return join(dirname(path), `.doan-${randomUUID()}.aside`); }
+function displaced(target: PlannedTarget, at: string): Written {
+  return { ok: false, item: { target: target.target, path: target.path, providers: [...target.providers], reason: "write-failed", cause: "displaced", at, code: "EEXIST" } };
+}
+function settled(target: PlannedTarget, home: string, result: SwapResult): Written {
+  switch (result.kind) {
+    case "ok": return { ok: true };
+    case "changed": return changed(target, home);
+    case "displaced": return displaced(target, result.at);
+    case "failed": return { ok: false, item: writeFailure(target, result.code) };
+  }
+}
+
 function write(target: PlannedTarget, action: "create" | "replace", before: Seen, home: string): Written {
   const real = before.real;
   if (real === null || real === undefined) return { ok: false, item: writeFailure(target, before.error ?? "UNKNOWN") };
@@ -111,9 +129,9 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
       // symlink(2) fails on an existing name, so a competitor that wins the race is kept.
       symlinkSync(target.want, real);
     } else {
-      symlinkSync(target.want, temporary);
-      if (observe(target).stamp !== before.stamp) return changed(target, home);
-      renameSync(temporary, real);
+      if (observe(target).stamp !== before.stamp || before.value == null) return changed(target, home);
+      return settled(target, home, swapLink({ lstatSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync, mkdirSync },
+        { path: real, want: target.want, old: before.value, aside: asideName(real), parent: before.parent }));
     }
     return { ok: true };
   } catch (error) {
@@ -123,29 +141,33 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
 }
 
 function quote(value: string): string { return `'${value.replaceAll("'", "'\\''")}'`; }
-// The administrator shell checks the old value itself: Doan cannot recheck between the dialog and the write.
-export function adminCommand(target: Pick<PlannedTarget, "path" | "want">, old: string | null): string {
-  if (old === null) return `/bin/mkdir -p ${quote(dirname(target.path))} && /bin/ln -s ${quote(target.want)} ${quote(target.path)}`;
-  const temporary = quote(join(dirname(target.path), `.doan-${randomUUID()}.tmp`));
-  return `/bin/test "$(/usr/bin/readlink ${quote(target.path)})" = ${quote(old)} && /bin/ln -s ${quote(target.want)} ${temporary} && { /bin/mv -fh ${temporary} ${quote(target.path)} || { /bin/rm -f ${temporary}; exit 1; }; }`;
+// Root runs swap.ts's source under this executable as Node: an exclusive symlink on the exact path, unlike `ln`,
+// which writes inside a folder that appears at the target while the dialog is open.
+export function adminCommand(args: SwapArgs | CreateArgs): string {
+  return `ELECTRON_RUN_AS_NODE=1 ${quote(process.execPath)} -e ${quote(ROOT_SCRIPT)} ${quote(JSON.stringify(args))}`;
 }
 
 function cancelledBefore(userData: string): boolean {
   try { return JSON.parse(readFileSync(join(userData, CANCELLED_FILE), "utf8")).adminCancelled === true; } catch { return false; }
 }
 
-async function writeSystem(target: PlannedTarget, action: "create" | "replace", before: Seen, options: AgentSetupOptions, log: (message: string) => void): Promise<Written> {
+async function writeSystem(target: PlannedTarget, action: "create" | "replace", before: Seen, options: AgentSetupOptions, home: string, log: (message: string) => void): Promise<Written> {
   const cancelled: Written = { ok: false, item: { target: target.target, path: target.path, providers: [...target.providers], reason: "admin-cancelled", rcFile: rcFileFor(options.shell) } };
   if (cancelledBefore(options.userData)) return cancelled;
-  const result = await options.runAdmin(adminCommand(target, action === "replace" ? before.value ?? null : null));
+  const real = before.real ?? target.path, aside = asideName(real);
+  const result = await options.runAdmin(adminCommand(action === "replace" && before.value != null
+    ? { path: real, want: target.want, old: before.value, aside, parent: before.parent }
+    : { path: real, want: target.want, mkdir: true }));
   if (result.kind === "cancelled") {
     try { writeFileSync(join(options.userData, CANCELLED_FILE), `${JSON.stringify({ adminCancelled: true })}\n`); }
     catch (error) { log(`cannot record the cancelled administrator dialog: ${errorCode(error)}`); }
     return cancelled;
   }
   if (result.kind === "failed") log(`administrator command failed: ${result.message}`);
+  if (kindOf(aside) !== "missing") return displaced(target, aside);
   const now = observe(target);
-  return result.kind === "ok" && now.kind === "symlink" && now.value === target.want ? { ok: true } : { ok: false, item: writeFailure(target, "administrator command failed") };
+  if (now.kind === "symlink" && now.value === target.want) return { ok: true };
+  return now.stamp !== before.stamp ? changed(target, home) : { ok: false, item: writeFailure(target, "administrator command failed") };
 }
 
 export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSetupResult> {
@@ -166,7 +188,7 @@ export async function runAgentSetup(options: AgentSetupOptions): Promise<AgentSe
     let step = decide(target, before, home, outcomes);
     let written: Written = { ok: step.action !== "skip", ...(step.action === "skip" && "item" in step ? { item: step.item } : {}) };
     if (step.action === "create" || step.action === "replace") {
-      written = target.target === "system-cli" ? await writeSystem(target, step.action, before, options, log) : write(target, step.action, before, home);
+      written = target.target === "system-cli" ? await writeSystem(target, step.action, before, options, home, log) : write(target, step.action, before, home);
       if (!written.ok) step = { target: target.target, path: target.path, ...(written.item ? { action: "skip", item: written.item } : { action: "changed" }) };
     }
     const item = written.ok ? undefined : written.item;

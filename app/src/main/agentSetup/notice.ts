@@ -13,7 +13,8 @@ export type SetupItem =
   | ({ target: SetupTarget; path: string; providers: Provider[] } & (
     | { reason: "foreign"; found: "file" | "folder" | "link" }
     // `at` is the folder to fix: the target's parent, or the ancestor that is not a folder.
-    | { reason: "write-failed"; cause: "permission" | "blocked-parent" | "other"; at: string; code: string }
+    // displaced: something Doan didn't create was moved aside mid-replacement and could not go back; `at` is where it is.
+    | { reason: "write-failed"; cause: "permission" | "blocked-parent" | "displaced" | "other"; at: string; code: string }
     | { reason: "admin-cancelled"; rcFile: string | null }))
   | { target: "copy"; path: string; providers: Provider[]; reason: "not-eligible"; eligibility: Ineligible };
 
@@ -54,6 +55,7 @@ function parts(item: Skipped, tilde: (path: string) => string): Pick<NoticeLine,
     case "write-failed": switch (item.cause) {
       case "permission": return { parts: [{ text: "Doan couldn’t write " }, path, { text: " (permission denied). Make " }, { code: tilde(item.at) }, { text: ` writable${REOPEN}` }] };
       case "blocked-parent": return { parts: [{ text: "Doan couldn’t write " }, path, { text: " because " }, { code: tilde(item.at) }, { text: ` isn’t a folder. Remove or rename it${REOPEN}` }] };
+      case "displaced": return { parts: [{ text: "Doan moved " }, path, { text: ", which it didn’t create, to " }, { code: tilde(item.at) }, { text: ` and couldn’t put it back. Move it back${REOPEN}` }] };
       case "other": return { parts: [{ text: "Doan couldn’t write " }, path, { text: ` (${item.code}). Check ` }, { code: tilde(item.at) }, { text: REOPEN }] };
     }
     // The PATH line takes effect in a new terminal; Doan need not reopen. The lone `doan` part is the command, which
