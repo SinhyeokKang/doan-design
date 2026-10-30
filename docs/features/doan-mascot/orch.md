@@ -52,3 +52,4 @@ P0(PoC)은 완료됐다.
 - 2026-10-31: BE 완료(`67a30df5`). package·typecheck·test(190 파일, 4,966개) 통과, `CFBundleIconFile=icon.icns`. RBE(Claude Sonnet medium, `ctx_1e85c3d25711`) 리뷰 결과 지적 없음. 통합 브랜치에 cherry-pick했다. 실행하지 않은 확인용 복사본은 `/tmp/doan-icon-tq_bys5x/Doan.app`이고, 사용자 외형 확인을 기다린다. 확인될 때까지 BE 워크트리를 남긴다. BE와 RBE 작업자는 해제했다.
 - 2026-10-31: BL 완료(`7921cb19`). test(4,976)·typecheck·build·verify 통과, red 7건 기록. 미룬 항목(Doany 삽입, `typing()`·`hop()` 연결)은 BM 통합 뒤 같은 작업자에게 보내려고 작업자를 retain했다. 계획과 다른 점 6개(handoff)를 리뷰에서 판정받는다. RBL(Codex `gpt-6-astra` medium, `ctx_7b61650f2b98`) 진행 중.
 - 2026-10-31: RBL(Codex) 결과 🔴·🟡 없음, ⚪ 2건(카드 top과 textarea top 구분, 정적 테스트의 한계). handoff의 여섯 차이는 모두 타당하다고 판정했다. `7921cb19`를 통합했다. RBL은 해제했다.
+- 2026-10-31: BM 완료(`62a1a240`·`defe0c94`·`12345f78`·`a52fce92`). test(5,023)·typecheck·build·verify 통과, T4 뮤테이션 10건 모두 red. 계획과 다른 점 8개(handoff)를 리뷰에서 판정받는다. 수정이 생길 수 있어 작업자를 retain했다. RBM(Codex `gpt-6-astra` medium, `ctx_421f39af18a4`) 진행 중.
