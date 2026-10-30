@@ -80,6 +80,7 @@
 - 초안 5차(2026-10-30 user): 결과를 프로젝트(root) 단위로 묶었다(위 '결과 그룹'). 행 둘째 줄에서 프로젝트를 뺐다.
 - 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 높이 429px(초안 한정: 780px 창의 `55dvh`를 계산한 값. 구현은 `height: min(55dvh, 576px)`), 상한 576px, 최소 높이 400px, 테두리·밑줄 1px.
 - 2026-10-30 user: feature-review보다 초안 확정을 먼저 한다.
+- **초안 확정 (2026-10-30 user)**: 10차 초안(`c56a544f`)을 확정했다. 확인은 사용자가 했고, 렌더링 근거는 Chrome headless 캡처다(Electron 앱의 실제 렌더링은 `/design-sync`에서 측정한다). 이 초안은 이 자식이 main에 병합될 때까지 정본이다.
 
 ## 순수 함수 (`/tdd` 대상)
 
