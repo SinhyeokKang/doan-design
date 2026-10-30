@@ -532,3 +532,24 @@ test("input in the field, an IME composition's included, draws Doany's gaze", ()
   expect(doany.typing).toHaveBeenCalledTimes(2);
   expect(doany.hop).not.toHaveBeenCalled();
 });
+
+test("while a start is pending, Send, the submit key and the notice's Retry neither start again nor hop again", async () => {
+  const { box, start, render } = setup({ text: "Draw a pricing page." });
+  start.mockReturnValueOnce(new Promise(() => {}) as never);
+  let tree = render();
+  const doany = withDoany(tree);
+  call(sendButton(tree), "onClick", {});
+  await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  expect(box.current.sending).not.toBeNull();
+  // A refusal notice from an earlier send can still be on screen; its Retry goes through the same guard.
+  box.current = { ...box.current, notice: { text: "Claude Code is finishing a previous run. Try again in a moment.", retry: true } };
+  tree = render();
+  (find(tree, props => props.size === 114).ref as { current: unknown }).current = doany;
+  expect(sendButton(tree).disabled).toBe(true);
+  call(sendButton(tree), "onClick", {});
+  call(field(tree), "onKeyDown", key("Enter"));
+  call(find(tree, props => props.children === "Retry" && typeof props.onClick === "function"), "onClick", {});
+  await Promise.resolve();
+  expect(start).toHaveBeenCalledTimes(1);
+  expect(doany.hop).toHaveBeenCalledTimes(1);
+});
