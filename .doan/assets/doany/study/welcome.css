@@ -1,0 +1,14 @@
+/* Type and button spacing follow Onboarding.tsx/styles.css.
+   Doany and the centered, optically offset group are proposed, not shipped. */
+.welcome-frame{position:relative;width:1238px;height:780px;display:flex;flex-direction:column;overflow:hidden;isolation:isolate;border-radius:var(--radius-chip);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.welcome-atmosphere{position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 50% 125% at 50% 112%,var(--affordance-accent),color-mix(in srgb,var(--affordance-accent) 78%,transparent) 30%,color-mix(in srgb,var(--affordance-accent) 32%,transparent) 60%,transparent);mask-image:url('../../onboarding-grain.svg');mask-size:180px 180px;opacity:.85}
+.welcome-chrome{height:var(--size-chrome);flex:none;position:relative}
+.welcome-scroll{flex:1;min-height:0;overflow:auto}
+/* As on Home, extra bottom padding shifts the group upward without clipping short windows. */
+.welcome-stage{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-8) var(--space-8) calc(var(--space-8) + 144px)}
+.welcome-copy{display:flex;flex-direction:column;align-items:center;flex:none;text-align:center}
+.welcome-copy .mascot-host{width:142.5px;height:142.5px}
+.welcome-wordmark{font-size:104px;line-height:1;font-weight:var(--type-weight-medium);letter-spacing:-8px;margin-bottom:var(--space-6)}
+.welcome-heading{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);letter-spacing:var(--type-heading-letter-spacing);font-weight:var(--type-weight-regular)}
+.welcome-action{margin-top:var(--space-10);text-align:center}
+@media(forced-colors:active){.welcome-atmosphere{display:none}}
