@@ -8,7 +8,10 @@ buzz-restyle의 리디자인 자식이다([부모 C11](../buzz-restyle/tasks.md)
 
 ## P. PoC
 
-- [ ] P0. file:// 텍스처 로드 PoC를 `.scratch/doan-mascot/poc/`에서 돌린다.
+- [x] P0. file:// 텍스처 로드 PoC를 `.scratch/doan-mascot/poc/`에서 돌린다.
+  - **결과 (2026-10-31, Electron 45.0.0 / Chrome 156.0.8078.48, ANGLE Metal Apple M1)**: 앱 창과 같은 `webPreferences`(contextIsolation·sandbox, nodeIntegration 끔), 빌드 CSP, 권한 거부 핸들러로 확인했다. 일반 file:// 경로와 asar 안 경로(`page.asar/index.html`) 모두에서 `crossOrigin = "anonymous"`가 있을 때와 없을 때 `body.png`·`hat.png`가 로드됐다. `gl.getError()`는 0이었고, 256px 캔버스의 불투명 픽셀은 body 38211, hat 9515였다(두 경로·두 모드에서 같음).
+  - **결정**: 시안과 같게 `img.crossOrigin = "anonymous"`를 유지한다.
+  - **참고**: PoC 스크립트에서 창 하나를 닫은 뒤 두 번째 창의 `loadFile`이 경로와 상관없이 `ERR_FAILED (-2)`로 실패했다. 순서를 바꿔 두 경로를 각각 첫 창에서 확인했다. 이 실패는 PoC 스크립트의 문제이고, 앱 동작과는 관계없다.
   - Electron 45로 앱 창과 같은 `webPreferences`와 빌드 CSP를 건 페이지를 연다. 위치는 두 곳이다: (a) 일반 file:// 경로, (b) asar 안 경로.
   - `body.png`·`hat.png`를 `crossOrigin = "anonymous"`가 있을 때와 없을 때 각각 WebGL 텍스처에 올린다.
   - 경우마다 로드 성공 여부, `gl.getError()`, 캔버스 불투명 픽셀 수를 기록한다. 그 결과로 `Doany.tsx`의 로드 방식을 정한다.
@@ -75,7 +78,7 @@ buzz-restyle의 리디자인 자식이다([부모 C11](../buzz-restyle/tasks.md)
 
 ## S. 셸
 
-- [ ] S1. `app/src/renderer/Doany.tsx`와 `styles.css`의 `.doany` 규칙. 실제 WebGL 어댑터(시안 컨텍스트 옵션·blend·셰이더·메시, P0에서 정한 텍스처 로드), 옵저버, `matchMedia`, `document` `pointermove`, 클릭과 keydown Enter·Space(`preventDefault`)를 컨트롤러에 연결한다. `data-state`는 ref로 쓴다. `hop()`·`typing()` 핸들을 연다.
+- [ ] S1. `app/src/renderer/Doany.tsx`와 `doany.css`(`index.html`에 `<link>` 추가)의 `.doany` 규칙. 실제 WebGL 어댑터(시안 컨텍스트 옵션·blend·셰이더·메시, P0에서 정한 텍스처 로드), 옵저버, `matchMedia`, `document` `pointermove`, 클릭과 keydown Enter·Space(`preventDefault`)를 컨트롤러에 연결한다. `data-state`는 ref로 쓴다. `hop()`·`typing()` 핸들을 연다.
   - 검증: 다음을 확인한다.
     - `npm --prefix app test`가 녹색이다. `renderToStaticMarkup` 테스트에서 버튼의 `aria-label="Make Doany hop"`, 정지 이미지 `doany/doany.png`, `hidden`인 캔버스, `data-state` 없음을 본다.
     - `npm --prefix app run typecheck`가 통과한다.
