@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { activeIndex, closesOnClick, optionId, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
+import { activeIndex, activeScroll, closesOnClick, optionId, quickOpenTabKey, projectWhere, quickOpenKey, QuickOpen, QuickOpenList } from "./QuickOpenDialog";
 import { groupResults, outsideDialog, resultKey, searchIndex, searchMatch, type SearchFolder, type SearchResult } from "./quickOpen";
 import { projectHue } from "./shellNavigation";
 
@@ -190,4 +190,19 @@ test("a row click that already closed the dialog does not dismiss it again on th
   expect(closesOnClick(dialog, dialog, { ...at, button: 0 }, at)).toBe(false);
   expect(closesOnClick(row, dialog, { x: 50, y: 50, button: 0 }, { x: 50, y: 50 })).toBe(false);
   expect(closesOnClick(dialog, dialog, null, { x: 50, y: 50 })).toBe(false);
+});
+
+test("tab list keys: Tab and Shift+Tab go back to the input keeping the active row, ↓ goes back to the first row, ←/→ choose a tab", () => {
+  expect(quickOpenTabKey("Tab", "canvas")).toEqual({ kind: "input", first: false });
+  expect(quickOpenTabKey("ArrowDown", "canvas")).toEqual({ kind: "input", first: true });
+  expect(quickOpenTabKey("ArrowRight", "all")).toEqual({ kind: "select", tab: "canvas" });
+  expect(quickOpenTabKey("ArrowLeft", "all")).toEqual({ kind: "select", tab: "frame" });
+  expect(quickOpenTabKey("ArrowUp", "all")).toBeNull();
+  expect(quickOpenTabKey("Enter", "all")).toBeNull();
+});
+
+test("the first row scrolls the list to its top so the first group title shows; other rows scroll only as far as needed", () => {
+  expect(activeScroll(0)).toBe("top");
+  expect(activeScroll(1)).toBe("nearest");
+  expect(activeScroll(49)).toBe("nearest");
 });
