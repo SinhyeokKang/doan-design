@@ -30,8 +30,7 @@ const violetAllowed = [
   ".side .row:hover",
   '.side .row[aria-current="location"]',
   // Everything drawn inside the current row takes the row's ink.
-  '.side .row[aria-current="location"] :is(.g, .glyph, .num, .d, .tw, .no-id, .warn-mark)',
-  '.side .row[aria-current="location"] .sel-mark',
+  '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
   ".comments-btn.primary.submit",
   ".comments-btn.primary.submit:hover:not(:disabled)",
   ".comments-btn.primary.submit:active:not(:disabled)",
