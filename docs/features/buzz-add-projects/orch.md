@@ -43,3 +43,7 @@ D1(초안)은 이미 완료됐다(tasks D1, 4차 확정 + 5차 `selecting` 잠�
 ## 진행 기록
 
 - 2026-10-30: orch.md 작성.
+- 2026-10-30: Run `run_68744da98d31`. BM(워크트리 `buzz-add-projects-BM`, dispatch `ctx_220895b5312c`, Opus high)·BP(워크트리 `buzz-add-projects-BP`, dispatch `ctx_bb598e0d7b7b`, Opus medium) 시작. `launch.effective`가 요청과 같다. 두 작업자 모두 heartbeat `investigating`으로 시작을 확인했다.
+- 2026-10-30: BP 질문 — 알림 문구를 바꾸면 소유 밖 `HomeComposerView.interaction.test.tsx:178`의 기대 문자열이 깨진다. 그 문자열 하나만 고치도록 허용했다. `dropTarget`의 `project` 분기 제거는 `HomeComposerView.tsx` 호출부를 고쳐야 하므로 BU1로 미룬다(지휘자 판단 — 테스트 파일은 BM과 겹치지 않고, 호출부는 BU1 소유다).
+- 2026-10-30: BP 완료. 커밋 `3d1faa70`(test, red 4파일·4테스트)·`673c1fd4`(feat), 브랜치 `SinhyeokKang/buzz-add-projects-bp`. 작업자 보고 app test 4719 통과, typecheck, `verify.mjs` PASS. 계획과 다른 점: `projectFooter(use, state, {busy, agentReady})`(온보딩 하단이 phase만으로 정해지지 않음), `setUpLabel`·`projectNoticeCode` 추가. BU1로 미룬 것: `dropTarget` `project` 분기 제거, T1 App 수준 사례, T3 세션 쪽 드롭 사례(busy 거부, inspecting 중 두 번째 드롭, notice 지우기). BP 작업자를 해제했다. 리뷰는 Codex `gpt-6-astra` medium(dispatch `ctx_859f961489e6`).
+- 2026-10-30: BP 리뷰(Codex) 🔴0·🟡1. 🟡1: `addPageReturn`이 Quick Open을 root로만 비교해, 드래프트가 있는 origin과 같은 root의 다른 캔버스를 고를 때 `guard:false`를 낸다. 리뷰어가 test 4719·typecheck를 다시 돌려 통과를 확인했다. 계획과 다른 점과 BU1 이관은 타당하다고 판단했다. BP를 통합하고, 🟡1은 BU1의 필수 항목으로 넘긴다(지휘자 판단 — BP 작업자는 해제됐고, Quick Open pick 연결과 `addProjectsNav.ts` 사용처는 BU1 소유다. Quick Open은 기존 `openCanvas`의 캔버스 단위 가드에 맡기고 계약·테스트를 고친다). 리뷰어를 해제했다.
