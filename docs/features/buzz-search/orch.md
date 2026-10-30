@@ -18,6 +18,8 @@
 | 2026-10-30 | 그룹 안 행 간격은 확정 초안의 0px(그룹 사이 25px)을 따르고, design.md의 "행 사이 1px"와 다른 점을 BS가 DESIGN.md에 적는다 | 지휘자 판단 — 리뷰 BU ❓1. 초안이 병합 전까지 정본이고 사용자가 확정한 값이다 |
 | 2026-10-30 | 리뷰 BU ⚪1(Tab 복귀 때 활성 행 초기화)·⚪2(첫 행 복귀 때 첫 그룹 제목 가림)는 고친다. ⚪3(사라졌다 돌아온 결과가 다시 활성)은 둔다 | 지휘자 판단 — ⚪1은 design.md '필터 탭'(↓일 때만 첫 행)과 어긋나고, ⚪3은 보던 행으로 돌아가는 동작이라 결정 9와 충돌하지 않는다 |
 | 2026-10-30 | 리뷰 BU 🟡1(`.qo-height` clip이 스크롤바 4px를 자를 수 있음)은 BS가 실제 앱에서 재고, 잘리면 BS가 CSS를 고치고 DESIGN.md에 초안과의 차이로 적는다 | 지휘자 판단 — 초안과 같은 값이라 정적 비교로는 드러나지 않는다 |
+| 2026-10-30 | 스크롤바 잘림(리뷰 BU 🟡1, BS 측정 (c)1)은 고친다. `.qo-height`를 세로축만 자르도록(`overflow-x: visible; overflow-y: clip`) 바꾸고, 초안과의 차이로 DESIGN.md에 적는다 | 지휘자 판단 — 클래식 스크롤바에서 11px 중 4px가 잘리는 것은 사용성 결함이다. 수정이 한 줄이고 측정으로 확인할 수 있다 |
+| 2026-10-30 | 행의 `corner-shape: squircle`은 초안과 구현이 같으므로 그대로 두고 DESIGN.md에 적는다 | 지휘자 판단 — 확정 초안 값이다 |
 | 2026-10-30 | S0 기준값 측정과 초안 쪽 측정 스크립트 준비를 BT·BU와 병렬로 먼저 돌린다(BS0). 나머지 S1~S3는 BU 통합 뒤 같은 작업자에게 새 Task로 보낸다 | 지휘자 판단 — S0는 main 코드만 재고, 초안 측정은 구현이 필요 없다. 파일 겹침 없음 |
 | 2026-10-30 | BU는 BT의 워크트리를 이어 쓰되, 작업자는 Opus high로 새로 띄운다(BT 작업자는 해제) | 지휘자 판단 — 터미널 재사용은 모델·effort를 바꿀 수 없고, BU는 high가 필요하다. 맥락은 handoff-BT로 넘긴다 |
 
@@ -50,3 +52,4 @@ D1(초안)은 이미 완료됐다(`c56a544f`, 기록 `df23dd4f`).
 - 2026-10-30: BS0 완료. `measure.mjs`(BS0 워크트리 `.scratch/design-sync/buzz-search/`) exit 0. Add Projects 기준값은 640×304, top 128, padding 32, radius 28, `corner-shape` `superellipse(1)`이다. 초안 열 프레임 값은 design.md '화면 구성'과 일치한다. Electron 45는 `corner-shape`를 지원한다. S1이 판단할 초안 사항은 행 squircle, `.qo-height` clip에 잘리는 스크롤바 4px, 초안 예시 데이터 불일치다. 작업자는 BS를 위해 남겨 둔다.
 - 2026-10-30: BU 완료. 커밋 `78de7aa4`(test, red 11/13)·`8c6c0be8`(feat)·`1bde7994`(refactor, 자체 리뷰 🔴 수정: 닫힌 다이얼로그의 0×0 사각형 때문에 행 클릭이 dismiss를 한 번 더 부르던 문제). 작업자 보고 test 4728 통과, typecheck·build 통과, U2 grep 통과. 계획과 다른 점: DOM 없는 vitest라 실시간 단언을 순수 도우미로 대신했다, Shift+Tab 순환, 그룹 안 행 간격은 초안대로 0(design.md는 1px). 리뷰는 Claude Opus high(dispatch `ctx_1ff03ec762cd`). 같은 시간에 BS 1단계 측정을 시작했다(dispatch `ctx_b45778278b17`).
 - 2026-10-30: BU 리뷰(Claude Opus high) 🔴0·🟡1·⚪3·❓1. 리뷰어가 test 4728·typecheck·U2 grep을 다시 돌려 통과를 확인했다. 'Differences from plan'은 모두 수용했다. 단, spec 완료 조건 2·10의 실시간 단언은 BS probe로 메운다. BU 수정 1차(⚪1·⚪2)를 보냈다(dispatch `ctx_8ad9d6455ad6`). 리뷰어는 해제했다.
+- 2026-10-30: BS 1단계 측정 완료(수정 없음). 열 프레임 모두 (a) 구현 결함 0이다. 남은 457행은 맥락이나 fixture 차이다. 개발 빌드는 14/14가 프로덕션과 같고, Add Projects는 S0 기준값과 같다. 600px 창에서 다이얼로그가 스크롤되지 않는다(454=454). 50개 결과는 끝까지 스크롤되고, preventDefault 아래에서도 스크롤바 드래그가 된다. 포커스, 바깥 클릭, 키보드, 접근성 트리 probe는 S2에서 한다.
