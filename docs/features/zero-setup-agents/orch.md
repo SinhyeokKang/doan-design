@@ -26,7 +26,7 @@
 |---|---|---|---|---|---|---|
 | A | T1, T2(실행기·패키징·real-state, `index.ts` 연결 제외), T3 | `app/src/main/agentSetup/**`(새), `app/package.json` `build.extraResources`, `app/runtime/real-state.ts`(+테스트) | 없음 | Claude Opus high — 실제 HOME에 쓰고 foreign 보호·재판정·EEXIST가 틀리면 사용자 파일을 덮어쓴다 | `npm --prefix app test`, 보호 분기 제거 시 red, `node --test 'app/runtime/*.test.ts'`, typecheck, package 후 번들 SKILL.md·bin 확인, `codex execpolicy check` | 대기 |
 | B | T4 | `app/src/main/onboarding/SKILL.md`, `cli/internal/cli/{active,onboarding}.go`·`skill.md`와 문구 단언 테스트, `app/src/main/conversation/prompt.ts`(+테스트), `eval/scenarios/D4/rubric.md`, `D4b/rubric.md` | 없음 | Codex gpt-6-astra medium — 에이전트가 읽는 문구 판단이 중심이고 범위가 작다. 교차 모델 구현 한 자리 | `go test ./...`, `go vet ./...`, `npm --prefix app test`, `rg` 판정 | 대기 |
-| C | T5 | design.md '지우는 것' 전체, `app/src/main/index.ts`(broker 호출 제거), preload, `senderAllowed`, renderer Settings·Connections 파일, `restore/uiState.ts`, `SettingsPage.tsx` lead | 없음 | Claude Opus medium — 삭제 범위는 넓지만 판단은 적다. Agents 잠금·`SettingsTargetQueue` 유지 회귀만 조심 | typecheck, `npm --prefix app test`, `go vet ./...`, `rg -n 'setup:(read\|run\|answer\|check-again\|status)' app/src` 없음, `verify.mjs` | 대기 |
+| C | T5 | design.md '지우는 것' 전체, `app/src/main/index.ts`(broker 호출 제거), preload, `senderAllowed`, renderer Settings·Connections 파일, `restore/uiState.ts`, `SettingsPage.tsx` lead | 없음 | Claude Opus medium — 삭제 범위는 넓지만 판단은 적다. Agents 잠금·`SettingsTargetQueue` 유지 회귀만 조심 | typecheck, `npm --prefix app test`, `go vet ./...`, `rg -n 'setup:(read\|run\|answer\|check-again\|status)' app/src` 없음, `verify.mjs` | 통합 |
 | D | A의 `index.ts` 연결 + T5b(`/design-sync` 포함) | `app/src/main/index.ts`, `aboutView.ts`, `about.ts`, preload 타입(필요 시), `SettingsAbout.tsx`(+테스트), `docs/DESIGN.md`(측정값), `.scratch/design-sync/zero-setup-agents/` | A, C 통합 | Claude Opus high — 설치 promise를 기다리는 IPC와 실제 앱 computed style 측정 | `npm --prefix app test`, typecheck, `node .scratch/design-sync/zero-setup-agents/measure.mjs` | 대기 |
 | E | T6, T6b | `docs/features/zero-setup-agents/tasks.md` T6b 표, `.scratch/runtime-test/zero-setup-agents/`, `.scratch/zero-setup-agents/t6b/` | D 통합 | Claude Opus high — 실제 상태 보호와 실제 외부 에이전트 측정 | real-state 전후 비교, lsregister 전후, 스크린샷·파일 목록, T6b 표 | 대기 |
 | F | T7 | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/zero-setup-agents/` | B, C, D 통합 | Claude Opus medium — 실행은 정해진 절차, issue 판정에 판단이 필요 | `node eval/run.ts --self-test` PASS, 라운드 결과 기록, 새 issue 행 없음 | 대기 |
@@ -44,3 +44,4 @@
 
 | 배치 | 라운드 | 통합 hash | 비고 |
 |---|---|---|---|
+| C | 0(리뷰 Codex astra: 🔴0 🟡0) | `72db17d9` | 워커 `75899419`. 워커 터미널 해제함 |
