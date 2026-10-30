@@ -9,6 +9,22 @@
 - 지금 구현된 항목만 옮기지 않고, 앱에 필요한 설정을 더한다. 더하는 것: 알림, 새 대화 기본 에이전트·모델, 앱 정보(About). Agents(계정)는 부모 C6 계획대로 넣는다.
 - 저장소별 Token CSS·Serve는 앱 Settings에서 빼고 프로젝트 아래, 곧 LNB 프로젝트 메뉴의 Project Settings가 여는 다이얼로그로 옮긴다.
 
+## 초안 요청 (`/design-draft`)
+
+- 캔버스 `.doan/canvases/buzz-settings.html`, id `buzz-settings`, 폭 2560. Add Projects 초안과 같은 1238 × 780 전체 창 틀(셸 헤더, LNB, 흰 본문 패널)이다.
+- 1차(2026-10-30 user: 창만 먼저 그려 구성을 승인받고, 상태 타일은 `--revise`에서 더한다). 창 10개이며 모두 `/design-sync` 비교 대상이다.
+  - `agents` — Agents: Accounts(연결됨, 만료, 미설치, 미연결, Copilot 확인) + New conversations
+  - `agents-signing-in` — Agents: Codex 로그인 대기, 다른 행의 busy 문구
+  - `notifications` — Notifications: 켬
+  - `notifications-off` — Notifications: Desktop notifications 꺼짐
+  - `connections` — Connections: 지금 행을 설정 그룹으로 옮김, doan command Details 펼침
+  - `connections-locked` — Connections: Fix the Doan link? 확인 대화상자와 이동 잠금
+  - `about` — About
+  - `project-settings` — Project Settings 다이얼로그: 정상 워크트리
+  - `project-problem` — Project Settings 다이얼로그: Missing 워크트리
+  - `home-agent-picker` — 홈 공급자 선택기의 Settings 동작
+- 2차(`--revise`) 상태 타일 후보: 공급자 행 상태(업데이트, 로그아웃 실패, stop 확인, 주소 붙여넣기, 읽기 오류), New conversations 상태, 알림 저장 실패·테스트 보냄, About 읽기 실패, Project Settings 저장 중·저장됨·오류·Serve 확인·읽기 오류, 홈 "No agent is ready".
+
 ## Buzz 레퍼런스
 
 기준 커밋 `c40dfdf4c81aabe759f3a4329c3e77f854746a59`(로컬 HEAD `ec1b9acc`, 2026-10-30 확인, 기준 커밋 파일을 `git show`로 읽었다). 값은 구현할 때 원본에서 다시 읽는다(부모 규칙 4).
