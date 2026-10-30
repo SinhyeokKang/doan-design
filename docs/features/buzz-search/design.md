@@ -28,7 +28,7 @@
 | 입력 | 돋보기 없음, `body-lg` 20px, 패딩 24/11px, 테두리는 키보드 탐색 모드에서만 보임(평소 투명) | 공용 `.doan-input` 기본 크기(40px, `body`, `--surface-inset` 채움, 포커스 시 `--border-prominent`)와 앞쪽 16px 돋보기. 배치는 Home 프리셋 검색 `.popover-search`와 같다(왼쪽 `--space-3`, 입력 왼쪽 패딩 `--space-3 + --size-icon + --space-2`) | 조정(2026-10-30 user, 초안 2차 비교에서 B안): Buzz 팔레트 입력 대신 앱의 다른 검색 입력과 같은 프리미티브를 쓴다. 모서리 20px가 다이얼로그 12px 안쪽과 동심이다. placeholder는 doan 문구 `Search canvases and frames` 유지 |
 | `esc` 칩·안내줄 | 없음 | 없음(spec 확정 질문 1) | 없음 |
 | 필터 탭 | 없음(Buzz는 범위 칩만 둔다) | 입력 아래 8px에 `All` / `Canvases` / `Frames`. Home 프리셋 그룹 탭(`.group-tabs.shell-modes`, `HomeComposerView.tsx` 468행)과 같은 캡슐·`role="tablist"`·roving tabindex·←/→ 이동 | doan 추가(2026-10-30 user). 아래 '필터 탭' |
-| 결과 영역 | 입력(doan은 탭) 아래 `space-2`, 스크롤 `max-height: min(55vh, …)`, 위쪽 8px 페이드 | 같은 값, `.doan-scroll` | 결과 높이 180ms 전환은 가져오지 않는다(아래 '가져오지 않는 것') |
+| 결과 영역 | 입력(doan은 탭) 아래 `space-2`, 스크롤 `max-height: min(55vh, …)`(내용 높이), 위쪽 8px 페이드 | 탭 아래 `space-2`, 고정 높이 `height: 55dvh; min-height: 400px`, 위쪽 8px 페이드, `.doan-scroll` | 조정(2026-10-30 user, 초안 7차): 최대 높이 대신 고정 높이라 결과 수와 관계없이 다이얼로그 크기가 같다. Buzz `height="stable"`(검색 목록용 고정 높이)과 같은 취지다. 창이 작아 `128px + 내용`이 창을 넘으면 기본 `.doan-dialog`의 `max-height`·`overflow: auto`로 다이얼로그가 스크롤된다(예: 600px 창). 결과 높이 전환은 고정 높이라 필요 없다 |
 | 그룹 제목 | body-sm, `text-unavailable`, 400, 좌우 `space-3`, 최소 높이 `space-6 + space-1`(28px), 그룹 사이 `space-6` | 같은 값(`text-unavailable` = neutral-7 = doan `--text-disabled`). 제목은 프로젝트 썸네일 + 프로젝트 이름(아래 '결과 그룹'), 사이 `--space-2` | Buzz는 종류별로 묶고 doan은 프로젝트(root)별로 묶는다(2026-10-30 user) |
 | 바깥 클릭 | `dismissOnOutsideClick`(Base UI) | 다이얼로그 사각형 밖에서 누르고 뗀 클릭이면 `dismiss()`(spec 확정 질문 3) | Base UI 대신 doan이 판정한다(아래 순수 함수 6) |
 | 결과 행 | `NavigationItem variant="search"`: 최소 44px, 패딩 12px, 모서리 20px, 아이콘 칸 24px(아이콘 21px), 이름 body-sm 400, 보조 줄 body-sm `text-subtle` | 같은 값, 이름만 `--type-weight-medium`(500). 아이콘은 lucide: 캔버스 `Palette`(LNB 캔버스 행과 같음), 프레임 `Hash`, 21px | 조정(2026-10-30 user): 이름을 한 단계 굵게 해 보조 줄과 위계를 나눈다 |
@@ -77,7 +77,7 @@
   - 사용자가 B를 골랐다(초안 3차). 모든 프레임이 B이고 A의 프레임과 CSS는 지웠다. 값은 위 '입력' 행.
 - 초안 4차(2026-10-30 user): 필터 탭(위 '필터 탭')과 결과 이름 500을 더했다.
 - 초안 5차(2026-10-30 user): 결과를 프로젝트(root) 단위로 묶었다(위 '결과 그룹'). 행 둘째 줄에서 프로젝트를 뺐다.
-- 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 최대 높이 429px(초안 한정: 780px 창에서 `min(55vh, 100vh − 256px)`을 계산한 값. 구현은 `min(55vh, calc(100dvh − 256px))`), 테두리·밑줄 1px.
+- 토큰 없는 값(컴포넌트 상수): 행 최소 높이 44px(Buzz `2.75rem`), 아이콘 21px(Buzz `PageIcon size={21}`), 행 사이 1px(`navigation-section-rows` gap), 결과 높이 429px(초안 한정: 780px 창의 `55dvh`를 계산한 값. 구현은 `height: 55dvh`), 최소 높이 400px, 테두리·밑줄 1px.
 - 2026-10-30 user: feature-review보다 초안 확정을 먼저 한다.
 
 ## 순수 함수 (`/tdd` 대상)
@@ -110,7 +110,7 @@
 
 ## 가져오지 않는 것
 
-- 결과 높이 180ms 전환(`SearchChoices.tsx`의 ResizeObserver 측정). 목록 높이 변화에 정보가 없고, 측정 코드가 상태와 테스트를 늘린다. 결과가 바뀌면 높이가 바로 바뀐다.
+- 결과 높이 180ms 전환(`SearchChoices.tsx`의 ResizeObserver 측정). 목록이 고정 높이라 바뀔 높이가 없다.
 - Shift+Cmd+1~9, 지우기 버튼, 범위·작성자 칩, 인라인 설정 행, 검색 사용 기록 순위(spec 비목표).
 - 보이지 않는 다이얼로그 제목. doan은 지금처럼 `aria-label="Quick Open"`을 쓴다.
 
