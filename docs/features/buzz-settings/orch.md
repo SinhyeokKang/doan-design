@@ -45,3 +45,4 @@ P1(PoC)은 이미 완료됐다(design 'PoC 의존').
 ## 진행 기록
 
 - 2026-10-30: orch.md 작성.
+- 2026-10-30: Run `run_2216706506ed`. BM(워크트리 `buzz-settings-BM`, dispatch `ctx_255920c5cbd9`, Opus high)·BP(워크트리 `buzz-settings-BP`, dispatch `ctx_45707c50befa`, Opus high) 시작. `launch.effective`가 요청과 같고, 두 작업자 모두 `working`이다.
