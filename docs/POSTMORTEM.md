@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-30 — A renderer import of a main module left the built app's window blank
+
+- **Area**: `app/src/renderer/SettingsAbout.tsx`, `app/src/main/about.ts` (split into `aboutView.ts`), `app/src/main/conversation/sessions.ts` (`MINIMUM_VERSIONS` moved to `minimumVersions.ts`), `app/src/formats/validate.ts`.
+- **Symptom**: the production build opened an empty window: `#root` stayed empty, the console showed "Error compiling schema … Evaluating a string as JavaScript violates the following Content Security Policy directive". Every page, not only Settings, was unusable.
+- **Root cause**: Settings > About imported `aboutView` by value from `main/about.ts`. That module also held main's readers and imported `designSkills.ts` and `conversation/sessions.ts`, which import `formats/validate.ts`; ajv compiles its schemas with `new Function` when that module loads. The renderer's CSP has no `'unsafe-eval'`, so the bundle threw before React mounted. Nothing marks a main module as renderer-safe: a value import of a type file and of a reader look the same, and one helper added to a "pure" main module can pull the validators in later.
+- **Net**: caught by the first real-app launch of the integrated branch (BS `/runtime-test`). Missed by four batches and their reviews: Vitest runs in jsdom without the CSP, `tsc` and `electron-vite build` accept the bundle, and no batch launched the built app.
+- **Prevention**: `app/src/renderer/rendererImports.test.ts` walks the value-import closure of every renderer module entry (`index.html`'s module script) and fails if it reaches `src/formats/validate.ts`, `ajv` or a Node module, printing the import chain. A renderer value import of a main module must come from a module that imports only types or other such modules (`aboutView.ts`, `agentAuth/types.ts`). Grep: `grep -rn 'from "\.\./main/' app/src/renderer | grep -v '\.test\.' | grep -v 'import type'` lists the value imports to keep that way; launch the built app once after a batch that adds one.
+
 ### 2026-10-30 — A dev-build measurement started an unisolated Electron and created the real Doan userData
 
 - **Area**: `.scratch/design-sync/buzz-add-projects/measure.mjs` (dev phase), `electron-vite dev`, `app/runtime/real-state.ts`.
