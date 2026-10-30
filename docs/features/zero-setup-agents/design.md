@@ -81,6 +81,22 @@ ego lite 0.6.2.5(`/Applications/ego lite.app`)와 공개 리포 `citrolabs/ego-l
 - 알림은 이번 실행의 결과다. 사람이 원인을 치워도 Doan을 다시 열기 전에는 바뀌지 않으며, 문구가 이것을 말한다.
 - 문구를 만드는 `aboutNotice`는 `node:fs`를 import하지 않는 파일에 둔다(renderer import 경계, `rendererImports.test.ts`). 정확한 문구는 `/design-draft`에서 새 파일 `.doan/canvases/zero-setup-agents.html`에 정한다. 기존 `buzz-settings.html`은 main에 있는 화면의 draft라 고치지 않는다.
 
+## draft 요청 (T0b)
+
+- canvas: `.doan/canvases/zero-setup-agents.html`, id `zero-setup-agents`, width 2560. 출시된 About·Agents 창(`buzz-settings.html`의 `about`, `agents` 창과 `SettingsAbout.tsx`, `SettingsPage.tsx`)을 옮겨 그리고, 사이드바에서 Connections만 뺀다.
+- frame:
+  - `about` — Settings · About, 모두 설치됨(알림 없음).
+  - `about-skipped` — 건너뛴 항목 하나(`~/.local/bin/doan` 자리에 Doan이 만들지 않은 파일).
+  - `about-several` — 여러 항목: `admin-cancelled`(PATH 줄 포함), Claude skill 링크 foreign, Codex rule `write-failed`.
+  - `about-not-eligible` — 이 복사본이 쓰는 조건을 만족하지 않음(Applications 밖).
+  - `states-not-eligible` — 상태 타일: 개발 빌드, translocation.
+  - `agents` — Settings · Agents, 새 lead 문장.
+- 알림은 doan command 행 안의 `doan-preference-row-extra`에 두는 `doan-notice`다. 건너뛴 항목은 `warning`(아이콘), 조건 불충족은 아이콘 없는 중립 알림이다. 문구:
+  - 제목(건너뛴 항목): "Doan couldn’t set up every agent"
+  - 줄(항목마다, 영향받는 에이전트를 앞에): "All agents — `~/.local/bin/doan` is a file Doan didn’t create, so Doan left it alone. Remove or rename it, then reopen Doan." / "Claude Code — `~/.claude/skills/doan` is a folder Doan didn’t create. Remove or rename it, then reopen Doan." / "Codex — Doan couldn’t write `~/.codex/rules/doan.rules` (permission denied). Make `~/.codex/rules` writable, then reopen Doan." / "All agents — `~/.local/bin` isn’t on your shell’s PATH, and adding doan to `/usr/local/bin` was cancelled. Add this line to `~/.zshrc`, then open a new terminal:" + `export PATH="$HOME/.local/bin:$PATH"`. PATH 줄은 Doan을 다시 열 필요가 없으므로 "then reopen Doan"을 붙이지 않는다.
+  - 조건 불충족 제목 "This copy doesn’t set up agents", 본문: Applications 밖 "It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it." / 개발 빌드 "Development builds never set up agents. Open the Doan in Applications so your agents can use it." / translocation "macOS is running it from a temporary location. Move Doan to the Applications folder, then open it again."
+  - Agents lead: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup."
+
 ## 소유 판정
 
 Doan이 만든 것만 고친다(PRODUCT §5 item 0의 "never overwrite something Doan did not create"를 유지). 판정은 순수 함수다.
