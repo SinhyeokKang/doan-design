@@ -72,7 +72,8 @@ test("every error code shows first run's copy; the page never shows the no-agent
 test("a refused drop's notice sits under the card as an alert", () => {
   const html = renderToStaticMarkup(<ProjectScreen use="addPage" state={base} busy={false} agentReady projects={[]} home={null} urlValid={false} heading={noop} on={on}
     drop={{ notice: "Drop one folder at a time.", allowed: () => true, started: noop, dropped: noop }} />);
-  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Drop one folder at a time\.<\/span><\/div>/);
+  // The page sits on the white home panel, so its notice keeps the inset fill; first run's overlay takes the panel.
+  expect(html).toMatch(/Choose folder<\/button><\/div><div class="doan-notice error ob-project-notice ob-drop-notice" role="alert" tabindex="-1"><svg[^>]*>.*?<\/svg><span>Drop one folder at a time\.<\/span><\/div>/);
 });
 
 test("first run's Project step takes the same card drop", () => {

@@ -55,9 +55,11 @@ function ActionButton<C extends string>({ button, run, data }: { button: Button<
   </>;
 }
 
-export function NoticeView({ notice, run }: { notice: Notice; run: (command: AuthCommand) => void }) {
+// A notice takes the white panel surface only where the backdrop is first run's transparent overlay; on a white surface
+// (a card, the provider list, Settings) the panel fill would vanish, so it keeps the inset notice.
+export function NoticeView({ notice, run, panel = false }: { notice: Notice; run: (command: AuthCommand) => void; panel?: boolean }) {
   return <>
-    <div className={notice.role === "alert" ? "doan-notice error doan-panel" : "doan-notice doan-panel"} role={notice.role} tabIndex={-1}>
+    <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}`} role={notice.role} tabIndex={-1}>
       {notice.spinner ? <span className="doan-spinner doan-alert-icon" aria-hidden="true" /> : <AlertIcon />}
       <span>{notice.title && <strong className="ob-notice-title">{notice.title}</strong>}{notice.body && <span className="ob-notice-body">{notice.body}</span>}</span>
     </div>
@@ -202,7 +204,7 @@ export function AgentStep({ session, heading, back, next }: { session: AgentStep
       <h2 tabIndex={-1} ref={node => { title.current = node; heading(node); }}>Connect your agent</h2>
       <p>{list.anyReady ? "You’re connected. Add another agent or continue." : "Sign in to at least one agent to continue."}</p>
     </div>
-    {list.notice && <div className="ob-list-notice"><NoticeView notice={list.notice} run={command => { if (command === "read") session.retryRead(); }} /></div>}
+    {list.notice && <div className="ob-list-notice"><NoticeView panel notice={list.notice} run={command => { if (command === "read") session.retryRead(); }} /></div>}
     {state.installError && <div className="doan-notice error doan-panel ob-list-notice" role="alert"><AlertIcon /><span>{state.installError}</span></div>}
     {list.providers.length > 0 && <div className="doan-panel ob-provider-list">{list.providers.map(view => <ProviderRow key={view.provider} view={view} run={run(view.provider)} />)}</div>}
     <p className="ob-fine">{list.anyReady ? "You can manage your connections later in Settings." : "Your agent account stays on this Mac."}</p>
@@ -279,9 +281,9 @@ export function projectNotice(error: ProjectError, message: string | undefined, 
   }
 }
 
-function ProjectNoticeView({ notice, run, id }: { notice: ProjectNotice; run: (command: ProjectAction) => void; id?: string }) {
+function ProjectNoticeView({ notice, run, id, panel = false }: { notice: ProjectNotice; run: (command: ProjectAction) => void; id?: string; panel?: boolean }) {
   return <>
-    <div className="doan-notice error doan-panel ob-project-notice" role="alert" tabIndex={-1} id={id}><AlertIcon />
+    <div className={panel ? "doan-notice error doan-panel ob-project-notice" : "doan-notice error ob-project-notice"} role="alert" tabIndex={-1} id={id}><AlertIcon />
       <span>{notice.title ? <><strong className="ob-notice-title">{notice.title}</strong><span className="ob-notice-body">{notice.body}</span></> : notice.body}</span></div>
     {notice.detail && <p className="ob-path ob-notice-detail">{notice.detail}</p>}
     {notice.note && <p className="ob-provider-help">{notice.note}</p>}
@@ -290,8 +292,8 @@ function ProjectNoticeView({ notice, run, id }: { notice: ProjectNotice; run: (c
     </div>}
   </>;
 }
-function Progress({ title, body }: { title: string; body?: string }) {
-  return <div className="doan-notice doan-panel ob-project-notice" role="status" tabIndex={-1}><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
+function Progress({ title, body, panel = false }: { title: string; body?: string; panel?: boolean }) {
+  return <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><span className="doan-spinner doan-alert-icon" aria-hidden="true" /><span><strong className="ob-notice-title">{title}</strong>{body && <span className="ob-notice-body">{body}</span>}</span></div>;
 }
 // First run's Back carries its arrow; the page's Cancel leaves the page and has none (draft footers).
 function Footer({ use, footer, back, next }: { use: ProjectUse; footer: NonNullable<ReturnType<typeof projectFooter>>; back: () => void; next: () => void }) {
@@ -439,6 +441,8 @@ export interface ProjectScreenProps {
 // to the screen it was opened from.
 export function ProjectScreen({ state, busy, agentReady, projects, home, urlValid, heading, on, use = "onboarding", headingId, drop }: ProjectScreenProps) {
   const p = state.phase, error = state.error;
+  // First run paints the scene on its transparent overlay; the page paints it on the white home panel.
+  const panel = use === "onboarding";
   const destination = p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled" ? p.destination : null;
   const run = (command: ProjectAction) => {
     if (command === "chooseFolder") on.chooseFolder(); else if (command === "chooseExisting") on.chooseExisting(); else if (command === "edit") on.edit();
@@ -481,17 +485,17 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <div className="ob-state-actions submit-only"><button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.listChoice === null} onClick={on.useListed}>Use this folder</button></div>
       </div>}
       <LocalFolderCard busy={busy} choose={on.chooseFolder} {...(drop ? { drop } : {})} />
-      {drop?.notice && <div className="doan-notice error doan-panel ob-project-notice ob-drop-notice" role="alert" tabIndex={-1}><AlertIcon /><span>{drop.notice}</span></div>}
+      {drop?.notice && <div className={panel ? "doan-notice error doan-panel ob-project-notice ob-drop-notice" : "doan-notice error ob-project-notice ob-drop-notice"} role="alert" tabIndex={-1}><AlertIcon /><span>{drop.notice}</span></div>}
       <div className="ob-divider"><span>or use GitHub</span></div>
       </>}
       {urlField(p.kind === "inspecting")}
       {p.kind === "inspecting" ? <>
-        <Progress title="Checking repository" body={p.url} />
+        <Progress panel={panel} title="Checking repository" body={p.url} />
         {/* The page's footer Cancel leaves the page; this one stops the check. */}
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label={use === "addPage" ? "Cancel check" : undefined} onClick={on.cancelInspect}>Cancel</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Find repository</button></div>
       </> : urlNotice ? <>
-        <ProjectNoticeView notice={notice!} run={run} id="ob-project-error" />
+        <ProjectNoticeView panel={panel} notice={notice!} run={run} id="ob-project-error" />
         {error.code === "access_failed"
           ? <div className="ob-recovery">
             <button type="button" className="doan-button" data-ui-variant="subtle" onClick={on.chooseFolder}>Choose local folder</button>
@@ -508,7 +512,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={busy || state.url.trim() === ""} onClick={on.find}>Find repository</button>
         </div>
       </> : <>
-        {notice && <ProjectNoticeView notice={notice} run={run} />}
+        {notice && <ProjectNoticeView panel={panel} notice={notice} run={run} />}
         <div className="ob-url-action"><button type="button" className="doan-button" data-ui-variant="prominent" disabled={busy || state.url.trim() === ""} onClick={on.find}>Find repository<ArrowRight aria-hidden="true" /></button></div>
       </>}
     </>;
@@ -519,12 +523,12 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       {one ? <ChosenProject path={one.path} home={home} /> : <>
         <ProjectChoice paths={p.candidates.map(c => c.path)} choice={p.choice} home={home} pick={on.pickCandidate} name="Repositories in this folder" />
       </>}
-      {notice && <ProjectNoticeView notice={notice} run={run} />}
+      {notice && <ProjectNoticeView panel={panel} notice={notice} run={run} />}
       {p.url !== null && <p className="ob-fine">Use your existing files and current branch.</p>}
       {p.url !== null ? smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"]) : smallActions(["Choose another folder", "chooseFolder"])}
     </>;
   } else if (p.kind === "checking") {
-    body = <Progress title="Checking this folder" body={shown(p.path, home)} />;
+    body = <Progress panel={panel} title="Checking this folder" body={shown(p.path, home)} />;
   } else if (p.kind === "setup" || p.kind === "selecting") {
     body = <>
       {/* From a URL the screen keeps that repository: its URL, another folder of it, or a different URL (D25). */}
@@ -539,7 +543,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
       {p.kind === "setup" && p.url !== null && smallActions(["Choose another folder", "chooseExisting"], ["Edit repository URL", "edit"])}
       {/* The page's footer only leaves it, so the page offers another folder here; first run keeps its shipped panel. */}
       {p.kind === "setup" && p.url === null && use === "addPage" && smallActions(["Choose another folder", "chooseFolder"])}
-      {p.kind === "selecting" && <Progress title="Setting up your project" body={shown(p.path, home)} />}
+      {p.kind === "selecting" && <Progress panel={panel} title="Setting up your project" body={shown(p.path, home)} />}
     </>;
   } else if (p.kind === "clone" || p.kind === "cloning" || p.kind === "cloneCancelled") {
     body = <>
@@ -549,7 +553,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         <div className="ob-destination-name"><strong>{nameOf(p.destination)}</strong><p className="ob-path">{shown(p.destination, home)}</p></div>
         {!offered.has("changeLocation") && <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={busy} onClick={on.changeDestination}>Change</button>}</div>
       {p.kind === "cloning" ? <>
-        {p.cancelling ? <Progress title="Stopping clone and cleaning up" body="Wait before starting another clone." /> : <Progress title={`Cloning ${nameOf(p.destination)}`} body={shown(p.destination, home)} />}
+        {p.cancelling ? <Progress panel={panel} title="Stopping clone and cleaning up" body="Wait before starting another clone." /> : <Progress panel={panel} title={`Cloning ${nameOf(p.destination)}`} body={shown(p.destination, home)} />}
         <div className="ob-state-actions">
           {p.cancelling ? <><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled>Choose local folder</button>
             <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Retry</button></>
@@ -558,12 +562,12 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
         {/* The page's locked header and sidebar, and first run's disabled Back and steps, do not say why by themselves. */}
         <p className="ob-fine">Stay on this page until the clone finishes, or cancel it.</p>
       </> : p.kind === "cloneCancelled" ? <>
-        <div className="doan-notice doan-panel ob-project-notice" role="status" tabIndex={-1}><AlertIcon /><span>Cloning was cancelled. Choose a folder or try again.</span></div>
+        <div className={panel ? "doan-notice doan-panel ob-project-notice" : "doan-notice ob-project-notice"} role="status" tabIndex={-1}><AlertIcon /><span>Cloning was cancelled. Choose a folder or try again.</span></div>
         <div className="ob-state-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={on.chooseExisting}>Choose local folder</button>
           <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" onClick={on.retry}>Retry</button></div>
         {smallActions(["Edit repository URL", "edit"])}
       </> : <>
-        {notice && <ProjectNoticeView notice={notice} run={run} />}
+        {notice && <ProjectNoticeView panel={panel} notice={notice} run={run} />}
         {!repeats("chooseExisting") && <p className="ob-fine">Already have this repository?</p>}
         {smallActions(["Choose existing folder", "chooseExisting"], ["Edit repository URL", "edit"])}
       </>}
@@ -572,7 +576,7 @@ export function ProjectScreen({ state, busy, agentReady, projects, home, urlVali
     const root = p.root;
     body = <>
       <ChosenProject path={root} home={home} />
-      {p.kind === "completing" ? <Progress title="Saving your setup" body="Your project is ready. Finishing setup before opening Home." /> : notice && <ProjectNoticeView notice={notice} run={run} />}
+      {p.kind === "completing" ? <Progress panel={panel} title="Saving your setup" body="Your project is ready. Finishing setup before opening Home." /> : notice && <ProjectNoticeView panel={panel} notice={notice} run={run} />}
       {smallActions(["Choose another folder", "chooseFolder"])}
       <p className="ob-fine">Your selected project will be ready on Home.</p>
     </>;

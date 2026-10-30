@@ -127,3 +127,11 @@ test("an unreadable preferences file says defaults apply; a newer one says so an
   expect(text()).toContain("Defaults apply here, and changes aren’t saved. Update Doan to use them.");
   expect(switches().every(element => element.props.disabled === true)).toBe(true);
 });
+
+test("Settings notices sit on the white page, so they keep the inset notice instead of the panel", () => {
+  const notices = () => all(tree).filter(element => typeof element.props.className === "string" && element.props.className.split(" ").includes("doan-notice")).map(element => element.props.className);
+  render({ preferences: snapshot({}, "broken") });
+  expect(notices()).toEqual(["doan-notice error settings-notice", "doan-notice"]);
+  render({ preferences: snapshot({}, "newer") });
+  expect(notices()).toEqual(["doan-notice settings-notice", "doan-notice"]);
+});

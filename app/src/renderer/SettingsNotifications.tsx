@@ -18,8 +18,8 @@ const SAVE_FAILED = "Couldn’t save your notification choices. Your last saved 
 // The read-stage notice over the categories that save preferences.json (buzz-settings design '포맷 변경'): an
 // unreadable file applies defaults until the next change moves it aside; a newer one is kept and nothing is saved.
 export function preferencesNotice(notice: PreferencesSnapshot["notice"] | undefined): ReactNode {
-  if (notice === "broken") return <div className="doan-notice error doan-panel settings-notice" role="alert"><AlertIcon /><span>Doan couldn’t read its saved settings, so defaults apply.</span></div>;
-  if (notice === "newer") return <div className="doan-notice doan-panel settings-notice" role="status"><AlertIcon /><span><strong className="ob-notice-title">These settings were saved by a newer version of Doan</strong>
+  if (notice === "broken") return <div className="doan-notice error settings-notice" role="alert"><AlertIcon /><span>Doan couldn’t read its saved settings, so defaults apply.</span></div>;
+  if (notice === "newer") return <div className="doan-notice settings-notice" role="status"><AlertIcon /><span><strong className="ob-notice-title">These settings were saved by a newer version of Doan</strong>
     <span className="ob-notice-body">Defaults apply here, and changes aren’t saved. Update Doan to use them.</span></span></div>;
   return null;
 }
@@ -56,7 +56,7 @@ export function SettingsNotifications({ preferences, save }: { preferences: Pref
           {error("enabled")}
         </div>
         {enabled && <div className="doan-preference-row-extra settings-permission">
-          <div className={hint.error ? "doan-notice error doan-panel" : "doan-notice doan-panel"} role={hint.role}><AlertIcon /><span>{hint.text}</span></div>
+          <div className={hint.error ? "doan-notice error" : "doan-notice"} role={hint.role}><AlertIcon /><span>{hint.text}</span></div>
           <div className="ob-state-actions">
             <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={sendTest}>Send test notification</button>
             <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => void window.doan.openNotificationSettings().catch(console.error)}>Open System Settings ↗</button>

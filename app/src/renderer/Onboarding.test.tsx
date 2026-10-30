@@ -75,14 +75,15 @@ test("a busy or not_owner detail line is a status", () => {
   expect(html).toContain('<span role="status">Finish this sign-in in the window that started it.</span>');
 });
 
-test("a progress notice puts the spinner in the icon slot and is a status; an error leads with the alert icon", () => {
+test("a progress notice puts the spinner in the icon slot and is a status; an error leads with the alert icon; only the overlay's notice takes the panel", () => {
   const progress: Notice = { role: "status", spinner: true, title: "Finish signing in to Claude Code", body: "Complete sign-in in your browser, then return here.", actions: [
     { command: "cancel", label: "Cancel", variant: "subtle", disabled: false }, { command: "openLink", label: "Open again", variant: "subtle", disabled: false }] };
   const html = renderToStaticMarkup(<NoticeView notice={progress} run={noop} />);
-  expect(html).toContain('<div class="doan-notice doan-panel" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>');
+  expect(renderToStaticMarkup(<NoticeView panel notice={progress} run={noop} />)).toMatch(/^<div class="doan-notice doan-panel" role="status"/);
+  expect(html).toContain('<div class="doan-notice" role="status" tabindex="-1"><span class="doan-spinner doan-alert-icon" aria-hidden="true"></span><span><strong class="ob-notice-title">Finish signing in to Claude Code</strong><span class="ob-notice-body">Complete sign-in in your browser, then return here.</span></span></div>');
   expect(html).toContain('<div class="ob-state-actions"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="cancel">Cancel</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-command="openLink">Open again</button></div>');
   const error = renderToStaticMarkup(<NoticeView notice={{ role: "alert", spinner: false, body: "Sign-in didn’t finish. Try again.", actions: [{ command: "signIn", label: "Sign in", variant: "prominent", disabled: false }] }} run={noop} />);
-  expect(error).toMatch(/^<div class="doan-notice error doan-panel" role="alert" tabindex="-1"><svg[^>]*class="lucide lucide-circle-alert[^"]* doan-alert-icon" aria-hidden="true">/);
+  expect(error).toMatch(/^<div class="doan-notice error" role="alert" tabindex="-1"><svg[^>]*class="lucide lucide-circle-alert[^"]* doan-alert-icon" aria-hidden="true">/);
   expect(error).toContain('<span><span class="ob-notice-body">Sign-in didn’t finish. Try again.</span></span>');
   expect(error).toContain('<div class="ob-state-actions submit-only">');
 });
@@ -480,7 +481,8 @@ test("spacing: a project notice keeps the step's 16px gap wherever it stacks, al
   expect(css).toMatch(/\.ob-project-notice \{[^}]*margin-top: var\(--space-4\);/);
   const html = screen({ phase: { kind: "setup", inspectionId: "i", url: null, path: "/p", changes: [".doan/config.json"] }, error: { code: "init_failed" } });
   // The notice follows the chosen card inside .ob-setup, where .ob-scene > .doan-notice does not reach.
-  expect(html).toMatch(/<div class="doan-panel ob-chosen">.*?<\/div><div class="doan-notice error doan-panel ob-project-notice"/);
+  // On the white setup panel the notice keeps the inset fill, even on first run's overlay.
+  expect(html).toMatch(/<div class="doan-panel ob-chosen">.*?<\/div><div class="doan-notice error ob-project-notice"/);
 });
 
 test("D28: a notice's recovery actions and the screen's own actions never repeat", () => {

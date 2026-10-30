@@ -141,7 +141,7 @@ export function SettingsAgents({ signIn, arrival, onLock, preferences, save, pro
   const stop = session.stopView(), paste = session.pasteView();
   return <>
     {list.notice && <div className="settings-notice"><NoticeView notice={list.notice} run={command => { if (command === "read") session.retryRead(); }} /></div>}
-    {state.installError && <div className="doan-notice error doan-panel" role="alert"><AlertIcon /><span>{state.installError}</span></div>}
+    {state.installError && <div className="doan-notice error" role="alert"><AlertIcon /><span>{state.installError}</span></div>}
     {list.sections.map(section => <section key={section.id} className="settings-section" aria-labelledby={`settings-agents-${section.id}`}>
       <div className="settings-section-header"><div className="settings-header-copy"><h2 className="settings-section-title" id={`settings-agents-${section.id}`}>{section.title}</h2></div></div>
       <div className="doan-settings-group" data-layout="rows">{section.providers.map(row)}</div>
