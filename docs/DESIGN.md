@@ -77,18 +77,16 @@ The reference for every screen.
   - an inline error is a 16px icon with one body-sm `text-danger` line (`text-warning` for warnings), which adds the icon to the reference's text-only field error;
   - a neutral notice is a `surface-inset` fill with `radius-row` and body-sm `text-subtle` (icon and `text-warning` when it warns).
 - **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for connection and wizard status. It is a separate primitive from `.doan-chip`.
-- **Shared dialog sizes.** The `.ob-dialog` confirmations (SetUpFolderConfirm, link replacement, Settings confirmations) and the three comment confirmations are compact and centred; Project Setup, Add Projects and Hand off are standard, 128px from the top.
+- **Shared dialog sizes.** The `.ob-dialog` confirmations (link replacement, Settings confirmations) and the three comment confirmations are compact and centred; Project Setup and Hand off are standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
 - **Toast without a type.** Success, error and undo toasts share the one neutral floating toast and differ only by their text; there is no type colour and no close button.
 - **Focus ring colour.** The ring is `border-focus` (`neutral-12`, black, 21:1 on white); the reference ring uses `text-standard`. Inset rings are −2px, matching the draft and the menu rows.
 - **Tooltip offset.** The shared tooltip defaults to `sideOffset` 4.
-- **Drop scrim.** `--bg-scrim-drop` is `color-mix(in srgb, var(--bg-scrim) 50%, black)`, black at about 69% opacity (calculated, not measured), because the drop target is the whole window. Text and the dashed outline on it are `text-on-prominent`.
 - **Type family.** `--type-family` (locally bundled Geist, followed by the system sans stack with `Apple SD Gothic Neo`) is the role the renderer reads; `--font-sans` is only a legacy alias.
 - **Light only.** Main sets `nativeTheme.themeSource = "light"` and Settings' `backgroundColor` `#f1f1f2` (`bg-app`); the main window is transparent with native sidebar material and an opaque reduced-transparency fallback. Main-window options are pinned by `app/src/main/index.test.ts`. The canvas iframe stays light under a dark macOS appearance by two routes: the renderer's `color-scheme: light` on the `<iframe>` element decides the canvas's `prefers-color-scheme` (dark on the element gives dark, light gives light, `normal` follows `nativeTheme`), and main pins `nativeTheme` light. With `nativeTheme.themeSource` forced dark, the app page matches dark while the sandbox iframe still matches light, also after the iframe is recreated. A probe must not use `page.emulateMedia` for this, because it overrides every frame, the canvas included. Not checked with an actual macOS appearance switch.
 
 ### Intended exceptions
 
 - **Dimension label = tooltip capsule.** The canvas dimension label (`.dims`) is the same black prominent capsule as a tooltip.
-- **Drop scrim value** as above, darker than `bg-scrim`.
 - **Below 3:1 on purpose.** The non-text 3:1 target applies to `border-prominent`, focus rings and pins only. The decorative hairline (`border-standard` `#e8e8e8`, 1.23:1 on white) and fill-edged inputs (`surface-inset` `#f5f5f6`, 1.09:1 on white) follow the reference values.
 - **Subtle buttons on inset bands (interim).** `--affordance-subtle` and `--surface-inset` are both `--neutral-2`, so a subtle button on an inset band loses its resting fill and reads as plain text until hover. Affected: the Review bar and banner (`.review-bar`, `.review-banner`), the status bands (`.ws-status`) and connection details (`.cn-details`: Copy, the default `.ob-chip` pill). The draft `shared-connection-rows` draws the same pairing. Changing a band's surface is a screen-layout decision: `buzz-comment` owns the Review bar and banner; `.ws-status` was assigned to `buzz-home`, which has shipped without changing it, so it has no owner now; `.cn-details` sits in the shared connection rows, which a screen child changes only after asking the user (buzz-restyle spec 10).
 - **Hand off dialog scrolls itself.** In a short window the whole dialog scrolls instead of only its list.
@@ -164,6 +162,9 @@ Reference: `.doan/canvases/buzz-onboarding.html`, 73 full-window frames at 1238 
 | Atmosphere | Accent radial gradient `ellipse 50% 125% at 50% 112%`, opacity .85, `onboarding-grain.svg` alpha mask 180px repeated, no animation; fixed and behind the content (`z-index: −1`) | A grain mask, no motion. |
 | Chrome and stepper | Chrome 56 (`--size-chrome`); capsule 190 × 40 centred, padding 4, gap 4, radius 24, `--affordance-backdrop-hover` with blur 24; steps are sm doan-buttons 32 high, regular weight; current is a subtle button with a white pill (`--surface-panel`, `--shadow-panel`); a done step is ghost `✓ Agent` | Drawn with the shared buttons, so it does not inherit `.shell-modes button`. |
 | Scene | Max width 560, padding 40/24/48, centred; heading title token 32px / 1.1 / 500 with a 12px gap to its 14/20 subtle line and 32px to the content; footer Back (subtle) and Continue/next (prominent) 40 high with arrows, pushed to the bottom | |
+| Scroll container | Every scene sits in `.ob-scroll.doan-scroll` under the chrome: the full window width (0–1238 at 1238), `overflow-y: auto`, `overscroll-behavior: contain`, `scrollbar-width: thin` with `--scrollbar-thumb-quiet`, so the scroll bar is at the window's right edge, not beside the column. `.ob-scene` grows as `flex: 1 0 auto` and does not scroll itself (no `native-scroll`). At 1238 × 600 (the minimum height) Agent scrolls 778/544 and Project 827/544 to the end with the footer in view. Welcome does not scroll (724/724) and keeps y 248 / 376 / 468 above. Development and production builds read the same | Shared with the Add Projects page, whose white panel plays this role. |
+| Card drop | The Project step's 'Open a local folder' card takes a folder drop like the Add Projects page (see there): the same `.drop-target` over the card and the same notices | A real folder dropped through Chromium's drag pipeline (CDP with a real path) is inspected; native Finder drag not checked. |
+| Cloning line | Under the cloning progress and its Cancel: `.ob-fine` caption 12/16 `--text-metadata`, 20px above, "Stay on this page until the clone finishes, or cancel it." | Back and the step pill are already disabled while busy; the line says why. |
 | Provider list and rows | Panel padding 0 16; rows min-height 72 (`--size-row`), padding 16 0, 1px `--border-standard` dividers; mark slot 32 with a 24px image; name 14/20 / 500; detail caption 12/16 `--text-metadata`; row button sm 32 | A notice, helper line or Antigravity paste line sits under the row inside the same item. The paste help line is subtle. |
 | Notices | `doan-notice` on a panel: padding 12px 16px, `--surface-panel`, `--text-standard`, panel shadow, radius 16; error icon inherits the text colour; a spinner takes the icon slot; title 500 with a 4px gap to the body | Shared rule `.doan-notice.doan-panel` in `ds/surfaces.css`. |
 | Project choose | Local option panel padding 24, gap 16, folder icon 40 on `--surface-inset` radius 12; divider caption with 1px rules and 24px margins; URL field 40 high; Find repository right-aligned | Invalid and edited URLs show their two-action state row. |
@@ -202,7 +203,7 @@ Frame ids name the canvas frames that draw each state.
 ### Limits and regression pointers
 
 - Markup runs prove the CSS against chosen props only. They do not prove that `ProjectStepSession` reaches those states (its unit tests do), and they do not show live focus. Notice spacing inside Project screens was checked only on the repository-error frame.
-- Not measured: the native vibrancy material itself, reduced transparency and forced colours (DOM screenshots show the transparent overlay as white); hover and focus rings of the onboarding controls; dark mode; the Project step in the real app with a ready agent, real sign-in, the real paste and stop dialogs as modals (measured as open dialogs in a column), a real clone; the choice cards in the real flow.
+- Not measured: the native vibrancy material itself, reduced transparency and forced colours (DOM screenshots show the transparent overlay as white); hover and focus rings of the onboarding controls; dark mode; real sign-in, the real paste and stop dialogs as modals (measured as open dialogs in a column); the choice cards in the real flow. The Project step was reached in the real app only with a forged ready-agent snapshot (scroll container, card drop, cloning line against a local git server).
 - Regression tests (`app/src/renderer/Onboarding.test.tsx`, `ds/controls.test.ts`, `ShellSidebar.test.tsx`) pin the stepper markup and capsule rule, the overlay's `font-variant-numeric: normal` (fails when the declaration is removed) and the paste help ink; the `lg`, notice-on-panel and thumbnail rules; and the markup of every Project phase.
 
 ## Home
@@ -272,9 +273,49 @@ Read on `home-empty`, equal to the draft's attributes: `region` "Home"; `button`
 
 `Home.test.tsx` 'Home CSS keeps the draft's measured icon sizes…' (chevrons, menu icons, popover status type, chip ×), `homeComposer.test.ts` 'an empty composer has no reason line…', `ConversationStripView.test.tsx` 'when the turn ends while Stop has focus, focus moves from the vanished Stop to Dismiss' and 'a person whose focus was elsewhere … keeps it', and `conversationStrip.test.ts` `focusAfterStop`.
 
+## Add Projects page
+
+Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 1238 × 780 (choose, drop, checking, candidates, setup, selecting, url-inspecting, repository-found, clone, cloning, clone-cancelled) and four tiles (errors, drop notices, first run's drop and cloning line, Home's folder-drop notice). Measured by `/design-sync` in the built app against the draft read in the app's canvas iframe; every body-panel element is paired by its structural path, and the header and sidebar parts by selector. All 11 frames and the tiles were reached for real (held CLI reads, a local git server for clones, CDP drags with real paths). The page renders first run's Project screen (Onboarding), so its parts' contracts are the Onboarding ones.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Panel | The Home white panel (`.home-panel`), 954 × 716 at 1238 × 780, is the scroll container: `overflow-x: hidden`, `overflow-y: auto`, `overscroll-behavior: contain`, `.doan-scroll` (`scrollbar-width: thin`, `--scrollbar-thumb-quiet`). The overlay scroll bar sits at the panel's right edge and drags the page. Body text 14/20 with `font-variant-numeric: normal` | The shared Project screen is sized for first run's overlay text; without it the panel passes on the app body's 13px/normal and tabular numerals. |
+| Column | `.ob-scene.add-scene`, 560 wide, centred, padding 40/24/48, at least the panel's height; the footer (Cancel left, the step's action right) sits at the bottom and scrolls with the page. With 22 repositories the panel scrolls to the last card and Use this folder, 48px above the panel's bottom | POSTMORTEM 2026-10-25 'A static draft's overflow match hid an unusable checklist'. |
+| Card drop | Over 'Open a local folder': `.drop-target` absolutely over the card (`inset: 0`, z-index 2, the card's 24px radius), `--surface-panel` at 55% with an 8px blur, a 2px dashed `--affordance-accent` outline at −2px; a visually hidden `role="status"` "Drop to add this folder" | Home's composer drop target, reused. |
+| Drop notices | Under the card: the error notice on a panel ("Drop one folder at a time.", "Only folders can be added."), never focused | |
+| Lock ink | While selecting or cloning: header Add Projects and Projects tabs, Back, Search, sidebar rows and the project menu's Overview and worktree items take `--text-disabled` with the default cursor and no hover fill; the current tab keeps its white pill. Show in Finder, Project Settings, Remove from Doan, Settings and the row disclosure stay usable. A locked menu item under keyboard focus has no fill and keeps the 2px `--border-focus` focus outline | Design '잠금'. |
+| Cloning line | As in Onboarding | |
+| Development build | Panel, column, body text, card and drop target read the same under `electron-vite dev` as in the production build | POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing development styles'. |
+
+### Documented deviations from the draft
+
+- **Heading level.** The page title is the shared `h2` (first run's), focused on entry and naming the panel; the draft draws `h1`.
+- **Locked Back** is `aria-disabled` with the default cursor, not `disabled`, so it keeps its place in the focus order like the other locked controls; the draft draws `disabled`.
+- **Footer rule.** `.add-footer` has no rule of its own; `.ob-footer` already pushes it down with `margin-top: auto`.
+- **Column growth.** The panel is a flex column and the shared `.ob-scene` grows in it (`flex: 1 0 auto`, `position: relative`) instead of the draft's block panel with `min-height: 100%`; the measured boxes are equal.
+- **Sidebar.** The page reuses the shipped Home sidebar: canvas names take `--text-subtle` (the draft drew them standard) and icon-only header buttons inherit the app body's 13px/normal.
+- **Choose another folder under a local setup** is on the page only (the page's footer can only leave); first run keeps its shipped setup panel. Where a setup error's recovery already offers it, it is not repeated.
+
+### Behaviour beyond the measured draft
+
+- The inline clone Cancel is disabled until main answers the clone, at most its 1 s quick-reply window (shared first-run code); the draft draws it enabled. Measured after it enabled.
+- Text and links (`text/uri-list` with `text/plain`) dragged into the URL field, the Home composer and a comment field still drop. The app does not prevent a drag that carries only `text/uri-list`; in CDP drags it inserted nothing into the URL field or the composer, which is Chromium's editor default. A file dragged over the page heading, off the card, gets `dropEffect: none` and dropping it does nothing; other places were not measured.
+- While locked, sidebar rows are `disabled` in the accessibility tree although their disclosure still expands and collapses.
+
+### Not verified
+
+- Native Finder drag onto the card and a native drag cancel (CDP drags with real paths were used; CDP's `dragCancel` sends no `dragleave`, so probes leave the window first).
+- Hover and pressed states of the page's own buttons and cards; reduced transparency and forced colours; dark mode.
+
+### Regression pointers
+
+`app/src/renderer/AddProjectsPage.test.tsx` pins the panel's body text and sideways clip, the page-only Choose another folder (absent in first run, not repeated beside a recovery), the lock ink and the card's drop target rules; `Onboarding.test.tsx` pins the shared scroll container.
+
 ## Projects home
 
-> buzz-ds 이전. Owner on the mark: `buzz-home`, which has shipped without remeasuring these surfaces, so no child owns the mark now. Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the Add Projects checklist (`.add-dialog`), the set-up confirmation, the removal toast with Undo, the drop overlay and the workspace status line.
+> buzz-ds 이전. Owner on the mark: `buzz-home`, which has shipped without remeasuring these surfaces, so no child owns the mark now. Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal toast with Undo and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page).
 
 Reference: `.doan/canvases/projects-home.html` (eight frames).
 
@@ -282,26 +323,21 @@ Reference: `.doan/canvases/projects-home.html` (eight frames).
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Add Projects checklist | Standard shared dialog; the list keeps `max-height: 50vh` and scrolls natively (Design system); separately measured title, lead/code, row name/path/chip and footer; Already added and Not set up rows | Independent item selection; saved, not-set-up and suggested worktrees stay distinct. |
-| Set-up confirmation | Shared compact dialog; the body explains both adding the uninitialized project and opening setup; the path stays absolute | |
 | Removal toast | The shared toast with Undo | |
 | Status line (`.ws-status`) | Padding 7px 12px; gap 10; nested path code measured separately; action gap 10 | Keeps recovery actions aligned with Go Home. |
 | Config error details | Expanded details sit below the action line in a separate `.ws-detail` surface: padding 8px 12px 10px, 1px bottom divider. Go Home stays vertically centred with the other actions. The nested action group centres its buttons so Show in Finder keeps its natural height (21px measured; 22px in a later isolated window with the then-current stylesheet) instead of stretching | Unpinned. |
 
 ### Behaviour and copy
 
-- **`~/…` paths.** Checklist paths, recovery text and the worktree menu abbreviate paths under the HOME value supplied by main as `~/…`. Matching is boundary-aware; other roots remain absolute, and full-path tooltips keep the original path. The setup confirmation stays absolute. Main prefers its process HOME, with Electron's home path as fallback, so isolated development runs do not use the machine user's home.
+- **`~/…` paths.** Recovery text and the worktree menu abbreviate paths under the HOME value supplied by main as `~/…`. Matching is boundary-aware; other roots remain absolute, and full-path tooltips keep the original path. Main prefers its process HOME, with Electron's home path as fallback, so isolated development runs do not use the machine user's home.
 - **Recovery copy and Locate.** Locate on a loaded workspace keeps that workspace visible while main replaces its root; the renderer waits for the located root's list before opening its canvas. The canvas recovery copy is “The project <name> is missing. Use Locate… to find it.” or “The project <name> is not set up. Use Set Up… on Home.”
 - **Problem rows.** Main's error strings stay plain text, including any paths, instead of the draft's embedded code chip. Details keeps the expanded/collapsed arrow (▸/▾). CLI error rows expose only Retry/Remove.
 - **Problem-entry data.** Error/loading entries keep `lastCommon` for grouping but not the last branch, so they show path + ◌, and the workspace hides its branch chip while its entry is not a successful list. No branch cache is added.
 - **Unsaved-comment context** is `<card name> (<branch>) › <canvas without .doan/canvases/>`; non-Git projects omit the parentheses.
-- **Checklist copy.** Scan progress reads “n of N checked” (not the draft's “Checked n of N”). Suggested worktrees show the supplied worktree folder name and full path, not an inferred branch, with no additional per-worktree CLI calls; pick-one worktree items show the worktree folder name. Problem rows omit cached branch labels. CLI error details stay the original plain strings. The not-a-repository text uses the plain apostrophe "isn't".
-- **Checklist focus.** Failed child checklist submissions restore lost focus to Cancel, including after pointer/keyboard rejection, repeated rejection and unavailable results. Escape closes only the child, and deliberately moved child focus stays.
-- **Additions.** Duplicate additions keep the remembered workspace focus, including while Home is visible. Multi-add highlights every added sidebar project row; mixed new/duplicate picks keep both highlights. Non-file drops do not cancel the browser's default handling.
 
 ### Not verified and unpinned
 
-- Not verified: ready/unreadable/checking checklist rows; very long project/branch/canvas/selection values; minimum-window overflow; disabled problem entries in the worktree menu; all guard variants; long toast; absolute-time tooltip; the pick-one list's disabled Couldn't read row; native Finder drag/drop, including entering over the canvas iframe.
+- Not verified: very long project/branch/canvas/selection values; minimum-window overflow; disabled problem entries in the worktree menu; all guard variants; long toast; absolute-time tooltip.
 - Known note: Locate into a non-list root can keep the previous missing-project message in the canvas area while the status line shows the new root state.
 - Unpinned: the toast's timer pause and Undo, native menu Undo, and the Show in Finder alignment.
 
