@@ -544,8 +544,9 @@ code, kbd { font-family: var(--type-family); }
 /* Results: a fixed height so the dialog keeps its size whatever the results, 55% of the window, at most 576px
    (Buzz's stable 36rem) and at least 400px. Both give way to the room left under the field and tabs, so the dialog
    itself never scrolls: 128px above, 16px below, the 40px field and tab capsule, their two 8px gaps, the dialog's
-   12px inset and 1px border on both sides. */
-.qo-height { position: relative; overflow: clip; margin-top: var(--space-2); }
+   12px inset and 1px border on both sides. The box clips only the block axis: the list reaches 4px past it on each
+   side (its negative inline margin) and clipping that cut 4px off the list's scrollbar. */
+.qo-height { position: relative; overflow-x: visible; overflow-y: clip; margin-top: var(--space-2); }
 .qo-height::after { content: ""; position: absolute; inset: 0 0 auto; height: var(--space-2); background: linear-gradient(to bottom, var(--surface-panel), transparent); pointer-events: none; }
 .qo-list {
   display: flex;
