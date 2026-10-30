@@ -182,3 +182,9 @@ describe("the context line", () => {
     expect(handoffContext(detached, "/code/acme-web-review", "Checkout")).toBe("acme-web › acme-web-review › Checkout");
   });
 });
+
+test("the dialog's description ink skips its notices, which keep the shared standard ink", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".comments-dialog p:not(.doan-notice) { color: var(--text-subtle);");
+});

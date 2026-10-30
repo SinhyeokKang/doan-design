@@ -171,16 +171,18 @@
 }
 
 /* ── Notices ─────────────────────────────────────────────────────────────────
-   An inset fill, never a coloured edge. A warning or an error leads with an icon so that
-   colour is not the only signal; the icon sits on the first line of text. */
+   An inset fill in standard ink, never a coloured edge. Every notice leads with an icon on its
+   first line of text: the alert icon, or a spinner or status mark in that slot; a warning or an
+   error tints it so that colour is not the only signal. Every notice has this one size (padding,
+   gap, radius, type, icon size); a variant changes only its surface. */
 .doan-notice {
   display: flex;
   align-items: flex-start;
   gap: var(--space-1h);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-row);
   background: var(--surface-inset);
-  color: var(--text-subtle);
+  color: var(--text-standard);
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line-height);
   overflow-wrap: anywhere;
@@ -188,9 +190,9 @@
 .doan-notice.warning > .doan-alert-icon { color: var(--text-warning); }
 .doan-notice.error > .doan-alert-icon { color: var(--text-danger); }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
-/* A notice that stands on its own as a panel (onboarding states) takes the panel's ink and a roomier
-   inset; its icon, or a spinner in the same slot, follows the text colour instead of a tone. */
-.doan-notice.doan-panel { padding: var(--space-3) var(--space-4); background: var(--surface-panel); color: var(--text-standard); }
+/* On a backdrop that is not plain opaque white (first run's transparent overlay, Home's gradient)
+   the notice takes the white panel surface and shadow; an error's icon there follows the text ink. */
+.doan-notice.doan-panel { background: var(--surface-panel); }
 .doan-notice.error.doan-panel > .doan-alert-icon { color: inherit; }
 
 /* ── Settings group ──────────────────────────────────────────────────────────

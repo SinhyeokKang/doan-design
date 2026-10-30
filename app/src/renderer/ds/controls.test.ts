@@ -16,9 +16,11 @@ test("the lg button is 48px with 16/24 text and 12/32 padding; default 40 and sm
   for (const [name, value] of [["--size-control-lg", "48px"], ["--size-control", "40px"], ["--size-control-sm", "32px"], ["--type-label-size", "16px"], ["--type-label-line-height", "24px"]]) expect(tokens).toContain(`${name}: ${value};`);
 });
 
-test("a notice on a panel takes the panel's ink and 12/16 padding, and its icon inherits the text colour", () => {
+test("every notice has one size and standard ink; on a panel it changes only the fill, and an error's icon inherits the ink", () => {
   const css = read("./surfaces.css");
-  expect(rule(css, ".doan-notice.doan-panel")).toBe("padding: var(--space-3) var(--space-4); background: var(--surface-panel); color: var(--text-standard);");
+  const base = rule(css, ".doan-notice")!;
+  for (const declaration of ["gap: var(--space-1h);", "padding: var(--space-3) var(--space-4);", "border-radius: var(--radius-row);", "color: var(--text-standard);", "font-size: var(--type-body-sm-size);", "line-height: var(--type-body-sm-line-height);"]) expect(base).toContain(declaration);
+  expect(rule(css, ".doan-notice.doan-panel")).toBe("background: var(--surface-panel);");
   expect(css).toContain(".doan-notice.error.doan-panel > .doan-alert-icon { color: inherit; }");
 });
 

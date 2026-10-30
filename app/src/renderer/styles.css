@@ -205,7 +205,7 @@ code, kbd { font-family: var(--type-family); }
 @container (max-height: 359px) { .comments-composer textarea { min-height: 64px; } }
 .comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 8px 0; overflow-wrap: anywhere; }
 /* Dialog paragraphs read as the dialog description; the frame spaces them. */
-.comments-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.comments-dialog p:not(.doan-notice) { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 /* Values from .doan/canvases/agent-handoff.html (dialog, dialog-states, copy-states). The list
    shrinks first and the preview has its own cap; in a window too short for both, the
    dialog itself scrolls so Cancel and Copy stay reachable. */
@@ -316,8 +316,6 @@ code, kbd { font-family: var(--type-family); }
 .ob-provider > .doan-notice { margin-top: var(--space-3); }
 .ob-notice-title, .ob-notice-body { display: block; }
 .ob-notice-title { font-weight: var(--type-weight-medium); }
-/* The default notice sets subtle ink; its title keeps standard ink as on the panel notice (About draft). */
-.doan-notice .ob-notice-title { color: var(--text-standard); }
 /* Only under a title: a body alone is the first line, which the notice icon is centred on. */
 .ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
 .ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
@@ -774,9 +772,9 @@ body:has(.shell-top) { background: transparent; }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
 .workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
 .workspace.with-strip > :is(.area, .ov) { border-top-left-radius: 0; }
-.convo-strip.doan-notice { align-items: center; gap: var(--space-3); }
+.convo-strip.doan-notice { align-items: center; }
 .strip-agent { display: inline-grid; place-items: center; flex: none; }
-.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon-lg); height: var(--size-icon-lg); }
+.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
 .strip-alert { color: var(--text-danger); }
 .strip-ok { color: var(--text-success); }
 .strip-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -848,14 +846,12 @@ body:has(.shell-top) { background: transparent; }
 .settings-header-actions:empty { display: none; }
 .settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
 .settings-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-/* About's agent setup notice in the doan command row: the agents a line affects and its title take the standard ink
-   so they read before the subtle sentence; its code chips go white, since the page's inset chip vanishes on the
-   notice's inset fill (one class above the page's chip rule, so the order of the two rules does not decide it). The
-   PATH line stands alone so it can be selected and copied whole. */
+/* About's agent setup notice in the doan command row: the agents a line affects read in medium weight; its code chips
+   go white, since the page's inset chip vanishes on the notice's inset fill (one class above the page's chip rule, so
+   the order of the two rules does not decide it). The PATH line stands alone so it can be selected and copied whole. */
 .setup-notice-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
-.setup-notice .ob-notice-title { color: var(--text-standard); }
 .setup-notice-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-1); }
-.setup-notice-agents { color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.setup-notice-agents { font-weight: var(--type-weight-medium); }
 .doan-notice.setup-notice code { background: var(--surface-panel); }
 .setup-notice-command { display: block; width: fit-content; margin-top: var(--space-1); }
 /* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */

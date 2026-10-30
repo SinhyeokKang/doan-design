@@ -475,12 +475,6 @@ test("D25 follow-up: a setup screen reached from a URL keeps the URL, Choose ano
   expect(folder).not.toContain('id="ob-project-url"');
 });
 
-test("a notice's title keeps standard ink on the default notice's subtle text", async () => {
-  const { readFileSync } = await import("node:fs");
-  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain(".doan-notice .ob-notice-title { color: var(--text-standard); }");
-});
-
 test("spacing: a project notice keeps the step's 16px gap wherever it stacks, also under the card inside the setup panel", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
