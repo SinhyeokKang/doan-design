@@ -31,6 +31,7 @@
 | 21 | 기본형 알림의 제목 색(H 보고) | `.doan-notice .ob-notice-title`은 `--text-standard`. H가 `styles.css`의 해당 줄만 고친다 | 지휘자 판단 — 확정 시안의 About 알림이 제목을 standard ink로 그린다 |
 | 22 | 설치 실행기 자체가 예외로 끝날 때(D 질문) | 결과 항목 `crashed` 하나로 바꿔 About에 경고 줄을 보인다. 문구는 design.md 'About 알림' | 지휘자 판단 — 실패가 성공처럼 보이면 안 된다(design.md 'About 알림'). 시안 frame은 더하지 않는다(버그 경로, 비교 대상 아님) |
 | 23 | 대화 strip(H 수정 2: 실제 위치는 흰 strip-slot 띠 위) | 예외 없이 규칙을 적용해 기본형으로 바꾼다. 상태 표시·배치·동작은 그대로 | 지휘자 판단 — 사용자가 규칙을 명확히 정하고 한 번에 맞추자고 했다(결정 18) |
+| 24 | 알림 크기·색과 버튼(사용자 지시) | 기본형 알림 글자는 `--text-standard`. 모든 알림 변형의 패딩·gap·모서리·글자·아이콘 크기를 `doan-panel`과 같게 한다. 기본형 알림 안 버튼용 흰 바탕 button variant를 새로 만든다. 배치 H round 3 | 사용자 지시: "doan-panel처럼 진하게", "패딩과 갭도 doan-panel과 완전 동일", "버튼은 흰색 바리에이션을 추가" |
 | 7 | T9 | 이번 run 밖. PR이 main에 merge된 뒤 main에서 하는 문서 변경 | tasks.md T9 |
 
 ## 배치
@@ -62,3 +63,5 @@
 | B | 1(리뷰 Claude Opus: 🔴0 🟡4 ⚪2 → 수정 1회, 지휘자가 diff 확인) | `79d0632c`, `bbeed031`, `45046b1d` | 워커 `f792190c`, `5f6a7854`, `1145974e`. B+C HEAD `45046b1d`에서 `verify.mjs` PASS |
 | A | 2(리뷰 Codex astra: 🔴2 🟡1 → 🔴2 → 🔴0 🟡0, 결정 15·16) | 아래 커밋 | 워커 `eb1575b7`, `9d14ac04`, `4302ad61`, `160b6b02`, `f1d20b97`, `7406049f` |
 A+B+C 통합 HEAD `9298117e`에서 `verify.mjs` PASS(7단계). A·B·C worktree는 Orca로 지웠고, handoff와 리뷰는 conductor `.scratch/orch/zero-setup-agents/evidence/`에 옮겼다.
+| D | 0(자체 리뷰 2회 + 리뷰 Codex astra: 🔴0 🟡0 ⚪2) | `09b35d58`, `7102fe1b`, `745d1f55` | 워커 `cdf48069`, `c830a5e5`, `2e4c4b9d`. 통합 HEAD `745d1f55`에서 `verify.mjs` PASS |
+| H | 2(수정 3회, 리뷰는 round 3 뒤) | `0e5423f6`, `47e8b9d6`, `108ad0c6`, `ddfd6ef0` | 워커 `5c1aadee`, `c10c3588`, `c980ee4c`, `d2527dca` |
