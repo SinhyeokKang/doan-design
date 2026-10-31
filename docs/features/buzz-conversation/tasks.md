@@ -1,71 +1,109 @@
 # buzz-conversation — tasks
 
-순서: PoC → 형식 → 순수 함수 → main 셸 → renderer → 실제 앱 → 승격. 커밋 경계는 `── commit ──`으로 표시한다. 검증 명령은 AGENTS.md 'Commands'에 있는 것만 쓴다.
+순서: PoC → 형식 → 순수 함수 → main 셸 → renderer → 실제 앱 → 승격. 커밋 경계는 `── commit ──`으로 표시한다. 검증 명령은 AGENTS.md 'Commands'에 있는 것만 쓴다. 테스트 파일 이름은 지금 저장소의 것을 쓴다(`io.test.ts`, `state.test.ts`, `storeIndex.test.ts`, `storeRecovery.test.ts`, `service.test.ts`, `ipc.test.ts`, `runners.test.ts`; `store.test.ts`는 없다).
 
 ## P. PoC
 
-- [ ] P1. 다섯 공급자가 캔버스 파일을 고칠 때 `activity`에 `kind: "edit"`와 root 기준 `path`를 내는지 확인한다(design §5). 격리 userData와 임시 저장소, 패키지 앱이나 dev 앱에서 캔버스 하나를 고치라는 요청을 보내고 `<userData>/conversations/<id>.jsonl`을 읽는다. 결과(공급자별 예/아니오, 경로 형태)는 이 문서에 적는다. 계정 한도로 못 한 공급자는 미확인으로 남긴다.
-  - 검증: 명령 미정 — 사용자 확인 필요(실제 공급자 실행이라 AGENTS 'Commands'의 격리 dev 실행 명령으로 띄우되, 확인 절차 자체는 `.scratch/`의 일회성 probe).
+- [ ] P1. 로그인할 수 있는 공급자에서 캔버스 파일을 고칠 때 확인한다(design §5).
+  - 확인할 것: `activity`에 `kind: "edit"`와 경로가 오는지, 경로 형태(절대·상대), 거부한 수정에도 edit 활동이 오는지.
+  - 방법: 격리 userData·HOME과 임시 저장소로 dev 앱을 띄운다(AGENTS 'Commands'의 격리 dev 실행). 로그인은 사용자가 브라우저에서 승인한다. 그다음 `<userData>/conversations/<id>.jsonl`을 읽는다.
+  - 결과는 이 문서에 공급자별로 적는다. 못 한 공급자는 미확인으로 남기고 M4는 그대로 진행한다(2026-10-31 user).
+  - 검증: 명령 미정 — 사용자 확인 필요. 확인 절차는 `.scratch/`의 일회성 probe다.
+
+── commit: `docs(feature): record P1 provider edit activity` ──
 
 ## T. 형식과 순수 함수
 
-- [ ] T1. 이벤트 줄 v1/v2: `conversation.bound`, `conversation.restored` 타입과 줄 단위 v 판정, 모르는 v는 unknown_version.
-  - 검증: `npm --prefix app test` (store·state 테스트).
-- [ ] T2. `start-undo.json` 저널이 묶기·승격·복구를 담을 수 있는지 코드를 읽고 정한다. 작업 종류가 필요하면 저널 버전을 올리고 재시작 복구 fixture를 더한다(design §2.6).
-  - 검증: `npm --prefix app test` (storeRecovery 테스트).
-- [ ] T3. index 선택 키 `seenSeq`, `canvasesAtTurn`(읽기 시 `canvasesAtStart` 호환).
-  - 검증: `npm --prefix app test` (storeIndex 테스트).
+- [ ] T1. 이벤트 v1에 `conversation.bound {canvas}`, `conversation.restored` 타입을 더한다. fold가 `restored` 뒤 이벤트를 다시 반영한다.
+  - 검증: `npm --prefix app test` (`io.test.ts`, `state.test.ts`. 새 타입이 섞인 기록 fixture, 모르는 타입은 여전히 손상).
+- [ ] T2. 저널 형식을 확정한다(design §2.8). `v`와 작업 종류(`start | bind | promote | restore`)를 두고, 건드리는 모든 기록을 앞부분 자르기 대상으로 하며, 종류별로 커밋을 판정한다.
+  - 검증: `npm --prefix app test` (`storeRecovery.test.ts`. 종류 넷 × rename 앞·뒤 crash fixture, 버전 없는 이전 저널은 start로 읽기).
+- [ ] T3. index 선택 키 `seenSeq`를 더하고, `canvasesAtStart`의 의미를 "가장 최근 턴 수락 때의 목록"으로 바꾼다(키 이름 유지, `store.ts:13` 설명 수정).
+  - 검증: `npm --prefix app test` (`storeIndex.test.ts`. 키 없는 기존 항목 읽기).
 
-── commit: `feat(conversation): add bound/restored events and index keys` ──
+── commit: `feat(conversation): bound/restored events, typed undo journal and seen marker` ──
 
-- [ ] T4. `conversationSummary`, `projectBusy`, `validateSendExtras`, `promotionTarget`, `restoreEntries`, fold의 `conversation.restored`(design §4).
+- [ ] T4. main 순수 함수: `conversationSummary`, `clampSeen`, `projectBusy`, `validateSendExtras`, `promotionTarget`, `restoreEntries`, `combineQueued`(design §4 표의 경우를 모두).
   - 검증: `npm --prefix app test`.
-- [ ] T5. `composerShape`, `threadItems`, `slotsFromList`/`stripFromList`(design §4).
+- [ ] T5. renderer 순수 함수: `composerShape`, `composerAction`, `focusAfter`, `threadItems`, `scrollFollow`, `slotsFromList`/`stripFromList`(design §4).
   - 검증: `npm --prefix app test`.
 
-── commit: `feat(conversation): pure summaries, promotion, restore and composer shape` ──
+── commit: `feat(conversation): pure summaries, promotion, restore, queue and composer rules` ──
 
 ## M. main 셸
 
-- [ ] M1. `conversation:list`, `conversation:markSeen`, 목록 변화 이벤트, preload API.
-  - 검증: `npm --prefix app test` (ipc·service 테스트), `npm --prefix app run typecheck`.
-- [ ] M2. 프로젝트 대화 실행 제한 `project_busy`(admission과 수락 직전 재확인), IPC `known` 코드 추가.
-  - 검증: `npm --prefix app test` (준비 중에 다른 프로젝트 대화가 수락되는 경우 포함).
-- [ ] M3. send 확장(첨부·모델·effort, index 저장, 공급자 변경 거절).
-  - 검증: `npm --prefix app test` (이전 프로세스 종료 콜백 전 send 포함, POSTMORTEM 2026-10-28).
-- [ ] M4. 매 턴 `canvasesAtTurn`, 첫 턴 조건 제거, 턴 끝 수정 승격, 저널 경유 저장.
-  - 검증: `npm --prefix app test` (rename 앞뒤 재시작, 대상 캔버스 실행 중, 후보 둘).
-- [ ] M5. 보관 대화 복구(`busy`, `canvas_not_found`, runner 재생성, 거절 시 불변).
+- [ ] M1. `conversation:list`, `conversation:markSeen`, `conversation:listChanged`, preload API.
+  - 검증: `npm --prefix app test` (`ipc.test.ts`, `service.test.ts`).
+  - 경우: 빈 프로젝트는 `[]`, 등록되지 않은 root는 거절, 기록 하나가 손상·256 MiB 초과일 때 그 항목만 `readError`, legacy external 항목 포함, `markSeen` seq가 마지막 seq를 넘으면 잘림, 응답과 알림의 순서를 가정하지 않음(POSTMORTEM 2026-10-26).
+  - `npm --prefix app run typecheck`.
+- [ ] M2. 프로젝트 대화 실행 제한 `project_busy`(live 턴 기준, admission과 수락 직전 재확인), IPC `known` 코드 추가.
   - 검증: `npm --prefix app test`.
+  - 경우: 준비 중인 시작을 셈, 턴 도중 묶인 대화를 그 턴 끝까지 셈, `BIND_GRACE_MS` 창 안의 새 턴, 다시 로드 뒤(수락 전 시작은 index에 없음).
+- [ ] M3. send 확장: 첨부·모델·effort, index 먼저 저장, `store.consume`, 공급자 필드와 legacy external 거절, Codex `Runner.send`에 턴별 모델·effort 전달.
+  - 검증: `npm --prefix app test` (`service.test.ts`, `runners.test.ts`).
+  - 경우: 이전 프로세스 종료 콜백 전 send(POSTMORTEM 2026-10-28), `attachment_missing`이면 index의 모델·effort 불변, 이번 실행 목록을 읽기 전 `model`은 `bad_request`, 종료 대기 중 `stopRuns`이면 `sent` 표시를 쓰지 않음.
+- [ ] M4. 승격: 매 턴 스냅샷, 턴 동안 수정 경로와 폴더 변경 모으기, 턴 끝 첫 폴더 갱신(또는 grace 끝)에서 판정, 새 캔버스 우선, 저널 경유 저장, 보관 대화 runner 정리, 승격 뒤 `HOME_GUIDANCE` 생략.
+  - 검증: `npm --prefix app test`.
+  - 경우: rename 앞뒤 재시작, 대상 캔버스가 일하는 중, 후보 둘, 거부된 수정, A가 끝난 grace 창 안에서 B가 시작한 뒤 캔버스가 나타나는 경우.
+- [ ] M5. 보관 대화 복구: `busy`, `canvas_not_found`, 종료 대기, 수락 직전 재확인, runner 재생성, 거절 시 불변.
+  - 검증: `npm --prefix app test`.
+  - 경우: 캔버스가 지워짐 → `canvas_not_found`, 같은 ID로 옮겨짐 → 찾음, 중복 ID → `canvas_not_found`, 복구 준비 중에 현재 대화가 send를 시작함 → 거절, 공급자 로그아웃 → `not_logged_in`이고 index 불변, 이전 프로세스가 예약을 들고 있음.
+- [ ] M6. 대기열: `conversation:queue`, `conversation:removeQueued`, `turn.done`에 이어 붙여 보내기, 실패·멈춤이면 초안으로 돌리기, 앱 종료 전 초안 복원 정보 넘기기.
+  - 검증: `npm --prefix app test`.
+  - 경우: 대기 중 첨부가 사라짐, 첨부 합계 10개 초과, 대기 중 로그아웃, 대기 중 다른 프로젝트 대화 `project_busy`.
+- [ ] M7. 링크 채널 `shell:openLink`(main 창 sender만, `https:`만, 길이 상한).
+  - 검증: `npm --prefix app test` (`http:`, `javascript:`, `file:`, `data:`, 대문자 `HTTPS:`, main 창이 아닌 sender).
+- [ ] M8. 첨부 다시 발급 `attachments:fromPaths`(지금 첨부 검사와 같음).
+  - 검증: `npm --prefix app test` (옮겨진 파일, 붙여 넣은 이미지 경로).
 
-── commit: `feat(conversation): list, project limit, send extras, promotion and restore` ──
+── commit: `feat(conversation): list, project limit, send extras, queue, promotion, restore and links` ──
 
 ## R. renderer
 
-- [ ] R1. 입력창 프리미티브 분리와 `HeroComposer`로 Home 재조립. 포커스 보더를 `--border-field-focus`와 `--shadow-sm`으로 바꾸고 DESIGN.md 'Home' Composer 행을 고친다(design §0). 클래스 셀렉터 문자열 검색(design §7).
-  - 검증: `npm --prefix app test` (기존 Home·입력창 테스트 그대로 통과), `npm --prefix app run typecheck`.
-- [ ] R2. `DockedComposer`(capsule/box, 아래 줄 에이전트·effort는 새 공용 변형 `doan-button[data-ui-size="xs"]`를 `ds/controls.css`에 더해 쓴다, 기존 대화의 공급자 고정, send 확장 사용).
-  - 검증: `npm --prefix app test` (모양 전환 중 같은 textarea·포커스·IME 조합 유지 컴포넌트 테스트).
-- [ ] R3. `ConversationThread` 표시 컴포넌트(design §3.3 상태). 에이전트 메시지 Markdown 렌더링: `npm --prefix app install --save-exact react-markdown@10.1.0 remark-gfm@4.0.1`, 원시 HTML·이미지 차단, `https` 링크는 main을 거쳐 연다, 코드는 `--type-family-mono`(design §0).
-  - 검증: `npm --prefix app test`(원시 HTML·이미지·`javascript:` 링크가 그려지지 않는 테스트 포함), `npm --prefix app run build` 뒤 `/runtime-test`로 빌드한 앱 창이 비지 않는지 확인.
-- [ ] R4. 상태줄·LNB 슬롯·Home 이유 줄·Edit on Home을 main 목록에서 세우기, 방문 시 `markSeen`.
-  - 검증: `npm --prefix app test` (렌더 사이 대화 전환 테스트, POSTMORTEM 2026-10-25).
+- [ ] R1. 바꾸기 전에 main에서 Home 기준선을 잰다(1238×600/780/1240, `/runtime-test` probe, `.scratch/`에 저장). 그다음 입력창 프리미티브를 나누고 `HeroComposer`로 Home을 다시 조립한다.
+  - 포커스 보더는 이미 있는 토큰 `--border-field-focus`와 `--shadow-sm`을 적용한다.
+  - 비활성 도구 잉크를 고친다.
+  - Home 이유 줄과 제거 확인 문구를 바꾼다(spec 결정 18).
+  - DESIGN.md 'Home' Composer 행과 토큰 표 행을 현재 사용처로 고친다.
+  - 클래스 셀렉터 문자열을 검색한다(design §7).
+  - 검증: `npm --prefix app test` (기존 Home·입력창 테스트, 문구만 바뀐 기대값 갱신), `npm --prefix app run typecheck`.
+- [ ] R2. `DockedComposer`의 기존 대화·새 대화·보관 대화 모드를 만든다. 실행 중 Stop/Queue와 대기 줄, 거절 이유 줄 표, 대화별 초안, 공용 변형 `doan-button[data-ui-size="xs"]`(`ds/controls.css`)을 넣는다.
+  - 검증: `npm --prefix app test`.
+  - 두 모양의 정적 마크업에서 textarea가 같은 위치·같은 key이고 `data-shape`만 다름. `ds/controls.test.ts`에 `xs` 버튼.
+  - 실제 포커스·IME 유지는 `buzz-project`의 `/runtime-test`로 넘긴다(ARCHITECTURE §7 'Home tests without a DOM').
+- [ ] R3. `ConversationThread`: 항목 표시, 스크롤 규칙, 로딩·읽기 실패, 접근성(design §3.3), Markdown 렌더링을 넣는다.
+  - `npm --prefix app install --save-exact react-markdown@10.1.0 remark-gfm@4.0.1`.
+  - 원시 HTML·이미지를 막고, 링크는 M7 채널로 열고, 코드는 `--type-family-mono`를 쓴다.
+  - 끝난 메시지는 memo하고, 스트리밍은 프레임 단위로 다시 그린다.
+  - 검증: `npm --prefix app test`. 정적 마크업으로 원시 HTML·이미지·`javascript:` 링크가 그려지지 않는지 본다. `rendererImports.test.ts`에 스레드 모듈을 추가 루트로 넣는다.
+  - 빌드한 앱의 CSP 확인은 `buzz-project`로 넘기고 여기서는 미검증으로 남긴다.
+- [ ] R4. 상태줄·LNB 슬롯·Home 이유 줄·프로젝트 제거 확인·Edit on Home을 main 목록에서 세운다. Dismiss와 방문 때 `markSeen`을 부르고, Edit on Home 첨부는 M8로 다시 발급한다.
+  - 검증: `npm --prefix app test`.
+  - 경우: 렌더 사이 대화 전환(POSTMORTEM 2026-10-25), 늦은 목록에서 온 `project_busy` 거절, 지워진 캔버스의 슬롯은 프로젝트 행으로, 재시작 뒤 Edit on Home의 없는 첨부는 `attachment_missing` 문구.
 
 ── commit: `feat(renderer): composer primitives, hero/docked, thread and persisted conversation status` ──
 
 ## D. 초안과 실제 앱
 
-- [x] D1. `/design-draft`: `.doan/canvases/buzz-conversation.html`(2026-10-31 사용자 확정)에 `docked` 입력창(capsule·box·칩·비활성·이유 줄)과 스레드 항목 상태를 그린다. 화면 배치 없이 프리미티브 상태판이다. `buzz-project`의 Overview 초안이 이것을 재사용한다. 사용자가 앱에서 초안을 확인한다.
+- [x] D1. `/design-draft`: `.doan/canvases/buzz-conversation.html`(2026-10-31 사용자 확정, 리뷰 뒤 상태 추가). 화면 배치 없는 프리미티브 상태판이다. `buzz-project`의 Overview 초안이 이것을 재사용한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
-- [ ] D2. `/runtime-test`: Home의 computed style·배치가 바꾸기 전과 같은지, 다시 로드·재시작 뒤 상태줄·슬롯이 실행 중·응답 대기·안 본 종료를 다시 보이는지 격리 앱에서 확인한다.
+- [ ] D2. `/design-sync`(Home 보드만)와 `/runtime-test`를 격리 앱에서 한다.
+  - Home computed style·배치가 R1 기준선과 같다. 포커스 보더·그림자·이유 줄 문구는 예외다.
+  - 다시 로드 뒤 상태줄·슬롯이 실행 중·응답 대기·안 본 종료를 다시 보인다.
+  - 재시작 뒤 안 본 종료(crash 접힘 포함)를 다시 보인다.
+  - 다시 로드 뒤 Edit on Home이 텍스트·프리셋·첨부를 되돌린다.
+  - 실행 중·응답 대기를 만들려면 로그인한 공급자가 필요하다. 못 하면 그 상태는 미검증으로 남긴다.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과 뒤 `/runtime-test`의 짧은 probe.
-
-── commit: `docs(canvas): buzz-conversation primitives draft` (D1만) ──
 
 ## Z. 승격과 정리
 
-- [ ] Z1. PRODUCT §3 항목 6·§5 항목 1(프로젝트 대화, 승격, 보관 대화 복구, 실행 제한, 상태 유지, P1의 공급자별 수정 승격 한계)과 ARCHITECTURE §7 'Agent conversation runtime and IPC'(목록·markSeen, send 입력, 매 턴 스냅샷과 승격, 복구, 이벤트 v2 줄, index 키)를 현재 규칙으로 고친다. 부모 `buzz-restyle/tasks.md` C10을 체크한다.
-  - 검증: `grep -n "never binds later\|Only newDesign accepts" docs/ARCHITECTURE.md` 결과 없음, `node .agents/skills/verify/scripts/verify.mjs` 통과.
+- [ ] Z1. 현재 규칙으로 고친다.
+  - PRODUCT §3 항목 6·§5 항목 1: 프로젝트 대화, 승격과 그 근거, 보관 대화 복구, 대기열, root당 하나 실행, 상태 유지, Home 문구, P1 공급자별 수정 승격 한계(확인·미확인).
+  - ARCHITECTURE §7: 목록·markSeen·listChanged, send 입력, 대기열, 매 턴 스냅샷과 승격 판정, 복구, 이벤트 타입, 저널 형식, `seenSeq`, 링크 채널, Markdown 규칙과 두 의존성, 첨부 다시 발급.
+  - DESIGN.md: R1에서 고친 행 확인.
+  - 부모 `buzz-restyle/tasks.md` C10을 체크한다.
+  - 공급자별 P1 관찰은 커밋 메시지에도 남긴다.
+  - 검증: `grep -n "never binds later\|Only newDesign accepts\|live in renderer memory\|A project runs one Home conversation\|unchanged by v2" docs/PRODUCT.md docs/ARCHITECTURE.md` 결과 없음. `node .agents/skills/verify/scripts/verify.mjs` 통과.
 - [ ] Z2. `docs/features/buzz-conversation/`을 지운다.
   - 검증: 디렉터리가 없다.
 
