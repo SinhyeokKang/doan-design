@@ -56,7 +56,7 @@
     - `grep -nE 'color-scheme: *dark|#121212|#171717|#1d1d1d|#ecebe4|#f0773a|#3a2117|#1a0b03' app/src/renderer/*.css` 결과 없음
     - spec '완료 조건'의 대체 결과가 PRODUCT·ARCHITECTURE·DESIGN 본문에 현재 상태로 모두 적혀 있음
     - `grep -n 'buzz-app' AGENTS.md` 결과 없음
-    - design.md의 미인계 조사 메모('캔버스 영역', '프로젝트 대화와 Overview')가 해당 자식으로 인계됐고 모든 자식이 완료됨
+    - design.md의 미인계 '조사 메모: 캔버스 영역'이 해당 자식으로 인계됐고 모든 자식이 완료됨
     - `docs/features/buzz-restyle/`가 없음
 
 ── commit: `docs(feature): remove buzz-restyle after all screens` ──

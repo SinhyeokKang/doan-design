@@ -138,16 +138,6 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 - 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 요소 피커의 선택 모드 표시는 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·violet이 많은 픽스처 캔버스 위에서 확인한다.
 - `color-scheme`을 dark에서 light로 바꾸면 다른 `color-scheme`을 가진 캔버스 iframe의 바탕 처리가 달라질 수 있다(POSTMORTEM 2026-10-25 예방 항목). iframe 미디어 선호와 computed `color-scheme`을 따로 확인한다.
 
-### 조사 메모: 프로젝트 대화와 Overview (`buzz-conversation`·`buzz-project`용, 2026-10-31)
-
-공식 문서·README·기사로 확인했고 실제 앱 화면은 보지 않았다. Claude Design 홈 배치는 서드파티 튜토리얼, Cursor Agents Window는 포럼 직원 답변, ChatGPT Projects는 검색 요약만 근거다. 화면 구성의 출발점은 사용자가 공유한 Aside 스크린샷(메인 대화, 왼쪽 채팅 목록, 오른쪽 보조 패널, 비면 capsule이고 줄바꿈되면 box가 되는 입력창)이며 Aside 문서는 확인하지 않았다.
-
-- 상태별 추천: Subframe은 저장소가 연결됐을 때만 “Import my design system…” 같은 starter prompt를 보이고, 누르면 입력창만 채운다([docs](https://docs.subframe.com/agent/overview.md)). Claude Design 관리자 가이드는 디자인 시스템이 없으면 결과가 평범하다고 적는다([support](https://support.claude.com/en/articles/14604406)).
-- 대화 목록과 진행 상태: v0는 프로젝트 하나에 채팅 여러 개를 붙이고 채팅 위에 연결된 프로젝트를 보인다([docs](https://www.v0.build/docs/projects)). Conductor는 project → workspace → session 계층이다([docs](https://www.conductor.build/docs/concepts/workspaces-and-branches)). Cursor는 Status로 묶으면 “Needs Attention”에 승인·질문 대기와 안 읽은 완료가 모인다([forum](https://forum.cursor.com/t/agents-approval-window/170388)). Subframe은 실행 중 애니메이션과 안 읽은 완료 점만 쓴다([docs](https://docs.subframe.com/agent/managing-chats.md)). 세 상태는 Doan LNB 슬롯 순서(권한 요청 → 작업 중 → 안 본 종료 점)와 같다.
-- 대화에서 산출물로 넘어가기: Lovable은 Chat 모드에서 변경이 필요하면 “Start building” 카드를 띄우고 사용자가 승인해야 Build로 넘어간다([docs](https://docs.lovable.dev/features/projects/chat.md)). 대화가 다른 페이지로 옮겨 가는 동작을 문서로 설명한 도구는 찾지 못했다. Doan이 정한다.
-- 셸 밖 세션: Codex 앱에는 CLI에서 진행 중인 작업이 앱에 보이지 않는다는 이슈가 있다([#21974](https://github.com/openai/codex/issues/21974)). Doan은 shell `doan check`가 `sessions.jsonl`에 캔버스와 세션을 연결해 두므로, 캔버스별 대화 목록에 터미널 세션을 넣을지 이 자식들이 정한다.
-- 캔버스 상태: Figma Dev Mode와 Doop은 승인 뒤 디자인이 바뀌면 자동으로 “Changed”/“Needs review”가 되고 사람이 확인해야 풀린다([Figma](https://help.figma.com/hc/en-us/articles/26781702258583), [Doop](https://github.com/kgoedecke/doop/wiki)). 코멘트를 걷어낸 뒤 캔버스 목록의 상태 표시를 정할 때 참고한다.
-
 ## 금지 표현 (모든 자식 공통, 2026-10-26 user)
 
 - 왼쪽(시작 쪽) 테두리에 색을 칠하거나 두껍게 그어 메시지·안내·카드·행을 강조하지 않는다. 오류는 아이콘과 `text-danger` 글자 또는 상태 블록으로, 기본 안내는 `surface-inset` 채움이다. 승인된 온보딩 예외는 흰 elevation notice·진한 텍스트와 동색 아이콘이며 기존 프리미티브를 재사용한다(2026-10-28, 아직 구현 전). 패널 사이 1px 무채색 구분선은 해당하지 않는다.
