@@ -94,13 +94,16 @@ describe("canvasConversationRows", () => {
     expect(only).toMatchObject({ name: "legacy-cart", row: broken, openable: true, problem: { kind: "unreadable", sentence: "Can't read this canvas — run doan check" } });
   });
 
-  test("an id match wins over an unreadable file left at the old path, and a readable id-less row does not match by path", () => {
+  test("an id match wins over an unreadable file left at the old path, and a readable row (another id or none) does not match by path", () => {
     const moved = row({ path: ".doan/canvases/cart/legacy-cart.html", id: "legacy-cart" });
     const leftover = row({ path: ".doan/canvases/legacy-cart.html", error: { code: "unreadable_canvas", message: "permission denied" } });
     const [kept] = canvasConversationRows([summary({ canvas: { path: leftover.path, id: "legacy-cart" } })], [leftover, moved], NOW);
     expect(kept).toMatchObject({ row: moved, problem: null, openable: true });
-    const readable = row({ path: ".doan/canvases/legacy-cart.html", id: "other" });
-    expect(canvasConversationRows([summary({ canvas: { path: readable.path, id: "legacy-cart" } })], [readable], NOW)).toEqual([]);
+    const otherId = row({ path: ".doan/canvases/legacy-cart.html", id: "other" });
+    expect(canvasConversationRows([summary({ canvas: { path: otherId.path, id: "legacy-cart" } })], [otherId], NOW)).toEqual([]);
+    // Only an unreadable row falls back to the path: a readable row without an id is another canvas.
+    const idless = row({ path: ".doan/canvases/legacy-cart.html" });
+    expect(canvasConversationRows([summary({ canvas: { path: idless.path, id: "legacy-cart" } })], [idless], NOW)).toEqual([]);
   });
 
   test("status follows the sidebar slot rule; a seen ending has none", () => {
