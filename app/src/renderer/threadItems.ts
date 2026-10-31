@@ -21,7 +21,8 @@ export type ThreadItem =
   // A run of activities folds into one line: the latest activity while it runs, "N steps" once the turn moved on.
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
   | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
-  | { kind: "end"; key: string; seq: number; end: TurnEnd }
+  // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
+  | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null };
 
 export function anchorParts(text: string): MessagePart[] {
@@ -69,7 +70,11 @@ function runningHead(last: ActivityStep): string {
 }
 export const stepCount = (n: number) => n === 1 ? "1 step" : `${n} steps`;
 
-export function threadItems(events: readonly ThreadEvent[], root: string): ThreadItem[] {
+// `live`: main holds a turn of this conversation (the list summary's phase is not "ended", or live events arrive). A
+// last turn without an end event while nothing is live was cut by a quit or crash: main never writes that end, its
+// fold folds the turn (state.ts), and the thread shows it as stopped before it finished, as it does for a turn folded
+// by the next turn.started.
+export function threadItems(events: readonly ThreadEvent[], root: string, live: boolean): ThreadItem[] {
   const items: ThreadItem[] = [];
   const agents = new Map<string, Extract<ThreadItem, { kind: "agent" }>>();
   const permissions = new Map<string, Extract<ThreadItem, { kind: "permission" }>>();
@@ -79,10 +84,14 @@ export function threadItems(events: readonly ThreadEvent[], root: string): Threa
   const turnOf = new Map<string, string>(), askTurn = new Map<string, string>();
   const endTurn = (turnId: string) => {
     ended.add(turnId);
-    for (const message of agents.values()) if (message.streaming && turnOf.get(message.messageId) === turnId) message.streaming = false;
+    for (const [key, message] of agents) if (message.streaming && turnOf.get(key) === turnId) message.streaming = false;
     for (const ask of permissions.values()) if (ask.status === "pending" && askTurn.get(ask.requestId) === turnId) ask.status = "expired";
   };
   const push = (item: ThreadItem) => { group = null; items.push(item); };
+  const foldCrashed = (turnId: string) => {
+    endTurn(turnId);
+    push({ kind: "end", key: `x${turnId}`, seq: null, end: { kind: "interrupted", reason: "crashed" } });
+  };
 
   for (const event of events) {
     switch (event.type) {
@@ -90,14 +99,16 @@ export function threadItems(events: readonly ThreadEvent[], root: string): Threa
         push({ kind: "marker", key: `k${event.seq}`, seq: event.seq, marker: event.type === "conversation.archived" ? "archived" : event.type === "conversation.bound" ? "bound" : "restored", canvas: event.type === "conversation.bound" ? event.canvas : null });
         continue;
       case "user.message": {
+        // The next turn's message comes before its turn.started: an unfinished turn before it was folded.
+        if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
         const attachments = (event.attachments ?? []).map(a => ({ name: a.name, size: a.size, kind: a.kind }));
         const { preset, body } = splitRequest(event.text, attachments.length);
         push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), preset, attachments });
         continue;
       }
       case "turn.started":
-        // A new turn without an end before it was folded by a crash: what streamed stays without a caret.
-        if (turn !== null && !ended.has(turn)) endTurn(turn);
+        // A new turn without an end before it: the previous one was folded by a quit or crash.
+        if (turn !== null && !ended.has(turn)) foldCrashed(turn);
         turn = event.turnId;
         continue;
     }
@@ -105,16 +116,19 @@ export function threadItems(events: readonly ThreadEvent[], root: string): Threa
     if (event.turnId !== turn || ended.has(event.turnId)) continue;
     switch (event.type) {
       case "message.delta": case "message.done": {
-        const held = agents.get(event.messageId);
+        // Message ids repeat across turns (Claude's default "assistant", transport.ts), so a message is keyed by its turn.
+        const key = `${event.turnId}:${event.messageId}`, held = agents.get(key);
         replied.add(event.turnId);
         if (held) {
+          // Text after message.done does not count, as in main's fold.
+          if (!held.streaming && event.type === "message.delta") break;
           held.text = event.type === "message.done" ? event.text : held.text + event.text;
           if (event.type === "message.done") held.streaming = false;
           group = null;
           break;
         }
-        const item = { kind: "agent" as const, key: `m${event.messageId}`, messageId: event.messageId, text: event.text, streaming: event.type === "message.delta" };
-        agents.set(event.messageId, item); turnOf.set(event.messageId, event.turnId);
+        const item = { kind: "agent" as const, key: `m${key}`, messageId: event.messageId, text: event.text, streaming: event.type === "message.delta" };
+        agents.set(key, item); turnOf.set(key, event.turnId);
         push(item);
         break;
       }
@@ -154,6 +168,7 @@ export function threadItems(events: readonly ThreadEvent[], root: string): Threa
         break;
     }
   }
+  if (!live && turn !== null && !ended.has(turn)) foldCrashed(turn);
   const last = items.at(-1);
   for (const { item, turnId } of groups) {
     item.running = item === last && !ended.has(turnId);

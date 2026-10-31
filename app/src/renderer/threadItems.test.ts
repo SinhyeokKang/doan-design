@@ -43,8 +43,8 @@ describe("threadItems", () => {
     const crashed = threadItems(events, ROOT, false);
     expect(crashed.slice(1)).toEqual([
       { kind: "agent", key: "mt1:m1", messageId: "m1", text: "Half", streaming: false },
-      { kind: "activity", key: "a5", running: false, head: "1 step", steps: [{ key: "s5", kind: "command", verb: "Ran a command", path: null }] },
-      { kind: "permission", key: "pr1", seq: 6, requestId: "r1", summary: "Run doan check", options, status: "expired", answer: null },
+      { kind: "activity", key: "a4", running: false, head: "1 step", steps: [{ key: "s4", kind: "command", verb: "Ran a command", path: null }] },
+      { kind: "permission", key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options, status: "expired", answer: null },
       { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } },
     ]);
   });
@@ -77,7 +77,7 @@ describe("threadItems", () => {
     seq = 0;
     const items = threadItems(turn("t1", "Use the Doan design preset `shape` (Shape).\n\nMake {{1}} match {{2}}.", {
       anchors: [{}, {}], attachments: [{ name: "spec.md", size: 6144, kind: "file", path: "/Users/ada/spec.md" }],
-    }), ROOT);
+    }), ROOT, true);
     expect(items[0]).toEqual({
       kind: "user", key: "u1", seq: 1, preset: { id: "shape", title: "Shape" },
       parts: [{ text: "Make " }, { anchor: 1 }, { text: " match " }, { anchor: 2 }, { text: "." }],
