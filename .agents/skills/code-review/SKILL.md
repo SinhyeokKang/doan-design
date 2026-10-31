@@ -28,7 +28,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 - **Leaving the serving scope**: responding outside `.doan/canvases/`, `.doan/assets/` and the config path, allowing `..` escapes, binding to anything other than `127.0.0.1`, any CORS header other than `Access-Control-Allow-Origin: null` on in-scope 200 responses (ARCHITECTURE §3), responding without the token path.
 - **Breaking iframe isolation**: adding `allow-same-origin`, any path by which canvas HTML reaches the app UI or disk.
 - **Corrupting the comment log**: deleting or rewriting lines (it must be append-only), sorting by line order (must be by `at`), not folding the same `id`, silently accepting an unknown `v`.
-- **Widening agent permissions**: the CLI or MCP edits or deletes comment bodies (only resolve is allowed).
+- **Widening agent permissions**: the CLI edits or deletes comment bodies (only resolve is allowed).
 - **Changing ids**: changing canvas or frame ids on file moves or title changes, which cuts off comments.
 - **Handling secrets**: reading or storing GitHub tokens, exposing secrets in logs or error messages.
 - **Doan performing git operations**: commits, branches, push (other than the `.gitattributes` union setting).
