@@ -15,10 +15,9 @@
 
 초안을 그리면서 정한 것:
 
-- Home과 docked는 한 패밀리다.
-  - 같은 카드가 같은 inset 트레이(`.composer`) 안에 있다.
-  - Home 트레이에는 워크트리가 있고, docked 트레이에는 에이전트·effort가 오른쪽에 있다. 오른쪽은 Send 열과 줄을 맞춘 자리다.
-  - capsule에서는 트레이도 알약 모양이다.
+- Home과 docked는 같은 카드·칩·텍스트 칸·도구로 한 패밀리가 된다.
+  - docked에는 Home의 inset 트레이(`.composer`)가 없다. 카드는 패널 위에 바로 놓인다.
+  - 에이전트·effort는 카드 아래 일반 줄의 오른쪽에 둔다. Send 열과 줄을 맞춘 자리다.
 - 입력창 포커스는 `--border-prominent`(#808080) 링 대신 새 토큰 `--border-field-focus`(`--neutral-5`, #cccccc)에 `--shadow-sm`을 쓴다.
   - Home과 docked에 같이 적용한다.
   - 다른 텍스트 필드는 그대로다.
