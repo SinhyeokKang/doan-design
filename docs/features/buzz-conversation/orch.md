@@ -38,7 +38,7 @@
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 완료 (🔴0, 🟡2) |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 완료 (🔴1→0) |
 | A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 진행 중 |
-| B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 리뷰 중 |
+| B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 통합 `e3efee4d..78a62850` (라운드 1) |
 | RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 대기 |
 | RB2 | B2 리뷰 | 보고만 | B2 | Codex Astra medium — B2가 이미 Opus 서브에이전트로 자체 리뷰를 했으므로 다른 계열의 시각을 쓴다(계획의 Opus high에서 바꿈) | `/code-review` 보고 | 완료 (🔴0, 🟡4) |
 | D | D2 | `.scratch/`, 수정이 필요하면 `app/src/renderer/**`, `docs/DESIGN.md` | 모든 구현 배치 통합 | Opus medium — 정해진 측정 절차, 판단은 design-sync 리뷰가 받친다 | `verify.mjs` 통과 뒤 `/design-sync`(Home 보드)와 `/runtime-test` probe | 대기 |
@@ -80,3 +80,5 @@
 - B2 완료(`worker_done` succeeded): `305e2e58..51767518` 6커밋, 테스트 5268개·typecheck·verify 통과, 자체 리뷰 🔴0·🟡5 반영. GUI는 띄우지 않았다. 남긴 것: Edit on Home 이미지 칩의 썸네일 없음, docked `/` 목록 상태가 초안별이 아님, 초안에 없던 문구. B2 터미널은 수정 라운드용으로 retain했다.
 - RB2 완료(Codex): 🔴0, 🟡4(두 대화 동시 전송의 대기 상태 소실, 호스트가 첨부를 넣을 때 모양·거절 규칙 누락, 다시 로드 뒤 상태줄 선택이 읽기 완료 순서에 좌우됨, 이전 notice가 지금 이유 줄과 `aria-describedby`를 가림), ⚪3. 재현 검사 5개는 리뷰어 `.scratch/`에 있다.
 - B2 수정 라운드 1을 같은 터미널로 보냈다: dispatch `ctx_900e9c3435c5`(🟡1~4, ⚪1~3, 결정 18). RB2 워커는 release했다.
+- B2 수정 라운드 1 완료: RB2 재현 검사 9개를 실제 테스트로 옮겨 빨강을 확인한 뒤 🟡1~4, ⚪1~3, 결정 18을 고쳤다. props API는 바뀌지 않았다. B2 8커밋을 `e3efee4d..78a62850`으로 통합했다. B2 워커를 release하고 worktree `bc-b2`를 제거했다. 증거는 `.scratch/buzz-conversation/b2/`에 있다.
+- 통합 HEAD `78a62850`(B2 포함)에서 `verify.mjs` PASS.

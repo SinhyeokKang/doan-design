@@ -71,7 +71,7 @@
   - DESIGN.md 'Home' Composer 행과 토큰 표 행을 현재 사용처로 고친다.
   - 클래스 셀렉터 문자열을 검색한다(design §7).
   - 검증: `npm --prefix app test` (기존 Home·입력창 테스트, 문구만 바뀐 기대값 갱신), `npm --prefix app run typecheck`.
-- [ ] R2. `DockedComposer`의 기존 대화·새 대화·보관 대화 모드를 만든다. 실행 중 Stop/Queue와 대기 줄, 거절 이유 줄 표, 대화별 초안, 공용 변형 `doan-button[data-ui-size="xs"]`(`ds/controls.css`)을 넣는다.
+- [x] R2. `DockedComposer`의 기존 대화·새 대화·보관 대화 모드를 만든다. 실행 중 Stop/Queue와 대기 줄, 거절 이유 줄 표, 대화별 초안, 공용 변형 `doan-button[data-ui-size="xs"]`(`ds/controls.css`)을 넣는다.
   - 검증: `npm --prefix app test`.
   - 두 모양의 정적 마크업에서 textarea가 같은 위치·같은 key이고 `data-shape`만 다름. `ds/controls.test.ts`에 `xs` 버튼.
   - 실제 포커스·IME 유지는 `buzz-project`의 `/runtime-test`로 넘긴다(ARCHITECTURE §7 'Home tests without a DOM').
@@ -81,7 +81,7 @@
   - 끝난 메시지는 memo하고, 스트리밍은 프레임 단위로 다시 그린다.
   - 검증: `npm --prefix app test`. 정적 마크업으로 원시 HTML·이미지·`javascript:` 링크가 그려지지 않는지 본다. `rendererImports.test.ts`에 스레드 모듈을 추가 루트로 넣는다.
   - 빌드한 앱의 CSP 확인은 `buzz-project`로 넘기고 여기서는 미검증으로 남긴다.
-- [ ] R4. 상태줄·LNB 슬롯·Home 이유 줄·프로젝트 제거 확인·Edit on Home을 main 목록에서 세운다. Dismiss와 방문 때 `markSeen`을 부르고, Edit on Home 첨부는 M8로 다시 발급한다.
+- [x] R4. 상태줄·LNB 슬롯·Home 이유 줄·프로젝트 제거 확인·Edit on Home을 main 목록에서 세운다. Dismiss와 방문 때 `markSeen`을 부르고, Edit on Home 첨부는 M8로 다시 발급한다.
   - 검증: `npm --prefix app test`.
   - 경우: 렌더 사이 대화 전환(POSTMORTEM 2026-10-25), 늦은 목록에서 온 `project_busy` 거절, 지워진 캔버스의 슬롯은 프로젝트 행으로, 재시작 뒤 Edit on Home의 없는 첨부는 `attachment_missing` 문구.
 
