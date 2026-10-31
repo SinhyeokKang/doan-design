@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="status-pill">
+<meta name="doan:width" content="800">
+<title>status-pill</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (.ob-chip), which canvases cannot link. */
+.ob-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--affordance-subtle); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: nowrap; }
+.ob-chip.ok { background: var(--affordance-success); color: var(--text-success); }
+.ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
+.ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>status-pill</h1><p><code>.ob-chip</code>: a 20px pill in caption type on a status fill with the matching text role. It keeps a project's or a tool's state readable at a glance (Home's project and worktree menus, Project Settings, Settings › About). It is a separate primitive from the chip. Its rules live in <code>styles.css</code> and are restated here.</p></header>
+<section class="dsc-frame" data-doan-frame="tones" data-doan-title="Tones" data-doan-implements="app/src/renderer/styles.css">
+<h2>Tones</h2>
+<div class="dsc-row" style="align-items: center"><div class="dsc-cell"><span class="ob-chip">Not set up</span><span class="dsc-label">neutral</span></div><div class="dsc-cell"><span class="ob-chip ok">Supported</span><span class="dsc-label">ok · Settings › About only</span></div><div class="dsc-cell"><span class="ob-chip warn">Missing</span><span class="dsc-label">warn</span></div><div class="dsc-cell"><span class="ob-chip err">Config error</span><span class="dsc-label">err</span></div></div><p class="dsc-note">Labels from <code>homeCards.ts</code> and <code>main/aboutView.ts</code>.</p>
+</section>
+</main>
+</body>
+</html>

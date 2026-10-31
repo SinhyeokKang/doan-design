@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="settings-group">
+<meta name="doan:width" content="900">
+<title>settings-group</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (.doan-dialog code, :is(.settings-page, .settings-dialog) code). */
+code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.g { width: 560px; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>settings-group</h1><p><code>.doan-settings-group</code>: a container of preference rows with a 1px <code>--border-standard</code> edge, the <code>--radius-container</code> corner and a 16px side inset, its rows split by hairlines. It is the rows' query container (Settings pages, Project Settings).</p></header>
+<section class="dsc-frame" data-doan-frame="group" data-doan-title="Group of rows" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Group of rows</h2>
+<div class="g"><div class="doan-settings-group"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Root</span><span class="doan-preference-row-description"><code>~/code/doan-design</code></span></div></div><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Token CSS</span><span class="doan-preference-row-description"><code>app/src/renderer/tokens.css</code></span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change…</button><button type="button" class="doan-button" data-ui-size="sm">Clear</button></div></div><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Serve</span><span class="doan-preference-row-description">Canvases can read files in .doan/canvases/, .doan/ds/, the token CSS and these paths.</span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Add…</button></div></div></div></div><p class="dsc-note">Rows from Project Settings.</p>
+</section>
+</main>
+</body>
+</html>

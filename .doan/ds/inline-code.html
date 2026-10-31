@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="inline-code">
+<meta name="doan:width" content="900">
+<title>inline-code</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code, and :is(.settings-page, .settings-dialog) code), which canvases cannot link. */
+.doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.doan-dialog[open] { position: static; inset: auto; margin: 0; max-height: none; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>inline-code</h1><p>A path or command inside a sentence reads as an inset chip: <code>--text-standard</code> on <code>--surface-inset</code>, a 4px corner (<code>--space-1</code>) and 4px inline padding, in the sans family (there is no monospace role). The rule repeats in <code>styles.css</code> for dialogs, onboarding fields and the Settings surfaces; it is restated here. The dialog is drawn in place.</p></header>
+<section class="dsc-frame" data-doan-frame="in-dialog" data-doan-title="In a dialog description" data-doan-implements="app/src/renderer/styles.css">
+<h2>In a dialog description</h2>
+<dialog open class="doan-dialog" data-ui-size="compact"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Add to serve?</h3><p class="doan-dialog-description">Canvases in this project will be able to read <code>app/src/renderer/ds</code>. Add it to serve?</p></div></div></dialog>
+</section>
+</main>
+</body>
+</html>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="floating">
+<meta name="doan:width" content="900">
+<title>floating</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+.stripes { padding: var(--space-6); border-radius: var(--radius-row); background: repeating-linear-gradient(45deg, var(--affordance-accent) 0 8px, var(--surface-panel) 8px 16px); }
+/* The opaque fallback, which ds/surfaces.css applies under reduced transparency, forced colours or no backdrop-filter. */
+.doan-floating.is-opaque { background: var(--surface-popover); backdrop-filter: none; }
+.fill { width: 200px; padding: var(--space-3); }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>floating</h1><p><code>.doan-floating</code>: the material under menus and toasts. The base is the opaque popover fill; glass (<code>--surface-elevated-glass</code> with <code>--blur-sm</code>) applies only without a reduced-transparency request, outside forced colours, where backdrop-filter works. Its 1px border is transparent so it still counts in the nested-corner arithmetic; <code>--shadow-panel</code> draws the edge. Both materials sit over stripes here; the opaque one is restated as <code>.is-opaque</code>.</p></header>
+<section class="dsc-frame" data-doan-frame="materials" data-doan-title="Glass and opaque" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Glass and opaque</h2>
+<div class="dsc-row stripes"><div class="dsc-cell"><div class="doan-floating"><div class="fill">Glass</div></div><span class="dsc-label">default · <code>--radius-container</code>, <code>--space-1</code> inset</span></div><div class="dsc-cell"><div class="doan-floating is-opaque"><div class="fill">Opaque</div></div><span class="dsc-label">fallback</span></div><div class="dsc-cell"><div class="doan-floating" data-ui-size="compact"><div class="fill">Compact</div></div><span class="dsc-label">compact · <code>--radius-row</code>, <code>--space-half</code> inset</span></div></div>
+</section>
+</main>
+</body>
+</html>

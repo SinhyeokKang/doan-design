@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="button">
+<meta name="doan:width" content="1280">
+<title>button</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from ds/controls.css with :hover → .is-hover, :active → .is-active and
+   :focus-visible → .is-focus, so the states can sit side by side. Same tokens, same weights. */
+:is(.doan-button, .doan-icon-button)[data-ui-variant="prominent"].is-hover:not(:disabled) { background: var(--affordance-prominent-hover); }
+:is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="quiet"], [data-ui-variant="trigger"], [data-ui-variant="accent"], [data-ui-placement="chrome"]).is-hover:not(:disabled) { background: var(--affordance-subtle-hover); }
+:is(.doan-button, .doan-icon-button)[data-ui-variant="panel"].is-hover:not(:disabled) { background: var(--affordance-panel-hover); }
+.doan-icon-button[data-ui-placement="chrome"].is-hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+.doan-button[data-ui-variant="quiet"].is-hover:not(:disabled) { box-shadow: inset 0 0 0 100vmax var(--affordance-backdrop-hover); }
+.doan-button[data-ui-variant="trigger"].is-hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+.doan-icon-button[data-ui-variant="accent"].is-hover:not(:disabled) { background: var(--affordance-accent-hover); }
+.doan-button[data-ui-variant="trigger"].is-active:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+:is(.doan-button, .doan-icon-button).is-focus { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.deco { padding: var(--space-3); border-radius: var(--radius-row); background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent), transparent), var(--surface-panel); }
+.shell-tone { padding: var(--space-3); border-radius: var(--radius-row); background: var(--bg-app); }
+.inset-tone { padding: var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>button</h1>
+<p><code>.doan-button</code>: a capsule (<code>--radius-capsule</code>) in label-sm type. Variants are <code>data-ui-variant</code>, sizes <code>data-ui-size</code>; states come from native and Radix selectors. Hover, pressed (<code>:active</code>) and focus are restated on this canvas so they sit side by side; "pressed" is drawn with <code>data-state="open"</code>, which the same rule covers. Panel is drawn on the inset fill it exists for, quiet on a decorated background.</p></header>
+<section class="dsc-frame" data-doan-frame="variants" data-doan-title="Variants and states (sm)" data-doan-implements="app/src/renderer/ds/controls.css">
+<h2>Variants and states (sm)</h2>
+<table class="dsc-table">
+<thead><tr><th></th><th>rest</th><th>hover</th><th>pressed</th><th>focus</th><th>disabled</th></tr></thead>
+<tbody>
+<tr><th>ghost (no variant)</th><td><button type="button" class="doan-button" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button is-hover" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button" data-ui-size="sm" data-state="open">Continue</button></td><td><button type="button" class="doan-button is-focus" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button" data-ui-size="sm" disabled>Continue</button></td></tr>
+<tr><th>prominent</th><td><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button is-hover" data-ui-variant="prominent" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-state="open">Continue</button></td><td><button type="button" class="doan-button is-focus" data-ui-variant="prominent" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled>Continue</button></td></tr>
+<tr><th>subtle</th><td><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button is-hover" data-ui-variant="subtle" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" data-state="open">Continue</button></td><td><button type="button" class="doan-button is-focus" data-ui-variant="subtle" data-ui-size="sm">Continue</button></td><td><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled>Continue</button></td></tr>
+<tr><th>panel</th><td><div class="inset-tone"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Continue</button></div></td><td><div class="inset-tone"><button type="button" class="doan-button is-hover" data-ui-variant="panel" data-ui-size="sm">Continue</button></div></td><td><div class="inset-tone"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-state="open">Continue</button></div></td><td><div class="inset-tone"><button type="button" class="doan-button is-focus" data-ui-variant="panel" data-ui-size="sm">Continue</button></div></td><td><div class="inset-tone"><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm" disabled>Continue</button></div></td></tr>
+<tr><th>quiet</th><td><div class="deco"><button type="button" class="doan-button" data-ui-variant="quiet" data-ui-size="sm">Suggest a layout</button></div></td><td><div class="deco"><button type="button" class="doan-button is-hover" data-ui-variant="quiet" data-ui-size="sm">Suggest a layout</button></div></td><td><div class="deco"><button type="button" class="doan-button" data-ui-variant="quiet" data-ui-size="sm" data-state="open">Suggest a layout</button></div></td><td><div class="deco"><button type="button" class="doan-button is-focus" data-ui-variant="quiet" data-ui-size="sm">Suggest a layout</button></div></td><td><div class="deco"><button type="button" class="doan-button" data-ui-variant="quiet" data-ui-size="sm" disabled>Suggest a layout</button></div></td></tr>
+<tr><th>trigger</th><td><button type="button" class="doan-button" data-ui-variant="trigger" data-ui-size="sm">Trigger <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></td><td><button type="button" class="doan-button is-hover" data-ui-variant="trigger" data-ui-size="sm">Trigger <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></td><td><button type="button" class="doan-button is-active" data-ui-variant="trigger" data-ui-size="sm">Trigger <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button><div class="dsc-label">open: hover fill</div><button type="button" class="doan-button" data-ui-variant="trigger" data-ui-size="sm" data-state="open">Trigger <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></td><td><button type="button" class="doan-button is-focus" data-ui-variant="trigger" data-ui-size="sm">Trigger <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></td><td><button type="button" class="doan-button" data-ui-variant="trigger" data-ui-size="sm" disabled>Trigger <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button></td></tr>
+</tbody></table>
+<p class="dsc-note">A trigger that opens a menu keeps its hover fill while open; only a press deepens it. An open disclosure (<code>aria-expanded</code> without <code>aria-haspopup</code>) is not drawn pressed.</p>
+</section>
+<section class="dsc-frame" data-doan-frame="sizes" data-doan-title="Sizes" data-doan-implements="app/src/renderer/ds/controls.css">
+<h2>Sizes</h2>
+<div class="dsc-row" style="align-items: center">
+<div class="dsc-cell"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Continue</button><span class="dsc-label">sm · <code>--size-control-sm</code> · rows, cards, notices, toasts</span></div>
+<div class="dsc-cell"><button type="button" class="doan-button" data-ui-variant="prominent">Continue</button><span class="dsc-label">default · <code>--size-control</code> · dialog actions</span></div>
+<div class="dsc-cell"><button type="button" class="doan-button" data-ui-variant="prominent" data-ui-size="lg">Get started</button><span class="dsc-label">lg · <code>--size-control-lg</code> · Welcome's Get started only</span></div>
+</div>
+</section>
+<section class="dsc-frame" data-doan-frame="content" data-doan-title="Icon and shortcut hint" data-doan-implements="app/src/renderer/ds/controls.css">
+<h2>Icon and shortcut hint</h2>
+<div class="dsc-row" style="align-items: center">
+<div class="dsc-cell"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Add Projects</button><span class="dsc-label">leading 16px icon (<code>--size-icon</code>)</span></div>
+<div class="dsc-cell"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Fit <span class="doan-kbd">⌘1</span></button><span class="dsc-label">shortcut hint: <code>.doan-kbd</code> outlined in the button's ink (canvas zoom toolbar)</span></div>
+</div>
+</section>
+</main>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="preference-row">
+<meta name="doan:width" content="1100">
+<title>preference-row</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (.doan-dialog code, :is(.settings-page, .settings-dialog) code). */
+code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.g { width: 480px; } .narrow { width: 360px; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>preference-row</h1><p><code>.doan-preference-row</code>: a title column (body-sm label over a caption description in <code>--text-subtle</code>, 2px apart) and trailing controls on the right, 12px block padding, a 16px column gap and no row gap. In a group narrower than 24rem a trailing button moves under the title. Each sample sits in a settings group, whose query the narrow rule needs.</p></header>
+<section class="dsc-frame" data-doan-frame="rows" data-doan-title="Content and trailing" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Content and trailing</h2>
+<div class="dsc-row"><div class="dsc-cell"><div class="g"><div class="doan-settings-group"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Root</span></div></div></div></div><span class="dsc-label">label only</span></div><div class="dsc-cell"><div class="g"><div class="doan-settings-group"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Token CSS</span><span class="doan-preference-row-description"><code>app/src/renderer/tokens.css</code></span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change…</button></div></div></div></div><span class="dsc-label">label, description and an sm button</span></div></div>
+</section>
+<section class="dsc-frame" data-doan-frame="states" data-doan-title="Disabled and narrow" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Disabled and narrow</h2>
+<div class="dsc-row"><div class="dsc-cell"><div class="g"><div class="doan-settings-group"><div class="doan-preference-row" data-disabled=""><div class="doan-preference-row-content"><span class="doan-preference-row-label">Token CSS</span><span class="doan-preference-row-description"><code>app/src/renderer/tokens.css</code></span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled>Change…</button></div></div></div></div><span class="dsc-label"><code>data-disabled</code>: label and description take <code>--text-disabled</code></span></div><div class="dsc-cell"><div class="narrow"><div class="doan-settings-group"><div class="doan-preference-row"><div class="doan-preference-row-content"><span class="doan-preference-row-label">Token CSS</span><span class="doan-preference-row-description"><code>app/src/renderer/tokens.css</code></span></div><div class="doan-preference-row-trailing"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Change…</button></div></div></div></div><span class="dsc-label">group under 24rem: the button goes under the title</span></div></div>
+</section>
+</main>
+</body>
+</html>

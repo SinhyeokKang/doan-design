@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="toast">
+<meta name="doan:width" content="900">
+<title>toast</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>toast</h1><p><code>.toast.doan-floating.doan-toast</code> (<code>Toast.tsx</code>): one message and at most one action, a prominent sm button, on the floating material, 384px wide. A long message wraps while the action stays centred beside it. There is no type colour and no close button. In the app it sits 16px from the window's bottom right (<code>styles.css</code>); here it is drawn in place.</p></header>
+<section class="dsc-frame" data-doan-frame="toasts" data-doan-title="Message, action and long message" data-doan-implements="app/src/renderer/Toast.tsx">
+<h2>Message, action and long message</h2>
+<div class="dsc-row" style="padding: var(--space-6); border-radius: var(--radius-row); background: var(--surface-inset)"><div class="dsc-cell"><div class="toast doan-floating doan-toast" role="status"><span class="msg">Copied the prompt.</span></div><span class="dsc-label">message only</span></div><div class="dsc-cell"><div class="toast doan-floating doan-toast" role="status"><span class="msg">Removed doan-design from Doan.</span><button class="btn doan-button" data-ui-variant="prominent" data-ui-size="sm">Undo</button></div><span class="dsc-label">with its action</span></div><div class="dsc-cell"><div class="toast doan-floating doan-toast" role="status"><span class="msg">Set up doan-design. Canvases now read app/src/renderer/tokens.css and the other served paths.</span><button class="btn doan-button" data-ui-variant="prominent" data-ui-size="sm">Open</button></div><span class="dsc-label">long message wraps</span></div></div><p class="dsc-note">Sample text, not app copy.</p>
+</section>
+</main>
+</body>
+</html>

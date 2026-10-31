@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="motion">
+<meta name="doan:width" content="1200">
+<title>motion</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>motion</h1><p>Durations and easings. State changes (fills, borders) take <code>--time-state</code> with <code>--ease-state</code>; dialogs open over <code>--time-settle</code> on <code>--ease-enter</code> and close over <code>--time-fast</code>; the switch thumb settles on <code>--ease-settle</code>. Under reduced motion the fades stay and movement, scale and blur go (<code>ds/controls.css</code>, <code>ds/surfaces.css</code>).</p></header>
+<section class="dsc-frame" data-doan-frame="tokens" data-doan-title="Durations and easings" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Durations and easings</h2>
+<table class="dsc-table"><thead><tr><th>Token</th><th>Value</th><th></th></tr></thead><tbody>
+<tr><td><code>--time-fast</code></td><td class="dsc-label">120ms</td><td></td></tr>
+<tr><td><code>--time-state</code></td><td class="dsc-label">150ms</td><td></td></tr>
+<tr><td><code>--time-panel-enter</code></td><td class="dsc-label">180ms</td><td><span class="dsc-open">defined; no app CSS reads it</span></td></tr>
+<tr><td><code>--time-settle</code></td><td class="dsc-label">220ms</td><td></td></tr>
+<tr><td><code>--ease-state</code></td><td class="dsc-label">ease</td><td></td></tr>
+<tr><td><code>--ease-enter</code></td><td class="dsc-label">cubic-bezier(0.23, 1, 0.32, 1)</td><td></td></tr>
+<tr><td><code>--ease-settle</code></td><td class="dsc-label">cubic-bezier(0.645, 0.045, 0.355, 1)</td><td></td></tr>
+</tbody></table>
+<p class="dsc-note">A static canvas cannot play the transitions; the values are listed, not animated.</p>
+</section>
+</main>
+</body>
+</html>

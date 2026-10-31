@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="inline-error">
+<meta name="doan:width" content="1000">
+<title>inline-error</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (.ob-msg:is(.warn, .error), .fp-error, .pj-msg and .settings-msg), which canvases cannot link. */
+.ob-msg { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
+.ob-msg:is(.warn, .error) { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-msg.warn { color: var(--text-warning); }
+.ob-msg.error { color: var(--text-danger); }
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-msg.warn { color: var(--text-warning); }
+.w { width: 380px; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>inline-error</h1><p>An inline error or warning is one body-sm line led by the 16px alert icon, in <code>--text-danger</code> or <code>--text-warning</code>, so colour is not the only signal. Two class families draw it: <code>.ob-msg</code> (with <code>.fp-error</code> and <code>.pj-msg</code>; Project Setup, the first prompt, Home) and <code>.settings-msg</code> (Settings pages, Project Settings), which adds the body-sm tracking. Both are restated here from <code>styles.css</code>.</p></header>
+<section class="dsc-frame" data-doan-frame="error" data-doan-title="Error and warning" data-doan-implements="app/src/renderer/styles.css">
+<h2>Error and warning</h2>
+<div class="dsc-row"><div class="dsc-cell"><div class="w"><p class="ob-msg error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>This location is inside the Doan project doan-design. Choose a location outside it.</span></p></div><span class="dsc-label"><code>.ob-msg.error</code></span></div><div class="dsc-cell"><div class="w"><p class="ob-msg warn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>This folder is not a Git repository.</span></p></div><span class="dsc-label"><code>.ob-msg.warn</code></span></div><div class="dsc-cell"><div class="w"><p class="settings-msg error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>Doan couldn’t read the CLI’s answer.</span></p></div><span class="dsc-label"><code>.settings-msg.error</code></span></div></div><p class="dsc-note">The warning and <code>.settings-msg</code> sentences are sample text.</p>
+</section>
+</main>
+</body>
+</html>

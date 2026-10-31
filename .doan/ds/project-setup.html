@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="project-setup">
+<meta name="doan:width" content="1560">
+<title>project-setup</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (Project Setup: .ob-card, .ob-field and its parts, .ob-msg, inline code), which canvases cannot link. */
+.ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
+.ob-card > :first-child { border-top: 0; }
+.ob-dialog .ob-card { width: auto; }
+.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
+.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
+.ob-msg:is(.warn, .error) { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-msg.error { color: var(--text-danger); }
+.ob-msg.ob-wide { grid-column: 1 / -1; }
+.ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
+.ob-field .value { display: block; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; }
+.ob-field .value.token-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-field .value.none { color: var(--text-metadata); }
+.ob-field .ob-helper { grid-column: 2 / -1; }
+.ob-helper { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
+/* Canvas placement only: the app opens the dialog with showModal(); here it is drawn in place. */
+.doan-dialog[open] { position: static; inset: auto; margin: 0; max-height: none; }
+.scrim { display: grid; grid-template-columns: repeat(2, max-content); gap: var(--space-6); padding: var(--space-6); border-radius: var(--radius-row); background: var(--bg-scrim); }
+.scrim .doan-dialog { width: 640px; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>project-setup</h1><p><code>ProjectSetupDialog</code>: the standard-width dialog behind a project's Set Up… action, reached from the sidebar menu on any screen and from the workspace's problem actions. It lists the token CSS choice and the files setup will add; Cancel and Escape close it except while it runs. Its rules live in <code>styles.css</code> and are restated here; the dialogs are drawn in place.</p></header>
+<section class="dsc-frame" data-doan-frame="steps" data-doan-title="Choose, run and fail" data-doan-implements="app/src/renderer/ProjectSetupDialog.tsx">
+<h2>Choose, run and fail</h2>
+<div class="scrim"><div class="dsc-cell"><dialog open class="ob-dialog setup-dialog doan-dialog"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description ob-project-path">/Users/you/code/doan-design</p></div></div><div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value none">None</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button><span class="ob-helper">Without token CSS, doan check won’t flag hardcoded colors.</span></div><div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div></div><div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent">Set Up Project</button></div></dialog><span class="dsc-label">no token CSS yet: the helper says what is lost</span></div><div class="dsc-cell"><dialog open class="ob-dialog setup-dialog doan-dialog"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description ob-project-path">/Users/you/code/doan-design</p></div></div><div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value token-path">app/src/renderer/tokens.css</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button></div><div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div></div><div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent">Set Up Project</button></div></dialog><span class="dsc-label">token CSS chosen</span></div><div class="dsc-cell"><dialog open class="ob-dialog setup-dialog doan-dialog" aria-busy="true"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description ob-project-path">/Users/you/code/doan-design</p></div></div><div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value token-path">app/src/renderer/tokens.css</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled>Choose…</button></div><div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div></div><div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle" disabled>Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent" disabled>Setting Up…</button></div></dialog><span class="dsc-label">running: every control waits</span></div><div class="dsc-cell"><dialog open class="ob-dialog setup-dialog doan-dialog"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description ob-project-path">/Users/you/code/doan-design</p></div></div><div class="ob-card"><div class="ob-field"><span class="ob-label">Token CSS</span><span class="value token-path">app/src/renderer/tokens.css</span><button type="button" class="btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Choose…</button></div><div class="ob-field"><span class="ob-label">Will add</span><span class="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — one line</span></span><span></span></div><div class="ob-field"><span class="ob-msg error ob-wide" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert lucide-alert-circle doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>doan CLI error: the doan CLI didn’t answer in time</span></span></div></div><div class="ob-buttons doan-dialog-actions"><button type="button" class="btn doan-button" data-ui-variant="subtle">Cancel</button><button type="button" class="btn primary doan-button" data-ui-variant="prominent">Set Up Project</button></div></dialog><span class="dsc-label">failed: the error under the fields (sample reason)</span></div></div>
+</section>
+</main>
+</body>
+</html>

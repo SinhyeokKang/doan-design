@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="add-to-serve">
+<meta name="doan:width" content="700">
+<title>add-to-serve</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+.doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+/* Canvas placement only: the app opens the dialog with showModal(); here it is drawn in place. */
+.doan-dialog[open] { position: static; inset: auto; margin: 0; max-height: none; }
+.scrim { display: grid; gap: var(--space-6); padding: var(--space-6); border-radius: var(--radius-row); background: var(--bg-scrim); }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>add-to-serve</h1><p><code>SettingsDialog</code>: the compact, centred confirmation before a write, opened over Project Settings as an <code>alertdialog</code>. Focus starts on Cancel, so automatic focus never lands on the action that writes; Escape answers Cancel. The inline-code rule is restated from <code>styles.css</code>; the dialog is drawn in place.</p></header>
+<section class="dsc-frame" data-doan-frame="confirm" data-doan-title="Confirmation" data-doan-implements="app/src/renderer/SettingsDialog.tsx">
+<h2>Confirmation</h2>
+<div class="scrim"><dialog open class="doan-dialog" data-ui-size="compact" role="alertdialog"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Add to serve?</h3><p class="doan-dialog-description">Canvases in this project will be able to read <code>app/src/renderer/ds</code>. Add it to serve?</p></div></div><div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Add to Serve</button></div></dialog></div>
+</section>
+</main>
+</body>
+</html>

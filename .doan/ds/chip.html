@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="chip">
+<meta name="doan:width" content="900">
+<title>chip</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (.shell-branch, .shell-group-count), which canvases cannot link. */
+.shell-branch { display: inline-flex; align-items: center; gap: 4px; max-width: 84px; flex-shrink: 1; }
+.shell-branch svg { width: 12px; height: 12px; flex: none; }
+.shell-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-group-count { flex: none; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>chip</h1><p><code>.doan-chip</code> in caption type, sized to its line. The sidebar is its only user, with the translucent variant on a span: the branch of a project row and the canvas count of a group head. The branch's 12px icon and 84px cap come from <code>styles.css</code> and are restated here.</p>
+<p class="dsc-open">Defined but used by no markup: the default chip fill and the button chip with its hover and open fill. They are not drawn.</p></header>
+<section class="dsc-frame" data-doan-frame="translucent" data-doan-title="Translucent" data-doan-implements="app/src/renderer/ds/controls.css">
+<h2>Translucent</h2>
+<div class="dsc-row shell-tone" style="padding: var(--space-4); border-radius: var(--radius-row); background: var(--bg-app)"><div class="dsc-cell"><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"></path><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle></svg><span>main</span></span><span class="dsc-label">branch</span></div><div class="dsc-cell"><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"></path><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle></svg><span>feature-long-branch-name</span></span><span class="dsc-label">long branch, ellipsized</span></div><div class="dsc-cell"><span class="doan-chip shell-group-count" data-ui-variant="translucent">12</span><span class="dsc-label">group count</span></div></div>
+</section>
+</main>
+</body>
+</html>

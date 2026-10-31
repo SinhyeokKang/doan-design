@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="radius">
+<meta name="doan:width" content="1200">
+<title>radius</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>.outer { width: 280px; padding: var(--space-1); border: 1px solid var(--border-standard); border-radius: var(--radius-container); }
+.inner { padding: var(--space-3); border-radius: calc(var(--radius-container) - var(--space-1) - 1px); background: var(--affordance-selected); }
+.corner { display: block; width: 112px; height: 72px; background: var(--surface-inset); box-shadow: inset 0 0 0 1px var(--border-prominent); }</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>radius</h1><p>Container corners step from chip to panel and stop at 28px; capsules and pills are separate shapes. A nested corner is <code>max(0, outer − inset − border)</code>, not the next step down (<code>tokens.css</code>).</p></header>
+<section class="dsc-frame" data-doan-frame="corners" data-doan-title="Corners" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Corners</h2>
+<div class="dsc-row">
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-chip)"></span><code>--radius-chip</code><span class="dsc-label">12px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-row)"></span><code>--radius-row</code><span class="dsc-label">16px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-control)"></span><code>--radius-control</code><span class="dsc-label">20px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-container)"></span><code>--radius-container</code><span class="dsc-label">24px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-panel)"></span><code>--radius-panel</code><span class="dsc-label">28px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-icon-button)"></span><code>--radius-icon-button</code><span class="dsc-label">18px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-toolbar-icon)"></span><code>--radius-toolbar-icon</code><span class="dsc-label">10px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-capsule)"></span><code>--radius-capsule</code><span class="dsc-label">34px</span></div>
+<div class="dsc-cell"><span class="corner" style="border-radius: var(--radius-pill)"></span><code>--radius-pill</code><span class="dsc-label">9999px</span></div>
+</div>
+</section>
+<section class="dsc-frame" data-doan-frame="nested" data-doan-title="Nested corner" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Nested corner</h2>
+<div class="dsc-row"><div class="dsc-cell"><div class="outer"><div class="inner">max(0, 24 − 4 − 1) = 19px</div></div><span class="dsc-label"><code>--radius-container</code> outside, <code>--space-1</code> inset, 1px border</span></div></div>
+</section>
+</main>
+</body>
+</html>

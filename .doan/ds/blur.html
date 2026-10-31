@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="blur">
+<meta name="doan:width" content="1200">
+<title>blur</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+.behind { position: relative; width: 176px; height: 96px; overflow: hidden; border-radius: var(--radius-row); background: repeating-linear-gradient(45deg, var(--affordance-accent) 0 8px, var(--surface-panel) 8px 16px); }
+.glass { position: absolute; inset: 20px 24px; display: grid; place-items: center; border-radius: var(--radius-chip); background: var(--surface-elevated-glass); font-weight: var(--type-weight-medium); }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>blur</h1><p>Backdrop blurs. <code>--blur-sm</code> is the floating-material glass and the composer drop cover, <code>--blur-md</code> the quiet button. Each sample puts the glass fill over stripes.</p></header>
+<section class="dsc-frame" data-doan-frame="blurs" data-doan-title="Backdrop blurs" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Backdrop blurs</h2>
+<div class="dsc-row">
+<div class="dsc-cell"><div class="behind"><span class="glass" style="backdrop-filter: blur(var(--blur-sm)); -webkit-backdrop-filter: blur(var(--blur-sm))">Doan</span></div><code>--blur-sm</code><span class="dsc-label">8px</span></div>
+<div class="dsc-cell"><div class="behind"><span class="glass" style="backdrop-filter: blur(var(--blur-md)); -webkit-backdrop-filter: blur(var(--blur-md))">Doan</span></div><code>--blur-md</code><span class="dsc-label">16px</span></div>
+<div class="dsc-cell"><div class="behind"><span class="glass" style="backdrop-filter: blur(var(--blur-lg)); -webkit-backdrop-filter: blur(var(--blur-lg))">Doan</span></div><code>--blur-lg</code><span class="dsc-label">32px</span><span class="dsc-open">defined; no app CSS reads it</span></div>
+</div>
+</section>
+</main>
+</body>
+</html>

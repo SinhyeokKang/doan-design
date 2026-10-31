@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="scroll">
+<meta name="doan:width" content="700">
+<title>scroll</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>.box { width: 280px; height: 160px; overflow-y: auto; padding: var(--space-3); border-radius: var(--radius-row); background: var(--surface-panel); box-shadow: var(--shadow-panel); }
+.box p { padding: var(--space-1) 0; }</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>scroll</h1><p><code>.doan-scroll</code>: a thin native scrollbar (<code>--scrollbar-thumb-quiet</code> on a transparent track). Scroll containers keep native scrolling; Radix ScrollArea is not used. The box, its overflow and its rows are canvas content. With overlay scrollbars the thumb shows only while scrolling.</p></header>
+<section class="dsc-frame" data-doan-frame="scroll" data-doan-title="Thin scrollbar" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Thin scrollbar</h2>
+<div class="box doan-scroll"><p>Row 1</p><p>Row 2</p><p>Row 3</p><p>Row 4</p><p>Row 5</p><p>Row 6</p><p>Row 7</p><p>Row 8</p><p>Row 9</p><p>Row 10</p><p>Row 11</p><p>Row 12</p><p>Row 13</p><p>Row 14</p></div>
+</section>
+</main>
+</body>
+</html>
