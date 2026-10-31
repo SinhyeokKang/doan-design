@@ -93,6 +93,19 @@ func TestSkillGuideHandoff(t *testing.T) {
 	}
 }
 
+// `doan init --json` never prompts, so the guide must make the agent ask first.
+func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "- `doan init ") {
+			if !strings.Contains(l, "Run it only when the user asks, and ask the user for the token CSS path first.") {
+				t.Fatal(l)
+			}
+			return
+		}
+	}
+	t.Fatal("guide has no init command entry")
+}
+
 func TestSkillConfigRequiresHumanRequest(t *testing.T) {
 	if !strings.Contains(skillBody, "Change configuration with `config` only when the user asks") {
 		t.Fatal("missing config restriction")
