@@ -36,7 +36,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 7. **Buzz 브랜드 자산**(워드마크, 로고, 셰이더 아트워크, `public/shell-gradient.png`)은 쓰지 않는다. Apache-2.0 §6은 상표 사용권을 주지 않고, 그라디언트 이미지는 NOTICE에 따로 제공된 자산으로 적혀 있다.
 8. 구현할 때는 **로컬 Buzz clone을 항상 참조**한다. 위치, 기준 커밋, 읽기 전용 규칙은 [design.md](./design.md)의 'Buzz clone 참조 규칙'을 따른다.
 9. **이름**: 새로 쓰는 디자인 시스템 클래스는 `doan-` 접두어를 쓴다(예: `doan-dialog`, `doan-shell-header`). 데이터 속성은 `data-doan-*`가 캔버스 컨벤션(ARCHITECTURE §1의 `data-doan-id` 등) 몫이라 `data-ui-*`를 쓴다.
-10. **여러 화면이 함께 쓰는 요소는 `buzz-ds`가 맡는다**: `ProjectSetupDialog`, `FirstPrompt`, `ConnectionRows`(`connectionRows.css`), `.ob-dialog`, `ErrorDetails`, `Toast`, 스피너. 화면 자식은 쓰기만 하고, 바꿔야 하면 사용자에게 확인한다. 구현된 공통 변경(2026-10-27, buzz-shell): 칩 기본 글자 12px·상하 2px·좌우 6px, 읽기 전용 워크트리 칩의 translucent 변형, 프로젝트 이름 해시 8색 폴백. 추가 승인·미구현(2026-10-28, buzz-onboarding): 공용 lg 버튼 48px, notice 12px/16px·흰 elevation·진한 텍스트/동색 아이콘·로딩 spinner, 온보딩과 ShellSidebar의 연한 썸네일 배경·진한 글자. 기존 프리미티브를 확장하며 별도 복제품을 만들지 않는다. 온보딩 버튼/입력창의 translucent 변형과 본문 전체 panel 래핑은 철회됐다. 추가 승인·구현(2026-10-30, buzz-search): 공용 `.doan-dialog`의 검색 변형 `data-ui-presentation="search"`(패딩 `--space-3`, 모서리 32px, `--surface-panel`, `corner-shape: squircle`, 열린 상태 `gap: 0`). 기존 사용처의 크기와 동작은 그대로다. `AddProjectsDialog`(`SetUpFolderConfirm` 포함)는 buzz-add-projects가 Add Projects 페이지로 대체하며 삭제했다(2026-10-30).
+10. **여러 화면이 함께 쓰는 요소는 `buzz-ds`가 맡는다**: `ProjectSetupDialog`, `FirstPrompt`, `ConnectionRows`(`connectionRows.css`), `.ob-dialog`, `ErrorDetails`, `Toast`, 스피너. 화면 자식은 쓰기만 하고, 바꿔야 하면 사용자에게 확인한다. 구현된 공통 변경(2026-10-27, buzz-shell): 칩 기본 글자 12px·상하 2px·좌우 6px, 읽기 전용 워크트리 칩의 translucent 변형, 프로젝트 이름 해시 8색 폴백. 추가 승인·미구현(2026-10-28, buzz-onboarding): 공용 lg 버튼 48px, notice 12px/16px·흰 elevation·진한 텍스트/동색 아이콘·로딩 spinner, 온보딩과 ShellSidebar의 연한 썸네일 배경·진한 글자. 기존 프리미티브를 확장하며 별도 복제품을 만들지 않는다. 온보딩 버튼/입력창의 translucent 변형과 본문 전체 panel 래핑은 철회됐다. 추가 승인·구현(2026-10-30, buzz-search): 공용 `.doan-dialog`의 검색 변형 `data-ui-presentation="search"`(패딩 `--space-3`, 모서리 32px, `--surface-panel`, `corner-shape: squircle`, 열린 상태 `gap: 0`). 기존 사용처의 크기와 동작은 그대로다. `AddProjectsDialog`(`SetUpFolderConfirm` 포함)는 buzz-add-projects가 Add Projects 페이지로 대체하며 삭제했다(2026-10-30). 추가 승인·미구현(2026-10-31 user, buzz-conversation): 공용 텍스트 버튼의 `xs` 크기 변형 `doan-button[data-ui-size="xs"]`(24px, caption, 안쪽 4/8). 입력창 포커스 보더 `--border-field-focus`와 `--shadow-sm`(Home·docked 입력창만), 입력창 도구의 비활성 잉크 수정.
 11. **대조 방법**: 화면 자식은 `/design-draft`로 그 화면의 Buzz 스타일 초안을 **새 파일**로 먼저 그리고, 구현 뒤 `/design-sync`로 맞춘다. 기존 초안 12개는 이력으로 남기고 고치지 않는다. 단 `doan check`가 정의되지 않은 변수 오류를 내면 안 된다.
 12. **중간 상태**: 자식마다 main에 머지하고, 그동안 main은 반쯤 바뀐 화면(라이트 토큰 + 이전 배치)을 허용한다. 마지막 자식이 머지될 때까지 main에서 만든 빌드는 배포하지 않는다.
 13. **테마 소스**: main은 `nativeTheme.themeSource = "light"`로 고정한다. 네이티브 스크롤바·폼 컨트롤·메뉴와 캔버스 iframe의 `prefers-color-scheme`이 macOS 외형과 상관없이 light가 된다(2026-10-26 user, `buzz-ds`가 실현).
@@ -102,7 +102,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 - 다크 모드, 시스템 테마 따라가기, 사용자 액센트 선택과 Buzzin' 수준.
 - Base UI 도입, Buzz 코드(CSS·TSX)의 복사, Buzz JS 훅.
-- Inter·JetBrains Mono 번들, 고정폭 역할.
+- Inter·JetBrains Mono 번들, 고정폭 역할. 예외(2026-10-31 user, buzz-conversation): 에이전트 답 안의 인라인 코드와 코드 블록만 시스템 mono 스택(`--type-family-mono`, 폰트 번들 없음)을 쓴다.
 - Buzz에만 있고 doan에 대응하는 화면이 없는 요소(glass 버튼, 아바타 모양, 커뮤니티 선택, 프로필, 페이지 탭, 생성 메뉴).
 - 기존 `.doan/canvases/` 초안 12개의 갱신.
 - 캔버스 iframe 안의 렌더링.
