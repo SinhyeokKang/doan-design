@@ -20,7 +20,7 @@
 
 ## R. renderer
 
-- [ ] R1. Overview 메인: 헤더 드롭다운, `ConversationThread`, `DockedComposer`(기존·새 대화 모드), 새 대화 상태의 추천 칩, 중복 ID 알림 자리, 화면에 보일 때 `markSeen`, ui-state 기억.
+- [ ] R1. Overview 메인: 헤더(프로젝트, 워크트리 칩 메뉴, 대화 드롭다운), `ConversationThread`, `DockedComposer`(기존·새 대화 모드), 새 대화 상태의 추천 칩, 중복 ID 알림 자리, 화면에 보일 때 `markSeen`, ui-state 기억.
   - 검증: `npm --prefix app test` (정적 마크업, 렌더 사이 대화 전환), `npm --prefix app run typecheck`.
 - [ ] R2. 오른쪽 캔버스 목록: 행(캔버스당 현재 대화 하나), 썸네일, 열 수 없는 행, 빈 상태, 목록 키보드, 캔버스 열기.
   - 검증: `npm --prefix app test`.
