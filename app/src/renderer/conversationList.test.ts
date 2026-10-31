@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { slotsFromList, stripFromList, type ConversationSummary } from "./conversationList";
+import type { ConversationSummary } from "../main/conversation/summary";
+import { slotsFromList, stripFromList } from "./conversationList";
 import { slotKey } from "./homeConversations";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
@@ -14,7 +15,7 @@ describe("slotsFromList", () => {
   test("running, waiting for an answer and unseen endings show; seen endings and read errors do not", () => {
     const lists = new Map([
       ["/r/doan", [summary({ conversationId: "w", phase: "running" })]],
-      ["/r/b", [summary({ conversationId: "p", phase: "permission", provider: "codex" })]],
+      ["/r/b", [summary({ conversationId: "p", phase: "waiting", provider: "codex" })]],
       ["/r/c", [summary({ conversationId: "u", unseen: true }), summary({ conversationId: "s" })]],
       ["/r/d", [summary({ conversationId: "e", phase: "running", readError: true })]],
     ]);
@@ -26,7 +27,7 @@ describe("slotsFromList", () => {
   });
 
   test("the strongest state wins on a row", () => {
-    const lists = new Map([["/r/doan", [summary({ conversationId: "u", unseen: true }), summary({ conversationId: "p", phase: "permission" }), summary({ conversationId: "w", phase: "running" })]]]);
+    const lists = new Map([["/r/doan", [summary({ conversationId: "u", unseen: true }), summary({ conversationId: "p", phase: "waiting" }), summary({ conversationId: "w", phase: "running" })]]]);
     expect(slotsFromList(lists, none, canvases).get("/r/doan")?.kind).toBe("permission");
   });
 
@@ -39,7 +40,7 @@ describe("slotsFromList", () => {
     const lists = new Map([["/r/doan", [
       summary({ conversationId: "moved", phase: "running", canvas: { path: ".doan/canvases/old-name.html", id: "a" } }),
       summary({ conversationId: "plain", unseen: true, canvas: { path: ".doan/canvases/plain.html" } }),
-      summary({ conversationId: "gone", phase: "permission", canvas: { path: ".doan/canvases/gone.html", id: "gone" } }),
+      summary({ conversationId: "gone", phase: "waiting", canvas: { path: ".doan/canvases/gone.html", id: "gone" } }),
     ]]]);
     expect(slotsFromList(lists, none, canvases)).toEqual(new Map([
       [slotKey("/r/doan", ".doan/canvases/a.html"), { kind: "working", label: "Claude Code is working" }],

@@ -4,11 +4,6 @@ import { splitRequest, type PresetRef } from "./homeComposer";
 // A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them
 // (buzz-conversation design §3.3). Every item has a key that stays the same while later events arrive.
 
-// conversation.bound and conversation.restored are event types this feature adds on main (design §2.8). The renderer
-// names them here so the thread can draw them before main's types include them.
-type EventBase = { v: 1; conversationId: string; seq: number; turnId: string; at: string };
-export type ThreadEvent = ConversationEvent | (EventBase & ({ type: "conversation.bound"; canvas: Canvas } | { type: "conversation.restored" }));
-
 // The person's text in order, with each anchor token `{{n}}` kept where it was typed (spec decision 17).
 export type MessagePart = { text: string } | { anchor: number };
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null }
@@ -74,7 +69,7 @@ export const stepCount = (n: number) => n === 1 ? "1 step" : `${n} steps`;
 // last turn without an end event while nothing is live was cut by a quit or crash: main never writes that end, its
 // fold folds the turn (state.ts), and the thread shows it as stopped before it finished, as it does for a turn folded
 // by the next turn.started.
-export function threadItems(events: readonly ThreadEvent[], root: string, live: boolean): ThreadItem[] {
+export function threadItems(events: readonly ConversationEvent[], root: string, live: boolean): ThreadItem[] {
   const items: ThreadItem[] = [];
   const agents = new Map<string, Extract<ThreadItem, { kind: "agent" }>>();
   const permissions = new Map<string, Extract<ThreadItem, { kind: "permission" }>>();

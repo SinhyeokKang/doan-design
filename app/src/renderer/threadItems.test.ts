@@ -1,10 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { anchorParts, rootRelative, scrollFollow, threadItems, type ThreadEvent } from "./threadItems";
+import type { ConversationEvent } from "../main/conversation/types";
+import { anchorParts, rootRelative, scrollFollow, threadItems } from "./threadItems";
 import { splitRequest } from "./homeComposer";
 
 const ROOT = "/Users/ada/code/doan";
 let seq = 0;
-const ev = (turnId: string, payload: Record<string, unknown>): ThreadEvent => ({ v: 1, conversationId: "c1", seq: ++seq, turnId, at: "2026-11-01T00:00:00Z", ...payload } as ThreadEvent);
+const ev = (turnId: string, payload: Record<string, unknown>): ConversationEvent => ({ v: 1, conversationId: "c1", seq: ++seq, turnId, at: "2026-11-01T00:00:00Z", ...payload } as ConversationEvent);
 const turn = (id: string, text = "Draw it", extra: Record<string, unknown> = {}) => [ev(id, { type: "user.message", text, anchors: [], ...extra }), ev(id, { type: "turn.started" })];
 
 describe("threadItems", () => {
@@ -138,7 +139,7 @@ describe("threadItems", () => {
 
   test("promotion, archive and restore markers", () => {
     seq = 0;
-    const events: ThreadEvent[] = [...turn("t1"), ev("t1", { type: "turn.done" }),
+    const events: ConversationEvent[] = [...turn("t1"), ev("t1", { type: "turn.done" }),
       ev("t1", { type: "conversation.bound", canvas: { path: ".doan/canvases/s.html", id: "s" } }),
       ev("t1", { type: "conversation.archived" }), ev("t1", { type: "conversation.restored" })];
     expect(threadItems(events, ROOT, true).filter(i => i.kind === "marker")).toEqual([

@@ -1,23 +1,8 @@
-import type { Provider } from "../main/agentAuth/types";
+import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { slotKey, type Slot } from "./homeConversations";
 
-// One entry of main's conversation list for a root (buzz-conversation design §2.1). The renderer names the shape here
-// until main's conversation:list type exists; main adds it in the same feature.
-export interface ConversationSummary {
-  conversationId: string; canvas?: Canvas; title: string;
-  state: "current" | "archived"; owner: "doan" | "external";
-  provider: Provider; model?: string; effort?: string;
-  fromHome: boolean;
-  // running: a turn is starting or working; permission: an unanswered permission request; ended: no live turn.
-  phase: "running" | "permission" | "ended";
-  // The conversation ended after the person last saw it (a crash-folded turn counts).
-  unseen: boolean;
-  queued: number; lastActivityAt: string; preview: string;
-  // Main could not read this record; the rest of the list is still good.
-  readError?: true;
-}
 export type ConversationList = ReadonlyMap<string, readonly ConversationSummary[]>;
 
 const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
@@ -28,7 +13,7 @@ const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 
 function work(c: ConversationSummary, seen: ReadonlySet<string>): Slot | null {
   if (c.readError) return null;
   const p = PROVIDER_NAMES[c.provider];
-  if (c.phase === "permission") return { kind: "permission", label: `${p} needs your answer` };
+  if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
   if (c.phase === "running") return { kind: "working", label: `${p} is working` };
   // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
   return c.unseen && !seen.has(c.conversationId) ? { kind: "unseen", label: `New changes from ${p}` } : null;
