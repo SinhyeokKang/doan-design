@@ -65,3 +65,7 @@
 - RL: dispatch `ctx_0cda2ea00614`, 워크트리 `buzz-project-rl`(기준 `04f53af0`), Claude opus medium.
 - RM 재검토 r3: r2 4건 해결 확인. 새 회귀 🟡 1(응답 전에 온 미등록 대화의 권한 토스트 누락, 수정 전 코드에선 1회·지금 0회로 재현). 리뷰 워커 release. RM 수정 r3 보냄(`homeRun.ts`만).
 - RM 수정 r3(`a983d730` test, `c1f872e1` fix; 앱 테스트 5217개): 지휘자가 리뷰어 probe(`permission-probe-r3.cjs` 토스트 1회, `home-probe-r3.cjs` exit 0)를 직접 돌려 확인했다. 리뷰 라운드는 더 돌리지 않는다(지휘자 판단: 변경이 `homeRun.ts` 18줄이고 재현 probe가 통과). 리뷰 증거는 `.scratch/orch-buzz-project/review-RM-evidence/`로 복사.
+- RM 통합(`7388bf17`, `9124ed1e`). RM 워커 release, 워크트리는 `git cherry`에 + 없음 확인 뒤 `orca worktree rm`.
+- RL 완료(`03eeb451` test, `7bc4beed` feat; 앱 테스트 5226개, typecheck, build). retain. RL 리뷰 r1: Codex gpt-6-astra medium.
+- RL 리뷰 r1: 🔴 0, 🟡 2(빈 곳 클릭 뒤 행 제거가 포커스를 빼앗음, 같은 경로·다른 대화로 행 교체 시 썸네일 관찰 누락), ⚪ 1(주석). 리뷰 워커 release. RL 수정 r1 보냄.
+- RL 수정 r1(`1bb0876a` test 7개 red 확인, `6c4d8580` fix; 앱 테스트 5233개). 지휘자가 handoff와 커밋을 대조해 받아들였다. DOM 동작은 순수 함수로만 확인돼 DS/RT 몫.
