@@ -195,7 +195,7 @@ function invocationOutputs(transcript: string): InvocationOutput[] {
   };
   const addCall = (call: { name: string; command?: string }, id: unknown, scope: "call" | "batch") => {
     if (typeof id !== "string") return;
-    if (/^mcp__doan__/.test(call.name) || (call.command !== undefined && commandWords(call.command).some(words => /^(?:.*\/)?doan$/.test(words[0] ?? ""))))
+    if (call.command !== undefined && commandWords(call.command).some(words => /^(?:.*\/)?doan$/.test(words[0] ?? "")))
       calls.push({ ...call, callId: id, scope });
   };
   for (const line of transcript.split(/\r?\n/)) {

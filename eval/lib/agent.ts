@@ -7,9 +7,9 @@ import type { Check } from "./types.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
 
 export function agentCommand(agent: Agent, prompt: string): { cmd: string; args: string[] } {
-  // A run must not pick up MCP servers from the machine's config. Claude has --strict-mcp-config;
-  // Codex has no equivalent and merges `-c mcp_servers={}` into them, so a doan server left
-  // registered there is switched off by name.
+  // Claude: --strict-mcp-config ignores every MCP server in the machine's config.
+  // Codex: no equivalent, and `-c mcp_servers={}` merges instead of clearing, so only a doan
+  // server left registered there is switched off by name; other configured servers still load.
   // --allowedTools is variadic, so `--` separates the prompt from tool names.
   // Codex's approval policy is pinned so a run does not depend on the machine's own config.
   if (agent === "claude") {
