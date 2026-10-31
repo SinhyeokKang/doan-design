@@ -8,7 +8,11 @@
   - 확인할 것: `activity`에 `kind: "edit"`와 경로가 오는지, 경로 형태(절대·상대), 거부한 수정에도 edit 활동이 오는지.
   - 방법: 격리 userData·HOME과 임시 저장소로 dev 앱을 띄운다(AGENTS 'Commands'의 격리 dev 실행). 로그인은 사용자가 브라우저에서 승인한다. 그다음 `<userData>/conversations/<id>.jsonl`을 읽는다.
   - 결과는 이 문서에 공급자별로 적는다. 못 한 공급자는 미확인으로 남기고 M4는 그대로 진행한다(2026-10-31 user).
-  - 검증: 명령 미정 — 사용자 확인 필요. 확인 절차는 `.scratch/`의 일회성 probe다.
+  - 관찰(2026-11-01 KST): Claude Code `2.1.316`, Codex `0.164.0`을 실제 dev 앱에서 각각 허용·거부로 실행했다. Home의 preload API로 `newDesign`을 시작하고 원시 JSONL과 파일 전후 내용을 비교했다. 격리 HOME에서는 Claude가 `storage_failed`, Codex가 `sign_in_failed`로 로그인에 실패해, orch 결정 10에 따라 HOME만 실제 경로로 바꿨다. userData·저장소·런타임은 임시 경로를 유지하고 부모의 `CLAUDE_CONFIG_DIR`·`CODEX_HOME`은 넘기지 않았다.
+  - Claude Code: 허용·거부 모두 `activity.kind: "edit"`, `path: "/private/tmp/doan-p1-ogyLep/repo/.doan/canvases/probe.html"`, `insideDesign: true`가 왔다. `summary`는 저장소 기준 상대 경로였다. 두 실행 모두 edit(seq 4) → Edit 권한 요청(seq 5) → 응답(seq 6) 순서였다. 허용 때만 파일이 바뀌고, 거부 때는 내용이 그대로였다.
+  - Codex: 허용·거부 모두 같은 절대 경로와 `insideDesign: true`가 왔고, `summary`는 저장소 기준 상대 경로였다. 허용은 edit(seq 30) → fileChange 권한 요청(seq 31) → accept(seq 32), 거부는 edit(seq 74) → 요청(seq 75) → decline(seq 76)이었다. 허용 때만 파일이 바뀌었다. 첫 시도는 도구 권한 대신 대화형 확인 질문만 하고 끝나 수정 관찰에서 제외했다.
+  - 승격 근거: 두 공급자 모두 edit 활동만으로 수정 성공을 판정할 수 없다. design §2.4처럼 실제 캔버스 파일 변경도 함께 확인해야 한다. 이 probe는 `/private/tmp`로 정규화한 root에서 실행했다. 상대 `activity.path`, `/tmp` 별칭을 도구에 직접 넘긴 경우, 캔버스 아닌 파일 수정은 미확인이다. ACP 공급자도 미확인이다.
+  - 검증: `.scratch/buzz-conversation-p1/verify.mjs` PASS. 네 원시 JSONL의 edit 경로·권한 전후 seq·턴 종료와 파일 전후 내용이 위 관찰에 맞는지 검사했다. 같은 디렉터리에 `probe.mjs`, `case.js`, 원시 JSONL과 실행 결과를 보존했다. 체크 표시는 지휘자가 통합할 때 고친다.
 
 ── commit: `docs(feature): record P1 provider edit activity` ──
 
