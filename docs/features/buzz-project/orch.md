@@ -61,3 +61,4 @@
 - RM 수정 r1 완료(`453aeb3e` test 15개 red 확인, `00acb7ee` fix; 앱 테스트 5212개, typecheck, build 통과). RM 재검토 r2: dispatch `ctx_72d8579cc3e5`, Codex gpt-6-astra medium. RM 터미널은 retain.
 - RM 재검토 r2: 🔴 0, 🟡 3(목록 대기 중 진입 요청이 늦은 start에 지워짐, 응답 전에 끝난 send 턴의 새 캔버스 유예 상실, 숨은 동안 사라진 대화 뒤 재진입 기본 선택), ⚪ 1(버린 Edit 복원의 첨부 해제). HomeRun 등록은 결정 10과 충돌하지 않음. 리뷰 워커 release. RM 수정 r2 보냄.
 - RM 수정 r2 완료(`8c7ac6ee` test 4개 red 확인, `0db32b89` fix; 앱 테스트 5216개, typecheck, build 통과).
+- 2파 RM 통합: `da1ca851`…`610da76b`(7개). 통합 HEAD `610da76b`에서 verify PASS(`verify-int2.log`). RM 재검토 r3(좁게): dispatch `ctx_fa1c5064f30c`. RL은 `overviewRun.ts`·`homeRun.ts`를 건드리지 않는 조건으로 r3와 병렬로 시작(지휘자 판단: 파일 겹침 없음).
