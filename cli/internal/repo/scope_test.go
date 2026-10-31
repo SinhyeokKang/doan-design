@@ -159,3 +159,36 @@ func TestLegacyDesignIsNotInDefaultScope(t *testing.T) {
 		t.Fatalf("default scope must only include doan: %#v", got)
 	}
 }
+
+// A linked default directory must not put its real target in the default
+// scope: anything outside the default directories is served only when
+// configured (ARCHITECTURE §3), and the target may be source code.
+func TestScopeSkipsLinkedDefaultDirectory(t *testing.T) {
+	for _, dir := range []string{".doan/canvases", ".doan/ds", ".doan/assets"} {
+		t.Run(dir, func(t *testing.T) {
+			root := real(t, t.TempDir())
+			put(t, root, "src/private.js", "")
+			link(t, "../src", filepath.Join(root, dir))
+			if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{}) {
+				t.Fatalf("empty config: %#v", got)
+			}
+			if got := scopeOf(t, root, Config{Serve: []string{"src"}}); !reflect.DeepEqual(got, []string{"src"}) {
+				t.Fatalf("configured: %#v", got)
+			}
+		})
+	}
+}
+
+func TestScopeSkipsDefaultsUnderLinkedMetadata(t *testing.T) {
+	root := real(t, t.TempDir())
+	for _, dir := range []string{"canvases", "ds", "assets"} {
+		put(t, root, "src/"+dir+"/a.html", "")
+	}
+	link(t, "src", filepath.Join(root, ".doan"))
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{}) {
+		t.Fatalf("empty config: %#v", got)
+	}
+	if got := scopeOf(t, root, Config{Serve: []string{"src/ds"}}); !reflect.DeepEqual(got, []string{"src/ds"}) {
+		t.Fatalf("configured: %#v", got)
+	}
+}

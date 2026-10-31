@@ -107,15 +107,15 @@ func TestDuplicateCanvasIDAcrossDirectories(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, ".doan/canvases/button.html", validCanvas)
 	putFile(t, root, ".doan/ds/button.html", validCanvas)
-	codes := findingCodes(t, root, "")
-	n := 0
-	for _, c := range codes {
-		if c == "duplicate_canvas_id" {
-			n++
+	paths := []string{}
+	for _, f := range result(t, root, 4, "check")["findings"].([]any) {
+		if f := f.(map[string]any); f["code"] == "duplicate_canvas_id" {
+			paths = append(paths, f["path"].(string))
 		}
 	}
-	if n == 0 {
-		t.Fatalf("codes: %v", codes)
+	sort.Strings(paths)
+	if !reflect.DeepEqual(paths, []string{".doan/canvases/button.html", ".doan/ds/button.html"}) {
+		t.Fatalf("duplicate_canvas_id paths: %v", paths)
 	}
 }
 
@@ -129,6 +129,10 @@ func TestSymlinkedDesignSystemDirectoryIsSkipped(t *testing.T) {
 	got := result(t, root, 0, "ls")
 	if canvases := got["canvases"].([]any); len(canvases) != 0 {
 		t.Fatalf("canvases: %v", canvases)
+	}
+	// The link target is unconfigured repository content, so it is not served.
+	if !reflect.DeepEqual(got["scope"], []any{}) {
+		t.Fatalf("scope: %v", got["scope"])
 	}
 }
 
