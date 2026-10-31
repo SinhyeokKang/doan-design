@@ -27,6 +27,10 @@
 17. 턴 도중 새 캔버스 열기는 renderer가 한다. Home에서 보낸 대화가 그 root에서 실행 중이고, 보낼 때 목록에 없던 새 캔버스 행이 나타나면 `conversationForCanvas` 없이 연다. 사람이 그사이 다른 캔버스를 열었으면 열지 않는다. 묶임 표시는 `listChanged` 뒤 목록의 canvas로 갱신한다. main은 턴 도중에 묶지 않는다(지휘자 판단 — A2 지적. design §2.4 '열기'를 지키면서 Home 회귀를 막는다. B2에 전달). 턴이 끝난 뒤 판정 창(`BIND_GRACE_MS`, 10초) 동안 나타난 행도 연다. 늦게 온 `project_busy` 거절에서 목록에 그 root를 잡은 대화가 없으면, 거절 뒤 10초 동안 Open 없는 이유 줄을 보인다. 실행 중인 다른 대화를 Open 대상으로 고르지 않는다(지휘자 판단 — B2 자체 리뷰).
 18. docked send의 `not_logged_in` 문구는 "Sign in to <provider> in Settings > Agents, then send again."이다. `rate_limited`는 Home·상태줄·스레드와 같은 "<provider> is rate limited. Try again later."를 유지한다(지휘자 판단 — RB2 ⚪3과 clarify. 오류 코드만으로는 만료와 미로그인을 구분할 수 없다. rate_limited는 앱 전체에서 같은 문구를 쓴다).
 19. 상태줄은 방문만으로 사라지지 않고 Dismiss까지 남는다. 이전 Home 동작을 그대로 둔다. Z1에서 design §3.4의 "일이 남은 대화만"과 함께 PRODUCT에 분명히 적는다(지휘자 판단 — RB2).
+20. 승격 근거는 그 턴 안의 것만 쓴다. 판정이 끝나지 않은 턴이 있으면 같은 대화의 다음 send는 판정이 끝날 때까지 기다린 뒤 새 스냅샷과 빈 근거로 시작한다. A2의 '근거 이월'은 되돌린다(지휘자 판단 — RA2 Y1. design §2.4의 매 턴 스냅샷과 같은 턴 교집합).
+21. 목록 요약에 main의 '일하는 중'과 같은 `working: boolean`을 더한다. 준비, 실행, 응답 대기, 판정 hold, 종료 대기를 모두 포함한다. `phase`는 기록 기준 그대로 둔다. renderer의 Home 이유 줄과 제거 확인은 `working`으로 센다(지휘자 판단 — RA2 Y2와 A2 열린 질문).
+22. 대기열과 돌려줄 초안의 크기 상한은 reader와 writer가 같은 값을 쓴다. 합친 결과가 상한을 넘을 대기 항목은 받기 전에 거절한다. 한 대화의 초안 때문에 `drafts.json` 전체를 못 읽는 일이 없어야 한다(지휘자 판단 — RA2 R1, POSTMORTEM 2026-10-27 reader 한계).
+23. 같은 턴 안에서 거부된 edit와 외부의 같은 파일 수정이 겹치면 지금 근거로는 구분할 수 없다. 이 한계를 Z1에서 PRODUCT에 적는다(지휘자 판단 — RA2).
 
 ## 배치
 
@@ -37,9 +41,9 @@
 | B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 통합 `61a52bdf..290e85b2` (라운드 1) |
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 완료 (🔴0, 🟡2) |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 완료 (🔴1→0) |
-| A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 진행 중 |
+| A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 리뷰 중 |
 | B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 통합 `e3efee4d..78a62850` (라운드 1) |
-| RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 대기 |
+| RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 완료 (🔴1, 🟡4) — 수정 뒤 재리뷰 |
 | RB2 | B2 리뷰 | 보고만 | B2 | Codex Astra medium — B2가 이미 Opus 서브에이전트로 자체 리뷰를 했으므로 다른 계열의 시각을 쓴다(계획의 Opus high에서 바꿈) | `/code-review` 보고 | 완료 (🔴0, 🟡4) |
 | D | D2 | `.scratch/`, 수정이 필요하면 `app/src/renderer/**`, `docs/DESIGN.md` | 모든 구현 배치 통합 | Opus medium — 정해진 측정 절차, 판단은 design-sync 리뷰가 받친다 | `verify.mjs` 통과 뒤 `/design-sync`(Home 보드)와 `/runtime-test` probe | 대기 |
 | Z | Z1, Z2 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/features/buzz-restyle/tasks.md`, 이 디렉터리 | D | 지휘자 | Z1 grep 결과 없음, `verify.mjs` 통과 | 대기 |
@@ -82,3 +86,6 @@
 - B2 수정 라운드 1을 같은 터미널로 보냈다: dispatch `ctx_900e9c3435c5`(🟡1~4, ⚪1~3, 결정 18). RB2 워커는 release했다.
 - B2 수정 라운드 1 완료: RB2 재현 검사 9개를 실제 테스트로 옮겨 빨강을 확인한 뒤 🟡1~4, ⚪1~3, 결정 18을 고쳤다. props API는 바뀌지 않았다. B2 8커밋을 `e3efee4d..78a62850`으로 통합했다. B2 워커를 release하고 worktree `bc-b2`를 제거했다. 증거는 `.scratch/buzz-conversation/b2/`에 있다.
 - 통합 HEAD `78a62850`(B2 포함)에서 `verify.mjs` PASS.
+- A2 완료(`worker_done` succeeded): `e3a12ea6..0de67e64` 4커밋, 테스트 5275개·typecheck·verify 통과, 자체 리뷰 🔴2·🟡4 반영. 열린 질문: 대기열을 보내려고 기다리는 동안 목록 `phase`가 `ended`다. A2 터미널은 수정 라운드용으로 retain했다.
+- RA2 리뷰 시작(Codex Astra medium).
+- RA2 완료(Codex): 🔴1(합친 초안이 커지면 다음 실행에서 `drafts.json` 전체가 손상으로 읽힘), 🟡4(턴 사이 근거를 섞어 잘못 승격, hold가 목록에서 사라짐, 로그아웃 때 hold의 대기열을 돌려주지 않음, 첨부 sent 표시 실패 때 이미 저장된 대기 항목), ⚪2. 리뷰어가 `node_modules`가 있는데 `npm ci`를 돌렸다(추적 파일 변경 없음).
