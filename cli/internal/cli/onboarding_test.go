@@ -816,8 +816,9 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 	for _, parts := range [][]string{
 		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
 		{"`app_not_running`", "`app_launch_failed`", "open Doan", "recover as for `app_not_running` from `doan active`", "with `doan onboarding start` in place of `doan active`"},
-		// The changes are always told before the write, but a user who already agreed is not asked again (agent-eval 2026-10-29 O1, re-measure).
-		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "already agreed", "do not ask again", "Otherwise ask first"},
+		// The changes are always told before the write, but a user who explicitly allowed setup files is not asked again (agent-eval 2026-10-29 O1, re-measure).
+		// A general setup request is not that permission (agent-eval 2026-10-31 remove-mcp O2, U-015).
+		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "A request to set up Doan or select a repository is not agreement", "explicitly said Doan may add its setup files", "do not ask again", "Otherwise ask first"},
 	} {
 		found := false
 		for _, l := range strings.Split(skillBody, "\n") {
