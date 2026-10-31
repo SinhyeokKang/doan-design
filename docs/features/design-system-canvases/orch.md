@@ -14,6 +14,8 @@
 - 지휘자 판단 — `/runtime-test`와 `/design-sync`는 해당 배치 워커가 한다. BA와 BS는 직렬이라 GUI probe가 겹치지 않는다.
 - 지휘자 판단 — R-BC 🔴(symlink인 기본 서빙 디렉터리가 설정 없이 실제 대상 전체를 서빙): `.doan/ds`만이 아니라 기본 디렉터리 셋(`canvases`·`ds`·`assets`) 모두에서 symlink인 기본 경로를 기본 범위에서 뺀다. 명시한 `serve`는 그대로 둔다. 근거: ARCHITECTURE §3은 기본 디렉터리 밖의 자산을 설정하라고 하고, 같은 결함이 기존 기본 경로에도 있었다. BC 수정 1회차와 `/postmortem`으로 처리한다.
 - 지휘자 판단 — catalog의 `document` 설명도 `.doan/ds/` 캔버스로 고친다(BP 후속 2). 근거: 본문과 목록 설명이 어긋나면 안 된다. 공용 fixture `list.json`도 BP가 맡는다.
+- 지휘자 판단 — BA handoff의 계획 줄 해석을 받아들인다: 복사한 뒤 원본을 지우면 남은 행이 하나라 앱이 복사본을 따라가고, 중복 id 알림은 같은 id의 행이 둘일 때 나온다. tasks T5의 해당 줄은 계획의 오기다.
+- 지휘자 판단 — R-BE 🟡1: D13은 상태 프레임을 새로 더하는 것을 허용한다(`document.md`의 "each topic or state group its own frame"과 맞춘다). 근거: 확인을 더 확실히 하는 쪽은 preset이 허용하는 선택을 checker가 떨어뜨리지 않는 것이다.
 - 지휘자 판단 — T10 `/agent-eval`의 실제 에이전트 실행은 AGENTS.md '/agent-eval' 상시 예외로 진행한다. `node eval/run.ts`로 실행하고 실제 HOME에는 쓰지 않는다.
 
 ## 배치
