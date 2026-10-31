@@ -582,7 +582,7 @@ code, kbd { font-family: var(--type-family); }
 
 /* The native sidebar material continues behind the shell; content stays opaque. */
 body:has(.shell-top) { background: transparent; }
-.workspace.app-shell { grid-template-columns: 260px minmax(0, 1fr) 280px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
+.workspace.app-shell { grid-template-columns: 220px minmax(0, 1fr) 280px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
 .workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 88px; }
@@ -639,7 +639,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-group .shell-canvas-row { padding-left: calc(10px + var(--size-icon) + var(--space-2)); }
 .shell-group .shell-empty { padding-left: calc(34px + var(--size-icon) + var(--space-2)); }
 .shell-group .shell-canvas-error { padding-left: calc(32px + var(--size-icon) + var(--space-2)); }
-.shell-project-menu { width: 244px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
+.shell-project-menu { width: 204px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
 .shell-project-menu .doan-menu-item { display: flex; gap: 8px; align-items: center; }
 .shell-worktree[aria-current="true"] { background: var(--affordance-backdrop-pressed); }
 .shell-project-menu svg { width: 16px; height: 16px; flex: none; }
@@ -657,7 +657,7 @@ body:has(.shell-top) { background: transparent; }
 
 /* buzz-home: Home is the workspace's shell with the conversation composer as its body (.doan/canvases/buzz-home.html,
    confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
-.home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
+.home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
 .home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (buzz-add-projects
