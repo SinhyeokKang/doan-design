@@ -58,6 +58,14 @@ describe("promotionTarget", () => {
     const moved: Canvas = { path: ".doan/canvases/renamed.html", id: "a" };
     expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/renamed.html"]), [moved, b], [a, b], idle)).toEqual(moved);
   });
+  it("does not guess which canvas an edit hit when two canvases swapped paths during the turn", () => {
+    const swappedA: Canvas = { path: ".doan/canvases/b.html", id: "a" }, swappedB: Canvas = { path: ".doan/canvases/a.html", id: "b" };
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html"]), [swappedA, swappedB], [a, b], idle)).toBeNull();
+  });
+  it("does not hand an edit of a moved canvas to another canvas that took its old path", () => {
+    const moved: Canvas = { path: ".doan/canvases/renamed.html", id: "a" }, taken: Canvas = { path: ".doan/canvases/a.html", id: "b" };
+    expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html", ".doan/canvases/b.html", ".doan/canvases/renamed.html"]), [moved, taken], [a, b], idle)).toBeNull();
+  });
   it("leaves out rows that share an ID and canvases deleted during the turn", () => {
     const twin: Canvas = { path: ".doan/canvases/twin.html", id: "a" };
     expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"]), [a, twin, b], [a, b], idle)).toBeNull();

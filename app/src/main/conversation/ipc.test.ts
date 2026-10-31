@@ -160,13 +160,13 @@ describe("validateSendExtras", () => {
 
 // buzz-conversation M1/M3: the list, the seen marker and a send's extras through IPC.
 describe("conversation list, seen marker and send extras", () => {
-  function sendFixture(dir: string) {
+  function sendFixture(dir: string, list: ModelOption[] = MODELS) {
     const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
     const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
     const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
     const store = new ConversationStore(dir);
     const service = new ConversationService(store, prepare, open, () => {});
-    const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => MODELS);
+    const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => list);
     const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
     const attachments = { resolve: vi.fn((value: unknown[]) => value.some(v => (v as { id: string }).id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: true, records }), markSent: vi.fn(), consume: vi.fn() };
     const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
@@ -221,6 +221,22 @@ describe("conversation list, seen marker and send extras", () => {
       expect(h.attachments.markSent).toHaveBeenCalledWith([{ id: "a" }]);
       expect(h.attachments.consume).toHaveBeenLastCalledWith([{ id: "a" }]);
       expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder.at(-1)!);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("passes the model's default effort along when the send's model has no effort", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir, [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"], defaultEffort: "low" }]);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      await h.handle(true, "models", { root: "/repo", runtime: "claude" });
+      await h.handle(true, "send", { conversationId: id, text: "y", model: "sonnet" });
+      expect(h.send.mock.calls[0]![3]).toEqual({ model: "sonnet", defaultEffort: "low" });
+      await h.handle(true, "send", { conversationId: id, text: "y", model: "sonnet", effort: "high" });
+      expect(h.send.mock.calls[1]![3]).toEqual({ model: "sonnet", effort: "high" });
+      // Without a new model, the stored one's default goes along when the stored choice has no effort.
+      h.store.save(h.store.list().map(m => ({ ...m, model: "sonnet" })));
+      await h.handle(true, "send", { conversationId: id, text: "y" });
+      expect(h.send.mock.calls[2]![3]).toEqual({ defaultEffort: "low" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("refuses extras on a legacy external conversation and passes project_busy through", async () => {

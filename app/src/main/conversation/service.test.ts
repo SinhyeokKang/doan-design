@@ -592,6 +592,22 @@ describe("project conversation limit", () => {
     h.service.receive(a, { type: "activity", kind: "read", summary: "Read a.html" });
     await h.service.start(homeRequest);
   });
+  it("folds a turn whose history stopped taking writes as ended once its process is gone, and announces it", async () => {
+    const h = homeFixture();
+    const a = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, { type: "permission.request", requestId: "r", tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    expect(h.service.list("/repo")[0]!.phase).toBe("waiting");
+    vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+    h.changes.length = 0;
+    h.service.receive(a, { type: "activity", kind: "read", summary: "Read a.html" });
+    expect(h.changes).toEqual(["/repo"]);
+    h.changes.length = 0;
+    h.open.mock.calls[0]![2]();
+    expect(h.changes).toEqual(["/repo"]);
+    expect(h.service.list("/repo")[0]).toMatchObject({ phase: "ended", unseen: true });
+    const read = h.service.read(a);
+    expect(read.turn).toBe("interrupted"); expect(read).not.toHaveProperty("pendingPermission");
+  });
   it("does not count a start refused during preparation", async () => {
     const h = homeFixture(); h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
     await expect(h.service.start(homeRequest)).rejects.toThrow("not_logged_in");
@@ -673,6 +689,15 @@ describe("send extras", () => {
     await h.service.send(id, "again", [], { model: "gpt-6-sol", effort: "low" });
     expect(h.open).toHaveBeenCalledOnce();
     expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toEqual({ model: "gpt-6-sol", effort: "low" });
+  });
+  it("tells the runner the model's default effort for a turn whose choice has none, without storing it", async () => {
+    const h = homeFixture(); const id = await finished(h);
+    await h.service.send(id, "again", [], { model: "opus", defaultEffort: "medium" });
+    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "medium" });
+    expect(h.store.list()[0]!.model).toBe("opus"); expect(h.store.list()[0]).not.toHaveProperty("effort");
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    await h.service.send(id, "more", [], { model: "opus", effort: "high", defaultEffort: "medium" });
+    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "high" });
   });
   it("saves the turn's canvas list as a project conversation's snapshot", async () => {
     const h = homeFixture([{ path: ".doan/canvases/a.html", id: "a" }]);
