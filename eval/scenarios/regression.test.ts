@@ -8,9 +8,7 @@ import { createContext } from "../lib/context.ts";
 import { toolCalls } from "../lib/transcript.ts";
 import type { Checks } from "../lib/types.ts";
 import r1 from "./R1/checks.ts";
-import r1b from "./R1b/checks.ts";
 import r2 from "./R2/checks.ts";
-import r2b from "./R2b/checks.ts";
 import r3 from "./R3/checks.ts";
 import w1 from "./W1/checks.ts";
 
@@ -85,27 +83,4 @@ test("R2 active detail describes invocation evidence without claiming success", 
   const called = r2(fixture("R2", claude("doan active --json") + '\napp_not_running')).find(c => c.id === "asked_doan_active")!;
   assert.equal(called.pass, true);
   assert.match(called.detail, /invoked.*success.*not/i);
-});
-test("R2b accepts shell and both agents' MCP calls, rejects prose and other servers", () => {
-  const mcp = (name: string) => JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name, input: { repo: "/tmp/repo" } }] } });
-  const rollout = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input: "text(await tools.mcp__doan__active({repo: '/tmp/repo'}));" } });
-  for (const transcript of [claude("doan active --json"), mcp("mcp__doan__active"), rollout]) all(r2b, fixture("R2b", transcript));
-  for (const transcript of ["Guide: doan active or mcp__doan__active", mcp("mcp__other__active"), claude("echo 'doan active'")]) assert.equal(r2b(fixture("R2b", transcript)).find(c => c.id === "asked_doan_active")?.pass, false);
-  const ctx = fixture("R2b", rollout);
-  writeFileSync(join(ctx.repo, ".doan/canvases/checkout.html"), ctx.read(".doan/canvases/checkout.html")!.replace("Start free trial", "Changed"));
-  assert.equal(r2b(ctx).find(c => c.id === "other_elements_unchanged")?.pass, false);
-});
-
-test("R1b requires MCP resolve invocation and preserves R1 event checks", () => {
-  const mcp = JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "mcp__doan__resolve_comments", input: {} }] } });
-  const rollout = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "exec", input: "await tools.mcp__doan__resolve_comments({ids: [], agent: 'codex'});" } });
-  for (const transcript of [mcp, rollout]) all(r1b, fixture("R1b", transcript));
-  for (const transcript of ["Use mcp__doan__resolve_comments", claude("doan comment resolve cmt_id --agent codex")])
-    assert.equal(r1b(fixture("R1b", transcript)).find(c => c.id === "mcp_resolve_invoked")?.pass, false);
-  const ctx = fixture("R1b", mcp);
-  const path = join(ctx.repo, ".doan/comments/profile.jsonl");
-  writeFileSync(path, ctx.read(".doan/comments/profile.jsonl")!.replaceAll('"kind": "agent"', '"kind": "human"'));
-  assert.equal(r1b(ctx).find(c => c.id === "profile_agent_resolves_only")?.pass, false);
-  writeFileSync(path, ctx.seed(".doan/comments/profile.jsonl")!);
-  assert.equal(r1b(ctx).find(c => c.id === "profile_agent_resolves_only")?.pass, false);
 });

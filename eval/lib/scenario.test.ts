@@ -40,18 +40,18 @@ test("real rounds leave out underscore ids; self-test keeps them", () => {
 });
 
 test("scenario MCP is opt-in and must be boolean", () => {
-  const value = { id: "R2b", title: "MCP selection", focus: "active" };
-  assert.equal(parseScenarioJson({ ...value, mcp: true }, "R2b").mcp, true);
-  assert.equal(parseScenarioJson({ ...value, mcp: false }, "R2b").mcp, false);
-  for (const mcp of [null, "true", 1, {}]) assert.throws(() => parseScenarioJson({ ...value, mcp }, "R2b"));
+  const value = { id: "R2", title: "Selection", focus: "active" };
+  assert.equal(parseScenarioJson({ ...value, mcp: true }, "R2").mcp, true);
+  assert.equal(parseScenarioJson({ ...value, mcp: false }, "R2").mcp, false);
+  for (const mcp of [null, "true", 1, {}]) assert.throws(() => parseScenarioJson({ ...value, mcp }, "R2"));
 });
 
 test("shellCli defaults to true and accepts only a boolean", () => {
-  const value = { id: "R1b", title: "MCP comments", focus: "comments", mcp: true };
-  assert.equal(parseScenarioJson(value, "R1b").shellCli, true);
-  assert.equal(parseScenarioJson({ ...value, shellCli: false }, "R1b").shellCli, false);
-  assert.equal(parseScenarioJson({ ...value, shellCli: true }, "R1b").shellCli, true);
-  for (const shellCli of [null, "false", 0, {}]) assert.throws(() => parseScenarioJson({ ...value, shellCli }, "R1b"));
+  const value = { id: "D4", title: "No shell CLI", focus: "preset" };
+  assert.equal(parseScenarioJson(value, "D4").shellCli, true);
+  assert.equal(parseScenarioJson({ ...value, shellCli: false }, "D4").shellCli, false);
+  assert.equal(parseScenarioJson({ ...value, shellCli: true }, "D4").shellCli, true);
+  for (const shellCli of [null, "false", 0, {}]) assert.throws(() => parseScenarioJson({ ...value, shellCli }, "D4"));
 });
 
 test("onboarding is null or the scenario's app-socket v2 script", () => {

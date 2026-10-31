@@ -1,1 +1,0 @@
-{"type":"assistant","message":{"content":[{"type":"tool_use","name":"mcp__doan__resolve_comments","input":{"agent":"codex","ids":["cmt_00000000-0000-4000-8000-000000000001","cmt_00000000-0000-4000-8000-000000000002","cmt_00000000-0000-4000-8000-000000000003"]}}]}}

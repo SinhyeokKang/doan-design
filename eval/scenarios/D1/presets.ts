@@ -137,8 +137,8 @@ export function checkClean(ctx: CheckContext): Check {
   return { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary ?? check.json?.error)}` };
 }
 
-// Ways to get the guide or a preset around the paths a run provides (D3b, D4b,
-// D10b): installs, MCP registration, shell profile edits, another doan binary,
+// Ways to get the guide or a preset around the paths a run provides (D4b):
+// installs, MCP registration, shell profile edits, another doan binary,
 // `go run`/`go build` of the doan command, and reading doan's source files.
 const INSTALLERS = ["brew", "npm", "pnpm", "yarn", "pip", "pip3", "pipx", "go", "cargo", "gem", "port", "apt", "apt-get"];
 const SOURCE = /designskill\/presets\/|cli\/internal\/designskill\b|cli\/internal\/cli\/skill\.md/;

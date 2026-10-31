@@ -1,26 +1,32 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, before, test } from "node:test";
+import { KNOWN_CONDITIONS } from "./known-conditions.ts";
 import { summary, roundRow, type RunRecord } from "./record.ts";
+
+// The table is empty while no condition is known; a stand-in entry exercises the mechanism.
+const CONDITION = { scenario: "X1", agent: "codex" as const, expectedFailedChecks: ["first_check", "second_check"], note: "expected fail: stand-in condition" };
+before(() => { KNOWN_CONDITIONS.push(CONDITION); });
+after(() => { KNOWN_CONDITIONS.splice(KNOWN_CONDITIONS.indexOf(CONDITION), 1); });
 
 const run = (scenario: string, agent: "claude" | "codex", n: number, result: RunRecord["result"]): RunRecord =>
   ({ scenario, agent, n, dir: "", result, checks: [], judge: "skipped", durationSec: 1, exitCode: 0, timedOut: false });
 
-test("R1b Codex write approval condition excludes only expected check failures", () => {
+test("a known condition excludes only its expected check failures", () => {
   const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
-  const checks = ["profile_agent_resolves_only", "profile_comments_valid"].map(id => ({ id, pass: false, detail: "approval refused" }));
-  const record = { ...run("R1b", "codex", 1, "fail"), checks };
+  const checks = ["first_check", "second_check"].map(id => ({ id, pass: false, detail: "expected" }));
+  const record = { ...run("X1", "codex", 1, "fail"), checks };
   const text = summary("round", meta, [record, { ...record, agent: "claude" }]);
-  assert.match(text, /MCP write approval refused under approval: never/);
-  assert.match(text, /R1b: codex fail, claude fail/);
-  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*R1b \/ codex/);
-  assert.match(text.split("## Issue candidates")[1], /\*\*R1b \/ claude/);
+  assert.match(text, /expected fail: stand-in condition; recorded result: fail/);
+  assert.match(text, /X1: codex fail, claude fail/);
+  assert.doesNotMatch(text.split("## Issue candidates")[1], /\*\*X1 \/ codex/);
+  assert.match(text.split("## Issue candidates")[1], /\*\*X1 \/ claude/);
   for (const unexpected of [
     { ...record, checks: [...checks, { id: "agent_cli_provenance", pass: false, detail: "wrong CLI" }] },
     { ...record, checks: [] },
     { ...record, timedOut: true },
     { ...record, result: "judge_error" as const },
   ]) {
-    assert.match(summary("round", meta, [unexpected]).split("## Issue candidates")[1], /\*\*R1b \/ codex/);
+    assert.match(summary("round", meta, [unexpected]).split("## Issue candidates")[1], /\*\*X1 \/ codex/);
   }
 });
 
@@ -82,7 +88,7 @@ test("judge-only partials keep their evidence outside issue candidates without r
 
 test("known-condition table matches replace only the displayed layer", () => {
   const meta = { date: "2026-10-24", versions: {}, guideSha256: "", cliVersion: "" };
-  for (const [scenario, checkId] of [["R1b", "profile_agent_resolves_only"]]) {
+  for (const [scenario, checkId] of [["X1", "first_check"]]) {
     for (const judge of [
       { verdict: "fail", layer: "product", reasons: ["Known limitation"], stalls: [] },
       { verdict: "fail", layer: "none", reasons: [], stalls: [] },

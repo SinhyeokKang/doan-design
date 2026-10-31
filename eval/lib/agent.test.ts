@@ -129,7 +129,7 @@ test("rollout output cannot evict active calls or original log tails from judge 
 test("workspace preparation writes Claude MCP config outside the measured repo", async () => {
   const { prepareWorkspace } = await import("./workspace.ts");
   const { loadScenario } = await import("./scenario.ts");
-  const scenario = loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2b");
+  const scenario = { ...loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2"), mcp: true };
   const cli = "/tmp/packaged CLI/doan";
   const ws = await prepareWorkspace({ scenario, agent: "claude", cli, stub: "stub" });
   try {
@@ -175,7 +175,7 @@ test("shellCli false removes inherited doan while preserving colocated tools and
     writeFileSync(join(dir, "doan"), "#!/bin/sh\necho inherited-doan\n", { mode: 0o755 });
     writeFileSync(join(dir, "eval-peer"), "#!/bin/sh\necho peer-ok\n", { mode: 0o755 });
     process.env.PATH = `${dir}:${original}`;
-    const scenario = { ...loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2b"), shellCli: false };
+    const scenario = { ...loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2"), mcp: true, shellCli: false };
     const cli = "/tmp/packaged CLI/doan";
     const ws = await prepareWorkspace({ scenario, agent: "claude", cli, stub: "stub" });
     try {

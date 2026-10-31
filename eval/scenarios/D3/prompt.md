@@ -1,1 +1,0 @@
-The error messages on the Checkout canvas are vague: people can't tell what went wrong or what to do next. Fix them, and keep everything else on the canvas as it is. The doan shell CLI is not on PATH in this environment; do not install it or use an absolute CLI path.

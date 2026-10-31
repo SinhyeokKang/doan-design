@@ -1,1 +1,0 @@
-{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "mcp__doan__active", "input": {"repo": "/tmp/eval-repo"}}]}}

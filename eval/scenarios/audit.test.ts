@@ -8,7 +8,6 @@ import { createContext } from "../lib/context.ts";
 import { toolCalls } from "../lib/transcript.ts";
 import { buildJudgePrompt } from "../lib/judge.ts";
 import r2 from "./R2/checks.ts";
-import r2b from "./R2b/checks.ts";
 import r3 from "./R3/checks.ts";
 import r4 from "./R4/checks.ts";
 import h3 from "./H3/checks.ts";
@@ -26,7 +25,7 @@ function fixture(id: string) {
   return createContext({ repo, agent: "fixture", transcript: "", cli, env: process.env, seedCommit: "HEAD" });
 }
 const shell = (command: string) => toolCalls(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } }));
-for (const [id, checks] of [["R2", r2], ["R2b", r2b]] as const) {
+for (const [id, checks] of [["R2", r2]] as const) {
   test(`${id} and judge recognize global flag grammar without counting flag values`, () => {
     const ctx = fixture(id);
     for (const [command, expected] of [
@@ -61,7 +60,7 @@ for (const [id, checks] of [["R2", r2], ["R2b", r2b]] as const) {
     }
   });
 }
-for (const id of ["R1", "R2", "R2b", "R3", "H1", "H2", "H4", "W1", "W2", "R4"]) {
+for (const id of ["R1", "R2", "R3", "H1", "H2", "H4", "W1", "W2", "R4"]) {
   test(`${id} Python helper parses legitimate input without importing repo modules`, async () => {
     const ctx = fixture(id), marker = join(root, `${id}-python-marker`);
     const poison = `open(${JSON.stringify(marker)}, 'w').write('imported')\nraise RuntimeError('repo module imported')\n`;
