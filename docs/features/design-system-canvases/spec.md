@@ -20,7 +20,7 @@ PRODUCT §6 'Open questions'의 "Design-system canvases" 항목을 feature로 �
 2. 앱 기본 서빙 범위(`doan ls` `result.scope`)에 `.doan/ds/`가 들어간다. `.doan/ds/` 캔버스가 링크한 `.doan/ds/` 안의 CSS에 `css_not_served`가 나오지 않는다. `doan config --add-serve .doan/ds`도 `.doan/canvases`처럼 받아들인다.
 3. 캔버스 id와 프레임 규칙, `doan check`의 모든 규칙이 두 디렉터리에 똑같이 적용된다. 두 디렉터리 사이의 id 중복은 `duplicate_canvas_id`다. `no_canvases`는 두 디렉터리 모두 비었을 때만 나온다.
 4. 앱이 `.doan/ds/`를 감시한다. 그 안의 캔버스 HTML이 바뀌면 그 캔버스 행의 `rev`만 오르고, 다른 파일이 바뀌면 `servedRev`가 오른다(`.doan/canvases/`와 같은 규칙). `.doan/ds/`를 지웠다가 다시 만들어도 감시가 이어진다.
-5. sidebar는 펼친 프로젝트에서 선택한 워크트리의 `.doan/canvases/` 캔버스 행 다음에 'Design system' 묶음과 그 안의 `.doan/ds/` 캔버스 행을 보인다. 행의 동작(열기, 코멘트 수, 상태 slot, 읽기 오류, 화살표 키, typeahead)은 기존 캔버스 행과 같다. 화면은 확정한 초안을 따른다.
+5. sidebar는 펼친 프로젝트 아래에 열고 닫을 수 있는 'Design system'(`.doan/ds/`)과 'Canvases'(`.doan/canvases/`) 묶음을 이 순서로 보인다. 각 묶음 머리에는 캔버스 수 배지가 있고, 비어 있어도 보인다. design-system 행과 캔버스 행은 아이콘이 다르다. 행의 동작(열기, 코멘트 수, 상태 slot, 읽기 오류, 화살표 키, typeahead)은 기존 캔버스 행과 같다. 화면은 확정한 초안을 따른다.
 6. Home 추천: '캔버스 없음'과 `critique`·`polish` 대상은 `.doan/canvases/` 캔버스만 센다. `document`는 `.doan/ds/`에 캔버스가 없을 때 추천한다.
 7. 썸네일, Quick Open, 캔버스 이동 추적, 앱 대화의 캔버스 연결(conversation 저장 검증과 activity의 `insideDesign`)이 `.doan/ds/` 캔버스에서도 `.doan/canvases/` 캔버스와 똑같이 동작한다. 캔버스가 사라졌을 때의 toast는 그 캔버스가 있던 디렉터리 이름을 말한다.
 8. `document` preset이 `.doan/ds/`에 토큰 그룹별·컴포넌트별 캔버스를 만들기를 기본으로 제안한다. 프로젝트가 이미 다르게 정리해 두었으면 그 구성을 따른다. `.doan/canvases/design-system.html`이 있으면 그것을 기존 design system으로 읽고, 사용자의 동의 없이 옮기지 않는다. 다른 preset 본문은 design system을 `.doan/ds/`에서 찾는다. guide와 preset 출력은 출력 예산 테스트 안에 있다.

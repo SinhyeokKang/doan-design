@@ -7,6 +7,9 @@
 - **Q3 앱은 sidebar만 바꾼다**(사용자 답 "따로 묶어 보임", 이어서 "사이드바만 이 과업에서 진행한다. 프로젝트 오버뷰는 그 과업 진행 시"): sidebar에 'Design system' 묶음을 둔다. Overview는 buzz-restyle `buzz-project`(#7)가 정한다.
 - **Q4 이 repo의 캔버스를 옮기고 나눈다**(사용자 답 "옮기고 나눔"): 확장한 `document`를 이 repo에 실제로 돌려 기본 분할 제안을 먼저 검증한다. 두 캔버스 모두 코멘트 파일이 없어서(`.doan/comments/buzz-ds.jsonl`, `notice.jsonl` 없음) 옮기고 나눠도 코멘트가 고아가 되지 않는다.
 - **Q5 Home 추천은 화면 초안만 센다**(사용자 답): '캔버스 없음'과 `critique`·`polish` 대상은 `.doan/canvases/`만 본다. `document`는 `.doan/ds/`가 비었을 때 추천한다.
+- **Q6 sidebar는 두 아코디언이다**(`/design-draft` 중 사용자 답 "프로젝트 아래에 디자인시스템 목록과 캔버스 목록을 별개로. 열고닫을 수 있는 아코디언과 갯수 뱃지. empty 상태에도 보임"): 펼친 프로젝트 아래에 'Design system'과 'Canvases' 묶음을 따로 두고, 각 묶음은 열고 닫을 수 있으며 캔버스 수 배지를 단다. 비어 있어도 보인다.
+- **Q7 순서는 Design system 먼저**(사용자 답): 짧고 잘 안 바뀌는 목록이 위에 있어서, 캔버스가 많아도 밀려 내려가지 않는다.
+- **Q8 아이콘을 나눈다**(사용자 답 "아이콘은 다르게 가야함. ds 캔버스 아이콘은 그에 어울리는 걸로", "캔버스 아이콘이 너무 중의적이면 캔버스 아이콘도 이번에 바꾼다"): design-system 캔버스는 lucide `SwatchBook`, 캔버스는 지금의 `Palette` 대신 lucide `PanelsTopLeft`를 쓴다. `Palette`를 `SwatchBook` 옆에 두면 둘 다 '색'으로 읽히기 때문이다. 같은 아이콘을 쓰는 Quick Open(`QuickOpenDialog.tsx`의 Canvases 탭과 캔버스 결과 행)도 같은 두 아이콘으로 바꾼다. 배치는 그대로이고, 초안에는 그리지 않는다.
 
 ## 영향 받는 구성 요소
 
@@ -42,7 +45,23 @@
   - `app/src/renderer/homeComposer.ts`: `isDesignSystem`을 지우고 Q5 규칙으로 바꾼다.
   - `app/src/renderer/ProjectSettingsDialog.tsx`의 serve 설명 "Canvases can read files in .doan/canvases/, the token CSS and these paths."에 `.doan/ds/`를 넣는다. 문구는 Doan의 `clarify` preset을 먼저 적용한다.
   - 그대로 두는 곳: `canvasTree.ts`(Overview 섹션, buzz-project 범위), onboarding의 변경 목록(`init`은 `.doan/ds/`를 만들지 않는다), `firstPromptView.ts`의 대기 문구, 주석 속 초안 경로.
-- **sidebar** (`app/src/renderer/ShellSidebar.tsx`): 선택한 워크트리의 행을 두 묶음으로 나눈다. 먼저 `.doan/canvases/` 행(지금 순서 규칙), 다음에 'Design system' 묶음과 `.doan/ds/` 행(같은 순서 규칙). 묶음 제목은 tree item이 아니다(초점, 펼침 상태, 저장 없음). tree에서는 `role="group"`과 `aria-label="Design system"`으로 묶고, ↑/↓·Home/End·typeahead는 두 묶음의 행을 한 줄로 이어서 다닌다. `.doan/ds/` 행만 있으면 묶음만 보인다. 두 디렉터리 모두 비었을 때의 기존 표시는 그대로다. 크기·간격·제목 모양은 `/design-draft`가 그린 초안을 사용자가 확정한 뒤 정한다. 'Design system'은 `document` preset 제목("Document the design system")과 같은 용어다.
+- **sidebar** (`app/src/renderer/ShellSidebar.tsx`, Q6~Q8): 목록을 읽은(`list`) 프로젝트를 펼치면 선택한 워크트리 아래에 묶음 머리 두 개가 이 순서로 온다.
+  - 'Design system'(`.doan/ds/` 행)과 'Canvases'(`.doan/canvases/` 행). 각 묶음 안의 순서는 지금의 캔버스 순서 규칙이다.
+  - 묶음 머리는 tree item이다(`aria-level` 2, `aria-expanded`). 앞의 chevron은 펼침 상태를 보이고, 뒤의 배지는 그 묶음의 캔버스 수다(읽기 오류 행 포함, 코멘트 수가 아니다). 클릭, Enter, ←/→로 열고 닫는다. 캔버스 행은 `aria-level` 3이다. ↑/↓·Home/End·typeahead는 보이는 행(머리 포함)을 한 줄로 다닌다.
+  - 비어 있는 묶음도 머리와 배지 `0`을 보이고, 열려 있으면 빈 줄을 보인다: Design system "No design system yet", Canvases "No canvases yet"(지금 문구).
+  - 펼침 상태는 처음에 열림이고, 프로젝트 펼침처럼 이 기기에 프로젝트별로 기억한다(device-local `ui-state.json`). 캔버스를 열면 그 캔버스가 든 묶음이 열린다. 사람은 그 뒤에 다시 닫을 수 있다.
+  - 닫힌 묶음 안의 행 상태 slot은 지금 규칙(행이 화면에 없으면 프로젝트 행이 slot을 보인다)을 따른다. 묶음 머리에는 slot이 없다.
+  - 목록을 읽지 못한 프로젝트(Not set up 등)는 묶음 없이 지금처럼 상태 한 줄을 보인다.
+  - 아이콘: design-system 행은 `SwatchBook`, 캔버스 행은 `PanelsTopLeft`(Q8).
+  - 'Design system'은 `document` preset 제목("Document the design system")과 같은 용어다. 크기·간격은 확정한 초안을 따른다.
+
+### 초안 요청
+
+- 경로·id: `.doan/canvases/design-system-canvases.html`, `design-system-canvases`. 출시된 sidebar(`ShellSidebar.tsx`, `styles.css`, DESIGN.md 'App shell')를 복사하고 묶음 머리와 두 아이콘만 새로 그린다.
+- 프레임:
+  - `groups` — 두 묶음이 열린 상태, Design system이 닫힌 상태, Canvases가 닫혀 있고 design-system 캔버스가 열린 상태.
+  - `empty` — design-system 캔버스만 없을 때, 캔버스만 없을 때, 둘 다 없을 때, 목록을 읽지 못한 프로젝트.
+  - `row-states` — design-system 행의 상태 slot(permission, working, unseen), 읽기 오류 행과 Details, 긴 이름, 잠긴 상태(`aria-disabled`), 묶음 머리의 hover와 키보드 초점.
 
 ### 형식
 
@@ -55,7 +74,7 @@
 - Go `repo.Scope`·`MetadataPath`: 기본 범위에 `.doan/ds`, `.doan/ds/x.css`가 메타데이터가 아님, `.doan/comments`는 여전히 메타데이터.
 - Go `check`: 두 디렉터리 사이의 `duplicate_canvas_id`, `.doan/ds/`만 있을 때 `no_canvases` 없음, `.doan/ds/` CSS에 `css_not_served` 없음, `orphan_comment_file`이 `.doan/ds/` 캔버스 id를 셈.
 - TS 경로 판단 함수(main·renderer 공용): 경로 → `canvases` | `ds` | 캔버스 아님. `.doan/dsx/`, `.doan/ds`(디렉터리 자체), 대소문자 `.HTML`.
-- TS `sidebarGroups(rows)`: 두 묶음과 각 순서, 한쪽만 있을 때, 키 이동 순서.
+- TS `sidebarGroups(rows)`: 두 묶음(Design system 먼저)과 각 순서·개수, 빈 묶음, 접힌 묶음을 뺀 키 이동 순서, 캔버스를 열 때 펼칠 묶음.
 - TS `suggestedPresets`·`suggestedPrompts`: Q5 규칙(design-system 캔버스만 있을 때, 화면 초안만 있을 때, 둘 다).
 - TS `designChange`: `.doan/ds/` 이름의 `rev`·`servedRev` 분류, 임시 저장 파일 무시 규칙 유지.
 - TS 사라진 캔버스 toast 문구(디렉터리 이름 포함).
