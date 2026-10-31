@@ -6,6 +6,7 @@ import { canvasKind } from "../formats/canvasPath";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
+import { anotherConversation } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 
 // Pure parts of the Home composer (buzz-home design §4, §11). Copy follows the confirmed draft
@@ -69,8 +70,8 @@ export interface SendInput {
   root: FolderEntry | null; projectName: string;
   auth: AuthSnapshot | null | undefined; provider: Provider | null;
   text: string; preset: PresetRef | null; attachments: readonly AttachmentDraft[];
-  // A Home conversation still running in this root.
-  running: string | null;
+  // A Home conversation still running in this root; waiting: it waits for a permission answer.
+  running: { conversationId: string; waiting: boolean } | null;
   sending: boolean;
 }
 export type SendReason = { kind: "noProject" | "projectUnavailable" | "noAgent" | "agentUnavailable" | "overLimit" | "anchorMarkers" | "checking" | "attachmentMissing"; text: string } | { kind: "running"; text: string; open: string };
@@ -86,7 +87,7 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (!connectedProviders(input.auth).filter(selectableProvider).some(s => s.provider === input.provider)) return off({ kind: "agentUnavailable", text: `${PROVIDER_NAMES[input.provider]} can’t run right now. Choose another agent.` });
   // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
-  if (input.running) return off({ kind: "running", text: `A conversation from Home is still running in ${input.projectName}.`, open: input.running });
+  if (input.running) return off({ kind: "running", text: anotherConversation(input.projectName, input.running.waiting), open: input.running.conversationId });
   const request = composeRequest(input.text, input.preset, input.attachments.length);
   if (request.length > TEXT_LIMIT) return off({ kind: "overLimit", text: "Shorten the message to send it." });
   // The conversation IPC reads {{ and }} as anchor markers and refuses them even without anchors.

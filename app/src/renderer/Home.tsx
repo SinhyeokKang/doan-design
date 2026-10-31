@@ -5,11 +5,11 @@ import { displayPath } from "./projectDisplay";
 import { cardRow, ProjectCommentReads, type ProjectRead, type RowAction } from "./homeCards";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { AlertIcon } from "./AlertIcon";
-import { HomeComposer, type HomeComposerProps } from "./HomeComposerView";
+import { HeroComposer, type HeroComposerProps } from "./HomeComposerView";
 import { groupProjects } from "./homeCards";
 import { pickGreeting } from "./homeComposer";
 
-interface HomeProps extends Omit<HomeComposerProps, "greeting"> {
+interface HomeProps extends Omit<HeroComposerProps, "greeting"> {
   header: ReactNode;
   sidebar: ReactNode;
 }
@@ -28,7 +28,7 @@ export function Home({ header, sidebar, ...composer }: HomeProps) {
     {sidebar}
     <section className="home-panel" aria-label="Home">
       <div className="home-atmosphere" aria-hidden="true" />
-      <HomeComposer {...composer} greeting={greeting} />
+      <HeroComposer {...composer} greeting={greeting} />
     </section>
   </main>;
 }

@@ -4,7 +4,9 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { emptyComposer, HomeComposer, pasteAction, slashKey, tabKey, type ComposerMemory, type HomeComposerProps } from "./HomeComposerView";
+import * as Parts from "./ComposerParts";
+import { tabKey } from "./ComposerParts";
+import { emptyComposer, HeroComposer, pasteAction, slashKey, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 
@@ -46,14 +48,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function elements(node: ReactNode): Record<string, unknown>[] {
-  return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
+// The composer's own primitives (ComposerParts) are drawn in place, so their elements and handlers are found as they
+// were before the split; any other component stays an element with its props.
+const PRIMITIVES = new Set<unknown>(Object.values(Parts));
+function expand(type: unknown, props: Record<string, unknown>): ReactNode {
+  if (typeof type === "function") return (type as (p: unknown) => ReactNode)(props);
+  return (type as { render(p: unknown, ref: unknown): ReactNode }).render(props, props.ref ?? null);
 }
-function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
+function elements(node: ReactNode): Record<string, unknown>[] {
+  return Children.toArray(node).flatMap(child => {
+    if (!isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child)) return [];
+    if (PRIMITIVES.has(child.type)) return elements(expand(child.type, child.props));
+    return [child.props, ...elements(child.props.children)];
+  });
+}
+function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
   const box = { current: { ...emptyComposer(), auth: AUTH, presets: LISTED, ...memory } };
   const start = vi.fn(async (_request: unknown, _last: unknown) => ({ ok: true } as const));
-  const all: HomeComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(), ...props };
-  const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer(all)); };
+  const all: HeroComposerProps = { entries: [ENTRY], homeDirectory: null, shellProjects: {}, loaded: null, select: null, prefs: {}, memory: box, running: new Map(), restore: null, greeting: "Where should we start?", start, openConversation: vi.fn(), addProjects: vi.fn(), openSettings: vi.fn(), ...props };
+  const render = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HeroComposer(all)); };
   return { box, start, render, props: all };
 }
 const find = (tree: Record<string, unknown>[], test: (props: Record<string, unknown>) => boolean) => { const found = tree.find(test); if (!found) throw new Error("not found"); return found; };
@@ -261,7 +274,7 @@ test("a pending start keeps Home locked on a later visit, and a late reply clear
   call(field(first.render()), "onKeyDown", key("Enter"));
   // Leave Home and come back: a new mount over the same memory.
   hooks.states = []; hooks.refs = [];
-  const again = { ...first, render: () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer({ ...first.props })); } };
+  const again = { ...first, render: () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HeroComposer({ ...first.props })); } };
   const tree = again.render();
   expect(field(tree).readOnly).toBe(true);
   expect(find(tree, props => props["aria-label"] === "Send").disabled).toBe(true);
@@ -335,12 +348,12 @@ test("Edit on Home checks the restored attachments again at once: checking, then
 
 // Review BU3 r2.
 // One mount's life: render, run its effects, and keep their cleanups to unmount it like React does.
-function mount(props: HomeComposerProps, redraw: () => void) {
+function mount(props: HeroComposerProps, redraw: () => void) {
   hooks.states = []; hooks.refs = []; hooks.redraw = redraw;
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
-  elements(HomeComposer(props));
+  elements(HeroComposer(props));
   const cleanups = hooks.effects.map(effect => effect());
-  const tree = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HomeComposer(props)); };
+  const tree = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HeroComposer(props)); };
   return { tree, unmount: () => { for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup(); } };
 }
 

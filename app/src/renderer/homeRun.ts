@@ -188,8 +188,8 @@ export class HomeRun {
     this.visits = next;
   }
   slots(): Map<string, Slot> { return slotState(this.conversations, this.visits); }
-  running(): Map<string, string> {
-    return new Map(this.conversations.filter(item => ["starting", "working", "permission"].includes(item.phase)).map(item => [item.root, item.conversationId] as const));
+  running(): Map<string, { conversationId: string; waiting: boolean }> {
+    return new Map(this.conversations.filter(item => ["starting", "working", "permission"].includes(item.phase)).map(item => [item.root, { conversationId: item.conversationId, waiting: item.phase === "permission" }] as const));
   }
   strip(root: string | null): { conversation: HomeConversation; state: StripState } | null {
     const conversation = root ? this.conversations.filter(item => item.root === root && !this.dismissed.has(item.conversationId)).at(-1) : undefined;

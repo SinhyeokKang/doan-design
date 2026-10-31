@@ -689,8 +689,10 @@ body:has(.shell-top) { background: transparent; }
 /* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
 .composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
 .composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
-/* A text field shows focus with its own border (DESIGN 'Focus'). */
-.composer-card:focus-within { box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-prominent); }
+/* A text field shows focus with its own border (DESIGN 'Focus'); the composer's is the quieter field-focus border with
+   a slightly higher shadow (buzz-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
+   shadow carry the focus with it. */
+.composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
 /* Grows with the text up to eight lines, then scrolls inside the card (design §4.1). */
 .composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; resize: none; field-sizing: content; overflow-y: auto; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
@@ -701,6 +703,8 @@ body:has(.shell-top) { background: transparent; }
 .composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
 .composer-tools .grow { flex: 1; }
 .composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }
+/* The standard ink above outranks the shared disabled ink, so Attach and Presets looked enabled while a send was pending. */
+.composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }
 .composer-agent { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 .composer-agent .muted { color: var(--text-metadata); }
 .composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }

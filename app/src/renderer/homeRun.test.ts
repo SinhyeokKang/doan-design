@@ -237,3 +237,14 @@ test("a move the person makes while the project is still being read cancels the 
   expect(vi.mocked(h.host.toast).mock.calls.length).toBe(toasts);
   expect(h.run.takeFocus()).toBeNull();
 });
+
+test("Home's running map says whether the conversation waits for an answer (spec decision 18's two sentences)", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST);
+  start.resolve({ conversationId: "c1" });
+  await sending;
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1", waiting: false }]]));
+  h.run.event(event("c1", { type: "turn.started" }));
+  h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1", waiting: true }]]));
+});
