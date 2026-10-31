@@ -26,7 +26,8 @@
   - 오른쪽 빈 상태: "No canvas conversations yet." + "When a conversation draws or edits a canvas, the canvas shows here."
   - 드롭다운: "New conversation", 머리 "Conversations in <project>".
 - 오른쪽 행
-  - 썸네일 72×48(모서리 `radius-toolbar-icon`), 이름, 보조 줄(공급자 · 마지막 활동), 상태 표시(LNB 슬롯과 같은 모양), 펼침 chevron(`xs` 아이콘 버튼).
+  - 썸네일 72×48(모서리 `radius-toolbar-icon`), 이름, 보조 줄, 상태 표시(LNB 슬롯과 같은 모양), 펼침 chevron(`xs` 아이콘 버튼).
+  - 보조 줄은 최근 대화의 공급자 로고(14px, 이름은 alt)와 시계 아이콘(14px) + 마지막 활동 시각이다. 공급자 이름 글자는 쓰지 않는다.
   - 펼친 대화 행은 썸네일 왼쪽 선에 맞추고 오른쪽에 시각을 둔다. 보관 대화는 subtle 잉크다.
   - 열 수 없는 행 문구: "No longer in <project>."(buzz-conversation 표시 줄과 같은 말), "2 canvases use this ID — run doan check", "Can’t read this canvas — run doan check". 
 - 메인: 대화 열 최대 720px, 패널 안쪽 24px. 헤더 제목은 `sm` trigger 버튼이다.
