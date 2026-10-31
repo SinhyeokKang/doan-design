@@ -372,3 +372,15 @@ it("passes the chosen Codex model and effort on every turn/start of the same ser
     expect(turns.map(t => [t.params?.model, t.params?.effort])).toEqual([["gpt-6-luna", "high"], ["gpt-6-luna", "high"]]);
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
+it("lets a send change the Codex model and effort on the reused server for that turn on", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-turn-choice-")), command = listingCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, model: "gpt-6-luna", effort: "high" }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("one", "t1"); await vi.waitFor(() => expect(events.filter(e => e.type === "turn.done")).toHaveLength(1));
+    await runner.send("two", "t2", undefined, { model: "gpt-6-sol" }); await vi.waitFor(() => expect(events.filter(e => e.type === "turn.done")).toHaveLength(2));
+    await runner.send("three", "t3", undefined, { model: "gpt-6-luna", effort: "low" }); await vi.waitFor(() => expect(events.filter(e => e.type === "turn.done")).toHaveLength(3));
+    const turns = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> }).filter(r => r.method === "turn/start");
+    expect(turns.map(t => [t.params?.model, t.params?.effort])).toEqual([["gpt-6-luna", "high"], ["gpt-6-sol", undefined], ["gpt-6-luna", "low"]]);
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});

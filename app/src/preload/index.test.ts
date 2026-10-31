@@ -389,3 +389,22 @@ test("notification clicks and the open-Settings command are subscriptions that u
   expect(opened).toHaveBeenCalledExactlyOnceWith({ section: "agents", provider: "codex" });
   expect(emitter.listenerCount("notifications:click") + emitter.listenerCount("settings-page:open")).toBe(0);
 });
+
+test("buzz-conversation: list, seen marker, list changes, extended send, links and re-issued attachments", async () => {
+  mocks.invoke.mockResolvedValue(undefined);
+  await api.listConversations({ root: "/repo" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:list", { root: "/repo" });
+  await api.markConversationSeen({ conversationId: "c", seq: 4 });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:markSeen", { conversationId: "c", seq: 4 });
+  await api.sendConversation({ conversationId: "c", text: "x", model: "opus", effort: "high", attachments: [{ id: "a" }] });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:send", { conversationId: "c", text: "x", model: "opus", effort: "high", attachments: [{ id: "a" }] });
+  await api.openLink("https://example.com");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("shell:openLink", { url: "https://example.com" });
+  await api.attachmentsFromPaths(["/Users/me/a.png"]);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("attachments:fromPaths", { paths: ["/Users/me/a.png"] });
+  const changes: unknown[] = [];
+  const stop = api.onConversationListChanged(change => changes.push(change));
+  emitter.emit("conversation:listChanged", {}, { root: "/repo" });
+  stop(); emitter.emit("conversation:listChanged", {}, { root: "/other" });
+  expect(changes).toEqual([{ root: "/repo" }]); expect(emitter.listenerCount("conversation:listChanged")).toBe(0);
+});

@@ -20,6 +20,8 @@ const mainOnly = [
   "design-skills:list", "design-skills:get",
   // buzz-home: Home attachments.
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
+  // buzz-conversation: re-issued attachments from recorded paths, and https links from agent replies.
+  "attachments:fromPaths", "shell:openLink",
 ];
 const setupAndAuth = ["setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",

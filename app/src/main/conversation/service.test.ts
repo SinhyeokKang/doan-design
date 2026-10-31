@@ -1,11 +1,12 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
 import { HOME_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
 import { ConversationService, resolveListedCanvas, type Runner, type OpenRunner, type Prepare } from "./service";
-const paths: string[] = []; afterEach(() => paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })));
+import type { ConversationEvent } from "./types";
+const paths: string[] = []; afterEach(() => { vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
   const store = new ConversationStore(dir); const runners: Runner[] = []; const exits: (() => void)[] = [];
@@ -259,8 +260,12 @@ function homeFixture(canvases: { path: string; id?: string }[] = []) {
   const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "conn-secret", accountId: "acct-secret", workspaceId: "org-secret", profile: "profile-secret" };
   const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude" as const, configDir: "/config-secret", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
   const listed = [...canvases];
-  const service = new ConversationService(store, prepare, open, () => {}, () => {}, 10_000, () => listed);
-  return { service, store, runners, open, prepare, listed };
+  const changes: string[] = [];
+  const published: ConversationEvent[] = [];
+  const service = new ConversationService(store, prepare, open, e => published.push(e), () => {}, 10_000, () => listed, root => changes.push(root));
+  // Moves the clock the project limit reads past the binding window of every turn that ended so far.
+  let skew = 0; const now = Date.now; vi.spyOn(Date, "now").mockImplementation(() => now() + skew);
+  return { dir, service, store, runners, open, prepare, listed, changes, published, owner, passBindingWindow: () => { skew += 10_001; } };
 }
 const homeRequest = { root: "/repo", mode: "newDesign" as const, runtime: "claude" as const, text: "Make a pricing page", anchors: [] };
 it("runs a Home start with its chosen model and effort, records them, and applies them again on the next send", async () => {
@@ -290,7 +295,8 @@ it("adds Home's paragraph to the prompt only, never to user.message or the title
   for (const secret of ["conn-secret", "acct-secret", "org-secret", "profile-secret", "/config-secret", '"sessionId"', "s1"]) expect(prompt).not.toContain(secret);
   expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", text: "Make a pricing page" });
   expect(h.store.list()[0]!.title).toBe("Make a pricing page");
-  // FirstPrompt's subject start is not a Home request.
+  // FirstPrompt's subject start is not a Home request. It may start once the first project turn is over.
+  h.service.receive(id, { type: "turn.done" }); h.passBindingWindow();
   await h.service.start({ ...homeRequest, subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." });
   expect(vi.mocked(h.runners[1]!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
 });
@@ -330,15 +336,17 @@ it("never lets a finished conversation that made no canvas take a canvas made la
     // Just after the turn the folder list may still be catching up with the agent's write.
     now.mockReturnValue(1_005_000); h.service.bind("/repo", { path: ".doan/canvases/late.html" });
     expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/late.html" });
+    now.mockReturnValue(1_000_000 + 10_001);
     const other = (await h.service.start(homeRequest)).conversationId;
     h.service.receive(other, { type: "turn.done" });
     now.mockReturnValue(1_005_000 + 60_000); h.service.bind("/repo", { path: ".doan/canvases/someone-else.html" });
     expect(h.store.list().find(m => m.conversationId === other)!.canvas).toBeUndefined();
   } finally { now.mockRestore(); }
 });
-it("binds to the most recent of two running conversations and ignores conversations of a previous run", async () => {
+it("binds to the running project conversation and ignores conversations of a previous run", async () => {
   const h = homeFixture();
   const first = (await h.service.start(homeRequest)).conversationId;
+  h.service.receive(first, { type: "turn.done" }); h.passBindingWindow();
   const second = (await h.service.start(homeRequest)).conversationId;
   h.service.bind("/repo", { path: ".doan/canvases/a.html" });
   expect(h.store.list().find(m => m.conversationId === second)!.canvas).toEqual({ path: ".doan/canvases/a.html" });
@@ -442,9 +450,193 @@ it("never adds Home's paragraph to a FirstPrompt conversation or an entry withou
   await h.service.send(id, "again", []);
   expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
   // An entry written before the mark existed (a Home start of an earlier build) reads and gets no paragraph.
+  h.service.receive(id, { type: "turn.done" }); h.passBindingWindow();
   const second = (await h.service.start(homeRequest)).conversationId;
   h.store.save(h.store.list().map(m => { if (m.conversationId !== second) return m; const { fromHome: _mark, ...old } = m; return old; }));
   h.service.receive(second, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
   await h.service.send(second, "again", []);
   expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
+});
+
+// buzz-conversation M1: the project's conversation list and the seen marker.
+describe("conversation list", () => {
+  const legacyEntry = (id: string) => ({ conversationId: id, root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: id, state: "current" as const, owner: { kind: "legacy-external" as const },
+    session: { runtime: "codex" as const, origin: "resumed" as const, sessionId: id, configDir: "/home/.codex", cwd: "/repo" } });
+  it("lists a root's conversations as summaries and nothing for a root without any", async () => {
+    const h = homeFixture();
+    expect(h.service.list("/repo")).toEqual([]);
+    const id = (await h.service.start(homeRequest)).conversationId;
+    expect(h.service.list("/repo")).toEqual([expect.objectContaining({ conversationId: id, phase: "running", owner: "doan", provider: "claude", fromHome: true, unseen: false, queued: 0 })]);
+    expect(h.service.list("/other")).toEqual([]);
+  });
+  it("starts a new conversation at seenSeq 0, so its end is unseen until marked, and marks only forward up to the last seq", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    expect(h.store.list()[0]!.seenSeq).toBe(0);
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ phase: "ended", unseen: true });
+    h.service.markSeen(id, 99);
+    expect(h.store.list()[0]!.seenSeq).toBe(3);
+    h.service.markSeen(id, 1);
+    expect(h.store.list()[0]!.seenSeq).toBe(3);
+    expect(h.service.list("/repo")[0]!.unseen).toBe(false);
+    expect(() => h.service.markSeen("missing", 1)).toThrow("not_found");
+  });
+  it("returns a read error for one unreadable history and keeps a legacy external conversation in the list", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    h.store.save([...h.store.list(), legacyEntry("legacy"), legacyEntry("broken")]);
+    h.store.append("legacy", "t", { type: "turn.started" }); h.store.append("legacy", "t", { type: "turn.done" });
+    writeFileSync(join(h.dir, "conversations", "broken.jsonl"), "{not json\n");
+    const listed = h.service.list("/repo");
+    expect(listed.map(s => [s.conversationId, s.readError ?? false, s.owner])).toEqual([[id, false, "doan"], ["legacy", false, "legacy-external"], ["broken", true, "legacy-external"]]);
+  });
+  it("announces a list change after the write it reports, and none for streamed text", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    expect(h.changes).toContain("/repo");
+    h.changes.length = 0;
+    h.service.receive(id, { type: "message.delta", messageId: "m", text: "Hi" });
+    expect(h.changes).toEqual([]);
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.changes).toEqual(["/repo"]);
+    expect(h.service.list("/repo")[0]!.unseen).toBe(true);
+    const observed: unknown[] = [];
+    const service: ConversationService = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => [], root => observed.push(service.list(root)[0]?.unseen));
+    service.markSeen(id, 3);
+    expect(observed).toEqual([false]);
+  });
+});
+
+// buzz-conversation M2: one working project conversation per root.
+describe("project conversation limit", () => {
+  const canvasRequest = { ...homeRequest, mode: "new" as const, canvas: { path: ".doan/canvases/a.html" } };
+  it("refuses another project start while one is still preparing, though it is not in the index yet", async () => {
+    const h = homeFixture(); let open!: () => void;
+    const prepared = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementationOnce(async (...args) => { await new Promise<void>(resolve => { open = resolve; }); return prepared(...args); });
+    const first = h.service.start(homeRequest);
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledOnce());
+    expect(h.store.list()).toEqual([]);
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    // Canvas conversations and other roots are not limited.
+    await h.service.start(canvasRequest);
+    await h.service.start({ ...homeRequest, root: "/other" });
+    open(); await first;
+  });
+  it("refuses another project send while a project turn runs, waits for an answer, or just ended", async () => {
+    const h = homeFixture();
+    const a = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(a, { type: "turn.done" }); h.open.mock.calls[0]![2](); h.passBindingWindow();
+    const b = (await h.service.start(homeRequest)).conversationId;
+    await expect(h.service.send(a, "again", [])).rejects.toThrow("project_busy");
+    h.service.receive(b, { type: "permission.request", requestId: "r", tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    await expect(h.service.send(a, "again", [])).rejects.toThrow("project_busy");
+    h.service.receive(b, { type: "turn.done" });
+    await expect(h.service.send(a, "again", [])).rejects.toThrow("project_busy");
+    expect(h.store.read(a).filter(e => e.type === "user.message")).toHaveLength(1);
+    h.passBindingWindow();
+    await h.service.send(a, "again", []);
+    // The conversation's own next send is not limited by its own window.
+    h.service.receive(a, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    await h.service.send(a, "and again", []);
+  });
+  it("keeps counting a conversation bound to a canvas mid-turn until its turn ends", async () => {
+    const h = homeFixture();
+    const a = (await h.service.start(homeRequest)).conversationId;
+    h.service.bind("/repo", { path: ".doan/canvases/made.html", id: "made" });
+    expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/made.html", id: "made" });
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    h.service.receive(a, { type: "turn.done" }); h.passBindingWindow();
+    await h.service.start(homeRequest);
+  });
+  it("does not count a start refused during preparation", async () => {
+    const h = homeFixture(); h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
+    await expect(h.service.start(homeRequest)).rejects.toThrow("not_logged_in");
+    await h.service.start(homeRequest);
+  });
+});
+
+// buzz-conversation M3: a send carries attachments, model and effort.
+describe("send extras", () => {
+  const attachments = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
+  async function finished(h: ReturnType<typeof homeFixture>, request = { ...homeRequest, model: "sonnet", effort: "low" }) {
+    const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); h.passBindingWindow();
+    return id;
+  }
+  it("saves the new model and effort before the turn's events and opens the run with them", async () => {
+    const h = homeFixture(); const id = await finished(h);
+    const append = h.store.append.bind(h.store); const atMessage: unknown[] = [];
+    vi.spyOn(h.store, "append").mockImplementation((...args) => { if (args[2].type === "user.message") atMessage.push(h.store.list()[0]!.model); return append(...args); });
+    await h.service.send(id, "again", [], { model: "opus", effort: "high" });
+    expect(atMessage).toEqual(["opus"]);
+    expect(h.store.list()[0]).toMatchObject({ model: "opus", effort: "high" });
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ model: "opus", effort: "high" });
+    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "high" });
+  });
+  it("drops the old effort when a model comes without one, and keeps the stored choice when nothing changed", async () => {
+    const h = homeFixture(); const id = await finished(h);
+    await h.service.send(id, "again", [], { model: "haiku" });
+    expect(h.store.list()[0]!.model).toBe("haiku"); expect(h.store.list()[0]).not.toHaveProperty("effort");
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    await h.service.send(id, "more", []);
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ model: "haiku" }); expect(h.open.mock.calls.at(-1)![0]).not.toHaveProperty("effort");
+  });
+  it("records attachments on the send's user.message and in the prompt, marking them sent before acceptance", async () => {
+    const h = homeFixture(); const id = await finished(h);
+    let messages: number | undefined;
+    await h.service.send(id, "look", [], { attachments }, { recheck: () => attachments, sent: () => { messages = h.store.read(id).filter(e => e.type === "user.message").length; } });
+    expect(messages).toBe(1);
+    expect(h.store.read(id).filter(e => e.type === "user.message").at(-1)).toMatchObject({ text: "look", attachments });
+    const [prompt, , sent] = vi.mocked(h.runners.at(-1)!.send).mock.calls[0]!;
+    expect(JSON.parse(prompt.split("\n\n")[1]!).attachments).toEqual([{ name: "a.png", kind: "image", path: "/Users/me/a.png" }]);
+    expect(sent).toEqual(attachments);
+  });
+  it("leaves the index and history alone when an attachment went missing before acceptance", async () => {
+    const h = homeFixture(); const id = await finished(h);
+    const before = h.store.read(id), sent = vi.fn();
+    const recheck = () => { throw Object.assign(new Error("attachment_missing"), { missing: ["a"] }); };
+    await expect(h.service.send(id, "look", [], { model: "opus", attachments }, { recheck, sent })).rejects.toThrow("attachment_missing");
+    expect(h.store.list()[0]!.model).toBe("sonnet"); expect(h.store.read(id)).toEqual(before); expect(sent).not.toHaveBeenCalled();
+  });
+  it("waits for the previous process before a send with extras, then applies them (POSTMORTEM 2026-10-28)", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, model: "sonnet" })).conversationId;
+    h.service.receive(id, { type: "turn.done" });
+    const attached = { recheck: vi.fn(() => attachments), sent: vi.fn() };
+    const sending = h.service.send(id, "again", [], { model: "opus", attachments }, attached);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(attached.sent).not.toHaveBeenCalled();
+    h.open.mock.calls[0]![2](); await sending;
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ model: "opus" }); expect(attached.sent).toHaveBeenCalledOnce();
+  });
+  it("does not mark attachments sent when a sign-out cancels the exit wait", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, model: "sonnet" })).conversationId;
+    h.service.receive(id, { type: "turn.done" });
+    const attached = { recheck: vi.fn(() => attachments), sent: vi.fn() };
+    const sending = h.service.send(id, "again", [], { model: "opus", attachments }, attached);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    await h.service.stopRuns("claude");
+    await expect(sending).rejects.toThrow("busy");
+    expect(attached.sent).not.toHaveBeenCalled(); expect(h.store.list()[0]!.model).toBe("sonnet");
+  });
+  it("passes the turn's model and effort to a reused Codex server", async () => {
+    const h = homeFixture();
+    const codex = { ...h.owner, provider: "codex" as const };
+    h.prepare.mockImplementation(async (_request, stored) => ({ runtime: "codex", configDir: "/config", cwd: "/repo", command: "/fake", env: {}, owner: codex, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const id = (await h.service.start({ ...homeRequest, runtime: "codex", model: "gpt-6-luna" })).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.passBindingWindow();
+    await h.service.send(id, "again", [], { model: "gpt-6-sol", effort: "low" });
+    expect(h.open).toHaveBeenCalledOnce();
+    expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toEqual({ model: "gpt-6-sol", effort: "low" });
+  });
+  it("saves the turn's canvas list as a project conversation's snapshot", async () => {
+    const h = homeFixture([{ path: ".doan/canvases/a.html", id: "a" }]);
+    const id = await finished(h, homeRequest);
+    h.listed.push({ path: ".doan/canvases/b.html", id: "b" });
+    await h.service.send(id, "again", []);
+    expect(h.store.list()[0]!.canvasesAtStart).toEqual([{ path: ".doan/canvases/a.html", id: "a" }, { path: ".doan/canvases/b.html", id: "b" }]);
+  });
 });
