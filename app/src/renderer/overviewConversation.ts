@@ -21,7 +21,8 @@ export function shortAgo(at: string, now: number): ShortTime | null {
   if (elapsed < MINUTE) return { text: "now", label: "Just now" };
   if (elapsed < HOUR) { const n = Math.floor(elapsed / MINUTE); return { text: `${n}m`, label: plural(n, "minute") }; }
   if (elapsed < DAY) { const n = Math.floor(elapsed / HOUR); return { text: `${n}h`, label: plural(n, "hour") }; }
-  if (elapsed < 7 * DAY) { const n = Math.floor(elapsed / DAY); return { text: `${n}d`, label: plural(n, "day") }; }
+  // The first day only (design §0); older times read as their date.
+  if (elapsed < 2 * DAY) return { text: "1d", label: plural(1, "day") };
   const date = new Date(time);
   const year = date.getFullYear() === new Date(now).getFullYear() ? undefined : "numeric";
   const text = date.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(year ? { year } : {}) });

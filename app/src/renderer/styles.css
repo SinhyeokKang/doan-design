@@ -946,6 +946,11 @@ body:has(.shell-top) { background: transparent; }
 /* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
 .doan-notice.moved { margin-bottom: var(--space-3); }
 .doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
+/* One line: a title is the whole first message (up to 512 characters), so only it gives way and "moved to <canvas>."
+   stays readable; the text keeps the full sentence for assistive tech and the tooltip. */
+.moved-text { display: flex; min-width: 0; white-space: nowrap; }
+.moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .ov-suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
 .ov-suggestions .suggestion span { white-space: nowrap; }
 /* The conversation dropdown: New, then the project conversations drawn like the right panel's rows, split by hairlines;

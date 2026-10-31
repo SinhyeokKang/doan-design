@@ -30,7 +30,10 @@ export function canvasConversationRows(list: readonly ConversationSummary[], can
   for (const c of list) {
     if (!c.canvas || c.state !== "current") continue;
     const line = conversationLine(c, now, seen);
-    const matches = canvasRows.filter(row => sameCanvas(c.canvas!, row));
+    // ls cannot read an unreadable file's id, so that row falls back to the path; an id match elsewhere (the canvas
+    // moved and something unreadable sits at its old path) still wins.
+    const byId = canvasRows.filter(row => sameCanvas(c.canvas!, row));
+    const matches = byId.length > 0 ? byId : canvasRows.filter(row => row.error !== undefined && row.id === undefined && row.path === c.canvas!.path);
     const base = { ...line, key: c.conversationId, canvas: c.canvas };
     if (matches.length === 1) {
       const row = matches[0]!;

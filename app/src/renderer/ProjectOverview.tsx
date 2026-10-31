@@ -258,7 +258,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const chipLabel = branch ?? root.split("/").at(-1) ?? root;
 
   const moved = view.kind === "new" ? view.moved : null;
-  const movedText = moved && `${moved.title} moved to ${canvasLabel({ path: moved.canvas.path, open: 0, resolved: 0, url: "" })}.`;
+  const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, open: 0, resolved: 0, url: "" });
   const placeholder = draft.preset && draft.text === "" ? presetPlaceholder(draft.preset) : mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
 
   return <section className="ov ov-main" role="region" aria-label="Overview">
@@ -331,7 +331,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
         onCopy={text => Promise.resolve(copyText(text))} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
-          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text">{movedText}</span>
+          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text" title={`${moved.title} moved to ${movedCanvas}.`}>
+            <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
