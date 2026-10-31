@@ -51,3 +51,13 @@ zero-setup-agents에서 옮겨 온 측정 기록이다. T0은 손으로 만든 �
 - 실제 상태 보호: 실행 전후로 실제 HOME 지문(T0 `snapshot.sh` 항목과 `app/runtime/real-state.ts`)을 비교했다. 바뀐 것은 Antigravity 앱이 스스로 쓴 것뿐이다(`~/.gemini/config/config.json`, `node_modules/`, `plugins/`, `~/.gemini/sandbox/`, `~/.gemini/jetski-standalone-oauth-token`, Keychain 항목 `gemini`의 수정 시각). 이것들은 Antigravity 상태라 지우지 않았다. `~/.claude`의 mtime 변화는 같은 시각 다른 워커의 Claude 실행(`~/.claude/projects/-private-tmp-doan-eval-…`)에서 왔다. Codex 인증은 실제 `~/.codex/auth.json` 사본을 쓴 뒤 지웠고, 원본 해시는 그대로다. 임시 HOME의 `Library/Keychains` 링크도 지웠다.
 - 원본 로그와 스크린샷: `.scratch/zero-setup-agents/t6b/`.
 
+
+## run2(zero-setup-agents). Codex 프로젝트 레이어 rule 실험
+
+zero-setup-agents design.md의 실험 기록을 옮겼다(`git show 488f6dc6^:docs/features/zero-setup-agents/design.md`). codex-cli 0.164.0을 썼다. 이 머신의 Codex 설정이 `danger-full-access`라 `-s workspace-write -c approval_policy="never"`로 덮어쓰고, 가짜 앱 socket을 썼다. 실행한 디렉터리가 Codex의 trusted project였는지는 기록되지 않았다.
+
+| run | 조건 | 결과 |
+|---|---|---|
+| 1 | rule 없음 | ego-browser `listTaskSpaces` exit 0(사용자 rule 적용), `doan active` exit 3 `connect: operation not permitted`, workspace 밖 읽기 성공, workspace 밖 쓰기 `Operation not permitted` |
+| 2 | 프로젝트 `.codex/rules/doan.rules`에 `prefix_rule(pattern=["doan"], decision="allow")` | `doan active` exit 0, 가짜 서버가 요청을 받음 |
+| check | `codex execpolicy check` | `prefix_rule(pattern=["doan", ["active", "onboarding"]])`는 `doan active`·`doan onboarding start` allow, `doan init` 매칭 없음. `pattern=["doan"]`에서 절대경로 `…/doan active`는 `--resolve-host-executables`일 때만 매칭. 절대경로 패턴(`["/Users/x/.local/bin/doan"]`)은 그 경로에 그대로 매칭 |

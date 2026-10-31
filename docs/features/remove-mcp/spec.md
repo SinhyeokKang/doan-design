@@ -1,11 +1,11 @@
 # remove-mcp — spec
 
-Doan에서 MCP를 지운다. 외부 세션은 이제 설정 없이 `doan` CLI와 skill로 Doan을 쓴다(zero-setup-agents). ego lite도 MCP 없이 CLI만 제공한다. 근거 측정은 [evidence.md](./evidence.md)에 있다.
+Doan에서 MCP를 지운다. 외부 세션은 이제 설정 없이 `doan` CLI와 skill로 Doan을 쓴다(zero-setup-agents). ego lite도 MCP 없이 CLI만 제공한다. 근거 측정은 [evidence.md](./evidence.md)에 있다. MCP는 개발 중에만 쓰였고 실제 사용자가 없으므로, 처음부터 없던 것처럼 지운다.
 
 ## 사용자
 
-- **에이전트**: 외부 세션(Claude Code, Codex, Cursor, Antigravity, GitHub Copilot)과 앱 대화. 받는 것: guide, stub, `nextSteps`가 셸 `doan` 한 경로만 안내한다. MCP를 찾거나 등록하라는 안내가 없다.
-- **사람**: 바뀌는 화면은 없다. MCP를 직접 등록해 둔 사람은 그 등록이 동작하지 않게 된다(`doan mcp`가 없는 명령이 된다).
+- **에이전트**: 외부 세션(Claude Code, Codex, Cursor, Antigravity, GitHub Copilot)과 앱 대화. 받는 것: guide, stub, `nextSteps`, Hand off 지시문이 셸 `doan` 한 경로만 안내한다. MCP를 찾거나 등록하라는 안내가 없다.
+- **사람**: Hand off 대화상자의 지시문 미리보기("Show instruction")와 복사되는 문구에서 "or MCP tools"가 빠진다(PRODUCT §5 item 6). 그 밖의 화면은 바뀌지 않는다.
 
 ## 문제 (관찰한 사실)
 
@@ -16,14 +16,13 @@ Doan에서 MCP를 지운다. 외부 세션은 이제 설정 없이 `doan` CLI와
 
 ## 완료 조건
 
-1. `doan mcp`가 없다. 실행하면 다른 없는 명령과 같은 `usage_error`가 난다. MCP SDK 의존성이 `go.mod`에서 빠진다.
-2. guide, stub, CLI `nextSteps`, `PRESET_GUIDANCE`, design preset 본문, 앱 문구에 MCP 안내가 없다. 복구 순서는 Doan 열기 → sandbox 밖 실행 또는 승인 요청 → Applications의 Doan과 Settings… > About이다. 문구는 Doan의 `clarify` preset을 먼저 적용한다.
-3. eval에 MCP 전용 시나리오와 MCP 설정 코드가 없다. eval의 Codex는 설치된 Doan과 같은 rule로 셸 `doan`을 sandbox 밖에서 실행한다. R2·O1·O2 Codex의 socket known condition이 사라진다.
+1. `doan mcp`가 없다. 실행하면 다른 없는 명령과 같은 `usage_error`가 나고, stdin을 열어 둔 채 실행해도 바로 끝난다. MCP SDK 의존성이 `go.mod`에서 빠진다.
+2. guide, stub, CLI `nextSteps`, `PRESET_GUIDANCE`, design preset 본문, Hand off 지시문에 MCP 안내가 없다. `app_not_running`·`app_launch_failed`의 복구 순서는 Doan 열기 → sandbox 밖 실행 또는 승인 요청 → Applications의 Doan과 Settings… > About이다. 다른 실패 경로의 복구 안내는 MCP 부분만 빠지고 나머지는 그대로다. 문구는 Doan의 `clarify` preset을 먼저 적용한다.
+3. eval에 MCP 전용 시나리오와 doan MCP 설정 코드가 없다. eval의 Codex는 workspace repo의 프로젝트 레이어 rule(앱의 `codexRuleText()`와 같은 내용)로 셸 `doan`을 sandbox 밖에서 실행한다. `/agent-eval` 라운드에서 R2·O1·O2 Codex가 셸로 앱에 닿아 통과한다.
 4. `/agent-eval` 라운드에서 이 변경으로 생긴 새 issue 행이 없다.
-5. PRODUCT와 ARCHITECTURE에 MCP 설명이 없다(§3 In scope 3, §5 item 12, ARCHITECTURE §5, 세션 연결의 MCP 문장 등). PRODUCT 'Open questions'의 MCP 제거 항목은 이 feature가 커밋될 때 지운다.
+5. 다음 문서에 MCP 설명이 없다: PRODUCT, ARCHITECTURE, README, DESIGN, DIRECTORY, AGENTS.md, `.agents/skills`. 남는 것은 ACP `mcpServers`나 eval의 일반 MCP 격리처럼 Doan MCP가 아닌 설명뿐이다. 지운 시나리오 id(R1b, R2b, D3, D3b, D10b, R7)도 현재 상태를 설명하는 문서에 남지 않는다. USABILITY-EVAL과 POSTMORTEM의 과거 기록은 그대로 둔다.
 
 ## 비목표
 
 - MCP를 대신할 새 경로(로컬 HTTP 등).
-- 사람이 직접 등록해 둔 MCP 설정을 지우거나 알리는 일. 등록은 사람의 설정 파일이고 Doan은 처음부터 쓰지 않았다.
 - Antigravity가 sandbox 밖 실행을 스스로 요청하는지 확인하는 일(별도 측정).
