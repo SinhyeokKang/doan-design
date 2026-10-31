@@ -147,8 +147,7 @@ describe("typed undo journal", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
   function changeFixture() {
     const f = setup();
-    const project: ConversationMetadata = { ...meta("proj"), canvas: undefined };
-    delete project.canvas;
+    const { canvas: _canvas, ...project } = meta("proj");
     const entries = [{ ...meta("old"), canvas: a }, project, { ...meta("arch"), canvas: a, state: "archived" as const }];
     f.store.save(entries);
     for (const id of ["old", "proj", "arch"]) { f.store.append(id, "t", { type: "turn.started" }); f.store.append(id, "t", { type: "turn.done" }); }

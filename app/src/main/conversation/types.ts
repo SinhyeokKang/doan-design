@@ -38,7 +38,10 @@ export type EventPayload =
   | { type: "turn.done" }
   | { type: "turn.failed"; code: FailureCode; detail?: string }
   | { type: "interrupted"; reason: "user" | "appQuit" | "crashed" }
-  | { type: "conversation.archived" };
+  | { type: "conversation.archived" }
+  // A project conversation became this canvas's current conversation; restored undoes an earlier archive.
+  | { type: "conversation.bound"; canvas: Canvas }
+  | { type: "conversation.restored" };
 export type ConversationEvent = EventPayload & { v: 1; conversationId: string; seq: number; turnId: string; at: string };
 export type TurnState = "idle" | "starting" | "streaming" | "waitingPermission" | "failed" | "interrupted";
 export interface ConversationBinding {
