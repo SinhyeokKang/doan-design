@@ -82,20 +82,32 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (input.sending) return off(null);
   if (input.projects === 0 || !input.root) return off({ kind: "noProject", text: "Add a project to send." });
   if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: unavailableProject(input.projectName) });
-  if (!input.provider) return off({ kind: "noAgent", text: "No agent is ready to run." });
-  // A chosen agent that expires or signs out stays chosen and names itself, even when it was the only one.
-  if (!connectedProviders(input.auth).filter(selectableProvider).some(s => s.provider === input.provider)) return off({ kind: "agentUnavailable", text: `${PROVIDER_NAMES[input.provider]} can’t run right now. Choose another agent.` });
+  const agent = agentProblem(input.auth, input.provider);
+  if (agent) return off(agent);
   // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
   if (input.running) return off({ kind: "running", text: anotherConversation(input.projectName, input.running.waiting), open: input.running.conversationId });
-  const request = composeRequest(input.text, input.preset, input.attachments.length);
-  if (request.length > TEXT_LIMIT) return off({ kind: "overLimit", text: "Shorten the message to send it." });
+  const draft = draftProblem(input.text, input.preset, input.attachments);
+  return draft ? off(draft) : { enabled: true, reason: null };
+}
+
+// The picked agent cannot run. Shared with the docked composer's new-conversation mode.
+export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Provider | null): SendReason | null {
+  if (!provider) return { kind: "noAgent", text: "No agent is ready to run." };
+  // A chosen agent that expires or signs out stays chosen and names itself, even when it was the only one.
+  if (!connectedProviders(auth).filter(selectableProvider).some(s => s.provider === provider)) return { kind: "agentUnavailable", text: `${PROVIDER_NAMES[provider]} can’t run right now. Choose another agent.` };
+  return null;
+}
+
+// What in a non-empty draft stops the send. Shared with the docked composer.
+export function draftProblem(text: string, preset: PresetRef | null, attachments: readonly AttachmentDraft[]): SendReason | null {
+  const request = composeRequest(text, preset, attachments.length);
+  if (request.length > TEXT_LIMIT) return { kind: "overLimit", text: "Shorten the message to send it." };
   // The conversation IPC reads {{ and }} as anchor markers and refuses them even without anchors.
-  if (request.includes("{{") || request.includes("}}")) return off({ kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." });
-  if (input.attachments.some(a => a.status === "checking")) return off({ kind: "checking", text: "Checking attachments…" });
-  const moved = input.attachments.find(a => a.status === "missing");
-  if (moved) return off({ kind: "attachmentMissing", text: movedNotice(moved) });
-  return { enabled: true, reason: null };
+  if (request.includes("{{") || request.includes("}}")) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
+  if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments…" };
+  const moved = attachments.find(a => a.status === "missing");
+  return moved ? { kind: "attachmentMissing", text: movedNotice(moved) } : null;
 }
 
 function unavailableProject(project: string): string { return `${project} isn’t available. Fix it from its menu in the sidebar.`; }

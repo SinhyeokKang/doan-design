@@ -772,6 +772,34 @@ body:has(.shell-top) { background: transparent; }
 @media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
 .composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-notice { margin-top: var(--space-3); }
+/* The docked composer (draft frame docked-composer): Home's card without its inset tray, a capsule that becomes a box.
+   One grid holds both shapes so the field never moves in the DOM; only the areas change. */
+.docked { position: relative; }
+.docked .composer-card { position: relative; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
+.docked .composer-tools { display: contents; }
+.docked .composer-tools .grow { display: none; }
+.docked .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { grid-area: attach; }
+.docked .composer-presets { grid-area: presets; }
+.docked .composer-send { grid-area: send; }
+.docked .composer-chips { grid-area: chips; }
+.docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
+.docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
+.docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
+.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+/* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
+.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
+.docked[data-shape="box"] .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { margin-left: calc(-1 * var(--space-1)); }
+.docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
+.docked .composer-tray .doan-button { margin-left: 0; }
+.docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
+.queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
+.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.queue-item > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); }
+.queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }
 /* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
 .home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }

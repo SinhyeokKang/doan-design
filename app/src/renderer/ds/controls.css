@@ -30,6 +30,9 @@
 }
 /* Rows and cards are dense, so their actions step down to the small control. */
 .doan-button[data-ui-size="sm"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }
+/* The docked composer's agent and effort row sits under its card, one step below sm: 24px, caption type, 14px icons. */
+.doan-button[data-ui-size="xs"] { min-height: var(--size-control-xs); padding: var(--space-1) var(--space-2); gap: var(--space-1); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.doan-button[data-ui-size="xs"] > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* A screen's one leading action (onboarding Welcome) steps up to the large control. */
 .doan-button[data-ui-size="lg"] { min-height: var(--size-control-lg); padding: var(--space-3) var(--space-8); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
 /* A trigger shows a value that opens a menu, so it hugs its label. It comes after the

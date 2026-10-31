@@ -1,12 +1,13 @@
 import { forwardRef, Fragment, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, TextAlignStart, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor } from "../main/conversation/types";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import type { ComposerAction } from "./composerRules";
 import type { SettingsTarget } from "./settingsSections";
 import {
   attachmentChipView, dropTarget, groupIcon, isSubmitKey, modelPickerView, presetListView, providerLogo,
@@ -92,9 +93,11 @@ export const ComposerField = forwardRef<HTMLTextAreaElement, {
   combobox: ComboboxProps | null;
   onKey(event: KeyboardEvent<HTMLTextAreaElement>): boolean; onSubmit(): void;
   onPaste(event: ClipboardEvent<HTMLTextAreaElement>): void; onInput?(event: FormEvent<HTMLTextAreaElement>): void;
+  // The reason line under the docked card also describes the field (design §3.1).
+  describedBy?: string | undefined;
 }>(function ComposerField(props, ref) {
   const { combobox } = props;
-  return <textarea ref={ref} className="composer-input" aria-label="Message" rows={props.rows} value={props.value.text} readOnly={props.readOnly} placeholder={props.placeholder}
+  return <textarea ref={ref} className="composer-input" aria-label="Message" rows={props.rows} value={props.value.text} readOnly={props.readOnly} placeholder={props.placeholder} aria-describedby={props.describedBy}
     role={combobox ? "combobox" : undefined} aria-expanded={combobox ? true : undefined} aria-controls={combobox ? combobox.listId : undefined}
     aria-autocomplete={combobox ? "list" : undefined} aria-activedescendant={combobox?.activeId}
     onChange={event => props.onChange({ text: event.target.value, anchors: props.value.anchors })} onInput={props.onInput}
@@ -197,14 +200,15 @@ export function SlashPresets(props: { view: PresetView; query: string; listId: s
 type Picker = ReturnType<typeof modelPickerView>;
 // The agent and model picker (buzz-settings design '홈 공급자 선택기'): a group per provider, its fix in Settings when it
 // cannot run. `onPick` gets the provider and a model id or "default".
+// `size`: Home's tools row uses sm; the docked row under the card steps down to xs (design §0).
 export function AgentPicker(props: {
-  picker: Picker; auth: AuthSnapshot | null | undefined; disabled: boolean;
+  picker: Picker; auth: AuthSnapshot | null | undefined; disabled: boolean; size?: "sm" | "xs";
   onOpen(): void; onPick(provider: Provider, value: string): void; onSettings(target: SettingsTarget): void;
 }) {
   const { picker, auth } = props;
   const footer = pickerFooter(picker.groups.some(group => group.selectable));
   return <DropdownMenu.Root onOpenChange={open => { if (open) props.onOpen(); }}>
-    <DropdownMenu.Trigger asChild><button type="button" className="composer-agent doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={picker.trigger.ariaLabel} disabled={props.disabled}>
+    <DropdownMenu.Trigger asChild><button type="button" className="composer-agent doan-button" data-ui-size={props.size ?? "sm"} data-ui-variant="trigger" aria-label={picker.trigger.ariaLabel} disabled={props.disabled}>
       {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><span>{picker.trigger.label}</span></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
     </button></DropdownMenu.Trigger>
     <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu agent-popover" aria-label="Agent and model" side="top" align="end" sideOffset={8} collisionPadding={8}>
@@ -236,9 +240,9 @@ export function AgentPicker(props: {
 }
 
 // The effort picker, shown only when the chosen model has effort steps.
-export function EffortPicker({ view, effort, disabled, onPick }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void }) {
+export function EffortPicker({ view, effort, disabled, onPick, size = "sm" }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void; size?: "sm" | "xs" }) {
   return <DropdownMenu.Root>
-    <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span>{view.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+    <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span>{view.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
     <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu effort-popover" data-ui-size="compact" aria-label={view.menuLabel} side="top" align="end" sideOffset={8} collisionPadding={8}>
       <DropdownMenu.Label className="doan-menu-head">{view.title}</DropdownMenu.Label>
       <DropdownMenu.RadioGroup value={effort ?? ""} onValueChange={onPick}>
@@ -248,8 +252,11 @@ export function EffortPicker({ view, effort, disabled, onPick }: { view: NonNull
   </DropdownMenu.Root>;
 }
 
-// The Send slot. While a start is pending it keeps its place with a spinner.
-export function SendButton({ enabled, sending, onSend }: { enabled: boolean; sending: boolean; onSend(): void }) {
-  return <IconTip label="Send"><button type="button" className={`composer-send doan-icon-button${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label="Send" aria-busy={sending || undefined} disabled={!enabled} onClick={onSend}>
-    {sending ? <span className="doan-spinner" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}</button></IconTip>;
+// The Send slot. While a start is pending it keeps its place with a spinner. While a turn runs the docked composer puts
+// Stop or Queue in the same place (composerAction), so the slot never moves.
+const SLOT_LABELS: Record<ComposerAction, string> = { send: "Send", stop: "Stop", queue: "Queue" };
+export function SendButton({ enabled, sending, onSend, action = "send" }: { enabled: boolean; sending: boolean; onSend(): void; action?: ComposerAction }) {
+  const label = SLOT_LABELS[action];
+  return <IconTip label={label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} onClick={onSend}>
+    {sending ? <span className="doan-spinner" aria-hidden="true" /> : action === "stop" ? <Square fill="currentColor" stroke="none" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}</button></IconTip>;
 }
