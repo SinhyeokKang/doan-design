@@ -15,14 +15,17 @@
 5. B1의 링크 클릭은 주입받은 콜백으로 그린다. preload의 `openLink` 연결은 A1 통합 뒤 B2가 한다(지휘자 판단 — preload는 A1 소유).
 6. B2의 대기열 연결(Queue 버튼, 대기 줄, 실패 시 초안 복원)은 A2 통합 뒤에 보내는 후속 작업이다. B2는 나머지를 먼저 끝내고 이 항목을 미룬 항목으로 넘긴다(지휘자 판단 — orchestrate §0.4).
 7. Z1·Z2(문서 승격과 디렉터리 삭제)는 지휘자가 한다(orchestrate §5).
+8. 안 본 종료 판정의 "마지막 seq"는 `conversation.*` 표시 이벤트(bound·archived·restored)를 뺀 마지막 seq다. archived 대화는 안 본 종료로 세지 않는다. `markSeen`은 전체 마지막 seq로 자르고, crash로 접힌 턴은 그대로 안 본 종료다(지휘자 판단 — A1 질문. spec '안 본 종료'의 취지는 사람이 보지 않은 턴 끝이고, 표시 이벤트는 새 결과가 아니다. Z1에서 ARCHITECTURE에 반영).
+9. P1 로그인 계정은 Google `sinhyeok.kang@day1company.co.kr`이다(사용자). Claude Code OAuth 화면의 승인 버튼이 비활성이라 ego-browser 공간 16을 사용자에게 넘겼다. 사용자가 두 공급자 승인을 브라우저에서 직접 했다.
+10. 격리 HOME에서는 로그인이 끝나지 않는다(Claude는 Keychain이 없어 `storage_failed`, Codex는 "Sign-in could not be completed"). P1과 D2는 실제 HOME을 쓰고, userData·`DOAN_RUNTIME`·저장소만 임시로 둔다(사용자). P1이 로그인한 임시 userData를 D2까지 남기고, D2가 끝날 때 앱에서 sign out해 임시 프로필의 Keychain 항목을 지운다(지휘자 판단 — 사용자 로그인 승인을 한 번으로 줄이려고). 실제 `~/.claude`·`~/.codex`의 임시 저장소 세션 기록은 경로만 남긴다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 대기 |
-| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 대기 |
-| B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 대기 |
+| P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 진행 중 |
+| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 진행 중 |
+| B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 진행 중 |
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 대기 |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 대기 |
 | A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 대기 |
@@ -43,3 +46,10 @@
 - 5차: D → Z → push와 PR.
 
 ## 진행 기록
+- run `run_0ec367d3dab4`. 1차 워커를 `feat-buzz-conversation`(`23da3c84`)에서 띄웠다. 모두 `launch.effective`가 요청과 같다.
+  - A1: dispatch `ctx_dd4acc66b6e0`, worktree `bc-a1`, Claude opus high.
+  - B1: dispatch `ctx_1cf7a9338c59`, worktree `bc-b1`, Claude opus high.
+  - P: dispatch `ctx_58b62dc8ae61`, worktree `bc-p`, Codex gpt-6.1-sol medium.
+- P의 GUI probe 시작을 허락했다. B1 기준선 probe는 P와 겹치는지 보고 정한다.
+- B1의 Home 기준선 GUI probe를 허락했다. P의 앱은 로그인 대기로 멈춰 있다.
+- P1 관찰 네 경우가 모두 끝났다. Claude는 보존 지시를 읽기 전에 sign out됐다. D2에서 Claude 로그인 승인이 한 번 더 필요하다. Codex는 연결된 채 `/private/tmp/doan-p1-ogyLep/userData`에 남아 있다.
