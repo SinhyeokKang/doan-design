@@ -117,7 +117,7 @@ Writing style:
 The canvases let people check the system visually. They live in `.doan/ds/` (create it when needed). By default, draw one canvas per logical unit:
 
 - **Token groups:** one canvas per group the token CSS defines, such as `color`, `typography`, `shadow`, `radius`, and `size`.
-- **Components:** one canvas per component the code shares across screens, such as `button`, `icon-button`, `input`, `dialog`, `menu`, and `toast`. Cover every shared component, not a sample; skip only utility and wrapper components and parts of a single screen, and list what you skipped in your answer.
+- **Components:** one canvas per component the code shares across screens, such as `button`, `icon-button`, `input`, `dialog`, `menu`, and `toast`. Cover every shared component, not a sample. Skip only parts of a single screen and nonvisual infrastructure wrappers that draw nothing of their own (a provider, a portal); a wrapper that adds its own classes or styles, such as a tooltip content wrapper with a project class, is a shared component. List each skip in your answer with its reason.
 - **Shared surfaces:** one canvas per frame several screens share, such as `app-shell`, drawn from the components' markup.
 
 Never put two units in one canvas: no `overlays` canvas holding a tooltip and a menu, no `tokens` canvas holding color and type. A unit's variants and states stay together in its own canvas. The file name is the canvas id (`.doan/ds/button.html` is `button`); if `doan ls` already has that id, pick another and say so.
@@ -154,7 +154,7 @@ The rules document and the canvases describe the same system. They use the same 
 - Every token and rule in the document traces to a file in the code or a decision the user confirmed; every named rule, do, and don't cites it.
 - Judgment calls nobody confirmed are open items in both artifacts, and no rule presupposes an answer to one.
 - Reread each rule, do, and don't in both artifacts: it cites its source and covers no more than that source shows. Search both for "every", "all", "any", "always", "only", "new", "future", "adding", and "until"; narrow each hit that reaches past its source to the cited tokens, components, or files, or move it to open decisions.
-- Each design-system canvas you created holds one unit, and every shared component in the code is on a canvas or listed as skipped.
+- Each design-system canvas you created holds one unit, every visual shared component in the code is on a canvas, and each skip is a nonvisual wrapper or part of a single screen, listed with its reason.
 - Every frame's `data-doan-implements` path exists in the repository.
 - Every color and type sample uses a token CSS variable, and each canvas links the token CSS relative to its own location.
 - Components and states shown on the canvases exist in code, or the canvas says they do not.
