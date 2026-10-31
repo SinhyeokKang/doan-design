@@ -20,14 +20,14 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| BC | T2 | `cli/internal/repo/`, `cli/internal/check/`, `cli/internal/cli/`의 ls·check·config 테스트 | 없음 | Claude Opus medium: 목록·범위·check 규칙을 넓히는 일이라 판단은 중간이고, 틀리면 앱과 eval이 모두 흔들려 테스트를 꼼꼼히 써야 한다 | tasks T2 검증 줄 | 대기 |
+| BC | T2 | `cli/internal/repo/`, `cli/internal/check/`, `cli/internal/cli/`의 ls·check·config 테스트 | 없음 | Claude Opus medium: 목록·범위·check 규칙을 넓히는 일이라 판단은 중간이고, 틀리면 앱과 eval이 모두 흔들려 테스트를 꼼꼼히 써야 한다 | tasks T2 검증 줄 | 통합 `8a00ae56..a88ff62b`(리뷰 2회, 🔴 1 해결) |
 | BP | T3, T8 preset 수정 | `cli/internal/cli/skill.md`·`skill_test.go`·`design_skill_test.go`, `cli/internal/designskill/` | 없음 | Claude Opus high: `document.md`의 새 기본이 T8 품질을 정하고, 출력 예산 안에서 문장을 고쳐야 한다 | tasks T3 검증 줄 | 대기 |
 | BA | T4(`sidebarGroups`·`ui-state` 제외), T5 | `app/src/formats/`의 새 경로 모듈, `app/src/main/`(watch·designChange·shell·thumbnails·conversation), `app/src/renderer/`의 `homeComposer.ts`·`App.tsx` toast·`quickOpen.ts`·`ProjectSettingsDialog.tsx`, 각 테스트 | 없음 | Claude Opus high: 감시 계약(`Change.names`)을 바꾸는 일이고 POSTMORTEM의 감시 함정이 여럿 걸린다 | tasks T4·T5 검증 줄, `/runtime-test` | 대기 |
 | BS | T4의 `sidebarGroups`·`ui-state` sanitizer, T6, `/design-sync` | `ShellSidebar.tsx`, 새 `sidebarGroups` 모듈, `styles.css`, `QuickOpenDialog.tsx`, `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`, `App.tsx`(묶음 열기 계기), `docs/DESIGN.md`(측정값), 각 테스트 | BA 통합 | Claude Opus high: 키 모델·저장·자동 펼침과 초안 맞추기에 판단이 들고, POSTMORTEM의 sidebar 함정이 걸린다 | tasks T6 검증 줄, `/runtime-test`, `/design-sync` | 대기 |
 | BE | T7 | `eval/` | BC 통합 | Codex gpt-6-astra medium: 기존 시나리오 틀을 따르지만 checks·rubric 설계에 판단이 든다. 다른 계열이 시나리오를 쓰면 Claude 쪽 해석에 기대지 않는다 | tasks T7 검증 줄 | 대기 |
 | BR-c | T8 Claude 벌 | 자기 worktree의 `.doan/ds/` | BP·BS(`/design-sync` 포함) 통합 | Claude Opus high: 사용자 지시(모델별 생성) | handoff와 commit | 대기 |
 | BR-x | T8 Codex 벌 | 자기 worktree의 `.doan/ds/` | BP·BS(`/design-sync` 포함) 통합 | Codex gpt-6-astra medium: 사용자 지시(모델별 생성) | handoff와 commit | 대기 |
-| R-BC | BC 리뷰 | 없음(보고만) | BC | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
+| R-BC | BC 리뷰 | 없음(보고만) | BC | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료(1회: 🔴 1·⚪ 1, 2회: 지적 없음) |
 | R-BP | BP 리뷰(T8 preset 수정분 포함) | 없음(보고만) | BP | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
 | R-BA | BA 리뷰 | 없음(보고만) | BA | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
 | R-BS | BS 리뷰 | 없음(보고만) | BS | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
