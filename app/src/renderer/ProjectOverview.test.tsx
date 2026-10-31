@@ -151,3 +151,16 @@ test("a problem worktree in the chip menu shows its repair actions instead of op
   expect(worktreeChoice(missing)).toEqual({ kind: "repair", actions: ["locate"] });
   expect(worktreeChoice(unset)).toEqual({ kind: "repair", actions: ["setUp"] });
 });
+
+// design-sync (buzz-project.html, buzz-conversation.html), measured in the built app: the app body's tabular figures
+// widened the short times ("12m" by 2.5px), button.doan-chip's open fill replaced the open worktree chip's pressed
+// fill, and two bare lucide glyphs (the moved line's, the Stopped notice's) rendered at 24px instead of 16.
+test("the Overview's surfaces take plain numerals, the open chip its pressed fill, and notice glyphs the icon size", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }");
+  expect(css).toContain('.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }');
+  expect(css).toContain(".doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toContain(".conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
+});

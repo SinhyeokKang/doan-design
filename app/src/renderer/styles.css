@@ -897,7 +897,10 @@ body:has(.shell-top) { background: transparent; }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
 .conversation-thread .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
 .conversation-thread .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
-.conversation-thread .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; }
+/* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
+.conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+/* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
+.conversation-thread .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
 .conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
@@ -915,13 +918,17 @@ body:has(.shell-top) { background: transparent; }
    The main panel keeps the workspace's white .ov surface; the thread scrolls inside it to the panel's edge while its
    column stays 720px wide, and the composer sits under it. No mascot, greeting or gradient: that is Home's. */
 .workspace > .ov.ov-main { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+/* The body's tabular figures widen every "1" (short times like "1d", "12m", thread text), which the shell keeps for its
+   counts; these surfaces read like the page. The two menus are portalled out of .ov-main, so they are named too. */
+.ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
 .ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
 .ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
 .ov-project-name { font-weight: var(--type-weight-medium); }
 /* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
 .wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
 .wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
-.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+/* button.doan-chip's open fill (data-state="open", more specific) would otherwise replace the pressed fill. */
+.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
 .shell-project-menu.wt-menu { width: 280px; }
 .ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
 /* The title gives way first in a narrow window (design §2.1). */
@@ -936,7 +943,9 @@ body:has(.shell-top) { background: transparent; }
 .ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
 .ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
 /* New conversation: the moved line and the suggestions sit right above the composer, start-aligned. */
+/* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
 .doan-notice.moved { margin-bottom: var(--space-3); }
+.doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
 .ov-suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
 .ov-suggestions .suggestion span { white-space: nowrap; }
 /* The conversation dropdown: New, then the project conversations drawn like the right panel's rows, split by hairlines;
