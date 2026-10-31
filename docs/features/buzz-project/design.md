@@ -10,7 +10,7 @@
   - `overview-new`: 새 대화 상태, 추천 칩, 오른쪽 목록 있음.
   - `overview-empty`: 대화도 캔버스도 없는 프로젝트(오른쪽 목록 빈 상태).
   - `overview-dropdown`: 대화 제목 드롭다운 열림(New, 프로젝트 대화 목록, 진행 상태).
-  - `overview-list-states`: 오른쪽 목록의 행 상태(권한 요청·작업 중·안 본 종료·없음, 펼침, 지워진 캔버스, 중복 ID, 썸네일 대기·실패·폭 없음).
+  - `overview-list-states`: 오른쪽 목록의 행 상태(권한 요청·작업 중·안 본 종료·없음, 지워진 캔버스, 중복 ID, 썸네일 대기·실패·폭 없음).
   - `overview-promoted`: 보던 대화가 승격된 직후(메인 초기화, 오른쪽 목록 맨 위에 새 캔버스 행).
   - `overview-notice`: 중복 ID 알림이 메인 위에 있는 상태.
   - `overview-narrow`: 960×600 창.
@@ -26,8 +26,7 @@
   - 오른쪽 빈 상태: "No canvas conversations yet." + "When a conversation draws or edits a canvas, the canvas shows here."
   - 드롭다운: "New conversation", 머리 "Conversations in <project>".
 - 오른쪽 행
-  - 썸네일 72×48(모서리 `radius-toolbar-icon`), 이름, 보조 줄(공급자 · 마지막 활동, 글자만), 상태 표시(LNB 슬롯과 같은 모양), 펼침 chevron(`xs` 아이콘 버튼).
-  - 펼친 대화 행은 썸네일 왼쪽 선에 맞추고 오른쪽에 시각을 둔다. 보관 대화는 subtle 잉크다.
+  - 썸네일 72×48(모서리 `radius-toolbar-icon`), 이름, 보조 줄(현재 대화의 공급자 · 마지막 활동, 글자만), 상태 표시(LNB 슬롯과 같은 모양).
   - 열 수 없는 행 문구: "No longer in <project>."(buzz-conversation 표시 줄과 같은 말), "2 canvases use this ID — run doan check", "Can’t read this canvas — run doan check". 
 - 메인: 대화 열 최대 720px, 패널 안쪽 24px. 헤더 제목은 `sm` trigger 버튼이다.
 - 메뉴 폭 360px, 오른쪽 패널 280px(출하 값)은 컴포넌트 상수다.
@@ -57,13 +56,13 @@
 ### 2.2 오른쪽 패널 (캔버스 목록)
 
 - 목록은 대화가 있는 캔버스만 담는다. 순서는 그 캔버스 대화들의 마지막 활동 최신순이다.
-- **행**: 썸네일(작게), 캔버스 이름, 진행 상태(가장 높은 하나), 펼침 chevron.
+- **행**: 썸네일(작게), 캔버스 이름, 그 캔버스 현재 대화의 진행 상태. 캔버스마다 현재 대화 하나만 대표하고 펼치지 않는다(2026-10-31 user).
   - 행을 누르면 캔버스를 연다. 지금 열기 경로와 draft 보호를 그대로 쓴다.
-  - 펼치면 현재 대화가 먼저 오고, 보관 대화가 최근순으로 온다. 대화를 누르면 그 캔버스를 연다. C12가 그 대화를 고르는 인자를 받을 수 있게 열기 요청에 대화 id를 함께 넘긴다. 이번에는 쓰지 않는다.
+  - 지난 대화는 캔버스에서 연다(C12의 보관 대화 버튼).
 - **썸네일**: 지금 `ThumbnailRequests`의 보이는 행 우선 캡처를 그대로 쓴다. 썸네일 틀은 항상 자리를 지킨다. 준비된 미리보기가 없으면(대기, 캡처 실패, `doan:width` 없음, 읽기 실패, 사라진 캔버스) 빈 스타일(inset 채움, 글리프 없음)을 보이고 이유는 글자로 쓰지 않는다. 접근 이름만 "Preview loading" 또는 "Preview unavailable"이다(2026-10-31 user).
 - **열 수 없는 행**: 지워진 캔버스, 중복 ID, 읽기 실패는 이유를 한 줄로 보이고 누를 수 없다.
 - **빈 상태**: "No canvas conversations yet."(clarify로 문구를 정한다).
-- **키보드**: 목록은 `role="tree"`로, 지금 sidebar와 Feedback의 키(↑/↓, Home/End, ←/→ 펼침, Enter 열기)를 따른다.
+- **키보드**: 목록은 `role="list"`의 행 버튼이다. Tab으로 들어오고, ↑/↓와 Home/End로 행을 옮기고, Enter로 캔버스를 연다.
 
 ### 2.3 기본 대화와 기억
 
@@ -83,7 +82,7 @@
 |---|---|
 | `pickOverviewConversation(list, remembered, handoff)` | 결정 5의 순서, 승격·지워진 대화 건너뛰기 |
 | `projectConversationMenu(list)` | 프로젝트 대화만, 최근 활동순, 상태 표시, 승격된 대화 없음 |
-| `canvasConversationRows(list, canvasRows)` | 대화가 있는 캔버스만, 마지막 활동순, 가장 높은 상태, 펼친 항목 순서, 지워진 캔버스·중복 ID·읽기 실패 |
+| `canvasConversationRows(list, canvasRows)` | 현재 대화가 있는 캔버스만, 캔버스당 현재 대화 하나, 마지막 활동순, 지워진 캔버스·중복 ID·읽기 실패 |
 | `overviewAfterListChange(current, list)` | 승격이면 새 대화 상태, 보관·지워짐 처리 |
 | `ui-state` 선택 필드 검증 | 알 수 없는 값 버리기, 저장된 root 밖 버리기 |
 

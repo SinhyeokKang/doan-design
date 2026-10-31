@@ -22,7 +22,7 @@
 
 - [ ] R1. Overview 메인: 헤더 드롭다운, `ConversationThread`, `DockedComposer`(기존·새 대화 모드), 새 대화 상태의 추천 칩, 중복 ID 알림 자리, 화면에 보일 때 `markSeen`, ui-state 기억.
   - 검증: `npm --prefix app test` (정적 마크업, 렌더 사이 대화 전환), `npm --prefix app run typecheck`.
-- [ ] R2. 오른쪽 캔버스 목록: 행, 펼침, 썸네일, 열 수 없는 행, 빈 상태, tree 키보드, 캔버스 열기(대화 id 함께 전달).
+- [ ] R2. 오른쪽 캔버스 목록: 행(캔버스당 현재 대화 하나), 썸네일, 열 수 없는 행, 빈 상태, 목록 키보드, 캔버스 열기.
   - 검증: `npm --prefix app test`.
 - [ ] R3. 제거: Overview 카드 목록, FirstPrompt 사용처, Feedback 패널과 `feedbackGroups`, 카드 코멘트 수, Overview 상태줄. 셀렉터 문자열 검색(design §6). 남은 사용처가 있는 코드는 지우지 않는다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`.
