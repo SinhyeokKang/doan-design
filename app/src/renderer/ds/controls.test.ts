@@ -97,6 +97,15 @@ test("quiet is the header capsule's backdrop with a blur, and steps one backdrop
   expect(rule(css, ":is(.doan-button, .doan-icon-button)")).toContain("box-shadow var(--time-state) var(--ease-state)");
 });
 
+test("the xs button is 24px with caption type, 4/8 padding and 14px icons, before the trigger rule", () => {
+  const css = read("./controls.css");
+  expect(rule(css, '.doan-button[data-ui-size="xs"]')).toBe("min-height: var(--size-control-xs); padding: var(--space-1) var(--space-2); gap: var(--space-1); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing);");
+  expect(rule(css, '.doan-button[data-ui-size="xs"] > svg')).toBe("width: var(--size-icon-sm); height: var(--size-icon-sm);");
+  // Trigger keeps its 8px inline padding at every size, so it must still come after the size rules.
+  expect(css.indexOf('.doan-button[data-ui-variant="trigger"] {')).toBeGreaterThan(css.indexOf('.doan-button[data-ui-size="xs"] {'));
+  expect(read("../tokens.css")).toContain("--size-control-xs: 24px;");
+});
+
 test("trigger has no fill at rest, 8px inline padding after the size rules, and the backdrop fill on hover and open", () => {
   const css = read("./controls.css");
   expect(rule(css, '.doan-button[data-ui-variant="trigger"]')).toBe("padding-inline: var(--space-2);");
