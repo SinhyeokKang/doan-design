@@ -21,15 +21,17 @@
 11. Home 이유 줄의 Open은 지금 Home 그대로(`subtle`, 접근 이름 없음) 둔다. 초안 `hero-composer` 타일의 `panel` 변형은 초안 쪽 차이로 보고, D2가 DESIGN.md에 차이로 기록한다(지휘자 판단 — spec 결정 1과 design §0이 Home에서 바뀌는 것을 포커스 보더와 문구로 한정한다).
 12. 프로젝트 제거 확인 문구는 "A conversation is still running in <project>." / "A conversation in <project> needs your answer."다. Home 이유 줄은 "Another…" 그대로다(사용자 — RB1 지적. spec 결정 18을 고쳤다).
 13. Home 이유 줄의 Open에 접근 이름 "Open the running conversation"을 더한다. 변형은 `subtle` 그대로다(지휘자 판단 — RB1 권고. 겉모습은 바뀌지 않고, docked와 같은 이름이다).
+14. 결정 5·6을 바꾼다. 이 자식에는 스레드와 docked 입력창을 올릴 화면이 없다. 그래서 B2는 `DockedComposer`의 동작과 대기열을 모두 props로 받고, preload 연결(`openLink`, 복사, 대기열 채널)은 화면을 만드는 `buzz-project`가 한다. 미룰 항목은 없다(지휘자 판단 — spec 결정 1 '프리미티브와 데이터만').
+15. 목록 알림(`listChanged`)은 renderer가 root마다 읽기를 하나만 진행하고, 진행 중에 온 알림은 끝난 뒤 한 번 더 읽는 것으로 합친다(지휘자 판단 — RA1 N2, design §2.1의 알려진 한계).
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 통합 `5a145101` |
-| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 리뷰 중 |
+| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 통합 `…38fab905`, 수정 라운드 1 진행 중 |
 | B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 통합 `61a52bdf..290e85b2` (라운드 1) |
-| RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 진행 중 |
+| RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 완료 (🔴0, 🟡2) |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 완료 (🔴1→0) |
 | A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 대기 |
 | B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 대기 |
@@ -65,3 +67,6 @@
 - A1 완료(`worker_done` succeeded): `d2f02dca..ace812af` 8커밋, 테스트 5167개·typecheck·verify 통과, 자체 리뷰 🟡3·⚪1 반영. 계획과 다른 점 10개는 handoff에 있다(`.scratch/buzz-conversation/handoff-A1.md`). 열린 항목: Codex에서 effort 없이 모델만 보낼 때 이전 effort가 이어지는지, `listChanged` 빈도에 따른 R4 throttle. A1 터미널은 수정 라운드용으로 retain했다.
 - RA1 리뷰 시작: dispatch `ctx_f75b434dfbf1`, worktree `bc-a1`, Codex gpt-6-astra medium.
 - B1 수정 라운드 1 완료: 🔴1·🟡1~3·⚪1~6과 결정 12·13을 4커밋으로 반영했고 verify가 통과했다. 지휘자가 🔴1 수정(crash로 접힌 턴을 끝 항목으로 닫음)을 diff로 확인했다. B1 8커밋을 `61a52bdf..290e85b2`로 통합했다. B2가 따를 것: `threadItems(events, root, live)`, `ConversationThread`의 필수 prop `conversationId`, 메시지 key `m<turnId>:<messageId>`. B1 워커를 release하고 worktree `bc-b1`을 제거했다. 증거는 `.scratch/buzz-conversation/b1/`에 있다.
+- RA1 완료(Codex): 🔴0, 🟡2(저장 실패 뒤 종료된 턴이 목록에서 실행 중으로 남음, 경로가 바뀐 캔버스로 잘못 승격), ⚪2. A1 수정 라운드 1을 같은 터미널로 보냈다: dispatch `ctx_7434750a1d95`. N1(Codex에서 모델만 바꿀 때 effort가 이어지는지)은 기본 effort를 명시해 보내는 방식으로 고치거나, 안 되면 D2에서 실제 서버로 확인한다.
+- 리뷰를 통과한 A1 8커밋을 먼저 통합했다(`…38fab905`). 수정 커밋은 나중에 그 위에 얹는다.
+- 통합 HEAD `38fab905`(A1 8커밋 + B1 8커밋)에서 `verify.mjs` PASS. 처음 실패는 지휘자 체크아웃에 새 의존성이 설치되지 않아서였고, `npm --prefix app ci` 뒤 통과했다.
