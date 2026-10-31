@@ -84,9 +84,8 @@ export interface CommentsPanelProps {
   reviewNotice?: ReviewNoticeView | null;
   reviewBar?: ReviewBarView | null;
   reviewDone?: ReviewDoneView | null;
-  // project-feedback: this canvas's comments left with an id it lost; Show
-  // goes to them in Feedback. The first banner under the head.
-  idNotice?: { text: string; onShow: () => void } | null;
+  // Comments left under the previous canvas ID need CLI guidance.
+  idNotice?: { text: string } | null;
   editor: CommentEditorProps | null;
   headingRef?: Ref<HTMLHeadingElement>;
   panelRef?: Ref<HTMLElement>;
@@ -121,7 +120,7 @@ export function CommentsPanel(props: CommentsPanelProps) {
   const editorBlocked = editor && (props.writeBlocked ?? (read.status === "failed" ? READ_FAILED_EDITOR : null) ?? (props.busy ? "A comment change is in progress." : null) ?? (author.status !== "ready" ? "A Git name is required before saving." : null) ?? (editor.mode === "create" && props.widthInvalid ? "Run doan check in a terminal to diagnose the canvas. A readable width is required to add comments and show pins." : null) ?? editor.blocked);
   const state = commentsPanelState(props.identityCause, read, author);
   const editorView = editor && <CommentEditor {...editor} blocked={editor.continue ? editor.blocked : editorBlocked || null} />;
-  const idNotice = props.idNotice && <div className="comments-message warning notice" role="status"><AlertIcon />{props.idNotice.text}<button type="button" className="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={props.idNotice.onShow}>Show</button></div>;
+  const idNotice = props.idNotice && <div className="comments-message warning notice" role="status"><AlertIcon />{props.idNotice.text}</div>;
   if (state.kind === "identity") {
     const text = identityText(state.cause, props.canvasId);
     return <section ref={props.panelRef} className="comments-panel native-scroll" aria-label="Comments">

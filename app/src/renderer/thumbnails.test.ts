@@ -109,4 +109,3 @@ test("thumbnail requests accept valid width without an id and retain known frame
   expect(h.asks.map(ask => ask.path)).toEqual([missingID.path]);
   h.thumbs.dispose();
 });
-

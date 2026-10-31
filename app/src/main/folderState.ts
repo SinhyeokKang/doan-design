@@ -52,10 +52,9 @@ export function folderState(run: CliRun): FolderState {
   return { kind: "list", root, scope, canvases, ...(isGitInfo(git) ? { git } : {}), ...(Array.isArray(orphans) ? { orphans: orphans.flatMap(orphanFile) } : {}) };
 }
 
-// Orphans are shown and gate the app's writes (`orphanWriteAllowed`), so an
-// entry is kept only whole and only with the fields the app reads; a malformed
-// one is dropped rather than failing a listing that is otherwise good, like `git`.
-// An empty id is kept: it is the file `.jsonl`, shown by its counts only.
+// CLI orphan counts support the Comments notice after a canvas ID changes.
+// Keep only whole entries; a malformed one does not fail an otherwise good listing.
+// Preserve empty IDs from the CLI too, matching the `.jsonl` filename.
 function orphanFile(value: unknown): OrphanFile[] {
   if (typeof value !== "object" || value === null) return [];
   const id: unknown = Reflect.get(value, "id");

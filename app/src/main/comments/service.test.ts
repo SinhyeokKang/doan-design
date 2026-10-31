@@ -550,4 +550,3 @@ test("inspectAttempt is saved only when every event is present and absent only w
   expect(inspectAttempt(withLines(events[0], { ...events[1], at: "2026-01-01T00:00:00.009Z" }), evidence)).toMatchObject({ state: "unknown" });
   expect(inspectAttempt(withLines(events[0]), { events: [events[0]], before: attemptBaseline(base) })).toMatchObject({ state: "saved" });
 });
-

@@ -4,7 +4,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { slotKeyOf, slotsFromList } from "./conversationList";
 import { mergeConversationEvents, stripState, type StripState } from "./conversationStrip";
-import { newCanvasText } from "./firstPromptView";
+import { newCanvasText } from "./newCanvasText";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import {
   newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, slotKey,

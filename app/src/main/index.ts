@@ -55,14 +55,12 @@ import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
-import { parseProjectCommentsRequest, readProjectComments, type ProjectComments } from "./projectComments";
 import { removalLabel } from "./removal";
 import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewState";
 import { readFoldersFileForPruning } from "./folderStore";
 import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
-import { promptSentence } from "../firstPrompt/promptSentence";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
@@ -537,9 +535,8 @@ async function start(): Promise<void> {
       return inspector.documentCurrent(identity, url, origin);
     },
     clipboard: value => clipboard.writeText(value), invalidated: invalidate,
-    listing: root => readFolder(cli, root),
   });
-  const commentMethods = { list: "list", begin: "begin", mutate: "mutate", status: "status", author: "author", copy: "copy", orphanMutate: "orphan-mutate", orphanStatus: "orphan-status" } as const;
+  const commentMethods = { list: "list", begin: "begin", mutate: "mutate", status: "status", author: "author", copy: "copy" } as const;
   for (const [method, channel] of Object.entries(commentMethods) as [keyof typeof commentMethods, string][]) {
     handle(`comments:${channel}`, { ok: false, identity: null, error: "The request was refused." }, (event, value: unknown) => {
       if (!fromWindow(event)) return { ok: false, identity: null, error: "The request was refused." };
@@ -877,14 +874,6 @@ async function start(): Promise<void> {
     const request = parseReviewRaise(value);
     return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.raise(request.root, request.canvas, request.at) : null;
   });
-  handle("comments:project", null, (event, value: unknown): Promise<ProjectComments> | null => {
-    const request = parseProjectCommentsRequest(value);
-    if (!fromWindow(event) || request === null || !storedRoot(request.root)) return null;
-    return readProjectComments({
-      list: root => readFolder(cli, root), read: readCommentBytes, author: readAuthor,
-      marker: (root, canvas) => reviews.marker(root, canvas), epoch: root => ready.epoch(root),
-    }, request);
-  });
   // A saved root and a listed canvas only; main reads the bytes from its cache.
   handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
@@ -948,24 +937,6 @@ async function start(): Promise<void> {
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
   // Copies what About last showed, so the text matches the page.
   handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout())) : { kind: "stale" });
-  // The sentence names only a stored, set-up project. `subject` is the one
-  // free text the renderer sends; promptSentence checks it.
-  const readyRoot = (value: unknown): string | null => typeof value === "string" &&
-    ready.entries().some(entry => entry.path === value && entry.kind === "list") ? value : null;
-  const promptText = (value: Record<string, unknown>, fixed: number): string | null => {
-    const root = readyRoot(value.root);
-    if (root === null || Object.keys(value).length - fixed !== 2 || !("subject" in value)) return null;
-    const text = typeof value.subject === "string" ? promptSentence(root, value.subject) : null;
-    return typeof text === "string" ? text : null;
-  };
-  handle("onboarding:first-prompt", null, (_event, value: unknown) =>
-    typeof value === "object" && value !== null && "root" in value ? promptText(value as Record<string, unknown>, 0) : null);
-  handle("onboarding:copy", { kind: "stale" }, async (_event, value: unknown) => {
-    if (typeof value !== "object" || value === null || !("kind" in value)) return { kind: "stale" };
-    let text: string | null = null;
-    if (value.kind === "firstPrompt" && "root" in value) text = promptText(value as Record<string, unknown>, 1);
-    return text === null ? { kind: "stale" } : copy(text);
-  });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
   const bridge = createConfigBridge({

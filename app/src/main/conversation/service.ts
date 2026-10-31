@@ -14,7 +14,7 @@ import type { ModelOption } from "./models";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
-export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; subject?: string; text: string; anchors: Anchor[]; model?: string; effort?: string; attachments?: AttachmentRecord[] }
+export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; attachments?: AttachmentRecord[] }
 export interface Prepared {
   runtime: Provider; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string;
   // Doan-account runs only: arguments ahead of the runner's own, the account the run uses, the lease to release once the
@@ -139,10 +139,10 @@ export class ConversationService {
       if (currentCanvas) request = { ...request, canvas: currentCanvas };
       if (project) this.checkProject(project, id);
       const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
-      // Home sends newDesign without FirstPrompt's subject; every turn of such a conversation carries Home's paragraph.
-      const fromHome = request.mode === "newDesign" && request.subject === undefined;
+      // Every turn of a newDesign conversation carries Home's paragraph.
+      const fromHome = request.mode === "newDesign";
       // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current" as const,
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: request.text.slice(0, 512), state: "current" as const,
         ...choice(request), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.

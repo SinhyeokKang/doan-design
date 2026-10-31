@@ -1,9 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { ProjectCanvasComments } from "../main/projectComments";
+import { useState, type ReactNode } from "react";
 import type { FolderEntry } from "../main/view";
 import { displayPath } from "./projectDisplay";
-import { cardRow, ProjectCommentReads, type ProjectRead, type RowAction } from "./homeCards";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { cardRow, type RowAction } from "./homeCards";
 import { AlertIcon } from "./AlertIcon";
 import { HeroComposer, type HeroComposerProps } from "./HomeComposerView";
 import { groupProjects } from "./homeCards";
@@ -33,32 +31,6 @@ export function Home({ header, sidebar, ...composer }: HomeProps) {
   </main>;
 }
 
-// Counts for `roots` (list rows only), read again when a root's ls row
-// changes or main invalidates its comments. `refresh` is for a change main
-// does not announce, such as a review-state raise.
-// `reads`: each root's whole last read, for the Feedback panel; `comments`:
-// the counts of the list ones, for the Overview cards.
-export function useProjectComments(entries: readonly FolderEntry[], roots: readonly string[]): { comments: ReadonlyMap<string, readonly ProjectCanvasComments[]>; reads: ReadonlyMap<string, ProjectRead>; refresh: (root: string) => void } {
-  const [items, setItems] = useState<ReadonlyMap<string, ProjectRead>>(new Map());
-  const comments = useMemo(() => new Map([...items].flatMap(([root, read]) => read.kind === "list" ? [[root, read.canvases] as const] : [])), [items]);
-  const reads = useRef<ProjectCommentReads | null>(null);
-  useEffect(() => {
-    const current = new ProjectCommentReads((root, revision) => window.doan.projectComments(root, revision), setItems);
-    reads.current = current;
-    const stop = window.doan.onCommentsInvalidated(change => current.invalidated(change.root));
-    return () => { stop(); current.dispose(); reads.current = null; };
-  }, []);
-  const rootsKey = roots.join("\0");
-  const tracked = useMemo(() => new Map(entries.flatMap(entry => entry.kind === "list" && roots.includes(entry.path) ? [[entry.path, JSON.stringify(entry)] as const] : [])), [entries, rootsKey]);
-  // After the effect above, so the first roots reach a live reader.
-  useEffect(() => { reads.current?.track(tracked); }, [tracked]);
-  const refresh = useCallback((root: string) => reads.current?.refresh(root), []);
-  return { comments, reads: items, refresh };
-}
-
-export function PathTip({ text, children }: { text: string; children: ReactNode }) {
-  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{text}</TooltipContent></Tooltip>;
-}
 const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ProblemActions({ entry, action, workspace }: { entry: FolderEntry; action: (action: RowAction, root: string) => void; workspace: { name: string; homeDirectory: string | null; home: () => void } }) {
   const [details, setDetails] = useState(false);
@@ -70,13 +42,4 @@ export function ProblemActions({ entry, action, workspace }: { entry: FolderEntr
     {entry.kind === "notFound" ? <span className="text" title={`${displayPath(entry.path, workspace.homeDirectory)} is gone or moved.`}><code>{displayPath(entry.path, workspace.homeDirectory)}</code> is gone or moved.</span> : entry.kind === "uninitialized" ? <span className="text" title={`${workspace.name} is not set up.`}>{workspace.name} is not set up.</span> : <span className="spacer" />}
     {actions}<button className="btn ghost doan-button" data-ui-size="sm" onClick={workspace.home}>Go Home</button>
   </div>{message && <div className="ws-detail">{message}</div>}</div>;
-}
-
-export function ChangedTime({ at }: { at: number | undefined }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60_000); return () => clearInterval(timer); }, []);
-  if (at === undefined) return <>—</>;
-  const minutes = Math.max(0, Math.floor((now - at) / 60_000));
-  const text = minutes < 1 ? "Just now" : minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.floor(minutes / 60)}h ago` : minutes < 2880 ? "Yesterday" : new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return <PathTip text={new Date(at).toLocaleString()}><time dateTime={new Date(at).toISOString()}>{text}</time></PathTip>;
 }

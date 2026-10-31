@@ -13,7 +13,7 @@ import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
 } from "../formats/types";
-import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, OrphanMutationRequest, OrphanRequest, SavedStatus } from "../main/comments/service";
+import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, SavedStatus } from "../main/comments/service";
 import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Selection } from "../formats/types";
@@ -26,7 +26,6 @@ import type { NotificationTarget } from "../main/notifications";
 import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
 import type { InspectResult } from "../main/inspect";
-import type { ProjectComments } from "../main/projectComments";
 import type { ReviewMarker } from "../comments/review";
 import type { FolderEntry } from "../main/view";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
@@ -66,7 +65,7 @@ type SessionRequest<T> = T extends unknown ? Omit<T, "v" | "token" | "op"> : nev
 const api = {
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string } | { available: false; reason: "no_record" | UnavailableReason } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
   conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
-  // newDesign: `subject` (FirstPrompt) or Home's own `text`. model and effort only from the list listConversationModels
+  // newDesign takes `text`. model and effort only from the list listConversationModels
   // returned in this run for that root and runtime; attachments by the ids the attachment calls returned. A moved or
   // deleted attachment refuses the start with attachment_missing and its ids in `missing`.
   startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
@@ -198,11 +197,6 @@ const api = {
   // Hidden: closed with the app running, or the whole app hidden (⌘H).
   onWindowVisible: (listener: (visible: boolean) => void): (() => void) =>
     subscribe<{ visible: boolean }>("window:visible", "window:visible", value => listener(value.visible)),
-  // Main builds the sentence from a stored, set-up project and the subject
-  // (promptSentence); null when either is refused.
-  firstPrompt: (root: string, subject: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root, subject }),
-  // Resolves after the clipboard write settled.
-  copyFirstPrompt: (root: string, subject: string): Promise<CopyResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root, subject }),
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
@@ -239,9 +233,6 @@ const api = {
   commentsStatus: (request: CommentRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:status", request),
   commentsAuthor: (request: CommentRequest): Promise<CommentReply<Author>> => ipcRenderer.invoke("comments:author", request),
   commentsCopy: (request: CopyRequest): Promise<CommentReply<{ copied: true }>> => ipcRenderer.invoke("comments:copy", request),
-  // project-feedback: resolve, reopen and delete on a comment file no canvas uses.
-  orphanCommentsMutate: (request: OrphanMutationRequest): Promise<CommentReply<SavedStatus, OrphanRequest>> => ipcRenderer.invoke("comments:orphan-mutate", request),
-  orphanCommentsStatus: (request: OrphanRequest): Promise<CommentReply<SavedStatus, OrphanRequest>> => ipcRenderer.invoke("comments:orphan-status", request),
   setCommentDraftGuard: (active: boolean): Promise<void> => ipcRenderer.invoke("comments:guard", active),
   answerCommentTransition: (answer: { id: string; allow: boolean }): Promise<void> => ipcRenderer.invoke("comments:transition-answer", answer),
   onCommentTransition(listener: (request: TransitionRequest) => void): () => void {
@@ -251,7 +242,6 @@ const api = {
   },
   // Per canvas id from one fresh `doan ls`; null when main refused. `revision`
   // comes back unchanged so a reply older than the last invalidation can be dropped.
-  projectComments: (root: string, revision: number): Promise<ProjectComments | null> => ipcRenderer.invoke("comments:project", { root, revision }),
   // The device-local last review time of one canvas; main only ever raises it.
   reviewMarker: (root: string, canvas: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:get", { root, canvas }),
   raiseReviewMarker: (root: string, canvas: string, at: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:raise", { root, canvas, at }),

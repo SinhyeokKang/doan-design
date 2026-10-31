@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { activityFor, activityText, movedFrom, timeText } from "./activity";
 import { canvasInfo } from "./canvasInfo";
 import type { InspectRow } from "../main/inspect";
@@ -8,11 +8,9 @@ import { frameLabel } from "./canvasView";
 import { INSPECT_GROUPS, sourceNotes, swatchColor, tokenTitle } from "./inspector";
 import type { SelectionView } from "./selection";
 
-// `feedback`: the Overview's Feedback panel, which takes the place of
-// "No canvas open" there (project-feedback); other screens pass none.
-export function RightPanel({ state, selectPath, feedback }: { state: CanvasState; selectPath: (item: PathItem) => void; feedback?: ReactNode }) {
+export function RightPanel({ state, selectPath }: { state: CanvasState; selectPath: (item: PathItem) => void }) {
   const open = state.open;
-  if (!open && feedback) return <>{feedback}</>;
+  if (!open) return <aside className="right native-scroll" />;
   if (open && state.selection) return <Inspector selection={state.selection} inspector={state.inspector} selectPath={selectPath} />;
   const info = open ? canvasInfo(open.row, state.unlisted ? null : state.layout) : null;
   return <aside className="right native-scroll" role="region" aria-label="Canvas info">
