@@ -101,6 +101,26 @@ describe("canvasConversationRows", () => {
   });
 });
 
+describe("canvasConversationRows beyond Home", () => {
+  test("a canvas conversation not started from Home shows its status: waiting, running, unseen ending; a seen ending has none", () => {
+    const rows = canvasConversationRows([
+      summary({ conversationId: "w", fromHome: false, phase: "waiting", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(0) }),
+      summary({ conversationId: "r", fromHome: false, phase: "running", canvas: { path: plain.path }, lastActivityAt: ago(MIN) }),
+      summary({ conversationId: "u", fromHome: false, unseen: true, canvas: { path: quiet.path, id: "quiet" }, lastActivityAt: ago(2 * MIN) }),
+      summary({ conversationId: "s", fromHome: false, unseen: true, canvas: { path: ".doan/canvases/seen.html", id: "seen" }, lastActivityAt: ago(3 * MIN) }),
+    ], [billing, plain, quiet, row({ path: ".doan/canvases/seen.html", id: "seen" })], NOW, new Set(["s"]));
+    expect(rows.map(r => r.status)).toEqual([
+      { kind: "permission", label: "Needs your answer" }, { kind: "working", label: "Working" }, { kind: "unseen", label: "Finished, not seen" }, null,
+    ]);
+  });
+
+  test("a deleted canvas of a conversation not started from Home shows while work is left and hides after", () => {
+    const gone = { path: ".doan/canvases/gone.html", id: "gone" };
+    expect(canvasConversationRows([summary({ conversationId: "g", fromHome: false, phase: "running", canvas: gone })], [], NOW).map(r => r.problem)).toEqual([{ kind: "gone" }]);
+    expect(canvasConversationRows([summary({ conversationId: "g", fromHome: false, canvas: gone })], [], NOW)).toEqual([]);
+  });
+});
+
 describe("canvasRowProblemText", () => {
   test("the shipped sentences", () => {
     expect(canvasRowProblemText({ kind: "gone" }, "doan")).toBe("No longer in doan");

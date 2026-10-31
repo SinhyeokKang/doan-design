@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
-import { overviewAfterListChange, pickOverviewConversation, projectConversationMenu, shortAgo } from "./overviewConversation";
+import { conversationStatus, overviewAfterListChange, pickOverviewConversation, projectConversationMenu, shortAgo } from "./overviewConversation";
 
 const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -147,23 +147,34 @@ describe("projectConversationMenu", () => {
   });
 });
 
+describe("conversationStatus beyond Home", () => {
+  test("a conversation not started from Home has the same status as one that was", () => {
+    const cases: [Partial<ConversationSummary>, unknown][] = [
+      [{ phase: "waiting" }, { kind: "permission", label: "Needs your answer" }],
+      [{ phase: "running" }, { kind: "working", label: "Working" }],
+      [{ unseen: true }, { kind: "unseen", label: "Finished, not seen" }],
+      [{}, null],
+    ];
+    for (const [patch, status] of cases) expect(conversationStatus(summary({ fromHome: false, ...patch }), new Set())).toEqual(status);
+    expect(conversationStatus(summary({ fromHome: false, unseen: true }), new Set(["c1"]))).toBeNull();
+  });
+});
+
 describe("overviewAfterListChange", () => {
   const root = "/r/doan";
-  const current = { root, conversationId: "c1", listed: true, lastSeq: 12 };
+  const current = { root, conversationId: "c1", listed: true };
 
   test("a promoted conversation resets to a new conversation, moves its draft and leaves a notice", () => {
     const list = [summary({ conversationId: "c1", title: "Billing tweaks", canvas })];
     expect(overviewAfterListChange(current, { root, list })).toEqual({
-      kind: "promoted",
-      notice: { conversationId: "c1", title: "Billing tweaks", canvas },
+      kind: "promoted", conversationId: "c1", title: "Billing tweaks", canvas,
       draft: { from: "conversation:c1", to: `root:${root}` },
-      markSeenThrough: 12,
     });
   });
 
-  test("a promotion whose turn end was not seen yet is not marked seen", () => {
+  test("a promotion carries no seen seq, unseen or not: the host decides from its own thread", () => {
     const list = [summary({ conversationId: "c1", canvas, unseen: true })];
-    expect(overviewAfterListChange(current, { root, list })).toMatchObject({ kind: "promoted", markSeenThrough: null });
+    expect(overviewAfterListChange(current, { root, list })).toEqual(overviewAfterListChange(current, { root, list: [{ ...list[0]!, unseen: false }] }));
   });
 
   test("a promoted conversation that was archived meanwhile is still a promotion", () => {

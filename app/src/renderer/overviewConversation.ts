@@ -1,7 +1,7 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
-import { slotsFromList } from "./conversationList";
+import { conversationWork } from "./conversationList";
 import { draftKey } from "./dockedRules";
 import type { Slot } from "./homeConversations";
 
@@ -31,9 +31,10 @@ export function shortAgo(at: string, now: number): ShortTime | null {
 export interface ConversationStatus { kind: Slot["kind"]; label: string }
 const STATUS_LABELS: Record<Slot["kind"], string> = { permission: "Needs your answer", working: "Working", unseen: "Finished, not seen" };
 
-// From the sidebar slot rule itself (slotsFromList), so a row and its sidebar slot never disagree between renders.
+// From the sidebar slot's own per-conversation rule (conversationWork), so a row and its slot never disagree between
+// renders. Unlike the sidebar, every conversation counts here, not only those started from Home.
 export function conversationStatus(c: ConversationSummary, seen: ReadonlySet<string>): ConversationStatus | null {
-  const slot = slotsFromList(new Map([["", [c]]]), seen, () => []).get("");
+  const slot = conversationWork(c, seen);
   return slot ? { kind: slot.kind, label: STATUS_LABELS[slot.kind] } : null;
 }
 
@@ -94,13 +95,14 @@ export function pickOverviewConversation(list: readonly ConversationSummary[] | 
 }
 
 // The Overview's main conversation: null is the new conversation state. listed: it has appeared in a list read, so its
-// absence later means it is gone rather than not listed yet. lastSeq: the highest seq the thread merged.
-export interface OverviewCurrent { root: string; conversationId: string | null; listed: boolean; lastSeq: number }
+// absence later means it is gone rather than not listed yet.
+export interface OverviewCurrent { root: string; conversationId: string | null; listed: boolean }
 export interface DraftMove { from: string; to: string }
+// No seen seq here: only the host holds the thread events and knows whether the person saw the turn end, so it marks
+// seen through the promotion marker event itself.
 export type OverviewChange =
   | { kind: "keep" }
-  // markSeenThrough: the person already saw the turn end, so the promotion marker is seen too; null when not.
-  | { kind: "promoted"; notice: { conversationId: string; title: string; canvas: Canvas }; draft: DraftMove; markSeenThrough: number | null }
+  | { kind: "promoted"; conversationId: string; title: string; canvas: Canvas; draft: DraftMove }
   | { kind: "gone"; draft: DraftMove };
 
 // After a list read for `root` (spec decision 6). The draft moves to the root's new conversation key so the typed text,
@@ -112,6 +114,6 @@ export function overviewAfterListChange(current: OverviewCurrent, change: { root
   const draft = { from: draftKey({ kind: "existing", conversationId: id, provider: "claude" }), to: draftKey({ kind: "new", root: current.root }) };
   const c = change.list.find(item => item.conversationId === id);
   if (!c) return current.listed ? { kind: "gone", draft } : { kind: "keep" };
-  if (c.canvas) return { kind: "promoted", notice: { conversationId: id, title: c.title, canvas: c.canvas }, draft, markSeenThrough: c.unseen ? null : current.lastSeq };
+  if (c.canvas) return { kind: "promoted", conversationId: id, title: c.title, canvas: c.canvas, draft };
   return c.state === "archived" ? { kind: "gone", draft } : { kind: "keep" };
 }

@@ -9,8 +9,8 @@ const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 
 
 // What is left for the person in one conversation, or null. `seen` holds conversations the person marked seen whose
 // list refresh has not arrived yet (Dismiss, a visit): the reply and the list notice may come in any order
-// (POSTMORTEM 2026-10-26).
-function work(c: ConversationSummary, seen: ReadonlySet<string>): Slot | null {
+// (POSTMORTEM 2026-10-26). Any conversation, whatever started it: the sidebar's own callers keep their fromHome filter.
+export function conversationWork(c: ConversationSummary, seen: ReadonlySet<string>): Slot | null {
   if (c.readError) return null;
   const p = PROVIDER_NAMES[c.provider];
   if (c.phase === "waiting") return { kind: "permission", label: `${p} needs your answer` };
@@ -40,7 +40,7 @@ export function slotsFromList(lists: ConversationList, seen: ReadonlySet<string>
   for (const [root, list] of lists) {
     for (const c of list) {
       if (!c.fromHome) continue;
-      const slot = work(c, seen);
+      const slot = conversationWork(c, seen);
       if (!slot) continue;
       const key = slotKeyOf(root, c, canvases(root));
       const held = slots.get(key);
@@ -56,7 +56,7 @@ export function stripFromList(list: readonly ConversationSummary[], seen: Readon
   let best: { c: ConversationSummary; rank: number } | null = null;
   for (const c of list) {
     if (!c.fromHome) continue;
-    const slot = work(c, seen);
+    const slot = conversationWork(c, seen);
     if (!slot) continue;
     const rank = RANK[slot.kind];
     if (!best || rank > best.rank || (rank === best.rank && c.lastActivityAt > best.c.lastActivityAt)) best = { c, rank };
