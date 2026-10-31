@@ -466,3 +466,15 @@ test("only Overview hides a conversation strip when no canvas is open", () => {
   folders([listed("/w/a")]);
   expect(find(KeyedConversationStrip)).toHaveLength(0);
 });
+
+// buzz-project design §2.5: a worktree picked from the Overview's branch chip lands focus on the new Overview's chip;
+// the runtime test found it on the sidebar's project row, where the workspace's default focus put it after the chip.
+test("a worktree picked from the branch chip focuses the new Overview's chip, not the sidebar row", () => {
+  render(); folders([listed("/w/a"), listed("/w/b")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  const focused: string[] = [];
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelectorAll: () => [], querySelector: (selector: string) => ({ focus: () => focused.push(selector) }) });
+  find<{ onWorktree(root: string): void }>(ProjectOverview)[0]!.props.onWorktree("/w/b"); render();
+  expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/b");
+  expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
+});
