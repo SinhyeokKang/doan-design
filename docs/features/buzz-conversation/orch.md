@@ -23,7 +23,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 진행 중 |
+| P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 통합 `5a145101` |
 | A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 진행 중 |
 | B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 진행 중 |
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 대기 |
@@ -53,3 +53,4 @@
 - P의 GUI probe 시작을 허락했다. B1 기준선 probe는 P와 겹치는지 보고 정한다.
 - B1의 Home 기준선 GUI probe를 허락했다. P의 앱은 로그인 대기로 멈춰 있다.
 - P1 관찰 네 경우가 모두 끝났다. Claude는 보존 지시를 읽기 전에 sign out됐다. D2에서 Claude 로그인 승인이 한 번 더 필요하다. Codex는 연결된 채 `/private/tmp/doan-p1-ogyLep/userData`에 남아 있다.
+- P 완료(`worker_done` succeeded). `e5cf271b`를 `5a145101`로 cherry-pick했다. 증거와 handoff를 지휘자 `.scratch/buzz-conversation/p1/`로 복사했다. P1 관찰 원문은 tasks.md P1에 있다. 거부된 수정도 edit 활동을 남기므로 파일 변경 교차 확인이 필요하다는 design §2.4 전제가 확인됐다.
