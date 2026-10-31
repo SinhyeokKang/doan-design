@@ -29,7 +29,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 통합 `5a145101` |
-| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 통합 `…38fab905`, 수정 라운드 1 진행 중 |
+| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 통합 `…be84f96f` (라운드 1) |
 | B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 통합 `61a52bdf..290e85b2` (라운드 1) |
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 완료 (🔴0, 🟡2) |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 완료 (🔴1→0) |
@@ -71,3 +71,4 @@
 - 리뷰를 통과한 A1 8커밋을 먼저 통합했다(`…38fab905`). 수정 커밋은 나중에 그 위에 얹는다.
 - 통합 HEAD `38fab905`(A1 8커밋 + B1 8커밋)에서 `verify.mjs` PASS. 처음 실패는 지휘자 체크아웃에 새 의존성이 설치되지 않아서였고, `npm --prefix app ci` 뒤 통과했다.
 - B2 시작: dispatch `ctx_ef0942a9b2b7`, worktree `bc-b2`(base `2328a362`), Claude opus high.
+- A1 수정 라운드 1 완료: Y1·Y2를 고쳤다. N1은 Codex 0.164.0 프로토콜 타입에서 `Model.defaultReasoningEffort`와 "turn/start의 effort는 이후 턴에도 적용"을 확인했다. 그래서 모델에 effort가 없으면 그 기본값을 턴에만 명시해 보낸다. 실제 서버 동작은 D2에서 확인한다. `fcffd4bc..be84f96f`로 통합했고, 통합 HEAD `be84f96f`에서 `verify.mjs` PASS. A1 워커를 release하고 worktree `bc-a1`을 제거했다. 증거는 `.scratch/buzz-conversation/a1/`에 있다.

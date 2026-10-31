@@ -18,16 +18,16 @@
 
 ## T. 형식과 순수 함수
 
-- [ ] T1. 이벤트 v1에 `conversation.bound {canvas}`, `conversation.restored` 타입을 더한다. fold가 `restored` 뒤 이벤트를 다시 반영한다.
+- [x] T1. 이벤트 v1에 `conversation.bound {canvas}`, `conversation.restored` 타입을 더한다. fold가 `restored` 뒤 이벤트를 다시 반영한다.
   - 검증: `npm --prefix app test` (`io.test.ts`, `state.test.ts`. 새 타입이 섞인 기록 fixture, 모르는 타입은 여전히 손상).
-- [ ] T2. 저널 형식을 확정한다(design §2.8). `v`와 작업 종류(`start | bind | promote | restore`)를 두고, 건드리는 모든 기록을 앞부분 자르기 대상으로 하며, 종류별로 커밋을 판정한다.
+- [x] T2. 저널 형식을 확정한다(design §2.8). `v`와 작업 종류(`start | bind | promote | restore`)를 두고, 건드리는 모든 기록을 앞부분 자르기 대상으로 하며, 종류별로 커밋을 판정한다.
   - 검증: `npm --prefix app test` (`storeRecovery.test.ts`. 종류 넷 × rename 앞·뒤 crash fixture, 버전 없는 이전 저널은 start로 읽기).
-- [ ] T3. index 선택 키 `seenSeq`를 더하고, `canvasesAtStart`의 의미를 "가장 최근 턴 수락 때의 목록"으로 바꾼다(키 이름 유지, `store.ts:13` 설명 수정).
+- [x] T3. index 선택 키 `seenSeq`를 더하고, `canvasesAtStart`의 의미를 "가장 최근 턴 수락 때의 목록"으로 바꾼다(키 이름 유지, `store.ts:13` 설명 수정).
   - 검증: `npm --prefix app test` (`storeIndex.test.ts`. 키 없는 기존 항목 읽기).
 
 ── commit: `feat(conversation): bound/restored events, typed undo journal and seen marker` ──
 
-- [ ] T4. main 순수 함수: `conversationSummary`, `clampSeen`, `projectBusy`, `validateSendExtras`, `promotionTarget`, `restoreEntries`, `combineQueued`(design §4 표의 경우를 모두).
+- [x] T4. main 순수 함수: `conversationSummary`, `clampSeen`, `projectBusy`, `validateSendExtras`, `promotionTarget`, `restoreEntries`, `combineQueued`(design §4 표의 경우를 모두).
   - 검증: `npm --prefix app test`.
 - [x] T5. renderer 순수 함수: `composerShape`, `composerAction`, `focusAfter`, `threadItems`, `scrollFollow`, `slotsFromList`/`stripFromList`(design §4).
   - 검증: `npm --prefix app test`.
@@ -36,14 +36,14 @@
 
 ## M. main 셸
 
-- [ ] M1. `conversation:list`, `conversation:markSeen`, `conversation:listChanged`, preload API.
+- [x] M1. `conversation:list`, `conversation:markSeen`, `conversation:listChanged`, preload API.
   - 검증: `npm --prefix app test` (`ipc.test.ts`, `service.test.ts`).
   - 경우: 빈 프로젝트는 `[]`, 등록되지 않은 root는 거절, 기록 하나가 손상·256 MiB 초과일 때 그 항목만 `readError`, legacy external 항목 포함, `markSeen` seq가 마지막 seq를 넘으면 잘림, 응답과 알림의 순서를 가정하지 않음(POSTMORTEM 2026-10-26).
   - `npm --prefix app run typecheck`.
-- [ ] M2. 프로젝트 대화 실행 제한 `project_busy`(live 턴 기준, admission과 수락 직전 재확인), IPC `known` 코드 추가.
+- [x] M2. 프로젝트 대화 실행 제한 `project_busy`(live 턴 기준, admission과 수락 직전 재확인), IPC `known` 코드 추가.
   - 검증: `npm --prefix app test`.
   - 경우: 준비 중인 시작을 셈, 턴 도중 묶인 대화를 그 턴 끝까지 셈, `BIND_GRACE_MS` 창 안의 새 턴, 다시 로드 뒤(수락 전 시작은 index에 없음).
-- [ ] M3. send 확장: 첨부·모델·effort, index 먼저 저장, `store.consume`, 공급자 필드와 legacy external 거절, Codex `Runner.send`에 턴별 모델·effort 전달.
+- [x] M3. send 확장: 첨부·모델·effort, index 먼저 저장, `store.consume`, 공급자 필드와 legacy external 거절, Codex `Runner.send`에 턴별 모델·effort 전달.
   - 검증: `npm --prefix app test` (`service.test.ts`, `runners.test.ts`).
   - 경우: 이전 프로세스 종료 콜백 전 send(POSTMORTEM 2026-10-28), `attachment_missing`이면 index의 모델·effort 불변, 이번 실행 목록을 읽기 전 `model`은 `bad_request`, 종료 대기 중 `stopRuns`이면 `sent` 표시를 쓰지 않음.
 - [ ] M4. 승격: 매 턴 스냅샷, 턴 동안 수정 경로와 폴더 변경 모으기, 턴 끝 첫 폴더 갱신(또는 grace 끝)에서 판정, 새 캔버스 우선, 저널 경유 저장, 보관 대화 runner 정리, 승격 뒤 `HOME_GUIDANCE` 생략.
@@ -55,9 +55,9 @@
 - [ ] M6. 대기열: `conversation:queue`, `conversation:removeQueued`, `turn.done`에 이어 붙여 보내기, 실패·멈춤이면 초안으로 돌리기, 앱 종료 전 초안 복원 정보 넘기기.
   - 검증: `npm --prefix app test`.
   - 경우: 대기 중 첨부가 사라짐, 첨부 합계 10개 초과, 대기 중 로그아웃, 대기 중 다른 프로젝트 대화 `project_busy`.
-- [ ] M7. 링크 채널 `shell:openLink`(main 창 sender만, `https:`만, 길이 상한).
+- [x] M7. 링크 채널 `shell:openLink`(main 창 sender만, `https:`만, 길이 상한).
   - 검증: `npm --prefix app test` (`http:`, `javascript:`, `file:`, `data:`, 대문자 `HTTPS:`, main 창이 아닌 sender).
-- [ ] M8. 첨부 다시 발급 `attachments:fromPaths`(지금 첨부 검사와 같음).
+- [x] M8. 첨부 다시 발급 `attachments:fromPaths`(지금 첨부 검사와 같음).
   - 검증: `npm --prefix app test` (옮겨진 파일, 붙여 넣은 이미지 경로).
 
 ── commit: `feat(conversation): list, project limit, send extras, queue, promotion, restore and links` ──
