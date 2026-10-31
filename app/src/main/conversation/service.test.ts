@@ -496,6 +496,15 @@ describe("conversation list", () => {
     h.service.receive(id, { type: "turn.done" });
     expect(h.service.list("/repo")[0]!.unseen).toBe(true);
   });
+  it("still folds a turn a previous run left unfinished after a send in this run was refused", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    const restarted = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => []);
+    h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
+    await expect(restarted.send(id, "again", [])).rejects.toThrow("not_logged_in");
+    expect(restarted.list("/repo")[0]).toMatchObject({ phase: "ended", unseen: true });
+    expect(restarted.read(id).turn).toBe("interrupted");
+  });
   it("returns a read error for one unreadable history and keeps a legacy external conversation in the list", async () => {
     const h = homeFixture();
     const id = (await h.service.start(homeRequest)).conversationId;
@@ -504,6 +513,18 @@ describe("conversation list", () => {
     writeFileSync(join(h.dir, "conversations", "broken.jsonl"), "{not json\n");
     const listed = h.service.list("/repo");
     expect(listed.map(s => [s.conversationId, s.readError ?? false, s.owner])).toEqual([[id, false, "doan"], ["legacy", false, "legacy-external"], ["broken", true, "legacy-external"]]);
+  });
+  it("ends a turn whose terminal event was saved even when the list change cannot be announced", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    const list = h.store.list.bind(h.store);
+    const append = h.store.append.bind(h.store);
+    vi.spyOn(h.store, "append").mockImplementationOnce((...args) => { const saved = append(...args); vi.spyOn(h.store, "list").mockImplementationOnce(() => { throw new Error("Invalid conversation index"); }); return saved; });
+    h.service.receive(id, { type: "turn.done" });
+    vi.mocked(h.store.list).mockImplementation(list);
+    expect(h.service.read(id).turn).toBe("idle");
+    h.open.mock.calls[0]![2]();
+    await h.service.send(id, "again", []);
   });
   it("announces a list change after the write it reports, and none for streamed text", async () => {
     const h = homeFixture();
@@ -562,6 +583,13 @@ describe("project conversation limit", () => {
     expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/made.html", id: "made" });
     await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
     h.service.receive(a, { type: "turn.done" }); h.passBindingWindow();
+    await h.service.start(homeRequest);
+  });
+  it("does not let a conversation whose history write failed hold the root", async () => {
+    const h = homeFixture();
+    const a = (await h.service.start(homeRequest)).conversationId;
+    vi.spyOn(h.store, "append").mockImplementationOnce(() => { throw new Error("File exceeds limit"); });
+    h.service.receive(a, { type: "activity", kind: "read", summary: "Read a.html" });
     await h.service.start(homeRequest);
   });
   it("does not count a start refused during preparation", async () => {

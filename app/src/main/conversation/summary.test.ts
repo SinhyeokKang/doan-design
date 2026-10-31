@@ -75,6 +75,13 @@ describe("conversationSummary", () => {
       expect([...shown].length).toBeLessThanOrEqual(PREVIEW_CHARS); expect([...shown].length).toBeGreaterThan(PREVIEW_CHARS - 3);
       expect(shown.endsWith("…")).toBe(true); expect(shown).not.toMatch(/\s{2}/);
     });
+    it("reads only the start of a long hostile message", () => {
+      const text = "a **b ".repeat(200_000);
+      const began = performance.now();
+      const shown = preview(history(...started, { type: "message.done", messageId: "m", text }, { type: "turn.done" }));
+      expect(performance.now() - began).toBeLessThan(2_000);
+      expect(shown.startsWith("a **b a **b")).toBe(true);
+    });
     it("is empty without an agent message", () => {
       expect(preview(history(...started, { type: "turn.failed", code: "unknown" }))).toBe("");
     });

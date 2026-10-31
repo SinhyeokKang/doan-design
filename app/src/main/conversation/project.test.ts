@@ -16,6 +16,7 @@ describe("projectBusy", () => {
     expect(projectBusy(live({ a: { project: "/other", busy: true, terminal: false } }), "/repo", "b", now)).toBeNull();
     expect(projectBusy(live({ a: { busy: true, terminal: false } }), "/repo", "b", now)).toBeNull();
     expect(projectBusy(live({ a: { project: "/repo", busy: false, terminal: false } }), "/repo", "b", now)).toBeNull();
+    expect(projectBusy(live({ a: { project: "/repo", busy: true, terminal: false, failedPersistence: true } }), "/repo", "b", now)).toBeNull();
   });
 });
 describe("promotionTarget", () => {
