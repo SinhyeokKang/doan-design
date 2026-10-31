@@ -46,8 +46,8 @@
   - 검증: `npm --prefix app test` (기존 Home·입력창 테스트 그대로 통과), `npm --prefix app run typecheck`.
 - [ ] R2. `DockedComposer`(capsule/box, 아래 줄 에이전트·effort, 기존 대화의 공급자 고정, send 확장 사용).
   - 검증: `npm --prefix app test` (모양 전환 중 같은 textarea·포커스·IME 조합 유지 컴포넌트 테스트).
-- [ ] R3. `ConversationThread` 표시 컴포넌트(design §3.3 상태).
-  - 검증: `npm --prefix app test`.
+- [ ] R3. `ConversationThread` 표시 컴포넌트(design §3.3 상태). 에이전트 메시지 Markdown 렌더링: `npm --prefix app install --save-exact react-markdown@10.1.0 remark-gfm@4.0.1`, 원시 HTML·이미지 차단, `https` 링크는 main을 거쳐 연다, 코드는 `--type-family-mono`(design §0).
+  - 검증: `npm --prefix app test`(원시 HTML·이미지·`javascript:` 링크가 그려지지 않는 테스트 포함), `npm --prefix app run build` 뒤 `/runtime-test`로 빌드한 앱 창이 비지 않는지 확인.
 - [ ] R4. 상태줄·LNB 슬롯·Home 이유 줄·Edit on Home을 main 목록에서 세우기, 방문 시 `markSeen`.
   - 검증: `npm --prefix app test` (렌더 사이 대화 전환 테스트, POSTMORTEM 2026-10-25).
 
