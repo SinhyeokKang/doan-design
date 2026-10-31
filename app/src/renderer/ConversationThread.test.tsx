@@ -100,6 +100,12 @@ describe("thread items", () => {
     expect(endView({ kind: "failed", code: "process_exited" }, "codex")).toMatchObject({ title: "Codex stopped unexpectedly", body: "It may have changed files before it stopped." });
   });
 
+  test("a crash-folded turn's end offers Edit and resend like any other end", () => {
+    const out = html([{ kind: "user", key: "u1", seq: 1, preset: null, parts: [{ text: "Draw it" }], attachments: [] }, { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
+    expect(out).toContain("<b>Stopped</b><span>The agent stopped before it finished.</span>");
+    expect(out).toContain(">Edit and resend</button>");
+  });
+
   test("markers: promotion with Open, turned off once the canvas is gone; archive and restore", () => {
     const bound: ThreadItem = { kind: "marker", key: "k5", seq: 5, marker: "bound", canvas: { path: ".doan/canvases/buzz-settings.html", id: "s" } };
     expect(html([bound])).toMatch(/Moved to buzz-settings.html<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger">Open<\/button>/);

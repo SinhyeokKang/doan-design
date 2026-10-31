@@ -11,27 +11,66 @@ describe("threadItems", () => {
   test("joins deltas by message id and takes message.done's text; keys stay the same as events arrive", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "Hel" })];
-    const first = threadItems(events, ROOT);
-    expect(first.map(i => i.key)).toEqual(["u1", "mm1"]);
+    const first = threadItems(events, ROOT, true);
+    expect(first.map(i => i.key)).toEqual(["u1", "mt1:m1"]);
     expect(first[1]).toMatchObject({ kind: "agent", text: "Hel", streaming: true });
     events.push(ev("t1", { type: "message.delta", messageId: "m1", text: "lo" }));
-    expect(threadItems(events, ROOT)[1]).toMatchObject({ key: "mm1", text: "Hello", streaming: true });
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ key: "mt1:m1", text: "Hello", streaming: true });
     events.push(ev("t1", { type: "message.done", messageId: "m1", text: "Hello." }), ev("t1", { type: "turn.done" }));
-    const done = threadItems(events, ROOT);
-    expect(done.map(i => i.key)).toEqual(["u1", "mm1"]);
+    const done = threadItems(events, ROOT, true);
+    expect(done.map(i => i.key)).toEqual(["u1", "mt1:m1"]);
     expect(done[1]).toMatchObject({ text: "Hello.", streaming: false });
   });
 
   test("a stopped or crash-folded turn keeps the text that arrived and drops the caret", () => {
     seq = 0;
     const stopped = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "I’ll drop the border and" }), ev("t1", { type: "interrupted", reason: "user" })];
-    expect(threadItems(stopped, ROOT).slice(1)).toEqual([
-      { kind: "agent", key: "mm1", messageId: "m1", text: "I’ll drop the border and", streaming: false },
+    expect(threadItems(stopped, ROOT, true).slice(1)).toEqual([
+      { kind: "agent", key: "mt1:m1", messageId: "m1", text: "I’ll drop the border and", streaming: false },
       { kind: "end", key: "e4", seq: 4, end: { kind: "interrupted", reason: "user" } },
     ]);
-    // No end event: the next turn.started folds the previous turn.
-    const folded = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "Half" }), ...turn("t2")];
-    expect(threadItems(folded, ROOT)[1]).toMatchObject({ streaming: false });
+  });
+
+  test("a crash-folded last turn ends as stopped before it finished once main holds no live turn", () => {
+    seq = 0;
+    const options = [{ id: "a", label: "Allow once", kind: "allow" }];
+    const events = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "Half" }),
+      ev("t1", { type: "activity", kind: "command", summary: "Running a command" }),
+      ev("t1", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run doan check", options })];
+    // While main still holds the turn, it runs.
+    const live = threadItems(events, ROOT, true);
+    expect(live.map(i => i.kind === "agent" ? i.streaming : i.kind === "permission" ? i.status : i.kind)).toEqual(["user", true, "activity", "pending"]);
+    const crashed = threadItems(events, ROOT, false);
+    expect(crashed.slice(1)).toEqual([
+      { kind: "agent", key: "mt1:m1", messageId: "m1", text: "Half", streaming: false },
+      { kind: "activity", key: "a5", running: false, head: "1 step", steps: [{ key: "s5", kind: "command", verb: "Ran a command", path: null }] },
+      { kind: "permission", key: "pr1", seq: 6, requestId: "r1", summary: "Run doan check", options, status: "expired", answer: null },
+      { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } },
+    ]);
+  });
+
+  test("a turn folded by the next turn.started gets the same end, keyed by its turn so the key never moves", () => {
+    seq = 0;
+    const first = [...turn("t1"), ev("t1", { type: "message.delta", messageId: "m1", text: "Half" })];
+    const lastCrashed = threadItems(first, ROOT, false);
+    const folded = threadItems([...first, ...turn("t2")], ROOT, true);
+    expect(folded[1]).toMatchObject({ streaming: false });
+    expect(folded[2]).toEqual({ kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } });
+    expect(lastCrashed.at(-1)?.key).toBe("xt1");
+    // A finished turn adds nothing, live or not.
+    seq = 0;
+    expect(threadItems([...turn("t1"), ev("t1", { type: "message.done", messageId: "m1", text: "Done." }), ev("t1", { type: "turn.done" })], ROOT, false).map(i => i.kind)).toEqual(["user", "agent"]);
+  });
+
+  test("message keys include the turn, so a reused message id starts a new message; deltas after message.done are ignored", () => {
+    seq = 0;
+    const events = [...turn("t1"), ev("t1", { type: "message.done", messageId: "assistant", text: "One." }), ev("t1", { type: "message.delta", messageId: "assistant", text: " late" }), ev("t1", { type: "turn.done" }),
+      ...turn("t2"), ev("t2", { type: "message.delta", messageId: "assistant", text: "Two" })];
+    const items = threadItems(events, ROOT, true);
+    expect(items.filter(i => i.kind === "agent")).toEqual([
+      { kind: "agent", key: "mt1:assistant", messageId: "assistant", text: "One.", streaming: false },
+      { kind: "agent", key: "mt2:assistant", messageId: "assistant", text: "Two", streaming: true },
+    ]);
   });
 
   test("the person's message keeps anchor positions, the preset line and attachments", () => {
@@ -57,24 +96,24 @@ describe("threadItems", () => {
     const events = [...turn("t1"),
       ev("t1", { type: "activity", kind: "read", path: `${ROOT}/docs/design.md`, summary: "docs/design.md" }),
       ev("t1", { type: "activity", kind: "edit", path: ".doan/canvases/a.html", summary: ".doan/canvases/a.html" })];
-    expect(threadItems(events, ROOT)[1]).toEqual({
+    expect(threadItems(events, ROOT, true)[1]).toEqual({
       kind: "activity", key: "a3", running: true, head: "Editing .doan/canvases/a.html",
       steps: [{ key: "s3", kind: "read", verb: "Read", path: "docs/design.md" }, { key: "s4", kind: "edit", verb: "Edited", path: ".doan/canvases/a.html" }],
     });
     events.push(ev("t1", { type: "message.done", messageId: "m1", text: "Done." }));
-    expect(threadItems(events, ROOT)[1]).toMatchObject({ key: "a3", running: false, head: "2 steps" });
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ key: "a3", running: false, head: "2 steps" });
     events.push(ev("t1", { type: "activity", kind: "read", path: "x.md", summary: "x.md" }), ev("t1", { type: "turn.done" }));
-    const items = threadItems(events, ROOT);
-    expect(items.map(i => i.key)).toEqual(["u1", "a3", "mm1", "a6"]);
+    const items = threadItems(events, ROOT, true);
+    expect(items.map(i => i.key)).toEqual(["u1", "a3", "mt1:m1", "a6"]);
     expect(items[3]).toMatchObject({ running: false, head: "1 step" });
   });
 
   test("a command never shows its text: Running a command while it runs, Ran a command after", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" })];
-    expect(threadItems(events, ROOT)[1]).toMatchObject({ head: "Running a command", steps: [{ kind: "command", verb: "Running a command", path: null }] });
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ head: "Running a command", steps: [{ kind: "command", verb: "Running a command", path: null }] });
     events.push(ev("t1", { type: "turn.done" }));
-    expect(threadItems(events, ROOT)[1]).toMatchObject({ head: "1 step", steps: [{ kind: "command", verb: "Ran a command", path: null }] });
+    expect(threadItems(events, ROOT, true)[1]).toMatchObject({ head: "1 step", steps: [{ kind: "command", verb: "Ran a command", path: null }] });
   });
 
   test("permission requests: pending, answered with the choice, expired when the turn ends unanswered", () => {
@@ -82,9 +121,9 @@ describe("threadItems", () => {
     const options = [{ id: "a", label: "Allow once", kind: "allow" }, { id: "d", label: "Deny", kind: "deny" }];
     const events = [...turn("t1"), ev("t1", { type: "permission.request", requestId: "r1", tool: "Bash", summary: "Run doan check", options }),
       ev("t1", { type: "permission.request", requestId: "r2", tool: "Write", summary: "Write a.html", options })];
-    expect(threadItems(events, ROOT).slice(1).map(i => i.kind === "permission" && i.status)).toEqual(["pending", "pending"]);
+    expect(threadItems(events, ROOT, true).slice(1).map(i => i.kind === "permission" && i.status)).toEqual(["pending", "pending"]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" }), ev("t1", { type: "turn.failed", code: "process_exited" }));
-    const items = threadItems(events, ROOT);
+    const items = threadItems(events, ROOT, true);
     expect(items[1]).toMatchObject({ key: "pr1", status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } });
     expect(items[2]).toMatchObject({ key: "pr2", status: "expired", answer: null });
     expect(items[3]).toEqual({ kind: "end", key: "e6", seq: 6, end: { kind: "failed", code: "process_exited" } });
@@ -94,7 +133,7 @@ describe("threadItems", () => {
     seq = 0;
     const events = [...turn("t1"), ev("t1", { type: "activity", kind: "command", summary: "Running a command" }), ev("t1", { type: "turn.done" }),
       ev("t1", { type: "message.delta", messageId: "late", text: "late" })];
-    expect(threadItems(events, ROOT).map(i => i.kind)).toEqual(["user", "activity", "noReply"]);
+    expect(threadItems(events, ROOT, true).map(i => i.kind)).toEqual(["user", "activity", "noReply"]);
   });
 
   test("promotion, archive and restore markers", () => {
@@ -102,7 +141,7 @@ describe("threadItems", () => {
     const events: ThreadEvent[] = [...turn("t1"), ev("t1", { type: "turn.done" }),
       ev("t1", { type: "conversation.bound", canvas: { path: ".doan/canvases/s.html", id: "s" } }),
       ev("t1", { type: "conversation.archived" }), ev("t1", { type: "conversation.restored" })];
-    expect(threadItems(events, ROOT).filter(i => i.kind === "marker")).toEqual([
+    expect(threadItems(events, ROOT, true).filter(i => i.kind === "marker")).toEqual([
       { kind: "marker", key: "k4", seq: 4, marker: "bound", canvas: { path: ".doan/canvases/s.html", id: "s" } },
       { kind: "marker", key: "k5", seq: 5, marker: "archived", canvas: null },
       { kind: "marker", key: "k6", seq: 6, marker: "restored", canvas: null },
