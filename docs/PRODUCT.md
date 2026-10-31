@@ -256,7 +256,7 @@ What the human does is **view + comment**; approval is deferred until after the 
 
 - Design drafts for the Doan app UI are kept as canvases in this repo's `.doan/canvases/` (ARCHITECTURE §1 Conventions), and viewed and commented on in the Doan app. Whether the implementation matches the design draft is compared via computed style (`/design-sync`, `.agents/skills/design-sync/SKILL.md`).
 - App screens run the design draft → implementation → comparison loop.
-- The app's design system lives separately in `.doan/ds/`, one canvas per token group, shared component or shared surface; its rules and canvas index are in [DESIGN.md](./DESIGN.md#design-system). The canvases were rendered in headless Chromium, without measuring computed styles against the running app or contrast ratios. Components seen on only one screen (textarea, checkbox and switch) are outside this generated set; the preset's default covers shared components. Canvas granularity can vary by agent.
+- The app's design system lives separately in `.doan/ds/`, one canvas per token group, shared component or shared surface; its rules and canvas index are in [DESIGN.md](./DESIGN.md#design-system).
 
 ### Deferred
 
