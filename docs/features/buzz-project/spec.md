@@ -1,6 +1,6 @@
 # buzz-project — spec
 
-`buzz-restyle`의 자식 7번이다. 프로젝트 Overview를 **프로젝트 대화 화면**으로 바꾼다([부모 spec 표 7번](../buzz-restyle/spec.md#자식-feature), [부모 '프로젝트 Overview 방향'](../buzz-restyle/spec.md)). 대화 스레드, `docked` 입력창, 대화 목록 데이터는 선행 자식 [`buzz-conversation`](../buzz-conversation/spec.md)이 만든다. 이 자식은 그것을 Overview에 배치하고, 화면 대조(`/design-sync`)와 빌드한 앱의 실제 확인을 처음으로 한다. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell 결과를 그대로 쓴다.
+`buzz-restyle`의 자식 7번이다. 프로젝트 Overview를 **프로젝트 대화 화면**으로 바꾼다([부모 spec 표 7번](../buzz-restyle/spec.md#자식-feature), [부모 '프로젝트 Overview 방향'](../buzz-restyle/spec.md)). 대화 스레드, `docked` 입력창, 대화 목록 데이터는 선행 자식 `buzz-conversation`이 만들었다. 규칙은 [PRODUCT §5 항목 1 'Project conversations'](../../PRODUCT.md#5-mvp)과 [ARCHITECTURE §7 'Agent conversation runtime and IPC'](../../ARCHITECTURE.md#agent-conversation-runtime-and-ipc)에, 이 자식이 연결할 것은 [design §8](./design.md#8-buzz-conversation에서-받은-것)에 있다. 이 자식은 그것을 Overview에 배치하고, 화면 대조(`/design-sync`)와 빌드한 앱의 실제 확인을 처음으로 한다. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell 결과를 그대로 쓴다.
 
 ## 사용자
 
@@ -9,7 +9,7 @@
   - 메인 헤더에서 현재 프로젝트를 확인하고, 워크트리가 둘 이상이면 브랜치 칩으로 바꾸고, 대화 제목 드롭다운에서 프로젝트 대화를 고르거나 새로 시작한다(⌘N).
   - 오른쪽 패널에서 대화가 있는 캔버스를 최근 대화순으로 보고, 진행 상태(권한 요청·작업 중·안 본 종료)를 확인한다. 캔버스마다 현재 대화 하나만 나온다. 캔버스 대화는 항상 캔버스로 연다.
   - 보던 대화가 기존 캔버스를 고쳐 승격되면 Overview는 새 프로젝트 대화 상태로 돌아가고, "<title> moved to <canvas>." 줄과 Open이 남는다. 쓰던 초안은 새 대화로 옮겨진다.
-- **에이전트**: 바뀌는 것이 없다. 프로젝트 대화로 받는 요청과 데이터 경계는 buzz-conversation이 정한다.
+- **에이전트**: 바뀌는 것이 없다. 프로젝트 대화로 받는 요청과 데이터 경계는 ARCHITECTURE §7 'Input and prompt'를 따른다.
 
 ## 문제 (관찰된 사실)
 
@@ -39,7 +39,7 @@
    - 이 기기에서 그 root로 마지막에 본 프로젝트 대화. 그 사이 승격됐으면 새 대화 상태.
    - 없으면 가장 최근에 활동한 프로젝트 대화.
    - 그것도 없으면 새 대화 상태.
-6. **승격 뒤**: 보고 있던 프로젝트 대화가 기존 캔버스를 고쳐 승격되면, 메인은 새 프로젝트 대화 상태로 초기화된다(buzz-conversation 결정 12).
+6. **승격 뒤**: 보고 있던 프로젝트 대화가 기존 캔버스를 고쳐 승격되면, 메인은 새 프로젝트 대화 상태로 초기화된다(승격 규칙은 [PRODUCT §5 항목 1 'Project conversations'](../../PRODUCT.md#5-mvp)).
    - 쓰던 초안(조합 중인 글자 포함)은 새 대화 초안으로 옮기고 입력창 포커스를 유지한다.
    - 메인에 "<title> moved to <canvas>."와 Open을 한 줄로 보인다. 보내거나 New·다른 대화를 고르면 사라진다.
    - 새 캔버스를 만든 턴은 지금 규칙대로 턴 도중 그 캔버스를 자동으로 연다. Overview에서 보고 있었어도 같다.
@@ -51,12 +51,12 @@
    - 프로젝트 단위 "N resolved to review" 진입이 사라진다. Review는 캔버스 Comments에서만 들어간다.
    - 캔버스 페이지의 Comments 패널과 Review는 C12가 걷어낼 때까지 그대로다.
 10. **상태줄**: Overview에서는 임시 상태줄을 보이지 않는다. 메인이 다른 대화를 보이는 동안 그 root의 다른 프로젝트 대화가 응답을 기다리면 "<Provider> needs your answer in <project>." 토스트를 띄우고, Open은 그 대화를 메인에 연다. 캔버스 페이지에서는 상태줄을 C12까지 그대로 둔다.
-11. **본 것**: 프로젝트 대화는 메인에 보이고 창이 포커스를 가질 때만 본 것으로 기록한다. 워크스페이스·Overview를 여는 것만으로는 기록하지 않는다(buzz-conversation의 방문 규칙을 대체). 오른쪽 행으로 캔버스를 열면 그 캔버스의 현재 대화를 본 것으로 기록한다(C12 전까지). 승격으로 메인이 초기화될 때, 그 대화의 턴 끝을 이미 봤으면 승격 표시까지 본 것으로 기록한다.
+11. **본 것**: 프로젝트 대화는 메인에 보이고 창이 포커스를 가질 때만 본 것으로 기록한다. 워크스페이스·Overview를 여는 것만으로는 기록하지 않는다(ARCHITECTURE §7 'Home conversations'의 방문 때 `markSeen` 규칙을 대체). 오른쪽 행으로 캔버스를 열면 그 캔버스의 현재 대화를 본 것으로 기록한다(C12 전까지). 승격으로 메인이 초기화될 때, 그 대화의 턴 끝을 이미 봤으면 승격 표시까지 본 것으로 기록한다.
 12. **문제 상태 프로젝트**: 처음부터 문제 상태(폴더 없음, 설정 오류, Not set up)인 프로젝트는 지금처럼 문제 화면과 고치는 방법을 보인다. 열려 있던 Overview가 문제 상태가 되면 지금처럼 상태 줄과 Go Home을 보이고, 스레드는 읽을 수 있게 두되 Send는 Home과 같은 이유 줄("<project> isn’t available. Fix it from its menu in the sidebar.")로 막는다.
 
 ## 완료 조건
 
-- **메인 스레드**: Overview 메인에 선택한 프로젝트 대화가 buzz-conversation의 `ConversationThread`와 `docked` 입력창(기존·새 대화 모드)으로 보인다. 목록을 읽는 동안과 읽기 실패 상태가 design §2.5대로 보인다. 확인: 정적 마크업 테스트와 `/runtime-test`.
+- **메인 스레드**: Overview 메인에 선택한 프로젝트 대화가 `ConversationThread`와 `DockedComposer`(기존·새 대화 모드, design §8)로 보인다. 목록을 읽는 동안과 읽기 실패 상태가 design §2.5대로 보인다. 확인: 정적 마크업 테스트와 `/runtime-test`.
 - **헤더**: 프로젝트, 브랜치 칩, 대화 드롭다운이 보인다. 확인: 정적 마크업 테스트.
   - 워크트리가 둘 이상이면 칩이 메뉴를 열고, 고르면 그 워크트리의 Overview가 열린다. 하나면 읽기 전용이다.
   - 드롭다운은 프로젝트 대화를 최근 활동순으로 보이고, 항목은 오른쪽 행과 같은 모양(로고, 제목, 상태, 짧은 시각, 미리보기 한 줄)이다. 승격된 대화는 목록에 없다. New와 ⌘N은 새 대화 상태로 간다. 새 대화 상태에서는 New가 선택 채움을 가지고, 다시 골라도 초안을 지우지 않는다.

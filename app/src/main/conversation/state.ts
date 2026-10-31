@@ -35,7 +35,8 @@ export function foldConversation(input: readonly ConversationEvent[], conversati
   for (const event of mergeEvents(input, [], conversationId)) {
     state.lastSeq = event.seq;
     if (event.type === "conversation.archived") { state.archived = true; expire(); continue; }
-    if (state.archived) continue;
+    if (event.type === "conversation.restored") { state.archived = false; continue; }
+    if (state.archived || event.type === "conversation.bound") continue;
     if (event.type === "turn.started") {
       expire(); state.turnId = event.turnId; state.turn = "starting"; state.interruption = null; terminal = false;
       continue;

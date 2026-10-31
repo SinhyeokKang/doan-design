@@ -1,10 +1,10 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, realpathSync, rmSync, readFileSync, writeFileSync, statSync, existsSync, symlinkSync, linkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConversationStore, type ConversationMetadata } from "./store";
+import { ConversationStore, type ConversationMetadata, type JournalChange } from "./store";
 import { ConversationService } from "./service";
-const hooks = vi.hoisted(() => ({ limit: 256 * 1024 * 1024, opened: new Set<number>() }));
+const hooks = vi.hoisted(() => ({ limit: 256 * 1024 * 1024, opened: new Set<number>(), journal: "" }));
 vi.mock("./io", async original => {
   const io = await original<typeof import("./io")>();
   return { ...io, get CONVERSATION_HISTORY_BYTES() { return hooks.limit; },
@@ -14,7 +14,8 @@ vi.mock("./io", async original => {
 vi.mock("node:fs", async original => {
   const fs = await original<typeof import("node:fs")>();
   return { ...fs, openSync: (path: import("node:fs").PathLike, flags: number, mode?: number) => { const fd = fs.openSync(path, flags, mode); hooks.opened.add(fd); return fd; },
-    closeSync: (fd: number) => { fs.closeSync(fd); hooks.opened.delete(fd); } };
+    closeSync: (fd: number) => { fs.closeSync(fd); hooks.opened.delete(fd); },
+    renameSync: (from: import("node:fs").PathLike, to: import("node:fs").PathLike) => { if (String(to).endsWith("start-undo.json")) hooks.journal = fs.readFileSync(from, "utf8"); return fs.renameSync(from, to); } };
 });
 const roots: string[] = [];
 afterEach(() => { hooks.limit = 256 * 1024 * 1024; vi.useRealTimers(); roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
@@ -139,4 +140,92 @@ it("validates all journal entries before committed cleanup", () => {
   const index = readFileSync(f.index);
   expect(() => new ConversationStore(f.root)).toThrow("Invalid start recovery record");
   expect(readFileSync(f.index)).toEqual(index); expect(existsSync(f.journal)).toBe(true);
+});
+
+// A crash right before the index rename leaves the old index with the journal; right after, the new index with it.
+describe("typed undo journal", () => {
+  const a = { path: ".doan/canvases/a.html", id: "a" }, b = { path: ".doan/canvases/b.html", id: "b" };
+  function changeFixture() {
+    const f = setup();
+    const { canvas: _canvas, ...project } = meta("proj");
+    const entries = [{ ...meta("old"), canvas: a }, project, { ...meta("arch"), canvas: a, state: "archived" as const }];
+    f.store.save(entries);
+    for (const id of ["old", "proj", "arch"]) { f.store.append(id, "t", { type: "turn.started" }); f.store.append(id, "t", { type: "turn.done" }); }
+    return { ...f, entries };
+  }
+  type Case = { change: JournalChange; entries: (e: ConversationMetadata[]) => ConversationMetadata[]; writes: { id: string; turn: string; body: import("./types").EventPayload }[] };
+  const cases: Record<"start" | "bind" | "promote" | "restore", Case> = {
+    start: { change: { kind: "start", id: "new" }, entries: e => [...e.map(m => m.conversationId === "old" ? { ...m, state: "archived" as const } : m), { ...meta("new"), canvas: a }],
+      writes: [{ id: "old", turn: "t", body: { type: "conversation.archived" } }, { id: "new", turn: "n", body: { type: "user.message", text: "hi", anchors: [] } }, { id: "new", turn: "n", body: { type: "turn.started" } }] },
+    bind: { change: { kind: "bind", id: "proj", canvas: b, replaced: [] }, entries: e => e.map(m => m.conversationId === "proj" ? { ...m, canvas: b } : m),
+      writes: [{ id: "proj", turn: "t", body: { type: "conversation.bound", canvas: b } }] },
+    promote: { change: { kind: "promote", id: "proj", canvas: a, replaced: ["old"] }, entries: e => e.map(m => m.conversationId === "proj" ? { ...m, canvas: a } : m.conversationId === "old" ? { ...m, state: "archived" as const } : m),
+      writes: [{ id: "old", turn: "t", body: { type: "conversation.archived" } }, { id: "proj", turn: "t", body: { type: "conversation.bound", canvas: a } }] },
+    restore: { change: { kind: "restore", id: "arch", replaced: ["old"] }, entries: e => e.map(m => m.conversationId === "arch" ? { ...m, state: "current" as const } : m.conversationId === "old" ? { ...m, state: "archived" as const } : m),
+      writes: [{ id: "old", turn: "t", body: { type: "conversation.archived" } }, { id: "arch", turn: "r", body: { type: "conversation.restored" } }] },
+  };
+  const logs = (f: ReturnType<typeof changeFixture>) => ["old", "proj", "arch", "new"].map(id => existsSync(f.path(id)) ? readFileSync(f.path(id)) : null);
+  it.each(Object.keys(cases) as (keyof typeof cases)[])("rolls back %s when the crash came before the index rename", kind => {
+    const f = changeFixture(), c = cases[kind];
+    const beforeLogs = logs(f), beforeIndex = readFileSync(f.index);
+    f.store.acceptChange(c.change, c.entries(f.entries), c.writes);
+    expect(JSON.parse(hooks.journal)).toMatchObject({ v: 1, kind, id: c.change.id });
+    writeFileSync(f.index, beforeIndex); writeFileSync(f.journal, hooks.journal);
+    const restarted = new ConversationStore(f.root);
+    expect(logs(f)).toEqual(beforeLogs); expect(readFileSync(f.index)).toEqual(beforeIndex); expect(existsSync(f.journal)).toBe(false);
+    expect(restarted.list()).toEqual(f.entries);
+  });
+  it.each(Object.keys(cases) as (keyof typeof cases)[])("keeps %s when the crash came after the index rename", kind => {
+    const f = changeFixture(), c = cases[kind];
+    f.store.acceptChange(c.change, c.entries(f.entries), c.writes);
+    const afterLogs = logs(f), afterIndex = readFileSync(f.index);
+    writeFileSync(f.journal, hooks.journal);
+    const restarted = new ConversationStore(f.root);
+    expect(logs(f)).toEqual(afterLogs); expect(readFileSync(f.index)).toEqual(afterIndex); expect(existsSync(f.journal)).toBe(false);
+    expect(restarted.list()).toEqual(c.entries(f.entries));
+  });
+  it("reads an unversioned journal as a start", () => {
+    const f = changeFixture(), c = cases.start, beforeLogs = logs(f), beforeIndex = readFileSync(f.index);
+    f.store.acceptChange(c.change, c.entries(f.entries), c.writes);
+    const { v: _v, kind: _kind, ...legacyJournal } = JSON.parse(hooks.journal);
+    writeFileSync(f.index, beforeIndex); writeFileSync(f.journal, JSON.stringify(legacyJournal));
+    new ConversationStore(f.root);
+    expect(logs(f)).toEqual(beforeLogs); expect(existsSync(f.journal)).toBe(false);
+  });
+  it.each([
+    ["an unknown kind", (j: Record<string, unknown>) => { j.kind = "merge"; }],
+    ["an unknown version", (j: Record<string, unknown>) => { j.v = 2; }],
+    ["a promote without its canvas", (j: Record<string, unknown>) => { delete j.canvas; }],
+    ["a promote naming an untouched replaced id", (j: Record<string, unknown>) => { j.replaced = ["arch"]; }],
+  ])("refuses %s without touching any record", (_name, mutate) => {
+    const f = changeFixture(), c = cases.promote, beforeIndex = readFileSync(f.index);
+    f.store.acceptChange(c.change, c.entries(f.entries), c.writes);
+    const journal = JSON.parse(hooks.journal); mutate(journal);
+    writeFileSync(f.index, beforeIndex); writeFileSync(f.journal, JSON.stringify(journal));
+    const touched = logs(f);
+    expect(() => new ConversationStore(f.root)).toThrow();
+    expect(logs(f)).toEqual(touched); expect(existsSync(f.journal)).toBe(true); expect(hooks.opened.size).toBe(0);
+  });
+  it.each([
+    ["promote without binding the canvas", (e: ConversationMetadata[]) => e.map(m => m.conversationId === "old" ? { ...m, state: "archived" as const } : m)],
+    ["promote keeping the replaced conversation current", (e: ConversationMetadata[]) => e.map(m => m.conversationId === "proj" ? { ...m, canvas: { path: ".doan/canvases/a.html", id: "a" } } : m)],
+  ])("refuses to stage a change whose index would not commit it: %s", (_name, entries) => {
+    const f = changeFixture(), c = cases.promote, beforeLogs = logs(f), beforeIndex = readFileSync(f.index);
+    expect(() => f.store.acceptChange(c.change, entries(f.entries), c.writes)).toThrow();
+    expect(logs(f)).toEqual(beforeLogs); expect(readFileSync(f.index)).toEqual(beforeIndex); expect(existsSync(f.journal)).toBe(false);
+  });
+  it("refuses a restore whose target is not archived and a bind of an already bound conversation", () => {
+    const f = changeFixture(), beforeIndex = readFileSync(f.index);
+    expect(() => f.store.acceptChange({ kind: "restore", id: "old", replaced: [] }, f.entries, [{ id: "old", turn: "t", body: { type: "conversation.restored" } }])).toThrow();
+    expect(() => f.store.acceptChange({ kind: "bind", id: "old", canvas: b, replaced: [] }, f.entries.map(m => m.conversationId === "old" ? { ...m, canvas: b } : m), [{ id: "old", turn: "t", body: { type: "conversation.bound", canvas: b } }])).toThrow();
+    expect(readFileSync(f.index)).toEqual(beforeIndex); expect(existsSync(f.journal)).toBe(false);
+  });
+});
+
+it("lists a history over the byte limit as a read error for that row only", () => {
+  const f = setup(); f.store.save([meta("big"), { ...meta("small"), canvas: { path: ".doan/canvases/b.html" } }]);
+  f.store.append("big", "t", { type: "message.delta", messageId: "m", text: "x".repeat(400) }); f.store.append("small", "t", { type: "turn.done" });
+  hooks.limit = 300;
+  const service = new ConversationService(f.store, async () => { throw new Error("unused"); }, async () => { throw new Error("unused"); }, () => {});
+  expect(service.list("/repo").map(s => [s.conversationId, s.readError ?? false])).toEqual([["big", true], ["small", false]]);
 });

@@ -6,6 +6,7 @@ import { canvasKind } from "../formats/canvasPath";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
+import { anotherConversation } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 
 // Pure parts of the Home composer (buzz-home design §4, §11). Copy follows the confirmed draft
@@ -35,6 +36,16 @@ export function composeRequest(text: string, preset: PresetRef | null, attachmen
   return body || (attachments > 0 ? ATTACHMENTS_ONLY : "");
 }
 
+// composeRequest read back from a sent user.message: the preset line and the person's own text. The text that stands in
+// for an attachment-only request was not written by the person, so it reads as no text.
+const PRESET_HEADER = /^Use the Doan design preset `([^`\n]+)` \(([^\n]*)\)\.(?:\n\n|$)/;
+export function splitRequest(text: string, attachments: number): { preset: PresetRef | null; body: string } {
+  const match = PRESET_HEADER.exec(text);
+  const preset = match ? { id: match[1]!, title: match[2]! } : null;
+  const body = match ? text.slice(match[0].length) : text;
+  return { preset, body: !preset && attachments > 0 && body === ATTACHMENTS_ONLY ? "" : body };
+}
+
 // Many presets work on a named design and Home has no canvas selection, so a chosen preset asks for the target.
 export function presetPlaceholder(preset: PresetRef | null): string {
   return preset ? PRESET_PLACEHOLDER : PLACEHOLDER;
@@ -59,8 +70,8 @@ export interface SendInput {
   root: FolderEntry | null; projectName: string;
   auth: AuthSnapshot | null | undefined; provider: Provider | null;
   text: string; preset: PresetRef | null; attachments: readonly AttachmentDraft[];
-  // A Home conversation still running in this root.
-  running: string | null;
+  // A Home conversation still running in this root; waiting: it waits for a permission answer.
+  running: { conversationId: string; waiting: boolean } | null;
   sending: boolean;
 }
 export type SendReason = { kind: "noProject" | "projectUnavailable" | "noAgent" | "agentUnavailable" | "overLimit" | "anchorMarkers" | "checking" | "attachmentMissing"; text: string } | { kind: "running"; text: string; open: string };
@@ -71,20 +82,32 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (input.sending) return off(null);
   if (input.projects === 0 || !input.root) return off({ kind: "noProject", text: "Add a project to send." });
   if (input.root.kind !== "list") return off({ kind: "projectUnavailable", text: unavailableProject(input.projectName) });
-  if (!input.provider) return off({ kind: "noAgent", text: "No agent is ready to run." });
-  // A chosen agent that expires or signs out stays chosen and names itself, even when it was the only one.
-  if (!connectedProviders(input.auth).filter(selectableProvider).some(s => s.provider === input.provider)) return off({ kind: "agentUnavailable", text: `${PROVIDER_NAMES[input.provider]} can’t run right now. Choose another agent.` });
+  const agent = agentProblem(input.auth, input.provider);
+  if (agent) return off(agent);
   // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
-  if (input.running) return off({ kind: "running", text: `A conversation from Home is still running in ${input.projectName}.`, open: input.running });
-  const request = composeRequest(input.text, input.preset, input.attachments.length);
-  if (request.length > TEXT_LIMIT) return off({ kind: "overLimit", text: "Shorten the message to send it." });
+  if (input.running) return off({ kind: "running", text: anotherConversation(input.projectName, input.running.waiting), open: input.running.conversationId });
+  const draft = draftProblem(input.text, input.preset, input.attachments);
+  return draft ? off(draft) : { enabled: true, reason: null };
+}
+
+// The picked agent cannot run. Shared with the docked composer's new-conversation mode.
+export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Provider | null): SendReason | null {
+  if (!provider) return { kind: "noAgent", text: "No agent is ready to run." };
+  // A chosen agent that expires or signs out stays chosen and names itself, even when it was the only one.
+  if (!connectedProviders(auth).filter(selectableProvider).some(s => s.provider === provider)) return { kind: "agentUnavailable", text: `${PROVIDER_NAMES[provider]} can’t run right now. Choose another agent.` };
+  return null;
+}
+
+// What in a non-empty draft stops the send. Shared with the docked composer.
+export function draftProblem(text: string, preset: PresetRef | null, attachments: readonly AttachmentDraft[]): SendReason | null {
+  const request = composeRequest(text, preset, attachments.length);
+  if (request.length > TEXT_LIMIT) return { kind: "overLimit", text: "Shorten the message to send it." };
   // The conversation IPC reads {{ and }} as anchor markers and refuses them even without anchors.
-  if (request.includes("{{") || request.includes("}}")) return off({ kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." });
-  if (input.attachments.some(a => a.status === "checking")) return off({ kind: "checking", text: "Checking attachments…" });
-  const moved = input.attachments.find(a => a.status === "missing");
-  if (moved) return off({ kind: "attachmentMissing", text: movedNotice(moved) });
-  return { enabled: true, reason: null };
+  if (request.includes("{{") || request.includes("}}")) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
+  if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments…" };
+  const moved = attachments.find(a => a.status === "missing");
+  return moved ? { kind: "attachmentMissing", text: movedNotice(moved) } : null;
 }
 
 function unavailableProject(project: string): string { return `${project} isn’t available. Fix it from its menu in the sidebar.`; }
@@ -432,7 +455,7 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
 
 function movedNotice(a: AttachmentDraft): string { return `${a.pasted ? "Pasted image" : a.name} was moved or deleted. Remove it, or attach it again.`; }
 
-function formatSize(bytes: number): string {
+export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

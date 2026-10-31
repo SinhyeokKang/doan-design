@@ -38,6 +38,19 @@ describe("conversation disk boundaries", () => {
     expect(() => store.append(metadata.conversationId, "t", { type: "turn.done" })).toThrow();
     expect(readFileSync(sentinel, "utf8")).toBe("unchanged");
   });
+  it("reads bound and restored lines in event v1 and still refuses unknown types and bad canvases", () => {
+    const root = temp(); const store = new ConversationStore(root);
+    const log = join(root, "conversations", "c.jsonl");
+    const line = (seq: number, body: Record<string, unknown>) => JSON.stringify({ v: 1, conversationId: "c", seq, turnId: "t", at: "2026-10-31T00:00:00.000Z", ...body }) + "\n";
+    writeFileSync(log, line(1, { type: "turn.started" }) + line(2, { type: "turn.done" }) + line(3, { type: "conversation.bound", canvas: { path: ".doan/canvases/a.html", id: "a" } }) +
+      line(4, { type: "conversation.archived" }) + line(5, { type: "conversation.restored" }));
+    expect(store.read("c").map(e => e.type)).toEqual(["turn.started", "turn.done", "conversation.bound", "conversation.archived", "conversation.restored"]);
+    expect(store.append("c", "t", { type: "conversation.bound", canvas: { path: ".doan/canvases/b.html" } }).seq).toBe(6);
+    for (const bad of [{ type: "conversation.unbound" }, { type: "conversation.bound" }, { type: "conversation.bound", canvas: { path: "../a.html" } }]) {
+      writeFileSync(log, line(1, { type: "turn.started" }) + line(2, bad));
+      expect(() => store.read("c")).toThrow("Invalid conversation event");
+    }
+  });
   it("refuses missing and malformed Claude registries and compares UTC process identity", async () => {
     const config = temp(); const start = "Tue Oct 27 12:00:00 2026";
     const inspect = async (pid: number) => pid === 12 ? start : null;

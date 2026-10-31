@@ -81,3 +81,26 @@ it("accepts only a model, and an effort of that model, from the list delivered f
   expect(c.models.accepts("/other", "claude", "sonnet", undefined)).toBe(false);
   expect(c.models.accepts("/repo", "codex", "sonnet", undefined)).toBe(false);
 });
+
+// buzz-conversation fix 1: Codex's turn/start effort overrides "this turn and subsequent turns" (0.164.0 TurnStartParams),
+// so a model sent without effort needs the model's default said out loud.
+it("keeps a Codex model's default effort only when it is one of its levels", () => {
+  expect(parseCodexModels({ data: [
+    { id: "a", displayName: "A", isDefault: true, defaultReasoningEffort: "medium", supportedReasoningEfforts: [{ reasoningEffort: "low" }, { reasoningEffort: "medium" }] },
+    { id: "b", displayName: "B", isDefault: false, defaultReasoningEffort: "xhigh", supportedReasoningEfforts: [{ reasoningEffort: "low" }] },
+    { id: "c", displayName: "C", isDefault: false, defaultReasoningEffort: "low" },
+  ] })).toEqual([
+    { id: "a", label: "A", default: true, efforts: ["low", "medium"], defaultEffort: "medium" },
+    { id: "b", label: "B", default: false, efforts: ["low"] },
+    { id: "c", label: "C", default: false },
+  ]);
+});
+it("answers a model's default effort from the list delivered for that folder and provider", async () => {
+  const c = catalog();
+  c.list.mockResolvedValue([{ id: "gpt", label: "GPT", default: true, efforts: ["low", "medium"], defaultEffort: "medium" }, { id: "plain", label: "Plain", default: false }]);
+  expect(c.models.defaultEffort("/repo", "codex", "gpt")).toBeUndefined();
+  await c.models.models("/repo", "codex");
+  expect(c.models.defaultEffort("/repo", "codex", "gpt")).toBe("medium");
+  expect(c.models.defaultEffort("/repo", "codex", "plain")).toBeUndefined();
+  expect(c.models.defaultEffort("/other", "codex", "gpt")).toBeUndefined();
+});

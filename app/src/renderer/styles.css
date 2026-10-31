@@ -689,8 +689,10 @@ body:has(.shell-top) { background: transparent; }
 /* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
 .composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
 .composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
-/* A text field shows focus with its own border (DESIGN 'Focus'). */
-.composer-card:focus-within { box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-prominent); }
+/* A text field shows focus with its own border (DESIGN 'Focus'); the composer's is the quieter field-focus border with
+   a slightly higher shadow (buzz-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
+   shadow carry the focus with it. */
+.composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
 /* Grows with the text up to eight lines, then scrolls inside the card (design §4.1). */
 .composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; resize: none; field-sizing: content; overflow-y: auto; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
@@ -701,6 +703,8 @@ body:has(.shell-top) { background: transparent; }
 .composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
 .composer-tools .grow { flex: 1; }
 .composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }
+/* The standard ink above outranks the shared disabled ink, so Attach and Presets looked enabled while a send was pending. */
+.composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }
 .composer-agent { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 .composer-agent .muted { color: var(--text-metadata); }
 .composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
@@ -768,6 +772,34 @@ body:has(.shell-top) { background: transparent; }
 @media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
 .composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-notice { margin-top: var(--space-3); }
+/* The docked composer (draft frame docked-composer): Home's card without its inset tray, a capsule that becomes a box.
+   One grid holds both shapes so the field never moves in the DOM; only the areas change. */
+.docked { position: relative; }
+.docked .composer-card { position: relative; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
+.docked .composer-tools { display: contents; }
+.docked .composer-tools .grow { display: none; }
+.docked .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { grid-area: attach; }
+.docked .composer-presets { grid-area: presets; }
+.docked .composer-send { grid-area: send; }
+.docked .composer-chips { grid-area: chips; }
+.docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
+.docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
+.docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
+.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+/* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
+.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
+.docked[data-shape="box"] .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { margin-left: calc(-1 * var(--space-1)); }
+.docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
+.docked .composer-tray .doan-button { margin-left: 0; }
+.docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
+.queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
+.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.queue-item > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); }
+.queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }
 /* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
 .home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }
@@ -880,3 +912,82 @@ body:has(.shell-top) { background: transparent; }
 .settings-serve li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .settings-serve li + li { border-top: 1px solid var(--border-standard); }
 .settings-serve code { background: transparent; padding: 0; }
+/* buzz-conversation: the conversation thread (.doan/canvases/buzz-conversation.html, frames thread-*). Scoped to the
+   thread so its short names (.activity, .marker, .md) never reach other screens. buzz-project places it. */
+.conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-4); }
+.conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
+.conversation-thread .caret { display: inline-block; width: 1px; height: var(--type-label-line-height); margin: 0 1px -6px; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
+@keyframes thread-caret { 50% { opacity: 0; } }
+/* The person's message: a light accent bubble, plain text that keeps its line breaks (common decision 2). */
+.conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
+.conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
+.conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-medium); }
+.conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
+/* A sent file has no remove button, so the chip keeps its own inline end padding. */
+.conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }
+.conversation-thread .msg-agent { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; user-select: text; }
+.conversation-thread .msg-agent p { font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); overflow-wrap: anywhere; }
+.conversation-thread .msg-agent .muted { color: var(--text-metadata); }
+/* Agent replies are Markdown: no raw HTML, no images, https links only; code is mono; quotes use an inset fill, never a start border. */
+.conversation-thread .md { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .md :is(h1, h2) { font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-medium); margin-top: var(--space-2); }
+.conversation-thread .md :is(h3, h4, h5, h6) { font-size: inherit; font-weight: var(--type-weight-medium); margin-top: var(--space-1); }
+.conversation-thread .md strong { font-weight: var(--type-weight-semibold); }
+.conversation-thread .md a { color: var(--text-link); text-decoration: underline; text-underline-offset: var(--space-half); }
+.conversation-thread .md :is(ul, ol) { display: flex; flex-direction: column; gap: var(--space-1); padding-left: var(--space-6); }
+/* Preflight and the app's own ol rule drop list markers; agent replies keep them, since a number can carry meaning. */
+.conversation-thread .md ul { list-style: disc; }
+.conversation-thread .md ol { list-style: decimal; }
+.conversation-thread .md ul ul { list-style: circle; }
+/* A list right after its paragraph sits 8px under it instead of the 16px block gap (Buzz Messages.module.css). */
+.conversation-thread .md > p:has(+ :is(ul, ol)) { margin-bottom: calc(var(--space-2) - var(--space-4)); }
+.conversation-thread .md :is(ul, ol) :is(ul, ol) { margin-top: var(--space-1); }
+.conversation-thread .md code { font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); background: var(--surface-inset); border-radius: var(--space-1); padding: var(--space-half) var(--space-1); overflow-wrap: anywhere; }
+.conversation-thread .md-code { position: relative; border-radius: var(--radius-chip); background: var(--surface-inset); }
+.conversation-thread .md-code pre { overflow-x: auto; padding: var(--space-3) var(--space-12) var(--space-3) var(--space-4); font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); white-space: pre; scrollbar-width: thin; }
+.conversation-thread .md-code pre code { padding: 0; background: none; border-radius: 0; overflow-wrap: normal; }
+.conversation-thread .md-code .doan-icon-button { position: absolute; top: var(--space-1); right: var(--space-1); background: var(--surface-inset); color: var(--text-subtle); }
+/* Copy shows while the block is hovered or has focus inside; it is hidden by opacity only, so it stays focusable. */
+.conversation-thread .md-code:not(:hover, :focus-within) .doan-icon-button { opacity: 0; }
+/* Bordered table with a filled header row; the corner is the code block's 12px and cells keep 8/12 insets. */
+.conversation-thread .md-table { width: max-content; max-width: 100%; overflow-x: auto; scrollbar-width: thin; border-radius: var(--radius-chip); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.conversation-thread .md table { border-collapse: separate; border-spacing: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.conversation-thread .md :is(th, td) { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-standard); border-right: 1px solid var(--border-standard); text-align: left; vertical-align: top; white-space: nowrap; }
+.conversation-thread .md :is(th, td):last-child { border-right: 0; }
+.conversation-thread .md tbody tr:last-child td { border-bottom: 0; }
+.conversation-thread .md th { background: var(--affordance-subtle); font-weight: var(--type-weight-medium); }
+.conversation-thread .md blockquote { padding: var(--space-3) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); color: var(--text-subtle); }
+.conversation-thread .md hr { height: 1px; border: 0; background: var(--border-standard); }
+/* One folded line for a run of activities (2026-10-31 user). */
+.conversation-thread .activity { display: flex; flex-direction: column; gap: var(--space-1); }
+.conversation-thread .activity-head { display: inline-flex; align-items: center; gap: var(--space-2); align-self: flex-start; min-height: var(--size-control-sm); padding: 0 var(--space-2) 0 var(--space-3); margin-left: calc(-1 * var(--space-3)); border-radius: var(--radius-control); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); max-width: 100%; }
+.conversation-thread button.activity-head:hover { background: var(--affordance-backdrop-hover); }
+.conversation-thread .activity-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform 120ms; }
+.conversation-thread .activity-head[aria-expanded="true"] .chev { transform: none; }
+.conversation-thread .activity-head .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .activity-steps { display: flex; flex-direction: column; gap: var(--space-1h); padding-left: var(--space-6); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .activity-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; list-style: none; }
+.conversation-thread .activity-steps li svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; color: var(--text-subtle); }
+.conversation-thread .activity-steps .verb { flex: none; color: var(--text-subtle); }
+.conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .ask-answered { color: var(--text-subtle); }
+/* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
+.conversation-thread .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.conversation-thread .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; }
+.conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
+.conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
+.conversation-thread .marker svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .marker .doan-button { color: var(--text-standard); }
+.conversation-thread .marker .doan-button:disabled { color: var(--text-disabled); }
+.conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); }
+@media (prefers-reduced-motion: reduce) {
+  .conversation-thread .caret { animation: none; }
+  .conversation-thread .activity-head .chev { transition: none; }
+}

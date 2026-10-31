@@ -145,7 +145,7 @@ export function App() {
   const [, setRunTick] = useState(0);
   const homeRun = useRef<HomeRun>(null as unknown as HomeRun);
   if (!(homeRun.current instanceof HomeRun)) homeRun.current = new HomeRun({
-    view: () => ({ screen: currentScreen.current, loadedRoot: loadedRootRef.current, entries: entriesRef.current }),
+    view: () => ({ screen: currentScreen.current, loadedRoot: loadedRootRef.current, entries: entriesRef.current, canvas: openRef.current?.folder === loadedRootRef.current ? openRef.current.canvas : null }),
     label: root => live.current.projectLabel(root),
     // The move after a send cancels the restore like any navigation but is not the person's own move.
     openOverview: (root, arrived, unavailable) => {
@@ -165,6 +165,7 @@ export function App() {
     changed: () => setRunTick(tick => tick + 1),
   });
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
+  const openRef = useRef(state.open); openRef.current = state.open;
   function focusCurrent(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
     const scope = currentScreen.current === "home" ? ".home-shell" : currentScreen.current === "addProjects" ? ".add-shell" : currentScreen.current === "settings" ? ".settings-shell" : ".workspace";
@@ -543,7 +544,7 @@ export function App() {
   };
   // A notification's click, after main has shown the window (design 'Notifications' 클릭 해석).
   function notificationClick(click: NotificationTarget) {
-    const known = homeRun.current.conversations.some(item => item.conversationId === click.conversationId);
+    const known = homeRun.current.knows(click.conversationId);
     const registered = entriesRef.current.some(entry => entry.path === click.root);
     const to = notificationTarget(click, known, registered, locked() || live.current.modal);
     if (to.kind === "conversation") homeRun.current.openConversation(to.conversationId);
@@ -752,6 +753,7 @@ export function App() {
   const projectLabelRef = useRef(projectLabel); projectLabelRef.current = projectLabel;
   const run = homeRun.current;
   useEffect(() => window.doan.onConversationEvent(event => homeRun.current.event(event)), []);
+  useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
   useEffect(() => {
     if (modal) { homeRun.current.modalChanged(true); return; }
     // The guard's answer applies the transition asynchronously; check once it has had the chance to arrive.
@@ -764,11 +766,11 @@ export function App() {
     if (screen !== "workspace" || !loadedRoot) return;
     homeRun.current.visit([slotKey(loadedRoot), ...(state.open?.folder === loadedRoot ? [slotKey(loadedRoot, state.open.canvas)] : [])]);
     setRunTick(tick => tick + 1);
-  }, [screen, loadedRoot, state.open?.canvas, run.conversations]);
+  }, [screen, loadedRoot, state.open?.canvas, run.conversations, run.revision]);
   const shown = run.strip(loadedRoot);
   const strip = shown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
-    onEditOnHome={() => run.editOnHome(shown.conversation.root)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
+    onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} toggleGroup={toggleShellGroup} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}

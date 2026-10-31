@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { savedUiState, wizardCloseFocus } from "./App";
-import { removalConfirm, restoreRequest, type HomeConversation, type LastRequest } from "./homeConversations";
+import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
 
 // buzz-home tasks U5: App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
 
@@ -23,9 +23,8 @@ test("first run's project handoff focuses the composer ahead of the focus held b
 });
 
 test("removing a project with a running Home conversation asks first; cancel keeps both, confirm names the conversation to stop", () => {
-  const running: HomeConversation = { conversationId: "c1", root: "/code/doan", provider: "claude", phase: "working" };
-  expect(removalConfirm([running], ["/code/doan"], "doan")).toMatchObject({ conversations: ["c1"], cancel: "Cancel", confirm: "Stop and Remove" });
-  expect(removalConfirm([{ ...running, phase: "done" }], ["/code/doan"], "doan")).toBeNull();
+  expect(removalConfirm([{ conversationId: "c1", waiting: false }], "doan")).toMatchObject({ conversations: ["c1"], cancel: "Cancel", confirm: "Stop and Remove" });
+  expect(removalConfirm([], "doan")).toBeNull();
 });
 
 test("Edit on Home asks before replacing a different draft", () => {

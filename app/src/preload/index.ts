@@ -4,6 +4,8 @@ import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
+import type { ConversationSummary } from "../main/conversation/summary";
+import type { ReturnedDraft } from "../main/conversation/drafts";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
@@ -68,7 +70,38 @@ const api = {
   // returned in this run for that root and runtime; attachments by the ids the attachment calls returned. A moved or
   // deleted attachment refuses the start with attachment_missing and its ids in `missing`.
   startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
-  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  // model (with an optional effort of it) only when the person changed it, from listConversationModels of this run for
+  // the conversation's provider; attachments by ids as for a start. A legacy external conversation takes none of them,
+  // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
+  // A send to an archived conversation restores it: busy while the canvas's current conversation works,
+  // canvas_not_found when its canvas is gone or its ID is listed twice.
+  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
+  // message after turn.done; text, anchors and attachments only (model and effort are bad_request). queue_limit: the
+  // queue and the conversation's returned draft together would pass one message (32,768 characters, 32 anchors, 10
+  // attachments) or the drafts file's size. Removing an item or taking a draft that cannot be saved answers an error
+  // and keeps it. main holds the
+  // attachments from here on. A failed or stopped turn, a refused queued send or a restart hands the queue back as a
+  // draft: the list row then has returnedDraft, and takeConversationDraft hands it over once (attachments as recorded
+  // paths, for attachmentsFromPaths). Each change is announced with onConversationListChanged.
+  queueConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ itemId: string } | ConversationError> => ipcRenderer.invoke("conversation:queue", request),
+  // stale: the item already went out, came back or was removed.
+  removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
+  takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  // One summary per conversation main keeps for this project, current and archived; a row whose history cannot be
+  // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
+  // working: main still works on it (preparing, running, waiting for an answer, judging its turn, about to send its
+  // queue, waiting for its previous process); a project conversation that works holds its root. phase is the history's.
+  listConversations: (request: { root: string }): Promise<ConversationSummary[] | ConversationError> => ipcRenderer.invoke("conversation:list", request),
+  // The person has seen this conversation up to seq; main cuts it to the last seq and never moves it back.
+  markConversationSeen: (request: { conversationId: string; seq: number }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:markSeen", request),
+  onConversationListChanged(listener: (change: { root: string }) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, change: { root: string }) => listener(change);
+    ipcRenderer.on("conversation:listChanged", receive);
+    return () => ipcRenderer.removeListener("conversation:listChanged", receive);
+  },
+  // An https link from an agent reply, opened in the system browser; false when main refused it.
+  openLink: (url: string): Promise<boolean> => ipcRenderer.invoke("shell:openLink", { url }),
   interruptConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),
@@ -92,6 +125,9 @@ const api = {
   removeAttachment: (id: string): Promise<boolean> => ipcRenderer.invoke("attachments:remove", { id }),
   // Edit on Home: the acceptance checks again for these ids, in order; null when main refused the request.
   recheckAttachments: (ids: readonly string[]): Promise<RecheckResult[] | null> => ipcRenderer.invoke("attachments:recheck", { ids: [...ids] }),
+  // Edit on Home after a reload or restart: the paths a conversation recorded, checked as new files and answered in
+  // order (a moved or deleted file as not_found); null for more than ten paths or a malformed request.
+  attachmentsFromPaths: (paths: readonly string[]): Promise<AttachmentResult[] | null> => ipcRenderer.invoke("attachments:fromPaths", { paths: [...paths] }),
   // Sent ids no last request uses any more; main forgets them and leaves their files alone.
   releaseAttachments: (ids: readonly string[]): Promise<boolean> => ipcRenderer.invoke("attachments:release", { ids: [...ids] }),
   onConversationEvent(listener: (event: ConversationEvent) => void): () => void {

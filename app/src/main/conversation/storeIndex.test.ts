@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConversationStore, parseIndex, type ConversationMetadata } from "./store";
+import { ConversationStore, parseIndex, restoreEntries, type ConversationMetadata } from "./store";
 const hooks = vi.hoisted(() => ({ failRename: false, journals: [] as string[] }));
 vi.mock("node:fs", async original => {
   const fs = await original<typeof import("node:fs")>();
@@ -108,13 +108,14 @@ describe("conversation index v2 storage", () => {
     expect(readdirSync(f.directory).filter(name => name.endsWith(".tmp"))).toEqual([]);
     expect(store.list().map(m => m.owner.kind)).toEqual(["legacy-external", "legacy-external"]);
   });
-  it("keeps the start-undo journal at {id, previous} with file identity only", () => {
+  it("writes the undo journal with its version, kind and file identity only", () => {
     const f = seed(); const store = new ConversationStore(f.root);
     store.save([owned("old")]); store.append("old", "t", { type: "turn.done" });
     store.acceptStart([{ ...owned("old"), state: "archived" }, legacy("new")], "new", [{ id: "old", turn: "t", body: { type: "conversation.archived" } }, { id: "new", turn: "t", body: { type: "turn.started" } }]);
     expect(hooks.journals).toHaveLength(1);
     const journal = JSON.parse(hooks.journals[0]!);
-    expect(Object.keys(journal)).toEqual(["id", "previous"]);
+    expect(Object.keys(journal)).toEqual(["v", "kind", "id", "previous"]);
+    expect([journal.v, journal.kind]).toEqual([1, "start"]);
     expect(Object.keys(journal.previous[0])).toEqual(["id", "size", "ino", "dev"]);
     expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
   });
@@ -244,4 +245,34 @@ it("reads the optional Home mark only as true and keeps reading entries without 
   expect(parseIndex(JSON.stringify({ v: 2, conversations: [{ ...entry, fromHome: true }] }))).toMatchObject({ ok: true, entries: [{ fromHome: true }] });
   expect(parseIndex(JSON.stringify({ v: 2, conversations: [entry] }))).toMatchObject({ ok: true });
   expect(parseIndex(JSON.stringify({ v: 2, conversations: [{ ...entry, fromHome: "yes" }] }))).toEqual({ ok: false, code: "invalid" });
+});
+
+describe("seen marker in index v2", () => {
+  it("round-trips seenSeq and reads entries without it", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    store.save([legacy("old"), { ...owned("seen"), seenSeq: 0 }, { ...owned("later"), seenSeq: 12 }]);
+    expect(new ConversationStore(f.root).list()).toEqual([legacy("old"), { ...owned("seen"), seenSeq: 0 }, { ...owned("later"), seenSeq: 12 }]);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
+    expect(new ConversationStore(f.root).list()[0]).not.toHaveProperty("seenSeq");
+  });
+  it.each([-1, 1.5, "3", null, Number.MAX_SAFE_INTEGER + 1])("rejects seenSeq %s", seenSeq => {
+    const copy = JSON.parse(fixture("index-v2.json")); copy.conversations[0].seenSeq = seenSeq;
+    expect(parseIndex(JSON.stringify(copy))).toEqual({ ok: false, code: "invalid" });
+  });
+});
+
+describe("restoreEntries", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("swaps the archived conversation with the current one of its canvas and leaves the rest", () => {
+    const current = { ...legacy("now"), canvas }, archived = { ...legacy("then"), canvas, state: "archived" as const }, other = legacy("other"), older = { ...legacy("older"), canvas, state: "archived" as const };
+    expect(restoreEntries([current, archived, other, older], "then")).toEqual({ entries: [{ ...current, state: "archived" }, { ...archived, state: "current" }, other, older], replaced: ["now"] });
+  });
+  it("matches the canvas by ID across a move", () => {
+    const current = { ...legacy("now"), canvas: { path: ".doan/canvases/moved.html", id: "a" } }, archived = { ...legacy("then"), canvas, state: "archived" as const };
+    expect(restoreEntries([current, archived], "then")?.replaced).toEqual(["now"]);
+  });
+  it("refuses a target that is not an archived canvas conversation", () => {
+    expect(restoreEntries([legacy("now")], "now")).toBeNull();
+    expect(restoreEntries([legacy("now")], "missing")).toBeNull();
+  });
 });

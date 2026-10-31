@@ -235,3 +235,34 @@ it("releases only sent ids and never deletes a sent paste's file", () => {
   expect(senderAllowed("attachments:release", "main")).toBe(true);
   expect(senderAllowed("attachments:release", "settings")).toBe(false);
 });
+// buzz-conversation: Edit on Home after a reload or restart issues ids again from the paths a conversation recorded.
+it("re-issues recorded paths with the same checks, naming a moved file missing", () => {
+  const f = fixture();
+  const kept = join(f.files, "kept.txt"), moved = join(f.files, "moved.txt"); writeFileSync(kept, "k"); writeFileSync(moved, "m");
+  renameSync(moved, join(f.files, "elsewhere.txt"));
+  const [first, second] = f.store.fromPaths({ paths: [kept, moved] })!;
+  expect(ok(first)).toMatchObject({ name: "kept.txt", kind: "file", pasted: false });
+  expect(second).toEqual({ ok: false, name: "moved.txt", error: "not_found" });
+  expect(f.store.resolve([{ id: ok(first).id }])).toMatchObject({ ok: true });
+  expect(f.store.fromPaths({ paths: Array.from({ length: MAX_ATTACHMENTS + 1 }, () => kept) })).toBeNull();
+});
+it("re-issues a sent pasted image from its userData path without ever deleting it", () => {
+  const f = fixture();
+  const pasted = ok(f.store.addPasted({ bytes: new Uint8Array(PNG) }));
+  f.store.markSent([{ id: pasted.id }]); f.store.consume([{ id: pasted.id }]);
+  const again = ok(f.store.fromPaths({ paths: [pasted.path] })![0]);
+  expect(again).toMatchObject({ kind: "image", pasted: false, path: pasted.path });
+  expect(f.store.remove({ id: again.id })).toBe(true);
+  expect(existsSync(pasted.path)).toBe(true);
+});
+// buzz-conversation review: a queued message removed before it went out takes its pasted image with it.
+it("discards a queued paste that main held and only forgets a queued local file", () => {
+  const f = fixture();
+  const local = join(f.files, "a.txt"); writeFileSync(local, "a");
+  const file = ok(f.store.addPaths({ paths: [local] })![0]), pasted = ok(f.store.addPasted({ bytes: new Uint8Array(PNG) }));
+  const ids = [{ id: file.id }, { id: pasted.id }];
+  f.store.markSent(ids); f.store.consume(ids);
+  f.store.discard([file.id, pasted.id]);
+  expect(existsSync(local)).toBe(true); expect(existsSync(pasted.path)).toBe(false);
+  expect(f.store.recheck({ ids: [file.id, pasted.id] })).toEqual([{ id: file.id, ok: false, error: "not_found" }, { id: pasted.id, ok: false, error: "not_found" }]);
+});

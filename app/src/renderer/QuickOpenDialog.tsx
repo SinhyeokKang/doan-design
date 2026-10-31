@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState, type Ref } from "react";
 import { Hash, Layers, PanelsTopLeft, Search, SwatchBook } from "lucide-react";
 import { canvasDir } from "../formats/canvasPath";
 import type { FolderEntry } from "../main/view";
-import { tabKey } from "./HomeComposerView";
+import { tabKey } from "./ComposerParts";
 import { cardRow, groupProjects } from "./homeCards";
 import { countMatches, emptyText, groupResults, markRuns, matchPositions, outsideDialog, resultKey, resultParts, searchIndex, searchMatch, type RenderedSearchFrames, type ResultGroup, type SearchFolder, type SearchKind, type SearchResult } from "./quickOpen";
 import { projectHue, projectInitial } from "./shellNavigation";

@@ -1,5 +1,5 @@
-import { expect, it, vi } from "vitest";
-import { conversationHandler } from "./ipc";
+import { describe, expect, it, vi } from "vitest";
+import { conversationHandler, conversationMethods, validateSendExtras } from "./ipc";
 import { ConversationService, type Prepare } from "./service";
 import { ModelCatalog, type ModelOption } from "./models";
 import { AttachmentStore } from "../attachments";
@@ -38,15 +38,18 @@ function home(dir: string, models?: ModelOption[]) {
   const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => models ?? []);
   const attachments = { resolve: vi.fn(), markSent: vi.fn(), consume: vi.fn() };
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
-  return { handle, start, prepare, catalog, attachments };
+  return { handle, start, prepare, catalog, attachments, service };
 }
 const MODELS: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }];
 it("keeps FirstPrompt's subject path and takes Home's multi-line text as is", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
   try {
     const h = home(dir);
-    await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", subject: "a pricing page", text: "a pricing page" });
+    const first = await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", subject: "a pricing page", text: "a pricing page" }) as { conversationId: string };
     expect(h.start.mock.calls[0]![0]).toMatchObject({ mode: "newDesign", subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." });
+    // One project conversation works at a time in a root: the next starts after the first's binding window.
+    h.service.receive(first.conversationId, { type: "turn.done" });
+    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now + 10_001);
     const text = "Make a pricing page\n\n- three tiers\n- dark header";
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text })).toHaveProperty("conversationId");
     expect(h.start.mock.calls[1]![0]).toMatchObject({ mode: "newDesign", text });
@@ -54,7 +57,7 @@ it("keeps FirstPrompt's subject path and takes Home's multi-line text as is", as
     for (const bad of [{ text: "   \n" }, {}, { subject: "line\nbreak", text: "x" }, { text: "x", canvas: { path: ".doan/canvases/a.html" } }, { text: "x".repeat(32_769) }, { text: "{{1}}" }])
       expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", ...bad })).toEqual({ error: "bad_request" });
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", text: "x" })).toEqual({ error: "no_agent" });
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+  } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
 });
 it("accepts a model and effort only from the list delivered in this run for that folder and provider", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
@@ -123,4 +126,214 @@ it("refuses a start whose attachment vanished while the runner was opening, befo
     expect(await starting).toEqual({ error: "attachment_missing", missing: [added.attachment.id] });
     expect(store.list()).toEqual([]);
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(files, { recursive: true, force: true }); }
+});
+
+describe("validateSendExtras", () => {
+  const records = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
+  const catalog = { accepts: vi.fn((root: string, runtime: string, model: string, effort?: string) => root === "/repo" && runtime === "claude" && model === "sonnet" && (effort === undefined || effort === "high")) };
+  const attachments = { resolve: vi.fn((value: unknown) => Array.isArray(value) && value.every(v => v.id === "a") ? { ok: true, records } : Array.isArray(value) && value.some(v => v.id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: false, error: "bad_request" }) };
+  const home = { models: catalog as unknown as ModelCatalog, attachments: attachments as unknown as AttachmentStore };
+  const check = (request: Record<string, unknown>, owner: "doan" | "legacy-external" = "doan") => { try { return validateSendExtras(request, "/repo", "claude", owner, home); } catch (error) { return { error: (error as Error).message, ...("missing" in (error as object) ? { missing: (error as { missing: string[] }).missing } : {}) }; } };
+  it("passes nothing through when nothing changed", () => {
+    expect(check({ conversationId: "c", text: "x" })).toEqual({ ids: [] });
+  });
+  it("accepts a model and effort from this run's list for the conversation's provider", () => {
+    expect(check({ model: "sonnet", effort: "high" })).toEqual({ model: "sonnet", effort: "high", ids: [] });
+    expect(check({ model: "sonnet" })).toEqual({ model: "sonnet", ids: [] });
+    for (const bad of [{ model: "opus" }, { model: "sonnet", effort: "max" }, { effort: "high" }, { model: "" }, { model: 1 }]) expect(check(bad)).toEqual({ error: "bad_request" });
+  });
+  it("resolves main-issued attachment ids and names missing ones", () => {
+    expect(check({ attachments: [{ id: "a" }] })).toEqual({ ids: [{ id: "a" }], attachments: records });
+    expect(check({ attachments: [{ id: "gone" }] })).toEqual({ error: "attachment_missing", missing: ["gone"] });
+    expect(check({ attachments: [{ id: 1 }] })).toEqual({ error: "bad_request" });
+    expect(check({ attachments: "a" })).toEqual({ error: "bad_request" });
+  });
+  it("refuses a provider field: the conversation's provider is fixed", () => {
+    expect(check({ runtime: "claude" })).toEqual({ error: "bad_request" });
+    expect(check({ provider: "codex", model: "sonnet" })).toEqual({ error: "bad_request" });
+  });
+  it("refuses any of the three on a legacy external conversation", () => {
+    for (const extra of [{ model: "sonnet" }, { effort: "high" }, { attachments: [{ id: "a" }] }]) expect(check(extra, "legacy-external")).toEqual({ error: "bad_request" });
+    expect(check({ text: "x" }, "legacy-external")).toEqual({ ids: [] });
+  });
+});
+
+// buzz-conversation M1/M3: the list, the seen marker and a send's extras through IPC.
+describe("conversation list, seen marker and send extras", () => {
+  function sendFixture(dir: string, list: ModelOption[] = MODELS) {
+    const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const store = new ConversationStore(dir);
+    const service = new ConversationService(store, prepare, open, () => {});
+    const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => list);
+    const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
+    const attachments = { resolve: vi.fn((value: unknown[]) => value.some(v => (v as { id: string }).id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: true, records }), markSent: vi.fn(), consume: vi.fn() };
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
+    const send = vi.spyOn(service, "send").mockResolvedValue(undefined);
+    return { handle, service, store, send, attachments, records };
+  }
+  it("lists a registered root and refuses others, wrong senders and malformed requests", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir);
+      expect(await h.handle(true, "list", { root: "/repo" })).toEqual([]);
+      expect(await h.handle(true, "list", { root: "/missing" })).toEqual({ error: "project_not_open" });
+      expect(await h.handle(true, "list", { root: 1 })).toEqual({ error: "bad_request" });
+      expect(await h.handle(false, "list", { root: "/repo" })).toEqual({ error: "bad_request" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("marks seen only with a whole non-negative seq of a known conversation", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      for (const seq of [-1, 1.5, "2", undefined]) expect(await h.handle(true, "markSeen", { conversationId: id, seq })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "markSeen", { conversationId: "missing", seq: 1 })).toEqual({ error: "not_found" });
+      expect(await h.handle(true, "markSeen", { conversationId: id, seq: 1 })).toBeUndefined();
+      expect(h.store.list()[0]!.seenSeq).toBe(1);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("checks a send's model and effort against this run's list for the conversation's provider", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      // Before this run read the list, a model cannot be checked.
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", model: "sonnet" })).toEqual({ error: "bad_request" });
+      await h.handle(true, "models", { root: "/repo", runtime: "claude" });
+      for (const bad of [{ model: "opus" }, { model: "sonnet", effort: "max" }, { effort: "low" }, { runtime: "claude" }, { provider: "codex" }])
+        expect(await h.handle(true, "send", { conversationId: id, text: "y", ...bad })).toEqual({ error: "bad_request" });
+      expect(h.send).not.toHaveBeenCalled();
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", model: "sonnet", effort: "high" })).toBeUndefined();
+      expect(h.send.mock.calls[0]!.slice(0, 4)).toEqual([id, "y", [], { model: "sonnet", effort: "high" }]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("passes a send's attachments with their recheck, marks them sent before consuming them, and names missing ones", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", attachments: [{ id: "gone" }] })).toEqual({ error: "attachment_missing", missing: ["gone"] });
+      h.send.mockImplementationOnce(async (_id, _text, _anchors, _extras, attached) => { attached!.recheck(); attached!.sent(); });
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", attachments: [{ id: "a" }] })).toBeUndefined();
+      expect(h.send.mock.calls[0]![3]).toEqual({ attachments: h.records });
+      expect(h.attachments.markSent).toHaveBeenCalledWith([{ id: "a" }]);
+      expect(h.attachments.consume).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder.at(-1)!);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("passes the model's default effort along when the send's model has no effort", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir, [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"], defaultEffort: "low" }]);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      await h.handle(true, "models", { root: "/repo", runtime: "claude" });
+      await h.handle(true, "send", { conversationId: id, text: "y", model: "sonnet" });
+      expect(h.send.mock.calls[0]![3]).toEqual({ model: "sonnet", defaultEffort: "low" });
+      await h.handle(true, "send", { conversationId: id, text: "y", model: "sonnet", effort: "high" });
+      expect(h.send.mock.calls[1]![3]).toEqual({ model: "sonnet", effort: "high" });
+      // Without a new model, the stored one's default goes along when the stored choice has no effort.
+      h.store.save(h.store.list().map(m => ({ ...m, model: "sonnet" })));
+      await h.handle(true, "send", { conversationId: id, text: "y" });
+      expect(h.send.mock.calls[2]![3]).toEqual({ defaultEffort: "low" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("refuses extras on a legacy external conversation and passes project_busy through", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir);
+      h.store.save([{ conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+      await h.handle(true, "models", { root: "/repo", runtime: "claude" });
+      for (const extra of [{ model: "sonnet" }, { attachments: [{ id: "a" }] }]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", ...extra })).toEqual({ error: "bad_request" });
+      h.send.mockRejectedValueOnce(new Error("project_busy"));
+      expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: "project_busy" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// buzz-conversation M6: the queue channels and the returned draft.
+describe("queue channels", () => {
+  function queueFixture(dir: string) {
+    const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const store = new ConversationStore(dir);
+    const service = new ConversationService(store, prepare, open, () => {});
+    const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
+    const attachments = { resolve: vi.fn((value: unknown[]) => value.some(v => (v as { id: string }).id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: true, records }), markSent: vi.fn(), consume: vi.fn() };
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments: attachments as unknown as AttachmentStore });
+    return { handle, service, store, attachments, records };
+  }
+  it("names the queue channels among the conversation methods", () => {
+    expect(conversationMethods).toEqual(expect.arrayContaining(["queue", "removeQueued", "takeDraft"]));
+  });
+  it("queues a running conversation's message with its attachments, which main then holds, and refuses the rest", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = queueFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      for (const bad of [{ text: "" }, { text: "{{1}}" }, { text: "y", model: "sonnet" }, { text: "y", effort: "low" }, { text: "y", runtime: "claude" }, { text: "y", provider: "codex" }])
+        expect(await h.handle(true, "queue", { conversationId: id, ...bad })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "gone" }] })).toEqual({ error: "attachment_missing", missing: ["gone"] });
+      expect(await h.handle(false, "queue", { conversationId: id, text: "y" })).toEqual({ error: "bad_request" });
+      const queued = await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] }) as { itemId: string };
+      expect(queued).toEqual({ itemId: expect.any(String) });
+      expect(h.attachments.markSent).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.attachments.consume).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.service.list("/repo")[0]!.queued).toBe(1);
+      expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: 1 })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toBeUndefined();
+      expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toEqual({ error: "stale" });
+      // Judged and with nothing left to wait for, the conversation is not working.
+      h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "not_running" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("hands a returned draft over once", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = queueFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "takeDraft", { conversationId: id })).toBeNull();
+      await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] });
+      h.service.receive(id, { type: "interrupted", reason: "user" });
+      expect(await h.handle(true, "takeDraft", { conversationId: id })).toEqual({ text: "y", anchors: [], attachments: h.records, reason: "interrupted" });
+      expect(await h.handle(true, "takeDraft", { conversationId: id })).toBeNull();
+      expect(await h.handle(true, "takeDraft", { conversationId: "33333333-3333-4333-8333-333333333333" })).toEqual({ error: "not_found" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// buzz-conversation fix round 1 (RA2 Y4): a queued message is accepted only after main holds its attachments.
+describe("queue acceptance", () => {
+  function fixture(dir: string, markSent: () => void) {
+    const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
+    const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
+    const attachments = { resolve: vi.fn(() => ({ ok: true, records })), markSent: vi.fn(markSent), consume: vi.fn() };
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments: attachments as unknown as AttachmentStore });
+    return { handle, service, attachments };
+  }
+  it("refuses a queued message whose pasted image could not be marked, with nothing queued and the image still the renderer's", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir, () => { throw new Error("ENOSPC"); });
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] })).toEqual({ error: "unknown" });
+      expect(h.service.list("/repo")[0]!.queued).toBe(0);
+      expect(h.attachments.consume).not.toHaveBeenCalledWith([{ id: "a" }]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("passes queue_limit through", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir, () => {});
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      vi.spyOn(h.service, "queue").mockImplementationOnce(() => { throw new Error("queue_limit"); });
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "queue_limit" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
 });

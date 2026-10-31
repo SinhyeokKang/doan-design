@@ -1,0 +1,118 @@
+import { describe, expect, test } from "vitest";
+import type { AuthSnapshot } from "../main/agentAuth/ipc";
+import { authStatus } from "../main/agentAuth/state";
+import type { AuthState, Provider, ToolFacts } from "../main/agentAuth/types";
+import {
+  canvasGoneText, dockedAvailability, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
+} from "./dockedRules";
+import type { AttachmentDraft, ModelPickerView } from "./homeComposer";
+
+const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
+function status(provider: Provider, patch: Partial<AuthState> = {}, facts: ToolFacts = FACTS) {
+  const state: AuthState = { provider, generation: 1, verified: true, expired: false, connection: { provider, connectionId: "c", profile: provider, account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected", ...patch };
+  return authStatus(state, facts, 1);
+}
+const auth = (...providers: ReturnType<typeof status>[]): AuthSnapshot => ({ revision: 1, providers });
+const READY = auth(status("claude"), status("codex"));
+const EXISTING = { kind: "existing", conversationId: "c1", provider: "claude" } as const;
+const draft = (patch: Partial<DockedDraft>): DockedDraft => ({ ...EMPTY_DRAFT, ...patch });
+const file = (patch: Partial<AttachmentDraft>): AttachmentDraft => ({ key: "k", id: "id", name: "notes.md", kind: "file", pasted: false, status: "ready", ...patch });
+const input = (patch: Partial<DockedInput>): DockedInput => ({ mode: EXISTING, project: "doan-design", auth: READY, provider: "claude", draft: draft({ text: "Make it lighter" }), turn: "idle", busy: null, sending: false, ...patch });
+
+describe("draftKey", () => {
+  test("keeps drafts per conversation, and a new conversation's draft per root", () => {
+    expect(draftKey(EXISTING)).toBe("conversation:c1");
+    expect(draftKey({ kind: "archived", conversationId: "c1", provider: "claude" })).toBe("conversation:c1");
+    expect(draftKey({ kind: "new", root: "/code/doan" })).toBe("root:/code/doan");
+    expect(draftKey({ kind: "new", root: "/code/doan" })).not.toBe(draftKey({ kind: "new", root: "/code/acme" }));
+  });
+});
+
+describe("dockedAvailability", () => {
+  test("a ready draft sends with no line", () => {
+    expect(dockedAvailability(input({}))).toEqual({ enabled: true, reason: null });
+  });
+  test("an empty field shows no line and does not send", () => {
+    expect(dockedAvailability(input({ draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: null });
+  });
+  test("while a send is pending there is no line", () => {
+    expect(dockedAvailability(input({ sending: true }))).toEqual({ enabled: false, reason: null });
+  });
+  test("Home's draft reasons: length, anchor markers, checking and a moved file (as an alert)", () => {
+    expect(dockedAvailability(input({ draft: draft({ text: "x".repeat(32769) }) })).reason).toEqual({ text: "Shorten the message to send it." });
+    expect(dockedAvailability(input({ draft: draft({ text: "Use {{1}} here" }) })).reason).toEqual({ text: "Remove {{ and }} from the message to send it." });
+    expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "checking" })] }) })).reason).toEqual({ text: "Checking attachments…" });
+    expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "missing" })] }) })).reason).toEqual({ text: "notes.md was moved or deleted. Remove it, or attach it again.", alert: true });
+  });
+  test("another project conversation running or waiting blocks with Home's sentence and Open", () => {
+    expect(dockedAvailability(input({ mode: { kind: "new", root: "/r" }, busy: { kind: "project", waiting: false, open: "c9" } })))
+      .toEqual({ enabled: false, reason: { text: "Another conversation is still running in doan-design.", open: "c9" } });
+    expect(dockedAvailability(input({ busy: { kind: "project", waiting: true, open: "c9" } })).reason)
+      .toEqual({ text: "Another conversation in doan-design needs your answer.", open: "c9" });
+    // A late refusal names no conversation until the list arrives: the line has no Open.
+    expect(dockedAvailability(input({ busy: { kind: "project", waiting: false, open: null } })).reason).toEqual({ text: "Another conversation is still running in doan-design." });
+  });
+  test("restoring while the canvas's current conversation runs is refused with Open", () => {
+    expect(dockedAvailability(input({ mode: { kind: "archived", conversationId: "c1", provider: "claude" }, busy: { kind: "restore", open: "c2" } })).reason)
+      .toEqual({ text: "The current conversation on this canvas is still running.", open: "c2" });
+  });
+  test("an empty field shows the busy line only once something is typed, as on Home", () => {
+    expect(dockedAvailability(input({ draft: EMPTY_DRAFT, busy: { kind: "project", waiting: false, open: "c9" } })).reason).toBeNull();
+  });
+  test("while this conversation runs, text queues and the permission wait explains the line without blocking", () => {
+    expect(dockedAvailability(input({ turn: "running" }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ turn: "waiting" }))).toEqual({ enabled: true, reason: { text: "Answer or stop the request above." } });
+    expect(dockedAvailability(input({ turn: "waiting", draft: EMPTY_DRAFT }))).toEqual({ enabled: false, reason: { text: "Answer or stop the request above." } });
+  });
+  test("a fixed provider that cannot run offers its fix in Settings, not another agent", () => {
+    expect(dockedAvailability(input({ auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
+      .toEqual({ text: "Claude Code’s sign-in expired.", action: { label: "Sign in again…", target: { section: "agents", provider: "claude" } } });
+    expect(dockedAvailability(input({ auth: auth(status("claude", {}, { ...FACTS, version: "unsupported" })) })).reason)
+      .toEqual({ text: "Claude Code needs an update.", action: { label: "Update…", target: { section: "agents", provider: "claude" } } });
+    expect(dockedAvailability(input({ auth: auth(status("codex")) })).reason)
+      .toEqual({ text: "Claude Code isn’t connected.", action: { label: "Open Agents settings…", target: { section: "agents", provider: "claude" } } });
+  });
+  test("new-conversation mode uses Home's agent reasons", () => {
+    const fresh = { kind: "new", root: "/r" } as const;
+    expect(dockedAvailability(input({ mode: fresh, provider: null })).reason).toEqual({ text: "No agent is ready to run." });
+    expect(dockedAvailability(input({ mode: fresh, auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
+      .toEqual({ text: "Claude Code can’t run right now. Choose another agent." });
+  });
+});
+
+describe("dockedRefusal", () => {
+  test("project_busy and a restore's busy become the busy line until the list names the conversation", () => {
+    expect(dockedRefusal("project_busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "project", waiting: false, open: null } });
+    expect(dockedRefusal("busy", { kind: "archived", conversationId: "c1", provider: "claude" }, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "restore", open: null } });
+  });
+  test("canvas_not_found replaces the composer with the canvas-gone line", () => {
+    expect(dockedRefusal("canvas_not_found", { kind: "archived", conversationId: "c1", provider: "claude" }, "claude", "doan-design")).toEqual({ kind: "gone" });
+    expect(canvasGoneText("doan-design")).toBe("This conversation’s canvas is no longer in doan-design, so it can’t continue.");
+  });
+  test("a start uses Home's start copy; a send has its own", () => {
+    expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "codex", "doan-design")).toEqual({ kind: "notice", text: "Codex is rate limited. Try again later." });
+    expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is finishing a previous run. Try again in a moment." });
+    expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
+    // Decision 18: the code alone does not tell an expired sign-in from none.
+    expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
+  });
+});
+
+describe("dockedPicker", () => {
+  const view: ModelPickerView = {
+    trigger: { provider: "claude", label: "Opus 5.5", ariaLabel: "Agent: Claude Code, model Opus 5.5" },
+    groups: [
+      { provider: "claude", name: "Claude Code", selectable: true, cause: null, note: null, read: false, rows: [] },
+      { provider: "codex", name: "Codex", selectable: true, cause: null, note: null, read: false, rows: [] },
+    ],
+    effort: null,
+  };
+  test("an existing conversation lists only its provider and names the model with the provider", () => {
+    const picked = dockedPicker(view, EXISTING);
+    expect(picked.trigger).toEqual({ provider: "claude", label: "Opus 5.5", ariaLabel: "Model: Opus 5.5 (Claude Code)" });
+    expect(picked.groups.map(group => group.provider)).toEqual(["claude"]);
+  });
+  test("new-conversation mode keeps Home's picker", () => {
+    expect(dockedPicker(view, { kind: "new", root: "/r" })).toBe(view);
+  });
+});

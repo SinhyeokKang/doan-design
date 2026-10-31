@@ -100,13 +100,15 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
   return {
     sessionId,
-    async send(prompt, turnId) {
+    async send(prompt, turnId, _attachments, choice) {
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
+      // The server was opened with the conversation's choice then; a send may have changed it since.
+      const turn = choice ?? input;
       activeTurn = turnId; startingTurn = true;
       dispatcher.begin({ root: input.cwd, sessionId, turnId });
       let result: unknown;
       // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
-      try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort } : {}) }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+      try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}) }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
       if (dead) throw new Error("process_exited");
       if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
       activeTurn = result.turn.id; dispatcher.started(activeTurn);

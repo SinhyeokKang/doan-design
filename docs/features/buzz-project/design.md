@@ -1,6 +1,6 @@
 # buzz-project — design
 
-[spec](./spec.md)의 결정을 구현하는 방법이다. 공용 디자인 언어와 진행 규칙은 부모 [design.md](../buzz-restyle/design.md), 대화 프리미티브와 데이터는 [buzz-conversation design](../buzz-conversation/design.md)을 따른다.
+[spec](./spec.md)의 결정을 구현하는 방법이다. 공용 디자인 언어와 진행 규칙은 부모 [design.md](../buzz-restyle/design.md), 대화 프리미티브와 데이터는 [PRODUCT §5 항목 1 'Project conversations'](../../PRODUCT.md#5-mvp)과 [ARCHITECTURE §7 'Agent conversation runtime and IPC'](../../ARCHITECTURE.md#agent-conversation-runtime-and-ipc)를 따른다. 호스트가 연결할 것은 §8에 있다.
 
 ## 0. 초안 요청
 
@@ -30,7 +30,7 @@
   - 썸네일 72×48(모서리 `radius-toolbar-icon`) 옆 첫 줄: 현재 대화의 공급자 로고(14px, 이름은 alt), 캔버스 이름, 상태 표시(LNB 슬롯과 같은 모양), 마지막 활동 시각(오른쪽 끝에 붙임, 짧은 표기: now, 3m, 1h, 1d, 그 뒤로는 날짜). 그 아래 미리보기 두 줄.
   - 행 안쪽 여백은 위아래 12, 좌우 8이다.
   - 행 사이는 행 안쪽 여백만큼 들인 1px `border-standard` 구분선이다. hover한 행의 위아래 구분선은 감춘다.
-  - 특별한 행 문구: "No longer in <project>"(buzz-conversation 표시 줄과 같은 말), "2 canvases use this ID — run doan check", "Can't read this canvas — run doan check"(LNB 출하 문자열).
+  - 특별한 행 문구: "No longer in <project>"(`ConversationThread.tsx` 승격 표시 줄과 같은 말), "2 canvases use this ID — run doan check", "Can't read this canvas — run doan check"(LNB 출하 문자열).
 - 메인: 대화 열 최대 720px, 패널 안쪽 24px. 헤더 제목은 `sm` trigger 버튼이다.
 - 메뉴 폭 360px, 오른쪽 패널 280px(출하 값)은 컴포넌트 상수다.
 
@@ -72,7 +72,7 @@
 - 목록은 현재 대화가 있는 캔버스만 담는다. 대화의 `canvas`와 목록 행은 `sameCanvas` 규칙(어느 쪽이든 ID가 있으면 ID, 없으면 경로)으로 맞춘다. 순서는 **현재 대화**의 `lastActivityAt` 최신순이고, 같으면 캔버스 경로순이다.
 - **행**: 썸네일, 첫 줄(공급자 로고, 캔버스 이름, 현재 대화의 진행 상태, 오른쪽 끝 짧은 시각), 미리보기 두 줄.
   - 진행 상태 표시는 LNB 슬롯과 같은 원천(`slotsFromList`)에서 만든다. 둘이 렌더 사이에 어긋나지 않게 하기 위해서다.
-  - 미리보기는 buzz-conversation 목록 요약의 `preview`다.
+  - 미리보기는 목록 요약의 `preview`다(`app/src/main/conversation/summary.ts`, ARCHITECTURE §7 'List and seen').
   - 짧은 시각은 `shortAgo(at, now)`: now, 3m, 1h, 1d, 그 뒤로는 날짜("Oct 28"). 접근 이름은 풀어 쓴다("3 minutes ago").
   - 상태 표시의 접근 이름: "Needs your answer", "Working", 안 본 종료는 "Finished, not seen".
 - **열기**: 행을 누르면 `openShellCanvas(root, row)`로 캔버스를 연다(전환 보호, 방문 기록, 경로·id 재확인). 그 캔버스의 현재 대화에 `markSeen`을 부른다. 지난 대화는 캔버스에서 연다(C12).
@@ -136,7 +136,7 @@
 
 ## 5. PoC 의존
 
-없다. 데이터와 프리미티브는 buzz-conversation이 먼저 만든다.
+없다. 데이터와 프리미티브는 buzz-conversation이 만들었다(§8).
 
 ## 6. POSTMORTEM에서 가져올 함정
 
@@ -158,3 +158,32 @@
   - Subframe은 실행 중 애니메이션과 안 읽은 완료 점만 쓴다([docs](https://docs.subframe.com/agent/managing-chats.md)).
 - 대화에서 산출물로 넘어가기: Lovable은 Chat 모드에서 변경이 필요하면 "Start building" 카드를 띄운다([docs](https://docs.lovable.dev/features/projects/chat.md)).
 - 캔버스 상태: Figma Dev Mode와 Doop은 승인 뒤 디자인이 바뀌면 자동으로 "Changed"/"Needs review"가 된다([Figma](https://help.figma.com/hc/en-us/articles/26781702258583), [Doop](https://github.com/kgoedecke/doop/wiki)).
+
+## 8. buzz-conversation에서 받은 것
+
+이 화면이 대화 스레드와 docked 입력창을 처음 놓는다. 두 컴포넌트는 preload를 부르지 않고 props로만 동작한다. 그래서 아래 연결은 모두 호스트인 이 자식이 한다. 규칙의 정본은 PRODUCT §5 항목 1 'Project conversations'와 ARCHITECTURE §7 'Agent conversation runtime and IPC'('List and seen', 'Queue', 'Restore', 'Renderer primitives')다.
+
+- **`DockedComposer`**(`app/src/renderer/DockedComposer.tsx`, props 타입 `DockedComposerProps`, 순수 규칙 `dockedRules.ts`)
+  - `mode`: `existing`·`archived`(대화 id와 공급자), `new`(root). archived에서 보내면 복구되고, new에서 보내면 시작(`startConversation`, newDesign)이다. placeholder는 호스트가 넘긴다.
+  - `drafts`·`onDrafts`: 초안은 호스트가 `draftKey(mode)`로 들고 있어야 대화 전환·화면 이탈 뒤에도 남는다. 승격 뒤 초안을 새 대화 키로 옮기는 일(§2.5)도 호스트가 한다.
+  - 모델: `picker`(호스트의 `modelPickerView`), `auth`, `provider`, `effort`, `onPickerOpen`, `onPickModel`, `onPickEffort`, `onSettings`. existing·archived에서는 컴포넌트가 그 공급자만 남긴다.
+  - 프리셋·첨부: `presets`, `suggested`, `onPresetsOpen`, `onPresetsRetry`, `thumbnails`, `onAttach`, `onFiles`, `onAttachmentRemoved`. 칩을 초안에 넣는 일은 호스트가 한다.
+  - 상태: `turn`(`idle`·`running`·`waiting`), `busy`(목록에서 만든 `DockedBusy`), `canvasGone`, `queued`.
+  - 동작: `onSend` → `sendConversation`(new 모드는 `startConversation`), `onQueue` → `queueConversation`, `onStop` → `interruptConversation`, `onRemoveQueued` → `removeQueuedMessage`, `onOpen`(대화 열기, §2.4 진입점). `onSend`·`onQueue`는 `{ok: true}` 또는 `{error, missing?}`를 돌려준다. 거절 문구는 `dockedRefusal`이 정한다.
+- **`ConversationThread`**(`app/src/renderer/ConversationThread.tsx`, props 타입 `ConversationThreadProps`, ref `scrollToItem(key)`)
+  - `conversationId`는 필수다. 바뀌면 스크롤, 따라가기, 펼친 활동 줄이 처음부터 시작한다.
+  - `items`는 `threadItems(events, root, live)` 결과다. `null`은 로딩, `"error"`는 읽기 실패다. 기록은 `onConversationEvent`를 먼저 구독하고 `readConversation`을 읽어 seq로 합친다.
+  - `provider`, `project`, `liveAfter`(이 seq 뒤의 권한 요청만 alert), `canvasListed`.
+  - `onOpenLink` → preload `openLink`(https만, main이 다시 확인한다).
+  - `onCopy` → 클립보드 쓰기. preload에는 일반 텍스트를 쓰는 클립보드 채널이 아직 없어서, 연결 방법은 이 자식이 정한다.
+  - `onAnswer` → `answerConversationPermission`, `onStop`, `onEditAndResend`, `onSignIn`, `onRetry`, `onOpenCanvas`.
+- **preload 채널과 오류 코드**(계약은 `app/src/preload/index.ts`의 주석)
+  - 목록: `listConversations`, `onConversationListChanged`, `markConversationSeen`. root마다 읽기는 하나만 진행하고, 그동안 온 알림은 끝난 뒤 한 번 더 읽는다. 응답과 알림의 순서는 가정하지 않는다(POSTMORTEM 2026-10-26).
+  - 대기열: `queueConversation`, `removeQueuedMessage`, `takeConversationDraft`. 목록 요약에 `returnedDraft`가 있으면 초안을 한 번 가져간다. 첨부는 경로라서 `attachmentsFromPaths`로 다시 발급한다.
+  - 복구: 보관 대화에 `sendConversation`. 별도 채널은 없다.
+  - 오류 코드: `project_busy`, `busy`(대기열이 나가기를 기다리는 대화에 send, 또는 복구할 캔버스의 현재 대화가 일하는 중), `canvas_not_found`, `not_running`(일하지 않는 대화에 queue — send로 보낸다), `queue_limit`, `stale`, `attachment_missing`과 `missing`, `not_logged_in`, `rate_limited`.
+  - 일하는 중 판단은 목록 요약의 `working`으로 한다. `phase`는 기록 기준이라 판정 대기·대기열 대기를 담지 않는다.
+- **buzz-conversation이 미검증으로 넘긴 것**
+  - docked 입력창의 실제 포커스와 한글 조합 유지. capsule↔box 전환 때 textarea가 다시 마운트되지 않는지, capsule 줄넘김 측정(`scrollHeight > lineHeight × 1.5`)이 실제 `field-sizing: content` 칸에서 맞는지 포함.
+  - 빌드한 앱에서 스레드를 띄운 CSP 확인(POSTMORTEM 2026-10-30 'A renderer import of a main module left the built app's window blank').
+  - `.doan/canvases/buzz-conversation.html`의 `docked-composer`·`thread-*` 보드와 `/design-sync`. Markdown 목록 기호의 실제 표시도 여기서 본다.

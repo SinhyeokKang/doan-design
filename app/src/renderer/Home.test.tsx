@@ -6,7 +6,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { emptyComposer, type ComposerMemory, type HomeComposerProps } from "./HomeComposerView";
+import { emptyComposer, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
 import type { PresetListReply, PresetSummary } from "./homeComposer";
 import { ShellSidebar } from "./ShellSidebar";
 import { groupProjects } from "./homeCards";
@@ -30,7 +30,7 @@ const LISTED: PresetListReply = { v: 1, ok: true, result: { version: "1", preset
 const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u", open: 0, resolved: 0 });
 const project = (path: string, canvases: CanvasRow[] = [row("buzz-onboarding")]): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases, git: { common: `${path}/.git`, main: path, branch: "main", worktrees: [] } });
 
-function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HomeComposerProps> = {}) {
+function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
   const cards = groupProjects(entries, new Map());
   const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} toggleGroup={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} projectSettings={() => {}} />;
   return renderToStaticMarkup(<TooltipProvider><Home header={<header className="top shell-top" />} sidebar={sidebar} entries={entries} homeDirectory="/Users/ada" shellProjects={{}} loaded={null} select={null}
@@ -99,13 +99,18 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
 
 test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open (design §4.9)", () => {
   const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
-  const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", "c1"]]) });
+  const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) });
   const order = [...html.matchAll(/<(button|textarea)[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
   const at = (label: string) => order.findIndex(item => item.startsWith(label));
   const sequence = ["Project:", "Remove preset", "Message", "Attach files", "Design presets", "Agent:", "Send", "Worktree:", "Open"].map(at);
   expect(sequence.every(index => index >= 0)).toBe(true);
   expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
-  expect(html).toContain('<div class="composer-reason" role="status"><span>A conversation from Home is still running in doan-design.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Open</button></div>');
+  expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation">Open</button></div>');
+});
+
+test("after a late project_busy the reason line shows before the list names the conversation, without Open", () => {
+  const html = render([project("/code/doan-design")], { text: "Draw it" }, { running: new Map([["/code/doan-design", { conversationId: "", waiting: false }]]) });
+  expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span></div>');
 });
 
 test("near the limit a counter shows what is left; over it Send is disabled and the reason says to shorten", () => {
@@ -135,6 +140,18 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   // Send keeps the shared disabled fill while sending, as the draft renders it; suggestions keep the shared sm padding.
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
   expect(css).not.toMatch(/\.suggestion[^{]*\{[^}]*padding/);
+});
+
+// buzz-conversation R1: the composer's focused border and the disabled ink of its tools.
+test("Home CSS: the focused composer uses the field-focus border with shadow-sm; disabled Attach and Presets take the disabled ink", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }");
+  expect(css).not.toMatch(/\.composer-card[^{]*\{[^}]*--border-prominent/);
+  // After the standard-ink rule, so the disabled ink wins at the same specificity.
+  const standard = css.indexOf(".composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }");
+  const disabled = css.indexOf(".composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }");
+  expect(standard).toBeGreaterThan(-1);
+  expect(disabled).toBeGreaterThan(standard);
 });
 
 // doan-mascot design '배치': the stage is placed from the reference group (empty two-line field, suggestions shown), so

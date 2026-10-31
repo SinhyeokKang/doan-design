@@ -100,3 +100,25 @@ it("does not reuse an unconfirmed Claude process or a Codex server without expli
 it("does not revive an archived conversation from later buffered events", () => {
   expect(foldConversation([event(1, { type: "turn.started" }), event(2, { type: "conversation.archived" }), event(3, { type: "message.delta", messageId: "m", text: "late" })], "a", false).messages).toEqual([]);
 });
+describe("bound and restored markers", () => {
+  it("restores an archived conversation and folds the events after the restore again", () => {
+    const state = foldConversation([
+      event(1, { type: "turn.started" }), event(2, { type: "turn.done" }), event(3, { type: "conversation.archived" }),
+      event(4, { type: "message.delta", messageId: "late", text: "ignored" }, "turn-1"),
+      event(5, { type: "conversation.restored" }, "turn-2"), event(6, { type: "user.message", text: "again", anchors: [] }, "turn-2"),
+      event(7, { type: "turn.started" }, "turn-2"), event(8, { type: "message.delta", messageId: "m", text: "back" }, "turn-2"),
+    ], "a", false);
+    expect(state.archived).toBe(false);
+    expect(state.turn).toBe("streaming");
+    expect(state.lastSeq).toBe(8);
+    expect(state.messages).toEqual([{ id: "m", text: "back", done: false }]);
+  });
+  it("keeps a conversation archived again after a later archive", () => {
+    const state = foldConversation([event(1, { type: "conversation.archived" }), event(2, { type: "conversation.restored" }), event(3, { type: "conversation.archived" })], "a", true);
+    expect(state.archived).toBe(true);
+  });
+  it("records a bound marker without changing the turn", () => {
+    const state = foldConversation([event(1, { type: "turn.started" }), event(2, { type: "turn.done" }), event(3, { type: "conversation.bound", canvas: { path: ".doan/canvases/a.html", id: "a" } })], "a", true);
+    expect(state.turn).toBe("idle"); expect(state.archived).toBe(false); expect(state.lastSeq).toBe(3);
+  });
+});

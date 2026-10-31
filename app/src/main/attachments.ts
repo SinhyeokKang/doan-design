@@ -91,6 +91,12 @@ export class AttachmentStore {
       return { ok: true, attachment: this.info(entry, bytes) };
     });
   }
+  // Edit on Home after a reload or restart: the paths a conversation recorded get ids again, with the checks of a new
+  // file. A re-issued paste is an ordinary file here, so removing its chip never deletes the sent copy.
+  fromPaths(value: unknown): AttachmentResult[] | null {
+    if (typeof value !== "object" || value === null || !("paths" in value) || !Array.isArray(value.paths) || value.paths.length > MAX_ATTACHMENTS) return null;
+    return this.addPaths(value);
+  }
   addPasted(value: unknown): AttachmentResult {
     const name = "Pasted image";
     const bytes = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "bytes" in value && value.bytes instanceof Uint8Array ? value.bytes : null;
@@ -164,6 +170,15 @@ export class AttachmentStore {
     if (ids.length > 64 || !ids.every(id => typeof id === "string" && id.length <= 64)) return false;
     for (const id of ids as string[]) this.sent.delete(id);
     return true;
+  }
+  // A queued message removed before it went out: no conversation holds its files, so main's own copy of a pasted image
+  // goes with it; a local file is only forgotten.
+  discard(ids: readonly string[]): void {
+    for (const id of ids) {
+      const entry = this.entries.get(id) ?? this.sent.get(id); if (!entry) continue;
+      this.entries.delete(id); this.sent.delete(id);
+      if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
+    }
   }
   // Edit on Home (design §7.4): the acceptance checks again, on the canonical paths main recorded for these ids only.
   // A passing consumed id becomes a draft attachment again; null for a malformed request.

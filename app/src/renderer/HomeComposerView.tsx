@@ -1,21 +1,23 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
-import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, GitBranch, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, TextAlignStart, TriangleAlert, X } from "lucide-react";
+import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
+import { DropdownMenu } from "radix-ui";
+import { Check, ChevronDown, GitBranch, Plus } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { AttachmentResult } from "../main/attachments";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
-import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import {
+  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PresetsButton, SendButton, SlashPresets, useComposerDrop,
+} from "./ComposerParts";
 import { Doany, type DoanyHandle } from "./Doany";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider,
-  dropTarget, fixedPreference, greetingText, groupIcon, isSubmitKey, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder, providerLogo,
+  fixedPreference, greetingText, groupIcon, lengthCounter, modelOption, modelPickerView, presetListView, presetPlaceholder,
   rootForProject, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets, suggestedPrompts, TEXT_LIMIT,
-  type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetRow, type PresetSummary,
+  type AttachmentDraft, type ModelsState, type NewConversationDefault, type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import type { LastRequest } from "./homeConversations";
 import { restoreRequest } from "./homeConversations";
@@ -66,7 +68,7 @@ function viewers(memory: { current: ComposerMemory }): Set<() => void> {
 export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; attachments?: { id: string }[] }
 export type StartOutcome = { ok: true } | { error: string; missing?: string[] };
 
-export interface HomeComposerProps {
+export interface HeroComposerProps {
   entries: readonly FolderEntry[]; homeDirectory: string | null;
   shellProjects: Readonly<Record<string, ShellProject>>;
   loaded: string | null;
@@ -77,7 +79,7 @@ export interface HomeComposerProps {
   prefs: HomeMemory | null;
   memory: { current: ComposerMemory };
   // Running Home conversations by root (one per root, design §4.5).
-  running: ReadonlyMap<string, string>;
+  running: ReadonlyMap<string, { conversationId: string; waiting: boolean }>;
   restore: { request: LastRequest; seq: number } | null;
   greeting: string;
   start(request: StartInput, last: LastRequest): Promise<StartOutcome>;
@@ -88,12 +90,6 @@ export interface HomeComposerProps {
   defaults?: NewConversationDefault | null | undefined;
   // The agent picker's way into Settings > Agents (buzz-settings design '홈 공급자 선택기').
   openSettings(target: SettingsTarget): void;
-}
-
-const GROUP_ICONS: Record<string, typeof Compass> = { compass: Compass, "scan-eye": ScanEye, paintbrush: Paintbrush, "text-align-start": TextAlignStart, shapes: Shapes, "pencil-sparkles": PencilSparkles };
-function GroupIcon({ name, className }: { name: string; className?: string }) {
-  const Icon = GROUP_ICONS[name] ?? PencilSparkles;
-  return <Icon className={className} aria-hidden="true" />;
 }
 
 // The group sits 64px above the panel's centre with at least --space-8 around it (doan-mascot design '배치').
@@ -143,13 +139,6 @@ export function slashKey(key: string, highlight: number, count: number, composin
   return null;
 }
 
-// Group tabs are one Tab stop; ←/→ move between them (design §4.4).
-export function tabKey(keys: readonly string[], current: string, key: string): string | null {
-  const at = keys.indexOf(current);
-  if (at === -1 || (key !== "ArrowLeft" && key !== "ArrowRight")) return null;
-  return keys[(at + (key === "ArrowRight" ? 1 : -1) + keys.length) % keys.length] ?? null;
-}
-
 // Cmd+V (design §4.8): text pastes as text; Finder files attach by their local path; an image alone attaches as a
 // pasted image. Finder puts the file names on the clipboard as text too, so text that names the copied files is
 // not a text paste.
@@ -171,7 +160,9 @@ function chipClass(chip: string | undefined): string {
   return `ob-chip${chip === "Config error" ? " err" : chip === "Missing" || chip === "CLI error" ? " warn" : ""}`;
 }
 
-export function HomeComposer(props: HomeComposerProps) {
+// Home's composer (buzz-conversation design §3.1 'HeroComposer'): the shared primitives with Home's own project picker,
+// worktree tray, suggestions and stage. Always a box.
+export function HeroComposer(props: HeroComposerProps) {
   const { memory } = props;
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   // A reply that lands after this mount left (and another took its place) redraws whichever mount is on screen.
@@ -191,15 +182,9 @@ export function HomeComposer(props: HomeComposerProps) {
   const [announcement, setAnnouncement] = useState("");
   const [dismissed, setDismissed] = useState(false);
   const [highlight, setHighlight] = useState(0);
-  const [presetsOpen, setPresetsOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<string | null>(null);
-  const [dropping, setDropping] = useState(false);
   const [confirm, setConfirm] = useState<{ request: LastRequest; title: string; body: string; cancel: string; confirm: string } | null>(null);
   const textarea = useRef<HTMLTextAreaElement | null>(null);
-  const pickedFocus = useRef(false);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
-  const dragDepth = useRef(0);
   const doany = useRef<DoanyHandle | null>(null);
   const listId = useId();
 
@@ -243,7 +228,6 @@ export function HomeComposer(props: HomeComposerProps) {
   const pickedEffort = provider && model ? m.efforts[effortKey(provider, model)] : undefined;
   const effort = pickedEffort !== undefined ? defaultEffort(option, pickedEffort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, fixed);
   const picker = modelPickerView(auth, lists, { provider, model, effort });
-  const footer = pickerFooter(picker.groups.some(group => group.selectable));
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 
@@ -289,13 +273,12 @@ export function HomeComposer(props: HomeComposerProps) {
     field.focus();
     field.setSelectionRange(field.value.length, field.value.length);
   };
+  // Either way of picking puts the caret at the end of the field (design §4.9); the popover does it once it closes.
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);
     if (!chosen) return;
     edit({ preset: chosen, ...(fromSlash ? { text: "" } : {}) });
-    // Either way of picking puts the caret at the end of the field (design §4.9).
     if (fromSlash) queueMicrotask(focusEnd);
-    else { pickedFocus.current = true; setPresetsOpen(false); }
   };
 
   // Attachments
@@ -388,26 +371,7 @@ export function HomeComposer(props: HomeComposerProps) {
     return true;
   };
 
-  // Drop over the composer attaches files only; the window's own drop handling never sees it (design §4.8).
-  const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
-  const dragHandlers = {
-    onDragEnter: (event: DragEvent) => { if (!hasFiles(event)) return; event.preventDefault(); event.stopPropagation(); dragDepth.current++; setDropping(true); },
-    onDragOver: (event: DragEvent) => { if (!hasFiles(event)) return; event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = sending ? "none" : "copy"; },
-    onDragLeave: (event: DragEvent) => { if (!hasFiles(event)) return; event.stopPropagation(); if (--dragDepth.current <= 0) { dragDepth.current = 0; setDropping(false); } },
-    onDrop: (event: DragEvent) => {
-      if (!hasFiles(event)) return;
-      event.preventDefault(); event.stopPropagation();
-      dragDepth.current = 0; setDropping(false);
-      if (sending) return;
-      const files = Array.from(event.dataTransfer.files);
-      // String items (a URL list, say) can sit among the files; only file items line up with `files`.
-      const items = Array.from(event.dataTransfer.items ?? []).filter(item => item.kind === "file");
-      const target = dropTarget(files.map((_file, i) => ({ isDirectory: !!items[i]?.webkitGetAsEntry?.()?.isDirectory })));
-      if (target.notice) setNotice({ text: target.notice, retry: false });
-      const chosen = target.files.map(i => files[i]!);
-      if (chosen.length) { if (!target.notice) setNotice(null); addFiles(chosen, false); }
-    },
-  };
+  const drop = useComposerDrop({ blocked: () => sending, onFiles: files => addFiles(files, false), onNotice: text => setNotice(text === null ? null : { text, retry: false }) });
   const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(event.clipboardData.files);
     const action = pasteAction(event.clipboardData.getData("text/plain"), files);
@@ -455,7 +419,9 @@ export function HomeComposer(props: HomeComposerProps) {
     if (outcome.error === "attachment_missing") {
       const missing = new Set(outcome.missing ?? []);
       update(current => ({ sending: null, attachments: current.attachments.map(a => a.id && missing.has(a.id) ? { ...a, status: "missing" } : a) }));
-    } else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
+    // A late project_busy is shown by the reason line, which the run's list now carries (design §3.4).
+    } else if (outcome.error === "project_busy") update({ sending: null });
+    else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
     queueMicrotask(() => textarea.current?.focus());
   };
 
@@ -479,73 +445,34 @@ export function HomeComposer(props: HomeComposerProps) {
         return result?.ok ? { ...a, status: "ready", size: result.attachment.size, path: result.attachment.path } : { ...a, status: "missing" };
       }),
     })));
-    edit({ text: request.text, preset: request.preset, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
+    // A request rebuilt from history names its preset by id only; the read list fills in its group and description.
+    const preset = request.preset && (memory.current.presets?.ok ? memory.current.presets.result.presets.find(p => p.id === request.preset!.id) : undefined) || request.preset;
+    // Its images' thumbnails join the composer's object URLs, released by the same rules as a chosen file's.
+    const thumbnails = { ...memory.current.thumbnails };
+    for (const [key, bytes] of Object.entries(request.thumbnails ?? {})) if (!thumbnails[key]) { const url = thumbnailUrl(bytes); if (url) thumbnails[key] = url; }
+    edit({ text: request.text, preset, thumbnails, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
       models: request.model ? { ...memory.current.models, [request.provider]: request.model } : memory.current.models,
       efforts: request.model && request.effort ? { ...memory.current.efforts, [effortKey(request.provider, request.model)]: request.effort } : memory.current.efforts });
     queueMicrotask(focusEnd);
   };
 
-  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+  // Keys the field does not handle itself; true when handled, so Enter reaches send only when nothing took it.
+  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
       const action = slashKey(event.key, highlight, slashRows.length, composing);
-      if (action?.kind === "move") { event.preventDefault(); setHighlight(action.highlight); return; }
-      if (action?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) choosePreset(row.id, true); return; }
-      if (action?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissed(action.dismiss); return; }
+      if (action?.kind === "move") { event.preventDefault(); setHighlight(action.highlight); return true; }
+      if (action?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) choosePreset(row.id, true); return true; }
+      if (action?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissed(action.dismiss); return true; }
     }
-    if (event.key === "Backspace" && removeChip(-1, "backspace")) { event.preventDefault(); return; }
-    if (isSubmitKey({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode })) {
-      event.preventDefault();
-      void send();
-    }
+    if (event.key === "Backspace" && removeChip(-1, "backspace")) { event.preventDefault(); return true; }
+    return false;
   };
 
   const reason = availability.reason;
   const projectRows = card?.rows ?? [];
   const branchOf = (row: FolderEntry) => cardRow(row, null, null).summary?.branch ?? null;
   const branch = entry ? branchOf(entry) : null;
-  const presetView = presetListView(m.presets, { project, suggested, query, tab });
-  const presetRows = presetView.kind === "list" ? presetView.sections.flatMap(section => section.rows) : [];
-  const focusRow = (index: number) => document.getElementById(`${listId}-p-${index}`)?.focus();
-  const rowKey = (event: KeyboardEvent, index: number, row: PresetRow) => {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(presetRows.length - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
-    else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choosePreset(row.id, false); }
-  };
-  const presetOption = (row: PresetRow, index: number, slashMode: boolean) => <div key={row.id} id={`${listId}-${slashMode ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slashMode ? index === highlight : false}
-    tabIndex={slashMode ? undefined : -1} title={row.tooltip} data-highlighted={slashMode && index === highlight ? "" : undefined}
-    onMouseDown={slashMode ? event => event.preventDefault() : undefined} onClick={() => choosePreset(row.id, slashMode)}
-    onKeyDown={slashMode ? undefined : event => rowKey(event, index, row)}>
-    <span className="preset-title">{row.title}</span><span className="sub">{row.group ?? row.scope}</span>
-  </div>;
-  const presetBody = (view: typeof presetView, slashMode: boolean): ReactNode => {
-    if (view.kind === "loading") return <div className="popover-state" role="status"><span className="doan-spinner" aria-hidden="true" />{view.text}</div>;
-    if (view.kind === "empty") return <div className="popover-state" role="status">{view.text}</div>;
-    // The popover is 90% glass over Home's gradient, not plain opaque white, so its notices take the panel surface.
-    if (view.kind === "olderCli") return <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{view.text}</span></div>;
-    if (view.kind === "error") return <><div className="doan-notice error doan-panel" role="alert"><AlertIcon /><span className="grow-text">{view.text}</span></div>{view.retry && <div className="popover-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={readPresets}>Retry</button></div>}</>;
-    let index = 0;
-    return <>
-      {view.tabs.length > 0 && <div className="group-tabs shell-modes" role="tablist" aria-label="Preset groups">{view.tabs.map(item => <button key={item.key} type="button" role="tab" className={item.selected ? "current" : ""} aria-selected={item.selected} tabIndex={item.selected ? 0 : -1}
-        onClick={() => setTab(item.key)} onKeyDown={event => {
-          const next = tabKey(view.tabs.map(t => t.key), item.key, event.key);
-          if (!next) return;
-          event.preventDefault(); setTab(next);
-          // React clears currentTarget after the handler, so the tab list is taken now and the new tab focused once drawn.
-          const list = event.currentTarget.parentElement;
-          requestAnimationFrame(() => list?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
-        }}>
-        <GroupIcon name={item.icon} />{item.label}</button>)}</div>}
-      <div className="popover-list" role="listbox" id={slashMode ? `${listId}-slash` : undefined} aria-label={view.summary ?? view.sections[0]?.title ?? "Design presets"}>
-        {view.sections.map(section => <Fragment key={section.title ?? "results"}>{section.title && !slashMode && <div className="doan-menu-head">{section.title}</div>}{section.rows.map(row => presetOption(row, index++, slashMode))}</Fragment>)}
-      </div>
-    </>;
-  };
-  const searchField = (value: string, slashMode: boolean) => <label className="popover-search"><Search aria-hidden="true" /><input className="doan-input" data-ui-size="sm" placeholder="Search presets" aria-label="Search presets" value={value}
-    readOnly={slashMode} tabIndex={slashMode ? -1 : undefined} aria-hidden={slashMode || undefined}
-    onChange={slashMode ? undefined : event => { setQuery(event.target.value); }}
-    onKeyDown={slashMode ? undefined : event => { if (event.key === "ArrowDown") { event.preventDefault(); focusRow(0); } }} /></label>;
-
-  const iconButton = (label: string, node: ReactNode) => <Tooltip><TooltipTrigger asChild>{node}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
   const hasProjects = cards.length > 0;
 
   return <HomeStage>
@@ -576,83 +503,26 @@ export function HomeComposer(props: HomeComposerProps) {
         </DropdownMenu.Content></DropdownMenu.Portal>
       </DropdownMenu.Root>
         : <button type="button" className="home-project doan-button" data-ui-size="sm" data-ui-variant="trigger" onClick={() => props.addProjects()}><Plus aria-hidden="true" /><span>Add Projects…</span></button>}
-      <div className="composer" {...dragHandlers}>
-        {dropping && <div className="drop-target"><span className="sr-only" role="status">Drop to attach</span></div>}
-        <div className={`composer-card${sending ? " readonly" : ""}`}>
-          {chips.length > 0 && <div className="composer-chips">
-            {attachments.map((a, index) => {
-              const view = attachmentChipView(a, props.homeDirectory), url = m.thumbnails[a.key];
-              const chip = <span className={`attach-chip${view.thumbnail && url ? " image" : ""}${view.problem ? " problem" : ""}`}>
-                {view.thumbnail && url ? <span className="thumb" aria-hidden="true"><img src={url} alt="" /></span>
-                  : <span className="file-icon" aria-hidden="true">{a.status === "checking" ? <span className="doan-spinner" /> : view.problem ? <TriangleAlert /> : <FileText />}</span>}
-                <span className="attach-text"><b>{view.label}</b><small>{view.meta}</small></span>
-                <button type="button" ref={node => { removeButtons.current[index] = node; }} className="chip-remove doan-icon-button" data-ui-size="xs" aria-label={view.removeLabel} disabled={sending} onClick={() => removeChip(index, "button")}><X aria-hidden="true" /></button>
-              </span>;
-              return <Fragment key={a.key}>{view.tooltip ? <Tooltip><TooltipTrigger asChild>{chip}</TooltipTrigger><TooltipContent>{view.tooltip}</TooltipContent></Tooltip> : chip}</Fragment>;
-            })}
-            {preset && <span className="preset-chip"><GroupIcon name={groupIcon(preset.group)} /><span>{preset.title}</span>
-              <button type="button" ref={node => { removeButtons.current[attachments.length] = node; }} className="chip-remove doan-icon-button" data-ui-size="xs" aria-label={`Remove preset ${preset.title}`} disabled={sending} onClick={() => removeChip(attachments.length, "button")}><X aria-hidden="true" /></button></span>}
-          </div>}
-          <textarea ref={textarea} className="composer-input" aria-label="Message" rows={2} value={text} readOnly={sending} placeholder={presetPlaceholder(preset)}
-            role={slashOpen ? "combobox" : undefined} aria-expanded={slashOpen ? true : undefined} aria-controls={slashOpen ? `${listId}-slash` : undefined}
-            aria-autocomplete={slashOpen ? "list" : undefined} aria-activedescendant={slashOpen && slashRows[highlight] ? `${listId}-s-${highlight}` : undefined}
-            onChange={event => edit({ text: event.target.value })} onInput={() => doany.current?.typing()} onKeyDown={keyDown} onPaste={paste} />
+      <div className="composer" {...drop.handlers}>
+        {drop.cover}
+        <ComposerCard readonly={sending}>
+          <ComposerChips attachments={attachments} preset={preset} thumbnails={m.thumbnails} homeDirectory={props.homeDirectory} disabled={sending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
+          <ComposerField ref={textarea} value={{ text, anchors: [] }} onChange={value => edit({ text: value.text })} readOnly={sending} placeholder={presetPlaceholder(preset)} rows={2}
+            combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
+            onKey={keyDown} onSubmit={() => void send()} onPaste={paste} onInput={() => doany.current?.typing()} />
           {counter && <div className={`composer-count${composed.length > TEXT_LIMIT ? " over" : ""}`} aria-live="polite">{counter}</div>}
-          <div className="composer-tools">
-            {iconButton("Attach files", <button type="button" className="doan-icon-button" aria-label="Attach files" disabled={sending} onClick={choose}><Plus aria-hidden="true" /></button>)}
-            <Popover.Root open={presetsOpen} onOpenChange={open => { setPresetsOpen(open); if (open) { setQuery(""); if (memory.current.presets && !memory.current.presets.ok) readPresets(); } }}>
-              {iconButton("Design presets", <Popover.Trigger asChild><button type="button" className="doan-icon-button composer-presets" aria-label="Design presets" disabled={sending}><PencilSparkles aria-hidden="true" /></button></Popover.Trigger>)}
-              <Popover.Portal><Popover.Content className="doan-floating preset-popover" aria-label="Design presets" side="top" align="start" sideOffset={8} collisionPadding={8}
-                onCloseAutoFocus={event => { if (pickedFocus.current) { pickedFocus.current = false; event.preventDefault(); focusEnd(); } }}>
-                {searchField(query, false)}{presetBody(presetView, false)}
-              </Popover.Content></Popover.Portal>
-            </Popover.Root>
-            {slashOpen && slashView && <div className="doan-floating preset-popover slash-popover" role="presentation">{searchField(slash, true)}{presetBody(slashView, true)}</div>}
+          <ComposerTools>
+            <AttachButton disabled={sending} onClick={choose} />
+            <PresetsButton reply={m.presets} project={project} suggested={suggested} listId={listId} disabled={sending}
+              onOpen={() => { if (memory.current.presets && !memory.current.presets.ok) readPresets(); }} onChoose={id => choosePreset(id, false)} onRetry={readPresets} onPicked={focusEnd} />
+            {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
             <span className="grow" />
-            <DropdownMenu.Root onOpenChange={open => { if (open && root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}>
-              <DropdownMenu.Trigger asChild><button type="button" className="composer-agent doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={picker.trigger.ariaLabel} disabled={sending}>
-                {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><span>{picker.trigger.label}</span></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
-              </button></DropdownMenu.Trigger>
-              <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu agent-popover" aria-label="Agent and model" side="top" align="end" sideOffset={8} collisionPadding={8}>
-                {picker.groups.map((group, index) => {
-                  const status = auth?.providers.find(item => item.provider === group.provider);
-                  const short = status ? providerShortStatus(status) : null;
-                  const fix = !group.selectable && status ? pickerAction(status) : null;
-                  const selected = group.rows.find(row => row.selected);
-                  // A group that cannot run says why in its head and offers its fix in Settings below it.
-                  const note = group.note ?? (group.selectable ? null : short);
-                  return <Fragment key={group.provider}>{index > 0 && <DropdownMenu.Separator className="doan-menu-sep" />}<div className="agent-group">
-                    <DropdownMenu.Label className="doan-menu-head agent-head"><img className="logo" src={providerLogo(group.provider)} alt="" /><span>{group.name}</span>
-                      {note && <span className="agent-note">{note === "Loading models" && <span className="doan-spinner" aria-hidden="true" />}{note}</span>}</DropdownMenu.Label>
-                    {group.selectable ? <DropdownMenu.RadioGroup value={!selected ? "" : selected.kind === "model" ? selected.id : "default"}
-                      onValueChange={value => edit({ provider: group.provider, ...(value === "default" ? {} : { models: { ...memory.current.models, [group.provider]: value } }) })}>
-                      {group.rows.map(row => <DropdownMenu.RadioItem key={row.kind === "model" ? row.id : "default"} value={row.kind === "model" ? row.id : "default"} className="doan-menu-item model-item">
-                        <span className="model-name">{row.label}</span>{row.kind === "model" && row.effort && <span className="sub"><Gauge className="inline" aria-hidden="true" />Effort</span>}
-                        <span className="check-slot">{row.selected && <Check className="check" aria-hidden="true" />}</span>
-                      </DropdownMenu.RadioItem>)}
-                    </DropdownMenu.RadioGroup> : fix ? <DropdownMenu.Item className="doan-menu-item" onSelect={() => openSettings(fix.target)}>{fix.label}</DropdownMenu.Item>
-                      : <DropdownMenu.Item className="doan-menu-item" disabled><span className="sub">{short ?? "Not available right now"}</span></DropdownMenu.Item>}
-                    {group.selectable && short && <p className="menu-note">{short}</p>}
-                  </div></Fragment>;
-                })}
-                {picker.groups.length > 0 && <DropdownMenu.Separator className="doan-menu-sep" />}
-                {footer.note && <p className="menu-note">{footer.note}</p>}
-                <DropdownMenu.Item className="doan-menu-item settings-menu-link" onSelect={() => openSettings(footer.action.target)}><Settings aria-hidden="true" />{footer.action.label}</DropdownMenu.Item>
-              </DropdownMenu.Content></DropdownMenu.Portal>
-            </DropdownMenu.Root>
-            {picker.effort && provider && model && <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={picker.effort.ariaLabel} disabled={sending}><Gauge aria-hidden="true" /><span>{picker.effort.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
-              <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu effort-popover" data-ui-size="compact" aria-label={picker.effort.menuLabel} side="top" align="end" sideOffset={8} collisionPadding={8}>
-                <DropdownMenu.Label className="doan-menu-head">{picker.effort.title}</DropdownMenu.Label>
-                <DropdownMenu.RadioGroup value={effort ?? ""} onValueChange={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })}>
-                  {picker.effort.options.map(item => <DropdownMenu.RadioItem key={item.id} value={item.id} className="doan-menu-item"><span className="model-name">{item.label}</span><span className="check-slot">{item.selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>)}
-                </DropdownMenu.RadioGroup>
-              </DropdownMenu.Content></DropdownMenu.Portal>
-            </DropdownMenu.Root>}
-            {iconButton("Send", <button type="button" className={`composer-send doan-icon-button${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label="Send" aria-busy={sending || undefined} disabled={!availability.enabled} onClick={() => void send()}>
-              {sending ? <span className="doan-spinner" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}</button>)}
-          </div>
-        </div>
+            <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
+              onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
+            {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} />}
+            <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} />
+          </ComposerTools>
+        </ComposerCard>
         {hasProjects && entry && <div className="composer-tray">
           {projectRows.length > 1 ? <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-label={`Worktree: ${branch ?? displayPath(entry.path, props.homeDirectory)}`} disabled={sending}>
@@ -680,7 +550,7 @@ export function HomeComposer(props: HomeComposerProps) {
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
       {!notice && reason && (reason.kind === "attachmentMissing"
         ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{reason.text}</span></div>
-        : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
+        : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
     {confirm && <dialog className="doan-dialog" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); setConfirm(null); }}>

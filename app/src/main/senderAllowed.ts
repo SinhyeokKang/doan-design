@@ -13,6 +13,8 @@ const mainOnly = new Set([
   "design-skills:list", "design-skills:get",
   // buzz-home: Home attachments; Settings has no composer.
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
+  // buzz-conversation: Edit on Home re-issues recorded attachment paths, and agent replies open https links.
+  "attachments:fromPaths", "shell:openLink",
   // buzz-add-projects: the Add Projects page's project session; Settings has no such page.
   "add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel",
   // buzz-settings: the Settings page and the Project Settings dialog. Main fixes every URL, clipboard text and

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent, EventPayload } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
-import { HomeRun, type HomeRunHost } from "./homeRun";
+import { BIND_GRACE_MS as MAIN_BIND_GRACE_MS } from "../main/conversation/project";
+import { BIND_GRACE_MS, HomeRun, type HomeRunHost } from "./homeRun";
 import type { StartInput } from "./HomeComposerView";
 import type { LastRequest } from "./homeConversations";
 
@@ -25,8 +27,10 @@ beforeEach(() => {
   doan = {
     startConversation: vi.fn(() => start.promise),
     readConversation: vi.fn(async () => ({ events: [], lastSeq: 0, turn: "starting" })),
-    conversationForCanvas: vi.fn(async () => ({ current: null, archived: [] })),
     interruptConversation: vi.fn(async () => {}),
+    listConversations: vi.fn(async () => []),
+    markConversationSeen: vi.fn(async () => {}),
+    attachmentsFromPaths: vi.fn(async () => []),
   };
   vi.stubGlobal("window", { doan });
 });
@@ -34,7 +38,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 // App's navigation, reduced: openOverview waits for the test to call `arrive`, then shows the root's workspace.
 function harness(entries: FolderEntry[] = [list(ROOT, ["a"])]) {
-  const view = { screen: "home" as "home" | "workspace", loadedRoot: null as string | null, entries };
+  const view = { screen: "home" as "home" | "workspace", loadedRoot: null as string | null, entries, canvas: null as string | null };
   const order: string[] = [];
   let accept = () => false, commit = () => {}, unavailable = () => {};
   const history: string[] = [];
@@ -123,32 +127,66 @@ test("a draft guard the person refuses, or a project that is unavailable, toasts
   expect(allowed.host.toast).not.toHaveBeenCalledWith("Started in doan.", "Open", expect.any(Function));
 });
 
-test("a canvas main bound before the start reply arrived is still taken and opens where the person looks", async () => {
+test("a canvas that appeared before the start reply arrived is still taken and opens where the person looks", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST);
-  // Main accepts, binds the new canvas and announces folders before the renderer handles the reply.
+  // The agent writes the new canvas and the folders arrive before the renderer handles the reply.
   h.view.entries = [list(ROOT, ["a", "pricing"])];
   h.run.entriesChanged();
-  doan.conversationForCanvas!.mockImplementation(async ({ canvas }: { canvas: { path: string } }) => ({ current: canvas.path.endsWith("pricing.html") ? { conversationId: "c1" } : null, archived: [] }));
   start.resolve({ conversationId: "c1" });
   await sending;
   h.arrive();
   await flush();
-  expect(doan.conversationForCanvas).toHaveBeenCalledWith({ root: ROOT, canvas: { path: ".doan/canvases/pricing.html", id: "pricing" } });
-  expect(h.run.conversations[0]?.canvas).toBe(".doan/canvases/pricing.html");
   expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
-  // Its own open is not the person's: a later canvas of the same run is not blocked by it.
+  // Its own open is not the person's: the run does not count it as the person opening a canvas.
   h.run.canvasShown(ROOT, ".doan/canvases/pricing.html");
-  expect(doan.conversationForCanvas).not.toHaveBeenCalledWith(expect.objectContaining({ canvas: expect.objectContaining({ path: ".doan/canvases/a.html" }) }));
+  expect(h.host.toast).not.toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
 });
 
-test("after the person opened a canvas in any project, a bound canvas is offered in a toast instead of opening", async () => {
+// Decision 17: main binds a new canvas only after the turn ends, so the open does not wait for main.
+test("a new canvas row during the turn opens without asking main; only the first, and only while the turn runs", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).toHaveBeenCalledTimes(1);
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+  h.view.entries = [list(ROOT, ["a", "pricing", "second"])];
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).toHaveBeenCalledTimes(1);
+});
+
+test("a new canvas whose folder update lands after turn.done still opens within main's binding window, not after it", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+  const opened = async (after: number) => {
+    start = deferred();
+    const h = harness();
+    const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c2" }); await sending;
+    h.arrive();
+    h.run.event(event("c2", { type: "turn.started" }, "t2"));
+    h.run.event(event("c2", { type: "turn.done" }, "t2"));
+    now.mockReturnValue(1_000_000 + after);
+    h.view.entries = [list(ROOT, ["a", "late"])];
+    h.run.entriesChanged();
+    now.mockReturnValue(1_000_000);
+    return vi.mocked(h.host.openCanvas).mock.calls.length;
+  };
+  expect(await opened(BIND_GRACE_MS)).toBe(1);
+  expect(await opened(BIND_GRACE_MS + 1)).toBe(0);
+  now.mockRestore();
+});
+
+test("the renderer's binding window is main's", () => {
+  expect(BIND_GRACE_MS).toBe(MAIN_BIND_GRACE_MS);
+});
+
+test("after the person opened a canvas in any project, a new canvas is offered in a toast instead of opening", async () => {
   const h = harness([list(ROOT, ["a"]), list(OTHER, ["x"])]);
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
   h.arrive();
   h.run.canvasShown(OTHER, ".doan/canvases/x.html");
   h.view.loadedRoot = ROOT;
-  doan.conversationForCanvas!.mockResolvedValue({ current: { conversationId: "c1" }, archived: [] });
   h.view.entries = [list(ROOT, ["a", "pricing"]), list(OTHER, ["x"])];
   h.run.entriesChanged();
   await flush();
@@ -192,15 +230,14 @@ test("Edit on Home sends the last request back to Home", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
   h.arrive();
-  h.run.editOnHome(ROOT);
+  await h.run.editOnHome("c1");
   expect(h.host.goHome).toHaveBeenCalled();
-  expect(h.run.restore).toEqual({ request: LAST, seq: 1 });
+  expect(h.run.restore).toEqual({ request: { ...LAST, conversationId: "c1" }, seq: 1 });
 });
 
 // Review BU3 r2 🟡2, 🟡3.
-test("a canvas bound before the arrival opens once the arrival is accepted, before App's screen commit", async () => {
+test("a canvas that appears before the arrival opens once the arrival is accepted, before App's screen commit", async () => {
   const h = harness();
-  doan.conversationForCanvas!.mockResolvedValue({ current: { conversationId: "c1" }, archived: [] });
   const sending = h.run.start(REQUEST, LAST);
   h.view.entries = [list(ROOT, ["a", "pricing"])];
   start.resolve({ conversationId: "c1" });
@@ -211,11 +248,10 @@ test("a canvas bound before the arrival opens once the arrival is accepted, befo
   expect(h.host.toast).not.toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
 });
 
-test("a canvas bound after the arrival was accepted but before the screen commit also opens", async () => {
+test("a canvas that appears after the arrival was accepted but before the screen commit also opens", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
   expect(h.accept()).toBe(true);
-  doan.conversationForCanvas!.mockResolvedValue({ current: { conversationId: "c1" }, archived: [] });
   h.view.entries = [list(ROOT, ["a", "pricing"])];
   h.run.entriesChanged();
   await flush();
@@ -236,4 +272,318 @@ test("a move the person makes while the project is still being read cancels the 
   expect(h.history).toEqual([]);
   expect(vi.mocked(h.host.toast).mock.calls.length).toBe(toasts);
   expect(h.run.takeFocus()).toBeNull();
+});
+
+test("Home's running map says whether the conversation waits for an answer (spec decision 18's two sentences)", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST);
+  start.resolve({ conversationId: "c1" });
+  await sending;
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1", waiting: false }]]));
+  h.run.event(event("c1", { type: "turn.started" }));
+  h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "c1", waiting: true }]]));
+});
+
+// buzz-conversation R4: what survives a reload comes from main's list.
+// working follows the phase unless a test sets it: main also works after a turn ended (judgement, exit wait).
+const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
+  conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
+  phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "",
+  working: patch.phase !== undefined && patch.phase !== "ended", ...patch,
+});
+function lists(byRoot: Record<string, ConversationSummary[]>) {
+  doan.listConversations!.mockImplementation(async ({ root }: { root: string }) => byRoot[root] ?? []);
+}
+
+test("list notices coalesce per root: one read in flight, and one more for any notices that came during it", async () => {
+  const h = harness();
+  const first = deferred<ConversationSummary[]>();
+  doan.listConversations!.mockImplementationOnce(() => first.promise);
+  h.run.listChanged(ROOT);
+  h.run.listChanged(ROOT); h.run.listChanged(ROOT);
+  expect(doan.listConversations).toHaveBeenCalledTimes(1);
+  first.resolve([]);
+  await flush();
+  expect(doan.listConversations).toHaveBeenCalledTimes(2);
+  await flush();
+  expect(doan.listConversations).toHaveBeenCalledTimes(2);
+  // A root that is not registered is never read.
+  h.run.listChanged("/elsewhere");
+  expect(doan.listConversations).toHaveBeenCalledTimes(2);
+});
+
+test("after a reload the slots come back from the list: running, waiting for an answer and unseen endings", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "w", phase: "running" })], [OTHER]: [summary({ conversationId: "u", unseen: true, canvas: { path: ".doan/canvases/x.html", id: "x" } })] });
+  const reads = deferred<unknown>();
+  doan.readConversation!.mockImplementation(() => reads.promise);
+  const h = harness([list(ROOT, ["a"]), list(OTHER, ["x"])]);
+  h.run.entriesChanged();
+  await flush();
+  // Straight from the list, before the strip's history reads return.
+  expect(h.run.slots()).toEqual(new Map([[ROOT, { kind: "working", label: "Claude Code is working" }], [`${OTHER}\n.doan/canvases/x.html`, { kind: "unseen", label: "New changes from Claude Code" }]]));
+  lists({ [ROOT]: [summary({ conversationId: "w", phase: "waiting" })], [OTHER]: [] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.slots().get(ROOT)).toEqual({ kind: "permission", label: "Claude Code needs your answer" });
+});
+
+test("a bound canvas that left the project puts the slot on its project row", async () => {
+  lists({ [ROOT]: [summary({ phase: "running", canvas: { path: ".doan/canvases/gone.html", id: "gone" } })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  expect(h.run.slots().get(ROOT)?.kind).toBe("working");
+});
+
+test("after main binds the turn's new canvas, the slot moves to that canvas row from the list", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  expect(h.run.slots().get(ROOT)?.kind).toBe("working");
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  h.run.entriesChanged();
+  lists({ [ROOT]: [summary({ phase: "running", canvas: { path: ".doan/canvases/pricing.html", id: "pricing" } })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.slots()).toEqual(new Map([[`${ROOT}\n.doan/canvases/pricing.html`, { kind: "working", label: "Claude Code is working" }]]));
+  expect(h.run.conversations[0]?.canvas).toBe(".doan/canvases/pricing.html");
+});
+
+test("after a reload the strip reads the conversation the list names; a turn the restart folded shows as stopped", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "user.message", text: "Draw it", anchors: [] }), event("c1", { type: "turn.started" }), event("c1", { type: "activity", kind: "edit", summary: "Editing" })], lastSeq: 3, turn: "interrupted" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  // Before the history arrives nothing is drawn, not another conversation's state.
+  expect(h.run.strip(ROOT)).toBeNull();
+  await flush(); await flush();
+  expect(h.run.strip(ROOT)?.state).toEqual({ kind: "interrupted", reason: "crashed" });
+  expect(h.run.knows("c1")).toBe(true);
+});
+
+test("a switch between projects never draws the previous project's strip (POSTMORTEM 2026-10-25)", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "a1", phase: "running" })], [OTHER]: [] });
+  doan.readConversation!.mockResolvedValue({ events: [event("a1", { type: "turn.started" })], lastSeq: 1, turn: "starting" });
+  const h = harness([list(ROOT, ["a"]), list(OTHER, ["x"])]);
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(h.run.strip(ROOT)?.conversation.conversationId).toBe("a1");
+  // The render right after the switch reads the new root, before any effect or list read.
+  expect(h.run.strip(OTHER)).toBeNull();
+  expect(h.run.running().get(OTHER)).toBeUndefined();
+});
+
+test("Dismiss marks the conversation seen at its last seq and hides it at once, in either order of reply and list", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "turn.started" }), event("c1", { type: "turn.done" })], lastSeq: 2, turn: "idle" });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
+  const reply = deferred<void>();
+  doan.markConversationSeen!.mockImplementationOnce(() => reply.promise);
+  h.run.dismiss("c1");
+  expect(h.run.strip(ROOT)).toBeNull();
+  expect(h.run.slots().size).toBe(0);
+  await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "c1", seq: 2 });
+  // The notice's read comes back before main's reply and still has the old marker: the slot stays hidden.
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.slots().size).toBe(0);
+  reply.resolve();
+  await flush();
+  // A read that starts after the reply is main's word again, including a later ending.
+  lists({ [ROOT]: [summary({ unseen: false })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.slots().size).toBe(0);
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
+});
+
+test("a failed seen marker brings the slot back", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "turn.done" })], lastSeq: 1, turn: "idle" });
+  doan.markConversationSeen!.mockResolvedValue({ error: "bad_request" });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  h.run.dismiss("c1");
+  await flush(); await flush();
+  expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
+});
+
+test("visiting the bound canvas marks its unseen ending seen; the project's Overview does not", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  seq = 3;
+  doan.readConversation!.mockResolvedValue({ events: [event("u", { type: "turn.done" })], lastSeq: 4, turn: "idle" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush();
+  h.run.visit([ROOT]);
+  await flush();
+  expect(doan.markConversationSeen).not.toHaveBeenCalled();
+  h.run.visit([ROOT, `${ROOT}\n.doan/canvases/a.html`]);
+  expect(h.run.slots().size).toBe(0);
+  await flush(); await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "u", seq: 4 });
+});
+
+test("an ending that arrives while the person is on its row is marked seen before it is drawn", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "u", phase: "running" })] });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush();
+  h.run.visit([ROOT]);
+  lists({ [ROOT]: [summary({ conversationId: "u", unseen: true })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.slots().size).toBe(0);
+});
+
+test("a list that arrives right after a switch to another canvas does not mark the previous canvas's ending seen", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "u", phase: "running", canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  const h = harness([list(ROOT, ["a", "b"])]);
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT; h.view.canvas = ".doan/canvases/a.html";
+  h.run.entriesChanged();
+  await flush();
+  h.run.visit([ROOT, `${ROOT}\n.doan/canvases/a.html`]);
+  // The person opened b; App's visit effect has not run yet when the list arrives.
+  h.view.canvas = ".doan/canvases/b.html";
+  lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(doan.markConversationSeen).not.toHaveBeenCalled();
+  expect(h.run.slots().get(`${ROOT}\n.doan/canvases/a.html`)?.kind).toBe("unseen");
+});
+
+test("the removal guard and Home's reason line read the list after a reload", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p", phase: "waiting", fromHome: false }), summary({ conversationId: "canvas", phase: "running", fromHome: false, canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "p", waiting: true }]]));
+  await h.run.remove([ROOT], "doan");
+  expect(h.run.removing).toMatchObject({ conversations: ["p"], body: "A conversation in doan needs your answer. Doan stops it, then removes the project from the list. Files stay on disk." });
+});
+
+test("a project conversation main still counts as working after its turn ended holds Home's reason line and the removal guard", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p", phase: "ended", working: true, fromHome: false }), summary({ conversationId: "idle", phase: "ended", working: false, fromHome: false })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "p", waiting: false }]]));
+  await h.run.remove([ROOT], "doan");
+  expect(h.run.removing).toMatchObject({ conversations: ["p"], body: expect.stringContaining("A conversation is still running in doan.") });
+});
+
+test("a late project_busy shows Home's reason line without Open until a list read after it names the holder or none", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(5_000_000);
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  const sending = h.run.start(REQUEST, LAST);
+  const read = deferred<ConversationSummary[]>();
+  doan.listConversations!.mockImplementationOnce(() => read.promise);
+  start.resolve({ error: "project_busy" });
+  expect(await sending).toEqual({ error: "project_busy" });
+  // The list has not caught up yet: the line names no conversation.
+  expect(h.run.running().get(ROOT)).toEqual({ conversationId: "", waiting: false });
+  // A canvas conversation running in the root is not the holder, and the list read after the refusal names none
+  // working: whatever held the root let it go meanwhile.
+  read.resolve([summary({ conversationId: "canvas", phase: "running", fromHome: false, canvas: { path: ".doan/canvases/a.html", id: "a" } })]);
+  await flush();
+  expect(h.run.running().get(ROOT)).toBeUndefined();
+  // A listed project conversation that holds the root is named, with Open.
+  lists({ [ROOT]: [summary({ conversationId: "p", phase: "waiting", fromHome: false })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.running().get(ROOT)).toEqual({ conversationId: "p", waiting: true });
+  now.mockRestore();
+});
+
+test("Edit on Home after a reload rebuilds the request from the record and the index; a moved file comes back missing", async () => {
+  lists({ [ROOT]: [summary({ unseen: true, provider: "codex", model: "gpt-5.5", effort: "high" })] });
+  doan.readConversation!.mockResolvedValue({ events: [
+    event("c1", { type: "user.message", text: "Use the Doan design preset `polish` (Polish the details).\n\nTighten the header.", anchors: [], attachments: [{ name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md" }, { name: "gone.png", size: 9, kind: "image", path: "/Users/ada/gone.png" }] }),
+    event("c1", { type: "turn.started" }), event("c1", { type: "turn.failed", code: "process_exited" }),
+  ], lastSeq: 3, turn: "failed" });
+  doan.attachmentsFromPaths!.mockResolvedValue([
+    { ok: true, attachment: { id: "new-a", name: "a.md", size: 4, kind: "file", path: "/Users/ada/a.md", pasted: false } },
+    { ok: false, name: "gone.png", error: "not_found" },
+  ]);
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  await h.run.editOnHome("c1");
+  expect(doan.attachmentsFromPaths).toHaveBeenCalledWith(["/Users/ada/a.md", "/Users/ada/gone.png"]);
+  expect(h.host.goHome).toHaveBeenCalled();
+  expect(h.run.restore?.request).toMatchObject({
+    root: ROOT, text: "Tighten the header.", preset: { id: "polish", title: "Polish the details" }, provider: "codex", model: "gpt-5.5", effort: "high",
+    attachments: [{ id: "new-a", name: "a.md", status: "ready" }, { name: "gone.png", status: "missing" }],
+  });
+  expect(h.run.restore?.request.attachments[1]).not.toHaveProperty("id");
+});
+
+test("Edit on Home gives way to a move the person makes while the record is read", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "user.message", text: "Draw it", anchors: [] })], lastSeq: 1, turn: "idle" });
+  const editing = h.run.editOnHome("c1");
+  h.run.personNavigated();
+  await editing;
+  expect(h.host.goHome).not.toHaveBeenCalled();
+  expect(h.run.restore).toBeNull();
+});
+
+// Review RB2 🟡3, ⚪1, ⚪2.
+test("after a reload the strip picks the latest activity, whatever order the history reads finish in", async () => {
+  for (const order of [["new", "old"], ["old", "new"]] as const) {
+    lists({ [ROOT]: [summary({ conversationId: "old", unseen: true }), summary({ conversationId: "new", unseen: true, lastActivityAt: "2026-11-01T01:00:00.000Z" })] });
+    const reads = new Map<string, (value: unknown) => void>();
+    doan.readConversation!.mockImplementation(({ conversationId }: { conversationId: string }) => new Promise(resolve => { reads.set(conversationId, resolve); }));
+    const h = harness();
+    h.run.entriesChanged();
+    await flush();
+    for (const id of order) { reads.get(id)!({ events: [event(id, { type: "turn.done" })], lastSeq: 1, turn: "idle" }); await flush(); }
+    expect(h.run.strip(ROOT)?.conversation.conversationId).toBe("new");
+  }
+});
+
+test("a list that names the conversation before the start reply registers it once and reads its history once", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST);
+  lists({ [ROOT]: [summary({ phase: "running" })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "turn.started" })], lastSeq: 1, turn: "starting" });
+  h.run.listChanged(ROOT);
+  await flush(); await flush();
+  start.resolve({ conversationId: "c1" });
+  await sending;
+  await flush();
+  expect(h.run.conversations.filter(c => c.conversationId === "c1")).toHaveLength(1);
+  expect(doan.readConversation).toHaveBeenCalledTimes(1);
+  // The run's own conversation keeps its extras: the move after the send and the new-canvas open still apply.
+  expect(h.host.openOverview).toHaveBeenCalled();
+});
+
+test("Edit on Home after a reload carries the re-issued images' thumbnails", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "user.message", text: "Look", anchors: [], attachments: [{ name: "shot.png", size: 9, kind: "image", path: "/Users/ada/shot.png" }] })], lastSeq: 1, turn: "idle" });
+  const bytes = new Uint8Array([7, 8]);
+  doan.attachmentsFromPaths!.mockResolvedValue([{ ok: true, attachment: { id: "n", name: "shot.png", size: 9, kind: "image", path: "/Users/ada/shot.png", pasted: false, thumbnail: bytes } }]);
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  await h.run.editOnHome("c1");
+  const request = h.run.restore!.request;
+  expect(request.thumbnails).toEqual({ [request.attachments[0]!.key]: bytes });
 });
