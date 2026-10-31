@@ -66,6 +66,7 @@ import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
 import { createWindowCapturer } from "./thumbnailWindow";
 import { createUiStateStore, type UiStateStore } from "./uiState";
+import { linkTarget } from "./openLink";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -705,7 +706,7 @@ async function start(): Promise<void> {
   }, undefined, root => {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
-  });
+  }, root => send("conversation:listChanged", { root }));
   conversations = conversationService;
   const attachments = new AttachmentStore(join(userData, "attachments"), {
     thumbnail: bytes => {
@@ -733,6 +734,7 @@ async function start(): Promise<void> {
   handle("attachments:remove", false, (event, value: unknown) => fromWindow(event) && attachments.remove(value));
   handle("attachments:recheck", null, (event, value: unknown) => fromWindow(event) ? attachments.recheck(value) : null);
   handle("attachments:release", false, (event, value: unknown) => fromWindow(event) && attachments.release(value));
+  handle("attachments:fromPaths", null, (event, value: unknown) => fromWindow(event) ? attachments.fromPaths(value) : null);
 
   const unavailable = { kind: "unavailable" as const, message: "The project setup request is no longer valid." };
   const canSetUp = (root: string) => ready.entries().some(entry => entry.path === root && entry.kind === "uninitialized");
@@ -919,6 +921,12 @@ async function start(): Promise<void> {
     const target = parseExternalTarget(value);
     if (target === null) return false;
     try { await electronShell.openExternal(INSTALL_URLS[target]); return true; } catch { return false; }
+  });
+  // Links in agent replies: https only, rebuilt by main from the request.
+  handle("shell:openLink", false, async (_event, value: unknown) => {
+    const url = linkTarget(value);
+    if (url === null) return false;
+    try { await electronShell.openExternal(url); return true; } catch { return false; }
   });
   const copy = async (text: string) => {
     try { await clipboard.writeText(text); return { kind: "success" as const }; }

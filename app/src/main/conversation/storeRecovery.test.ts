@@ -221,3 +221,11 @@ describe("typed undo journal", () => {
     expect(readFileSync(f.index)).toEqual(beforeIndex); expect(existsSync(f.journal)).toBe(false);
   });
 });
+
+it("lists a history over the byte limit as a read error for that row only", () => {
+  const f = setup(); f.store.save([meta("big"), { ...meta("small"), canvas: { path: ".doan/canvases/b.html" } }]);
+  f.store.append("big", "t", { type: "message.delta", messageId: "m", text: "x".repeat(400) }); f.store.append("small", "t", { type: "turn.done" });
+  hooks.limit = 300;
+  const service = new ConversationService(f.store, async () => { throw new Error("unused"); }, async () => { throw new Error("unused"); }, () => {});
+  expect(service.list("/repo").map(s => [s.conversationId, s.readError ?? false])).toEqual([["big", true], ["small", false]]);
+});

@@ -5,7 +5,8 @@ import { promoteReservation, releaseReservation, reserveSession } from "./owners
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { turnPrompt } from "./prompt";
-import { BIND_GRACE_MS } from "./project";
+import { BIND_GRACE_MS, projectBusy } from "./project";
+import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { ModelOption } from "./models";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
@@ -32,7 +33,12 @@ export interface Prepared {
 // A start's attachments, checked again right before acceptance (recheck throws attachment_missing with the missing
 // ids) and marked sent just before the commit.
 export interface StartAttachments { recheck(): AttachmentRecord[]; sent(): void }
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[]): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelOption[]> }
+// The model and effort of one send. Claude and ACP runs open a process per turn with them already; a reused Codex
+// server needs them on the turn itself.
+export interface TurnChoice { model?: string; effort?: string }
+// What a send may carry besides its text: a new choice (model given, effort optional) and rechecked attachments.
+export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[] }
+export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelOption[]> }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
 // use "listing": a model list read, which a sign-out stops without asking (agentAuth/manager.ts acquire).
 export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use?: "run" | "listing") => Promise<Prepared>;
@@ -48,7 +54,8 @@ const EXIT_WAIT_MS = 10_000;
 // provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
 // since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
 // endedAt: when the accepted turn's terminal event arrived, for binding.
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number }
+// project: the root of this turn when it belongs to a conversation without a canvas (project.ts projectBusy).
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
 export class ConversationService {
@@ -61,7 +68,8 @@ export class ConversationService {
   private lastStop = new Map<Provider, number>();
   // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
   private waits = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => []) {}
+  // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}) {}
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
     const result = reserveSession(this.reservations, id, key, reuse);
@@ -81,8 +89,10 @@ export class ConversationService {
     if (this.quitting) throw new Error("busy");
     const admitted = this.admit(request.root, request.canvas);
     if (admitted) request = { ...request, canvas: admitted };
+    const project = request.mode === "newDesign" ? request.root : undefined;
+    if (project) this.checkProject(project);
     const id = randomUUID(); this.reserve(id);
-    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops }; this.live.set(id, live);
+    const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
     let opening = false, input: Prepared | undefined;
     try {
       input = { ...await this.prepare(request), ...choice(request) };
@@ -98,11 +108,13 @@ export class ConversationService {
       if (this.quitting) throw new Error("busy");
       const currentCanvas = this.admit(request.root, request.canvas);
       if (currentCanvas) request = { ...request, canvas: currentCanvas };
+      if (project) this.checkProject(project, id);
       const session = { runtime: input.runtime, origin: request.mode === "resume" ? "resumed" as const : request.mode, sessionId: runner.sessionId, configDir: input.configDir, cwd: input.cwd };
       // Home sends newDesign without FirstPrompt's subject; every turn of such a conversation carries Home's paragraph.
       const fromHome = request.mode === "newDesign" && request.subject === undefined;
+      // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen.
       const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: (request.subject ?? request.text).slice(0, 512), state: "current" as const,
-        ...choice(request), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.canvases(request.root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }) } : {}) };
+        ...choice(request), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
       if (!input.owner && runtime !== "claude" && runtime !== "codex") throw new Error("session_unavailable");
@@ -128,27 +140,36 @@ export class ConversationService {
         if (running) { running.terminal = true; running.busy = false; void running.runner?.close(); }
       }
       for (const event of saved) this.deliver(event);
+      this.changed(request.root);
       for (const event of live.events.splice(0)) this.receive(id, event);
       this.sendTurn(id, live, runner, prompt, attachments.length ? attachments : undefined);
       return { conversationId: id };
     } catch (error) {
+      // A refused start no longer holds the project, though its process may take a while to go.
+      delete live.project;
       if (!opening) { this.reservations = releaseReservation(this.reservations, id, "not_spawned"); this.live.delete(id); freeLease(input); }
       else { void live.runner?.close(); }
       throw error instanceof Error && error.message === "outside_root" ? new Error("session_unavailable") : error;
     }
   }
-  async send(id: string, text: string, anchors: Anchor[]): Promise<void> {
+  // extras: a model (with its effort, if any) replaces the stored choice from this turn on; attachments were checked by
+  // ipc, and attached rechecks them right before acceptance and marks pasted ones sent.
+  async send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
     // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
     const exiting = this.previousExit(id); if (exiting) await exiting;
     let metadata = this.refreshCanvas(this.metadata(id)); if (metadata.state !== "current" || this.quitting) throw new Error("busy");
     const runtime = metadata.session.runtime;
     const existing = this.live.get(id); if (existing?.busy || existing?.failedPersistence) throw new Error("busy");
+    const project = metadata.canvas ? undefined : metadata.root;
+    if (project) this.checkProject(project, id);
     const live: Live = (existing?.runner ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
+    if (project) live.project = project; else delete live.project;
+    const chosen = extras.model ? choice(extras) : choice(metadata);
     let reserved = false, opening = false, input: Prepared | undefined, leased = false;
     try {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, runtime === "codex" && !!live.runner); reserved = true;
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata), ...choice(metadata) };
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata), ...chosen };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live);
       if (live.exited) throw new Error("process_exited");
@@ -156,6 +177,7 @@ export class ConversationService {
       if (live.exited) throw new Error("process_exited");
       if (live.runner.sessionId !== metadata.session.sessionId) throw new Error("session_unavailable");
       this.checkSend(id, live);
+      if (project) this.checkProject(project, id);
       input.recheck?.();
       metadata = this.refreshCanvas(this.metadata(id));
       // The same account signed in again under a new connection; judgeConnection already proved account, profile and session.
@@ -164,12 +186,24 @@ export class ConversationService {
         const rebound: ConversationMetadata = { ...metadata, owner, session: metadata.session };
         this.store.save(this.store.list().map(m => m.conversationId === id ? rebound : m)); metadata = rebound;
       }
-      const prompt = turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true }); if (prompt === null) throw new Error("bad_request");
-      this.append(id, live.turnId, { type: "user.message", text, anchors }); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
+      // The files may have moved while the runner was prepared and opened; the prompt and history use this check.
+      const attachments = attached ? attached.recheck() : extras.attachments ?? [];
+      const prompt = turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true, attachments }); if (prompt === null) throw new Error("bad_request");
+      // The choice and snapshot are written before the turn's events: a failed append then leaves only a saved choice.
+      // An entry without seenSeq has had all of its history seen; from now on its ends count.
+      const canvasesAtStart = project ? this.snapshot(metadata.root) : metadata.canvasesAtStart;
+      const seenSeq = metadata.seenSeq ?? this.store.read(id).at(-1)?.seq ?? 0;
+      if (chosen.model !== metadata.model || chosen.effort !== metadata.effort || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart)) {
+        const { model: _model, effort: _effort, ...rest } = metadata;
+        const updated: ConversationMetadata = { ...rest, ...chosen, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
+        this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m)); metadata = updated;
+      }
+      attached?.sent();
+      this.append(id, live.turnId, { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) }); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
-      this.sendTurn(id, live, live.runner, prompt);
+      this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, Object.keys(chosen).length ? chosen : undefined);
     } catch (error) {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
@@ -229,6 +263,27 @@ export class ConversationService {
         session: { runtime: m.session.runtime, origin: m.session.origin }, lastAt: read.events.at(-1)?.at ?? "" };
     });
     return { current: summaries.find(m => m.state === "current") ?? null, archived: summaries.filter(m => m.state === "archived") };
+  }
+  // One summary per indexed conversation of the root; an unreadable history fails only its own row.
+  list(root: string): ConversationSummary[] {
+    return this.store.list().filter(m => m.root === root).map(m => {
+      let read: { ok: true; events: ConversationEvent[] } | { ok: false };
+      try { read = { ok: true, events: this.store.readRequired(m.conversationId) }; } catch { read = { ok: false }; }
+      // No input queue exists yet, so nothing is queued.
+      return conversationSummary(m, read, { live: this.live.has(m.conversationId), queued: 0 });
+    });
+  }
+  // An entry without seenSeq has had its whole history seen, so a lower seq never makes it unseen.
+  markSeen(id: string, seq: number): void {
+    const m = this.metadata(id), last = this.store.read(id).at(-1)?.seq ?? 0;
+    const next = clampSeen(seq, last, m.seenSeq ?? last);
+    if (next === m.seenSeq) return;
+    this.store.save(this.store.list().map(e => e.conversationId === id ? { ...e, seenSeq: next } : e));
+    this.changed(m.root);
+  }
+  // What ipc needs to check a send's extras: the conversation's folder, its fixed provider and its owner kind.
+  sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"] } {
+    const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind };
   }
   answer(id: string, requestId: string, option: string): void { this.metadata(id); if (!this.live.get(id)?.runner?.answer(requestId, option)) throw new Error("stale"); }
   async interrupt(id: string): Promise<void> {
@@ -296,7 +351,7 @@ export class ConversationService {
     if (entries.some(m => m.root === root && m.state === "current" && m.canvas && sameCanvas(m.canvas, canvas))) return;
     const latest = entries.filter(m => m.root === root && !m.canvas && m.state === "current" && m.session.origin === "newDesign" &&
       m.canvasesAtStart !== undefined && !m.canvasesAtStart.some(c => sameCanvas(c, canvas)) && this.binding(m.conversationId, now)).at(-1);
-    if (latest) this.store.save(entries.map(m => m === latest ? { ...m, canvas } : m));
+    if (latest) { this.store.save(entries.map(m => m === latest ? { ...m, canvas } : m)); this.changed(root); }
   }
   private binding(id: string, now: number): boolean {
     const live = this.live.get(id);
@@ -308,9 +363,15 @@ export class ConversationService {
     if (!metadata.canvas.id || canvas.id !== metadata.canvas.id) throw new Error("canvas_not_found");
     const refreshed = { ...metadata, canvas };
     this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
+    this.changed(metadata.root);
     return refreshed;
   }
   private stopped(live: { provider?: Provider; since: number }): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
+  // At admission, and again right before acceptance, since the other conversation may have started meanwhile.
+  private checkProject(root: string, exceptId?: string): void {
+    if (projectBusy(this.live, root, exceptId, Date.now())) throw new Error("project_busy");
+  }
+  private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
   private checkSend(id: string, live: Live): void {
     if (this.quitting || this.live.get(id) !== live || live.terminal || this.metadata(id).state !== "current") throw new Error("busy");
   }
@@ -318,6 +379,11 @@ export class ConversationService {
   private append(id: string, turn: string, event: EventPayload): void {
     const saved = this.store.append(id, turn, event);
     this.deliver(saved);
+    // Streamed text changes no list field the list shows while a turn runs; its end and activities do.
+    if (event.type !== "message.delta") { const root = this.store.list().find(m => m.conversationId === id)?.root; if (root) this.changed(root); }
+  }
+  private changed(root: string): void {
+    try { this.listChanged(root); } catch (error) { console.error("doan: conversation list change could not be announced", error); }
   }
   private deliver(saved: ConversationEvent): void {
     try { this.publish(saved); } catch (error) { console.error("doan: persisted conversation event could not be delivered", error); }
@@ -329,9 +395,9 @@ export class ConversationService {
     if (!live.accepted) this.live.delete(id);
     if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });
   }
-  private sendTurn(id: string, live: Live, runner: Runner, prompt: string, attachments?: readonly AttachmentRecord[]): void {
+  private sendTurn(id: string, live: Live, runner: Runner, prompt: string, attachments?: readonly AttachmentRecord[], turnChoice?: TurnChoice): void {
     const turn = live.turnId;
-    void (attachments ? runner.send(prompt, turn, attachments) : runner.send(prompt, turn)).catch(error => {
+    void (turnChoice ? runner.send(prompt, turn, attachments, turnChoice) : attachments ? runner.send(prompt, turn, attachments) : runner.send(prompt, turn)).catch(error => {
       if (this.live.get(id) === live && live.turnId === turn) this.transportFailed(id, error);
     });
   }

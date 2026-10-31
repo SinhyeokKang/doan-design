@@ -42,6 +42,17 @@ describe("conversationSummary", () => {
     expect(conversationSummary({ ...doan, seenSeq: 2 }, { ok: true, events }, restarted).unseen).toBe(true);
     expect(conversationSummary({ ...doan, seenSeq: 0 }, { ok: true, events: history(...started) }, live).unseen).toBe(false);
   });
+  it("does not count binding, archiving or restoring markers as something to see", () => {
+    const seenEnd = history(...started, { type: "turn.done" });
+    const bound = history(...started, { type: "turn.done" }, { type: "conversation.bound", canvas: { path: ".doan/canvases/a.html", id: "a" } });
+    expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: seenEnd }, restarted).unseen).toBe(false);
+    expect(conversationSummary({ ...doan, seenSeq: 3 }, { ok: true, events: bound }, restarted).unseen).toBe(false);
+    expect(conversationSummary({ ...doan, seenSeq: 2 }, { ok: true, events: bound }, restarted).unseen).toBe(true);
+  });
+  it("never counts an archived conversation as unseen, even one replaced while it ran", () => {
+    const replaced = history(...started, { type: "interrupted", reason: "user" }, { type: "conversation.archived" });
+    expect(conversationSummary({ ...doan, state: "archived", seenSeq: 0 }, { ok: true, events: replaced }, restarted).unseen).toBe(false);
+  });
   it("returns only a read error for an unreadable history", () => {
     expect(conversationSummary(doan, { ok: false }, live)).toMatchObject({ conversationId: "c", readError: true, phase: "ended", unseen: false, preview: "", lastActivityAt: "" });
   });

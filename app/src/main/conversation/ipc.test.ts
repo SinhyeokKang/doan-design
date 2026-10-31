@@ -38,15 +38,18 @@ function home(dir: string, models?: ModelOption[]) {
   const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => models ?? []);
   const attachments = { resolve: vi.fn(), markSent: vi.fn(), consume: vi.fn() };
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
-  return { handle, start, prepare, catalog, attachments };
+  return { handle, start, prepare, catalog, attachments, service };
 }
 const MODELS: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }];
 it("keeps FirstPrompt's subject path and takes Home's multi-line text as is", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
   try {
     const h = home(dir);
-    await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", subject: "a pricing page", text: "a pricing page" });
+    const first = await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", subject: "a pricing page", text: "a pricing page" }) as { conversationId: string };
     expect(h.start.mock.calls[0]![0]).toMatchObject({ mode: "newDesign", subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." });
+    // One project conversation works at a time in a root: the next starts after the first's binding window.
+    h.service.receive(first.conversationId, { type: "turn.done" });
+    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now + 10_001);
     const text = "Make a pricing page\n\n- three tiers\n- dark header";
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text })).toHaveProperty("conversationId");
     expect(h.start.mock.calls[1]![0]).toMatchObject({ mode: "newDesign", text });
@@ -54,7 +57,7 @@ it("keeps FirstPrompt's subject path and takes Home's multi-line text as is", as
     for (const bad of [{ text: "   \n" }, {}, { subject: "line\nbreak", text: "x" }, { text: "x", canvas: { path: ".doan/canvases/a.html" } }, { text: "x".repeat(32_769) }, { text: "{{1}}" }])
       expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", ...bad })).toEqual({ error: "bad_request" });
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", text: "x" })).toEqual({ error: "no_agent" });
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+  } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }
 });
 it("accepts a model and effort only from the list delivered in this run for that folder and provider", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
@@ -216,7 +219,8 @@ describe("conversation list, seen marker and send extras", () => {
       expect(await h.handle(true, "send", { conversationId: id, text: "y", attachments: [{ id: "a" }] })).toBeUndefined();
       expect(h.send.mock.calls[0]![3]).toEqual({ attachments: h.records });
       expect(h.attachments.markSent).toHaveBeenCalledWith([{ id: "a" }]);
-      expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder[0]!);
+      expect(h.attachments.consume).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder.at(-1)!);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("refuses extras on a legacy external conversation and passes project_busy through", async () => {

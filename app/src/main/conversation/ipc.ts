@@ -3,11 +3,11 @@ import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
 import { validProvider, type Provider } from "../agentAuth/types";
-import type { ConversationService, Prepare, StartRequest } from "./service";
+import type { ConversationService, Prepare, StartAttachments, StartRequest } from "./service";
 import type { ModelCatalog } from "./models";
 import type { AttachmentStore } from "../attachments";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
 export interface ConversationError { error: string; missing?: string[] }
@@ -44,10 +44,26 @@ export function validateSendExtras(request: Record<string, unknown>, root: strin
   }
   return extras;
 }
+// The start or send recheck right before acceptance, on the same ids, and the sent marker just before the commit.
+function attachedHooks(store: AttachmentStore, ids: unknown[]): StartAttachments {
+  return {
+    recheck: () => {
+      const fresh = store.resolve(ids);
+      if (fresh.ok) return fresh.records;
+      throw Object.assign(new Error(fresh.error), fresh.error === "attachment_missing" ? { missing: fresh.missing } : {});
+    },
+    sent: () => store.markSent(ids),
+  };
+}
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; attachments?: AttachmentStore } = {}) {
   return async (allowed: boolean, method: ConversationMethod, raw: unknown): Promise<unknown> => {
     if (!allowed || !object(raw)) return { error: "bad_request" };
     try {
+      if (method === "list") {
+        if (typeof raw.root !== "string" || raw.root.length > LIMITS.path) throw new Error("bad_request");
+        if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
+        return service.list(raw.root);
+      }
       if (method === "models") {
         if (typeof raw.root !== "string" || raw.root.length > LIMITS.path || !validProvider(raw.runtime) || !home.models) throw new Error("bad_request");
         if (!projects().some(p => p.path === raw.root)) throw new Error("project_not_open");
@@ -88,14 +104,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           attachments = extras.ids;
         } else if (raw.model !== undefined || raw.effort !== undefined || raw.attachments !== undefined) throw new Error("bad_request");
         const store = home.attachments;
-        const started = await service.start(request, store && attachments.length ? {
-          recheck: () => {
-            const fresh = store.resolve(attachments);
-            if (fresh.ok) return fresh.records;
-            throw Object.assign(new Error(fresh.error), fresh.error === "attachment_missing" ? { missing: fresh.missing } : {});
-          },
-          sent: () => store.markSent(attachments),
-        } : undefined);
+        const started = await service.start(request, store && attachments.length ? attachedHooks(store, attachments) : undefined);
         store?.consume(attachments);
         return started;
       }
@@ -103,12 +112,23 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       switch (method) {
         case "read": return service.read(raw.conversationId);
         case "interrupt": await service.interrupt(raw.conversationId); return undefined;
-        case "send": { const input = message(raw); if (!input) throw new Error("bad_request"); await service.send(raw.conversationId, input.text, input.anchors); return undefined; }
+        case "send": {
+          const input = message(raw); if (!input) throw new Error("bad_request");
+          const target = service.sendTarget(raw.conversationId);
+          const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
+          await service.send(raw.conversationId, input.text, input.anchors, { ...(extras.model !== undefined ? { model: extras.model } : {}), ...(extras.effort !== undefined ? { effort: extras.effort } : {}), ...(extras.attachments ? { attachments: extras.attachments } : {}) },
+            store && extras.ids.length ? attachedHooks(store, extras.ids) : undefined);
+          store?.consume(extras.ids);
+          return undefined;
+        }
+        case "markSeen":
+          if (typeof raw.seq !== "number" || !Number.isSafeInteger(raw.seq) || raw.seq < 0) throw new Error("bad_request");
+          service.markSeen(raw.conversationId, raw.seq); return undefined;
         case "answerPermission": if (typeof raw.requestId !== "string" || raw.requestId.length > 512 || typeof raw.optionId !== "string" || raw.optionId.length > 512) throw new Error("bad_request"); service.answer(raw.conversationId, raw.requestId, raw.optionId); return undefined;
       }
       throw new Error("bad_request");
     } catch (error) {
-      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale"];
+      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy"];
       const code = error instanceof Error ? error.message : "unknown";
       if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) return { error: code, missing: error.missing };
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };

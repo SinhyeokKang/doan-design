@@ -482,6 +482,20 @@ describe("conversation list", () => {
     expect(h.service.list("/repo")[0]!.unseen).toBe(false);
     expect(() => h.service.markSeen("missing", 1)).toThrow("not_found");
   });
+  it("counts an entry without seenSeq as seen until its next turn, whose end then counts", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.store.save(h.store.list().map(m => { const { seenSeq: _seen, ...old } = m; return old; }));
+    expect(h.service.list("/repo")[0]!.unseen).toBe(false);
+    h.service.markSeen(id, 1);
+    expect(h.store.list()[0]!.seenSeq).toBe(3);
+    h.store.save(h.store.list().map(m => { const { seenSeq: _seen, ...old } = m; return old; }));
+    await h.service.send(id, "again", []);
+    expect(h.store.list()[0]!.seenSeq).toBe(3);
+    h.service.receive(id, { type: "turn.done" });
+    expect(h.service.list("/repo")[0]!.unseen).toBe(true);
+  });
   it("returns a read error for one unreadable history and keeps a legacy external conversation in the list", async () => {
     const h = homeFixture();
     const id = (await h.service.start(homeRequest)).conversationId;
@@ -503,7 +517,7 @@ describe("conversation list", () => {
     expect(h.service.list("/repo")[0]!.unseen).toBe(true);
     const observed: unknown[] = [];
     const service: ConversationService = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => [], root => observed.push(service.list(root)[0]?.unseen));
-    service.markSeen(id, 3);
+    service.markSeen(id, 99);
     expect(observed).toEqual([false]);
   });
 });
@@ -560,7 +574,7 @@ describe("project conversation limit", () => {
 // buzz-conversation M3: a send carries attachments, model and effort.
 describe("send extras", () => {
   const attachments = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
-  async function finished(h: ReturnType<typeof homeFixture>, request = { ...homeRequest, model: "sonnet", effort: "low" }) {
+  async function finished(h: ReturnType<typeof homeFixture>, request: Parameters<ConversationService["start"]>[0] = { ...homeRequest, model: "sonnet", effort: "low" }) {
     const id = (await h.service.start(request)).conversationId;
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); h.passBindingWindow();
     return id;

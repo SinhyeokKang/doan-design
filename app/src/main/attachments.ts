@@ -91,6 +91,12 @@ export class AttachmentStore {
       return { ok: true, attachment: this.info(entry, bytes) };
     });
   }
+  // Edit on Home after a reload or restart: the paths a conversation recorded get ids again, with the checks of a new
+  // file. A re-issued paste is an ordinary file here, so removing its chip never deletes the sent copy.
+  fromPaths(value: unknown): AttachmentResult[] | null {
+    if (typeof value !== "object" || value === null || !("paths" in value) || !Array.isArray(value.paths) || value.paths.length > MAX_ATTACHMENTS) return null;
+    return this.addPaths(value);
+  }
   addPasted(value: unknown): AttachmentResult {
     const name = "Pasted image";
     const bytes = typeof value === "object" && value !== null && Object.keys(value).length === 1 && "bytes" in value && value.bytes instanceof Uint8Array ? value.bytes : null;
