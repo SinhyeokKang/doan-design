@@ -132,6 +132,7 @@ Each canvas:
 - Every frame has `data-doan-implements` with a repository path that exists: the token CSS for token frames, the component file for component frames, and for a shared surface, the file that renders that frame.
 - Colors and typography reference the token CSS variables (`background: var(--color-accent)`, `font-size: var(--type-body-size)`) instead of copied values. Label each swatch and type sample with its variable name and role. Direct hex or rgb values make `doan check` warn when token CSS is configured.
 - Components: use the component's own markup and class names so its real CSS draws it; do not restyle it with copied values. Show the states the code has (default, hover, focus, active, disabled, error, loading, open) side by side. For a state the CSS applies only under `:hover` or `:focus-visible`, restate those rules with the same tokens for a labeled sample.
+- For an icon, copy its SVG markup from the icon package the project installs, not from memory. If that package is not installed, state on the canvas that the icon is drawn from memory.
 - Anything drawn that is not in code (an approximation of a component that cannot render outside its framework, a proposed token, an open decision) is stated on the canvas next to it, as the Doan guide requires.
 - A canvas states only what is specific to it: what it draws that is not in code as shown, and its own open items. A note that applies to every canvas goes once in the rules document, not on each canvas.
 - Use the fonts the code loads. Put canvas-only assets in `.doan/assets/` and link them relatively. Do not copy token CSS or component CSS into assets unless you disclose it as a workaround.
@@ -144,6 +145,7 @@ The rules document and the canvases describe the same system. They use the same 
 
 ## Finish in Doan
 
+- Before finishing, look at each canvas rendered (in Doan, or a browser if Doan is not available) and fix overlapping or overflowing content, broken links, and missing fonts. Say which canvases you could not render.
 - After editing the canvases, make `doan check` pass. Resolve only the comments you actually applied.
 - Report the paths you wrote, or "No changes" with the files you checked.
 - Give a short system summary: palette, type ramp, and named rules.
@@ -164,7 +166,7 @@ The rules document and the canvases describe the same system. They use the same 
 - The document and the canvases list the same tokens and components, and the document holds every open item a canvas shows. No canvas repeats a note that applies to every canvas.
 - `doan check` passes.
 
-Report anything you could not check, such as whether each canvas renders in the Doan app without broken links, missing fonts, or overlapping content, computed styles of rendered output, or contrast ratios you could not measure, as unverified.
+Report anything you could not check, such as computed styles of rendered output or contrast ratios you could not measure, as unverified.
 
 ---
 
