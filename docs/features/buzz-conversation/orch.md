@@ -27,9 +27,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 통합 `5a145101` |
-| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 진행 중 |
+| A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 리뷰 중 |
 | B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 리뷰 중 |
-| RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 대기 |
+| RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 진행 중 |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 진행 중 |
 | A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 대기 |
 | B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 대기 |
@@ -61,3 +61,6 @@
 - B1 완료(`worker_done` succeeded): `59ac8833..e570055b` 4커밋, verify 통과, Home 전후 측정 차이 31건이 모두 예상한 차이다. B1은 기준선 재시도로 허락 없이 앱을 한 번 띄웠다(실제 상태 변화 없음). 수정 라운드에 쓰려고 B1 터미널을 retain했다.
 - RB1 리뷰 시작: dispatch `ctx_b3c4893f7024`, worktree `bc-b1`, Claude opus high.
 - RB1 완료: 🔴1(crash로 접힌 마지막 턴이 스레드에서 실행 중으로 남음), 🟡4, ⚪7. 🟡4(로컬 요약·이벤트 타입이 A1과 다름)는 B2가 main 타입으로 바꾼다.
+- B1 수정 라운드 1을 같은 터미널로 보냈다: dispatch `ctx_7f9d0865b213`. RB1 워커는 release했다.
+- A1 완료(`worker_done` succeeded): `d2f02dca..ace812af` 8커밋, 테스트 5167개·typecheck·verify 통과, 자체 리뷰 🟡3·⚪1 반영. 계획과 다른 점 10개는 handoff에 있다(`.scratch/buzz-conversation/handoff-A1.md`). 열린 항목: Codex에서 effort 없이 모델만 보낼 때 이전 effort가 이어지는지, `listChanged` 빈도에 따른 R4 throttle. A1 터미널은 수정 라운드용으로 retain했다.
+- RA1 리뷰 시작: dispatch `ctx_f75b434dfbf1`, worktree `bc-a1`, Codex gpt-6-astra medium.
