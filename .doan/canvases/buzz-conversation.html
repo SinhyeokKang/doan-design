@@ -89,10 +89,31 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 .bubble-preset{display:inline-flex;align-items:center;gap:var(--space-1h);color:var(--text-accent-subtle);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);font-weight:var(--type-weight-medium)}
 .bubble-preset svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
 .msg-files{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--space-1h)}
+/* A sent file has no remove button, so the chip keeps its own inline end padding. */
+.msg-files .attach-chip{gap:var(--space-3);padding:var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h)}
 .msg-agent{display:flex;flex-direction:column;gap:var(--space-2);min-width:0}
 .msg-agent p{font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);overflow-wrap:anywhere}
-.msg-agent p+p{margin-top:var(--space-2)}
 .msg-agent .muted{color:var(--text-metadata)}
+/* Agent replies are Markdown (react-markdown + remark-gfm): no raw HTML, no images; https links open in the browser.
+   Code is mono, inline and in blocks (2026-10-31 user). Quotes use an inset fill, never a start border. */
+.md{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.md :is(h1,h2){font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-semibold);margin-top:var(--space-2)}
+.md :is(h3,h4){font-weight:var(--type-weight-semibold);margin-top:var(--space-1)}
+.md strong{font-weight:var(--type-weight-semibold)}
+.md a{color:var(--text-link);text-decoration:underline;text-underline-offset:2px}
+.md :is(ul,ol){display:flex;flex-direction:column;gap:var(--space-1);padding-left:var(--space-6)}
+.md :is(ul,ol) :is(ul,ol){margin-top:var(--space-1)}
+.md code{font-family:var(--type-family-mono);font-size:var(--type-body-sm-size);background:var(--surface-inset);border-radius:var(--space-1);padding:var(--space-half) var(--space-1);overflow-wrap:anywhere}
+.md-code{position:relative;border-radius:var(--radius-chip);background:var(--surface-inset)}
+.md-code pre{overflow-x:auto;padding:var(--space-3) var(--space-12) var(--space-3) var(--space-4);font-family:var(--type-family-mono);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);white-space:pre;scrollbar-width:thin}
+.md-code pre code{padding:0;background:none;border-radius:0;overflow-wrap:normal}
+.md-code .doan-icon-button{position:absolute;top:var(--space-1);right:var(--space-1);background:var(--surface-inset);color:var(--text-subtle)}
+.md-table{overflow-x:auto;scrollbar-width:thin}
+.md table{border-collapse:collapse;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height)}
+.md :is(th,td){padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-standard);text-align:left;white-space:nowrap}
+.md th{font-weight:var(--type-weight-medium);color:var(--text-subtle)}
+.md blockquote{padding:var(--space-3) var(--space-4);border-radius:var(--radius-chip);background:var(--surface-inset);color:var(--text-subtle)}
+.md hr{height:1px;background:var(--border-standard)}
 /* One folded line for a run of activities (2026-10-31 user). */
 .activity{display:flex;flex-direction:column;gap:var(--space-1)}
 .activity-head{display:inline-flex;align-items:center;gap:var(--space-2);align-self:flex-start;min-height:var(--size-control-sm);padding:0 var(--space-2);margin-left:calc(-1 * var(--space-2));border-radius:var(--radius-control);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);max-width:100%}
@@ -127,6 +148,7 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 <symbol id="i-stop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
 <symbol id="i-moved" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
 <symbol id="i-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
 <symbol id="i-restore" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
 </svg>
 
@@ -155,12 +177,16 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 
 <!-- ── 03 Messages ── -->
 <section class="board" data-doan-frame="thread-messages" data-doan-title="03 Thread · messages">
-<div class="caption"><span>03</span><h2>Thread · messages<span class="doan-chip">Not in code</span></h2><p>The person’s message is a light accent bubble on the right; a chosen preset shows as a small accent line above the text, attachments as chips under it. The agent’s message is plain text on the panel, streaming in place (deltas joined by message id) with the caret at its end until the message is done. Text keeps its line breaks and wraps anywhere, so a long path never widens the thread.</p></div>
+<div class="caption"><span>03</span><h2>Thread · messages<span class="doan-chip">Not in code</span></h2><p>The person’s message is a light accent bubble on the right; a chosen preset shows as a small accent line above the text, attachments as chips under it. The agent’s message is Markdown on the panel (paragraphs, emphasis, links, lists, headings, code, tables, quotes; no raw HTML or images; https links open in the browser), streaming in place (deltas joined by message id, re-rendered as they arrive) with the caret at its end until the message is done. Code is mono, inline and in blocks; a block scrolls sideways and has a Copy button; a table scrolls sideways. The person’s text stays plain and keeps its line breaks. Text wraps anywhere, so a long path never widens the thread.</p></div>
 <div class="tiles">
 <div class="tile"><h3>Exchange · 720</h3><div class="stage wide"><div class="thread" data-doan-id="thread-exchange"><div class="msg-user" data-doan-id="msg-user"><div class="bubble"><span class="bubble-preset"><svg><use href="#i-presets"/></svg>Shape</span>
-Settings needs a Notifications group. Draw it next to Agents.</div><div class="msg-files"><span class="attach-chip"><span class="file-icon"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>notifications-spec.md</b><small>6 KB</small></span></span></div></div><div class="msg-agent" data-doan-id="msg-agent"><p>I added a Notifications group under Agents in <code>.doan/canvases/buzz-settings.html</code>, with two switches: “When an agent needs your answer” and “When an agent finishes”.</p><p>doan check passes. The new frame is “Settings · Notifications”.</p></div></div></div></div>
-<div class="tile"><h3>Agent streaming · 360</h3><div class="stage narrow"><div class="thread"><div class="msg-user"><div class="bubble">Make the header lighter</div></div><div class="msg-agent" data-doan-id="msg-streaming"><p>The header uses the panel surface with a bottom border. I’ll drop the border and<span class="caret"></span></p></div></div></div></div>
-<div class="tile"><h3>Long content · 360</h3><div class="stage narrow"><div class="thread"><div class="msg-user"><div class="bubble">Check .doan/canvases/very-long-feature-name-for-the-onboarding-and-first-run-flow-with-github-import.html and tell me what is missing</div></div><div class="msg-agent"><p>Two states are missing in <code>.doan/canvases/very-long-feature-name-for-the-onboarding-and-first-run-flow-with-github-import.html</code>: the clone failure and the empty repository list.</p></div></div></div></div>
+Settings needs a Notifications group. Draw it next to Agents.</div><div class="msg-files"><span class="attach-chip"><span class="file-icon"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>notifications-spec.md</b><small>6 KB</small></span></span></div></div><div class="msg-agent md" data-doan-id="msg-agent"><p>I added a Notifications group under Agents in <code>.doan/canvases/buzz-settings.html</code>, with two switches: “When an agent needs your answer” and “When an agent finishes”.</p><p>doan check passes. The new frame is “Settings · Notifications”.</p></div></div></div></div>
+<div class="tile"><h3>Agent reply · Markdown · 720</h3><div class="stage wide"><div class="thread"><div class="msg-agent md" data-doan-id="msg-markdown"><h2>Settings · Notifications</h2><p>I added the group in <code>.doan/canvases/buzz-settings.html</code> and kept the <strong>Agents</strong> group first, as the <a href="https://example.com/spec">settings spec</a> asks.</p><ul><li>Two switches, both on by default<ul><li>When an agent needs your answer</li><li>When an agent finishes</li></ul></li><li>A caption under the group about macOS permission</li></ul><ol><li>Run <code>doan check</code></li><li>Open the canvas and review the new frame</li></ol><div class="md-code"><pre><code>$ doan check --repo .
+ok  buzz-settings  16 frames
+ok  tokens         0 undefined</code></pre><button class="doan-icon-button" data-ui-size="xs" aria-label="Copy code"><svg><use href="#i-copy"/></svg></button></div><div class="md-table"><table><thead><tr><th>Frame</th><th>State</th><th>Changed</th></tr></thead><tbody><tr><td>notifications</td><td>New</td><td>Yes</td></tr><tr><td>agents</td><td>Unchanged</td><td>No</td></tr></tbody></table></div><blockquote>macOS asks for notification permission the first time Doan shows one.</blockquote></div></div></div></div>
+<div class="tile"><h3>Agent reply · wide code and table · 360</h3><div class="stage narrow"><div class="thread"><div class="msg-agent md"><p>The failing rule is in <code>app/src/renderer/styles.css</code>:</p><div class="md-code"><pre><code>.composer-card:focus-within { box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-prominent); }</code></pre><button class="doan-icon-button" data-ui-size="xs" aria-label="Copy code"><svg><use href="#i-copy"/></svg></button></div><div class="md-table"><table><thead><tr><th>Token</th><th>Before</th><th>After</th></tr></thead><tbody><tr><td>--border-field-focus</td><td>--border-prominent</td><td>--neutral-5</td></tr></tbody></table></div></div></div></div></div>
+<div class="tile"><h3>Agent streaming · 360</h3><div class="stage narrow"><div class="thread"><div class="msg-user"><div class="bubble">Make the header lighter</div></div><div class="msg-agent md" data-doan-id="msg-streaming"><p>The header uses the panel surface with a bottom border. I’ll drop the border and<span class="caret"></span></p></div></div></div></div>
+<div class="tile"><h3>Long content · 360</h3><div class="stage narrow"><div class="thread"><div class="msg-user"><div class="bubble">Check .doan/canvases/very-long-feature-name-for-the-onboarding-and-first-run-flow-with-github-import.html and tell me what is missing</div></div><div class="msg-agent md"><p>Two states are missing in <code>.doan/canvases/very-long-feature-name-for-the-onboarding-and-first-run-flow-with-github-import.html</code>: the clone failure and the empty repository list.</p></div></div></div></div>
 <div class="tile"><h3>Agent finished with no reply · 360</h3><div class="stage narrow"><div class="thread"><div class="msg-user"><div class="bubble">Run doan check on the settings draft</div></div><div class="msg-agent"><p class="muted">No reply.</p></div></div></div></div>
 </div></section>
 

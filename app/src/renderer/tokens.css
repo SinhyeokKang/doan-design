@@ -219,6 +219,8 @@
   /* Type roles: size, line height, tracking and weight travel together. Regular
      is for reading and form labels, medium for actions and structure. */
   --type-family: "Geist", var(--font-system-sans);
+  /* Code in agent replies only (2026-10-31 user): the system mono stack, no bundled font. */
+  --type-family-mono: ui-monospace, "SF Mono", Menlo, monospace;
   --type-weight-regular: 400;
   --type-weight-medium: 500;
   --type-weight-semibold: 600;

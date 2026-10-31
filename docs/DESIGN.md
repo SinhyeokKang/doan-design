@@ -51,6 +51,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   | `--size-control-xs` | 24px | `xs` icon button (a chip's remove button) |
   | `--affordance-panel-hover` | `var(--neutral-3)` (#e8e8e8) | Hover fill of the `panel` button variant, one step darker than the inset fill |
   | `--border-field-focus` | `--neutral-5` (#cccccc) | Composer card border while focused (Home and docked composers), with `--shadow-sm`; other text fields keep `--border-prominent` |
+  | `--type-family-mono` | `ui-monospace, "SF Mono", Menlo, monospace` | Inline code and code blocks in agent replies (conversation thread); everything else stays sans |
 
 - **Roles.** Code reads roles named by purpose (`surface-*`, `text-*`, `border-*`, `affordance-*`, `bg-*`), never palette steps. Text has three reading levels: `text-standard`, `text-subtle`, `text-metadata`; `text-disabled` is below the contrast targets on purpose. The primary button is the neutral prominent fill (black, white text). Status colours use the reference status roles (`text-danger`/`-warning`/`-success`, `affordance-danger`/`-warning`/`-success`, `border-danger`/`-warning`).
 - **Type roles.** Size, line height, tracking and weight travel together: caption 12/16, body-sm and body 14/20, label-sm 14/20 500, label 16/24 500, body-lg 20/28, heading 24 and title 32 at line height 1.1. Regular 400 is for reading and form labels, medium 500 for actions and structure. One sans stack; no monospace role.
