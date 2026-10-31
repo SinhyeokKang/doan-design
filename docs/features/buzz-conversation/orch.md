@@ -34,7 +34,7 @@
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 완료 (🔴0, 🟡2) |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 완료 (🔴1→0) |
 | A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 대기 |
-| B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 대기 |
+| B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 진행 중 |
 | RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 대기 |
 | RB2 | B2 리뷰 | 보고만 | B2 | Opus high — 상태 복원과 포커스 규칙 | `/code-review` 보고 | 대기 |
 | D | D2 | `.scratch/`, 수정이 필요하면 `app/src/renderer/**`, `docs/DESIGN.md` | 모든 구현 배치 통합 | Opus medium — 정해진 측정 절차, 판단은 design-sync 리뷰가 받친다 | `verify.mjs` 통과 뒤 `/design-sync`(Home 보드)와 `/runtime-test` probe | 대기 |
@@ -70,3 +70,4 @@
 - RA1 완료(Codex): 🔴0, 🟡2(저장 실패 뒤 종료된 턴이 목록에서 실행 중으로 남음, 경로가 바뀐 캔버스로 잘못 승격), ⚪2. A1 수정 라운드 1을 같은 터미널로 보냈다: dispatch `ctx_7434750a1d95`. N1(Codex에서 모델만 바꿀 때 effort가 이어지는지)은 기본 effort를 명시해 보내는 방식으로 고치거나, 안 되면 D2에서 실제 서버로 확인한다.
 - 리뷰를 통과한 A1 8커밋을 먼저 통합했다(`…38fab905`). 수정 커밋은 나중에 그 위에 얹는다.
 - 통합 HEAD `38fab905`(A1 8커밋 + B1 8커밋)에서 `verify.mjs` PASS. 처음 실패는 지휘자 체크아웃에 새 의존성이 설치되지 않아서였고, `npm --prefix app ci` 뒤 통과했다.
+- B2 시작: dispatch `ctx_ef0942a9b2b7`, worktree `bc-b2`(base `2328a362`), Claude opus high.
