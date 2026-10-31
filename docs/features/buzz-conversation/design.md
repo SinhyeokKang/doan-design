@@ -32,7 +32,7 @@
 - 사람 메시지는 오른쪽에 연한 액센트 버블로 보인다. 일반 텍스트이고 줄바꿈을 지킨다. 보낸 파일 칩은 삭제 버튼이 없으므로 끝쪽 패딩을 따로 둔다(6/16/6/6, 간격 12).
 - C는 A의 일반 텍스트 에이전트 답(16px), inset 코드 블록, 버블 아래 첨부에 B의 다섯 가지를 더했다. Buzz에서 읽은 파일은 `features/messages/Messages.module.css`, `MessageRow.tsx`, `MessageMarkdown.tsx`, `features/agents/ActivityTranscript.*`, `ActivityExpansion.tsx`다.
   - 활동 단계 행: 종류 아이콘(읽기·명령·수정), 동사, mono 경로.
-  - 표: 1px 테두리 상자에 머리 행을 `affordance-subtle`로 채운다. 셀 4/8, 모서리 `radius-control`.
+  - 표: 1px 테두리 상자에 머리 행을 `affordance-subtle`로 채운다. 셀 8/12, 모서리는 코드 블록과 같은 `radius-chip`(12). Buzz의 20px 모서리와 4/8 셀은 모서리가 첫·끝 셀 글자를 가려서 쓰지 않는다.
   - 제목: medium 굵기.
   - 간격: 문단 바로 뒤 목록은 8.
   - Copy: 코드 블록에 hover하거나 안쪽에 포커스가 있을 때만 보인다.
