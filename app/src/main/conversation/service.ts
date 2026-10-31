@@ -37,7 +37,8 @@ export interface StartAttachments { recheck(): AttachmentRecord[]; sent(): void 
 // server needs them on the turn itself.
 export interface TurnChoice { model?: string; effort?: string }
 // What a send may carry besides its text: a new choice (model given, effort optional) and rechecked attachments.
-export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[] }
+// defaultEffort: the level the turn names when its choice has none (models.ts ModelOption); it is never stored.
+export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[]; defaultEffort?: string }
 export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelOption[]> }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
 // use "listing": a model list read, which a sign-out stops without asking (agentAuth/manager.ts acquire).
@@ -203,7 +204,8 @@ export class ConversationService {
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
-      this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, Object.keys(chosen).length ? chosen : undefined);
+      const turnChoice: TurnChoice = { ...chosen, ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}) };
+      this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, Object.keys(turnChoice).length ? turnChoice : undefined);
     } catch (error) {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
@@ -248,7 +250,11 @@ export class ConversationService {
     try {
       this.append(id, live.turnId, event);
       if (["turn.done", "turn.failed", "interrupted"].includes(event.type)) { live.terminal = true; live.busy = false; live.endedAt = Date.now(); }
-    } catch (error) { live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close(); }
+    } catch (error) {
+      live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
+      // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
+      this.changedOf(id);
+    }
   }
   read(id: string) {
     this.metadata(id); const events = this.store.read(id); const state = foldConversation(events, id, !this.ran(id));
@@ -282,8 +288,8 @@ export class ConversationService {
     this.changed(m.root);
   }
   // What ipc needs to check a send's extras: the conversation's folder, its fixed provider and its owner kind.
-  sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"] } {
-    const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind };
+  sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"]; model?: string; effort?: string } {
+    const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind, ...choice(m) };
   }
   answer(id: string, requestId: string, option: string): void { this.metadata(id); if (!this.live.get(id)?.runner?.answer(requestId, option)) throw new Error("stale"); }
   async interrupt(id: string): Promise<void> {
@@ -368,8 +374,9 @@ export class ConversationService {
   }
   private stopped(live: { provider?: Provider; since: number }): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
   // Only a turn accepted in this run can still be running; a live entry left by a refused send is not one, and a turn an
-  // earlier run left unfinished folds as crashed.
-  private ran(id: string): boolean { return !!this.live.get(id)?.accepted; }
+  // earlier run left unfinished folds as crashed. Nor is a turn whose history stopped taking writes once its process is
+  // gone: no terminal event can be saved for it, so it folds as ended with its pending requests expired.
+  private ran(id: string): boolean { const live = this.live.get(id); return !!live?.accepted && !(live.failedPersistence && live.exited); }
   // At admission, and again right before acceptance, since the other conversation may have started meanwhile.
   private checkProject(root: string, exceptId?: string): void {
     if (projectBusy(this.live, root, exceptId, Date.now())) throw new Error("project_busy");
@@ -400,6 +407,7 @@ export class ConversationService {
     this.reservations = releaseReservation(this.reservations, id, "process_exited");
     this.waits.get(id)?.wake();
     const live = this.live.get(id); if (!live) return; live.exited = true; delete live.runner;
+    if (live.failedPersistence) this.changedOf(id);
     if (!live.accepted) this.live.delete(id);
     if (live.accepted && live.busy) this.receive(id, { type: "turn.failed", code: "process_exited" });
   }

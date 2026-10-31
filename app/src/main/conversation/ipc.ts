@@ -116,7 +116,10 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           const input = message(raw); if (!input) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
-          await service.send(raw.conversationId, input.text, input.anchors, { ...(extras.model !== undefined ? { model: extras.model } : {}), ...(extras.effort !== undefined ? { effort: extras.effort } : {}), ...(extras.attachments ? { attachments: extras.attachments } : {}) },
+          // The turn's model without an effort still names the model's default level (models.ts defaultEffort).
+          const model = extras.model ?? target.model, effort = extras.model !== undefined ? extras.effort : target.effort;
+          const defaultEffort = model !== undefined && effort === undefined ? home.models?.defaultEffort(target.root, target.provider, model) : undefined;
+          await service.send(raw.conversationId, input.text, input.anchors, { ...(extras.model !== undefined ? { model: extras.model } : {}), ...(extras.effort !== undefined ? { effort: extras.effort } : {}), ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) },
             store && extras.ids.length ? attachedHooks(store, extras.ids) : undefined);
           store?.consume(extras.ids);
           return undefined;

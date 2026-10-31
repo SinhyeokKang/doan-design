@@ -40,13 +40,18 @@ export function promotionTarget(turn: PromotionTurn | null, listed: readonly Can
   return target && !busy(target) ? target : null;
 }
 // The listed rows these paths name, once each. A path at a canvas's turn-start location follows its stable ID to
-// where it is listed now; paths outside the root (another worktree included) name nothing.
+// where it is listed now. A path that held one canvas at the turn's start and another now names neither: the edit
+// may have come before or after the move, and no promotion is the safe failure. Paths outside the root (another
+// worktree included) name nothing.
 function canvasesAt(root: string, paths: readonly string[], rows: readonly Canvas[], snapshot: readonly Canvas[]): Canvas[] {
   const found: Canvas[] = [];
   for (const path of paths) {
     const relative = inside(root, path); if (relative === null) continue;
-    const before = snapshot.find(old => old.path === relative);
-    const row = rows.find(r => r.path === relative) ?? (before?.id !== undefined ? rows.find(r => r.id === before.id) : undefined);
+    const before = snapshot.find(old => old.path === relative), now = rows.find(r => r.path === relative);
+    let row: Canvas | undefined;
+    if (before && now) row = sameCanvas(before, now) ? now : undefined;
+    else if (before) row = before.id !== undefined ? rows.find(r => r.id === before.id) : undefined;
+    else row = now;
     if (row && !found.some(other => sameCanvas(other, row))) found.push(row);
   }
   return found;
