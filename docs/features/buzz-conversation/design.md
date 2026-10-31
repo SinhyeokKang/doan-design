@@ -12,6 +12,7 @@
 - `docked-composer`: capsule·box, 칩, 전송 중, `project_busy` 이유 줄.
 - `thread-messages`, `thread-activity`, `thread-states`(권한 요청·턴 끝), `thread-moves`(승격·보관·복구·읽기 실패).
 - `docked`와 스레드 프레임은 `buzz-project`가 Overview에 놓을 때 비교한다.
+- `thread-compare`: 결정용 임시 프레임. 같은 대화를 A(지금 초안)와 B(Buzz `ec1b9acc5` 기준)로 그렸다. 사용자가 하나를 고르면 고른 쪽을 03~06에 반영하고 이 프레임은 지운다.
 
 초안을 그리면서 정한 것:
 
