@@ -111,7 +111,7 @@ test("Agents' lock reaches App", () => {
 
 function sidebar(settings: { section: PageProps["section"]; select(section: string): void }, locked = false) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
-  return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), home: true, locked, settings });
+  return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), home: true, locked, settings });
 }
 
 test("on the Settings page the sidebar keeps Search and lists the three categories as plain buttons", () => {

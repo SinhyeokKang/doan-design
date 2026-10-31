@@ -627,6 +627,18 @@ body:has(.shell-top) { background: transparent; }
 .shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .shell-empty { padding: 6px 10px 10px 34px; line-height: 16px; }
 .shell-canvas-error pre { white-space: pre-wrap; }
+/* A group head is a tree row one level below the project (design-system-canvases draft): chevron where a row's icon
+   sits, label, count at the end. Rows and lines inside a group move in by the chevron and its gap, so a row's icon sits
+   under the group label. */
+.shell-side .shell-group-head { padding-inline: 10px; color: var(--text-subtle); font-weight: var(--type-weight-medium); letter-spacing: var(--type-body-sm-letter-spacing); }
+.shell-group-head svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-metadata); transition: transform var(--time-state) var(--ease-state); }
+.shell-group-head[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.shell-group-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.shell-group-count { flex: none; font-variant-numeric: tabular-nums; }
+.shell-side .shell-group-head[aria-disabled="true"] :is(svg, .shell-group-count) { color: var(--text-disabled); }
+.shell-side .shell-group .shell-canvas-row { padding-left: calc(10px + var(--size-icon) + var(--space-2)); }
+.shell-group .shell-empty { padding-left: calc(34px + var(--size-icon) + var(--space-2)); }
+.shell-group .shell-canvas-error { padding-left: calc(32px + var(--size-icon) + var(--space-2)); }
 .shell-project-menu { width: 244px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
 .shell-project-menu .doan-menu-item { display: flex; gap: 8px; align-items: center; }
 .shell-worktree[aria-current="true"] { background: var(--affordance-backdrop-pressed); }

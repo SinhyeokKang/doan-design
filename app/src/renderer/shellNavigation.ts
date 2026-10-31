@@ -41,6 +41,8 @@ export function reconcileProjects(saved: Record<string, ShellProject>, groups: r
     const candidates = previous.filter(item => item.selectedRoot && group.roots.includes(item.selectedRoot));
     candidates.sort((a, b) => (b.selectedAt ?? -Infinity) - (a.selectedAt ?? -Infinity) || group.roots.indexOf(a.selectedRoot!) - group.roots.indexOf(b.selectedRoot!));
     const selected = candidates[0];
-    return [group.key, { roots: group.roots, expanded: previous.some(item => item.expanded), ...(selected?.selectedRoot ? { selectedRoot: selected.selectedRoot, ...(selected.selectedAt !== undefined ? { selectedAt: selected.selectedAt } : {}) } : {}) }];
+    // Open is the default, so a rejoined group stays closed only where every earlier project had closed it.
+    const groups = previous.length ? (["ds", "canvases"] as const).filter(id => previous.every(item => item.groups?.[id] === false)) : [];
+    return [group.key, { roots: group.roots, expanded: previous.some(item => item.expanded), ...(selected?.selectedRoot ? { selectedRoot: selected.selectedRoot, ...(selected.selectedAt !== undefined ? { selectedAt: selected.selectedAt } : {}) } : {}), ...(groups.length ? { groups: Object.fromEntries(groups.map(id => [id, false])) as NonNullable<ShellProject["groups"]> } : {}) }];
   }));
 }

@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, Info, LayoutGrid, Palette, Search, Settings } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
@@ -10,6 +10,7 @@ import { ErrorDetails } from "./ErrorDetails";
 import { displayPath } from "./projectDisplay";
 import { slotKey, type Slot } from "./homeConversations";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settingsSections";
+import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 
 interface Props {
   cards: HomeCard[];
@@ -20,6 +21,8 @@ interface Props {
   homeDirectory: string | null;
   search(): void;
   toggle(key: string): void;
+  // Opens or closes a project's group; allowed while the page is locked, as project disclosure is.
+  toggleGroup(key: string, group: GroupId): void;
   worktree(root: string): void;
   open(root: string, row: CanvasRow): void;
   overview(root: string): void;
@@ -62,6 +65,8 @@ const sortedCanvases = (rows: CanvasRow[]) => [...rows].sort((a, b) => {
   const name = (row: CanvasRow) => row.path.split("/").at(-1)!.replace(/\.html$/, "");
   return canvasOrder.compare(name(a), name(b)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 });
+// Canvas paths start with `.doan/`, so a head's key never equals a canvas row's.
+const headKey = (root: string, group: GroupId) => `${root}\n#${group}`;
 const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ShellSidebar(props: Props) {
   const { cards, projects, loaded, canvas } = props;
@@ -80,6 +85,8 @@ export function ShellSidebar(props: Props) {
   const buffer = useRef({ text: "", at: 0 });
   const live = useRef(props); live.current = props;
   const rows: { key: string; parent?: string; name: string; activate(): void; right(): void; left(): void }[] = [];
+  // Each listed, expanded project's groups and visible rows, built once for both the keyboard order and the render.
+  const layouts = new Map<string, { groups: SidebarGroup[]; items: SidebarItem[] }>();
   const focus = (key: string | undefined) => {
     if (!key) { search.current?.focus(); return; }
     setFocused(key);
@@ -115,9 +122,25 @@ export function ShellSidebar(props: Props) {
     const root = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
     const entry = card.rows.find(row => row.path === root);
     const expanded = projectExpanded(project, loaded);
-    const canvases = expanded && entry?.kind === "list" ? sortedCanvases(entry.canvases) : [];
-    rows.push({ key: card.key, name: card.name, activate: () => props.toggle(card.key), right: () => expanded ? focus(canvases[0] ? `${root}\n${canvases[0].path}` : card.key) : props.toggle(card.key), left: () => { if (expanded && !card.rows.some(row => row.path === loaded)) props.toggle(card.key); } });
-    for (const row of canvases) rows.push({ key: `${root}\n${row.path}`, parent: card.key, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => props.open(entry!.path, row), right: () => {}, left: () => focus(card.key) });
+    const groups = expanded && entry?.kind === "list" ? sidebarGroups(sortedCanvases(entry.canvases), project.groups) : [];
+    const items = visibleItems(groups);
+    layouts.set(card.key, { groups, items });
+    rows.push({ key: card.key, name: card.name, activate: () => props.toggle(card.key), right: () => expanded ? focus(groups[0] ? headKey(root!, groups[0].id) : card.key) : props.toggle(card.key), left: () => { if (expanded && !card.rows.some(row => row.path === loaded)) props.toggle(card.key); } });
+    for (const item of items) {
+      const group = item.group, head = headKey(root!, group.id);
+      if (item.kind === "head") {
+        const step = (key: "ArrowLeft" | "ArrowRight") => {
+          const target = headArrow(group, key);
+          if (target === "toggle") props.toggleGroup(card.key, group.id);
+          else if (target === "firstRow") focus(`${root}\n${group.rows[0]!.path}`);
+          else if (target === "project") focus(card.key);
+        };
+        rows.push({ key: head, parent: card.key, name: group.label, activate: () => props.toggleGroup(card.key, group.id), right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
+      } else {
+        const row = item.row;
+        rows.push({ key: `${root}\n${row.path}`, parent: head, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => props.open(entry!.path, row), right: () => {}, left: () => focus(head) });
+      }
+    }
   }
   useLayoutEffect(() => {
     const lost = ownedFocus.current;
@@ -162,7 +185,8 @@ export function ShellSidebar(props: Props) {
         const selected = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
         const entry = card.rows.find(row => row.path === selected) ?? card.rows[0]!;
         const expanded = projectExpanded(project, loaded), current = !props.home && card.rows.some(row => row.path === loaded);
-        const shown = expanded && entry.kind === "list" ? entry.canvases.map(row => slotKey(entry.path, row.path)) : [];
+        const layout = layouts.get(card.key) ?? { groups: [], items: [] };
+        const shown = layout.items.flatMap(item => item.kind === "canvas" ? [slotKey(entry.path, item.row.path)] : []);
         const info = cardRow(entry, loaded, null);
         const menuEntry = (menu === card.key && card.rows.find(row => row.path === repairRoot)) || entry;
         const menuInfo = cardRow(menuEntry, loaded, null);
@@ -202,11 +226,18 @@ export function ShellSidebar(props: Props) {
             </DropdownMenu.Root>
           </div>
           {expanded && <div role="group">
-            {entry.kind === "list" ? entry.canvases.length ? sortedCanvases(entry.canvases).map((row, canvasIndex) => {
-              const descriptionId = `${descriptionPrefix}-${index}-${canvasIndex}`;
-              const key = `${entry.path}\n${row.path}`, problem = rowProblem(row);
-              return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-disabled={locked} aria-level={2} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Palette aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} />{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
-            }) : <p className="shell-empty">No canvases yet</p> : <p className="shell-empty">{info.chip}</p>}
+            {entry.kind === "list" ? layout.groups.map(group => {
+              const key = headKey(entry.path, group.id), countId = `${descriptionPrefix}-${index}-${group.id}`;
+              const Icon = group.id === "ds" ? SwatchBook : PanelsTopLeft;
+              return <div className="shell-group" key={group.id}>
+                <div ref={rowRef(key)} className="shell-group-head row" role="treeitem" data-key={key} aria-label={group.label} aria-describedby={countId} aria-disabled={locked} aria-level={2} aria-expanded={group.open} tabIndex={active === key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(key); }} onKeyDown={event => keyboard(event, key)} onClick={() => props.toggleGroup(card.key, group.id)}><ChevronDown aria-hidden="true" /><span className="shell-group-label">{group.label}</span><span className="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">{group.rows.length}</span><span id={countId} className="sr-only">{countDescription(group.rows.length)}</span></div>
+                {group.open && <div role="group">{group.rows.length ? group.rows.map((row, canvasIndex) => {
+                  const descriptionId = `${countId}-${canvasIndex}`;
+                  const key = `${entry.path}\n${row.path}`, problem = rowProblem(row);
+                  return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem || row.open > 0 ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Icon aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} />{!problem && row.open > 0 && <span id={descriptionId} className="sr-only">{row.open} open {row.open === 1 ? "comment" : "comments"}</span>}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
+                }) : <p className="shell-empty">{group.empty}</p>}</div>}
+              </div>;
+            }) : <p className="shell-empty">{info.chip}</p>}
           </div>}
         </div>;
       })}
