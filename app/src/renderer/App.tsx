@@ -245,7 +245,7 @@ export function App() {
   // away is ignored here, in one place (buzz-add-projects and buzz-settings design '잠금'): marking the controls alone
   // would leak through toasts, the comment guard and keyboard activation.
   const locked = () => (currentScreen.current === "addProjects" && pageRef.current.locked) || (currentScreen.current === "settings" && settingsRef.current.locked);
-  const comments = useComments(state, controller, () => { if (!locked()) setScreen("workspace"); }, entries, undefined, homeDirectory);
+  const comments = useComments(state, controller, () => { if (!locked()) setScreen("workspace"); }, entries, homeDirectory);
   const home = () => {
     if (locked()) return;
     cancelRestore();
@@ -720,7 +720,7 @@ export function App() {
     setRunTick(tick => tick + 1);
   }, [screen, loadedRoot, state.open?.canvas, run.conversations, run.revision]);
   const shown = run.strip(loadedRoot);
-  const strip = state.open && shown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
+  const strip = overview === null && shown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
     onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
@@ -750,7 +750,7 @@ export function App() {
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
     {overview && <ProjectOverview key={overview.path} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} />}
-    <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />{comments.panel}</div>
+    <div className="right-stack">{overview ? <aside className="right native-scroll" /> : <RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />}{comments.panel}</div>
   </main>
   {comments.dialog}
   {projectSettings && <ProjectSettingsDialog key={projectSettings.seq} root={projectSettings.root} projectKey={projectSettings.key} entries={entries} reroot={reroot} homeDirectory={homeDirectory}

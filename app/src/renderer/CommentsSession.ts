@@ -93,8 +93,6 @@ export class CommentsSession {
   review: ReviewRun | null = null;
   // Left after Done until closed, another canvas, or a resolve this Review did not see.
   reviewDone: { text: string; reopened: string[]; seen: ReadonlyMap<string, string> } | null = null;
-  // Told after main raised a canvas's marker, so Home and Overview counts follow.
-  onReviewed: ((root: string) => void) | null = null;
   // Handed off per (root, canvas id) for this app session (feature agent-handoff).
   private handoffs = new Map<string, HandoffEntry>();
   private markerRevision = 0;
@@ -620,7 +618,6 @@ export class CommentsSession {
     const raised = this.api.raiseReviewMarker?.(run.root, run.canvas, to);
     void raised?.then(next => {
       if (next && tag === this.markerRevision && sameCanvas(run, this.identity)) { this.marker = next; this.emit(); }
-      this.onReviewed?.(run.root);
     }).catch(error => {
       // The local raise may not have reached main; read what main kept.
       console.error(error);

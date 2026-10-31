@@ -240,8 +240,6 @@ const api = {
     ipcRenderer.on("comments:transition", receive);
     return () => ipcRenderer.removeListener("comments:transition", receive);
   },
-  // Per canvas id from one fresh `doan ls`; null when main refused. `revision`
-  // comes back unchanged so a reply older than the last invalidation can be dropped.
   // The device-local last review time of one canvas; main only ever raises it.
   reviewMarker: (root: string, canvas: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:get", { root, canvas }),
   raiseReviewMarker: (root: string, canvas: string, at: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:raise", { root, canvas, at }),

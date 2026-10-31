@@ -76,11 +76,8 @@ code, kbd { font-family: var(--type-family); }
 .canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-subtle); font: 12.5px/1.6 var(--type-family); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text-standard); font-weight: 500; }
-.canvas-status > :not(.empty) { max-width: 260px; overflow-wrap: anywhere; }
+.canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
 .canvas-status .doan-spinner { display: block; margin: 0 auto 10px; }
-.empty { font-size: 13px; color: var(--text-standard); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
-.empty b { font-size: 15px; font-weight: var(--type-weight-semibold); }
-.empty p { color: var(--text-metadata); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
 .canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
 /* It sits on the canvas content, so the panel color goes behind it (.doan/canvases/comments-readability.html). */

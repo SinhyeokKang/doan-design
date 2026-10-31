@@ -10,7 +10,6 @@ import type { SelectionView } from "./selection";
 
 export function RightPanel({ state, selectPath }: { state: CanvasState; selectPath: (item: PathItem) => void }) {
   const open = state.open;
-  if (!open) return <aside className="right native-scroll" />;
   if (open && state.selection) return <Inspector selection={state.selection} inspector={state.inspector} selectPath={selectPath} />;
   const info = open ? canvasInfo(open.row, state.unlisted ? null : state.layout) : null;
   return <aside className="right native-scroll" role="region" aria-label="Canvas info">

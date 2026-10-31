@@ -28,9 +28,8 @@ function superseded(request: Deferred, context: string): boolean {
     (request.holder !== undefined && active !== request.holder && !!active && active !== document.body && active.isConnected);
 }
 
-// `reviewed`: main raised a canvas's review marker.
 // `home`: the home directory, for the paths the Hand off worktree notice names.
-export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[], reviewed?: (root: string) => void, home: string | null = null) {
+export function useComments(state: CanvasState, controller: RefObject<CanvasController | null>, showWorkspace: () => void, entries: FolderEntry[], home: string | null = null) {
   const [, render] = useState(0);
   const [session] = useState(() => new CommentsSession(window.doan, () => render(n => n + 1)));
   const [anchors, setAnchors] = useState<AnchorSnapshot | null>(null);
@@ -295,7 +294,6 @@ export function useComments(state: CanvasState, controller: RefObject<CanvasCont
   });
   // feature revision-recheck Review. Its texts come from the session as its
   // methods leave it, not an earlier render (POSTMORTEM 2026-10-25).
-  session.onReviewed = reviewed ?? null;
   useEffect(() => window.doan.onWindowVisible?.(visible => {
     // Resolves while the window was hidden show in the notice once it is back.
     if (visible && session.identity) { void session.readMarker(); void session.read(); }
