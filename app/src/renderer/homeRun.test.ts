@@ -762,3 +762,39 @@ test("a send's new canvas opens within the binding window whether the reply, the
     expect(h.host.openCanvas, order).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
   }
 });
+
+// Review RM r3 🟡1: a permission request the send's turn raised before main's reply still gets the away toast once;
+// on its own project's screen none.
+test("a send's permission request toasts once away from its project, whether it came before or after the reply", async () => {
+  for (const tracked of [false, true]) for (const before of [true, false]) for (const away of [true, false]) {
+    const label = `tracked ${tracked}, before ${before}, away ${away}`;
+    seq = 0;
+    lists({ [ROOT]: [] });
+    doan.readConversation!.mockResolvedValue({ events: [], lastSeq: 0, turn: "idle" });
+    const h = harness([list(ROOT, ["a"]), list(OTHER, [])]);
+    h.view.screen = "workspace"; h.view.loadedRoot = away ? OTHER : ROOT;
+    h.run.entriesChanged();
+    await flush();
+    if (tracked) {
+      start = deferred();
+      const sending = h.run.start(REQUEST, LAST, { stay: true }); start.resolve({ conversationId: "c1" }); await sending;
+      await flush();
+      h.run.event(event("c1", { type: "turn.started" }, "t1"));
+      h.run.event(event("c1", { type: "turn.done" }, "t1"));
+    }
+    const ask = () => {
+      h.run.event(event("c1", { type: "turn.started" }, "t2"));
+      h.run.event(event("c1", { type: "permission.request", requestId: "r2", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }, "t2"));
+    };
+    const reply = deferred<void>();
+    doan.sendConversation = vi.fn(() => reply.promise);
+    const sending = h.run.send(ROOT, "claude", { conversationId: "c1", text: "Draw.", anchors: [] });
+    if (before) ask();
+    reply.resolve(); await sending;
+    if (!before) ask();
+    await flush();
+    expect(h.run.strip(ROOT)?.state.kind, label).toBe("permission");
+    const toasts = vi.mocked(h.host.toast).mock.calls.filter(call => call[0] === "Claude Code needs your answer in doan.");
+    expect(toasts, label).toHaveLength(away ? 1 : 0);
+  }
+});
