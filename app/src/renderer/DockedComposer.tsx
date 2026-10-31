@@ -53,6 +53,8 @@ export interface DockedComposerProps {
   busy: DockedBusy | null;
   // An archived conversation whose canvas left the project cannot continue.
   canvasGone: boolean;
+  // Why Send waits for the host's project (it turned into a problem while open); the thread stays readable.
+  unavailable?: string | null;
   queued: readonly { id: string; text: string }[];
   // Send in an existing conversation, a restore in an archived one, a start in new-conversation mode.
   onSend(request: DockedRequest): Promise<DockedOutcome>;
@@ -102,7 +104,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // host's busy has shown and cleared again, the refusal no longer holds Send.
   if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
   const busy = props.busy ?? (refusal?.kind === "busy" && !hostSawBusy.current.has(key) ? refusal.busy : null);
-  const availability = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, turn: props.turn, busy, sending: isSending });
+  const availability = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null });
   const composed = dockedComposed(draft);
   const action = composerAction(props.turn !== "idle", composed);
   const picker = dockedPicker(props.picker, mode);

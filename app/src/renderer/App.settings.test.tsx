@@ -74,6 +74,7 @@ const { HomeRun } = await import("./homeRun");
 const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
 const { RightPanel } = await import("./RightPanel");
 const { KeyedConversationStrip } = await import("./ConversationStripView");
+const { ProjectOverview } = await import("./ProjectOverview");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -426,14 +427,22 @@ const problemEntries: FolderEntry[] = [
   { path: "/w/a", kind: "error", message: "Invalid config" },
 ];
 
-test("only Overview replaces Canvas info with an empty right-panel slot", () => {
+// buzz-project spec decision 12: an Overview that turns into a problem stays (thread readable, Send held) with its own
+// panel; a project entered as a problem shows the problem screen with Canvas info.
+test("the Overview's panel replaces Canvas info, and stays while the open Overview's project is a problem", () => {
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   expect(find(RightPanel)).toHaveLength(0);
+  expect(find(ProjectOverview)).toHaveLength(1);
   for (const entry of problemEntries) {
     folders([entry]);
-    expect(find(RightPanel), entry.kind).toHaveLength(1);
+    expect(find(RightPanel), entry.kind).toHaveLength(0);
+    expect(find<{ unavailable: string | null }>(ProjectOverview)[0]?.props.unavailable, entry.kind).toBe("a isn’t available. Fix it from its menu in the sidebar.");
   }
+  listeners.menu!("home" as never); render();
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(find(ProjectOverview)).toHaveLength(0);
+  expect(find(RightPanel)).toHaveLength(1);
 });
 
 test("only Overview hides a conversation strip when no canvas is open", () => {
@@ -443,8 +452,15 @@ test("only Overview hides a conversation strip when no canvas is open", () => {
   vi.spyOn(run, "strip").mockReturnValue({ conversation: { conversationId: "c1", root: "/w/a", provider: "codex", phase: "working" }, state: { kind: "working", activity: null } });
   render();
   expect(find(KeyedConversationStrip)).toHaveLength(0);
+  // The open Overview stays through a problem, so the strip stays hidden; a problem screen entered anew shows it.
   for (const entry of problemEntries) {
     folders([entry]);
+    expect(find(KeyedConversationStrip), entry.kind).toHaveLength(0);
+  }
+  listeners.menu!("home" as never); render();
+  for (const entry of problemEntries) {
+    folders([entry]);
+    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
     expect(find(KeyedConversationStrip), entry.kind).toHaveLength(1);
   }
   folders([listed("/w/a")]);

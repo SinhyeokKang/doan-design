@@ -910,3 +910,52 @@ body:has(.shell-top) { background: transparent; }
   .conversation-thread .caret { animation: none; }
   .conversation-thread .activity-head .chev { transition: none; }
 }
+
+/* buzz-project: the Overview as the project conversation screen (.doan/canvases/buzz-project.html, confirmed 2026-10-31).
+   The main panel keeps the workspace's white .ov surface; the thread scrolls inside it to the panel's edge while its
+   column stays 720px wide, and the composer sits under it. No mascot, greeting or gradient: that is Home's. */
+.workspace > .ov.ov-main { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-project-name { font-weight: var(--type-weight-medium); }
+/* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
+.wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
+.wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
+.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.shell-project-menu.wt-menu { width: 280px; }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+/* The title gives way first in a narrow window (design §2.1). */
+.ov-title-wrap { display: flex; min-width: 0; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-notice { margin: 0 var(--space-4) var(--space-2); }
+.ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.ov-scroll > .conversation-thread { flex: 1; }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) 0; }
+.ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
+.ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
+.ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
+/* New conversation: the moved line and the suggestions sit right above the composer, start-aligned. */
+.doan-notice.moved { margin-bottom: var(--space-3); }
+.ov-suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.ov-suggestions .suggestion span { white-space: nowrap; }
+/* The conversation dropdown: New, then the project conversations drawn like the right panel's rows, split by hairlines;
+   the shown one has the selected fill. It scrolls inside its height. */
+.conv-menu { width: 360px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
+.conv-new { display: flex; align-items: center; gap: var(--space-2); }
+.conv-new svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.conv-menu .doan-menu-item.current { background: var(--affordance-backdrop-pressed); }
+.conv-item { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-half); padding-block: var(--space-2); }
+.conv-list .conv-item + .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }
+.conv-list .conv-item:is(.current, [data-highlighted])::before, .conv-list .conv-item:is(.current, [data-highlighted]) + .conv-item::before { display: none; }
+.conv-item .t { font-weight: var(--type-weight-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* A conversation's first line, shared with the right panel's rows: logo, name, status mark, short time flush right. */
+.cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
+.cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
+.cv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-head .row-slot { margin-left: 0; }
+.cv-when { flex: none; margin-left: auto; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+/* The right panel on the Overview: its title; batch RL adds the canvas rows. */
+.right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); }

@@ -22,6 +22,15 @@ export function RightPanel({ state, selectPath }: { state: CanvasState; selectPa
   </aside>;
 }
 
+// The Overview's right panel (buzz-project design §2.3): the region and its title. The canvas conversation rows go
+// in it (batch RL); App holds what they need: HomeRun's listState(root), the entry's canvases, openShellCanvas,
+// HomeRun's markSeenThrough and the thumbnails hook.
+export function CanvasConversations() {
+  return <aside className="right native-scroll ov-right" role="region" aria-label="Canvas conversations">
+    <h2 className="phead rp-head">Canvas conversations</h2>
+  </aside>;
+}
+
 // Canvas strings are React text only (design 'decision impact'); a cut value
 // keeps its full text in the native tooltip.
 function Truncate({ value, title = value, className }: { value: string; title?: string; className?: string }) {

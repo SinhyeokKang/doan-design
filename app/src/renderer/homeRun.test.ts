@@ -68,7 +68,7 @@ test("a sent request moves to the project's Overview with that conversation and 
   h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
   const sending = h.run.start(REQUEST, LAST);
   start.resolve({ conversationId: "c1" });
-  expect(await sending).toEqual({ ok: true });
+  expect(await sending).toEqual({ ok: true, conversationId: "c1" });
   expect(h.host.openOverview).toHaveBeenCalledWith(ROOT, expect.any(Function), expect.any(Function), "c1");
   expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
   h.arrive();
@@ -663,4 +663,21 @@ test("Edit on Home after a reload carries the re-issued images' thumbnails", asy
   await h.run.editOnHome("c1");
   const request = h.run.restore!.request;
   expect(request.thumbnails).toEqual({ [request.attachments[0]!.key]: bytes });
+});
+
+test("a project row's slot names the project conversation the Overview should open, never a canvas one", async () => {
+  lists({ [ROOT]: [
+    summary({ conversationId: "done", unseen: true, lastActivityAt: "2026-11-01T00:05:00.000Z" }),
+    summary({ conversationId: "asks", phase: "waiting" }),
+    summary({ conversationId: "canvas", phase: "waiting", canvas: { path: ".doan/canvases/a.html", id: "a" } }),
+  ], [OTHER]: [summary({ conversationId: "quiet" })] });
+  // After a reload the run reads each one's history for the strip; the waiting one's has its request.
+  doan.readConversation!.mockImplementation(async ({ conversationId }: { conversationId: string }) => ({ events: conversationId === "asks"
+    ? [event("asks", { type: "turn.started" }), event("asks", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] })]
+    : [event(conversationId, { type: "turn.started" }), event(conversationId, { type: "turn.done" })], lastSeq: 2, turn: "idle" }));
+  const h = harness([list(ROOT, ["a"]), list(OTHER, [])]);
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(h.run.slotConversation(ROOT)).toEqual({ conversationId: "asks", waiting: true });
+  expect(h.run.slotConversation(OTHER)).toBeNull();
 });

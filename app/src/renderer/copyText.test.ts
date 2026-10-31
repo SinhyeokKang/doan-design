@@ -1,22 +1,23 @@
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi, type Mock } from "vitest";
 import { copyText } from "./copyText";
 
 // buzz-project design §8: main denies every permission check, so the thread's Copy writes through the document's own
 // copy command, and the person's field keeps its focus and selection (an IME composition may be in it).
 
-interface FakeField { value: string; selectionStart: number; selectionEnd: number; isConnected: boolean; focus: ReturnType<typeof vi.fn>; select: ReturnType<typeof vi.fn>; setSelectionRange: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn>; setAttribute: ReturnType<typeof vi.fn>; style: Record<string, string> }
+type Fn = Mock<(...args: never[]) => unknown>;
+interface FakeField { value: string; selectionStart: number; selectionEnd: number; isConnected: boolean; focus: Mock<(options?: unknown) => void>; select: Fn; setSelectionRange: Mock<(start: number, end: number) => void>; remove: Fn; setAttribute: Mock<(name: string, value: string) => void>; style: Record<string, string> }
 function field(value = ""): FakeField {
   const node: FakeField = {
     value, selectionStart: 0, selectionEnd: 0, isConnected: true, style: {},
-    focus: vi.fn(() => { doc.activeElement = node; }),
+    focus: vi.fn((_options?: unknown) => { doc.activeElement = node; }),
     select: vi.fn(() => { node.selectionStart = 0; node.selectionEnd = node.value.length; }),
     setSelectionRange: vi.fn((start: number, end: number) => { node.selectionStart = start; node.selectionEnd = end; }),
     remove: vi.fn(() => { node.isConnected = false; doc.body.children = doc.body.children.filter(child => child !== node); }),
-    setAttribute: vi.fn(),
+    setAttribute: vi.fn((_name: string, _value: string) => {}),
   };
   return node;
 }
-let doc: { activeElement: FakeField | null; body: { children: FakeField[]; append(node: FakeField): void }; createElement: ReturnType<typeof vi.fn>; execCommand: ReturnType<typeof vi.fn> };
+let doc: { activeElement: FakeField | null; body: { children: FakeField[]; append(node: FakeField): void }; createElement: Fn; execCommand: Fn };
 function stub(exec: (command: string) => boolean) {
   doc = {
     activeElement: null,

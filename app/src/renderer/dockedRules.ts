@@ -45,6 +45,9 @@ export interface DockedInput {
   turn: "idle" | "running" | "waiting";
   busy: DockedBusy | null;
   sending: boolean;
+  // The host's project turned into a problem while it was open (buzz-project spec decision 12): Send waits with
+  // Home's reason, whatever the draft holds.
+  unavailable?: string | null;
 }
 
 // Send's state and the reason line under the card. Home's reasons (agent, length, {{ }}, checking, a moved file) are
@@ -54,6 +57,7 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   const { draft, mode } = input;
   const off = (reason: DockedReason | null) => ({ enabled: false, reason });
   if (input.sending) return off(null);
+  if (input.unavailable) return off({ text: input.unavailable });
   const agent = mode.kind === "new" ? agentProblem(input.auth, input.provider) : providerProblem(input.auth, mode.provider);
   if (agent) return off({ text: agent.text, ...("action" in agent && agent.action ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;

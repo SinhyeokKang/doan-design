@@ -9,6 +9,7 @@ import { DockedSupport } from "./dockedSupport";
 import type { PresetSummary } from "./homeComposer";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
 import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 // buzz-project design §2.1, §2.2, §2.5: the Overview's header and main column as static markup.
 
@@ -47,7 +48,7 @@ function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup
     notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
     onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {}, ...patch,
   };
-  return renderToStaticMarkup(<ProjectOverview {...props} />);
+  return renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>);
 }
 
 test("the header names the project, its branch read-only for one worktree, and the conversation's title", () => {
@@ -94,16 +95,17 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
 test("the duplicate-ID notice shows under the header", () => {
   const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
   const html = render([summary()], { notice });
-  expect(html).toMatch(new RegExp(`</div><div class="doan-notice ov-notice" role="status">.*<span class="grow-text">${notice.replace(/\./g, "\\.")}</span></div>`));
+  expect(html).toMatch(new RegExp(`</header><div class="doan-notice ov-notice" role="status">.*<span class="grow-text">${notice.replace(/\./g, "\\.")}</span></div>`));
 });
 
 test("while the list is read the title is unavailable and the composer is a new conversation; a failed read says so", () => {
   const loading = render("loading");
-  expect(loading).toMatch(/<button[^>]*class="ov-title doan-button"[^>]*disabled=""/);
+  const titleTag = (html: string) => html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
+  expect(titleTag(loading)).toContain('disabled=""');
   expect(loading).toContain('placeholder="Ask or describe what to design, / for presets"');
   expect(loading).not.toContain("Loading conversation…");
   const failed = render("error");
-  expect(failed).not.toMatch(/<button[^>]*class="ov-title doan-button"[^>]*disabled=""/);
+  expect(titleTag(failed)).not.toContain("disabled");
 });
 
 test("a long title is cut by style only, so the trigger's name keeps the whole title", () => {
@@ -115,4 +117,25 @@ test("a long title is cut by style only, so the trigger's name keeps the whole t
 test("a project that turned into a problem keeps the thread and holds Send with Home's reason", () => {
   const html = render([summary()], { unavailable: "doan isn’t available. Fix it from its menu in the sidebar." });
   expect(html).toContain("doan isn’t available. Fix it from its menu in the sidebar.");
+});
+
+// POSTMORTEM 2026-10-25: a switch draws the other conversation's own draft in the very next render, never the previous
+// one's.
+test("switching conversations draws each one's own draft and title at once", () => {
+  const B = "aaaaaaaa-0000-4000-8000-000000000002";
+  const list = [summary(), summary({ conversationId: B, title: "Ideas for onboarding" })];
+  let run!: OverviewRun;
+  const first = render(list, {}, r => {
+    run = r; r.sync();
+    r.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { text: "for A", anchors: [], preset: null, attachments: [], shape: "capsule" }).set(`conversation:${B}`, { text: "for B", anchors: [], preset: null, attachments: [], shape: "capsule" }));
+  });
+  expect(first).toContain(">for A</textarea>");
+  const second = render(list, {}, r => {
+    r.sync();
+    r.drafts = run.drafts;
+    r.select(ROOT, B);
+  });
+  expect(second).toContain(">for B</textarea>");
+  expect(second).toContain("<span>Ideas for onboarding</span>");
+  expect(second).not.toContain("for A");
 });
