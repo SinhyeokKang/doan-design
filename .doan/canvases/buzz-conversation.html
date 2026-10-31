@@ -116,9 +116,10 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 .md hr{height:1px;background:var(--border-standard)}
 /* One folded line for a run of activities (2026-10-31 user). */
 .activity{display:flex;flex-direction:column;gap:var(--space-1)}
-.activity-head{display:inline-flex;align-items:center;gap:var(--space-2);align-self:flex-start;min-height:var(--size-control-sm);padding:0 var(--space-2);margin-left:calc(-1 * var(--space-2));border-radius:var(--radius-control);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);max-width:100%}
+.activity-head{display:inline-flex;align-items:center;gap:var(--space-2);align-self:flex-start;min-height:var(--size-control-sm);padding:0 var(--space-2) 0 var(--space-3);margin-left:calc(-1 * var(--space-3));border-radius:var(--radius-control);color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);max-width:100%}
 .activity-head.is-hover{background:var(--affordance-backdrop-hover)}
 .activity-head span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* The chevron glyph carries about 4px of its own side bearing, so the end inset is 4px shorter than the start to look even. */
 .activity-head .chev{transform:rotate(-90deg)}
 .activity-head[aria-expanded="true"] .chev{transform:none}
 .activity-head .doan-spinner{width:var(--size-icon-sm);height:var(--size-icon-sm)}
