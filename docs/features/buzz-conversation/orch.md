@@ -18,6 +18,9 @@
 8. 안 본 종료 판정의 "마지막 seq"는 `conversation.*` 표시 이벤트(bound·archived·restored)를 뺀 마지막 seq다. archived 대화는 안 본 종료로 세지 않는다. `markSeen`은 전체 마지막 seq로 자르고, crash로 접힌 턴은 그대로 안 본 종료다(지휘자 판단 — A1 질문. spec '안 본 종료'의 취지는 사람이 보지 않은 턴 끝이고, 표시 이벤트는 새 결과가 아니다. Z1에서 ARCHITECTURE에 반영).
 9. P1 로그인 계정은 Google `sinhyeok.kang@day1company.co.kr`이다(사용자). Claude Code OAuth 화면의 승인 버튼이 비활성이라 ego-browser 공간 16을 사용자에게 넘겼다. 사용자가 두 공급자 승인을 브라우저에서 직접 했다.
 10. 격리 HOME에서는 로그인이 끝나지 않는다(Claude는 Keychain이 없어 `storage_failed`, Codex는 "Sign-in could not be completed"). P1과 D2는 실제 HOME을 쓰고, userData·`DOAN_RUNTIME`·저장소만 임시로 둔다(사용자). P1이 로그인한 임시 userData를 D2까지 남기고, D2가 끝날 때 앱에서 sign out해 임시 프로필의 Keychain 항목을 지운다(지휘자 판단 — 사용자 로그인 승인을 한 번으로 줄이려고). 실제 `~/.claude`·`~/.codex`의 임시 저장소 세션 기록은 경로만 남긴다.
+11. Home 이유 줄의 Open은 지금 Home 그대로(`subtle`, 접근 이름 없음) 둔다. 초안 `hero-composer` 타일의 `panel` 변형은 초안 쪽 차이로 보고, D2가 DESIGN.md에 차이로 기록한다(지휘자 판단 — spec 결정 1과 design §0이 Home에서 바뀌는 것을 포커스 보더와 문구로 한정한다).
+12. 프로젝트 제거 확인 문구는 "A conversation is still running in <project>." / "A conversation in <project> needs your answer."다. Home 이유 줄은 "Another…" 그대로다(사용자 — RB1 지적. spec 결정 18을 고쳤다).
+13. Home 이유 줄의 Open에 접근 이름 "Open the running conversation"을 더한다. 변형은 `subtle` 그대로다(지휘자 판단 — RB1 권고. 겉모습은 바뀌지 않고, docked와 같은 이름이다).
 
 ## 배치
 
@@ -25,9 +28,9 @@
 |---|---|---|---|---|---|---|
 | P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 통합 `5a145101` |
 | A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 진행 중 |
-| B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 진행 중 |
+| B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 리뷰 중 |
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 대기 |
-| RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 대기 |
+| RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 진행 중 |
 | A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 대기 |
 | B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 대기 |
 | RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 대기 |
@@ -54,3 +57,7 @@
 - B1의 Home 기준선 GUI probe를 허락했다. P의 앱은 로그인 대기로 멈춰 있다.
 - P1 관찰 네 경우가 모두 끝났다. Claude는 보존 지시를 읽기 전에 sign out됐다. D2에서 Claude 로그인 승인이 한 번 더 필요하다. Codex는 연결된 채 `/private/tmp/doan-p1-ogyLep/userData`에 남아 있다.
 - P 완료(`worker_done` succeeded). `e5cf271b`를 `5a145101`로 cherry-pick했다. 증거와 handoff를 지휘자 `.scratch/buzz-conversation/p1/`로 복사했다. P1 관찰 원문은 tasks.md P1에 있다. 거부된 수정도 edit 활동을 남기므로 파일 변경 교차 확인이 필요하다는 design §2.4 전제가 확인됐다.
+- P 워커 release, worktree `bc-p` 제거(Orca 목록에서 사라짐 확인). D2용 임시 userData `/private/tmp/doan-p1-ogyLep/`는 남겨 두었다.
+- B1 완료(`worker_done` succeeded): `59ac8833..e570055b` 4커밋, verify 통과, Home 전후 측정 차이 31건이 모두 예상한 차이다. B1은 기준선 재시도로 허락 없이 앱을 한 번 띄웠다(실제 상태 변화 없음). 수정 라운드에 쓰려고 B1 터미널을 retain했다.
+- RB1 리뷰 시작: dispatch `ctx_b3c4893f7024`, worktree `bc-b1`, Claude opus high.
+- RB1 완료: 🔴1(crash로 접힌 마지막 턴이 스레드에서 실행 중으로 남음), 🟡4, ⚪7. 🟡4(로컬 요약·이벤트 타입이 A1과 다름)는 B2가 main 타입으로 바꾼다.

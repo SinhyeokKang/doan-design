@@ -88,8 +88,9 @@
     - 입력 칸은 `ComposerField` 인터페이스 뒤에 두어, `buzz-canvas-conversation`이 칩을 담는 칸으로 바꿀 수 있게 한다.
     - 스레드의 사람 메시지 항목은 앵커를 개수가 아니라 텍스트 안의 위치(`{{n}}`)로 보관한다.
 18. **Home 문구**: Home 이유 줄과 프로젝트 제거 확인의 "A conversation from Home is still running"을 바꾼다.
-    - 실행 중: "Another conversation is still running in <project>."
-    - 응답 대기: "Another conversation in <project> needs your answer."
+    - Home 이유 줄, 실행 중: "Another conversation is still running in <project>."
+    - Home 이유 줄, 응답 대기: "Another conversation in <project> needs your answer."
+    - 프로젝트 제거 확인에는 비교할 대화가 없으므로 "Another" 대신 "A"를 쓴다: "A conversation is still running in <project>." / "A conversation in <project> needs your answer."
 19. **부모 예외**: 두 가지를 부모 spec에 예외로 기록한다. 부모 결정을 바꾸는 것이라서다.
     - 에이전트 답의 mono 글꼴 역할(`--type-family-mono`, 시스템 스택). 부모 비목표 '고정폭 역할'의 예외다.
     - 공용 변형 `doan-button[data-ui-size="xs"]`. 부모 공통 결정 10의 예외다.
