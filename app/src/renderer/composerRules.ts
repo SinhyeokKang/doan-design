@@ -24,7 +24,7 @@ export type ComposerAction = "send" | "stop" | "queue";
 // The Send slot while a turn runs (spec decision 9): Stop while the field is empty, Queue once there is something to
 // send. `request` is the composed request (homeComposer's composeRequest), so a chip alone counts as content. Queued
 // messages do not change the slot: an empty field still offers Stop.
-export function composerAction(running: boolean, request: string, _queued: number): ComposerAction {
+export function composerAction(running: boolean, request: string): ComposerAction {
   if (!running) return "send";
   return request.trim() === "" ? "stop" : "queue";
 }

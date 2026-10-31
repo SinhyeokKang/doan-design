@@ -543,7 +543,7 @@ export function HeroComposer(props: HeroComposerProps) {
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
       {!notice && reason && (reason.kind === "attachmentMissing"
         ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{reason.text}</span></div>
-        : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
+        : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
     {confirm && <dialog className="doan-dialog" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); setConfirm(null); }}>

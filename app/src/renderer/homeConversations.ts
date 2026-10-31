@@ -52,9 +52,13 @@ export function runningInRoot(conversations: readonly HomeConversation[], root: 
 }
 
 // Home's reason line and the removal confirmation (spec decision 18): project conversations started outside Home count
-// too, so the sentence no longer says where the conversation came from.
+// too, so the sentence no longer says where the conversation came from. The removal dialog has no conversation of its
+// own to compare with, so it says "A" where the reason line says "Another".
 export function anotherConversation(project: string, waiting: boolean): string {
   return waiting ? `Another conversation in ${project} needs your answer.` : `Another conversation is still running in ${project}.`;
+}
+function aConversation(project: string, waiting: boolean): string {
+  return waiting ? `A conversation in ${project} needs your answer.` : `A conversation is still running in ${project}.`;
 }
 
 export function removalConfirm(conversations: readonly HomeConversation[], roots: readonly string[], project: string): { conversations: string[]; title: string; body: string; cancel: string; confirm: string } | null {
@@ -63,7 +67,7 @@ export function removalConfirm(conversations: readonly HomeConversation[], roots
   return {
     conversations: running.map(c => c.conversationId),
     title: `Stop the conversation and remove ${project}?`,
-    body: `${anotherConversation(project, running.every(c => c.phase === "permission"))} Doan stops it, then removes the project from the list. Files stay on disk.`,
+    body: `${aConversation(project, running.every(c => c.phase === "permission"))} Doan stops it, then removes the project from the list. Files stay on disk.`,
     cancel: "Cancel", confirm: "Stop and Remove",
   };
 }

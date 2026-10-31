@@ -105,7 +105,7 @@ test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions
   const sequence = ["Project:", "Remove preset", "Message", "Attach files", "Design presets", "Agent:", "Send", "Worktree:", "Open"].map(at);
   expect(sequence.every(index => index >= 0)).toBe(true);
   expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
-  expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Open</button></div>');
+  expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation">Open</button></div>');
 });
 
 test("near the limit a counter shows what is left; over it Send is disabled and the reason says to shorten", () => {

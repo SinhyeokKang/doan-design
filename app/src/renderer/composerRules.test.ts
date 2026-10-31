@@ -24,20 +24,16 @@ describe("composerShape", () => {
 
 describe("composerAction", () => {
   test("Send while nothing runs", () => {
-    expect(composerAction(false, "", 0)).toBe("send");
-    expect(composerAction(false, "Draw it", 0)).toBe("send");
+    expect(composerAction(false, "")).toBe("send");
+    expect(composerAction(false, "Draw it")).toBe("send");
   });
   test("while a turn runs: Stop with an empty field, Queue with text", () => {
-    expect(composerAction(true, "", 0)).toBe("stop");
-    expect(composerAction(true, "  \n", 0)).toBe("stop");
-    expect(composerAction(true, "Also the caption", 0)).toBe("queue");
-  });
-  test("queued messages do not turn an empty field's Stop into anything else", () => {
-    expect(composerAction(true, "", 2)).toBe("stop");
-    expect(composerAction(true, "More", 2)).toBe("queue");
+    expect(composerAction(true, "")).toBe("stop");
+    expect(composerAction(true, "  \n")).toBe("stop");
+    expect(composerAction(true, "Also the caption")).toBe("queue");
   });
   test("a chip alone is content: the composed request is not empty", () => {
-    expect(composerAction(true, "Look at the attached files.", 0)).toBe("queue");
+    expect(composerAction(true, "Look at the attached files.")).toBe("queue");
   });
 });
 

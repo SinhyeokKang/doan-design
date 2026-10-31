@@ -71,12 +71,12 @@ test("removing a project with a running Home conversation asks first and names t
   expect(removalConfirm(list, ["/r/doan", "/r/wt/buzz-home"], "doan-design")).toEqual({
     conversations: ["c1", "c2"],
     title: "Stop the conversation and remove doan-design?",
-    body: "Another conversation is still running in doan-design. Doan stops it, then removes the project from the list. Files stay on disk.",
+    body: "A conversation is still running in doan-design. Doan stops it, then removes the project from the list. Files stay on disk.",
     cancel: "Cancel", confirm: "Stop and Remove",
   });
   // Every one waiting for an answer: the confirmation says so (spec decision 18).
   expect(removalConfirm([conv({ conversationId: "c2", root: "/r/doan", phase: "permission" })], ["/r/doan"], "doan-design")?.body)
-    .toBe("Another conversation in doan-design needs your answer. Doan stops it, then removes the project from the list. Files stay on disk.");
+    .toBe("A conversation in doan-design needs your answer. Doan stops it, then removes the project from the list. Files stay on disk.");
   expect(removalConfirm([conv({ phase: "done", finishedAt: 1 })], ["/r/doan"], "doan-design")).toBeNull();
   expect(removalConfirm(list, ["/r/other"], "other")).toBeNull();
 });
