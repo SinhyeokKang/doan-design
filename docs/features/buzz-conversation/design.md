@@ -62,7 +62,8 @@
 ### 2.1 목록과 안 본 종료
 
 - `conversation:list {root}`는 그 root의 index 항목마다 요약을 돌려준다.
-  - 요약 항목: `conversationId`, `canvas?`, `title`, `state`, `owner`, `provider`, `model?`, `effort?`, `fromHome`, `phase`, `unseen`, `queued`, `lastActivityAt`.
+  - 요약 항목: `conversationId`, `canvas?`, `title`, `state`, `owner`, `provider`, `model?`, `effort?`, `fromHome`, `phase`, `unseen`, `queued`, `lastActivityAt`, `preview`.
+  - `preview`(buzz-project 캔버스 행·대화 드롭다운용): 응답 대기면 "Needs your answer: " + 권한 요약, 실행 중이면 마지막 활동 요약(명령은 "Running a command"), 그 밖에는 마지막 에이전트 메시지에서 Markdown 기호를 걷어낸 일반 텍스트. 한 줄로 접은 공백, 길이 상한(구현 때 상수로 정함). 원시 HTML은 텍스트로만 남는다.
   - legacy external 소유 대화도 index에 있으므로 목록에 들어간다.
   - `phase`는 실행 중·응답 대기(답하지 않은 권한 요청)·끝남이다. live 상태와 기록 fold로 정한다.
   - 기록 하나를 읽지 못하면(손상, 256 MiB 초과, 새 빌드의 줄) 그 항목만 `readError`로 돌려준다.
@@ -262,7 +263,7 @@
 
 | 함수 | 위치(예정) | 고정할 것 |
 |---|---|---|
-| `conversationSummary(metadata, folded, live)` | main | phase, unseen(마지막 seq, crash 접힘, 키 없음=본 것), queued, lastActivityAt, readError |
+| `conversationSummary(metadata, folded, live)` | main | phase, unseen(마지막 seq, crash 접힘, 키 없음=본 것), queued, lastActivityAt, readError, preview(상태별 선택, Markdown 걷어내기, 명령 숨김, 길이 상한) |
 | `clampSeen(seq, lastSeq, current)` | main | 마지막 seq로 자르기, 단조 증가 |
 | `projectBusy(entries, live, root, exceptId, now)` | main | 수락 전 준비, 실행·응답 대기, grace 창, 턴 도중 묶인 대화, 다른 root·캔버스 대화 무시 |
 | `validateSendExtras(request, provider, owner, models, attachments)` | main(ipc) | 시작과 같은 규칙, 공급자 필드 거절, legacy external 거절 |
