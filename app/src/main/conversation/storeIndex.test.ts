@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ConversationStore, parseIndex, type ConversationMetadata } from "./store";
+import { ConversationStore, parseIndex, restoreEntries, type ConversationMetadata } from "./store";
 const hooks = vi.hoisted(() => ({ failRename: false, journals: [] as string[] }));
 vi.mock("node:fs", async original => {
   const fs = await original<typeof import("node:fs")>();
@@ -258,5 +258,21 @@ describe("seen marker in index v2", () => {
   it.each([-1, 1.5, "3", null, Number.MAX_SAFE_INTEGER + 1])("rejects seenSeq %s", seenSeq => {
     const copy = JSON.parse(fixture("index-v2.json")); copy.conversations[0].seenSeq = seenSeq;
     expect(parseIndex(JSON.stringify(copy))).toEqual({ ok: false, code: "invalid" });
+  });
+});
+
+describe("restoreEntries", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  it("swaps the archived conversation with the current one of its canvas and leaves the rest", () => {
+    const current = { ...legacy("now"), canvas }, archived = { ...legacy("then"), canvas, state: "archived" as const }, other = legacy("other"), older = { ...legacy("older"), canvas, state: "archived" as const };
+    expect(restoreEntries([current, archived, other, older], "then")).toEqual({ entries: [{ ...current, state: "archived" }, { ...archived, state: "current" }, other, older], replaced: ["now"] });
+  });
+  it("matches the canvas by ID across a move", () => {
+    const current = { ...legacy("now"), canvas: { path: ".doan/canvases/moved.html", id: "a" } }, archived = { ...legacy("then"), canvas, state: "archived" as const };
+    expect(restoreEntries([current, archived], "then")?.replaced).toEqual(["now"]);
+  });
+  it("refuses a target that is not an archived canvas conversation", () => {
+    expect(restoreEntries([legacy("now")], "now")).toBeNull();
+    expect(restoreEntries([legacy("now")], "missing")).toBeNull();
   });
 });

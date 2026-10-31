@@ -1,5 +1,5 @@
-import { expect, it, vi } from "vitest";
-import { conversationHandler } from "./ipc";
+import { describe, expect, it, vi } from "vitest";
+import { conversationHandler, validateSendExtras } from "./ipc";
 import { ConversationService, type Prepare } from "./service";
 import { ModelCatalog, type ModelOption } from "./models";
 import { AttachmentStore } from "../attachments";
@@ -123,4 +123,34 @@ it("refuses a start whose attachment vanished while the runner was opening, befo
     expect(await starting).toEqual({ error: "attachment_missing", missing: [added.attachment.id] });
     expect(store.list()).toEqual([]);
   } finally { rmSync(dir, { recursive: true, force: true }); rmSync(files, { recursive: true, force: true }); }
+});
+
+describe("validateSendExtras", () => {
+  const records = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
+  const catalog = { accepts: vi.fn((root: string, runtime: string, model: string, effort?: string) => root === "/repo" && runtime === "claude" && model === "sonnet" && (effort === undefined || effort === "high")) };
+  const attachments = { resolve: vi.fn((value: unknown) => Array.isArray(value) && value.every(v => v.id === "a") ? { ok: true, records } : Array.isArray(value) && value.some(v => v.id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: false, error: "bad_request" }) };
+  const home = { models: catalog as unknown as ModelCatalog, attachments: attachments as unknown as AttachmentStore };
+  const check = (request: Record<string, unknown>, owner: "doan" | "legacy-external" = "doan") => { try { return validateSendExtras(request, "/repo", "claude", owner, home); } catch (error) { return { error: (error as Error).message, ...("missing" in (error as object) ? { missing: (error as { missing: string[] }).missing } : {}) }; } };
+  it("passes nothing through when nothing changed", () => {
+    expect(check({ conversationId: "c", text: "x" })).toEqual({ ids: [] });
+  });
+  it("accepts a model and effort from this run's list for the conversation's provider", () => {
+    expect(check({ model: "sonnet", effort: "high" })).toEqual({ model: "sonnet", effort: "high", ids: [] });
+    expect(check({ model: "sonnet" })).toEqual({ model: "sonnet", ids: [] });
+    for (const bad of [{ model: "opus" }, { model: "sonnet", effort: "max" }, { effort: "high" }, { model: "" }, { model: 1 }]) expect(check(bad)).toEqual({ error: "bad_request" });
+  });
+  it("resolves main-issued attachment ids and names missing ones", () => {
+    expect(check({ attachments: [{ id: "a" }] })).toEqual({ ids: [{ id: "a" }], attachments: records });
+    expect(check({ attachments: [{ id: "gone" }] })).toEqual({ error: "attachment_missing", missing: ["gone"] });
+    expect(check({ attachments: [{ id: 1 }] })).toEqual({ error: "bad_request" });
+    expect(check({ attachments: "a" })).toEqual({ error: "bad_request" });
+  });
+  it("refuses a provider field: the conversation's provider is fixed", () => {
+    expect(check({ runtime: "claude" })).toEqual({ error: "bad_request" });
+    expect(check({ provider: "codex", model: "sonnet" })).toEqual({ error: "bad_request" });
+  });
+  it("refuses any of the three on a legacy external conversation", () => {
+    for (const extra of [{ model: "sonnet" }, { effort: "high" }, { attachments: [{ id: "a" }] }]) expect(check(extra, "legacy-external")).toEqual({ error: "bad_request" });
+    expect(check({ text: "x" }, "legacy-external")).toEqual({ ids: [] });
+  });
 });
