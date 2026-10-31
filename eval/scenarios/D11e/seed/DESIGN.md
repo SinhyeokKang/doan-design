@@ -4,6 +4,8 @@
 
 Every value comes from `styles/tokens.css`; the shipped components are in `components/` (button, input, card). This document records what that code does today.
 
+The reference canvas for all token groups and components is `.doan/ds/design-system.html`.
+
 ## Colors
 
 | Token | Where the code uses it |

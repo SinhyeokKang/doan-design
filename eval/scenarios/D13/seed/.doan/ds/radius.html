@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="radius">
+  <meta name="doan:width" content="1600">
+  <title>Radius</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+    .row { display: flex; gap: var(--space-4); margin-top: var(--space-4); }
+    .shape { width: 96px; height: 64px; border: 1px solid var(--color-text-muted); border-radius: var(--radius); background: var(--color-surface); }
+  </style>
+</head>
+<body>
+<p>Radius reference for Ledgerly, based on styles/tokens.css. Sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="radius" data-doan-title="Radius" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="radius-heading">Radius</h1>
+<div class="row" data-doan-id="shape-radius"><span class="shape"></span><code>--radius</code> on cards, inputs and buttons</div>
+<p data-doan-id="depth-flat">No component uses a shadow.</p>
+</section>
+</main></body></html>
