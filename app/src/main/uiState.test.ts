@@ -237,3 +237,12 @@ test("migrates a legacy tab on read and drops it when saving the page section", 
   expect(onDisk(path).settingsSection).toBe("agents");
   expect(onDisk(path)).not.toHaveProperty("settingsTab");
 });
+
+test("round-trips a project's closed sidebar groups and drops unknown ones on save", async () => {
+  const path = file();
+  const store = createUiStateStore(path, () => ["/repo"]);
+  expect(store.save({ ...workspace(".doan/ds/color.html"), shellProjects: { common: { roots: ["/repo"], expanded: true, groups: { ds: false, canvases: true, other: false } } } })).toBe(true);
+  store.flushSync();
+  expect(onDisk(path).shellProjects).toEqual({ common: { roots: ["/repo"], expanded: true, groups: { ds: false } } });
+  expect((await store.read())?.shellProjects?.common?.groups).toEqual({ ds: false });
+});

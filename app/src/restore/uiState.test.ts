@@ -244,3 +244,25 @@ test("a saved Settings section wins over the old settingsTab, and an unknown one
   // The old name is only read: the section is the one field written back.
   expect(parse({ screen: "home", settingsTab: "connections" })).not.toHaveProperty("settingsTab");
 });
+
+test("keeps a sidebar project's closed groups under their fixed ids", () => {
+  const shellProjects = { common: { roots: ["/repo/a"], expanded: true, groups: { ds: false, canvases: false } } };
+  expect(parse({ screen: "home", shellProjects })?.shellProjects).toEqual(shellProjects);
+  expect(parse({ screen: "home", shellProjects: { common: { roots: ["/repo/a"], expanded: false, groups: { canvases: false } } } })?.shellProjects?.common?.groups).toEqual({ canvases: false });
+});
+
+test.each([
+  ["an open flag", { ds: true }],
+  ["an unknown group", { assets: false, Canvases: false }],
+  ["a label instead of an id", { "Design system": false }],
+  ["a string", { ds: "false" }],
+  ["an empty record", {}],
+  ["an array", [false]],
+  ["null", null],
+])("drops sidebar groups that close nothing (%s), keeping the project", (_, groups) => {
+  expect(parse({ screen: "home", shellProjects: { common: { roots: ["/repo/a"], expanded: true, groups } } })?.shellProjects).toEqual({ common: { roots: ["/repo/a"], expanded: true } });
+});
+
+test("keeps a known closed group beside an unknown one", () => {
+  expect(parse({ screen: "home", shellProjects: { common: { roots: ["/repo/a"], expanded: true, groups: { ds: false, ds2: false, canvases: 0 } } } })?.shellProjects?.common?.groups).toEqual({ ds: false });
+});

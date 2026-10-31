@@ -43,6 +43,8 @@ test("filter tabs: All, Canvases and Frames, All chosen and the one Tab stop, ea
   const tabs = [...html.matchAll(/<button[^>]*role="tab"[^>]*>.*?<\/button>/g)].map(match => match[0]);
   expect(tabs.map(tab => tab.replace(/<[^>]+>/g, ""))).toEqual(["All", "Canvases", "Frames"]);
   expect(tabs.map(tab => tab.match(/aria-selected="(\w+)"/)?.[1])).toEqual(["true", "false", "false"]);
+  // The Canvases tab holds both kinds of canvas, so it takes the plain canvas icon.
+  expect(tabs[1]).toMatch(/lucide-panels-top-left/);
   expect(tabs.map(tab => tab.match(/tabindex="(-?\d)"/)?.[1])).toEqual(["0", "-1", "-1"]);
   for (const tab of tabs) expect(tab).toContain(`aria-controls="${listbox}"`);
   // The list scrolls but is not a Tab stop: the input and the tab list are.
@@ -76,9 +78,19 @@ test("result rows: an icon, the name with its matched letters underlined, and a 
   expect(first).toContain('<span class="qo-name" title="Card declined"><mark class="qo-match">Card</mark> declined</span>');
   expect(first).toContain('<span class="qo-detail"><span class="qo-context" title="Billing &amp; plans › 4">Billing &amp; plans › 4</span></span>');
   expect(second).toContain('aria-label="Team scorecard — reports/team-scorecard.html · acme-web · main"');
-  expect(second).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-palette/);
+  expect(second).toMatch(/<span class="qo-icon" aria-hidden="true"><svg[^>]*lucide-panels-top-left/);
   expect(second).toContain('<span class="qo-name" title="Team scorecard">Team score<mark class="qo-match">card</mark></span>');
   expect(second).toContain('title="reports/team-scorecard.html">reports/team-scorecard.html</span>');
+});
+
+test("a canvas result takes its directory's icon: SwatchBook under .doan/ds/, PanelsTopLeft under .doan/canvases/", () => {
+  const ds: SearchResult = { kind: "canvas", root: "/code/acme-web", path: ".doan/ds/button.html", canvasLabel: "Button", label: "Button" };
+  const canvas: SearchResult = { kind: "canvas", root: "/code/acme-web", path: ".doan/canvases/ds/button.html", canvasLabel: "Button draft", label: "Button draft" };
+  const html = renderToStaticMarkup(<QuickOpenList id="r" query="" groups={groupResults([ds, canvas], projectWhere(entries))} active={0} pick={() => {}} activate={() => {}} />);
+  const icons = [...html.matchAll(/<span class="qo-icon" aria-hidden="true"><svg[^>]*class="([^"]*)"/g)].map(match => match[1]);
+  expect(icons[0]).toContain("lucide-swatch-book");
+  expect(icons[1]).toContain("lucide-panels-top-left");
+  expect(html).not.toContain("lucide-palette");
 });
 
 test("projects are named by their repository with the branch; a folder outside git by its name", () => {
