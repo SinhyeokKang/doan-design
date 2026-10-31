@@ -255,3 +255,14 @@ it("re-issues a sent pasted image from its userData path without ever deleting i
   expect(f.store.remove({ id: again.id })).toBe(true);
   expect(existsSync(pasted.path)).toBe(true);
 });
+// buzz-conversation review: a queued message removed before it went out takes its pasted image with it.
+it("discards a queued paste that main held and only forgets a queued local file", () => {
+  const f = fixture();
+  const local = join(f.files, "a.txt"); writeFileSync(local, "a");
+  const file = ok(f.store.addPaths({ paths: [local] })![0]), pasted = ok(f.store.addPasted({ bytes: new Uint8Array(PNG) }));
+  const ids = [{ id: file.id }, { id: pasted.id }];
+  f.store.markSent(ids); f.store.consume(ids);
+  f.store.discard([file.id, pasted.id]);
+  expect(existsSync(local)).toBe(true); expect(existsSync(pasted.path)).toBe(false);
+  expect(f.store.recheck({ ids: [file.id, pasted.id] })).toEqual([{ id: file.id, ok: false, error: "not_found" }, { id: pasted.id, ok: false, error: "not_found" }]);
+});

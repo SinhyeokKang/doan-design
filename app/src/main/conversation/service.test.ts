@@ -1082,3 +1082,97 @@ describe("queue", () => {
     expect(restarted.takeDraft(id)).toMatchObject({ text: "one", reason: "restarted" });
   });
 });
+
+// buzz-conversation review fixes: pending judgements, refused sends with a queue, crashes and stops while holding.
+describe("queue and judgement review fixes", () => {
+  const a = { path: ".doan/canvases/a.html", id: "a" };
+  const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
+  const userMessages = (h: ReturnType<typeof homeFixture>, id: string) => h.store.read(id).filter(e => e.type === "user.message");
+  it("keeps the root while a refused send carries a turn not judged yet, so another conversation's canvas never goes to it", async () => {
+    const h = homeFixture();
+    const first = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(first, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
+    await expect(h.service.send(first, "again", [])).rejects.toThrow("not_logged_in");
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    h.service.refreshed("/repo", []);
+    const second = (await h.service.start(homeRequest)).conversationId;
+    h.listed.push({ path: ".doan/canvases/made.html" });
+    h.service.refreshed("/repo", [".doan/canvases/made.html"]);
+    h.service.receive(second, { type: "turn.done" }); h.service.refreshed("/repo", []);
+    expect(h.store.list().find(m => m.conversationId === second)!.canvas).toEqual({ path: ".doan/canvases/made.html" });
+    expect(h.store.list().find(m => m.conversationId === first)!.canvas).toBeUndefined();
+  });
+  it("hands back what was queued behind a send that was refused before acceptance", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    let refuse!: () => void;
+    h.prepare.mockImplementationOnce(() => new Promise((_resolve, reject) => { refuse = () => reject(new Error("not_logged_in")); }));
+    const sending = h.service.send(id, "again", []);
+    await vi.waitFor(() => expect(refuse).toBeDefined());
+    h.service.queue(id, { text: "behind it", anchors: [] });
+    refuse(); await expect(sending).rejects.toThrow("not_logged_in");
+    expect(h.service.list("/repo")[0]).toMatchObject({ queued: 0, returnedDraft: true });
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "behind it", reason: "not_logged_in" });
+  });
+  it("hands back, in order, the queue and what was queued while its send was refused", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "one", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    h.service.queue(id, { text: "two", anchors: [] });
+    h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
+    h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(h.service.list("/repo")[0]).toMatchObject({ returnedDraft: true }));
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "one\n\ntwo", reason: "not_logged_in" });
+    expect(h.service.list("/repo")[0]!.queued).toBe(0);
+  });
+  it("keeps a queue that is on its way out in drafts.json until its send is accepted", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "one", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    // The app dies while the queued send waits for the previous process.
+    expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toMatchObject({ text: "one", reason: "restarted" });
+    h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(2));
+    expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toBeUndefined();
+  });
+  it("refuses a direct send while the queue is about to go out, so the queued messages keep their place", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    h.service.queue(id, { text: "queued first", anchors: [] });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await expect(h.service.send(id, "typed after", [])).rejects.toThrow("busy");
+    h.service.refreshed("/repo", []);
+    await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(2));
+    expect(userMessages(h, id).at(-1)).toMatchObject({ text: "queued first" });
+  });
+  it("hands the queue back as interrupted when Stop comes while it waits to go out", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await h.service.interrupt(id);
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "next", reason: "interrupted" });
+    h.service.refreshed("/repo", []);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(userMessages(h, id)).toHaveLength(1);
+    await h.service.start(homeRequest);
+  });
+  it("lets a removed queued message's attachments go and releases a returned draft's ids", async () => {
+    const files = { reclaim: vi.fn(() => ({ recheck: () => [], sent: () => {} })), consume: vi.fn(), discard: vi.fn(), release: vi.fn() };
+    const h = homeFixture([], { files });
+    const id = (await h.service.start(canvasStart)).conversationId;
+    const record = { name: "a.png", size: 1, kind: "image" as const, path: "/Users/me/a.png" };
+    const removed = h.service.queue(id, { text: "gone", anchors: [], attachments: [record], ids: ["x"] });
+    h.service.removeQueued(id, removed.itemId);
+    expect(files.discard).toHaveBeenCalledWith(["x"]);
+    h.service.queue(id, { text: "kept", anchors: [], attachments: [record], ids: ["y"] });
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited" });
+    expect(files.release).toHaveBeenCalledWith(["y"]);
+  });
+});
