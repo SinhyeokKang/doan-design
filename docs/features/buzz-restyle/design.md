@@ -7,7 +7,7 @@
 사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [승격된 구조 계약](../../ARCHITECTURE.md#7-app-stack-electron--typescript)가 우선한다. Shell 구현·검증 결과는 [DESIGN.md](../../DESIGN.md)의 2026-10-27 완료 기록을 따른다.
 
 - Shell/LNB는 투명·블러, 본문만 흰 Panel이다. LNB의 별도 Panel·점 격자·violet 선택은 사용하지 않는다.
-- LNB 프로젝트→캔버스 IA와 프로젝트 메뉴·워크트리 선택은 buzz-shell이 맡는다. buzz-project는 Overview 본문, buzz-home은 프로젝트 선택 전 본문, buzz-conversation은 오른쪽 패널 표시 정책과 대화 UI를 맡는다.
+- LNB 프로젝트→캔버스 IA와 프로젝트 메뉴·워크트리 선택은 buzz-shell이 맡는다. buzz-project는 Overview 본문, buzz-home은 프로젝트 선택 전 본문, buzz-conversation은 대화 공용 UI, buzz-canvas-conversation은 오른쪽 패널 표시 정책과 캔버스 대화를 맡는다.
 - Geist는 앱 전역 공통 폰트로 로컬 제공하며 시스템 스택은 대체 글꼴이다. 공통 칩 기본값은 12px·상하 2px·좌우 6px, 워크트리는 translucent 변형이다.
 - 현재 프로젝트는 접을 수 없다. 브랜치 뱃지는 읽기 전용이다. 우측 … 메뉴는 워크트리·Overview·Finder·설정·프로젝트 전체 등록 제거를 제공한다.
 - 이전/다음은 실행 중의 캔버스·워크트리·Overview 방문 기록이다. 전환 보호를 통과한 이동만 기록한다.
@@ -22,7 +22,7 @@ buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.do
 - 앱 설치만 한 사용자도 자기 에이전트에게 setup을 맡길 수 있도록 고정 CLI/MCP 인터페이스를 제공한다. 번들 CLI가 앱을 열고 같은 main 서비스·상태·완료 조건을 사용한다. 실제 계정 승인은 시스템 브라우저에서 사람이 한다.
 - Welcome만 accent 타원 그라디언트/alpha grain이다. 나머지는 AppShell 반투명 배경과 공통 프리미티브를 사용한다. lg 버튼 48px, notice 12px/16px·흰 elevation·동색 아이콘·spinner, Back arrow, 말줄임표 없는 문구를 승인했다.
 - 프로젝트 썸네일의 이름 해시·8색 규칙은 유지하며 연한 배경·진한 글자를 온보딩과 ShellSidebar에 공통 적용하도록 승인했다. 현재 ShellSidebar의 흰 글자/진한 배경은 아직 바뀌지 않았다.
-- 홈의 단일 대화 입력창·프로젝트 선택은 buzz-home 소유다. OAuth/보관은 별도 agent-auth, Canvas 대화 UI는 buzz-conversation이 맡는다. 새 온보딩의 FirstPrompt/Send 단계는 없다.
+- 홈의 단일 대화 입력창·프로젝트 선택은 buzz-home 소유다. OAuth/보관은 별도 agent-auth, Canvas 대화 UI는 buzz-canvas-conversation이 맡는다. 새 온보딩의 FirstPrompt/Send 단계는 없다.
 
 위 값은 자식의 **승인된 계획**이며 이미 구현된 공용 DS 값으로 보고하지 않는다. 세부 크기·상태·CLI/MCP 계약을 부모에 다시 복제하지 않는다.
 
@@ -112,16 +112,16 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 |---|---|
 | App shell — initial app-ui implementation (2026-10-22) | buzz-shell |
 | Select and inspect (2026-10-23) | 캔버스 부분 buzz-canvas, 인스펙터 부분 buzz-inspector, 표시 삭제 buzz-inspector |
-| Comments (2026-10-23) + comments-readability update | buzz-conversation (코멘트 UI를 걷어낼 때 절을 정리한다) |
+| Comments (2026-10-23) + comments-readability update | buzz-canvas-conversation (코멘트 UI를 걷어낼 때 절을 정리한다) |
 | Onboarding (2026-10-24) + app-setup update | buzz-onboarding |
 | Projects home (2026-10-25) + Cfix review round | buzz-home |
 | Design navigation (2026-10-25) + Final review follow-up | 트리/LNB는 buzz-shell에서 완료, Overview 본문 buzz-project, Quick Open buzz-search, 남은 표시 삭제 buzz-project |
 | Settings and Home setup (2026-10-25) | Settings buzz-settings, Home 설정 부분 buzz-home, 표시 삭제 buzz-settings |
 | UX audit recovery update (2026-10-25) | buzz-ds (툴팁·포커스 등 공용 수정) |
 | Revision continuity (2026-10-26) | buzz-canvas |
-| Comments Review (2026-10-26) | buzz-conversation (같음) |
-| Hand off dialog (2026-10-26) | buzz-conversation (같음) |
-| Feedback panel (2026-10-26) | buzz-conversation (같음) |
+| Comments Review (2026-10-26) | buzz-canvas-conversation (같음) |
+| Hand off dialog (2026-10-26) | buzz-canvas-conversation (같음) |
+| Feedback panel (2026-10-26) | buzz-project (Overview에서 Feedback 패널을 뺄 때 절을 정리한다) |
 
 ## 자식 feature 조사 메모
 
@@ -137,6 +137,16 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 - Buzz는 점 격자를 셸 바닥에만 두고, 읽기 패널은 불투명하게 둔다. doan의 캔버스 보드(`.area`, 지금 `--board-bg` + 16px 점)를 메인 `Panel` 안 불투명 보드로 둘지, 구현된 반투명 셸 배경이 비치는 영역으로 둘지는 `buzz-canvas`에서 묻는다.
 - 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 요소 피커의 선택 모드 표시는 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·violet이 많은 픽스처 캔버스 위에서 확인한다.
 - `color-scheme`을 dark에서 light로 바꾸면 다른 `color-scheme`을 가진 캔버스 iframe의 바탕 처리가 달라질 수 있다(POSTMORTEM 2026-10-25 예방 항목). iframe 미디어 선호와 computed `color-scheme`을 따로 확인한다.
+
+### 조사 메모: 프로젝트 대화와 Overview (`buzz-conversation`·`buzz-project`용, 2026-10-31)
+
+공식 문서·README·기사로 확인했고 실제 앱 화면은 보지 않았다. Claude Design 홈 배치는 서드파티 튜토리얼, Cursor Agents Window는 포럼 직원 답변, ChatGPT Projects는 검색 요약만 근거다. 화면 구성의 출발점은 사용자가 공유한 Aside 스크린샷(메인 대화, 왼쪽 채팅 목록, 오른쪽 보조 패널, 비면 capsule이고 줄바꿈되면 box가 되는 입력창)이며 Aside 문서는 확인하지 않았다.
+
+- 상태별 추천: Subframe은 저장소가 연결됐을 때만 “Import my design system…” 같은 starter prompt를 보이고, 누르면 입력창만 채운다([docs](https://docs.subframe.com/agent/overview.md)). Claude Design 관리자 가이드는 디자인 시스템이 없으면 결과가 평범하다고 적는다([support](https://support.claude.com/en/articles/14604406)).
+- 대화 목록과 진행 상태: v0는 프로젝트 하나에 채팅 여러 개를 붙이고 채팅 위에 연결된 프로젝트를 보인다([docs](https://www.v0.build/docs/projects)). Conductor는 project → workspace → session 계층이다([docs](https://www.conductor.build/docs/concepts/workspaces-and-branches)). Cursor는 Status로 묶으면 “Needs Attention”에 승인·질문 대기와 안 읽은 완료가 모인다([forum](https://forum.cursor.com/t/agents-approval-window/170388)). Subframe은 실행 중 애니메이션과 안 읽은 완료 점만 쓴다([docs](https://docs.subframe.com/agent/managing-chats.md)). 세 상태는 Doan LNB 슬롯 순서(권한 요청 → 작업 중 → 안 본 종료 점)와 같다.
+- 대화에서 산출물로 넘어가기: Lovable은 Chat 모드에서 변경이 필요하면 “Start building” 카드를 띄우고 사용자가 승인해야 Build로 넘어간다([docs](https://docs.lovable.dev/features/projects/chat.md)). 대화가 다른 페이지로 옮겨 가는 동작을 문서로 설명한 도구는 찾지 못했다. Doan이 정한다.
+- 셸 밖 세션: Codex 앱에는 CLI에서 진행 중인 작업이 앱에 보이지 않는다는 이슈가 있다([#21974](https://github.com/openai/codex/issues/21974)). Doan은 shell `doan check`가 `sessions.jsonl`에 캔버스와 세션을 연결해 두므로, 캔버스별 대화 목록에 터미널 세션을 넣을지 이 자식들이 정한다.
+- 캔버스 상태: Figma Dev Mode와 Doop은 승인 뒤 디자인이 바뀌면 자동으로 “Changed”/“Needs review”가 되고 사람이 확인해야 풀린다([Figma](https://help.figma.com/hc/en-us/articles/26781702258583), [Doop](https://github.com/kgoedecke/doop/wiki)). 코멘트를 걷어낸 뒤 캔버스 목록의 상태 표시를 정할 때 참고한다.
 
 ## 금지 표현 (모든 자식 공통, 2026-10-26 user)
 
