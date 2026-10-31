@@ -69,3 +69,4 @@
 - RL 완료(`03eeb451` test, `7bc4beed` feat; 앱 테스트 5226개, typecheck, build). retain. RL 리뷰 r1: Codex gpt-6-astra medium.
 - RL 리뷰 r1: 🔴 0, 🟡 2(빈 곳 클릭 뒤 행 제거가 포커스를 빼앗음, 같은 경로·다른 대화로 행 교체 시 썸네일 관찰 누락), ⚪ 1(주석). 리뷰 워커 release. RL 수정 r1 보냄.
 - RL 수정 r1(`1bb0876a` test 7개 red 확인, `6c4d8580` fix; 앱 테스트 5233개). 지휘자가 handoff와 커밋을 대조해 받아들였다. DOM 동작은 순수 함수로만 확인돼 DS/RT 몫.
+- RL 통합(`9e28c57f`…`b2c4ae12`). 통합 HEAD `b2c4ae12` verify PASS(`verify-int3.log`). RL release, 워크트리 삭제.
