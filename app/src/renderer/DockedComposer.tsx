@@ -71,10 +71,15 @@ export function DockedComposer(props: DockedComposerProps) {
   // Read by key in the render itself: after a switch, nothing from the previous conversation shows for a frame
   // (POSTMORTEM 2026-10-25).
   const draft = props.drafts.get(key) ?? EMPTY_DRAFT;
-  const [sending, setSending] = useState<{ key: string; generation: number } | null>(null);
-  const [refusals, setRefusals] = useState<ReadonlyMap<string, DockedRefusal>>(new Map());
-  const [dismissed, setDismissed] = useState(false);
-  const [highlight, setHighlight] = useState(0);
+  // Pending sends by draft key: a send in one conversation does not unlock or lock another (each reply settles only
+  // its own key and generation).
+  const [sending, setSending] = useState<ReadonlyMap<string, number>>(new Map());
+  // A refusal holds while its draft is the one that was refused; a change to that draft, by the person or the host
+  // (chips it added), drops it. A drop notice has no draft and lasts until the person edits.
+  const [refusals, setRefusals] = useState<ReadonlyMap<string, { refusal: DockedRefusal; draft?: DockedDraft }>>(new Map());
+  // The / list's Escape and highlight belong to the draft they were made on, so a switch reads them per key.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const [highlightAt, setHighlightAt] = useState<{ key: string; index: number }>({ key, index: 0 });
   const [announcement, setAnnouncement] = useState("");
   const generation = useRef(0);
   // The key on screen when a reply lands, which may differ from the one the send left from.
@@ -84,8 +89,15 @@ export function DockedComposer(props: DockedComposerProps) {
   const hostSawBusy = useRef(new Set<string>());
   const listId = useId(), reasonId = `${listId}-reason`;
 
-  const isSending = sending?.key === key;
-  const refusal = refusals.get(key) ?? null;
+  const isSending = sending.has(key);
+  const held = refusals.get(key);
+  const refusal = held && (!held.draft || sameDraft(held.draft, draft)) ? held.refusal : null;
+  const dismissed = dismissedKey === key;
+  const highlight = highlightAt.key === key ? highlightAt.index : 0;
+  const setHighlight = (index: number) => setHighlightAt({ key, index });
+  // Chips the host added (Attach, paste, drop) make a box as typing does (design §3.2); the drawn shape follows the
+  // rule at once and the stored one catches up below.
+  const shape = composerShape(draft.shape, { empty: draft.text === "", chips: draft.attachments.length + (draft.preset ? 1 : 0), overflows: draft.text.includes("\n") });
   // A busy refusal stands in for the host's busy until the host has reported the busy conversation itself; once the
   // host's busy has shown and cleared again, the refusal no longer holds Send.
   if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
@@ -118,12 +130,13 @@ export function DockedComposer(props: DockedComposerProps) {
   // A capsule becomes a box once its text wraps at the capsule's own width (design §3.2). A box is never measured: it
   // returns to a capsule only when emptied, so the narrower capsule's wrap cannot flip it back and forth.
   useLayoutEffect(() => {
+    if (shape !== draft.shape) { edit({}, key); return; }
     const node = field.current;
-    if (draft.shape !== "capsule" || !node || draft.text === "") return;
+    if (shape !== "capsule" || !node || draft.text === "") return;
     const line = parseFloat(getComputedStyle(node).lineHeight);
     if (line > 0 && node.scrollHeight > line * 1.5) edit({}, key, true);
-  }, [key, draft.text, draft.shape]);
-  useEffect(() => { if (draft.text === "") setDismissed(false); }, [draft.text]);
+  }, [key, draft.text, draft.shape, shape]);
+  useEffect(() => { if (draft.text === "") setDismissedKey(current => current === key ? null : current); }, [draft.text]);
   useEffect(() => { setHighlight(0); }, [slash]);
 
   const focus = (after: FocusAction) => queueMicrotask(() => {
@@ -151,7 +164,7 @@ export function DockedComposer(props: DockedComposerProps) {
   };
   const drop = useComposerDrop({ blocked: () => isSending, onFiles: files => props.onFiles(files, false), onNotice: text => setRefusals(previous => {
     const next = new Map(previous);
-    if (text === null) next.delete(key); else next.set(key, { kind: "notice", text });
+    if (text === null) next.delete(key); else next.set(key, { refusal: { kind: "notice", text } });
     return next;
   }) });
   const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -166,9 +179,9 @@ export function DockedComposer(props: DockedComposerProps) {
     if (action === "stop" || !availability.enabled) return;
     const at = key, sent = draft, mine = ++generation.current;
     const request: DockedRequest = { text: composed, anchors: draft.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []) };
-    setSending({ key: at, generation: mine });
+    setSending(current => new Map(current).set(at, mine));
     const outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
-    setSending(current => current?.generation === mine ? null : current);
+    setSending(current => { if (current.get(at) !== mine) return current; const next = new Map(current); next.delete(at); return next; });
     if ("ok" in outcome) {
       clearRefusal(at);
       // The field empties and returns to a capsule only when the person did not change the draft while it was sent.
@@ -184,7 +197,7 @@ export function DockedComposer(props: DockedComposerProps) {
       });
     } else {
       const provider = mode.kind === "new" ? props.provider : mode.provider;
-      if (provider) setRefusals(previous => new Map(previous).set(at, dockedRefusal(outcome.error, mode, provider, props.project)));
+      if (provider) setRefusals(previous => new Map(previous).set(at, { refusal: dockedRefusal(outcome.error, mode, provider, props.project), draft: sent }));
     }
     if (at === shown.current) focus({ kind: "sent" });
   };
@@ -195,7 +208,7 @@ export function DockedComposer(props: DockedComposerProps) {
       if (step?.kind === "move") { event.preventDefault(); setHighlight(step.highlight); return true; }
       if (step?.kind === "pick") { event.preventDefault(); const row = slashRows[highlight]; if (row) choosePreset(row.id, true); return true; }
       // Escape closes the list only; there is no shortcut that stops the turn (spec decision 9).
-      if (step?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissed(step.dismiss); return true; }
+      if (step?.kind === "close") { if (event.key === "Escape") event.preventDefault(); setDismissedKey(step.dismiss ? key : null); return true; }
     }
     if (event.key === "Backspace" && removeChip(-1, "backspace")) { event.preventDefault(); return true; }
     return false;
@@ -204,8 +217,9 @@ export function DockedComposer(props: DockedComposerProps) {
   if (props.canvasGone || refusal?.kind === "gone") return <div className="canvas-gone" role="status"><AlertIcon /><span>{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;
   const notice = refusal?.kind === "notice" ? refusal.text : null;
+  // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = reason ? reasonId : undefined;
-  return <div className="docked" data-shape={draft.shape} {...drop.handlers}>
+  return <div className="docked" data-shape={shape} {...drop.handlers}>
     {props.queued.length > 0 && <div className="queue" role="list" aria-label="Queued messages">{props.queued.map(item =>
       <div key={item.id} className="queue-item" role="listitem"><Clock aria-hidden="true" /><span className="queue-text">{item.text}</span>
         <button type="button" className="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" onClick={() => props.onRemoveQueued(item.id)}><X aria-hidden="true" /></button></div>)}</div>}
@@ -231,7 +245,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} />}
     </div>
     {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice}</span></div>}
-    {!notice && reason && (reason.alert
+    {reason && (reason.alert
       ? <div className="doan-notice error doan-panel composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}

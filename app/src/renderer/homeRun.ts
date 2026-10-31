@@ -80,6 +80,7 @@ export class HomeRun {
   // Conversations from an earlier run taken from the list: a turn left unfinished there was folded by main.
   private claimed = new Set<string>();
   private claiming = new Set<string>();
+  private histories = new Map<string, Promise<{ events: ConversationEvent[] } | null>>();
   // The person's own navigations and canvas opens, counted from the start of the run (design §4.5, §7).
   private moves = 0;
   private canvasOpens = 0;
@@ -145,14 +146,19 @@ export class HomeRun {
     const { conversationId } = result;
     this.extras.set(conversationId, { atStart, checked: [], canvasOpens, toasted: null, opened: false });
     this.track(conversationId);
-    this.conversations = [...this.conversations, { conversationId, root: request.root, provider: request.runtime, phase: "starting" }];
-    this.strips = { ...this.strips, [conversationId]: { kind: "starting" } };
+    // The list and its history read may have registered this conversation before the reply (POSTMORTEM 2026-10-26):
+    // it becomes this run's own, once.
+    this.claimed.delete(conversationId);
+    if (!this.conversations.some(item => item.conversationId === conversationId)) {
+      this.conversations = [...this.conversations, { conversationId, root: request.root, provider: request.runtime, phase: "starting" }];
+      this.strips = { ...this.strips, [conversationId]: { kind: "starting" } };
+    }
     this.refresh(conversationId);
-    void window.doan.readConversation({ conversationId }).then(read => {
-      if ("error" in read) return;
+    void this.history(conversationId).then(read => {
+      if (!read) return;
       this.events.set(conversationId, mergeConversationEvents(read.events, this.events.get(conversationId) ?? [], conversationId));
       this.refresh(conversationId);
-    }).catch(console.error);
+    });
     this.lastRequests = rememberRequest(this.lastRequests, { ...last, conversationId });
     this.host.sent(request);
     // The person moved while the start was pending, or is no longer on Home: the window stays where they are.
@@ -267,14 +273,16 @@ export class HomeRun {
   }
   strip(root: string | null): { conversation: HomeConversation; state: StripState } | null {
     if (!root) return null;
-    let best: { conversation: HomeConversation; state: StripState } | null = null;
-    // The strongest state first; among equals the latest, as the strip showed one conversation before the list.
+    let best: { conversation: HomeConversation; state: StripState; at: string } | null = null;
+    // The strongest state first; among equals the latest activity (stripFromList's rule), so the order the history
+    // reads finished in does not decide. Ties keep the later registration.
     for (const conversation of this.conversations) {
       const state = this.strips[conversation.conversationId];
       if (conversation.root !== root || this.dismissed.has(conversation.conversationId) || !state) continue;
-      if (!best || RANK[state.kind] >= RANK[best.state.kind]) best = { conversation, state };
+      const at = this.activityAt(conversation.conversationId);
+      if (!best || RANK[state.kind] > RANK[best.state.kind] || (RANK[state.kind] === RANK[best.state.kind] && at >= best.at)) best = { conversation, state, at };
     }
-    return best;
+    return best && { conversation: best.conversation, state: best.state };
   }
 
   // A running conversation is stopped first, and only after the person agrees (design §7.5).
@@ -355,15 +363,31 @@ export class HomeRun {
       if (this.claiming.has(id)) continue;
       this.claiming.add(id);
       this.track(id);
-      void window.doan.readConversation({ conversationId: id }).then(read => {
+      void this.history(id).then(read => {
         this.claiming.delete(id);
-        if ("error" in read || this.conversations.some(item => item.conversationId === id)) return;
+        if (!read || this.conversations.some(item => item.conversationId === id)) return;
         this.events.set(id, mergeConversationEvents(read.events, this.events.get(id) ?? [], id));
         this.claimed.add(id);
         this.conversations = [...this.conversations, { conversationId: id, root, provider: summary.provider, phase: "starting", ...(summary.canvas ? { canvas: summary.canvas.path } : {}) }];
         this.refresh(id);
-      }).catch(() => { this.claiming.delete(id); });
+      });
     }
+  }
+  // One history read per conversation in this run, shared by a start's reply and a list that named it first; later
+  // events arrive through event().
+  private history(conversationId: string): Promise<{ events: ConversationEvent[] } | null> {
+    let read = this.histories.get(conversationId);
+    if (!read) {
+      read = window.doan.readConversation({ conversationId }).then(reply => "error" in reply ? null : reply, () => null);
+      this.histories.set(conversationId, read);
+    }
+    return read;
+  }
+  // The latest activity known for a conversation: its list summary's, or a newer event of this run.
+  private activityAt(conversationId: string): string {
+    const listed = this.summary(conversationId)?.lastActivityAt ?? "";
+    const live = this.events.get(conversationId)?.at(-1)?.at ?? "";
+    return live > listed ? live : listed;
   }
   // The list with this run's live state over it: a conversation the list does not have yet, and the phase events
   // already told (the list lags behind them).
@@ -426,9 +450,11 @@ export class HomeRun {
     const records = message.attachments ?? [];
     const { preset, body } = splitRequest(message.text, records.length);
     const issued = records.length ? await window.doan.attachmentsFromPaths(records.map(record => record.path)).catch(() => null) : [];
+    const thumbnails: Record<string, Uint8Array> = {};
     const attachments = records.map((record, i): AttachmentDraft => {
       const result = issued?.[i];
       const key = crypto.randomUUID();
+      if (result?.ok && result.attachment.thumbnail) thumbnails[key] = result.attachment.thumbnail;
       if (result?.ok) return { key, id: result.attachment.id, name: result.attachment.name, kind: result.attachment.kind, pasted: result.attachment.pasted, status: "ready", size: result.attachment.size, path: result.attachment.path };
       return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", size: record.size, path: record.path };
     });
@@ -436,7 +462,7 @@ export class HomeRun {
     const provider = summary?.provider ?? this.conversations.find(item => item.conversationId === conversationId)?.provider;
     if (!provider) return null;
     // The preset comes back by id; Home's list fills in the rest when it has it.
-    return { root, text: body, preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, provider, model: summary?.model ?? null, effort: summary?.effort ?? null };
+    return { root, text: body, preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, provider, model: summary?.model ?? null, effort: summary?.effort ?? null, ...(Object.keys(thumbnails).length ? { thumbnails } : {}) };
   }
   private restoreTo(request: LastRequest): void {
     this.restore = { request, seq: (this.restore?.seq ?? 0) + 1 };

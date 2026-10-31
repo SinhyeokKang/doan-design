@@ -104,7 +104,8 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
 }
 const SEND_ERRORS: Record<string, (p: string) => string> = {
   busy: p => `${p} is finishing a previous run. Try again in a moment.`,
-  not_logged_in: p => `${p}’s sign-in expired. Sign in again from Settings, then send.`,
+  // The code alone does not tell an expired sign-in from none (decision 18).
+  not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
   rate_limited: p => `${p} is rate limited. Try again later.`,
 };
 

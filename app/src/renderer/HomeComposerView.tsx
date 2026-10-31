@@ -447,7 +447,10 @@ export function HeroComposer(props: HeroComposerProps) {
     })));
     // A request rebuilt from history names its preset by id only; the read list fills in its group and description.
     const preset = request.preset && (memory.current.presets?.ok ? memory.current.presets.result.presets.find(p => p.id === request.preset!.id) : undefined) || request.preset;
-    edit({ text: request.text, preset, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
+    // Its images' thumbnails join the composer's object URLs, released by the same rules as a chosen file's.
+    const thumbnails = { ...memory.current.thumbnails };
+    for (const [key, bytes] of Object.entries(request.thumbnails ?? {})) if (!thumbnails[key]) { const url = thumbnailUrl(bytes); if (url) thumbnails[key] = url; }
+    edit({ text: request.text, preset, thumbnails, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
       models: request.model ? { ...memory.current.models, [request.provider]: request.model } : memory.current.models,
       efforts: request.model && request.effort ? { ...memory.current.efforts, [effortKey(request.provider, request.model)]: request.effort } : memory.current.efforts });
     queueMicrotask(focusEnd);

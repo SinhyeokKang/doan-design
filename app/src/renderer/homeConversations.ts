@@ -48,6 +48,8 @@ export function removalConfirm(running: readonly { conversationId: string; waiti
 export interface LastRequest {
   root: string; text: string; preset: PresetSummary | null; attachments: AttachmentDraft[];
   provider: Provider; model: string | null; effort: string | null;
+  // Image thumbnails by attachment key for a request rebuilt from history; the composer turns them into object URLs.
+  thumbnails?: Readonly<Record<string, Uint8Array>>;
 }
 export interface ComposerDraft { text: string; preset: PresetSummary | null; attachments: readonly AttachmentDraft[] }
 
