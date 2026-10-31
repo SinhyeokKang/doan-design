@@ -5,7 +5,7 @@
 - **Q1 위치가 곧 유형이다**(사용자 답 "디렉터리가 곧 유형"): `.doan/ds/` 아래 HTML이면 design-system 캔버스다. 새 meta, `doan ls` 필드, `doan check` 규칙이 없다. 에이전트와 앱이 경로 하나로 같은 판단을 한다.
 - **Q2 진입점은 `document` preset 확장**(사용자 답): 처음 만들기와 유지 모두 `document`가 한다. 사람이 요청할 때만 돈다(PRODUCT §3 Out of scope 4). catalog 20개, CLI 명령, `doan init`은 그대로다.
 - **Q3 앱은 sidebar만 바꾼다**(사용자 답 "따로 묶어 보임", 이어서 "사이드바만 이 과업에서 진행한다. 프로젝트 오버뷰는 그 과업 진행 시"): sidebar에 'Design system' 묶음을 둔다. Overview는 buzz-restyle `buzz-project`(#7)가 정한다.
-- **Q4 이 repo의 design system을 지우고 다시 만든다**(`/feature-review` 중 사용자 답 "도안 리포의 ds 관련 캔버스는 모두 제거하고, ds 폴더에 document로 다시 생성하고 품질 검증", "품질을 보고, 만족될 때 까지 디자인시스템 생성 스킬도 조정한다", "품질 판단은 지휘자가 진행"): `.doan/canvases/buzz-ds.html`과 `notice.html`을 지우고, 확장한 `document`로 `.doan/ds/`에 논리 단위별 캔버스를 처음부터 만든다. 지휘자(`/orchestrate` 세션)가 아래 '품질 기준'으로 판단하고, 기준에 못 미치면 `document` preset을 고쳐 다시 만든다. 마지막 구현 task다. eval 라운드와 문서 승격이 최종 preset을 보도록 그 앞에 둔다. 두 캔버스 모두 코멘트 파일이 없어서(`.doan/comments/` 없음) 지워도 코멘트가 고아가 되지 않는다. 사이드바 초안 `design-system-canvases.html`은 화면 초안이라 지우지 않는다.
+- **Q4 이 repo의 design system을 지우고 다시 만든다**(`/feature-review` 중 사용자 답 "도안 리포의 ds 관련 캔버스는 모두 제거하고, ds 폴더에 document로 다시 생성하고 품질 검증", "품질을 보고, 만족될 때 까지 디자인시스템 생성 스킬도 조정한다", "품질 판단은 지휘자가 진행", "클로드와 코덱스 각각 ds 문서를 만들고 품질 검수는 지휘자가. 품질 검수 끝나면 더 나은 거 한벌만 남기고 정리"): `.doan/canvases/buzz-ds.html`과 `notice.html`을 지우고, 확장한 `document`로 `.doan/ds/`에 논리 단위별 캔버스를 처음부터 만든다. Claude Code와 Codex가 같은 시작 commit, 같은 CLI, 같은 프롬프트로 서로 다른 worktree에서 한 벌씩 만든다. 이 task에 한해 사용자가 모델 계열을 넘는 worker를 허용했다(AGENTS.md 'Worker model boundary'). 지휘자(`/orchestrate` 세션)가 두 벌을 아래 '품질 기준'으로 판단한다. 기준에 못 미치면 `document` preset을 고치고, 두 모델 모두 다시 만든다. 남기는 벌이 최종 preset에서 나와야 하기 때문이다. 기준을 채우면 더 나은 한 벌만 `.doan/ds/`에 남기고 다른 벌과 worktree를 정리한다. 마지막 구현 task다. eval 라운드와 문서 승격이 최종 preset을 보도록 그 앞에 둔다. 두 캔버스 모두 코멘트 파일이 없어서(`.doan/comments/` 없음) 지워도 코멘트가 고아가 되지 않는다. 사이드바 초안 `design-system-canvases.html`은 화면 초안이라 지우지 않는다.
 - **Q5 Home 추천은 화면 초안만 센다**(사용자 답): '캔버스 없음'과 `critique`·`polish` 대상은 `.doan/canvases/`만 본다. `document`는 `.doan/ds/`가 비었을 때 추천한다.
 - **Q6 sidebar는 두 아코디언이다**(`/design-draft` 중 사용자 답 "프로젝트 아래에 디자인시스템 목록과 캔버스 목록을 별개로. 열고닫을 수 있는 아코디언과 갯수 뱃지. empty 상태에도 보임"): 펼친 프로젝트 아래에 'Design system'과 'Canvases' 묶음을 따로 두고, 각 묶음은 열고 닫을 수 있으며 캔버스 수 배지를 단다. 비어 있어도 보인다.
 - **Q7 순서는 Design system 먼저**(사용자 답): 짧고 잘 안 바뀌는 목록이 위에 있어서, 캔버스가 많아도 밀려 내려가지 않는다.
@@ -97,7 +97,7 @@
 - 규칙 문서: `docs/DESIGN.md`가 가리키는 design system 참조와 캔버스들이 같은 토큰·컴포넌트를 가리킨다.
 - `doan check --repo .`에 이 캔버스들의 error가 없다.
 
-기준에 못 미치면 지휘자가 원인을 `document.md`의 문장으로 고친다. 생성한 캔버스를 지우고 새 세션이 처음부터 다시 만들게 한다. 캔버스를 손으로 고쳐 기준을 맞추지 않는다. preset이 고쳐져야 다른 프로젝트에서도 같은 품질이 나오기 때문이다.
+기준에 못 미치면 지휘자가 원인을 `document.md`의 문장으로 고친다. 생성한 캔버스를 지우고 두 모델의 새 세션이 처음부터 다시 만들게 한다. 두 벌이 모두 기준을 채우면 기준별로 비교해 더 나은 벌을 고르고, 고른 이유를 commit 메시지에 적는다. 캔버스를 손으로 고쳐 기준을 맞추지 않는다. preset이 고쳐져야 다른 프로젝트에서도 같은 품질이 나오기 때문이다.
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 

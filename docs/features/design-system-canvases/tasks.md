@@ -82,21 +82,27 @@
 
 — commit: `test(eval): design-system canvases in .doan/ds`
 
-## T8. 이 repo의 design system 다시 만들기 (마지막 구현 task, 지휘자가 품질 판단)
+## T8. 이 repo의 design system 다시 만들기 (마지막 구현 task, Claude Code·Codex 각각 생성, 지휘자가 품질 판단)
 
 - 시작 조건: T6의 sidebar UI와 `/design-sync`가 끝난 뒤다. 그 전까지는 지금 캔버스를 확인할 일이 있을 수 있으므로 `buzz-ds.html`·`notice.html`을 남긴다.
 - `.doan/canvases/buzz-ds.html`과 `notice.html`을 지운다. `.doan/comments/`에 두 id의 파일이 없는지 먼저 확인한다. 사이드바 초안 `design-system-canvases.html`은 남긴다.
-- 새 에이전트 세션이 사람의 요청처럼 "이 repo의 design system을 문서로 만들어줘"만 받고 `document` preset을 따라 `.doan/ds/`에 논리 단위별 캔버스를 만든다. 분할 방법을 프롬프트로 알려 주지 않는다. preset만으로 나오는 결과를 판단하기 위해서다.
-- 지휘자가 design.md '품질 기준'으로 판단한다. 못 미치면 원인을 `document.md` 문장으로 고치고, 생성한 캔버스를 지우고, 새 세션으로 다시 만든다. 기준을 채울 때까지 반복한다. 회차마다 못 미친 기준과 고친 preset 문장을 commit 메시지에 적는다.
+- 모델별 생성(design.md Q4): 지휘자가 지운 상태의 commit에서 worktree를 두 개 만든다(Orca `--worktree new-child --base-branch feat-<slug>`). 한쪽은 Claude Code, 한쪽은 Codex의 새 세션이다. 이 task에 한해 사용자가 모델 계열을 넘는 worker를 허용했다.
+  - 두 세션은 같은 조건으로 시작한다. 사람의 요청처럼 "이 repo의 design system을 문서로 만들어줘"만 받는다. 분할 방법을 프롬프트로 알려 주지 않는다. preset만으로 나오는 결과를 판단하기 위해서다.
+  - CLI는 그 worktree에서 `go build -o <tmp>/doan ./cli/cmd/doan`으로 만든 것을 `PATH` 앞에 둔다. 설치된 `~/.local/bin/doan`은 이 branch의 preset을 모른다.
+  - 각 세션은 자기 worktree의 `.doan/ds/`에만 쓰고 commit한다. 지휘자가 두 벌을 같은 기준으로 본다.
+- 지휘자가 두 벌을 design.md '품질 기준'으로 판단한다. 어느 쪽이든 preset 탓으로 못 미치면 원인을 `document.md` 문장으로 고치고, 두 worktree의 캔버스를 지우고, 두 모델의 새 세션으로 다시 만든다. 기준을 채울 때까지 반복한다. 회차마다 모델별로 못 미친 기준과 고친 preset 문장을 commit 메시지에 적는다.
+- 정리: 둘 다 기준을 채우면 더 나은 한 벌만 feature branch의 `.doan/ds/`로 가져오고, 고른 이유(기준별 비교)를 commit 메시지에 적는다. 다른 벌은 버리고, 두 worktree와 임시 branch를 지운다(지우기 전에 `git status` 확인).
 - 끝나면 `docs/DESIGN.md`(98행 'Shared components and surfaces', 140행 'Notices'의 Reference)와 `docs/DIRECTORY.md`(36행)의 참조를 새 경로와 프레임으로 고친다. DESIGN.md의 'buzz-ds 이전' 표시는 파일 참조가 아니라 측정 시점 라벨이라 그대로 둔다.
 - 검증:
-  - 품질 기준 전부 충족(지휘자 판단, 회차 기록)
+  - 남긴 벌이 품질 기준을 전부 충족한다(지휘자 판단, 모델별 회차 기록, 고른 이유).
+  - 남긴 벌이 최종 `document.md`에서 나왔다. 마지막 preset 수정 뒤에 다시 만든 벌이어야 한다.
+  - 두 worktree와 임시 branch가 없다(`git worktree list`).
   - `go run ./cli/cmd/doan check --repo .`에 이 변경으로 생긴 error가 없다.
   - `go run ./cli/cmd/doan ls --repo . --json`에 DESIGN.md가 가리키는 `.doan/ds/*.html`과 프레임이 모두 있다.
   - preset을 고쳤으면 `go test ./...`(출력 예산)
   - `rg -n --hidden 'buzz-ds\.html|notice\.html' docs .doan AGENTS.md README.md --glob '!docs/features/**' --glob '!docs/POSTMORTEM.md'`의 남은 결과가 PRODUCT.md:291뿐이다(T11에서 지운다).
 
-— commit: preset 조정 `feat(cli): <what changed> in the document preset`, 캔버스 `docs(design): regenerate the design system in .doan/ds`
+— commit: preset 조정 `feat(cli): <what changed> in the document preset`, 남긴 벌 `docs(design): regenerate the design system in .doan/ds`(어느 모델의 벌인지와 고른 이유)
 
 ## T9. code-review·refactor·verify
 
