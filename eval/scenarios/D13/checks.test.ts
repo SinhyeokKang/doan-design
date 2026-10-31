@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { cpSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -19,6 +19,8 @@ function setup(id: string) {
   cpSync(join(dir, "seed"), repo, { recursive: true });
   for (const args of [["init", "-q"], ["add", "."], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   cpSync(join(dir, "fixtures/pass"), repo, { recursive: true });
+  const commands = join(dir, "fixtures/pass.commands.json");
+  if (existsSync(commands)) for (const args of JSON.parse(readFileSync(commands, "utf8"))) execFileSync(cli, args, { cwd: repo, env: { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") } });
   return createContext({ repo, agent: "fixture", transcript: readFileSync(join(dir, "fixtures/pass.transcript.txt"), "utf8"), cli, env: { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") }, seedCommit: "HEAD" });
 }
 test("D10d accepts tokens distributed across ds canvases and rejects a missing token", () => {

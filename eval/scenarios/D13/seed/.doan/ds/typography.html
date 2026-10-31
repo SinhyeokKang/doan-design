@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="typography">
+  <meta name="doan:width" content="1600">
+  <title>design-system</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <link rel="stylesheet" href="../../components/button.css">
+  <link rel="stylesheet" href="../../components/input.css">
+  <link rel="stylesheet" href="../../components/card.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+    .swatch { display: flex; gap: var(--space-4); align-items: center; padding: var(--space-2) 0; }
+    .chip { width: 48px; height: 48px; border: 1px solid var(--color-text-muted); border-radius: var(--radius); }
+    .row { display: flex; gap: var(--space-4); margin-top: var(--space-4); }
+    .step { background: var(--color-primary); height: var(--space-4); }
+    .shape { width: 96px; height: 64px; border: 1px solid var(--color-text-muted); border-radius: var(--radius); background: var(--color-surface); }
+    .depth { padding: var(--space-6); background: var(--color-surface-muted); }
+  </style>
+</head>
+<body>
+<p>Reference for the shipped Ledgerly design system. Values come from styles/tokens.css and components/ (button, input, card); sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="typography" data-doan-title="Typography" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="typography-heading">Typography</h1>
+<p data-doan-id="type-title" style="font-size: var(--type-title-size)">Card title <code>--type-title-size</code></p>
+<p data-doan-id="type-body" style="font-size: var(--type-body-size)">Button and input text. <code>--type-body-size</code>; components inherit the font (<code>--font-body</code> is defined, not referenced)</p>
+</section>
+</main></body></html>

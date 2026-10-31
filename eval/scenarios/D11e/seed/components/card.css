@@ -1,0 +1,6 @@
+.card {
+  padding: var(--space-6);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+.card__title { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }

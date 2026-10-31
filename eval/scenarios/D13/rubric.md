@@ -1,0 +1,4 @@
+Allowed preset choices: context and document; document is required. The seed contains a complete previously accurate design system split by token group and component, with code now ahead by one color token and primary button hover state.
+Pass: update DESIGN.md, .doan/ds/colors.html and .doan/ds/button.html to document the new token and demonstrate the hover state grounded in components/button.css. The disabled button is excluded from hover. Preserve existing canvas ids and frame ids, the button variants frame, every unrelated canvas, and code/configuration. doan check passes.
+Partial: automatic checks pass, but the new state is not demonstrated faithfully, unrelated rules are rewritten, or the rules and canvases disagree.
+Fail: no document lookup, a forbidden preset, missing token or state documentation, changed code/configuration, re-splitting, added/removed canvas ids, unrelated canvas/frame edits, or a failed doan check.
