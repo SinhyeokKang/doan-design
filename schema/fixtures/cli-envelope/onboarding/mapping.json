@@ -1,11 +1,11 @@
 {
   "$comment": [
-    "How doan onboarding commands (CLI --json and MCP onboarding_* tools) turn an app-socket v2 reply into the public cli-envelope v1. Transport v2 and envelope v1 are separate versions.",
+    "How doan onboarding commands with --json turn an app-socket v2 reply into the public cli-envelope v1. Transport v2 and envelope v1 are separate versions.",
     "1. A v2 success becomes {v: 1, ok: true, result} with the reply's result unchanged, exit 0.",
     "2. Exception: for check, sign_in, project_inspect, project_select, project_clone and complete, when the reply's own operation is already failed, the envelope fails with that operation's error.code; when it is already cancelled, with code cancelled. cancel reports its target and status reports every operation as data, so both stay ok: true.",
     "3. A v2 error keeps its code, except bad_request -> internal_error (the CLI sent a schema-valid request) and bad_token -> app_not_running (a stale runtime.json, as for active).",
     "4. A reply with numeric v other than 2, including an older app's v1 bad_request, is app_protocol_mismatch.",
-    "5. exitCodes gives the exit for every code a command can return; a code missing from it exits 1. MCP isError is !ok.",
+    "5. exitCodes gives the exit for every code a command can return; a code missing from it exits 1.",
     "Codes produced by the CLI before or without a reply: usage_error (bad flags, a Copilot check without --spend-copilot-request), app_not_running, app_launch_failed (the bundled app did not publish a runtime within 15 seconds), internal_error."
   ],
   "translate": {
@@ -75,8 +75,7 @@
       },
       "expect": {
         "ok": true,
-        "exit": 0,
-        "isError": false
+        "exit": 0
       }
     },
     {
@@ -219,8 +218,7 @@
       },
       "expect": {
         "ok": true,
-        "exit": 0,
-        "isError": false
+        "exit": 0
       }
     },
     {
@@ -242,8 +240,7 @@
       },
       "expect": {
         "ok": true,
-        "exit": 0,
-        "isError": false
+        "exit": 0
       }
     },
     {
@@ -264,8 +261,7 @@
       },
       "expect": {
         "ok": true,
-        "exit": 0,
-        "isError": false
+        "exit": 0
       }
     },
     {
@@ -287,8 +283,7 @@
       },
       "expect": {
         "ok": true,
-        "exit": 0,
-        "isError": false
+        "exit": 0
       }
     },
     {
@@ -311,8 +306,7 @@
       "expect": {
         "ok": false,
         "code": "cancelled",
-        "exit": 5,
-        "isError": true
+        "exit": 5
       }
     },
     {
@@ -338,8 +332,7 @@
       "expect": {
         "ok": false,
         "code": "completion_save_failed",
-        "exit": 5,
-        "isError": true
+        "exit": 5
       }
     },
     {
@@ -365,8 +358,7 @@
       "expect": {
         "ok": false,
         "code": "destination_exists",
-        "exit": 2,
-        "isError": true
+        "exit": 2
       }
     },
     {
@@ -392,8 +384,7 @@
       "expect": {
         "ok": false,
         "code": "repository_unreachable",
-        "exit": 5,
-        "isError": true
+        "exit": 5
       }
     },
     {
@@ -410,8 +401,7 @@
       "expect": {
         "ok": false,
         "code": "app_not_running",
-        "exit": 3,
-        "isError": true
+        "exit": 3
       }
     },
     {
@@ -428,8 +418,7 @@
       "expect": {
         "ok": false,
         "code": "internal_error",
-        "exit": 1,
-        "isError": true
+        "exit": 1
       }
     },
     {
@@ -446,8 +435,7 @@
       "expect": {
         "ok": false,
         "code": "app_protocol_mismatch",
-        "exit": 3,
-        "isError": true
+        "exit": 3
       }
     },
     {
@@ -464,8 +452,7 @@
       "expect": {
         "ok": false,
         "code": "session_stale",
-        "exit": 3,
-        "isError": true
+        "exit": 3
       }
     },
     {
@@ -482,8 +469,7 @@
       "expect": {
         "ok": false,
         "code": "inspection_stale",
-        "exit": 2,
-        "isError": true
+        "exit": 2
       }
     },
     {
@@ -500,8 +486,7 @@
       "expect": {
         "ok": false,
         "code": "busy",
-        "exit": 5,
-        "isError": true
+        "exit": 5
       }
     },
     {
@@ -518,8 +503,7 @@
       "expect": {
         "ok": false,
         "code": "stop_required",
-        "exit": 5,
-        "isError": true
+        "exit": 5
       }
     },
     {
@@ -536,8 +520,7 @@
       "expect": {
         "ok": false,
         "code": "not_owner",
-        "exit": 5,
-        "isError": true
+        "exit": 5
       }
     },
     {
@@ -554,8 +537,7 @@
       "expect": {
         "ok": false,
         "code": "invalid_url",
-        "exit": 2,
-        "isError": true
+        "exit": 2
       }
     },
     {
@@ -572,8 +554,7 @@
       "expect": {
         "ok": false,
         "code": "no_ready_agent",
-        "exit": 5,
-        "isError": true
+        "exit": 5
       }
     },
     {
@@ -590,8 +571,7 @@
       "expect": {
         "ok": false,
         "code": "request_conflict",
-        "exit": 2,
-        "isError": true
+        "exit": 2
       }
     }
   ]

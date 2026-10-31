@@ -1,6 +1,6 @@
 # Doan modifications
 
-Doan's design presets, returned by `doan design-skill <id>` and the MCP `design_skill` tool, are adapted from Impeccable:
+Doan's design presets, returned by `doan design-skill <id>`, are adapted from Impeccable:
 
 - Repository: https://github.com/pbakaus/impeccable
 - Commit: d34c87e1a00989ae8dbdd7f6b30b70f23319e860

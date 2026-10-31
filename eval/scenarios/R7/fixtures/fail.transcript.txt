@@ -1,2 +1,0 @@
-{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "mcp__doan__active", "input": {"repo": "/tmp/eval-repo"}}]}}
-{"type": "result", "result": "Fixed all open comments on the Sign up canvas and resolved the three of them."}

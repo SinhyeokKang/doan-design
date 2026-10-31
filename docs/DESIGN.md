@@ -201,7 +201,7 @@ Frame ids name the canvas frames that draw each state.
   - Pick order: a checkout that needs no setup; then the main checkout, whose `.git` is the common directory, read from the folder list's git facts without running git; then the most recently registered project.
   - If the picked checkout needs setup (`repository-found-setup`), the setup screen keeps the URL context: the 'Already on your Mac' heading, the read-only URL, Choose another folder (remote check) and Edit repository URL; Back returns to the editable URL.
   - Other worktrees are switched to later from the shell project card's Worktrees menu.
-  - `onboarding project inspect` (CLI and MCP) still returns every candidate.
+  - `onboarding project inspect` (CLI) still returns every candidate.
 - **Clone destination default** (`repository-clone`): `<parent of the most recently registered project>/<repository>`, else `~/<repository>`. Change picks a parent.
 - **Copy outside the measured draft** (`agent-install-page-failed`, `agent-paste-too-long`, `repository-cleanup-failed`):
   - Install failures read "Couldn’t open the <Provider> install page." Antigravity has no install page.

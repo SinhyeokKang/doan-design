@@ -1,10 +1,9 @@
 {
   "id": "D4",
-  "title": "Report a named preset as not applied when neither the shell CLI nor MCP is available",
+  "title": "Report a named preset as not applied when the shell CLI is not available",
   "focus": "preset",
   "init": null,
   "selection": null,
   "timeoutSec": 600,
-  "mcp": false,
   "shellCli": false
 }

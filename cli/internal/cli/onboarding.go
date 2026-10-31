@@ -45,7 +45,7 @@ var onboardingCommands = map[string]onboardingCommand{
 	"complete":        {"complete", []string{"session", "request"}, []string{"session", "request"}},
 }
 
-// onboardingFlags lists every onboarding flag with its socket field; run accepts only these for onboarding.
+// onboardingFlags lists every onboarding flag with its socket field; Run accepts only these for onboarding.
 var onboardingFlags = map[string]string{
 	"session": "sessionId", "operation": "operationId", "provider": "provider", "request": "requestId",
 	"path": "path", "url": "url", "destination": "destination", "inspection": "inspectionId",
@@ -57,11 +57,10 @@ var onboardingFlags = map[string]string{
 var operationOps = map[string]bool{"check": true, "sign_in": true, "project_inspect": true, "project_select": true, "project_clone": true, "complete": true}
 
 func onboardingFailure(code, message string) *Error {
-	// A sandbox can deny the socket even while the app is running; the MCP server runs outside that sandbox.
+	// A sandbox can deny the socket even while the app is running.
 	unreachable := []string{
 		"Ask the user to open Doan, then run `doan onboarding start` again",
-		"If Doan is open, a sandbox may block this shell from its socket: call the MCP `onboarding_start` tool and continue with the `onboarding_*` tools if they are available",
-		"Otherwise, run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions",
+		"If Doan is open, a sandbox may block this shell from its socket: run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions",
 		"If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About",
 	}
 	steps := map[string][]string{
@@ -74,7 +73,7 @@ func onboardingFailure(code, message string) *Error {
 		"request_conflict":      {"Use a new --request id for other arguments; reuse an id only to resend the same request"},
 		"busy":                  {"Wait for the running operation (`doan onboarding status`), then send a new --request id"},
 		"stop_required":         {"Ask the user to stop the running conversation in Doan, then retry"},
-		"initialize_required":   {"Tell the user the planned changes from inspect; run select again with --initialize once they agree, or right away if they already agreed to Doan adding its setup files"},
+		"initialize_required":   {"Tell the user the planned changes from inspect; run select again with --initialize once they agree; a request to set up Doan or select a repository is not agreement, only an explicit agreement to Doan adding these files"},
 		"no_ready_agent":        {"Sign in to an agent first (`doan onboarding sign-in`)"},
 		"no_project":            {"Select or clone a project first (`doan onboarding project select` or `clone`)"},
 	}[code]

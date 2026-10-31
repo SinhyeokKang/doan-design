@@ -16,7 +16,7 @@ Use it when the project has real tokens or components but no rules document or `
 - Find the target. For pointing words like "this canvas" or "this frame", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`).
 - Read the configured token CSS (`doan config --json` shows `tokenCss`), the component code, and the global stylesheet.
 - Look for an existing design document (for example `DESIGN.md`, a style guide, or a design section in the docs) and for `.doan/canvases/design-system.html`. `doan ls --json` lists canvases with their open and resolved comment counts.
-- Read the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`) before writing either artifact, even when the request already names the deliverable, unless you already read it in this conversation or the project already has a product context document (who the product is for, brand commitments). Ask only what would change the documents.
+- Read the `context` preset (`doan design-skill context --json`) before writing either artifact, even when the request already names the deliverable, unless you already read it in this conversation or the project already has a product context document (who the product is for, brand commitments). Ask only what would change the documents.
 
 ## Document what shipped
 

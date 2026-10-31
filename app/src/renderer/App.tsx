@@ -216,7 +216,7 @@ export function App() {
   }, []);
   useEffect(() => { void window.doan.homeDirectory().then(setHomeDirectory).catch(console.error); }, []);
   // First run shows when main's session has no completion record (P's v1 marker); the session is the one the CLI
-  // and MCP share, so a hidden and shown window keeps it.
+  // shares, so a hidden and shown window keeps it.
   useEffect(() => {
     let current = true;
     window.doan.startOnboardingSession().then(reply => {

@@ -117,7 +117,7 @@ export function providerView(status: AuthStatusDto, ctx: ProviderContext = {}): 
   const signInDisabled = button("signIn", "Sign in", "prominent", true, `Sign in to ${name}`);
   // Ownership is not inferred: after a reload, or for a CLI-started sign-in, this window may own the attempt without
   // knowing its id, and must keep Cancel ('agent-auth 인계'). Only agent-auth's not_owner reply says otherwise.
-  // Settings is in the only window, so the other owner is the CLI or MCP client that started it.
+  // Settings is in the only window, so the other owner is the CLI that started it.
   if (ctx.reply === "not_owner") return { ...view, detail: ctx.settings ? "Finish this sign-in where it started." : "Finish this sign-in in the window that started it.", detailRole: "status", button: signInDisabled };
   if (attempt?.kind === "signIn") {
     const prompted = ctx.prompt === attempt.id, cancel = button("cancel", "Cancel", "subtle");

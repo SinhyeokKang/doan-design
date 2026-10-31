@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
@@ -48,6 +47,16 @@ func runJSON(t *testing.T, root string, want int, args ...string) map[string]any
 	}
 	if e := formats.ValidateEnvelope(v); e != nil {
 		t.Fatal(e)
+	}
+	return v
+}
+func cliEnvelope(t *testing.T, args ...string) map[string]any {
+	t.Helper()
+	var out, errout bytes.Buffer
+	Run(append(args, "--json"), strings.NewReader(""), &out, &errout)
+	var v map[string]any
+	if e := json.Unmarshal(out.Bytes(), &v); e != nil || errout.Len() != 0 {
+		t.Fatal(args, e, out.String(), errout.String())
 	}
 	return v
 }
@@ -300,132 +309,49 @@ func TestHelpUsageAndHumanError(t *testing.T) {
 		t.Fatal(&out, &errout)
 	}
 }
-func TestMCPCommandRejectsFlagsAndArgs(t *testing.T) {
-	if !strings.Contains(result(t, t.TempDir(), 0, "help")["usage"].(string), "\n  mcp\n") {
-		t.Fatal("usage lacks mcp")
+func TestRemovedMCPCommandIsUnknown(t *testing.T) {
+	if strings.Contains(result(t, t.TempDir(), 0, "help")["usage"].(string), "mcp") {
+		t.Fatal("usage lists mcp")
 	}
-	for _, args := range [][]string{{"mcp", "--foo"}, {"mcp", "--json"}, {"--json", "mcp"}, {"mcp", "--repo", "x"}, {"mcp", "x"}, {"mcp", "--canvas=foo"}} {
-		var out, errout bytes.Buffer
-		code := Run(append(args, "--json"), strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`+"\n"), &out, &errout)
-		var v map[string]any
-		if code != 2 || errout.Len() != 0 || json.Unmarshal(out.Bytes(), &v) != nil || v["error"].(map[string]any)["code"] != "usage_error" {
-			t.Fatal(args, code, &out, &errout)
-		}
-	}
-	// Without --json, so each flag must be rejected on its own merits.
-	for _, args := range [][]string{{"mcp", "x"}, {"mcp", "--repo", "x"}, {"--repo=/x", "mcp"}, {"mcp", "--canvas=foo"}, {"mcp", "--agent", "codex"}, {"mcp", "--token-css", "x"}} {
-		var out, errout bytes.Buffer
-		if code := Run(args, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}`+"\n"), &out, &errout); code != 2 || out.Len() != 0 || !strings.HasPrefix(errout.String(), "error:") {
-			t.Fatal(args, code, &out, &errout)
-		}
-	}
-}
-func TestMCPStdioExit(t *testing.T) {
-	var out, errout bytes.Buffer
-	if code := Run([]string{"mcp"}, strings.NewReader(""), &out, &errout); code != 0 || out.Len() != 0 || errout.Len() != 0 {
-		t.Fatal(code, &out, &errout)
-	}
-	if code := Run([]string{"mcp"}, strings.NewReader("not json\n"), &out, &errout); code != 1 || out.Len() != 0 || !strings.HasPrefix(errout.String(), "error: ") {
-		t.Fatal(code, &out, &errout)
-	}
-}
-func TestMCPOverStdioPipes(t *testing.T) {
-	inR, inW := io.Pipe()
-	outR, outW := io.Pipe()
-	var errout bytes.Buffer
+	failure(t, t.TempDir(), "usage_error", "mcp")
+	// stdin stays open, so the command must fail without reading it.
+	stdin, _ := io.Pipe()
 	done := make(chan int, 1)
-	go func() {
-		code := Run([]string{"mcp"}, inR, outW, &errout)
-		outW.Close()
-		done <- code
-	}()
-	lines := bufio.NewScanner(outR)
-	lines.Buffer(nil, 1<<20)
-	send := func(s string) {
-		if _, e := io.WriteString(inW, s+"\n"); e != nil {
-			t.Fatal(e)
+	var out, errout bytes.Buffer
+	go func() { done <- Run([]string{"mcp"}, stdin, &out, &errout) }()
+	select {
+	case code := <-done:
+		if code != 2 || out.Len() != 0 || errout.String() != "error: Unknown command: mcp\nRun `doan help`\n" {
+			t.Fatal(code, &out, &errout)
 		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("doan mcp waited on stdin")
 	}
-	type message struct {
-		JSONRPC string          `json:"jsonrpc"`
-		ID      *int            `json:"id"`
-		Result  json.RawMessage `json:"result"`
-		Error   any             `json:"error"`
+}
+
+// nextSteps, help and messages come from these sources; none may point agents to MCP.
+func TestCLISourcesNameNoMCP(t *testing.T) {
+	sources, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
 	}
-	next := func() message {
-		t.Helper()
-		if !lines.Scan() {
-			t.Fatal("stdout closed", lines.Err(), &errout)
-		}
-		var m message
-		if e := json.Unmarshal(lines.Bytes(), &m); e != nil || m.JSONRPC != "2.0" {
-			t.Fatal(e, lines.Text())
-		}
-		return m
-	}
-	// Close stdin only after the expected responses arrive: on EOF the SDK drops
-	// responses that are not yet written.
-	send(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}`)
-	if m := next(); *m.ID != 1 || m.Error != nil {
-		t.Fatal(m)
-	}
-	send(`{"jsonrpc":"2.0","method":"notifications/initialized"}`)
-	send(`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
-	m := next()
-	var list struct {
-		Tools []struct {
-			Name        string
-			Annotations *struct {
-				ReadOnlyHint bool `json:"readOnlyHint"`
-			}
-		}
-	}
-	if *m.ID != 2 || json.Unmarshal(m.Result, &list) != nil || len(list.Tools) != 18 {
-		t.Fatal(string(m.Result))
-	}
-	wantReadOnly := map[string]bool{
-		"init": false, "config": false, "ls": true, "comments": true, "resolve_comments": false,
-		"check": true, "active": true, "skill": true, "design_skill": true,
-		"onboarding_start": false, "onboarding_status": true, "onboarding_check": false, "onboarding_sign_in": false, "onboarding_cancel": false,
-		"onboarding_project_inspect": false, "onboarding_project_select": false, "onboarding_project_clone": false, "onboarding_complete": false,
-	}
-	for _, tool := range list.Tools {
-		want, known := wantReadOnly[tool.Name]
-		if !known {
-			t.Errorf("unexpected or duplicate tool %q", tool.Name)
+	for _, file := range sources {
+		if strings.HasSuffix(file, "_test.go") {
 			continue
 		}
-		delete(wantReadOnly, tool.Name)
-		if want {
-			if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
-				t.Errorf("tool %s must declare readOnlyHint: true", tool.Name)
-			}
-		} else if tool.Annotations != nil {
-			t.Errorf("tool %s must remain unannotated", tool.Name)
+		if strings.Contains(strings.ToLower(readFile(t, ".", file)), "mcp") {
+			t.Errorf("%s mentions MCP", file)
 		}
 	}
-	if len(wantReadOnly) != 0 {
-		t.Errorf("missing tools: %v", wantReadOnly)
-	}
-	dir := t.TempDir()
-	send(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"init","arguments":{"repo":` + fmt.Sprintf("%q", dir) + `}}}`)
-	m = next()
-	var call struct{ IsError bool }
-	if *m.ID != 3 || json.Unmarshal(m.Result, &call) != nil || call.IsError {
-		t.Fatal(string(m.Result))
-	}
-	if strings.Contains(readFile(t, dir, ".doan/config.json"), "tokenCss") {
-		t.Fatal("token prompt answered")
-	}
-	inW.Close()
-	for lines.Scan() {
-		var m message
-		if e := json.Unmarshal(lines.Bytes(), &m); e != nil || m.JSONRPC != "2.0" {
-			t.Fatal(e, lines.Text())
+	for _, code := range []string{"app_not_running", "app_protocol_mismatch", "project_not_open"} {
+		if strings.Contains(strings.Join(appError(code, "m").NextSteps, "\n"), "MCP") {
+			t.Errorf("active %s nextSteps mention MCP", code)
 		}
 	}
-	if code := <-done; code != 0 || errout.Len() != 0 {
-		t.Fatal(code, &errout)
+	for _, code := range []string{"app_not_running", "app_launch_failed"} {
+		if strings.Contains(strings.Join(onboardingFailure(code, "m").NextSteps, "\n"), "MCP") {
+			t.Errorf("onboarding %s nextSteps mention MCP", code)
+		}
 	}
 }
 

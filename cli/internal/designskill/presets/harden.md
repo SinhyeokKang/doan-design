@@ -9,7 +9,7 @@ Use this preset when the user asks to cover edge cases, error or loading states,
 - Find the target. For pointing words like "this screen" or "this form", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system before drawing a state: token CSS (`doan config --json` shows `tokenCss`), existing components and their states, a design rules document if the project has one, and the `design-system` canvas (`.doan/canvases/design-system.html`) if it exists. Reuse existing error, empty, loading, and disabled patterns before inventing new ones.
 - Read the code the frame implements (`data-doan-implements`). It shows which states, limits, and errors already exist, and which data can really be missing or huge.
-- When you do not know who uses the product or what failures matter, and it would change the result, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`). Ask only what would change the states you draw, such as real field limits or which roles exist.
+- When you do not know who uses the product or what failures matter, and it would change the result, suggest the `context` preset (`doan design-skill context --json`). Ask only what would change the states you draw, such as real field limits or which roles exist.
 
 ## Find the weak points
 

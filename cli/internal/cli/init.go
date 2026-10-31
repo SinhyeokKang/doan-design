@@ -12,7 +12,7 @@ import (
 )
 
 // initContextStep points an agent from project setup to design context; doan init itself never runs a preset.
-const initContextStep = "Before design work, gather product and design context with the `context` design preset: `doan design-skill context` (MCP `design_skill` with `{\"id\": \"context\"}`)."
+const initContextStep = "Before design work, gather product and design context with the `context` design preset: `doan design-skill context`."
 
 func Init(ctx Context, f Flags, args []string) (Outcome, *Error) {
 	return initWithRename(ctx, f, args, os.Rename)

@@ -4,14 +4,14 @@ import { parseScenarioJson, renderPrompt, selectIds } from "./scenario.ts";
 
 test("scenario.json is read with its defaults", () => {
   assert.deepEqual(parseScenarioJson({ id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null }, "W1"),
-    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, mcp: false, shellCli: true, worktree: null, onboarding: null });
+    { id: "W1", title: "t", focus: "write", init: { tokenCss: "styles/tokens.css" }, selection: null, timeoutSec: 900, shellCli: true, worktree: null, onboarding: null });
   assert.equal(parseScenarioJson({ id: "R2", title: "t", focus: "active", init: null, selection: "selection.json", timeoutSec: 60 }, "R2").timeoutSec, 60);
 });
 
 test("scenario.json that breaks the format is rejected", () => {
   const ok = { id: "W1", title: "t", focus: "write", init: null, selection: null };
   for (const bad of [{ ...ok, id: "W2" }, { ...ok, focus: "draw" }, { ...ok, init: { tokenCss: "/abs.css" } }, { ...ok, init: { tokenCss: "../x.css" } },
-    { ...ok, selection: "other.json" }, { ...ok, timeoutSec: 0 }, { ...ok, extra: 1 }, { ...ok, title: "" }, [ok]])
+    { ...ok, selection: "other.json" }, { ...ok, timeoutSec: 0 }, { ...ok, extra: 1 }, { ...ok, mcp: false }, { ...ok, title: "" }, [ok]])
     assert.throws(() => parseScenarioJson(bad, "W1"), Error, JSON.stringify(bad));
 });
 
@@ -19,7 +19,6 @@ test("preset mapping is a scenario focus without adding tool restrictions", () =
   const value = { id: "P1", title: "Preset mapping", focus: "preset" };
   const parsed = parseScenarioJson(value, "P1");
   assert.equal(parsed.focus, "preset");
-  assert.equal(parsed.mcp, false);
   assert.equal(parsed.shellCli, true);
   for (const focus of ["presets", "design-skill", null, 1])
     assert.throws(() => parseScenarioJson({ ...value, focus }, "P1"), /focus must be one of/);
@@ -39,19 +38,12 @@ test("real rounds leave out underscore ids; self-test keeps them", () => {
   assert.throws(() => selectIds(all, ["W9"], true));
 });
 
-test("scenario MCP is opt-in and must be boolean", () => {
-  const value = { id: "R2b", title: "MCP selection", focus: "active" };
-  assert.equal(parseScenarioJson({ ...value, mcp: true }, "R2b").mcp, true);
-  assert.equal(parseScenarioJson({ ...value, mcp: false }, "R2b").mcp, false);
-  for (const mcp of [null, "true", 1, {}]) assert.throws(() => parseScenarioJson({ ...value, mcp }, "R2b"));
-});
-
 test("shellCli defaults to true and accepts only a boolean", () => {
-  const value = { id: "R1b", title: "MCP comments", focus: "comments", mcp: true };
-  assert.equal(parseScenarioJson(value, "R1b").shellCli, true);
-  assert.equal(parseScenarioJson({ ...value, shellCli: false }, "R1b").shellCli, false);
-  assert.equal(parseScenarioJson({ ...value, shellCli: true }, "R1b").shellCli, true);
-  for (const shellCli of [null, "false", 0, {}]) assert.throws(() => parseScenarioJson({ ...value, shellCli }, "R1b"));
+  const value = { id: "D4", title: "No shell CLI", focus: "preset" };
+  assert.equal(parseScenarioJson(value, "D4").shellCli, true);
+  assert.equal(parseScenarioJson({ ...value, shellCli: false }, "D4").shellCli, false);
+  assert.equal(parseScenarioJson({ ...value, shellCli: true }, "D4").shellCli, true);
+  for (const shellCli of [null, "false", 0, {}]) assert.throws(() => parseScenarioJson({ ...value, shellCli }, "D4"));
 });
 
 test("onboarding is null or the scenario's app-socket v2 script", () => {

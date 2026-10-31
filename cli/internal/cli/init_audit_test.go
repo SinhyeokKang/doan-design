@@ -49,13 +49,12 @@ func TestInitAttributesFailureDoesNotPublishConfig(t *testing.T) {
 	}
 }
 
-func TestRepositoryInputErrorsCLIAndMCP(t *testing.T) {
+func TestRepositoryInputErrors(t *testing.T) {
 	root := t.TempDir()
 	putFile(t, root, "file", "")
 	if err := os.Symlink("loop", filepath.Join(root, "loop")); err != nil {
 		t.Fatal(err)
 	}
-	cs := mcpClient(t)
 	for name, path := range map[string]string{
 		"not directory": filepath.Join(root, "file/child"),
 		"nul":           filepath.Join(root, "bad\x00path"),
@@ -68,8 +67,7 @@ func TestRepositoryInputErrorsCLIAndMCP(t *testing.T) {
 				if cmd == "init" {
 					code = "usage_error"
 				}
-				t.Run("cli", func(t *testing.T) { failure(t, path, code, cmd) })
-				t.Run("mcp", func(t *testing.T) { toolCode(t, cs, cmd, map[string]any{"repo": path}, code) })
+				failure(t, path, code, cmd)
 			})
 		}
 	}
@@ -87,10 +85,8 @@ func TestRepositoryPermissionErrorsRemainInternal(t *testing.T) {
 	if _, err := os.Stat(path); !os.IsPermission(err) {
 		t.Skip("filesystem does not enforce directory permissions")
 	}
-	cs := mcpClient(t)
 	for _, cmd := range []string{"ls", "init"} {
 		failure(t, path, "internal_error", cmd)
-		toolCode(t, cs, cmd, map[string]any{"repo": path}, "internal_error")
 	}
 }
 

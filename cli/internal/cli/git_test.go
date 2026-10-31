@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestListGitAndMCPParity(t *testing.T) {
+func TestListGit(t *testing.T) {
 	root := t.TempDir()
 	putFile(t, root, ".doan/config.json", `{"v":1}`)
 	putFile(t, root, ".git/HEAD", "ref: refs/heads/main\n")
@@ -25,9 +25,6 @@ func TestListGitAndMCPParity(t *testing.T) {
 	}
 	if _, ok := git["detached"]; ok {
 		t.Fatal("unexpected detached", git)
-	}
-	if mcp := callTool(t, mcpClient(t), "ls", map[string]any{"repo": root}); !reflect.DeepEqual(got, mcp) {
-		t.Fatal(got, mcp)
 	}
 	t.Setenv("HOME", root)
 	hidden := cliEnvelope(t, "ls", "--repo", root)

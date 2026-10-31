@@ -5,35 +5,31 @@ import { commandWords, doanPositionals } from "../../lib/transcript.ts";
 
 const CATALOG = ["context", "shape", "document", "extract", "critique", "audit", "polish", "distill", "bolder", "quieter", "layout", "typeset", "colorize", "clarify", "harden", "onboard", "adapt", "animate", "delight", "generate"];
 
-// The same evidence the judge gets (eval/lib/judge.ts): commands the agent ran
-// and MCP calls it made. A guide quote or an echoed command is not a lookup.
+// The same evidence the judge gets (eval/lib/judge.ts): commands the agent ran.
+// A guide quote or an echoed command is not a lookup.
 export function presetLookups(ctx: CheckContext) {
   const shell = ctx.calls.commands.flatMap(commandWords).flatMap(words => {
     const args = doanPositionals(words);
     return args?.[0] === "design-skill" ? [args] : [];
   });
   const shellIds = [...new Set(shell.flatMap(args => args[1] === undefined ? [] : [args[1]]))];
-  const mcpIds = [...new Set(ctx.calls.mcpDesignSkillIds ?? [])];
   return {
     shellInvoked: shell.length > 0,
-    mcpInvoked: ctx.calls.mcpTools.includes("mcp__doan__design_skill"),
     shellIds,
-    mcpIds,
     // An id outside the catalog returns usage_error, so it is never a body read.
-    ids: [...new Set([...shellIds, ...mcpIds])].filter(id => CATALOG.includes(id)),
+    ids: shellIds.filter(id => CATALOG.includes(id)),
   };
 }
 
-// Each `required` entry must be read (over `transport` when given); an array
-// entry accepts any one of its ids. Every catalog id read must be in `allowed`;
-// an empty `allowed` means no body may be read.
-export function presetChecks(ctx: CheckContext, o: { required: (string | string[])[]; allowed: string[]; transport?: "shell" | "mcp" }): Check[] {
+// Each `required` entry must be read; an array entry accepts any one of its
+// ids. Every catalog id read must be in `allowed`; an empty `allowed` means no
+// body may be read.
+export function presetChecks(ctx: CheckContext, o: { required: (string | string[])[]; allowed: string[] }): Check[] {
   const l = presetLookups(ctx);
-  const detail = `shell ${l.shellInvoked ? JSON.stringify(l.shellIds) : "not invoked"}, mcp ${l.mcpInvoked ? JSON.stringify(l.mcpIds) : "not invoked"}`;
-  const via = o.transport === "shell" ? l.shellIds : o.transport === "mcp" ? l.mcpIds : l.ids;
+  const detail = `shell ${l.shellInvoked ? JSON.stringify(l.shellIds) : "not invoked"}`;
   const checks: Check[] = o.required.map(entry => {
     const any = typeof entry === "string" ? [entry] : entry;
-    return { id: `read_${any.join("_or_")}`, pass: any.some(id => via.includes(id)), detail: `requires ${o.transport ?? "a"} read of ${any.join(" or ")}; ${detail}` };
+    return { id: `read_${any.join("_or_")}`, pass: any.some(id => l.ids.includes(id)), detail: `requires a read of ${any.join(" or ")}; ${detail}` };
   });
   const extra = l.ids.filter(id => !o.allowed.includes(id));
   checks.push(o.allowed.length
@@ -137,8 +133,8 @@ export function checkClean(ctx: CheckContext): Check {
   return { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary ?? check.json?.error)}` };
 }
 
-// Ways to get the guide or a preset around the paths a run provides (D3b, D4b,
-// D10b): installs, MCP registration, shell profile edits, another doan binary,
+// Ways to get the guide or a preset around the paths a run provides (D4b):
+// installs, MCP registration, shell profile edits, another doan binary,
 // `go run`/`go build` of the doan command, and reading doan's source files.
 const INSTALLERS = ["brew", "npm", "pnpm", "yarn", "pip", "pip3", "pipx", "go", "cargo", "gem", "port", "apt", "apt-get"];
 const SOURCE = /designskill\/presets\/|cli\/internal\/designskill\b|cli\/internal\/cli\/skill\.md/;

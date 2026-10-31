@@ -21,7 +21,6 @@ type sessionRecording struct {
 	directory                    os.FileInfo
 }
 
-// Only the shell entrypoint reads identity from its environment; MCP opts out.
 func sessionFromEnvironment(home string) *sessionRecording {
 	return sessionSettings(home, os.Getenv("DOAN_RUNTIME"), os.Getenv("CLAUDE_CODE_SESSION_ID"), os.Getenv("CODEX_THREAD_ID"), os.Getenv("CODEX_SESSION_ID"), os.Getenv("CLAUDE_CONFIG_DIR"), os.Getenv("CODEX_HOME"))
 }

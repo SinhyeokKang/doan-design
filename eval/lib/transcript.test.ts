@@ -70,11 +70,11 @@ test("outputs match call ids, retain retries, and exclude unrelated results", ()
   const outputs = toolCalls(rows.map(r => JSON.stringify(r)).join("\n")).outputs;
   assert.deepEqual(outputs, [
     { name: "exec_command", command: "doan active", callId: "a", scope: "call", excerpt: "x".repeat(300) },
-    { name: "mcp__doan__active", callId: "b", scope: "call", excerpt: "MCP result" },
     { name: "exec_command", command: "doan active", callId: "c", scope: "call", excerpt: "retry result" },
   ]);
 });
-test("Claude doan tool results use tool_use_id and skip echo and other MCP tools", () => {
+// Only shell doan invocations get output excerpts; an MCP call of any name is listed in mcpTools alone.
+test("Claude doan tool results use tool_use_id and skip echo and MCP tools", () => {
   const rows = [
     { type: "assistant", message: { content: [
       { type: "tool_use", id: "a", name: "Bash", input: { command: "doan active" } },
@@ -91,8 +91,8 @@ test("Claude doan tool results use tool_use_id and skip echo and other MCP tools
   ];
   assert.deepEqual(toolCalls(rows.map(r => JSON.stringify(r)).join("\n")).outputs, [
     { name: "Bash", command: "doan active", callId: "a", scope: "call", excerpt: "shell failed" },
-    { name: "mcp__doan__active", callId: "b", scope: "call", excerpt: "MCP failed" },
   ]);
+  assert.deepEqual(toolCalls(rows.map(r => JSON.stringify(r)).join("\n")).mcpTools, ["mcp__doan__active", "mcp__other__active"]);
 });
 
 test("shell words keep quoted flag assignments together", () => {

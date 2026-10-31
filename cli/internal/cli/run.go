@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -78,7 +77,6 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   onboarding complete --session <id> --request <id>
   skill
   design-skill [<id>]
-  mcp
   help
 `
 
@@ -122,10 +120,6 @@ func onboardingRuntime() (string, bool, *Error) {
 	return path, explicit, failure
 }
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	return run(args, stdin, stdout, stderr, true)
-}
-
-func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSessions bool) int {
 	fs := flag.NewFlagSet("doan", flag.ContinueOnError)
 	var f Flags
 	fs.BoolVar(&f.JSON, "json", false, "")
@@ -174,9 +168,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 			for name := range onboardingFlags {
 				allowed[name] = true
 			}
-		case "mcp":
-			// stdout carries only the protocol, so no flag (not even --json) applies.
-			allowed = map[string]bool{}
 		}
 		fs.Visit(func(v *flag.Flag) {
 			f.Given[v.Name] = true
@@ -193,18 +184,6 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 		if failure == nil {
 			if cmd == "help" {
 				o.Result = map[string]any{"usage": usage}
-			} else if cmd == "mcp" {
-				if len(pos) > 1 {
-					failure = usageError("mcp takes no positional arguments")
-				} else {
-					// emit is skipped: it would write a value to stdout after the protocol stream.
-					if e := Serve(context.Background(), stdin, stdout); e != nil {
-						// Exit 1 either way; a failed stderr write has nowhere else to go.
-						io.WriteString(stderr, EscapeControl("error: "+e.Error()+"\n"))
-						return 1
-					}
-					return 0
-				}
 			} else {
 				start, e := os.Getwd()
 				if e != nil {
@@ -244,9 +223,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, recordSession
 					case "design-skill":
 						o, failure = DesignSkill(pos[1:])
 					case "check":
-						if recordSessions {
-							ctx.Session = sessionFromEnvironment(ctx.Home)
-						}
+						ctx.Session = sessionFromEnvironment(ctx.Home)
 						o, failure = Check(ctx, f, pos[1:])
 					case "active":
 						if ctx.RuntimePath, failure = runtimePath(); failure == nil {

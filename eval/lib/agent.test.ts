@@ -9,7 +9,19 @@ import { createContext } from "./context.ts";
 
 test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("claude", "P"), { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", "P"] });
-  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", "mcp_servers.doan.enabled=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "mcp_servers.doan.enabled=false", "P"] });
+});
+
+// Claude has --strict-mcp-config; Codex has no equivalent and merges `-c mcp_servers={}` into the
+// machine's servers, so a doan server left registered there is switched off by name.
+test("neither agent loads a doan MCP server from the machine's config", () => {
+  assert.ok(agentCommand("claude", "P").args.includes("--strict-mcp-config"));
+  assert.ok(agentCommand("codex", "P").args.includes("mcp_servers.doan.enabled=false"));
+  for (const agent of ["claude", "codex"] as const) assert.ok(!agentCommand(agent, "P").args.some(arg => /mcp__doan|^--mcp-config$|mcp_servers\.doan\.(command|args|env)/.test(arg)), agent);
+});
+
+test("Codex never asks for approval, whatever the machine's own config says", () => {
+  assert.ok(agentCommand("codex", "P").args.includes('approval_policy="never"'));
 });
 
 test("a run past its time limit is killed with its children and settles once", async () => {
@@ -58,21 +70,6 @@ test("a spawn that throws still settles", async () => {
   }
 });
 
-test("MCP run config pins the measured CLI and runtime without changing global config", () => {
-  const dir = mkdtempSync("/tmp/doan-eval-test-");
-  try {
-    const mcp = { cli: '/tmp/packaged CLI/doan', runtime: '/tmp/rt/runtime.json', configPath: join(dir, "mcp.json") };
-    const claude = agentCommand("claude", "P", mcp);
-    assert.ok(claude.args.includes("--strict-mcp-config"));
-    assert.equal(claude.args[claude.args.indexOf("--mcp-config") + 1], mcp.configPath);
-    assert.match(claude.args[claude.args.indexOf("--allowedTools") + 1], /mcp__doan__\*/);
-    assert.equal(existsSync(mcp.configPath), false, "argv construction must not write config");
-    const codex = agentCommand("codex", "P", mcp);
-    assert.deepEqual(codex.args.slice(0, 3), ["exec", "--sandbox", "workspace-write"]);
-    for (const option of [`mcp_servers.doan.command=${JSON.stringify(mcp.cli)}`, 'mcp_servers.doan.args=["mcp"]', `mcp_servers.doan.env.DOAN_RUNTIME=${JSON.stringify(mcp.runtime)}`, "mcp_servers.doan.enabled=true"]) assert.ok(codex.args.includes(option));
-    assert.ok(!codex.args.includes("mcp_servers.doan.enabled=false"));
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-});
 test("Codex transcript copies only the matching session rollout from inherited CODEX_HOME", () => {
   const dir = mkdtempSync("/tmp/doan-eval-test-");
   try {
@@ -122,18 +119,6 @@ test("rollout output cannot evict active calls or original log tails from judge 
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("workspace preparation writes Claude MCP config outside the measured repo", async () => {
-  const { prepareWorkspace } = await import("./workspace.ts");
-  const { loadScenario } = await import("./scenario.ts");
-  const scenario = loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2b");
-  const cli = "/tmp/packaged CLI/doan";
-  const ws = await prepareWorkspace({ scenario, agent: "claude", cli, stub: "stub" });
-  try {
-    assert.deepEqual(JSON.parse(readFileSync(join(ws.base, "mcp.json"), "utf8")), { mcpServers: { doan: { command: cli, args: ["mcp"], env: { DOAN_RUNTIME: ws.env.DOAN_RUNTIME } } } });
-    assert.equal(existsSync(join(ws.repo, "mcp.json")), false);
-  } finally { await ws.dispose(); }
-});
-
 test("Codex disables shell snapshots so run-local PATH survives tool calls", () => {
   assert.ok(agentCommand("codex", "P").args.includes("features.shell_snapshot=false"));
 });
@@ -161,7 +146,7 @@ test("agent CLI provenance rejects missing, stale and ambiguous paths", async ()
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("shellCli false removes inherited doan while preserving colocated tools and MCP", async () => {
+test("shellCli false removes inherited doan while preserving colocated tools", async () => {
   const { prepareWorkspace } = await import("./workspace.ts");
   const { loadScenario } = await import("./scenario.ts");
   const { sh } = await import("./context.ts");
@@ -171,14 +156,14 @@ test("shellCli false removes inherited doan while preserving colocated tools and
     writeFileSync(join(dir, "doan"), "#!/bin/sh\necho inherited-doan\n", { mode: 0o755 });
     writeFileSync(join(dir, "eval-peer"), "#!/bin/sh\necho peer-ok\n", { mode: 0o755 });
     process.env.PATH = `${dir}:${original}`;
-    const scenario = { ...loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2b"), shellCli: false };
+    const scenario = { ...loadScenario(new URL("../scenarios", import.meta.url).pathname, "R2"), shellCli: false };
     const cli = "/tmp/packaged CLI/doan";
     const ws = await prepareWorkspace({ scenario, agent: "claude", cli, stub: "stub" });
     try {
       assert.equal(existsSync(join(ws.base, "bin/doan")), false);
       assert.notEqual(sh("/bin/sh", ["-c", "command -v doan"], ws.repo, ws.env).code, 0);
       assert.equal(sh("eval-peer", [], ws.repo, ws.env).stdout.trim(), "peer-ok");
-      assert.equal(JSON.parse(readFileSync(join(ws.base, "mcp.json"), "utf8")).mcpServers.doan.command, cli);
+      assert.equal(existsSync(join(ws.base, "mcp.json")), false);
     } finally { await ws.dispose(); }
     assert.equal(readFileSync(join(dir, "doan"), "utf8"), "#!/bin/sh\necho inherited-doan\n");
   } finally {
@@ -187,7 +172,7 @@ test("shellCli false removes inherited doan while preserving colocated tools and
   }
 });
 
-test("MCP-only provenance requires an explicit absent CLI report", async () => {
+test("provenance without a shell CLI requires an explicit absent CLI report", async () => {
   const { cliProvenance } = await import("./agent.ts");
   const dir = mkdtempSync("/tmp/doan-eval-provenance-");
   try {

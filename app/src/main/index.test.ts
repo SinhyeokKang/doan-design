@@ -656,7 +656,7 @@ test("wires packaged CLI selection with the runtime environment", () => {
 
 
 // First run is open from a launch without a v1 completion record until the session reports completion, from the
-// window, the CLI or MCP. Nothing else opens or closes it (POSTMORTEM "The setup menu discarded an open wizard session").
+// window or the CLI. Nothing else opens or closes it (POSTMORTEM "The setup menu discarded an open wizard session").
 async function completeFirstRun(): Promise<void> {
   mocks.readCompletion.mockReturnValue(COMPLETE);
   const contents = window().webContents;

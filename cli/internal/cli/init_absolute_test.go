@@ -9,7 +9,7 @@ import (
 )
 
 func TestInitAbsoluteTokenCSS(t *testing.T) {
-	for _, mode := range []string{"plain", "root alias", "token alias", "case", "parent segment", "mcp"} {
+	for _, mode := range []string{"plain", "root alias", "token alias", "case", "parent segment"} {
 		t.Run(mode, func(t *testing.T) {
 			root := filepath.Join(t.TempDir(), "Repo")
 			putFile(t, root, "Styles/Tokens.css", ":root{--x:red}")
@@ -35,16 +35,7 @@ func TestInitAbsoluteTokenCSS(t *testing.T) {
 				}
 				token = strings.ToLower(token)
 			}
-			var got map[string]any
-			if mode == "mcp" {
-				env := callTool(t, mcpClient(t), "init", map[string]any{"repo": repoArg, "tokenCss": token})
-				if env["ok"] != true {
-					t.Fatal(env)
-				}
-				got = env["result"].(map[string]any)
-			} else {
-				got = result(t, repoArg, 0, "init", "--token-css", token)
-			}
+			got := result(t, repoArg, 0, "init", "--token-css", token)
 			if got["tokenCss"] != "Styles/Tokens.css" || got["initialized"] != true {
 				t.Fatal(got)
 			}

@@ -7,7 +7,7 @@ const checks: Checks = ctx => {
   const frames = canvases.reduce((n: number, c: any) => n + (c.frames?.length ?? 0), 0);
   const html = canvases.map((c: any) => ctx.read(c.path) ?? "").join("\n");
   return [
-    ...presetChecks(ctx, { required: ["generate"], allowed: ["generate", "context"], transport: "shell" }),
+    ...presetChecks(ctx, { required: ["generate"], allowed: ["generate", "context"] }),
     // W1 wants two state frames on one canvas; alternatives may be split across canvases.
     ...w1(ctx).filter(c => c.id !== "state_frames_created"),
     { id: "three_directions_drawn", pass: frames >= 3, detail: `${frames} frames across ${canvases.length} canvases` },

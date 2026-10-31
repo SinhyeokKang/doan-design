@@ -9,7 +9,7 @@ import { parseGitHubUrl, type GitHubUrl } from "./repository";
 
 // Adding one project: inspect a folder or GitHub URL, then select or clone (buzz-add-projects design 'main의 project
 // 처리'). First run's session and the Add Projects page each own one; the page's has no session record, completion,
-// socket, CLI or MCP.
+// socket or CLI.
 
 // Folder work (projects.ts and clone.ts), wired by index.ts.
 export interface AdderProjects {
@@ -26,7 +26,7 @@ export interface AdderProjects {
   // once the clone sits at its destination; after it says true no cancel applies.
   clone(url: string, destination: string, signal: AbortSignal, commit: () => boolean): Promise<ProjectOutcome | { ok: false; cancelled: true }>;
 }
-// Shared by every adder: a CLI or MCP client can still clone through first run's session while the page clones.
+// Shared by every adder: the CLI can still clone through first run's session while the page clones.
 export interface ProjectLocks {
   // Per destination parent: a clone directory an adder could not remove. No other is made there until it is gone.
   leftovers: Map<string, string[]>;

@@ -54,7 +54,7 @@ Report review coverage separately from correction status. A fully inspected deci
 
 ## Verify and report
 
-Recheck every changed reference against its target, inspect the diff for altered meaning, and verify that source skills still resolve through their Claude symlinks. Recheck each accepted discrepancy against the edited documents and related authoritative sections; correct any remaining inconsistency before finishing. Validate edited skill frontmatter when a validator is available. Static checks do not prove documented commands execute successfully; use [/verify](../verify/SKILL.md) when execution is required. Product guide/CLI/MCP guidance changes still require the AGENTS `/agent-eval` gate.
+Recheck every changed reference against its target, inspect the diff for altered meaning, and verify that source skills still resolve through their Claude symlinks. Recheck each accepted discrepancy against the edited documents and related authoritative sections; correct any remaining inconsistency before finishing. Validate edited skill frontmatter when a validator is available. Static checks do not prove documented commands execute successfully; use [/verify](../verify/SKILL.md) when execution is required. Product guide/CLI guidance changes still require the AGENTS `/agent-eval` gate.
 
 Finish when both review passes cover the requested scope and every verified factual correction has been applied and checked. Commit the documentation changes under AGENTS conventions unless the user requests otherwise. If a decision, unavailable evidence, or tool failure prevents completion, name the exact remaining items and reason; do not offer to perform already-authorized corrections in a later turn.
 

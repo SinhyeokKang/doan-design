@@ -9,7 +9,7 @@ Use this preset when the user asks to improve arrangement, spacing, alignment, g
 - Find the target. For pointing words like "this screen" or "this section", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: token CSS (`doan config --json` shows `tokenCss`), especially spacing, size, and breakpoint variables; existing layout components; any design rules document; and the `design-system` canvas (`.doan/canvases/design-system.html`) if one exists.
 - Read the code the canvas implements (`data-doan-implements`) so the proposed structure fits the real component tree and its states.
-- If the product's users and tasks are unknown and that would change the priority order, suggest gathering them first with the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`). Ask only what would change the result.
+- If the product's users and tasks are unknown and that would change the priority order, suggest gathering them first with the `context` preset (`doan design-skill context --json`). Ask only what would change the result.
 - A layout change preserves the identity. If the request turns out to need a new visual identity, confirm that with the user before going further.
 
 ## Match the surface

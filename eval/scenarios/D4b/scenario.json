@@ -1,10 +1,9 @@
 {
   "id": "D4b",
-  "title": "Report a named preset as not applied with neither path, checking source reads too",
+  "title": "Report a named preset as not applied without the shell CLI, checking source reads too",
   "focus": "preset",
   "init": null,
   "selection": null,
   "timeoutSec": 600,
-  "mcp": false,
   "shellCli": false
 }

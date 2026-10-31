@@ -597,8 +597,8 @@ export function SceneScroll({ children }: { children: React.ReactNode }) {
   return <div className="ob-scroll doan-scroll"><div className="ob-scene">{children}</div></div>;
 }
 
-// The full-window first run: Welcome → Agent → Project → Home, mounted once per main onboarding session. A CLI or MCP
-// client may drive the same session; its completion closes this window too.
+// The full-window first run: Welcome → Agent → Project → Home, mounted once per main onboarding session. The CLI may
+// drive the same session; its completion closes this window too.
 export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout }: { session: string; projects: readonly string[]; homeDirectory: string | null; onClose: (root: string | null) => void; mainCheckout: (path: string) => boolean }) {
   const [, redraw] = useReducer((n: number) => n + 1, 0);
   const [agents] = useState(() => new AgentStepSession({ api: window.doan, openInstall: openInstallPage, hasFocus: () => document.hasFocus(), changed: redraw, signIn: agentSignIn() }));
@@ -626,7 +626,7 @@ export function Wizard({ session, projects, homeDirectory, onClose, mainCheckout
     project.start();
     const focused = () => agents.windowFocused();
     window.addEventListener("focus", focused);
-    // Completion saved by a CLI or MCP client of this session: Home takes over here too.
+    // Completion saved by the CLI in this session: Home takes over here too.
     const done = (state: OnboardingState) => { if (state.sessionId === session && state.completed) finish(state.project?.root ?? null); };
     const stop = window.doan.onOnboardingSession(done);
     // A completion published between App's start and this subscription is read once here.

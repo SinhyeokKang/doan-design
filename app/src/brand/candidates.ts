@@ -8,9 +8,9 @@ export type BrandKind = "prose" | "command" | "path" | "identifier";
 export interface BrandCandidate { index: number; form: "doan" | "Doan"; kind: BrandKind }
 
 // `doan` followed by one of these words is the command itself.
-const SUBCOMMANDS = ["active", "check", "comment", "comments", "config", "design-skill", "help", "init", "ls", "mcp", "onboarding", "skill", "version"];
-// Nouns that name the `doan` command or its MCP server rather than the product.
-const COMMAND_NOUNS = ["CLI", "command", "MCP", "server"];
+const SUBCOMMANDS = ["active", "check", "comment", "comments", "config", "design-skill", "help", "init", "ls", "onboarding", "skill", "version"];
+// Nouns that name the `doan` command rather than the product.
+const COMMAND_NOUNS = ["CLI", "command", "server"];
 const COMMAND_AFTER = new RegExp(`^ (?:--?[a-z]|<|(?:${[...SUBCOMMANDS, ...COMMAND_NOUNS].join("|")})(?![\\w-]))`);
 const QUOTES = "'\"‘’“”";
 

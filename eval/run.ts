@@ -61,9 +61,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
     const prompt = `Evaluation setup: before doing the task, run\ncommand -v doan > ${quote(resolutionPath)}${scenario.shellCli ? "" : " || true"}\nfrom your shell without changing PATH. This records ${scenario.shellCli ? "the executable used for this run" : "that doan is absent from PATH (an empty file is expected)"}.\n\n` + renderPrompt(scenario.promptTemplate, ws.repo);
     writeFileSync(join(dir, "prompt.txt"), prompt);
-    const runtime = ws.env.DOAN_RUNTIME;
-    if (!runtime) throw new Error("Workspace has no DOAN_RUNTIME");
-    const { cmd, args } = agentCommand(agent, prompt, scenario.mcp ? { cli: setup.cli, runtime, configPath: join(ws.base, "mcp.json") } : undefined);
+    const { cmd, args } = agentCommand(agent, prompt);
     console.log(`start ${name} (${ws.cwd})`);
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });

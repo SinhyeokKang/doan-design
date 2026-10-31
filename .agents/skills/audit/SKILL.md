@@ -24,7 +24,7 @@ Maintain a module-by-perspective coverage table with an owner for each applicabl
 
 ## Reviewer perspectives
 
-1. **Contracts and invariants**: schemas and both language implementations; CLI/MCP envelopes and error semantics; documented behavior and its tests. Check both producers and consumers, including failure paths.
+1. **Contracts and invariants**: schemas and both language implementations; CLI envelopes and error semantics; documented behavior and its tests. Check both producers and consumers, including failure paths.
 2. **Boundaries**: renderer/preload/main IPC validation and sender scope; filesystem paths and serving scope; agent inputs, subprocess arguments, configuration and user-state isolation. Trace input to the operation it controls.
 3. **Lifecycle and failures**: ownership of windows, watchers, sockets, children and queued work; cancellation, timeout, retries, disposal and quit; stale results and partially completed writes. Check transitions rather than just happy-path functions.
 4. **Maintainability and regression prevention**: duplicated domain decisions that can disagree, untested contracts, stale adapters, and applicable postmortem recurrences. Do not classify taste, hypothetical extensibility, or harmless repetition as a defect.

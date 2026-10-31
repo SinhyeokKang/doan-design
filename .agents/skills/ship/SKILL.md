@@ -14,7 +14,7 @@ Conducts one small, surgical change in the order **`/tdd` → commit → `/imple
 
 ## 0. Intake
 
-- **Scope guard**: spans multiple components (app, CLI, MCP, formats), out of scope (PRODUCT §3), changes ARCHITECTURE §1 'Conventions' or a structural decision, or a new feature that needs `docs/features/` — if any applies, stop and recommend starting with `/feature`. Out-of-scope items and decision changes do not pass even with `bypass` (they are user decisions).
+- **Scope guard**: spans multiple components (app, CLI, formats), out of scope (PRODUCT §3), changes ARCHITECTURE §1 'Conventions' or a structural decision, or a new feature that needs `docs/features/` — if any applies, stop and recommend starting with `/feature`. Out-of-scope items and decision changes do not pass even with `bypass` (they are user decisions).
 - **Branch** (AGENTS.md 'Commit conventions'): `/ship` always starts from main with `git switch -c feat-<slug>`. The same goes for docs-only changes. If already on `feat-<slug>`, keep using it. Write the name in the report. When running as an `/orchestrate` worker, use the branch the brief specifies.
 - **Worktree ownership**: if `git status --porcelain` shows tracked changes (`M`, `D`, `A`, `R`) this session did not make, stop. It means another session is working in the same checkout. Untracked (`??`) is only reported. Base this on `git worktree list` output, not on someone saying "it's being done in another worktree".
 - **Clean worktree**: if you have uncommitted changes of your own, commit them separately first. If that diff overlaps the current target, do not commit; stop (the tests-first order is already broken).

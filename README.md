@@ -21,7 +21,6 @@ Canvases use the repo's real token CSS, and frames can point at the files that i
 
 - **App**: first-run sign-in to the agent connections (Claude Code, Codex, Cursor, Antigravity, GitHub Copilot; one account each) and project setup; a Home composer that starts a conversation with the signed-in agent; the project/canvas workspace with zoom, pan, frame jumps and Quick Open; element selection with a computed-style and token inspector; comments with pins, review and hand-off to the agent.
 - **CLI `doan`**: `init`, `config`, `ls`, `comments`, `comment resolve`, `check`, `active`, `onboarding`, `skill`, `design-skill`. Everything except `active` and `onboarding` works without the app.
-- **MCP**: `doan mcp` exposes the same functionality as MCP tools.
 - **Skills**: opening Doan from Applications links its skill stub and the `doan` command for Claude Code, Codex, Cursor, GitHub Copilot and Antigravity, with no setup; the guide comes from `doan skill`, plus bundled design presets (adapted from Impeccable).
 
 ## Build from source
@@ -42,7 +41,7 @@ To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]
 | Document | Contents |
 |---|---|
 | [docs/PRODUCT.md](./docs/PRODUCT.md) | Problem, users, scope, core loop, MVP, open questions |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Conventions, formats, rendering, CLI ↔ app, MCP, skills, stack |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Conventions, formats, rendering, CLI ↔ app, skills, stack |
 | [docs/DESIGN.md](./docs/DESIGN.md) | Measured values of the app UI |
 | [docs/DIRECTORY.md](./docs/DIRECTORY.md) | Directory layout |
 | [AGENTS.md](./AGENTS.md) | How agents work in this repo |

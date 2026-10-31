@@ -1,6 +1,6 @@
 # Audit the design
 
-Run technical quality checks on a canvas or the code it implements and report what is measurable and verifiable: accessibility, responsive behavior, theming, performance cautions, and design system integrity. This is a code-level audit, not a design critique; for judgments about hierarchy, flow, or feel, read the `critique` preset instead (`doan design-skill critique --json`, or the MCP `design_skill` tool with `{"id": "critique"}`).
+Run technical quality checks on a canvas or the code it implements and report what is measurable and verifiable: accessibility, responsive behavior, theming, performance cautions, and design system integrity. This is a code-level audit, not a design critique; for judgments about hierarchy, flow, or feel, read the `critique` preset instead (`doan design-skill critique --json`).
 
 The audit reports; it does not fix. The user's request and its scope come first: audit the target they named, along the dimensions they asked about. Every finding says how it was checked, and every check you could not run is listed as unchecked, never as passed.
 
@@ -95,7 +95,7 @@ No numeric score is required. Explain why each issue matters and keep recommenda
 ## Work in Doan
 
 - The audit is review-only: do not edit canvases, code, or configuration, and do not resolve comments. Do not reply to comments.
-- If the user then asks for fixes, change only what they selected. Keep canvas, frame, and element ids unchanged; reference token CSS variables instead of raw colors; when something drawn on a canvas is not in code yet, say so on the canvas (Doan guide rule G). If a fix needs a dedicated preset, read it then (`doan design-skill <id> --json`, or the MCP `design_skill` tool).
+- If the user then asks for fixes, change only what they selected. Keep canvas, frame, and element ids unchanged; reference token CSS variables instead of raw colors; when something drawn on a canvas is not in code yet, say so on the canvas (Doan guide rule G). If a fix needs a dedicated preset, read it then (`doan design-skill <id> --json`).
 - After editing a canvas, make `doan check` pass and resolve only the comments you actually applied. List what changed and what you left unchanged on purpose.
 
 ## Verify

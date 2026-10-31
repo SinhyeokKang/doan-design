@@ -7,7 +7,7 @@ const mainOnly = new Set([
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save", "onboarding:first-prompt", "onboarding:copy",
   "onboarding:choose-folder", "folders:get",
   "window:visible", "comments:project", "review-state:get", "review-state:raise", "comments:orphan-mutate", "comments:orphan-status",
-  // buzz-onboarding: the first-run session the CLI and MCP share; Settings never drives first-run.
+  // buzz-onboarding: the first-run session the CLI shares; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // doan-design-skills: preset reads for the home; Settings has no preset UI.
   "design-skills:list", "design-skills:get",

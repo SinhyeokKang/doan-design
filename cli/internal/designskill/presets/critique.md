@@ -10,7 +10,7 @@ The user's request and its scope come first: answer the question they asked abou
 - Read the design system: token CSS variables (`doan config --json` shows `tokenCss`), existing components, a design rules document, and the `design-system` canvas (`.doan/canvases/design-system.html`) if present. Judge consistency against that system, not your own taste.
 - Read the code the frame implements (`data-doan-implements`). Note where the canvas and the code disagree, and where the canvas says something is not in code yet.
 - Read the canvas HTML and CSS. Use a render too if you can see one (a screenshot the user shares, or a browser you can actually run); if not, say your visual judgments come from source, not a render.
-- Product context (who uses this, in what situation, for what job) changes the verdict. Infer it from the repository; when it is missing and would change the critique, ask, or suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`). Ask only what would change the result.
+- Product context (who uses this, in what situation, for what job) changes the verdict. Infer it from the repository; when it is missing and would change the critique, ask, or suggest the `context` preset (`doan design-skill context --json`). Ask only what would change the result.
 
 ## Review lens
 
@@ -143,7 +143,7 @@ No numeric score is required unless the user asks. Be direct and specific ("the 
 ## Work in Doan
 
 - By default the critique is review-only: do not edit canvases, code, or configuration, and do not resolve comments. Do not reply to comments; explain in the conversation.
-- If the user then asks for fixes, change only what they selected; keep ids unchanged and leave everything outside the request as it is. Reference token CSS variables instead of raw colors. When something drawn on a canvas is not in code yet, say so on the canvas (Doan guide rule G). If a fix needs a dedicated preset, read it then (`doan design-skill <id> --json`, or the MCP `design_skill` tool).
+- If the user then asks for fixes, change only what they selected; keep ids unchanged and leave everything outside the request as it is. Reference token CSS variables instead of raw colors. When something drawn on a canvas is not in code yet, say so on the canvas (Doan guide rule G). If a fix needs a dedicated preset, read it then (`doan design-skill <id> --json`).
 - After editing a canvas, make `doan check` pass and resolve only the comments you actually applied. List what changed and what you left unchanged on purpose.
 
 ## Verify

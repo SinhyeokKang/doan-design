@@ -68,7 +68,7 @@ interface MappingCase {
   name: string;
   op: string;
   reply: { v: number };
-  expect: { ok: boolean; exit: number; isError: boolean; code?: string };
+  expect: { ok: boolean; exit: number; code?: string };
 }
 interface Mapping {
   translate: Record<string, string>;
@@ -89,7 +89,6 @@ describe("onboarding CLI mapping", () => {
   for (const { name, reply, expect: expected } of mapping.cases) {
     test(name, () => {
       expect(reply.v === 2 ? validateOnboardingResponse(reply) : validateSocketResponse(reply)).toBe(true);
-      expect(expected.isError).toBe(!expected.ok);
       if (expected.ok) {
         expect(expected.exit).toBe(0);
         expect(validateEnvelope({ v: 1, ok: true, result: (reply as { result?: unknown }).result })).toBe(true);

@@ -1,7 +1,0 @@
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"mcp__doan__skill","input":{}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"mcp__doan__design_skill","input":{}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t3","name":"mcp__doan__design_skill","input":{"id":"clarify"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t4","name":"mcp__doan__check","input":{"repo":"{{repo}}"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t5","name":"Bash","input":{"command":"cat /Users/someone/code/doan/cli/internal/designskill/presets/clarify.md"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t6","name":"Bash","input":{"command":"go run ./cli/cmd/doan skill"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t7","name":"Read","input":{"file_path":"/Users/someone/code/doan/cli/internal/cli/skill.md"}}]}}

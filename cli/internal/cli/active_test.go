@@ -462,14 +462,13 @@ func TestActiveUnavailableOffersSandboxAndAboutGuidance(t *testing.T) {
 	failure := activeCode(t, ctx, root, "app_not_running")
 	requireRecoveryOrder(t, failure.NextSteps, [][]string{
 		{"Ask the user to open Doan"},
-		{"If Doan is open, a sandbox may block this shell from its socket", "MCP `active` tool if it is available"},
-		{"Otherwise", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
+		{"If Doan is open, a sandbox may block this shell from its socket", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
 		{"If it still fails", "Applications", "Settings… > About"},
 	})
 }
 
-// requireRecoveryOrder pins the sandbox recovery order by step index: reordering
-// steps or dropping the MCP availability qualifier must fail.
+// requireRecoveryOrder pins the sandbox recovery order by step index: reordering,
+// adding or dropping a step must fail.
 func requireRecoveryOrder(t *testing.T, steps []string, want [][]string) {
 	t.Helper()
 	if len(steps) != len(want) {

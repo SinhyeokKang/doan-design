@@ -1,1 +1,0 @@
-Apply the open review comments on the Profile canvas. Use the doan MCP tools to read the guide, inspect comments, check the canvas, and resolve the comments you apply. The doan shell CLI is not available for this run; do not install it or use an absolute CLI path.

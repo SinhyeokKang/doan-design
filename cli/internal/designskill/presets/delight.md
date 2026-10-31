@@ -10,7 +10,7 @@ Use this preset when the user asks to add personality, charm, warmth, celebratio
 - Read the design system: token CSS variables (`doan config --json` shows `tokenCss`), existing components, illustrations and icon sets, a design rules document, and the `design-system` canvas (`.doan/canvases/design-system.html`) if present.
 - Read the product voice in existing copy and documents, and the code the frame implements (`data-doan-implements`).
 - Judge how often the moment repeats and what is at stake for the person there.
-- The brand's emotional range decides how far delight may go. Infer it from the evidence; ask only when it cannot be inferred and would change the result. When the product's purpose, audience, or voice is unknown, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`).
+- The brand's emotional range decides how far delight may go. Infer it from the evidence; ask only when it cannot be inferred and would change the result. When the product's purpose, audience, or voice is unknown, suggest the `context` preset (`doan design-skill context --json`).
 
 ## Find the opportunity
 
@@ -73,7 +73,7 @@ Delight must not:
 
 Every enhancement degrades gracefully: without the flourish, or on a device that cannot run it, the experience is still complete and good. Respect screen readers, keyboard use, touch, reduced-motion preferences, localization, and cultural context. Nonessential loops stop when hidden. Celebration intensity is proportional to frequency and consequence.
 
-When the delight is mainly authored motion (timing, easing, reduced-motion behavior, performance), read the `animate` preset (`doan design-skill animate --json`, or the MCP `design_skill` tool with `{"id": "animate"}`).
+When the delight is mainly authored motion (timing, easing, reduced-motion behavior, performance), read the `animate` preset (`doan design-skill animate --json`).
 
 ## Apply the change in Doan
 

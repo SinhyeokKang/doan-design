@@ -27,33 +27,11 @@ func TestSkillGuide(t *testing.T) {
 	}
 }
 
-func TestSkillGuideMapsMCPTools(t *testing.T) {
-	lines := strings.Split(skillBody, "\n")
-	hasLine := func(parts ...string) bool {
-		for _, l := range lines {
-			all := true
-			for _, p := range parts {
-				all = all && strings.Contains(l, p)
-			}
-			if all {
-				return true
-			}
-		}
-		return false
-	}
-	for _, row := range [][2]string{{"init", "doan init"}, {"config", "doan config"}, {"ls", "doan ls"}, {"comments", "doan comments"}, {"resolve_comments", "doan comment resolve"}, {"check", "doan check"}, {"skill", "doan skill"}, {"active", "doan active"}, {"design_skill", "doan design-skill"}} {
-		if !hasLine("| `"+row[0]+"`", "`"+row[1]) {
-			t.Errorf("missing table row %s", row)
-		}
-	}
-	if !hasLine("`resolve_comments`", `"ids"`, `"agent"`) {
-		t.Error("missing resolve_comments example with agent")
-	}
-	if !hasLine("`nextSteps`", "CLI", "table") {
-		t.Error("missing nextSteps mapping note")
-	}
-	if !hasLine("`doan help`", "no tool", "`skill` tool") {
-		t.Error("missing doan help mapping")
+// The shell CLI is the only way to reach Doan; the guide must not point agents anywhere else.
+func TestSkillGuideHasNoMCP(t *testing.T) {
+	body := result(t, t.TempDir(), 0, "skill")["body"].(string)
+	if strings.Contains(strings.ToLower(body), "mcp") {
+		t.Fatal("guide mentions MCP")
 	}
 }
 
@@ -84,7 +62,7 @@ func TestSkillGuideActive(t *testing.T) {
 		}
 	}
 	at := 0
-	for _, p := range []string{"ask the user to open Doan", "If Doan is open, a sandbox may block this shell from its socket", "MCP `active` tool if it is available", "Otherwise", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Applications", "Settings… > About"} {
+	for _, p := range []string{"ask the user to open Doan", "If Doan is open, a sandbox may block this shell from its socket", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions", "If it still fails", "Applications", "Settings… > About"} {
 		i := strings.Index(recovery[at:], p)
 		if i < 0 {
 			t.Fatalf("active recovery line misses %q in order: %q", p, recovery)
@@ -96,7 +74,6 @@ func TestSkillGuideActive(t *testing.T) {
 		{"`selection`", "ask the user"},
 		{"`project_not_open`", "add this project in Doan (Add Project…)", "work in the worktree that is open in Doan"},
 		{"frame", "`doan ls`", "script"},
-		{"| `active`", "`repo?`"},
 		{"3", "`app_not_running`", "`app_protocol_mismatch`", "`project_not_open`"},
 	} {
 		if !hasLine(parts...) {
@@ -114,6 +91,19 @@ func TestSkillGuideHandoff(t *testing.T) {
 			t.Errorf("missing handoff guidance: %s", required)
 		}
 	}
+}
+
+// `doan init --json` never prompts, so the guide must make the agent ask first.
+func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "- `doan init ") {
+			if !strings.Contains(l, "Run it only when the user asks, and ask the user for the token CSS path first.") {
+				t.Fatal(l)
+			}
+			return
+		}
+	}
+	t.Fatal("guide has no init command entry")
 }
 
 func TestSkillConfigRequiresHumanRequest(t *testing.T) {

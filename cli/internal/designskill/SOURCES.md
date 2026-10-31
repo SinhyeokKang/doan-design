@@ -62,7 +62,7 @@ This grep is a string check. It cannot tell whether the text around an allowed t
 |---|---|---|---|
 | `craft` | — | not reflected | Deprecated upstream alias for ordinary new work; it adds no guidance. New-work guidance reaches `shape` and `generate` through `new-work.md`. |
 | `shape` | `shape` | adapted | Through `skill/reference/shape.md` (below). |
-| `init` | `context` | adapted | Published as `context` so agents do not confuse it with the CLI `doan init` or MCP `init`. |
+| `init` | `context` | adapted | Published as `context` so agents do not confuse it with the CLI `doan init`. |
 | `document` | `document` | adapted | Through `skill/reference/document.md` (below). |
 | `extract` | `extract` | adapted | Through `skill/reference/extract.md` (below). |
 | `critique` | `critique` | adapted | Through `skill/reference/critique.md` (below). |

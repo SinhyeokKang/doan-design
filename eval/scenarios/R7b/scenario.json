@@ -1,0 +1,8 @@
+{
+  "id": "R7b",
+  "title": "Fix the selected element from its attached comments",
+  "focus": "active",
+  "init": null,
+  "selection": "selection.json",
+  "timeoutSec": 900
+}
