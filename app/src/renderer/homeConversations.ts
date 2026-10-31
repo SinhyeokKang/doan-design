@@ -1,50 +1,23 @@
 import type { Provider } from "../main/agentAuth/types";
-import { PROVIDER_NAMES } from "./agentAuthView";
 import type { StripState } from "./conversationStrip";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 
-// Home conversations as the renderer keeps them for this run only (buzz-home design §7.2, §7.4, §7.5): a reload
-// or restart forgets them, so the sidebar slots, the last requests and the one-per-root rule go with them.
+// Home conversations the renderer follows in this run: those it started and, after a reload, those main's list names
+// for the strip (buzz-home design §7; buzz-conversation design §3.4).
 
 export interface HomeConversation {
   conversationId: string; root: string; provider: Provider;
   phase: StripState["kind"];
-  // The canvas path main bound the conversation to (design §7.3).
+  // The canvas path main bound the conversation to, from its list.
   canvas?: string;
-  // The visit clock's tick when the turn ended; a turn that ended after the last visit to its row is unseen.
-  finishedAt?: number;
 }
 
 const RUNNING: readonly StripState["kind"][] = ["starting", "working", "permission"];
-const FINISHED: readonly StripState["kind"][] = ["done", "failed", "interrupted"];
-
-export function conversationPhase(conversation: HomeConversation, phase: StripState["kind"], tick: number): HomeConversation {
-  if (conversation.phase === phase) return conversation;
-  const { finishedAt: _finishedAt, ...rest } = conversation;
-  return FINISHED.includes(phase) ? { ...rest, phase, finishedAt: tick } : { ...rest, phase };
-}
 
 // One sidebar row: a canvas row when the conversation is bound, else its project row.
 export function slotKey(root: string, canvas?: string): string { return canvas === undefined ? root : `${root}\n${canvas}`; }
 
 export interface Slot { kind: "permission" | "working" | "unseen"; label: string }
-const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
-
-// visits: slotKey → the tick of the last time that row's screen was shown (a workspace visit for a project row).
-export function slotState(conversations: readonly HomeConversation[], visits: ReadonlyMap<string, number>): Map<string, Slot> {
-  const slots = new Map<string, Slot>();
-  for (const c of conversations) {
-    const key = slotKey(c.root, c.canvas), p = PROVIDER_NAMES[c.provider];
-    let slot: Slot | null = null;
-    if (c.phase === "permission") slot = { kind: "permission", label: `${p} needs your answer` };
-    else if (c.phase === "starting" || c.phase === "working") slot = { kind: "working", label: `${p} is working` };
-    // Failed and stopped turns may have changed files too, so every ending waits to be seen (2026-10-29 user).
-    else if (FINISHED.includes(c.phase) && c.finishedAt !== undefined && (visits.get(key) ?? -Infinity) <= c.finishedAt) slot = { kind: "unseen", label: `New changes from ${p}` };
-    const held = slots.get(key);
-    if (slot && (!held || RANK[slot.kind] > RANK[held.kind])) slots.set(key, slot);
-  }
-  return slots;
-}
 
 // One Home conversation per root while the strip can show only one, so no permission request hides behind another.
 export function runningInRoot(conversations: readonly HomeConversation[], root: string): string | null {
@@ -61,13 +34,13 @@ function aConversation(project: string, waiting: boolean): string {
   return waiting ? `A conversation in ${project} needs your answer.` : `A conversation is still running in ${project}.`;
 }
 
-export function removalConfirm(conversations: readonly HomeConversation[], roots: readonly string[], project: string): { conversations: string[]; title: string; body: string; cancel: string; confirm: string } | null {
-  const running = conversations.filter(c => roots.includes(c.root) && RUNNING.includes(c.phase));
+// `running`: the conversations that hold the project's roots (HomeRun reads them from main's list).
+export function removalConfirm(running: readonly { conversationId: string; waiting: boolean }[], project: string): { conversations: string[]; title: string; body: string; cancel: string; confirm: string } | null {
   if (running.length === 0) return null;
   return {
     conversations: running.map(c => c.conversationId),
     title: `Stop the conversation and remove ${project}?`,
-    body: `${aConversation(project, running.every(c => c.phase === "permission"))} Doan stops it, then removes the project from the list. Files stay on disk.`,
+    body: `${aConversation(project, running.every(c => c.waiting))} Doan stops it, then removes the project from the list. Files stay on disk.`,
     cancel: "Cancel", confirm: "Stop and Remove",
   };
 }
@@ -78,7 +51,7 @@ export interface LastRequest {
 }
 export interface ComposerDraft { text: string; preset: PresetSummary | null; attachments: readonly AttachmentDraft[] }
 
-export function rememberRequest(requests: ReadonlyMap<string, LastRequest>, request: LastRequest): Map<string, LastRequest> {
+export function rememberRequest<T extends LastRequest>(requests: ReadonlyMap<string, T>, request: T): Map<string, T> {
   return new Map(requests).set(request.root, request);
 }
 

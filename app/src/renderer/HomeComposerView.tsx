@@ -419,7 +419,9 @@ export function HeroComposer(props: HeroComposerProps) {
     if (outcome.error === "attachment_missing") {
       const missing = new Set(outcome.missing ?? []);
       update(current => ({ sending: null, attachments: current.attachments.map(a => a.id && missing.has(a.id) ? { ...a, status: "missing" } : a) }));
-    } else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
+    // A late project_busy is shown by the reason line, which the run's list now carries (design §3.4).
+    } else if (outcome.error === "project_busy") update({ sending: null });
+    else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
     queueMicrotask(() => textarea.current?.focus());
   };
 
@@ -443,7 +445,9 @@ export function HeroComposer(props: HeroComposerProps) {
         return result?.ok ? { ...a, status: "ready", size: result.attachment.size, path: result.attachment.path } : { ...a, status: "missing" };
       }),
     })));
-    edit({ text: request.text, preset: request.preset, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
+    // A request rebuilt from history names its preset by id only; the read list fills in its group and description.
+    const preset = request.preset && (memory.current.presets?.ok ? memory.current.presets.result.presets.find(p => p.id === request.preset!.id) : undefined) || request.preset;
+    edit({ text: request.text, preset, attachments: request.attachments.map(a => a.id ? { ...a, status: "checking" } : a), root: request.root, provider: request.provider,
       models: request.model ? { ...memory.current.models, [request.provider]: request.model } : memory.current.models,
       efforts: request.model && request.effort ? { ...memory.current.efforts, [effortKey(request.provider, request.model)]: request.effort } : memory.current.efforts });
     queueMicrotask(focusEnd);
@@ -543,7 +547,7 @@ export function HeroComposer(props: HeroComposerProps) {
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
       {!notice && reason && (reason.kind === "attachmentMissing"
         ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{reason.text}</span></div>
-        : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
+        : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>
     </div>
     {confirm && <dialog className="doan-dialog" data-ui-size="compact" aria-label={confirm.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); setConfirm(null); }}>

@@ -26,6 +26,12 @@ function listed(canvas: Canvas, rows: readonly Canvas[]): Canvas | null {
   return canvas.id ? null : rows.find(row => !row.id && row.path === canvas.path) ?? null;
 }
 
+// The sidebar row a conversation's slot sits on: its canvas row while listed, else its project row.
+export function slotKeyOf(root: string, c: ConversationSummary, rows: readonly Canvas[]): string {
+  const row = c.canvas ? listed(c.canvas, rows) : null;
+  return slotKey(root, row?.path);
+}
+
 // The sidebar slots from main's list: the strongest state on each row, keyed like homeConversations' slotKey. Only Home
 // conversations count, as before the list existed. A conversation whose canvas is no longer listed shows on its
 // project row. `canvases` gives each root's listed canvas rows.
@@ -36,8 +42,7 @@ export function slotsFromList(lists: ConversationList, seen: ReadonlySet<string>
       if (!c.fromHome) continue;
       const slot = work(c, seen);
       if (!slot) continue;
-      const row = c.canvas ? listed(c.canvas, canvases(root)) : null;
-      const key = slotKey(root, row?.path);
+      const key = slotKeyOf(root, c, canvases(root));
       const held = slots.get(key);
       if (!held || RANK[slot.kind] > RANK[held.kind]) slots.set(key, slot);
     }
