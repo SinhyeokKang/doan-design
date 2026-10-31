@@ -46,13 +46,13 @@
 - [x] M3. send 확장: 첨부·모델·effort, index 먼저 저장, `store.consume`, 공급자 필드와 legacy external 거절, Codex `Runner.send`에 턴별 모델·effort 전달.
   - 검증: `npm --prefix app test` (`service.test.ts`, `runners.test.ts`).
   - 경우: 이전 프로세스 종료 콜백 전 send(POSTMORTEM 2026-10-28), `attachment_missing`이면 index의 모델·effort 불변, 이번 실행 목록을 읽기 전 `model`은 `bad_request`, 종료 대기 중 `stopRuns`이면 `sent` 표시를 쓰지 않음.
-- [ ] M4. 승격: 매 턴 스냅샷, 턴 동안 수정 경로와 폴더 변경 모으기, 턴 끝 첫 폴더 갱신(또는 grace 끝)에서 판정, 새 캔버스 우선, 저널 경유 저장, 보관 대화 runner 정리, 승격 뒤 `HOME_GUIDANCE` 생략.
+- [x] M4. 승격: 매 턴 스냅샷, 턴 동안 수정 경로와 폴더 변경 모으기, 턴 끝 첫 폴더 갱신(또는 grace 끝)에서 판정, 새 캔버스 우선, 저널 경유 저장, 보관 대화 runner 정리, 승격 뒤 `HOME_GUIDANCE` 생략.
   - 검증: `npm --prefix app test`.
   - 경우: rename 앞뒤 재시작, 대상 캔버스가 일하는 중, 후보 둘, 거부된 수정, A가 끝난 grace 창 안에서 B가 시작한 뒤 캔버스가 나타나는 경우.
-- [ ] M5. 보관 대화 복구: `busy`, `canvas_not_found`, 종료 대기, 수락 직전 재확인, runner 재생성, 거절 시 불변.
+- [x] M5. 보관 대화 복구: `busy`, `canvas_not_found`, 종료 대기, 수락 직전 재확인, runner 재생성, 거절 시 불변.
   - 검증: `npm --prefix app test`.
   - 경우: 캔버스가 지워짐 → `canvas_not_found`, 같은 ID로 옮겨짐 → 찾음, 중복 ID → `canvas_not_found`, 복구 준비 중에 현재 대화가 send를 시작함 → 거절, 공급자 로그아웃 → `not_logged_in`이고 index 불변, 이전 프로세스가 예약을 들고 있음.
-- [ ] M6. 대기열: `conversation:queue`, `conversation:removeQueued`, `turn.done`에 이어 붙여 보내기, 실패·멈춤이면 초안으로 돌리기, 앱 종료 전 초안 복원 정보 넘기기.
+- [x] M6. 대기열: `conversation:queue`, `conversation:removeQueued`, `turn.done`에 이어 붙여 보내기, 실패·멈춤이면 초안으로 돌리기, 앱 종료 전 초안 복원 정보 넘기기.
   - 검증: `npm --prefix app test`.
   - 경우: 대기 중 첨부가 사라짐, 첨부 합계 10개 초과, 대기 중 로그아웃, 대기 중 다른 프로젝트 대화 `project_busy`.
 - [x] M7. 링크 채널 `shell:openLink`(main 창 sender만, `https:`만, 길이 상한).

@@ -41,11 +41,11 @@
 | B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 통합 `61a52bdf..290e85b2` (라운드 1) |
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 완료 (🔴0, 🟡2) |
 | RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 완료 (🔴1→0) |
-| A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 리뷰 중 |
+| A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 통합 `ae78df57..c19a2c99` (라운드 3) |
 | B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 통합 `e3efee4d..78a62850` (라운드 1) |
-| RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 완료 (🔴1, 🟡4) — 수정 뒤 재리뷰 |
+| RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 완료 (RA2 🔴1 🟡4 → RA2b 🔴1 🟡1 → RA2c 🔴0 🟡0) |
 | RB2 | B2 리뷰 | 보고만 | B2 | Codex Astra medium — B2가 이미 Opus 서브에이전트로 자체 리뷰를 했으므로 다른 계열의 시각을 쓴다(계획의 Opus high에서 바꿈) | `/code-review` 보고 | 완료 (🔴0, 🟡4) |
-| D | D2 | `.scratch/`, 수정이 필요하면 `app/src/renderer/**`, `docs/DESIGN.md` | 모든 구현 배치 통합 | Opus medium — 정해진 측정 절차, 판단은 design-sync 리뷰가 받친다 | `verify.mjs` 통과 뒤 `/design-sync`(Home 보드)와 `/runtime-test` probe | 대기 |
+| D | D2 | `.scratch/`, 수정이 필요하면 `app/src/renderer/**`, `docs/DESIGN.md` | 모든 구현 배치 통합 | Opus high — 로그인·crash·reload probe가 많고 결과를 실제로 확인해야 한다(계획의 medium에서 올림) | `verify.mjs` 통과 뒤 `/design-sync`(Home 보드)와 `/runtime-test` probe | 진행 중 |
 | Z | Z1, Z2 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/features/buzz-restyle/tasks.md`, 이 디렉터리 | D | 지휘자 | Z1 grep 결과 없음, `verify.mjs` 통과 | 대기 |
 
 이미 끝난 항목: D1(초안, 2026-10-31 사용자 확정).
@@ -94,3 +94,4 @@
 - RA2b 재리뷰: Y1·Y2·Y4·⚪1·⚪2 수정 확인. R1(sending 표시 바이트가 상한 예산에서 빠짐, 🔴)과 Y3(판정 대기 send 뒤 넣은 대기열을 취소 때 돌려주지 않음, 🟡)는 일부만 고쳐졌다. A2 수정 라운드 2를 보냈다.
 - A2 수정 라운드 2 완료(`8e6a592b..ae1e47db`, 테스트 5363개·verify 통과). 재리뷰 RA2c(Codex)를 시작했다.
 - RA2c 재리뷰: R1·Y3 수정 확인, 🔴0·🟡0·⚪1(빈 대기열이 예산에 남음). ⚪1은 작아서 A2 수정 라운드 3으로 바로 고친다.
+- A2 수정 라운드 3(⚪1) 뒤 A2 10커밋을 `ae78df57..c19a2c99`로 통합했다. 통합 HEAD `c19a2c99`에서 `verify.mjs` PASS. A2 워커들을 release하고 worktree `bc-a2`를 제거했다. 증거는 `.scratch/buzz-conversation/a2/`에 있다. 남은 reclaimable 워커는 없다.
