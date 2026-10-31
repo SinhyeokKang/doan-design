@@ -82,3 +82,13 @@
 - ZB 완료(`d4b7bc65`…`7a4b035a`, 5개). retain. ZB 리뷰 r1(문서↔코드): Codex gpt-6-astra medium.
 - ZB 리뷰 r1: 🔴 0, 🟡 2(캔버스에서 이전 대화를 연다는 C12 계획을 현재 기능으로 씀, 선택 규칙을 코드보다 넓게 씀), ⚪ 2(commentsError 표시 설명, 부모 spec·tasks 한 커밋). 모두 ZB 수정 r1로.
 - ZB 수정 r1(`5b148446`/`0b17ce1b` 부모 문서 분리, `b95f76bf` PRODUCT, `db247cf2` ARCHITECTURE): 지휘자가 PRODUCT diff를 직접 확인. ZB 통합, RT 결과에 따른 문구 조정용으로 retain.
+- RT 완료(\`outcome failed\`): 실패 1건 — 스레드 Copy code를 마우스로 누르면 입력창 포커스가 버튼으로 간다(클립보드는 맞음). 통과: CSP·Markdown·링크, IME(CDP) capsule→box와 실제 승격 가로지르기, Home Send, 승격·이동 줄·Open, 알림 클릭, 창 포커스 때만 본 것, ⌘N, 워크트리 칩·수리 행, 드롭다운·오른쪽 목록 키보드, 대기 토스트, project_busy, Sending, 칩만, 새 캔버스 자동 열기, DS 증거 보완(666×44/388×44, CDP AX). 미검증: 네이티브 IME(CDP만), 300 ms 로딩 줄(26 MB 기록에서 렌더러가 18.6초 멈춤), 캔버스 대화 마커·보관 모드(C12 전 도달 불가), 오른쪽 행 Working/Needs your answer. 두 공급자 인증 전후 동일, REAL_DIFF 없음. 증거는 \`.scratch/orch-buzz-project/rt-evidence/\`. RT release, 워크트리 삭제.
+- RT 관찰에 대한 지휘자 판단:
+  - 앱 안 승격 뒤 다시 로드하면 가장 최근 다른 대화가 열린다: design §2.4(승격·New 때 기억을 지운다)와 같아 그대로 둔다. spec 결정 5의 "승격됐으면 새 대화"는 기억이 남은 채 바깥에서 승격된 경우이고 RT에서 통과했다.
+  - 이미 대기 중인 대화에서 다른 대화로 옮겨도 토스트가 뜨지 않는다: 그대로 둔다. 사람이 방금 본 요청이고, 입력창 busy 줄과 Open이 그 대화를 알린다.
+  - 드롭다운 키 간격 0 ms에서 멈춤: CDP 연속 입력의 산물로 보고 그대로 둔다.
+  - Jump to latest가 부드러운 스크롤 동안 약 1초 남는다: 원인 미증명, 기록만 한다.
+  - 큰 기록(26 MB)을 열 때 렌더러가 오래 멈춘다: 이 feature 범위 밖의 성능 관찰로 보고에 남긴다.
+- FX(수정 배치): Copy 포커스(실패), 워크트리 전환 뒤 포커스를 브랜치 칩으로(design §2.5 위반), 960×600 빈 capsule placeholder 줄바꿈으로 인한 높이 흔들림. dispatch \`ctx_9d8f5ab1d4a9\`, Claude opus medium.
+- FX 질문: Chromium은 textarea placeholder에 말줄임을 그리지 않는다. 잘림을 받아들이고 DESIGN.md에 문서화된 차이로 적게 했다(지휘자 판단: 말줄임에는 JS 측정이 필요하고 전체 문구는 placeholder 속성에 남는다).
+- FX 완료(`4952eeaf` test, `be088aba`·`6a667c5f` fix, `1cefabad` docs(DESIGN); 앱 테스트 5242개, typecheck, build, 격리 probe PASS copy/worktree/narrow, REAL_DIFF 없음). 지휘자가 코드 diff와 probe 결과를 확인했다.
