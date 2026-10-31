@@ -185,6 +185,7 @@
   - **새 대화**: 아래 줄은 Home과 같은 공급자·모델 선택이다(readiness 상태, Manage agents…). 기본값은 Settings > New conversations다. Send는 `newDesign` 시작을 부른다.
   - **보관된 대화**: 기존 대화와 같다. 보내면 복구된다. placeholder는 "Reply to make this the current conversation…"이다.
   - `data-shape="capsule" | "box"`만 바꾸고, 두 모양 모두 같은 위치에 같은 key의 textarea를 그린다. 다시 마운트하면 포커스와 한글 조합이 끊긴다.
+  - box 모양의 칩 줄은 칩이 있을 때만 grid에 둔다. 빈 줄도 줄 간격을 더해서 위쪽 여백이 Home보다 8px 넓어지기 때문이다. 텍스트 시작은 Home과 같은 카드 위 16px이다.
   - DOM 순서는 field → Attach → Presets → Send → 모델 → effort이고, 두 모양에서 같다. capsule에서는 보이는 순서와 다르지만 Tab 순서를 모양마다 바꾸지 않는 쪽을 택했다.
 - **실행 중(spec 결정 9)**
   - 턴이 수락되면 칸을 비우고 포커스를 칸에 둔 채 capsule로 돌아간다.
