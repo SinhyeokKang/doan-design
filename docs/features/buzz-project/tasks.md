@@ -4,7 +4,7 @@
 
 ## D. 초안
 
-- [ ] D1. `/design-draft buzz-project`: `.doan/canvases/buzz-project.html`(design §0 프레임). 스레드·docked는 `buzz-conversation.html` 보드를 따른다. 사용자가 앱에서 초안을 확인한다.
+- [x] D1. `/design-draft buzz-project`: `.doan/canvases/buzz-project.html`(design §0 프레임, 2026-10-31 사용자 확정). 스레드·docked는 `buzz-conversation.html` 보드를 따른다. 사용자가 앱에서 초안을 확인한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
 
 ── commit: `docs(design): buzz-project draft` ──

@@ -18,7 +18,7 @@
 - 스레드·docked 입력창은 `buzz-conversation.html`의 보드를 그대로 쓴다. 이 초안에서는 다시 정하지 않는다.
 - 셸(헤더, LNB)은 출하된 화면을 복사한다.
 
-초안 round 1(2026-10-31)에서 그린 것. 사용자 확인 전이다.
+초안에서 정한 것. 사용자가 2026-10-31에 디자인을 확정했다(프레임 9개, `overview-worktrees` 포함).
 
 - 문구
   - 새 대화 placeholder: "Ask or describe what to design, / for presets". 질문만이 아니라 그리기 요청도 받는 칸이라서다(clarify).
