@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import type { Agent } from "./args.ts";
+import { CODEX_RULE, codexRuleText } from "./codex-rule.ts";
 import { sh } from "./context.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
 import type { LoadedScenario } from "./scenario.ts";
@@ -35,8 +36,8 @@ function must(result: { code: number; stdout: string; stderr: string }, what: st
 
 // Builds the starting repo outside any checkout: seed, `doan init` when the
 // scenario asks and the seed has no .doan/config.json, the discovery stub at repo level
-// only, then one baseline commit. init output and the stub are in that commit
-// so changedFiles() reports only what the agent did.
+// only, the Codex rule, then one baseline commit. init output, the stub and the rule
+// are in that commit so changedFiles() reports only what the agent did.
 export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Agent | "fixture"; cli: string; stub: string }): Promise<Workspace> {
   // /tmp keeps the socket path under macOS's 104-byte sun_path limit.
   const base = realpathSync(mkdtempSync(`/tmp/doan-eval-${o.scenario.id}-${o.agent}-`));
@@ -71,6 +72,10 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       mkdirSync(join(repo, dir, "skills/doan"), { recursive: true });
       writeFileSync(join(repo, dir, "skills/doan/SKILL.md"), o.stub);
     }
+    // Codex runs `doan` outside its workspace-write sandbox only through this rule, as
+    // agent setup arranges for users; the app socket is outside that sandbox.
+    mkdirSync(join(repo, ".codex/rules"), { recursive: true });
+    writeFileSync(join(repo, CODEX_RULE), codexRuleText());
     // -f: a seed .gitignore or the user's global excludes must not keep seed files out of the baseline.
     git(["add", "-A", "-f"]);
     git(["commit", "-q", "--no-verify", "-m", "seed"]);

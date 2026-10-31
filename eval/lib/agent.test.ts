@@ -9,7 +9,11 @@ import { createContext } from "./context.ts";
 
 test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("claude", "P"), { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", "P"] });
-  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", "mcp_servers.doan.enabled=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "mcp_servers.doan.enabled=false", "P"] });
+});
+
+test("Codex never asks for approval, whatever the machine's own config says", () => {
+  assert.ok(agentCommand("codex", "P").args.includes('approval_policy="never"'));
 });
 
 test("a run past its time limit is killed with its children and settles once", async () => {

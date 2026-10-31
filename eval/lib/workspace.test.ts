@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
+import { CODEX_RULE, codexRuleText } from "./codex-rule.ts";
 import { createContext, judgeMaterial, sh } from "./context.ts";
 import { loadScenario } from "./scenario.ts";
 import { keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
@@ -23,6 +24,21 @@ test("without worktree the agent works in the instruction's root", async () => {
     assert.equal(ws.app, null);
   } finally {
     await ws.dispose();
+  }
+});
+
+// Codex reaches the app socket through this rule (design.md Q2); a Claude run gets the same baseline,
+// so neither agent's diff or judge sees it as the agent's work.
+test("every agent's baseline commits the project Codex rule Doan's agent setup writes", async () => {
+  assert.equal(CODEX_RULE, ".codex/rules/doan.rules");
+  for (const agent of ["claude", "codex"] as const) {
+    const ws = await prepareWorkspace({ scenario: r6(), agent, cli, stub: "stub\n" });
+    try {
+      assert.equal(execFileSync("git", ["-C", ws.repo, "show", `${ws.seedCommit}:${CODEX_RULE}`], { encoding: "utf8" }), codexRuleText(), agent);
+      assert.equal(git(ws.repo, ["status", "--porcelain"]), "", agent);
+    } finally {
+      await ws.dispose();
+    }
   }
 });
 
