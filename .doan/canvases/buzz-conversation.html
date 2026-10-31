@@ -140,6 +140,46 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 .marker span{display:inline-flex;align-items:center;gap:var(--space-1h);white-space:nowrap}
 .marker svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
 .marker .doan-button{color:var(--text-standard)}
+
+/* ── 07 Compare: B follows Buzz ec1b9acc5 (features/messages/Messages.module.css, features/agents/ActivityTranscript.*),
+   keeping doan's own rules where they differ: accent own bubble (common decision 2), no start bar on quotes, system mono. ── */
+.compare-thread{display:flex;flex-direction:column;justify-content:flex-end;gap:var(--space-4);height:100%}
+.compare-stage{display:flex;flex-direction:column;gap:var(--space-6);height:1180px;padding:var(--space-8) var(--space-8) var(--space-6)}
+.compare-stage>.thread{flex:1;min-height:0}
+.activity-steps .step{display:flex;align-items:center;gap:var(--space-2)}
+.v-buzz .bubble,.v-buzz .msg-agent{font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.v-buzz .bubble{border-radius:calc(var(--type-body-sm-line-height) / 2 + var(--space-2));max-width:min(100%,calc(60ch + 2 * var(--space-4)))}
+.v-buzz .msg-user{gap:var(--space-half)}
+.v-buzz .msg-files{order:-1}
+/* Agent replies sit in the received bubble (Buzz --surface-message #f3f3f4; doan --surface-inset #f5f5f6). */
+.v-buzz .msg-agent{align-self:flex-start;width:fit-content;max-width:min(100%,calc(60ch + 2 * var(--space-4)));padding:var(--space-2) var(--space-4);border-radius:calc(var(--type-body-sm-line-height) / 2 + var(--space-2));background:var(--surface-inset)}
+.v-buzz .md{display:block}
+.v-buzz .md>*{margin:var(--space-4) 0}
+.v-buzz .md>:first-child{margin-top:0}
+.v-buzz .md>:last-child{margin-bottom:0}
+.v-buzz .md>p+:is(ul,ol){margin-top:var(--space-2)}
+.v-buzz .md :is(h1,h2,h3,h4){margin:var(--space-4) 0 var(--space-1h);font-weight:var(--type-weight-medium)}
+.v-buzz .md h2{font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing)}
+.v-buzz .md h3{font-size:var(--type-label-size);line-height:var(--type-label-line-height)}
+.v-buzz .md :is(ul,ol){display:block}
+.v-buzz .md li+li{margin-top:var(--space-1)}
+.v-buzz .md ul{list-style:disc}
+.v-buzz .md code{border-radius:var(--radius-chip);background:var(--affordance-subtle);padding:var(--space-half) var(--space-1h);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+.v-buzz .msg-agent .md code{background:var(--surface-panel)}
+.v-buzz .md-code{overflow:hidden;border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard)}
+.v-buzz .md-code pre{padding:var(--space-3) calc(var(--size-control-sm) + var(--space-3)) var(--space-3) var(--space-3);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+.v-buzz .md-code pre code{background:none;padding:0}
+.v-buzz .md-code .doan-icon-button{background:var(--surface-panel)}
+.v-buzz .md-table{width:max-content;max-width:100%;border-radius:var(--radius-control);background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard)}
+.v-buzz .md table{border-collapse:separate;border-spacing:0}
+.v-buzz .md :is(th,td){padding:var(--space-1) var(--space-2);border-bottom:1px solid var(--border-standard);border-right:1px solid var(--border-standard);vertical-align:top}
+.v-buzz .md :is(th,td):last-child{border-right:0}
+.v-buzz .md tbody tr:last-child td{border-bottom:0}
+.v-buzz .md th{background:var(--affordance-subtle);color:var(--text-standard)}
+.v-buzz .activity-steps{gap:var(--space-1h)}
+.v-buzz .activity-steps .step svg{width:var(--size-icon-sm);height:var(--size-icon-sm);color:var(--text-subtle)}
+.v-buzz .activity-steps .path{font-family:var(--type-family-mono);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);color:var(--text-subtle)}
+.v-buzz .activity-steps .verb{color:var(--text-subtle)}
 </style></head><body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
 <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
@@ -154,10 +194,13 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 <symbol id="i-moved" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
 <symbol id="i-archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
 <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol>
 <symbol id="i-restore" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
 </svg>
 
-<header class="intro"><span class="doan-chip">buzz-conversation · draft round 1 · 6 boards</span><h1>The pieces every conversation is built from.</h1>
+<header class="intro"><span class="doan-chip">buzz-conversation · draft round 5 · 7 boards</span><h1>The pieces every conversation is built from.</h1>
 <p>Scope: the shared conversation primitives of <code>docs/features/buzz-conversation/</code> — the <b>docked</b> composer and the <b>thread</b> items — drawn as state boards, not screens. Where they sit is decided by <code>buzz-project</code> (Overview: thread in the main panel, docked composer at its bottom) and <code>buzz-canvas-conversation</code> (the canvas's right panel); those children draw their screens from these boards. Board 01 is the shipped Home (<b>hero</b>) composer, copied from <code>HomeComposerView.tsx</code> and <code>styles.css</code> as the regression reference: buzz-conversation rebuilds it from the shared primitives, changing only the focused border. Home and docked are one family through the same card, chips, field and tools; Home keeps its inset tray with the worktree, docked has no tray and keeps agent and effort in a plain row under the card. Boards 02–06 are new (not in code).</p>
 <p><code>/design-sync</code>: this child compares only board 01 (Home stays as it is apart from the focused border). Boards 02–06 are compared by <code>buzz-project</code> once the Overview draws them. Copy for failures and permission requests follows the shipped workspace strip (<code>conversationStrip.ts</code>), with Home-specific recovery replaced by the composer on the same screen.</p>
 <p>References: the capsule-to-box composer and the right-hand model row follow the user’s Aside screenshots (2026-10-31; seen in the screenshots only, Aside was not run and its documentation was not read). Decisions from 2026-10-31: activities fold into one line; a failed or stopped turn offers Edit and resend, which fills the composer; the agent row sits on the right. Activity summaries, file names and agent replies below are sample data. Presets read: harden.</p></header>
@@ -226,4 +269,34 @@ ok  tokens         0 undefined</code></pre><button class="doan-icon-button" data
 <div class="tile"><h3>Made current again · 720</h3><div class="stage wide"><div class="thread"><div class="marker" data-doan-id="marker-restored"><span><svg><use href="#i-restore"/></svg>Made current again</span></div><div class="msg-user"><div class="bubble">Go back to the darker header</div></div></div></div></div>
 <div class="tile"><h3>History can’t be read · 360</h3><div class="stage narrow"><div class="doan-notice error thread-notice" role="alert" data-doan-id="thread-read-error"><svg class="doan-alert-icon"><use href="#i-alert"/></svg><span class="strip-text"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span></span><span class="strip-actions"><button class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></span></div></div></div>
 </div></section>
+
+<!-- ── 07 Compare ── -->
+<section class="board" data-doan-frame="thread-compare" data-doan-title="07 Thread · current vs Buzz reference">
+<div class="caption"><span>07</span><h2>Thread · current vs Buzz reference<span class="doan-chip">For decision</span></h2><p>One conversation drawn twice at 720 px, with the docked composer at the bottom. <b>A</b> is the current draft (boards 03–06). <b>B</b> follows Buzz <code>ec1b9acc5</code> (<code>Messages.module.css</code>, <code>MessageMarkdown.tsx</code>, <code>ActivityTranscript.*</code>, read 2026-10-31): agent replies in the received bubble (Buzz <code>--surface-message</code>, here <code>--surface-inset</code>), 14 px message text, bubble corner = half the line height + 8, files above the bubble, Buzz’s inline code, bordered code block and table, medium headings, and step rows with a kind icon and mono path. B keeps doan’s own rules where Buzz differs: the accent own bubble (common decision 2), the DS spinner instead of Buzz’s “Working…”, and system mono instead of bundled JetBrains Mono. Choose one; the other is removed.</p></div>
+<div class="tiles"><div class="tile"><h3>A · current draft</h3><div class="stage compare-stage" data-doan-id="compare-a"><div class="thread">
+<div class="msg-user"><div class="bubble"><span class="bubble-preset"><svg><use href="#i-presets"/></svg>Shape</span>
+Settings needs a Notifications group. Draw it next to Agents.</div><div class="msg-files"><span class="attach-chip"><span class="file-icon"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>notifications-spec.md</b><small>6 KB</small></span></span></div></div>
+<div class="activity"><button class="activity-head" aria-expanded="true"><span>6 steps</span><svg class="chev"><use href="#i-chev"/></svg></button><ul class="activity-steps"><li>Read docs/features/buzz-settings/design.md</li><li>Read .doan/canvases/buzz-settings.html</li><li>Running a command</li><li>Edited .doan/canvases/buzz-settings.html</li><li>Edited .doan/canvases/buzz-settings.html</li><li>Running a command</li></ul></div>
+<div class="activity"><div class="activity-head ask-answered"><span>Allowed once · Run doan check --repo /Users/sinhyeok/code/doan-design</span></div></div>
+<div class="msg-agent md"><h2>Settings · Notifications</h2><p>I added a <strong>Notifications</strong> group under Agents in <code>.doan/canvases/buzz-settings.html</code>:</p><ul><li>When an agent needs your answer</li><li>When an agent finishes</li></ul><div class="md-code"><pre><code>$ doan check --repo .
+ok  buzz-settings  16 frames</code></pre><button class="doan-icon-button" data-ui-size="xs" aria-label="Copy code"><svg><use href="#i-copy"/></svg></button></div><div class="md-table"><table><thead><tr><th>Frame</th><th>State</th></tr></thead><tbody><tr><td>notifications</td><td>New</td></tr><tr><td>agents</td><td>Unchanged</td></tr></tbody></table></div><p>Want the switches on by default?</p></div>
+<div class="msg-user"><div class="bubble">Yes, and move the group above Agents.</div></div>
+<div class="activity"><button class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"></span><span>Editing .doan/canvases/buzz-settings.html</span><svg class="chev"><use href="#i-chev"/></svg></button></div>
+<div class="msg-agent md"><p>Moving Notifications above Agents and turning both switches on<span class="caret"></span></p></div>
+</div>
+<div class="docked" data-shape="capsule"><div class="composer-card" data-shape="capsule"><div class="composer-input placeholder" role="textbox" aria-label="Message">Reply, / for presets</div><div class="composer-tools"><button class="doan-icon-button composer-attach" aria-label="Attach files"><svg><use href="#i-plus"/></svg></button><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span>Opus 5.5</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg><use href="#i-gauge"/></svg><span>High</span><svg class="chev"><use href="#i-chev"/></svg></button></div></div>
+</div></div><div class="tile"><h3>B · Buzz reference</h3><div class="stage compare-stage v-buzz" data-doan-id="compare-b"><div class="thread">
+<div class="msg-user"><div class="bubble"><span class="bubble-preset"><svg><use href="#i-presets"/></svg>Shape</span>
+Settings needs a Notifications group. Draw it next to Agents.</div><div class="msg-files"><span class="attach-chip"><span class="file-icon"><svg><use href="#i-file"/></svg></span><span class="attach-text"><b>notifications-spec.md</b><small>6 KB</small></span></span></div></div>
+<div class="activity"><button class="activity-head" aria-expanded="true"><span>6 steps</span><svg class="chev"><use href="#i-chev"/></svg></button><ul class="activity-steps"><li class="step"><svg><use href="#i-eye"/></svg><span class="verb">Read</span><span class="path">docs/features/buzz-settings/design.md</span></li><li class="step"><svg><use href="#i-eye"/></svg><span class="verb">Read</span><span class="path">.doan/canvases/buzz-settings.html</span></li><li class="step"><svg><use href="#i-terminal"/></svg><span class="verb">Running a command</span></li><li class="step"><svg><use href="#i-pencil"/></svg><span class="verb">Edited</span><span class="path">.doan/canvases/buzz-settings.html</span></li><li class="step"><svg><use href="#i-pencil"/></svg><span class="verb">Edited</span><span class="path">.doan/canvases/buzz-settings.html</span></li><li class="step"><svg><use href="#i-terminal"/></svg><span class="verb">Running a command</span></li></ul></div>
+<div class="activity"><div class="activity-head ask-answered"><span>Allowed once · Run doan check --repo /Users/sinhyeok/code/doan-design</span></div></div>
+<div class="msg-agent md"><h2>Settings · Notifications</h2><p>I added a <strong>Notifications</strong> group under Agents in <code>.doan/canvases/buzz-settings.html</code>:</p><ul><li>When an agent needs your answer</li><li>When an agent finishes</li></ul><div class="md-code"><pre><code>$ doan check --repo .
+ok  buzz-settings  16 frames</code></pre><button class="doan-icon-button" data-ui-size="xs" aria-label="Copy code"><svg><use href="#i-copy"/></svg></button></div><div class="md-table"><table><thead><tr><th>Frame</th><th>State</th></tr></thead><tbody><tr><td>notifications</td><td>New</td></tr><tr><td>agents</td><td>Unchanged</td></tr></tbody></table></div><p>Want the switches on by default?</p></div>
+<div class="msg-user"><div class="bubble">Yes, and move the group above Agents.</div></div>
+<div class="activity"><button class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"></span><span>Editing .doan/canvases/buzz-settings.html</span><svg class="chev"><use href="#i-chev"/></svg></button></div>
+<div class="msg-agent md"><p>Moving Notifications above Agents and turning both switches on<span class="caret"></span></p></div>
+</div>
+<div class="docked" data-shape="capsule"><div class="composer-card" data-shape="capsule"><div class="composer-input placeholder" role="textbox" aria-label="Message">Reply, / for presets</div><div class="composer-tools"><button class="doan-icon-button composer-attach" aria-label="Attach files"><svg><use href="#i-plus"/></svg></button><button class="doan-icon-button composer-presets" aria-label="Design presets"><svg><use href="#i-presets"/></svg></button><span class="grow"></span><button class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled><svg><use href="#i-up"/></svg></button></div></div><div class="composer-tray"><button class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Agent: Claude Code, model Opus 5.5"><img class="logo" src="../assets/provider-logos/claude.png" alt=""><span>Opus 5.5</span><svg class="chev"><use href="#i-chev"/></svg></button><button class="composer-effort doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Effort: High"><svg><use href="#i-gauge"/></svg><span>High</span><svg class="chev"><use href="#i-chev"/></svg></button></div></div>
+</div></div></div>
+</section>
 </body></html>
