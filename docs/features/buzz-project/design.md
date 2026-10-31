@@ -20,14 +20,15 @@
 초안 round 1(2026-10-31)에서 그린 것. 사용자 확인 전이다.
 
 - 문구
-  - 새 대화 placeholder: "Ask about <project>, / for presets".
+  - 새 대화 placeholder: "Ask or describe what to design, / for presets". 질문만이 아니라 그리기 요청도 받는 칸이라서다(clarify).
   - 기존 대화 placeholder: "Reply, / for presets".
   - 오른쪽 패널 제목: "Canvas conversations".
   - 오른쪽 빈 상태: "No canvas conversations yet." + "When a conversation draws or edits a canvas, the canvas shows here."
   - 드롭다운: "New conversation", 머리 "Conversations in <project>".
 - 오른쪽 행
   - 썸네일 72×48(모서리 `radius-toolbar-icon`), 이름, 보조 줄(공급자 · 마지막 활동), 상태 표시(LNB 슬롯과 같은 모양), 펼침 chevron(`xs` 아이콘 버튼).
-  - 펼친 대화 행은 24px 들여 쓰고 오른쪽에 시각을 둔다. 보관 대화는 subtle 잉크다.
+  - 펼친 대화 행은 썸네일 왼쪽 선에 맞추고 오른쪽에 시각을 둔다. 보관 대화는 subtle 잉크다.
+  - 열 수 없는 행 문구: "No longer in <project>."(buzz-conversation 표시 줄과 같은 말), "2 canvases use this ID — run doan check", "Can’t read this canvas — run doan check". 썸네일 실패에는 "Preview unavailable" 접근 이름을 둔다.
 - 메인: 대화 열 최대 720px, 패널 안쪽 24px. 헤더 제목은 `sm` trigger 버튼이다.
 - 메뉴 폭 360px, 오른쪽 패널 280px(출하 값)은 컴포넌트 상수다.
 
