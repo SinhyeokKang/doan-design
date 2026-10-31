@@ -466,6 +466,50 @@ Reference: `.doan/canvases/projects-home.html` (eight frames).
 - Known note: Locate into a non-list root can keep the previous missing-project message in the canvas area while the status line shows the new root state.
 - Unpinned: the toast's timer pause and Undo, native menu Undo, and the Show in Finder alignment.
 
+## Project Overview
+
+Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `overview-new`, `overview-empty`, `overview-dropdown`, `overview-worktrees`, `overview-list-states`, `overview-promoted`, `overview-notice`, `overview-narrow`) and, for the thread and docked composer placed here for the first time, `.doan/canvases/buzz-conversation.html` (`docked-composer`, `thread-messages`, `thread-activity`, `thread-states`, `thread-moves`). Measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600, draft read in the app's canvas iframe; states without a provider from stored conversation records in an isolated app, running turns, permission requests, the queue, suggestions and a promotion from real Claude Code turns on the signed-in test profile.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Panels | Main `.ov-main` 714 × 716 at 1238 × 780 (white, `--radius-container` start corners); right panel 280 with its 1 px `--border-standard` start edge and end corners on the shipped `.right-stack` (the `aside.ov-right` inside it is 279) | Equal to the draft's boxes. |
+| Header | `min-height` `--size-chrome`, padding 8 / 16, gap 8: project (16 px thumbnail, name label-sm 500, branch chip), "/" in `--text-metadata`, conversation title as an sm `trigger` button (label-sm 500, 16 px chevron) | Every offset equal. |
+| Narrow window | At 960 × 600 the title gives way first: project and branch keep their widths, the title ellipsizes (197 px with a three-worktree chip) | `overview-narrow`. |
+| Worktree chip | With two or more worktrees a `button` chip with a 14 px chevron opening `.wt-menu` (280, `.shell-worktree` rows); open fill `--affordance-backdrop-pressed` | `button.doan-chip`'s open fill (`data-state="open"`) is more specific than the chip's own rule, so the pressed fill is set as `.ov-project button.wt-chip[aria-expanded="true"]`. |
+| Thread column | 720 px maximum (666 at 1238 × 780) with a 24 px inset; bubbles, Markdown (paragraphs, lists with disc / circle / decimal markers 24 px in, inline and block code, table, blockquote), activity rows, permission and end notices equal the boards in type, colour, radius and spacing | The inset sits on `.thread-scroll` and `.ov-col` rather than the draft's `.ov-scroll`; every child offset matches. |
+| Notice glyphs | Thread end notices and the moved line draw 16 px glyphs | Bare lucide icons render 24 px unless sized; `AlertIcon` and the agent mark size themselves. |
+| Notice text | A thread notice's body wraps and is not clipped (`overflow: visible`) | The strip's one-line rule (`overflow: hidden`, ellipsis) would clip glyphs on a wrapped line. |
+| Docked composer | Capsule (padding 8, `--radius-pill`) while one line; box (padding 16 / 12 / 12 / 16, radius 24) once wrapped or with chips; 32 px Attach, Presets and accent Send / Stop / Queue; tray of xs `trigger` model and effort, 14 px logo; focus ring as Home's; placeholder `--text-metadata` | Measured empty, one line, wrapped, running (Stop), queueing (Queue with a queued item) and waiting for a permission answer. |
+| Suggestions and moved line | Suggestions: sm `quiet` buttons, 14 px accent icon, wrap start-aligned, gap 8, 12 above the composer. Moved line: the default `doan-notice` (top-aligned), 16 px icon, sm `panel` Open, 12 above the suggestions | Measured after a real promotion. |
+| Right rows | Row padding 12 / 8, gap 8, `--radius-row`; thumbnail 72 × 48, `--radius-toolbar-icon`, inset 1 px border, empty style `--surface-inset`; first line 14 px logo, name body-sm 500 ellipsized, status mark 16, time caption `--text-metadata` flush right; preview caption `--text-subtle`, two lines; hairline separators inset 8, hidden beside a hovered openable row; hover fill `--affordance-backdrop-hover`; special rows' reason caption (`--text-danger`, or metadata for an unreadable canvas) | Equal, including the hover and the row states of `overview-list-states`. |
+| Status marks | Needs your answer: hand icon 16 in `--affordance-accent`; Working: 14 px spinner; Finished, not seen: 8 px accent dot | The shipped sidebar slot; working and permission were measured in dropdown items (see Not verified). |
+| Conversation menu | 360 wide; New with 16 px icon, separator, "Conversations in <project>" head, items drawn like right rows with a one-line preview, hairlines inset 12 hidden around the current and highlighted items, current item `--affordance-backdrop-pressed` | |
+| Empty panel | "No canvas conversations yet." body-sm `--text-subtle`, then the caption line in `--text-metadata`, padding 16 | |
+| Duplicate-ID notice | The shared `doan-notice` under the header, margin 0 16 8 | Measured after the open canvas moved onto a duplicate ID. |
+| Numerals | `.ov-main`, the right panel, the conversation menu and the worktree menu set `font-variant-numeric: normal`; the docked composer's portalled menus (model, effort, presets) and the sidebar project menu keep the body's tabular figures | The app body's tabular figures widened every "1" (short times "12m", "1d" by 2.5–2.8 px). The composer menus were not measured here. |
+
+### Documented deviations from the draft
+
+- **Conversation menu width.** 360 px is the component constant (buzz-project design §0); the draft's own rule asks for 360 but the shared `.doan-menu` `max-width` caps its render at 320.
+- **Current worktree check.** The chip's worktree menu marks the current worktree with a check like the shipped sidebar project menu's rows (the draft fills it but draws no check).
+- **Moved line alignment.** The draft centres the moved line's icon and text on the Open button's row; the app keeps the shared notice's top alignment (screens set only outer margins on a notice, `ds/controls.test.ts`). They differ only when the text wraps (derived from the rules; the app was measured with a two-line title only).
+- **Notice actions.** The app's `.grow-text` (`flex: 1`) puts a notice's actions (moved line Open) at the row's end; the draft's text hugs its content. A long conversation title wraps the moved line to two lines; the draft shows a shortened title.
+- **Cursor.** Plain buttons (activity head, rows) take the app-wide `button { cursor: pointer }`; the draft's plain buttons keep the default cursor.
+- **Provider text.** Model and effort labels, activity summaries ("Using a tool") and permission option labels ("Allow", "Allow with suggested permissions") come from the provider; the draft's samples are "Opus 5.5", "High", "Editing …", "Allow once".
+- **Thumbnails.** The app shows the captured canvas (`object-fit: cover`, top); the draft draws a mock fill.
+
+### Not verified
+
+- Right-panel rows in Working or Needs your answer: no canvas conversation runs from the Overview, and a promotion binds the canvas when its turn ends. The same status marks were measured in conversation-menu items.
+- Docked composer with preset chips and no text, Sending, blocked by another project conversation (running or waiting), and the archived modes; the bubble's preset line; the streaming caret; an expired permission; the promoted, archived and restored markers (canvas conversations, shown on the canvas page); Jump to latest; the 300 ms loading line; the action rows of a failed or sign-in notice that is not the latest end (only the latest end offers actions).
+- Keyboard focus rings, reduced transparency, forced colours and dark mode.
+
+### Regression pointers
+
+`app/src/renderer/ProjectOverview.test.tsx` pins the numerals, the open chip's pressed fill, the 16 px notice glyphs and the wrapped notice body. Geometry above is a `.scratch/` probe only.
+
 ## Design navigation
 
 > buzz-ds 이전 (Overview; Quick Open is measured on the design system). Owner: `buzz-project`, which removes the mark.
