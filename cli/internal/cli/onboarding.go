@@ -73,7 +73,7 @@ func onboardingFailure(code, message string) *Error {
 		"request_conflict":      {"Use a new --request id for other arguments; reuse an id only to resend the same request"},
 		"busy":                  {"Wait for the running operation (`doan onboarding status`), then send a new --request id"},
 		"stop_required":         {"Ask the user to stop the running conversation in Doan, then retry"},
-		"initialize_required":   {"Tell the user the planned changes from inspect; run select again with --initialize once they agree, or right away if they already agreed to Doan adding its setup files"},
+		"initialize_required":   {"Tell the user the planned changes from inspect; run select again with --initialize once they agree; a request to set up Doan or select a repository is not agreement, only an explicit agreement to Doan adding these files"},
 		"no_ready_agent":        {"Sign in to an agent first (`doan onboarding sign-in`)"},
 		"no_project":            {"Select or clone a project first (`doan onboarding project select` or `clone`)"},
 	}[code]

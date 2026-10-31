@@ -690,6 +690,22 @@ func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	}
 }
 
+// The refusal repeats step 6: a general setup request is not agreement to the setup files (U-015).
+func TestOnboardingInitializeRequiredNeedsExplicitAgreement(t *testing.T) {
+	steps := onboardingFailure("initialize_required", "m").NextSteps
+	if len(steps) != 1 {
+		t.Fatal(steps)
+	}
+	for _, s := range []string{"planned changes from inspect", "--initialize once they agree", "a request to set up Doan or select a repository is not agreement", "explicit agreement to Doan adding these files"} {
+		if !strings.Contains(steps[0], s) {
+			t.Errorf("nextSteps miss %q: %s", s, steps[0])
+		}
+	}
+	if strings.Contains(steps[0], "already agreed") {
+		t.Errorf("nextSteps keep the old wording: %s", steps[0])
+	}
+}
+
 func TestOnboardingExplicitRuntimeNeverLaunches(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
@@ -818,6 +834,8 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 		{"`app_not_running`", "`app_launch_failed`", "open Doan", "recover as for `app_not_running` from `doan active`", "with `doan onboarding start` in place of `doan active`"},
 		// The changes are always told before the write, but a user who explicitly allowed setup files is not asked again (agent-eval 2026-10-29 O1, re-measure).
 		// A general setup request is not that permission (agent-eval 2026-10-31 remove-mcp O2, U-015).
+		// A hand-off names both sides' next steps instead of quoting the guide (agent-eval 2026-10-31 remove-mcp-o2-fix O2, U-017).
+		{"When you hand back before `complete`", "what the user must do next", "which commands you will run after that", "`select --initialize`, then `complete`", "do not quote this guide"},
 		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "A request to set up Doan or select a repository is not agreement", "explicitly said Doan may add its setup files", "do not ask again", "Otherwise ask first"},
 	} {
 		found := false
