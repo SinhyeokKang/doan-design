@@ -108,6 +108,11 @@ test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions
   expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation">Open</button></div>');
 });
 
+test("after a late project_busy the reason line shows before the list names the conversation, without Open", () => {
+  const html = render([project("/code/doan-design")], { text: "Draw it" }, { running: new Map([["/code/doan-design", { conversationId: "", waiting: false }]]) });
+  expect(html).toContain('<div class="composer-reason" role="status"><span>Another conversation is still running in doan-design.</span></div>');
+});
+
 test("near the limit a counter shows what is left; over it Send is disabled and the reason says to shorten", () => {
   const near = render([project("/code/doan-design")], { text: "x".repeat(30000) });
   expect(near).toContain('<div class="composer-count" aria-live="polite">2,768 characters left</div>');
