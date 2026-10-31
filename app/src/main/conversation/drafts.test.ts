@@ -177,3 +177,17 @@ describe("DraftStore byte budget", () => {
     expect(next.returned(B)).toMatchObject({ text: "two", reason: "restarted" });
   });
 });
+
+// buzz-conversation fix round 3 (RA2c ⚪1): an emptied queue reserves nothing.
+describe("DraftStore emptied queues", () => {
+  it("frees the budget of a conversation whose last queued item was removed", () => {
+    const item = { itemId: "q1", text: "one", anchors: [], attachments: [] };
+    let limit = 50;
+    for (; limit < 5_000; limit++) { try { new DraftStore(directory(), { fileBytes: limit }).add(A, item); break; } catch { /* below the boundary */ } }
+    const store = new DraftStore(directory(), { fileBytes: limit });
+    store.add(A, item);
+    expect(store.remove(A, "q1")).toBe(true);
+    store.add(B, { ...item, itemId: "q2" });
+    expect(store.queued(B)).toHaveLength(1);
+  });
+});
