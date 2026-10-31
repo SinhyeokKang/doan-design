@@ -79,3 +79,4 @@
 - A2 시작: dispatch `ctx_099339345ad8`, worktree `bc-a2`(base `51fa45bc`), Claude opus high.
 - B2 완료(`worker_done` succeeded): `305e2e58..51767518` 6커밋, 테스트 5268개·typecheck·verify 통과, 자체 리뷰 🔴0·🟡5 반영. GUI는 띄우지 않았다. 남긴 것: Edit on Home 이미지 칩의 썸네일 없음, docked `/` 목록 상태가 초안별이 아님, 초안에 없던 문구. B2 터미널은 수정 라운드용으로 retain했다.
 - RB2 완료(Codex): 🔴0, 🟡4(두 대화 동시 전송의 대기 상태 소실, 호스트가 첨부를 넣을 때 모양·거절 규칙 누락, 다시 로드 뒤 상태줄 선택이 읽기 완료 순서에 좌우됨, 이전 notice가 지금 이유 줄과 `aria-describedby`를 가림), ⚪3. 재현 검사 5개는 리뷰어 `.scratch/`에 있다.
+- B2 수정 라운드 1을 같은 터미널로 보냈다: dispatch `ctx_900e9c3435c5`(🟡1~4, ⚪1~3, 결정 18). RB2 워커는 release했다.
