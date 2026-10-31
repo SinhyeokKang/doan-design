@@ -62,7 +62,7 @@ Stop at what is reused; one-off values pollute the system. Do not invent compone
 
 Some parts of a design system are judgment, not extraction: a one-line character for the system, the mood and aesthetic philosophy, descriptive names for key colors ("deep muted teal-navy", not "blue-800"), the elevation philosophy, and the feel of components ("tactile and confident" or "refined and restrained").
 
-Ask about these only when the document needs them, in rounds of at most three focused questions with two or three options grounded in the evidence, waiting between rounds. Do not invent rules and present them as facts. A rule nobody confirmed is either settled with the user or marked as open.
+Ask about these only when the document needs them, in rounds of at most three focused questions with two or three options grounded in the evidence, waiting between rounds. Do not invent rules and present them as facts. A rule nobody confirmed is either settled with the user or marked as open in the rules document.
 
 Policies for future screens are judgment too, even when they look like extraction: how many primary actions a view may have, whether radii or shapes may mix, whether depth stays flat or tonal, which colors are reserved for which uses, the spacing between components, and whether a choice was deliberate. The code shows what exists today, not what is allowed tomorrow:
 
@@ -110,7 +110,7 @@ Writing style:
 - **Decisive where evidence is decisive.** Use hard language for real invariants and softer language for provisional guidance.
 - **Concrete tests.** A one-sentence test that the cited files pass beats a paragraph of principle.
 - **Do's and Don'ts** are concrete visual guardrails from the shipped system or the user's decisions, each citing its source. Do not turn a task-specific concept, or a device the code merely does not use, into a system-wide prohibition.
-- **Open decisions** list every judgment call nobody confirmed, with the evidence that leaves it open.
+- **Open decisions** list every judgment call nobody confirmed, with the evidence that leaves it open. Open decisions live only in the rules document; canvases do not repeat them.
 
 ## Step 5: Draw the design-system canvases
 
@@ -133,7 +133,7 @@ Each canvas:
 - Colors and typography reference the token CSS variables (`background: var(--color-accent)`) instead of copied values. Label each swatch and type sample with its variable name and role. Direct hex or rgb values make `doan check` warn when token CSS is configured.
 - Components: use the component's own markup and class names so its real CSS draws it; do not restyle it with copied values. Show the states the code has (default, hover, focus, active, disabled, error, loading, open) side by side. For a state the CSS applies only under `:hover` or `:focus-visible`, restate those rules with the same tokens for a labeled sample.
 - Draw an icon from the project's icon source (package, SVG file, sprite, component, or font), not from memory. If that source cannot be obtained or reproduced, say on the canvas the icon is approximate.
-- A canvas discloses what it draws that is not in code as shown (an approximation, such as a component that cannot render outside its framework; an unconfirmed token; an open decision), as the Doan guide requires, even when other canvases disclose the same. Put it next to what it concerns, or once at the top of the canvas to cover its frames.
+- A canvas discloses what it draws that is not in code as shown (an approximation, such as a component that cannot render outside its framework; a proposed or unconfirmed value it draws), as the Doan guide requires, even when other canvases disclose the same. Put it next to what it concerns, or once at the top of the canvas to cover its frames.
 - Generic process notes, such as how the canvases were made, go once in the rules document, not on canvases.
 - Use the fonts the code loads. Put canvas-only assets in `.doan/assets/` and link them relatively.
 
@@ -141,7 +141,7 @@ When updating existing design-system canvases, change only the canvases and fram
 
 ## Keep the two in agreement
 
-The rules document and the canvases use the same token names and component list, and both agree with the code. The document holds every open decision; each one that concerns a particular canvas also appears on that canvas, and decisions spanning the whole system stay in the document. The document names the canvas that shows each token group and component. When one changes in a way the other shows, update the other in the same request, or report the mismatch.
+The rules document and the canvases use the same token names and component list, and both agree with the code. Only the document holds open decisions. The document names the canvas that shows each token group and component. When one changes in a way the other shows, update the other in the same request, or report the mismatch.
 
 ## Finish in Doan
 
@@ -150,7 +150,7 @@ The rules document and the canvases use the same token names and component list,
 - Report the paths you wrote, or "No changes" with the files you checked.
 - Give a short system summary: palette, type ramp, and named rules.
 - Name the defects and drift you did not record as rules or did not repair, and why.
-- List open decisions, anything you inferred, and any workaround such as CSS that could not be linked. Say a decision is marked on a canvas only if that canvas shows it.
+- List open decisions, anything you inferred, and any workaround such as CSS that could not be linked. Open decisions are in the rules document; never say a decision is marked on a canvas.
 
 ## Verify
 
@@ -162,7 +162,7 @@ The rules document and the canvases use the same token names and component list,
 - Every color and type sample uses a token CSS variable, and each canvas links the token CSS relative to its own location.
 - Components and states shown on the canvases exist in code, or the canvas says they do not, and each unit with steps or phases shows every one.
 - Frames, element ids, and sections outside the request are unchanged.
-- The document and the canvases list the same tokens and components, and the document holds every open decision. Each canvas discloses its own approximations and the open decisions that concern it, generic process notes are only in the document, and no frame repeats its canvas's top disclosure.
+- The document and the canvases list the same tokens and components, and only the document holds open decisions. Each canvas discloses its own approximations and unconfirmed values, generic process notes are only in the document, and no frame repeats its canvas's top disclosure.
 - `doan check` passes.
 
 Report anything you could not check, such as contrast ratios, as unverified.
