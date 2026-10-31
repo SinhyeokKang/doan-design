@@ -48,3 +48,4 @@
 - TB 수정 r1 `8ae92583`: 지휘자가 diff를 직접 확인했다. 🟡 0. TB 터미널 release.
 - XB 리뷰 r1: 🔴 0, 🟡 3(비 Overview 화면의 'No canvas open' 상실, preload 남은 주석, 고아 `reviewed` 매개변수), ⚪ 4. 🟡 3과 ⚪1(상태줄 숨김 범위)·⚪2(`.empty` 규칙)를 XB에 보냈다. ⚪3·4(썸네일 연결·주석)는 RL로. 리뷰 워커 release.
   XB 수정 r1: dispatch `ctx_3a0a2ecd633b`(같은 Codex 터미널 재사용).
+- 1파 통합: TB(`3664c5da`·`5adea490`·`33e32401`), XB(`07fcaf06`·`141d6bbe`·`c9324aa6`·`38a7c008`). 통합 HEAD `38a7c008`에서 verify PASS(로그 `.scratch/orch-buzz-project/verify-int1.log`). TB·XB 워커 release.
