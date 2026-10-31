@@ -35,6 +35,16 @@ export function composeRequest(text: string, preset: PresetRef | null, attachmen
   return body || (attachments > 0 ? ATTACHMENTS_ONLY : "");
 }
 
+// composeRequest read back from a sent user.message: the preset line and the person's own text. The text that stands in
+// for an attachment-only request was not written by the person, so it reads as no text.
+const PRESET_HEADER = /^Use the Doan design preset `([^`\n]+)` \(([^\n]*)\)\.(?:\n\n|$)/;
+export function splitRequest(text: string, attachments: number): { preset: PresetRef | null; body: string } {
+  const match = PRESET_HEADER.exec(text);
+  const preset = match ? { id: match[1]!, title: match[2]! } : null;
+  const body = match ? text.slice(match[0].length) : text;
+  return { preset, body: !preset && attachments > 0 && body === ATTACHMENTS_ONLY ? "" : body };
+}
+
 // Many presets work on a named design and Home has no canvas selection, so a chosen preset asks for the target.
 export function presetPlaceholder(preset: PresetRef | null): string {
   return preset ? PRESET_PLACEHOLDER : PLACEHOLDER;
