@@ -50,6 +50,10 @@ const violetAllowed = [
   ".drop-target",
   ".row-slot.permission",
   ".row-slot.unseen i",
+  // The person's message in the conversation thread: a light accent bubble and its preset line (buzz-conversation
+  // design §0, confirmed draft 2026-10-31).
+  ".conversation-thread .bubble",
+  ".conversation-thread .bubble-preset",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {
