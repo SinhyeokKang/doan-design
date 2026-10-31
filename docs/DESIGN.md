@@ -19,6 +19,10 @@ Measured values the app UI relies on, deviations from the draft canvases that ar
 
 The reference for every screen.
 
+### Overview
+
+A light, neutral system (Light only, below): black `prominent` actions and white panels on a translucent shell, Geist type, and one violet accent read only in the places listed under Accent places. Values live in `app/src/renderer/tokens.css`; shared components live in `app/src/renderer/ds/` (`controls.css`, `surfaces.css`) and in `styles.css`. People check the system on the design-system canvases in `.doan/ds/` (see Design-system canvases); the rules a screen follows are Adopted rules and Doan adjustments below. The system's character, mood and descriptive colour names are not settled (Open decisions).
+
 ### Reference
 
 - `block/buzz-app` (Apache-2.0), local clone `~/code/buzz-app`, base commit `c40dfdf4c81aabe759f3a4329c3e77f854746a59`. It is a reference only: values and rules were read from it and Doan wrote its own CSS and TSX. No Buzz file, licence copy, source comment or `buzz` name is in the app code.
@@ -95,7 +99,7 @@ The reference for every screen.
 
 ### Shared components and surfaces
 
-Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-button`, `panel`, `tooltip`, `menu`, `popover`, `dialog-sizes`, `dialog-anatomy`, `toast`, `spinner`, `forms`, `focus-disabled`; shared-element frames `shared-project-setup`, `shared-add-projects`, `shared-first-prompt`, `shared-error-details`).
+Reference: the design-system canvases in `.doan/ds/`, one per component (see Design-system canvases).
 
 **Measured values.**
 
@@ -137,7 +141,7 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 
 ### Notices
 
-Reference: `.doan/canvases/notice.html` (frames `anatomy`, `tones-surfaces`, `rules`), implemented in `app/src/renderer/ds/surfaces.css`.
+Reference: `.doan/ds/notice.html` (frames `tones`, `surfaces`, `content`), implemented in `app/src/renderer/ds/surfaces.css`.
 
 - **One style.** Every notice is `.doan-notice`: inset `--surface-inset` fill, 12px 16px padding (`--space-3` `--space-4`), 6px gap (`--space-1h`), `--radius-row`, 14/20 body-sm text in `--text-standard`, and a 16px icon on the first text line: the `doan-alert-icon` (CircleAlert, `aria-hidden`), or a spinner or the conversation strip's status mark in that slot. Every notice has the icon, whatever its tone. Notices differ only by tone and surface.
 - **Tone.** `warning`, `error` and `ok` colour the whole text (`--text-warning`, `--text-danger`, `--text-success`) and the icon follows it (`currentColor`); the parts of a notice's text take no ink of their own, except code chips, links and buttons, which keep theirs. At 14/20 the text measures, on the inset fill and on the panel fill: neutral 17.59 / 19.17, warning 10.44 / 11.37, error 11.41 / 12.44, ok 11.31 / 12.32 to 1.
@@ -145,6 +149,63 @@ Reference: `.doan/canvases/notice.html` (frames `anatomy`, `tones-surfaces`, `ru
 - **Alignment.** Every item in the row (icon, text, an inline action or an action group) centres on the first text line. An sm action reaches into the padding with −6px block margins, so a one-line notice is 44px with or without an action.
 - **Actions and margins.** A secondary button inside an inset notice uses the `panel` variant. Screens set only outer margins on a notice.
 - **Regression pointers.** `ds/controls.test.ts` (shared metrics, tones, `doan-panel` as fill only, no ink on text parts, margins only from screens, action alignment, the `panel` variant).
+
+### Colors, layout and depth
+
+What Adopted rules does not already say, read from `tokens.css` and `styles.css`.
+
+- **Three colour layers** (`tokens.css`): the palette holds the only literal colours (neutral ramp, violet ramp, red/amber/green status hues, and the eight Tailwind 600 project identity colours, kept apart from the status hues); roles name a purpose; legacy names (`--bg`, `--accent`, `--text-2` and the like) alias roles so drafts drawn before this system resolve. No renderer code reads the legacy layer.
+- **Project identity.** A project thumbnail (`.shell-thumbnail`, `styles.css`) is the project's initial on one of the eight `--identity-project-*` roles chosen by `projectHue`: the fill is the colour 14% into `--surface-panel`, the letter the colour 65% into `--text-standard`. 16px in the sidebar and Quick Open, 20px in Home's project picker, 28px on first-run cards.
+- **Spacing.** `--space-n` is n × 4px, with `--space-half` (2px) and `--space-1h` (6px); named spacings (`--space-row-gap`, `--space-control-inset`, `--space-section-gap`, `--space-chip-inset`) alias steps.
+- **Shell layout** (`styles.css`): a 56px header (`--size-chrome`), a 220px sidebar, 8px gutters, and the screen's body on white: Home's `.home-panel` with `--radius-container` and `--shadow-panel`; the workspace's canvas area and 280px right panel joined into one body with 24px outer corners. The shell is transparent over the native sidebar material, `--bg-app` under reduced transparency.
+- **Depth.** Three shadows: `--shadow-panel` (panels and floating material; its hairline ring draws their edge), `--shadow-sm` (dialogs, tooltips), `--shadow-xs` (the switch thumb). Glass is `--surface-elevated-glass` with `--blur-sm` on floating material and `--blur-md` on the `quiet` button. Surfaces without a shadow are told apart by fill: shell `--bg-app`, panel `--surface-panel`, inset `--surface-inset`.
+
+### Design-system canvases
+
+One canvas per token group, shared component and shared surface in `.doan/ds/`, each linking `tokens.css` and `ds/index.css` relative to itself. Canvas-only layout and the base the components rely on (the Geist `@font-face`, the border-box reset and button and SVG defaults from `fonts.css`, `styles.css` and Tailwind preflight, and stand-ins for the two custom properties Radix sets at run time) are restated once in `.doan/assets/ds-canvas.css`, because those files are outside the served scope. A canvas whose component is styled in `styles.css`, `doany.css` or a screen's rule restates only the rules it needs, with the same tokens, and says so; states the CSS reaches only under `:hover`, `:active` or `:focus-visible` are restated as `.is-hover`, `.is-active` and `.is-focus`. Dialogs are drawn in place rather than opened with `showModal()`. Values were read from source and the canvases were checked rendered in a browser, not measured against the app.
+
+| Canvas | Shows | Source |
+|---|---|---|
+| `color` | Palette and every role group | `tokens.css` |
+| `typography` | Type roles, weights, family | `tokens.css` |
+| `spacing`, `size`, `radius`, `shadow`, `blur`, `motion` | One token group each | `tokens.css` |
+| `button` | Variants × states, sizes, icon and shortcut hint | `ds/controls.css` |
+| `icon-button` | Used variants × states, sizes and shapes | `ds/controls.css` |
+| `input` | States and sizes | `ds/controls.css` |
+| `chip` | The translucent chip (sidebar branch and count) | `ds/controls.css` |
+| `spinner` | Spinner alone and beside its sentence | `ds/controls.css` |
+| `panel`, `floating`, `menu`, `scroll` | Panel, floating material, menu rows and states, thin scrollbar | `ds/surfaces.css` |
+| `toast` | Message, action, long message | `Toast.tsx` |
+| `tooltip` | Short and long | `components/ui/tooltip.tsx` |
+| `dialog` | Widths, header and actions, search presentation | `ds/surfaces.css` |
+| `notice` | Tones, surfaces, spinner and action | `ds/surfaces.css` |
+| `alert-icon` | 16 and 20px, ink | `AlertIcon.tsx` |
+| `settings-group`, `preference-row` | Group; row content, trailing, disabled, narrow | `ds/surfaces.css` |
+| `mode-tabs` | Page tabs in the header, filter tabs | `styles.css` (`.shell-modes`) |
+| `status-pill` | Tones | `styles.css` (`.ob-chip`) |
+| `inline-error` | Error and warning lines | `styles.css` (`.ob-msg`, `.settings-msg`) |
+| `inline-code` | Code chip in a sentence | `styles.css` |
+| `project-thumbnail` | Identity colours, sizes | `styles.css` (`.shell-thumbnail`) |
+| `error-details` | The Details disclosure, closed and open | `ErrorDetails.tsx` |
+| `doany` | Slots and focus (still image only) | `Doany.tsx`, `doany.css` |
+| `project-settings` | Loaded, saved, saving, reading, read error, folder problem | `ProjectSettingsDialog.tsx` |
+| `add-to-serve` | The confirmation before adding a serve path | `SettingsDialog.tsx` |
+| `remove-confirmation` | Stop and remove a project with a running conversation | `App.tsx` |
+| `project-setup` | No token, chosen, running, failed | `ProjectSetupDialog.tsx` |
+| `quick-open` | Browse, results, no match | `QuickOpenDialog.tsx` |
+| `shell-layout` | Header, sidebar (projects, Settings), project menu, body panels | `App.tsx`, `ShellSidebar.tsx`, `Home.tsx` |
+
+The surface canvas is `shell-layout` because the id `app-shell` belongs to an older draft in `.doan/canvases/`. Not drawn, each seen on one screen only: the textarea (Comments panel), the checkbox (Hand off dialog), the switch (Settings › Notifications), `.doan-kbd` outside a button (it appears only in the canvas toolbar's Fit button, drawn on `button`), the status block (Comments and Feedback panels in the workspace), the Hand off and comment dialogs, the conversation strip, the Review bar, FirstPrompt and the first-run wizard. Not drawn because nothing renders them: `.doan-popover` (no markup uses it) and the tooltip provider, root and trigger (wrappers that draw nothing).
+
+### Open decisions
+
+Judgment calls nobody has confirmed, each shown on the canvas named.
+
+- **Character.** The system's one-line character, mood, descriptive colour names and elevation philosophy are not settled; the Overview records only what the code does.
+- **Sidebar violet roles** (`color`, `shell-layout`). `tokens.css` says violet marks the current sidebar row and its hover, and defines `--surface-sidebar-selected`, `--text-sidebar-selected` and `--affordance-sidebar-hover` for them; `styles.css` draws both with neutral backdrop roles (`.shell-side .row` overrides `.side .row`), as Accent places records. Whether those roles and the comment stay is undecided.
+- **Defined but unused** (`color`, `typography`, `spacing`, `blur`, `motion`, `icon-button`, `chip`, `dialog`). No app CSS or TSX reads `--border-warning`, `--surface-comment`, `--text-comment`, `--text-on-project`, `--texture-dots-size`, `--window-*` (drafts only), `--type-body-lg-*`, `--space-16`, `--space-panel-gap`, `--space-panel-inset`, `--blur-lg` or `--time-panel-enter`; no markup uses the icon button's `md` size or its `prominent` and `panel` fills, the chip's default fill or button chip, the dialog's `wide` and `expanded` sizes, or `.doan-popover`. Whether each is kept for later or removed is undecided.
+- **Literals equal to tokens** (`mode-tabs`, `shell-layout`). `.shell-modes` writes 24px, 20px, 16px, 40px and 32px, which equal `--radius-container`, `--radius-control`, `--size-icon`, `--size-control` and `--size-control-sm`, against Tokens first; the shell also uses values no token names (an 8px row corner, 220px sidebar, 36px Search, 10px heading type). Whether they move onto tokens or become named component constants is undecided.
+- **Remove confirmation actions** (`remove-confirmation`). Its Cancel and Stop and Remove are `sm`, where Dialogs puts actions at the default size, like first run's Stop and Paste dialogs. Whether it is an exception is undecided.
 
 ## App shell
 
