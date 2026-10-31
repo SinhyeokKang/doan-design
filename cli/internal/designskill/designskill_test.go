@@ -594,3 +594,34 @@ func documentPreset(t *testing.T) string {
 	}
 	return string(b)
 }
+
+// Eval rounds after T8 pin short concepts, like TestDocumentPresetKeepsT8Concepts.
+func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// U-018: asked to update a design-system reference after a code change, no agent chose document;
+	// its description named only recording, not maintaining. A plain setup request still does not fit (D12).
+	p, _ := c.Lookup("document")
+	desc := strings.ToLower(p.Description)
+	for _, s := range []string{"update", "code change", "not for plain doan setup"} {
+		if !strings.Contains(desc, s) {
+			t.Errorf("document description lost maintenance fit: missing %q in %q", s, p.Description)
+		}
+	}
+	// U-019: split canvases omitted open decisions that concern them once agreement only required the
+	// document to hold every open item a canvas shows. Both directions hold, and the answer claims only
+	// what the canvases show.
+	body := strings.ToLower(documentPreset(t))
+	for _, s := range []string{"concerns a particular canvas also appears on that canvas", "spanning the whole system stay in the document", "only if that canvas shows it"} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset lost open-decision agreement: missing %q", s)
+		}
+	}
+	for _, s := range []string{"the document holds every open item a canvas shows", "open items in both artifacts"} {
+		if strings.Contains(body, s) {
+			t.Errorf("document preset keeps the one-way or ambiguous agreement rule: %q", s)
+		}
+	}
+}

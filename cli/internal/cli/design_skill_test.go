@@ -264,6 +264,8 @@ func TestSkillGuidePresetRules(t *testing.T) {
 		"its description clearly fits the request's purpose, target and negations",
 		"ask only about ambiguity that changes the result",
 		"No fit, or a concrete edit like “move this button 4px left”: read no body.",
+		// U-018: updating a design-system reference after a code change was taken as a concrete edit.
+		"Creating or updating a design-system reference (`.doan/ds/` canvases or a rules document) is not a concrete edit: list descriptions first.",
 		"a review ends with a report; change only the requested scope; start no unrequested diagnosis",
 		"The request, existing constraints, these rules and canvas conventions outrank a preset.",
 		"skip unneeded handoffs, subagents and engines",
