@@ -613,6 +613,34 @@ func TestDocumentPresetKeepsSharedNotesOffCanvases(t *testing.T) {
 	}
 }
 
+// T8 round 2: one session drew two icons from memory that differ from the installed icon package
+// and did not say so on those canvases.
+func TestDocumentPresetCopiesIconsFromInstalledPackage(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"copy its SVG markup from the icon package the project installs, not from memory",
+		"If that package is not installed, state on the canvas that the icon is drawn from memory.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+}
+
+// T8 round 2: one session shipped an app shell canvas whose layout overflowed its frame and overlapped,
+// because it never looked at the rendered canvas.
+func TestDocumentPresetLooksAtRenderedCanvases(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"Before finishing, look at each canvas rendered (in Doan, or a browser if Doan is not available) and fix overlapping or overflowing content",
+		"Say which canvases you could not render.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+}
+
 func documentPreset(t *testing.T) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("presets", "document.md"))
