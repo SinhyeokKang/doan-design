@@ -553,3 +553,71 @@ func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
 		}
 	}
 }
+
+// T8 round 1: one session skipped a dialog several screens render because its classes appeared in that
+// component only. Shared is decided by how many screens render a component, not by where its styles are used.
+func TestDocumentPresetSharedMeansRenderedBySeveralScreens(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"A component, dialog, or surface that two or more screens render is shared, even if its styles appear nowhere else.",
+		"parts of a single screen (rendered by one screen only)",
+		"each skip is a nonvisual wrapper or rendered by one screen only",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	if strings.Contains(body, "each skip is a nonvisual wrapper or part of a single screen") {
+		t.Error("document preset still leaves 'part of a single screen' undefined in Verify")
+	}
+}
+
+// T8 round 1: one session drew an app shell whose tabs and groups the code no longer renders.
+// A shared surface is drawn from the files that render it now.
+func TestDocumentPresetDrawsSharedSurfacesFromCurrentCode(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"Draw it from the files that render it now (read them and name them in `data-doan-implements`), with the sections and controls they render today",
+		"for a shared surface, the file that renders that frame",
+		"Each shared surface shows the sections and controls the files that render it show today.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	for _, s := range []string{"drawn from the components' markup", "the layout file for a shared surface"} {
+		if strings.Contains(body, s) {
+			t.Errorf("document preset still lets a shared surface be drawn without reading its current code: %q", s)
+		}
+	}
+}
+
+// T8 round 1: one session repeated the same two generic paragraphs on every canvas.
+// A canvas carries only its own notes; notes for every canvas go once in the rules document.
+func TestDocumentPresetKeepsSharedNotesOffCanvases(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"A canvas states only what is specific to it: what it draws that is not in code as shown, and its own open items.",
+		"A note that applies to every canvas goes once in the rules document, not on each canvas.",
+		"in the document and on the canvas it concerns",
+		"No canvas repeats a note that applies to every canvas.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	for _, s := range []string{"in the document and on the canvases,", "the same open items"} {
+		if strings.Contains(body, s) {
+			t.Errorf("document preset still asks every canvas to repeat shared open items: %q", s)
+		}
+	}
+}
+
+func documentPreset(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("presets", "document.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
