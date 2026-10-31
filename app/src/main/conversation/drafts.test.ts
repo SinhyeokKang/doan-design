@@ -81,3 +81,62 @@ describe("DraftStore", () => {
     expect(memory.queued(A)).toHaveLength(1);
   });
 });
+
+// buzz-conversation fix round 1 (RA2 R1): the writer keeps to the limits the reader checks.
+describe("DraftStore limits", () => {
+  const item = (itemId: string, text: string, more: Partial<{ anchors: typeof anchor[]; attachments: typeof file[] }> = {}) => ({ itemId, text, anchors: more.anchors ?? [], attachments: more.attachments ?? [] });
+  it("refuses, before accepting it, an item that would make the queue and the returned draft larger than one message", () => {
+    const store = new DraftStore(directory());
+    store.giveBack(A, { text: "x".repeat(20_000), anchors: [], attachments: [] }, "turn_failed");
+    expect(() => store.add(A, item("q1", "y".repeat(12_767)))).toThrow("queue_limit");
+    expect(store.queued(A)).toEqual([]);
+    store.add(A, item("q1", "y".repeat(12_766)));
+    expect(store.giveBackQueued(A, "interrupted")).toBe(true);
+    expect(store.returned(A)!.text).toHaveLength(32_768);
+  });
+  it("counts anchors and attachments of the whole draft as one message does", () => {
+    const store = new DraftStore(directory());
+    const marks = (n: number) => Array.from({ length: n }, (_, i) => `{{${i + 1}}}`).join(" ");
+    store.add(A, item("q1", marks(30), { anchors: Array(30).fill(anchor) }));
+    expect(() => store.add(A, item("q2", marks(3), { anchors: Array(3).fill(anchor) }))).toThrow("queue_limit");
+    store.add(A, item("q2", marks(2), { anchors: Array(2).fill(anchor) }));
+    store.add(B, item("f1", "files", { attachments: Array(10).fill(file) }));
+    expect(() => store.add(B, item("f2", "one more", { attachments: [file] }))).toThrow("queue_limit");
+  });
+  it("refuses an item that would take the file past the size the reader reads", () => {
+    const dir = directory(), store = new DraftStore(dir, { fileBytes: 2_000 });
+    store.add(A, item("q1", "a".repeat(800)));
+    expect(() => store.add(B, item("q2", "b".repeat(1_000)))).toThrow("queue_limit");
+    expect(new DraftStore(dir, { fileBytes: 2_000 }).returned(A)).toMatchObject({ reason: "restarted" });
+  });
+  it("reads the other conversations when one conversation's entry is unreadable, and keeps that entry on disk", () => {
+    const dir = directory();
+    const value = { v: 1, queued: { [A]: [item("q1", "one")] }, returned: { [B]: { text: "z".repeat(40_000), anchors: [], attachments: [], reason: "turn_failed" } } };
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify(value));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = new DraftStore(dir);
+    expect(log).toHaveBeenCalled();
+    expect(store.returned(A)).toMatchObject({ text: "one", reason: "restarted" });
+    expect(store.returned(B)).toBeUndefined();
+    store.add(A, item("q2", "two"));
+    expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).returned[B]).toEqual(value.returned[B]);
+  });
+  it("removes temporary files a crash left before their rename", () => {
+    const dir = directory();
+    writeFileSync(join(dir, "drafts-0b6a3c2e-1f7d-4c1e-9a55-5c7e0e8f9d10.tmp"), "{");
+    writeFileSync(join(dir, "index-0b6a3c2e-1f7d-4c1e-9a55-5c7e0e8f9d10.tmp"), "{");
+    new DraftStore(dir);
+    expect(readdirSync(dir).sort()).toEqual(["index-0b6a3c2e-1f7d-4c1e-9a55-5c7e0e8f9d10.tmp"]);
+  });
+  it("reports a removal or a hand-over it could not save, and keeps the item or the draft", () => {
+    const store = new DraftStore(directory());
+    store.add(A, item("q1", "one"));
+    const write = vi.spyOn(store as unknown as { write(): void }, "write").mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+    expect(() => store.remove(A, "q1")).toThrow("ENOSPC");
+    expect(store.queued(A)).toHaveLength(1);
+    store.giveBackQueued(A, "interrupted");
+    write.mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+    expect(() => store.take(A)).toThrow("ENOSPC");
+    expect(store.take(A)).toMatchObject({ text: "one" });
+  });
+});

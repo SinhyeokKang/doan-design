@@ -859,17 +859,35 @@ describe("promotion", () => {
     expect(entry(h, second).canvas).toEqual({ path: ".doan/canvases/made.html" });
     expect(entry(h, first).canvas).toBeUndefined();
   });
-  it("carries a turn not judged yet into the conversation's next turn instead of losing its canvas", async () => {
+  it("holds a send of the same conversation until its earlier turn is judged, which still takes a late new canvas", async () => {
     const h = homeFixture();
     const id = (await h.service.start(homeRequest)).conversationId;
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     // The person answers before the folder refresh that lists the first turn's canvas.
-    await h.service.send(id, "and a footer", []);
+    let sent = false; const sending = h.service.send(id, "and a footer", []).then(() => { sent = true; });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(sent).toBe(false);
+    await expect(h.service.send(id, "twice", [])).rejects.toThrow("busy");
     h.listed.push({ path: ".doan/canvases/made.html" });
     h.service.refreshed("/repo", [".doan/canvases/made.html"]);
-    expect(entry(h, id).canvas).toBeUndefined();
-    h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo", []);
+    await sending;
     expect(entry(h, id).canvas).toEqual({ path: ".doan/canvases/made.html" });
+    expect(h.store.read(id).filter(e => e.type === "user.message")).toHaveLength(2);
+  });
+  it("never crosses one turn's refused edit with a change made during the next turn (RA2 Y1)", async () => {
+    const h = homeFixture([a]); const { current, project } = await withCurrent(h);
+    // T1 asks to edit a.html; the edit is refused, so the file never changes.
+    h.service.receive(project, edit(a.path));
+    h.service.receive(project, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    const next = h.service.send(project, "only explain it", []);
+    // The folder refresh after T1 comes once T2 was sent.
+    await new Promise(resolve => setTimeout(resolve, 10));
+    h.service.refreshed("/repo", []);
+    await next;
+    // During T2, which edits nothing, someone else changes a.html.
+    h.service.refreshed("/repo", [a.path]);
+    h.service.receive(project, { type: "turn.done" }); h.service.refreshed("/repo", []);
+    expect(entry(h, project).canvas).toBeUndefined(); expect(entry(h, current).state).toBe("current");
   });
 });
 
@@ -1174,5 +1192,104 @@ describe("queue and judgement review fixes", () => {
     h.service.queue(id, { text: "kept", anchors: [], attachments: [record], ids: ["y"] });
     h.service.receive(id, { type: "turn.failed", code: "rate_limited" });
     expect(files.release).toHaveBeenCalledWith(["y"]);
+  });
+});
+
+// buzz-conversation fix round 1 (RA2): queue limits, the list's working state, sign-out while held.
+describe("fix round 1", () => {
+  const a = { path: ".doan/canvases/a.html", id: "a" };
+  const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
+  const userMessages = (h: ReturnType<typeof homeFixture>, id: string) => h.store.read(id).filter(e => e.type === "user.message");
+  it("refuses a queued message that would make the queue and its returned draft larger than one message", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "x".repeat(20_000), anchors: [] });
+    h.service.receive(id, { type: "interrupted", reason: "user" });
+    h.open.mock.calls[0]![2]();
+    await h.service.send(id, "again", []);
+    expect(() => h.service.queue(id, { text: "y".repeat(12_767), anchors: [] })).toThrow("queue_limit");
+    expect(h.service.list("/repo")[0]!.queued).toBe(0);
+    // Exactly one message's worth, the blank line between them included, is accepted.
+    h.service.queue(id, { text: "y".repeat(12_766), anchors: [] });
+    h.service.receive(id, { type: "interrupted", reason: "user" });
+    expect(h.service.takeDraft(id)!.text).toHaveLength(32_768);
+  });
+  it("lists a conversation as working while it prepares, runs, waits for its previous process and while its turn waits for judgement", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    const working = () => h.service.list("/repo")[0]!.working;
+    expect(working()).toBe(true);
+    h.changes.length = 0;
+    h.service.receive(id, { type: "turn.done" });
+    // Its judgement still holds the root.
+    expect(working()).toBe(true);
+    h.changes.length = 0;
+    h.service.refreshed("/repo", []);
+    expect(working()).toBe(false); expect(h.changes).toContain("/repo");
+    // A send waiting for the previous process works too, and says so.
+    h.changes.length = 0;
+    const sending = h.service.send(id, "again", []);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(working()).toBe(true); expect(h.changes).toContain("/repo");
+    h.open.mock.calls[0]![2](); await sending;
+    expect(working()).toBe(true);
+  });
+  it("lists a held queue as working while it waits for the previous process, though nothing is queued any more (RA2 Y2)", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(h.service.list("/repo")[0]).toMatchObject({ phase: "ended", queued: 0, working: true });
+  });
+  it("lists a send refused during preparation as not working and announces it", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    let refuse!: () => void;
+    h.prepare.mockImplementationOnce(() => new Promise((_resolve, reject) => { refuse = () => reject(new Error("not_logged_in")); }));
+    h.changes.length = 0;
+    const sending = h.service.send(id, "again", []);
+    await vi.waitFor(() => expect(refuse).toBeDefined());
+    expect(h.service.list("/repo")[0]!.working).toBe(true); expect(h.changes).toContain("/repo");
+    h.changes.length = 0;
+    refuse(); await expect(sending).rejects.toThrow("not_logged_in");
+    expect(h.service.list("/repo")[0]!.working).toBe(false); expect(h.changes).toContain("/repo");
+  });
+  it("hands a queue held for its judgement back as interrupted when its provider signs out, and sends nothing later", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(homeRequest)).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await h.service.stopRuns("claude");
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "next", reason: "interrupted" });
+    h.service.refreshed("/repo", []);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(userMessages(h, id)).toHaveLength(1);
+  });
+  it("hands a queue waiting for the previous process back as interrupted when its provider signs out", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "next", anchors: [] });
+    h.service.receive(id, { type: "turn.done" });
+    await new Promise(resolve => setTimeout(resolve, 10));
+    await h.service.stopRuns("claude");
+    await vi.waitFor(() => expect(h.service.list("/repo")[0]).toMatchObject({ returnedDraft: true }));
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "next", reason: "interrupted" });
+    h.open.mock.calls[0]![2]();
+    await new Promise(resolve => setTimeout(resolve, 10));
+    expect(userMessages(h, id)).toHaveLength(1);
+  });
+  it("reports a removal or a handed-over draft that could not be saved, and keeps it", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const write = vi.spyOn(h.drafts as unknown as { write(): void }, "write").mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+    expect(() => h.service.removeQueued(id, item.itemId)).toThrow("ENOSPC");
+    expect(h.service.list("/repo")[0]!.queued).toBe(1);
+    h.service.receive(id, { type: "interrupted", reason: "user" });
+    write.mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+    expect(() => h.service.takeDraft(id)).toThrow("ENOSPC");
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "one" });
   });
 });

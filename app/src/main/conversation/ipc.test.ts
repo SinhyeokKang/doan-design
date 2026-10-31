@@ -303,3 +303,36 @@ describe("queue channels", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
+
+// buzz-conversation fix round 1 (RA2 Y4): a queued message is accepted only after main holds its attachments.
+describe("queue acceptance", () => {
+  function fixture(dir: string, markSent: () => void) {
+    const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
+    const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
+    const attachments = { resolve: vi.fn(() => ({ ok: true, records })), markSent: vi.fn(markSent), consume: vi.fn() };
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments: attachments as unknown as AttachmentStore });
+    return { handle, service, attachments };
+  }
+  it("refuses a queued message whose pasted image could not be marked, with nothing queued and the image still the renderer's", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir, () => { throw new Error("ENOSPC"); });
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] })).toEqual({ error: "unknown" });
+      expect(h.service.list("/repo")[0]!.queued).toBe(0);
+      expect(h.attachments.consume).not.toHaveBeenCalled();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("passes queue_limit through", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = fixture(dir, () => {});
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      vi.spyOn(h.service, "queue").mockImplementationOnce(() => { throw new Error("queue_limit"); });
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "queue_limit" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});

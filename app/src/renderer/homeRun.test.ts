@@ -286,9 +286,11 @@ test("Home's running map says whether the conversation waits for an answer (spec
 });
 
 // buzz-conversation R4: what survives a reload comes from main's list.
+// working follows the phase unless a test sets it: main also works after a turn ended (judgement, exit wait).
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
-  phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
+  phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "",
+  working: patch.phase !== undefined && patch.phase !== "ended", ...patch,
 });
 function lists(byRoot: Record<string, ConversationSummary[]>) {
   doan.listConversations!.mockImplementation(async ({ root }: { root: string }) => byRoot[root] ?? []);
@@ -472,7 +474,17 @@ test("the removal guard and Home's reason line read the list after a reload", as
   expect(h.run.removing).toMatchObject({ conversations: ["p"], body: "A conversation in doan needs your answer. Doan stops it, then removes the project from the list. Files stay on disk." });
 });
 
-test("a late project_busy shows Home's reason line without Open for main's window unless the list names the holder", async () => {
+test("a project conversation main still counts as working after its turn ended holds Home's reason line and the removal guard", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p", phase: "ended", working: true, fromHome: false }), summary({ conversationId: "idle", phase: "ended", working: false, fromHome: false })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "p", waiting: false }]]));
+  await h.run.remove([ROOT], "doan");
+  expect(h.run.removing).toMatchObject({ conversations: ["p"], body: expect.stringContaining("A conversation is still running in doan.") });
+});
+
+test("a late project_busy shows Home's reason line without Open until a list read after it names the holder or none", async () => {
   const now = vi.spyOn(Date, "now").mockReturnValue(5_000_000);
   const h = harness();
   h.run.entriesChanged();
@@ -484,11 +496,10 @@ test("a late project_busy shows Home's reason line without Open for main's windo
   expect(await sending).toEqual({ error: "project_busy" });
   // The list has not caught up yet: the line names no conversation.
   expect(h.run.running().get(ROOT)).toEqual({ conversationId: "", waiting: false });
-  // A canvas conversation running in the root is not the holder; main refused for its binding window.
+  // A canvas conversation running in the root is not the holder, and the list read after the refusal names none
+  // working: whatever held the root let it go meanwhile.
   read.resolve([summary({ conversationId: "canvas", phase: "running", fromHome: false, canvas: { path: ".doan/canvases/a.html", id: "a" } })]);
   await flush();
-  expect(h.run.running().get(ROOT)).toEqual({ conversationId: "", waiting: false });
-  now.mockReturnValue(5_000_000 + BIND_GRACE_MS + 1);
   expect(h.run.running().get(ROOT)).toBeUndefined();
   // A listed project conversation that holds the root is named, with Open.
   lists({ [ROOT]: [summary({ conversationId: "p", phase: "waiting", fromHome: false })] });
