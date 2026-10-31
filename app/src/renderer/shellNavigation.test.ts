@@ -48,6 +48,15 @@ describe("shell navigation", () => {
     expect(reconcileProjects(saved, [{ key: "common", roots: ["a", "b"] }])).toEqual({ common: { roots: ["a", "b"], expanded: true, selectedRoot: "b", selectedAt: 3 } });
     expect(reconcileProjects(saved, [])).toEqual({});
   });
+  it("keeps a closed sidebar group closed across a folder update", () => {
+    const saved = { common: { roots: ["a"], expanded: true, selectedRoot: "a", groups: { ds: false as const } } };
+    expect(reconcileProjects(saved, [{ key: "common", roots: ["a", "b"] }]).common?.groups).toEqual({ ds: false });
+    expect(reconcileProjects({ common: { roots: ["a"], expanded: true } }, [{ key: "common", roots: ["a"] }]).common).not.toHaveProperty("groups");
+    // Rejoined projects keep a group closed only where every one of them had closed it; open is the default.
+    const split = { a: { roots: ["a"], expanded: true, groups: { ds: false as const, canvases: false as const } }, b: { roots: ["b"], expanded: false, groups: { ds: false as const } } };
+    expect(reconcileProjects(split, [{ key: "common", roots: ["a", "b"] }]).common?.groups).toEqual({ ds: false });
+    expect(reconcileProjects({ ...split, b: { roots: ["b"], expanded: false } }, [{ key: "common", roots: ["a", "b"] }]).common).not.toHaveProperty("groups");
+  });
 });
 
 describe("shell project persistence", () => {

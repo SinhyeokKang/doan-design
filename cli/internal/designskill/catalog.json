@@ -32,7 +32,7 @@
       "id": "document",
       "group": "start",
       "title": "Document the design system",
-      "description": "Record the shipped design system as a rules document for agents and a design-system canvas that references the project's token CSS.",
+      "description": "Record the shipped design system as a rules document for agents and design-system canvases in .doan/ds/ (one per token group, component, or shared surface), or update them after a code change; not for plain Doan setup.",
       "scope": "design system",
       "sources": [
         {"repository": "https://github.com/pbakaus/impeccable", "commit": "d34c87e1a00989ae8dbdd7f6b30b70f23319e860", "path": "skill/reference/document.md"},

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="input">
+<meta name="doan:width" content="1000">
+<title>input</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from ds/controls.css with :focus → .is-focus. */
+:is(.doan-input, .doan-textarea).is-focus { border-color: var(--border-prominent); outline: none; }
+.w { width: 260px; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>input</h1><p><code>.doan-input</code>: an inset fill whose 1px border is always reserved, so focus and errors recolour the edge without moving the text. Focus shows on the border, not as a ring; it is restated here as <code>.is-focus</code>.</p></header>
+<section class="dsc-frame" data-doan-frame="states" data-doan-title="States" data-doan-implements="app/src/renderer/ds/controls.css">
+<h2>States</h2>
+<div class="dsc-row"><div class="dsc-cell"><div class="w"><input class="doan-input" placeholder="Search canvases and frames"></div><span class="dsc-label">placeholder · <code>--text-metadata</code></span></div><div class="dsc-cell"><div class="w"><input class="doan-input" value="doan-design"></div><span class="dsc-label">filled</span></div><div class="dsc-cell"><div class="w"><input class="doan-input is-focus" value="doan-design"></div><span class="dsc-label">focus · <code>--border-prominent</code></span></div><div class="dsc-cell"><div class="w"><input class="doan-input" aria-invalid="true" value="htps://github.com"></div><span class="dsc-label">invalid · <code>--border-danger</code></span></div><div class="dsc-cell"><div class="w"><input class="doan-input" disabled value="doan-design"></div><span class="dsc-label">disabled</span></div></div>
+</section>
+<section class="dsc-frame" data-doan-frame="sizes" data-doan-title="Sizes" data-doan-implements="app/src/renderer/ds/controls.css">
+<h2>Sizes</h2>
+<div class="dsc-row"><div class="dsc-cell"><div class="w"><input class="doan-input" value="Default"></div><span class="dsc-label">default · <code>--size-control</code>, body type</span></div><div class="dsc-cell"><div class="w"><input class="doan-input" data-ui-size="sm" value="Small"></div><span class="dsc-label">sm · <code>--size-control-sm</code>, body-sm type</span></div></div>
+</section>
+</main>
+</body>
+</html>

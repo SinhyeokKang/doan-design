@@ -35,6 +35,37 @@ func TestScopeCanvasDirectory(t *testing.T) {
 	}
 }
 
+func TestScopeDesignSystemDirectory(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, ".doan/ds/button.html", "")
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/ds"}) {
+		t.Fatalf("ds only: %#v", got)
+	}
+	put(t, root, ".doan/canvases/a.html", "")
+	put(t, root, ".doan/assets/a.png", "")
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/assets", ".doan/canvases", ".doan/ds"}) {
+		t.Fatalf("all: %#v", got)
+	}
+}
+
+func TestMetadataPathDesignSystem(t *testing.T) {
+	for p, want := range map[string]bool{
+		".doan/ds":               false,
+		".doan/ds/x.css":         false,
+		".doan/ds/nested/a.html": false,
+		".doan/dsx":              true,
+		".doan/dsx/a.css":        true,
+		".doan/comments":         true,
+		".doan/comments/a.jsonl": true,
+		".doan/config.json":      true,
+		".doan/canvases/a.css":   false,
+	} {
+		if got := MetadataPath(p); got != want {
+			t.Errorf("%s: %v, want %v", p, got, want)
+		}
+	}
+}
+
 func TestScopeTokenCSS(t *testing.T) {
 	root := real(t, t.TempDir())
 	outside := t.TempDir()
@@ -126,5 +157,38 @@ func TestLegacyDesignIsNotInDefaultScope(t *testing.T) {
 	put(t, root, ".doan/canvases/canvas.html", "")
 	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/canvases"}) {
 		t.Fatalf("default scope must only include doan: %#v", got)
+	}
+}
+
+// A linked default directory must not put its real target in the default
+// scope: anything outside the default directories is served only when
+// configured (ARCHITECTURE §3), and the target may be source code.
+func TestScopeSkipsLinkedDefaultDirectory(t *testing.T) {
+	for _, dir := range []string{".doan/canvases", ".doan/ds", ".doan/assets"} {
+		t.Run(dir, func(t *testing.T) {
+			root := real(t, t.TempDir())
+			put(t, root, "src/private.js", "")
+			link(t, "../src", filepath.Join(root, dir))
+			if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{}) {
+				t.Fatalf("empty config: %#v", got)
+			}
+			if got := scopeOf(t, root, Config{Serve: []string{"src"}}); !reflect.DeepEqual(got, []string{"src"}) {
+				t.Fatalf("configured: %#v", got)
+			}
+		})
+	}
+}
+
+func TestScopeSkipsDefaultsUnderLinkedMetadata(t *testing.T) {
+	root := real(t, t.TempDir())
+	for _, dir := range []string{"canvases", "ds", "assets"} {
+		put(t, root, "src/"+dir+"/a.html", "")
+	}
+	link(t, "src", filepath.Join(root, ".doan"))
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{}) {
+		t.Fatalf("empty config: %#v", got)
+	}
+	if got := scopeOf(t, root, Config{Serve: []string{"src/ds"}}); !reflect.DeepEqual(got, []string{"src/ds"}) {
+		t.Fatalf("configured: %#v", got)
 	}
 }

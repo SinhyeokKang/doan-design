@@ -88,6 +88,13 @@ afterEach(() => vi.unstubAllGlobals());
 const render = (next: Partial<typeof props> = {}) => { props = { ...props, ...next }; return run(() => ProjectSettingsDialog(props)); };
 const dialog = () => all(tree).find(element => element.type === "dialog")!;
 
+test("with nothing in serve, the description still names both canvas directories", async () => {
+  doan.readConfig = vi.fn(async (root: string) => ({ kind: "config", root, tokenCss: "src/styles/tokens.css", serve: [], changed: false }));
+  render(); await flush(); render();
+  expect(text()).toContain("Nothing else is served. Canvases can read files in .doan/canvases/, .doan/ds/ and the token CSS.");
+  unmount();
+});
+
 test("a healthy worktree: a standard dialog titled with the project and branch, Root, Token CSS and Serve, one Done; a config session spans it", async () => {
   render(); await flush(); render();
   expect(doan.startConfigSession).toHaveBeenCalledTimes(1);
@@ -97,7 +104,7 @@ test("a healthy worktree: a standard dialog titled with the project and branch, 
   expect(text()).toContain("acme-web settings");
   expect(text()).toContain("main");
   expect(text()).toContain("in this worktree. Commit it to share these with your team.");
-  for (const copy of [ROOT, "src/styles/tokens.css", "src/components/ui", "Canvases can read files in .doan/canvases/, the token CSS and these paths."]) expect(text()).toContain(copy);
+  for (const copy of [ROOT, "src/styles/tokens.css", "src/components/ui", "Canvases can read files in .doan/canvases/, .doan/ds/, the token CSS and these paths."]) expect(text()).toContain(copy);
   expect(all(tree).filter(element => element.type === "button" && words(element.props.children) === "Done")).toHaveLength(1);
   expect(button("Remove src/components/ui from serve")).toBeDefined();
   click("Done");

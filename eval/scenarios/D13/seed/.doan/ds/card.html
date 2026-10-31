@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="card">
+  <meta name="doan:width" content="1600">
+  <title>Card</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <link rel="stylesheet" href="../../components/card.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+    .depth { padding: var(--space-6); background: var(--color-surface-muted); }
+  </style>
+</head>
+<body>
+<p>Card reference for Ledgerly, based on components/card.css and styles/tokens.css. Sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="card" data-doan-title="Card" data-doan-implements="components/card.css">
+<h1 data-doan-id="card-heading">Card</h1>
+<div class="depth"><div class="card" data-doan-id="card-example"><h2 class="card__title">Invoice #1042</h2><p>Logo design, $480.00</p></div></div>
+</section>
+</main></body></html>

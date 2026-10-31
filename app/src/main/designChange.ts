@@ -1,4 +1,5 @@
 import { posix } from "node:path";
+import { canvasKind } from "../formats/canvasPath";
 
 export interface DesignChange {
   // Something other than a listed canvas changed, so every open canvas reloads.
@@ -7,13 +8,9 @@ export interface DesignChange {
   revPaths: string[];
 }
 
-// The CLI's listing rule (cli/internal/repo/files.go): `.html` without case and
-// no path segment starting with a dot. The decision is made from names alone,
-// before `doan ls` runs, so a file that later turns out not to be listed only
-// costs a row revision nobody reads.
-function canvasName(name: string): boolean {
-  return name.toLowerCase().endsWith(".html") && !name.split("/").some((segment) => segment.startsWith("."));
-}
+// The decision is made from names alone, before `doan ls` runs, so a file that
+// later turns out not to be listed only costs a row revision nobody reads.
+const canvasName = (name: string) => canvasKind(name) !== null;
 
 // Claude Code writes `<name>.tmp.<pid>.<hex>` beside the file and renames it
 // over; Node atomic writes were seen as `.<name>.tmp-<pid>` and `<name>.tmp`.
@@ -25,12 +22,12 @@ function tempSibling(name: string, canvases: readonly string[]): boolean {
   return canvases.some((canvas) => posix.dirname(canvas) === dir && base.startsWith(`${posix.basename(canvas).toLowerCase()}.tmp`));
 }
 
-// `names` are relative to `.doan/canvases/` as the recursive watcher reports them;
-// `null` is an event without a name, which could be anything.
+// `names` are repo-relative (`.doan/canvases/a.html`, `.doan/ds/a.html`) as the
+// watcher reports them; `null` is an event without a name, which could be anything.
 export function classifyDesignChange(names: readonly string[] | null): DesignChange {
   if (names === null) return { bumpServed: true, revPaths: [] };
   const unique = [...new Set(names)];
   const canvases = unique.filter(canvasName);
   const bumpServed = unique.some((name) => !canvasName(name) && !tempSibling(name, canvases));
-  return { bumpServed, revPaths: canvases.map((name) => `.doan/canvases/${name}`) };
+  return { bumpServed, revPaths: canvases };
 }

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="input">
+  <meta name="doan:width" content="1600">
+  <title>Input</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <link rel="stylesheet" href="../../components/input.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+  </style>
+</head>
+<body>
+<p>Input reference for Ledgerly, based on components/input.css and styles/tokens.css. Sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="input" data-doan-title="Input" data-doan-implements="components/input.css">
+<h1 data-doan-id="input-heading">Input</h1>
+<label data-doan-id="input-default">Client name <input class="input" value="Studio North"></label>
+<label data-doan-id="input-error">Client email <input class="input input--error" value="studio@"></label>
+<p class="input-error" data-doan-id="input-error-message">Enter a full email address, like name@example.com.</p>
+</section>
+</main></body></html>

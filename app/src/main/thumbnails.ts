@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { canvasKind } from "../formats/canvasPath";
 import { thumbnailGarbage, thumbnailKey, thumbnailStale, tokenSignature, type ThumbnailMeta, type TokenFile } from "./thumbnailCache";
 import { initialThumbnailQueue, thumbnailQueue, type ThumbnailQueueEvent } from "./thumbnailQueue";
 import type { Capturer } from "./thumbnailWindow";
@@ -46,7 +47,7 @@ export const SERVED_WALK_LIMIT = 2000;
 
 // Canvases are tracked by their own mtime and size; every other served file
 // can restyle all of them.
-const isCanvas = (path: string) => path.startsWith(".doan/canvases/") && path.toLowerCase().endsWith(".html");
+const isCanvas = (path: string) => canvasKind(path) !== null;
 
 // Every non-canvas file the folder serves, or null once the walk has visited
 // SERVED_WALK_LIMIT entries, canvases and empty directories included.

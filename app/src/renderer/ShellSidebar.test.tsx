@@ -6,7 +6,7 @@ const row = { path: ".doan/canvases/folder/canvas.html", url: "u", open: 2, reso
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
   const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, commentsError: { code: "bad", message: "Unreadable" } }] } : entry;
-  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
+  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
 }
 it("renders project to canvas IA, locks current expansion, and keeps the branch passive", () => {
   const html = render("/repo");
@@ -77,7 +77,7 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   const Sidebar = ShellSidebar;
   const canvas = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
   const entries: FolderEntry[] = [{ path: "/a", kind: "list", servedRev: 0, canvases: [canvas] }, { path: "/b", kind: "list", servedRev: 0, canvases: [] }];
-  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {} };
+  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {} };
   const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
   const home = renderToStaticMarkup(<Sidebar {...props} home slots={slots} highlight={["/b"]} />);
   expect(home).not.toContain("aria-current");
@@ -94,4 +94,75 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
   expect(projectSlot(slots, ["/a"], [])).toEqual({ kind: "working", label: "w" });
   expect(projectSlot(new Map([["/a\n.doan/canvases/x.html", { kind: "permission" as const, label: "p" }]]), ["/a"], [])).toEqual({ kind: "permission", label: "p" });
   expect(projectSlot(new Map([["/a\n.doan/canvases/x.html", { kind: "permission" as const, label: "p" }]]), ["/a"], ["/a\n.doan/canvases/x.html"])).toBeUndefined();
+});
+
+// design-system-canvases design 'sidebar' (Q6–Q8): two groups under an expanded, listed project.
+function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, { kind: "permission" | "working" | "unseen"; label: string }>; entry?: FolderEntry } = {}) {
+  const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name, open: 0, resolved: 0 })) };
+  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
+    search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
+}
+const heads = (html: string) => [...html.matchAll(/<div class="shell-group-head row"[^>]*>.*?<\/div>/g)].map(match => match[0]);
+
+test("an expanded project shows Design system, then Canvases, each head a level-2 tree item with its label, count badge and description", () => {
+  const html = groups(["ds/button", "ds/color", "canvases/checkout"]);
+  const [ds, canvases] = heads(html);
+  expect(ds).toMatch(/role="treeitem"/);
+  expect(ds).toMatch(/aria-label="Design system"/);
+  expect(ds).toMatch(/aria-level="2"/);
+  expect(ds).toMatch(/aria-expanded="true"/);
+  expect(ds).toMatch(/<svg[^>]*lucide-chevron-down/);
+  expect(ds).toContain('<span class="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">2</span>');
+  expect(canvases).toMatch(/aria-label="Canvases"/);
+  expect(canvases).toContain(">1</span>");
+  const described = ds!.match(/aria-describedby="([^"]+)"/)![1]!;
+  expect(html).toContain(`<span id="${described}" class="sr-only">2 canvases</span>`);
+  expect(html).toContain(">1 canvas</span>");
+  expect(html.indexOf('aria-label="Design system"')).toBeLessThan(html.indexOf('aria-label="Canvases"'));
+  expect(html.match(/aria-level="3"/g)).toHaveLength(3);
+});
+
+test("design-system rows take SwatchBook and canvas rows PanelsTopLeft; Palette is gone", () => {
+  const html = groups(["ds/button", "canvases/checkout"]);
+  expect(html).toMatch(/aria-label="button"[^>]*><svg[^>]*lucide-swatch-book/);
+  expect(html).toMatch(/aria-label="checkout"[^>]*><svg[^>]*lucide-panels-top-left/);
+  expect(html).not.toContain("lucide-palette");
+});
+
+test("an empty group keeps its head and 0 badge and shows its own line while open", () => {
+  const onlyCanvases = groups(["canvases/checkout"]);
+  expect(onlyCanvases).toContain('<p class="shell-empty">No design system yet</p>');
+  expect(heads(onlyCanvases)[0]).toContain(">0</span>");
+  const onlyDs = groups(["ds/button"]);
+  expect(onlyDs).toContain('<p class="shell-empty">No canvases yet</p>');
+  const neither = groups([]);
+  expect(neither).toContain("No design system yet");
+  expect(neither).toContain("No canvases yet");
+  expect(neither).toContain(">0 canvases</span>");
+  expect(groups([], { ds: false })).not.toContain("No design system yet");
+});
+
+test("a closed group hides its rows and turns its chevron; the other group stays open", () => {
+  const html = groups(["ds/button", "canvases/checkout"], { ds: false });
+  expect(heads(html)[0]).toMatch(/aria-expanded="false"/);
+  expect(heads(html)[1]).toMatch(/aria-expanded="true"/);
+  expect(html).not.toContain('aria-label="button"');
+  expect(html).toContain('aria-label="checkout"');
+});
+
+test("a project whose canvases could not be listed keeps its single status line and no groups", () => {
+  const html = groups([], undefined, { entry: { path: "/a", kind: "uninitialized" } });
+  expect(html).not.toContain("shell-group-head");
+  expect(html).toContain('<p class="shell-empty">');
+});
+
+test("a slot in a closed group shows on the project row; open, it stays on its own row", () => {
+  const slots = new Map([["/a\n.doan/ds/button.html", { kind: "permission" as const, label: "Codex needs your answer" }]]);
+  const closed = groups(["ds/button", "canvases/checkout"], { ds: false }, { slots });
+  expect(closed).toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot permission"/);
+  const open = groups(["ds/button", "canvases/checkout"], undefined, { slots });
+  expect(open).not.toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot/);
+  expect(open).toMatch(/<span>button<\/span><span class="row-slot permission"/);
+  // A group head never carries a slot.
+  for (const head of heads(closed)) expect(head).not.toContain("row-slot");
 });

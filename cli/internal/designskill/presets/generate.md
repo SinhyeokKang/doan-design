@@ -8,7 +8,7 @@ The user's request and its scope come first: draw the count, the direction, and 
 
 - Find the target. For pointing words like "this card" or "this screen", use `doan active` and read the open comments attached to that target. Otherwise use the canvas, frame, element, or code the user named. For a repeated component named in the plural ("the pricing cards"), the target is the container that holds the set.
 - If the repository has no `.doan/config.json`, set Doan up as the Doan guide describes, asking the user for the token CSS path first. A project with no canvases yet is fine: you will create one.
-- Read the design system (token CSS from `doan config --json`, components, a design rules document, a `design-system` canvas at `.doan/canvases/design-system.html`), the code the target's frame implements (`data-doan-implements`), and existing canvases (`doan ls --json`).
+- Read the design system (token CSS from `doan config --json`, components, a design rules document, design-system canvases in `.doan/ds/` or a legacy `.doan/canvases/design-system.html`), the code the target's frame implements (`data-doan-implements`), and existing canvases (`doan ls --json`).
 - When product context is missing and it would change the alternatives, read the `context` preset (`doan design-skill context --json`). For a new feature whose purpose, flow, or states are undecided, read the `shape` preset first.
 
 ## Read the request

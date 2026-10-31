@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FolderEntry } from "../main/view";
-import { countMatches, emptyText, groupResults, markRuns, matchPositions, outsideDialog, resultKey, resultParts, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
+import { countMatches, emptyText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
 
 function canvas(path: string, extra: Partial<SearchCanvas> = {}): SearchCanvas {
   return { path, open: 0, resolved: 0, url: `http://localhost/${path}`, ...extra };
@@ -219,6 +219,14 @@ it("only calls a canvas missing when its project was successfully listed", () =>
   expect(unavailableCanvasMessage({ kind: "loading", path: "/p" }, ".doan/canvases/moved.html")).toBe("Project is still being read. Try Open again shortly.");
   expect(unavailableCanvasMessage({ kind: "cliError", path: "/p", reason: "failed" }, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
   expect(unavailableCanvasMessage(undefined, ".doan/canvases/moved.html")).toBe("Project is unavailable. Fix it from its menu in the sidebar, then try again.");
+});
+
+it("names the directory the missing or removed canvas was in", () => {
+  expect(unavailableCanvasMessage({ kind: "list", path: "/p", servedRev: 0, canvases: [] }, ".doan/ds/button.html")).toBe("button is no longer in .doan/ds/");
+  expect(missingCanvasMessage(".doan/ds/forms/input.html")).toBe("input is no longer in .doan/ds/");
+  expect(missingCanvasMessage(".doan/canvases/sub/home.html")).toBe("home is no longer in .doan/canvases/");
+  expect(removedCanvasMessage(canvas(".doan/ds/button.html"))).toBe("button was removed from .doan/ds/");
+  expect(removedCanvasMessage({ ...canvas(".doan/canvases/home.html"), title: "Home" })).toBe("Home was removed from .doan/canvases/");
 });
 
 it("does not call a still-listed canvas deleted when its captured identity became stale", () => {

@@ -2,6 +2,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { canvasKind } from "../formats/canvasPath";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
@@ -265,15 +266,18 @@ export function groupIcon(key: string | undefined): string {
   return key !== undefined && Object.hasOwn(GROUPS, key) ? GROUPS[key]!.icon : PRESET_ICON;
 }
 
-function isDesignSystem(row: CanvasRow): boolean {
-  const file = row.path.slice(row.path.lastIndexOf("/") + 1);
-  return row.id === "design-system" || file.replace(/\.html$/i, "") === "design-system";
+// Screens are the `.doan/canvases/` canvases; a design system is any canvas in `.doan/ds/`.
+// A legacy `.doan/canvases/design-system.html` counts as a screen (design-system-canvases Q9).
+function split(canvases: readonly CanvasRow[]): { screens: CanvasRow[]; designSystem: boolean } {
+  return { screens: canvases.filter(row => canvasKind(row.path) !== "ds"), designSystem: canvases.some(row => canvasKind(row.path) === "ds") };
 }
 
 // Fixed rules on what Doan knows about the project (design §4.4); ids the CLI did not list are skipped.
 export function suggestedPresets(entry: FolderEntry | null, presets: readonly PresetSummary[]): PresetSummary[] {
   if (entry?.kind !== "list") return [];
-  const ids = entry.canvases.length === 0 ? ["context", "shape", "document"] : [...(entry.canvases.some(isDesignSystem) ? [] : ["document"]), "critique", "polish"];
+  const { screens, designSystem } = split(entry.canvases);
+  const document = designSystem ? [] : ["document"];
+  const ids = screens.length === 0 ? ["context", "shape", ...document] : [...document, "critique", "polish"];
   return ids.flatMap(id => presets.filter(p => p.id === id)).slice(0, 3);
 }
 
@@ -283,15 +287,17 @@ export interface SuggestedPrompt { label: string; preset: PresetSummary; text: s
 export function suggestedPrompts(entry: FolderEntry | null, project: string, presets: readonly PresetSummary[]): SuggestedPrompt[] {
   if (entry?.kind !== "list") return [];
   const plain = (label: string) => ({ label, text: `${label}.` });
-  let wanted: [string, { label: string; text: string }][];
-  if (entry.canvases.length === 0) {
-    wanted = [["context", plain("Gather design context")], ["shape", plain("Shape a first screen")], ["document", plain("Document the design system")]];
+  type Wanted = [string, { label: string; text: string }];
+  let wanted: Wanted[];
+  const { screens, designSystem } = split(entry.canvases);
+  if (screens.length === 0) {
+    wanted = [["context", plain("Gather design context")], ["shape", plain("Shape a first screen")], ...(designSystem ? [] : [["document", plain("Document the design system")] as Wanted])];
   } else {
-    const recent = entry.canvases.map((row, i) => ({ row, i })).sort((a, b) => (b.row.mtimeMs ?? -Infinity) - (a.row.mtimeMs ?? -Infinity) || a.i - b.i).map(x => x.row);
+    const recent = screens.map((row, i) => ({ row, i })).sort((a, b) => (b.row.mtimeMs ?? -Infinity) - (a.row.mtimeMs ?? -Infinity) || a.i - b.i).map(x => x.row);
     const first = recent[0]!, second = recent[1] ?? first;
     const named = (label: string, row: CanvasRow) => ({ label, text: `${label} (${row.path}).` });
     wanted = [
-      ...(entry.canvases.some(isDesignSystem) ? [] : [["document", plain(`Document the design system of ${project}`)] as [string, { label: string; text: string }]]),
+      ...(designSystem ? [] : [["document", plain(`Document the design system of ${project}`)] as Wanted]),
       ["critique", named(`Critique the ${canvasLabel(first)} canvas`, first)],
       ["polish", named(`Polish the details of ${canvasLabel(second)}`, second)],
     ];

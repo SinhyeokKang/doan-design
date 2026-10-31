@@ -7,7 +7,7 @@ Use this preset when the user asks to consolidate hard-coded values, repeated co
 ## Before you start
 
 - Find the target. For pointing words like "this canvas" or "these cards", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvases, frames, or code area the user named.
-- Read the design system already in use: the configured token CSS (`doan config --json` shows `tokenCss`), the component library or shared UI directory, the design rules document, and `.doan/canvases/design-system.html` if it exists. Learn its organization, naming conventions, token structure (primitive and semantic layers), and import and export conventions.
+- Read the design system already in use: the configured token CSS (`doan config --json` shows `tokenCss`), the component library or shared UI directory, the design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present. Learn its organization, naming conventions, token structure (primitive and semantic layers), and import and export conventions.
 - Read the code the canvases implement (`data-doan-implements`), so canvas patterns are compared with what already exists in code.
 - If no design system exists, do not create one as a side effect. Ask the user where it should live and how it should be structured; recording a new system is the `document` preset's job.
 
@@ -46,7 +46,7 @@ Design systems grow incrementally. Extract what is clearly reusable now, not eve
 Choose the outcome from the request:
 
 1. **Proposal (default).** Report the candidates with their evidence (files, or canvas, frame, and element ids, and the number of uses), the proposed names, the migration list, and what you chose not to extract and why. Do not edit files.
-2. **Record in the design system.** When the user asked to add the extracted tokens or components to the design rules document or the `design-system` canvas, read the `document` preset (`doan design-skill document --json`) for how those artifacts are written. Mark a proposed token or component that is not in code yet as proposed in the document, and state on the canvas that it is not in code, as the Doan guide requires.
+2. **Record in the design system.** When the user asked to add the extracted tokens or components to the design rules document or the design-system canvases in `.doan/ds/`, read the `document` preset (`doan design-skill document --json`) for how those artifacts are written. Mark a proposed token or component that is not in code yet as proposed in the document, and state on the canvas that it is not in code, as the Doan guide requires.
 3. **Apply to canvases.** When the user asked to make canvases use the shared tokens, replace values with token CSS variables only in the canvases and frames in scope. Keep canvas, frame, and element ids unchanged.
 4. **Refactor app code.** Only when the user separately asked for it, and only within that request: add the shared component or token, replace each use in the agreed migration list, check visual and functional parity, and delete only the implementations this change made dead.
 

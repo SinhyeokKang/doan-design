@@ -173,6 +173,12 @@ describe("readable activity and permission summaries", () => {
     expect(collect("codex", [item, end]).state.fileSummaries).toEqual({});
     expect(endTransport(collect("codex", [item]).state).state.fileSummaries).toEqual({});
   });
+  it("marks edits in either canvas directory as inside the design", () => {
+    const tool = (path: string) => ({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: path, name: "Write", input: { file_path: path } }] } });
+    const inside = collect("claude", [tool("/repo/.doan/ds/button.html"), tool("/repo/.doan/canvases/a.html"), tool("/repo/.doan/dsx/a.html"), tool("/repo/src/a.ts")]).events
+      .flatMap(e => e.type === "activity" ? [e.insideDesign] : []);
+    expect(inside).toEqual([true, true, false, false]);
+  });
   it("describes Claude tools by their input, never by the bare tool name", () => {
     const tool = (name: string, input: Record<string, unknown>) => ({ type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: name, name, input }] } });
     expect(collect("claude", [tool("Bash", { command: "ls -la", description: "List files" }), tool("Write", { file_path: "/repo/.doan/canvases/a.html" }), tool("Grep", { pattern: "frame" }), tool("WebFetch", {})]).events.map(e => e.type === "activity" ? e.summary : ""))

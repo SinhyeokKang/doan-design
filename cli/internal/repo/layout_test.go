@@ -52,8 +52,10 @@ func TestUnifiedLayoutScopeExcludesRelocatedMetadata(t *testing.T) {
 	put(t, root, "metadata/config.json", `{"v":1}`)
 	put(t, root, "metadata/canvases/home.html", "")
 	link(t, "metadata", root+"/.doan")
+	// Explicit entries naming the relocated metadata stay excluded, and the
+	// linked .doan contributes no default directories.
 	got := scopeOf(t, root, Config{Serve: []string{"metadata", "metadata/config.json"}})
-	if !reflect.DeepEqual(got, []string{"metadata/canvases"}) {
+	if !reflect.DeepEqual(got, []string{}) {
 		t.Fatalf("metadata leaked: %v", got)
 	}
 }

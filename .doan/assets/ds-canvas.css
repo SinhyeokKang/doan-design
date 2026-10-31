@@ -1,0 +1,54 @@
+/* Canvas-only layout for the design-system canvases in .doan/ds/. Not app code.
+   1. Base: the subset of the app's global base the shared components rely on. The app gets it from
+      app/src/renderer/fonts.css, styles.css and Tailwind preflight, none of which canvases can link
+      (outside the served scope), so it is restated here with the same tokens.
+   2. Board: frames, specimen labels and notes, drawn only for the canvases. */
+
+/* 1. Base */
+@font-face {
+  font-family: "Geist";
+  src: url("../../app/src/renderer/public/fonts/geist/Geist.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+*, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
+:root {
+  color-scheme: light;
+  /* Radix sets these on a mounted menu or tooltip at run time; ds/surfaces.css reads them. Canvases have no Radix, so
+     they get the menu's own cap and a centred origin. */
+  --radix-popper-available-height: 384px;
+  --radix-tooltip-content-transform-origin: center;
+}
+body {
+  background: var(--bg-app);
+  color: var(--text-standard);
+  font-family: var(--type-family);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  -webkit-font-smoothing: antialiased;
+}
+button { cursor: pointer; font: inherit; color: inherit; background: transparent; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+svg { display: block; vertical-align: middle; flex: none; }
+img { display: block; max-width: 100%; }
+ol, ul { list-style: none; }
+code, kbd { font-family: var(--type-family); }
+
+/* 2. Board */
+.dsc { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-8); }
+.dsc-head { display: grid; gap: var(--space-2); max-width: 880px; }
+.dsc-head h1 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); }
+.dsc-head p, .dsc-note { color: var(--text-subtle); }
+.dsc-frame { display: grid; gap: var(--space-4); padding: var(--space-6); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); }
+.dsc-frame > h2 { font-size: var(--type-label-size); line-height: var(--type-label-line-height); font-weight: var(--type-weight-medium); }
+.dsc-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-6); }
+.dsc-cell { display: grid; justify-items: start; align-content: start; gap: var(--space-2); min-width: 0; }
+.dsc-label { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.dsc-label code { color: var(--text-subtle); }
+.dsc-inset { padding: var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); }
+.dsc-open { padding: var(--space-3) var(--space-3) var(--space-2); border-radius: var(--radius-row); background: var(--affordance-subtle); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.dsc-table { border-collapse: collapse; width: 100%; }
+.dsc-table th, .dsc-table td { padding: var(--space-2) var(--space-3) var(--space-2) 0; border-bottom: 1px solid var(--border-standard); text-align: left; vertical-align: middle; }
+.dsc-table th { color: var(--text-metadata); font-weight: var(--type-weight-regular); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }

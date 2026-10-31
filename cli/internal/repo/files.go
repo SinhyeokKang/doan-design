@@ -25,7 +25,22 @@ func Canvases(root string) ([]string, error) {
 	if parent.Mode()&os.ModeSymlink != 0 {
 		return paths, nil
 	}
-	start := filepath.Join(root, ".doan/canvases")
+	// Design-system canvases (.doan/ds/) are ordinary canvases; the directory
+	// is their only marker, so both walks share every rule.
+	for _, dir := range []string{".doan/canvases", ".doan/ds"} {
+		found, err := canvasesIn(root, dir)
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, found...)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func canvasesIn(root, dir string) ([]string, error) {
+	paths := []string{}
+	start := filepath.Join(root, dir)
 	info, err := os.Lstat(start)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -58,7 +73,6 @@ func Canvases(root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(paths)
 	return paths, nil
 }
 

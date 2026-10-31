@@ -7,7 +7,7 @@ Use it for ordinary requests to design a new feature, screen, or flow, or to pla
 ## Before you start
 
 - Find the target. For pointing words like "this screen" or "this flow", use `doan active` and read the open comments attached to that target. Otherwise work on the feature, canvas, frame, or code the user named.
-- Read what already exists before asking: product and feature documents, the code a canvas implements (`data-doan-implements`), existing canvases (`doan ls --json`), and the design system: token CSS (`doan config --json` shows `tokenCss`), components, an existing design rules document, and a `design-system` canvas (`.doan/canvases/design-system.html`) if present.
+- Read what already exists before asking: product and feature documents, the code a canvas implements (`data-doan-implements`), existing canvases (`doan ls --json`), and the design system: token CSS (`doan config --json` shows `tokenCss`), components, an existing design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - When product context (users, purpose, constraints) is missing and it would change the brief, read the `context` preset first (`doan design-skill context --json`).
 - When the brief depends on a design system that exists only in code and needs recording, read the `document` preset the same way. Do not record one the user did not ask for.
 

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="dialog">
+<meta name="doan:width" content="1440">
+<title>dialog</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Canvas placement only: the app opens these with showModal() at the positions named below. Drawn in place, so
+   position, inset, margin and the window-bound heights are reset; widths, padding, corner, fill and type are the
+   dialog's own. */
+.doan-dialog[open] { position: static; inset: auto; margin: 0; max-height: none; }
+.doan-dialog[data-ui-size="expanded"] { height: 240px; }
+.stack { display: grid; gap: var(--space-6); width: 100%; padding: var(--space-6); border-radius: var(--radius-row); background: var(--bg-scrim); }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>dialog</h1><p><code>.doan-dialog</code> on a native <code>&lt;dialog&gt;</code>: <code>--radius-panel</code>, 32px padding (16px in a window 480px wide or less), opaque <code>--surface-popover</code> with a hairline border and <code>--shadow-sm</code>, 16px between parts, over the <code>--bg-scrim</code> backdrop. A compact dialog is centred; every larger one hangs 128px from the top and grows down to 16px above the window edge. Cancel and Escape close it; there is no Close button. Drawn in place here, on the scrim colour; it rises 12px as it opens and drops 4px as it closes.</p></header>
+<section class="dsc-frame" data-doan-frame="sizes" data-doan-title="Widths" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Widths</h2>
+<div class="stack"><div class="dsc-cell"><dialog open class="doan-dialog" data-ui-size="compact"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Stop the conversation and remove doan-design?</h3><p class="doan-dialog-description">A conversation from Home is still running in doan-design. Doan stops it, then removes the project from the list. Files stay on disk.</p></div></div><div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Cancel</button><button class="doan-button" data-ui-variant="prominent" data-ui-size="sm">Stop and Remove</button></div></dialog><span class="dsc-label">compact · 400px, centred (remove confirmation; its sm actions are the code's)</span></div><div class="dsc-cell"><dialog open class="doan-dialog"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Set up doan-design</h3><p class="doan-dialog-description">/Users/you/code/doan-design</p></div></div><div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Set Up Project</button></div></dialog><span class="dsc-label">standard · 640px, 128px from the top</span></div><div class="dsc-cell"><dialog open class="doan-dialog" data-ui-size="wide"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Wide dialog</h3><p class="doan-dialog-description">Sample text.</p></div></div><div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Continue</button></div></dialog><span class="dsc-label">wide · 880px</span></div><div class="dsc-cell"><dialog open class="doan-dialog" data-ui-size="expanded"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Expanded dialog</h3><p class="doan-dialog-description">Sample text.</p></div></div><div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Continue</button></div></dialog><span class="dsc-label">expanded · 1152px; the window-bound height is drawn at 240px</span></div></div><p class="dsc-note">No shipped markup uses the wide or expanded size (read from source); they are drawn from <code>ds/surfaces.css</code> with sample text.</p>
+</section>
+<section class="dsc-frame" data-doan-frame="anatomy" data-doan-title="Header and actions" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Header and actions</h2>
+<div class="stack"><div class="dsc-cell"><dialog open class="doan-dialog" data-ui-size="compact"><div class="doan-dialog-header"><div class="doan-dialog-heading"><h3 class="doan-dialog-title">Add to serve?</h3><p class="doan-dialog-description">Canvases in this project will be able to read <code>app/src/renderer/ds</code>. Add it to serve?</p></div></div><div class="doan-dialog-actions"><button class="doan-button" data-ui-variant="subtle">Cancel</button><button class="doan-button" data-ui-variant="prominent">Add to Serve</button></div></dialog><span class="dsc-label">title (label type, medium) over description (body-sm, subtle); Cancel first and the completing action last, at the end of the row</span></div></div>
+</section>
+<section class="dsc-frame" data-doan-frame="search" data-doan-title="Search presentation" data-doan-implements="app/src/renderer/ds/surfaces.css">
+<h2>Search presentation</h2>
+<div class="stack"><div class="dsc-cell"><dialog open class="doan-dialog" data-ui-presentation="search"><input class="doan-input" placeholder="Search canvases and frames"></dialog><span class="dsc-label"><code>data-ui-presentation="search"</code>: panel fill, 12px inset, a corner of <code>--radius-panel</code> + 4px (Quick Open)</span></div></div>
+</section>
+</main>
+</body>
+</html>

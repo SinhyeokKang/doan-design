@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="spacing">
+<meta name="doan:width" content="1200">
+<title>spacing</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>.bar { display: block; height: 12px; border-radius: var(--space-half); background: var(--affordance-accent); }</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>spacing</h1><p>A 4px scale (<code>--space-n</code> is n × 4px, with half steps <code>--space-half</code> and <code>--space-1h</code>), plus named spacings that alias a step.</p></header>
+<section class="dsc-frame" data-doan-frame="scale" data-doan-title="Spacing scale and named spacings" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Spacing scale and named spacings</h2>
+<table class="dsc-table"><thead><tr><th>Token</th><th>Length</th><th>Value</th><th></th></tr></thead><tbody>
+<tr><td><code>--space-half</code></td><td><span class="bar" style="width: var(--space-half)"></span></td><td class="dsc-label">2px</td><td></td></tr>
+<tr><td><code>--space-1</code></td><td><span class="bar" style="width: var(--space-1)"></span></td><td class="dsc-label">4px</td><td></td></tr>
+<tr><td><code>--space-1h</code></td><td><span class="bar" style="width: var(--space-1h)"></span></td><td class="dsc-label">6px</td><td></td></tr>
+<tr><td><code>--space-2</code></td><td><span class="bar" style="width: var(--space-2)"></span></td><td class="dsc-label">8px</td><td></td></tr>
+<tr><td><code>--space-3</code></td><td><span class="bar" style="width: var(--space-3)"></span></td><td class="dsc-label">12px</td><td></td></tr>
+<tr><td><code>--space-4</code></td><td><span class="bar" style="width: var(--space-4)"></span></td><td class="dsc-label">16px</td><td></td></tr>
+<tr><td><code>--space-5</code></td><td><span class="bar" style="width: var(--space-5)"></span></td><td class="dsc-label">20px</td><td></td></tr>
+<tr><td><code>--space-6</code></td><td><span class="bar" style="width: var(--space-6)"></span></td><td class="dsc-label">24px</td><td></td></tr>
+<tr><td><code>--space-8</code></td><td><span class="bar" style="width: var(--space-8)"></span></td><td class="dsc-label">32px</td><td></td></tr>
+<tr><td><code>--space-10</code></td><td><span class="bar" style="width: var(--space-10)"></span></td><td class="dsc-label">40px</td><td></td></tr>
+<tr><td><code>--space-12</code></td><td><span class="bar" style="width: var(--space-12)"></span></td><td class="dsc-label">48px</td><td></td></tr>
+<tr><td><code>--space-16</code></td><td><span class="bar" style="width: var(--space-16)"></span></td><td class="dsc-label">64px</td><td><span class="dsc-open">defined; no app CSS reads it</span></td></tr>
+<tr><td><code>--space-panel-gap</code></td><td><span class="bar" style="width: var(--space-panel-gap)"></span></td><td class="dsc-label">var(--space-2)</td><td><span class="dsc-open">defined; no app CSS reads it</span></td></tr>
+<tr><td><code>--space-panel-inset</code></td><td><span class="bar" style="width: var(--space-panel-inset)"></span></td><td class="dsc-label">var(--space-6)</td><td><span class="dsc-open">defined; no app CSS reads it</span></td></tr>
+<tr><td><code>--space-control-inset</code></td><td><span class="bar" style="width: var(--space-control-inset)"></span></td><td class="dsc-label">var(--space-4)</td><td></td></tr>
+<tr><td><code>--space-row-gap</code></td><td><span class="bar" style="width: var(--space-row-gap)"></span></td><td class="dsc-label">var(--space-2)</td><td></td></tr>
+<tr><td><code>--space-section-gap</code></td><td><span class="bar" style="width: var(--space-section-gap)"></span></td><td class="dsc-label">var(--space-8)</td><td></td></tr>
+<tr><td><code>--space-chip-inset</code></td><td><span class="bar" style="width: var(--space-chip-inset)"></span></td><td class="dsc-label">6px</td><td></td></tr>
+</tbody></table>
+</section>
+</main>
+</body>
+</html>

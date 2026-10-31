@@ -181,3 +181,19 @@ func TestSkillGuideNamesMidOutputTruncation(t *testing.T) {
 		t.Fatal("missing truncation notice guidance near the top")
 	}
 }
+
+// Design-system canvases live in .doan/ds/, which is listed and served like .doan/canvases/;
+// each place the guide names the canvas or served directories must name it too.
+func TestSkillGuideNamesDesignSystemDirectory(t *testing.T) {
+	for _, prefix := range []string{"Keep project files in `.doan/`", "1. One HTML file under", "7. Tokens are defined", "- `doan config --json`"} {
+		line := ""
+		for _, l := range strings.Split(skillBody, "\n") {
+			if strings.HasPrefix(l, prefix) {
+				line = l
+			}
+		}
+		if !strings.Contains(line, "ds/") {
+			t.Errorf("%q line does not name .doan/ds/: %q", prefix, line)
+		}
+	}
+}

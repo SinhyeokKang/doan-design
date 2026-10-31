@@ -7,7 +7,7 @@ Use this preset when the user asks to fix type sizes, weights, families, line he
 ## Before you start
 
 - Find the target. For pointing words like "this screen" or "this heading", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
-- Read the design system: token CSS (`doan config --json` shows `tokenCss`), especially font family, size, weight, and line height variables; existing text components; any design rules document; and the `design-system` canvas (`.doan/canvases/design-system.html`) if one exists. Confirmed families and weights are authoritative; improve how they are used.
+- Read the design system: token CSS (`doan config --json` shows `tokenCss`), especially font family, size, weight, and line height variables; existing text components; any design rules document; and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present. Confirmed families and weights are authoritative; improve how they are used.
 - Read the code the canvas implements (`data-doan-implements`) and the fonts it actually loads.
 - If the product's users and reading situation are unknown and that would change the result, suggest the `context` preset (`doan design-skill context --json`). Ask only what would change the result.
 - If the change would replace the typography so far that it creates a new identity, confirm that with the user before going further.

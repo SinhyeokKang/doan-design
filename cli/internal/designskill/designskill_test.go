@@ -490,3 +490,138 @@ func TestEmbeddedCatalogGroups(t *testing.T) {
 		t.Fatalf("catalog group membership, first-appearance order and within-group order: got %v, want %v", got, want)
 	}
 }
+
+// Design-system canvases live in .doan/ds/; .doan/canvases/design-system.html is only a legacy location.
+// A preset that names the legacy file must name the new directory in the same sentence, so no reader
+// takes the old single canvas as the place to look or write.
+func TestPresetsFindDesignSystemInDsDirectory(t *testing.T) {
+	entries, err := os.ReadDir("presets")
+	if err != nil || len(entries) == 0 {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join("presets", e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, l := range strings.Split(string(b), "\n") {
+			if strings.Contains(l, "design-system.html") && !strings.Contains(l, "`.doan/ds/`") {
+				t.Errorf("%s:%d names the legacy canvas without .doan/ds/: %q", e.Name(), i+1, l)
+			}
+		}
+	}
+}
+
+// document defaults to one canvas per logical unit in .doan/ds/ and never mixes two units in one canvas.
+func TestDocumentPresetSplitsDesignSystemByUnit(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("presets", "document.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(b)
+	for _, s := range []string{"`.doan/ds/`", "one canvas per logical unit", "Never put two units in one canvas", "`.doan/ds/button.html`", "legacy `.doan/canvases/design-system.html`"} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	if strings.Contains(body, "It lives at `.doan/canvases/design-system.html`") {
+		t.Error("document preset still writes the single legacy canvas")
+	}
+}
+
+// document skips only nonvisual wrappers: a wrapper with its own styling is a shared component and
+// gets a canvas, and Verify checks every visual shared component against that narrow exception.
+func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("presets", "document.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(b)
+	for _, s := range []string{
+		"nonvisual infrastructure wrappers",
+		"a tooltip content wrapper with a project class, is a shared component",
+		"every visual shared component in the code has its own canvas",
+		"listed with its reason",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	for _, s := range []string{"skip only utility and wrapper components", "on a canvas or listed as skipped"} {
+		if strings.Contains(body, s) {
+			t.Errorf("document preset still lets any wrapper be skipped: %q", s)
+		}
+	}
+}
+
+// T8 rounds and their review: these pin short concepts the tuning depends on, not whole sentences, so
+// rewording a rule without changing it keeps them green. Behavior is judged by the real-agent scenarios;
+// the output budget is checked in cli/internal/cli (skillOutputBudget).
+func TestDocumentPresetKeepsT8Concepts(t *testing.T) {
+	body := strings.ToLower(documentPreset(t))
+	for concept, phrases := range map[string][]string{
+		// Round 1/4: a dialog mounted once but opened from several screens was skipped.
+		"shared counts screens where a person sees a unit": {"seen on two or more screens", "not where the code mounts it", "seen on one screen only"},
+		// Round 1: an app shell showed tabs the code no longer renders.
+		"shared surfaces come from current code": {"render it now", "sections and controls"},
+		// Round 2: icons drawn from memory differed from the project's icons.
+		"icons come from the project's own source": {"icon source", "not from memory", "cannot be obtained or reproduced"},
+		// Round 2: a canvas overflowed because nobody looked at it rendered.
+		"rendered canvases are inspected": {"look at each canvas rendered", "could not render"},
+		// Round 3: a whole stylesheet was copied into assets and went stale.
+		"unserved stylesheets are restated partially": {"only the rules", "whole stylesheet", "preset's disclosed workaround", "convention 7"},
+		// Round 3: a shared component appeared only inside other canvases.
+		"shared components get their own canvas": {"keeps its own canvas", "has its own canvas", "default organization"},
+		// Round 4: only the first step of a multi-step unit was drawn.
+		"every step is drawn": {"steps or phases"},
+		// Round 1/3 and review: generic notes go to the document once, but a canvas keeps the
+		// disclosures needed to read it, even when other canvases carry the same one.
+		"generic notes once, disclosures per canvas": {"generic process notes", "once in the rules document", "even when other canvases", "top of the canvas"},
+	} {
+		for _, p := range phrases {
+			if !strings.Contains(body, p) {
+				t.Errorf("document preset lost %s: missing %q", concept, p)
+			}
+		}
+	}
+}
+
+func documentPreset(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("presets", "document.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+// Eval rounds after T8 pin short concepts, like TestDocumentPresetKeepsT8Concepts.
+func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// U-018: asked to update a design-system reference after a code change, no agent chose document;
+	// its description named only recording, not maintaining. A plain setup request still does not fit (D12).
+	p, _ := c.Lookup("document")
+	desc := strings.ToLower(p.Description)
+	for _, s := range []string{"update", "code change", "not for plain doan setup"} {
+		if !strings.Contains(desc, s) {
+			t.Errorf("document description lost maintenance fit: missing %q in %q", s, p.Description)
+		}
+	}
+	// U-019: canvases kept omitting open decisions that concern them, and answers claimed canvases showed
+	// them. User decision: open decisions live only in the rules document; a canvas still discloses what it
+	// draws that is not in code, and the answer never claims a decision is marked on a canvas.
+	body := strings.ToLower(documentPreset(t))
+	for _, s := range []string{"open decisions live only in the rules document", "canvases do not repeat them", "proposed or unconfirmed value it draws", "never say a decision is marked on a canvas"} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset lost the document-only open-decision rule: missing %q", s)
+		}
+	}
+	for _, s := range []string{"the document holds every open item a canvas shows", "open items in both artifacts", "also appears on that canvas", "only if that canvas shows it", "open decisions that concern it", "an open decision)"} {
+		if strings.Contains(body, s) {
+			t.Errorf("document preset still puts open decisions on canvases: %q", s)
+		}
+	}
+}

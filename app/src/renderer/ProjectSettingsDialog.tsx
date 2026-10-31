@@ -209,7 +209,7 @@ export function ProjectSettingsDialog({ root: opened, projectKey, entries, reroo
         </div>
         <div className="doan-preference-row">
           <div className="doan-preference-row-content"><span className="doan-preference-row-label">Serve</span>
-            <span className="doan-preference-row-description">{config.serve.length ? "Canvases can read files in .doan/canvases/, the token CSS and these paths." : "Nothing else is served. Canvases can read files in .doan/canvases/ and the token CSS."}</span></div>
+            <span className="doan-preference-row-description">{config.serve.length ? "Canvases can read files in .doan/canvases/, .doan/ds/, the token CSS and these paths." : "Nothing else is served. Canvases can read files in .doan/canvases/, .doan/ds/ and the token CSS."}</span></div>
           <div className="doan-preference-row-trailing">{status("serve")}
             <button ref={serveButton} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled} onClick={() => void choose("serve")}>Add…</button></div>
           {config.serve.length > 0 && <div className="doan-preference-row-extra"><ul className="settings-serve">{config.serve.map(path => <li key={path}><code>{path}</code>

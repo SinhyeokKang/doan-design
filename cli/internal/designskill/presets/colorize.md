@@ -7,7 +7,7 @@ Use this preset when the user asks to add or rebalance color, fix contrast, clar
 ## Before you start
 
 - Find the target. For pointing words like "this screen" or "this card", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
-- Find the existing brand colors first. Read token CSS (`doan config --json` shows `tokenCss`), current themes, assets such as logos, any design rules document, and the `design-system` canvas (`.doan/canvases/design-system.html`) if one exists.
+- Find the existing brand colors first. Read token CSS (`doan config --json` shows `tokenCss`), current themes, assets such as logos, any design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) and its representative states.
 - If the product's purpose and brand commitments are unknown and that would change the palette, suggest the `context` preset (`doan design-skill context --json`). Ask only when a binding brand decision cannot be inferred.
 

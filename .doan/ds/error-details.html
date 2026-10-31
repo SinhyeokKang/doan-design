@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="error-details">
+<meta name="doan:width" content="900">
+<title>error-details</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>.detail { max-width: 360px; padding: var(--space-2) var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); }</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>error-details</h1><p><code>ErrorDetails</code>: the "Details ▸ / ▾" disclosure behind which a read error's raw message waits. It is an sm <code>.doan-button</code>: ghost under a sidebar canvas row, subtle beside Retry in the Comments and Feedback panels. Open, it is not drawn pressed; the arrow shows its state. The caller places the raw message; the detail box below is drawn from the Comments panel's rule in <code>styles.css</code> and restated.</p></header>
+<section class="dsc-frame" data-doan-frame="states" data-doan-title="Closed and open" data-doan-implements="app/src/renderer/ErrorDetails.tsx">
+<h2>Closed and open</h2>
+<div class="dsc-row"><div class="dsc-cell"><button type="button" class="doan-button" data-ui-size="sm" aria-expanded="false">Details ▸</button><span class="dsc-label">ghost, closed (sidebar)</span></div><div class="dsc-cell"><div style="display: flex; gap: 6px"><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm">Retry</button><button type="button" class="doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-expanded="true">Details ▾</button></div><p class="detail">ENOENT: no such file or directory, open '.doan/comments/home.jsonl'</p><span class="dsc-label">subtle, open, with its message (panels)</span></div></div><p class="dsc-note">The raw message is sample text.</p>
+</section>
+</main>
+</body>
+</html>

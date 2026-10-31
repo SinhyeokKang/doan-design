@@ -55,7 +55,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 | 4 | `buzz-search` | 검색 | Quick Open(Cmd+K) 다이얼로그 내용, 입력, 결과 행(`QuickOpenDialog.tsx`) | buzz-shell |
 | 5 | `buzz-add-projects` | 프로젝트 추가 페이지 | 헤더 Add Projects(Cmd+O, File > Add Project…)가 네이티브 폴더 선택 대신 AppShell 안의 페이지를 연다. 온보딩 Project 단계(로컬 폴더, GitHub URL 재사용·clone, 설정이 필요한 폴더의 Set up)를 가능한 만큼 재사용한다(2026-10-30 user). 헤더 캡슐 Add Projects / Projects / Settings가 페이지를 오가는 진짜 탭이 되는 첫 자식이다(Add Projects ↔ Projects). 여러 폴더 선택·하위 저장소 체크리스트·폴더 드롭을 어떻게 옮길지는 이 자식의 `/feature`가 정한다. `AddProjectsDialog`(공통 결정 10의 buzz-ds 공유 요소)를 바꾸거나 걷어내는 일을 포함한다 | buzz-shell, buzz-onboarding |
 | 6 | `buzz-settings` | 설정 페이지 | 별도 Settings 창(`settings.html`, `settingsWindow.tsx`, `settingsProjects.tsx`, `settings.css`, `preload/settings.ts`)을 AppShell 안의 페이지로 바꾼다(2026-10-30 user). LNB는 ShellSidebar를 그대로 쓰고 카테고리 Agents · Notifications · Connections · About을 보인다. 본문은 Buzz Settings의 카테고리 구성(제목 → 섹션 + `SettingsGroup` + `PreferenceRow`, 48rem 열)만 참고한다. 헤더 Settings 탭과 Settings…(Cmd+,)가 이 페이지를 연다. 알림·새 대화 기본값·About을 새로 더하고, 저장소별 Token CSS·Serve는 프로젝트 메뉴의 Project Settings 다이얼로그로 옮긴다. 확정 초안은 `.doan/canvases/buzz-settings.html`, 세부는 자식 문서에 있다. 2026-10-25 app-setup 'Settings는 별도 창' 결정을 대체한다(구현 완료 때 본문을 현재 규칙으로 고친다) | buzz-ds, buzz-add-projects |
-| 7 | `buzz-project` | 프로젝트 Overview | Overview 카드·썸네일·빈 상태 본문. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell이 맡는다 | buzz-shell |
+| 7 | `buzz-project` | 프로젝트 Overview | Overview 카드·썸네일·빈 상태 본문. `.doan/ds/` 섹션의 제목·순서, design-system 캔버스만 있을 때의 빈 상태와 FirstPrompt 표시를 정한다. 이때 Home은 화면 초안이 없다고 추천하지만 Overview는 `.doan/ds` 섹션을 보이고 FirstPrompt를 숨기는 불일치도 푼다. 프로젝트→캔버스 LNB와 Overview 진입점은 buzz-shell이 맡는다 | buzz-shell |
 | 8 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 줌·프레임 컨트롤, 오버레이 표시(선택·hover·치수, 요소 피커가 쓰는 선택 모드), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
 | 9 | `buzz-inspector` | 인스펙터 | 오른쪽 패널 Inspector 탭의 내용(스타일·토큰 목록, 섹션, 값 행). 패널의 표시·숨김과 탭 틀은 `buzz-conversation` | buzz-shell |
 | 10 | `buzz-conversation` | 대화 | 에이전트와의 실시간 대화 UI(기존 `buzz-comment` 자리, 2026-10-26 user): 오른쪽 패널의 표시·숨김(요소를 고르거나 대화를 시작하면 열림)과 대화·인스펙터 탭 틀(`RightPanel.tsx`), 캔버스당 대화 하나인 대화 탭(메시지, 입력창, 입력창 옆 요소 피커, 인라인 앵커 칩, 권한 요청, 진행·실패 상태, 새 대화 시작), 보관한 대화를 여는 캔버스 구석 버튼, 남은 FirstPrompt 소비자의 Copy → Send 인계. 새 온보딩에는 위저드 4단계/첫 프롬프트를 넣지 않고 홈 입력창은 buzz-home이 맡는다. 앱의 코멘트 화면 제거(Comments 패널, 코멘트 핀, Review bar·배너, Feedback 패널, Hand Off 다이얼로그). CLI·MCP·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user). 기반은 [`agent-conversation`](../../PRODUCT.md#agent-conversation-foundation-contract) | agent-conversation, agent-auth, buzz-canvas, buzz-inspector |
@@ -78,7 +78,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 ## 프로젝트 홈 아이디어 메모 (2026-10-28)
 
-`buzz-project`의 프로젝트 홈을 선택 프로젝트에 연결된 대화 입력창과 추천 프롬프트로 구성하는 방향을 검토한다. 예: “{SelectedProject} 디자인 시스템을 만들어줘” → 에이전트가 레포의 토큰·컴포넌트·스타일을 읽고 실제 자산을 재사용한 HTML을 `.doan/canvases/`에 만들어 Canvas로 보여준다. 추천은 입력창에 문구를 채우고 사용자가 전송하는 방향이다. 사용자가 더 구체화할 예정이며, 확정 스펙·구현 task로 확대하지 않는다. 전역 홈(`buzz-home`)과의 역할 구분도 그때 정한다.
+`buzz-project`의 프로젝트 홈을 선택 프로젝트에 연결된 대화 입력창과 추천 프롬프트로 구성하는 방향을 검토한다. 예: “{SelectedProject} 디자인 시스템을 만들어줘” → 에이전트가 레포의 토큰·컴포넌트·스타일을 읽고 실제 자산을 재사용한 HTML을 `.doan/ds/`에 만들어 Canvas로 보여준다. 추천은 입력창에 문구를 채우고 사용자가 전송하는 방향이다. 사용자가 더 구체화할 예정이며, 확정 스펙·구현 task로 확대하지 않는다. 전역 홈(`buzz-home`)과의 역할 구분도 그때 정한다.
 
 ## 별도 기반 기능과 인계
 

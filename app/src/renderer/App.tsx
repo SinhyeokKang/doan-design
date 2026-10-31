@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ShellSidebar } from "./ShellSidebar";
 import { commitVisit, emptyHistory, historyTarget, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
+import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -27,7 +28,7 @@ import { isMainCheckout } from "./projectStep";
 import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
 import { ProjectOverview, useThumbnails } from "./ProjectOverview";
 import { QuickOpen } from "./QuickOpenDialog";
-import { unavailableCanvasMessage, type SearchResult } from "./quickOpen";
+import { missingCanvasMessage, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import type { HomeMemory, UiState, ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
@@ -54,6 +55,11 @@ export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen
 
 // Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
 // sent before that memory was read (it would be dropped).
+// A project's closed groups after `change`; no field when every group is open, as ui-state stores them.
+function withGroups(project: ShellProject, change: (groups: ShellProject["groups"]) => ShellProject["groups"]): ShellProject {
+  const { groups, ...rest } = project, next = change(groups);
+  return next ? { ...rest, groups: next } : rest;
+}
 export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection }): UiState | null {
   const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection } = input;
   if (home === null) return null;
@@ -191,7 +197,7 @@ export function App() {
         setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !removed.includes(root))));
         setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
           const roots = project.roots.filter(root => !removed.includes(root));
-          return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}) }]] : [];
+          return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
         })));
         const previous = historyRef.current;
         const nextHistory = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
@@ -201,7 +207,7 @@ export function App() {
       setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
     });
     instance.canvasRemoved = ({ folder, row, duplicates }) => {
-      if (duplicates === null) { live.current.toast.show(`${canvasLabel(row)} was removed from .doan/canvases/`); return; }
+      if (duplicates === null) { live.current.toast.show(removedCanvasMessage(row)); return; }
       const text = duplicateIdText(row, duplicates);
       live.current.toast.show(text);
       setOverviewNotice({ root: folder, text });
@@ -313,7 +319,7 @@ export function App() {
       setLoadedRoot(next); setScreen("workspace");
       if (row) controller.current?.openCanvas(next, row);
     });
-    if (plan.missingCanvas) toast.show(`${canvasLabel({ path: plan.missingCanvas, open: 0, resolved: 0, url: "" })} is no longer in .doan/canvases/`);
+    if (plan.missingCanvas) toast.show(missingCanvasMessage(plan.missingCanvas));
     if (plan.duplicateId && listed?.kind === "list") {
       const { id, count } = plan.duplicateId, saved = restore.state.canvas;
       const named = listed.canvases.find(row => row.path === saved && row.id === id) ?? listed.canvases.find(row => row.id === id);
@@ -350,7 +356,7 @@ export function App() {
     historyRef.current = next; setHistory(next);
     const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
     const group = groups.find(group => group.rows.some(row => row.path === root));
-    if (group) setShellProjects(previous => ({ ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now() } }));
+    if (group) setShellProjects(previous => { const groups = previous[group.key]?.groups; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(groups ? { groups } : {}) } }; });
   };
   const enter = (root: string) => {
     if (locked()) return;
@@ -381,7 +387,7 @@ export function App() {
       const next = reconcileProjects(previous, cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
       if (loadedRoot && card && next[card.key]?.selectedRoot !== loadedRoot) {
         const project = next[card.key]!;
-        next[card.key] = { roots: project.roots, expanded: project.expanded, selectedRoot: loadedRoot };
+        next[card.key] = { roots: project.roots, expanded: project.expanded, selectedRoot: loadedRoot, ...(project.groups ? { groups: project.groups } : {}) };
       }
       return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
     });
@@ -424,6 +430,21 @@ export function App() {
       completeNavigation(next);
     });
   };
+  // A locked page keeps the disclosure, as project expansion does (design-system-canvases design 'sidebar').
+  const toggleShellGroup = (key: string, id: GroupId) => {
+    const group = cards.find(card => card.key === key); if (!group) return;
+    setShellProjects(previous => ({ ...previous, [key]: withGroups({ ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }, groups => toggleGroup(groups, id)) }));
+  };
+  // Whatever opened it, a newly shown canvas opens its group (Q12); a group closed while it stays shown stays closed.
+  const lastShown = useRef<ShownCanvas | null>(null);
+  useEffect(() => {
+    const next = state.open && state.shown ? { root: state.open.folder, path: state.shown } : null;
+    const id = groupToOpen(lastShown.current, next);
+    lastShown.current = next;
+    const key = id && cards.find(card => card.rows.some(row => row.path === next!.root))?.key;
+    if (!id || !key) return;
+    setShellProjects(previous => previous[key]?.groups?.[id] === false ? { ...previous, [key]: withGroups(previous[key]!, groups => openGroup(groups, id)) } : previous);
+  }, [state.open?.folder, state.shown]);
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
@@ -616,7 +637,7 @@ export function App() {
     if (result.kind === "removed") {
       setShellProjects(previous => Object.fromEntries(Object.entries(previous).flatMap(([key, project]) => {
         const roots = project.roots.filter(root => !paths.includes(root));
-        return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}) }]] : [];
+        return roots.length ? [[key, { roots, expanded: project.expanded, ...(project.selectedRoot && roots.includes(project.selectedRoot) ? { selectedRoot: project.selectedRoot, ...(project.selectedAt !== undefined ? { selectedAt: project.selectedAt } : {}) } : {}), ...(project.groups ? { groups: project.groups } : {}) }]] : [];
       })));
       setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !paths.includes(root))));
       for (const root of paths) controller.current?.remember(root, null);
@@ -749,7 +770,7 @@ export function App() {
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
     onEditOnHome={() => run.editOnHome(shown.conversation.root)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
-  const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} toggleGroup={toggleShellGroup} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
     home={home} slots={run.slots()} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}

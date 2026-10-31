@@ -19,6 +19,10 @@ Measured values the app UI relies on, deviations from the draft canvases that ar
 
 The reference for every screen.
 
+### Overview
+
+A light, neutral system (Light only, below): black `prominent` actions and white panels on a translucent shell, Geist type, and one violet accent read only in the places listed under Accent places. Values live in `app/src/renderer/tokens.css`; shared components live in `app/src/renderer/ds/` (`controls.css`, `surfaces.css`) and in `styles.css`. People check the system on the design-system canvases in `.doan/ds/` (see Design-system canvases); the rules a screen follows are Adopted rules and Doan adjustments below. The system's character, mood and descriptive colour names are not settled (Open decisions).
+
 ### Reference
 
 - `block/buzz-app` (Apache-2.0), local clone `~/code/buzz-app`, base commit `c40dfdf4c81aabe759f3a4329c3e77f854746a59`. It is a reference only: values and rules were read from it and Doan wrote its own CSS and TSX. No Buzz file, licence copy, source comment or `buzz` name is in the app code.
@@ -95,7 +99,7 @@ The reference for every screen.
 
 ### Shared components and surfaces
 
-Reference: `.doan/canvases/buzz-ds.html` (component frames `buttons`, `icon-button`, `panel`, `tooltip`, `menu`, `popover`, `dialog-sizes`, `dialog-anatomy`, `toast`, `spinner`, `forms`, `focus-disabled`; shared-element frames `shared-project-setup`, `shared-add-projects`, `shared-first-prompt`, `shared-error-details`).
+Reference: the design-system canvases in `.doan/ds/`, one per component (see Design-system canvases).
 
 **Measured values.**
 
@@ -137,7 +141,7 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 
 ### Notices
 
-Reference: `.doan/canvases/notice.html` (frames `anatomy`, `tones-surfaces`, `rules`), implemented in `app/src/renderer/ds/surfaces.css`.
+Reference: `.doan/ds/notice.html` (frames `tones`, `surfaces`, `content`), implemented in `app/src/renderer/ds/surfaces.css`.
 
 - **One style.** Every notice is `.doan-notice`: inset `--surface-inset` fill, 12px 16px padding (`--space-3` `--space-4`), 6px gap (`--space-1h`), `--radius-row`, 14/20 body-sm text in `--text-standard`, and a 16px icon on the first text line: the `doan-alert-icon` (CircleAlert, `aria-hidden`), or a spinner or the conversation strip's status mark in that slot. Every notice has the icon, whatever its tone. Notices differ only by tone and surface.
 - **Tone.** `warning`, `error` and `ok` colour the whole text (`--text-warning`, `--text-danger`, `--text-success`) and the icon follows it (`currentColor`); the parts of a notice's text take no ink of their own, except code chips, links and buttons, which keep theirs. At 14/20 the text measures, on the inset fill and on the panel fill: neutral 17.59 / 19.17, warning 10.44 / 11.37, error 11.41 / 12.44, ok 11.31 / 12.32 to 1.
@@ -146,13 +150,72 @@ Reference: `.doan/canvases/notice.html` (frames `anatomy`, `tones-surfaces`, `ru
 - **Actions and margins.** A secondary button inside an inset notice uses the `panel` variant. Screens set only outer margins on a notice.
 - **Regression pointers.** `ds/controls.test.ts` (shared metrics, tones, `doan-panel` as fill only, no ink on text parts, margins only from screens, action alignment, the `panel` variant).
 
+### Colors, layout and depth
+
+What Adopted rules does not already say, read from `tokens.css` and `styles.css`.
+
+- **Three colour layers** (`tokens.css`): the palette holds the only literal colours (neutral ramp, violet ramp, red/amber/green status hues, and the eight Tailwind 600 project identity colours, kept apart from the status hues); roles name a purpose; legacy names (`--bg`, `--accent`, `--text-2` and the like) alias roles so drafts drawn before this system resolve. No renderer code reads the legacy layer.
+- **Project identity.** A project thumbnail (`.shell-thumbnail`, `styles.css`) is the project's initial on one of the eight `--identity-project-*` roles chosen by `projectHue`: the fill is the colour 14% into `--surface-panel`, the letter the colour 65% into `--text-standard`. 16px in the sidebar and Quick Open, 20px in Home's project picker, 28px on first-run cards.
+- **Spacing.** `--space-n` is n × 4px, with `--space-half` (2px) and `--space-1h` (6px); named spacings (`--space-row-gap`, `--space-control-inset`, `--space-section-gap`, `--space-chip-inset`) alias steps.
+- **Shell layout** (`styles.css`): a 56px header (`--size-chrome`), a 220px sidebar, 8px gutters, and the screen's body on white: Home's `.home-panel` with `--radius-container` and `--shadow-panel`; the workspace's canvas area and 280px right panel joined into one body with 24px outer corners. The shell is transparent over the native sidebar material, `--bg-app` under reduced transparency.
+- **Depth.** Three shadows: `--shadow-panel` (panels and floating material; its hairline ring draws their edge), `--shadow-sm` (dialogs, tooltips), `--shadow-xs` (the switch thumb). Glass is `--surface-elevated-glass` with `--blur-sm` on floating material and `--blur-md` on the `quiet` button. Surfaces without a shadow are told apart by fill: shell `--bg-app`, panel `--surface-panel`, inset `--surface-inset`.
+
+### Design-system canvases
+
+One canvas per token group, shared component and shared surface in `.doan/ds/`, each linking `tokens.css` and `ds/index.css` relative to itself. Canvas-only layout and the base the components rely on (the Geist `@font-face`, the border-box reset and button and SVG defaults from `fonts.css`, `styles.css` and Tailwind preflight, and stand-ins for the two custom properties Radix sets at run time) are restated once in `.doan/assets/ds-canvas.css`, because those files are outside the served scope. A canvas whose component is styled in `styles.css`, `doany.css` or a screen's rule restates only the rules it needs, with the same tokens, and says so; states the CSS reaches only under `:hover`, `:active` or `:focus-visible` are restated as `.is-hover`, `.is-active` and `.is-focus`. Dialogs are drawn in place rather than opened with `showModal()`. Values were read from source and the canvases were checked rendered in a browser, not measured against the app or for contrast ratios.
+
+| Canvas | Shows | Source |
+|---|---|---|
+| `color` | Palette and every role group | `tokens.css` |
+| `typography` | Type roles, weights, family | `tokens.css` |
+| `spacing`, `size`, `radius`, `shadow`, `blur`, `motion` | One token group each | `tokens.css` |
+| `button` | Variants × states, sizes, icon and shortcut hint | `ds/controls.css` |
+| `icon-button` | Used variants × states, sizes and shapes | `ds/controls.css` |
+| `input` | States and sizes | `ds/controls.css` |
+| `chip` | The translucent chip (sidebar branch and count) | `ds/controls.css` |
+| `spinner` | Spinner alone and beside its sentence | `ds/controls.css` |
+| `panel`, `floating`, `menu`, `scroll` | Panel, floating material, menu rows and states, thin scrollbar | `ds/surfaces.css` |
+| `toast` | Message, action, long message | `Toast.tsx` |
+| `tooltip` | Short and long | `components/ui/tooltip.tsx` |
+| `dialog` | Widths, header and actions, search presentation | `ds/surfaces.css` |
+| `notice` | Tones, surfaces, spinner and action | `ds/surfaces.css` |
+| `alert-icon` | 16 and 20px, ink | `AlertIcon.tsx` |
+| `settings-group`, `preference-row` | Group; row content, trailing, disabled, narrow | `ds/surfaces.css` |
+| `mode-tabs` | Page tabs in the header, filter tabs | `styles.css` (`.shell-modes`) |
+| `status-pill` | Tones | `styles.css` (`.ob-chip`) |
+| `inline-error` | Error and warning lines | `styles.css` (`.ob-msg`, `.settings-msg`) |
+| `inline-code` | Code chip in a sentence | `styles.css` |
+| `project-thumbnail` | Identity colours, sizes | `styles.css` (`.shell-thumbnail`) |
+| `error-details` | The Details disclosure, closed and open | `ErrorDetails.tsx` |
+| `doany` | Slots and focus (still image only) | `Doany.tsx`, `doany.css` |
+| `project-settings` | Loaded, saved, saving, reading, read error, folder problem | `ProjectSettingsDialog.tsx` |
+| `add-to-serve` | The confirmation before adding a serve path | `SettingsDialog.tsx` |
+| `remove-confirmation` | Stop and remove a project with a running conversation | `App.tsx` |
+| `project-setup` | No token, chosen, running, failed | `ProjectSetupDialog.tsx` |
+| `quick-open` | Browse, results, no match | `QuickOpenDialog.tsx` |
+| `shell-layout` | Header, sidebar (projects, Settings), project menu, body panels | `App.tsx`, `ShellSidebar.tsx`, `Home.tsx` |
+
+The surface canvas is `shell-layout` because the id `app-shell` belongs to an older draft in `.doan/canvases/`. Not drawn, each seen on one screen only: the textarea (Comments panel), the checkbox (Hand off dialog), the switch (Settings › Notifications), `.doan-kbd` outside a button (it appears only in the canvas toolbar's Fit button, drawn on `button`), the status block (Comments and Feedback panels in the workspace), the Hand off and comment dialogs, the conversation strip, the Review bar, FirstPrompt and the first-run wizard. Not drawn because nothing renders them: `.doan-popover` (no markup uses it) and the tooltip provider, root and trigger (wrappers that draw nothing).
+
+### Open decisions
+
+Judgment calls nobody has confirmed, each shown on the canvas named.
+
+- **Character.** The system's one-line character, mood, descriptive colour names and elevation philosophy are not settled; the Overview records only what the code does.
+- **Sidebar violet roles** (`color`, `shell-layout`). `tokens.css` says violet marks the current sidebar row and its hover, and defines `--surface-sidebar-selected`, `--text-sidebar-selected` and `--affordance-sidebar-hover` for them; `styles.css` draws both with neutral backdrop roles (`.shell-side .row` overrides `.side .row`), as Accent places records. Whether those roles and the comment stay is undecided.
+- **Defined but unused** (`color`, `typography`, `spacing`, `blur`, `motion`, `icon-button`, `chip`, `dialog`). No app CSS or TSX reads `--border-warning`, `--surface-comment`, `--text-comment`, `--text-on-project`, `--texture-dots-size`, `--window-*` (drafts only), `--type-body-lg-*`, `--space-16`, `--space-panel-gap`, `--space-panel-inset`, `--blur-lg` or `--time-panel-enter`; no markup uses the icon button's `md` size or its `prominent` and `panel` fills, the chip's default fill or button chip, the dialog's `wide` and `expanded` sizes, or `.doan-popover`. Whether each is kept for later or removed is undecided.
+- **Literals equal to tokens** (`mode-tabs`, `shell-layout`). `.shell-modes` writes 24px, 20px, 16px, 40px and 32px, which equal `--radius-container`, `--radius-control`, `--size-icon`, `--size-control` and `--size-control-sm`, against Tokens first; the shell also uses values no token names (an 8px row corner, 220px sidebar, 36px Search, 10px heading type). Whether they move onto tokens or become named component constants is undecided.
+- **Remove confirmation actions** (`remove-confirmation`). Its Cancel and Stop and Remove are `sm`, where Dialogs puts actions at the default size, like first run's Stop and Paste dialogs. Whether it is an exception is undecided.
+
 ## App shell
 
 Reference: `.doan/canvases/buzz-shell.html`, measured beside the implementation in Electron 45.0.0 / Chromium 156.0.8078.48 at content viewports 1238×780 and 960×600. This covers the header and sidebar (LNB), not Home, Overview, Inspector or comments content.
 
 **Header.** Height 56px. History controls at x104/y12, 32px, with the documented header corner 10. The centred mode capsule is 371.2578125×40px at a 1238px window width; its actions are 32px high with 16px inline insets, Plus/Grid/Settings glyphs, subtle ink when inactive and standard ink with the panel shadow when selected; on the Settings page the Settings tab is the selected one, and while a page is locked every tab, the selected one included, is `aria-disabled` with `--text-disabled` ink. Finite capsule/button radii are geometrically equivalent to the draft's clamped pills. Settled Back is transparent; hover is the shared chrome 6%-black fill on Back and 10%-black on Search.
 
-**Sidebar.** 260px wide, 8px top padding and 12px gap. Search at x16/y64, 244×36px, 10px inline inset, subtle ink. Projects heading at y112, 24px tall, 10/16 with 0.08em tracking. First project at y140. Project and canvas rows 32px with 10px inline insets and body-sm tracking. Project thumbnail 16×16px at x26, 600 weight, 16px line height (identity colours: Onboarding, 'Project thumbnails'). Project name 14/20/500, tracking −0.035px, standard ink; long names ellipsize. The 4px space below the project row and the badge/options geometry match the default specimen. The empty-project paragraph has 6/10/10/34px padding and a 16px line height.
+**Sidebar.** 220px wide on Home, the workspace, Add Projects and Settings, a user decision that narrows the drawn 260px (`buzz-shell.html` and later drafts still draw 260). Measured in the built app at 1238×780 (`.scratch/runtime-test/bw-sidebar/probe.mjs`): the shell's first column is 220px, the sidebar sits at x8, and the body panel starts at x236; rows, group heads, Search and the worktree menu are 204px wide; long project and canvas names ellipsize. 8px top padding and 12px gap. Search at x16/y64, 204×36px, 10px inline inset, subtle ink. Projects heading at y112, 24px tall, 10/16 with 0.08em tracking. First project at y140. Project and canvas rows 32px with 10px inline insets and body-sm tracking. Project thumbnail 16×16px at x26, 600 weight, 16px line height (identity colours: Onboarding, 'Project thumbnails'). Project name 14/20/500, tracking −0.035px, standard ink; long names ellipsize. The 4px space below the project row and the badge/options geometry match the default specimen. The empty-project paragraph has 6/10/10/34px padding and a 16px line height.
+
+**Sidebar groups.** Reference: `.doan/canvases/design-system-canvases.html` (frames `groups`, `empty`, `row-states`), measured by `/design-sync` in the built app at 1238×780 against the draft read in the app's canvas iframe; 28 element pairs (head, chevron, label, count; row, icon, name, status slot and its mark; empty and error lines). Reached for real: both groups open, each group closed, the empty groups, a project not set up, a read error, a long name, the real pointer hover, keyboard focus, a locked Add Projects page (held `init`) with its heads and its design-system and canvas rows, and the permission, working and unseen slots on design-system rows (Home conversations driven through main's conversation handlers, reached one at a time because a root runs one Home conversation at a time, so not side by side as drawn). Closing Design system moved each of the three slots to the project row and left the head without one; reopening returned it to the row. The heads' Chromium accessibility nodes (CDP `Accessibility.getPartialAXTree`) are treeitem, level 2, named by the label, described by the count ("5 canvases", "1 canvas", "0 canvases"), expanded true/false with the group, and disabled while locked. Under an expanded, listed project: Design system, then Canvases. A group head is a 204×32px tree row at x8 with 10px inline insets, subtle ink, 14/20 medium with body-sm tracking, no fill at rest; a 16px `ChevronDown` in metadata ink, turned −90° when closed; the label fills and ellipsizes; the count is the translucent `doan-chip` with tabular figures. Rows inside a group are 32px with a 34px left inset (10 + 16 + 8), so their 16px icon sits under the group label: `SwatchBook` for `.doan/ds/`, `PanelsTopLeft` for `.doan/canvases/` (Quick Open's canvas results and Canvases tab use the same two). The empty line is 12px/16px metadata ink at a 58px left inset ("No design system yet", "No canvases yet"); a read error line keeps its 56px inset. Hover is the 6% backdrop fill, keyboard focus the inset 2px `--border-focus` ring, as other tree rows; locked heads take `--text-disabled` on label, chevron and count, and still open and close. Context, not deviations: the app body's 13px/normal/tabular-nums inherited by group containers and lines (the canvas body is body-sm with no numeric variant); the working spinner's transform and rotated bounding box, which depend on the moment read (its computed 14px size matches). Not verified: the three slots shown at once, a real provider's conversation (the events were sent by the probe), the chevron transition, and native AppKit keyboard input (keys were renderer input). Unit-pinned: the permission slot on a design-system row and its project-row fallback (`ShellSidebar.test.tsx`); working and unseen rely on the shared canvas-row slot tests. Unpinned: the rendered group values and the chevron transition.
 
 **Project menu.** Actions use the shared 32px row; shared 12px inline insets, 14/20 text, 19px row corner and 24px/90%-white floating material. The chosen worktree has the neutral pressed fill independently of keyboard focus; leading icons use subtle ink. The path is 11/14 with 4px separation. A two-line worktree row is 50px (draft 51px) because the shared name typography stays 14/20. Menu heading and separator insets keep the shared values. At 960×600 a bottom long menu opens upward at (16,8), 512px high, with 767px of content in a 510px client area, and End reaches its final action; Escape restores trigger focus. Native overlay scrollbars can temporarily cover the trigger's outer edge.
 
@@ -255,7 +318,7 @@ Window 1238 × 780 (the draft's), 960 × 600 for `home-narrow`.
 | Tool row | Ghost icon buttons 32 px (Attach, Presets) in `--text-standard`; model and effort triggers sm `trigger` (8 px inline, no fill at rest); 16 px logo; model chevron 16 px; effort gauge and chevron 14 px; Send `accent` icon button | |
 | Tray | `--size-control` min height, padding 4 / 16, caption type in `--text-subtle`; worktree trigger with 14 px branch and chevron icons; path in `--text-metadata`, ellipsized | One worktree shows the branch as read-only text instead of the trigger. |
 | Chips | Attachment chip `--surface-inset`, `--radius-chip`, padding 4, 32 px preview (`--size-control-sm`), name 500 and caption meta; preset chip `--size-control` high, padding 0 4 0 12, `--surface-accent-subtle` / `--text-accent-subtle`; every × is the shared icon button `xs` in `--text-metadata` | The preset chip's × is metadata gray because that is how the confirmed draft renders. |
-| Menus | Shared `doan-floating doan-menu`; rows 32 px with 16 px icons (the check keeps the shared 12 × 16); agent picker 300, effort 200, project 320, worktree 244 (`shell-project-menu`); preset popover 600 with a sm search field (16 px glyph), header-capsule group tabs and 276 px list; status lines (loading, no match) body-sm 14/20 | Icons are sized explicitly because Lucide draws 24 px unless sized; the portalled popover would otherwise inherit the page's 13 px body. |
+| Menus | Shared `doan-floating doan-menu`; rows 32 px with 16 px icons (the check keeps the shared 12 × 16); agent picker 300, effort 200, project 320, worktree 204 (`shell-project-menu`, the sidebar row width); preset popover 600 with a sm search field (16 px glyph), header-capsule group tabs and 276 px list; status lines (loading, no match) body-sm 14/20 | Icons are sized explicitly because Lucide draws 24 px unless sized; the portalled popover would otherwise inherit the page's 13 px body. |
 | Suggestions | sm `quiet` buttons, shared sm padding 16 / 16, regular weight, 14 px accent group icon, wrap centred with 8 px gaps under the composer | The draft's own `.suggestion` padding never applied (the shared sm rule outweighs it). |
 | Hover | quiet: backdrop fill plus one inset backdrop layer (rgba(0,0,0,.06) twice); trigger rgba(0,0,0,.06); ghost and xs icon buttons rgb(241,241,242); accent Send rgb(144,51,217) | In the workspace the strip's prominent (rgb(25,25,25)), subtle and ghost (rgb(241,241,242)) hovers keep the shared values. |
 | Send | Accent fill rgb(151,59,225), hover rgb(144,51,217); disabled while empty, blocked or sending, with the shared disabled fill rgb(232,232,232) and a spinner while a start is pending | The draft's `home-sending` renders the disabled fill too, and the rendered draft is the confirmed one. |
@@ -336,7 +399,7 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Panel | The Home white panel (`.home-panel`), 954 × 716 at 1238 × 780, is the scroll container: `overflow-x: hidden`, `overflow-y: auto`, `overscroll-behavior: contain`, `.doan-scroll` (`scrollbar-width: thin`, `--scrollbar-thumb-quiet`). The overlay scroll bar sits at the panel's right edge and drags the page. Body text 14/20 with `font-variant-numeric: normal` | The shared Project screen is sized for first run's overlay text; without it the panel passes on the app body's 13px/normal and tabular numerals. |
+| Panel | The Home white panel (`.home-panel`), 994 × 716 at 1238 × 780, is the scroll container: `overflow-x: hidden`, `overflow-y: auto`, `overscroll-behavior: contain`, `.doan-scroll` (`scrollbar-width: thin`, `--scrollbar-thumb-quiet`). The overlay scroll bar sits at the panel's right edge and drags the page. Body text 14/20 with `font-variant-numeric: normal` | The shared Project screen is sized for first run's overlay text; without it the panel passes on the app body's 13px/normal and tabular numerals. |
 | Column | `.ob-scene.add-scene`, 560 wide, centred, padding 40/24/48, at least the panel's height; the footer (Cancel left, the step's action right) sits at the bottom and scrolls with the page. With 22 repositories the panel scrolls to the last card and Use this folder, 48px above the panel's bottom | POSTMORTEM 2026-10-25 'A static draft's overflow match hid an unusable checklist'. |
 | Card drop | Over 'Open a local folder': `.drop-target` absolutely over the card (`inset: 0`, z-index 2, the card's 24px radius), `--surface-panel` at 55% with an 8px blur, a 2px dashed `--affordance-accent` outline at −2px; a visually hidden `role="status"` "Drop to add this folder" | Home's composer drop target, reused. |
 | Drop notices | Under the card: the error notice on a panel ("Drop one folder at a time.", "Only folders can be added."), never focused | |
@@ -421,7 +484,7 @@ Order: cards sort by display name (PRODUCT §5 item 3, Design navigation).
 - **Card tooltips:** the path under `.doan/canvases/` is the file name's tooltip and the absolute time is the time's tooltip (`ChangedTime`), so no tooltip nests inside another tooltip's trigger. Relative times read "Yesterday", "Oct 12", not the draft's sample "1d ago". An Overview title truncates with the full value in `title`.
 - **Card names:** each card is a `button` named by title then file name through `aria-labelledby` ("Design tokens tokens.html"; "Billing & plans billing.html"); `aria-describedby` supplies the thumbnail message and facts (read as "5 frames · Just now"; the no-width description was read before the current message and not reread). The image is ignored (empty `alt`).
 - Roles: `region` "Overview"; each folder section a `region` named by its path ("design"); the canvas area under the Overview is ignored (`inert`); toasts are a polite `status` holding the message.
-- **Toast for a canvas gone at relaunch:** the saved state has only the canvas path, so the message uses the file name without `.html` ("billing is no longer in .doan/canvases/").
+- **Toast for a canvas gone at relaunch:** the saved state has only the canvas path, so the message uses the file name without `.html` ("billing is no longer in .doan/canvases/" (or `.doan/ds/`)).
 - **Thumbnail visibility** travels in both directions, including when the Overview unmounts; main keeps visibility updates received during asynchronous cache reads.
 - **Navigation recovery:** unreadable width is reported without guessing a parser error; an explicit Open distinguishes unavailable projects from absent canvases; the Missing/Not set up recovery text stays when no canvas is open.
 - **Context sizes:** the draft's hover tile is a 418px two-column specimen against the 215px grid card; the frame-less hint specimen has a border on both sides (238px inner versus 239px).
@@ -684,7 +747,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 | Element | Measured contract | Reason |
 |---|---|---|
 | Header tab | Settings is the capsule's third tab; on the page it is the current white pill with standard ink (the App shell values) | |
-| Sidebar | 'Settings' heading in the Projects heading's place, then three 244 × 32 rows (Agents, Notifications, About) 2px apart with 10px insets, a 16px Lucide icon in `--text-subtle` and body-sm label; the current row takes the pressed fill rgba(0,0,0,.1) with standard ink and icon; Search stays | The shipped sidebar with its project tree replaced. |
+| Sidebar | 'Settings' heading in the Projects heading's place, then three 204 × 32 rows (Agents, Notifications, About) 2px apart with 10px insets, a 16px Lucide icon in `--text-subtle` and body-sm label; the current row takes the pressed fill rgba(0,0,0,.1) with standard ink and icon; Search stays | The shipped sidebar with its project tree replaced. |
 | Panel | Home's panel, the scroll container (`.doan-scroll`, thin); 14/20 body-sm with its tracking and plain numerals | Like the Add Projects panel. |
 | Column | max 768px (48rem), centred, padding 32 / 24 / 24 | Buzz's settings reading column. |
 | Header | 17px inline inset (the group's 16px plus its border, so text lines up with row text); title heading 24 / 26.4 / 500; lead caption 12 / 16 `--text-subtle`, 8px below; 32px to the first section; an action slot on the right (About's Copy details), hidden while empty | |

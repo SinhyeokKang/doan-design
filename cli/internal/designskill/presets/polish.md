@@ -7,7 +7,7 @@ Use this preset when the user asks to polish, finish, tidy, or bring a screen, f
 ## Before you start
 
 - Find the target. For pointing words like "this screen" or "this card", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
-- Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, a `design-system` canvas (`.doan/canvases/design-system.html`) if present, and neighboring frames and flows. If no formal system exists, use the project's coherent conventions.
+- Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present, and neighboring frames and flows. If no formal system exists, use the project's coherent conventions.
 - Read the code the canvas implements (`data-doan-implements`), so the polish matches what ships and you know what is not in code yet.
 - Establish the bar: whether the path is functionally complete, the intended quality bar, known constraints or deliberately unfinished work, and the states, content lengths, roles, and input methods users will actually meet. Ask only what would change the result. When product context is missing and it matters, suggest the `context` preset (`doan design-skill context --json`).
 - Ask before changing factual claims.
@@ -37,7 +37,7 @@ Separate functional defects from cosmetic ones and fix in this order:
 
 1. broken or blocked tasks, data loss, misleading state, and inaccessible paths;
 2. missing loading, empty, error, success, disabled, and permission states;
-3. flow, hierarchy, responsive, and design-system drift;
+3. flow, hierarchy, responsive, and design system drift;
 4. visual and motion inconsistencies;
 5. code and asset cleanup.
 

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="button">
+  <meta name="doan:width" content="1600">
+  <title>Button</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <link rel="stylesheet" href="../../components/button.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+    .row { display: flex; gap: var(--space-4); margin-top: var(--space-4); }
+  </style>
+</head>
+<body>
+<p>Button reference for Ledgerly, based on components/button.css and styles/tokens.css. Sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="button" data-doan-title="Button" data-doan-implements="components/button.css">
+<h1 data-doan-id="button-heading">Button</h1>
+<div class="row" data-doan-id="button-variants"><button class="button button--primary" type="button">Send invoice</button><button class="button button--secondary" type="button">Save draft</button></div>
+</section>
+<section data-doan-frame="button-states" data-doan-title="Button states" data-doan-implements="components/button.css">
+<div class="row" data-doan-id="button-states"><button class="button button--primary" type="button" disabled>Disabled</button></div>
+<p data-doan-id="button-focus-note">Focus: 2px <code>--color-primary</code> outline offset by 2px (shown when a button or input receives keyboard focus).</p>
+</section>
+</main></body></html>

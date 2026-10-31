@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="typography">
+<meta name="doan:width" content="1200">
+<title>typography</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head">
+<h1>typography</h1>
+<p>One family, <code>--type-family</code>: the bundled Geist, then the system sans stack with Apple SD Gothic Neo. Each role is a size, line height and tracking that travel together; the weight is chosen with the role. There is no monospace role.</p>
+</header>
+<section class="dsc-frame" data-doan-frame="roles" data-doan-title="Type roles" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Type roles</h2>
+<table class="dsc-table"><thead><tr><th>Role tokens</th><th>Weight drawn</th><th>Sample</th><th>Read by (examples)</th></tr></thead><tbody>
+<tr data-doan-id="type-caption"><td><code>--type-caption-*</code></td><td><code>--type-weight-regular</code></td><td><span style="font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); font-weight: var(--type-weight-regular)">Design with your agent</span></td><td><span class="dsc-label">Captions, metadata, chips, tooltips, menu heads</span></td></tr>
+<tr data-doan-id="type-body-sm"><td><code>--type-body-sm-*</code></td><td><code>--type-weight-regular</code></td><td><span style="font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-regular)">Design with your agent</span></td><td><span class="dsc-label">Menu rows, notices, dialog descriptions, settings rows</span></td></tr>
+<tr data-doan-id="type-body"><td><code>--type-body-*</code></td><td><code>--type-weight-regular</code></td><td><span style="font-size: var(--type-body-size); line-height: var(--type-body-line-height); letter-spacing: var(--type-body-letter-spacing); font-weight: var(--type-weight-regular)">Design with your agent</span></td><td><span class="dsc-label">Text fields</span></td></tr>
+<tr data-doan-id="type-label-sm"><td><code>--type-label-sm-*</code></td><td><code>--type-weight-medium</code></td><td><span style="font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium)">Design with your agent</span></td><td><span class="dsc-label">Buttons</span></td></tr>
+<tr data-doan-id="type-label"><td><code>--type-label-*</code></td><td><code>--type-weight-medium</code></td><td><span style="font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); font-weight: var(--type-weight-medium)">Design with your agent</span></td><td><span class="dsc-label">Dialog titles, large buttons</span></td></tr>
+<tr data-doan-id="type-body-lg"><td><code>--type-body-lg-*</code></td><td><code>--type-weight-regular</code></td><td><span style="font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-regular)">Design with your agent</span></td><td><span class="dsc-open">defined; no app CSS reads the body-lg role</span></td></tr>
+<tr data-doan-id="type-heading"><td><code>--type-heading-*</code></td><td><code>--type-weight-medium</code></td><td><span style="font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium)">Design with your agent</span></td><td><span class="dsc-label">Settings page title; Welcome sentence at regular weight</span></td></tr>
+<tr data-doan-id="type-title"><td><code>--type-title-*</code></td><td><code>--type-weight-medium</code></td><td><span style="font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium)">Design with your agent</span></td><td><span class="dsc-label">Home greeting, onboarding scene headings</span></td></tr>
+</tbody></table>
+</section>
+<section class="dsc-frame" data-doan-frame="weights" data-doan-title="Weights" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Weights</h2>
+<div class="dsc-row">
+<div class="dsc-cell"><span style="font-size: var(--type-label-size); line-height: var(--type-label-line-height); font-weight: var(--type-weight-regular)">Regular reads</span><span class="dsc-label"><code>--type-weight-regular</code> 400 · reading and form labels</span></div>
+<div class="dsc-cell"><span style="font-size: var(--type-label-size); line-height: var(--type-label-line-height); font-weight: var(--type-weight-medium)">Medium acts</span><span class="dsc-label"><code>--type-weight-medium</code> 500 · actions and structure</span></div>
+<div class="dsc-cell"><span style="font-size: var(--type-label-size); line-height: var(--type-label-line-height); font-weight: var(--type-weight-semibold)">Semibold marks</span><span class="dsc-label"><code>--type-weight-semibold</code> 600 · project thumbnail initials</span></div>
+</div>
+</section>
+<section class="dsc-frame" data-doan-frame="family" data-doan-title="Family" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Family</h2>
+<div class="dsc-row">
+<div class="dsc-cell"><span style="font-family: var(--type-family); font-size: var(--type-heading-size); line-height: var(--type-heading-line-height)">Geist · 디자인 캔버스</span><span class="dsc-label"><code>--type-family</code> · Hangul falls back to <code>--font-system-sans</code></span></div>
+</div>
+</section>
+</main>
+</body>
+</html>

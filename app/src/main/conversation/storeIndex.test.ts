@@ -170,6 +170,16 @@ describe("home conversation fields in index v2", () => {
     expect(new ConversationStore(f.root).list()).toEqual([legacy("old"), home, empty]);
     expect(JSON.parse(readFileSync(f.index, "utf8")).conversations[0]).not.toHaveProperty("model");
   });
+  it("keeps a conversation bound to a design-system canvas in .doan/ds/", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const bound = { ...legacy("button"), canvas: { path: ".doan/ds/button.html", id: "button" }, canvasesAtStart: [{ path: ".doan/ds/color.html" }] };
+    store.save([bound]);
+    expect(new ConversationStore(f.root).list()).toEqual([bound]);
+  });
+  it.each([".doan/dsx/a.html", ".doan/ds", ".doan/ds/../canvases/a.html", ".doan/assets/a.html"])("rejects a canvas path %s outside the canvas directories", path => {
+    const copy = JSON.parse(fixture("index-v2-home.json")); copy.conversations[1].canvas = { path };
+    expect(parseIndex(JSON.stringify(copy))).toEqual({ ok: false, code: "invalid" });
+  });
   it("rejects malformed fields like any other entry field", () => {
     const invalid = [
       (m: any) => { m.model = ""; },

@@ -15,6 +15,8 @@ export interface ShellProject {
   selectedRoot?: string;
   selectedAt?: number;
   expanded: boolean;
+  // The sidebar groups the person closed, by fixed id; a missing one is open (design-system-canvases design 'sidebar').
+  groups?: { ds?: false; canvases?: false };
 }
 
 export interface HomeModel {
@@ -91,6 +93,8 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
         project.selectedRoot = item.selectedRoot;
         if (typeof item.selectedAt === "number" && Number.isFinite(item.selectedAt) && item.selectedAt >= 0 && item.selectedAt <= 8.64e15) project.selectedAt = item.selectedAt;
       }
+      const groups = parseGroups(item.groups);
+      if (groups) project.groups = groups;
       projects.push([key, project]);
     }
     state.shellProjects = Object.fromEntries(projects);
@@ -110,6 +114,15 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Only a closed flag under a known id is kept; anything else reads as open.
+function parseGroups(value: unknown): ShellProject["groups"] {
+  if (!isRecord(value)) return undefined;
+  const groups: NonNullable<ShellProject["groups"]> = {};
+  if (value["ds"] === false) groups.ds = false;
+  if (value["canvases"] === false) groups.canvases = false;
+  return Object.keys(groups).length ? groups : undefined;
 }
 
 function parseHome(value: Record<string, unknown>, saved: ReadonlySet<string>): HomeMemory {

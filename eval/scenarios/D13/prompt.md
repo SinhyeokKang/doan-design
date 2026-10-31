@@ -1,0 +1,1 @@
+The code now adds --color-primary-hover in styles/tokens.css and a primary button hover state in components/button.css. Update the existing design system reference to match that change. Keep the existing organization, canvas and frame ids, and all unrelated reference content unchanged. Do not change the implementation or draw a product screen.

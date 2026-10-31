@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="color">
+<meta name="doan:width" content="1440">
+<title>color</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+.sw-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4) var(--space-6); }
+.sw { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: var(--space-3); align-items: center; }
+.sw .chip { grid-row: span 3; width: 40px; height: 40px; border-radius: var(--radius-chip); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.sw code { overflow-wrap: anywhere; }
+.sw .dsc-open { padding: var(--space-half) var(--space-2); }
+.txt { display: grid; gap: var(--space-1); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); }
+.txt b { font-size: var(--type-label-size); line-height: var(--type-label-line-height); font-weight: var(--type-weight-medium); }
+.texture { height: 96px; border-radius: var(--radius-row); background-color: var(--bg-app); background-image: radial-gradient(var(--texture-dots-color) 1px, transparent 1px); background-size: 16px 16px; }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head">
+<h1>color</h1>
+<p>Three layers in <code>tokens.css</code>: the palette holds the only literal colours, roles say what a value is for, and legacy names alias roles for older drafts. Renderer code reads roles only, so the palette frames show the source of each role, not values to use directly. The legacy layer is not drawn: no renderer code reads it.</p>
+<p class="dsc-open">Open: the comment on the violet roles in <code>tokens.css</code> names the current sidebar row and its hover, but <code>styles.css</code> draws both with neutral backdrop roles (<code>.shell-side .row</code> overrides <code>.side .row</code>). Whether the sidebar violet roles stay, go or come back is undecided.</p>
+</header>
+<section class="dsc-frame" data-doan-frame="palette-neutral" data-doan-title="Palette · neutral" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Palette · neutral</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--neutral-1)"></span><code>--neutral-1</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-quiet-hover)"></span><code>--neutral-quiet-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-2)"></span><code>--neutral-2</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-3)"></span><code>--neutral-3</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-4)"></span><code>--neutral-4</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-5)"></span><code>--neutral-5</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-6)"></span><code>--neutral-6</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-7)"></span><code>--neutral-7</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-8)"></span><code>--neutral-8</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-9)"></span><code>--neutral-9</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-10)"></span><code>--neutral-10</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-11)"></span><code>--neutral-11</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-12)"></span><code>--neutral-12</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-standard-text)"></span><code>--neutral-standard-text</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-action-pressed)"></span><code>--neutral-action-pressed</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-glass)"></span><code>--neutral-glass</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-backdrop-hover)"></span><code>--neutral-backdrop-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-backdrop-pressed)"></span><code>--neutral-backdrop-pressed</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--neutral-scrim)"></span><code>--neutral-scrim</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="palette-violet" data-doan-title="Palette · violet accent ramp" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Palette · violet accent ramp</h2>
+<p class="dsc-note">Each step takes the per-step OKLCH lightness and chroma share of a twelve-step reference ramp at hue 305; white text sits on step 9.</p>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--violet-1)"></span><code>--violet-1</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-2)"></span><code>--violet-2</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-3)"></span><code>--violet-3</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-4)"></span><code>--violet-4</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-5)"></span><code>--violet-5</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-6)"></span><code>--violet-6</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-7)"></span><code>--violet-7</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-8)"></span><code>--violet-8</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-9)"></span><code>--violet-9</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-10)"></span><code>--violet-10</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-11)"></span><code>--violet-11</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-12)"></span><code>--violet-12</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-contrast)"></span><code>--violet-contrast</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-ink)"></span><code>--violet-ink</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-pressed)"></span><code>--violet-pressed</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--violet-link)"></span><code>--violet-link</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="palette-status" data-doan-title="Palette · status hues" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Palette · status hues</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--red-3)"></span><code>--red-3</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--red-9)"></span><code>--red-9</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--red-12)"></span><code>--red-12</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--amber-3)"></span><code>--amber-3</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--amber-11)"></span><code>--amber-11</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--amber-12)"></span><code>--amber-12</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--green-3)"></span><code>--green-3</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--green-12)"></span><code>--green-12</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="palette-identity" data-doan-title="Palette · project identity" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Palette · project identity</h2>
+<p class="dsc-note">Kept apart from the status hues; only project thumbnails read them, through the identity roles.</p>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--rose-600)"></span><code>--rose-600</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--orange-600)"></span><code>--orange-600</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--amber-600)"></span><code>--amber-600</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--emerald-600)"></span><code>--emerald-600</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--teal-600)"></span><code>--teal-600</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--sky-600)"></span><code>--sky-600</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--indigo-600)"></span><code>--indigo-600</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--fuchsia-600)"></span><code>--fuchsia-600</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="surfaces" data-doan-title="Surfaces and backgrounds" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Surfaces and backgrounds</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--bg-app)"></span><code>--bg-app</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--bg-scrim)"></span><code>--bg-scrim</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--surface-panel)"></span><code>--surface-panel</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--surface-popover)"></span><code>--surface-popover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--surface-elevated-glass)"></span><code>--surface-elevated-glass</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--surface-inset)"></span><code>--surface-inset</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--surface-navigation-selected)"></span><code>--surface-navigation-selected</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background-color: var(--bg-app); background-image: radial-gradient(var(--texture-dots-color) 1px, transparent 1px); background-size: 8px 8px"></span><code>--texture-dots-color</code><span class="dsc-label">canvas-area dots, a shade of the shell</span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="text" data-doan-title="Text" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Text</h2>
+<p class="dsc-note">Three reading levels (standard, subtle, metadata). <code>--text-disabled</code> sits below the contrast targets on purpose, as <code>tokens.css</code> states.</p>
+<div class="sw-grid">
+<div class="txt" style="background: var(--surface-panel); color: var(--text-standard)"><b>Aa Doan</b><code>--text-standard</code></div>
+<div class="txt" style="background: var(--surface-panel); color: var(--text-subtle)"><b>Aa Doan</b><code>--text-subtle</code></div>
+<div class="txt" style="background: var(--surface-panel); color: var(--text-metadata)"><b>Aa Doan</b><code>--text-metadata</code></div>
+<div class="txt" style="background: var(--surface-panel); color: var(--text-disabled)"><b>Aa Doan</b><code>--text-disabled</code></div>
+<div class="txt" style="background: var(--surface-panel); color: var(--text-link)"><b>Aa Doan</b><code>--text-link</code></div>
+<div class="txt" style="background: var(--surface-panel); color: var(--text-danger)"><b>Aa Doan</b><code>--text-danger</code></div>
+<div class="txt" style="background: var(--surface-panel); color: var(--text-warning)"><b>Aa Doan</b><code>--text-warning</code></div>
+<div class="txt" style="background: var(--surface-panel); color: var(--text-success)"><b>Aa Doan</b><code>--text-success</code></div>
+<div class="txt" style="background: var(--affordance-prominent); color: var(--text-on-prominent)"><b>Aa Doan</b><code>--text-on-prominent</code></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="borders" data-doan-title="Borders and scrollbar" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Borders and scrollbar</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--border-standard)"></span><code>--border-standard</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--border-prominent)"></span><code>--border-prominent</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--border-focus)"></span><code>--border-focus</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--border-danger)"></span><code>--border-danger</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--border-warning)"></span><code>--border-warning</code><span class="dsc-label"></span> <span class="dsc-open">defined; no app CSS or TSX reads it</span></div>
+<div class="sw"><span class="chip" style="background: var(--scrollbar-thumb-quiet)"></span><code>--scrollbar-thumb-quiet</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="affordances" data-doan-title="Affordances (neutral)" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Affordances (neutral)</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--affordance-prominent)"></span><code>--affordance-prominent</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-prominent-hover)"></span><code>--affordance-prominent-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-prominent-pressed)"></span><code>--affordance-prominent-pressed</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-subtle)"></span><code>--affordance-subtle</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-subtle-hover)"></span><code>--affordance-subtle-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-subtle-pressed)"></span><code>--affordance-subtle-pressed</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-panel-hover)"></span><code>--affordance-panel-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-backdrop-hover)"></span><code>--affordance-backdrop-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-backdrop-pressed)"></span><code>--affordance-backdrop-pressed</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-floating-hover)"></span><code>--affordance-floating-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-selected)"></span><code>--affordance-selected</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-disabled)"></span><code>--affordance-disabled</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="status" data-doan-title="Status fills" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Status fills</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--affordance-danger)"></span><code>--affordance-danger</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-warning)"></span><code>--affordance-warning</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-success)"></span><code>--affordance-success</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="accent" data-doan-title="Accent (violet roles)" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Accent (violet roles)</h2>
+<p class="dsc-note">The sidebar roles are read only by <code>.side .row</code> rules that <code>.shell-side .row</code> overrides, so no shipped screen draws them (read from source).</p>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--surface-sidebar-selected)"></span><code>--surface-sidebar-selected</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--text-sidebar-selected)"></span><code>--text-sidebar-selected</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-sidebar-hover)"></span><code>--affordance-sidebar-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--surface-comment)"></span><code>--surface-comment</code><span class="dsc-label"></span> <span class="dsc-open">defined; no app CSS or TSX reads it</span></div>
+<div class="sw"><span class="chip" style="background: var(--text-comment)"></span><code>--text-comment</code><span class="dsc-label"></span> <span class="dsc-open">defined; no app CSS or TSX reads it</span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-accent)"></span><code>--affordance-accent</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-accent-hover)"></span><code>--affordance-accent-hover</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--affordance-accent-pressed)"></span><code>--affordance-accent-pressed</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--text-on-accent)"></span><code>--text-on-accent</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--surface-accent-subtle)"></span><code>--surface-accent-subtle</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--text-accent-subtle)"></span><code>--text-accent-subtle</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="identity" data-doan-title="Project identity roles" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Project identity roles</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--identity-project-rose)"></span><code>--identity-project-rose</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--identity-project-orange)"></span><code>--identity-project-orange</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--identity-project-amber)"></span><code>--identity-project-amber</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--identity-project-emerald)"></span><code>--identity-project-emerald</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--identity-project-teal)"></span><code>--identity-project-teal</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--identity-project-sky)"></span><code>--identity-project-sky</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--identity-project-indigo)"></span><code>--identity-project-indigo</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--identity-project-fuchsia)"></span><code>--identity-project-fuchsia</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--text-on-project)"></span><code>--text-on-project</code><span class="dsc-label"></span> <span class="dsc-open">defined; no app CSS or TSX reads it</span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="pins" data-doan-title="Comment pins" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Comment pins</h2>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--border-pin)"></span><code>--border-pin</code><span class="dsc-label"></span></div>
+<div class="sw"><span class="chip" style="background: var(--halo-pin)"></span><code>--halo-pin</code><span class="dsc-label"></span></div>
+</div>
+</section>
+
+<section class="dsc-frame" data-doan-frame="window" data-doan-title="Window controls (drafts only)" data-doan-implements="app/src/renderer/tokens.css">
+<h2>Window controls (drafts only)</h2>
+<p class="dsc-note">macOS traffic-light artwork for drafts; fixed by the OS, not by this system.</p>
+<div class="sw-grid">
+<div class="sw"><span class="chip" style="background: var(--window-close)"></span><code>--window-close</code><span class="dsc-label"></span> <span class="dsc-open">defined; no app CSS or TSX reads it</span></div>
+<div class="sw"><span class="chip" style="background: var(--window-minimize)"></span><code>--window-minimize</code><span class="dsc-label"></span> <span class="dsc-open">defined; no app CSS or TSX reads it</span></div>
+<div class="sw"><span class="chip" style="background: var(--window-zoom)"></span><code>--window-zoom</code><span class="dsc-label"></span> <span class="dsc-open">defined; no app CSS or TSX reads it</span></div>
+</div>
+</section>
+</main>
+</body>
+</html>

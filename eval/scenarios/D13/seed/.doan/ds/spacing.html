@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="spacing">
+  <meta name="doan:width" content="1600">
+  <title>Spacing</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+    .row { display: flex; gap: var(--space-4); margin-top: var(--space-4); }
+    .step { background: var(--color-primary); height: var(--space-4); }
+  </style>
+</head>
+<body>
+<p>Spacing reference for Ledgerly, based on styles/tokens.css. Sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="spacing" data-doan-title="Spacing" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="spacing-heading">Spacing</h1>
+<div class="row" data-doan-id="space-2"><span class="step" style="width: var(--space-2)"></span><code>--space-2</code> input padding, vertical button padding, above input errors</div>
+<div class="row" data-doan-id="space-4"><span class="step" style="width: var(--space-4)"></span><code>--space-4</code> horizontal button padding, below card titles</div>
+<div class="row" data-doan-id="space-6"><span class="step" style="width: var(--space-6)"></span><code>--space-6</code> card padding</div>
+</section>
+</main></body></html>

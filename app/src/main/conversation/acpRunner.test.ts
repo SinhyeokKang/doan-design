@@ -149,6 +149,18 @@ it("takes a tool call's path from a later update, such as the permission request
     .toEqual([{ type: "activity", kind: "edit", path: "/repo/.doan/canvases/a.html", insideDesign: true, summary: "Create file" }]);
 });
 
+it.each([
+  [".doan/ds/button.html", true],
+  ["/repo/.doan/ds/forms/input.html", true],
+  [".doan/dsx/a.html", false],
+  [".doan/assets/a.css", false],
+])("marks %s as inside the design: %s", (path, inside) => {
+  let state = initialAcp("t");
+  state = normalizeAcp(state, { sessionUpdate: "tool_call", toolCallId: "c", kind: "edit", title: "Write", status: "pending", locations: [{ path }] }, "/repo").state;
+  expect(normalizeAcp(state, { sessionUpdate: "tool_call_update", toolCallId: "c", status: "completed" }, "/repo").events)
+    .toEqual([{ type: "activity", kind: "edit", path, insideDesign: inside, summary: "Write" }]);
+});
+
 it("falls back to the path or a short phrase, not the raw ACP kind, when a tool call has no title", () => {
   let state = initialAcp("t");
   const events: EventPayload[] = [];

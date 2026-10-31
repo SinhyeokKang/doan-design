@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="doan:canvas" content="project-thumbnail">
+<meta name="doan:width" content="900">
+<title>project-thumbnail</title>
+<link rel="stylesheet" href="../../app/src/renderer/tokens.css">
+<link rel="stylesheet" href="../../app/src/renderer/ds/index.css">
+<link rel="stylesheet" href="../assets/ds-canvas.css">
+<style>
+/* Restated from styles.css (.shell-thumbnail, its card and picker sizes, and the .hue-* identity colours). */
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+.shell-thumbnail.picker { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
+.shell-thumbnail.onboarding-thumbnail { width: 28px; height: 28px; margin-inline: 2px; border-radius: 7px; font-size: 17px; line-height: 28px; }
+.hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
+.hue-orange { background: color-mix(in srgb, var(--identity-project-orange) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-orange) 65%, var(--text-standard)); }
+.hue-amber { background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); }
+.hue-emerald { background: color-mix(in srgb, var(--identity-project-emerald) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-emerald) 65%, var(--text-standard)); }
+.hue-teal { background: color-mix(in srgb, var(--identity-project-teal) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-teal) 65%, var(--text-standard)); }
+.hue-sky { background: color-mix(in srgb, var(--identity-project-sky) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-sky) 65%, var(--text-standard)); }
+.hue-indigo { background: color-mix(in srgb, var(--identity-project-indigo) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-indigo) 65%, var(--text-standard)); }
+.hue-fuchsia { background: color-mix(in srgb, var(--identity-project-fuchsia) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-fuchsia) 65%, var(--text-standard)); }
+</style>
+</head>
+<body>
+<main class="dsc">
+<header class="dsc-head"><h1>project-thumbnail</h1><p><code>.shell-thumbnail</code>: the project's first letter, upper-cased, on one of eight identity colours picked by hashing the name (<code>projectHue</code>, <code>projectInitial</code> in <code>shellNavigation.ts</code>). The fill is the colour 14% into <code>--surface-panel</code>, the letter the colour 65% into <code>--text-standard</code>. Its rules live in <code>styles.css</code> and are restated here.</p></header>
+<section class="dsc-frame" data-doan-frame="hues" data-doan-title="Identity colours" data-doan-implements="app/src/renderer/styles.css">
+<h2>Identity colours</h2>
+<div class="dsc-row"><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-rose">R</span><span class="dsc-label"><code>hue-rose</code></span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-orange">O</span><span class="dsc-label"><code>hue-orange</code></span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-amber">A</span><span class="dsc-label"><code>hue-amber</code></span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-emerald">E</span><span class="dsc-label"><code>hue-emerald</code></span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-teal">T</span><span class="dsc-label"><code>hue-teal</code></span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-sky">S</span><span class="dsc-label"><code>hue-sky</code></span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-indigo">I</span><span class="dsc-label"><code>hue-indigo</code></span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-fuchsia">F</span><span class="dsc-label"><code>hue-fuchsia</code></span></div></div><p class="dsc-note">Letters are samples; the app derives both letter and colour from the name.</p>
+</section>
+<section class="dsc-frame" data-doan-frame="sizes" data-doan-title="Sizes" data-doan-implements="app/src/renderer/styles.css">
+<h2>Sizes</h2>
+<div class="dsc-row" style="align-items: center"><div class="dsc-cell"><span class="shell-thumbnail hue-sky">D</span><span class="dsc-label">16 · sidebar rows, Quick Open groups</span></div><div class="dsc-cell"><span class="shell-thumbnail picker hue-sky">D</span><span class="dsc-label">20 · Home project picker</span></div><div class="dsc-cell"><span class="shell-thumbnail onboarding-thumbnail hue-sky">D</span><span class="dsc-label">28 · first-run project cards</span></div></div>
+</section>
+</main>
+</body>
+</html>

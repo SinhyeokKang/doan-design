@@ -17,7 +17,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
 function fixture(loaded: string | null = "/a") {
   const row = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn() };
+  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn() };
   const rendered = elements(ShellSidebar(props));
   const project = rendered.find(item => item["data-key"] === "common")!;
   const menuItems = rendered.filter(item => typeof item.onSelect === "function");
@@ -167,7 +167,7 @@ it("uses natural filename order for both visible rows and keyboard navigation", 
   props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `.doan/canvases/${name}.html`, url: name, open: 0, resolved: 0 })) };
   hooks.cursor = 0; hooks.refs = [];
   const rendered = elements(ShellSidebar(props));
-  const rows = rendered.filter(item => item["aria-level"] === 2);
+  const rows = rendered.filter(item => item["aria-level"] === 3);
   expect(rows.map(item => item["aria-label"])).toEqual(["foo", "foo-bar", "page2", "page10", "Zeta"]);
   const targets = rows.map(item => ({ dataset: { key: item["data-key"] }, focus: vi.fn() }));
   const host = hooks.refs.find(ref => ref.current === null)!;
@@ -192,4 +192,108 @@ it("marks Search, project and canvas rows, Overview and worktree items aria-disa
   hooks.cursor = 0;
   const open = elements(ShellSidebar(props));
   expect(open.filter(item => item["aria-disabled"] !== undefined && item["aria-disabled"] !== false)).toEqual([]);
+});
+
+// design-system-canvases design 'sidebar' (Q11): the group heads join the one visible row list, and ←/→ follow the APG tree.
+function groupsFixture(closed?: { ds?: false; canvases?: false }, canvases = ["ds/button", "ds/color", "canvases/checkout"], extra: Record<string, unknown> = {}) {
+  const { props } = fixture();
+  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name, open: 0, resolved: 0 })) };
+  props.projects.common = { ...props.projects.common, ...(closed ? { groups: closed } : {}) } as typeof props.projects.common;
+  hooks.cursor = 0; hooks.refs = [];
+  const all = { ...props, canvas: undefined, ...extra };
+  const rendered = elements(ShellSidebar(all));
+  const rows = rendered.filter(item => item.role === "treeitem");
+  const label = (item: Record<string, unknown>) => item["aria-label"] as string;
+  let active = "";
+  const targets = rows.map(row => ({ dataset: { key: row["data-key"] }, focus: () => { active = label(row); } }));
+  const host = hooks.refs.find(ref => ref.current === null)!;
+  host.current = { querySelectorAll: () => targets };
+  const row = (name: string) => rows.find(item => label(item) === name)!;
+  return {
+    props, rows, row, active: () => active,
+    press(name: string, value: string, modifiers: Record<string, boolean> = {}) {
+      const target = {}, event = { key: value, target, currentTarget: target, preventDefault: vi.fn(), metaKey: false, ctrlKey: false, altKey: false, ...modifiers };
+      (row(name).onKeyDown as (event: unknown) => void)(event);
+      return event;
+    },
+  };
+}
+
+it("lists the project, then Design system and its rows, then Canvases and its rows, as one keyboard order", () => {
+  const tree = groupsFixture();
+  expect(tree.rows.map(row => [row["aria-label"], row["aria-level"]])).toEqual([["demo", 1], ["Design system", 2], ["button", 3], ["color", 3], ["Canvases", 2], ["checkout", 3]]);
+  const order: string[] = [];
+  let at = "demo";
+  for (let step = 0; step < 6; step++) { tree.press(at, "ArrowDown"); at = tree.active(); order.push(at); }
+  expect(order).toEqual(["Design system", "button", "color", "Canvases", "checkout", "checkout"]);
+  tree.press("checkout", "Home"); expect(tree.active()).toBe("demo");
+  tree.press("demo", "End"); expect(tree.active()).toBe("checkout");
+});
+
+it("moves → from an expanded project to its first group head, and ← from a row to its group head", () => {
+  const tree = groupsFixture();
+  tree.press("demo", "ArrowRight"); expect(tree.active()).toBe("Design system");
+  tree.press("checkout", "ArrowLeft"); expect(tree.active()).toBe("Canvases");
+  tree.press("button", "ArrowLeft"); expect(tree.active()).toBe("Design system");
+  expect(tree.props.toggleGroup).not.toHaveBeenCalled();
+  expect(tree.props.toggle).not.toHaveBeenCalled();
+});
+
+it("on an open head, → goes to its first row and ← closes it", () => {
+  const tree = groupsFixture();
+  tree.press("Design system", "ArrowRight"); expect(tree.active()).toBe("button");
+  expect(tree.props.toggleGroup).not.toHaveBeenCalled();
+  tree.press("Canvases", "ArrowLeft");
+  expect(tree.props.toggleGroup).toHaveBeenCalledWith("common", "canvases");
+});
+
+it("on a closed head, → opens it and ← goes to the project row; its rows are not in the order", () => {
+  const tree = groupsFixture({ ds: false });
+  expect(tree.rows.map(row => row["aria-label"])).toEqual(["demo", "Design system", "Canvases", "checkout"]);
+  expect(tree.row("Design system")["aria-expanded"]).toBe(false);
+  tree.press("Design system", "ArrowRight");
+  expect(tree.props.toggleGroup).toHaveBeenCalledWith("common", "ds");
+  tree.press("Design system", "ArrowLeft"); expect(tree.active()).toBe("demo");
+  expect(tree.props.toggleGroup).toHaveBeenCalledOnce();
+});
+
+it("does nothing on → from an open empty group", () => {
+  const tree = groupsFixture(undefined, ["canvases/checkout"]);
+  const event = tree.press("Design system", "ArrowRight");
+  expect(tree.active()).toBe("");
+  expect(tree.props.toggleGroup).not.toHaveBeenCalled();
+  expect(event.preventDefault).toHaveBeenCalled();
+});
+
+it("opens and closes a head with Enter, Space, a click and an Option-click alike, without navigating", () => {
+  const tree = groupsFixture();
+  tree.press("Design system", "Enter");
+  tree.press("Canvases", " ");
+  (tree.row("Design system").onClick as (event: unknown) => void)({ altKey: false });
+  (tree.row("Canvases").onClick as (event: unknown) => void)({ altKey: true });
+  expect(tree.props.toggleGroup.mock.calls).toEqual([["common", "ds"], ["common", "canvases"], ["common", "ds"], ["common", "canvases"]]);
+  expect(tree.props.open).not.toHaveBeenCalled();
+  expect(tree.props.toggle).not.toHaveBeenCalled();
+});
+
+it("matches group heads by their label in typeahead, through the shared helper", () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    const tree = groupsFixture();
+    tree.press("demo", "c"); expect(tree.active()).toBe("color");
+    tree.press("color", "c"); expect(tree.active()).toBe("Canvases");
+    tree.press("Canvases", "c"); expect(tree.active()).toBe("checkout");
+    now.mockReturnValue(2000);
+    tree.press("checkout", "d"); expect(tree.active()).toBe("demo");
+    tree.press("demo", "d"); expect(tree.active()).toBe("Design system");
+  } finally { now.mockRestore(); }
+});
+
+it("still opens and closes groups while the page is locked, showing their heads unavailable", () => {
+  const tree = groupsFixture(undefined, undefined, { locked: true });
+  const head = tree.row("Design system");
+  expect(head["aria-disabled"]).toBe(true);
+  (head.onClick as (event: unknown) => void)({});
+  tree.press("Canvases", "ArrowLeft");
+  expect(tree.props.toggleGroup.mock.calls).toEqual([["common", "ds"], ["common", "canvases"]]);
 });

@@ -87,7 +87,7 @@ func Run(in Input) []Finding {
 		}
 	}
 	if len(in.Canvases)+len(in.Unparsable) == 0 {
-		add(Finding{Severity: "warning", Code: "no_canvases", Path: ".doan/canvases/", Message: "No canvases found under .doan/canvases/. Write a canvas, then run doan check again."})
+		add(Finding{Severity: "warning", Code: "no_canvases", Path: ".doan/canvases/", Message: "No canvases found under .doan/canvases/ or .doan/ds/. Write a canvas, then run doan check again."})
 	}
 	for path, message := range in.Unparsable {
 		add(Finding{Code: "unparsable_canvas", Path: path, Message: "Cannot parse canvas: " + message})

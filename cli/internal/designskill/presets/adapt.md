@@ -8,7 +8,7 @@ Use this preset when the user asks for mobile, tablet, desktop, print, or email 
 
 - Find the target. For pointing words like "this screen", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
 - Confirm the target contexts: which widths, devices, orientations, input methods, and situations (on the go or at a desk, quick glance or focused reading). Ask when the request does not say and it would change the result; do not adapt to every size by default.
-- Read the design system: token CSS (`doan config --json` shows `tokenCss`), existing components and their responsive variants, a design rules document if the project has one, and the `design-system` canvas (`.doan/canvases/design-system.html`) if it exists. Reuse existing breakpoints and navigation patterns before inventing new ones.
+- Read the design system: token CSS (`doan config --json` shows `tokenCss`), existing components and their responsive variants, a design rules document if the project has one, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present. Reuse existing breakpoints and navigation patterns before inventing new ones.
 - Read the code the frame implements (`data-doan-implements`): existing breakpoints, container queries, and responsive components show what the product already does.
 - When product or platform context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
 

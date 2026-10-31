@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="colors">
+  <meta name="doan:width" content="1600">
+  <title>Colors</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-6); font-family: var(--font-body); font-size: var(--type-body-size); color: var(--color-text); background: var(--color-surface-muted); }
+    main { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+    [data-doan-frame] { width: 440px; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius); }
+    h1 { margin: 0 0 var(--space-4); font-size: var(--type-title-size); }
+    .swatch { display: flex; gap: var(--space-4); align-items: center; padding: var(--space-2) 0; }
+    .chip { width: 48px; height: 48px; border: 1px solid var(--color-text-muted); border-radius: var(--radius); }
+  </style>
+</head>
+<body>
+<p>Colors reference for Ledgerly, based on styles/tokens.css. Sample text is placeholder copy; the rules are in DESIGN.md.</p>
+<main>
+<section data-doan-frame="colors" data-doan-title="Colors" data-doan-implements="styles/tokens.css">
+<h1 data-doan-id="colors-heading">Colors</h1>
+<div class="swatch" data-doan-id="swatch-surface"><span class="chip" style="background: var(--color-surface)"></span><code>--color-surface</code> card and input background, text on primary buttons</div>
+<div class="swatch" data-doan-id="swatch-surface-muted"><span class="chip" style="background: var(--color-surface-muted)"></span><code>--color-surface-muted</code> no component; this canvas's page background</div>
+<div class="swatch" data-doan-id="swatch-text"><span class="chip" style="background: var(--color-text)"></span><code>--color-text</code> input and secondary button text</div>
+<div class="swatch" data-doan-id="swatch-text-muted"><span class="chip" style="background: var(--color-text-muted)"></span><code>--color-text-muted</code> input and secondary button borders</div>
+<div class="swatch" data-doan-id="swatch-primary"><span class="chip" style="background: var(--color-primary)"></span><code>--color-primary</code> primary button background, focus outline</div>
+<div class="swatch" data-doan-id="swatch-danger"><span class="chip" style="background: var(--color-danger)"></span><code>--color-danger</code> input error border and message</div>
+<div class="swatch" data-doan-id="swatch-success"><span class="chip" style="background: var(--color-success)"></span><code>--color-success</code> not used by a component yet</div>
+<div class="swatch" data-doan-id="swatch-primary-hover"><span class="chip" style="background: var(--color-primary-hover)"></span><code>--color-primary-hover</code> primary button hover, excluding disabled buttons</div>
+</section>
+</main></body></html>

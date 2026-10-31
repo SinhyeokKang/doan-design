@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type Ref } from "react";
-import { Hash, Layers, Palette, Search } from "lucide-react";
+import { Hash, Layers, PanelsTopLeft, Search, SwatchBook } from "lucide-react";
+import { canvasDir } from "../formats/canvasPath";
 import type { FolderEntry } from "../main/view";
 import { tabKey } from "./HomeComposerView";
 import { cardRow, groupProjects } from "./homeCards";
@@ -57,7 +58,8 @@ export function quickOpenKey(key: string, active: number, count: number): { kind
 
 const TABS: readonly { kind: SearchKind; label: string; Icon: typeof Layers }[] = [
   { kind: "all", label: "All", Icon: Layers },
-  { kind: "canvas", label: "Canvases", Icon: Palette },
+  // The tab holds both kinds of canvas, so it takes the plain canvas icon (design-system-canvases Q8).
+  { kind: "canvas", label: "Canvases", Icon: PanelsTopLeft },
   { kind: "frame", label: "Frames", Icon: Hash },
 ];
 
@@ -192,7 +194,7 @@ export function QuickOpenList({ emptyText = "No canvases or frames match", id, l
           {group.rows.map(result => {
             const index = at++;
             const parts = resultParts(result, group.title);
-            const Icon = parts.icon === "frame" ? Hash : Palette;
+            const Icon = parts.icon === "frame" ? Hash : canvasDir(result.path) === "ds" ? SwatchBook : PanelsTopLeft;
             return <div className="qo-item" role="option" id={optionId(id, result)} aria-selected={index === active} aria-label={parts.accessibleName} key={resultKey(result)}
               onMouseMove={() => { if (index !== active) activate(index); }} onClick={() => pick(result)}>
               <span className="qo-icon" aria-hidden="true"><Icon /></span>

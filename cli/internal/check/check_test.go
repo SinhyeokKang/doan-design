@@ -337,7 +337,7 @@ func TestNoCanvasesWarning(t *testing.T) {
 			if len(fs) != tt.want {
 				t.Fatalf("findings: %+v", fs)
 			}
-			if len(fs) > 0 && (fs[0].Severity != "warning" || fs[0].Path != ".doan/canvases/" || fs[0].Message != "No canvases found under .doan/canvases/. Write a canvas, then run doan check again.") {
+			if len(fs) > 0 && (fs[0].Severity != "warning" || fs[0].Path != ".doan/canvases/" || fs[0].Message != "No canvases found under .doan/canvases/ or .doan/ds/. Write a canvas, then run doan check again.") {
 				t.Fatal(fs)
 			}
 		})

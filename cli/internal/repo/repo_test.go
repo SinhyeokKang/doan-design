@@ -143,6 +143,24 @@ func TestCanvases(t *testing.T) {
 		t.Fatalf("%v %v", got, err)
 	}
 }
+func TestCanvasesIncludesDesignSystem(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{".doan/ds/button.html", ".doan/ds/color/Tokens.HTML", ".doan/ds/.hidden.html", ".doan/ds/.hide/x.html", ".doan/ds/x.css"} {
+		put(t, root, p, "")
+	}
+	got, err := Canvases(root)
+	want := []string{".doan/ds/button.html", ".doan/ds/color/Tokens.HTML"}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("ds only: %v %v", got, err)
+	}
+	put(t, root, ".doan/canvases/home.html", "")
+	put(t, root, ".doan/canvases/z.html", "")
+	got, err = Canvases(root)
+	want = []string{".doan/canvases/home.html", ".doan/canvases/z.html", ".doan/ds/button.html", ".doan/ds/color/Tokens.HTML"}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("both: %v %v", got, err)
+	}
+}
 func TestCommentFiles(t *testing.T) {
 	root := t.TempDir()
 	got, err := CommentFiles(root)
@@ -160,7 +178,7 @@ func TestCommentFiles(t *testing.T) {
 	}
 }
 func TestEnumerationSkipsSymlinkRoots(t *testing.T) {
-	for _, path := range []string{".doan/canvases", ".doan/comments"} {
+	for _, path := range []string{".doan/canvases", ".doan/ds", ".doan/comments"} {
 		t.Run(path, func(t *testing.T) {
 			root := t.TempDir()
 			outside := t.TempDir()
@@ -170,7 +188,7 @@ func TestEnumerationSkipsSymlinkRoots(t *testing.T) {
 				t.Fatal(err)
 			}
 			link(t, outside, filepath.Join(root, path))
-			if path == ".doan/canvases" {
+			if path != ".doan/comments" {
 				got, err := Canvases(root)
 				if err != nil || len(got) != 0 {
 					t.Fatalf("%v %v", got, err)
