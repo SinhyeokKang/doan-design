@@ -20,7 +20,7 @@ export type ThreadItem =
   | { kind: "noReply"; key: string }
   // A run of activities folds into one line: the latest activity while it runs, "N steps" once the turn moved on.
   | { kind: "activity"; key: string; running: boolean; head: string; steps: ActivityStep[] }
-  | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: string | null }
+  | { kind: "permission"; key: string; seq: number; requestId: string; summary: string; options: PermissionOption[]; status: "pending" | "answered" | "expired"; answer: PermissionOption | null }
   | { kind: "end"; key: string; seq: number; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null };
 
@@ -130,14 +130,14 @@ export function threadItems(events: readonly ThreadEvent[], root: string): Threa
         break;
       }
       case "permission.request": {
-        const item = { kind: "permission" as const, key: `p${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, options: event.options, status: "pending" as const, answer: null };
+        const item = { kind: "permission" as const, key: `p${event.requestId}`, seq: event.seq, requestId: event.requestId, summary: event.summary, options: event.options, status: "pending" as const, answer: null as PermissionOption | null };
         permissions.set(event.requestId, item); askTurn.set(event.requestId, event.turnId);
         push(item);
         break;
       }
       case "permission.resolved": {
         const ask = permissions.get(event.requestId);
-        if (ask) { ask.status = "answered"; ask.answer = ask.options.find(o => o.id === event.optionId)?.label ?? null; }
+        if (ask) { ask.status = "answered"; ask.answer = ask.options.find(o => o.id === event.optionId) ?? null; }
         break;
       }
       case "turn.done":

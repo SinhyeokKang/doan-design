@@ -12,6 +12,9 @@ const APP = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC = join(APP, "src");
 const FORBIDDEN_FILES = [join(SRC, "formats/validate.ts")];
 const NODE = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
+// Modules the app does not import yet but a later screen will: the walk starts from them too, so a value import
+// added now cannot wait for that screen to fail (POSTMORTEM 2026-10-30; buzz-project places the thread).
+const EXTRA_ROOTS = [join(SRC, "renderer/ConversationThread.tsx")];
 
 function entries(): string[] {
   // Every renderer entry electron-vite builds is an HTML file whose module script starts the closure.
@@ -46,7 +49,7 @@ function valueImports(source: string, lang: "ts" | "tsx" = "ts"): string[] {
 
 function closure(): { files: Map<string, string | null>; node: { spec: string; from: string }[]; ajv: { spec: string; from: string }[] } {
   const files = new Map<string, string | null>(), node: { spec: string; from: string }[] = [], ajv: { spec: string; from: string }[] = [];
-  const queue = entries();
+  const queue = [...entries(), ...EXTRA_ROOTS];
   for (const entry of queue) files.set(entry, null);
   while (queue.length > 0) {
     const file = queue.shift()!;
@@ -99,6 +102,7 @@ describe("renderer import closure", () => {
     const { files, node, ajv } = closure();
     // A sanity floor: the walk follows App's imports, so a broken parser cannot pass by finding nothing.
     expect(files.has(join(SRC, "renderer/SettingsAbout.tsx"))).toBe(true);
+    expect(files.has(join(SRC, "renderer/threadItems.ts"))).toBe(true);
     expect(FORBIDDEN_FILES.filter(file => files.has(file)).map(file => chain(files, file))).toEqual([]);
     expect(ajv).toEqual([]);
     expect(node).toEqual([]);

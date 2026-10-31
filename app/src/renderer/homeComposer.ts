@@ -442,7 +442,7 @@ export function attachmentLimit(existing: number, items: readonly { pasted: bool
 
 function movedNotice(a: AttachmentDraft): string { return `${a.pasted ? "Pasted image" : a.name} was moved or deleted. Remove it, or attach it again.`; }
 
-function formatSize(bytes: number): string {
+export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

@@ -85,7 +85,7 @@ describe("threadItems", () => {
     expect(threadItems(events, ROOT).slice(1).map(i => i.kind === "permission" && i.status)).toEqual(["pending", "pending"]);
     events.push(ev("t1", { type: "permission.resolved", requestId: "r1", optionId: "a" }), ev("t1", { type: "turn.failed", code: "process_exited" }));
     const items = threadItems(events, ROOT);
-    expect(items[1]).toMatchObject({ key: "pr1", status: "answered", answer: "Allow once" });
+    expect(items[1]).toMatchObject({ key: "pr1", status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } });
     expect(items[2]).toMatchObject({ key: "pr2", status: "expired", answer: null });
     expect(items[3]).toEqual({ kind: "end", key: "e6", seq: 6, end: { kind: "failed", code: "process_exited" } });
   });
