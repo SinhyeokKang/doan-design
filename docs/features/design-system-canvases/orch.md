@@ -67,6 +67,8 @@
 
 (회차마다 모델별 결과, 못 미친 기준, preset 수정, 고른 벌과 이유를 적는다.)
 
+- 반복 종료 조건(사용자 "완벽해질 때까지 루프하자"): 한 회차에서 남길 벌이 품질 기준을 모두 채우고, 지휘자가 찾은 결함이 0건이다. 그때까지 preset 수정 → 두 모델 재생성 → 판정을 반복한다.
+
 ### 1회차 (base `7cc18893`, BW 통합 전)
 
 - 판정 방법: 두 worktree의 `.doan/ds/`를 정적 서버와 Chromium으로 렌더해 깨진 요청, console error, 로드된 글꼴, 프레임 밖으로 넘친 요소를 세고, 캔버스 스크린숏을 지휘자가 직접 봤다(color, typography, button, notice, shell·sidebar 계열). 근거는 지휘자 scratchpad의 `judge/r1-c`, `judge/r1-x`에 있다.
