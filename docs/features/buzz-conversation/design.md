@@ -12,7 +12,7 @@
 - `docked-composer`: capsule·box, 칩, 전송 중, `project_busy` 이유 줄.
 - `thread-messages`, `thread-activity`, `thread-states`(권한 요청·턴 끝), `thread-moves`(승격·보관·복구·읽기 실패).
 - `docked`와 스레드 프레임은 `buzz-project`가 Overview에 놓을 때 비교한다.
-- `thread-compare`: 결정용 임시 프레임. 같은 대화를 A(지금 초안)와 B(Buzz `ec1b9acc5` 기준)로 그렸다. 사용자가 하나를 고르면 고른 쪽을 03~06에 반영하고 이 프레임은 지운다.
+- 스레드 스타일은 A(지금 초안)·B(Buzz `ec1b9acc5` 기준)·C(합친 안)를 같은 대화로 비교한 뒤 C로 정했다(2026-10-31 user). 비교 프레임은 지웠다.
 
 초안을 그리면서 정한 것:
 
@@ -30,6 +30,13 @@
 - 스레드 안 노티스(권한 요청, 턴 끝, 읽기 실패)는 버튼을 본문 아래 줄에 두고 텍스트 시작선에 왼쪽 정렬한다. 폭(720·360)과 버튼 수가 달라도 본문 폭이 줄지 않는다(round 2).
 - 실패하거나 멈춘 턴은 "Edit and resend"로 마지막 요청을 같은 화면의 docked 입력창에 되돌린다. 다른 초안이 있으면 "Replace your draft?"를 묻는다.
 - 사람 메시지는 오른쪽에 연한 액센트 버블로 보인다. 일반 텍스트이고 줄바꿈을 지킨다. 보낸 파일 칩은 삭제 버튼이 없으므로 끝쪽 패딩을 따로 둔다(6/16/6/6, 간격 12).
+- C는 A의 일반 텍스트 에이전트 답(16px), inset 코드 블록, 버블 아래 첨부에 B의 다섯 가지를 더했다. Buzz에서 읽은 파일은 `features/messages/Messages.module.css`, `MessageRow.tsx`, `MessageMarkdown.tsx`, `features/agents/ActivityTranscript.*`, `ActivityExpansion.tsx`다.
+  - 활동 단계 행: 종류 아이콘(읽기·명령·수정), 동사, mono 경로.
+  - 표: 1px 테두리 상자에 머리 행을 `affordance-subtle`로 채운다. 셀 4/8, 모서리 `radius-control`.
+  - 제목: medium 굵기.
+  - 간격: 문단 바로 뒤 목록은 8.
+  - Copy: 코드 블록에 hover하거나 안쪽에 포커스가 있을 때만 보인다.
+  - Buzz와 달리 doan 규칙을 지킨 것: 인용에 시작 쪽 막대를 두지 않는다, mono는 번들하지 않는다, 내 메시지는 액센트 버블, 작업 중은 DS 스피너다. 에이전트 답을 버블에 넣지 않는 것은 B를 그려 보고 정했다. 버블에 넣으면 폭이 60ch로 묶이고 코드·표가 한 겹 더 들어간다.
 - 에이전트 메시지는 패널 위에 Markdown으로 보인다(round 3).
   - 그리는 요소: 문단, 굵게·기울임, 링크, 목록·번호 목록(중첩), 제목(h1·h2는 body-lg, 그 아래는 label semibold), 인라인 코드, 코드 블록(가로 스크롤과 Copy 버튼), 표(가로 스크롤), 인용(inset 채움, 시작 쪽 보더 없음), 구분선.
   - 막는 것: 원시 HTML과 이미지. 에이전트 출력은 신뢰할 수 없는 데이터다(코멘트 본문을 텍스트로만 보이는 ARCHITECTURE §2와 같은 기준).
