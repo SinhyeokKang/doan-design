@@ -95,3 +95,4 @@
 - A2 수정 라운드 2 완료(`8e6a592b..ae1e47db`, 테스트 5363개·verify 통과). 재리뷰 RA2c(Codex)를 시작했다.
 - RA2c 재리뷰: R1·Y3 수정 확인, 🔴0·🟡0·⚪1(빈 대기열이 예산에 남음). ⚪1은 작아서 A2 수정 라운드 3으로 바로 고친다.
 - A2 수정 라운드 3(⚪1) 뒤 A2 10커밋을 `ae78df57..c19a2c99`로 통합했다. 통합 HEAD `c19a2c99`에서 `verify.mjs` PASS. A2 워커들을 release하고 worktree `bc-a2`를 제거했다. 증거는 `.scratch/buzz-conversation/a2/`에 있다. 남은 reclaimable 워커는 없다.
+- D2 로그인 승인은 지휘자가 ego-browser로 먼저 직접 시도한다(사용자). 막히면 사용자에게 넘긴다.
