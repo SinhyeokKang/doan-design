@@ -38,7 +38,7 @@ func Scope(root string, config Config) ([]string, error) {
 		seen[p] = true
 		scope = append(scope, p)
 	}
-	for _, p := range append([]string{".doan/canvases", ".doan/assets"}, config.Serve...) {
+	for _, p := range append([]string{".doan/canvases", ".doan/ds", ".doan/assets"}, config.Serve...) {
 		state, real, err := Resolve(root, root, p)
 		if err != nil {
 			return nil, err
@@ -70,5 +70,6 @@ func Scope(root string, config Config) ([]string, error) {
 func MetadataPath(p string) bool {
 	return (p == ".doan" || strings.HasPrefix(p, ".doan/")) &&
 		!(p == ".doan/canvases" || strings.HasPrefix(p, ".doan/canvases/") ||
+			p == ".doan/ds" || strings.HasPrefix(p, ".doan/ds/") ||
 			p == ".doan/assets" || strings.HasPrefix(p, ".doan/assets/"))
 }
