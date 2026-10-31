@@ -63,16 +63,22 @@ describe("DraftStore", () => {
   });
   it.each([
     ["an unknown version", { v: 2, queued: {}, returned: {} }],
-    ["a malformed conversation id", { v: 1, queued: { "../x": [] }, returned: {} }],
     ["an item without text", { v: 1, queued: { [A]: [{ itemId: "q1", anchors: [], attachments: [] }] }, returned: {} }],
     ["anchors that do not match the text", { v: 1, queued: { [A]: [{ itemId: "q1", text: "{{2}}", anchors: [anchor], attachments: [] }] }, returned: {} }],
     ["a relative attachment path", { v: 1, queued: {}, returned: { [A]: { text: "x", anchors: [], attachments: [{ ...file, path: "a.png" }], reason: "restarted" } } }],
-  ])("treats %s as a damaged file", (_name, value) => {
+  ])("treats %s as damaged, refusing to queue there and keeping the file", (_name, value) => {
     const dir = directory(); writeFileSync(join(dir, "drafts.json"), JSON.stringify(value));
     vi.spyOn(console, "error").mockImplementation(() => {});
     const store = new DraftStore(dir);
     expect(() => store.add(A, { itemId: "q1", text: "one", anchors: [], attachments: [] })).toThrow();
     expect(readFileSync(join(dir, "drafts.json"), "utf8")).toBe(JSON.stringify(value));
+  });
+  it("leaves an entry under a malformed conversation id unread and on disk while the rest works", () => {
+    const dir = directory(); writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: { "../x": [] }, returned: {} }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = new DraftStore(dir);
+    store.add(A, { itemId: "q1", text: "one", anchors: [], attachments: [] });
+    expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).queued["../x"]).toEqual([]);
   });
   it("starts empty without a file and works in memory without a directory", () => {
     expect(new DraftStore(directory()).queued(A)).toEqual([]);

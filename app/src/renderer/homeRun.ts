@@ -45,9 +45,11 @@ const RANK: Record<StripState["kind"], number> = { permission: 3, starting: 2, w
 
 // Text deltas only tell the strip the agent started answering; one per turn is kept.
 function isText(event: ConversationEvent) { return event.type === "message.delta" || event.type === "message.done"; }
-// A project conversation working in its root: Home's reason line and the removal guard count it, as main's project
-// limit does. Main binds a canvas only after a turn ends, so a running conversation with a canvas is a canvas one.
-const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.phase !== "ended" && !c.canvas;
+// A project conversation main still works on in its root: Home's reason line and the removal guard count it, as main's
+// project limit does (orch decision 21). working also covers what the history cannot show: a turn waiting for its
+// judgement, a queue about to go out, a send waiting for the previous process. Main binds a canvas only after a turn
+// ends, so a working conversation with a canvas is a canvas one.
+const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.working && !c.canvas;
 // Must equal main's BIND_GRACE_MS (main/conversation/project.ts), which the renderer cannot import (POSTMORTEM
 // 2026-10-30); homeRun.test.ts compares the two. Main still counts a project conversation this long after its turn
 // ends and binds the canvas the turn made in it, so a refusal and a late folder update both live this long.
@@ -74,9 +76,10 @@ export class HomeRun {
   // marker; `from` is null while main has not answered. The reply and the list notice come in either order
   // (POSTMORTEM 2026-10-26).
   private seen = new Map<string, { root: string; from: number | null }>();
-  // When main last refused a start in a root as project_busy. With no listed conversation holding the root (main
-  // counts one for BIND_GRACE_MS after its turn ends), the reason line shows without Open for that long.
-  private refused = new Map<string, number>();
+  // When main last refused a start in a root as project_busy, and the list read last asked for then. The reason line
+  // shows without Open until a list read asked for after the refusal arrives, which names the holder or none (at most
+  // BIND_GRACE_MS, should that read fail).
+  private refused = new Map<string, { at: number; after: number }>();
   // Conversations from an earlier run taken from the list: a turn left unfinished there was folded by main.
   private claimed = new Set<string>();
   private claiming = new Set<string>();
@@ -135,9 +138,9 @@ export class HomeRun {
     if ("error" in result) {
       // The list had not shown the conversation that holds the root yet; read it to name that conversation.
       if (result.error === "project_busy") {
-        const at = Date.now();
-        this.refused.set(request.root, at);
-        setTimeout(() => { if (this.refused.get(request.root) === at) { this.refused.delete(request.root); this.host.changed(); } }, BIND_GRACE_MS);
+        const refusal = { at: Date.now(), after: this.readCount.get(request.root) ?? 0 };
+        this.refused.set(request.root, refusal);
+        setTimeout(() => { if (this.refused.get(request.root) === refusal) { this.refused.delete(request.root); this.host.changed(); } }, BIND_GRACE_MS);
         this.readList(request.root);
       }
       this.host.changed();
@@ -268,7 +271,7 @@ export class HomeRun {
       if (holder) running.set(root, { conversationId: holder.conversationId, waiting: holder.phase === "waiting" });
     }
     const now = Date.now();
-    for (const [root, at] of this.refused) if (!running.has(root) && now - at <= BIND_GRACE_MS) running.set(root, { conversationId: "", waiting: false });
+    for (const [root, { at }] of this.refused) if (!running.has(root) && now - at <= BIND_GRACE_MS) running.set(root, { conversationId: "", waiting: false });
     return running;
   }
   strip(root: string | null): { conversation: HomeConversation; state: StripState } | null {
@@ -333,6 +336,7 @@ export class HomeRun {
   private applyList(root: string, n: number, list: readonly ConversationSummary[]): void {
     this.lists = new Map(this.lists).set(root, list);
     this.revision++;
+    if ((this.refused.get(root)?.after ?? Infinity) < n) this.refused.delete(root);
     for (const [id, mark] of this.seen) if (mark.root === root && mark.from !== null && n >= mark.from) this.seen.delete(id);
     // The canvas main bound each conversation to; the strip's Done names it and Open goes there.
     const rows = this.rows(root);
@@ -397,8 +401,9 @@ export class HomeRun {
       const list = merged.get(c.root) ?? [];
       const phase = c.phase === "permission" ? "waiting" : RUNNING.includes(c.phase) ? "running" : "ended";
       const at = list.findIndex(s => s.conversationId === c.conversationId);
-      if (at !== -1) list[at] = { ...list[at]!, phase };
-      else list.push({ conversationId: c.conversationId, title: "", state: "current", owner: "doan", provider: c.provider, fromHome: true, phase, unseen: false, queued: 0, lastActivityAt: this.events.get(c.conversationId)?.at(-1)?.at ?? "", preview: "" });
+      // A turn the events say runs is worked on whatever the lagging list says; after it, main says when work ends.
+      if (at !== -1) list[at] = { ...list[at]!, phase, working: list[at]!.working || phase !== "ended" };
+      else list.push({ conversationId: c.conversationId, title: "", state: "current", owner: "doan", provider: c.provider, fromHome: true, phase, unseen: false, queued: 0, working: phase !== "ended", lastActivityAt: this.events.get(c.conversationId)?.at(-1)?.at ?? "", preview: "" });
       merged.set(c.root, list);
     }
     return merged;

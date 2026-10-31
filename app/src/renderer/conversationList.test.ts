@@ -5,7 +5,7 @@ import { slotKey } from "./homeConversations";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
-  phase: "ended", unseen: false, queued: 0, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
+  phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch,
 });
 const rows = new Map([["/r/doan", [{ path: ".doan/canvases/a.html", id: "a" }, { path: ".doan/canvases/plain.html" }]]]);
 const canvases = (root: string) => rows.get(root) ?? [];

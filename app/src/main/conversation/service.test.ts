@@ -496,14 +496,14 @@ it("never adds Home's paragraph to a FirstPrompt conversation or an entry withou
   const h = homeFixture();
   const id = (await h.service.start({ ...homeRequest, subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." })).conversationId;
   expect(h.store.list()[0]).not.toHaveProperty("fromHome");
-  h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+  h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2](); h.service.refreshed("/repo", []);
   await h.service.send(id, "again", []);
   expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
   // An entry written before the mark existed (a Home start of an earlier build) reads and gets no paragraph.
   h.service.receive(id, { type: "turn.done" }); h.passBindingWindow();
   const second = (await h.service.start(homeRequest)).conversationId;
   h.store.save(h.store.list().map(m => { if (m.conversationId !== second) return m; const { fromHome: _mark, ...old } = m; return old; }));
-  h.service.receive(second, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+  h.service.receive(second, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); h.service.refreshed("/repo", []);
   await h.service.send(second, "again", []);
   expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
 });
@@ -1037,16 +1037,13 @@ describe("queue", () => {
     await h.service.stopRuns("claude");
     expect(h.service.takeDraft(id)).toMatchObject({ text: "one", reason: "interrupted" });
   });
-  it("hands the queue back instead of sending more than ten attachments together", async () => {
-    const files: QueueFiles = { reclaim: vi.fn(() => ({ recheck: () => [], sent: () => {} })), consume: vi.fn() };
-    const h = homeFixture([], { files });
+  it("refuses, when it is queued, a message that would take the queue past ten attachments (fix round 1, decision 22)", async () => {
+    const h = homeFixture();
     const id = (await h.service.start(canvasStart)).conversationId;
     const six = (from: number) => Array.from({ length: 6 }, (_, i) => file(from + i));
     h.service.queue(id, { text: "one", anchors: [], attachments: six(0), ids: six(0).map(f => f.name) });
-    h.service.queue(id, { text: "two", anchors: [], attachments: six(6), ids: six(6).map(f => f.name) });
-    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
-    await vi.waitFor(() => expect(h.service.takeDraft(id)).toMatchObject({ text: "one\n\ntwo", attachments: [...six(0), ...six(6)], reason: "attachment_limit" }));
-    expect(files.reclaim).not.toHaveBeenCalled(); expect(userMessages(h, id)).toHaveLength(1);
+    expect(() => h.service.queue(id, { text: "two", anchors: [], attachments: six(6), ids: six(6).map(f => f.name) })).toThrow("queue_limit");
+    expect(h.service.list("/repo")[0]!.queued).toBe(1);
   });
   it("hands the queue back with attachment_missing when a queued file went away, and sends the files that remain otherwise", async () => {
     let gone = true;
@@ -1106,14 +1103,15 @@ describe("queue and judgement review fixes", () => {
   const a = { path: ".doan/canvases/a.html", id: "a" };
   const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
   const userMessages = (h: ReturnType<typeof homeFixture>, id: string) => h.store.read(id).filter(e => e.type === "user.message");
-  it("keeps the root while a refused send carries a turn not judged yet, so another conversation's canvas never goes to it", async () => {
+  it("keeps the root while a send waits for its earlier turn's judgement and is then refused, so another conversation's canvas never goes to it", async () => {
     const h = homeFixture();
     const first = (await h.service.start(homeRequest)).conversationId;
     h.service.receive(first, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     h.prepare.mockRejectedValueOnce(new Error("not_logged_in"));
-    await expect(h.service.send(first, "again", [])).rejects.toThrow("not_logged_in");
+    const refused = h.service.send(first, "again", []);
     await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
     h.service.refreshed("/repo", []);
+    await expect(refused).rejects.toThrow("not_logged_in");
     const second = (await h.service.start(homeRequest)).conversationId;
     h.listed.push({ path: ".doan/canvases/made.html" });
     h.service.refreshed("/repo", [".doan/canvases/made.html"]);

@@ -13,13 +13,13 @@ const legacy: ConversationMetadata = { conversationId: "c", root: "/repo", canva
   owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/home/.codex", cwd: "/repo" } };
 const started: EventPayload[] = [{ type: "user.message", text: "Make a pricing page", anchors: [] }, { type: "turn.started" }];
 const permission: EventPayload = { type: "permission.request", requestId: "r", tool: "Bash", summary: "Run npm test", options: [{ id: "allow", label: "Allow", kind: "allow" }] };
-const live = { live: true, queued: 0 };
-const restarted = { live: false, queued: 0 };
+const live = { live: true, queued: 0, working: false };
+const restarted = { live: false, queued: 0, working: false };
 describe("conversationSummary", () => {
   it("summarizes a doan conversation without leaking account details", () => {
-    const s = conversationSummary(doan, { ok: true, events: history(...started, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" }) }, { live: true, queued: 2 });
+    const s = conversationSummary(doan, { ok: true, events: history(...started, { type: "message.done", messageId: "m", text: "Done." }, { type: "turn.done" }) }, { live: true, queued: 2, working: true });
     expect(s).toEqual({ conversationId: "c", title: "Make a pricing page", state: "current", owner: "doan", provider: "claude", model: "opus", effort: "high", fromHome: true,
-      phase: "ended", unseen: true, queued: 2, lastActivityAt: at(4), preview: "Done." });
+      phase: "ended", unseen: true, queued: 2, working: true, lastActivityAt: at(4), preview: "Done." });
   });
   it("includes a legacy external conversation with its canvas and no choice", () => {
     const s = conversationSummary(legacy, { ok: true, events: history(...started, { type: "turn.done" }) }, restarted);

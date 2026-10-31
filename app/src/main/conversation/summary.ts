@@ -8,6 +8,10 @@ export interface ConversationSummary {
   owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fromHome: boolean;
   // waiting: an unanswered permission request. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
+  // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a project turn
+  // waiting for its judgement, a queue about to go out, or a send waiting for the previous process. A project
+  // conversation that works holds its root (project_busy).
+  working: boolean;
   // The history could not be read (corrupt, over the size limit, or a line from a newer build); only this row fails.
   readError?: true;
   // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
@@ -18,11 +22,11 @@ export interface ConversationSummary {
 export const PREVIEW_CHARS = 140;
 const COMMAND = "Running a command";
 // live: this run holds the conversation, so an unfinished turn is still running rather than folded as crashed.
-export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number }): ConversationSummary {
+export function conversationSummary(m: ConversationMetadata, read: { ok: true; events: readonly ConversationEvent[] } | { ok: false }, live: { live: boolean; queued: number; working: boolean }): ConversationSummary {
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: m.state,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
-    fromHome: m.fromHome === true, queued: live.queued,
+    fromHome: m.fromHome === true, queued: live.queued, working: live.working,
   };
   if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);

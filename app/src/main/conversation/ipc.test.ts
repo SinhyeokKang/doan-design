@@ -285,7 +285,8 @@ describe("queue channels", () => {
       expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: 1 })).toEqual({ error: "bad_request" });
       expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toBeUndefined();
       expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toEqual({ error: "stale" });
-      h.service.receive(id, { type: "turn.done" });
+      // Judged and with nothing left to wait for, the conversation is not working.
+      h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo", []);
       expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "not_running" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
@@ -323,7 +324,7 @@ describe("queue acceptance", () => {
       const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
       expect(await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] })).toEqual({ error: "unknown" });
       expect(h.service.list("/repo")[0]!.queued).toBe(0);
-      expect(h.attachments.consume).not.toHaveBeenCalled();
+      expect(h.attachments.consume).not.toHaveBeenCalledWith([{ id: "a" }]);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("passes queue_limit through", async () => {

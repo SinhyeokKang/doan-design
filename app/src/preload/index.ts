@@ -77,7 +77,10 @@ const api = {
   // canvas_not_found when its canvas is gone or its ID is listed twice.
   sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
   // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
-  // message after turn.done; text, anchors and attachments only (model and effort are bad_request). main holds the
+  // message after turn.done; text, anchors and attachments only (model and effort are bad_request). queue_limit: the
+  // queue and the conversation's returned draft together would pass one message (32,768 characters, 32 anchors, 10
+  // attachments) or the drafts file's size. Removing an item or taking a draft that cannot be saved answers an error
+  // and keeps it. main holds the
   // attachments from here on. A failed or stopped turn, a refused queued send or a restart hands the queue back as a
   // draft: the list row then has returnedDraft, and takeConversationDraft hands it over once (attachments as recorded
   // paths, for attachmentsFromPaths). Each change is announced with onConversationListChanged.
@@ -87,6 +90,8 @@ const api = {
   takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
   // One summary per conversation main keeps for this project, current and archived; a row whose history cannot be
   // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
+  // working: main still works on it (preparing, running, waiting for an answer, judging its turn, about to send its
+  // queue, waiting for its previous process); a project conversation that works holds its root. phase is the history's.
   listConversations: (request: { root: string }): Promise<ConversationSummary[] | ConversationError> => ipcRenderer.invoke("conversation:list", request),
   // The person has seen this conversation up to seq; main cuts it to the last seq and never moves it back.
   markConversationSeen: (request: { conversationId: string; seq: number }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:markSeen", request),

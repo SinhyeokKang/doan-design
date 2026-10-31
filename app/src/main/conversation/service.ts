@@ -72,9 +72,10 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
 // A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
-// A turn not judged when the conversation's next turn is accepted carries over into it with its snapshot. Kept apart
-// from the live entries, which a send replaces before it is accepted: until judged, it keeps its root (checkProject).
-interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; endedAt?: number; timer?: ReturnType<typeof setTimeout> }
+// Only one turn's own grounds count: the conversation's next send waits for this judgement (waiters) and starts with a
+// new snapshot. Kept apart from the live entries, which a send replaces before it is accepted: until judged, it keeps
+// its root (checkProject).
+interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; endedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
 export class ConversationService {
@@ -90,6 +91,9 @@ export class ConversationService {
   // The attachment ids of each queued message, for its send; they mean nothing after a restart, so they stay here.
   private queuedIds = new Map<string, { owner: string; ids: string[] }>();
   private evidence = new Map<string, Evidence>();
+  // Sends waiting for their conversation's previous turn to be judged.
+  // A Stop or a sign-out of its provider refuses such a send as busy, as it refuses one waiting for the previous process.
+  private judging = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
   private drafts: DraftStore;
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}) {
@@ -160,7 +164,7 @@ export class ConversationService {
       attached?.sent();
       const saved = this.store.acceptStart([...entries.map(m => replaced.includes(m) ? { ...m, state: "archived" as const } : m), metadata], id, writes);
       live.accepted = true;
-      if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set() });
+      if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), waiters: [] });
       for (const old of replaced) this.archive(old.conversationId);
       for (const event of saved) this.deliver(event);
       this.changed(request.root);
@@ -187,6 +191,7 @@ export class ConversationService {
   }
   private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments): Promise<void> {
     // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
+    const judged = this.judgement(id); if (judged) await judged;
     const exiting = this.previousExit(id); if (exiting) await exiting;
     let metadata = this.metadata(id); if (this.quitting) throw new Error("busy");
     const restoring = metadata.state === "archived";
@@ -201,6 +206,7 @@ export class ConversationService {
     const live: Live = (existing?.runner && !existing.closed ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
     if (project) live.project = project; else delete live.project;
+    this.changedOf(id);
     const chosen = extras.model ? choice(extras) : choice(metadata);
     const expected = restoring ? "archived" : "current";
     let reserved = false, opening = false, input: Prepared | undefined, leased = false;
@@ -231,11 +237,9 @@ export class ConversationService {
       // Home's paragraph only while the conversation has no canvas: a promoted one works on its canvas.
       const prompt = turnPrompt(anchors, text, metadata, { home: metadata.fromHome === true && !metadata.canvas, attachments }); if (prompt === null) throw new Error("bad_request");
       // The choice and snapshot are written before the turn's events: a failed append then leaves only a saved choice.
-      // An entry without seenSeq has had all of its history seen; from now on its ends count. A project turn not
-      // judged yet keeps its snapshot, so a canvas it made still counts as new in the turn it carries into.
+      // An entry without seenSeq has had all of its history seen; from now on its ends count.
       const projectTurn = project !== undefined && !metadata.canvas;
-      const carried = projectTurn ? this.evidence.get(id) : undefined;
-      const canvasesAtStart = projectTurn ? carried?.snapshot ?? this.snapshot(metadata.root) : metadata.canvasesAtStart;
+      const canvasesAtStart = projectTurn ? this.snapshot(metadata.root) : metadata.canvasesAtStart;
       const seenSeq = metadata.seenSeq ?? this.store.read(id).at(-1)?.seq ?? 0;
       const { model: _model, effort: _effort, canvasesAtStart: _snapshot, ...rest } = metadata;
       const updated: ConversationMetadata = { ...rest, ...chosen, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
@@ -255,10 +259,7 @@ export class ConversationService {
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
         this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       }
-      if (projectTurn) {
-        if (carried) { clearTimeout(carried.timer); delete carried.timer; delete carried.endedAt; carried.turnId = live.turnId; }
-        else this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set() });
-      }
+      if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), waiters: [] });
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
@@ -270,6 +271,7 @@ export class ConversationService {
       if (!leased) freeLease(input);
       // Messages queued behind a send that never ran have nothing left to follow; a queue's own send hands them back.
       if (!this.working(id)) this.giveBack(id, reason(error));
+      this.changedOf(id);
       if (opening) void live.runner?.close(); throw error;
     }
   }
@@ -301,14 +303,39 @@ export class ConversationService {
     let wake!: () => void;
     const woken = new Promise<void>(resolve => { wake = resolve; });
     const wait = { wake, cancelled: false, ...(live?.provider ? { provider: live.provider } : {}) };
-    this.waits.set(id, wait);
+    this.waits.set(id, wait); this.changedOf(id);
     const timer = setTimeout(wake, this.exitWaitMs);
-    try { await woken; } finally { clearTimeout(timer); this.waits.delete(id); }
+    try { await woken; } finally { clearTimeout(timer); this.waits.delete(id); this.changedOf(id); }
     // Refused here, before send replaces the live entry: a replaced entry no longer matches the old process's exit
     // callback, which would then never release the reservation.
     if (wait.cancelled || this.reservations.some(r => r.owner === id)) throw new Error("busy");
   }
-  private cancelWait(id: string): void { const wait = this.waits.get(id); if (wait) { wait.cancelled = true; wait.wake(); } }
+  // A send of a conversation whose previous turn is not judged yet waits for that judgement (the first folder refresh
+  // or the window's end), so the next turn starts with its own snapshot and no grounds of the earlier turn.
+  private judgement(id: string): Promise<void> | undefined {
+    let evidence = this.evidence.get(id); if (evidence?.endedAt === undefined) return;
+    // Its window passed without its timer having run yet (a busy main loop): judged now, as checkProject does.
+    if (Date.now() - evidence.endedAt > BIND_GRACE_MS) { this.judge(id); evidence = this.evidence.get(id); if (evidence?.endedAt === undefined) return; }
+    if (this.judging.has(id)) throw new Error("busy");
+    const waiting = evidence, provider = this.live.get(id)?.provider;
+    return new Promise<void>(resolve => {
+      const entry = { wake: resolve, cancelled: false, ...(provider ? { provider } : {}) };
+      this.judging.set(id, entry); this.changedOf(id);
+      waiting.waiters.push(resolve);
+    }).then(() => {
+      const entry = this.judging.get(id); this.judging.delete(id); this.changedOf(id);
+      if (entry?.cancelled) throw new Error("busy");
+    });
+  }
+  private dropEvidence(id: string): void {
+    const evidence = this.evidence.get(id); if (!evidence) return;
+    clearTimeout(evidence.timer); this.evidence.delete(id);
+    for (const wake of evidence.waiters.splice(0)) wake();
+  }
+  private cancelWait(id: string): void {
+    const wait = this.waits.get(id); if (wait) { wait.cancelled = true; wait.wake(); }
+    const judging = this.judging.get(id); if (judging) { judging.cancelled = true; judging.wake(); }
+  }
   // The lease belongs to this runner's process group: it is released when that group is gone, or at once when
   // opening failed before anything was spawned.
   private async openRunner(id: string, live: Live, input: Prepared): Promise<Runner> {
@@ -330,7 +357,7 @@ export class ConversationService {
     } catch (error) {
       live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
       // Its turn never ends, so it is never judged and must not hold its root.
-      clearTimeout(this.evidence.get(id)?.timer); this.evidence.delete(id);
+      this.dropEvidence(id);
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
       this.changedOf(id);
     }
@@ -354,7 +381,7 @@ export class ConversationService {
     return this.store.list().filter(m => m.root === root).map(m => {
       let read: { ok: true; events: ConversationEvent[] } | { ok: false };
       try { read = { ok: true, events: this.store.readRequired(m.conversationId) }; } catch { read = { ok: false }; }
-      const summary = conversationSummary(m, read, { live: this.ran(m.conversationId), queued: this.drafts.queued(m.conversationId).length });
+      const summary = conversationSummary(m, read, { live: this.ran(m.conversationId), queued: this.drafts.queued(m.conversationId).length, working: this.working(m.conversationId) });
       return this.drafts.returned(m.conversationId) ? { ...summary, returnedDraft: true as const } : summary;
     });
   }
@@ -408,11 +435,13 @@ export class ConversationService {
   // still preparing or opening is stopped as soon as it spawns. External runs hold no lease and are left alone.
   async stopRuns(provider: Provider): Promise<void> {
     this.stops += 1; this.lastStop.set(provider, this.stops);
-    for (const [id, wait] of this.waits) if (wait.provider === provider) this.cancelWait(id);
+    for (const [id, wait] of [...this.waits, ...this.judging]) if (wait.provider === provider) this.cancelWait(id);
     const closing: Promise<void>[] = [];
     for (const listing of this.listings) if (listing.provider === provider && listing.cleanup) closing.push(listing.cleanup());
     for (const [id, live] of this.live) {
       if (live.provider !== provider) continue;
+      // A queue held for its judgement or for the previous process is the person's to send again, not this run's.
+      if (live.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); }
       if (live.accepted && live.busy && !live.terminal) this.receive(id, { type: "interrupted", reason: "user" });
       if (live.accepted) { live.terminal = true; live.busy = false; }
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
@@ -423,8 +452,8 @@ export class ConversationService {
     const closing: Promise<void>[] = [];
     this.quitting = true;
     // Queued messages stay in drafts.json and come back as drafts at the next start.
-    for (const evidence of this.evidence.values()) clearTimeout(evidence.timer);
-    for (const id of this.waits.keys()) this.cancelWait(id);
+    for (const id of [...this.evidence.keys()]) this.dropEvidence(id);
+    for (const id of [...this.waits.keys(), ...this.judging.keys()]) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
     for (const [id, live] of this.live) {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
@@ -450,6 +479,10 @@ export class ConversationService {
     if (!this.working(id)) throw new Error("not_running");
     const itemId = randomUUID();
     this.drafts.add(id, { itemId, text: item.text, anchors: item.anchors, attachments: item.attachments ?? [] });
+    // Queued while the turn waits for its judgement with nothing held yet: the judgement sends it. A send already
+    // waiting for that judgement goes first, and the queue follows its turn.
+    const live = this.live.get(id);
+    if (live && !live.busy && !live.holding && !this.judging.has(id) && this.evidence.get(id)?.endedAt !== undefined) live.holding = {};
     if (item.ids?.length) this.queuedIds.set(itemId, { owner: id, ids: item.ids });
     this.changed(m.root);
     return { itemId };
@@ -466,10 +499,11 @@ export class ConversationService {
     if (draft) this.changed(m.root);
     return draft;
   }
-  // Working: preparing, running or waiting for an answer, about to send its queue, or waiting for its previous process.
+  // Working (the list's working): preparing, running or waiting for an answer, a turn waiting for its judgement, a queue
+  // about to go out, or a send waiting for the previous process or for the judgement.
   private working(id: string): boolean {
     const live = this.live.get(id);
-    return !!live && (live.busy || !!live.holding) || this.waits.has(id);
+    return !!live && (live.busy || !!live.holding) || this.waits.has(id) || this.judging.has(id) || this.evidence.get(id)?.endedAt !== undefined;
   }
   // A turn's terminal event: queued messages go out after a done turn (a project turn's once it is judged) and come back
   // as a draft after a failed or stopped one; a project turn waits for its judgement.
@@ -488,13 +522,16 @@ export class ConversationService {
   private judge(id: string): void {
     const evidence = this.evidence.get(id); if (evidence?.endedAt === undefined) return;
     clearTimeout(evidence.timer); this.evidence.delete(id);
+    // A send waiting for this judgement runs once it is written; the queue, if any, is sent before (it was there first).
     try {
       const target = promotionTarget({ root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed] }, this.snapshot(evidence.root), evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
       if (target) this.promoteTo(id, evidence, target);
     } catch (error) { console.error("doan: conversation promotion failed", error); }
-    const live = this.live.get(id); if (!live) return;
-    if (live.holding) this.flush(id, live);
-    else if (!live.busy) delete live.project;
+    const live = this.live.get(id);
+    if (live?.holding) this.flush(id, live);
+    else if (live && !live.busy) delete live.project;
+    for (const wake of evidence.waiters.splice(0)) wake();
+    this.changedOf(id);
   }
   private canvasWorking(root: string, canvas: Canvas, except: string): boolean {
     return this.store.list().some(m => m.conversationId !== except && m.state === "current" && m.root === root && m.canvas && sameCanvas(m.canvas, canvas) && this.working(m.conversationId));
@@ -519,7 +556,7 @@ export class ConversationService {
       running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project;
       void running.runner?.close();
     }
-    clearTimeout(this.evidence.get(id)?.timer); this.evidence.delete(id);
+    this.dropEvidence(id);
     this.cancelWait(id);
     this.giveBack(id, "interrupted");
   }
@@ -539,7 +576,8 @@ export class ConversationService {
   // messages stay in drafts.json, marked as on their way out, until the send is accepted. Anything that keeps it from
   // going out hands the whole queue back as a draft with that reason.
   private flush(id: string, live: Live): void {
-    const hold = live.holding;
+    // A sign-out of its provider from here on stops it as it stops a run (stopRuns): it comes back as interrupted.
+    const hold = live.holding, provider = live.provider, since = this.stops;
     const items = this.drafts.markSending(id);
     const ids = items.flatMap(item => this.queuedIds.get(item.itemId)?.ids ?? []);
     const combined = combineQueued(items);
@@ -560,7 +598,7 @@ export class ConversationService {
         this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
       } catch (error) {
-        this.giveBack(id, reason(error));
+        this.giveBack(id, provider && (this.lastStop.get(provider) ?? 0) > since ? "interrupted" : reason(error));
       } finally { this.release(id, live, hold); }
     });
   }
@@ -568,6 +606,7 @@ export class ConversationService {
   private release(id: string, live: Live, hold: object | undefined): void {
     if (live.holding === hold) delete live.holding;
     if (this.live.get(id) === live && !live.busy && !live.holding) delete live.project;
+    this.changedOf(id);
   }
   private refreshCanvas(metadata: ConversationMetadata): ConversationMetadata {
     const canvas = this.admit(metadata.root, metadata.canvas);

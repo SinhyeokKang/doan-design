@@ -145,8 +145,11 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           const target = service.sendTarget(raw.conversationId);
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
           const ids = extras.ids.map(item => (item as { id: string }).id);
+          // The marker that keeps a paste through a restart can fail; it is written before the item is accepted, so a refusal
+          // leaves nothing queued and the files with the renderer. Nothing after the acceptance can fail.
+          if (store && ids.length) store.markSent(extras.ids);
           const queued = service.queue(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
-          if (store && ids.length) { store.markSent(extras.ids); store.consume(extras.ids); }
+          if (store && ids.length) store.consume(extras.ids);
           return queued;
         }
         case "removeQueued":
@@ -160,7 +163,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       }
       throw new Error("bad_request");
     } catch (error) {
-      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy", "not_running"];
+      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy", "not_running", "queue_limit"];
       const code = error instanceof Error ? error.message : "unknown";
       if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) return { error: code, missing: error.missing };
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };

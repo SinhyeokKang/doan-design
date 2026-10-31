@@ -7,6 +7,7 @@ import { ModelCatalog } from "./conversation/models";
 import { AttachmentStore, type AttachmentResult } from "./attachments";
 import { conversationHandler, conversationMethods, queueFiles } from "./conversation/ipc";
 import { DraftStore } from "./conversation/drafts";
+import { folderRefreshes } from "./conversation/refreshes";
 import { AuthManager, removeStaleLinkDirs, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
 import { AuthStorage } from "./agentAuth/storage";
 import { electronCipher } from "./agentAuth/cipher";
@@ -118,8 +119,7 @@ let addPage: AddPageSession | undefined;
 // The socket may take a v2 request before start() has the service and the main window that owns CLI sign-ins.
 let onboardingReady: (service: OnboardingService) => void = () => {};
 const onboardingStarted = new Promise<OnboardingService>(resolve => { onboardingReady = resolve; });
-// Each listed folder's canvas rows as last handed to the conversation service: a re-read makes a new array (a served-only
-// refresh keeps it), and a row whose rev moved is a canvas file the watcher saw change.
+// Each listed folder's canvas rows as last handed to the conversation service (conversation/refreshes.ts).
 let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
 let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
@@ -489,15 +489,11 @@ async function start(): Promise<void> {
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
   const savedRoots = await readFoldersFileForPruning(join(userData, "folders.json"));
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
-    const nextLists = new Map<string, readonly { path: string; rev?: number }[]>();
-    for (const entry of entries) if (entry.kind === "list") {
-      const previous = conversationLists.get(entry.path); nextLists.set(entry.path, entry.canvases);
-      if (previous === entry.canvases) continue;
-      const revs = new Map(previous?.map(row => [row.path, row.rev]));
-      const changed = previous ? entry.canvases.filter(row => row.rev !== undefined && row.rev !== revs.get(row.path)).map(row => row.path) : [];
-      try { conversations?.refreshed(entry.path, changed); } catch (error) { console.error("doan: conversation promotion check failed", error); }
+    const refreshes = folderRefreshes(conversationLists, entries);
+    conversationLists = refreshes.next;
+    for (const { root, changed } of refreshes.calls) {
+      try { conversations?.refreshed(root, changed); } catch (error) { console.error("doan: conversation promotion check failed", error); }
     }
-    conversationLists = nextLists;
     for (const root of choices.keys()) {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
