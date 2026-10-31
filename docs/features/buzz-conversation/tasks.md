@@ -44,7 +44,7 @@
 
 - [ ] R1. 입력창 프리미티브 분리와 `HeroComposer`로 Home 재조립. 포커스 보더를 `--border-field-focus`와 `--shadow-sm`으로 바꾸고 DESIGN.md 'Home' Composer 행을 고친다(design §0). 클래스 셀렉터 문자열 검색(design §7).
   - 검증: `npm --prefix app test` (기존 Home·입력창 테스트 그대로 통과), `npm --prefix app run typecheck`.
-- [ ] R2. `DockedComposer`(capsule/box, 아래 줄 에이전트·effort, 기존 대화의 공급자 고정, send 확장 사용).
+- [ ] R2. `DockedComposer`(capsule/box, 아래 줄 에이전트·effort는 새 공용 변형 `doan-button[data-ui-size="xs"]`를 `ds/controls.css`에 더해 쓴다, 기존 대화의 공급자 고정, send 확장 사용).
   - 검증: `npm --prefix app test` (모양 전환 중 같은 textarea·포커스·IME 조합 유지 컴포넌트 테스트).
 - [ ] R3. `ConversationThread` 표시 컴포넌트(design §3.3 상태). 에이전트 메시지 Markdown 렌더링: `npm --prefix app install --save-exact react-markdown@10.1.0 remark-gfm@4.0.1`, 원시 HTML·이미지 차단, `https` 링크는 main을 거쳐 연다, 코드는 `--type-family-mono`(design §0).
   - 검증: `npm --prefix app test`(원시 HTML·이미지·`javascript:` 링크가 그려지지 않는 테스트 포함), `npm --prefix app run build` 뒤 `/runtime-test`로 빌드한 앱 창이 비지 않는지 확인.

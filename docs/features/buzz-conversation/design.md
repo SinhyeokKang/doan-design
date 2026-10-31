@@ -18,6 +18,7 @@
 - Home과 docked는 같은 카드·칩·텍스트 칸·도구로 한 패밀리가 된다.
   - docked에는 Home의 inset 트레이(`.composer`)가 없다. 카드는 패널 위에 바로 놓인다.
   - 에이전트·effort는 카드 아래 일반 줄의 오른쪽에 둔다. Send 열과 줄을 맞춘 자리다.
+  - 그 버튼은 Home의 `sm`(32px, label-sm)보다 한 단계 작은 새 공용 변형 `doan-button[data-ui-size="xs"]`(24px, caption, 안쪽 4/8, chevron 14)를 쓴다. 구현 때 `ds/controls.css`에 더한다(round 4).
 - 입력창 포커스는 `--border-prominent`(#808080) 링 대신 새 토큰 `--border-field-focus`(`--neutral-5`, #cccccc)에 `--shadow-sm`을 쓴다.
   - Home과 docked에 같이 적용한다.
   - 다른 텍스트 필드는 그대로다.
