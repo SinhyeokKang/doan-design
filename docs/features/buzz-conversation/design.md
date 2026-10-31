@@ -1,6 +1,6 @@
 # buzz-conversation — design
 
-[spec](./spec.md)의 결정을 구현하는 방법이다. 공용 디자인 언어, 진행 규칙, 레퍼런스는 부모 [design.md](../buzz-restyle/design.md)를 따른다. 레퍼런스 조사(Subframe, v0, Conductor, Cursor, Lovable, Figma Make 대기 프롬프트)는 부모 design.md의 '조사 메모: 프로젝트 대화와 Overview'에 있다. 그 메모는 `buzz-project`도 쓰므로 부모에 남겨 두고 여기서는 링크만 건다. Overview 배치의 출발점은 사용자가 공유한 Aside 스크린샷(2026-10-31)이다. 메인은 대화이고, 입력창은 capsule로 시작해 줄바꿈되면 box가 된다. Aside 문서는 확인하지 않았다.
+[spec](./spec.md)의 결정을 구현하는 방법이다. 공용 디자인 언어, 진행 규칙, 레퍼런스는 부모 [design.md](../buzz-restyle/design.md)를 따른다. 레퍼런스 조사(Subframe, v0, Conductor, Cursor, Lovable)는 [buzz-project design §7](../buzz-project/design.md)로 옮겼다. Figma Make의 대기 프롬프트(작업 중 편집·순서 변경)는 대기열 결정 때 참고했다. Overview 배치의 출발점은 사용자가 공유한 Aside 스크린샷(2026-10-31)이다. 메인은 대화이고, 입력창은 capsule로 시작해 줄바꿈되면 box가 된다. Aside 문서는 확인하지 않았다.
 
 읽은 Doan 프리셋: `harden`, `clarify`, `critique`, `polish`.
 
