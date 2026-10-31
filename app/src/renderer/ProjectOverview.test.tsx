@@ -171,8 +171,8 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
 
 // runtime-test (buzz-project RT): at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
 // (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
-test("the capsule's placeholder stays on one line, cut with an ellipsis", async () => {
+test("the capsule's placeholder stays on one line", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain('.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }');
+  expect(css).toContain('.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; }');
 });
