@@ -16,7 +16,7 @@ Use it when the project has real tokens or components but no rules document or d
 - Find the target. For pointing words like "this canvas" or "this frame", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`).
 - Read the configured token CSS (`doan config --json` shows `tokenCss`), the component code, and the global stylesheet.
 - Look for an existing design document (for example `DESIGN.md`, a style guide, or a design section in the docs) and for design-system canvases: `.doan/ds/`, then a legacy `.doan/canvases/design-system.html`. `doan ls --json` lists canvases with their open and resolved comment counts.
-- Read the `context` preset (`doan design-skill context --json`) before writing either artifact, even when the request already names the deliverable, unless you already read it in this conversation or the project already has a product context document (who the product is for, brand commitments). Ask only what would change the documents.
+- Read the `context` preset (`doan design-skill context --json`) before writing either artifact, even when the request already names the deliverable, unless you read it in this conversation or the project has a product context document (who the product is for, brand commitments). Ask only what would change the documents.
 
 ## Document what shipped
 
@@ -37,11 +37,11 @@ Search in this order and note the file each value comes from:
 1. CSS custom properties: color, font, spacing, radius, shadow, easing, and duration declarations, usually in the token CSS or the root stylesheet.
 2. Tailwind configuration: the theme extensions for colors, font families, spacing, radius, and shadows.
 3. CSS-in-JS theme files and design token files (JSON tokens, Style Dictionary output).
-4. The component library: the main button, input, card, navigation, dialog, chip, and list item components, their variant APIs and default styles.
+4. The component library: the main components (button, input, card, navigation, dialog, chip, list item), their variant APIs and default styles.
 5. The global stylesheet: base typography and color assignments.
 6. Existing canvases that implement the code (`data-doan-implements`), as secondary evidence.
 
-Sampling computed styles from rendered output needs a real browser. If you have none, say which values you could only read from source.
+Sampling computed styles needs a real browser; without one, say which values you read only from source.
 
 If the scan finds no tokens, no components, and no rendered output, there is nothing to document yet. Say so and do not fabricate a token spec. If the user still wants a direction recorded before code exists, write only what they decide, mark every unresolved value as open, omit the components section, and state on the canvas that none of it is in code yet.
 
@@ -56,13 +56,13 @@ Build a draft from the discovered evidence:
 - **Layout and spacing:** grid, containers, breakpoints, rhythm, and density.
 - **Shapes:** radius strategy, borders, clipping, and recurring forms.
 
-Stop at what is actually reused; one-off values pollute the system. Do not invent components the project does not have. If the project has only buttons and cards, document only those. Keep the token CSS as the single source of truth for values: preserve its color format (hex, `rgb()`, `oklch()`, and so on) and never restate a value differently elsewhere.
+Stop at what is reused; one-off values pollute the system. Do not invent components the project does not have. If the project has only buttons and cards, document only those. Keep the token CSS as the single source of truth for values: preserve its color format (hex, `rgb()`, `oklch()`) and never restate a value differently elsewhere.
 
 ## Step 3: Settle what evidence cannot answer
 
 Some parts of a design system are judgment, not extraction: a one-line character for the system, the mood and aesthetic philosophy, descriptive names for key colors ("deep muted teal-navy", not "blue-800"), the elevation philosophy, and the feel of components ("tactile and confident" or "refined and restrained").
 
-Ask about these only when the document needs them. Ask in small rounds of at most three focused questions, offer two or three options grounded in the evidence, and wait between rounds. Do not invent rules and present them as facts. A rule nobody confirmed is either settled with the user or marked as open in both artifacts.
+Ask about these only when the document needs them, in rounds of at most three focused questions with two or three options grounded in the evidence, waiting between rounds. Do not invent rules and present them as facts. A rule nobody confirmed is either settled with the user or marked as open in both artifacts.
 
 Policies for future screens are judgment too, even when they look like extraction: how many primary actions a view may have, whether radii or shapes may mix, whether depth stays flat or tonal, which colors are reserved for which uses, the spacing between components, and whether a choice was deliberate. The code shows what exists today, not what is allowed tomorrow:
 
@@ -114,10 +114,10 @@ Writing style:
 
 ## Step 5: Draw the design-system canvases
 
-The canvases let people check the system visually. They live in `.doan/ds/` (create it when needed). By default, draw one canvas per logical unit:
+The canvases live in `.doan/ds/` (create it when needed). By default, draw one canvas per logical unit:
 
 - **Token groups:** one canvas per group the token CSS defines, such as `color`, `typography`, `shadow`, `radius`, and `size`.
-- **Components:** one canvas per component the code shares across screens, such as `button`, `icon-button`, `input`, `dialog`, `menu`, and `toast`. Cover every shared component, not a sample. A component, dialog, or surface that two or more screens render is shared, even if its styles appear nowhere else. It keeps its own canvas even when it is small or other canvases also draw it. Skip only parts of a single screen (rendered by one screen only) and nonvisual infrastructure wrappers that draw nothing of their own (a provider, a portal); a wrapper that adds its own classes or styles, such as a tooltip content wrapper with a project class, is a shared component. List each skip in your answer with its reason.
+- **Components:** one canvas per component the code shares across screens, such as `button`, `icon-button`, `input`, `dialog`, `menu`, and `toast`. Cover every shared component, not a sample. Shared counts the screens where a person sees a unit, not where the code mounts it: a component, dialog, or surface seen on two or more screens is shared, even if its styles appear nowhere else or the app mounts it once and opens it from several screens. It keeps its own canvas even when it is small or other canvases also draw it. Skip only parts of a single screen (seen on one screen only) and nonvisual infrastructure wrappers that draw nothing of their own (a provider, a portal); a wrapper that adds its own classes or styles, such as a tooltip content wrapper with a project class, is a shared component. List each skip in your answer with its reason.
 - **Shared surfaces:** one canvas per frame several screens share, such as `app-shell`. Draw it from the files that render it now (read them and name them in `data-doan-implements`), with the sections and controls they render today, not those an older draft or document shows.
 
 Never put two units in one canvas: no `overlays` canvas holding a tooltip and a menu, no `tokens` canvas holding color and type. A unit's variants and states stay together in its own canvas. The file name is the canvas id (`.doan/ds/button.html` is `button`); if `doan ls` already has that id, pick another and say so.
@@ -126,11 +126,11 @@ An existing design system keeps its organization. If `.doan/ds/` already has can
 
 Each canvas:
 
-- In `<head>`: `<meta name="doan:canvas" content="<id>">` and `<meta name="doan:width" content="...">` with a board width that fits the content. The canvas is named by its id; do not add a separate display name. If you set a `<title>`, use the id.
+- In `<head>`: `<meta name="doan:canvas" content="<id>">` and `<meta name="doan:width" content="...">` with a board width that fits the content. Name the canvas only by its id: no separate display name, and a `<title>`, if set, is the id.
 - Link the project's token CSS relative to the canvas (for `styles/tokens.css`, that is `../../styles/tokens.css`), and the component CSS the same way. If a stylesheet is outside the served scope, follow the Doan guide's canvas convention 7 (do not change configuration; say serving its path needs the user's approval); as the disclosed workaround, restate on the canvas only the rules that canvas needs, with the same tokens. Never copy a whole stylesheet into assets: the copy silently goes stale when the code changes.
-- Give each topic or state group its own frame with a stable id and a `data-doan-title`: subgroups such as surfaces, text, and accents on a token canvas; variants and states on a component canvas.
+- Give each topic or state group its own frame with a stable id and a `data-doan-title`: subgroups such as surfaces, text, and accents on a token canvas; variants and states on a component canvas. A unit with steps or phases draws each one, the same as its states.
 - Every frame has `data-doan-implements` with a repository path that exists: the token CSS for token frames, the component file for component frames, and for a shared surface, the file that renders that frame.
-- Colors and typography reference the token CSS variables (`background: var(--color-accent)`, `font-size: var(--type-body-size)`) instead of copied values. Label each swatch and type sample with its variable name and role. Direct hex or rgb values make `doan check` warn when token CSS is configured.
+- Colors and typography reference the token CSS variables (`background: var(--color-accent)`) instead of copied values. Label each swatch and type sample with its variable name and role. Direct hex or rgb values make `doan check` warn when token CSS is configured.
 - Components: use the component's own markup and class names so its real CSS draws it; do not restyle it with copied values. Show the states the code has (default, hover, focus, active, disabled, error, loading, open) side by side. For a state the CSS applies only under `:hover` or `:focus-visible`, restate those rules with the same tokens for a labeled sample.
 - For an icon, copy its SVG markup from the icon package the project installs, not from memory. If that package is not installed, state on the canvas that the icon is drawn from memory.
 - Anything drawn that is not in code (an approximation of a component that cannot render outside its framework, a proposed token, an open decision) is stated on the canvas next to it, as the Doan guide requires.
@@ -141,7 +141,7 @@ When updating existing design-system canvases, change only the canvases and fram
 
 ## Keep the two in agreement
 
-The rules document and the canvases describe the same system. They use the same token names and component list, the document holds every open item a canvas shows, and both agree with the code. The document names the canvas that shows each token group and component. When one changes in a way the other shows, update the other within the same request, or report the mismatch.
+The rules document and the canvases use the same token names and component list, the document holds every open item a canvas shows, and both agree with the code. The document names the canvas that shows each token group and component. When one changes in a way the other shows, update the other within the same request, or report the mismatch.
 
 ## Finish in Doan
 
@@ -156,11 +156,11 @@ The rules document and the canvases describe the same system. They use the same 
 
 - Every token and rule in the document traces to a file in the code or a decision the user confirmed. Reread each rule, do, and don't in both artifacts: it cites that source and covers no more than it shows. Search both for "every", "all", "any", "always", "only", "new", "future", "adding", and "until"; narrow each hit that reaches past its source to the cited tokens, components, or files, or move it to open decisions.
 - Judgment calls nobody confirmed are open items in both artifacts, and no rule presupposes an answer to one.
-- Each design-system canvas you created holds one unit, every visual shared component in the code has its own canvas, and each skip is a nonvisual wrapper or rendered by one screen only, listed with its reason.
+- Each design-system canvas you created holds one unit, every visual shared component in the code has its own canvas, and each skip is a nonvisual wrapper or seen on one screen only, listed with its reason.
 - Each shared surface shows the sections and controls the files that render it show today.
 - Every frame's `data-doan-implements` path exists in the repository.
 - Every color and type sample uses a token CSS variable, and each canvas links the token CSS relative to its own location.
-- Components and states shown on the canvases exist in code, or the canvas says they do not.
+- Components and states shown on the canvases exist in code, or the canvas says they do not, and each unit with steps or phases shows every one.
 - Frames, element ids, and sections outside the request are unchanged.
 - The document and the canvases list the same tokens and components, and the document holds every open item a canvas shows. No canvas repeats a note that applies to every canvas. No frame repeats a note its canvas already states.
 - `doan check` passes.
