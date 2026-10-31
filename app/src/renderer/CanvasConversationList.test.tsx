@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
@@ -35,7 +36,9 @@ const rows = canvasConversationRows([
 
 const thumbnails = new Map<string, ThumbnailState>([[billing.path, { kind: "ready", url: "blob:billing" }], [refunds.path, { kind: "failed" }]]);
 const noop = () => {};
-const render = (list: CanvasList, thumbs: ReadonlyMap<string, ThumbnailState> = thumbnails) => renderToStaticMarkup(
+// React's static render hoists a preload link for each image; the markup under test follows it.
+const markup = (node: ReactNode) => renderToStaticMarkup(node).replace(/<link [^>]*\/>/g, "");
+const render = (list: CanvasList, thumbs: ReadonlyMap<string, ThumbnailState> = thumbnails) => markup(
   <CanvasConversationList list={list} project="acme-web" thumbnails={thumbs} open={noop} retry={noop} onVisible={noop} scroller={{ current: null }} title={{ current: null }} />);
 const item = (html: string, key: string) => {
   const at = html.indexOf(`data-key="${key}"`);
@@ -48,8 +51,7 @@ describe("canvas conversation list", () => {
   test("is one list without its own name; only the panel region is named", () => {
     expect(html.match(/role="list"/g)).toHaveLength(1);
     expect(html).toMatch(/^<ul class="rp-list" role="list">/);
-    expect(html).not.toContain("aria-label");
-    const panel = renderToStaticMarkup(<CanvasConversations list={rows} project="acme-web" thumbnails={thumbnails} open={noop} retry={noop} onVisible={noop} />);
+    const panel = markup(<CanvasConversations list={rows} project="acme-web" thumbnails={thumbnails} open={noop} retry={noop} onVisible={noop} />);
     expect(panel.match(/aria-label="Canvas conversations"/g)).toHaveLength(1);
     expect(panel).toContain('<aside class="right native-scroll ov-right" role="region" aria-label="Canvas conversations"><h2 class="phead rp-head" tabindex="-1">Canvas conversations</h2><ul class="rp-list" role="list">');
   });

@@ -26,6 +26,8 @@ import { Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
 import { useThumbnails } from "./thumbnails";
+import { canvasConversationRows } from "./canvasConversationRows";
+import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
@@ -407,10 +409,11 @@ export function App() {
     if (root === loadedRoot) { controller.current?.cancelWorkspaceOpen(); setScreen("workspace"); }
     else controller.current?.openWorkspace(root, next => completeNavigation(next), false);
   };
-  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number) => {
+  // opened: after the canvas shows, for a caller that records something only once the open went through.
+  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void) => {
     if (locked()) return;
     cancelRestore();
-    controller.current?.openCanvas(root, row, undefined, { opened: () => completeNavigation(root, cursor), unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
+    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
   };
   // arrived: after the move commits, for an entry point that asks the Overview for a conversation.
   const showShellOverview = (root: string, cursor?: number, arrived?: () => void) => {
@@ -774,7 +777,6 @@ export function App() {
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
     controller.current?.openCanvas(result.root, row, frameId, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
   }
-  const thumbs = useThumbnails(entry?.kind === "list" ? entry.path : null, entry?.kind === "list" ? entry.canvases : []);
   // An Overview that was open when its project turned into a problem stays, its thread readable and Send held; one
   // entered while the project is a problem shows the problem screen (buzz-project spec decision 12).
   const healthyOverview = screen === "workspace" && entry?.kind === "list" && !state.open ? entry.path : null;
@@ -824,6 +826,15 @@ export function App() {
   const projectLabel = (root: string) => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root;
   const projectLabelRef = useRef(projectLabel); projectLabelRef.current = projectLabel;
   const run = homeRun.current;
+  // The Overview's right panel (design §2.3): canvases with a current conversation, thumbnails asked for those only.
+  const listed = overview ? run.listState(overview.path) : null;
+  const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
+    : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], Date.now(), run.seenPending());
+  const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.row ? [item.row] : []));
+  // A canvas opened from its row: its current conversation is seen through main's last seq (spec decision 11, until C12).
+  function markCanvasSeen(conversationId: string) {
+    void window.doan.readConversation({ conversationId }).then(read => { if (!("error" in read)) homeRun.current.markSeenThrough(conversationId, read.lastSeq); }, () => {});
+  }
   useEffect(() => window.doan.onConversationEvent(event => { homeRun.current.event(event); overviewRun.current!.event(event); }), []);
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
   useEffect(() => {
@@ -880,7 +891,8 @@ export function App() {
       onAction={(name, root) => action(name, root)}
       onProjectSettings={root => { if (!live.current.modal && card) setProjectSettings(previous => ({ root, key: card.key, seq: (previous?.seq ?? 0) + 1 })); }}
       onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} />}
-    <div className="right-stack">{overview ? <CanvasConversations /> : <RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />}{comments.panel}</div>
+    <div className="right-stack">{overview ? <CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
+      open={item => { if (item.row) openShellCanvas(overview.path, item.row, undefined, () => markCanvasSeen(item.conversationId)); }} retry={() => run.retryList(overview.path)} /> : <RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />}{comments.panel}</div>
   </main>
   {comments.dialog}
   {projectSettings && <ProjectSettingsDialog key={projectSettings.seq} root={projectSettings.root} projectKey={projectSettings.key} entries={entries} reroot={reroot} homeDirectory={homeDirectory}

@@ -1,4 +1,5 @@
-import { Fragment } from "react";
+import { Fragment, useRef } from "react";
+import { CanvasConversationList, type CanvasConversationListProps } from "./CanvasConversationList";
 import { activityFor, activityText, movedFrom, timeText } from "./activity";
 import { canvasInfo } from "./canvasInfo";
 import type { InspectRow } from "../main/inspect";
@@ -22,12 +23,14 @@ export function RightPanel({ state, selectPath }: { state: CanvasState; selectPa
   </aside>;
 }
 
-// The Overview's right panel (buzz-project design §2.3): the region and its title. The canvas conversation rows go
-// in it (batch RL); App holds what they need: HomeRun's listState(root), the entry's canvases, openShellCanvas,
-// HomeRun's markSeenThrough and the thumbnails hook.
-export function CanvasConversations() {
-  return <aside className="right native-scroll ov-right" role="region" aria-label="Canvas conversations">
-    <h2 className="phead rp-head">Canvas conversations</h2>
+// The Overview's right panel (buzz-project design §2.3): the region and its title, named once; the list inside is
+// unnamed.
+export function CanvasConversations(props: Omit<CanvasConversationListProps, "scroller" | "title">) {
+  const scroller = useRef<HTMLElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  return <aside className="right native-scroll ov-right" role="region" aria-label="Canvas conversations" ref={scroller}>
+    <h2 className="phead rp-head" tabIndex={-1} ref={title}>Canvas conversations</h2>
+    <CanvasConversationList {...props} scroller={scroller} title={title} />
   </aside>;
 }
 

@@ -18,8 +18,8 @@ export function applyVisibility(current: ReadonlySet<string>, changes: readonly 
   return next.size === current.size && [...next].every(path => current.has(path)) ? null : next;
 }
 
-// Thumbnails for one root's cards. Nothing is asked before the first
-// visibility report, so main's queue starts with a card on screen; a pending
+// Thumbnails for the canvases one root's Overview lists. Nothing is asked before the first
+// visibility report, so main's queue starts with a row on screen; a pending
 // reply is followed by `onThumbnailChanged`, and so is a stale image.
 export class ThumbnailRequests {
   private items = new Map<string, ThumbnailState>();
