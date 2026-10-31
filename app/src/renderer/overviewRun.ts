@@ -1,11 +1,13 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { mergeConversationEvents } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import { overviewAfterListChange, pickOverviewConversation, type DraftMove } from "./overviewConversation";
+import type { ThreadItem } from "./threadItems";
 
 // The project Overview's main conversation (buzz-project design §2.4, §2.5; spec decisions 5, 6, 10, 11). App owns one
 // for the run, so each root keeps what it showed, its new-conversation draft and its threads across worktree switches
@@ -41,8 +43,12 @@ export interface Thread { events: ConversationEvent[]; read: "loading" | "error"
 export interface QueuedMessage { id: string; text: string }
 
 interface RootState {
-  // undefined until the first pick; a null conversation is the new conversation state. listed: seen in a list read.
+  // undefined until a pick; a null conversation is the new conversation state. listed: seen in a list read.
   current?: { conversationId: string | null; listed: boolean };
+  // Moves with every change of what the root shows, so a reply that lands after a newer choice leaves it alone;
+  // leftAt: the revision when its Overview was last left.
+  revision: number;
+  leftAt?: number;
   // asked: the list was read again for it once; after: reads started before the request.
   request: { conversationId: string; after: number; asked: boolean; scroll: ScrollTo | null } | null;
   moved: Moved | null;
@@ -63,6 +69,21 @@ function endSeq(events: readonly ConversationEvent[], live: boolean): number | n
   return TERMINAL.has(last.type) || !live ? last.seq : null;
 }
 const emptyDraft = (draft: DockedDraft) => draft.text === "" && !draft.preset && draft.attachments.length === 0;
+const ATTACH_ERRORS: Record<string, (name: string) => string> = {
+  not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
+  not_file: name => `${name} isn’t a file, so it wasn’t attached.`,
+  not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
+  unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
+  too_large: () => "This image is over 50 MB, so it wasn’t attached.",
+};
+
+// Where a requested scroll goes once the thread draws: the pending permission request; wait while the list says the
+// conversation waits but its event has not arrived; otherwise the request has nothing left to show.
+export function scrollTarget(items: readonly ThreadItem[], waiting: boolean): { kind: "item"; key: string } | { kind: "wait" } | { kind: "drop" } {
+  const ask = [...items].reverse().find(item => item.kind === "permission" && item.status === "pending");
+  if (ask) return { kind: "item", key: ask.key };
+  return waiting ? { kind: "wait" } : { kind: "drop" };
+}
 
 export class OverviewRun {
   // Drafts by draftKey: a conversation's under its id, a new conversation's under its root.
@@ -78,8 +99,11 @@ export class OverviewRun {
   // Waiting conversations already toasted, by the request they wait on (the list's preview names it).
   private asked = new Map<string, string>();
   private queues = new Map<string, { root: string; items: QueuedMessage[]; after: number }>();
-  private scroll: { conversationId: string; to: ScrollTo } | null = null;
+  private scroll: { conversationId: string; to: ScrollTo; seq: number } | null = null;
+  private scrolls = 0;
   private taking = new Set<string>();
+  // A returned draft taken, by the reads started then: the list still says so until a later read.
+  private taken = new Map<string, number>();
   // Providers of conversations started here, before a list names them.
   private providers = new Map<string, Provider>();
 
@@ -95,19 +119,27 @@ export class OverviewRun {
   thread(conversationId: string): Thread | null { return this.threads.get(conversationId) ?? null; }
   providerOf(conversationId: string): Provider | null { return this.providers.get(conversationId) ?? null; }
   queue(conversationId: string): readonly QueuedMessage[] { return this.queues.get(conversationId)?.items ?? []; }
-  // Once, for the thread that draws the conversation.
-  takeScroll(conversationId: string): ScrollTo | null {
-    if (this.scroll?.conversationId !== conversationId) return null;
-    const to = this.scroll.to;
-    this.scroll = null;
-    return to;
+  // Each entry's scroll has its own seq, so asking again for the conversation already shown scrolls again.
+  scrollRequest(conversationId: string): { to: ScrollTo; seq: number } | null {
+    return this.scroll?.conversationId === conversationId ? { to: this.scroll.to, seq: this.scroll.seq } : null;
   }
+  takeScroll(conversationId: string): void {
+    if (this.scroll?.conversationId === conversationId) this.scroll = null;
+  }
+  revision(root: string): number { return this.state(root).revision; }
 
   // The root whose Overview is on screen, or null.
   show(root: string | null): void {
     if (root === this.visible) return;
+    const left = this.visible ? this.roots.get(this.visible) : undefined;
+    if (left) left.leftAt = left.revision;
     this.visible = root;
-    if (root) this.resolve(root, this.state(root));
+    if (root) {
+      const s = this.state(root);
+      // Reopened with nothing asked for it meanwhile: spec decision 5 picks again; the drafts by key stay.
+      if (s.leftAt !== undefined && s.leftAt === s.revision && !s.request) { delete s.current; s.moved = null; }
+      this.resolve(root, s);
+    }
     this.checkSeen();
     this.host.changed();
   }
@@ -117,6 +149,7 @@ export class OverviewRun {
   select(root: string, conversationId: string | null): void {
     const s = this.state(root);
     s.request = null;
+    s.revision++;
     if (conversationId === null) {
       s.moved = null;
       if (s.current?.conversationId !== null) { s.current = { conversationId: null, listed: false }; this.host.remember(root, null); }
@@ -131,16 +164,19 @@ export class OverviewRun {
     this.resolve(root, s);
     this.host.changed();
   }
-  // A start from the new conversation state: shown at once, before any list has it.
-  started(root: string, conversationId: string, provider?: Provider): void {
+  // A start from the new conversation state: shown at once, before any list has it. `revision` is the root's when the
+  // start was sent; a newer choice (another conversation, New, an entry) keeps what it chose.
+  started(root: string, conversationId: string, provider?: Provider, revision?: number): void {
     if (provider) this.providers.set(conversationId, provider);
     const s = this.state(root);
+    if (revision !== undefined && revision !== s.revision) return;
     s.request = null;
     this.setCurrent(root, s, conversationId, false);
     this.host.changed();
   }
-  sent(root: string, conversationId: string): void {
+  sent(root: string, conversationId: string, revision?: number): void {
     const s = this.state(root);
+    if (revision !== undefined && revision !== s.revision) return;
     s.moved = null;
     this.host.remember(root, conversationId);
     this.host.changed();
@@ -175,6 +211,43 @@ export class OverviewRun {
     }
     this.drafts = new Map([...this.drafts].filter(([key]) => !roots.some(root => key === `root:${root}`)));
     this.host.changed();
+  }
+  // Main's answers for files being added, applied to each chip in whichever draft holds it now (a promotion may have
+  // moved it); a chip removed meanwhile releases its file. Image thumbnails and refusals go back to the caller.
+  settleAttachments(keys: readonly string[], results: readonly (AttachmentResult | null)[]): { notices: string[]; images: { key: string; thumbnail: Uint8Array }[] } {
+    const notices: string[] = [], images: { key: string; thumbnail: Uint8Array }[] = [];
+    const drafts = new Map(this.drafts);
+    keys.forEach((key, i) => {
+      const result = results[i] ?? null;
+      const owner = [...drafts].find(([, draft]) => draft.attachments.some(a => a.key === key));
+      if (!owner) { if (result?.ok) void window.doan.removeAttachment(result.attachment.id).catch(() => false); return; }
+      const [at, draft] = owner;
+      const chip = draft.attachments.find(a => a.key === key)!;
+      if (!result || !result.ok) {
+        drafts.set(at, { ...draft, attachments: draft.attachments.filter(a => a.key !== key) });
+        notices.push(result && !result.ok && result.error === "limit" ? "Only 10 files can be attached." : (ATTACH_ERRORS[result ? result.error : "unreadable"] ?? ATTACH_ERRORS.unreadable!)(result ? result.name : chip.name));
+        return;
+      }
+      const { attachment } = result;
+      if (attachment.kind === "image" && attachment.thumbnail) images.push({ key, thumbnail: attachment.thumbnail });
+      const ready: AttachmentDraft = { key, id: attachment.id, name: attachment.name, kind: attachment.kind, pasted: attachment.pasted, status: "ready", size: attachment.size, path: attachment.path };
+      drafts.set(at, { ...draft, attachments: draft.attachments.map(a => a.key === key ? ready : a) });
+    });
+    this.drafts = drafts;
+    this.host.changed();
+    return { notices, images };
+  }
+  // Edit and resend: the conversation's last request back in its draft, unless the person changed that draft while
+  // its files were issued again. True when the field should take focus: the same conversation still shows.
+  async editAndResend(root: string, conversationId: string): Promise<boolean> {
+    const message = [...this.threads.get(conversationId)?.events ?? []].reverse().find(event => event.type === "user.message");
+    if (message?.type !== "user.message") return false;
+    const key = `conversation:${conversationId}`, before = this.drafts.get(key), revision = this.state(root).revision;
+    const restored = await draftFrom(message.text, message.anchors, message.attachments ?? []);
+    if (this.drafts.get(key) !== before) return false;
+    this.setDrafts(drafts => new Map(drafts).set(key, restored));
+    const s = this.roots.get(root);
+    return this.visible === root && s?.revision === revision && s.current?.conversationId === conversationId;
   }
   // Whether main still works on the conversation's turn, as threadItems and the seen rule read it.
   live(root: string, conversationId: string): boolean {
@@ -213,6 +286,8 @@ export class OverviewRun {
       if (!Array.isArray(list)) continue;
       this.afterList(root, s, list);
       if (root === this.visible) this.toastWaiting(root, s, list);
+      const shown = s.current?.conversationId;
+      if (shown && this.threads.get(shown)?.read === "ready") this.takeDraft(shown);
     }
     for (const [id, queue] of this.queues) {
       const list = this.host.list(queue.root);
@@ -224,10 +299,11 @@ export class OverviewRun {
 
   private state(root: string): RootState {
     let s = this.roots.get(root);
-    if (!s) { s = { request: null, moved: null }; this.roots.set(root, s); }
+    if (!s) { s = { request: null, moved: null, revision: 0 }; this.roots.set(root, s); }
     return s;
   }
   private setCurrent(root: string, s: RootState, conversationId: string, listed: boolean): void {
+    s.revision++;
     s.current = { conversationId, listed };
     s.moved = null;
     this.host.remember(root, conversationId);
@@ -253,7 +329,7 @@ export class OverviewRun {
       } else if (pick.kind === "conversation") {
         s.request = null;
         this.setCurrent(root, s, pick.conversationId, true);
-        if (request.scroll) this.scroll = { conversationId: pick.conversationId, to: request.scroll };
+        if (request.scroll) this.scroll = { conversationId: pick.conversationId, to: request.scroll, seq: ++this.scrolls };
         return;
       } else if (pick.kind === "canvas") {
         s.request = null;
@@ -265,6 +341,7 @@ export class OverviewRun {
     const pick = pickOverviewConversation(read, remembered[root], null);
     if (pick.kind === "conversation") this.setCurrent(root, s, pick.conversationId, true);
     else if (pick.kind === "new") {
+      s.revision++;
       s.current = { conversationId: null, listed: false };
       if (pick.forget) this.host.remember(root, null);
     }
@@ -280,6 +357,7 @@ export class OverviewRun {
       return;
     }
     this.moveDraft(change.draft);
+    s.revision++;
     s.current = { conversationId: null, listed: false };
     this.host.remember(root, null);
     if (change.kind !== "promoted") return;
@@ -359,9 +437,12 @@ export class OverviewRun {
     const root = [...this.roots].find(([, s]) => s.current?.conversationId === conversationId)?.[0];
     const list = root ? this.host.list(root) : null;
     const c = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
-    if (!c?.returnedDraft || this.taking.has(conversationId)) return;
+    if (!root || !c?.returnedDraft || this.taking.has(conversationId)) return;
+    const took = this.taken.get(conversationId);
+    if (took !== undefined && this.host.readsApplied(root) <= took) return;
     this.taking.add(conversationId);
     void window.doan.takeConversationDraft({ conversationId }).catch(() => null).then(async reply => {
+      this.taken.set(conversationId, this.host.readsStarted(root));
       if (!reply || "error" in reply) { this.taking.delete(conversationId); return; }
       const returned = await draftFrom(reply.text, reply.anchors, reply.attachments);
       this.taking.delete(conversationId);

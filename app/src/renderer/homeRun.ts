@@ -1,3 +1,4 @@
+import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -193,6 +194,32 @@ export class HomeRun {
     this.entriesChanged();
     this.host.changed();
     return { ok: true, conversationId };
+  }
+
+  // A send in an existing project conversation from the Overview (buzz-project spec decision 6): the new canvas its
+  // turn makes opens as a start's does, from the canvases listed before main accepted the send and only while the
+  // person opened no canvas since. An edit of a canvas already listed is not new; main's promotion handles it.
+  async send(root: string, provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }> {
+    const listed = this.host.view().entries.find(entry => entry.path === root);
+    const atStart = listed?.kind === "list" ? listed.canvases.map(row => row.path) : [];
+    const canvasOpens = this.canvasOpens;
+    const reply = await window.doan.sendConversation(request).catch(() => ({ error: "unknown" }));
+    if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
+    const id = request.conversationId;
+    this.extras.set(id, { atStart, checked: [], canvasOpens, toasted: this.extras.get(id)?.toasted ?? null, opened: false });
+    this.track(id);
+    if (!this.conversations.some(item => item.conversationId === id)) {
+      this.claimed.delete(id);
+      this.conversations = [...this.conversations, { conversationId: id, root, provider, phase: "starting" }];
+      this.strips = { ...this.strips, [id]: { kind: "starting" } };
+      void this.history(id).then(read => {
+        if (!read) return;
+        this.events.set(id, mergeConversationEvents(read.events, this.events.get(id) ?? [], id));
+        this.refresh(id);
+      });
+    }
+    this.entriesChanged();
+    this.host.changed();
   }
 
   // A conversation this run knows, from its own start or main's list.

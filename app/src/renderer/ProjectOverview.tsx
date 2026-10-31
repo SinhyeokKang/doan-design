@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, Check, ChevronDown, GitBranch, Plus } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { AttachmentResult } from "../main/attachments";
 import type { Canvas, ConversationEvent } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
@@ -16,7 +17,7 @@ import { copyText } from "./copyText";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
 import { modelsKey, type DockedSupport } from "./dockedSupport";
-import { cardRow } from "./homeCards";
+import { cardRow, type RowAction } from "./homeCards";
 import {
   attachmentLimit, defaultEffort, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView, presetPlaceholder,
   selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
@@ -24,7 +25,7 @@ import {
 import type { LastRequest } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
 import { projectConversationMenu } from "./overviewConversation";
-import { draftFrom, type ListView, type OverviewRun } from "./overviewRun";
+import { scrollTarget, type ListView, type OverviewRun } from "./overviewRun";
 import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
@@ -59,6 +60,11 @@ export interface ProjectOverviewProps {
   onOpenCanvas(canvas: Canvas): void;
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
+  // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens (spec decision 6).
+  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }>;
+  // A problem worktree's repair actions in the branch chip's menu, as the sidebar's project menu runs them.
+  onAction(name: RowAction, root: string): void;
+  onProjectSettings(root: string): void;
   onSettings(target: SettingsTarget): void;
   onNotice?(text: string): void;
 }
@@ -66,13 +72,16 @@ export interface ProjectOverviewProps {
 const NEW_PLACEHOLDER = "Ask or describe what to design, / for presets";
 const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
-const ATTACH_ERRORS: Record<string, (name: string) => string> = {
-  not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
-  not_file: name => `${name} isn’t a file, so it wasn’t attached.`,
-  not_image: name => `${name} isn’t a readable image, so it wasn’t attached.`,
-  unreadable: name => `${name} couldn’t be read, so it wasn’t attached.`,
-  too_large: () => "This image is over 50 MB, so it wasn’t attached.",
-};
+// The sidebar project menu's labels (ShellSidebar.tsx).
+const REPAIR_LABELS: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
+
+// A worktree row in the branch chip's menu does what the sidebar's does (design §2.1): a listed or reading worktree
+// opens its Overview; a problem one turns the menu to its repair actions. Show in Finder and Project Settings are
+// fixed items there, and removing the project stays in the sidebar.
+export function worktreeChoice(row: FolderEntry): { kind: "open" } | { kind: "repair"; actions: RowAction[] } {
+  if (row.kind === "list" || row.kind === "loading") return { kind: "open" };
+  return { kind: "repair", actions: cardRow(row, null, null).actions.filter(action => action !== "remove" && action !== "showInFinder") };
+}
 
 // The canvas a conversation names, as main matches it: an ID on either side matches by ID only, else the path.
 export function sameCanvas(a: Canvas, b: Canvas): boolean {
@@ -136,45 +145,24 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
   const items = thread?.read === "ready" ? threadItems(thread.events, root, live) : thread?.read === "error" ? "error" as const : null;
+  // An entry's scroll, also for the conversation already shown; it waits for the request's item when the list told
+  // of it before its event arrived.
+  const scroll = conversationId ? run.scrollRequest(conversationId) : null;
+  const asking = summary?.phase === "waiting";
   useEffect(() => {
-    if (!conversationId || !Array.isArray(items)) return;
-    if (run.takeScroll(conversationId) !== "permission") return;
-    const ask = [...items].reverse().find(item => item.kind === "permission" && item.status === "pending");
-    if (ask) handle.current?.scrollToItem(ask.key);
-  }, [conversationId, Array.isArray(items)]);
+    if (!conversationId || !scroll || !Array.isArray(items)) return;
+    const target = scrollTarget(items, asking);
+    if (target.kind === "wait") return;
+    run.takeScroll(conversationId);
+    if (target.kind === "item") handle.current?.scrollToItem(target.key);
+  }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
   const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
-  const editAndResend = async () => {
-    if (!conversationId || !thread) return;
-    const message = [...thread.events].reverse().find(event => event.type === "user.message");
-    if (message?.type !== "user.message") return;
-    const restored = await draftFrom(message.text, message.anchors, message.attachments ?? []);
-    run.setDrafts(drafts => new Map(drafts).set(key, restored));
-    focusField();
-  };
+  const editAndResend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
 
-  // Attachments go through main, which checks each file; the chips land in the draft they were added to.
-  const settle = (at: string, keys: string[], results: readonly ({ ok: true; attachment: { id: string; name: string; kind: "image" | "file"; pasted: boolean; size: number; path?: string; thumbnail?: Uint8Array } } | { ok: false; name: string; error: string } | null)[]) => {
-    const notices: string[] = [];
-    run.setDrafts(drafts => {
-      const current = drafts.get(at);
-      if (!current) return drafts;
-      let next = [...current.attachments];
-      keys.forEach((chip, i) => {
-        const result = results[i];
-        const index = next.findIndex(a => a.key === chip);
-        if (index === -1) { if (result?.ok) void window.doan.removeAttachment(result.attachment.id); return; }
-        if (!result || !result.ok) {
-          const name = result && !result.ok ? result.name : next[index]!.name;
-          next = next.filter(a => a.key !== chip);
-          notices.push(result && !result.ok && result.error === "limit" ? "Only 10 files can be attached." : (ATTACH_ERRORS[result?.ok === false ? result.error : "unreadable"] ?? ATTACH_ERRORS.unreadable!)(name));
-          return;
-        }
-        const { attachment } = result;
-        if (attachment.kind === "image" && attachment.thumbnail && typeof URL.createObjectURL === "function") support.setThumbnail(chip, URL.createObjectURL(new Blob([new Uint8Array(attachment.thumbnail)], { type: "image/png" })));
-        next[index] = { key: chip, id: attachment.id, name: attachment.name, kind: attachment.kind, pasted: attachment.pasted, status: "ready", size: attachment.size, ...(attachment.path ? { path: attachment.path } : {}) };
-      });
-      return new Map(drafts).set(at, { ...current, attachments: next });
-    });
+  // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
+  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => {
+    const { notices, images } = run.settleAttachments(keys, results);
+    if (typeof URL.createObjectURL === "function") for (const image of images) support.setThumbnail(image.key, URL.createObjectURL(new Blob([new Uint8Array(image.thumbnail)], { type: "image/png" })));
     if (notices.length) props.onNotice?.(notices.join(" "));
   };
   const addChips = (at: string, chips: AttachmentDraft[]) => run.setDrafts(drafts => {
@@ -190,15 +178,15 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     const keys = accepted.map(() => crypto.randomUUID());
     addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
     void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
-      if (!results) { settle(at, keys, keys.map(() => null)); return; }
+      if (!results) { settle(keys, keys.map(() => null)); return; }
       // A copied screenshot has no path on disk; it attaches as a pasted image instead (buzz-home design §4.8).
       const final = await Promise.all(results.map(async (result, i) => {
         const file = accepted[i]!;
         if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
-        if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" };
+        if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
         return window.doan.addPastedImage(await file.arrayBuffer()).catch(() => null);
       }));
-      settle(at, keys, final);
+      settle(keys, final);
     });
   };
   const chooseFiles = () => {
@@ -211,7 +199,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       const chosen = results.filter(result => !result.ok || keep.has(result));
       const keys = chosen.map(() => crypto.randomUUID());
       addChips(at, chosen.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
-      settle(at, keys, chosen);
+      settle(keys, chosen);
       if (limit.notices.length) props.onNotice?.(limit.notices.join(" "));
     });
   };
@@ -226,16 +214,18 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
       const last: LastRequest = { root, text: draft.text, preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
+      const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
-      if ("ok" in outcome && outcome.conversationId) { support.clearPick(key); run.started(root, outcome.conversationId, chosen); }
+      if ("ok" in outcome && outcome.conversationId) { support.clearPick(key); run.started(root, outcome.conversationId, chosen, revision); }
       return "ok" in outcome ? { ok: true } : outcome;
     }
-    const reply = await window.doan.sendConversation({
+    const revision = run.revision(root);
+    const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
       ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
-    }).catch(() => ({ error: "unknown" as const }));
-    if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
-    run.sent(root, mode.conversationId);
+    }).catch(() => ({ error: "unknown" }));
+    if (reply && "error" in reply) return reply;
+    run.sent(root, mode.conversationId, revision);
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
@@ -261,6 +251,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const branchOf = (row: FolderEntry) => cardRow(row, null, null).summary?.branch ?? null;
   const branch = branchOf(props.entry);
   const worktreePicked = useRef(false);
+  // The problem worktree whose repair actions the chip's menu shows, as the sidebar's menu does.
+  const [repair, setRepair] = useState<string | null>(null);
+  const repairRow = repair ? props.worktrees.find(row => row.path === repair) : undefined;
+  const repairChoice = repairRow ? worktreeChoice(repairRow) : null;
   const chipLabel = branch ?? root.split("/").at(-1) ?? root;
 
   const moved = view.kind === "new" ? view.moved : null;
@@ -272,22 +266,31 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       <span className="ov-project">
         <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span>
         <span className="ov-project-name">{project}</span>
-        {props.worktrees.length > 1 ? <DropdownMenu.Root>
+        {props.worktrees.length > 1 ? <DropdownMenu.Root onOpenChange={open => { if (open) setRepair(null); }}>
           <DropdownMenu.Trigger asChild><button type="button" className="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label={`Worktree: ${chipLabel}`}>
             <GitBranch aria-hidden="true" /><span>{chipLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
           <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu shell-project-menu wt-menu" aria-label="Worktrees" align="start" sideOffset={4} collisionPadding={8}
             onCloseAutoFocus={event => { if (worktreePicked.current) { worktreePicked.current = false; event.preventDefault(); } }}>
             <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
             {props.worktrees.map(row => {
-              // A worktree that is missing or not set up is fixed from the sidebar's project menu; reading is opened.
-              const off = row.kind !== "list" && row.kind !== "loading";
-              const chip = off ? cardRow(row, null, null).chip : undefined;
-              return <DropdownMenu.Item key={row.path} className="doan-menu-item shell-worktree" aria-current={row.path === root ? "true" : undefined} disabled={off}
-                onSelect={() => { if (row.path === root) return; worktreePicked.current = true; props.onWorktree(row.path); }}>
+              const chip = row.kind === "list" || row.kind === "loading" ? undefined : cardRow(row, null, null).chip;
+              const marked = row.path === (repair ?? root);
+              return <DropdownMenu.Item key={row.path} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}
+                onSelect={event => {
+                  if (worktreeChoice(row).kind === "repair") { event.preventDefault(); setRepair(row.path); return; }
+                  if (row.path === root) return;
+                  worktreePicked.current = true; props.onWorktree(row.path);
+                }}>
                 <GitBranch aria-hidden="true" /><span><span>{branchOf(row) ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
-                {chip ? <span className="shell-problem">{chip}</span> : row.path === root && <Check aria-hidden="true" />}
+                {chip ? <span className="shell-problem">{chip}</span> : marked && <Check aria-hidden="true" />}
               </DropdownMenu.Item>;
             })}
+            {repairRow && repairChoice?.kind === "repair" && <>
+              <DropdownMenu.Separator className="doan-menu-sep" />
+              <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onAction("showInFinder", repairRow.path)}><FolderOpen aria-hidden="true" />{REPAIR_LABELS.showInFinder}</DropdownMenu.Item>
+              <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onProjectSettings(repairRow.path)}><Settings aria-hidden="true" />Project Settings</DropdownMenu.Item>
+              {repairChoice.actions.map(action => <DropdownMenu.Item key={action} className="doan-menu-item" onSelect={() => props.onAction(action, repairRow.path)}>{REPAIR_LABELS[action]}</DropdownMenu.Item>)}
+            </>}
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root>
           : branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{branch}</span></span>}
@@ -321,7 +324,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={canvasListed}
         onAnswer={(requestId, optionId) => void window.doan.answerConversationPermission({ conversationId, requestId, optionId }).catch(console.error)}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
-        onEditAndResend={() => void editAndResend()}
+        onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}
         onOpenCanvas={props.onOpenCanvas}

@@ -75,6 +75,12 @@ export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: 
   return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}) };
 }
 
+// The start's ui-state read under what the run wrote before it (buzz-project T1): a root the run set, cleared (New) or
+// removed keeps the run's word, so a late read never brings back a cleared memory.
+export function mergeConversationMemory(saved: Readonly<Record<string, string>> | undefined, current: Readonly<Record<string, string>>, touched: ReadonlySet<string>): Record<string, string> {
+  return { ...Object.fromEntries(Object.entries(saved ?? {}).filter(([root]) => !touched.has(root))), ...current };
+}
+
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
 
@@ -180,6 +186,8 @@ export function App() {
   // conversationByRoot is written from the start; the Overview reads it only once ui-state was read (memoryRead).
   const conversationByRoot = useRef<Record<string, string>>({});
   const memoryRead = useRef(false);
+  // Roots the run wrote, cleared or removed before that read.
+  const memoryTouched = useRef(new Set<string>());
   const [memoryTick, setMemoryTick] = useState(0);
   const overviewRun = useRef<OverviewRun | null>(null);
   if (!overviewRun.current) overviewRun.current = new OverviewRun({
@@ -189,6 +197,7 @@ export function App() {
     reread: root => homeRun.current.retryList(root),
     remembered: () => memoryRead.current ? conversationByRoot.current : null,
     remember: (root, id) => {
+      if (!memoryRead.current) memoryTouched.current.add(root);
       const current = conversationByRoot.current;
       if (current[root] === (id ?? undefined)) return;
       const next = { ...current };
@@ -325,7 +334,7 @@ export function App() {
       // A send that finished before this read keeps its newer choices over the saved ones.
       if (active) setHomeMemory(previous => ({ ...state?.home, ...previous }));
       // The same for the Overview's memory: a conversation shown before the read keeps its newer entry.
-      if (active) { conversationByRoot.current = { ...state?.conversationByRoot, ...conversationByRoot.current }; memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
+      if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
     });
@@ -424,6 +433,7 @@ export function App() {
     else live.current.toast.show(unavailableCanvasMessage(listed, canvas.path));
   }
   function forgetConversations(roots: readonly string[]) {
+    if (!memoryRead.current) for (const root of roots) memoryTouched.current.add(root);
     conversationByRoot.current = withoutRoots(conversationByRoot.current, roots); setMemoryTick(tick => tick + 1);
     overviewRun.current?.forgetRoots(roots);
   }
@@ -866,6 +876,9 @@ export function App() {
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={canvas => openConversationCanvas(overview.path, canvas)}
       onRetryList={() => run.retryList(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
+      onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
+      onAction={(name, root) => action(name, root)}
+      onProjectSettings={root => { if (!live.current.modal && card) setProjectSettings(previous => ({ root, key: card.key, seq: (previous?.seq ?? 0) + 1 })); }}
       onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} />}
     <div className="right-stack">{overview ? <CanvasConversations /> : <RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />}{comments.panel}</div>
   </main>
