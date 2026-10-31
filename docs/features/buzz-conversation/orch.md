@@ -28,9 +28,9 @@
 |---|---|---|---|---|---|---|
 | P | P1 | `.scratch/`, tasks.md P1 절 | 없음 | Codex Sol medium — 정해진 절차를 따르는 관찰이고 판단이 적다 | 공급자별 관찰을 tasks.md에 기록, 원시 jsonl을 `.scratch/`에 보관 | 통합 `5a145101` |
 | A1 | T1, T2, T3, T4, M1, M2, M3, M7, M8 | `app/src/main/**`, `app/src/preload/**` | 없음 | Opus high — 저널 형식·crash 복구·IPC 검증이 틀리면 기록이 깨진다 | `npm --prefix app test`, `npm --prefix app run typecheck`, `verify.mjs` | 리뷰 중 |
-| B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 리뷰 중 |
+| B1 | T5, R1, R3 | `app/src/renderer/**`, `app/package.json`, `app/package-lock.json`, `docs/DESIGN.md` | 없음 | Opus high — Home 회귀 없는 분해와 Markdown 안전 규칙 | 같음 + R1 기준선 probe(`.scratch/`) | 통합 `61a52bdf..290e85b2` (라운드 1) |
 | RA1 | A1 리뷰 | 보고만 | A1 | Codex Astra medium — 다른 계열의 판단 리뷰 | `/code-review` 보고 | 진행 중 |
-| RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 진행 중 |
+| RB1 | B1 리뷰 | 보고만 | B1 | Opus high — 포커스·IME·보안 렌더링 판단 | `/code-review` 보고 | 완료 (🔴1→0) |
 | A2 | M4, M5, M6 | `app/src/main/**`, `app/src/preload/**` | A1 통합 | Opus high — 승격·복구·대기열의 동시성과 저널 커밋 | A1과 같음 | 대기 |
 | B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 대기 |
 | RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 대기 |
@@ -64,3 +64,4 @@
 - B1 수정 라운드 1을 같은 터미널로 보냈다: dispatch `ctx_7f9d0865b213`. RB1 워커는 release했다.
 - A1 완료(`worker_done` succeeded): `d2f02dca..ace812af` 8커밋, 테스트 5167개·typecheck·verify 통과, 자체 리뷰 🟡3·⚪1 반영. 계획과 다른 점 10개는 handoff에 있다(`.scratch/buzz-conversation/handoff-A1.md`). 열린 항목: Codex에서 effort 없이 모델만 보낼 때 이전 effort가 이어지는지, `listChanged` 빈도에 따른 R4 throttle. A1 터미널은 수정 라운드용으로 retain했다.
 - RA1 리뷰 시작: dispatch `ctx_f75b434dfbf1`, worktree `bc-a1`, Codex gpt-6-astra medium.
+- B1 수정 라운드 1 완료: 🔴1·🟡1~3·⚪1~6과 결정 12·13을 4커밋으로 반영했고 verify가 통과했다. 지휘자가 🔴1 수정(crash로 접힌 턴을 끝 항목으로 닫음)을 diff로 확인했다. B1 8커밋을 `61a52bdf..290e85b2`로 통합했다. B2가 따를 것: `threadItems(events, root, live)`, `ConversationThread`의 필수 prop `conversationId`, 메시지 key `m<turnId>:<messageId>`. B1 워커를 release하고 worktree `bc-b1`을 제거했다. 증거는 `.scratch/buzz-conversation/b1/`에 있다.

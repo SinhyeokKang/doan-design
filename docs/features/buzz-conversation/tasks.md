@@ -29,7 +29,7 @@
 
 - [ ] T4. main 순수 함수: `conversationSummary`, `clampSeen`, `projectBusy`, `validateSendExtras`, `promotionTarget`, `restoreEntries`, `combineQueued`(design §4 표의 경우를 모두).
   - 검증: `npm --prefix app test`.
-- [ ] T5. renderer 순수 함수: `composerShape`, `composerAction`, `focusAfter`, `threadItems`, `scrollFollow`, `slotsFromList`/`stripFromList`(design §4).
+- [x] T5. renderer 순수 함수: `composerShape`, `composerAction`, `focusAfter`, `threadItems`, `scrollFollow`, `slotsFromList`/`stripFromList`(design §4).
   - 검증: `npm --prefix app test`.
 
 ── commit: `feat(conversation): pure summaries, promotion, restore, queue and composer rules` ──
@@ -64,7 +64,7 @@
 
 ## R. renderer
 
-- [ ] R1. 바꾸기 전에 main에서 Home 기준선을 잰다(1238×600/780/1240, `/runtime-test` probe, `.scratch/`에 저장). 그다음 입력창 프리미티브를 나누고 `HeroComposer`로 Home을 다시 조립한다.
+- [x] R1. 바꾸기 전에 main에서 Home 기준선을 잰다(1238×600/780/1240, `/runtime-test` probe, `.scratch/`에 저장). 그다음 입력창 프리미티브를 나누고 `HeroComposer`로 Home을 다시 조립한다.
   - 포커스 보더는 이미 있는 토큰 `--border-field-focus`와 `--shadow-sm`을 적용한다.
   - 비활성 도구 잉크를 고친다.
   - Home 이유 줄과 제거 확인 문구를 바꾼다(spec 결정 18).
@@ -75,7 +75,7 @@
   - 검증: `npm --prefix app test`.
   - 두 모양의 정적 마크업에서 textarea가 같은 위치·같은 key이고 `data-shape`만 다름. `ds/controls.test.ts`에 `xs` 버튼.
   - 실제 포커스·IME 유지는 `buzz-project`의 `/runtime-test`로 넘긴다(ARCHITECTURE §7 'Home tests without a DOM').
-- [ ] R3. `ConversationThread`: 항목 표시, 스크롤 규칙, 로딩·읽기 실패, 접근성(design §3.3), Markdown 렌더링을 넣는다.
+- [x] R3. `ConversationThread`: 항목 표시, 스크롤 규칙, 로딩·읽기 실패, 접근성(design §3.3), Markdown 렌더링을 넣는다.
   - `npm --prefix app install --save-exact react-markdown@10.1.0 remark-gfm@4.0.1`.
   - 원시 HTML·이미지를 막고, 링크는 M7 채널로 열고, 코드는 `--type-family-mono`를 쓴다.
   - 끝난 메시지는 memo하고, 스트리밍은 프레임 단위로 다시 그린다.
