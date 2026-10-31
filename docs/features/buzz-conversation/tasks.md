@@ -55,7 +55,7 @@
 
 ## D. 초안과 실제 앱
 
-- [ ] D1. `/design-draft`: `.doan/canvases/buzz-conversation.html`(round 1 작성, 사용자 확인 대기)에 `docked` 입력창(capsule·box·칩·비활성·이유 줄)과 스레드 항목 상태를 그린다. 화면 배치 없이 프리미티브 상태판이다. `buzz-project`의 Overview 초안이 이것을 재사용한다. 사용자가 앱에서 초안을 확인한다.
+- [x] D1. `/design-draft`: `.doan/canvases/buzz-conversation.html`(2026-10-31 사용자 확정)에 `docked` 입력창(capsule·box·칩·비활성·이유 줄)과 스레드 항목 상태를 그린다. 화면 배치 없이 프리미티브 상태판이다. `buzz-project`의 Overview 초안이 이것을 재사용한다. 사용자가 앱에서 초안을 확인한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
 - [ ] D2. `/runtime-test`: Home의 computed style·배치가 바꾸기 전과 같은지, 다시 로드·재시작 뒤 상태줄·슬롯이 실행 중·응답 대기·안 본 종료를 다시 보이는지 격리 앱에서 확인한다.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과 뒤 `/runtime-test`의 짧은 probe.

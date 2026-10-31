@@ -6,7 +6,7 @@
 
 ## 0. 초안과 초안 결정 (2026-10-31 user)
 
-초안은 `.doan/canvases/buzz-conversation.html`이다(canvas id `buzz-conversation`, 폭 1760). 프레임은 다음과 같다.
+초안은 `.doan/canvases/buzz-conversation.html`이다(canvas id `buzz-conversation`, 폭 1760). 사용자가 2026-10-31에 디자인을 확정했다. 프레임은 다음과 같다.
 
 - `hero-composer`: Home 입력창. 출하 기준이고 포커스 보더만 바뀐다. `/design-sync`는 이 자식에서 이 프레임만 비교한다.
 - `docked-composer`: capsule·box, 칩, 전송 중, `project_busy` 이유 줄.
