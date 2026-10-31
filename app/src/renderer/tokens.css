@@ -112,6 +112,8 @@
   --border-standard: var(--neutral-3);
   --border-prominent: var(--neutral-8);
   --border-focus: var(--neutral-12);
+  /* A composer card shows focus quietly; its shadow steps up with it (2026-10-31 user). */
+  --border-field-focus: var(--neutral-5);
   --border-danger: var(--red-9);
   --border-warning: var(--amber-11);
   --scrollbar-thumb-quiet: color-mix(in srgb, var(--border-standard) 90%, transparent);
