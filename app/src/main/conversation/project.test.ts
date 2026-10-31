@@ -11,6 +11,9 @@ describe("projectBusy", () => {
     expect(projectBusy(live({ a: { project: "/repo", busy: false, terminal: true, endedAt: now - BIND_GRACE_MS } }), "/repo", "b", now)).toBe("a");
     expect(projectBusy(live({ a: { project: "/repo", busy: false, terminal: true, endedAt: now - BIND_GRACE_MS - 1 } }), "/repo", "b", now)).toBeNull();
   });
+  it("counts a conversation holding queued messages for its next turn after its window", () => {
+    expect(projectBusy(live({ a: { project: "/repo", busy: false, terminal: true, endedAt: now - BIND_GRACE_MS - 1, holding: true } }), "/repo", "b", now)).toBe("a");
+  });
   it("ignores the asking conversation, other roots, canvas turns and refused preparations", () => {
     expect(projectBusy(live({ a: { project: "/repo", busy: true, terminal: false } }), "/repo", "a", now)).toBeNull();
     expect(projectBusy(live({ a: { project: "/other", busy: true, terminal: false } }), "/repo", "b", now)).toBeNull();

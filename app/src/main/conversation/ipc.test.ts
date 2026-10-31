@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { conversationHandler, validateSendExtras } from "./ipc";
+import { conversationHandler, conversationMethods, validateSendExtras } from "./ipc";
 import { ConversationService, type Prepare } from "./service";
 import { ModelCatalog, type ModelOption } from "./models";
 import { AttachmentStore } from "../attachments";
@@ -248,6 +248,58 @@ describe("conversation list, seen marker and send extras", () => {
       for (const extra of [{ model: "sonnet" }, { attachments: [{ id: "a" }] }]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", ...extra })).toEqual({ error: "bad_request" });
       h.send.mockRejectedValueOnce(new Error("project_busy"));
       expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: "project_busy" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+// buzz-conversation M6: the queue channels and the returned draft.
+describe("queue channels", () => {
+  function queueFixture(dir: string) {
+    const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+    const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+    const store = new ConversationStore(dir);
+    const service = new ConversationService(store, prepare, open, () => {});
+    const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
+    const attachments = { resolve: vi.fn((value: unknown[]) => value.some(v => (v as { id: string }).id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: true, records }), markSent: vi.fn(), consume: vi.fn() };
+    const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { attachments: attachments as unknown as AttachmentStore });
+    return { handle, service, store, attachments, records };
+  }
+  it("names the queue channels among the conversation methods", () => {
+    expect(conversationMethods).toEqual(expect.arrayContaining(["queue", "removeQueued", "takeDraft"]));
+  });
+  it("queues a running conversation's message with its attachments, which main then holds, and refuses the rest", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = queueFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      for (const bad of [{ text: "" }, { text: "{{1}}" }, { text: "y", model: "sonnet" }, { text: "y", effort: "low" }, { text: "y", runtime: "claude" }, { text: "y", provider: "codex" }])
+        expect(await h.handle(true, "queue", { conversationId: id, ...bad })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "gone" }] })).toEqual({ error: "attachment_missing", missing: ["gone"] });
+      expect(await h.handle(false, "queue", { conversationId: id, text: "y" })).toEqual({ error: "bad_request" });
+      const queued = await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] }) as { itemId: string };
+      expect(queued).toEqual({ itemId: expect.any(String) });
+      expect(h.attachments.markSent).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.attachments.consume).toHaveBeenLastCalledWith([{ id: "a" }]);
+      expect(h.service.list("/repo")[0]!.queued).toBe(1);
+      expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: 1 })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toBeUndefined();
+      expect(await h.handle(true, "removeQueued", { conversationId: id, itemId: queued.itemId })).toEqual({ error: "stale" });
+      h.service.receive(id, { type: "turn.done" });
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "not_running" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("hands a returned draft over once", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = queueFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "takeDraft", { conversationId: id })).toBeNull();
+      await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "a" }] });
+      h.service.receive(id, { type: "interrupted", reason: "user" });
+      expect(await h.handle(true, "takeDraft", { conversationId: id })).toEqual({ text: "y", anchors: [], attachments: h.records, reason: "interrupted" });
+      expect(await h.handle(true, "takeDraft", { conversationId: id })).toBeNull();
+      expect(await h.handle(true, "takeDraft", { conversationId: "nope" })).toEqual({ error: "bad_request" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
