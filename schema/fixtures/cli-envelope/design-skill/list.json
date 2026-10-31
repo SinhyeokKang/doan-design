@@ -21,7 +21,7 @@
       {
         "id": "document",
         "title": "Document the design system",
-        "description": "Record the shipped design system as a rules document for agents and design-system canvases in .doan/ds/, one per token group, component, or shared surface.",
+        "description": "Record the shipped design system as a rules document for agents and design-system canvases in .doan/ds/ (one per token group, component, or shared surface), or update them after a code change; not for plain Doan setup.",
         "scope": "design system",
         "group": "start"
       },

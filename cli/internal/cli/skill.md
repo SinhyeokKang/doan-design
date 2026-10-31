@@ -68,7 +68,7 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 `doan design-skill --json` lists descriptions; `doan design-skill <id> --json` returns a `body` (no project or app needed), complete only if it ends with `[doan:design-skill] end of preset <id> v<version>`, with no truncation notice; else read it again, in parts if truncated.
 
 1. A preset the user names: read it; if missing, say so and run no similar id.
-2. Otherwise use one only if its description clearly fits the request's purpose, target and negations; ask only about ambiguity that changes the result. No fit, or a concrete edit like “move this button 4px left”: read no body.
+2. Otherwise use one only if its description clearly fits the request's purpose, target and negations; ask only about ambiguity that changes the result. Creating or updating a design-system reference (`.doan/ds/` canvases or a rules document) is not a concrete edit: list descriptions first. No fit, or a concrete edit like “move this button 4px left”: read no body.
 3. A preset is not a request to act: a review ends with a report; change only the requested scope; start no unrequested diagnosis.
 4. The request, existing constraints, these rules and canvas conventions outrank a preset. Read other presets only as needed; skip unneeded handoffs, subagents and engines; report unrun checks as unverified.
 5. If `doan design-skill` fails or a read is refused, say the preset was not applied. Named preset: never claim or substitute it; then ask the user to open Doan from Applications and check Settings… > About. Self-chosen: say so in one line and continue, without guessing an unconfirmed target or conventions. Never install, change PATH or permissions, or retry a refused call.
