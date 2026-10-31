@@ -28,7 +28,7 @@
 - 오른쪽 행
   - 썸네일 72×48(모서리 `radius-toolbar-icon`), 이름, 보조 줄(공급자 · 마지막 활동), 상태 표시(LNB 슬롯과 같은 모양), 펼침 chevron(`xs` 아이콘 버튼).
   - 펼친 대화 행은 썸네일 왼쪽 선에 맞추고 오른쪽에 시각을 둔다. 보관 대화는 subtle 잉크다.
-  - 열 수 없는 행 문구: "No longer in <project>."(buzz-conversation 표시 줄과 같은 말), "2 canvases use this ID — run doan check", "Can’t read this canvas — run doan check". 썸네일 실패에는 "Preview unavailable" 접근 이름을 둔다.
+  - 열 수 없는 행 문구: "No longer in <project>."(buzz-conversation 표시 줄과 같은 말), "2 canvases use this ID — run doan check", "Can’t read this canvas — run doan check". 
 - 메인: 대화 열 최대 720px, 패널 안쪽 24px. 헤더 제목은 `sm` trigger 버튼이다.
 - 메뉴 폭 360px, 오른쪽 패널 280px(출하 값)은 컴포넌트 상수다.
 
@@ -60,7 +60,7 @@
 - **행**: 썸네일(작게), 캔버스 이름, 진행 상태(가장 높은 하나), 펼침 chevron.
   - 행을 누르면 캔버스를 연다. 지금 열기 경로와 draft 보호를 그대로 쓴다.
   - 펼치면 현재 대화가 먼저 오고, 보관 대화가 최근순으로 온다. 대화를 누르면 그 캔버스를 연다. C12가 그 대화를 고르는 인자를 받을 수 있게 열기 요청에 대화 id를 함께 넘긴다. 이번에는 쓰지 않는다.
-- **썸네일**: 지금 `ThumbnailRequests`의 보이는 행 우선 캡처를 그대로 쓴다. 대기·실패·폭 없음·읽기 실패 표시는 지금 카드의 문구를 쓴다.
+- **썸네일**: 지금 `ThumbnailRequests`의 보이는 행 우선 캡처를 그대로 쓴다. 썸네일 틀은 항상 자리를 지킨다. 준비된 미리보기가 없으면(대기, 캡처 실패, `doan:width` 없음, 읽기 실패, 사라진 캔버스) 빈 스타일(inset 채움, 글리프 없음)을 보이고 이유는 글자로 쓰지 않는다. 접근 이름만 "Preview loading" 또는 "Preview unavailable"이다(2026-10-31 user).
 - **열 수 없는 행**: 지워진 캔버스, 중복 ID, 읽기 실패는 이유를 한 줄로 보이고 누를 수 없다.
 - **빈 상태**: "No canvas conversations yet."(clarify로 문구를 정한다).
 - **키보드**: 목록은 `role="tree"`로, 지금 sidebar와 Feedback의 키(↑/↓, Home/End, ←/→ 펼침, Enter 열기)를 따른다.
