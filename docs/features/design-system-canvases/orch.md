@@ -35,14 +35,14 @@
 | BC | T2 | `cli/internal/repo/`, `cli/internal/check/`, `cli/internal/cli/`의 ls·check·config 테스트 | 없음 | Claude Opus medium: 목록·범위·check 규칙을 넓히는 일이라 판단은 중간이고, 틀리면 앱과 eval이 모두 흔들려 테스트를 꼼꼼히 써야 한다 | tasks T2 검증 줄 | 통합 `8a00ae56..a88ff62b`(리뷰 2회, 🔴 1 해결) |
 | BP | T3, T8 preset 수정 | `cli/internal/cli/skill.md`·`skill_test.go`·`design_skill_test.go`, `cli/internal/designskill/` | 없음 | Claude Opus high: `document.md`의 새 기본이 T8 품질을 정하고, 출력 예산 안에서 문장을 고쳐야 한다 | tasks T3 검증 줄 | 통합 `38371488..7eee432c`(후속 1, 리뷰 1회 🟡 1 해결, 수정은 지휘자가 diff 확인). T8 조정 대기 |
 | BA | T4(`sidebarGroups`·`ui-state` 제외), T5 | `app/src/formats/`의 새 경로 모듈, `app/src/main/`(watch·designChange·shell·thumbnails·conversation), `app/src/renderer/`의 `homeComposer.ts`·`App.tsx` toast·`quickOpen.ts`·`ProjectSettingsDialog.tsx`, 각 테스트 | 없음 | Claude Opus high: 감시 계약(`Change.names`)을 바꾸는 일이고 POSTMORTEM의 감시 함정이 여럿 걸린다 | tasks T4·T5 검증 줄, `/runtime-test` | 통합 `0c8690ca..01b9b528`(구현 commit 둘을 하나로 합침). runtime probe 21/21. 미해결: 초기 1회 burst 교체 뒤 프레임 공백 15초(재현 안 됨, R-BA는 기존 기제로 판단, 차단 아님) |
-| BS | T4의 `sidebarGroups`·`ui-state` sanitizer, T6, `/design-sync` | `ShellSidebar.tsx`, 새 `sidebarGroups` 모듈, `styles.css`, `QuickOpenDialog.tsx`, `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`, `App.tsx`(묶음 열기 계기), `docs/DESIGN.md`(측정값), 각 테스트 | BA 통합 | Claude Opus high: 키 모델·저장·자동 펼침과 초안 맞추기에 판단이 들고, POSTMORTEM의 sidebar 함정이 걸린다 | tasks T6 검증 줄, `/runtime-test`, `/design-sync` | 진행 중 |
+| BS | T4의 `sidebarGroups`·`ui-state` sanitizer, T6, `/design-sync` | `ShellSidebar.tsx`, 새 `sidebarGroups` 모듈, `styles.css`, `QuickOpenDialog.tsx`, `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`, `App.tsx`(묶음 열기 계기), `docs/DESIGN.md`(측정값), 각 테스트 | BA 통합 | Claude Opus high: 키 모델·저장·자동 펼침과 초안 맞추기에 판단이 들고, POSTMORTEM의 sidebar 함정이 걸린다 | tasks T6 검증 줄, `/runtime-test`, `/design-sync` | 통합 `d5466a51..99ef8dc4`(리뷰 1회 🟡 1, 측정 보완으로 해결) |
 | BE | T7 | `eval/` | BC 통합 | Codex gpt-6-astra medium: 기존 시나리오 틀을 따르지만 checks·rubric 설계에 판단이 든다. 다른 계열이 시나리오를 쓰면 Claude 쪽 해석에 기대지 않는다 | tasks T7 검증 줄 | 통합 `2b57f79c..8819a4a7`(수정 1회). 통합 HEAD에서 eval unit 198 pass, self-test PASS |
-| BR-c | T8 Claude 벌 | 자기 worktree의 `.doan/ds/` | BP·BS(`/design-sync` 포함) 통합 | Claude Opus high: 사용자 지시(모델별 생성) | handoff와 commit | 대기 |
-| BR-x | T8 Codex 벌 | 자기 worktree의 `.doan/ds/` | BP·BS(`/design-sync` 포함) 통합 | Codex gpt-6-astra medium: 사용자 지시(모델별 생성) | handoff와 commit | 대기 |
+| BR-c | T8 Claude 벌 | 자기 worktree의 `.doan/ds/` | BP·BS(`/design-sync` 포함) 통합 | Claude Opus high: 사용자 지시(모델별 생성) | handoff와 commit | 5회 생성, 5회차 벌 통합 |
+| BR-x | T8 Codex 벌 | 자기 worktree의 `.doan/ds/` | BP·BS(`/design-sync` 포함) 통합 | Codex gpt-6-astra medium: 사용자 지시(모델별 생성) | handoff와 commit | 5회 생성, 채택 안 됨 |
 | R-BC | BC 리뷰 | 없음(보고만) | BC | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료(1회: 🔴 1·⚪ 1, 2회: 지적 없음) |
 | R-BP | BP 리뷰(T8 preset 수정분 포함) | 없음(보고만) | BP | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 1회 완료(🟡 1·⚪ 1). T8 수정분 리뷰 대기 |
 | R-BA | BA 리뷰 | 없음(보고만) | BA | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료(🔴 0·🟡 0·⚪ 2) |
-| R-BS | BS 리뷰 | 없음(보고만) | BS | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
+| R-BS | BS 리뷰 | 없음(보고만) | BS | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료(🟡 1·⚪ 1) |
 | R-BE | BE 리뷰 | 없음(보고만) | BE | Claude Opus medium: Codex가 쓴 배치를 다른 계열이 본다 | `/code-review` 보고 | 완료(🟡 3·⚪ 3, BE 수정 1회로 해결. 수정분은 지휘자가 gate로 확인) |
 | G | T9 | 없음 | 모든 구현·T8 통합 | 지휘자 | `node .agents/skills/verify/scripts/verify.mjs --eval` exit 0 | 대기 |
 | BW | 사용자 요청: sidebar 220px | `app/src/renderer/styles.css`, 너비를 박은 TSX, 관련 테스트, `docs/DESIGN.md` | BS 통합 | Claude Opus medium: 값 하나지만 파생 치수와 측정 기록이 따라온다 | app test·typecheck·build, 격리 앱 측정 | 통합(측정 23/23, 지휘자가 diff와 스크린숏 확인). 사용자가 워커와 worktree를 직접 닫음 |
@@ -109,3 +109,17 @@
   - 못 미침: 상태가 얕다(sidebar는 기본 상태만). 한 화면에서만 쓰는 부분(댓글 삭제 대화상자 등)까지 캔버스로 나눴다.
 - 판단: 두 벌 모두 결함. 남은 원인은 '여러 화면이 렌더한다'의 해석(앱 수준 대화상자)과 단계·상태를 다 그리지 않는 것이다.
 - preset 수정 방향(범용): 공용 여부는 사람이 그것을 보는 화면 수로 센다. 앱 수준에 한 번 마운트돼도 여러 화면에서 열리면 공용이다. 단계(step)가 있는 단위는 단계마다 그린다. 예산 여유가 57 B라 다른 문장을 줄인다.
+
+### 5회차 (base `d6b62aee`: preset 4차 수정) — 마지막
+
+- 판정 도구 보정: 지휘자 렌더의 viewport를 캔버스마다 `doan:width`에 맞췄다(1400px 고정이면 1440~1560px 캔버스가 넘친 것처럼 보였다).
+- BR5-c(Claude): 캔버스 37개. 깨진 요청 0, 넘침 0, `.doan/ds/` 지적 0, 아이콘은 설치된 `lucide-react`.
+  - 충족: shell-layout이 220px·묶음·상태(slot, 읽기 오류, 잠김)·project menu·body panel까지 지금 코드와 같다. 앱 수준 대화상자(Quick Open, Project Settings, Project Setup, add-to-serve, remove)를 공용으로 넣었다. 서빙 범위 밖 규칙은 캔버스마다 필요한 것만 옮겨 적었다(공용 바탕은 3.6 KB `ds-canvas.css`). 지휘자가 찾은 결함은 없다.
+- BR5-x(Codex): 캔버스 58개. `conversation-strip`·`doany`의 이미지 링크가 깨졌다(워커는 깨진 이미지 없음으로 보고). 한 화면 것과 큰 단위의 일부까지 캔버스로 나눴다.
+- 선택: BR5-c를 남겼다(통합 `c8b76a09`, `133fbc56`). 이유: 품질 기준을 모두 채우고 결함이 없다. BR5-x는 깨진 링크와 지나친 분할이 있다.
+- 알려진 한계(PR에 적는다)
+  - 한 화면에서만 쓰는 ds 기본 요소(textarea, checkbox, switch)는 preset 규칙대로 캔버스를 만들지 않았다.
+  - 렌더 확인은 headless Chromium뿐이고 Doan 앱 안의 계산 스타일과 대비는 재지 않았다.
+  - 캔버스 분할 정도는 모델마다 다르다(Codex 46~58개, Claude 35~42개). 사용자가 단위를 정하거나 솎는 방식은 이번에 반영하지 않았다(사용자 "일단 지금대로 가자").
+  - preset 출력 예산 여유가 7 B다.
+- 남은 옛 참조 정리: DIRECTORY.md와 초안 주석을 고쳤다(`5b08da95`). PRODUCT.md:291은 T11에서 지운다.
