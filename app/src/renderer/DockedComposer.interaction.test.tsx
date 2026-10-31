@@ -226,3 +226,64 @@ test("a reply that lands after a switch settles its own draft and leaves focus w
   expect(store.current.get("conversation:b")?.text).toBe("For B");
   expect(focus).not.toHaveBeenCalled();
 });
+
+// Review RB2 🟡1–🟡4, ⚪2.
+test("sends from two conversations stay pending independently, and each reply settles only its own draft", async () => {
+  const replies = new Map<string, (outcome: DockedOutcome) => void>();
+  const { props, store, render } = setup({ onSend: request => new Promise(resolve => { replies.set((request as { text: string }).text, resolve); }) }, [["conversation:a", draft("A")], ["conversation:b", draft("B")]]);
+  (button(render(), "Send").onClick as () => void)();
+  props.mode = B;
+  (button(render(), "Send").onClick as () => void)();
+  props.mode = A;
+  expect(field(render()).readOnly).toBe(true);
+  replies.get("B")!({ ok: true });
+  await flush();
+  expect(field(render()).readOnly).toBe(true);
+  expect(store.current.get("conversation:b")).toEqual(EMPTY_DRAFT);
+  replies.get("A")!({ ok: true });
+  await flush();
+  expect(field(render()).readOnly).toBe(false);
+  expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
+});
+
+test("chips the host adds turn a capsule into a box, and a draft the host changes drops its refusal", async () => {
+  const { props, store, draw, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  expect(button(render(), "Send").disabled).toBe(true);
+  const file = { key: "f", id: "f", name: "a.txt", kind: "file" as const, pasted: false, status: "ready" as const };
+  store.current = new Map([["conversation:a", { ...draft("Draw it"), attachments: [file] }]]); props.drafts = store.current;
+  draw();
+  for (const effect of hooks.effects) effect();
+  expect(store.current.get("conversation:a")?.shape).toBe("box");
+  expect((draw() as ReactElement<{ "data-shape": string }>).props["data-shape"]).toBe("box");
+  expect(button(render(), "Send").disabled).toBe(false);
+});
+
+test("a live blocking reason and its action show over an old error notice, and the field names only drawn ids", async () => {
+  const { props, render } = setup({ onSend: async () => ({ error: "rate_limited" }) }, [["conversation:a", draft("A")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  let tree = render();
+  expect(tree.some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(true);
+  expect(field(tree)["aria-describedby"]).toBeUndefined();
+  props.busy = { kind: "project", waiting: true, open: "other" };
+  tree = render();
+  const ids = String(field(tree)["aria-describedby"]).split(" ");
+  expect(ids.every(id => tree.some(item => item.id === id))).toBe(true);
+  expect(tree.some(item => item["aria-label"] === "Open the running conversation")).toBe(true);
+  props.busy = null; props.turn = "waiting";
+  tree = render();
+  expect(tree.some(item => item.children === "Answer or stop the request above.")).toBe(true);
+});
+
+test("the / list's closed state and highlight belong to the draft on screen", () => {
+  const { props, render } = setup({}, [["conversation:a", draft("/po")], ["conversation:b", draft("/cr")]]);
+  const escape = { key: "Escape", shiftKey: false, keyCode: 27, nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
+  (field(render()).onKeyDown as (event: unknown) => void)(escape);
+  expect(field(render()).role).toBeUndefined();
+  props.mode = B;
+  render();
+  for (const effect of hooks.effects) effect();
+  expect(field(render()).role).toBe("combobox");
+});

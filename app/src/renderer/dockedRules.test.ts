@@ -93,6 +93,8 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("rate_limited", { kind: "new", root: "/r" }, "codex", "doan-design")).toEqual({ kind: "notice", text: "Codex is rate limited. Try again later." });
     expect(dockedRefusal("busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Claude Code is finishing a previous run. Try again in a moment." });
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
+    // Decision 18: the code alone does not tell an expired sign-in from none.
+    expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
   });
 });
 

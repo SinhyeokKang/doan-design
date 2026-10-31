@@ -533,3 +533,46 @@ test("Edit on Home gives way to a move the person makes while the record is read
   expect(h.host.goHome).not.toHaveBeenCalled();
   expect(h.run.restore).toBeNull();
 });
+
+// Review RB2 🟡3, ⚪1, ⚪2.
+test("after a reload the strip picks the latest activity, whatever order the history reads finish in", async () => {
+  for (const order of [["new", "old"], ["old", "new"]] as const) {
+    lists({ [ROOT]: [summary({ conversationId: "old", unseen: true }), summary({ conversationId: "new", unseen: true, lastActivityAt: "2026-11-01T01:00:00.000Z" })] });
+    const reads = new Map<string, (value: unknown) => void>();
+    doan.readConversation!.mockImplementation(({ conversationId }: { conversationId: string }) => new Promise(resolve => { reads.set(conversationId, resolve); }));
+    const h = harness();
+    h.run.entriesChanged();
+    await flush();
+    for (const id of order) { reads.get(id)!({ events: [event(id, { type: "turn.done" })], lastSeq: 1, turn: "idle" }); await flush(); }
+    expect(h.run.strip(ROOT)?.conversation.conversationId).toBe("new");
+  }
+});
+
+test("a list that names the conversation before the start reply registers it once and reads its history once", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST);
+  lists({ [ROOT]: [summary({ phase: "running" })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "turn.started" })], lastSeq: 1, turn: "starting" });
+  h.run.listChanged(ROOT);
+  await flush(); await flush();
+  start.resolve({ conversationId: "c1" });
+  await sending;
+  await flush();
+  expect(h.run.conversations.filter(c => c.conversationId === "c1")).toHaveLength(1);
+  expect(doan.readConversation).toHaveBeenCalledTimes(1);
+  // The run's own conversation keeps its extras: the move after the send and the new-canvas open still apply.
+  expect(h.host.openOverview).toHaveBeenCalled();
+});
+
+test("Edit on Home after a reload carries the re-issued images' thumbnails", async () => {
+  lists({ [ROOT]: [summary({ unseen: true })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "user.message", text: "Look", anchors: [], attachments: [{ name: "shot.png", size: 9, kind: "image", path: "/Users/ada/shot.png" }] })], lastSeq: 1, turn: "idle" });
+  const bytes = new Uint8Array([7, 8]);
+  doan.attachmentsFromPaths!.mockResolvedValue([{ ok: true, attachment: { id: "n", name: "shot.png", size: 9, kind: "image", path: "/Users/ada/shot.png", pasted: false, thumbnail: bytes } }]);
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  await h.run.editOnHome("c1");
+  const request = h.run.restore!.request;
+  expect(request.thumbnails).toEqual({ [request.attachments[0]!.key]: bytes });
+});

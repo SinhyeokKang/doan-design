@@ -346,6 +346,18 @@ test("Edit on Home checks the restored attachments again at once: checking, then
   expect(box.current.attachments[0]?.size).toBe(12);
 });
 
+test("a request rebuilt after a reload brings its image thumbnails into the composer's object URLs", () => {
+  const shot = { key: "k-shot", id: "id-shot", name: "shot.png", kind: "image" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/shot.png" };
+  const last: LastRequest = { root: "/code/doan-design", text: "Polish it.", preset: null, attachments: [shot], provider: "claude", model: null, effort: null, thumbnails: { "k-shot": new Uint8Array([1, 2, 3]) } };
+  const create = vi.spyOn(URL, "createObjectURL").mockImplementation(() => "blob:shot");
+  doan.recheckAttachments = vi.fn(() => new Promise(() => {}));
+  const { box, render } = setup({}, { restore: { request: last, seq: 1 } });
+  render(); runEffects();
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(box.current.thumbnails["k-shot"]).toBe("blob:shot");
+  create.mockRestore();
+});
+
 // Review BU3 r2.
 // One mount's life: render, run its effects, and keep their cleanups to unmount it like React does.
 function mount(props: HeroComposerProps, redraw: () => void) {
