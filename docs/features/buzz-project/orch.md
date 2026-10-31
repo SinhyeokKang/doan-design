@@ -37,3 +37,12 @@
 - 4파: ZB.
 
 ## 진행 기록
+- Run `run_209f32f7502e`.
+- TB: dispatch `ctx_1577c7f9ec62`, 워크트리 `buzz-project-tb`, 실행 모델 Claude opus medium(`launch.effective` 확인).
+- XB: dispatch `ctx_17b26bdeb9d3`, 워크트리 `buzz-project-xb`, 실행 모델 Codex gpt-6.1-sol high(`launch.effective` 확인).
+- XB 질문(fb-note 테스트 항목, folderState 설명): 둘 다 허용. 지휘자 판단 — 근거: 제거한 코드의 잔여물 정리라 X1 범위다.
+- TB 완료(`a57e1701` test, `3c4a028d` feat; typecheck, app test 5426개 통과). 수정 라운드에 같은 터미널을 다시 쓰려고 retain했다.
+- TB 리뷰 r1: dispatch `ctx_44179ab730e0`, Codex gpt-6-astra medium(`launch.effective` 확인). 지휘자가 짚은 점: `slotsFromList`의 `fromHome` 필터를 물려받아 Home에서 시작하지 않은 캔버스 대화의 상태와 지워진 캔버스 행이 빠진다(spec 결정 3과 어긋날 수 있음).
+- TB 리뷰 r1: 🔴 0, 🟡 2(`fromHome` 필터로 상태·지워진 행 누락; 승격 본 것 seq를 `lastSeq`로 추정). 둘 다 받아들였다. 🟡2는 지휘자 판단으로 순수 함수가 승격 사실만 돌려주고, 본 것 처리는 이벤트를 가진 호스트(RM)가 맡는다. 리뷰 워커 release. TB 수정 r1: dispatch `ctx_c458889e9b84`(같은 터미널 재사용).
+- XB 완료(`a14a892e` test, `f79df3d0` refactor; 전체 verify 통과, 앱 테스트 5091개). ID 변경 알림 새 문구: "N comments still use the old ID <id> and no longer show here. Run doan check in a terminal."(clarify 적용). 수정 라운드용으로 retain. XB 리뷰 r1: dispatch `ctx_0271629421eb`, Claude opus medium.
+- TB 수정 r1 `8ae92583`: 지휘자가 diff를 직접 확인했다. 🟡 0. TB 터미널 release.
