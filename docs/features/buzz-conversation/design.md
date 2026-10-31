@@ -4,6 +4,31 @@
 
 읽은 Doan 프리셋: `harden`(스레드 항목의 빈 상태·긴 내용·실패·권한 상태 목록).
 
+## 0. 초안과 초안 결정 (2026-10-31 user)
+
+초안은 `.doan/canvases/buzz-conversation.html`이다(canvas id `buzz-conversation`, 폭 1760). 프레임은 다음과 같다.
+
+- `hero-composer`: Home 입력창. 출하 기준이고 포커스 보더만 바뀐다. `/design-sync`는 이 자식에서 이 프레임만 비교한다.
+- `docked-composer`: capsule·box, 칩, 전송 중, `project_busy` 이유 줄.
+- `thread-messages`, `thread-activity`, `thread-states`(권한 요청·턴 끝), `thread-moves`(승격·보관·복구·읽기 실패).
+- `docked`와 스레드 프레임은 `buzz-project`가 Overview에 놓을 때 비교한다.
+
+초안을 그리면서 정한 것:
+
+- Home과 docked는 한 패밀리다.
+  - 같은 카드가 같은 inset 트레이(`.composer`) 안에 있다.
+  - Home 트레이에는 워크트리가 있고, docked 트레이에는 에이전트·effort가 오른쪽에 있다. 오른쪽은 Send 열과 줄을 맞춘 자리다.
+  - capsule에서는 트레이도 알약 모양이다.
+- 입력창 포커스는 `--border-prominent`(#808080) 링 대신 새 토큰 `--border-field-focus`(`--neutral-5`, #cccccc)에 `--shadow-sm`을 쓴다.
+  - Home과 docked에 같이 적용한다.
+  - 다른 텍스트 필드는 그대로다.
+  - 색 대비만으로는 3:1 권장치에 못 미친다. 캐럿과 그림자가 함께 포커스를 알린다.
+- 활동은 연속된 묶음을 한 줄로 접는다.
+  - 실행 중에는 스피너와 마지막 활동을 보인다.
+  - 다음으로 넘어가면 "N steps"로 줄이고, 누르면 펼친다.
+- 실패하거나 멈춘 턴은 "Edit and resend"로 마지막 요청을 같은 화면의 docked 입력창에 되돌린다. 다른 초안이 있으면 "Replace your draft?"를 묻는다.
+- 사람 메시지는 오른쪽에 연한 액센트 버블로, 에이전트 메시지는 패널 위 일반 텍스트로 보인다. 둘 다 label(16/24) 크기다.
+
 ## 1. 영향 범위
 
 | 영역 | 바뀌는 것 |

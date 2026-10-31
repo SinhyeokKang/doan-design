@@ -42,7 +42,7 @@
 
 ## R. renderer
 
-- [ ] R1. 입력창 프리미티브 분리와 `HeroComposer`로 Home 재조립. 클래스 셀렉터 문자열 검색(design §7).
+- [ ] R1. 입력창 프리미티브 분리와 `HeroComposer`로 Home 재조립. 포커스 보더를 `--border-field-focus`와 `--shadow-sm`으로 바꾸고 DESIGN.md 'Home' Composer 행을 고친다(design §0). 클래스 셀렉터 문자열 검색(design §7).
   - 검증: `npm --prefix app test` (기존 Home·입력창 테스트 그대로 통과), `npm --prefix app run typecheck`.
 - [ ] R2. `DockedComposer`(capsule/box, 아래 줄 에이전트·effort, 기존 대화의 공급자 고정, send 확장 사용).
   - 검증: `npm --prefix app test` (모양 전환 중 같은 textarea·포커스·IME 조합 유지 컴포넌트 테스트).
@@ -55,7 +55,7 @@
 
 ## D. 초안과 실제 앱
 
-- [ ] D1. `/design-draft`: `.doan/canvases/buzz-conversation.html`에 `docked` 입력창(capsule·box·칩·비활성·이유 줄)과 스레드 항목 상태를 그린다. 화면 배치 없이 프리미티브 상태판이다. `buzz-project`의 Overview 초안이 이것을 재사용한다. 사용자가 앱에서 초안을 확인한다.
+- [ ] D1. `/design-draft`: `.doan/canvases/buzz-conversation.html`(round 1 작성, 사용자 확인 대기)에 `docked` 입력창(capsule·box·칩·비활성·이유 줄)과 스레드 항목 상태를 그린다. 화면 배치 없이 프리미티브 상태판이다. `buzz-project`의 Overview 초안이 이것을 재사용한다. 사용자가 앱에서 초안을 확인한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
 - [ ] D2. `/runtime-test`: Home의 computed style·배치가 바꾸기 전과 같은지, 다시 로드·재시작 뒤 상태줄·슬롯이 실행 중·응답 대기·안 본 종료를 다시 보이는지 격리 앱에서 확인한다.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과 뒤 `/runtime-test`의 짧은 probe.
