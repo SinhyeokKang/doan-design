@@ -8,7 +8,15 @@
 ## 결정 기록
 
 - 지휘자 판단 — T8의 preset 수정은 지휘자가 품질 기준에서 원인과 고칠 방향을 정하고, preset 배치(BP)의 워커가 `document.md`에 적용한다. 근거: 지휘자는 배치 코드를 고치지 않는다(orchestrate). design.md '품질 기준'의 "지휘자가 고친다"는 판단과 방향을 정한다는 뜻으로 읽는다.
-- 지휘자 판단 — T8 생성 세션 두 개는 orchestration 워커로 띄운다. brief에는 사람의 요청 문장, branch CLI를 `PATH` 앞에 두는 환경 설정, `.doan/ds/`에만 쓰기, commit과 handoff만 적는다. 분할 방법은 적지 않는다(tasks T8).
+- 지휘자 판단 — T8 생성 세션 두 개는 orchestration 워커로 띄운다. brief에는 다음만 적는다.
+  - Home의 `document` 추천과 같은 요청 문장("Document the design system of doan-design")과 preset 이름
+  - branch CLI를 `PATH` 앞에 두는 환경 설정
+  - 쓰기 범위: `.doan/ds/`와, preset이 이끄는 규칙 문서. 어떤 규칙 문서를 고쳤는지 보고한다.
+  - `docs/features/`를 읽지 않기. 그 안에 원하는 분할 단위가 적혀 있어 결과를 오염시키기 때문이다.
+  - preset이 사용자에게 물으라고 하면 지휘자에게 `ask`로 묻고, 지휘자가 사용자 대신 답한다.
+  - commit과 handoff
+
+  분할 방법은 적지 않는다(tasks T8).
 - 지휘자 판단 — T8의 지우기(`buzz-ds.html`·`notice.html`), 고른 벌 가져오기, DESIGN.md·DIRECTORY.md 참조 수정은 지휘자의 통합 commit과 문서 commit으로 한다. 근거: 캔버스 파일과 문서만 바뀌고 배치 코드가 아니다.
 - 지휘자 판단 — T9의 `/code-review`는 배치마다 독립 리뷰 워커로 한다(orchestrate §3). T8 preset 수정분은 BP 리뷰가 다시 본다. `verify.mjs --eval`은 통합 HEAD에서 지휘자가 돌린다.
 - 지휘자 판단 — `/runtime-test`와 `/design-sync`는 해당 배치 워커가 한다. BA와 BS는 직렬이라 GUI probe가 겹치지 않는다.
