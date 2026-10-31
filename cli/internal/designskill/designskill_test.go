@@ -490,3 +490,41 @@ func TestEmbeddedCatalogGroups(t *testing.T) {
 		t.Fatalf("catalog group membership, first-appearance order and within-group order: got %v, want %v", got, want)
 	}
 }
+
+// Design-system canvases live in .doan/ds/; .doan/canvases/design-system.html is only a legacy location.
+// A preset that names the legacy file must name the new directory in the same sentence, so no reader
+// takes the old single canvas as the place to look or write.
+func TestPresetsFindDesignSystemInDsDirectory(t *testing.T) {
+	entries, err := os.ReadDir("presets")
+	if err != nil || len(entries) == 0 {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join("presets", e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, l := range strings.Split(string(b), "\n") {
+			if strings.Contains(l, "design-system.html") && !strings.Contains(l, "`.doan/ds/`") {
+				t.Errorf("%s:%d names the legacy canvas without .doan/ds/: %q", e.Name(), i+1, l)
+			}
+		}
+	}
+}
+
+// document defaults to one canvas per logical unit in .doan/ds/ and never mixes two units in one canvas.
+func TestDocumentPresetSplitsDesignSystemByUnit(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("presets", "document.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(b)
+	for _, s := range []string{"`.doan/ds/`", "one canvas per logical unit", "Never put two units in one canvas", "`.doan/ds/button.html`", "legacy `.doan/canvases/design-system.html`"} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	if strings.Contains(body, "It lives at `.doan/canvases/design-system.html`") {
+		t.Error("document preset still writes the single legacy canvas")
+	}
+}
