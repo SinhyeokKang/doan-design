@@ -500,6 +500,7 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 - **Cursor.** Plain buttons (activity head, rows) take the app-wide `button { cursor: pointer }`; the draft's plain buttons keep the default cursor.
 - **Provider text.** Model and effort labels, activity summaries ("Using a tool") and permission option labels ("Allow", "Allow with suggested permissions") come from the provider; the draft's samples are "Opus 5.5", "High", "Editing …", "Allow once".
 - **Thumbnails.** The app shows the captured canvas (`object-fit: cover`, top); the draft draws a mock fill.
+- **Narrow placeholder.** The capsule's placeholder stays on one line, so the empty capsule is as tall as one with a typed character; at narrow widths it is clipped at the field edge without an ellipsis, because Chromium does not draw `text-overflow` on a textarea placeholder. The full text stays the placeholder attribute.
 
 ### Not verified
 
