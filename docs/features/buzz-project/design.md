@@ -17,6 +17,20 @@
 - 스레드·docked 입력창은 `buzz-conversation.html`의 보드를 그대로 쓴다. 이 초안에서는 다시 정하지 않는다.
 - 셸(헤더, LNB)은 출하된 화면을 복사한다.
 
+초안 round 1(2026-10-31)에서 그린 것. 사용자 확인 전이다.
+
+- 문구
+  - 새 대화 placeholder: "Ask about <project>, / for presets".
+  - 기존 대화 placeholder: "Reply, / for presets".
+  - 오른쪽 패널 제목: "Canvas conversations".
+  - 오른쪽 빈 상태: "No canvas conversations yet." + "When a conversation draws or edits a canvas, the canvas shows here."
+  - 드롭다운: "New conversation", 머리 "Conversations in <project>".
+- 오른쪽 행
+  - 썸네일 72×48(모서리 `radius-toolbar-icon`), 이름, 보조 줄(공급자 · 마지막 활동), 상태 표시(LNB 슬롯과 같은 모양), 펼침 chevron(`xs` 아이콘 버튼).
+  - 펼친 대화 행은 24px 들여 쓰고 오른쪽에 시각을 둔다. 보관 대화는 subtle 잉크다.
+- 메인: 대화 열 최대 720px, 패널 안쪽 24px. 헤더 제목은 `sm` trigger 버튼이다.
+- 메뉴 폭 360px, 오른쪽 패널 280px(출하 값)은 컴포넌트 상수다.
+
 ## 1. 영향 범위
 
 | 영역 | 바뀌는 것 |
