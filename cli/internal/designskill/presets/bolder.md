@@ -7,7 +7,7 @@ Use this preset when the user asks to make a section, frame, component, or eleme
 ## Before you start
 
 - Find the target. For pointing words like "this section" or "this button", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or element the user named. If the target or what must stay untouched is unclear, ask.
-- Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and a `design-system` canvas (`.doan/canvases/design-system.html`) if present.
+- Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) so the bolder version keeps its behavior.
 - When product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
 

@@ -20,7 +20,7 @@ Read before you ask, so the user does not repeat known facts:
 - names, logos, legal or proof assets, and brand commitments;
 - platform and accessibility signals;
 - the design system already in use: token CSS (`doan config --json` shows the configured `tokenCss`), components, and any design rules document;
-- existing canvases: `doan ls --json`, including a `design-system` canvas at `.doan/canvases/design-system.html` if one exists.
+- existing canvases: `doan ls --json`, including the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 
 Treat repository evidence as a hypothesis, not as the user's approval.
 
@@ -94,7 +94,7 @@ Under Evidence on Hand, also state absences that later work must not fabricate.
 
 Recommend the next step from the actual project state, and continue only with what the user asked for:
 
-- The project has real tokens or components but no design rules document or `design-system` canvas, and the requested work needs one: read the `document` preset (`doan design-skill document --json`).
+- The project has real tokens or components but no design rules document or design-system canvases (in `.doan/ds/` or a legacy `.doan/canvases/design-system.html`), and the requested work needs one: read the `document` preset (`doan design-skill document --json`).
 - An existing design system is sufficient: reuse it as the reference. Do not regenerate it.
 - A feature or screen needs its purpose, flow, and states worked out: the `shape` preset.
 - An existing surface needs work: the preset that matches the request, or the plain request when none fits.

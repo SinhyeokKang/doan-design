@@ -7,7 +7,7 @@ Use this preset when the user asks to add personality, charm, warmth, celebratio
 ## Before you start
 
 - Find the target. For pointing words like "this screen" or "this state", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, element, or code the user named.
-- Read the design system: token CSS variables (`doan config --json` shows `tokenCss`), existing components, illustrations and icon sets, a design rules document, and the `design-system` canvas (`.doan/canvases/design-system.html`) if present.
+- Read the design system: token CSS variables (`doan config --json` shows `tokenCss`), existing components, illustrations and icon sets, a design rules document, and the design-system canvases in `.doan/ds/` (or a legacy `.doan/canvases/design-system.html`) if present.
 - Read the product voice in existing copy and documents, and the code the frame implements (`data-doan-implements`).
 - Judge how often the moment repeats and what is at stake for the person there.
 - The brand's emotional range decides how far delight may go. Infer it from the evidence; ask only when it cannot be inferred and would change the result. When the product's purpose, audience, or voice is unknown, suggest the `context` preset (`doan design-skill context --json`).
