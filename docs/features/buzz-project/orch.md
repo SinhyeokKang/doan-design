@@ -62,3 +62,6 @@
 - RM 재검토 r2: 🔴 0, 🟡 3(목록 대기 중 진입 요청이 늦은 start에 지워짐, 응답 전에 끝난 send 턴의 새 캔버스 유예 상실, 숨은 동안 사라진 대화 뒤 재진입 기본 선택), ⚪ 1(버린 Edit 복원의 첨부 해제). HomeRun 등록은 결정 10과 충돌하지 않음. 리뷰 워커 release. RM 수정 r2 보냄.
 - RM 수정 r2 완료(`8c7ac6ee` test 4개 red 확인, `0db32b89` fix; 앱 테스트 5216개, typecheck, build 통과).
 - 2파 RM 통합: `da1ca851`…`610da76b`(7개). 통합 HEAD `610da76b`에서 verify PASS(`verify-int2.log`). RM 재검토 r3(좁게): dispatch `ctx_fa1c5064f30c`. RL은 `overviewRun.ts`·`homeRun.ts`를 건드리지 않는 조건으로 r3와 병렬로 시작(지휘자 판단: 파일 겹침 없음).
+- RL: dispatch `ctx_0cda2ea00614`, 워크트리 `buzz-project-rl`(기준 `04f53af0`), Claude opus medium.
+- RM 재검토 r3: r2 4건 해결 확인. 새 회귀 🟡 1(응답 전에 온 미등록 대화의 권한 토스트 누락, 수정 전 코드에선 1회·지금 0회로 재현). 리뷰 워커 release. RM 수정 r3 보냄(`homeRun.ts`만).
+- RM 수정 r3(`a983d730` test, `c1f872e1` fix; 앱 테스트 5217개): 지휘자가 리뷰어 probe(`permission-probe-r3.cjs` 토스트 1회, `home-probe-r3.cjs` exit 0)를 직접 돌려 확인했다. 리뷰 라운드는 더 돌리지 않는다(지휘자 판단: 변경이 `homeRun.ts` 18줄이고 재현 probe가 통과). 리뷰 증거는 `.scratch/orch-buzz-project/review-RM-evidence/`로 복사.
