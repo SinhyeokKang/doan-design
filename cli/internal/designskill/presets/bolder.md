@@ -2,7 +2,7 @@
 
 Raise the visual emphasis of the requested target to the conviction the rest of the design already implies, without rebuilding anything the user did not name. "Bolder" is an amplification request, and almost always it is scoped to something that already exists: the surrounding page, its system, and its conventions are the given. The reflex answer, reaching for more effects, is the opposite of bold; reject it first.
 
-Use this preset when the user asks to make a section, frame, component, or element bolder, stronger, more confident, or more prominent. The user's request and its scope come first: this guidance never widens what you change. If the user is choosing a new direction for a surface rather than amplifying an existing one, that is new work: read the `shape` or `generate` preset (`doan design-skill <id> --json`, or the MCP `design_skill` tool with `{"id": "<id>"}`) as the request needs.
+Use this preset when the user asks to make a section, frame, component, or element bolder, stronger, more confident, or more prominent. The user's request and its scope come first: this guidance never widens what you change. If the user is choosing a new direction for a surface rather than amplifying an existing one, that is new work: read the `shape` or `generate` preset (`doan design-skill <id> --json`) as the request needs.
 
 ## Before you start
 

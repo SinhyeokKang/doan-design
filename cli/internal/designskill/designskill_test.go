@@ -442,6 +442,23 @@ func TestPresetsKeepNoUpstreamEngine(t *testing.T) {
 	}
 }
 
+// Presets point to other presets through the shell CLI only.
+func TestPresetsNameNoMCP(t *testing.T) {
+	entries, err := os.ReadDir("presets")
+	if err != nil || len(entries) == 0 {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join("presets", e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToLower(string(b)), "mcp") {
+			t.Errorf("%s mentions MCP", e.Name())
+		}
+	}
+}
+
 func TestEmbeddedCatalogGroups(t *testing.T) {
 	c, err := Load()
 	if err != nil {

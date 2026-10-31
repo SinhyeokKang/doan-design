@@ -9,14 +9,14 @@ The user's request and its scope come first: draw the count, the direction, and 
 - Find the target. For pointing words like "this card" or "this screen", use `doan active` and read the open comments attached to that target. Otherwise use the canvas, frame, element, or code the user named. For a repeated component named in the plural ("the pricing cards"), the target is the container that holds the set.
 - If the repository has no `.doan/config.json`, set Doan up as the Doan guide describes, asking the user for the token CSS path first. A project with no canvases yet is fine: you will create one.
 - Read the design system (token CSS from `doan config --json`, components, a design rules document, a `design-system` canvas at `.doan/canvases/design-system.html`), the code the target's frame implements (`data-doan-implements`), and existing canvases (`doan ls --json`).
-- When product context is missing and it would change the alternatives, read the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`). For a new feature whose purpose, flow, or states are undecided, read the `shape` preset first.
+- When product context is missing and it would change the alternatives, read the `context` preset (`doan design-skill context --json`). For a new feature whose purpose, flow, or states are undecided, read the `shape` preset first.
 
 ## Read the request
 
 Take two things from the user's words, besides the target:
 
 - **Count:** a number in the request is the count; no number means three. More than eight dilutes the differences; confirm with the user before drawing that many.
-- **Direction:** read the meaning of the wording, not its keywords. The list below gives examples of meaning. A negated direction ("not bolder, just spacing options") is a constraint, not a direction. When a direction matches a preset, read that preset only if its guidance changes the alternatives (`doan design-skill <id> --json`, or the MCP `design_skill` tool with `{"id": "<id>"}`):
+- **Direction:** read the meaning of the wording, not its keywords. The list below gives examples of meaning. A negated direction ("not bolder, just spacing options") is a constraint, not a direction. When a direction matches a preset, read that preset only if its guidance changes the alternatives (`doan design-skill <id> --json`):
   - bold, bolder, stronger, punchier: `bolder`
   - quiet, calmer, softer, toned down: `quieter`
   - simpler, minimal, stripped: `distill`

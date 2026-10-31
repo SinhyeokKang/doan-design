@@ -29,8 +29,8 @@ type brandCandidate struct {
 
 var (
 	brandWord = regexp.MustCompile(`\b(?:doan|Doan)\b`)
-	// `doan` followed by a subcommand, a flag, a placeholder or a noun naming the command or its MCP server.
-	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|comment|comments|config|design-skill|help|init|ls|mcp|onboarding|skill|version|CLI|command|MCP|server)(?:[^\w-]|$))`)
+	// `doan` followed by a subcommand, a flag, a placeholder or a noun naming the command.
+	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|comment|comments|config|design-skill|help|init|ls|onboarding|skill|version|CLI|command|server)(?:[^\w-]|$))`)
 	brandIdentBefore  = regexp.MustCompile(`(?:\w\.|[-@]|named )$`)
 	brandIdentAfter   = regexp.MustCompile(`^(?::|[-_]|\.\w)`)
 	brandAppAfter     = regexp.MustCompile(`^\.app\b`)
@@ -112,8 +112,8 @@ func TestBrandCandidatesMatchSharedFixtures(t *testing.T) {
 	}
 }
 
-// Human-facing CLI and MCP text names the product Doan (doan-naming, 2026-10-30 user):
-// messages, nextSteps, --help and tool descriptions are string literals in cli/.
+// Human-facing CLI text names the product Doan (doan-naming, 2026-10-30 user):
+// messages, nextSteps and --help are string literals in cli/.
 func TestCLIStringsNameTheProductDoan(t *testing.T) {
 	root := filepath.Join("..", "..")
 	var violations []string

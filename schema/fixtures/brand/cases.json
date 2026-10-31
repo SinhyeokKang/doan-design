@@ -7,7 +7,7 @@
     { "name": "command-comments", "text": "Ask your agent to run doan comments and fix the file.", "expected": [{ "index": 22, "form": "doan", "kind": "command" }] },
     { "name": "command-flag", "text": "doan --version", "expected": [{ "index": 0, "form": "doan", "kind": "command" }] },
     { "name": "command-placeholder", "text": "Usage: doan <command> [--repo <path>]", "expected": [{ "index": 7, "form": "doan", "kind": "command" }] },
-    { "name": "command-cli-noun", "text": "Use the doan CLI or MCP tools.", "expected": [{ "index": 8, "form": "doan", "kind": "command" }] },
+    { "name": "command-cli-noun", "text": "Use the doan CLI.", "expected": [{ "index": 8, "form": "doan", "kind": "command" }] },
     { "name": "command-server-noun", "text": "Codex’s doan server runs another command", "expected": [{ "index": 8, "form": "doan", "kind": "command" }] },
     { "name": "command-backticks", "text": "Remove or rename .doan before running `doan init`", "expected": [{ "index": 18, "form": "doan", "kind": "path" }, { "index": 39, "form": "doan", "kind": "command" }] },
     { "name": "command-then-prose-after-curly-apostrophe", "text": "The doan command link is broken, so agents can’t reach doan.", "expected": [{ "index": 4, "form": "doan", "kind": "command" }, { "index": 55, "form": "doan", "kind": "prose" }] },

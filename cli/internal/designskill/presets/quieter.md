@@ -9,7 +9,7 @@ Use this preset when the user asks to tone down, soften, calm, or make quieter a
 - Find the target. For pointing words like "this screen" or "this banner", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and a `design-system` canvas (`.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) so the calmer version keeps its states and behavior.
-- Understand the context: the surface's purpose (marketing, tool, or reading), its audience (some contexts need energy), what already works, and the core message to preserve. If these are unclear from the repository, do not guess: ask. When product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`).
+- Understand the context: the surface's purpose (marketing, tool, or reading), its audience (some contexts need energy), what already works, and the core message to preserve. If these are unclear from the repository, do not guess: ask. When product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
 
 ## Match the surface
 

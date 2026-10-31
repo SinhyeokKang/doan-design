@@ -13,7 +13,7 @@ import { PROJECT_WORK, ProjectAdder, projectLocks, type AdderProjects, type Proj
 import type { ProjectOutcome } from "./projects";
 
 
-// The first-run session the window and a local CLI or MCP client share (buzz-onboarding design 'CLI·MCP 온보딩').
+// The first-run session the window and a local CLI share (buzz-onboarding).
 // Electron-free: index.ts supplies the main window, the auth IPC and completion, and carries the socket and IPC.
 
 // The old wizard's onboarding:read|run|answer|close|get-open are different channels and go away with it.
@@ -40,7 +40,7 @@ export interface OnboardingProjects extends AdderProjects {
 export interface OnboardingServiceOptions {
   // null: account storage is unreadable.
   auth: OnboardingAuth | null;
-  // The main window's webContents id, or null while it is gone: CLI and MCP sign-ins belong to it.
+  // The main window's webContents id, or null while it is gone: CLI sign-ins belong to it.
   mainOwner(): number | null;
   completed(): boolean;
   publish(state: OnboardingState): void;

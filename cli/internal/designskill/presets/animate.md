@@ -9,7 +9,7 @@ Use this preset when the user asks for transitions, micro-interactions, entrance
 - Find the target. For pointing words like "this screen" or "this button", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, element, or code the user named.
 - Read the design system: token CSS variables (`doan config --json` shows `tokenCss`), especially any duration, easing, or motion tokens; existing components and their states; a design rules document; and the `design-system` canvas (`.doan/canvases/design-system.html`) if present.
 - Read the code the frame implements (`data-doan-implements`) for its existing motion language: transitions, keyframes, a motion library, reduced-motion handling. Extend that language instead of starting a second one.
-- Infer the performance budget and target devices from the product and code. Ask only when a material constraint cannot be inferred and would change the result. When the product's purpose or audience is unknown and that would change the motion, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`).
+- Infer the performance budget and target devices from the product and code. Ask only when a material constraint cannot be inferred and would change the result. When the product's purpose or audience is unknown and that would change the motion, suggest the `context` preset (`doan design-skill context --json`).
 
 ## Find the job
 

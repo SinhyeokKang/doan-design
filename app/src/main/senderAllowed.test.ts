@@ -14,7 +14,7 @@ const mainOnly = [
   "comments:project", "review-state:get", "review-state:raise",
   // project-feedback: resolve, reopen and delete on comments without a canvas.
   "comments:orphan-mutate", "comments:orphan-status",
-  // buzz-onboarding: the session the CLI and MCP share; Settings never drives first-run.
+  // buzz-onboarding: the session the CLI shares; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // doan-design-skills: preset reads for the home; Settings has no preset UI.
   "design-skills:list", "design-skills:get",

@@ -9,7 +9,7 @@ Use this preset when the user asks to polish, finish, tidy, or bring a screen, f
 - Find the target. For pointing words like "this screen" or "this card", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, a `design-system` canvas (`.doan/canvases/design-system.html`) if present, and neighboring frames and flows. If no formal system exists, use the project's coherent conventions.
 - Read the code the canvas implements (`data-doan-implements`), so the polish matches what ships and you know what is not in code yet.
-- Establish the bar: whether the path is functionally complete, the intended quality bar, known constraints or deliberately unfinished work, and the states, content lengths, roles, and input methods users will actually meet. Ask only what would change the result. When product context is missing and it matters, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`).
+- Establish the bar: whether the path is functionally complete, the intended quality bar, known constraints or deliberately unfinished work, and the states, content lengths, roles, and input methods users will actually meet. Ask only what would change the result. When product context is missing and it matters, suggest the `context` preset (`doan design-skill context --json`).
 - Ask before changing factual claims.
 
 ## Lock the identity

@@ -10,7 +10,7 @@ Use this preset when the user asks for mobile, tablet, desktop, print, or email 
 - Confirm the target contexts: which widths, devices, orientations, input methods, and situations (on the go or at a desk, quick glance or focused reading). Ask when the request does not say and it would change the result; do not adapt to every size by default.
 - Read the design system: token CSS (`doan config --json` shows `tokenCss`), existing components and their responsive variants, a design rules document if the project has one, and the `design-system` canvas (`.doan/canvases/design-system.html`) if it exists. Reuse existing breakpoints and navigation patterns before inventing new ones.
 - Read the code the frame implements (`data-doan-implements`): existing breakpoints, container queries, and responsive components show what the product already does.
-- When product or platform context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`).
+- When product or platform context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
 
 This preset covers the web, mobile web included. Doan canvases are HTML drawings. It does not carry iOS or Android platform rules; if the product ships as a native app, adapt the structure with the principles below and report platform conformance as unchecked.
 

@@ -257,7 +257,6 @@ func TestSkillGuidePresetRules(t *testing.T) {
 	for _, required := range []string{
 		"`doan design-skill --json` lists descriptions",
 		"`doan design-skill <id> --json` returns a `body`",
-		"MCP `design_skill`, optional `id`",
 		"`[doan:design-skill] end of preset <id> v<version>`, with no truncation notice; else read it again, in parts if truncated",
 		"no project or app needed",
 		// Design §3 rules 1–5.
@@ -270,11 +269,10 @@ func TestSkillGuidePresetRules(t *testing.T) {
 		"skip unneeded handoffs, subagents and engines",
 		"report unrun checks as unverified",
 		// Failure rules.
-		"Without the shell CLI, use MCP `skill` and `design_skill`.",
-		"say the preset was not applied",
+		"If `doan design-skill` fails or a read is refused, say the preset was not applied.",
 		"Named preset: never claim or substitute it; then ask the user to open Doan from Applications and check Settings… > About.",
 		"Self-chosen: say so in one line and continue, without guessing an unconfirmed target or conventions.",
-		"Never install, change PATH, permissions or MCP registration, or retry a refused call.",
+		"Never install, change PATH or permissions, or retry a refused call.",
 		"Doan app conversation instructions override these rules.",
 	} {
 		if !strings.Contains(skillBody, required) {

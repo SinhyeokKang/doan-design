@@ -444,7 +444,7 @@ test("the paste modal cannot be dismissed while its address is being submitted",
   expect(h.session.state.dialog).toBeNull();
 });
 
-test("fix 1: a prompt for an attempt this window did not start (CLI or MCP) never opens a link here", async () => {
+test("fix 1: a prompt for an attempt this window did not start (the CLI) never opens a link here", async () => {
   const h = harness();
   h.session.start(); h.session.enter();
   await flush();

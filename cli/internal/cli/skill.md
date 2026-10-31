@@ -52,7 +52,7 @@ If a pasted instruction's root differs from your working directory, ask the user
   - Without `selection`, nothing in this repository is selected; ask the user which canvas, frame, or element they mean.
   - A frame id may be missing from `doan ls`: the app also lists frames a canvas script draws at runtime, which static parsing cannot see.
   - On `project_not_open`, ask the user to add this project in Doan (Add Project…), or work in the worktree that is open in Doan.
-  - On `app_not_running`, ask the user to open Doan. If Doan is open, a sandbox may block this shell from its socket: call the MCP `active` tool if it is available. Otherwise, run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions. If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About.
+  - On `app_not_running`, ask the user to open Doan. If Doan is open, a sandbox may block this shell from its socket: run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions. If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About.
 - `doan skill`: read this guide and verify its final end marker to detect truncation.
 
 All commands accept `--repo <directory>` and `--json`. Without `--repo`, repository commands search upward for `.doan/config.json`; `init` targets the current directory. Explicit `--repo` selects only that directory. Use `doan help` for syntax.
@@ -65,21 +65,21 @@ Exit codes: 0 success (including warnings); 1 internal failure; 2 usage, reposit
 
 <!-- design preset list -->
 
-`doan design-skill --json` lists descriptions; `doan design-skill <id> --json` returns a `body` (MCP `design_skill`, optional `id`; no project or app needed), complete only if it ends with `[doan:design-skill] end of preset <id> v<version>`, with no truncation notice; else read it again, in parts if truncated.
+`doan design-skill --json` lists descriptions; `doan design-skill <id> --json` returns a `body` (no project or app needed), complete only if it ends with `[doan:design-skill] end of preset <id> v<version>`, with no truncation notice; else read it again, in parts if truncated.
 
 1. A preset the user names: read it; if missing, say so and run no similar id.
 2. Otherwise use one only if its description clearly fits the request's purpose, target and negations; ask only about ambiguity that changes the result. No fit, or a concrete edit like “move this button 4px left”: read no body.
 3. A preset is not a request to act: a review ends with a report; change only the requested scope; start no unrequested diagnosis.
 4. The request, existing constraints, these rules and canvas conventions outrank a preset. Read other presets only as needed; skip unneeded handoffs, subagents and engines; report unrun checks as unverified.
-5. Without the shell CLI, use MCP `skill` and `design_skill`. If both fail or a read is refused, say the preset was not applied. Named preset: never claim or substitute it; then ask the user to open Doan from Applications and check Settings… > About. Self-chosen: say so in one line and continue, without guessing an unconfirmed target or conventions. Never install, change PATH, permissions or MCP registration, or retry a refused call.
+5. If `doan design-skill` fails or a read is refused, say the preset was not applied. Named preset: never claim or substitute it; then ask the user to open Doan from Applications and check Settings… > About. Self-chosen: say so in one line and continue, without guessing an unconfirmed target or conventions. Never install, change PATH or permissions, or retry a refused call.
 
 Doan app conversation instructions override these rules.
 
 ## Onboarding
 
-Use these commands when the user asks you to set up Doan. Prefer `doan onboarding start --json` on PATH; Doan creates the CLI link when first opened. Only if `doan` is not on PATH, use `<Doan.app>/Contents/Resources/bin/doan onboarding start --json` (usually `/Applications/Doan.app`); quote the executable path if it contains spaces. No MCP registration, skill or project is needed. Onboarding takes no `--repo`; path arguments are absolute.
+Use these commands when the user asks you to set up Doan. Prefer `doan onboarding start --json` on PATH; Doan creates the CLI link when first opened. Only if `doan` is not on PATH, use `<Doan.app>/Contents/Resources/bin/doan onboarding start --json` (usually `/Applications/Doan.app`); quote the executable path if it contains spaces. No skill or project is needed. Onboarding takes no `--repo`; path arguments are absolute.
 
-1. `doan onboarding start --json` returns `{sessionId, revision, completed, agents, project, operations}` and shows the Doan window. It reuses the current session and keeps the user's input. If Doan is not running and `DOAN_RUNTIME` is not set at all, the CLI inside the app opens that app once and waits up to 15 seconds, then fails with `app_launch_failed`. A CLI outside the app, or one with `DOAN_RUNTIME` set (even to an empty value), never opens an app. Other commands, including `doan active`, never open the app. On `app_not_running` or `app_launch_failed`, ask the user to open Doan, then recover as for `app_not_running` from `doan active`, with the MCP `onboarding_start` tool and then the `onboarding_*` tools in place of `active`.
+1. `doan onboarding start --json` returns `{sessionId, revision, completed, agents, project, operations}` and shows the Doan window. It reuses the current session and keeps the user's input. If Doan is not running and `DOAN_RUNTIME` is not set at all, the CLI inside the app opens that app once and waits up to 15 seconds, then fails with `app_launch_failed`. A CLI outside the app, or one with `DOAN_RUNTIME` set (even to an empty value), never opens an app. Other commands, including `doan active`, never open the app. On `app_not_running` or `app_launch_failed`, ask the user to open Doan, then recover as for `app_not_running` from `doan active`, with `doan onboarding start` in place of `doan active`.
 2. `doan onboarding status --session <id> [--operation <id>] --json` reads the same state. Each agent has `provider`, `phase`, `readiness`, `actions` and `error`; `agents` is null when Doan cannot read its connection storage. It does not wait: poll it while an operation is `pending`, `running` or `awaiting_user`.
 3. `doan onboarding sign-in --session <id> --provider <claude|codex|cursor|antigravity|copilot> --request <id> --json` starts a sign-in and returns its operation. `awaiting_user` means the user approves in the browser; Doan opens the link as its app does. Doan never returns codes, tokens, account email or names. Reopening the browser and pasting an Antigravity address happen in the app. On `stop_required`, ask the user to stop the running conversation in Doan; on `busy`, wait for the other sign-in.
 4. `doan onboarding check --session <id> --provider <id> --request <id> --json` checks a saved connection again, for example one that is unverified after a restart. A Copilot check spends one model request: add `--spend-copilot-request` only when the user agreed.
@@ -88,41 +88,6 @@ Use these commands when the user asks you to set up Doan. Prefer `doan onboardin
 7. `doan onboarding project clone --session <id> --inspection <id> --destination <absolute> --request <id> --json` clones the inspected repository into that destination, only after telling the user its `clone.changes` and with their agreement, given earlier or after you asked.
 8. `doan onboarding complete --session <id> --request <id> --json` finishes once an agent is ready and a project is selected; Doan saves completion and opens its home.
 
-`doan onboarding cancel --session <id> --operation <id> --request <id> --json` cancels one operation of this session, but only a `sign_in` or `project_clone` operation; for any other kind it returns the target unchanged. It does not sign out. A sign-in or clone being cancelled stays `running` with `cancelling: true` until its cleanup ends. Exiting the CLI or the MCP server does not cancel anything.
+`doan onboarding cancel --session <id> --operation <id> --request <id> --json` cancels one operation of this session, but only a `sign_in` or `project_clone` operation; for any other kind it returns the target unchanged. It does not sign out. A sign-in or clone being cancelled stays `running` with `cancelling: true` until its cleanup ends. Exiting the CLI does not cancel anything.
 
 `--request` (`requestId`) is your id for one request: letters, digits, `_` and `-`. After a lost response, resend the same id with the same arguments to get the original result; do not retry blindly with a new id. The same id with other arguments is `request_conflict`. After Doan restarts, the old session is `session_stale`: run `start` again. An inspection older than a later change is `inspection_stale`: inspect again. When the command's own operation has already failed, it returns `ok:false` with that operation's error code and that code's exit (for example `destination_exists` exits 2, `clone_failed` exits 5); when it was cancelled, the code is `cancelled` (exit 5). `status` and `cancel` report operations as data.
-
-## MCP tools
-
-`doan mcp` serves the same commands as MCP tools over stdio. Each tool returns the envelope that the command prints with `--json`, both as text and as structured content; `isError` is true exactly when `ok` is false, so `doan check` error findings still return `isError: false`.
-
-| Tool | Command | Arguments |
-|---|---|---|
-| `init` | `doan init` | `repo?`, `tokenCss?` |
-| `config` | `doan config` | `repo?`, `tokenCss?`, `clearTokenCss?`, `addServe?[]`, `removeServe?[]` |
-| `ls` | `doan ls` | `repo?` |
-| `comments` | `doan comments` | `repo?`, `canvas?` |
-| `resolve_comments` | `doan comment resolve` | `repo?`, `ids`, `agent` |
-| `check` | `doan check` | `repo?` |
-| `active` | `doan active` | `repo?` |
-| `skill` | `doan skill` | none |
-| `design_skill` | `doan design-skill` | `id?` |
-| `onboarding_start` | `doan onboarding start` | none |
-| `onboarding_status` | `doan onboarding status` | `sessionId`, `operationId?` |
-| `onboarding_check` | `doan onboarding check` | `sessionId`, `provider`, `requestId`, `spendCopilotRequest?` |
-| `onboarding_sign_in` | `doan onboarding sign-in` | `sessionId`, `provider`, `requestId` |
-| `onboarding_cancel` | `doan onboarding cancel` | `sessionId`, `operationId`, `requestId` |
-| `onboarding_project_inspect` | `doan onboarding project inspect` | `sessionId`, `path?`, `url?`, `destination?` (with `url` only), `requestId` |
-| `onboarding_project_select` | `doan onboarding project select` | `sessionId`, `inspectionId`, `path`, `initialize?`, `requestId` |
-| `onboarding_project_clone` | `doan onboarding project clone` | `sessionId`, `inspectionId`, `destination`, `requestId` |
-| `onboarding_complete` | `doan onboarding complete` | `sessionId`, `requestId` |
-
-- `repo` must be an absolute path. Without it, tools use the server's working directory: repository tools search upward, and `init` targets that directory.
-- Call `resolve_comments` with `{"ids": ["cmt_00000000-0000-4000-8000-000000000001"], "agent": "claude-code"}`. Always supply `agent` yourself; it is not taken from the MCP client.
-- Call `active` with `{"repo": "/absolute/repo"}` or `{}`. It needs the Doan app; the server passes its own `DOAN_RUNTIME` environment to it.
-- Onboarding tool arguments are the camelCase socket names of the flags: `--session` is `sessionId`, `--request` is `requestId`, `--operation` is `operationId`, `--inspection` is `inspectionId`, `--spend-copilot-request` is `spendCopilotRequest`, and `--initialize` is `initialize`. `onboarding_start` opens the app only when the server is the CLI inside the app and has no `DOAN_RUNTIME`.
-- MCP write tools (`resolve_comments`, `init`, and `config`) may require human approval. If approval is unavailable in a non-interactive run, resolve applied comments with the shell command `doan comment resolve <ids> --agent <name>` when the CLI is available. Never retry an approval-refused write in a loop. If the shell CLI is also unavailable, report the unresolved comments and ask the human to approve the MCP write in an interactive session. Do not change approval settings or agent config files.
-- Change configuration with `config` only when the user asks. Its token CSS and serve paths are repository-relative or absolute inside the repository. It returns the same envelope as the CLI.
-- Use `init` only when the user asks for it, and ask the user for the token CSS path first.
-- `nextSteps` and messages name CLI commands and flags; map them to tools with the table above (`--repo` is the `repo` argument).
-- `doan help` has no tool; call the `skill` tool instead.

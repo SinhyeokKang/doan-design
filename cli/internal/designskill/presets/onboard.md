@@ -9,7 +9,7 @@ Use this preset when the user asks for a welcome or setup flow, first-use or emp
 - Find the target. For pointing words like "this screen" or "this empty state", use `doan active` and read the open comments attached to that target. Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: token CSS (`doan config --json` shows `tokenCss`), existing components, a design rules document if the project has one, and the `design-system` canvas (`.doan/canvases/design-system.html`) if it exists. Onboarding uses the product's own components, not a separate visual language.
 - Read the code the frame implements (`data-doan-implements`) and the surrounding flow: what a new user sees before and after the target, and which actions really exist.
-- Onboarding depends on two facts: the first real result users should reach, and their experience level. When the repository and the request do not show them, ask. When broader product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`).
+- Onboarding depends on two facts: the first real result users should reach, and their experience level. When the repository and the request do not show them, ask. When broader product context is missing and it would change the result, suggest the `context` preset (`doan design-skill context --json`).
 
 ## Do not invent product facts
 

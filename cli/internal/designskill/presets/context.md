@@ -2,7 +2,7 @@
 
 Understand the product, its users, the existing design, and the constraints before design work starts, so later work builds on what is true instead of guessing. This preset gathers and confirms context. It does not invent a visual direction and does not draw.
 
-This preset is not `doan init`. The CLI command `doan init` (and the MCP `init` tool) sets up Doan's project files; this preset is about the product and design knowledge the work needs. Neither one runs the other.
+This preset is not `doan init`. The CLI command `doan init` sets up Doan's project files; this preset is about the product and design knowledge the work needs. Neither one runs the other.
 
 ## Scope
 
@@ -94,7 +94,7 @@ Under Evidence on Hand, also state absences that later work must not fabricate.
 
 Recommend the next step from the actual project state, and continue only with what the user asked for:
 
-- The project has real tokens or components but no design rules document or `design-system` canvas, and the requested work needs one: read the `document` preset (`doan design-skill document --json`, or the MCP `design_skill` tool with `{"id": "document"}`).
+- The project has real tokens or components but no design rules document or `design-system` canvas, and the requested work needs one: read the `document` preset (`doan design-skill document --json`).
 - An existing design system is sufficient: reuse it as the reference. Do not regenerate it.
 - A feature or screen needs its purpose, flow, and states worked out: the `shape` preset.
 - An existing surface needs work: the preset that matches the request, or the plain request when none fits.

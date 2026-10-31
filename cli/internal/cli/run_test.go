@@ -329,6 +329,32 @@ func TestRemovedMCPCommandIsUnknown(t *testing.T) {
 	}
 }
 
+// nextSteps, help and messages come from these sources; none may point agents to MCP.
+func TestCLISourcesNameNoMCP(t *testing.T) {
+	sources, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range sources {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		if strings.Contains(strings.ToLower(readFile(t, ".", file)), "mcp") {
+			t.Errorf("%s mentions MCP", file)
+		}
+	}
+	for _, code := range []string{"app_not_running", "app_protocol_mismatch", "project_not_open"} {
+		if strings.Contains(strings.Join(appError(code, "m").NextSteps, "\n"), "MCP") {
+			t.Errorf("active %s nextSteps mention MCP", code)
+		}
+	}
+	for _, code := range []string{"app_not_running", "app_launch_failed"} {
+		if strings.Contains(strings.Join(onboardingFailure(code, "m").NextSteps, "\n"), "MCP") {
+			t.Errorf("onboarding %s nextSteps mention MCP", code)
+		}
+	}
+}
+
 func TestCheckCanvasCount(t *testing.T) {
 	for _, tt := range []struct {
 		name, body  string

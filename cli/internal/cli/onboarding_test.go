@@ -808,25 +808,6 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 			t.Errorf("guide misses %s", line)
 		}
 	}
-	for _, row := range [][2]string{
-		{"onboarding_start", "doan onboarding start"},
-		{"onboarding_status", "doan onboarding status"},
-		{"onboarding_check", "doan onboarding check"},
-		{"onboarding_sign_in", "doan onboarding sign-in"},
-		{"onboarding_cancel", "doan onboarding cancel"},
-		{"onboarding_project_inspect", "doan onboarding project inspect"},
-		{"onboarding_project_select", "doan onboarding project select"},
-		{"onboarding_project_clone", "doan onboarding project clone"},
-		{"onboarding_complete", "doan onboarding complete"},
-	} {
-		found := false
-		for _, l := range strings.Split(skillBody, "\n") {
-			found = found || (strings.Contains(l, "| `"+row[0]+"`") && strings.Contains(l, "`"+row[1]+"`"))
-		}
-		if !found {
-			t.Errorf("guide table misses %s", row)
-		}
-	}
 	for _, s := range []string{"Prefer `doan onboarding start --json` on PATH", "Only if `doan` is not on PATH", "<Doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
 		if !strings.Contains(skillBody, s) {
 			t.Errorf("guide misses %q", s)
@@ -834,7 +815,7 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 	}
 	for _, parts := range [][]string{
 		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
-		{"`app_not_running`", "`app_launch_failed`", "open Doan", "recover as for `app_not_running` from `doan active`", "MCP `onboarding_start` tool", "`onboarding_*` tools"},
+		{"`app_not_running`", "`app_launch_failed`", "open Doan", "recover as for `app_not_running` from `doan active`", "with `doan onboarding start` in place of `doan active`"},
 		// The changes are always told before the write, but a user who already agreed is not asked again (agent-eval 2026-10-29 O1, re-measure).
 		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "already agreed", "do not ask again", "Otherwise ask first"},
 	} {

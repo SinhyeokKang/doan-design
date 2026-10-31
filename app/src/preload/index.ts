@@ -133,8 +133,8 @@ const api = {
     ipcRenderer.on("agent-auth:prompt", receive);
     return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
   },
-  // The first-run session the CLI and MCP share: same state, revision and operations as app-socket v2 (the reply DTO is
-  // the socket's). Sign-in itself stays on the agent-auth calls above; a CLI or MCP sign-in is owned by this window too.
+  // The first-run session the CLI shares: same state, revision and operations as app-socket v2 (the reply DTO is
+  // the socket's). Sign-in itself stays on the agent-auth calls above; a CLI sign-in is owned by this window too.
   startOnboardingSession: (): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:start", {}),
   readOnboardingSession: (request: SessionRequest<OnboardingStatusRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:status", request),
   // A Copilot check spends one model request, so it needs spendCopilotRequest: true.
@@ -145,7 +145,7 @@ const api = {
   selectOnboardingProject: (request: SessionRequest<OnboardingProjectSelectRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:select", request),
   cloneOnboardingProject: (request: SessionRequest<OnboardingProjectCloneRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:clone", request),
   completeOnboarding: (request: SessionRequest<OnboardingCompleteRequest>): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:complete", request),
-  // Every session change, from this window or a CLI/MCP client. Drop states of another sessionId.
+  // Every session change, from this window or the CLI. Drop states of another sessionId.
   onOnboardingSession(listener: (state: OnboardingState) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, state: OnboardingState) => listener(state);
     ipcRenderer.on("onboarding:changed", receive);
@@ -171,7 +171,7 @@ const api = {
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
   // The Add Projects page's project session: the onboarding session's project calls and DTOs on channels of its own,
-  // with no agents, completion, CLI or MCP. Without a request the read answers the current state and its sessionId;
+  // with no agents, completion or CLI. Without a request the read answers the current state and its sessionId;
   // with one it is the session's status (session_stale for another session).
   readAddPage: (request?: { sessionId: string; operationId?: string }): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:read", request ?? {}),
   inspectAddPageProject: (request: SessionRequest<OnboardingProjectInspectRequest>): Promise<AddPageResponse> => ipcRenderer.invoke("add-projects:inspect", request),

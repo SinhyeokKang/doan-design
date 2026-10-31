@@ -9,7 +9,7 @@ Use this preset when the user asks to simplify, declutter, reduce, or strip back
 - Find the target. For pointing words like "this screen" or "this panel", use `doan active` and read the open comments attached to that target (`doan comments --canvas <id>`). Otherwise work on the canvas, frame, or code the user named.
 - Read the design system: the token CSS (`doan config --json` shows `tokenCss`), existing components, any design rules document, and a `design-system` canvas (`.doan/canvases/design-system.html`) if present.
 - Read the code the canvas implements (`data-doan-implements`) to learn which elements carry real function, data, or states.
-- Find the primary user goal for this surface. If the goal, the audience, or what is essential is unclear from the repository, do not guess: ask. When product context is missing and it would change what to cut, suggest the `context` preset (`doan design-skill context --json`, or the MCP `design_skill` tool with `{"id": "context"}`).
+- Find the primary user goal for this surface. If the goal, the audience, or what is essential is unclear from the repository, do not guess: ask. When product context is missing and it would change what to cut, suggest the `context` preset (`doan design-skill context --json`).
 
 ## Assess the complexity
 

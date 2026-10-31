@@ -364,8 +364,8 @@ function createWindow(): BrowserWindow {
   // A new renderer starts on Home again with no toast up.
   window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
   window.webContents.on("did-navigate", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
-  // Only the renderer showed and could cancel the Add Projects page's clone. First run's may belong to a CLI or MCP
-  // client, so it keeps running.
+  // Only the renderer showed and could cancel the Add Projects page's clone. First run's may belong to the CLI, so
+  // it keeps running.
   window.webContents.on("render-process-gone", () => addPage?.rendererGone());
   window.webContents.on("did-navigate", () => addPage?.rendererGone());
   // Read after destroy, webContents throws, so the id is kept now.
@@ -650,7 +650,7 @@ async function start(): Promise<void> {
     completed: () => onboardingComplete(readCompletion(userData)),
     publish: state => {
       send(ONBOARDING_CHANNELS.changed, state);
-      // Completion saved (from the window, the CLI or MCP): first run is over for this launch too.
+      // Completion saved (from the window or the CLI): first run is over for this launch too.
       if (state.completed && onboardingOpen) { onboardingOpen = false; setMenu(); }
     },
     projects: { ...projectWork, confirm: root => confirmProject(root, projectDeps), saveCompletion: root => writeCompletion(userData, root) },
