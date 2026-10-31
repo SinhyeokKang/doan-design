@@ -499,3 +499,59 @@ test("a removed root takes its state and drafts with it", () => {
   expect(h.run.view(ROOT)).toEqual({ kind: "wait" });
   expect(h.run.drafts.has(`root:${ROOT}`)).toBe(false);
 });
+
+// Review RM r2 🟡1: an entry request still waiting for the list is a newer choice than a start or send sent before it.
+test("a late start or send reply does not cancel an entry request still waiting for the list, in either order", () => {
+  for (const replyFirst of [true, false]) {
+    const h = harness();
+    h.run.show(ROOT);
+    h.answer(ROOT, []);
+    const revision = h.run.revision(ROOT);
+    h.run.request(ROOT, C, null);
+    if (replyFirst) { h.run.started(ROOT, B, "claude", revision); h.answer(ROOT, [summary(B), summary(C)]); }
+    else { h.answer(ROOT, [summary(B), summary(C)]); h.run.started(ROOT, B, "claude", revision); }
+    expect(h.run.view(ROOT), `reply first: ${replyFirst}`).toEqual({ kind: "conversation", conversationId: C });
+    expect(h.state.remembered, `reply first: ${replyFirst}`).toEqual({ [ROOT]: C });
+  }
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  const revision = h.run.revision(ROOT);
+  h.run.request(ROOT, C, null);
+  h.run.sent(ROOT, A, revision);
+  h.answer(ROOT, [summary(A), summary(C)]);
+  expect(h.state.remembered).toEqual({ [ROOT]: C });
+});
+
+// Review RM r2 🟡3: what the list did while the Overview was away is no choice; reopening picks by decision 5.
+test("reopening after the shown conversation left the list while away picks the latest project conversation", () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { lastActivityAt: "2026-11-01T00:00:00.000Z" }), summary(B)]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  h.run.setDrafts(drafts => new Map(drafts).set(`root:${ROOT}`, draft("kept")));
+  h.run.show(null);
+  h.answer(ROOT, [summary(B)]);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("kept");
+});
+
+// Review RM r2 ⚪1: a discarded Edit and resend restore gives back the files it was issued.
+test("an Edit and resend restore dropped for newer typing releases its issued attachments", async () => {
+  const h = harness();
+  doan.removeAttachment = vi.fn(async () => true);
+  const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });
+  histories.set(A, [message, event(A, { type: "turn.started" }), event(A, { type: "turn.failed", code: "unknown" })]);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  await flush();
+  const issued = deferred<unknown[]>();
+  doan.attachmentsFromPaths!.mockImplementation(() => issued.promise);
+  const pending = h.run.editAndResend(ROOT, A);
+  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("newer")));
+  issued.resolve([{ ok: true, attachment: { id: "issued-1", name: "a.png", kind: "image", pasted: false, size: 1, path: "/tmp/a.png" } }]);
+  expect(await pending).toBe(false);
+  expect(doan.removeAttachment).toHaveBeenCalledWith("issued-1");
+  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("newer");
+});

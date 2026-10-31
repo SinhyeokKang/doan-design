@@ -732,3 +732,33 @@ test("a refused send registers no turn", async () => {
   expect(await h.run.send(ROOT, "claude", { conversationId: "p", text: "x", anchors: [] })).toEqual({ error: "busy" });
   expect(h.run.knows("p")).toBe(false);
 });
+
+// Review RM r2 🟡2: a send's turn that starts and ends before main's reply keeps main's binding window for its canvas.
+test("a send's new canvas opens within the binding window whether the reply, the events or an immediate end came first", async () => {
+  for (const order of ["reply first", "events first", "untracked immediate end"] as const) {
+    lists({ [ROOT]: [summary({ conversationId: "p" })] });
+    doan.readConversation!.mockResolvedValue({ events: [], lastSeq: 0, turn: "idle" });
+    const h = harness();
+    h.view.screen = "workspace"; h.view.loadedRoot = ROOT; h.view.entries = [list(ROOT, ["a"])];
+    h.run.entriesChanged();
+    await flush(); await flush();
+    if (order !== "untracked immediate end") {
+      // The run knows the conversation from an earlier send whose turn ended.
+      doan.sendConversation = vi.fn(async () => {});
+      await h.run.send(ROOT, "claude", { conversationId: "p", text: "first", anchors: [] });
+      h.run.event(event("p", { type: "turn.started" }, "t1"));
+      h.run.event(event("p", { type: "turn.done" }, "t1"));
+      await flush();
+    }
+    const reply = deferred<void>();
+    doan.sendConversation = vi.fn(() => reply.promise);
+    const sending = h.run.send(ROOT, "claude", { conversationId: "p", text: "Draw pricing.", anchors: [] });
+    if (order === "reply first") { reply.resolve(); await sending; }
+    h.run.event(event("p", { type: "turn.started" }, "t2"));
+    h.run.event(event("p", { type: "turn.done" }, "t2"));
+    if (order !== "reply first") { reply.resolve(); await sending; }
+    h.view.entries = [list(ROOT, ["a", "pricing"])];
+    h.run.entriesChanged();
+    expect(h.host.openCanvas, order).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+  }
+});
