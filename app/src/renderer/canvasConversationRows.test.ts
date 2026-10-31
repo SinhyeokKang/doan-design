@@ -106,6 +106,8 @@ describe("canvasRowProblemText", () => {
     expect(canvasRowProblemText({ kind: "gone" }, "doan")).toBe("No longer in doan");
     expect(canvasRowProblemText({ kind: "duplicate", count: 2 }, "doan")).toBe("2 canvases use this ID — run doan check");
     expect(canvasRowProblemText({ kind: "duplicate", count: 3 }, "doan")).toBe("3 canvases use this ID — run doan check");
-    expect(canvasRowProblemText({ kind: "unreadable" }, "doan")).toBe("Can't read this canvas — run doan check");
+    const broken = row({ path: ".doan/canvases/broken.html", id: "broken", error: { code: "parse", message: "bad html" } });
+    const [unreadable] = canvasConversationRows([summary({ canvas: { path: broken.path, id: "broken" } })], [broken], NOW);
+    expect(canvasRowProblemText(unreadable!.problem!, "doan")).toBe("Can't read this canvas — run doan check");
   });
 });
