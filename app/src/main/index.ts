@@ -78,11 +78,12 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved";
+export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved" | "newConversation";
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `reviewing`: a Review runs on the open canvas (revision-recheck); absent is false.
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean; choose?: boolean; locked?: boolean }
+// `overview`: a project Overview shows (File > New Conversation).
+export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean; choose?: boolean; locked?: boolean; overview?: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -238,7 +239,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -255,6 +256,7 @@ function setMenu(): void {
       {
         label: "File",
         submenu: [
+          { label: "New Conversation", accelerator: "CmdOrCtrl+N", enabled: enabled.newConversation, click: command("newConversation") },
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
           { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => {
@@ -307,12 +309,12 @@ const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast && next.reviewing === menuInputs.reviewing &&
-    next.choose === menuInputs.choose && next.locked === menuInputs.locked) return;
+    next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["reviewing", "choose", "locked"] as const;
+const MENU_FLAGS = ["reviewing", "choose", "locked", "overview"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);
