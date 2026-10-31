@@ -31,6 +31,7 @@
 21. 목록 요약에 main의 '일하는 중'과 같은 `working: boolean`을 더한다. 준비, 실행, 응답 대기, 판정 hold, 종료 대기를 모두 포함한다. `phase`는 기록 기준 그대로 둔다. renderer의 Home 이유 줄과 제거 확인은 `working`으로 센다(지휘자 판단 — RA2 Y2와 A2 열린 질문).
 22. 대기열과 돌려줄 초안의 크기 상한은 reader와 writer가 같은 값을 쓴다. 합친 결과가 상한을 넘을 대기 항목은 받기 전에 거절한다. 한 대화의 초안 때문에 `drafts.json` 전체를 못 읽는 일이 없어야 한다(지휘자 판단 — RA2 R1, POSTMORTEM 2026-10-27 reader 한계).
 23. 같은 턴 안에서 거부된 edit와 외부의 같은 파일 수정이 겹치면 지금 근거로는 구분할 수 없다. 이 한계를 Z1에서 PRODUCT에 적는다(지휘자 판단 — RA2).
+24. 다시 로드한 뒤 상태줄은 일이 남은 대화(실행 중·응답 대기·안 본 종료)만 보인다(spec 결정 13). 그래서 이미 본 실패·멈춘 대화는 다시 로드 뒤 상태줄과 Edit on Home에서 닿지 않는다. 같은 실행 안에서는 Dismiss까지 남는다(결정 19). Z1에서 PRODUCT에 이 둘을 함께 적는다(지휘자 판단 — D2 관찰. spec 결정 13과 맞는 동작이다).
 
 ## 배치
 
@@ -45,8 +46,8 @@
 | B2 | R2, R4 (+ 대기열 연결은 A2 뒤) | `app/src/renderer/**` | A1·B1 통합 | Opus high — 렌더 사이 경쟁(POSTMORTEM 2026-10-25)과 거절 이유 줄 | `npm --prefix app test`, typecheck, `verify.mjs` | 통합 `e3efee4d..78a62850` (라운드 1) |
 | RA2 | A2 리뷰 | 보고만 | A2 | Codex Astra medium — 다른 계열의 동시성 리뷰 | `/code-review` 보고 | 완료 (RA2 🔴1 🟡4 → RA2b 🔴1 🟡1 → RA2c 🔴0 🟡0) |
 | RB2 | B2 리뷰 | 보고만 | B2 | Codex Astra medium — B2가 이미 Opus 서브에이전트로 자체 리뷰를 했으므로 다른 계열의 시각을 쓴다(계획의 Opus high에서 바꿈) | `/code-review` 보고 | 완료 (🔴0, 🟡4) |
-| D | D2 | `.scratch/`, 수정이 필요하면 `app/src/renderer/**`, `docs/DESIGN.md` | 모든 구현 배치 통합 | Opus high — 로그인·crash·reload probe가 많고 결과를 실제로 확인해야 한다(계획의 medium에서 올림) | `verify.mjs` 통과 뒤 `/design-sync`(Home 보드)와 `/runtime-test` probe | 진행 중 |
-| Z | Z1, Z2 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/features/buzz-restyle/tasks.md`, 이 디렉터리 | D | 지휘자 | Z1 grep 결과 없음, `verify.mjs` 통과 | 대기 |
+| D | D2 | `.scratch/`, 수정이 필요하면 `app/src/renderer/**`, `docs/DESIGN.md` | 모든 구현 배치 통합 | Opus high — 로그인·crash·reload probe가 많고 결과를 실제로 확인해야 한다(계획의 medium에서 올림) | `verify.mjs` 통과 뒤 `/design-sync`(Home 보드)와 `/runtime-test` probe | 통합 `6387702c` |
+| Z | Z1, Z2 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/features/buzz-restyle/**`, `docs/features/buzz-project/**`, 이 디렉터리 | D | Opus high 문서 워커 — 승격 범위가 넓어 워커가 쓰고 지휘자가 diff를 검토한다(계획의 '지휘자'에서 바꿈) | Z1 grep 결과 없음, 삭제 디렉터리로 가는 링크 없음, `verify.mjs` 통과 | 진행 중 |
 
 이미 끝난 항목: D1(초안, 2026-10-31 사용자 확정).
 
@@ -96,3 +97,4 @@
 - RA2c 재리뷰: R1·Y3 수정 확인, 🔴0·🟡0·⚪1(빈 대기열이 예산에 남음). ⚪1은 작아서 A2 수정 라운드 3으로 바로 고친다.
 - A2 수정 라운드 3(⚪1) 뒤 A2 10커밋을 `ae78df57..c19a2c99`로 통합했다. 통합 HEAD `c19a2c99`에서 `verify.mjs` PASS. A2 워커들을 release하고 worktree `bc-a2`를 제거했다. 증거는 `.scratch/buzz-conversation/a2/`에 있다. 남은 reclaimable 워커는 없다.
 - D2 로그인 승인은 지휘자가 ego-browser로 먼저 직접 시도한다(사용자). 막히면 사용자에게 넘긴다.
+- D2 완료: Home design-sync 통과(기준선 대비 차이는 결정된 변경뿐, 초안 대비 차이는 DESIGN.md에 기록), 실제 Claude·Codex로 다시 로드·재시작·crash 접힘·Edit on Home(없는 첨부 칩)·승격 3종 통과, Codex에서 모델만 바꾼 턴의 effort는 모델 기본값 `medium`(이전 `high`가 이어지지 않음). 관찰: crash 뒤 Claude 러너가 최소 22초 살아 있었다(기록에 쓴 것 없음). 두 공급자 sign out으로 Keychain을 P1 이전 상태로 되돌렸고 `/private/tmp/doan-p1-ogyLep/`를 지웠다. `4dd5e91a`를 `6387702c`로 통합했다. 증거는 `.scratch/buzz-conversation/d/`에 있다.

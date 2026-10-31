@@ -91,7 +91,7 @@
 
 - [x] D1. `/design-draft`: `.doan/canvases/buzz-conversation.html`(2026-10-31 사용자 확정, 리뷰 뒤 상태 추가). 화면 배치 없는 프리미티브 상태판이다. `buzz-project`의 Overview 초안이 이것을 재사용한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
-- [ ] D2. `/design-sync`(Home 보드만)와 `/runtime-test`를 격리 앱에서 한다.
+- [x] D2. `/design-sync`(Home 보드만)와 `/runtime-test`를 격리 앱에서 한다.
   - Home computed style·배치가 R1 기준선과 같다. 포커스 보더·그림자·이유 줄 문구는 예외다.
   - 다시 로드 뒤 상태줄·슬롯이 실행 중·응답 대기·안 본 종료를 다시 보인다.
   - 재시작 뒤 안 본 종료(crash 접힘 포함)를 다시 보인다.
