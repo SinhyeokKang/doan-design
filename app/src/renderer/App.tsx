@@ -120,6 +120,8 @@ export function App() {
     if (document.activeElement === document.body || !document.activeElement?.isConnected) focusCurrent(previous);
   });
   const workspaceFocus = useRef<HTMLElement | null>(null);
+  // Set by the Overview's branch chip menu; the workspace focus effect then focuses the new Overview's chip.
+  const chipFocus = useRef(false);
   const currentScreen = useRef(screen);
   currentScreen.current = screen;
   const [entries, setEntries] = useState<FolderEntry[]>([]);
@@ -313,6 +315,8 @@ export function App() {
     } else if (screen === "workspace") {
       // A Home send lands in the Overview's composer field (buzz-project design §2.5).
       if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { field.focus(); return; } }
+      // A worktree picked from the Overview's branch chip lands on the new Overview's chip (design §2.5).
+      if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { chip.focus(); return; } }
       if (comments.session.draft.draft) { document.querySelector<HTMLTextAreaElement>(".comments-panel textarea")?.focus(); return; }
       const previous = workspaceFocus.current;
       (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
@@ -807,13 +811,6 @@ export function App() {
     overviewRun.current!.select(root, null);
     queueMicrotask(() => document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")?.focus());
   }
-  // A worktree picked from the Overview's branch chip: focus lands on the new Overview's chip (design §2.5).
-  const chipFocus = useRef(false);
-  useLayoutEffect(() => {
-    if (!chipFocus.current || shownOverview === null) return;
-    chipFocus.current = false;
-    document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip")?.focus();
-  }, [shownOverview]);
   const previousOverview = useRef(shownOverview);
   useEffect(() => {
     if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
