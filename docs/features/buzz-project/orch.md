@@ -70,3 +70,9 @@
 - RL 리뷰 r1: 🔴 0, 🟡 2(빈 곳 클릭 뒤 행 제거가 포커스를 빼앗음, 같은 경로·다른 대화로 행 교체 시 썸네일 관찰 누락), ⚪ 1(주석). 리뷰 워커 release. RL 수정 r1 보냄.
 - RL 수정 r1(`1bb0876a` test 7개 red 확인, `6c4d8580` fix; 앱 테스트 5233개). 지휘자가 handoff와 커밋을 대조해 받아들였다. DOM 동작은 순수 함수로만 확인돼 DS/RT 몫.
 - RL 통합(`9e28c57f`…`b2c4ae12`). 통합 HEAD `b2c4ae12` verify PASS(`verify-int3.log`). RL release, 워크트리 삭제.
+- DS: dispatch `ctx_ae18537dc739`, 워크트리 `buzz-project-ds`(기준 `230d123d`), Claude opus high.
+- DS 질문: 로그인 프로필 복사본은 Keychain이 경로에 묶여 reauthRequired가 된다. 원본 경로 사용 허용(사용자 결정 7의 재사용 범위): 먼저 통째 백업, 임시 저장소에서만 턴, sign out 금지, 프로필이 망가졌을 때만 백업으로 복원. 지휘자 판단.
+- DS 완료(`209559c3` fix CSS 4건, `cba4afa5` docs(DESIGN)). 원본 프로필 경로 사용, 백업 `/tmp/doan-provider-profile-backup-20261101053310`, 전후 두 공급자 connected, REAL_DIFF 없음. 도달 못 한 상태: 오른쪽 행 Working/Needs your answer(C12 전에는 생길 수 없음), docked 칩만·Sending·project_busy·archived, 이동 표시, 스트리밍 캐럿 등 → RT로. DS 지적 4건에 대한 지휘자 판단: 읽을 수 없는 캔버스 행 매칭(결함), `shortAgo` 2일째부터 날짜(결함, design §0과 초안), 이동 줄 제목 말줄임(결함, 초안), 승격 턴의 실행 중 캔버스 행 없음(문서화된 차이). 1–3을 DS에 수정으로 보냈다.
+- DS 수정 r1(`45a52ffc` test 5개 red, `64bb04c3` fix, `56ea7c3e` docs; 앱 테스트 5239개). 실제 승격 재측정(라이브 3회째, 두 공급자 connected, REAL_DIFF 없음). RT 관찰 거리: 960×600에서 새 대화 placeholder가 두 줄로 감김. DS 리뷰 r1: Codex gpt-6-astra medium.
+- DS 리뷰 r1: 🔴 0, 🟡 1(좁은 창 수치와 CDP 접근성 증거가 덮어써져 남지 않음 → RT로), ⚪ 1(id 없는 읽을 수 있는 행 테스트 fixture → DS 수정 r2). 리뷰 워커 release.
+- DS 수정 r2(`46d33569` test). DS 증거를 `.scratch/orch-buzz-project/ds-evidence/`로 복사.
