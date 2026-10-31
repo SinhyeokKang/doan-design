@@ -528,3 +528,28 @@ func TestDocumentPresetSplitsDesignSystemByUnit(t *testing.T) {
 		t.Error("document preset still writes the single legacy canvas")
 	}
 }
+
+// document skips only nonvisual wrappers: a wrapper with its own styling is a shared component and
+// gets a canvas, and Verify checks every visual shared component against that narrow exception.
+func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("presets", "document.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(b)
+	for _, s := range []string{
+		"nonvisual infrastructure wrappers",
+		"a tooltip content wrapper with a project class, is a shared component",
+		"every visual shared component in the code is on a canvas",
+		"listed with its reason",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	for _, s := range []string{"skip only utility and wrapper components", "on a canvas or listed as skipped"} {
+		if strings.Contains(body, s) {
+			t.Errorf("document preset still lets any wrapper be skipped: %q", s)
+		}
+	}
+}
