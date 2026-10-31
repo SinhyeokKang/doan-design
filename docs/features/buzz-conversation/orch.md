@@ -89,3 +89,8 @@
 - A2 완료(`worker_done` succeeded): `e3a12ea6..0de67e64` 4커밋, 테스트 5275개·typecheck·verify 통과, 자체 리뷰 🔴2·🟡4 반영. 열린 질문: 대기열을 보내려고 기다리는 동안 목록 `phase`가 `ended`다. A2 터미널은 수정 라운드용으로 retain했다.
 - RA2 리뷰 시작(Codex Astra medium).
 - RA2 완료(Codex): 🔴1(합친 초안이 커지면 다음 실행에서 `drafts.json` 전체가 손상으로 읽힘), 🟡4(턴 사이 근거를 섞어 잘못 승격, hold가 목록에서 사라짐, 로그아웃 때 hold의 대기열을 돌려주지 않음, 첨부 sent 표시 실패 때 이미 저장된 대기 항목), ⚪2. 리뷰어가 `node_modules`가 있는데 `npm ci`를 돌렸다(추적 파일 변경 없음).
+- A2 수정 라운드 1을 같은 터미널로 보냈다(R1, Y1~Y4, ⚪1·2, 결정 20~22). 이번 라운드는 `homeRun.ts`·`homeConversations.ts`도 고친다(B2가 끝나 소유자가 없다). 끝나면 다시 리뷰한다.
+- A2 수정 라운드 1 완료: rebase 충돌 없음, 회귀 테스트 19개 빨강 확인 뒤 수정, 테스트 5356개·verify 통과. 새 IPC 코드 `queue_limit`. 범위 밖 수정: `renderer/conversationList.test.ts` 한 줄(필수 타입 필드). 재리뷰 RA2b(Codex Astra medium)를 시작했다.
+- RA2b 재리뷰: Y1·Y2·Y4·⚪1·⚪2 수정 확인. R1(sending 표시 바이트가 상한 예산에서 빠짐, 🔴)과 Y3(판정 대기 send 뒤 넣은 대기열을 취소 때 돌려주지 않음, 🟡)는 일부만 고쳐졌다. A2 수정 라운드 2를 보냈다.
+- A2 수정 라운드 2 완료(`8e6a592b..ae1e47db`, 테스트 5363개·verify 통과). 재리뷰 RA2c(Codex)를 시작했다.
+- RA2c 재리뷰: R1·Y3 수정 확인, 🔴0·🟡0·⚪1(빈 대기열이 예산에 남음). ⚪1은 작아서 A2 수정 라운드 3으로 바로 고친다.
