@@ -5,7 +5,8 @@ import { createAccountPrepare, createPrepare, routePrepare } from "./conversatio
 import { listModels, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
 import { AttachmentStore, type AttachmentResult } from "./attachments";
-import { conversationHandler, conversationMethods } from "./conversation/ipc";
+import { conversationHandler, conversationMethods, queueFiles } from "./conversation/ipc";
+import { DraftStore } from "./conversation/drafts";
 import { AuthManager, removeStaleLinkDirs, shellLocator, spawnAuthProcess } from "./agentAuth/manager";
 import { AuthStorage } from "./agentAuth/storage";
 import { electronCipher } from "./agentAuth/cipher";
@@ -117,7 +118,9 @@ let addPage: AddPageSession | undefined;
 // The socket may take a v2 request before start() has the service and the main window that owns CLI sign-ins.
 let onboardingReady: (service: OnboardingService) => void = () => {};
 const onboardingStarted = new Promise<OnboardingService>(resolve => { onboardingReady = resolve; });
-let conversationCanvases = new Set<string>();
+// Each listed folder's canvas rows as last handed to the conversation service: a re-read makes a new array (a served-only
+// refresh keeps it), and a row whose rev moved is a canvas file the watcher saw change.
+let conversationLists = new Map<string, readonly { path: string; rev?: number }[]>();
 let inspector: Inspector | undefined;
 // One selection app-wide (select-inspect R1); the socket answers it only for
 // its own project. Memory only, never written to disk.
@@ -486,14 +489,15 @@ async function start(): Promise<void> {
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
   const savedRoots = await readFoldersFileForPruning(join(userData, "folders.json"));
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
-    const nextCanvases = new Set<string>();
-    for (const entry of entries) if (entry.kind === "list") for (const canvas of entry.canvases) {
-      const key = JSON.stringify([entry.path, canvas.id ?? canvas.path]); nextCanvases.add(key);
-      if (!conversationCanvases.has(key)) {
-        try { conversations?.bind(entry.path, canvas); } catch (error) { console.error("doan: cannot persist first conversation canvas", error); }
-      }
+    const nextLists = new Map<string, readonly { path: string; rev?: number }[]>();
+    for (const entry of entries) if (entry.kind === "list") {
+      const previous = conversationLists.get(entry.path); nextLists.set(entry.path, entry.canvases);
+      if (previous === entry.canvases) continue;
+      const revs = new Map(previous?.map(row => [row.path, row.rev]));
+      const changed = previous ? entry.canvases.filter(row => row.rev !== undefined && row.rev !== revs.get(row.path)).map(row => row.path) : [];
+      try { conversations?.refreshed(entry.path, changed); } catch (error) { console.error("doan: conversation promotion check failed", error); }
     }
-    conversationCanvases = nextCanvases;
+    conversationLists = nextLists;
     for (const root of choices.keys()) {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
@@ -680,6 +684,8 @@ async function start(): Promise<void> {
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
     (request, stored, use) => agentAuth ? accountPrepare(request, stored, use) : Promise.reject(new Error("not_logged_in")));
   const conversationStore = new ConversationStore(userData);
+  // After the store, which made and checked the conversations directory.
+  const conversationDrafts = new DraftStore(join(userData, "conversations"));
   const preferences = createPreferencesStore(join(userData, "preferences.json"));
   const notify = createNotifyService({
     preferences: () => preferences.current().notifications,
@@ -696,6 +702,16 @@ async function start(): Promise<void> {
     clicked: showFromNotification,
     log: (message, detail) => console.error(message, detail),
   });
+  const attachments = new AttachmentStore(join(userData, "attachments"), {
+    thumbnail: bytes => {
+      const image = nativeImage.createFromBuffer(Buffer.from(bytes)); if (image.isEmpty()) return null;
+      const { width, height } = image.getSize();
+      return new Uint8Array(image.resize(width >= height ? { width: Math.min(width, 160) } : { height: Math.min(height, 160) }).toPNG());
+    },
+    // Re-encoding keeps only pixels: whatever else the pasted bytes carried is not written to disk.
+    reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
+  });
+  let modelCatalog: ModelCatalog | undefined;
   const conversationService = new ConversationService(conversationStore, prepareConversation, openRunner, event => { send("conversation:event", event); notify.event(event); }, (root, canvas) => {
     const project = ready.entries().find(entry => entry.path === root);
     if (!project) throw new Error("project_not_open");
@@ -706,19 +722,11 @@ async function start(): Promise<void> {
   }, undefined, root => {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
-  }, root => send("conversation:listChanged", { root }));
+  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model) });
   conversations = conversationService;
-  const attachments = new AttachmentStore(join(userData, "attachments"), {
-    thumbnail: bytes => {
-      const image = nativeImage.createFromBuffer(Buffer.from(bytes)); if (image.isEmpty()) return null;
-      const { width, height } = image.getSize();
-      return new Uint8Array(image.resize(width >= height ? { width: Math.min(width, 160) } : { height: Math.min(height, 160) }).toPNG());
-    },
-    // Re-encoding keeps only pixels: whatever else the pasted bytes carried is not written to disk.
-    reencode: bytes => { const image = nativeImage.createFromBuffer(Buffer.from(bytes)); return image.isEmpty() ? null : new Uint8Array(image.toPNG()); },
-  });
   attachments.cleanup();
-  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels)), attachments });
+  modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels));
+  const conversationRequest = conversationHandler(conversationService, prepareConversation, () => ready.entries(), { models: modelCatalog, attachments });
   for (const method of conversationMethods) {
     ipcMain.handle(`conversation:${method}`, (event, value: unknown) => conversationRequest(fromWindow(event), method, value));
   }

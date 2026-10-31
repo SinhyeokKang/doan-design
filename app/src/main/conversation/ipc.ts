@@ -3,11 +3,11 @@ import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
 import { validProvider, type Provider } from "../agentAuth/types";
-import type { ConversationService, Prepare, StartAttachments, StartRequest } from "./service";
+import type { ConversationService, Prepare, QueueFiles, StartAttachments, StartRequest } from "./service";
 import type { ModelCatalog } from "./models";
 import type { AttachmentStore } from "../attachments";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen", "queue", "removeQueued", "takeDraft"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
 export interface ConversationError { error: string; missing?: string[] }
@@ -53,6 +53,19 @@ function attachedHooks(store: AttachmentStore, ids: unknown[]): StartAttachments
       throw Object.assign(new Error(fresh.error), fresh.error === "attachment_missing" ? { missing: fresh.missing } : {});
     },
     sent: () => store.markSent(ids),
+  };
+}
+// The queue's hold on its attachments: at queue time main marks them sent (a paste survives a restart in drafts.json)
+// and consumes them, so the renderer's chip removal no longer touches them; the queued send checks them again.
+export function queueFiles(store: AttachmentStore): QueueFiles {
+  return {
+    reclaim: ids => {
+      const back = store.recheck({ ids });
+      const missing = back === null ? ids : back.filter(result => !result.ok).map(result => result.id);
+      if (missing.length) throw Object.assign(new Error("attachment_missing"), { missing });
+      return attachedHooks(store, ids.map(id => ({ id })));
+    },
+    consume: ids => store.consume(ids.map(id => ({ id }))),
   };
 }
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; attachments?: AttachmentStore } = {}) {
@@ -124,6 +137,20 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           store?.consume(extras.ids);
           return undefined;
         }
+        case "queue": {
+          // Text, anchors and attachments only: the turn the queue goes out in keeps the conversation's model and effort.
+          const input = message(raw); if (!input || raw.model !== undefined || raw.effort !== undefined) throw new Error("bad_request");
+          const target = service.sendTarget(raw.conversationId);
+          const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
+          const ids = extras.ids.map(item => (item as { id: string }).id);
+          const queued = service.queue(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
+          if (store && ids.length) { store.markSent(extras.ids); store.consume(extras.ids); }
+          return queued;
+        }
+        case "removeQueued":
+          if (typeof raw.itemId !== "string" || raw.itemId.length > 64) throw new Error("bad_request");
+          service.removeQueued(raw.conversationId, raw.itemId); return undefined;
+        case "takeDraft": return service.takeDraft(raw.conversationId);
         case "markSeen":
           if (typeof raw.seq !== "number" || !Number.isSafeInteger(raw.seq) || raw.seq < 0) throw new Error("bad_request");
           service.markSeen(raw.conversationId, raw.seq); return undefined;
@@ -131,7 +158,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
       }
       throw new Error("bad_request");
     } catch (error) {
-      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy"];
+      const known = ["bad_request", "project_not_open", "canvas_not_found", "no_agent", "cli_missing", "cli_install_failed", "credential_override", "no_session", "session_unavailable", "runtime_unsupported", "session_in_use", "busy", "not_logged_in", "process_exited", "rate_limited", "unknown", "not_found", "stale", "project_busy", "not_running"];
       const code = error instanceof Error ? error.message : "unknown";
       if (code === "attachment_missing" && error instanceof Error && "missing" in error && Array.isArray(error.missing)) return { error: code, missing: error.missing };
       return { error: code === "outside_root" ? "session_unavailable" : known.includes(code) ? code : "unknown" };

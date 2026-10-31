@@ -299,7 +299,7 @@ describe("queue channels", () => {
       h.service.receive(id, { type: "interrupted", reason: "user" });
       expect(await h.handle(true, "takeDraft", { conversationId: id })).toEqual({ text: "y", anchors: [], attachments: h.records, reason: "interrupted" });
       expect(await h.handle(true, "takeDraft", { conversationId: id })).toBeNull();
-      expect(await h.handle(true, "takeDraft", { conversationId: "nope" })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "takeDraft", { conversationId: "33333333-3333-4333-8333-333333333333" })).toEqual({ error: "not_found" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

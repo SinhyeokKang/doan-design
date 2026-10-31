@@ -674,7 +674,8 @@ describe("send extras", () => {
   const attachments = [{ name: "a.png", size: 3, kind: "image" as const, path: "/Users/me/a.png" }];
   async function finished(h: ReturnType<typeof homeFixture>, request: Parameters<ConversationService["start"]>[0] = { ...homeRequest, model: "sonnet", effort: "low" }) {
     const id = (await h.service.start(request)).conversationId;
-    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); h.passBindingWindow();
+    // The first folder refresh after the turn judges it, as main's folder watcher would.
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2](); h.service.refreshed("/repo", []); h.passBindingWindow();
     return id;
   }
   it("saves the new model and effort before the turn's events and opens the run with them", async () => {

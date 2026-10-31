@@ -10,6 +10,9 @@ export interface ConversationSummary {
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
   // The history could not be read (corrupt, over the size limit, or a line from a newer build); only this row fails.
   readError?: true;
+  // Queued messages came back as a draft (conversation:takeDraft) after a failed or stopped turn, a refused queued
+  // send or a restart.
+  returnedDraft?: true;
 }
 // Long enough for one line of a canvas row or conversation menu; the renderer still truncates to its width.
 export const PREVIEW_CHARS = 140;
