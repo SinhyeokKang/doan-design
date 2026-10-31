@@ -17,6 +17,14 @@ test("every main-window save carries Home's memory, and none is sent before that
   expect(savedUiState({ ...base, home: null })).toBeNull();
 });
 
+// buzz-project tasks T1: the conversation last shown in each root's Overview is saved top-level with every save.
+test("every save carries the Overview conversation memory by root, and an empty one is left out", () => {
+  const home = {};
+  const conversationByRoot = { "/code/doan": "aaaaaaaa-0000-4000-8000-000000000001" };
+  expect(savedUiState({ ...base, home, conversationByRoot })).toMatchObject({ conversationByRoot });
+  expect(savedUiState({ ...base, home, conversationByRoot: {} })).not.toHaveProperty("conversationByRoot");
+});
+
 test("first run's project handoff focuses the composer ahead of the focus held before the wizard", () => {
   expect(wizardCloseFocus("/code/doan")).toBe("composer");
   expect(wizardCloseFocus(null)).toBe("previous");

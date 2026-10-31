@@ -707,7 +707,8 @@ describe("menus", () => {
     // Settings… replaces Set Up doan… right after About (orch.md decision).
     expect(submenu("Doan").map((entry) => entry.label ?? entry.role ?? entry.type)).toEqual(["About Doan", "Settings…", "separator", "services", "separator", "Hide Doan", "hideOthers", "unhide", "separator", "Quit Doan"]);
     expect(item("Settings…").accelerator).toBe("CmdOrCtrl+,");
-    expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["Add Project…", "separator", "Close Window"]);
+    expect(submenu("File").map((entry) => entry.label ?? entry.type)).toEqual(["New Conversation", "Add Project…", "separator", "Close Window"]);
+    expect(item("New Conversation").accelerator).toBe("CmdOrCtrl+N");
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
     expect(submenu("Go").map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"], ["separator", undefined],
@@ -780,6 +781,20 @@ describe("menus", () => {
     expect(contents.send).toHaveBeenCalledWith("menu-command", "quickOpen");
     await invoke("menu:state", contents, null, state("workspace", true));
     expect(menuEnabled("Quick Open…")).toBe(false);
+  });
+
+  // buzz-project spec decision 2: ⌘N starts a new conversation only while a project Overview shows.
+  test("New Conversation is enabled only while the renderer reports an Overview, and tells the renderer", async () => {
+    const contents = window().webContents;
+    expect(menuEnabled("New Conversation")).toBe(false);
+    await invoke("menu:state", contents, null, state("workspace"));
+    expect(menuEnabled("New Conversation")).toBe(false);
+    await invoke("menu:state", contents, null, { ...state("workspace"), overview: true });
+    expect(menuEnabled("New Conversation")).toBe(true);
+    click("New Conversation");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "newConversation");
+    await invoke("menu:state", contents, null, { ...state("workspace", true), overview: true });
+    expect(menuEnabled("New Conversation")).toBe(false);
   });
 
   // e2e clicks these items from main: Playwright cannot press native accelerators.

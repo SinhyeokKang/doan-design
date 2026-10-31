@@ -62,17 +62,17 @@ function harness(entries: FolderEntry[] = [list(ROOT, ["a"])]) {
 }
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-test("a sent request moves to the project's Overview and focuses Stop, even when a permission request came before the reply", async () => {
+test("a sent request moves to the project's Overview with that conversation and focuses the composer field, even when a permission request came before the reply", async () => {
   const h = harness();
   h.run.event(event("c1", { type: "turn.started" }));
   h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
   const sending = h.run.start(REQUEST, LAST);
   start.resolve({ conversationId: "c1" });
   expect(await sending).toEqual({ ok: true });
-  expect(h.host.openOverview).toHaveBeenCalledWith(ROOT, expect.any(Function), expect.any(Function));
+  expect(h.host.openOverview).toHaveBeenCalledWith(ROOT, expect.any(Function), expect.any(Function), "c1");
   expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
   h.arrive();
-  expect(h.run.takeFocus()).toBe("stop");
+  expect(h.run.takeFocus()).toBe("composer");
   expect(h.run.takeFocus()).toBeNull();
   expect(h.host.sent).toHaveBeenCalledWith(REQUEST);
   // The request was toasted only because the person was not on that project when it arrived.
@@ -436,16 +436,93 @@ test("visiting the bound canvas marks its unseen ending seen; the project's Over
 });
 
 test("an ending that arrives while the person is on its row is marked seen before it is drawn", async () => {
-  lists({ [ROOT]: [summary({ conversationId: "u", phase: "running" })] });
+  const bound = { path: ".doan/canvases/a.html", id: "a" };
+  lists({ [ROOT]: [summary({ conversationId: "u", phase: "running", canvas: bound })] });
   const h = harness();
-  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT; h.view.canvas = bound.path;
   h.run.entriesChanged();
   await flush();
-  h.run.visit([ROOT]);
-  lists({ [ROOT]: [summary({ conversationId: "u", unseen: true })] });
+  h.run.visit([ROOT, `${ROOT}\n${bound.path}`]);
+  lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: bound })] });
   h.run.listChanged(ROOT);
   await flush();
   expect(h.run.slots().size).toBe(0);
+});
+
+// buzz-project spec decision 11: a project conversation is seen only while it shows in the Overview's main column with
+// the window focused (the Overview marks it); opening the workspace or the Overview alone marks none.
+test("visiting the project row leaves project conversations unseen and marks only canvas ones whose canvas left", async () => {
+  lists({ [ROOT]: [
+    summary({ conversationId: "p", unseen: true }),
+    summary({ conversationId: "gone", unseen: true, canvas: { path: ".doan/canvases/gone.html", id: "gone" } }),
+  ] });
+  doan.readConversation!.mockResolvedValue({ events: [event("x", { type: "turn.done" })], lastSeq: 7, turn: "idle" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  h.run.visit([ROOT]);
+  await flush(); await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(1);
+  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "gone", seq: 7 });
+  expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
+});
+
+test("the Overview's seen marks go through the run: a later seq waits for one still pending and then follows it", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p", unseen: true })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  const first = deferred<void>();
+  doan.markConversationSeen!.mockImplementationOnce(() => first.promise);
+  h.run.markSeenThrough("p", 4);
+  expect(h.run.slots().size).toBe(0);
+  expect(h.run.seenPending().has("p")).toBe(true);
+  h.run.markSeenThrough("p", 6);
+  await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(1);
+  first.resolve();
+  await flush(); await flush();
+  expect(doan.markConversationSeen).toHaveBeenLastCalledWith({ conversationId: "p", seq: 6 });
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(2);
+});
+
+test("each root's list reads are counted, and a failed read shows as an error until a retry answers", async () => {
+  const h = harness();
+  doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
+  h.run.entriesChanged();
+  expect(h.run.listState(ROOT)).toBe("loading");
+  expect(h.run.readsStarted(ROOT)).toBe(1);
+  await flush();
+  expect(h.run.listState(ROOT)).toBe("error");
+  expect(h.run.readsApplied(ROOT)).toBe(0);
+  lists({ [ROOT]: [summary({})] });
+  h.run.retryList(ROOT);
+  expect(h.run.listState(ROOT)).toBe("error");
+  await flush();
+  expect(h.run.listState(ROOT)).toEqual([summary({})]);
+  expect(h.run.readsApplied(ROOT)).toBe(2);
+});
+
+test("a start from the Overview stays there: no move, no started toast, and the run still tracks the conversation", async () => {
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  const sending = h.run.start(REQUEST, LAST, { stay: true });
+  start.resolve({ conversationId: "c1" });
+  expect(await sending).toEqual({ ok: true, conversationId: "c1" });
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+  expect(h.host.toast).not.toHaveBeenCalled();
+  expect(h.run.knows("c1")).toBe(true);
+  expect(h.run.takeFocus()).toBeNull();
+});
+
+test("opening a project conversation asks for it on its project's Overview", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  h.run.openConversation("p");
+  expect(h.host.openOverview).toHaveBeenCalledWith(ROOT, expect.any(Function), expect.any(Function), "p");
 });
 
 test("a list that arrives right after a switch to another canvas does not mark the previous canvas's ending seen", async () => {

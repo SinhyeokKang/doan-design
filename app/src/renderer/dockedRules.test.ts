@@ -29,6 +29,13 @@ describe("draftKey", () => {
 });
 
 describe("dockedAvailability", () => {
+  // buzz-project spec decision 12: an open Overview whose project turned into a problem keeps its thread readable,
+  // and Send says why it is held, as Home does.
+  test("an unavailable project holds Send with its reason before anything else", () => {
+    const text = "doan-design isn’t available. Fix it from its menu in the sidebar.";
+    expect(dockedAvailability(input({ unavailable: text }))).toEqual({ enabled: false, reason: { text } });
+    expect(dockedAvailability(input({ unavailable: text, draft: EMPTY_DRAFT, auth: auth() }))).toEqual({ enabled: false, reason: { text } });
+  });
   test("a ready draft sends with no line", () => {
     expect(dockedAvailability(input({}))).toEqual({ enabled: true, reason: null });
   });
