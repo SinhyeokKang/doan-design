@@ -123,10 +123,11 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 .md-code .doan-icon-button{position:absolute;top:var(--space-1);right:var(--space-1);background:var(--surface-inset);color:var(--text-subtle)}
 /* Copy shows while the block is hovered or has focus inside (Buzz codeActions); .is-hover draws that state. */
 .md-code:not(:hover,:focus-within,.is-hover) .doan-icon-button{opacity:0}
-/* Bordered table with a filled header row (Buzz Messages.module.css .text table). */
-.md-table{width:max-content;max-width:100%;overflow-x:auto;scrollbar-width:thin;border-radius:var(--radius-control);box-shadow:inset 0 0 0 1px var(--border-standard)}
+/* Bordered table with a filled header row (Buzz Messages.module.css .text table). The corner is the code block's 12px,
+   not Buzz's 20px, and cells keep 8/12 insets so the corner never reaches the first or last cell's text. */
+.md-table{width:max-content;max-width:100%;overflow-x:auto;scrollbar-width:thin;border-radius:var(--radius-chip);box-shadow:inset 0 0 0 1px var(--border-standard)}
 .md table{border-collapse:separate;border-spacing:0;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
-.md :is(th,td){padding:var(--space-1) var(--space-2);border-bottom:1px solid var(--border-standard);border-right:1px solid var(--border-standard);text-align:left;vertical-align:top;white-space:nowrap}
+.md :is(th,td){padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-standard);border-right:1px solid var(--border-standard);text-align:left;vertical-align:top;white-space:nowrap}
 .md :is(th,td):last-child{border-right:0}
 .md tbody tr:last-child td{border-bottom:0}
 .md th{background:var(--affordance-subtle);font-weight:var(--type-weight-medium)}
