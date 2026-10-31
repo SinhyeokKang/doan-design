@@ -43,8 +43,9 @@ export interface TurnChoice { model?: string; effort?: string }
 export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[]; defaultEffort?: string }
 export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelOption[]> }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
-// (reclaim throws attachment_missing), and consumed once that send was accepted.
-export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void }
+// (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
+// goes with it) and released when they come back in a draft, which carries their paths instead.
+export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(ids: string[]): void; discard?(ids: string[]): void; release?(ids: string[]): void }
 // drafts: the input queue and the drafts it hands back; files: the queue's attachments; defaultEffort: the level a queued
 // turn names when the conversation's model has no stored effort (models.ts ModelCatalog.defaultEffort).
 export interface QueueOptions { drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined }
@@ -65,13 +66,15 @@ const EXIT_WAIT_MS = 10_000;
 // endedAt: when the accepted turn's terminal event arrived, for binding.
 // project: the root of this turn when it belongs to a conversation without a canvas (project.ts projectBusy).
 // closed: the conversation was archived and its runner is closing; it is never reused (a restore opens a new one).
-// promotion: the evidence of a project turn not judged yet. holding: queued messages wait to go out after this turn.
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; promotion?: Evidence; holding?: boolean }
+// holding: queued messages wait to go out after this turn; each hold is its own object, so a flush that ends late
+// never lets go of the hold a later turn set.
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object }
 // A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
-// edit activities and the canvas files the folder watcher saw change. ended: the turn is over and waits for its first
+// edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
-// A turn not judged when the conversation's next turn is accepted carries over into it with its snapshot.
-interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; ended: boolean; timer?: ReturnType<typeof setTimeout> }
+// A turn not judged when the conversation's next turn is accepted carries over into it with its snapshot. Kept apart
+// from the live entries, which a send replaces before it is accepted: until judged, it keeps its root (checkProject).
+interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; endedAt?: number; timer?: ReturnType<typeof setTimeout> }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
 export class ConversationService {
@@ -85,7 +88,8 @@ export class ConversationService {
   // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
   private waits = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
   // The attachment ids of each queued message, for its send; they mean nothing after a restart, so they stay here.
-  private queuedIds = new Map<string, string[]>();
+  private queuedIds = new Map<string, { owner: string; ids: string[] }>();
+  private evidence = new Map<string, Evidence>();
   private drafts: DraftStore;
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}) {
@@ -156,7 +160,7 @@ export class ConversationService {
       attached?.sent();
       const saved = this.store.acceptStart([...entries.map(m => replaced.includes(m) ? { ...m, state: "archived" as const } : m), metadata], id, writes);
       live.accepted = true;
-      if (project) live.promotion = { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), ended: false };
+      if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set() });
       for (const old of replaced) this.archive(old.conversationId);
       for (const event of saved) this.deliver(event);
       this.changed(request.root);
@@ -176,7 +180,12 @@ export class ConversationService {
   // A send to an archived conversation restores it (design §2.5): its canvas is found again by ID, the canvas's current
   // conversation must not be working, and both are swapped through the journal at acceptance. Whether a send restores
   // is decided at admission; a conversation archived while its send prepared is refused as busy.
-  async send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
+  // A conversation whose queue is about to go out takes no other send first: the queued messages keep their place.
+  send(id: string, text: string, anchors: Anchor[], extras: SendExtras = {}, attached?: StartAttachments): Promise<void> {
+    if (this.live.get(id)?.holding) return Promise.reject(new Error("busy"));
+    return this.submit(id, text, anchors, extras, attached);
+  }
+  private async submit(id: string, text: string, anchors: Anchor[], extras: SendExtras, attached?: StartAttachments): Promise<void> {
     // Only a send that waits yields here; any other runs up to its reservation in the caller's tick, as before.
     const exiting = this.previousExit(id); if (exiting) await exiting;
     let metadata = this.metadata(id); if (this.quitting) throw new Error("busy");
@@ -190,7 +199,6 @@ export class ConversationService {
     if (project) this.checkProject(project, id);
     // An archived conversation's runner is closing; previousExit waited for its process, so a new one opens.
     const live: Live = (existing?.runner && !existing.closed ? existing : undefined) ?? { turnId: "", busy: false, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: 0 };
-    if (existing && existing !== live && existing.promotion) { live.promotion = existing.promotion; delete existing.promotion; }
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
     if (project) live.project = project; else delete live.project;
     const chosen = extras.model ? choice(extras) : choice(metadata);
@@ -226,7 +234,7 @@ export class ConversationService {
       // An entry without seenSeq has had all of its history seen; from now on its ends count. A project turn not
       // judged yet keeps its snapshot, so a canvas it made still counts as new in the turn it carries into.
       const projectTurn = project !== undefined && !metadata.canvas;
-      const carried = projectTurn ? live.promotion : undefined;
+      const carried = projectTurn ? this.evidence.get(id) : undefined;
       const canvasesAtStart = projectTurn ? carried?.snapshot ?? this.snapshot(metadata.root) : metadata.canvasesAtStart;
       const seenSeq = metadata.seenSeq ?? this.store.read(id).at(-1)?.seq ?? 0;
       const { model: _model, effort: _effort, canvasesAtStart: _snapshot, ...rest } = metadata;
@@ -248,8 +256,8 @@ export class ConversationService {
         this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       }
       if (projectTurn) {
-        if (carried) { clearTimeout(carried.timer); carried.ended = false; carried.turnId = live.turnId; }
-        else live.promotion = { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), ended: false };
+        if (carried) { clearTimeout(carried.timer); delete carried.timer; delete carried.endedAt; carried.turnId = live.turnId; }
+        else this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set() });
       }
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
@@ -260,6 +268,8 @@ export class ConversationService {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
       if (!leased) freeLease(input);
+      // Messages queued behind a send that never ran have nothing left to follow; a queue's own send hands them back.
+      if (!this.working(id)) this.giveBack(id, reason(error));
       if (opening) void live.runner?.close(); throw error;
     }
   }
@@ -314,10 +324,13 @@ export class ConversationService {
     if (live.terminal) return;
     try {
       this.append(id, live.turnId, event);
-      if (event.type === "activity" && event.kind === "edit" && event.path && live.promotion && !live.promotion.ended) live.promotion.edits.add(event.path);
+      const evidence = this.evidence.get(id);
+      if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
       if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.endedAt = Date.now(); this.ended(id, live, event.type); }
     } catch (error) {
       live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
+      // Its turn never ends, so it is never judged and must not hold its root.
+      clearTimeout(this.evidence.get(id)?.timer); this.evidence.delete(id);
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
       this.changedOf(id);
     }
@@ -359,7 +372,10 @@ export class ConversationService {
   }
   answer(id: string, requestId: string, option: string): void { this.metadata(id); if (!this.live.get(id)?.runner?.answer(requestId, option)) throw new Error("stale"); }
   async interrupt(id: string): Promise<void> {
-    this.metadata(id); this.cancelWait(id); const live = this.live.get(id); if (!live || !live.busy) return;
+    this.metadata(id); this.cancelWait(id); const live = this.live.get(id);
+    // Stop while the queue waits to go out (for the judgement or the previous process) hands it back instead.
+    if (live?.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); return; }
+    if (!live || !live.busy) return;
     const stop = live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
   }
   // The preparation of a model-list read; a quit or a stop of the provider during it refuses the read and frees its lease.
@@ -407,7 +423,7 @@ export class ConversationService {
     const closing: Promise<void>[] = [];
     this.quitting = true;
     // Queued messages stay in drafts.json and come back as drafts at the next start.
-    for (const live of this.live.values()) clearTimeout(live.promotion?.timer);
+    for (const evidence of this.evidence.values()) clearTimeout(evidence.timer);
     for (const id of this.waits.keys()) this.cancelWait(id);
     for (const listing of this.listings) if (listing.cleanup) closing.push(listing.cleanup());
     for (const [id, live] of this.live) {
@@ -420,10 +436,10 @@ export class ConversationService {
   // A folder listing of root was read again. changed: root-relative canvas paths whose files the watcher saw change since
   // the listing before. Project turns collect them while they run; one that ended is judged now (design §2.4).
   refreshed(root: string, changed: readonly string[]): void {
-    for (const [id, live] of [...this.live]) {
-      const evidence = live.promotion; if (!evidence || evidence.root !== root) continue;
+    for (const [id, evidence] of [...this.evidence]) {
+      if (evidence.root !== root) continue;
       for (const path of changed) evidence.changed.add(path);
-      if (evidence.ended) this.judge(id);
+      if (evidence.endedAt !== undefined) this.judge(id);
     }
   }
   // A message sent while its conversation works waits in main, in drafts.json, until the turn ends (design §2.6).
@@ -434,14 +450,14 @@ export class ConversationService {
     if (!this.working(id)) throw new Error("not_running");
     const itemId = randomUUID();
     this.drafts.add(id, { itemId, text: item.text, anchors: item.anchors, attachments: item.attachments ?? [] });
-    if (item.ids?.length) this.queuedIds.set(itemId, item.ids);
+    if (item.ids?.length) this.queuedIds.set(itemId, { owner: id, ids: item.ids });
     this.changed(m.root);
     return { itemId };
   }
   removeQueued(id: string, itemId: string): void {
     const m = this.metadata(id);
     if (!this.drafts.remove(id, itemId)) throw new Error("stale");
-    this.queuedIds.delete(itemId);
+    const ids = this.forget(id, [itemId]); if (ids.length) this.queueOptions.files?.discard?.(ids);
     this.changed(m.root);
   }
   // The draft queued messages came back as, handed over once.
@@ -459,10 +475,10 @@ export class ConversationService {
   // as a draft after a failed or stopped one; a project turn waits for its judgement.
   private ended(id: string, live: Live, type: "turn.done" | "turn.failed" | "interrupted"): void {
     if (type !== "turn.done") this.giveBack(id, type === "interrupted" ? "interrupted" : "turn_failed");
-    else if (this.drafts.queued(id).length) live.holding = true;
-    const evidence = live.promotion;
+    else if (this.drafts.queued(id).length) live.holding = {};
+    const evidence = this.evidence.get(id);
     if (evidence) {
-      evidence.ended = true;
+      evidence.endedAt = live.endedAt ?? Date.now();
       evidence.timer = setTimeout(() => this.judge(id), BIND_GRACE_MS);
       evidence.timer.unref?.();
     } else if (live.holding) this.flush(id, live);
@@ -470,12 +486,13 @@ export class ConversationService {
   // The turn's promotion (or none), written through the journal; a refused write changes nothing and is only logged.
   // Afterwards the conversation no longer holds its root, unless its queue goes out next.
   private judge(id: string): void {
-    const live = this.live.get(id), evidence = live?.promotion; if (!live || !evidence?.ended) return;
-    clearTimeout(evidence.timer); delete live.promotion;
+    const evidence = this.evidence.get(id); if (evidence?.endedAt === undefined) return;
+    clearTimeout(evidence.timer); this.evidence.delete(id);
     try {
       const target = promotionTarget({ root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed] }, this.snapshot(evidence.root), evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
       if (target) this.promoteTo(id, evidence, target);
     } catch (error) { console.error("doan: conversation promotion failed", error); }
+    const live = this.live.get(id); if (!live) return;
     if (live.holding) this.flush(id, live);
     else if (!live.busy) delete live.project;
   }
@@ -499,28 +516,36 @@ export class ConversationService {
   private archive(id: string): void {
     const running = this.live.get(id);
     if (running) {
-      running.terminal = true; running.busy = false; running.closed = true; running.holding = false;
-      clearTimeout(running.promotion?.timer); delete running.promotion; delete running.project;
+      running.terminal = true; running.busy = false; running.closed = true; delete running.holding; delete running.project;
       void running.runner?.close();
     }
+    clearTimeout(this.evidence.get(id)?.timer); this.evidence.delete(id);
     this.cancelWait(id);
     this.giveBack(id, "interrupted");
   }
-  private giveBack(id: string, reason: string): void {
-    const items = this.drafts.queued(id);
-    for (const item of items) this.queuedIds.delete(item.itemId);
-    if (this.drafts.giveBackQueued(id, reason)) this.changedOf(id);
+  // Every queued message, also those on their way out, comes back as one draft; their held ids go, since the draft
+  // carries the files' paths for attachments:fromPaths.
+  private giveBack(id: string, why: string): void {
+    const ids = this.forget(id);
+    if (ids.length) this.queueOptions.files?.release?.(ids);
+    if (this.drafts.giveBackQueued(id, why)) this.changedOf(id);
   }
-  // The queue goes out as one message: combined, its attachments checked again and the send's own checks run. Anything
-  // that keeps it from going out hands it back as a draft with that reason.
+  private forget(id: string, itemIds?: readonly string[]): string[] {
+    const ids: string[] = [];
+    for (const [itemId, held] of [...this.queuedIds]) if (held.owner === id && (!itemIds || itemIds.includes(itemId))) { ids.push(...held.ids); this.queuedIds.delete(itemId); }
+    return ids;
+  }
+  // The queue goes out as one message: combined, its attachments checked again and the send's own checks run. Its
+  // messages stay in drafts.json, marked as on their way out, until the send is accepted. Anything that keeps it from
+  // going out hands the whole queue back as a draft with that reason.
   private flush(id: string, live: Live): void {
-    const items = this.drafts.takeQueued(id);
-    const ids = items.flatMap(item => this.queuedIds.get(item.itemId) ?? []);
-    for (const item of items) this.queuedIds.delete(item.itemId);
+    const hold = live.holding;
+    const items = this.drafts.markSending(id);
+    const ids = items.flatMap(item => this.queuedIds.get(item.itemId)?.ids ?? []);
     const combined = combineQueued(items);
     if (!items.length || !combined.ok) {
-      if (items.length) this.drafts.giveBack(id, joined(items), "attachment_limit");
-      this.release(id, live); this.changedOf(id); return;
+      if (items.length) this.giveBack(id, "attachment_limit");
+      this.release(id, live, hold); return;
     }
     this.changedOf(id);
     // After the terminal event's own handling: the send changes this conversation's live state.
@@ -530,18 +555,19 @@ export class ConversationService {
         const attached = ids.length && files ? files.reclaim(ids) : undefined;
         const m = this.metadata(id);
         const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
-        await this.send(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) }, attached);
+        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) }, attached);
+        const sent = items.map(item => item.itemId);
+        this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
       } catch (error) {
-        this.drafts.giveBack(id, joined(items), error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown");
-        this.changedOf(id);
-      } finally { this.release(id, live); }
+        this.giveBack(id, reason(error));
+      } finally { this.release(id, live, hold); }
     });
   }
   // The queue went out or came back: a project conversation not running again lets its root go.
-  private release(id: string, live: Live): void {
-    live.holding = false;
-    if (this.live.get(id) === live && !live.busy) delete live.project;
+  private release(id: string, live: Live, hold: object | undefined): void {
+    if (live.holding === hold) delete live.holding;
+    if (this.live.get(id) === live && !live.busy && !live.holding) delete live.project;
   }
   private refreshCanvas(metadata: ConversationMetadata): ConversationMetadata {
     const canvas = this.admit(metadata.root, metadata.canvas);
@@ -561,8 +587,9 @@ export class ConversationService {
   private checkProject(root: string, exceptId?: string): void {
     const now = Date.now();
     // A turn whose window passed without its timer having run yet (a busy main loop) is judged before it is counted.
-    for (const [id, live] of [...this.live]) if (live.promotion?.ended && live.endedAt !== undefined && now - live.endedAt > BIND_GRACE_MS) this.judge(id);
-    if (projectBusy(this.live, root, exceptId, now)) throw new Error("project_busy");
+    for (const [id, evidence] of [...this.evidence]) if (evidence.endedAt !== undefined && now - evidence.endedAt > BIND_GRACE_MS) this.judge(id);
+    // A turn not judged yet keeps its root even when the send that carried it was refused (its live entry no longer counts).
+    if (projectBusy(this.live, root, exceptId, now) || [...this.evidence].some(([id, evidence]) => id !== exceptId && evidence.root === root)) throw new Error("project_busy");
   }
   private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
   private checkSend(id: string, live: Live, state: "current" | "archived"): void {
@@ -603,6 +630,8 @@ export class ConversationService {
   private transportFailed(id: string, error: unknown): void { this.receive(id, { type: "turn.failed", code: transportError(error instanceof Error ? error.message : ""), detail: error instanceof Error ? error.message.slice(0, 4096) : "Transport failed" }); }
 }
 
+// A refusal's code for a draft's reason; anything else is unknown.
+function reason(error: unknown): string { return error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown"; }
 function choice(source: { model?: string; effort?: string }): { model?: string; effort?: string } {
   return { ...(source.model ? { model: source.model } : {}), ...(source.effort ? { effort: source.effort } : {}) };
 }

@@ -171,6 +171,15 @@ export class AttachmentStore {
     for (const id of ids as string[]) this.sent.delete(id);
     return true;
   }
+  // A queued message removed before it went out: no conversation holds its files, so main's own copy of a pasted image
+  // goes with it; a local file is only forgotten.
+  discard(ids: readonly string[]): void {
+    for (const id of ids) {
+      const entry = this.entries.get(id) ?? this.sent.get(id); if (!entry) continue;
+      this.entries.delete(id); this.sent.delete(id);
+      if (entry.dir) rmSync(entry.dir, { recursive: true, force: true });
+    }
+  }
   // Edit on Home (design §7.4): the acceptance checks again, on the canonical paths main recorded for these ids only.
   // A passing consumed id becomes a draft attachment again; null for a malformed request.
   recheck(value: unknown): RecheckResult[] | null {

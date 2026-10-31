@@ -7,8 +7,9 @@ import { validAnchor } from "./prompt";
 import { absolutePath, object } from "./sessions";
 import { validId } from "./store";
 import type { Anchor, AttachmentRecord } from "./types";
-// A message sent while its conversation worked, waiting to go out with the others after the turn.
-export interface QueuedItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[] }
+// A message sent while its conversation worked, waiting to go out with the others after the turn. sending: its send has
+// started and is not accepted yet; it stays on disk until then, so a crash returns it as a draft instead of losing it.
+export interface QueuedItem { itemId: string; text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; sending?: true }
 // Queued messages that did not go out (the turn failed or stopped, the send was refused, or the app ended first), joined
 // into one draft for the person to edit. reason: "turn_failed", "interrupted", "restarted" or the refused send's code.
 export interface ReturnedDraft { text: string; anchors: Anchor[]; attachments: AttachmentRecord[]; reason: string }
@@ -38,7 +39,7 @@ function parse(raw: unknown): DraftsFile | null {
   if (!object(raw) || raw.v !== 1 || !object(raw.queued) || !object(raw.returned)) return null;
   const queued: Record<string, QueuedItem[]> = {}, returned: Record<string, ReturnedDraft> = {};
   for (const [id, items] of Object.entries(raw.queued)) {
-    if (!validId(id) || !Array.isArray(items) || ![...items].every(item => object(item) && text(item.itemId) && item.itemId.length <= 64 && parts(item))) return null;
+    if (!validId(id) || !Array.isArray(items) || ![...items].every(item => object(item) && text(item.itemId) && item.itemId.length <= 64 && (item.sending === undefined || item.sending === true) && parts(item))) return null;
     queued[id] = items as QueuedItem[];
   }
   for (const [id, draft] of Object.entries(raw.returned)) {
@@ -83,7 +84,8 @@ export class DraftStore {
     this.file.queued = {};
     try { this.write(); } catch (error) { console.error("doan: conversation drafts could not be saved", error); }
   }
-  queued(id: string): readonly QueuedItem[] { return this.file.queued[id] ?? []; }
+  // The messages still waiting, without those whose send has started.
+  queued(id: string): readonly QueuedItem[] { return (this.file.queued[id] ?? []).filter(item => !item.sending); }
   // Throws when the queue cannot be saved: a message main could lose is refused instead.
   add(id: string, item: QueuedItem): void {
     if (this.broken) throw new Error("Conversation drafts are damaged");
@@ -93,19 +95,26 @@ export class DraftStore {
   }
   remove(id: string, itemId: string): boolean {
     const before = this.file.queued[id];
-    if (!before?.some(item => item.itemId === itemId)) return false;
+    if (!before?.some(item => item.itemId === itemId && !item.sending)) return false;
     this.file.queued[id] = before.filter(item => item.itemId !== itemId);
     this.save();
     return true;
   }
-  takeQueued(id: string): QueuedItem[] {
-    const items = this.file.queued[id] ?? [];
+  // The waiting messages, now marked as on their way out.
+  markSending(id: string): QueuedItem[] {
+    const items = this.queued(id);
     if (!items.length) return [];
-    delete this.file.queued[id];
+    this.file.queued[id] = (this.file.queued[id] ?? []).map(item => item.sending ? item : { ...item, sending: true });
     this.save();
-    return items;
+    return [...items];
   }
-  // The whole queue back as one draft, in one write; false when nothing was queued.
+  // Their send was accepted: they are in the conversation's history now.
+  sent(id: string, itemIds: readonly string[]): void {
+    const left = (this.file.queued[id] ?? []).filter(item => !itemIds.includes(item.itemId));
+    if (left.length) this.file.queued[id] = left; else delete this.file.queued[id];
+    this.save();
+  }
+  // The whole queue back as one draft (messages on their way out first, as queued), in one write; false when empty.
   giveBackQueued(id: string, reason: string): boolean {
     const items = this.file.queued[id] ?? [];
     if (!items.length) return false;

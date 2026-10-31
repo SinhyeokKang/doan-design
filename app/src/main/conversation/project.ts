@@ -8,7 +8,7 @@ export const BIND_GRACE_MS = 10_000;
 // turn even when the conversation is bound to a canvas mid-turn.
 // failedPersistence: its history stopped taking writes, so its turn never ends; it must not hold the root until a restart.
 // holding: its queued messages are about to go out as its next turn, which keeps the root past the window.
-export interface ProjectTurn { project?: string; busy: boolean; terminal: boolean; endedAt?: number; failedPersistence?: boolean; holding?: boolean }
+export interface ProjectTurn { project?: string; busy: boolean; terminal: boolean; endedAt?: number; failedPersistence?: boolean; holding?: object | boolean }
 // The conversation that keeps another project conversation of this root from starting or sending, if any: one still
 // preparing, running or waiting for an answer, or one whose turn ended within the binding window, so that a new
 // canvas is never judged against the wrong conversation.

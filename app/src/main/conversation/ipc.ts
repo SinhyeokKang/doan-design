@@ -66,6 +66,8 @@ export function queueFiles(store: AttachmentStore): QueueFiles {
       return attachedHooks(store, ids.map(id => ({ id })));
     },
     consume: ids => store.consume(ids.map(id => ({ id }))),
+    discard: ids => store.discard(ids),
+    release: ids => { store.release({ ids }); },
   };
 }
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; attachments?: AttachmentStore } = {}) {

@@ -19,8 +19,11 @@ describe("DraftStore", () => {
     expect(store.queued(A).map(item => item.itemId)).toEqual(["q1", "q2"]);
     expect(store.remove(A, "q1")).toBe(true);
     expect(store.remove(A, "q1")).toBe(false);
-    expect(store.takeQueued(A).map(item => item.text)).toEqual(["two"]);
+    expect(store.markSending(A).map(item => item.text)).toEqual(["two"]);
     expect(store.queued(A)).toEqual([]);
+    expect(store.remove(A, "q2")).toBe(false);
+    store.sent(A, ["q2"]);
+    expect(store.giveBackQueued(A, "turn_failed")).toBe(false);
     expect(store.queued(B)).toHaveLength(1);
   });
   it("writes every change at once through a temporary file, so a crash keeps the queue", () => {
