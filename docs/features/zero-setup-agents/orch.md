@@ -81,4 +81,4 @@ A+B+C 통합 HEAD `9298117e`에서 `verify.mjs` PASS(7단계). A·B·C worktree�
 | G | 1(리뷰 Codex sol: 🔴0 🟡4 → 3건 수정, U-006은 F) | `e39f7c5c`…`1c900b49`(8개) | README는 지휘자 `37e27454` |
 | F | 0(지휘자가 증거 대조) | `9086fd28` | 워커 `0945622b`. B2 뒤 R2·R2b·R7·O1·O2·D4b 재측정 |
 
-최종 통합 HEAD `9086fd28`에서 `verify.mjs --eval` PASS(9단계). 남은 것: 관리자 대화상자 1회 확인(사용자 입회, merge 전), T9(merge 뒤). 남은 worktree: `zsa-e`(관리자 확인 스크립트와 패키지 빌드).
+최종 통합 HEAD `9086fd28`에서 `verify.mjs --eval` PASS(9단계). 관리자 대화상자 1회 확인을 사용자 입회로 마쳤다(tasks.md T6). 남은 것: T9(merge 뒤). 남은 worktree 없음.
