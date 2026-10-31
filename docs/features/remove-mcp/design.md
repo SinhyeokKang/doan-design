@@ -57,6 +57,7 @@ ARCHITECTURE §1 'Conventions'와 `doan check` 규칙은 바뀌지 않는다.
 ## PoC 의존
 
 - eval repo의 프로젝트 레이어 rule로 `codex exec -s workspace-write -c approval_policy="never"`가 셸 `doan active`를 sandbox 밖에서 실행하는가: zero-setup-agents 실험 run2(evidence.md)가 확인했다. 다만 run2는 실행한 디렉터리가 trusted였는지 기록하지 않았다. eval 러너를 통해서도 같은지 T1에서 한 시나리오(R2 Codex)로 확인한다.
+- T1 결과(2026-10-31, codex-cli 0.164.0): 통과했다. 실행 전에 `~/.codex/rules/`에는 `default.rules`(`ego-browser` allow)만 있었고 `doan.rules`는 없었다. 사용자 `config.toml`은 `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`이고, eval 호출의 `--sandbox workspace-write -c approval_policy="never"`가 실행 값을 정했다(stderr `approval: never`, `sandbox: workspace-write`). 실행 디렉터리 `/private/tmp/doan-eval-R2-codex-Ae8u9O/repo`는 사용자 config의 trusted project 목록에 없다. 임시로 R2 seed에 `.codex/rules/doan.rules`(`codexRuleText()`와 같은 내용)를 넣고, 패키지한 CLI로 `node eval/run.ts --scenarios R2 --agents codex --round remove-mcp-poc`를 실행했다. rollout에서 `doan active --json`이 exit 0으로 selection을 돌려받았고, R2-codex는 자동 검사 6개와 judge 모두 `pass`였다(25.6초). 따라서 trusted가 아닌 eval repo에서도 프로젝트 레이어 rule이 적용된다. 러너 자체는 실제 상태 검사에서 exit 1로 끝났다. 바뀐 것은 `keychain:provider-items` 하나였고, 원인은 실행 중(04:45:47Z)에 수정된 `Codex MCP Credentials` 항목이다. 이 항목은 Codex가 사용자 config의 MCP 서버 OAuth를 저장하는 곳이고, doan 경로는 바뀌지 않았다. USABILITY-EVAL 2026-10-31 행과 같은 현상이다. 증거는 `.scratch/agent-eval/remove-mcp-poc/`에 있다. 임시 변경은 되돌렸다.
 
 ## 검증 범위
 
