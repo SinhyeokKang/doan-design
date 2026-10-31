@@ -35,6 +35,37 @@ func TestScopeCanvasDirectory(t *testing.T) {
 	}
 }
 
+func TestScopeDesignSystemDirectory(t *testing.T) {
+	root := real(t, t.TempDir())
+	put(t, root, ".doan/ds/button.html", "")
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/ds"}) {
+		t.Fatalf("ds only: %#v", got)
+	}
+	put(t, root, ".doan/canvases/a.html", "")
+	put(t, root, ".doan/assets/a.png", "")
+	if got := scopeOf(t, root, Config{}); !reflect.DeepEqual(got, []string{".doan/assets", ".doan/canvases", ".doan/ds"}) {
+		t.Fatalf("all: %#v", got)
+	}
+}
+
+func TestMetadataPathDesignSystem(t *testing.T) {
+	for p, want := range map[string]bool{
+		".doan/ds":               false,
+		".doan/ds/x.css":         false,
+		".doan/ds/nested/a.html": false,
+		".doan/dsx":              true,
+		".doan/dsx/a.css":        true,
+		".doan/comments":         true,
+		".doan/comments/a.jsonl": true,
+		".doan/config.json":      true,
+		".doan/canvases/a.css":   false,
+	} {
+		if got := MetadataPath(p); got != want {
+			t.Errorf("%s: %v, want %v", p, got, want)
+		}
+	}
+}
+
 func TestScopeTokenCSS(t *testing.T) {
 	root := real(t, t.TempDir())
 	outside := t.TempDir()
