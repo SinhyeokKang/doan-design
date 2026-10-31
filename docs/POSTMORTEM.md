@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-10-31 — A linked default directory served its unconfigured target
+
+- **Area**: `cli/internal/repo/scope.go` (`Scope`, `defaultServeDirs`), `cli/internal/repo/files.go` (`Canvases`), `cli/internal/repo/layout_test.go`.
+- **Symptom**: with an empty `serve` config, a symlink `.doan/canvases`, `.doan/ds` or `.doan/assets` pointing at an internal directory such as `src` (or a symlinked `.doan`) put the link's real target in the `doan ls` scope, so the app served that whole subtree, source files included, without any config entry. Listing skipped the same link, so no canvas appeared and nothing looked wrong.
+- **Root cause**: listing and scope applied different symlink policies to the same default directories. `Canvases` lstat-checks `.doan` and each default directory and skips links; `Scope` sent defaults through the same `Resolve` path as explicit `serve` entries, which follows links on purpose. The metadata filter only rejects the repo root, `.doan` metadata and their ancestors, so an ordinary internal target passed. The relocated-metadata layout test even pinned the linked-`.doan` default as served.
+- **Net**: caught by the independent review of the design-system-canvases T2 batch (R-BC), from the batch handoff's note that a linked `.doan/ds` still served `elsewhere`. Missed by the T2 tests, which asserted only the empty canvas list for a linked `.doan/ds` and never the scope, and by earlier batches, where `.doan/canvases` and `.doan/assets` already had the defect.
+- **Prevention**: default directories are served only when neither `.doan` nor the directory itself is a symlink; explicit `serve` entries keep following links. Any test of a linked default directory asserts `scope` as well as `canvases` (`TestScopeSkipsLinkedDefaultDirectory`, `TestScopeSkipsDefaultsUnderLinkedMetadata`). When adding a default directory, add it to the lstat-checked lists in both `files.go` and `scope.go`. Grep: `grep -rnE '"\.doan/(canvases|ds|assets)"' cli/internal/repo app/src/main`.
+
 ### 2026-10-30 — Removing a shared dialog class silently disabled two focus guards
 
 - **Area**: `app/src/renderer/SettingsDialog.tsx`, `app/src/renderer/ProjectSettingsDialog.tsx` (confirmation focus guards), `app/src/renderer/ProjectSettingsDialog.test.tsx`.
