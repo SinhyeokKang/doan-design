@@ -186,6 +186,8 @@ export class DraftStore {
     let total = size({ v: 1, queued: this.unread.queued, returned: this.unread.returned });
     for (const id of new Set([...Object.keys(this.file.queued), ...Object.keys(this.file.returned)])) {
       const items = this.file.queued[id] ?? [], earlier = this.file.returned[id];
+      // A queue emptied by removals or sends is not written (serialized) and reserves nothing.
+      if (!items.length && !earlier) continue;
       // "id": plus the comma that follows a member.
       const key = size(id) + 2;
       const asQueue = (items.length ? key + size(items.map(item => ({ ...item, sending: true }))) : 0) + (earlier ? key + size({ ...earlier, reason }) : 0);
