@@ -555,13 +555,13 @@ func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
 }
 
 // T8 round 1: one session skipped a dialog several screens render because its classes appeared in that
-// component only. Shared is decided by how many screens render a component, not by where its styles are used.
+// component only. Shared is decided by how many screens show a component, not by where its styles are used.
 func TestDocumentPresetSharedMeansRenderedBySeveralScreens(t *testing.T) {
 	body := documentPreset(t)
 	for _, s := range []string{
-		"A component, dialog, or surface that two or more screens render is shared, even if its styles appear nowhere else.",
-		"parts of a single screen (rendered by one screen only)",
-		"each skip is a nonvisual wrapper or rendered by one screen only",
+		"a component, dialog, or surface seen on two or more screens is shared, even if its styles appear nowhere else",
+		"parts of a single screen (seen on one screen only)",
+		"each skip is a nonvisual wrapper or seen on one screen only",
 	} {
 		if !strings.Contains(body, s) {
 			t.Errorf("document preset is missing %q", s)
@@ -682,6 +682,39 @@ func TestDocumentPresetSaysSharedFrameNotesOnce(t *testing.T) {
 	for _, s := range []string{
 		"Within a canvas, say a note its frames share once, at the top of the canvas, not on every frame.",
 		"No frame repeats a note its canvas already states.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+}
+
+// T8 round 4: one session skipped dialogs the app mounts once but opens from several screens, counting
+// them as one screen's. Shared counts the screens where a person sees a unit, not where the code mounts it.
+func TestDocumentPresetCountsScreensWherePeopleSeeAUnit(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"Shared counts the screens where a person sees a unit, not where the code mounts it:",
+		"or the app mounts it once and opens it from several screens",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	for _, s := range []string{"two or more screens render is shared", "rendered by one screen only"} {
+		if strings.Contains(body, s) {
+			t.Errorf("document preset still counts where the code renders a unit: %q", s)
+		}
+	}
+}
+
+// T8 round 4: one session drew only the first step of a screen that has several.
+// A unit with steps or phases draws each one, as it draws states.
+func TestDocumentPresetDrawsEveryStep(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"A unit with steps or phases draws each one, the same as its states.",
+		"each unit with steps or phases shows every one",
 	} {
 		if !strings.Contains(body, s) {
 			t.Errorf("document preset is missing %q", s)
