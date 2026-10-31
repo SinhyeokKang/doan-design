@@ -46,8 +46,10 @@ interface RootState {
   // undefined until a pick; a null conversation is the new conversation state. listed: seen in a list read.
   current?: { conversationId: string | null; listed: boolean };
   // Moves with every change of what the root shows, so a reply that lands after a newer choice leaves it alone;
-  // leftAt: the revision when its Overview was last left.
+  // intent moves only with the person's or an entry's choice (a pick, New, a request, a start), not with what a list
+  // read did; leftAt: the intent when its Overview was last left.
   revision: number;
+  intent: number;
   leftAt?: number;
   // asked: the list was read again for it once; after: reads started before the request.
   request: { conversationId: string; after: number; asked: boolean; scroll: ScrollTo | null } | null;
@@ -132,12 +134,12 @@ export class OverviewRun {
   show(root: string | null): void {
     if (root === this.visible) return;
     const left = this.visible ? this.roots.get(this.visible) : undefined;
-    if (left) left.leftAt = left.revision;
+    if (left) left.leftAt = left.intent;
     this.visible = root;
     if (root) {
       const s = this.state(root);
       // Reopened with nothing asked for it meanwhile: spec decision 5 picks again; the drafts by key stay.
-      if (s.leftAt !== undefined && s.leftAt === s.revision && !s.request) { delete s.current; s.moved = null; }
+      if (s.leftAt !== undefined && s.leftAt === s.intent && !s.request) { delete s.current; s.moved = null; }
       this.resolve(root, s);
     }
     this.checkSeen();
@@ -149,7 +151,7 @@ export class OverviewRun {
   select(root: string, conversationId: string | null): void {
     const s = this.state(root);
     s.request = null;
-    s.revision++;
+    s.revision++; s.intent++;
     if (conversationId === null) {
       s.moved = null;
       if (s.current?.conversationId !== null) { s.current = { conversationId: null, listed: false }; this.host.remember(root, null); }
@@ -160,6 +162,8 @@ export class OverviewRun {
   // conversation opens its canvas, a project conversation becomes the root's main conversation once listed.
   request(root: string, conversationId: string, scroll: ScrollTo | null): void {
     const s = this.state(root);
+    // Accepted, it is a newer choice than a start or send still waiting for its reply, even while it waits for the list.
+    s.revision++; s.intent++;
     s.request = { conversationId, after: this.host.readsStarted(root), asked: false, scroll };
     this.resolve(root, s);
     this.host.changed();
@@ -171,6 +175,7 @@ export class OverviewRun {
     const s = this.state(root);
     if (revision !== undefined && revision !== s.revision) return;
     s.request = null;
+    s.intent++;
     this.setCurrent(root, s, conversationId, false);
     this.host.changed();
   }
@@ -244,7 +249,11 @@ export class OverviewRun {
     if (message?.type !== "user.message") return false;
     const key = `conversation:${conversationId}`, before = this.drafts.get(key), revision = this.state(root).revision;
     const restored = await draftFrom(message.text, message.anchors, message.attachments ?? []);
-    if (this.drafts.get(key) !== before) return false;
+    if (this.drafts.get(key) !== before) {
+      // Not applied: the files issued for it go back.
+      for (const attachment of restored.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
+      return false;
+    }
     this.setDrafts(drafts => new Map(drafts).set(key, restored));
     const s = this.roots.get(root);
     return this.visible === root && s?.revision === revision && s.current?.conversationId === conversationId;
@@ -299,7 +308,7 @@ export class OverviewRun {
 
   private state(root: string): RootState {
     let s = this.roots.get(root);
-    if (!s) { s = { request: null, moved: null, revision: 0 }; this.roots.set(root, s); }
+    if (!s) { s = { request: null, moved: null, revision: 0, intent: 0 }; this.roots.set(root, s); }
     return s;
   }
   private setCurrent(root: string, s: RootState, conversationId: string, listed: boolean): void {

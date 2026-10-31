@@ -203,21 +203,32 @@ export class HomeRun {
     const listed = this.host.view().entries.find(entry => entry.path === root);
     const atStart = listed?.kind === "list" ? listed.canvases.map(row => row.path) : [];
     const canvasOpens = this.canvasOpens;
+    const id = request.conversationId;
+    // What this run held of the conversation before the send: the turn it starts comes after it.
+    const before = Math.max(0, ...[...this.events.get(id) ?? [], ...this.unclaimed.filter(event => event.conversationId === id)].map(event => event.seq));
+    const sentAt = Date.now();
     const reply = await window.doan.sendConversation(request).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
-    const id = request.conversationId;
-    this.extras.set(id, { atStart, checked: [], canvasOpens, toasted: this.extras.get(id)?.toasted ?? null, opened: false });
+    const previous = this.extras.get(id);
     this.track(id);
+    // The turn may have started, and even ended, before the reply: its end keeps main's binding window for the
+    // canvas it made, whichever arrived first.
+    const turn = (this.events.get(id) ?? []).filter(event => event.seq > before);
+    const state = turn.length ? stripState(this.events.get(id)!) : null;
+    const ended = state !== null && !RUNNING.includes(state.kind);
+    const endedAt = ended ? (previous?.endedAt !== undefined && previous.endedAt >= sentAt ? previous.endedAt : Date.now()) : undefined;
+    this.extras.set(id, { atStart, checked: [], canvasOpens, toasted: previous?.toasted ?? null, opened: false, ...(endedAt !== undefined ? { endedAt } : {}) });
+    const phase = state?.kind ?? "starting";
     if (!this.conversations.some(item => item.conversationId === id)) {
       this.claimed.delete(id);
-      this.conversations = [...this.conversations, { conversationId: id, root, provider, phase: "starting" }];
-      this.strips = { ...this.strips, [id]: { kind: "starting" } };
+      this.conversations = [...this.conversations, { conversationId: id, root, provider, phase }];
       void this.history(id).then(read => {
         if (!read) return;
         this.events.set(id, mergeConversationEvents(read.events, this.events.get(id) ?? [], id));
         this.refresh(id);
       });
-    }
+    } else this.conversations = this.conversations.map(item => item.conversationId === id ? { ...item, phase } : item);
+    this.strips = { ...this.strips, [id]: state ?? { kind: "starting" } };
     this.entriesChanged();
     this.host.changed();
   }
