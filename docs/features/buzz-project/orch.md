@@ -76,3 +76,4 @@
 - DS 수정 r1(`45a52ffc` test 5개 red, `64bb04c3` fix, `56ea7c3e` docs; 앱 테스트 5239개). 실제 승격 재측정(라이브 3회째, 두 공급자 connected, REAL_DIFF 없음). RT 관찰 거리: 960×600에서 새 대화 placeholder가 두 줄로 감김. DS 리뷰 r1: Codex gpt-6-astra medium.
 - DS 리뷰 r1: 🔴 0, 🟡 1(좁은 창 수치와 CDP 접근성 증거가 덮어써져 남지 않음 → RT로), ⚪ 1(id 없는 읽을 수 있는 행 테스트 fixture → DS 수정 r2). 리뷰 워커 release.
 - DS 수정 r2(`46d33569` test). DS 증거를 `.scratch/orch-buzz-project/ds-evidence/`로 복사.
+- DS 통합(`bba930b6`…`0682a617`). 통합 HEAD verify PASS(`verify-int4.log`). DS release, 워크트리 삭제.
