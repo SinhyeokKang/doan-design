@@ -80,21 +80,20 @@ func fixtureReply(t *testing.T, name string) string {
 	return string(compact)
 }
 
-// onboardingCalls gives each op a CLI argv and the equivalent MCP call.
+// onboardingCalls gives each op a CLI argv and the fields it puts on the wire.
 var onboardingCalls = map[string]struct {
-	args []string
-	tool string
-	mcp  map[string]any
+	args    []string
+	request map[string]any
 }{
-	"start":           {[]string{"onboarding", "start"}, "onboarding_start", map[string]any{}},
-	"status":          {[]string{"onboarding", "status", "--session", "s_1"}, "onboarding_status", map[string]any{"sessionId": "s_1"}},
-	"check":           {[]string{"onboarding", "check", "--session", "s_1", "--provider", "claude", "--request", "r_1"}, "onboarding_check", map[string]any{"sessionId": "s_1", "provider": "claude", "requestId": "r_1"}},
-	"sign_in":         {[]string{"onboarding", "sign-in", "--session", "s_1", "--provider", "codex", "--request", "r_1"}, "onboarding_sign_in", map[string]any{"sessionId": "s_1", "provider": "codex", "requestId": "r_1"}},
-	"cancel":          {[]string{"onboarding", "cancel", "--session", "s_1", "--operation", "op_1", "--request", "r_1"}, "onboarding_cancel", map[string]any{"sessionId": "s_1", "operationId": "op_1", "requestId": "r_1"}},
-	"project_inspect": {[]string{"onboarding", "project", "inspect", "--session", "s_1", "--path", "/Users/me/app", "--request", "r_1"}, "onboarding_project_inspect", map[string]any{"sessionId": "s_1", "path": "/Users/me/app", "requestId": "r_1"}},
-	"project_select":  {[]string{"onboarding", "project", "select", "--session", "s_1", "--inspection", "i_1", "--path", "/Users/me/app", "--request", "r_1"}, "onboarding_project_select", map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "requestId": "r_1"}},
-	"project_clone":   {[]string{"onboarding", "project", "clone", "--session", "s_1", "--inspection", "i_1", "--destination", "/Users/me/new", "--request", "r_1"}, "onboarding_project_clone", map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "destination": "/Users/me/new", "requestId": "r_1"}},
-	"complete":        {[]string{"onboarding", "complete", "--session", "s_1", "--request", "r_1"}, "onboarding_complete", map[string]any{"sessionId": "s_1", "requestId": "r_1"}},
+	"start":           {[]string{"onboarding", "start"}, map[string]any{}},
+	"status":          {[]string{"onboarding", "status", "--session", "s_1"}, map[string]any{"sessionId": "s_1"}},
+	"check":           {[]string{"onboarding", "check", "--session", "s_1", "--provider", "claude", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "provider": "claude", "requestId": "r_1"}},
+	"sign_in":         {[]string{"onboarding", "sign-in", "--session", "s_1", "--provider", "codex", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "provider": "codex", "requestId": "r_1"}},
+	"cancel":          {[]string{"onboarding", "cancel", "--session", "s_1", "--operation", "op_1", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "operationId": "op_1", "requestId": "r_1"}},
+	"project_inspect": {[]string{"onboarding", "project", "inspect", "--session", "s_1", "--path", "/Users/me/app", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "path": "/Users/me/app", "requestId": "r_1"}},
+	"project_select":  {[]string{"onboarding", "project", "select", "--session", "s_1", "--inspection", "i_1", "--path", "/Users/me/app", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "requestId": "r_1"}},
+	"project_clone":   {[]string{"onboarding", "project", "clone", "--session", "s_1", "--inspection", "i_1", "--destination", "/Users/me/new", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "destination": "/Users/me/new", "requestId": "r_1"}},
+	"complete":        {[]string{"onboarding", "complete", "--session", "s_1", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "requestId": "r_1"}},
 }
 
 // runOnboarding runs the CLI with --json and returns the exit code, the envelope and both streams.
@@ -124,7 +123,7 @@ func roundTrip(t *testing.T, v any) any {
 }
 
 // The mapping fixture drives the real reply-to-envelope translation through
-// both the CLI and the MCP tool, not a copy of its rules.
+// the CLI, not a copy of its rules.
 func TestOnboardingMappingFixture(t *testing.T) {
 	b, e := os.ReadFile(filepath.Join("..", "..", "..", "schema", "fixtures", "cli-envelope", "onboarding", "mapping.json"))
 	if e != nil {
@@ -137,10 +136,9 @@ func TestOnboardingMappingFixture(t *testing.T) {
 			Op     string         `json:"op"`
 			Reply  map[string]any `json:"reply"`
 			Expect struct {
-				OK      bool   `json:"ok"`
-				Code    string `json:"code"`
-				Exit    int    `json:"exit"`
-				IsError bool   `json:"isError"`
+				OK   bool   `json:"ok"`
+				Code string `json:"code"`
+				Exit int    `json:"exit"`
 			} `json:"expect"`
 		} `json:"cases"`
 	}
@@ -155,7 +153,6 @@ func TestOnboardingMappingFixture(t *testing.T) {
 	if len(mapping.Cases) == 0 {
 		t.Fatal("no cases")
 	}
-	cs := mcpClient(t)
 	for _, c := range mapping.Cases {
 		call, ok := onboardingCalls[c.Op]
 		if !ok {
@@ -184,53 +181,41 @@ func TestOnboardingMappingFixture(t *testing.T) {
 		if strings.Contains(out, testToken) {
 			t.Errorf("%s: token in output", c.Name)
 		}
-		fromTool := callTool(t, cs, call.tool, call.mcp)
-		if !reflect.DeepEqual(fromTool, env) {
-			t.Errorf("%s: MCP %v, CLI %v", c.Name, fromTool, env)
-		}
-		if len(app.received()) != 2 {
+		if len(app.received()) != 1 {
 			t.Errorf("%s: %d requests", c.Name, len(app.received()))
 		}
 	}
 }
 
-// Every CLI flag and the matching MCP argument put the same request on the wire.
-func TestOnboardingArgumentParity(t *testing.T) {
+// Every CLI flag puts its field on the wire.
+func TestOnboardingArgumentsOnTheWire(t *testing.T) {
 	type call struct {
 		op   string
 		args []string
-		tool string
-		mcp  map[string]any
 		want map[string]any
 	}
 	calls := []call{
-		{"status", []string{"onboarding", "status", "--session", "s_1", "--operation", "op_2"}, "onboarding_status", map[string]any{"sessionId": "s_1", "operationId": "op_2"}, map[string]any{"sessionId": "s_1", "operationId": "op_2"}},
-		{"check", []string{"onboarding", "check", "--session", "s_1", "--provider", "copilot", "--spend-copilot-request", "--request", "r_1"}, "onboarding_check", map[string]any{"sessionId": "s_1", "provider": "copilot", "spendCopilotRequest": true, "requestId": "r_1"}, map[string]any{"sessionId": "s_1", "provider": "copilot", "spendCopilotRequest": true, "requestId": "r_1"}},
-		{"project_inspect", []string{"onboarding", "project", "inspect", "--session", "s_1", "--url", "https://github.com/o/r", "--destination", "/Users/me/My Repos/r", "--request", "r_1"}, "onboarding_project_inspect", map[string]any{"sessionId": "s_1", "url": "https://github.com/o/r", "destination": "/Users/me/My Repos/r", "requestId": "r_1"}, map[string]any{"sessionId": "s_1", "url": "https://github.com/o/r", "destination": "/Users/me/My Repos/r", "requestId": "r_1"}},
+		{"status", []string{"onboarding", "status", "--session", "s_1", "--operation", "op_2"}, map[string]any{"sessionId": "s_1", "operationId": "op_2"}},
+		{"check", []string{"onboarding", "check", "--session", "s_1", "--provider", "copilot", "--spend-copilot-request", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "provider": "copilot", "spendCopilotRequest": true, "requestId": "r_1"}},
+		{"project_inspect", []string{"onboarding", "project", "inspect", "--session", "s_1", "--url", "https://github.com/o/r", "--destination", "/Users/me/My Repos/r", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "url": "https://github.com/o/r", "destination": "/Users/me/My Repos/r", "requestId": "r_1"}},
 		// A folder chosen for a GitHub URL carries the URL so the app checks the folder's remote.
-		{"project_inspect", []string{"onboarding", "project", "inspect", "--session", "s_1", "--path", "/Users/me/app", "--url", "git@github.com:o/r.git", "--request", "r_1"}, "onboarding_project_inspect", map[string]any{"sessionId": "s_1", "path": "/Users/me/app", "url": "git@github.com:o/r.git", "requestId": "r_1"}, map[string]any{"sessionId": "s_1", "path": "/Users/me/app", "url": "git@github.com:o/r.git", "requestId": "r_1"}},
-		{"project_select", []string{"onboarding", "project", "select", "--session", "s_1", "--inspection", "i_1", "--path", "/Users/me/app", "--initialize", "--request", "r_1"}, "onboarding_project_select", map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "initialize": true, "requestId": "r_1"}, map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "initialize": true, "requestId": "r_1"}},
+		{"project_inspect", []string{"onboarding", "project", "inspect", "--session", "s_1", "--path", "/Users/me/app", "--url", "git@github.com:o/r.git", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "path": "/Users/me/app", "url": "git@github.com:o/r.git", "requestId": "r_1"}},
+		{"project_select", []string{"onboarding", "project", "select", "--session", "s_1", "--inspection", "i_1", "--path", "/Users/me/app", "--initialize", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "initialize": true, "requestId": "r_1"}},
 		// false booleans are the same as leaving the flag off.
-		{"project_select", []string{"onboarding", "project", "select", "--session", "s_1", "--inspection", "i_1", "--path", "/Users/me/app", "--request", "r_1"}, "onboarding_project_select", map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "initialize": false, "requestId": "r_1"}, map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "requestId": "r_1"}},
-		{"check", []string{"onboarding", "check", "--session", "s_1", "--provider", "cursor", "--request", "r_1"}, "onboarding_check", map[string]any{"sessionId": "s_1", "provider": "cursor", "spendCopilotRequest": false, "requestId": "r_1"}, map[string]any{"sessionId": "s_1", "provider": "cursor", "requestId": "r_1"}},
+		{"project_select", []string{"onboarding", "project", "select", "--session", "s_1", "--inspection", "i_1", "--path", "/Users/me/app", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/Users/me/app", "requestId": "r_1"}},
+		{"check", []string{"onboarding", "check", "--session", "s_1", "--provider", "cursor", "--request", "r_1"}, map[string]any{"sessionId": "s_1", "provider": "cursor", "requestId": "r_1"}},
 	}
 	for op, c := range onboardingCalls {
-		want := map[string]any{}
-		for k, v := range c.mcp {
-			want[k] = v
-		}
-		calls = append(calls, call{op, c.args, c.tool, c.mcp, want})
+		calls = append(calls, call{op, c.args, c.request})
 	}
-	cs := mcpClient(t)
 	for _, c := range calls {
 		app := startOnboardingApp(t, shortTempDir(t), func(map[string]any) string {
 			return `{"v":2,"ok":false,"error":{"code":"busy","message":"Another sign-in is running"}}`
 		})
 		t.Setenv("DOAN_RUNTIME", app.runtime)
 		runOnboarding(t, c.args...)
-		callTool(t, cs, c.tool, c.mcp)
 		got := app.received()
-		if len(got) != 2 {
+		if len(got) != 1 {
 			t.Fatalf("%s %v: %d requests", c.op, c.args, len(got))
 		}
 		want := map[string]any{"v": float64(2), "token": testToken, "op": c.op}
@@ -296,29 +281,6 @@ func TestOnboardingUsageErrorsSendNothing(t *testing.T) {
 	}
 }
 
-func TestOnboardingMCPArgumentRejects(t *testing.T) {
-	cs := mcpClient(t)
-	for _, tt := range []struct {
-		tool string
-		args map[string]any
-	}{
-		{"onboarding_start", map[string]any{"sessionId": "s_1"}},
-		{"onboarding_status", map[string]any{"sessionId": 1}},
-		{"onboarding_status", map[string]any{"sessionId": "s_1", "repo": "/r"}},
-		{"onboarding_check", map[string]any{"sessionId": "s_1", "provider": "copilot", "requestId": "r_1", "spendCopilotRequest": "yes"}},
-		{"onboarding_check", map[string]any{"sessionId": "s_1", "provider": "copilot", "requestId": "r_1"}},
-		{"onboarding_project_inspect", map[string]any{"sessionId": "s_1", "path": "rel", "requestId": "r_1"}},
-		{"onboarding_project_inspect", map[string]any{"sessionId": "s_1", "path": "/a", "url": "https://github.com/o/r", "destination": "/b", "requestId": "r_1"}},
-		{"onboarding_project_inspect", map[string]any{"sessionId": "s_1", "destination": "/b", "requestId": "r_1"}},
-		{"onboarding_project_select", map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "path": "/a", "initialize": "true", "requestId": "r_1"}},
-		{"onboarding_project_clone", map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "destination": "/b", "tokenCss": "/t.css", "requestId": "r_1"}},
-		{"onboarding_project_clone", map[string]any{"sessionId": "s_1", "inspectionId": "i_1", "destination": "/b", "serve": []string{"/x"}, "requestId": "r_1"}},
-		{"onboarding_complete", map[string]any{"sessionId": "s_1", "requestId": nil}},
-	} {
-		toolCode(t, cs, tt.tool, tt.args, "usage_error")
-	}
-}
-
 // The app owns message text, but the token the CLI read must never come back out.
 func TestOnboardingNeverPrintsTheToken(t *testing.T) {
 	app := startOnboardingApp(t, shortTempDir(t), func(map[string]any) string {
@@ -333,10 +295,6 @@ func TestOnboardingNeverPrintsTheToken(t *testing.T) {
 	Run(onboardingCalls["sign_in"].args, strings.NewReader(""), &stdout, &stderr)
 	if strings.Contains(stdout.String()+stderr.String(), testToken) {
 		t.Fatal(stderr.String())
-	}
-	toolOut, _ := json.Marshal(callTool(t, mcpClient(t), "onboarding_sign_in", onboardingCalls["sign_in"].mcp))
-	if strings.Contains(string(toolOut), testToken) {
-		t.Fatal(string(toolOut))
 	}
 }
 
@@ -390,8 +348,7 @@ func TestOnboardingRepliesNeverCarryTokenOrRuntimePath(t *testing.T) {
 		code, env, out := runOnboarding(t, call.args...)
 		var stdout, stderr bytes.Buffer
 		Run(call.args, strings.NewReader(""), &stdout, &stderr)
-		toolOut, _ := json.Marshal(callTool(t, mcpClient(t), call.tool, call.mcp))
-		for _, text := range []string{out, stdout.String() + stderr.String(), string(toolOut)} {
+		for _, text := range []string{out, stdout.String() + stderr.String()} {
 			if strings.Contains(text, testToken) || strings.Contains(text, app.runtime) {
 				t.Errorf("%s: leaked in %s", tt.name, text)
 			}
@@ -727,8 +684,7 @@ func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	for _, code := range []string{"app_not_running", "app_launch_failed"} {
 		requireRecoveryOrder(t, onboardingFailure(code, "m").NextSteps, [][]string{
 			{"open Doan", "doan onboarding start"},
-			{"If Doan is open, a sandbox may block this shell from its socket", "MCP `onboarding_start` tool", "`onboarding_*` tools if they are available"},
-			{"Otherwise", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
+			{"If Doan is open, a sandbox may block this shell from its socket", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
 			{"If it still fails", "Applications", "Settings… > About"},
 		})
 	}
@@ -904,7 +860,7 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 	}
 }
 
-// cancel only reaches sign_in and project_clone (buzz-onboarding D15); the guide, help and tool text must say so.
+// cancel only reaches sign_in and project_clone (buzz-onboarding D15); the guide and help must say so.
 func TestOnboardingCancelWordingStatesScope(t *testing.T) {
 	want := "only a `sign_in` or `project_clone` operation; for any other kind it returns the target unchanged"
 	if !strings.Contains(skillBody, want) {
@@ -912,10 +868,5 @@ func TestOnboardingCancelWordingStatesScope(t *testing.T) {
 	}
 	if !strings.Contains(usage, "cancels only a sign_in or project_clone operation; any other kind returns the target unchanged") {
 		t.Errorf("usage misses cancel scope")
-	}
-	for _, tool := range mcpTools {
-		if tool.name == "onboarding_cancel" && !strings.Contains(tool.description, "Only a sign_in or project_clone operation is cancelled; for any other kind the target is returned unchanged") {
-			t.Errorf("tool description misses cancel scope: %s", tool.description)
-		}
 	}
 }

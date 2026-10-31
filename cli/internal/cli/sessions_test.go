@@ -186,19 +186,6 @@ func TestSessionEnvironmentAndMissingDirectory(t *testing.T) {
 		})
 	}
 }
-func TestSessionMCPNeverRecordsInheritedIdentity(t *testing.T) {
-	root, log := sessionFixture(t)
-	t.Setenv("CLAUDE_CODE_SESSION_ID", "c")
-	cs := mcpClient(t)
-	callTool(t, cs, "check", map[string]any{"repo": root})
-	if len(sessionRows(t, log)) != 0 {
-		t.Fatal("MCP recorded")
-	}
-	checkOutput(root, true)
-	if len(sessionRows(t, log)) != 1 {
-		t.Fatal("shell did not record")
-	}
-}
 func TestSessionPriorMalformedAndLargeLines(t *testing.T) {
 	root, log := sessionFixture(t)
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "c")

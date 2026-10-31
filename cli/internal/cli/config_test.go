@@ -180,15 +180,6 @@ func TestConfigRemoveExistingAliasAndOutside(t *testing.T) {
 	failure(t, root, "usage_error", "config", "--remove-serve", filepath.Join(t.TempDir(), "missing"))
 }
 
-func TestMCPConfigRemoveMissingServe(t *testing.T) {
-	root := initialized(t)
-	putFile(t, root, ".doan/config.json", `{"v":1,"serve":["./missing"]}`)
-	got := callTool(t, mcpClient(t), "config", map[string]any{"repo": root, "removeServe": []string{"missing"}})
-	if got["ok"] != true || got["result"].(map[string]any)["changed"] != true {
-		t.Fatal(got)
-	}
-}
-
 func TestConfigRelativePathsUseRepoOutsideCwd(t *testing.T) {
 	root := initialized(t)
 	putFile(t, root, "styles/tokens.css", "")
@@ -241,7 +232,6 @@ func TestConfigRejectsGitServeWithoutWriting(t *testing.T) {
 					paths = append(paths, ".GIT/CONFIG")
 				}
 			}
-			cs := mcpClient(t)
 			for _, path := range paths {
 				for _, absolute := range []bool{false, true} {
 					input := path
@@ -255,7 +245,6 @@ func TestConfigRejectsGitServeWithoutWriting(t *testing.T) {
 						if failure["code"] != "usage_error" || !strings.Contains(failure["message"].(string), ".git") {
 							t.Fatal(got)
 						}
-						toolCode(t, cs, "config", map[string]any{"repo": root, "addServe": []string{"assets", input}}, "usage_error")
 						if readFile(t, root, ".doan/config.json") != before {
 							t.Fatal("rejected addition changed config")
 						}
@@ -264,11 +253,6 @@ func TestConfigRejectsGitServeWithoutWriting(t *testing.T) {
 				putFile(t, root, ".doan/config.json", `{"v":1,"serve":["`+path+`"]}`)
 				got := result(t, root, 0, "config", "--remove-serve", path)
 				if got["changed"] != true || len(got["serve"].([]any)) != 0 {
-					t.Fatal(got)
-				}
-				putFile(t, root, ".doan/config.json", `{"v":1,"serve":["`+path+`"]}`)
-				got = callTool(t, cs, "config", map[string]any{"repo": root, "removeServe": []string{path}})
-				if got["ok"] != true || len(got["result"].(map[string]any)["serve"].([]any)) != 0 {
 					t.Fatal(got)
 				}
 			}

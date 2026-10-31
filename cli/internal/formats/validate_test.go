@@ -96,10 +96,9 @@ func TestOnboardingCLIMapping(t *testing.T) {
 			Op     string         `json:"op"`
 			Reply  map[string]any `json:"reply"`
 			Expect struct {
-				OK      bool   `json:"ok"`
-				Exit    int    `json:"exit"`
-				IsError bool   `json:"isError"`
-				Code    string `json:"code"`
+				OK   bool   `json:"ok"`
+				Exit int    `json:"exit"`
+				Code string `json:"code"`
 			} `json:"expect"`
 		} `json:"cases"`
 	}
@@ -158,9 +157,6 @@ func TestOnboardingCLIMapping(t *testing.T) {
 			}
 			if err := validateReply(c.Reply); err != nil {
 				t.Fatalf("reply: %v", err)
-			}
-			if c.Expect.IsError != !c.Expect.OK {
-				t.Fatalf("isError = %v with ok = %v", c.Expect.IsError, c.Expect.OK)
 			}
 			var envelope map[string]any
 			if c.Expect.OK {

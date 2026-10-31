@@ -21,15 +21,13 @@ var designSkillFixtures, _ = filepath.Abs("../../../schema/fixtures/cli-envelope
 type designSkillCases struct {
 	Version string `json:"version"`
 	List    struct {
-		File string         `json:"file"`
-		CLI  []string       `json:"cli"`
-		MCP  map[string]any `json:"mcp"`
+		File string   `json:"file"`
+		CLI  []string `json:"cli"`
 	} `json:"list"`
 	Get struct {
-		File string         `json:"file"`
-		ID   string         `json:"id"`
-		CLI  []string       `json:"cli"`
-		MCP  map[string]any `json:"mcp"`
+		File string   `json:"file"`
+		ID   string   `json:"id"`
+		CLI  []string `json:"cli"`
 	} `json:"get"`
 	Rejected []struct {
 		File string   `json:"file"`
@@ -74,7 +72,6 @@ func catalog(t *testing.T) *designskill.Catalog {
 
 func TestDesignSkillMatchesSharedFixtures(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cs := mcpClient(t)
 	var cases designSkillCases
 	designSkillFixture(t, "cases.json", &cases)
 	if cases.Version != Version {
@@ -89,16 +86,13 @@ func TestDesignSkillMatchesSharedFixtures(t *testing.T) {
 		}
 	}
 	check("cli list", cases.List.File, runDesignSkill(t, 0, cases.List.CLI[1:]...))
-	check("mcp list", cases.List.File, callTool(t, cs, "design_skill", cases.List.MCP))
 	check("cli get", cases.Get.File, runDesignSkill(t, 0, cases.Get.CLI[1:]...))
 	check("cli get after --", cases.Get.File, runDesignSkill(t, 0, "--", cases.Get.ID))
-	check("mcp get", cases.Get.File, callTool(t, cs, "design_skill", cases.Get.MCP))
 	for _, r := range cases.Rejected {
 		for i, id := range r.IDs {
 			cli := runDesignSkill(t, 2, "--", id)
-			tool := callTool(t, cs, "design_skill", map[string]any{"id": id})
-			if !reflect.DeepEqual(cli, tool) || cli["error"].(map[string]any)["code"] != "usage_error" {
-				t.Errorf("%q: cli %v, mcp %v", id, cli, tool)
+			if cli["error"].(map[string]any)["code"] != "usage_error" {
+				t.Errorf("%q: %v", id, cli)
 			}
 			// The message names the rejected id, so only the first id of each file is the file's exact output.
 			if i == 0 {
@@ -176,12 +170,8 @@ func TestDesignSkillNeedsNoProjectOrApp(t *testing.T) {
 	cwd := t.TempDir()
 	t.Chdir(cwd)
 	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "none.json"))
-	cs := mcpClient(t)
 	runDesignSkill(t, 0)
 	runDesignSkill(t, 0, "clarify")
-	if callTool(t, cs, "design_skill", nil)["ok"] != true || callTool(t, cs, "design_skill", map[string]any{"id": "clarify"})["ok"] != true {
-		t.Fatal("design_skill failed outside a project")
-	}
 	if entries, _ := os.ReadDir(cwd); len(entries) != 0 {
 		t.Fatalf("design-skill wrote %v", entries)
 	}
@@ -189,18 +179,14 @@ func TestDesignSkillNeedsNoProjectOrApp(t *testing.T) {
 
 func TestDesignSkillRejectsBadArguments(t *testing.T) {
 	t.Chdir(t.TempDir())
-	cs := mcpClient(t)
 	for _, args := range [][]string{{"clarify", "context"}, {"--", "clarify", "extra"}, {"--canvas", "x"}, {"--token-css", "x", "clarify"}} {
 		if got := runDesignSkill(t, 2, args...); got["error"].(map[string]any)["code"] != "usage_error" {
 			t.Errorf("%v: %v", args, got)
 		}
 	}
-	for _, args := range []map[string]any{{"id": 1}, {"id": nil}, {"id": []any{"clarify"}}, {"id": true}, {"repo": "/r"}, {"id": "clarify", "extra": true}} {
-		toolCode(t, cs, "design_skill", args, "usage_error")
-	}
-	// An id that looks like a flag still reaches the id check, not flag parsing.
+	// An id after `--` that looks like a flag still reaches the id check, not flag parsing.
 	for _, id := range []string{"-x", "--json", "--repo=/r"} {
-		got := callTool(t, cs, "design_skill", map[string]any{"id": id})
+		got := runDesignSkill(t, 2, "--", id)
 		if got["error"].(map[string]any)["message"] != `invalid design preset id "`+id+`"` {
 			t.Errorf("%q: %v", id, got)
 		}
@@ -298,22 +284,14 @@ func TestSkillGuidePresetRules(t *testing.T) {
 }
 
 func TestInitNextStepsNameContextPreset(t *testing.T) {
-	cs := mcpClient(t)
 	want := []any{initContextStep}
+	root := t.TempDir()
 	for _, existing := range []bool{false, true} {
-		cli, tool := t.TempDir(), t.TempDir()
-		if existing {
-			result(t, cli, 0, "init")
-			result(t, tool, 0, "init")
-		}
-		got := result(t, cli, 0, "init")
-		env := callTool(t, cs, "init", map[string]any{"repo": tool})
-		mcp := env["result"].(map[string]any)
-		if !reflect.DeepEqual(got["nextSteps"], want) || !reflect.DeepEqual(mcp["nextSteps"], want) {
-			t.Fatalf("existing=%v: cli %v, mcp %v", existing, got["nextSteps"], mcp["nextSteps"])
+		if got := result(t, root, 0, "init"); !reflect.DeepEqual(got["nextSteps"], want) {
+			t.Fatalf("existing=%v: %v", existing, got["nextSteps"])
 		}
 	}
-	if !strings.Contains(initContextStep, "`doan design-skill context`") || !strings.Contains(initContextStep, "`design_skill`") {
+	if !strings.Contains(initContextStep, "`doan design-skill context`") || strings.Contains(initContextStep, "MCP") {
 		t.Fatal(initContextStep)
 	}
 }
