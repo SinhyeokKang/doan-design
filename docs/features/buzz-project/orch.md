@@ -46,3 +46,5 @@
 - TB 리뷰 r1: 🔴 0, 🟡 2(`fromHome` 필터로 상태·지워진 행 누락; 승격 본 것 seq를 `lastSeq`로 추정). 둘 다 받아들였다. 🟡2는 지휘자 판단으로 순수 함수가 승격 사실만 돌려주고, 본 것 처리는 이벤트를 가진 호스트(RM)가 맡는다. 리뷰 워커 release. TB 수정 r1: dispatch `ctx_c458889e9b84`(같은 터미널 재사용).
 - XB 완료(`a14a892e` test, `f79df3d0` refactor; 전체 verify 통과, 앱 테스트 5091개). ID 변경 알림 새 문구: "N comments still use the old ID <id> and no longer show here. Run doan check in a terminal."(clarify 적용). 수정 라운드용으로 retain. XB 리뷰 r1: dispatch `ctx_0271629421eb`, Claude opus medium.
 - TB 수정 r1 `8ae92583`: 지휘자가 diff를 직접 확인했다. 🟡 0. TB 터미널 release.
+- XB 리뷰 r1: 🔴 0, 🟡 3(비 Overview 화면의 'No canvas open' 상실, preload 남은 주석, 고아 `reviewed` 매개변수), ⚪ 4. 🟡 3과 ⚪1(상태줄 숨김 범위)·⚪2(`.empty` 규칙)를 XB에 보냈다. ⚪3·4(썸네일 연결·주석)는 RL로. 리뷰 워커 release.
+  XB 수정 r1: dispatch `ctx_3a0a2ecd633b`(같은 Codex 터미널 재사용).
