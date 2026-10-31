@@ -72,6 +72,8 @@ const { QuickOpen } = await import("./QuickOpenDialog");
 const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
 const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
+const { RightPanel } = await import("./RightPanel");
+const { KeyedConversationStrip } = await import("./ConversationStripView");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -414,4 +416,37 @@ test("the project menu's Project Settings opens its dialog as a modal, even whil
   find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
   expect(find(ProjectSettingsDialog)).toHaveLength(1);
   expect(addPage()).toBeDefined();
+});
+
+const problemEntries: FolderEntry[] = [
+  { path: "/w/a", kind: "loading" },
+  { path: "/w/a", kind: "notFound" },
+  { path: "/w/a", kind: "uninitialized" },
+  { path: "/w/a", kind: "cliError", reason: "Unavailable" },
+  { path: "/w/a", kind: "error", message: "Invalid config" },
+];
+
+test("only Overview replaces Canvas info with an empty right-panel slot", () => {
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(find(RightPanel)).toHaveLength(0);
+  for (const entry of problemEntries) {
+    folders([entry]);
+    expect(find(RightPanel), entry.kind).toHaveLength(1);
+  }
+});
+
+test("only Overview hides a conversation strip when no canvas is open", () => {
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
+  vi.spyOn(run, "strip").mockReturnValue({ conversation: { conversationId: "c1", root: "/w/a", provider: "codex", phase: "working" }, state: { kind: "working", activity: null } });
+  render();
+  expect(find(KeyedConversationStrip)).toHaveLength(0);
+  for (const entry of problemEntries) {
+    folders([entry]);
+    expect(find(KeyedConversationStrip), entry.kind).toHaveLength(1);
+  }
+  folders([listed("/w/a")]);
+  expect(find(KeyedConversationStrip)).toHaveLength(0);
 });

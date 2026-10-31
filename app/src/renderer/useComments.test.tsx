@@ -1236,10 +1236,9 @@ describe("Review on the open canvas", () => {
     Object.assign(window.doan, { reviewMarker: readMarker, raiseReviewMarker: raise, onWindowVisible: (callback: typeof visible) => { visible = callback; return () => {}; } });
     const jumpToNode = vi.fn((_node: string, _generation: number) => true), locate = vi.fn(), setEscapeHandler = vi.fn();
     Object.assign(f.controller, { jumpToNode, locate, setEscapeHandler });
-    const reviewed = vi.fn();
     const render = (over: Partial<CanvasState> = {}) => {
       harness.index = 0; harness.refIndex = 0; harness.effects = [];
-      const result = useComments({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: null, ...over }, { current: f.controller as unknown as CanvasController }, vi.fn(), [], reviewed);
+      const result = useComments({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: null, ...over }, { current: f.controller as unknown as CanvasController }, vi.fn(), []);
       for (const effect of harness.effects) effect();
       return result;
     };
@@ -1251,7 +1250,7 @@ describe("Review on the open canvas", () => {
     settle(ANCHORS);
     const props = (over: Partial<CanvasState> = {}) => (render(over).panel as unknown as { props: CommentsPanelProps }).props;
     const escape = () => (setEscapeHandler.mock.lastCall![0] as () => boolean)();
-    return { ...f, session, render, props, doc, heading, next, start, close, selectors, raise, readMarker, jumpToNode, locate, reviewed, escape, visible: (value: boolean) => visible?.(value) };
+    return { ...f, session, render, props, doc, heading, next, start, close, selectors, raise, readMarker, jumpToNode, locate, escape, visible: (value: boolean) => visible?.(value) };
   }
 
   test("the notice counts resolves since the last review; a first-seen canvas and a seen one read differently", async () => {
@@ -1286,7 +1285,6 @@ describe("Review on the open canvas", () => {
     expect(f.raise).toHaveBeenLastCalledWith("/repo", "a", one.resolvedAt);
     expect(f.props().reviewBar).toMatchObject({ step: 2 });
     expect(f.next.focus).toHaveBeenCalledTimes(2);
-    await vi.waitFor(() => expect(f.reviewed).toHaveBeenCalledWith("/repo"));
   });
 
   test("a target the canvas cannot find does not move and says so", async () => {
@@ -1429,7 +1427,7 @@ describe("the id change notice", () => {
     const entries: FolderEntry[] = [{ path: "/repo", kind: "list", servedRev: 0, canvases: [row], orphans: [{ id: "checkout-v1", file: ".doan/comments/checkout-v1.jsonl", comments: { open: 2, resolved: 1 }, uncertain: false }] }];
     const props = (idChangedFrom: string | null, list = entries) => {
       harness.index = 0; harness.refIndex = 0; harness.effects = [];
-      const result = useComments({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), idChangedFrom }, { current: f.controller as unknown as CanvasController }, vi.fn(), list, undefined, null);
+      const result = useComments({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), idChangedFrom }, { current: f.controller as unknown as CanvasController }, vi.fn(), list, null);
       return (result.panel as unknown as { props: CommentsPanelProps }).props;
     };
     const notice = props("checkout-v1").idNotice;
@@ -1461,7 +1459,7 @@ describe("the Hand off dialog (agent-handoff task 4)", () => {
     const base = { ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, hasFrame: true, layout: layout("one"), selection: null };
     const render = (over: Partial<CanvasState> = {}) => {
       harness.index = 0; harness.refIndex = 0; harness.effects = [];
-      const result = useComments({ ...base, ...over }, { current: f.controller as unknown as CanvasController }, vi.fn(), options.entries ?? [], undefined, options.home ?? null);
+      const result = useComments({ ...base, ...over }, { current: f.controller as unknown as CanvasController }, vi.fn(), options.entries ?? [], options.home ?? null);
       for (const effect of harness.effects) effect();
       return result;
     };

@@ -190,6 +190,8 @@ describe("agent selection hint", () => {
   });
 });
 
-test("keeps an empty right-panel slot without an open canvas", () => {
-  expect(renderToStaticMarkup(<RightPanel state={initialCanvasState()} selectPath={() => {}} />)).toBe('<aside class="right native-scroll"></aside>');
+test("stays Canvas info · No canvas open without an Overview", () => {
+  const html = renderToStaticMarkup(<RightPanel state={initialCanvasState()} selectPath={() => {}} />);
+  expect(html).toContain('<h2 class="phead">Canvas</h2>');
+  expect(html).toContain('<p class="pempty">No canvas open</p>');
 });
