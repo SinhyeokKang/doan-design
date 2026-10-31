@@ -22,7 +22,10 @@ describe("shortAgo", () => {
     [HOUR, "1h", "1 hour ago"],
     [23 * HOUR + 59 * MIN, "23h", "23 hours ago"],
     [DAY, "1d", "1 day ago"],
-    [6 * DAY + 23 * HOUR, "6d", "6 days ago"],
+    // design §0 and the draft: "1d" for the first day only, then the date (review DS r1).
+    [2 * DAY - MIN, "1d", "1 day ago"],
+    [2 * DAY, "Oct 30", "Oct 30"],
+    [4 * DAY, "Oct 28", "Oct 28"],
     [7 * DAY, "Oct 25", "Oct 25"],
   ])("%d ms ago reads %s", (ms, text, label) => {
     expect(shortAgo(ago(ms), NOW)).toEqual({ text, label });

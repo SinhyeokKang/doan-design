@@ -90,7 +90,8 @@ test("a promotion leaves the moved line with Open above the suggestions", () => 
     (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
     (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
   });
-  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text">Checkout copy moved to checkout\.<\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
+  // review DS r1: one line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
+  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
 test("the duplicate-ID notice shows under the header", () => {
@@ -161,6 +162,9 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toContain(".ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }");
   expect(css).toContain('.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }');
   expect(css).toContain(".doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
+  expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
+  expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
   expect(css).toContain(".conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
   expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
