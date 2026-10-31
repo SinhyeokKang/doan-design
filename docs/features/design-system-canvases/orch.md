@@ -66,3 +66,14 @@
 ## T8 회차 기록
 
 (회차마다 모델별 결과, 못 미친 기준, preset 수정, 고른 벌과 이유를 적는다.)
+
+### 1회차 (base `7cc18893`, BW 통합 전)
+
+- 판정 방법: 두 worktree의 `.doan/ds/`를 정적 서버와 Chromium으로 렌더해 깨진 요청, console error, 로드된 글꼴, 프레임 밖으로 넘친 요소를 세고, 캔버스 스크린숏을 지휘자가 직접 봤다(color, typography, button, notice, shell·sidebar 계열). 근거는 지휘자 scratchpad의 `judge/r1-c`, `judge/r1-x`에 있다.
+- BR-c(Claude Opus high): 캔버스 35개. 깨진 요청 0, 글꼴 Geist, 넘침 0, 새 캔버스의 `doan check` 지적 0(남은 error 6은 main에 있던 `Sidebar.tsx` 참조).
+  - 충족: 단위별 분할, 값이 `tokens.css`와 같음, 프레임마다 `data-doan-implements`, 상태 표본, 캔버스마다 구체적인 미정 항목, shell이 지금 코드(묶음, 썸네일, Add Projects·Projects·Settings)와 같다.
+  - 못 미침: 여러 화면이 쓰는 `ProjectSetupDialog`를 클래스 사용처만 보고 뺐다. shell이 260px이다(BW 전 base).
+- BR-x(Codex gpt-6-astra medium): 캔버스 48개. 깨진 요청 0, 글꼴 Geist, 넘침 0, 새 캔버스의 `doan check` 지적 0.
+  - 못 미침: shell·sidebar·header가 지금 코드와 다르다(없는 Design·Conversation 탭, 묶음·썸네일 없음). 모든 캔버스에 같은 안내 문단 두 개가 반복된다. 스스로 그리는 것이 없는 wrapper(`changed-time`)를 캔버스로 만들었다.
+- preset 수정 방향(BP에 보냄): (1) 공용 여부는 클래스가 아니라 그 컴포넌트를 렌더하는 화면 수로 판단한다. (2) 합성 화면은 지금 그 화면을 렌더하는 컴포넌트 코드에서 그린다. (3) 캔버스에는 그 캔버스에만 해당하는 한계를 적고, 공통 안내는 규칙 문서에 한 번만 적는다.
+- 다음: preset 수정을 통합하고 BW(220px)가 들어간 base에서 두 모델이 다시 만든다.
