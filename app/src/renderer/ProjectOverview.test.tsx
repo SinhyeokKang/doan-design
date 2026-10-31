@@ -8,7 +8,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import { DockedSupport } from "./dockedSupport";
 import type { PresetSummary } from "./homeComposer";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
-import { ProjectOverview, type ProjectOverviewProps } from "./ProjectOverview";
+import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 // buzz-project design §2.1, §2.2, §2.5: the Overview's header and main column as static markup.
@@ -138,4 +138,15 @@ test("switching conversations draws each one's own draft and title at once", () 
   expect(second).toContain(">for B</textarea>");
   expect(second).toContain("<span>Ideas for onboarding</span>");
   expect(second).not.toContain("for A");
+});
+
+// Review RM r1 🟡7, design §2.1: the chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
+// a problem one turns the menu to its repair actions.
+test("a problem worktree in the chip menu shows its repair actions instead of opening", () => {
+  const missing = { kind: "notFound", path: "/code/gone" } as FolderEntry;
+  const unset = { kind: "uninitialized", path: "/code/new" } as FolderEntry;
+  expect(worktreeChoice(entry(WT, []))).toEqual({ kind: "open" });
+  expect(worktreeChoice({ kind: "loading", path: WT } as FolderEntry)).toEqual({ kind: "open" });
+  expect(worktreeChoice(missing)).toEqual({ kind: "repair", actions: ["locate"] });
+  expect(worktreeChoice(unset)).toEqual({ kind: "repair", actions: ["setUp"] });
 });

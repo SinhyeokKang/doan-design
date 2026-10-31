@@ -681,3 +681,54 @@ test("a project row's slot names the project conversation the Overview should op
   expect(h.run.slotConversation(ROOT)).toEqual({ conversationId: "asks", waiting: true });
   expect(h.run.slotConversation(OTHER)).toBeNull();
 });
+
+// Review RM r1 🟡5, spec decision 6 last bullet: a turn sent in an existing project conversation that makes a new
+// canvas opens it during the turn, from a baseline taken before the send and only while the person opened none.
+test("a send in an existing project conversation opens the new canvas its turn makes, after one existing at the send", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("p", { type: "turn.started" }, "t0"), event("p", { type: "turn.done" }, "t0")], lastSeq: 2, turn: "idle" });
+  const send = deferred<void>();
+  doan.sendConversation = vi.fn(() => send.promise);
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  const sending = h.run.send(ROOT, "claude", { conversationId: "p", text: "Draw a pricing page.", anchors: [] });
+  // The canvas appears before main's reply: still new to this turn.
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  send.resolve();
+  expect(await sending).toBeUndefined();
+  h.run.event(event("p", { type: "turn.started" }, "t1"));
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+  // An edit of a canvas that already existed opens nothing (promotion by edit resets the Overview instead).
+  vi.mocked(h.host.openCanvas).mockClear();
+  const second = h.run.send(ROOT, "claude", { conversationId: "p", text: "Edit pricing.", anchors: [] });
+  send.resolve(); await second;
+  h.run.event(event("p", { type: "turn.started" }, "t2"));
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+});
+
+test("a send whose canvas appears after the person opened another canvas is offered in a toast", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" })] });
+  doan.sendConversation = vi.fn(async () => {});
+  const h = harness([list(ROOT, ["a"])]);
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  await h.run.send(ROOT, "claude", { conversationId: "p", text: "Draw.", anchors: [] });
+  h.run.event(event("p", { type: "turn.started" }, "t1"));
+  h.run.canvasShown(ROOT, ".doan/canvases/a.html");
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+  expect(h.host.toast).toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
+});
+
+test("a refused send registers no turn", async () => {
+  doan.sendConversation = vi.fn(async () => ({ error: "busy" }));
+  const h = harness();
+  expect(await h.run.send(ROOT, "claude", { conversationId: "p", text: "x", anchors: [] })).toEqual({ error: "busy" });
+  expect(h.run.knows("p")).toBe(false);
+});

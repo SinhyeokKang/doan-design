@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { savedUiState, wizardCloseFocus } from "./App";
+import { mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
 import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
 
 // buzz-home tasks U5: App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
@@ -38,4 +38,14 @@ test("removing a project with a running Home conversation asks first; cancel kee
 test("Edit on Home asks before replacing a different draft", () => {
   const last: LastRequest = { root: "/code/doan", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
   expect(restoreRequest({ text: "Another idea", preset: null, attachments: [] }, last, "doan").confirm?.title).toBe("Replace your draft?");
+});
+
+// Review RM r1 🟡9: the start's ui-state read merges under what the run wrote, deletions included.
+test("a late ui-state read never brings back memory cleared by New or a removed root", () => {
+  const saved = { "/a": "aaaaaaaa-0000-4000-8000-000000000001", "/b": "aaaaaaaa-0000-4000-8000-000000000002", "/c": "aaaaaaaa-0000-4000-8000-000000000003" };
+  const now = { "/c": "aaaaaaaa-0000-4000-8000-000000000004" };
+  // /a: New before the read; /b: removed before the read; /c: shown before the read.
+  expect(mergeConversationMemory(saved, now, new Set(["/a", "/b", "/c"]))).toEqual(now);
+  expect(mergeConversationMemory(saved, {}, new Set())).toEqual(saved);
+  expect(mergeConversationMemory(undefined, now, new Set(["/c"]))).toEqual(now);
 });

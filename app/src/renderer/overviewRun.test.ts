@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, ConversationEvent, EventPayload } from "../main/conversation/types";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
-import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
+import { OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
 
 // buzz-project tasks R1, R3, R4: the Overview's main conversation, driven without a DOM. The host stands in for App
 // and HomeRun (list reads and their counts, ui-state memory, seen marks, focus, navigation, toasts).
@@ -151,24 +151,178 @@ test("a requested canvas conversation opens its canvas instead of the main threa
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 
-test("each root keeps its own conversation and new-conversation draft across worktree switches", () => {
+// Review RM r1 🟡6: reopening an Overview applies spec decision 5 again; only the drafts by root stay.
+test("reopening an Overview picks again by decision 5, and each root keeps its new-conversation draft", () => {
   const h = harness();
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A)]);
   h.run.select(ROOT, null);
   h.run.setDrafts(drafts => new Map(drafts).set(`root:${ROOT}`, draft("Ask about checkout")));
   h.run.show(OTHER);
-  h.answer(OTHER, [summary(B)]);
+  h.answer(OTHER, []);
   h.run.setDrafts(drafts => new Map(drafts).set(`root:${OTHER}`, draft("Other root")));
+  // New cleared the memory, so the latest project conversation shows again.
   h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("Ask about checkout");
+  h.run.select(ROOT, null);
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
   expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("Ask about checkout");
-  expect(h.run.view(OTHER)).toEqual({ kind: "conversation", conversationId: B });
-  // New again keeps the draft.
-  h.run.select(ROOT, null);
-  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("Ask about checkout");
+  // A root that was new on its first visit opens the conversation that appeared since.
+  h.answer(OTHER, [summary(C)]);
+  h.run.show(OTHER);
+  expect(h.run.view(OTHER)).toEqual({ kind: "conversation", conversationId: C });
+  expect(h.run.drafts.get(`root:${OTHER}`)?.text).toBe("Other root");
+  // A plain list refresh on the same screen does not pick again.
+  h.run.select(OTHER, null);
+  h.answer(OTHER, [summary(C, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
+  expect(h.run.view(OTHER)).toEqual({ kind: "new", moved: null });
 });
 
+test("an entry request made while the root was hidden is what its reopened Overview shows", () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { lastActivityAt: "2026-11-01T00:00:00.000Z" }), summary(B)]);
+  h.run.show(null);
+  h.run.request(ROOT, B, null);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+});
+
+// Review RM r1 🟡1: a start or send reply that lands after the person chose something else changes neither.
+test("a late start reply does not replace a newer pick, whichever of the list and the reply comes first", () => {
+  for (const listFirst of [true, false]) {
+    const h = harness();
+    h.run.show(ROOT);
+    h.answer(ROOT, [summary(B)]);
+    h.run.select(ROOT, null);
+    const revision = h.run.revision(ROOT);
+    h.run.select(ROOT, B);
+    if (listFirst) h.answer(ROOT, [summary(A), summary(B)]);
+    h.run.started(ROOT, A, "claude", revision);
+    if (!listFirst) h.answer(ROOT, [summary(A), summary(B)]);
+    expect(h.run.view(ROOT), `list first: ${listFirst}`).toEqual({ kind: "conversation", conversationId: B });
+    expect(h.state.remembered, `list first: ${listFirst}`).toEqual({ [ROOT]: B });
+    expect(h.run.providerOf(A)).toBe("claude");
+  }
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, []);
+  h.run.started(ROOT, A, "claude", h.run.revision(ROOT));
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+});
+
+test("a late send reply does not bring back a conversation the person left for New or another", () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A), summary(B)]);
+  h.run.select(ROOT, A);
+  const revision = h.run.revision(ROOT);
+  h.run.select(ROOT, null);
+  h.run.sent(ROOT, A, revision);
+  expect(h.state.remembered).toEqual({});
+  h.run.select(ROOT, B);
+  h.run.sent(ROOT, A, revision);
+  expect(h.state.remembered).toEqual({ [ROOT]: B });
+});
+
+// Review RM r1 🟡2: queued messages main handed back come into the open conversation's draft without a switch.
+test("a returned queue is taken into the open conversation's draft once, after what the person typed", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  await flush();
+  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("typed meanwhile")));
+  doan.takeConversationDraft!.mockResolvedValueOnce({ text: "also this", anchors: [], attachments: [], reason: "stopped" });
+  h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+  h.run.sync();
+  await flush(); await flush();
+  expect(doan.takeConversationDraft).toHaveBeenCalledTimes(1);
+  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("typed meanwhile\n\nalso this");
+  // The list still says so until a read that started after the take: no second take.
+  h.run.sync();
+  await flush();
+  expect(doan.takeConversationDraft).toHaveBeenCalledTimes(1);
+});
+
+// Review RM r1 🟡3: attachment results follow their chip, wherever the draft went.
+test("an attachment checked during a promotion lands in the moved draft, and a removed chip's file is released", async () => {
+  const h = harness();
+  doan.removeAttachment = vi.fn(async () => true);
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  await flush();
+  const chip = (key: string) => ({ key, name: `${key}.png`, kind: "image" as const, pasted: false, status: "checking" as const, size: 1 });
+  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { ...draft("see"), attachments: [chip("k1"), chip("k2")] }));
+  h.answer(ROOT, [summary(A, { canvas: CANVAS })]);
+  h.run.setDrafts(drafts => {
+    const moved = drafts.get(`root:${ROOT}`)!;
+    return new Map(drafts).set(`root:${ROOT}`, { ...moved, attachments: moved.attachments.filter(a => a.key !== "k2") });
+  });
+  const ok = (id: string) => ({ ok: true as const, attachment: { id, name: `${id}.png`, kind: "image" as const, pasted: false, size: 1, path: `/tmp/${id}.png` } });
+  const settled = h.run.settleAttachments(["k1", "k2"], [ok("id1"), ok("id2")]);
+  expect(h.run.drafts.get(`root:${ROOT}`)?.attachments).toEqual([{ key: "k1", id: "id1", name: "id1.png", kind: "image", pasted: false, status: "ready", size: 1, path: "/tmp/id1.png" }]);
+  expect(doan.removeAttachment).toHaveBeenCalledWith("id2");
+  expect(settled.notices).toEqual([]);
+  // A refused file leaves the draft with a notice.
+  h.run.setDrafts(drafts => new Map(drafts).set(`root:${ROOT}`, { ...drafts.get(`root:${ROOT}`)!, attachments: [...drafts.get(`root:${ROOT}`)!.attachments, chip("k3")] }));
+  expect(h.run.settleAttachments(["k3"], [{ ok: false, name: "big.png", error: "too_large" }]).notices).toEqual(["This image is over 50 MB, so it wasn’t attached."]);
+  expect(h.run.drafts.get(`root:${ROOT}`)?.attachments.map(a => a.key)).toEqual(["k1"]);
+});
+
+// Review RM r1 🟡4: Edit and resend restores the last request only into an unchanged draft, and focuses only there.
+test("Edit and resend restores the request unless the draft changed or the person moved on meanwhile", async () => {
+  const h = harness();
+  const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });
+  histories.set(A, [message, event(A, { type: "turn.started" }), event(A, { type: "turn.failed", code: "unknown" })]);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A), summary(B)]);
+  await flush();
+  const issued = deferred<unknown[]>();
+  doan.attachmentsFromPaths!.mockImplementation(() => issued.promise);
+  // Unchanged: restored and focused.
+  let pending = h.run.editAndResend(ROOT, A);
+  issued.resolve([{ ok: true, attachment: { id: "x", name: "a.png", kind: "image", pasted: false, size: 1, path: "/tmp/a.png" } }]);
+  expect(await pending).toBe(true);
+  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("Draw it");
+  // Typing while it is restored: the typing stays.
+  const later = deferred<unknown[]>();
+  doan.attachmentsFromPaths!.mockImplementation(() => later.promise);
+  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("")));
+  pending = h.run.editAndResend(ROOT, A);
+  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("new words")));
+  later.resolve([]);
+  expect(await pending).toBe(false);
+  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("new words");
+  // Another conversation chosen meanwhile: restored into A's draft, but no focus to take elsewhere.
+  const third = deferred<unknown[]>();
+  doan.attachmentsFromPaths!.mockImplementation(() => third.promise);
+  pending = h.run.editAndResend(ROOT, A);
+  h.run.select(ROOT, B);
+  third.resolve([]);
+  expect(await pending).toBe(false);
+  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("Draw it");
+});
+
+// Review RM r1 🟡8: an entry for the conversation already open scrolls again; the request waits for its item.
+test("each entry request scrolls anew, and the scroll waits until the permission item is drawn", () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "waiting" })]);
+  h.run.request(ROOT, A, "permission");
+  const first = h.run.scrollRequest(A);
+  expect(first?.to).toBe("permission");
+  h.run.request(ROOT, A, "permission");
+  expect(h.run.scrollRequest(A)!.seq).toBeGreaterThan(first!.seq);
+  const ask = { kind: "permission" as const, key: "p1", seq: 5, requestId: "r", summary: "s", options: [], status: "pending" as const, answer: null };
+  expect(scrollTarget([], true)).toEqual({ kind: "wait" });
+  expect(scrollTarget([ask], true)).toEqual({ kind: "item", key: "p1" });
+  expect(scrollTarget([{ ...ask, status: "answered" }], false)).toEqual({ kind: "drop" });
+  h.run.takeScroll(A);
+  expect(h.run.scrollRequest(A)).toBeNull();
+});
 test("the thread is read after subscribing: an event that arrives before the reply is kept", async () => {
   const h = harness();
   const read = deferred<{ events: ConversationEvent[]; lastSeq: number; turn: string }>();
@@ -316,8 +470,9 @@ test("another project conversation of the shown root that waits for an answer is
   const open = vi.mocked(h.host.toast).mock.calls[0]![2]!;
   open();
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
-  expect(h.run.takeScroll(B)).toBe("permission");
-  expect(h.run.takeScroll(B)).toBeNull();
+  expect(h.run.scrollRequest(B)?.to).toBe("permission");
+  h.run.takeScroll(B);
+  expect(h.run.scrollRequest(B)).toBeNull();
   // The shown conversation's own request is in its thread, not a toast; nor is a hidden root's.
   h.answer(ROOT, [summary(B, { phase: "waiting", preview: "Needs your answer: Edit y" })]);
   expect(h.host.toast).toHaveBeenCalledTimes(1);
