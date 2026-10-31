@@ -554,170 +554,34 @@ func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
 	}
 }
 
-// T8 round 1: one session skipped a dialog several screens render because its classes appeared in that
-// component only. Shared is decided by how many screens show a component, not by where its styles are used.
-func TestDocumentPresetSharedMeansRenderedBySeveralScreens(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"a component, dialog, or surface seen on two or more screens is shared, even if its styles appear nowhere else",
-		"parts of a single screen (seen on one screen only)",
-		"each skip is a nonvisual wrapper or seen on one screen only",
+// T8 rounds and their review: these pin short concepts the tuning depends on, not whole sentences, so
+// rewording a rule without changing it keeps them green. Behavior is judged by the real-agent scenarios;
+// the output budget is checked in cli/internal/cli (skillOutputBudget).
+func TestDocumentPresetKeepsT8Concepts(t *testing.T) {
+	body := strings.ToLower(documentPreset(t))
+	for concept, phrases := range map[string][]string{
+		// Round 1/4: a dialog mounted once but opened from several screens was skipped.
+		"shared counts screens where a person sees a unit": {"seen on two or more screens", "not where the code mounts it", "seen on one screen only"},
+		// Round 1: an app shell showed tabs the code no longer renders.
+		"shared surfaces come from current code": {"render it now", "sections and controls"},
+		// Round 2: icons drawn from memory differed from the project's icons.
+		"icons come from the project's own source": {"icon source", "not from memory", "cannot be obtained or reproduced"},
+		// Round 2: a canvas overflowed because nobody looked at it rendered.
+		"rendered canvases are inspected": {"look at each canvas rendered", "could not render"},
+		// Round 3: a whole stylesheet was copied into assets and went stale.
+		"unserved stylesheets are restated partially": {"only the rules", "whole stylesheet", "preset's disclosed workaround", "convention 7"},
+		// Round 3: a shared component appeared only inside other canvases.
+		"shared components get their own canvas": {"keeps its own canvas", "has its own canvas", "default organization"},
+		// Round 4: only the first step of a multi-step unit was drawn.
+		"every step is drawn": {"steps or phases"},
+		// Round 1/3 and review: generic notes go to the document once, but a canvas keeps the
+		// disclosures needed to read it, even when other canvases carry the same one.
+		"generic notes once, disclosures per canvas": {"generic process notes", "once in the rules document", "even when other canvases", "top of the canvas"},
 	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-	if strings.Contains(body, "each skip is a nonvisual wrapper or part of a single screen") {
-		t.Error("document preset still leaves 'part of a single screen' undefined in Verify")
-	}
-}
-
-// T8 round 1: one session drew an app shell whose tabs and groups the code no longer renders.
-// A shared surface is drawn from the files that render it now.
-func TestDocumentPresetDrawsSharedSurfacesFromCurrentCode(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"Draw it from the files that render it now (read them and name them in `data-doan-implements`), with the sections and controls they render today",
-		"for a shared surface, the file that renders that frame",
-		"Each shared surface shows the sections and controls the files that render it show today.",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-	for _, s := range []string{"drawn from the components' markup", "the layout file for a shared surface"} {
-		if strings.Contains(body, s) {
-			t.Errorf("document preset still lets a shared surface be drawn without reading its current code: %q", s)
-		}
-	}
-}
-
-// T8 round 1: one session repeated the same two generic paragraphs on every canvas.
-// A canvas carries only its own notes; notes for every canvas go once in the rules document.
-func TestDocumentPresetKeepsSharedNotesOffCanvases(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"A canvas states only what is specific to it: what it draws that is not in code as shown, and its own open items.",
-		"A note that applies to every canvas goes once in the rules document, not on each canvas.",
-		"in the document and on the canvas it concerns",
-		"No canvas repeats a note that applies to every canvas.",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-	for _, s := range []string{"in the document and on the canvases,", "the same open items"} {
-		if strings.Contains(body, s) {
-			t.Errorf("document preset still asks every canvas to repeat shared open items: %q", s)
-		}
-	}
-}
-
-// T8 round 2: one session drew two icons from memory that differ from the installed icon package
-// and did not say so on those canvases.
-func TestDocumentPresetCopiesIconsFromInstalledPackage(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"copy its SVG markup from the icon package the project installs, not from memory",
-		"If that package is not installed, state on the canvas that the icon is drawn from memory.",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-}
-
-// T8 round 2: one session shipped an app shell canvas whose layout overflowed its frame and overlapped,
-// because it never looked at the rendered canvas.
-func TestDocumentPresetLooksAtRenderedCanvases(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"Before finishing, look at each canvas rendered (in Doan, or a browser if Doan is not available) and fix overlapping or overflowing content",
-		"Say which canvases you could not render.",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-}
-
-// T8 round 3: one session copied the whole app stylesheet into assets, a copy that silently goes stale
-// when the code changes. A stylesheet outside the served scope is restated only as far as the canvas needs.
-func TestDocumentPresetRestatesOnlyNeededRulesForUnservedStylesheets(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"restate on the canvas only the rules that canvas needs, with the same tokens",
-		"Never copy a whole stylesheet into assets: the copy silently goes stale when the code changes.",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-	if strings.Contains(body, "Do not copy token CSS or component CSS into assets unless you disclose it as a workaround.") {
-		t.Error("document preset still allows copying a whole stylesheet as a disclosed workaround")
-	}
-}
-
-// T8 round 3: one session drew a component several screens render only inside other canvases.
-// A shared component keeps its own canvas however small it is and wherever else it appears.
-func TestDocumentPresetGivesEverySharedComponentItsOwnCanvas(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"It keeps its own canvas even when it is small or other canvases also draw it.",
-		"every visual shared component in the code has its own canvas",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-	if strings.Contains(body, "every visual shared component in the code is on a canvas") {
-		t.Error("document preset still accepts a shared component drawn only inside another canvas")
-	}
-}
-
-// T8 round 3: one session repeated the same explanation on every frame of a component canvas.
-// A note shared by a canvas's frames is said once on that canvas.
-func TestDocumentPresetSaysSharedFrameNotesOnce(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"Within a canvas, say a note its frames share once, at the top of the canvas, not on every frame.",
-		"No frame repeats a note its canvas already states.",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-}
-
-// T8 round 4: one session skipped dialogs the app mounts once but opens from several screens, counting
-// them as one screen's. Shared counts the screens where a person sees a unit, not where the code mounts it.
-func TestDocumentPresetCountsScreensWherePeopleSeeAUnit(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"Shared counts the screens where a person sees a unit, not where the code mounts it:",
-		"or the app mounts it once and opens it from several screens",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
-		}
-	}
-	for _, s := range []string{"two or more screens render is shared", "rendered by one screen only"} {
-		if strings.Contains(body, s) {
-			t.Errorf("document preset still counts where the code renders a unit: %q", s)
-		}
-	}
-}
-
-// T8 round 4: one session drew only the first step of a screen that has several.
-// A unit with steps or phases draws each one, as it draws states.
-func TestDocumentPresetDrawsEveryStep(t *testing.T) {
-	body := documentPreset(t)
-	for _, s := range []string{
-		"A unit with steps or phases draws each one, the same as its states.",
-		"each unit with steps or phases shows every one",
-	} {
-		if !strings.Contains(body, s) {
-			t.Errorf("document preset is missing %q", s)
+		for _, p := range phrases {
+			if !strings.Contains(body, p) {
+				t.Errorf("document preset lost %s: missing %q", concept, p)
+			}
 		}
 	}
 }
