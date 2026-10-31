@@ -6,14 +6,12 @@ const mainOnly = [
   "app:home", "comments:list", "comments:begin", "comments:mutate", "comments:status", "comments:author", "comments:copy", "comments:guard", "comments:transition-answer",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:restore", "folders:forget-removal", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
-  "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save", "onboarding:first-prompt", "onboarding:copy",
+  "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
-  // The first prompt's arrival rule needs to know whether the window is hidden.
+  // Comments review and toasts need native visibility.
   "window:visible",
-  // revision-recheck: the project comment read and the device-local review markers.
-  "comments:project", "review-state:get", "review-state:raise",
-  // project-feedback: resolve, reopen and delete on comments without a canvas.
-  "comments:orphan-mutate", "comments:orphan-status",
+  // Device-local review markers.
+  "review-state:get", "review-state:raise",
   // buzz-onboarding: the session the CLI shares; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // doan-design-skills: preset reads for the home; Settings has no preset UI.

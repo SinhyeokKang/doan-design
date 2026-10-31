@@ -81,7 +81,6 @@ const mocks = await vi.hoisted(async () => {
     createThumbnails: vi.fn(),
     reviewStore: { marker: vi.fn(), raise: vi.fn(), forget: vi.fn() },
     createReviewStore: vi.fn(),
-    readProjectComments: vi.fn(),
     readFolder: vi.fn(),
     readFoldersFileForPruning: vi.fn(),
     nativeTheme: { themeSource: "system" },
@@ -125,7 +124,6 @@ vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<type
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
 vi.mock("./reviewState", async (importOriginal) => ({ ...await importOriginal<typeof import("./reviewState")>(), createReviewStore: mocks.createReviewStore }));
-vi.mock("./projectComments", async (importOriginal) => ({ ...await importOriginal<typeof import("./projectComments")>(), readProjectComments: mocks.readProjectComments }));
 vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
 const actualProjects = await vi.importActual<typeof import("./onboarding/projects")>("./onboarding/projects");
 
@@ -286,7 +284,6 @@ test("Open Project resolves the stored root, or null when cancelled, refused or 
   expect(mocks.shell.open).not.toHaveBeenCalled();
 });
 
-
 test("ignores activate without a window and disposes only on quit", () => {
   window().emit("closed");
   mocks.app.emit("activate");
@@ -308,7 +305,6 @@ test("File menu opens the Add Projects page and closes the window", async () => 
   expect(window().close).toHaveBeenCalledOnce();
 });
 
-
 test("ignores activate while startShell is pending before the first window", async () => {
   vi.resetModules();
   mocks.app.removeAllListeners();
@@ -329,7 +325,6 @@ test("ignores activate while startShell is pending before the first window", asy
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
   expect(window().show).not.toHaveBeenCalled();
 });
-
 
 test("leaves fullscreen before hiding on close and reuses the window on activate", () => {
   window().isFullScreen.mockReturnValue(true);
@@ -538,13 +533,6 @@ test.each(["list", "begin", "mutate", "status", "author", "copy"])("comments %s 
   expect(await invoke(`comments:${method}`, window().webContents, null, { forged: true })).toMatchObject({ ok: false });
 });
 
-test.each(["orphan-mutate", "orphan-status"])("comments %s refuses iframe and other-window callers", async method => {
-  for (const [sender, parent] of [[window().webContents, {}], [{}, null]]) {
-    expect(await invoke(`comments:${method}`, sender, parent, {})).toEqual({ ok: false, identity: null, error: "The request was refused." });
-  }
-  expect(await invoke(`comments:${method}`, window().webContents, null, { forged: true })).toMatchObject({ ok: false });
-});
-
 describe("design skills", () => {
   const LIST = { v: 1, ok: true, result: { version: "9.8.7", presets: [{ id: "clarify", title: "Clarify copy", description: "d", scope: "copy" }] } };
   const BODY = "# Clarify copy\n\n[doan:design-skill] end of preset clarify v9.8.7\n";
@@ -583,13 +571,6 @@ describe("design skills", () => {
     expect(await invoke("design-skills:list", window().webContents, null, { all: true })).toEqual(REFUSED);
     expect(mocks.runDesignSkill).not.toHaveBeenCalled();
   });
-});
-
-test("an orphan write is judged on a fresh ls of its root", async () => {
-  mocks.readFolder.mockResolvedValue({ kind: "list", root: APP, scope: [".doan/canvases"], canvases: [], orphans: [] });
-  const intent = { type: "resolve", comment: "cmt_00000000-0000-4000-8000-000000000001", expected: { body: "b", status: "open", updatedAt: "2026-10-26T10:00:00.000Z" } };
-  expect(await invoke("comments:orphan-mutate", window().webContents, null, { root: APP, canvas: "gone", requestID: "r", project: 1, intent })).toMatchObject({ ok: false, error: "These comments are no longer without a canvas, or the project could not be read fully." });
-  expect(mocks.readFolder).toHaveBeenCalledWith("/bundled/doan", APP);
 });
 
 test("a guarded quit waits for a matching main-frame acknowledgement", async () => {
@@ -656,7 +637,6 @@ test("wires packaged CLI selection with the runtime environment", () => {
   expect(mocks.startShell.mock.calls[0]?.[1]).toBe("/bundled/doan");
 });
 
-
 // First run is open from a launch without a v1 completion record until the session reports completion, from the
 // window or the CLI. Nothing else opens or closes it (POSTMORTEM "The setup menu discarded an open wizard session").
 async function completeFirstRun(): Promise<void> {
@@ -685,11 +665,11 @@ test.each([false, true])("hiding and showing the window keeps the first-run sess
 });
 // Built from the operation names so a search for the channel literals finds only live code.
 const REMOVED_SETUP_CHANNELS = ["read", "run", "answer", "check-again", "status"].map(op => `setup:${op}`);
-test("the old wizard and Connections channels are gone; first prompt, copy and install pages stay", () => {
+test("the old wizard and Connections channels are gone; folder choice and install pages stay", () => {
   for (const channel of ["onboarding:get-open", "onboarding:read", "onboarding:run", "onboarding:answer", "onboarding:close", "onboarding:open-project",
     ...REMOVED_SETUP_CHANNELS]) expect(mocks.ipc.has(channel)).toBe(false);
   expect(mocks.ipc.has("setup:open-external")).toBe(true);
-  for (const channel of ["onboarding:first-prompt", "onboarding:copy", "onboarding:choose-folder"]) expect(mocks.ipc.has(channel)).toBe(true);
+  expect(mocks.ipc.has("onboarding:choose-folder")).toBe(true);
 });
 describe("a launch with a v1 completion record", () => {
   beforeAll(() => { launchCompletion = COMPLETE; });
@@ -704,39 +684,6 @@ describe("a launch with the legacy {} marker", () => {
   test("still runs first run: the old closed marker is not a completion", async () => {
     expect(item("Settings…").enabled).toBe(false);
   });
-});
-test("first prompt is read and copied only for a stored set-up project and a subject, after the clipboard settles", async () => {
-  const contents = window().webContents;
-  const subject = "a sign-in screen";
-  const sentence = `Use the doan skill to make a design canvas in ${ROOT} for ${subject}.`;
-  mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }, { path: "/plain", kind: "uninitialized" }]);
-  expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT, subject })).toBe(sentence);
-  // The placeholder form without a subject is gone with the composer.
-  for (const request of [{ root: ROOT }, { root: "/plain", subject }, { root: "/other", subject }, { root: ROOT, text: "forged" }, { root: ROOT, subject, text: "forged" }, { root: 1, subject }, null, ROOT]) {
-    expect(await invoke("onboarding:first-prompt", contents, null, request)).toBeNull();
-  }
-  expect(await invoke("onboarding:first-prompt", contents, {}, { root: ROOT, subject })).toBeNull();
-  expect(await invoke("onboarding:first-prompt", {}, null, { root: ROOT, subject })).toBeNull();
-  let finish!: () => void;
-  mocks.clipboard.writeText.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
-  let settled = false;
-  const copied = Promise.resolve(invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject })).then(value => { settled = true; return value; });
-  await Promise.resolve(); expect(settled).toBe(false); finish();
-  expect(await copied).toEqual({ kind: "success" });
-  expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(sentence);
-  mocks.clipboard.writeText.mockClear();
-  for (const request of [{ kind: "firstPrompt", root: ROOT }, { kind: "firstPrompt", root: "/plain", subject }, { kind: "firstPrompt", subject }, { kind: "firstPrompt", root: ROOT, text: "forged" }, { kind: "firstPrompt", root: "/other", subject }]) {
-    expect(await invoke("onboarding:copy", contents, null, request)).toEqual({ kind: "stale" });
-  }
-  expect(await invoke("onboarding:copy", contents, {}, { kind: "firstPrompt", root: ROOT, subject })).toEqual({ kind: "stale" });
-  expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
-  mocks.clipboard.writeText.mockRejectedValueOnce(new Error("denied"));
-  expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject })).toEqual({ kind: "error", message: "denied" });
-});
-
-test("the PATH line copy is gone: onboarding:copy refuses it and writes nothing", async () => {
-  expect(await invoke("onboarding:copy", window().webContents, null, { kind: "pathLine" })).toEqual({ kind: "stale" });
-  expect(mocks.clipboard.writeText).not.toHaveBeenCalled();
 });
 
 function click(label: string): void {
@@ -1325,7 +1272,6 @@ test("window focus re-reads every root at most once a minute", () => {
   } finally { clock.mockRestore(); }
 });
 
-
 test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, null)).toBe(process.env.HOME ?? "/tmp/doan-index-test");
   expect(await invoke("app:home", {}, null)).toBeNull();
@@ -1377,20 +1323,6 @@ describe("main-window setup and settings", () => {
       expect(await invoke("setup:open-external", window().webContents, null, bad)).toBe(false);
     }
     expect(mocks.electronShell.openExternal).toHaveBeenCalledOnce();
-  });
-
-  test("first prompt takes a subject and builds the sentence with promptSentence", async () => {
-    const contents = window().webContents;
-    mocks.shell.entries.mockReturnValue([{ path: ROOT, kind: "list" }]);
-    const sentence = `Use the doan skill to make a design canvas in ${ROOT} for a sign-in screen.`;
-    expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT, subject: "  a sign-in screen... " })).toBe(sentence);
-    for (const subject of ["", "a\nb", "x".repeat(501), 3]) expect(await invoke("onboarding:first-prompt", contents, null, { root: ROOT, subject })).toBeNull();
-    expect(await invoke("onboarding:first-prompt", contents, null, { root: "/other", subject: "a" })).toBeNull();
-    mocks.clipboard.writeText.mockResolvedValue(undefined);
-    expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject: "a sign-in screen" })).toEqual({ kind: "success" });
-    expect(mocks.clipboard.writeText).toHaveBeenCalledExactlyOnceWith(sentence);
-    expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject: "a\u0007" })).toEqual({ kind: "stale" });
-    expect(await invoke("onboarding:copy", contents, null, { kind: "firstPrompt", root: ROOT, subject: "a", extra: 1 })).toEqual({ kind: "stale" });
   });
 
   test("the Project step's folder picker returns a path only and registers nothing", async () => {
@@ -1453,7 +1385,6 @@ test("a cancelled quit leaves thumbnails alive and allows a later approved quit"
   expect(mocks.app.quit).toHaveBeenCalledOnce();
 });
 
-
 test.each(["window", "app", "both"])("guarded quit reveals and focuses main before dispatch after hiding %s", async hidden => {
   const main = window(), contents = main.webContents;
   if (hidden !== "app") main.emit("close", { preventDefault: vi.fn() });
@@ -1509,7 +1440,7 @@ test("guarded quit cancels a pending fullscreen hide before presenting the guard
   expect(main.hide).not.toHaveBeenCalled();
 });
 
-describe("review state and project comments", () => {
+describe("review state", () => {
   const MARKER = { since: "2026-10-26T09:00:00.000Z" };
   const RAISED = { since: "2026-10-26T09:00:00.000Z", lastReviewedAt: "2026-10-26T10:00:00.000Z" };
   beforeEach(() => {
@@ -1559,37 +1490,6 @@ describe("review state and project comments", () => {
     }
     expect(mocks.reviewStore.marker).not.toHaveBeenCalled();
     expect(mocks.reviewStore.raise).not.toHaveBeenCalled();
-  });
-
-  test("comments:project reads a saved root with one fresh ls, the comment files, the Git name and the markers", async () => {
-    const contents = window().webContents;
-    const reply = { root: APP, revision: 3, kind: "list", canvases: [] };
-    mocks.readProjectComments.mockResolvedValue(reply);
-    expect(await invoke("comments:project", contents, null, { root: APP, revision: 3 })).toEqual(reply);
-    const [deps, request] = mocks.readProjectComments.mock.calls[0] ?? [];
-    expect(request).toEqual({ root: APP, revision: 3 });
-    mocks.readFolder.mockResolvedValue({ kind: "uninitialized" });
-    expect(await deps.list(APP)).toEqual({ kind: "uninitialized" });
-    expect(mocks.readFolder).toHaveBeenCalledExactlyOnceWith("/bundled/doan", APP);
-    expect(deps.marker(APP, "home")).toEqual(MARKER);
-    expect(mocks.reviewStore.marker).toHaveBeenCalledWith(APP, "home");
-    // The same epoch the orphan write checks, so a reply's project matches it.
-    mocks.shell.epoch.mockReturnValue(5);
-    expect(deps.epoch(APP)).toBe(5);
-    expect(mocks.shell.epoch).toHaveBeenLastCalledWith(APP);
-    mocks.shell.epoch.mockReturnValue(null);
-    expect(deps.epoch(APP)).toBeNull();
-  });
-
-  test("comments:project refuses other senders, bad requests and roots that are not saved", async () => {
-    const contents = window().webContents;
-    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
-      expect(await invoke("comments:project", sender, parent, { root: APP, revision: 1 })).toBeNull();
-    }
-    for (const bad of [null, { root: APP }, { root: "/nope", revision: 1 }, { root: APP, revision: -1 }]) {
-      expect(await invoke("comments:project", contents, null, bad), JSON.stringify(bad)).toBeNull();
-    }
-    expect(mocks.readProjectComments).not.toHaveBeenCalled();
   });
 
   test("a removal keeps the markers while Undo is possible and forgets them when the toast expires", async () => {

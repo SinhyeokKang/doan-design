@@ -50,7 +50,7 @@ test("a notice's text parts take no ink of their own, so the title, body, lines 
 });
 
 test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
-  const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|fb-note|handoff-notice|handoff-status|convo-strip)(?![\w-])/;
+  const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|handoff-notice|handoff-status|convo-strip)(?![\w-])/;
   const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
   const shared = new Set([".doan-notice", ".doan-notice.warning", ".doan-notice.error", ".doan-notice.ok", ".doan-notice.doan-panel"]);
   const offenders: string[] = [];
