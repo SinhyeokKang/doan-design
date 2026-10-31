@@ -1,5 +1,6 @@
 import { posix } from "node:path";
-import { insideRoot, object } from "./sessions";
+import { canvasDir } from "../../formats/canvasPath";
+import { object } from "./sessions";
 import type { EventPayload, FailureCode, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
 
 export function initialTransport(): TransportState {
@@ -58,7 +59,7 @@ function activity(kind: ActivityKind, path: string, line: string, root: string):
   const summary = line.slice(0, 512);
   if (!path) return { type: "activity", kind, summary };
   const resolved = posix.resolve(root, path);
-  return { type: "activity", kind, path, insideDesign: insideRoot(posix.join(root, ".doan/canvases"), resolved), summary };
+  return { type: "activity", kind, path, insideDesign: canvasDir(posix.relative(root, resolved)) !== null, summary };
 }
 function claudeKind(tool: string): ActivityKind {
   return /^(Write|Edit|MultiEdit)$/.test(tool) ? "edit" : /^(Read|Glob|Grep)$/.test(tool) ? "read" : tool === "Bash" ? "command" : "other";

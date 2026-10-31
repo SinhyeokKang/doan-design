@@ -1,6 +1,7 @@
 import { closeSync, constants, fstatSync, ftruncateSync, mkdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
+import { CANVAS_DIRS, canvasDir } from "../../formats/canvasPath";
 import { canonicalDirectory, openRegular, readRegular, readDescriptor, CONVERSATION_HISTORY_BYTES } from "./io";
 import { absolutePath, object } from "./sessions";
 import { anchorTokens, validAnchor } from "./prompt";
@@ -23,8 +24,13 @@ export type ConversationMetadata = MetadataBase & (
 export function externalConversation(m: ConversationMetadata): m is MetadataBase & { owner: { kind: "legacy-external" }; session: ExternalSession } { return m.owner.kind === "legacy-external"; }
 export const validId = validAuthId;
 function str(value: unknown): value is string { return typeof value === "string" && value.length <= 1_048_576 && !value.includes("\0"); }
+// Strictly below a canvas directory; the segment check below rejects `..` and empty names.
+function insideCanvasDir(path: string): boolean {
+  const kind = canvasDir(path);
+  return kind !== null && path !== CANVAS_DIRS[kind];
+}
 export function validCanvas(value: unknown): value is Canvas {
-  return object(value) && typeof value.path === "string" && value.path.startsWith(".doan/canvases/") && value.path.length <= 4096 &&
+  return object(value) && typeof value.path === "string" && insideCanvasDir(value.path) && value.path.length <= 4096 &&
     !value.path.includes("\0") && !value.path.split("/").some(p => p === ".." || p === "." || !p) &&
     (value.id === undefined || (typeof value.id === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.id)));
 }

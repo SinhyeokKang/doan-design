@@ -27,7 +27,7 @@ import { isMainCheckout } from "./projectStep";
 import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
 import { ProjectOverview, useThumbnails } from "./ProjectOverview";
 import { QuickOpen } from "./QuickOpenDialog";
-import { unavailableCanvasMessage, type SearchResult } from "./quickOpen";
+import { missingCanvasMessage, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import type { HomeMemory, UiState, ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
@@ -201,7 +201,7 @@ export function App() {
       setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
     });
     instance.canvasRemoved = ({ folder, row, duplicates }) => {
-      if (duplicates === null) { live.current.toast.show(`${canvasLabel(row)} was removed from .doan/canvases/`); return; }
+      if (duplicates === null) { live.current.toast.show(removedCanvasMessage(row)); return; }
       const text = duplicateIdText(row, duplicates);
       live.current.toast.show(text);
       setOverviewNotice({ root: folder, text });
@@ -313,7 +313,7 @@ export function App() {
       setLoadedRoot(next); setScreen("workspace");
       if (row) controller.current?.openCanvas(next, row);
     });
-    if (plan.missingCanvas) toast.show(`${canvasLabel({ path: plan.missingCanvas, open: 0, resolved: 0, url: "" })} is no longer in .doan/canvases/`);
+    if (plan.missingCanvas) toast.show(missingCanvasMessage(plan.missingCanvas));
     if (plan.duplicateId && listed?.kind === "list") {
       const { id, count } = plan.duplicateId, saved = restore.state.canvas;
       const named = listed.canvases.find(row => row.path === saved && row.id === id) ?? listed.canvases.find(row => row.id === id);

@@ -1,5 +1,6 @@
 import { posix } from "node:path";
-import { insideRoot, object } from "./sessions";
+import { canvasDir } from "../../formats/canvasPath";
+import { object } from "./sessions";
 import { displayPath, GENERIC_SUMMARY, transportError } from "./transport";
 import type { EventPayload, PermissionOption, TransportResult, TransportState } from "./types";
 
@@ -135,7 +136,7 @@ export function normalizeAcp(state: AcpTransport, update: Record<string, unknown
   // A shell command's title is the command itself; activity is stored and published, so it gets the generic phrase.
   const summary = activityKind === "command" ? GENERIC_SUMMARY.command : (tool.title || (tool.path && displayPath(tool.path, root)) || GENERIC_SUMMARY[activityKind]).slice(0, 512);
   const event: EventPayload = tool.path
-    ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: insideRoot(posix.join(root, ".doan/canvases"), posix.resolve(root, tool.path)), summary }
+    ? { type: "activity", kind: activityKind, path: tool.path, insideDesign: canvasDir(posix.relative(root, posix.resolve(root, tool.path))) !== null, summary }
     : { type: "activity", kind: activityKind, summary };
   return { state: { ...next, activities: [...state.activities, id] }, events: [...flushed.events, event] };
 }

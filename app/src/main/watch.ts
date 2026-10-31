@@ -1,18 +1,20 @@
 import { lstatSync, watch, type FSWatcher } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { CANVAS_DIRS } from "../formats/canvasPath";
 
 const DEBOUNCE_MS = 200;
 
 export interface Change {
-  // `.doan/canvases/` or `.doan/` changed, so `doan ls` has to run again.
+  // A canvas directory (`.doan/canvases/`, `.doan/ds/`) or `.doan/` changed, so `doan ls` has to run again.
   reread: boolean;
-  // A served file outside `.doan/canvases/` changed (`tokenCss`, `serve`), or `.doan/canvases/`
-  // itself came or went, so an open canvas reloads. A change inside `.doan/canvases/`
-  // leaves this false and carries `names`; the shell decides from them.
+  // A served file outside the canvas directories changed (`tokenCss`, `serve`), or a canvas
+  // directory itself came or went, so an open canvas reloads. A change inside a canvas
+  // directory leaves this false and carries `names`; the shell decides from them.
   served: boolean;
-  // Names under `.doan/canvases/`, relative to it, for the shell to decide whether only
-  // canvas rows changed; `null` when an event had no name. Absent when no
-  // `.doan/canvases/` event is in the change.
+  // Repo-relative paths under the canvas directories (`.doan/ds/a.html`), for the shell to
+  // decide whether only canvas rows changed; `null` when an event had no name. Absent
+  // when no canvas directory event is in the change. Relative to the repo, not to each
+  // directory, so a merged set keeps `.doan/canvases/a.html` and `.doan/ds/a.html` apart.
   names?: readonly string[] | null;
 }
 
@@ -36,7 +38,7 @@ export interface FolderWatch {
 // the last change is never missed. Flags pile up until a run takes them, so a
 // change that lands during a run reaches the run queued after it. Names are a
 // union, and one unknown name makes the whole set unknown until a run takes it;
-// a trigger without names (not a `.doan/canvases/` event) leaves them as they are.
+// a trigger without names (not a canvas directory event) leaves them as they are.
 export function createRefresher(run: (change: Change) => Promise<void>, delayMs = DEBOUNCE_MS): Refresher {
   let timer: NodeJS.Timeout | undefined;
   let running = false;
@@ -98,19 +100,24 @@ interface Target {
   change: Change;
   // For served paths watched through their parent: only these names count.
   names?: Set<string>;
+  // For a canvas directory: its repo-relative path, which prefixes the names it reports.
+  canvasDir?: string;
 }
 
 // Watches what `doan ls` reads: the root (non-recursive, to see
-// `.doan` come and go), `.doan/canvases/` (recursive), `.doan/` (config.json and the
-// `comments` directory) and `.doan/comments/`; plus the served paths outside
-// `.doan/canvases/` from the latest scope. A watcher on a deleted directory stays on
-// the old inode, so the sub-watchers are re-armed whenever their parent changes.
+// `.doan` come and go), the canvas directories `.doan/canvases/` and `.doan/ds/`
+// (recursive), `.doan/` (config.json and the `comments` directory) and
+// `.doan/comments/`; plus the served paths outside `.doan` from the latest scope.
+// A watcher on a deleted directory stays on the old inode, so the sub-watchers are
+// re-armed whenever their parent changes.
 export function watchFolder(root: string, refresh: (change: Change) => Promise<void>): FolderWatch {
   const refresher = createRefresher(refresh);
   const armed = new Map<string, Armed>();
-  const design: Target = { path: join(root, ".doan/canvases"), recursive: true, change: REREAD };
+  const canvasDirs: Target[] = Object.values(CANVAS_DIRS).map((dir) => ({ path: join(root, dir), recursive: true, change: REREAD, canvasDir: dir }));
+  // `.doan` events under these names mean a canvas or asset directory itself came or went.
+  const doanDirs = new Set(["assets", ...Object.values(CANVAS_DIRS).map((dir) => basename(dir))]);
   const fixed: Target[] = [
-    design,
+    ...canvasDirs,
     { path: join(root, ".doan/assets"), recursive: true, change: SERVED },
     { path: join(root, ".doan"), recursive: false, change: REREAD },
     { path: join(root, ".doan", "comments"), recursive: false, change: REREAD },
@@ -129,13 +136,13 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
       // only as an event named after the root.
       return rootNames.has(filename) ? SERVED : REREAD;
     }
-    if (path === join(root, ".doan") && (filename === null || filename === "canvases" || filename === "assets")) return BOTH;
+    if (path === join(root, ".doan") && (filename === null || doanDirs.has(filename))) return BOTH;
     const target = targets().find((candidate) => candidate.path === path);
     if (target === undefined) return undefined;
     if (target.names && filename !== null && !target.names.has(filename)) return undefined;
     // Names are judged only here, never on the root watcher: the root's own
     // deletion arrives there under the root's name (POSTMORTEM 2026-10-22).
-    if (target === design) return { ...REREAD, names: filename === null ? null : [filename] };
+    if (target.canvasDir !== undefined) return { ...REREAD, names: filename === null ? null : [`${target.canvasDir}/${filename}`] };
     return target.change;
   };
 
@@ -171,7 +178,7 @@ export function watchFolder(root: string, refresh: (change: Change) => Promise<v
     for (const target of wanted) {
       const { path, recursive } = target;
       let ino: number | undefined;
-      // lstat: `doan ls` does not follow a symlinked `.doan/canvases/` or comments
+      // lstat: `doan ls` does not follow a symlinked canvas or comments
       // directory, and a recursive watch through `doan -> .` would cover the
       // whole repo.
       try {

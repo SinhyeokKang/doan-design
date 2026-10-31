@@ -1,4 +1,5 @@
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { canvasDir } from "../formats/canvasPath";
 import { canvasLabel, frameLabel } from "./canvasTree";
 
 export interface SearchFrame {
@@ -245,9 +246,20 @@ export function pickTarget(result: SearchResult, loadedRoot: string | null, open
   return result.path === openCanvas ? "jump" : "open";
 }
 
+// The directory a listed canvas was in: `.doan/ds/`, or else `.doan/canvases/`.
+const listedIn = (path: string) => (canvasDir(path) === "ds" ? ".doan/ds/" : ".doan/canvases/");
+
+export function missingCanvasMessage(path: string): string {
+  return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in ${listedIn(path)}`;
+}
+
+export function removedCanvasMessage(row: CanvasRow): string {
+  return `${canvasLabel(row)} was removed from ${listedIn(row.path)}`;
+}
+
 export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: string): string {
   if (entry?.kind === "list" && entry.canvases.some(row => row.path === path)) return "Canvas changed while opening. Choose it again from the sidebar or Quick Open.";
-  if (entry?.kind === "list") return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in .doan/canvases/`;
+  if (entry?.kind === "list") return missingCanvasMessage(path);
   if (entry?.kind === "loading") return "Project is still being read. Try Open again shortly.";
   return "Project is unavailable. Fix it from its menu in the sidebar, then try again.";
 }
