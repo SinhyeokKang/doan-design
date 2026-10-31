@@ -38,7 +38,11 @@ func Scope(root string, config Config) ([]string, error) {
 		seen[p] = true
 		scope = append(scope, p)
 	}
-	for _, p := range append([]string{".doan/canvases", ".doan/ds", ".doan/assets"}, config.Serve...) {
+	defaults, err := defaultServeDirs(root)
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range append(defaults, config.Serve...) {
 		state, real, err := Resolve(root, root, p)
 		if err != nil {
 			return nil, err
@@ -64,6 +68,36 @@ func Scope(root string, config Config) ([]string, error) {
 	}
 	sort.Strings(scope)
 	return scope, nil
+}
+
+// defaultServeDirs returns the default directories that are served without
+// configuration. A linked default (or a linked .doan) would otherwise serve its
+// real target, such as source code, which must be configured explicitly.
+func defaultServeDirs(root string) ([]string, error) {
+	dirs := []string{}
+	linked := func(p string) (bool, error) {
+		info, err := os.Lstat(filepath.Join(root, p))
+		if err != nil {
+			if IsMissingPath(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return info.Mode()&os.ModeSymlink != 0, nil
+	}
+	if l, err := linked(".doan"); err != nil || l {
+		return dirs, err
+	}
+	for _, p := range []string{".doan/canvases", ".doan/ds", ".doan/assets"} {
+		l, err := linked(p)
+		if err != nil {
+			return nil, err
+		}
+		if !l {
+			dirs = append(dirs, p)
+		}
+	}
+	return dirs, nil
 }
 
 // MetadataPath keeps project settings and comment logs out of the serving scope.

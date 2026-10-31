@@ -131,7 +131,7 @@ func TestSymlinkedDesignSystemDirectoryIsSkipped(t *testing.T) {
 		t.Fatalf("canvases: %v", canvases)
 	}
 	// The link target is unconfigured repository content, so it is not served.
-	if !reflect.DeepEqual(got["scope"], []any{}) {
+	if !reflect.DeepEqual(got["scope"], []any{".doan/canvases"}) {
 		t.Fatalf("scope: %v", got["scope"])
 	}
 }
