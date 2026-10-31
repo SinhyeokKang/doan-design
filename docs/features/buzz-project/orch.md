@@ -15,6 +15,8 @@
 5. **썸네일 모듈 이동은 XB**: 카드를 지우면서 `thumbnailView`·`ThumbnailRequests`·`useThumbnails`를 자기 모듈로 옮겨 남긴다(design §1). RL이 그 모듈을 쓴다.
 6. **ID 변경 알림 새 문구**: XB가 Doan `clarify` 프리셋을 읽고 정한다. 지휘자가 리뷰에서 확인한다.
 
+7. **RT 로그인**(사용자 답, 2026-11-01): 실제 HOME + 임시 userData·DOAN_RUNTIME·저장소로 띄운다. 로그인 승인은 사용자가 자기 브라우저에서 한다. 로그인한 세션은 이 run 동안 지우지 않고 재사용한다(사용자 지시): 로그인한 userData를 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 두어 DS·RT와 수정 뒤 재확인이 다시 쓴다. 망가뜨릴 수 있는 probe는 복사본에서 한다. PR 병합 전에 앱에서 로그아웃하고(Keychain 항목 제거 확인) 그 userData를 지운다. 이전 buzz-conversation의 로그인 userData는 로그아웃 뒤 지워져 이번에 한 번 다시 로그인해야 한다.
+
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
@@ -49,3 +51,13 @@
 - XB 리뷰 r1: 🔴 0, 🟡 3(비 Overview 화면의 'No canvas open' 상실, preload 남은 주석, 고아 `reviewed` 매개변수), ⚪ 4. 🟡 3과 ⚪1(상태줄 숨김 범위)·⚪2(`.empty` 규칙)를 XB에 보냈다. ⚪3·4(썸네일 연결·주석)는 RL로. 리뷰 워커 release.
   XB 수정 r1: dispatch `ctx_3a0a2ecd633b`(같은 Codex 터미널 재사용).
 - 1파 통합: TB(`3664c5da`·`5adea490`·`33e32401`), XB(`07fcaf06`·`141d6bbe`·`c9324aa6`·`38a7c008`). 통합 HEAD `38a7c008`에서 verify PASS(로그 `.scratch/orch-buzz-project/verify-int1.log`). TB·XB 워커 release.
+- RM: dispatch `ctx_4eb2cbb33d51`, 워크트리 `buzz-project-rm`, Claude opus high(`launch.effective` 확인).
+- TB·XB 워크트리: `git cherry`에 + 없음, status 깨끗함을 확인하고 `orca worktree rm`으로 지웠다(`worktree list`에 없음).
+- RM 질문: 문제 상태 Send 막기를 위해 `DockedComposer`·`dockedRules`에 `unavailable` prop 추가 허용. 복사는 preload 채널 없이 renderer 안에서 한다(main은 renderer가 정한 클립보드 문자열을 쓰지 않는다는 규칙, main이 권한 검사를 모두 거절하므로 `navigator.clipboard` 시도는 두지 않는다). RT가 빌드 앱에서 클립보드 내용을 확인한다. 지휘자 판단.
+- LG(로그인 프로필 준비, 사용자 요청): dispatch `ctx_61e2cc4d99e1`, 지휘자 체크아웃, Claude opus medium. 실제 HOME + `.scratch/provider-profile/userData`, 로그아웃하지 않고 종료.
+- LG 완료: Claude(회사 계정)·Codex 모두 connected, 로그아웃 없이 종료. Keychain에 `Claude Code-credentials-5def49d2`, `Codex Auth cli|d4ade9196c770e4b`가 생겼다. 실행 방법은 `.scratch/orch-buzz-project/handoff-LG.md`. 병합 전 정리: 두 공급자 sign out → Keychain 두 항목 제거 확인 → `.scratch/provider-profile/`, `/private/tmp/doan-lg-CbOgCa` 삭제. LG release.
+- RM 완료(`7e6cc662` test, `1ca360eb` feat(main), `2f80a306` feat(renderer); typecheck, 앱 테스트 5201개, build 통과). 수정용 retain. RM 리뷰 r1: dispatch `ctx_36a15a0efd70`, Codex gpt-6-astra medium. 지휘자가 짚은 점: 기존 대화 send의 새 캔버스 자동 열기 없음, root별 실행 중 선택 유지(결정 5 재선택과 다름), 문제 워크트리 행 비활성, execCommand 복사.
+- RM 리뷰 r1: 🔴 0, 🟡 9(늦은 응답의 선택 덮기, 반환 초안 미회수, 승격 중 첨부, Edit 복원 덮기, 기존 대화 새 캔버스 자동 열기, 재진입 결정 5, 문제 워크트리 행, 같은 대화 스크롤, 늦은 ui-state 읽기의 기억 부활), ⚪ 1(복사가 포커스를 옮김). 사용자 결정 없음: (a)(b)(c)는 spec대로 고친다. 9건 모두와 ⚪를 RM에 보냈다(복사는 포커스를 옮기지 않는 copy 이벤트 방식). 리뷰 워커 release. RM 수정 r1: dispatch `ctx_7e932b75b531`.
+- RM 수정 r1 완료(`453aeb3e` test 15개 red 확인, `00acb7ee` fix; 앱 테스트 5212개, typecheck, build 통과). RM 재검토 r2: dispatch `ctx_72d8579cc3e5`, Codex gpt-6-astra medium. RM 터미널은 retain.
+- RM 재검토 r2: 🔴 0, 🟡 3(목록 대기 중 진입 요청이 늦은 start에 지워짐, 응답 전에 끝난 send 턴의 새 캔버스 유예 상실, 숨은 동안 사라진 대화 뒤 재진입 기본 선택), ⚪ 1(버린 Edit 복원의 첨부 해제). HomeRun 등록은 결정 10과 충돌하지 않음. 리뷰 워커 release. RM 수정 r2 보냄.
+- RM 수정 r2 완료(`8c7ac6ee` test 4개 red 확인, `0db32b89` fix; 앱 테스트 5216개, typecheck, build 통과).
