@@ -160,6 +160,31 @@ test("a late project_busy keeps the draft and shows Home's busy sentence until t
   expect(render().some(item => item.children === "Another conversation is still running in doan-design.")).toBe(false);
 });
 
+test("a busy refusal gives way once the host has reported that conversation and it ends", async () => {
+  const { props, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  expect(button(render(), "Send").disabled).toBe(true);
+  props.busy = { kind: "project", waiting: false, open: "c9" };
+  expect(render().some(item => item["aria-label"] === "Open the running conversation")).toBe(true);
+  props.busy = null;
+  expect(button(render(), "Send").disabled).toBe(false);
+});
+
+test("an accepted send clears the notice an earlier refusal left", async () => {
+  let reply: DockedOutcome = { error: "rate_limited" };
+  const { props, render } = setup({ onSend: async () => reply }, [["conversation:a", draft("Draw it")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  expect(render().some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(true);
+  reply = { ok: true };
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  props.turn = "waiting";
+  expect(render().some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(false);
+  expect(render().some(item => item.children === "Answer or stop the request above.")).toBe(true);
+});
+
 test("a refusal belongs to the draft it was sent from: another conversation does not show it", async () => {
   const { props, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")], ["conversation:b", draft("Other")]]);
   (button(render(), "Send").onClick as () => void)();

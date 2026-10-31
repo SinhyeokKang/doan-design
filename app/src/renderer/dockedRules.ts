@@ -89,7 +89,8 @@ export function dockedComposed(draft: DockedDraft): string {
   return composeRequest(draft.text, draft.preset, draft.attachments.length);
 }
 
-// A send or start main refused. The limits become the busy line until the host's list catches up; a canvas that is
+// A send or start main refused. The limits become the busy line until the host reports the busy conversation and it
+// clears, or the person edits the draft; a canvas that is
 // gone replaces the composer; the rest is a notice under the card.
 export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string };
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string): DockedRefusal {

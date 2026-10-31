@@ -145,7 +145,7 @@ export function App() {
   const [, setRunTick] = useState(0);
   const homeRun = useRef<HomeRun>(null as unknown as HomeRun);
   if (!(homeRun.current instanceof HomeRun)) homeRun.current = new HomeRun({
-    view: () => ({ screen: currentScreen.current, loadedRoot: loadedRootRef.current, entries: entriesRef.current }),
+    view: () => ({ screen: currentScreen.current, loadedRoot: loadedRootRef.current, entries: entriesRef.current, canvas: openRef.current?.folder === loadedRootRef.current ? openRef.current.canvas : null }),
     label: root => live.current.projectLabel(root),
     // The move after a send cancels the restore like any navigation but is not the person's own move.
     openOverview: (root, arrived, unavailable) => {
@@ -165,6 +165,7 @@ export function App() {
     changed: () => setRunTick(tick => tick + 1),
   });
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
+  const openRef = useRef(state.open); openRef.current = state.open;
   function focusCurrent(previous: HTMLElement | null = null) {
     if (document.querySelector("dialog[open]")) return;
     const scope = currentScreen.current === "home" ? ".home-shell" : currentScreen.current === "addProjects" ? ".add-shell" : currentScreen.current === "settings" ? ".settings-shell" : ".workspace";

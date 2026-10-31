@@ -81,11 +81,15 @@ export function DockedComposer(props: DockedComposerProps) {
   const shown = useRef(key); shown.current = key;
   const field = useRef<HTMLTextAreaElement | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
+  const hostSawBusy = useRef(new Set<string>());
   const listId = useId(), reasonId = `${listId}-reason`;
 
   const isSending = sending?.key === key;
   const refusal = refusals.get(key) ?? null;
-  const busy = props.busy ?? (refusal?.kind === "busy" ? refusal.busy : null);
+  // A busy refusal stands in for the host's busy until the host has reported the busy conversation itself; once the
+  // host's busy has shown and cleared again, the refusal no longer holds Send.
+  if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
+  const busy = props.busy ?? (refusal?.kind === "busy" && !hostSawBusy.current.has(key) ? refusal.busy : null);
   const availability = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, turn: props.turn, busy, sending: isSending });
   const composed = dockedComposed(draft);
   const action = composerAction(props.turn !== "idle", composed);
@@ -105,8 +109,12 @@ export function DockedComposer(props: DockedComposerProps) {
       const shape = composerShape(current.shape, { empty: next.text === "", chips: next.attachments.length + (next.preset ? 1 : 0), overflows: wrapped || next.text.includes("\n") });
       return new Map(drafts).set(at, { ...next, shape });
     });
-    if (refusals.has(at)) setRefusals(previous => { const next = new Map(previous); next.delete(at); return next; });
+    clearRefusal(at);
   };
+  function clearRefusal(at: string) {
+    hostSawBusy.current.delete(at);
+    if (refusals.has(at)) setRefusals(previous => { const next = new Map(previous); next.delete(at); return next; });
+  }
   // A capsule becomes a box once its text wraps at the capsule's own width (design §3.2). A box is never measured: it
   // returns to a capsule only when emptied, so the narrower capsule's wrap cannot flip it back and forth.
   useLayoutEffect(() => {
@@ -162,6 +170,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
     setSending(current => current?.generation === mine ? null : current);
     if ("ok" in outcome) {
+      clearRefusal(at);
       // The field empties and returns to a capsule only when the person did not change the draft while it was sent.
       props.onDrafts(drafts => sameDraft(drafts.get(at) ?? EMPTY_DRAFT, sent) ? new Map(drafts).set(at, EMPTY_DRAFT) : drafts);
       if (at === shown.current) focus({ kind: "sent" });

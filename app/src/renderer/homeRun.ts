@@ -7,7 +7,7 @@ import { mergeConversationEvents, stripState, type StripState } from "./conversa
 import { newCanvasText } from "./firstPromptView";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import {
-  newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm,
+  newCanvasCandidates, permissionToastKey, rememberRequest, removalConfirm, slotKey,
   type HomeConversation, type LastRequest, type Slot,
 } from "./homeConversations";
 import type { StartInput, StartOutcome } from "./HomeComposerView";
@@ -18,7 +18,8 @@ import type { StartInput, StartOutcome } from "./HomeComposerView";
 // App owns one and wires it to its navigation; everything is decided here so it can be driven without a DOM.
 
 export interface HomeRunHost {
-  view(): { screen: "home" | "workspace" | "addProjects" | "settings"; loadedRoot: string | null; entries: readonly FolderEntry[] };
+  // canvas: the canvas open in the loaded root's workspace, as committed (the same rows App's visits name).
+  view(): { screen: "home" | "workspace" | "addProjects" | "settings"; loadedRoot: string | null; entries: readonly FolderEntry[]; canvas: string | null };
   label(root: string): string;
   // The move after a send goes through the draft guard and waits for the project's read; it is not the person's move.
   // `arrived` says whether the run still wants it: App commits the screen only when it returns true.
@@ -34,7 +35,8 @@ export interface HomeRunHost {
   changed(): void;
 }
 // opened: the new canvas this conversation's turn made was already opened or offered; one per conversation.
-interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean }
+// endedAt: when this run saw the conversation's turn end (Date.now()).
+interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number }
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
 export interface Removing { paths: string[]; conversations: string[]; title: string; body: string; cancel: string; confirm: string }
 
@@ -43,9 +45,13 @@ const RANK: Record<StripState["kind"], number> = { permission: 3, starting: 2, w
 
 // Text deltas only tell the strip the agent started answering; one per turn is kept.
 function isText(event: ConversationEvent) { return event.type === "message.delta" || event.type === "message.done"; }
-// A conversation that does or may still do work in its root: Home's reason line and the removal guard count it. A Home
-// conversation counts after it was bound to a canvas too, since main still counts the turn it was bound in.
-const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.phase !== "ended" && (!c.canvas || c.fromHome);
+// A project conversation working in its root: Home's reason line and the removal guard count it, as main's project
+// limit does. Main binds a canvas only after a turn ends, so a running conversation with a canvas is a canvas one.
+const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.phase !== "ended" && !c.canvas;
+// Must equal main's BIND_GRACE_MS (main/conversation/project.ts), which the renderer cannot import (POSTMORTEM
+// 2026-10-30); homeRun.test.ts compares the two. Main still counts a project conversation this long after its turn
+// ends and binds the canvas the turn made in it, so a refusal and a late folder update both live this long.
+export const BIND_GRACE_MS = 10_000;
 
 export class HomeRun {
   // This run's Home conversations, and those taken from the list for the strip after a reload.
@@ -68,8 +74,8 @@ export class HomeRun {
   // marker; `from` is null while main has not answered. The reply and the list notice come in either order
   // (POSTMORTEM 2026-10-26).
   private seen = new Map<string, { root: string; from: number | null }>();
-  // A start main refused as project_busy while the list did not show the conversation holding the root: the reason
-  // line stays until a list read started after the refusal shows nothing running there.
+  // When main last refused a start in a root as project_busy. With no listed conversation holding the root (main
+  // counts one for BIND_GRACE_MS after its turn ends), the reason line shows without Open for that long.
   private refused = new Map<string, number>();
   // Conversations from an earlier run taken from the list: a turn left unfinished there was folded by main.
   private claimed = new Set<string>();
@@ -84,9 +90,6 @@ export class HomeRun {
   // A new canvas that appeared while the move after its send is still under way; decided once the move ends.
   private openedDuringMove: { conversationId: string; row: CanvasRow } | null = null;
   private focus: "stop" | null = null;
-  // The rows on screen at the last visit: a list that arrives while the person is there marks its endings seen before
-  // it is drawn, so the Dot does not flash.
-  private shown: { root: string; keys: readonly string[] } | null = null;
 
   constructor(private host: HomeRunHost) {}
 
@@ -130,7 +133,12 @@ export class HomeRun {
     const result = await window.doan.startConversation(request).catch(() => ({ error: "unknown" }));
     if ("error" in result) {
       // The list had not shown the conversation that holds the root yet; read it to name that conversation.
-      if (result.error === "project_busy") { this.refused.set(request.root, (this.readCount.get(request.root) ?? 0) + 1); this.readList(request.root); }
+      if (result.error === "project_busy") {
+        const at = Date.now();
+        this.refused.set(request.root, at);
+        setTimeout(() => { if (this.refused.get(request.root) === at) { this.refused.delete(request.root); this.host.changed(); } }, BIND_GRACE_MS);
+        this.readList(request.root);
+      }
       this.host.changed();
       return { error: result.error, ...("missing" in result && result.missing ? { missing: result.missing } : {}) };
     }
@@ -209,7 +217,9 @@ export class HomeRun {
     for (const conversation of this.conversations) {
       const extras = this.extras.get(conversation.conversationId);
       const listed = this.host.view().entries.find(entry => entry.path === conversation.root);
-      if (!extras || extras.opened || !RUNNING.includes(conversation.phase) || listed?.kind !== "list") continue;
+      // While the turn runs, and for main's binding window after it ends: the folder update can land after turn.done.
+      const live = RUNNING.includes(conversation.phase) || (extras?.endedAt !== undefined && Date.now() - extras.endedAt <= BIND_GRACE_MS);
+      if (!extras || extras.opened || !live || listed?.kind !== "list") continue;
       const rows = newCanvasCandidates(listed.canvases, extras.atStart, extras.checked);
       extras.checked.push(...rows.map(row => row.path));
       if (rows[0]) { extras.opened = true; this.canvasAppeared(conversation.conversationId, rows[0]); }
@@ -233,8 +243,6 @@ export class HomeRun {
   // A row's screen on view marks its unseen endings seen, also when a turn ends while the person is already there
   // (App calls this again when the list changes).
   visit(keys: readonly string[]): void {
-    const root = this.host.view().loadedRoot;
-    this.shown = root ? { root, keys } : null;
     for (const [root, list] of this.lists) {
       for (const c of list) {
         if (!c.fromHome || c.phase !== "ended" || !c.unseen || this.seen.has(c.conversationId)) continue;
@@ -250,10 +258,11 @@ export class HomeRun {
   running(): Map<string, { conversationId: string; waiting: boolean }> {
     const running = new Map<string, { conversationId: string; waiting: boolean }>();
     for (const [root, list] of this.merged()) {
-      const holder = list.find(holdsRoot) ?? (this.refused.has(root) ? list.find(c => c.state === "current" && c.phase !== "ended") : undefined);
+      const holder = list.find(holdsRoot);
       if (holder) running.set(root, { conversationId: holder.conversationId, waiting: holder.phase === "waiting" });
     }
-    for (const root of this.refused.keys()) if (!running.has(root)) running.set(root, { conversationId: "", waiting: false });
+    const now = Date.now();
+    for (const [root, at] of this.refused) if (!running.has(root) && now - at <= BIND_GRACE_MS) running.set(root, { conversationId: "", waiting: false });
     return running;
   }
   strip(root: string | null): { conversation: HomeConversation; state: StripState } | null {
@@ -317,8 +326,6 @@ export class HomeRun {
     this.lists = new Map(this.lists).set(root, list);
     this.revision++;
     for (const [id, mark] of this.seen) if (mark.root === root && mark.from !== null && n >= mark.from) this.seen.delete(id);
-    const from = this.refused.get(root);
-    if (from !== undefined && n >= from && !list.some(c => c.state === "current" && c.phase !== "ended")) this.refused.delete(root);
     // The canvas main bound each conversation to; the strip's Done names it and Open goes there.
     const rows = this.rows(root);
     this.conversations = this.conversations.map(item => {
@@ -330,16 +337,18 @@ export class HomeRun {
       return path === undefined ? rest : { ...rest, canvas: path };
     });
     for (const id of this.claimed) this.refresh(id);
+    // A list that arrives while the person is on a row marks its endings seen before it is drawn, so the Dot does not
+    // flash. The rows come from the committed view, not the last visit: a switch may not have run App's effect yet.
     const view = this.host.view();
-    if (this.shown && view.screen === "workspace" && view.loadedRoot === this.shown.root) this.visit(this.shown.keys);
+    if (view.screen === "workspace" && view.loadedRoot) this.visit([slotKey(view.loadedRoot), ...(view.canvas ? [slotKey(view.loadedRoot, view.canvas)] : [])]);
     this.claimFor(root, list);
     this.host.changed();
   }
   // After a reload the strip shows the Home conversation with work left that the list names, read from its history.
+  // A visit does not take it away: as in the run that started it, the strip stays until Dismiss.
   private claimFor(root: string, list: readonly ConversationSummary[]): void {
     const known = new Set(this.conversations.map(item => item.conversationId));
-    const seen = new Set([...this.seen.keys(), ...this.dismissed]);
-    const candidates = list.filter(c => c.fromHome && !c.readError && !known.has(c.conversationId) && !seen.has(c.conversationId)
+    const candidates = list.filter(c => c.fromHome && !c.readError && !known.has(c.conversationId) && !this.dismissed.has(c.conversationId)
       && (c.phase !== "ended" || c.unseen));
     for (const summary of candidates) {
       const id = summary.conversationId;
@@ -472,6 +481,7 @@ export class HomeRun {
     this.conversations = this.conversations.map(item => item.conversationId === conversationId ? { ...item, phase: next.kind } : item);
     this.strips = { ...this.strips, [conversationId]: next };
     const extras = this.extras.get(conversationId);
+    if (extras && !RUNNING.includes(next.kind) && (!previous || RUNNING.includes(previous.kind))) extras.endedAt = Date.now();
     const ask = permissionToastKey(next, previous, this.viewing(conversation.root));
     if (ask && extras && extras.toasted !== ask) {
       extras.toasted = ask;
