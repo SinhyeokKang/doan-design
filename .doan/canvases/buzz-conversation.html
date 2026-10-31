@@ -81,7 +81,9 @@ body{padding:var(--space-8);width:1760px;background:var(--surface-inset);color:v
 .docked .composer-input{grid-area:field;min-height:var(--type-label-line-height)}
 .docked[data-shape="capsule"] .composer-card{grid-template-areas:"attach presets field send";padding:var(--space-2);border-radius:var(--radius-pill)}
 .docked[data-shape="capsule"] .composer-input{padding-inline:var(--space-2) var(--space-1)}
-.docked[data-shape="box"] .composer-card{grid-template-areas:"chips chips chips chips" "field field field field" "attach presets . send";row-gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4)}
+/* The chips row exists only while there are chips: an empty grid row would still add its row gap above the field. */
+.docked[data-shape="box"] .composer-card{grid-template-areas:"field field field field" "attach presets . send";row-gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4)}
+.docked[data-shape="box"] .composer-card:has(.composer-chips){grid-template-areas:"chips chips chips chips" "field field field field" "attach presets . send"}
 .docked[data-shape="box"] .composer-attach{margin-left:calc(-1 * var(--space-1))}
 .docked .composer-tray{justify-content:flex-end;gap:var(--space-1);min-height:var(--size-control-sm);padding:var(--space-1) var(--space-3) 0}
 .docked .composer-tray .doan-button{margin-left:0}
