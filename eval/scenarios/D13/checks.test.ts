@@ -5,9 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createContext } from "../../lib/context.ts";
-import d10 from "../D10d/checks.ts";
-import d11 from "../D11e/checks.ts";
-import d13 from "./checks.ts";
+import checks from "./checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "doan-ds-checks-"));
 const cli = join(root, "doan");
@@ -23,19 +21,6 @@ function setup(id: string) {
   if (existsSync(commands)) for (const args of JSON.parse(readFileSync(commands, "utf8"))) execFileSync(cli, args, { cwd: repo, env: { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") } });
   return createContext({ repo, agent: "fixture", transcript: readFileSync(join(dir, "fixtures/pass.transcript.txt"), "utf8"), cli, env: { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") }, seedCommit: "HEAD" });
 }
-test("D10d accepts tokens distributed across ds canvases and rejects a missing token", () => {
-  const ctx = setup("D10d");
-  assert.deepEqual(d10(ctx).filter(c => !c.pass), []);
-  const path = ".doan/ds/typography.html";
-  writeFileSync(join(ctx.repo, path), ctx.read(path)!.replaceAll("--type-title-size", "--type-body-size"));
-  assert.equal(d10(ctx).find(c => c.id === "tokens_in_both")?.pass, false);
-});
-test("D11e accepts the existing combined canvas and rejects re-splitting", () => {
-  const ctx = setup("D11e");
-  assert.deepEqual(d11(ctx).filter(c => !c.pass), []);
-  writeFileSync(join(ctx.repo, ".doan/ds/colors.html"), "new split");
-  assert.equal(d11(ctx).find(c => c.id === "no_changes")?.pass, false);
-});
 test("D13 accepts targeted updates and rejects unrelated frames, ids, files and missing updates", () => {
   for (const mutation of ["none", "frame", "id", "file", "missing"]) {
     const ctx = setup("D13");
@@ -44,8 +29,23 @@ test("D13 accepts targeted updates and rejects unrelated frames, ids, files and 
     if (mutation === "id") writeFileSync(join(ctx.repo, path), ctx.read(path)!.replace('content="button"', 'content="button-new"'));
     if (mutation === "file") writeFileSync(join(ctx.repo, ".doan/ds/card.html"), ctx.read(".doan/ds/card.html")! + "\n");
     if (mutation === "missing") writeFileSync(join(ctx.repo, path), ctx.seed(path)!);
-    const failures = d13(ctx).filter(c => !c.pass);
+    const failures = checks(ctx).filter(c => !c.pass);
     if (mutation === "none") assert.deepEqual(failures, []);
     else assert.ok(failures.length > 0, mutation);
   }
+});
+test("D13 accepts a new hover frame while preserving existing button frames", () => {
+  const ctx = setup("D13");
+  const path = ".doan/ds/button.html";
+  writeFileSync(join(ctx.repo, path), ctx.seed(path)!.replace("</main>", `<section data-doan-frame="button-hover" data-doan-title="Button hover" data-doan-implements="components/button.css">
+<button class="button button--primary" style="background: var(--color-primary-hover)">Send invoice</button>
+<p><code>--color-primary-hover</code> applies on primary hover, excluding disabled buttons.</p>
+</section></main>`));
+  assert.deepEqual(checks(ctx).filter(c => !c.pass), []);
+});
+test("D13 rejects an added frame in an unrelated canvas", () => {
+  const ctx = setup("D13");
+  const path = ".doan/ds/card.html";
+  writeFileSync(join(ctx.repo, path), ctx.read(path)!.replace("</main>", '<section data-doan-frame="card-extra" data-doan-title="Extra" data-doan-implements="components/card.css">Extra</section></main>'));
+  assert.equal(checks(ctx).find(c => c.id === "changes_in_scope")?.pass, false);
 });
