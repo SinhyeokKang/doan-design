@@ -24,6 +24,8 @@
 - 지휘자 판단 — catalog의 `document` 설명도 `.doan/ds/` 캔버스로 고친다(BP 후속 2). 근거: 본문과 목록 설명이 어긋나면 안 된다. 공용 fixture `list.json`도 BP가 맡는다.
 - 지휘자 판단 — BA handoff의 계획 줄 해석을 받아들인다: 복사한 뒤 원본을 지우면 남은 행이 하나라 앱이 복사본을 따라가고, 중복 id 알림은 같은 id의 행이 둘일 때 나온다. tasks T5의 해당 줄은 계획의 오기다.
 - 지휘자 판단 — R-BE 🟡1: D13은 상태 프레임을 새로 더하는 것을 허용한다(`document.md`의 "each topic or state group its own frame"과 맞춘다). 근거: 확인을 더 확실히 하는 쪽은 preset이 허용하는 선택을 checker가 떨어뜨리지 않는 것이다.
+- 사용자 결정 — shell sidebar 너비를 260px에서 220px로 줄인다("220정도로 줄여줘"). 지휘자 판단: 정확히 220px로 하고, 배치 BW(Claude Opus medium)가 맡는다. 초안 캔버스는 고치지 않고 DESIGN.md에 측정값을 남긴다.
+- 지휘자 판단 — T8 1회차(BR-c·BR-x)는 BW와 병렬로 돌려 preset 품질을 먼저 본다. 1회차 결과의 app shell은 260px을 담을 수 있으므로, 남기는 벌은 BW 통합 뒤의 회차에서 나와야 한다.
 - 지휘자 판단 — T10 `/agent-eval`의 실제 에이전트 실행은 AGENTS.md '/agent-eval' 상시 예외로 진행한다. `node eval/run.ts`로 실행하고 실제 HOME에는 쓰지 않는다.
 
 ## 배치
@@ -43,6 +45,7 @@
 | R-BS | BS 리뷰 | 없음(보고만) | BS | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
 | R-BE | BE 리뷰 | 없음(보고만) | BE | Claude Opus medium: Codex가 쓴 배치를 다른 계열이 본다 | `/code-review` 보고 | 완료(🟡 3·⚪ 3, BE 수정 1회로 해결. 수정분은 지휘자가 gate로 확인) |
 | G | T9 | 없음 | 모든 구현·T8 통합 | 지휘자 | `node .agents/skills/verify/scripts/verify.mjs --eval` exit 0 | 대기 |
+| BW | 사용자 요청: sidebar 220px | `app/src/renderer/styles.css`, 너비를 박은 TSX, 관련 테스트, `docs/DESIGN.md` | BS 통합 | Claude Opus medium: 값 하나지만 파생 치수와 측정 기록이 따라온다 | app test·typecheck·build, 격리 앱 측정 | 진행 중 |
 | V | T10 | `docs/USABILITY-EVAL.md` | G | Claude Opus medium: `/agent-eval` 절차를 따르고 실패를 분류하는 데 판단이 든다 | tasks T10 검증 줄 | 대기 |
 | D | T11(USABILITY-EVAL 제외) | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/DIRECTORY.md`, `README.md`, `docs/features/buzz-restyle/spec.md` | G | Codex gpt-6.1-sol high: tasks T11의 줄 목록을 따라 고치는 일이라 판단보다 단계가 많다 | tasks T11 검증 줄 | 대기 |
 | R-D | D 리뷰 | 없음(보고만) | D | Claude Opus medium: 결정이 현재 규칙으로 바르게 옮겨졌는지 다른 계열이 본다 | 문서 리뷰 보고 | 대기 |
