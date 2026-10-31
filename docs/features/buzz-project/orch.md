@@ -77,3 +77,8 @@
 - DS 리뷰 r1: 🔴 0, 🟡 1(좁은 창 수치와 CDP 접근성 증거가 덮어써져 남지 않음 → RT로), ⚪ 1(id 없는 읽을 수 있는 행 테스트 fixture → DS 수정 r2). 리뷰 워커 release.
 - DS 수정 r2(`46d33569` test). DS 증거를 `.scratch/orch-buzz-project/ds-evidence/`로 복사.
 - DS 통합(`bba930b6`…`0682a617`). 통합 HEAD verify PASS(`verify-int4.log`). DS release, 워크트리 삭제.
+- RT: dispatch `ctx_1147319e034e`, 워크트리 `buzz-project-rt`(기준 `8ff22506`), Claude opus medium.
+- ZB(문서 승격 Z1–Z4, 디렉터리 삭제 제외): RT와 병렬(지휘자 판단: ZB는 문서만, RT는 추적 파일을 고치지 않음). Claude opus medium.
+- ZB 완료(`d4b7bc65`…`7a4b035a`, 5개). retain. ZB 리뷰 r1(문서↔코드): Codex gpt-6-astra medium.
+- ZB 리뷰 r1: 🔴 0, 🟡 2(캔버스에서 이전 대화를 연다는 C12 계획을 현재 기능으로 씀, 선택 규칙을 코드보다 넓게 씀), ⚪ 2(commentsError 표시 설명, 부모 spec·tasks 한 커밋). 모두 ZB 수정 r1로.
+- ZB 수정 r1(`5b148446`/`0b17ce1b` 부모 문서 분리, `b95f76bf` PRODUCT, `db247cf2` ARCHITECTURE): 지휘자가 PRODUCT diff를 직접 확인. ZB 통합, RT 결과에 따른 문구 조정용으로 retain.
