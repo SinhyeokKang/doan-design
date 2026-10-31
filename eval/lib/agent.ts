@@ -6,21 +6,16 @@ import type { Agent } from "./args.ts";
 import type { Check } from "./types.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
 
-interface MCPRun { cli: string; runtime: string; configPath: string }
-
-export function agentCommand(agent: Agent, prompt: string, mcp?: MCPRun): { cmd: string; args: string[] } {
-  // Pin MCP per invocation: never register the measured CLI in global config.
+export function agentCommand(agent: Agent, prompt: string): { cmd: string; args: string[] } {
+  // A run must not pick up MCP servers from the machine's config. Claude has --strict-mcp-config;
+  // Codex has no equivalent and merges `-c mcp_servers={}` into them, so a doan server left
+  // registered there is switched off by name.
   // --allowedTools is variadic, so `--` separates the prompt from tool names.
   // Codex's approval policy is pinned so a run does not depend on the machine's own config.
   if (agent === "claude") {
-    return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", ...(mcp ? ["--mcp-config", mcp.configPath] : []), "--allowedTools", `Bash Read Write Edit Glob Grep${mcp ? " mcp__doan__*" : ""}`, "--", prompt] };
+    return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", prompt] };
   }
-  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', ...(mcp ? [
-    "-c", `mcp_servers.doan.command=${JSON.stringify(mcp.cli)}`,
-    "-c", 'mcp_servers.doan.args=["mcp"]',
-    "-c", `mcp_servers.doan.env.DOAN_RUNTIME=${JSON.stringify(mcp.runtime)}`,
-    "-c", "mcp_servers.doan.enabled=true",
-  ] : ["-c", "mcp_servers.doan.enabled=false"]), prompt] };
+  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "mcp_servers.doan.enabled=false", prompt] };
 }
 
 // Read evidence produced by the agent's shell, not the runner's own PATH lookup.

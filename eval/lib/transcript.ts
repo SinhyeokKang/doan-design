@@ -28,7 +28,7 @@ export function doanCommand(words: string[]): string | undefined {
   return doanPositionals(words)?.[0];
 }
 
-interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string; presetId?: string }
+interface ExtractedCall { name: string; command?: string; patch?: string; patchCandidate?: string }
 
 function execCalls(source: string): ExtractedCall[] {
   const tokens = scriptTokens(source);
@@ -62,22 +62,16 @@ function execCalls(source: string): ExtractedCall[] {
       }
       continue;
     }
-    const mcp = /^mcp__/.test(name);
-    const call: ExtractedCall = { name };
-    if (mcp) calls.push(call);
-    if (name !== "exec_command" && name !== "mcp__doan__design_skill") continue;
+    if (/^mcp__/.test(name)) calls.push({ name });
+    if (name !== "exec_command") continue;
     if (tokens[i + 4] !== "{") continue;
-    const key = mcp ? "id" : "cmd";
     let depth = 1;
     for (let j = i + 5; j < tokens.length && depth > 0; j++) {
       if (tokens[j] === "{") depth++;
       if (tokens[j] === "}") depth--;
-      if (depth === 1 && (tokens[j] === key || literal(tokens[j]) === key) && tokens[j + 1] === ":") {
+      if (depth === 1 && (tokens[j] === "cmd" || literal(tokens[j]) === "cmd") && tokens[j + 1] === ":") {
         const value = literal(tokens[j + 2]);
-        if (value !== undefined && [",", "}"].includes(tokens[j + 3])) {
-          if (mcp) call.presetId = value;
-          else calls.push({ name, command: value });
-        }
+        if (value !== undefined && [",", "}"].includes(tokens[j + 3])) calls.push({ name, command: value });
       }
     }
   }
@@ -103,35 +97,7 @@ function rolloutCalls(event: { type?: string; payload?: { type?: string; name?: 
       return typeof args.cmd === "string" ? [{ name: "exec_command", command: args.cmd }] : [];
     } catch { return []; }
   }
-  if (p.name === "mcp__doan__design_skill") {
-    try {
-      const args = JSON.parse(p.arguments ?? "");
-      if (typeof args?.id === "string") return [{ name: p.name, presetId: args.id }];
-    } catch { /* Malformed or missing arguments still establish invocation, not an ID. */ }
-  }
   return [{ name: p.name }];
-}
-
-function mcpDesignSkillIds(transcript: string): string[] {
-  const ids: string[] = [];
-  for (const line of transcript.split(/\r?\n/)) {
-    try {
-      const event = JSON.parse(line);
-      ids.push(...rolloutCalls(event).flatMap(call => call.presetId === undefined ? [] : [call.presetId]));
-      if (event.type === "assistant") {
-        for (const block of event.message?.content ?? [])
-          if (block.type === "tool_use" && block.name === "mcp__doan__design_skill" && typeof block.input?.id === "string") ids.push(block.input.id);
-      }
-    } catch { /* Codex stderr also records direct MCP calls as text. */ }
-    const call = line.match(/^tool doan\.design_skill\((.*)\)\s*$/);
-    if (call) {
-      try {
-        const args = JSON.parse(call[1]);
-        if (typeof args?.id === "string") ids.push(args.id);
-      } catch { /* A nonliteral argument cannot establish which ID was requested. */ }
-    }
-  }
-  return [...new Set(ids)];
 }
 
 export function mcpTools(transcript: string): string[] {
@@ -289,17 +255,16 @@ function toolSearches(transcript: string): ToolSearch[] {
   });
 }
 
-export interface ToolCalls { commands: string[]; mcpTools: string[]; mcpDesignSkillIds?: string[]; patches?: string[]; patchCandidates?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
+export interface ToolCalls { commands: string[]; mcpTools: string[]; patches?: string[]; patchCandidates?: string[]; outputs?: InvocationOutput[]; toolSearches?: ToolSearch[] }
 
 export function toolCalls(transcript: string): ToolCalls {
   const outputs = invocationOutputs(transcript);
   const searches = toolSearches(transcript);
-  const presetIds = mcpDesignSkillIds(transcript);
   const patchCalls = transcript.split(/\r?\n/).flatMap(line => {
     try { return rolloutCalls(JSON.parse(line)); }
     catch { return []; }
   });
   const patches = patchCalls.flatMap(call => call.patch === undefined ? [] : [call.patch]);
   const patchCandidates = patchCalls.flatMap(call => call.patchCandidate === undefined ? [] : [call.patchCandidate]);
-  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(presetIds.length ? { mcpDesignSkillIds: presetIds } : {}), ...(patches.length ? { patches } : {}), ...(patchCandidates.length ? { patchCandidates } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
+  return { commands: [...new Set(shellCommands(transcript))], mcpTools: [...new Set(mcpTools(transcript))], ...(patches.length ? { patches } : {}), ...(patchCandidates.length ? { patchCandidates } : {}), ...(outputs.length ? { outputs } : {}), ...(searches.length ? { toolSearches: searches } : {}) };
 }

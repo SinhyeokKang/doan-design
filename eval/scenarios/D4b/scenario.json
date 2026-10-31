@@ -5,6 +5,5 @@
   "init": null,
   "selection": null,
   "timeoutSec": 600,
-  "mcp": false,
   "shellCli": false
 }

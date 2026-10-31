@@ -9,7 +9,6 @@ export interface Scenario {
   init: { tokenCss: string } | null;
   selection: "selection.json" | null;
   timeoutSec: number;
-  mcp: boolean;
   shellCli: boolean;
   // Runs the agent in a second worktree on this branch while the instruction's
   // root and the fake app stay on the first (design.md §7, agent-handoff).
@@ -28,7 +27,7 @@ export interface LoadedScenario extends Scenario {
 }
 
 const FOCUS = ["write", "comments", "active", "injection", "implement", "understand", "onboarding", "preset"];
-const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "mcp", "shellCli", "worktree", "onboarding"];
+const KEYS = ["id", "title", "focus", "init", "selection", "timeoutSec", "shellCli", "worktree", "onboarding"];
 // The first worktree is on main (init.defaultBranch in workspace.ts).
 const BRANCH = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -55,8 +54,6 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   }
   const selection = v.selection ?? null;
   if (selection !== null && selection !== "selection.json") fail(dirName, 'selection must be null or "selection.json"');
-  if (v.mcp !== undefined && typeof v.mcp !== "boolean") fail(dirName, "mcp must be boolean");
-  const mcp = v.mcp === true;
   if (v.shellCli !== undefined && typeof v.shellCli !== "boolean") fail(dirName, "shellCli must be boolean");
   const shellCli = v.shellCli !== false;
   const worktree = v.worktree ?? null;
@@ -69,7 +66,7 @@ export function parseScenarioJson(value: unknown, dirName: string): Scenario {
   if (onboarding !== null && onboarding !== "onboarding.json") fail(dirName, 'onboarding must be null or "onboarding.json"');
   const timeoutSec = v.timeoutSec ?? 900;
   if (!Number.isInteger(timeoutSec) || (timeoutSec as number) < 1) fail(dirName, "timeoutSec must be a positive whole number");
-  return { mcp, shellCli, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
+  return { shellCli, worktree: worktree as Scenario["worktree"], onboarding: onboarding as Scenario["onboarding"], id: dirName, title: v.title, focus: v.focus as Scenario["focus"], init: init as Scenario["init"], selection: selection as Scenario["selection"], timeoutSec: timeoutSec as number };
 }
 
 export function renderPrompt(template: string, repo: string): string {
