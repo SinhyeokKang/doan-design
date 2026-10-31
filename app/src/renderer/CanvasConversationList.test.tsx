@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
-import { CanvasConversationList, ListLoading, type CanvasList } from "./CanvasConversationList";
+import { CanvasConversationList, ListLoading, observedRows, RowFocusMemory, type CanvasList } from "./CanvasConversationList";
 import { canvasConversationRows } from "./canvasConversationRows";
 import { CanvasConversations } from "./RightPanel";
 import type { ThumbnailState } from "./thumbnails";
@@ -118,5 +118,66 @@ describe("canvas conversation list", () => {
 
   test("a failed read offers Retry", () => {
     expect(render("error")).toBe('<div class="rp-error" role="status"><span>Couldn’t read conversations</span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel">Retry</button></div>');
+  });
+});
+
+// review RL r1 🟡1: only the row that still holds focus hands it on when it leaves (POSTMORTEM 2026-10-26 revision-recheck R-C).
+describe("RowFocusMemory", () => {
+  test("a focused row that leaves hands focus to the next row, else the previous, else the title", () => {
+    const memory = new RowFocusMemory();
+    memory.focus("a");
+    expect(memory.left(["a", "b"], ["b"], false)).toEqual({ kind: "row", key: "b" });
+    memory.focus("b");
+    expect(memory.left(["a", "b"], ["a"], false)).toEqual({ kind: "row", key: "a" });
+    memory.focus("a");
+    expect(memory.left(["a"], [], false)).toEqual({ kind: "title" });
+  });
+
+  test("a row still listed keeps focus, and the memory stays", () => {
+    const memory = new RowFocusMemory();
+    memory.focus("a");
+    expect(memory.left(["a", "b"], ["b", "a"], false)).toBeNull();
+    expect(memory.left(["b", "a"], ["b"], false)).toEqual({ kind: "row", key: "b" });
+  });
+
+  test("a click in empty space ends the memory: the row's later removal moves no focus", () => {
+    const memory = new RowFocusMemory();
+    memory.focus("a");
+    memory.blur("a", null);
+    memory.pointer(false);
+    expect(memory.left(["a", "b"], ["b"], false)).toBeNull();
+  });
+
+  test("a pointer press on a row, or a window blur, keeps it", () => {
+    const memory = new RowFocusMemory();
+    memory.focus("a");
+    memory.pointer(true);
+    memory.blur("a", null);
+    expect(memory.left(["a", "b"], ["b"], false)).toEqual({ kind: "row", key: "b" });
+  });
+
+  test("focus moved to another element ends it, and so does focus found elsewhere at removal", () => {
+    const memory = new RowFocusMemory();
+    memory.focus("a");
+    memory.blur("a", {});
+    expect(memory.left(["a", "b"], ["b"], false)).toBeNull();
+    memory.focus("b");
+    expect(memory.left(["a", "b"], ["a"], true)).toBeNull();
+    expect(memory.left(["a"], [], false)).toBeNull();
+  });
+});
+
+// review RL r1 🟡2: a canvas whose current conversation changes keeps its path but gets a new button to observe.
+describe("observedRows", () => {
+  test("changes when a row's conversation changes on the same canvas", () => {
+    const [first] = canvasConversationRows([summary({ conversationId: "c1", canvas: { path: billing.path, id: "billing" } })], [billing], NOW);
+    const [second] = canvasConversationRows([summary({ conversationId: "c2", canvas: { path: billing.path, id: "billing" } })], [billing], NOW);
+    expect(observedRows([first!])).not.toBe(observedRows([second!]));
+    expect(observedRows([first!])).toBe(observedRows([{ ...first! }]));
+  });
+
+  test("leaves out rows without a listed canvas, and is empty without any", () => {
+    expect(observedRows(rows.filter(r => r.row === null))).toBe("");
+    expect(observedRows(rows)).toContain(billing.path);
   });
 });
