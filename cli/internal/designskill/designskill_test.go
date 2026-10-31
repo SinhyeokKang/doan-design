@@ -540,7 +540,7 @@ func TestDocumentPresetSkipsOnlyNonvisualWrappers(t *testing.T) {
 	for _, s := range []string{
 		"nonvisual infrastructure wrappers",
 		"a tooltip content wrapper with a project class, is a shared component",
-		"every visual shared component in the code is on a canvas",
+		"every visual shared component in the code has its own canvas",
 		"listed with its reason",
 	} {
 		if !strings.Contains(body, s) {
@@ -634,6 +634,54 @@ func TestDocumentPresetLooksAtRenderedCanvases(t *testing.T) {
 	for _, s := range []string{
 		"Before finishing, look at each canvas rendered (in Doan, or a browser if Doan is not available) and fix overlapping or overflowing content",
 		"Say which canvases you could not render.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+}
+
+// T8 round 3: one session copied the whole app stylesheet into assets, a copy that silently goes stale
+// when the code changes. A stylesheet outside the served scope is restated only as far as the canvas needs.
+func TestDocumentPresetRestatesOnlyNeededRulesForUnservedStylesheets(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"restate on the canvas only the rules that canvas needs, with the same tokens",
+		"Never copy a whole stylesheet into assets: the copy silently goes stale when the code changes.",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	if strings.Contains(body, "Do not copy token CSS or component CSS into assets unless you disclose it as a workaround.") {
+		t.Error("document preset still allows copying a whole stylesheet as a disclosed workaround")
+	}
+}
+
+// T8 round 3: one session drew a component several screens render only inside other canvases.
+// A shared component keeps its own canvas however small it is and wherever else it appears.
+func TestDocumentPresetGivesEverySharedComponentItsOwnCanvas(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"It keeps its own canvas even when it is small or other canvases also draw it.",
+		"every visual shared component in the code has its own canvas",
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("document preset is missing %q", s)
+		}
+	}
+	if strings.Contains(body, "every visual shared component in the code is on a canvas") {
+		t.Error("document preset still accepts a shared component drawn only inside another canvas")
+	}
+}
+
+// T8 round 3: one session repeated the same explanation on every frame of a component canvas.
+// A note shared by a canvas's frames is said once on that canvas.
+func TestDocumentPresetSaysSharedFrameNotesOnce(t *testing.T) {
+	body := documentPreset(t)
+	for _, s := range []string{
+		"Within a canvas, say a note its frames share once, at the top of the canvas, not on every frame.",
+		"No frame repeats a note its canvas already states.",
 	} {
 		if !strings.Contains(body, s) {
 			t.Errorf("document preset is missing %q", s)
