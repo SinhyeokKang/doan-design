@@ -45,7 +45,7 @@
 | R-BS | BS 리뷰 | 없음(보고만) | BS | Codex gpt-6-astra medium: 다른 계열의 독립 리뷰 | `/code-review` 보고 | 대기 |
 | R-BE | BE 리뷰 | 없음(보고만) | BE | Claude Opus medium: Codex가 쓴 배치를 다른 계열이 본다 | `/code-review` 보고 | 완료(🟡 3·⚪ 3, BE 수정 1회로 해결. 수정분은 지휘자가 gate로 확인) |
 | G | T9 | 없음 | 모든 구현·T8 통합 | 지휘자 | `node .agents/skills/verify/scripts/verify.mjs --eval` exit 0 | 대기 |
-| BW | 사용자 요청: sidebar 220px | `app/src/renderer/styles.css`, 너비를 박은 TSX, 관련 테스트, `docs/DESIGN.md` | BS 통합 | Claude Opus medium: 값 하나지만 파생 치수와 측정 기록이 따라온다 | app test·typecheck·build, 격리 앱 측정 | 진행 중 |
+| BW | 사용자 요청: sidebar 220px | `app/src/renderer/styles.css`, 너비를 박은 TSX, 관련 테스트, `docs/DESIGN.md` | BS 통합 | Claude Opus medium: 값 하나지만 파생 치수와 측정 기록이 따라온다 | app test·typecheck·build, 격리 앱 측정 | 통합(측정 23/23, 지휘자가 diff와 스크린숏 확인) |
 | V | T10 | `docs/USABILITY-EVAL.md` | G | Claude Opus medium: `/agent-eval` 절차를 따르고 실패를 분류하는 데 판단이 든다 | tasks T10 검증 줄 | 대기 |
 | D | T11(USABILITY-EVAL 제외) | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md`, `docs/DIRECTORY.md`, `README.md`, `docs/features/buzz-restyle/spec.md` | G | Codex gpt-6.1-sol high: tasks T11의 줄 목록을 따라 고치는 일이라 판단보다 단계가 많다 | tasks T11 검증 줄 | 대기 |
 | R-D | D 리뷰 | 없음(보고만) | D | Claude Opus medium: 결정이 현재 규칙으로 바르게 옮겨졌는지 다른 계열이 본다 | 문서 리뷰 보고 | 대기 |
