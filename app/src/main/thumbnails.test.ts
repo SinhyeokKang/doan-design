@@ -72,6 +72,7 @@ function fixture(canvases = [".doan/canvases/a.html", ".doan/canvases/b.html"]):
   const base = join(tmp, `t${count++}`);
   const root = join(base, "repo");
   mkdirSync(join(root, ".doan/canvases"), { recursive: true });
+  mkdirSync(join(root, ".doan/ds"), { recursive: true });
   mkdirSync(join(root, "styles"));
   writeFileSync(join(root, "styles", "tokens.css"), "a{}");
   for (const path of canvases) writeFileSync(join(root, path), `<title>${path}</title>`);
@@ -345,6 +346,21 @@ test("a change inside a served directory or to a non-canvas file under .doan/can
     thumbnails.entriesChanged(bump(f));
     await vi.waitFor(() => expect(f.changed.slice(0, 2).sort()).toEqual([".doan/canvases/a.html", ".doan/canvases/b.html"]));
   }
+});
+
+// `.doan/ds/` is served, but its canvases are tracked by their own mtime like
+// `.doan/canvases/` ones, so editing one does not restyle every other thumbnail.
+test("a design-system canvas edit leaves the other thumbnails of the folder ready", async () => {
+  const f = fixture([".doan/canvases/a.html", ".doan/ds/b.html"]);
+  f.deps.scope = () => [".doan/canvases", ".doan/ds", "styles/tokens.css"];
+  const first = make(f.deps);
+  for (const path of [".doan/canvases/a.html", ".doan/ds/b.html"]) await first.get(f.root, path, true);
+  await vi.waitFor(() => expect(f.changed).toHaveLength(2));
+  first.dispose();
+  touch(join(f.root, ".doan/ds/b.html"), "<title>B2</title>");
+  const second = make({ ...f.deps, capturer: { capture: () => new Promise(() => {}), close: () => {} } });
+  expect((await second.get(f.root, ".doan/canvases/a.html", true)).kind).toBe("ready");
+  expect(await second.get(f.root, ".doan/ds/b.html", true)).toEqual({ kind: "pending" });
 });
 
 test("a served directory edited while the app was closed is caught at the next get", async () => {

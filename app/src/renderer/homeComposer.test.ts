@@ -348,11 +348,23 @@ test("with no agent that can run the trigger says so", () => {
 test("suggested presets follow the project's canvases, skipping ids the CLI did not list", () => {
   expect(suggestedPresets(list("/r/p"), PRESETS).map(p => p.id)).toEqual(["context", "shape", "document"]);
   expect(suggestedPresets(list("/r/p", [canvas(".doan/canvases/home.html")]), PRESETS).map(p => p.id)).toEqual(["document", "critique", "polish"]);
-  expect(suggestedPresets(list("/r/p", [canvas(".doan/canvases/design-system.html"), canvas(".doan/canvases/home.html")]), PRESETS).map(p => p.id)).toEqual(["critique", "polish"]);
-  expect(suggestedPresets(list("/r/p", [canvas(".doan/canvases/tokens.html", { id: "design-system" })]), PRESETS).map(p => p.id)).toEqual(["critique", "polish"]);
+  expect(suggestedPresets(list("/r/p", [canvas(".doan/ds/button.html"), canvas(".doan/canvases/home.html")]), PRESETS).map(p => p.id)).toEqual(["critique", "polish"]);
   expect(suggestedPresets(list("/r/p"), PRESETS.filter(p => p.id !== "shape")).map(p => p.id)).toEqual(["context", "document"]);
   expect(suggestedPresets(missing("/r/p"), PRESETS)).toEqual([]);
   expect(suggestedPresets(null, PRESETS)).toEqual([]);
+});
+
+// Design Q5 and Q9: only .doan/canvases/ counts as screens, and only .doan/ds/ as a design system.
+test("design-system canvases alone leave the project without canvases, minus document", () => {
+  expect(suggestedPresets(list("/r/p", [canvas(".doan/ds/color.html"), canvas(".doan/ds/button.html")]), PRESETS).map(p => p.id)).toEqual(["context", "shape"]);
+  expect(suggestedPrompts(list("/r/p", [canvas(".doan/ds/color.html")]), "p", PRESETS).map(p => p.label)).toEqual(["Gather design context", "Shape a first screen"]);
+});
+
+test("a legacy .doan/canvases/design-system.html counts as a screen", () => {
+  expect(suggestedPresets(list("/r/p", [canvas(".doan/canvases/design-system.html"), canvas(".doan/canvases/home.html")]), PRESETS).map(p => p.id)).toEqual(["document", "critique", "polish"]);
+  expect(suggestedPresets(list("/r/p", [canvas(".doan/canvases/tokens.html", { id: "design-system" })]), PRESETS).map(p => p.id)).toEqual(["document", "critique", "polish"]);
+  const legacy = list("/r/p", [canvas(".doan/canvases/design-system.html", { mtimeMs: 2 })]);
+  expect(suggestedPrompts(legacy, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Critique the design-system canvas", "Polish the details of design-system"]);
 });
 
 test("suggested prompts name the target canvas by recency and fill a sentence with its path", () => {
@@ -368,11 +380,11 @@ test("suggested prompts name the target canvas by recency and fill a sentence wi
   ]);
 });
 
-test("one canvas is both critiqued and polished; a design-system canvas drops the document prompt; titles name canvases", () => {
+test("one canvas is both critiqued and polished; a design-system canvas drops the document prompt and is never a target; titles name canvases", () => {
   const one = list("/r/p", [canvas(".doan/canvases/home.html", { title: "Home screen" })]);
   expect(suggestedPrompts(one, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Critique the Home screen canvas", "Polish the details of Home screen"]);
-  const ds = list("/r/p", [canvas(".doan/canvases/design-system.html", { mtimeMs: 1 }), canvas(".doan/canvases/home.html", { mtimeMs: 2 })]);
-  expect(suggestedPrompts(ds, "p", PRESETS).map(p => p.label)).toEqual(["Critique the home canvas", "Polish the details of design-system"]);
+  const ds = list("/r/p", [canvas(".doan/ds/button.html", { mtimeMs: 3 }), canvas(".doan/canvases/home.html", { mtimeMs: 2 }), canvas(".doan/canvases/list.html", { mtimeMs: 1 })]);
+  expect(suggestedPrompts(ds, "p", PRESETS).map(p => p.label)).toEqual(["Critique the home canvas", "Polish the details of list"]);
 });
 
 test("a project without canvases gets the three starting prompts; missing presets are skipped", () => {
