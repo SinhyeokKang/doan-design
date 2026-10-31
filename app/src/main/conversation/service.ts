@@ -402,7 +402,9 @@ export class ConversationService {
     this.metadata(id); this.cancelWait(id); const live = this.live.get(id);
     // Stop while the queue waits to go out (for the judgement or the previous process) hands it back instead.
     if (live?.holding && !live.busy) { this.release(id, live, live.holding); this.giveBack(id, "interrupted"); return; }
-    if (!live || !live.busy) return;
+    // A send cancelled while it waited for the judgement or the previous process leaves the queue behind it nothing
+    // to follow.
+    if (!live || !live.busy) { this.giveBack(id, "interrupted"); return; }
     const stop = live.runner?.stop(); if (live.busy) this.receive(id, { type: "interrupted", reason: "user" }); await stop;
   }
   // The preparation of a model-list read; a quit or a stop of the provider during it refuses the read and frees its lease.
@@ -435,7 +437,9 @@ export class ConversationService {
   // still preparing or opening is stopped as soon as it spawns. External runs hold no lease and are left alone.
   async stopRuns(provider: Provider): Promise<void> {
     this.stops += 1; this.lastStop.set(provider, this.stops);
-    for (const [id, wait] of [...this.waits, ...this.judging]) if (wait.provider === provider) this.cancelWait(id);
+    // Such a cancelled send leaves the queue accepted behind it nothing to follow; it comes back as interrupted. A quit
+    // keeps it on disk for the next start instead.
+    for (const [id, wait] of [...this.waits, ...this.judging]) if (wait.provider === provider) { this.cancelWait(id); this.giveBack(id, "interrupted"); }
     const closing: Promise<void>[] = [];
     for (const listing of this.listings) if (listing.provider === provider && listing.cleanup) closing.push(listing.cleanup());
     for (const [id, live] of this.live) {

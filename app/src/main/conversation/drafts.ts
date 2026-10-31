@@ -176,15 +176,23 @@ export class DraftStore {
     const queued = Object.fromEntries(Object.entries(file.queued).filter(([, items]) => items.length > 0));
     return JSON.stringify({ v: 1, queued: { ...this.unread.queued, ...queued }, returned: { ...this.unread.returned, ...file.returned } });
   }
-  // The larger of the file now and the file once every queue came back as a draft (a restart, a failed turn), so neither
-  // ever passes what the reader reads.
+  // The most the file can take for what is accepted now, whatever happens to it later: each conversation as its queue
+  // with every item marked sending beside its returned draft, or as one returned draft holding all of it (a restart, a
+  // failed turn), with the longest reason, whichever is larger; conversations change form independently, so each takes
+  // its own larger form. No later write of these items can then pass what the reader reads.
   private bytes(): number {
-    const returned: Record<string, ReturnedDraft> = { ...this.file.returned };
-    for (const [id, items] of Object.entries(this.file.queued)) if (items.length) {
-      const earlier = returned[id];
-      returned[id] = { ...joined([...(earlier ? [earlier] : []), ...items]), reason: "attachment_missing" };
+    const size = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
+    const reason = "x".repeat(64);
+    let total = size({ v: 1, queued: this.unread.queued, returned: this.unread.returned });
+    for (const id of new Set([...Object.keys(this.file.queued), ...Object.keys(this.file.returned)])) {
+      const items = this.file.queued[id] ?? [], earlier = this.file.returned[id];
+      // "id": plus the comma that follows a member.
+      const key = size(id) + 2;
+      const asQueue = (items.length ? key + size(items.map(item => ({ ...item, sending: true }))) : 0) + (earlier ? key + size({ ...earlier, reason }) : 0);
+      const asDraft = key + size({ ...joined([...(earlier ? [earlier] : []), ...items]), reason });
+      total += Math.max(asQueue, asDraft);
     }
-    return Math.max(Buffer.byteLength(this.serialized(this.file)), Buffer.byteLength(this.serialized({ queued: {}, returned })));
+    return total;
   }
   private write(): void {
     if (this.path === null || this.directory === null || this.broken) return;
