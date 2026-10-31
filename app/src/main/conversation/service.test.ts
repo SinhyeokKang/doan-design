@@ -1291,3 +1291,47 @@ describe("fix round 1", () => {
     expect(h.service.takeDraft(id)).toMatchObject({ text: "one" });
   });
 });
+
+// buzz-conversation fix round 2 (RA2b Y3): a cancelled waiting send hands back the queue accepted behind it.
+describe("cancelled waits and their queues", () => {
+  const a = { path: ".doan/canvases/a.html", id: "a" };
+  const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
+  // A project conversation whose next send waits for its earlier turn's judgement, with a message queued behind it.
+  async function judgementWait(h: ReturnType<typeof homeFixture>) {
+    const id = (await h.service.start(homeRequest)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    const waiting = h.service.send(id, "next", []);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    h.service.queue(id, { text: "behind it", anchors: [] });
+    return { id, waiting };
+  }
+  // A canvas conversation whose next send waits for the previous process, with a message queued behind it.
+  async function exitWait(h: ReturnType<typeof homeFixture>) {
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" });
+    const waiting = h.service.send(id, "next", []);
+    await new Promise(resolve => setTimeout(resolve, 10));
+    h.service.queue(id, { text: "behind it", anchors: [] });
+    return { id, waiting };
+  }
+  it.each([["judgement", judgementWait], ["previous process", exitWait]] as const)("hands the queue back as interrupted when Stop cancels a send waiting for its %s", async (_name, setup) => {
+    const h = homeFixture(); const { id, waiting } = await setup(h);
+    await h.service.interrupt(id);
+    await expect(waiting).rejects.toThrow("busy");
+    expect(h.service.list("/repo")[0]).toMatchObject({ queued: 0, returnedDraft: true, working: expect.any(Boolean) });
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "behind it", reason: "interrupted" });
+  });
+  it.each([["judgement", judgementWait], ["previous process", exitWait]] as const)("hands the queue back as interrupted when a sign-out cancels a send waiting for its %s", async (_name, setup) => {
+    const h = homeFixture(); const { id, waiting } = await setup(h);
+    await h.service.stopRuns("claude");
+    await expect(waiting).rejects.toThrow("busy");
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "behind it", reason: "interrupted" });
+  });
+  it("keeps the queue on disk for the next start when the app quits during such a wait", async () => {
+    const h = homeFixture(); const { id, waiting } = await judgementWait(h);
+    await h.service.quit();
+    await expect(waiting).rejects.toThrow("busy");
+    expect(h.service.takeDraft(id)).toBeNull();
+    expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toMatchObject({ text: "behind it", reason: "restarted" });
+  });
+});

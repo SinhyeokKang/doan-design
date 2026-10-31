@@ -146,3 +146,34 @@ describe("DraftStore limits", () => {
     expect(store.take(A)).toMatchObject({ text: "one" });
   });
 });
+
+// buzz-conversation fix round 2 (RA2b R1): what was accepted still fits the reader's limit in every later form.
+describe("DraftStore byte budget", () => {
+  const item = (itemId: string, text: string) => ({ itemId, text, anchors: [], attachments: [] });
+  // The smallest file limit at which a fresh store accepts these items, one after the other.
+  function boundary(add: (store: DraftStore) => void): number {
+    for (let limit = 50; limit < 5_000; limit++) {
+      const store = new DraftStore(directory(), { fileBytes: limit });
+      try { add(store); return limit; } catch (error) { if (!(error instanceof Error) || error.message !== "queue_limit") throw error; }
+    }
+    throw new Error("no boundary");
+  }
+  it("reads back everything accepted at the limit after its send started and the app died", () => {
+    const limit = boundary(store => store.add(A, item("q1", "one")));
+    const dir = directory(), store = new DraftStore(dir, { fileBytes: limit });
+    store.add(A, item("q1", "one"));
+    store.markSending(A);
+    expect(new DraftStore(dir, { fileBytes: limit }).returned(A)).toMatchObject({ text: "one", reason: "restarted" });
+  });
+  it("reads back every conversation when some queues came back as drafts and others are being sent", () => {
+    const fill = (store: DraftStore) => { store.giveBack(A, { text: "earlier", anchors: [], attachments: [] }, "turn_failed"); store.add(A, item("q1", "one")); store.add(B, item("q2", "two")); };
+    const limit = boundary(fill);
+    const dir = directory(), store = new DraftStore(dir, { fileBytes: limit });
+    fill(store);
+    store.giveBackQueued(A, "attachment_missing");
+    store.markSending(B);
+    const next = new DraftStore(dir, { fileBytes: limit });
+    expect(next.returned(A)).toMatchObject({ text: "earlier\n\none" });
+    expect(next.returned(B)).toMatchObject({ text: "two", reason: "restarted" });
+  });
+});
