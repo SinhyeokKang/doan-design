@@ -80,7 +80,7 @@ describe("conversationSummary", () => {
       const began = performance.now();
       const shown = preview(history(...started, { type: "message.done", messageId: "m", text }, { type: "turn.done" }));
       expect(performance.now() - began).toBeLessThan(2_000);
-      expect(shown.startsWith("a **b a **b")).toBe(true);
+      expect([...shown].length).toBeLessThanOrEqual(PREVIEW_CHARS); expect(shown.startsWith("a ")).toBe(true);
     });
     it("is empty without an agent message", () => {
       expect(preview(history(...started, { type: "turn.failed", code: "unknown" }))).toBe("");

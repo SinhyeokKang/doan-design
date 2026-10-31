@@ -6,13 +6,14 @@ import type { Canvas } from "./types";
 export const BIND_GRACE_MS = 10_000;
 // project: the root of a turn accepted (or being prepared) for a conversation without a canvas. It stays set for that
 // turn even when the conversation is bound to a canvas mid-turn.
-export interface ProjectTurn { project?: string; busy: boolean; terminal: boolean; endedAt?: number }
+// failedPersistence: its history stopped taking writes, so its turn never ends; it must not hold the root until a restart.
+export interface ProjectTurn { project?: string; busy: boolean; terminal: boolean; endedAt?: number; failedPersistence?: boolean }
 // The conversation that keeps another project conversation of this root from starting or sending, if any: one still
 // preparing, running or waiting for an answer, or one whose turn ended within the binding window, so that a new
 // canvas is never judged against the wrong conversation.
 export function projectBusy(live: ReadonlyMap<string, ProjectTurn>, root: string, exceptId: string | undefined, now: number): string | null {
   for (const [id, turn] of live) {
-    if (id === exceptId || turn.project !== root) continue;
+    if (id === exceptId || turn.project !== root || turn.failedPersistence) continue;
     if ((turn.busy && !turn.terminal) || (turn.endedAt !== undefined && now - turn.endedAt <= BIND_GRACE_MS)) return id;
   }
   return null;

@@ -39,7 +39,8 @@ function preview(events: readonly ConversationEvent[], phase: ConversationSummar
     if (activity?.type === "activity") return cap(activity.kind === "command" ? COMMAND : activity.summary);
   }
   const last = messages.at(-1);
-  return last ? cap(plain(last.text)) : "";
+  // Agent output is untrusted and can be megabytes; only the start can reach the preview, and plain's patterns are not linear.
+  return last ? cap(plain(last.text.slice(0, PREVIEW_CHARS * 8))) : "";
 }
 // A one-line approximation of the rendered message: Markdown markers go, their text stays, raw HTML stays as text.
 function plain(text: string): string {

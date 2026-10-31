@@ -251,7 +251,7 @@ export class ConversationService {
     } catch (error) { live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close(); }
   }
   read(id: string) {
-    this.metadata(id); const events = this.store.read(id); const state = foldConversation(events, id, !this.live.has(id));
+    this.metadata(id); const events = this.store.read(id); const state = foldConversation(events, id, !this.ran(id));
     const pendingPermission = [...events].reverse().find(e => e.type === "permission.request" && state.permissions[e.requestId] === "pending");
     return { events, lastSeq: state.lastSeq, turn: state.turn, ...(pendingPermission ? { pendingPermission } : {}) };
   }
@@ -270,7 +270,7 @@ export class ConversationService {
       let read: { ok: true; events: ConversationEvent[] } | { ok: false };
       try { read = { ok: true, events: this.store.readRequired(m.conversationId) }; } catch { read = { ok: false }; }
       // No input queue exists yet, so nothing is queued.
-      return conversationSummary(m, read, { live: this.live.has(m.conversationId), queued: 0 });
+      return conversationSummary(m, read, { live: this.ran(m.conversationId), queued: 0 });
     });
   }
   // An entry without seenSeq has had its whole history seen, so a lower seq never makes it unseen.
@@ -367,6 +367,9 @@ export class ConversationService {
     return refreshed;
   }
   private stopped(live: { provider?: Provider; since: number }): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
+  // Only a turn accepted in this run can still be running; a live entry left by a refused send is not one, and a turn an
+  // earlier run left unfinished folds as crashed.
+  private ran(id: string): boolean { return !!this.live.get(id)?.accepted; }
   // At admission, and again right before acceptance, since the other conversation may have started meanwhile.
   private checkProject(root: string, exceptId?: string): void {
     if (projectBusy(this.live, root, exceptId, Date.now())) throw new Error("project_busy");
@@ -380,7 +383,12 @@ export class ConversationService {
     const saved = this.store.append(id, turn, event);
     this.deliver(saved);
     // Streamed text changes no list field the list shows while a turn runs; its end and activities do.
-    if (event.type !== "message.delta") { const root = this.store.list().find(m => m.conversationId === id)?.root; if (root) this.changed(root); }
+    if (event.type !== "message.delta") this.changedOf(id);
+  }
+  // The event is already saved: an index that cannot be read here must not fail it.
+  private changedOf(id: string): void {
+    try { const root = this.store.list().find(m => m.conversationId === id)?.root; if (root) this.listChanged(root); }
+    catch (error) { console.error("doan: conversation list change could not be announced", error); }
   }
   private changed(root: string): void {
     try { this.listChanged(root); } catch (error) { console.error("doan: conversation list change could not be announced", error); }
