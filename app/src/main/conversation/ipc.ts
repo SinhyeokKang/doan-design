@@ -2,11 +2,11 @@ import { promptSentence } from "../../firstPrompt/promptSentence";
 import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
-import { validProvider } from "../agentAuth/types";
+import { validProvider, type Provider } from "../agentAuth/types";
 import type { ConversationService, Prepare, StartRequest } from "./service";
 import type { ModelCatalog } from "./models";
 import type { AttachmentStore } from "../attachments";
-import type { Anchor, Canvas } from "./types";
+import type { Anchor, AttachmentRecord, Canvas } from "./types";
 export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
@@ -19,6 +19,31 @@ function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[
   return { text: raw.text, anchors };
 }
 function choice(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
+// ids: the attachment ids as sent, for the recheck, the sent marker and consume; attachments: their records now.
+export interface SendExtras { model?: string; effort?: string; ids: unknown[]; attachments?: AttachmentRecord[] }
+// The model, effort and attachments a start or send may carry. The provider is the conversation's and never changes;
+// a legacy external conversation runs on the person's own CLI profile, so it takes none of the three.
+export function validateSendExtras(request: Record<string, unknown>, root: string, provider: Provider, owner: "doan" | "legacy-external", home: { models?: Pick<ModelCatalog, "accepts">; attachments?: Pick<AttachmentStore, "resolve"> }): SendExtras {
+  if (request.runtime !== undefined || request.provider !== undefined) throw new Error("bad_request");
+  const extras: SendExtras = { ids: [] };
+  if (owner === "legacy-external") {
+    if (request.model !== undefined || request.effort !== undefined || request.attachments !== undefined) throw new Error("bad_request");
+    return extras;
+  }
+  if (request.model !== undefined || request.effort !== undefined) {
+    // Only a model, and an effort of that model, from the list this run delivered for this folder and provider.
+    if (!choice(request.model) || (request.effort !== undefined && !choice(request.effort)) || !home.models?.accepts(root, provider, request.model, request.effort)) throw new Error("bad_request");
+    extras.model = request.model; if (request.effort !== undefined) extras.effort = request.effort;
+  }
+  if (request.attachments !== undefined) {
+    if (!home.attachments || !Array.isArray(request.attachments)) throw new Error("bad_request");
+    extras.ids = [...request.attachments];
+    const resolved = home.attachments.resolve(extras.ids);
+    if (!resolved.ok) throw resolved.error === "attachment_missing" ? Object.assign(new Error(resolved.error), { missing: resolved.missing }) : new Error("bad_request");
+    if (resolved.records.length) extras.attachments = resolved.records;
+  }
+  return extras;
+}
 export function conversationHandler(service: ConversationService, prepare: Prepare, projects: () => Project[], home: { models?: ModelCatalog; attachments?: AttachmentStore } = {}) {
   return async (allowed: boolean, method: ConversationMethod, raw: unknown): Promise<unknown> => {
     if (!allowed || !object(raw)) return { error: "bad_request" };
@@ -55,19 +80,12 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
             const sentence = promptSentence(raw.root, raw.subject); if (typeof sentence !== "string") throw new Error("bad_request");
             request.subject = raw.subject; request.text = sentence;
           }
-          if (raw.model !== undefined || raw.effort !== undefined) {
-            // Only a model, and an effort of that model, from the list this run delivered for this folder and provider.
-            if (!choice(raw.model) || (raw.effort !== undefined && !choice(raw.effort)) || !request.runtime ||
-                !home.models?.accepts(raw.root, request.runtime, raw.model, raw.effort)) throw new Error("bad_request");
-            request.model = raw.model; if (raw.effort !== undefined) request.effort = raw.effort;
-          }
-          if (raw.attachments !== undefined) {
-            if (!home.attachments || !Array.isArray(raw.attachments)) throw new Error("bad_request");
-            attachments = [...raw.attachments];
-            const resolved = home.attachments.resolve(attachments);
-            if (!resolved.ok) return resolved.error === "attachment_missing" ? { error: resolved.error, missing: resolved.missing } : { error: "bad_request" };
-            if (resolved.records.length) request.attachments = resolved.records;
-          }
+          if (!request.runtime) throw new Error("no_agent");
+          const extras = validateSendExtras({ model: raw.model, effort: raw.effort, attachments: raw.attachments }, raw.root, request.runtime, "doan", home);
+          if (extras.model !== undefined) request.model = extras.model;
+          if (extras.effort !== undefined) request.effort = extras.effort;
+          if (extras.attachments) request.attachments = extras.attachments;
+          attachments = extras.ids;
         } else if (raw.model !== undefined || raw.effort !== undefined || raw.attachments !== undefined) throw new Error("bad_request");
         const store = home.attachments;
         const started = await service.start(request, store && attachments.length ? {

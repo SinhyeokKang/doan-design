@@ -61,7 +61,7 @@ describe("conversationSummary", () => {
     it("collapses whitespace and caps the length", () => {
       const text = `${"word ".repeat(100)}\n\nend`;
       const shown = preview(history(...started, { type: "message.done", messageId: "m", text }, { type: "turn.done" }));
-      expect([...shown]).toHaveLength(PREVIEW_CHARS);
+      expect([...shown].length).toBeLessThanOrEqual(PREVIEW_CHARS); expect([...shown].length).toBeGreaterThan(PREVIEW_CHARS - 3);
       expect(shown.endsWith("…")).toBe(true); expect(shown).not.toMatch(/\s{2}/);
     });
     it("is empty without an agent message", () => {

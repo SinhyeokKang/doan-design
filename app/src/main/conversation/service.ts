@@ -5,6 +5,7 @@ import { promoteReservation, releaseReservation, reserveSession } from "./owners
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { turnPrompt } from "./prompt";
+import { BIND_GRACE_MS } from "./project";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { ModelOption } from "./models";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
@@ -44,9 +45,6 @@ function freeLease(input: Prepared | undefined): void {
 // A Claude process ended about 0.75 s after turn.done, but its reservation held for 2.1-5.0 s after turn.done until the
 // group was gone (packaged app, D1 2026-10-28). The wait allows twice the slowest observed.
 const EXIT_WAIT_MS = 10_000;
-// A canvas the agent wrote shows up in the folder list after the watcher's debounce and an ls; a turn that just ended
-// may still bind it for this long, never afterwards.
-const BIND_GRACE_MS = 10_000;
 // provider: set for a run on a doan account, whose lease a sign-out or replacement waits for (stopRuns).
 // since: the stopRuns count when this start or send began; a later stop of its provider stops it once it spawns.
 // endedAt: when the accepted turn's terminal event arrived, for binding.

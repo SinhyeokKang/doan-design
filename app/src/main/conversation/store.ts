@@ -87,6 +87,15 @@ function event(value: unknown, id: string, seq: number): value is ConversationEv
   return object(value) && value.v === 1 && value.conversationId === id && value.seq === seq && validId(value.turnId) &&
     typeof value.at === "string" && Number.isFinite(Date.parse(value.at)) && payload(value);
 }
+// A restore: the archived target becomes its canvas's current conversation and the current one is archived. Null when
+// the target is not an archived canvas conversation.
+export function restoreEntries(entries: readonly ConversationMetadata[], id: string): { entries: ConversationMetadata[]; replaced: string[] } | null {
+  const target = entries.find(m => m.conversationId === id);
+  if (!target || target.state !== "archived" || !target.canvas) return null;
+  const canvas = target.canvas;
+  const replaced = entries.filter(m => m.state === "current" && m.root === target.root && m.canvas && sameCanvas(m.canvas, canvas)).map(m => m.conversationId);
+  return { entries: entries.map(m => m === target ? { ...m, state: "current" } : replaced.includes(m.conversationId) ? { ...m, state: "archived" } : m), replaced };
+}
 export interface JournalWrite { id: string; turn: string; body: EventPayload }
 // What an accepted change does to the index. replaced: the current conversations it archives.
 export type JournalChange =
