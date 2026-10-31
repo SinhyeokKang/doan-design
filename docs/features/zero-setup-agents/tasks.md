@@ -99,6 +99,8 @@
 - 관리자 권한 경로 1회 확인: 사람이 지켜보는 가운데, PATH에 `~/.local/bin`이 없는 가짜 SHELL로 실행해 대화상자가 뜨고, 승인하면 `/usr/local/bin/doan`이 생기고, 취소하면 About에 PATH 줄이 보이는지 확인한다. 실제 `/usr/local/bin`에 쓰므로 실행 전에 사용자 승인을 받고, 끝난 뒤 링크를 지운다.
 - 검증: 스크린샷과 파일 목록을 `.scratch/runtime-test/zero-setup-agents/`에 남긴다.
 
+- 관리자 권한 경로 1회 확인 결과(2026-10-31, 사용자 입회, 최종 HEAD `96836a66`로 다시 만든 패키지): 승인하면 root 소유 `/usr/local/bin/doan`이 `<임시 HOME>/.local/share/doan/current/bin/doan`을 가리켰고 About에 알림이 없었다. 취소하면 `agent-setup.json`에 `{"adminCancelled":true}`가 남고 `/usr/local/bin`은 비었으며 About에 PATH 줄 알림이 보였다. 같은 userData로 다시 열자 대화상자가 뜨지 않았고 알림은 그대로였다. 확인 중 만든 `/usr/local/bin`은 지웠고(원래 없었다, `/usr/local`은 원래 있었다) 실제 상태 지문과 LaunchServices 등록은 확인 전과 같다. 첫 시도에서 사람이 스크립트의 링크 삭제 프롬프트를 취소해 2단계를 다시 했다. 증거는 `.scratch/orch/zero-setup-agents/evidence/e/admin/`.
+
 ## T6b. 앱이 만든 배치로 실제 에이전트 확인 (실행 시 사용자 허락 필요)
 
 - T6과 같은 임시 HOME에서 앱이 만든 링크와 rule로 T0의 측정을 다시 한다. 앱 대화 Codex의 skill 중복이 Codex를 헷갈리게 하지 않는지도 본다.
