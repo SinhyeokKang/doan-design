@@ -1,4 +1,4 @@
-import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Archive, ArrowDown, ArrowUpRight, ChevronDown, CircleStop, Copy, Eye, FileText, Pencil, PencilSparkles, RotateCcw, Terminal } from "lucide-react";
@@ -14,6 +14,8 @@ import { scrollFollow, type ActivityStep, type ThreadItem, type TurnEnd } from "
 // thread never reaches main itself.
 
 export interface ConversationThreadProps {
+  // Scroll position, opened activity lines and the follow state belong to one conversation; another id starts afresh.
+  conversationId: string;
   // null while the history is read; "error" when main could not read it.
   items: readonly ThreadItem[] | null | "error";
   provider: Provider;
@@ -44,9 +46,11 @@ export function endView(end: TurnEnd, provider: Provider): { title: string; body
   if (end.kind === "interrupted") return { title: "Stopped", body: end.reason === "user" ? "You stopped the agent." : "The agent stopped before it finished.", tone: null, signIn: false };
   if (end.code === "not_logged_in") return { title: `${p}’s sign-in expired`, body: "Sign in again, then resend your request.", tone: "error", signIn: true };
   if (end.code === "rate_limited") return { title: `${p} is rate limited`, body: "Try again later.", tone: "error", signIn: false };
+  // The session could not be taken up again, so the turn ended before it did any work; the strip says the same.
+  if (end.code === "session_unavailable" || end.code === "session_in_use") return { title: `${p} couldn’t continue`, body: "Edit your request and send it again.", tone: "error", signIn: false };
   return { title: `${p} stopped unexpectedly`, body: "It may have changed files before it stopped.", tone: "error", signIn: false };
 }
-const ANSWERED: Record<"allow" | "allowAlways" | "deny", string> = { allow: "Allowed", allowAlways: "Always allowed", deny: "Denied" };
+const ANSWERED: Record<"allow" | "allowAlways" | "deny", string> = { allow: "Allowed once", allowAlways: "Always allowed", deny: "Denied" };
 
 // Only https links open, through the host; anything else (http, javascript:, file:, a relative path) stays text.
 export function httpsUrl(href: string | undefined): string | null {
@@ -81,8 +85,21 @@ const COMPONENTS: Components = {
 };
 const PLUGINS = [remarkGfm];
 // A finished message parses once; a streaming one parses at most once per animation frame (design §0).
-const MarkdownText = memo(function MarkdownText({ text }: { text: string }) {
-  return <Markdown remarkPlugins={PLUGINS} components={COMPONENTS}>{text}</Markdown>;
+// remark-gfm's footnotes take fixed ids: clobberPrefix renames the notes, and the label ("footnote-label", which every
+// reference names in aria-describedby) is renamed here, so two messages never share an id.
+type HastNode = { properties?: Record<string, unknown>; children?: HastNode[] };
+function labelPrefix(prefix: string) {
+  const label = `${prefix}-footnote-label`;
+  const visit = (node: HastNode) => {
+    const props = node.properties;
+    if (props?.id === "footnote-label") props.id = label;
+    if (Array.isArray(props?.ariaDescribedBy)) props.ariaDescribedBy = props.ariaDescribedBy.map(id => id === "footnote-label" ? label : id);
+    node.children?.forEach(visit);
+  };
+  return () => visit;
+}
+const MarkdownText = memo(function MarkdownText({ text, prefix }: { text: string; prefix: string }) {
+  return <Markdown remarkPlugins={PLUGINS} rehypePlugins={[labelPrefix(prefix)]} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS}>{text}</Markdown>;
 });
 function useFrameText(text: string, streaming: boolean): string {
   const [shown, setShown] = useState(text);
@@ -96,8 +113,8 @@ function useFrameText(text: string, streaming: boolean): string {
   return streaming ? shown : text;
 }
 function AgentMessage({ text, streaming }: { text: string; streaming: boolean }) {
-  const shown = useFrameText(text, streaming);
-  return <div className="msg-agent md"><MarkdownText text={shown} />{streaming && <span className="caret" aria-hidden="true" />}</div>;
+  const shown = useFrameText(text, streaming), prefix = useId();
+  return <div className="msg-agent md"><MarkdownText text={shown} prefix={prefix} />{streaming && <span className="caret" aria-hidden="true" />}</div>;
 }
 
 const STEP_ICONS = { read: Eye, edit: Pencil, command: Terminal, other: Terminal } as const;
@@ -126,6 +143,10 @@ function phaseText(items: readonly ThreadItem[], provider: Provider): string {
 }
 
 export const ConversationThread = forwardRef<ConversationThreadHandle, ConversationThreadProps>(function ConversationThread(props, ref) {
+  return <ThreadBody key={props.conversationId} {...props} handle={ref} />;
+});
+
+const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationThreadProps & { handle: Ref<ConversationThreadHandle> }) {
   const { items, provider } = props;
   const base = useId();
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -207,7 +228,7 @@ export const ConversationThread = forwardRef<ConversationThreadHandle, Conversat
       case "activity": {
         const open = expanded.has(entry.key), id = `${base}-${entry.key}`;
         return <div className="activity">
-          <button type="button" className="activity-head" aria-expanded={open} aria-controls={id} onClick={() => toggle(entry.key)}>
+          <button type="button" className="activity-head" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => toggle(entry.key)}>
             {entry.running && <span className="doan-spinner" aria-hidden="true" />}<span>{entry.head}</span><ChevronDown className="chev" aria-hidden="true" /></button>
           {open && <Steps id={id} steps={entry.steps} />}
         </div>;
@@ -254,5 +275,5 @@ export const ConversationThread = forwardRef<ConversationThreadHandle, Conversat
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     <div className="sr-only" role="status">{copied ? "Copied" : phaseText(items, provider)}</div>
   </div></Actions.Provider>;
-});
+};
 

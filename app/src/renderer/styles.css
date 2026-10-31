@@ -910,6 +910,10 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .md strong { font-weight: var(--type-weight-semibold); }
 .conversation-thread .md a { color: var(--text-link); text-decoration: underline; text-underline-offset: var(--space-half); }
 .conversation-thread .md :is(ul, ol) { display: flex; flex-direction: column; gap: var(--space-1); padding-left: var(--space-6); }
+/* Preflight and the app's own ol rule drop list markers; agent replies keep them, since a number can carry meaning. */
+.conversation-thread .md ul { list-style: disc; }
+.conversation-thread .md ol { list-style: decimal; }
+.conversation-thread .md ul ul { list-style: circle; }
 /* A list right after its paragraph sits 8px under it instead of the 16px block gap (Buzz Messages.module.css). */
 .conversation-thread .md > p:has(+ :is(ul, ol)) { margin-bottom: calc(var(--space-2) - var(--space-4)); }
 .conversation-thread .md :is(ul, ol) :is(ul, ol) { margin-top: var(--space-1); }

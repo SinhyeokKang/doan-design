@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import { ConversationThread, endView, httpsUrl, type ConversationThreadProps } from "./ConversationThread";
@@ -5,7 +6,7 @@ import type { ThreadItem } from "./threadItems";
 
 const noop = () => {};
 const props = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}): ConversationThreadProps => ({
-  items, provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true,
+  items, conversationId: "c1", provider: "claude", project: "doan-design", liveAfter: 0, canvasListed: () => true,
   onAnswer: noop, onStop: noop, onEditAndResend: noop, onSignIn: noop, onRetry: noop, onOpenCanvas: noop, onOpenLink: noop, onCopy: async () => true, ...patch,
 });
 const html = (items: ConversationThreadProps["items"], patch: Partial<ConversationThreadProps> = {}) => renderToStaticMarkup(<ConversationThread {...props(items, patch)} />);
@@ -29,6 +30,9 @@ describe("agent Markdown", () => {
   test("raw HTML and images are never drawn; an image leaves its alt text", () => {
     const out = html([agent('<script>alert(1)</script>\n\n<img src="x" onerror="alert(1)">\n\nText <b>bold</b> and <iframe src="https://e.com"></iframe>\n\n![a diagram](https://example.com/d.png)')]);
     expect(out).not.toMatch(/<(script|img|iframe|b)\b/);
+    // The markup shows as text instead.
+    expect(out).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(out).toContain("Text &lt;b&gt;bold&lt;/b&gt;");
     expect(out).toContain("<span>a diagram</span>");
   });
 
@@ -65,7 +69,7 @@ describe("thread items", () => {
 
   test("an activity line is a disclosure button; a running one has a spinner", () => {
     const out = html([{ kind: "activity", key: "a3", running: true, head: "Editing a.html", steps: [{ key: "s3", kind: "edit", verb: "Edited", path: "a.html" }] }]);
-    expect(out).toMatch(/<button type="button" class="activity-head" aria-expanded="false" aria-controls="[^"]+-a3"><span class="doan-spinner" aria-hidden="true"><\/span><span>Editing a.html<\/span>/);
+    expect(out).toMatch(/<button type="button" class="activity-head" aria-expanded="false"><span class="doan-spinner" aria-hidden="true"><\/span><span>Editing a.html<\/span>/);
     expect(out).not.toContain("activity-steps");
   });
 
@@ -82,7 +86,7 @@ describe("thread items", () => {
 
   test("answered and expired requests shrink to one line", () => {
     const base = { kind: "permission" as const, key: "pr1", seq: 5, requestId: "r1", summary: "Run doan check", options: [] };
-    expect(html([{ ...base, status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } }])).toContain('<div class="activity-head ask-answered"><span>Allowed · Run doan check</span></div>');
+    expect(html([{ ...base, status: "answered", answer: { id: "a", label: "Allow once", kind: "allow" } }])).toContain('<div class="activity-head ask-answered"><span>Allowed once · Run doan check</span></div>');
     expect(html([{ ...base, status: "expired", answer: null }])).toContain("<span>Expired without an answer · Run doan check</span>");
   });
 
@@ -97,6 +101,8 @@ describe("thread items", () => {
     expect(later).not.toContain("Edit and resend");
     expect(endView({ kind: "interrupted", reason: "user" }, "codex")).toEqual({ title: "Stopped", body: "You stopped the agent.", tone: null, signIn: false });
     expect(endView({ kind: "interrupted", reason: "crashed" }, "codex").body).toBe("The agent stopped before it finished.");
+    for (const code of ["session_unavailable", "session_in_use"] as const) expect(endView({ kind: "failed", code }, "codex")).toMatchObject({ title: "Codex couldn’t continue", body: "Edit your request and send it again." });
+    expect(endView({ kind: "failed", code: "rate_limited" }, "codex")).toMatchObject({ title: "Codex is rate limited", body: "Try again later." });
     expect(endView({ kind: "failed", code: "process_exited" }, "codex")).toMatchObject({ title: "Codex stopped unexpectedly", body: "It may have changed files before it stopped." });
   });
 
@@ -112,6 +118,14 @@ describe("thread items", () => {
     expect(html([bound], { canvasListed: () => false })).toMatch(/Moved to buzz-settings.html · No longer in doan-design<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="trigger" disabled="">Open<\/button>/);
     expect(html([{ kind: "marker", key: "k6", seq: 6, marker: "archived", canvas: null }])).toContain("Archived when another conversation became current on this canvas. Send a message to make it current again.");
     expect(html([{ kind: "marker", key: "k7", seq: 7, marker: "restored", canvas: null }])).toContain("Made current again");
+  });
+
+  test("two messages with footnotes never share an id", () => {
+    const out = html([agent("One[^1]\n\n[^1]: note"), { kind: "agent", key: "m2", messageId: "m2", text: "Two[^1]\n\n[^1]: note", streaming: false }]);
+    const ids = [...out.matchAll(/ id="([^"]+)"/g)].map(m => m[1]!);
+    expect(ids.length).toBeGreaterThan(2);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.filter(id => id.endsWith("footnote-label"))).toHaveLength(2);
   });
 
   test("no reply, the phase status and stable item keys", () => {
@@ -132,4 +146,14 @@ describe("loading and read errors", () => {
     expect(out).toContain("<b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span>");
     expect(out).toContain(">Retry</button>");
   });
+});
+
+// Tailwind's preflight and styles.css's own `ol { list-style: none; }` would hide the markers; static markup cannot
+// show that, so the rules are pinned here (their look is compared when buzz-project places the thread).
+test("agent reply lists keep their bullets and numbers", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const rules = [".conversation-thread .md ul { list-style: disc; }", ".conversation-thread .md ol { list-style: decimal; }", ".conversation-thread .md ul ul { list-style: circle; }"];
+  for (const rule of rules) expect(css).toContain(rule);
+  // After the global ol reset, so the thread's rule is the later one.
+  expect(css.indexOf(rules[1]!)).toBeGreaterThan(css.indexOf("ol { list-style: none; }"));
 });
