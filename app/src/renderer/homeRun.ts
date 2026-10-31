@@ -207,6 +207,9 @@ export class HomeRun {
     // What this run held of the conversation before the send: the turn it starts comes after it.
     const before = Math.max(0, ...[...this.events.get(id) ?? [], ...this.unclaimed.filter(event => event.conversationId === id)].map(event => event.seq));
     const sentAt = Date.now();
+    // The strip before the turn: the permission toast compares against it, since the turn's events may all have
+    // arrived before the reply while the run did not track the conversation (nothing to refresh then).
+    const stripBefore = this.strips[id];
     const reply = await window.doan.sendConversation(request).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
     const previous = this.extras.get(id);
@@ -229,6 +232,8 @@ export class HomeRun {
       });
     } else this.conversations = this.conversations.map(item => item.conversationId === id ? { ...item, phase } : item);
     this.strips = { ...this.strips, [id]: state ?? { kind: "starting" } };
+    // The transition the reply merged: a waiting request toasts away from its project, once per request.
+    if (state) this.askToast(id, root, provider, permissionToastKey(state, stripBefore, this.viewing(root)));
     this.entriesChanged();
     this.host.changed();
   }
@@ -607,11 +612,14 @@ export class HomeRun {
     this.strips = { ...this.strips, [conversationId]: next };
     const extras = this.extras.get(conversationId);
     if (extras && !RUNNING.includes(next.kind) && (!previous || RUNNING.includes(previous.kind))) extras.endedAt = Date.now();
-    const ask = permissionToastKey(next, previous, this.viewing(conversation.root));
-    if (ask && extras && extras.toasted !== ask) {
-      extras.toasted = ask;
-      this.host.toast(`${PROVIDER_NAMES[conversation.provider]} needs your answer in ${this.host.label(conversation.root)}.`, "Open", () => this.openConversation(conversationId));
-    }
+    this.askToast(conversationId, conversation.root, conversation.provider, permissionToastKey(next, previous, this.viewing(conversation.root)));
     this.host.changed();
+  }
+  // One toast per permission request of a conversation this run tracks a turn of.
+  private askToast(conversationId: string, root: string, provider: Provider, ask: string | null): void {
+    const extras = this.extras.get(conversationId);
+    if (!ask || !extras || extras.toasted === ask) return;
+    extras.toasted = ask;
+    this.host.toast(`${PROVIDER_NAMES[provider]} needs your answer in ${this.host.label(root)}.`, "Open", () => this.openConversation(conversationId));
   }
 }
