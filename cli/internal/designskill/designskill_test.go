@@ -610,18 +610,18 @@ func TestDocumentPresetKeepsEvalConcepts(t *testing.T) {
 			t.Errorf("document description lost maintenance fit: missing %q in %q", s, p.Description)
 		}
 	}
-	// U-019: split canvases omitted open decisions that concern them once agreement only required the
-	// document to hold every open item a canvas shows. Both directions hold, and the answer claims only
-	// what the canvases show.
+	// U-019: canvases kept omitting open decisions that concern them, and answers claimed canvases showed
+	// them. User decision: open decisions live only in the rules document; a canvas still discloses what it
+	// draws that is not in code, and the answer never claims a decision is marked on a canvas.
 	body := strings.ToLower(documentPreset(t))
-	for _, s := range []string{"concerns a particular canvas also appears on that canvas", "spanning the whole system stay in the document", "only if that canvas shows it"} {
+	for _, s := range []string{"open decisions live only in the rules document", "canvases do not repeat them", "proposed or unconfirmed value it draws", "never say a decision is marked on a canvas"} {
 		if !strings.Contains(body, s) {
-			t.Errorf("document preset lost open-decision agreement: missing %q", s)
+			t.Errorf("document preset lost the document-only open-decision rule: missing %q", s)
 		}
 	}
-	for _, s := range []string{"the document holds every open item a canvas shows", "open items in both artifacts"} {
+	for _, s := range []string{"the document holds every open item a canvas shows", "open items in both artifacts", "also appears on that canvas", "only if that canvas shows it", "open decisions that concern it", "an open decision)"} {
 		if strings.Contains(body, s) {
-			t.Errorf("document preset keeps the one-way or ambiguous agreement rule: %q", s)
+			t.Errorf("document preset still puts open decisions on canvases: %q", s)
 		}
 	}
 }
