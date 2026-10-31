@@ -1,14 +1,14 @@
 import { expect, test } from "vitest";
 import { parseSettingsSection, parseSettingsTarget, SETTINGS_SECTIONS, settingsArrival, SettingsTargetQueue } from "./settingsSections";
 
-test("the LNB lists Agents, Notifications, Connections and About in that order", () => {
+test("the LNB lists Agents, Notifications and About in that order", () => {
   expect(SETTINGS_SECTIONS).toEqual([
-    { id: "agents", title: "Agents" }, { id: "notifications", title: "Notifications" }, { id: "connections", title: "Connections" }, { id: "about", title: "About" },
+    { id: "agents", title: "Agents" }, { id: "notifications", title: "Notifications" }, { id: "about", title: "About" },
   ]);
 });
 
-test("a saved section is read back; the old settingsTab values connections and projects become Connections and Agents", () => {
-  for (const section of ["agents", "notifications", "connections", "about"]) expect(parseSettingsSection(section)).toBe(section);
+test("a saved section is read back; the old settingsTab value projects becomes Agents", () => {
+  for (const section of ["agents", "notifications", "about"]) expect(parseSettingsSection(section)).toBe(section);
   expect(parseSettingsSection("projects")).toBe("agents");
   for (const value of [undefined, null, "", "Agents", "settings", 1, {}]) expect(parseSettingsSection(value)).toBeNull();
 });
@@ -22,14 +22,14 @@ test("an openSettings target names an optional section and, for Agents, an optio
 });
 
 test("an openSettings target with an unknown section, a provider outside Agents or extra keys is refused", () => {
-  for (const value of [null, undefined, "agents", [], { section: "projects" }, { section: "Agents" }, { section: "notifications", provider: "codex" },
+  for (const value of [null, undefined, "agents", [], { section: "projects" }, { section: "connections" }, { section: "Agents" }, { section: "notifications", provider: "codex" },
     { section: "agents", provider: "gemini" }, { provider: 1 }, { section: "agents", extra: true }])
     expect(parseSettingsTarget(value), JSON.stringify(value)).toBeNull();
 });
 
 test("arriving opens the named section or the last one; a provider gets its row group, anything else the section heading", () => {
-  expect(settingsArrival({}, "connections")).toEqual({ section: "connections", focus: { kind: "heading" } });
-  expect(settingsArrival({ section: "about" }, "connections")).toEqual({ section: "about", focus: { kind: "heading" } });
+  expect(settingsArrival({}, "notifications")).toEqual({ section: "notifications", focus: { kind: "heading" } });
+  expect(settingsArrival({ section: "about" }, "notifications")).toEqual({ section: "about", focus: { kind: "heading" } });
   expect(settingsArrival({ section: "agents", provider: "codex" }, "about")).toEqual({ section: "agents", focus: { kind: "provider", provider: "codex" } });
 });
 

@@ -520,8 +520,9 @@ export function HomeComposer(props: HomeComposerProps) {
   const presetBody = (view: typeof presetView, slashMode: boolean): ReactNode => {
     if (view.kind === "loading") return <div className="popover-state" role="status"><span className="doan-spinner" aria-hidden="true" />{view.text}</div>;
     if (view.kind === "empty") return <div className="popover-state" role="status">{view.text}</div>;
-    if (view.kind === "olderCli") return <div className="doan-notice" role="status"><AlertIcon /><span className="grow-text">{view.text}</span></div>;
-    if (view.kind === "error") return <><div className="doan-notice error" role="alert"><AlertIcon /><span className="grow-text">{view.text}</span></div>{view.retry && <div className="popover-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={readPresets}>Retry</button></div>}</>;
+    // The popover is 90% glass over Home's gradient, not plain opaque white, so its notices take the panel surface.
+    if (view.kind === "olderCli") return <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{view.text}</span></div>;
+    if (view.kind === "error") return <><div className="doan-notice error doan-panel" role="alert"><AlertIcon /><span className="grow-text">{view.text}</span></div>{view.retry && <div className="popover-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={readPresets}>Retry</button></div>}</>;
     let index = 0;
     return <>
       {view.tabs.length > 0 && <div className="group-tabs shell-modes" role="tablist" aria-label="Preset groups">{view.tabs.map(item => <button key={item.key} type="button" role="tab" className={item.selected ? "current" : ""} aria-selected={item.selected} tabIndex={item.selected ? 0 : -1}

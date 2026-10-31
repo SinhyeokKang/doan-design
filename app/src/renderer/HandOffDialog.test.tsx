@@ -110,7 +110,7 @@ describe("copy states", () => {
   test("success leaves only Done, with the list and quick select shown but disabled", () => {
     const onClose = vi.fn(), tree = HandOffDialog(props({ onClose }, { copy: { status: "copied", count: 3 } }));
     const out = html(at({ status: "copied", count: 3 }));
-    expect(out).toContain(`<p class="handoff-status doan-notice ok" role="status">Copied an instruction for 3 comments. Paste it into your Claude Code or Codex session.</p><div class="handoff-actions doan-dialog-actions"><span class="spacer"></span><button type="button" class="comments-btn primary doan-button" data-ui-variant="prominent" autofocus="">Done</button></div>`);
+    expect(out).toContain(`<p class="handoff-status doan-notice ok" role="status">${icon}<span>Copied an instruction for 3 comments. Paste it into your Claude Code or Codex session.</span></p><div class="handoff-actions doan-dialog-actions"><span class="spacer"></span><button type="button" class="comments-btn primary doan-button" data-ui-variant="prominent" autofocus="">Done</button></div>`);
     expect(html(at({ status: "copied", count: 1 }))).toContain("Copied an instruction for 1 comment. Paste it");
     expect(out).not.toContain("Cancel");
     expect(boxes(tree).every(box => box.disabled)).toBe(true);
@@ -181,4 +181,10 @@ describe("the context line", () => {
     const detached = [list("/code/acme-web", { main: "/code/acme-web", branch: "main" }), list("/code/acme-web-review", { main: "/code/acme-web", detached: "abc1234def" })];
     expect(handoffContext(detached, "/code/acme-web-review", "Checkout")).toBe("acme-web › acme-web-review › Checkout");
   });
+});
+
+test("the dialog's description ink skips its notices, which keep the shared standard ink", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".comments-dialog p:not(.doan-notice) { color: var(--text-subtle);");
 });

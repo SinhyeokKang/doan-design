@@ -3,7 +3,7 @@ import type { Provider } from "./agentAuth/types";
 // Antigravity has no install page: Doan downloads its server itself.
 export type ExternalTarget = "claude" | "codex" | "cursor" | "copilot";
 // The Settings page's categories, and the target main sends with its open-Settings command.
-export type SettingsSection = "agents" | "notifications" | "connections" | "about";
+export type SettingsSection = "agents" | "notifications" | "about";
 export interface SettingsPageTarget { section?: SettingsSection; provider?: Provider }
 
 // macOS's Notifications pane; Open System Settings opens this and nothing else (buzz-settings P1, 2026-10-30:

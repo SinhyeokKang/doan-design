@@ -37,6 +37,7 @@ vi.mock("react", async original => {
 const { SettingsAgents } = await import("./SettingsAgents");
 const { AgentSignIn } = await import("./agentSignIn");
 const { NoticeView, StopDialog } = await import("./Onboarding");
+const { AlertIcon } = await import("./AlertIcon");
 
 const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
 const ACCOUNT: AccountIdentity = { id: "acct", workspace: "org", email: "ada@example.com" };
@@ -239,4 +240,17 @@ test("an arrival with a provider focuses its row group and flashes it for 2.4 s"
   // The same arrival is not applied again on the next render.
   render();
   expect(focus).toHaveBeenCalledTimes(1);
+});
+
+test("an install page that would not open says so in the default notice on the white page: error tone, alert icon, no panel", async () => {
+  auth = { revision: 1, providers: [dto("claude"), dto("codex", { account: false, facts: { cli: "missing" } })] };
+  api.openInstallPage = vi.fn(async () => false);
+  await settle();
+  const install = all(tree).find(element => element.props["data-command"] === "install")!;
+  (install.props.onClick as () => void)();
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  render();
+  const notice = all(tree).find(element => element.props.role === "alert" && words(element.props.children) === "Couldn’t open the Codex install page.")!;
+  expect(notice.props.className).toBe("doan-notice error");
+  expect((notice.props.children as ReactElement[])[0]!.type).toBe(AlertIcon);
 });

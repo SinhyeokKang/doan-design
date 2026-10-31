@@ -16,10 +16,54 @@ test("the lg button is 48px with 16/24 text and 12/32 padding; default 40 and sm
   for (const [name, value] of [["--size-control-lg", "48px"], ["--size-control", "40px"], ["--size-control-sm", "32px"], ["--type-label-size", "16px"], ["--type-label-line-height", "24px"]]) expect(tokens).toContain(`${name}: ${value};`);
 });
 
-test("a notice on a panel takes the panel's ink and 12/16 padding, and its icon inherits the text colour", () => {
+test("every notice shares one style on the base class; tones colour the text only and doan-panel changes only the surface", () => {
   const css = read("./surfaces.css");
-  expect(rule(css, ".doan-notice.doan-panel")).toBe("padding: var(--space-3) var(--space-4); background: var(--surface-panel); color: var(--text-standard);");
-  expect(css).toContain(".doan-notice.error.doan-panel > .doan-alert-icon { color: inherit; }");
+  const base = rule(css, ".doan-notice")!;
+  for (const declaration of ["align-items: flex-start;", "gap: var(--space-1h);", "padding: var(--space-3) var(--space-4);", "border-radius: var(--radius-row);", "color: var(--text-standard);", "font-size: var(--type-body-sm-size);", "line-height: var(--type-body-sm-line-height);"]) expect(base).toContain(declaration);
+  expect(rule(css, ".doan-notice.warning")).toBe("color: var(--text-warning);");
+  expect(rule(css, ".doan-notice.error")).toBe("color: var(--text-danger);");
+  expect(rule(css, ".doan-notice.ok")).toBe("color: var(--text-success);");
+  expect(rule(css, ".doan-notice.doan-panel")).toBe("background: var(--surface-panel);");
+  // Inline actions centre on the first text line, as the icon does.
+  expect(css).toContain(".doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: flex-start; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }");
+  expect(css).toContain(".doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }");
+  // The icon follows the text: no rule colours it on its own.
+  expect(css).not.toMatch(/\.doan-notice[^{]*\.doan-alert-icon\s*\{[^}]*color/);
+});
+
+test("a notice's text parts take no ink of their own, so the title, body, lines and agent names follow the tone", () => {
+  // Code chips and buttons keep their own ink; every other text inside a notice inherits the notice's tone colour.
+  const parts = /\.(ob-notice-title|ob-notice-body|strip-text|setup-notice-body|setup-notice-list|setup-notice-item|setup-notice-agents|grow-text)(?![\w-])/;
+  const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
+  const inked: string[] = [];
+  for (const [, selectors, body] of sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const colours = body!.split(";").some(d => d.split(":")[0]!.trim() === "color");
+    if (!colours) continue;
+    // :not(...) arguments exclude elements, so they do not make a rule target a notice.
+    for (const selector of selectors!.split(",").map(s => s.trim().replace(/:not\([^)]*\)/g, ""))) {
+      const subject = selector.split(/[\s>+~]+/).at(-1)!;
+      const insideNotice = /\.(doan-notice|convo-strip|setup-notice)(?![\w-])/.test(selector) && !/^(code|button|a|\.doan-button|\.doan-kbd)\b/.test(subject) && selector.trim() !== subject;
+      if (parts.test(selector) || insideNotice) inked.push(`${selector} { ${body!.trim()} }`);
+    }
+  }
+  expect(inked).toEqual([]);
+});
+
+test("screens set only outer margins on a notice: no per-screen padding, gap, type, ink or alignment", () => {
+  const notice = /\.(doan-notice|composer-notice|settings-notice|ob-list-notice|ob-project-notice|ob-drop-notice|setup-notice|fb-note|handoff-notice|handoff-status|convo-strip)(?![\w-])/;
+  const sources = [read("./surfaces.css"), read("../styles.css")].join("\n").replace(/\/\*[\s\S]*?\*\//g, "");
+  const shared = new Set([".doan-notice", ".doan-notice.warning", ".doan-notice.error", ".doan-notice.ok", ".doan-notice.doan-panel"]);
+  const offenders: string[] = [];
+  for (const [, selectors, body] of sources.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    for (const selector of selectors!.split(",").map(s => s.trim())) {
+      // The rule's subject is the last compound selector, without :not(...) arguments.
+      const subject = selector.replace(/:not\([^)]*\)/g, "").split(/[\s>+~]+/).at(-1)!;
+      if (!notice.test(subject) || shared.has(selector)) continue;
+      const properties = body!.split(";").map(d => d.split(":")[0]!.trim()).filter(Boolean);
+      if (properties.some(prop => !prop.startsWith("margin"))) offenders.push(`${selector} { ${body!.trim()} }`);
+    }
+  }
+  expect(offenders).toEqual([]);
 });
 
 test("quiet, trigger and accent own their hover and pressed fills, so the shared opaque rules skip them", () => {
@@ -28,7 +72,20 @@ test("quiet, trigger and accent own their hover and pressed fills, so the shared
   expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:hover:not(:disabled) { background: var(--affordance-subtle-hover); }`);
   expect(css).toContain(`:is(.doan-button, .doan-icon-button)${excluded}:is(:active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-subtle-pressed); }`);
   // A disabled Send keeps the disabled fill instead of vanishing like a ghost button.
-  expect(css).toContain(':is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }');
+  expect(css).toContain(':is(.doan-button, .doan-icon-button):not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="panel"], [data-ui-variant="accent"]):is(:disabled, [data-disabled]) { background: transparent; }');
+});
+
+test("panel rests on the panel white for a notice's inset fill, hovers one step darker, takes subtle's pressed fill and the shared disabled fill", () => {
+  const css = read("./controls.css");
+  expect(css).toContain(':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"] { background: var(--surface-panel); }');
+  // Its hover comes after the shared opaque hover of the same weight, so it wins.
+  const hover = ':is(.doan-button, .doan-icon-button)[data-ui-variant="panel"]:hover:not(:disabled) { background: var(--affordance-panel-hover); }';
+  expect(css.indexOf(hover)).toBeGreaterThan(css.indexOf(":hover:not(:disabled) { background: var(--affordance-subtle-hover); }"));
+  expect(read("../tokens.css")).toContain("--affordance-panel-hover: var(--neutral-3);");
+  // Not excluded from the shared pressed rule, and a filled control when disabled.
+  expect(css).not.toMatch(/:not\([^)]*\[data-ui-variant="panel"\][^)]*\):hover/);
+  expect(css).not.toMatch(/:not\([^)]*\[data-ui-variant="panel"\][^)]*\):is\(:active/);
+  expect(css).toMatch(/:not\(\[data-ui-variant="prominent"\], \[data-ui-variant="subtle"\], \[data-ui-variant="panel"\], \[data-ui-variant="accent"\]\):is\(:disabled, \[data-disabled\]\) \{ background: transparent; \}/);
 });
 
 test("quiet is the header capsule's backdrop with a blur, and steps one backdrop layer on hover and pressed", () => {

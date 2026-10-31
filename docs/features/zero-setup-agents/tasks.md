@@ -99,10 +99,28 @@
 - 관리자 권한 경로 1회 확인: 사람이 지켜보는 가운데, PATH에 `~/.local/bin`이 없는 가짜 SHELL로 실행해 대화상자가 뜨고, 승인하면 `/usr/local/bin/doan`이 생기고, 취소하면 About에 PATH 줄이 보이는지 확인한다. 실제 `/usr/local/bin`에 쓰므로 실행 전에 사용자 승인을 받고, 끝난 뒤 링크를 지운다.
 - 검증: 스크린샷과 파일 목록을 `.scratch/runtime-test/zero-setup-agents/`에 남긴다.
 
+- 관리자 권한 경로 1회 확인 결과(2026-10-31, 사용자 입회, 최종 HEAD `96836a66`로 다시 만든 패키지): 승인하면 root 소유 `/usr/local/bin/doan`이 `<임시 HOME>/.local/share/doan/current/bin/doan`을 가리켰고 About에 알림이 없었다. 취소하면 `agent-setup.json`에 `{"adminCancelled":true}`가 남고 `/usr/local/bin`은 비었으며 About에 PATH 줄 알림이 보였다. 같은 userData로 다시 열자 대화상자가 뜨지 않았고 알림은 그대로였다. 확인 중 만든 `/usr/local/bin`은 지웠고(원래 없었다, `/usr/local`은 원래 있었다) 실제 상태 지문과 LaunchServices 등록은 확인 전과 같다. 첫 시도에서 사람이 스크립트의 링크 삭제 프롬프트를 취소해 2단계를 다시 했다. 증거는 `.scratch/orch/zero-setup-agents/evidence/e/admin/`.
+
 ## T6b. 앱이 만든 배치로 실제 에이전트 확인 (실행 시 사용자 허락 필요)
 
 - T6과 같은 임시 HOME에서 앱이 만든 링크와 rule로 T0의 측정을 다시 한다. 앱 대화 Codex의 skill 중복이 Codex를 헷갈리게 하지 않는지도 본다.
 - 검증: T0 표와 같은 열로 결과를 이 파일에 남기고, 링크 집합이 T0에서 정한 집합과 같다.
+
+2026-10-31 측정. T6 프로브가 남긴 임시 HOME에서 패키지 앱(`<임시 HOME>/Applications/Doan.app`)을 다시 띄웠다. 설치 실행기는 모든 항목을 `keep`으로 판정했다. 앱이 만든 배치는 `~/.local/share/doan/{current,skill}`, `~/.local/bin/doan`, `~/.agents/skills/doan`, `~/.claude/skills/doan`, `~/.gemini/config/skills/doan`, `~/.codex/rules/doan.rules`이고, `~/.cursor/skills/doan`과 `~/.copilot/skills/doan`은 없다. 이 링크 집합은 T0에서 정한 집합과 같다. 가짜 socket 대신 실행 중인 앱의 socket을 썼고, 앱에 임시 repo를 프로젝트로 등록했다. 측정 명령과 `env -i` 환경은 T0과 같고, PATH에서 실제 `~/.local/bin`은 뺐다(에이전트 CLI는 절대경로로 실행).
+
+| 프로바이더 | 읽는 전역 skill 위치 | `doan` 보인 횟수 | `doan skill` | `doan active` | 허용 방식 |
+|---|---|---|---|---|---|
+| Claude Code 2.1.314 | `~/.claude/skills/doan`(앱이 만든 링크, T0에서 Claude가 읽는 유일한 위치) | 1 | 성공, end marker `v0.1.0` 있음 | 앱에 닿음(exit 0) | 필요 없음 |
+| Codex 0.164.0 | `~/.agents/skills/doan`(Codex가 `r0/doan/SKILL.md`로 보고) | 1 | 성공, end marker 있음 | `-s workspace-write`, `approval_policy="never"`, 앱이 쓴 `~/.codex/rules/doan.rules`로 닿음(exit 0). `doan onboarding status`도 sandbox 밖에서 앱에 닿았다(앱이 `session_stale`로 답함, exit 3) | 앱이 쓴 사용자 레이어 rule |
+| GitHub Copilot CLI 1.0.105 | `~/.agents/skills/doan`(Copilot이 이 경로를 보고) | 1 | 성공, end marker 있음 | 앱에 닿음(exit 0) | 필요 없음 |
+| Cursor CLI 2026.10.22 | 측정 못 함 | – | – | – | – |
+| Antigravity 2.28.2(앱) | `~/.gemini/config/skills/doan`(Antigravity가 이 경로를 보고) | 1 | 성공(절대경로 CLI), end marker 있음 | 기본 preset에서는 승인을 묻지 않고 sandbox 안에서 실행해 `connect: operation not permitted`(exit 3). sandbox 밖 실행을 요청하라고 하자 "Allow run doan active --json?"가 떴고, "Yes, allow this time"을 고른 뒤 닿음(exit 0) | 에이전트가 sandbox 밖 실행을 요청하고 사람이 한 번 승인 |
+
+- Cursor: 임시 HOME 로그인(`AGENT_CLI_CREDENTIAL_STORE=file NO_OPEN_BROWSER=1 cursor-agent login`, ego 브라우저에서 승인)은 성공했다. 그러나 계정이 사용 한도에 걸려("You've hit your usage limit") `-p` 실행이 모두 exit 1로 끝났다(`--model auto`도 같음). 로그아웃한 뒤 `cursor-agent status`가 "Not logged in"이고, 임시 HOME에 토큰 파일이 남지 않았다.
+- Antigravity: 앱이 2.0.6(T0)에서 2.28.2로 바뀌었다. T0에서는 첫 실행에서 명령 승인 대화상자가 떴지만, 2.28.2는 기본 preset에서 명령을 sandbox에 넣어 승인 없이 실행하고 socket 연결을 막는다. 에이전트는 `app_not_running`의 `nextSteps`("run `doan` outside the sandbox or request approval")를 받았고, sandbox 밖 실행을 요청하자 승인 한 번으로 닿았다. 에이전트가 스스로 다시 요청하는지는 확인하지 않았다(프롬프트가 재시도를 막았다). T0과 같이 실제 HOME `~/.gemini/config/skills/doan`에 임시 HOME의 `~/.local/share/doan/skill`을 가리키는 링크를 측정 동안만 두었고, 끝난 뒤 지웠다. 앱의 bugshot-2 프로젝트에 "Doan Skill and Runtime Diagnostics" 대화가 남았다. 앱을 처음 띄울 때 보안 안내(데이터 공유 체크박스는 끈 채로)를 수락했다.
+- 앱 대화 Codex의 skill 중복: 실제 앱 대화 대신 같은 skill 배치를 `codex exec`로 재현했다(`CODEX_HOME`=프로필 stub `skills/doan/SKILL.md`를 둔 임시 폴더, HOME=임시 HOME). Codex는 `doan`을 두 번 나열했고(`r0`, `r1`), 하나를 골라 `doan skill`을 정상 실행했다. 헷갈린 흔적은 없다. 이 재현에서 `doan active`는 sandbox에 막혔다. `CODEX_HOME`이 프로필이면 `~/.codex/rules`가 사용자 레이어가 아니기 때문이다. 실제 앱 대화는 앱의 명령 승인 흐름을 쓰므로 이 결과로 판단하지 않는다.
+- 실제 상태 보호: 실행 전후로 실제 HOME 지문(T0 `snapshot.sh` 항목과 `app/runtime/real-state.ts`)을 비교했다. 바뀐 것은 Antigravity 앱이 스스로 쓴 것뿐이다(`~/.gemini/config/config.json`, `node_modules/`, `plugins/`, `~/.gemini/sandbox/`, `~/.gemini/jetski-standalone-oauth-token`, Keychain 항목 `gemini`의 수정 시각). 이것들은 Antigravity 상태라 지우지 않았다. `~/.claude`의 mtime 변화는 같은 시각 다른 워커의 Claude 실행(`~/.claude/projects/-private-tmp-doan-eval-…`)에서 왔다. Codex 인증은 실제 `~/.codex/auth.json` 사본을 쓴 뒤 지웠고, 원본 해시는 그대로다. 임시 HOME의 `Library/Keychains` 링크도 지웠다.
+- 원본 로그와 스크린샷: `.scratch/zero-setup-agents/t6b/`.
 
 ## T7. `/agent-eval`
 

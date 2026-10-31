@@ -52,9 +52,12 @@ async function keychain(): Promise<string> {
 async function snapshot(): Promise<Record<string, string>> {
   const home = homedir();
   const result: Record<string, string> = {};
-  for (const path of new Set([join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"),
+  // Agent setup (app/src/main/agentSetup) writes these when a packaged app in Applications launches.
+  const agentSetup = [join(home, ".local/share/doan"), "/usr/local/bin/doan", join(home, ".codex/rules/doan.rules"), join(home, ".gemini/config/skills/doan"),
+    join(home, ".cursor/skills/doan"), join(home, ".copilot/skills/doan")];
+  for (const path of new Set([join(home, ".local/bin/doan"), join(home, ".agents/skills/doan"), join(home, ".claude/skills/doan"), ...agentSetup,
     ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, "skills/doan")] : []),
-    ...["folders.json", "runtime.json", "onboarding.json", "ui-state.json", "thumbnails", "sessions.jsonl", "conversations", "agent-auth"].map(name => join(home, "Library/Application Support/doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
+    ...["folders.json", "runtime.json", "onboarding.json", "ui-state.json", "agent-setup.json", "thumbnails", "sessions.jsonl", "conversations", "agent-auth"].map(name => join(home, "Library/Application Support/doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
   for (const rel of AUTH_FILES) result[`${join(home, rel)}:meta`] = hash(JSON.stringify(await meta(join(home, rel))));
   result["keychain:provider-items"] = await keychain();
   for (const path of new Set([join(home, ".claude.json"), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, ".claude.json")] : [])])) result[`${path}:mcpServers.doan`] = await key(path, false);

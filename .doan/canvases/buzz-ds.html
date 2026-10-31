@@ -39,6 +39,7 @@ code { font-family: inherit; }
 .tile-label b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .stage { background: var(--bg-app); border-radius: var(--radius-row); padding: 24px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .stage.on-panel { background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.stage.on-inset { background: var(--surface-inset); }
 .stage.col { flex-direction: column; align-items: stretch; }
 .sub-head { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); margin: 24px 0 12px; }
 .sub-head:first-of-type { margin-top: 0; }
@@ -89,12 +90,14 @@ code { font-family: inherit; }
 .doan-button[data-ui-size="sm"] { min-height: var(--size-control-sm); padding: var(--space-1h) var(--space-4); }
 .doan-button[data-ui-variant="prominent"] { background: var(--affordance-prominent); color: var(--text-on-prominent); }
 .doan-button[data-ui-variant="subtle"] { background: var(--affordance-subtle); }
+.doan-button[data-ui-variant="panel"] { background: var(--surface-panel); }
 .doan-button[data-ui-variant="prominent"].is-hover { background: var(--affordance-prominent-hover); }
 .doan-button[data-ui-variant="prominent"].is-pressed { background: var(--affordance-prominent-pressed); }
 .doan-button:not([data-ui-variant="prominent"]).is-hover { background: var(--affordance-subtle-hover); }
 .doan-button:not([data-ui-variant="prominent"]).is-pressed { background: var(--affordance-subtle-pressed); }
+.doan-button[data-ui-variant="panel"].is-hover { background: var(--affordance-panel-hover); }
 .doan-button:disabled { color: var(--text-disabled); background: var(--affordance-disabled); }
-.doan-button:not([data-ui-variant="prominent"], [data-ui-variant="subtle"]):disabled { background: transparent; }
+.doan-button:not([data-ui-variant="prominent"], [data-ui-variant="subtle"], [data-ui-variant="panel"]):disabled { background: transparent; }
 .doan-button.submit { background: var(--affordance-accent); color: var(--text-on-accent); }
 .doan-button.submit.is-hover { background: var(--affordance-accent-hover); }
 .doan-button.submit.is-pressed { background: var(--affordance-accent-pressed); }
@@ -172,7 +175,7 @@ code { font-family: inherit; }
 .doan-dialog-description { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .doan-dialog-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-3); }
 .doan-dialog-actions .lead-status { margin-right: auto; }
-.doan-dialog code, .ob-card code, .cn-card code, .ob-sentence code { background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); color: var(--text-standard); }
+.doan-dialog code, .ob-card code, .ob-sentence code { background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); color: var(--text-standard); }
 
 /* A window at a reduced size: the shell, a scrim and one dialog in its placement. */
 .win { position: relative; height: 440px; border-radius: var(--radius-row); overflow: hidden; box-shadow: inset 0 0 0 1px var(--border-standard); }
@@ -201,9 +204,9 @@ code { font-family: inherit; }
 .doan-alert-icon { flex: none; width: var(--size-icon); height: var(--size-icon); margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
 
 /* Settings-style group: a hairline container whose rows are split by hairlines. */
-.ob-card, .cn-card { border: 1px solid var(--border-standard); border-radius: var(--radius-container); padding: 0 var(--space-4); background: var(--surface-panel); }
+.ob-card { border: 1px solid var(--border-standard); border-radius: var(--radius-container); padding: 0 var(--space-4); background: var(--surface-panel); }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
-.ob-card > :first-child, .cn-card > :first-child { border-top: 0; }
+.ob-card > :first-child { border-top: 0; }
 .ob-label { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ob-field .value { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-field .value.none { color: var(--text-metadata); }
@@ -235,25 +238,12 @@ code { font-family: inherit; }
 .ob-actions .ob-helper { flex: 1; }
 .fp-wait { display: inline-flex; align-items: center; gap: var(--space-2); flex: 1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
 
-/* Connection rows. */
-.cn-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); }
-.cn-name { display: inline-flex; align-items: center; gap: var(--space-1h); justify-self: start; border-radius: var(--space-2); padding: var(--space-1) var(--space-1h); margin-left: calc(-1 * var(--space-1h)); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
-.cn-name .tw { width: 12px; color: var(--text-subtle); font-weight: var(--type-weight-regular); font-size: var(--type-caption-size); text-align: center; }
-.cn-end { display: flex; align-items: center; gap: var(--space-2); }
-.cn-say { grid-column: 1 / -1; padding-left: 18px; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
-.cn-say b { color: var(--text-warning); font-weight: var(--type-weight-medium); }
-.cn-say.ok { color: var(--text-success); }
-.cn-details { grid-column: 1 / -1; margin: var(--space-2) 0 0 18px; border-radius: var(--radius-row); background: var(--surface-inset); padding: 0 var(--space-3); }
-.cn-details code { background: var(--surface-panel); }
 .ob-item { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.cn-details > .ob-item:first-child { border-top: 0; }
 .ob-item .ob-label { font-size: var(--type-body-sm-size); color: var(--text-subtle); font-weight: var(--type-weight-medium); }
 .ob-item .ob-detail { color: var(--text-subtle); min-width: 0; overflow-wrap: anywhere; }
 .ob-item .ob-detail.path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-item.dimmed .ob-label, .ob-item.dimmed .ob-detail { color: var(--text-metadata); }
 .ob-item .ob-reason { grid-column: 2 / -1; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
-.cn-opt { display: grid; gap: var(--space-2); padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
-.cn-opt-head { display: flex; align-items: center; gap: var(--space-2); color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .ob-copyline { display: flex; align-items: center; gap: var(--space-2); }
 .ob-copyline output { flex: 1; min-width: 0; background: var(--surface-panel); border-radius: var(--radius-chip); padding: var(--space-1h) var(--space-3); color: var(--text-standard); overflow-wrap: anywhere; }
 
@@ -319,8 +309,8 @@ code { font-family: inherit; }
 <h1>Design system — draft</h1>
 <p><b>Scope.</b> Feature <code>buzz-ds</code> (its design.md draft request, under the parent restyle feature). The light design system that replaces the old dark look: palette and roles from <code>tokens.css</code>, type, radius and elevation, the shared components (buttons, icon buttons, panel, tooltip, menu, popover, dialogs, toast, spinner, form controls, focus and disabled), the canvas overlay marks, the few places that carry the violet accent, and the shared elements that several screens use. Screen layout (shell, header, sidebar metrics, onboarding surface, panel interiors) is not drawn here; the screen children of the parent restyle feature draw it.</p>
 <p><b>Target, not current.</b> Every frame shows what S3 (tasks A6–A8) will implement, not the app on main. The component rules repeat the classes of <code>app/src/renderer/ds/</code> (<code>doan-button</code>, <code>doan-icon-button</code>, <code>doan-floating</code>, <code>doan-menu-item</code>, <code>doan-tooltip</code>, <code>doan-dialog</code>, <code>doan-toast</code>, <code>doan-input</code>, <code>doan-checkbox</code>, <code>doan-kbd</code>, <code>doan-chip</code>, <code>doan-spinner</code>, <code>doan-panel</code>) with <code>data-ui-*</code> variants, so <code>/design-sync</code> can pair them by selector. Static states are drawn with draft-only helper classes (<code>is-hover</code>, <code>is-pressed</code>, <code>is-focus</code>, <code>is-highlighted</code>); the app reaches them through <code>:hover</code>, <code>:active</code>, <code>:focus-visible</code> and Radix <code>data-highlighted</code>.</p>
-<p><b>/design-sync compares.</b> A7 (shared components): <code>buttons</code>, <code>icon-button</code>, <code>panel</code>, <code>tooltip</code>, <code>menu</code>, <code>popover</code>, <code>dialog-sizes</code>, <code>dialog-anatomy</code>, <code>toast</code>, <code>spinner</code>, <code>forms</code>, <code>focus-disabled</code>. A8 (shared elements): <code>shared-project-setup</code>, <code>shared-add-projects</code>, <code>shared-first-prompt</code>, <code>shared-connection-rows</code>, <code>shared-error-details</code>. Each of these frames carries a black “design-sync” tag. <code>tokens-color</code>, <code>tokens-type</code> and <code>radius-elevation</code> are a reference read from <code>tokens.css</code>; <code>canvas-marks</code> and <code>accent-places</code> are checked by A6 (selector map, <code>accentPlaces</code>, <code>contrastPairs</code>) and the screen children, not by design-sync.</p>
-<p><b>New.</b> All 22 frames are new; nothing here is copied from a shipped screen's look. The shared elements keep their content, copy, structure and behaviour (copy taken from <code>ProjectSetupDialog.tsx</code>, <code>AddProjectsDialog.tsx</code>, <code>FirstPrompt.tsx</code> + <code>firstPromptView.ts</code>, <code>ConnectionRows.tsx</code> + <code>connectionRowView.ts</code> + <code>onboardingView.ts</code>, <code>ErrorDetails.tsx</code> and its hosts, <code>Toast.tsx</code> and its callers); only the look changes. Dashed yellow tags mark what the ds CSS does not have yet (A7 adds it).</p>
+<p><b>/design-sync compares.</b> A7 (shared components): <code>buttons</code>, <code>icon-button</code>, <code>panel</code>, <code>tooltip</code>, <code>menu</code>, <code>popover</code>, <code>dialog-sizes</code>, <code>dialog-anatomy</code>, <code>toast</code>, <code>spinner</code>, <code>forms</code>, <code>focus-disabled</code>. A8 (shared elements): <code>shared-project-setup</code>, <code>shared-add-projects</code>, <code>shared-first-prompt</code>, <code>shared-error-details</code>. Each of these frames carries a black “design-sync” tag. <code>tokens-color</code>, <code>tokens-type</code> and <code>radius-elevation</code> are a reference read from <code>tokens.css</code>; <code>canvas-marks</code> and <code>accent-places</code> are checked by A6 (selector map, <code>accentPlaces</code>, <code>contrastPairs</code>) and the screen children, not by design-sync.</p>
+<p><b>New.</b> All 21 frames are new; nothing here is copied from a shipped screen's look. The shared elements keep their content, copy, structure and behaviour (copy taken from <code>ProjectSetupDialog.tsx</code>, <code>AddProjectsDialog.tsx</code>, <code>FirstPrompt.tsx</code> + <code>firstPromptView.ts</code>, <code>ErrorDetails.tsx</code> and its hosts, <code>Toast.tsx</code> and its callers); only the look changes. Dashed yellow tags mark what the ds CSS does not have yet (A7 adds it).</p>
 <p><b>Decisions this draft follows.</b> Non-text 3:1 applies to <code>border-prominent</code>, focus rings and pins only; hairlines (<code>border-standard</code>) and fill-edged inputs are a documented exception (orch.md, 2026-10-26 user). The accent is doan's own violet ramp: step 9 is <code>#973be1</code> with white text on it (5.2:1, APCA Lc −80); every step takes the reference ramp's per-step lightness and chroma share at hue 305, and hover and pressed are darker than 9 (design.md, orch.md, 2026-10-26 user). The pin rim is black, not a violet step, so it holds 3:1 against the violet fill (conductor, 2026-10-26). The user confirms the ramp with this draft. Violet appears only in the places of design.md's violet table (frame <code>accent-places</code>). Dialog sizes compact / standard / wide / expanded: compact centred, the other three 8rem from the top (orch.md, R1). Tooltip and the canvas dimension label are the same prominent capsule, and the sidebar hover (violet 2) is faint on white, both on purpose (design.md). <b>Conductor's call, for the user to confirm:</b> the size step of each shared dialog — Set up folder confirmation compact, Project Setup standard, Add Projects standard. Toasts stay one neutral floating toast with no type (Toast.tsx has none); an error reads by its sentence (conductor, 2026-10-26).</p>
 <p><b>References.</b> Values and rules follow the reference design system recorded in docs/DESIGN.md (read from its local clone at the base commit for this draft, checked: tokens, overlays, materials, chips, forms, settings-group, sidebar navigation and focus rules). Values themselves are the variables of <code>app/src/renderer/tokens.css</code> (S1). Palette steps appear only as swatches in <code>tokens-color</code>; everything else reads roles, never the legacy aliases. Example canvas colours come from <code>doan/../assets/mock.css</code>.</p>
 </header>
@@ -477,7 +467,7 @@ code { font-family: inherit; }
 <!-- ======================= buttons ======================= -->
 <section class="frame" data-doan-frame="buttons" data-doan-title="Buttons" data-doan-implements="app/src/renderer/ds/controls.css">
 <div class="flabel"><h2>Buttons</h2><span class="tag sync">design-sync A7</span></div>
-<p class="fnote">Capsules in three emphases. Prominent is the one completing action of a surface; subtle is the default for secondary actions (the old <code>.btn</code>); ghost sits in dense rows. Pressed changes the fill, never the position. Disabled drops to its own role, not to opacity. Dialog actions use the default 40px size; actions inside rows and cards use <code>sm</code> (32px).</p>
+<p class="fnote">Capsules in three emphases. Prominent is the one completing action of a surface; subtle is the default for secondary actions (the old <code>.btn</code>); ghost sits in dense rows; panel is subtle's stand-in on a notice's inset fill, where subtle's grey would vanish (it rests on white and hovers on <code>--affordance-panel-hover</code>). Pressed changes the fill, never the position. Disabled drops to its own role, not to opacity. Dialog actions use the default 40px size; actions inside rows and cards use <code>sm</code> (32px).</p>
 <div class="tiles c3">
 <div><p class="tile-label"><b>prominent</b> — default · hover · pressed · disabled</p>
 <div class="stage on-panel col" style="align-items: start">
@@ -499,6 +489,15 @@ code { font-family: inherit; }
 <button class="doan-button is-hover">Not Now</button>
 <button class="doan-button is-pressed">Not Now</button>
 <button class="doan-button" disabled>Not Now</button>
+</div></div>
+</div>
+<div class="tiles c3" style="margin-top: 24px">
+<div><p class="tile-label"><b>panel</b> — default · hover · pressed · disabled, on a notice's inset fill</p>
+<div class="stage on-inset col" style="align-items: start">
+<button class="doan-button" data-ui-size="sm" data-ui-variant="panel" data-doan-id="btn-panel">Edit on Home</button>
+<button class="doan-button is-hover" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button>
+<button class="doan-button is-pressed" data-ui-size="sm" data-ui-variant="panel">Edit on Home</button>
+<button class="doan-button" data-ui-size="sm" data-ui-variant="panel" disabled>Edit on Home</button>
 </div></div>
 </div>
 <div class="tiles c2" style="margin-top: 24px">
@@ -975,45 +974,6 @@ code { font-family: inherit; }
 <p class="ob-msg error" role="alert"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="doan-alert-icon" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg><span>Couldn’t copy. Your clipboard could not be updated. Try again.</span></p>
 <div class="ob-actions"><span class="ob-helper">Paste it into a new Claude Code or Codex session.<br>Your input stays in doan until you copy it.</span><button class="doan-button" data-ui-variant="prominent" disabled>Retry copy</button></div>
 </div></div></div>
-</div>
-</section>
-
-<!-- ======================= shared-connection-rows ======================= -->
-<section class="frame" data-doan-frame="shared-connection-rows" data-doan-title="Shared — Connection rows" data-doan-implements="app/src/renderer/ConnectionRows.tsx">
-<div class="flabel"><h2>Shared — Connection rows</h2><span class="tag sync">design-sync A8</span></div>
-<p class="fnote"><code>ConnectionRows</code> (Settings Connections and the wizard). The card is the settings-style group; each row keeps its disclosure name, status chip and one action. A cause stays medium in <code>text-warning</code>; a just-connected line is <code>text-success</code>. Details open on an inset fill inside the row, with label / detail / chip items split by hairlines. <code>connectionRows.css</code> reads roles only.</p>
-<div class="tiles c2">
-<div><p class="tile-label"><b>Mixed states</b> — connected, needs attention, not installed, not connected, couldn't check</p>
-<div class="stage on-panel" style="padding: 24px">
-<div class="cn-card" style="width: 100%" data-doan-id="connection-card">
-<div class="cn-row"><button class="cn-name" aria-expanded="false"><span class="tw">▸</span>doan command</button><span class="cn-end"><span class="ob-chip ok">Connected</span></span><p class="cn-say">Your agents and your terminal can run doan.</p></div>
-<div class="cn-row"><button class="cn-name" aria-expanded="false"><span class="tw">▸</span>Claude Code</button><span class="cn-end"><span class="ob-chip warn">Needs attention</span><button class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Fix…</button></span><p class="cn-say"><b>MCP runs another command.</b> Claude Code’s doan server runs <code>/opt/homebrew/bin/doan mcp</code>, not this app’s doan.</p></div>
-<div class="cn-row"><button class="cn-name" aria-expanded="false"><span class="tw">▸</span>Codex</button><span class="cn-end"><span class="ob-chip">Not installed</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Install Codex ↗</button></span><p class="cn-say">Codex isn’t installed on this Mac.</p></div>
-</div>
-<div class="cn-card" style="width: 100%; margin-top: 16px">
-<div class="cn-row"><button class="cn-name" aria-expanded="false"><span class="tw">▸</span>doan command</button><span class="cn-end"><span class="ob-chip">Not connected</span><button class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Connect</button></span><p class="cn-say">Agents can’t run doan until the command is connected.</p></div>
-<div class="cn-row"><button class="cn-name" aria-expanded="false"><span class="tw">▸</span>Claude Code</button><span class="cn-end"><span class="ob-chip ok">Connected</span></span><p class="cn-say ok">Connected. Start a new Claude Code session to use doan.</p></div>
-<div class="cn-row"><button class="cn-name" aria-expanded="false"><span class="tw">▸</span>Codex</button><span class="cn-end"><span class="ob-chip warn">Couldn’t check</span><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Check Again</button></span><p class="cn-say">The registration could not be read.</p></div>
-</div>
-</div></div>
-<div><p class="tile-label"><b>Expanded</b> — doan command details with the optional PATH line, and an agent's items</p>
-<div class="stage on-panel" style="padding: 24px">
-<div class="cn-card" style="width: 100%">
-<div class="cn-row"><button class="cn-name is-focus" aria-expanded="true"><span class="tw">▾</span>doan command</button><span class="cn-end"><span class="ob-chip ok">Connected</span></span><p class="cn-say">Your agents and your terminal can run doan.</p>
-<div class="cn-details" data-doan-id="connection-details">
-<div class="ob-item"><span class="ob-label">CLI link</span><span class="ob-detail path" title="~/.local/bin/doan → /Applications/doan.app/Contents/Resources/bin/doan"><code>~/.local/bin/doan</code> → <code>/Applications/doan.app/Contents/Resources/bin/doan</code></span><span class="ob-chip ok">Installed</span></div>
-<div class="cn-opt"><span class="cn-opt-head">Use doan in your terminal <span class="ob-chip">Optional</span></span>
-<p>Add this line to <code>~/.zshrc</code>, then open a new terminal. Agents don’t need it.</p>
-<span class="ob-copyline"><output>export PATH="$HOME/.local/bin:$PATH"</output><button class="doan-button" data-ui-size="sm" data-ui-variant="subtle">Copy</button></span></div>
-</div></div>
-<div class="cn-row"><button class="cn-name" aria-expanded="true"><span class="tw">▾</span>Claude Code</button><span class="cn-end"><span class="ob-chip">Not connected</span><button class="doan-button" data-ui-size="sm" data-ui-variant="prominent">Connect</button></span><p class="cn-say">Claude Code is installed but can’t use doan yet.</p>
-<div class="cn-details">
-<div class="ob-item"><span class="ob-label">Found at</span><span class="ob-detail"><code>~/.local/bin/claude</code></span><span></span></div>
-<div class="ob-item"><span class="ob-label">Skill</span><span class="ob-detail"><code>~/.agents/skills/doan/SKILL.md</code> · shared with Codex</span><span class="ob-chip">Not installed</span></div>
-<div class="ob-item dimmed"><span class="ob-label">MCP</span><span class="ob-detail">Registers in <code>~/.claude.json</code></span><span class="ob-chip">Not registered</span><span class="ob-reason">Connect the doan command first; MCP needs it.</span></div>
-</div></div>
-</div>
-</div></div>
 </div>
 </section>
 

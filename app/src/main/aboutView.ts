@@ -1,5 +1,6 @@
 import { PROVIDER_NAMES } from "../renderer/agentAuthView";
 import { PROVIDERS, type Provider, type ToolFacts } from "./agentAuth/types";
+import type { SetupItem } from "./agentSetup/notice";
 import { MINIMUM_VERSIONS } from "./conversation/minimumVersions";
 
 // Settings > About's shapes and rows (buzz-settings design 'About'). The renderer imports this module, so it must not
@@ -9,8 +10,9 @@ import { MINIMUM_VERSIONS } from "./conversation/minimumVersions";
 export interface AboutCli { path: string; version: string | null }
 // The installed version is About's alone; agent-auth DTOs never carry it.
 export interface AboutTool { provider: Provider; cli: ToolFacts["cli"]; installed: string | null; support: ToolFacts["version"] }
-// `tools` null: agent sign-in storage is unreadable, so no tool facts were ever read.
-export interface AboutRead { version: string; cli: AboutCli; tools: AboutTool[] | null }
+// `tools` null: agent sign-in storage is unreadable, so no tool facts were ever read. `setup` is this launch's agent
+// setup result (aboutNotice's input); main answers only once setup has finished.
+export interface AboutRead { version: string; cli: AboutCli; tools: AboutTool[] | null; setup: { home: string; items: SetupItem[] } }
 export type AboutTone = "neutral" | "ok" | "warning" | "error";
 // `value` and `status` are the right-hand column; `error` (a failed read, on the doan command or a tool row) replaces
 // them with a sentence and a Retry.

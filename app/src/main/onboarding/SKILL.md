@@ -10,7 +10,7 @@ retrieve the complete guide before proceeding. A truncation notice (such as
 "tokens truncated") means the same even with that line: save `doan skill`
 output to a file and read it in parts.
 If neither works, say Doan's guide and presets were not applied and suggest
-connecting this agent in Doan (Settings… > Connections). Do not search for,
+that the user open Doan from Applications and check Settings… > About. Do not search for,
 install or run other Doan binaries, or read Doan's source files.
 When the Doan app's conversation instructions say otherwise, follow them.
 

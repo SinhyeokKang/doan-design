@@ -248,7 +248,7 @@ func TestActiveAppErrors(t *testing.T) {
 		{"bad_request", reply(`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`), "internal_error", ""},
 		{"response v 2", reply(`{"v":2}`), "app_protocol_mismatch", ""},
 		{"not json", reply(`<html>`), "internal_error", ""},
-		{"closed without response", func(c net.Conn, _ []byte) { c.Close() }, "app_not_running", "MCP `active`"},
+		{"closed without response", func(c net.Conn, _ []byte) { c.Close() }, "app_not_running", "outside the sandbox"},
 		{"partial line then close", func(c net.Conn, _ []byte) { c.Write([]byte(`{"v":1`)); c.Close() }, "internal_error", ""},
 		{"oversized line", func(c net.Conn, _ []byte) { c.Write(bytes.Repeat([]byte(" "), 64<<10+1)); c.Close() }, "internal_error", ""},
 		{"valid json over the cap", func(c net.Conn, _ []byte) {
@@ -456,12 +456,30 @@ func TestRunActiveOverRealSocket(t *testing.T) {
 	failure(t, root, "app_not_running", "active")
 }
 
-func TestActiveUnavailableOffersFallbackWithoutMCP(t *testing.T) {
+func TestActiveUnavailableOffersSandboxAndAboutGuidance(t *testing.T) {
 	root := initialized(t)
 	ctx := activeContext(t, root, func(string, time.Time) (net.Conn, error) { return nil, syscall.EACCES })
 	failure := activeCode(t, ctx, root, "app_not_running")
-	want := "If no MCP active tool is available, ask the user to name the target or connect this agent in Doan (Settings…)"
-	if !strings.Contains(strings.Join(failure.NextSteps, "\n"), want) {
-		t.Fatalf("missing no-MCP fallback: %v", failure.NextSteps)
+	requireRecoveryOrder(t, failure.NextSteps, [][]string{
+		{"Ask the user to open Doan"},
+		{"If Doan is open, a sandbox may block this shell from its socket", "MCP `active` tool if it is available"},
+		{"Otherwise", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
+		{"If it still fails", "Applications", "Settings… > About"},
+	})
+}
+
+// requireRecoveryOrder pins the sandbox recovery order by step index: reordering
+// steps or dropping the MCP availability qualifier must fail.
+func requireRecoveryOrder(t *testing.T, steps []string, want [][]string) {
+	t.Helper()
+	if len(steps) != len(want) {
+		t.Fatalf("want %d steps, got %d: %v", len(want), len(steps), steps)
+	}
+	for i, parts := range want {
+		for _, p := range parts {
+			if !strings.Contains(steps[i], p) {
+				t.Errorf("step %d misses %q: %s", i, p, steps[i])
+			}
+		}
 	}
 }

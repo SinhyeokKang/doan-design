@@ -13,8 +13,9 @@ import { antigravityServer } from "./agentAuth/antigravity";
 import { PROVIDER_AUTH } from "./agentAuth/providers";
 import { AUTH_CHANNELS, AuthIpc } from "./agentAuth/ipc";
 import { sharedShell, toolFacts } from "./agentAuth/facts";
-import { createMachine, PATH_LINE, probeShell, runProcess } from "./onboarding/machine";
-import { isTranslocated } from "./onboarding/states";
+import { probeShell, runProcess } from "./onboarding/machine";
+import { osascriptAdmin, runAgentSetup } from "./agentSetup/runner";
+import type { SetupItem } from "./agentSetup/notice";
 import { ONBOARDING_CHANNELS, OnboardingService, rendererRequest } from "./onboarding/service";
 import { projectLocks, type AdderProjects } from "./onboarding/projectAdder";
 import { ADD_PAGE_CHANNELS, AddPageSession } from "./addPage";
@@ -59,7 +60,6 @@ import { readFoldersFileForPruning } from "./folderStore";
 import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
-import { createSetupBroker, type SetupBroker } from "./setupBroker";
 import { promptSentence } from "../firstPrompt/promptSentence";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
@@ -105,7 +105,6 @@ app.on("web-contents-created", (_event, contents) => {
 // --bg-app in renderer/tokens.css: windows paint it before the renderer's first frame.
 const SHELL_BACKGROUND = "#f1f1f2";
 let win: BrowserWindow | undefined;
-let broker: SetupBroker | undefined;
 let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
 let runtime: Runtime | undefined;
@@ -136,7 +135,6 @@ const transitionGuard = createTransitionGuard(request => {
 // First run is open from a launch without a completion record (P's v1 marker; the legacy `{}` is not one) until the
 // session reports completion. Settings and the menu wait for it, as they waited for the old wizard.
 let onboardingOpen = false;
-let machine: ReturnType<typeof createMachine> | undefined;
 let quitting = false;
 let quitScheduled = false;
 let cancelPendingHide = () => {};
@@ -370,19 +368,17 @@ function createWindow(): BrowserWindow {
   // client, so it keeps running.
   window.webContents.on("render-process-gone", () => addPage?.rendererGone());
   window.webContents.on("did-navigate", () => addPage?.rendererGone());
-  // A lost or closed renderer takes its setup confirmation with it; hiding the
-  // window does not. Read after destroy, webContents throws, so the id is kept now.
+  // Read after destroy, webContents throws, so the id is kept now.
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
-  window.webContents.on("render-process-gone", () => { broker?.drop(owner); configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
-  // A reloaded renderer has no Project Settings dialog or setup confirmation left to answer (buzz-settings S4).
-  window.webContents.on("did-navigate", () => { broker?.drop(owner); configBridge?.clear(); });
+  window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
+  // A reloaded renderer has no Project Settings dialog left to answer (buzz-settings S4).
+  window.webContents.on("did-navigate", () => { configBridge?.clear(); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
-  // The connection summary shares that throttle (app-setup design 'Connections').
   const reread = createThrottle(60_000);
   window.on("focus", () => {
-    if (reread()) { shell?.rereadAll(); void broker?.refresh(); }
+    if (reread()) shell?.rereadAll();
   });
   window.on("close", (event) => {
     if (quitting) return;
@@ -402,7 +398,6 @@ function createWindow(): BrowserWindow {
     } else hideWindow(window);
   });
   window.on("closed", () => {
-    broker?.drop(owner);
     void agentAuth?.ownerClosed(owner);
     cancelPendingHide();
     if (win === window) win = undefined;
@@ -586,6 +581,17 @@ async function start(): Promise<void> {
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
   const shellForFacts = sharedShell(() => probeShell(process.env));
+  // Agent setup (zero-setup-agents design '언제, 어떤 복사본이 쓰는가'): once per launch, beside the window rather than
+  // before it. About waits for this result, which stays pending while the administrator dialog is open; a run that
+  // throws becomes a crashed item, so About never shows its failure as "every agent was set up".
+  const agentSetup = shellForFacts().then(probe => runAgentSetup({
+    home: homeDirectory(), resources: process.resourcesPath, isPackaged: app.isPackaged, loginPath: probe.ok ? probe.path : null,
+    shell: process.env.SHELL ?? "", userData, runAdmin: osascriptAdmin,
+  })).catch((error: unknown) => {
+    console.error("doan: agent setup failed", error);
+    const crashed: SetupItem = { target: "setup", providers: [...PROVIDERS], reason: "crashed" };
+    return { home: homeDirectory(), items: [crashed] };
+  });
   if (agentAuth) {
     authIpc = new AuthIpc({
       backend: agentAuth, openExternal: url => electronShell.openExternal(url),
@@ -645,7 +651,7 @@ async function start(): Promise<void> {
     publish: state => {
       send(ONBOARDING_CHANNELS.changed, state);
       // Completion saved (from the window, the CLI or MCP): first run is over for this launch too.
-      if (state.completed && onboardingOpen) { onboardingOpen = false; broker?.setOnboardingClosed(true); setMenu(); }
+      if (state.completed && onboardingOpen) { onboardingOpen = false; setMenu(); }
     },
     projects: { ...projectWork, confirm: root => confirmProject(root, projectDeps), saveCompletion: root => writeCompletion(userData, root) },
     locks,
@@ -908,28 +914,7 @@ async function start(): Promise<void> {
   });
 
   const command = cliCommand(process.env, app.isPackaged, process.resourcesPath);
-  machine = createMachine({ command, version: app.getVersion() });
-  const setup = machine;
-  const setupBroker = createSetupBroker({
-    machine: setup, translocated: isTranslocated(command),
-    // The home alerts wait for a completed first run (v1 marker), not for the old wizard's `{}`.
-    onboardingClosed: async () => onboardingComplete(readCompletion(userData)),
-    publish: (status) => { send("setup:status", status); },
-  });
-  broker = setupBroker;
-  const requestId = (value: unknown, keys: number): string | null => typeof value === "object" && value !== null && Object.keys(value).length === keys &&
-    "requestId" in value && typeof value.requestId === "string" && value.requestId !== "" && value.requestId.length <= 128 ? value.requestId : null;
-  // Settings and the home use these; the read token and the lock owner are the sending window.
-  handle("setup:status", null, () => setupBroker.status());
-  handle("setup:read", { kind: "stale" }, async (event, value: unknown, kind) => {
-    const id = requestId(value, 1);
-    if (id === null) return { kind: "stale" };
-    const read = await setupBroker.read(event.sender.id, id);
-    return senderKind(event) === kind ? read : { kind: "stale" };
-  });
-  handle("setup:run", { kind: "stale" }, (event, value: unknown) => setupBroker.run(event.sender.id, value));
-  handle("setup:answer", { kind: "stale" }, (event, value: unknown) => setupBroker.answer(event.sender.id, value));
-  handle("setup:check-again", null, () => setupBroker.refresh());
+  // First run and Agents' Install/Update open the providers' install pages.
   handle("setup:open-external", false, async (_event, value: unknown) => {
     const target = parseExternalTarget(value);
     if (target === null) return false;
@@ -942,10 +927,10 @@ async function start(): Promise<void> {
   // Tool facts come from AuthIpc's cache (its first read probes once); only the doan version runs the CLI.
   let lastAbout: AboutRead | null = null;
   const readAbout = async (): Promise<AboutRead> => {
-    const [run] = await Promise.all([runDesignSkill(command), authIpc?.read()]);
+    const [run, setup] = await Promise.all([runDesignSkill(command), agentSetup, authIpc?.read()]);
     const ipc = authIpc;
     const tools = ipc ? PROVIDERS.flatMap(provider => { const facts = ipc.toolFacts(provider); return facts ? [aboutTool(provider, facts)] : []; }) : null;
-    lastAbout = { version: app.getVersion(), cli: aboutCli(command, run), tools };
+    lastAbout = { version: app.getVersion(), cli: aboutCli(command, run), tools, setup: { home: setup.home, items: setup.items } };
     return lastAbout;
   };
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
@@ -966,8 +951,7 @@ async function start(): Promise<void> {
   handle("onboarding:copy", { kind: "stale" }, async (_event, value: unknown) => {
     if (typeof value !== "object" || value === null || !("kind" in value)) return { kind: "stale" };
     let text: string | null = null;
-    if (value.kind === "pathLine" && Object.keys(value).length === 1) text = PATH_LINE;
-    else if (value.kind === "firstPrompt" && "root" in value) text = promptText(value as Record<string, unknown>, 1);
+    if (value.kind === "firstPrompt" && "root" in value) text = promptText(value as Record<string, unknown>, 1);
     return text === null ? { kind: "stale" } : copy(text);
   });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
@@ -997,7 +981,6 @@ async function start(): Promise<void> {
 
   onboardingOpen = !onboardingComplete(readCompletion(userData));
   setMenu();
-  void setupBroker.refresh();
   win = createWindow();
   onboardingReady(onboardingService);
 }

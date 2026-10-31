@@ -57,12 +57,12 @@ var onboardingFlags = map[string]string{
 var operationOps = map[string]bool{"check": true, "sign_in": true, "project_inspect": true, "project_select": true, "project_clone": true, "complete": true}
 
 func onboardingFailure(code, message string) *Error {
-	// A sandboxed agent shell can be denied the socket of a running app, and a launched app then never answers;
-	// the MCP server runs outside that sandbox.
+	// A sandbox can deny the socket even while the app is running; the MCP server runs outside that sandbox.
 	unreachable := []string{
 		"Ask the user to open Doan, then run `doan onboarding start` again",
-		"If Doan is open, a sandbox may block this shell from its socket; call the MCP `onboarding_start` tool and continue with the `onboarding_*` tools",
-		"If no MCP onboarding tools are available, ask the user to run this command outside the sandbox or to open Doan",
+		"If Doan is open, a sandbox may block this shell from its socket: call the MCP `onboarding_start` tool and continue with the `onboarding_*` tools if they are available",
+		"Otherwise, run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions",
+		"If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About",
 	}
 	steps := map[string][]string{
 		"app_not_running":       unreachable,

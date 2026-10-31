@@ -171,27 +171,33 @@
 }
 
 /* ── Notices ─────────────────────────────────────────────────────────────────
-   An inset fill, never a coloured edge. A warning or an error leads with an icon so that
-   colour is not the only signal; the icon sits on the first line of text. */
+   An inset fill, never a coloured edge. Every notice leads with an icon on its first line of
+   text: the alert icon, or a spinner or status mark in that slot, in the text's colour. Every
+   notice shares one style (padding, gap, radius, type, icon size and alignment); only the tone,
+   which colours the text, and the surface (inset, or doan-panel's fill and shadow) differ. */
 .doan-notice {
   display: flex;
   align-items: flex-start;
   gap: var(--space-1h);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-row);
   background: var(--surface-inset);
-  color: var(--text-subtle);
+  color: var(--text-standard);
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line-height);
   overflow-wrap: anywhere;
 }
-.doan-notice.warning > .doan-alert-icon { color: var(--text-warning); }
-.doan-notice.error > .doan-alert-icon { color: var(--text-danger); }
+/* The tone colours the whole text and the icon follows it; code chips, links and buttons inside keep their own ink. */
+.doan-notice.warning { color: var(--text-warning); }
+.doan-notice.error { color: var(--text-danger); }
+.doan-notice.ok { color: var(--text-success); }
 .doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
-/* A notice that stands on its own as a panel (onboarding states) takes the panel's ink and a roomier
-   inset; its icon, or a spinner in the same slot, follows the text colour instead of a tone. */
-.doan-notice.doan-panel { padding: var(--space-3) var(--space-4); background: var(--surface-panel); color: var(--text-standard); }
-.doan-notice.error.doan-panel > .doan-alert-icon { color: inherit; }
+/* An inline action, or a group of them, centres on the first text line like the icon; the negative
+   margins let a sm button reach into the padding, so a one-line notice keeps its height. */
+.doan-notice > :is(.doan-button, :has(> .doan-button)) { flex: none; align-self: flex-start; margin-block: calc((var(--type-body-sm-line-height) - var(--size-control-sm)) / 2); }
+/* On a backdrop that is not plain opaque white (first run's transparent overlay, Home's gradient)
+   the notice takes the white panel surface and shadow (from doan-panel); nothing else changes. */
+.doan-notice.doan-panel { background: var(--surface-panel); }
 
 /* ── Settings group ──────────────────────────────────────────────────────────
    A bordered container of preference rows split by lines: a title column with an optional

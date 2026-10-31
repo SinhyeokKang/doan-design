@@ -286,7 +286,7 @@ func TestSkillGuidePresetRules(t *testing.T) {
 		// Failure rules.
 		"Without the shell CLI, use MCP `skill` and `design_skill`.",
 		"say the preset was not applied",
-		"Named preset: never claim or substitute it; only then suggest repairing this agent in Doan's Settings… > Connections.",
+		"Named preset: never claim or substitute it; then ask the user to open Doan from Applications and check Settings… > About.",
 		"Self-chosen: say so in one line and continue, without guessing an unconfirmed target or conventions.",
 		"Never install, change PATH, permissions or MCP registration, or retry a refused call.",
 		"Doan app conversation instructions override these rules.",

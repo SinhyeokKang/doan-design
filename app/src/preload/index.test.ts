@@ -125,10 +125,10 @@ test("project setup exposes choice IDs and forwards focus with folder state", as
 const ROOT = "/repo";
 
 
-test("the old wizard calls are gone; the PATH line copy and the folder picker use fixed channels", async () => {
-  for (const name of ["onOnboardingOpen", "readOnboarding", "runOnboardingStep", "answerOnboardingReplace", "closeOnboarding", "openProject"]) expect(name in api).toBe(false);
+test("the old wizard and Connections calls are gone; the folder picker uses a fixed channel", async () => {
+  for (const name of ["onOnboardingOpen", "readOnboarding", "runOnboardingStep", "answerOnboardingReplace", "closeOnboarding", "openProject",
+    "copyPathLine", "setupStatus", "checkSetupAgain", "onSetupStatus", "readSetup", "runSetupStep", "answerSetupConfirm"]) expect(name in api).toBe(false);
   await api.chooseOnboardingFolder("destination"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:choose-folder", "destination");
-  await api.copyPathLine(); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "pathLine" });
 });
 
 test("project remove, restore, locate and reveal use fixed channels", async () => {
@@ -208,20 +208,6 @@ test("window visibility: the current value is asked for, and later changes follo
   expect(listener.mock.calls).toEqual([[true], [false]]);
   stop();
   expect(emitter.listenerCount("window:visible")).toBe(0);
-});
-
-test("setup status: the current value is asked for, and an event that came first wins", async () => {
-  let resolve: (value: unknown) => void = () => { throw new Error("no initial read"); };
-  mocks.invoke.mockImplementation(() => new Promise((done) => { resolve = done; }));
-  const listener = vi.fn();
-  const stop = api.onSetupStatus(listener);
-  expect(mocks.invoke).toHaveBeenCalledWith("setup:status");
-  emitter.emit("setup:status", {}, { summary: null, causes: {}, checking: true, busy: false, onboardingClosed: false });
-  resolve({ summary: null, causes: {}, checking: false, busy: false, onboardingClosed: false });
-  await Promise.resolve();
-  expect(listener).toHaveBeenCalledExactlyOnceWith({ summary: null, causes: {}, checking: true, busy: false, onboardingClosed: false });
-  stop();
-  expect(emitter.listenerCount("setup:status")).toBe(0);
 });
 
 test("install pages use their fixed target channel", async () => {
@@ -381,9 +367,6 @@ test("settings page calls use fixed channels and pass their requests as data", a
     [() => api.readConfig("/repo"), ["config:read", { root: "/repo" }]],
     [() => api.chooseConfigPath("/repo", "serve"), ["config:choose", { root: "/repo", kind: "serve" }]],
     [() => api.writeConfig({ root: "/repo", op: "removeServe", path: "styles" }), ["config:write", { root: "/repo", op: "removeServe", path: "styles" }]],
-    [() => api.readSetup("r1"), ["setup:read", { requestId: "r1" }]],
-    [() => api.runSetupStep({ step: "cli", expected: {} } as never), ["setup:run", { step: "cli", expected: {} }]],
-    [() => api.answerSetupConfirm({ id: "q", allow: false }), ["setup:answer", { id: "q", allow: false }]],
   ];
   for (const [call, args] of calls) {
     await call();

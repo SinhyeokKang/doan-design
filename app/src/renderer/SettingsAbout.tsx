@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, Copy } from "lucide-react";
 import { aboutView, type AboutRead, type AboutRow } from "../main/aboutView";
+import { aboutNotice, type AboutNotice, type NoticeLine } from "../main/agentSetup/notice";
 import type { Provider } from "../main/agentAuth/types";
 import { AlertIcon } from "./AlertIcon";
 import { providerLogo } from "./homeComposer";
@@ -9,6 +10,22 @@ import { providerLogo } from "./homeComposer";
 const CHECKING = "Checking…";
 const TONES: Record<AboutRow["tone"], string> = { neutral: "ob-chip", ok: "ob-chip ok", warning: "ob-chip warn", error: "ob-chip err" };
 const PROVIDER_ROWS = new Set<string>(["claude", "codex", "cursor", "antigravity", "copilot"]);
+
+// This launch's agent setup result (zero-setup-agents design 'About 알림'). Static text, not a live region: it reports
+// what happened when Doan opened and does not change while the page is shown. Copy details carries the same lines.
+function setupNotice(notice: AboutNotice) {
+  const parts = (line: NoticeLine) => line.parts.map((part, i) => "code" in part ? <code key={i}>{part.code}</code> : part.text);
+  return <div className={notice.tone === "warning" ? "doan-notice warning setup-notice" : "doan-notice setup-notice"}>
+    <AlertIcon />
+    <div className="setup-notice-body"><span className="ob-notice-title">{notice.title}</span>
+      {notice.tone === "warning"
+        ? <ul className="setup-notice-list">{notice.lines.map((line, i) => <li key={i} className="setup-notice-item">
+          {line.agents !== null && <><span className="setup-notice-agents">{line.agents}</span> — </>}{parts(line)}
+          {line.command && <code className="setup-notice-command">{line.command}</code>}</li>)}</ul>
+        : notice.lines.map((line, i) => <span key={i} className="ob-notice-body">{parts(line)}</span>)}
+    </div>
+  </div>;
+}
 
 // Settings > About (design 'About'): main reads the versions (aboutView decides every row's words); this page reads
 // on entry and again when the window comes back, which covers returning from an install page. Copy details asks main
@@ -44,6 +61,7 @@ export function SettingsAbout({ actions }: { actions: HTMLElement | null }) {
     return () => clearTimeout(timer);
   }, [copy]);
   const view = aboutView(read);
+  const notice = read === null ? null : aboutNotice(read.setup.items, read.setup.home);
   const row = (item: AboutRow) => {
     const icon = PROVIDER_ROWS.has(item.id);
     return <div key={item.id} className="doan-preference-row" data-about={item.id} data-has-icon={icon ? "" : undefined}>
@@ -57,6 +75,7 @@ export function SettingsAbout({ actions }: { actions: HTMLElement | null }) {
       </div>}
       {item.error !== null && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>{item.error}</span></p>
         <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => load(true)}>Retry</button></div>}
+      {item.id === "cli" && notice !== null && <div className="doan-preference-row-extra">{setupNotice(notice)}</div>}
     </div>;
   };
   const copyDetails = () => { void window.doan.copyAbout().catch(() => ({ kind: "error" as const })).then(reply => setCopy(reply.kind === "success" ? "copied" : "failed")); };

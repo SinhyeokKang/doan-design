@@ -205,7 +205,7 @@ code, kbd { font-family: var(--type-family); }
 @container (max-height: 359px) { .comments-composer textarea { min-height: 64px; } }
 .comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 8px 0; overflow-wrap: anywhere; }
 /* Dialog paragraphs read as the dialog description; the frame spaces them. */
-.comments-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.comments-dialog p:not(.doan-notice) { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 /* Values from .doan/canvases/agent-handoff.html (dialog, dialog-states, copy-states). The list
    shrinks first and the preview has its own cap; in a window too short for both, the
    dialog itself scrolls so Cancel and Copy stay reachable. */
@@ -371,15 +371,9 @@ code, kbd { font-family: var(--type-family); }
 .ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
 .ob-card > :first-child { border-top: 0; }
 .ob-card + .ob-card { margin-top: 14px; }
-.ob-item { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-3) 0; border-top: 1px solid var(--border-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
-/* A dimmed item is waiting on another step, not disabled. */
-.ob-item.dimmed :is(.ob-label, .ob-detail) { color: var(--text-metadata); }
-.ob-item.ob-notice { padding-top: 0; }
-.ob-detail { color: var(--text-subtle); min-width: 0; overflow-wrap: anywhere; }
 /* Inline code reads as a chip on the surface it sits on. */
-.ob-detail code, .ob-msg code, .ob-dialog code, .ob-field code, .ob-reason code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
-.ob-status { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
 /* An inline error or warning is one line led by an icon, so colour is not the only signal. */
 .ob-msg:is(.warn, .error), .fp-error, .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
@@ -387,14 +381,11 @@ code, kbd { font-family: var(--type-family); }
 .ob-msg.error, .fp-error, .pj-msg { color: var(--text-danger); }
 .ob-msg.ok { color: var(--text-success); }
 .ob-msg.ob-wide { grid-column: 1 / -1; }
-.ob-reason { grid-column: 2 / -1; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 /* Status pill: a doan adjustment that keeps a row's state readable at a glance. */
 .ob-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--affordance-subtle); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: nowrap; }
 .ob-chip.ok { background: var(--affordance-success); color: var(--text-success); }
 .ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
 .ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
-.ob-copyline { grid-column: 2 / -1; display: flex; align-items: center; gap: 8px; }
-.ob-copyline output { flex: 1; min-width: 0; padding: var(--space-1h) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-panel); color: var(--text-standard); overflow-wrap: anywhere; }
 .ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
 /* Project names and paths share inline flow; Inspector values use flex. */
 .ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; }
@@ -416,9 +407,6 @@ code, kbd { font-family: var(--type-family); }
 /* The replace confirmation and the project setup dialog share the comments dialog surface. */
 .ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-dialog .ob-card { width: auto; }
-.ob-compare { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--space-1h) var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-row); background: var(--surface-panel); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.ob-compare dt { color: var(--text-metadata); }
-.ob-compare dd { color: var(--text-standard); overflow-wrap: anywhere; }
 
 .ocard-meta .review { color: var(--text-subtle); }
 .ocard-meta > span { white-space: nowrap; }
@@ -767,7 +755,7 @@ body:has(.shell-top) { background: transparent; }
 .drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--affordance-accent); outline-offset: -2px; }
 @media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
 .composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
-.composer-notice { margin-top: var(--space-3); align-items: center; }
+.composer-notice { margin-top: var(--space-3); }
 .grow-text { flex: 1; min-width: 0; }
 /* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
 .home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }
@@ -784,14 +772,11 @@ body:has(.shell-top) { background: transparent; }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
 .workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
 .workspace.with-strip > :is(.area, .ov) { border-top-left-radius: 0; }
-.convo-strip.doan-notice { align-items: center; gap: var(--space-3); }
 .strip-agent { display: inline-grid; place-items: center; flex: none; }
-.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon-lg); height: var(--size-icon-lg); }
-.strip-alert { color: var(--text-danger); }
-.strip-ok { color: var(--text-success); }
-.strip-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
+.strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
 .strip-text b { font-weight: var(--type-weight-medium); }
-.strip-text span { color: var(--text-subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .strip-actions { display: flex; align-items: center; gap: var(--space-2); }
 
 /* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
@@ -858,6 +843,14 @@ body:has(.shell-top) { background: transparent; }
 .settings-header-actions:empty { display: none; }
 .settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
 .settings-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* About's agent setup notice in the doan command row: the agents a line affects read in medium weight; its code chips
+   go white, since the page's inset chip vanishes on the notice's inset fill (one class above the page's chip rule, so
+   the order of the two rules does not decide it). The PATH line stands alone so it can be selected and copied whole. */
+.setup-notice-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.setup-notice-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-1); }
+.setup-notice-agents { font-weight: var(--type-weight-medium); }
+.doan-notice.setup-notice code { background: var(--surface-panel); }
+.setup-notice-command { display: block; width: fit-content; margin-top: var(--space-1); }
 /* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
 .doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
 .doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }

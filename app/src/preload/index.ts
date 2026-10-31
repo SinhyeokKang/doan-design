@@ -7,7 +7,6 @@ import type { ModelsReply } from "../main/conversation/models";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
 import type { DesignSkillList, DesignSkillPreset, DesignSkillReply } from "../main/designSkills";
 import type { Anchor, Canvas, ConversationEvent, Runtime, UnavailableReason } from "../main/conversation/types";
-import type { StepRequest, StepResult } from "../main/onboarding/machine";
 import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
@@ -19,7 +18,6 @@ import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
 import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { ExternalTarget, SettingsPageTarget, SettingsSection } from "../main/settings";
-import type { SetupRead, SetupStatus } from "../main/setupBroker";
 import type { ConfigChoice, ConfigKind, ConfigReply } from "../main/configBridge";
 import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import type { NotificationTarget } from "../main/notifications";
@@ -36,8 +34,10 @@ import type { AddPageResponse, AddPageState } from "../main/addPage";
 export type { AddPageResponse, AddPageState };
 export type {
   AboutRead, ConfigChoice, ConfigKind, ConfigReply, NotificationTarget, Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply,
-  SettingsPageTarget, SettingsSection, SetupRead, TestNotificationReply,
+  SettingsPageTarget, SettingsSection, TestNotificationReply,
 };
+// A clipboard write main made; stale when main refused the request.
+type CopyResult = { kind: "success" } | { kind: "error"; message: string } | { kind: "stale" };
 // The Project Settings dialog's config writes; a chosen path goes back only as the choice id main gave.
 export type ConfigWrite =
   | { root: string; op: "setTokenCss" | "addServe"; choiceId: string }
@@ -159,7 +159,6 @@ const api = {
     get: (id: string): Promise<DesignSkillReply<DesignSkillPreset>> => ipcRenderer.invoke("design-skills:get", { id }),
   },
   homeDirectory: (): Promise<string | null> => ipcRenderer.invoke("app:home"),
-  copyPathLine: (): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "pathLine" }),
   // Hidden: closed with the app running, or the whole app hidden (⌘H).
   onWindowVisible: (listener: (visible: boolean) => void): (() => void) =>
     subscribe<{ visible: boolean }>("window:visible", "window:visible", value => listener(value.visible)),
@@ -167,7 +166,7 @@ const api = {
   // (promptSentence); null when either is refused.
   firstPrompt: (root: string, subject: string): Promise<string | null> => ipcRenderer.invoke("onboarding:first-prompt", { root, subject }),
   // Resolves after the clipboard write settled.
-  copyFirstPrompt: (root: string, subject: string): Promise<StepResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root, subject }),
+  copyFirstPrompt: (root: string, subject: string): Promise<CopyResult> => ipcRenderer.invoke("onboarding:copy", { kind: "firstPrompt", root, subject }),
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),
@@ -197,10 +196,6 @@ const api = {
     const path = webUtils.getPathForFile(file);
     return path === "" ? null : path;
   },
-  // Home chips, banner and Finish card; null only if main refused.
-  setupStatus: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:status"),
-  checkSetupAgain: (): Promise<SetupStatus | null> => ipcRenderer.invoke("setup:check-again"),
-  onSetupStatus: (listener: (status: SetupStatus) => void): (() => void) => subscribe("setup:status", "setup:status", listener),
   openInstallPage: (target: ExternalTarget): Promise<boolean> => ipcRenderer.invoke("setup:open-external", { target }),
   commentsList: (request: CommentRequest): Promise<CommentReply<CommentList>> => ipcRenderer.invoke("comments:list", request),
   commentsBegin: (request: BeginRequest): Promise<CommentReply<BeginResult>> => ipcRenderer.invoke("comments:begin", request),
@@ -294,7 +289,7 @@ const api = {
   // Runs the bundled doan for its version; agent tool facts come from main's cache.
   readAbout: (): Promise<AboutRead | null> => ipcRenderer.invoke("about:read"),
   // Main writes what About last read; resolves after the clipboard write settled.
-  copyAbout: (): Promise<StepResult> => ipcRenderer.invoke("about:copy"),
+  copyAbout: (): Promise<CopyResult> => ipcRenderer.invoke("about:copy"),
   // Project Settings dialog: start a session when it opens and end it when it closes; replies to calls of an ended
   // session answer unavailable.
   startConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-start"),
@@ -303,10 +298,6 @@ const api = {
   // A sheet on this window; only the choice id goes back in writeConfig.
   chooseConfigPath: (root: string, kind: ConfigKind): Promise<ConfigChoice> => ipcRenderer.invoke("config:choose", { root, kind }),
   writeConfig: (request: ConfigWrite): Promise<ConfigReply> => ipcRenderer.invoke("config:write", request),
-  // Connections. A read older than this window's newest one answers stale.
-  readSetup: (requestId: string): Promise<SetupRead> => ipcRenderer.invoke("setup:read", { requestId }),
-  runSetupStep: (request: StepRequest): Promise<StepResult> => ipcRenderer.invoke("setup:run", request),
-  answerSetupConfirm: (answer: { id: string; allow: boolean }): Promise<StepResult> => ipcRenderer.invoke("setup:answer", answer),
   // A notification was clicked; main has already shown and focused the window. Interpret with notificationTarget.
   onNotificationClick(listener: (target: NotificationTarget) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, target: NotificationTarget) => listener(target);

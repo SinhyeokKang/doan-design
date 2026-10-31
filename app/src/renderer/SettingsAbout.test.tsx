@@ -54,12 +54,13 @@ function resetHooks() { hooks.states = []; hooks.refs = []; hooks.effects = []; 
 
 // buzz-settings U4: Settings > About (design 'About'), over BM's aboutView rows.
 const { SettingsAbout } = await import("./SettingsAbout");
+const { AlertIcon } = await import("./AlertIcon");
 import type { AboutRead } from "../main/about";
 
 const READ: AboutRead = { version: "0.1.0", cli: { path: "/Applications/Doan.app/Contents/Resources/bin/doan", version: "0.1.0" }, tools: [
   { provider: "claude", cli: "found", installed: "2.1.330", support: "supported" }, { provider: "codex", cli: "found", installed: "0.163.0", support: "unsupported" },
   { provider: "cursor", cli: "missing", installed: null, support: "unknown" }, { provider: "antigravity", cli: "missing", installed: null, support: "unknown" },
-  { provider: "copilot", cli: "found", installed: null, support: "unknown" }] };
+  { provider: "copilot", cli: "found", installed: null, support: "unknown" }], setup: { home: "/Users/you", items: [] } };
 let doan: Record<string, ReturnType<typeof vi.fn>>;
 let windowListeners: Record<string, () => void>;
 let reply: (value: AboutRead | null) => void;
@@ -129,4 +130,60 @@ test("Copy details asks main to copy, then reads Copied for a moment", async () 
   doan.copyAbout!.mockResolvedValueOnce({ kind: "error", message: "The clipboard is busy." });
   click("Copy details"); await flush(); render();
   expect(text()).toContain("Couldn’t copy the details.");
+});
+
+// zero-setup-agents T5b: the setup notice sits in the doan command row, as static text with selectable paths.
+const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"] as const;
+const notice = () => all(row("cli").props.children as ReactNode).find(element => String(element.props.className).includes("doan-notice"));
+const extra = () => all(row("cli").props.children as ReactNode).find(element => element.props.className === "doan-preference-row-extra" && element !== undefined);
+
+test("every agent set up: the doan command row has no notice", async () => {
+  render(); reply(READ); await flush(); render();
+  expect(notice()).toBeUndefined();
+  expect(extra()).toBeUndefined();
+});
+
+test("skipped items: a warning notice with an aria-hidden icon, one line per item in About's order, paths as code", async () => {
+  render();
+  reply({ ...READ, setup: { home: "/Users/you", items: [
+    { target: "codex-rule", path: "/Users/you/.codex/rules/doan.rules", providers: ["codex"], reason: "write-failed", cause: "permission", at: "/Users/you/.codex/rules", code: "EACCES" },
+    { target: "system-cli", path: "/usr/local/bin/doan", providers: [...ALL], reason: "admin-cancelled", rcFile: "~/.zshrc" },
+  ] } });
+  await flush(); render();
+  const box = notice()!;
+  expect(box.props.className).toBe("doan-notice warning setup-notice");
+  const inside = all(box.props.children as ReactNode);
+  // AlertIcon draws CircleAlert with aria-hidden.
+  expect(inside.filter(element => element.type === AlertIcon)).toHaveLength(1);
+  expect(inside.some(element => element.props.role !== undefined || element.props["aria-live"] !== undefined)).toBe(false);
+  expect(inside.some(element => element.type === "button")).toBe(false);
+  expect(words(inside.find(element => element.props.className === "ob-notice-title")!.props.children)).toBe("Doan couldn’t set up every agent");
+  const items = inside.filter(element => element.props.className === "setup-notice-item");
+  expect(items.map(item => words(item.props.children))).toEqual([
+    "All agents — ~/.local/bin isn’t on your shell’s PATH, and adding doan to /usr/local/bin was cancelled. Add this line to ~/.zshrc, then open a new terminal:export PATH=\"$HOME/.local/bin:$PATH\"",
+    "Codex — Doan couldn’t write ~/.codex/rules/doan.rules (permission denied). Make ~/.codex/rules writable, then reopen Doan.",
+  ]);
+  expect(all(items[0]!.props.children as ReactNode).filter(element => element.type === "code").map(element => [words(element.props.children), element.props.className])).toEqual([
+    ["~/.local/bin", undefined], ["/usr/local/bin", undefined], ["~/.zshrc", undefined], ['export PATH="$HOME/.local/bin:$PATH"', "setup-notice-command"],
+  ]);
+  expect(all(items[0]!.props.children as ReactNode).find(element => element.props.className === "setup-notice-agents")).toBeDefined();
+});
+
+test("a copy that doesn’t set up agents: a neutral notice with the same icon, its sentence as the body", async () => {
+  render();
+  reply({ ...READ, setup: { home: "/Users/you", items: [{ target: "copy", path: "/Users/you/Downloads/Doan.app", providers: [...ALL], reason: "not-eligible", eligibility: "outside-applications" }] } });
+  await flush(); render();
+  const box = notice()!;
+  expect(box.props.className).toBe("doan-notice setup-notice");
+  const inside = all(box.props.children as ReactNode);
+  // Every notice carries the icon; a neutral one takes the notice's ink, not a tone.
+  expect(inside.filter(element => element.type === AlertIcon)).toHaveLength(1);
+  expect(words(inside.find(element => element.props.className === "ob-notice-title")!.props.children)).toBe("This copy doesn’t set up agents");
+  expect(words(inside.find(element => element.props.className === "ob-notice-body")!.props.children)).toBe("It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it.");
+});
+
+test("while About is read (setup may still be running), the row shows Checking… and no notice", () => {
+  render();
+  expect(words(row("cli").props.children)).toContain("Checking…");
+  expect(notice()).toBeUndefined();
 });

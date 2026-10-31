@@ -122,6 +122,7 @@
   --affordance-subtle: var(--neutral-2);
   --affordance-subtle-hover: var(--neutral-quiet-hover);
   --affordance-subtle-pressed: var(--neutral-4);
+  --affordance-panel-hover: var(--neutral-3);
   --affordance-backdrop-hover: var(--neutral-backdrop-hover);
   --affordance-backdrop-pressed: var(--neutral-backdrop-pressed);
   --affordance-floating-hover: var(--neutral-2);

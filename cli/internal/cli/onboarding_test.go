@@ -725,12 +725,12 @@ func TestOnboardingStartWithoutBundleGivesGuidance(t *testing.T) {
 // that reads app_not_running as "not open" stops (agent-eval 2026-10-29 O1, O2).
 func TestOnboardingAppFailuresGiveSandboxGuidance(t *testing.T) {
 	for _, code := range []string{"app_not_running", "app_launch_failed"} {
-		steps := strings.Join(onboardingFailure(code, "m").NextSteps, "\n")
-		for _, want := range []string{"open Doan", "sandbox", "MCP `onboarding_start`", "outside the sandbox"} {
-			if !strings.Contains(steps, want) {
-				t.Errorf("%s nextSteps miss %q: %s", code, want, steps)
-			}
-		}
+		requireRecoveryOrder(t, onboardingFailure(code, "m").NextSteps, [][]string{
+			{"open Doan", "doan onboarding start"},
+			{"If Doan is open, a sandbox may block this shell from its socket", "MCP `onboarding_start` tool", "`onboarding_*` tools if they are available"},
+			{"Otherwise", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
+			{"If it still fails", "Applications", "Settings… > About"},
+		})
 	}
 }
 
@@ -871,14 +871,14 @@ func TestOnboardingHelpAndGuide(t *testing.T) {
 			t.Errorf("guide table misses %s", row)
 		}
 	}
-	for _, s := range []string{"<Doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
+	for _, s := range []string{"Prefer `doan onboarding start --json` on PATH", "Only if `doan` is not on PATH", "<Doan.app>/Contents/Resources/bin/doan onboarding start --json", "quote", "--spend-copilot-request", "--initialize", "app_launch_failed", "exit 5", "requestId"} {
 		if !strings.Contains(skillBody, s) {
 			t.Errorf("guide misses %q", s)
 		}
 	}
 	for _, parts := range [][]string{
 		// The sandbox fallback that `active` already has (agent-eval 2026-10-29 O1, O2).
-		{"`app_not_running`", "`app_launch_failed`", "sandbox", "MCP `onboarding_start`", "outside the sandbox", "open Doan"},
+		{"`app_not_running`", "`app_launch_failed`", "open Doan", "recover as for `app_not_running` from `doan active`", "MCP `onboarding_start` tool", "`onboarding_*` tools"},
 		// The changes are always told before the write, but a user who already agreed is not asked again (agent-eval 2026-10-29 O1, re-measure).
 		{"`project inspect`", "always tell the user", "`changes`", "`clone.changes`", "before `select --initialize` or `clone`", "already agreed", "do not ask again", "Otherwise ask first"},
 	} {

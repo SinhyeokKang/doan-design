@@ -33,7 +33,6 @@ vi.mock("react", async original => {
 const { SettingsPage } = await import("./SettingsPage");
 const { SettingsAgents } = await import("./SettingsAgents");
 const { SettingsNotifications } = await import("./SettingsNotifications");
-const { SettingsConnections } = await import("./SettingsConnections");
 const { SettingsAbout } = await import("./SettingsAbout");
 const { ShellSidebar } = await import("./ShellSidebar");
 
@@ -63,9 +62,8 @@ const heading = () => all(tree).find(element => element.type === "h1")!;
 
 test("the body is the scrolling white panel with a 48rem column, the category title and its lead", () => {
   const leads = {
-    agents: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. To let the agent in your terminal use Doan, see Connections.",
+    agents: "Doan signs in to each agent with its own connection, separate from your terminal. One account per agent. Agents you run in a terminal use Doan without any setup.",
     notifications: "macOS notifications for when an agent needs you while you work in another app.",
-    connections: "Your agents reach Doan through these three. Each row says whether that works right now. Signing in for conversations on Home is in Agents.",
     about: "Versions on this Mac, for checking an update or reporting a problem.",
   };
   for (const [section, lead] of Object.entries(leads) as [PageProps["section"], string][]) {
@@ -74,13 +72,13 @@ test("the body is the scrolling white panel with a 48rem column, the category ti
     expect(panel.props.className).toBe("home-panel settings-panel doan-scroll");
     expect(panel.props["aria-labelledby"]).toBe("settings-title");
     expect(heading().props).toMatchObject({ id: "settings-title", className: "settings-title", tabIndex: -1 });
-    expect(words(heading().props.children)).toBe({ agents: "Agents", notifications: "Notifications", connections: "Connections", about: "About" }[section]);
+    expect(words(heading().props.children)).toBe({ agents: "Agents", notifications: "Notifications", about: "About" }[section]);
     expect(all(tree).some(element => element.props.className === "settings-page")).toBe(true);
     expect(words(all(tree).find(element => element.props.className === "settings-lead")!.props.children)).toBe(lead);
     // Each category mounts its own body, and only that one.
-    const bodies = { agents: SettingsAgents, notifications: SettingsNotifications, connections: SettingsConnections, about: SettingsAbout };
+    const bodies = { agents: SettingsAgents, notifications: SettingsNotifications, about: SettingsAbout };
     for (const [id, body] of Object.entries(bodies)) expect(all(tree).some(element => element.type === body), `${section} ${id}`).toBe(id === section);
-    // Check Again and Copy details go to the header's action slot.
+    // Copy details goes to the header's action slot.
     expect(all(tree).some(element => element.props.className === "settings-header-actions")).toBe(true);
   }
 });
@@ -101,10 +99,8 @@ test("an arrival focuses the category title once; a provider arrival goes to Age
   expect(focus).toHaveBeenCalledTimes(1);
 });
 
-test("a category's lock reaches App", () => {
+test("Agents' lock reaches App", () => {
   const onState = vi.fn();
-  render({ onState, section: "connections" });
-  expect((all(tree).find(element => element.type === SettingsConnections)!.props.onLock as (locked: boolean) => void)).toBeTypeOf("function");
   render({ onState });
   const body = all(tree).find(element => element.type === SettingsAgents)!;
   (body.props.onLock as (locked: boolean) => void)(true);
@@ -118,9 +114,9 @@ function sidebar(settings: { section: PageProps["section"]; select(section: stri
   return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), home: true, locked, settings });
 }
 
-test("on the Settings page the sidebar keeps Search and lists the four categories as plain buttons", () => {
+test("on the Settings page the sidebar keeps Search and lists the three categories as plain buttons", () => {
   const select = vi.fn();
-  const side = all(sidebar({ section: "connections", select }));
+  const side = all(sidebar({ section: "notifications", select }));
   expect(side[0]!.props["aria-label"]).toBe("Settings");
   expect(side.some(element => element.props.className === "shell-search")).toBe(true);
   expect(words(side.find(element => element.props.className === "shell-projects-heading")!.props.children)).toBe("Settings");
@@ -128,17 +124,17 @@ test("on the Settings page the sidebar keeps Search and lists the four categorie
   const nav = side.find(element => element.type === "nav")!;
   expect(nav.props["aria-label"]).toBe("Settings");
   const rows = all(nav.props.children as ReactNode).filter(element => element.type === "button");
-  expect(rows.map(button => words(button.props.children))).toEqual(["Agents", "Notifications", "Connections", "About"]);
-  expect(rows.map(button => button.props["aria-current"])).toEqual([undefined, undefined, "page", undefined]);
+  expect(rows.map(button => words(button.props.children))).toEqual(["Agents", "Notifications", "About"]);
+  expect(rows.map(button => button.props["aria-current"])).toEqual([undefined, "page", undefined]);
   expect(rows.every(button => button.props.type === "button" && button.props.tabIndex === undefined)).toBe(true);
-  (rows[3]!.props.onClick as () => void)();
+  (rows[2]!.props.onClick as () => void)();
   expect(select).toHaveBeenCalledWith("about");
 });
 
 test("while the page is locked the other categories and Search show as unavailable", () => {
   const side = all(sidebar({ section: "agents", select: vi.fn() }, true));
   const rows = all(side.find(element => element.type === "nav")!.props.children as ReactNode).filter(element => element.type === "button");
-  expect(rows.map(button => button.props["aria-disabled"])).toEqual([undefined, true, true, true]);
+  expect(rows.map(button => button.props["aria-disabled"])).toEqual([undefined, true, true]);
   expect(side.find(element => element.props.className === "shell-search")!.props["aria-disabled"]).toBe(true);
 });
 

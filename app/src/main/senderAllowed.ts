@@ -19,7 +19,7 @@ const mainOnly = new Set([
   // notification itself; these carry choices and requests only.
   "preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy",
   "config:session-start", "config:session-end",
-  "setup:read", "setup:run", "setup:answer", "setup:check-again", "setup:status", "setup:open-external",
+  "setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
   "config:read", "config:write", "config:choose",
 ]);

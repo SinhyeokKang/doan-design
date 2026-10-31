@@ -97,7 +97,9 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   }
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
   // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
-  const section = parseSettingsSection(value["settingsSection"]) ?? parseSettingsSection(value["settingsTab"]);
+  // Settings > Connections was removed; a stored one opens About.
+  const restored = (stored: unknown) => stored === "connections" ? "about" : parseSettingsSection(stored);
+  const section = restored(value["settingsSection"]) ?? restored(value["settingsTab"]);
   if (section !== null) state.settingsSection = section;
   if (root !== undefined) state.root = root;
   if (canvas !== undefined) state.canvas = canvas;

@@ -8,6 +8,7 @@ const PATH = "/Applications/Doan.app/Contents/Resources/bin/doan";
 const READ: AboutRead = {
   version: "0.1.0",
   cli: { path: PATH, version: "0.1.0" },
+  setup: { home: "/Users/you", items: [] },
   tools: [
     { provider: "claude", cli: "found", installed: "2.1.330", support: "supported" },
     { provider: "codex", cli: "found", installed: "0.163.0", support: "unsupported" },
@@ -103,6 +104,33 @@ describe("aboutText", () => {
       "GitHub Copilot 1.0.110: Supported (Doan needs 1.0.105 or later)",
       "",
     ].join("\n"));
+  });
+
+  test("a setup notice follows the doan command line: its title, every line in About's order, the PATH line on its own", () => {
+    const all = ["claude", "codex", "cursor", "antigravity", "copilot"] as const;
+    const text = aboutText({ ...READ, setup: { home: "/Users/you", items: [
+      { target: "codex-rule", path: "/Users/you/.codex/rules/doan.rules", providers: ["codex"], reason: "write-failed", cause: "permission", at: "/Users/you/.codex/rules", code: "EACCES" },
+      { target: "claude-skill", path: "/Users/you/.claude/skills/doan", providers: ["claude"], reason: "foreign", found: "folder" },
+      { target: "system-cli", path: "/usr/local/bin/doan", providers: [...all], reason: "admin-cancelled", rcFile: "~/.zshrc" },
+    ] } });
+    expect(text.split("\n").slice(0, 8)).toEqual([
+      "Doan 0.1.0",
+      `doan command 0.1.0 (${PATH})`,
+      "Doan couldn’t set up every agent",
+      "All agents — ~/.local/bin isn’t on your shell’s PATH, and adding doan to /usr/local/bin was cancelled. Add this line to ~/.zshrc, then open a new terminal:",
+      'export PATH="$HOME/.local/bin:$PATH"',
+      "Claude Code — ~/.claude/skills/doan is a folder Doan didn’t create. Remove or rename it, then reopen Doan.",
+      "Codex — Doan couldn’t write ~/.codex/rules/doan.rules (permission denied). Make ~/.codex/rules writable, then reopen Doan.",
+      "Claude Code 2.1.330: Supported (Doan needs 2.1.312 or later)",
+    ]);
+  });
+
+  test("a copy that doesn’t set up agents says so, without an agents prefix", () => {
+    const text = aboutText({ ...READ, setup: { home: "/Users/you", items: [{ target: "copy", path: "/Users/you/Downloads/Doan.app", providers: [], reason: "not-eligible", eligibility: "outside-applications" }] } });
+    expect(text.split("\n").slice(2, 4)).toEqual([
+      "This copy doesn’t set up agents",
+      "It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it.",
+    ]);
   });
 
   test("unread values are named as such", () => {
