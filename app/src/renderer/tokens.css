@@ -134,8 +134,10 @@
   --affordance-warning: var(--amber-3);
   --affordance-success: var(--green-3);
 
-  /* Violet belongs to a fixed set of places only: the current sidebar row and its
-     hover, comment pins, the comment submit button and comment cards. */
+  /* Violet belongs to a fixed set of places only, listed in ds/checks.test.ts `violetAllowed`:
+     the current sidebar row and its hover, the onboarding and Home glows, the accent Send
+     button, Home's preset chip, prompt icons and drop outline, the sidebar status slot, the
+     person's thread bubble, the panel resize bar and the canvas agent indicator. */
   --surface-sidebar-selected: var(--violet-9);
   --text-sidebar-selected: var(--violet-contrast);
   --affordance-sidebar-hover: var(--violet-2);
