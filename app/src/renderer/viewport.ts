@@ -21,6 +21,14 @@ export interface Size {
 
 export interface Rect extends Point, Size {}
 
+// Distances kept free of the board view's edges, in screen px.
+export interface Inset {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 export interface ZoomLimits {
   min: number;
   max: number;
@@ -33,7 +41,10 @@ export const ZOOM_LIMITS: ZoomLimits = { min: MIN_SCALE, max: MAX_SCALE };
 export const ZOOM_STEP = 1.25;
 // Cap per wheel event so one notch of a mouse wheel cannot jump across the range.
 export const WHEEL_ZOOM_MAX = 1.25;
+// Still used by `locateView`; Fit and frame jumps use FIT_INSET.
 export const FIT_MARGIN = 32;
+// Top clears the canvas header's height, bottom clears the floating toolbar (12 + 40 + 12).
+export const FIT_INSET: Inset = { top: 56, right: 32, bottom: 64, left: 32 };
 export const FIT_SCALE_MAX = 1;
 export const FIRST_LAYOUT_TIMEOUT_MS = 5000;
 
@@ -73,35 +84,48 @@ export function panBy(view: View, dx: number, dy: number): View {
   return { x: view.x + dx, y: view.y + dy, scale: view.scale };
 }
 
-function fitScale(contentWidth: number, viewport: Size, margin: number): number {
-  const wanted = contentWidth > 0 ? (viewport.width - 2 * margin) / contentWidth : FIT_SCALE_MAX;
+function fitScale(contentWidth: number, viewport: Size, inset: Inset): number {
+  const wanted = contentWidth > 0 ? (viewport.width - inset.left - inset.right) / contentWidth : FIT_SCALE_MAX;
   return Math.max(MIN_SCALE, Math.min(FIT_SCALE_MAX, wanted));
 }
 
-export function fitWidth(boardWidth: number, viewport: Size, margin: number): View {
-  const scale = fitScale(boardWidth, viewport, margin);
-  return { x: (viewport.width - boardWidth * scale) / 2, y: margin, scale };
+// The viewport minus the inset. A window smaller than its insets has no room: the size is 0, so content aligns to
+// the top/left inset instead of being centered on a negative size.
+function safeArea(viewport: Size, inset: Inset): Rect {
+  return {
+    x: inset.left,
+    y: inset.top,
+    width: Math.max(0, viewport.width - inset.left - inset.right),
+    height: Math.max(0, viewport.height - inset.top - inset.bottom),
+  };
+}
+
+export function fitWidth(boardWidth: number, viewport: Size, inset: Inset): View {
+  const scale = fitScale(boardWidth, viewport, inset);
+  const safe = safeArea(viewport, inset);
+  return { x: safe.x + (safe.width - boardWidth * scale) / 2, y: safe.y, scale };
 }
 
 // `current` is needed because a zero-size frame has no size to fit and keeps
 // the scale the person already chose.
-export function fitFrame(rect: Rect, viewport: Size, margin: number, current: View): View {
+export function fitFrame(rect: Rect, viewport: Size, inset: Inset, current: View): View {
+  const safe = safeArea(viewport, inset);
   const centerX = rect.x + rect.width / 2;
   if (rect.width <= 0 || rect.height <= 0) {
     const centerY = rect.y + rect.height / 2;
     return {
-      x: viewport.width / 2 - centerX * current.scale,
-      y: viewport.height / 2 - centerY * current.scale,
+      x: safe.x + safe.width / 2 - centerX * current.scale,
+      y: safe.y + safe.height / 2 - centerY * current.scale,
       scale: current.scale,
     };
   }
-  const scale = fitScale(rect.width, viewport, margin);
-  const x = viewport.width / 2 - centerX * scale;
-  // A frame taller than the viewport is read from its top, not its middle.
+  const scale = fitScale(rect.width, viewport, inset);
+  const x = safe.x + safe.width / 2 - centerX * scale;
+  // A frame taller than the safe area is read from its top, not its middle.
   const y =
-    rect.height * scale > viewport.height
-      ? margin - rect.y * scale
-      : viewport.height / 2 - (rect.y + rect.height / 2) * scale;
+    rect.height * scale > safe.height
+      ? safe.y - rect.y * scale
+      : safe.y + safe.height / 2 - (rect.y + rect.height / 2) * scale;
   return { x, y, scale };
 }
 
