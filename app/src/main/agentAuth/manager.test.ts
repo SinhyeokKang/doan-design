@@ -217,6 +217,14 @@ describe("sign-in", () => {
     expect(await started(await m.check("antigravity")).done).toMatchObject({ error: { code: "check_failed" } });
     expect(spawn.mock.calls.length).toBe(spawned);
   });
+  const signedInAntigravity = async (m: AuthManager) => {
+    const run = started(await m.signIn("antigravity", 7));
+    const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+    await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
+    const status = await acpRequest("initialize"); status.reply("initialize", INIT);
+    await acpRequest("authenticate"); status.reply("authenticate", {});
+    await run.done;
+  };
   // An Antigravity sign-in failure left nothing in the app's log (2026-11-01). Its log now says why the exchange ended and
   // which server events led there, as Doan's own categories only: the server's messages, RPC error text, payloads and
   // traceback lines can hold the sign-in link, the account and tokens, and are never printed.
@@ -327,6 +335,73 @@ describe("sign-in", () => {
       await m.cancel("antigravity", run.attemptId, 7);
       expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null });
       expect(errors).not.toHaveBeenCalled();
+    });
+    const refusal = (p: FakeProcess, method: string) => {
+      const request = p.requests().filter(r => r.method === method).at(-1)!;
+      p.print(JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "Logout failed for SENT_A https://accounts.google.com/?state=SENT_D",
+        data: { message: "SENT_B@example.com client_secret=SENT_C" } } }) + "\n");
+    };
+    it.each(["logout", "initialize"])("logs a server logout whose %s was refused by its code only, and still signs out", async method => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      await signedInAntigravity(m);
+      const out = started(await m.signOut("antigravity"));
+      const logout = await acpRequest("initialize");
+      if (method === "logout") { logout.reply("initialize", INIT); await acpRequest("logout"); }
+      logout.print(glog("E", "server.py:3001", "Logout failed: {'client_secret': 'SENT_C'}"), "stderr");
+      refusal(logout, method);
+      const after = await acpRequest("initialize"); after.reply("initialize", INIT); await acpRequest("authenticate");
+      after.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
+      expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+      expect(await storage.loadVault("antigravity")).toBeNull();
+      const text = logged();
+      expect(text).toContain(`doan: antigravity server logout failed; removing Doan's copy: the server refused ${method} (code -32000)`);
+      expect(text).toContain("17:21:04 E server.py:3001 (message withheld)");
+      leaksNothing(text);
+    });
+  });
+  // Fake clocks pin both limits of an exchange: initialize has 60 s, and the caller's limit starts at its answer.
+  describe("ACP exchange time limits", () => {
+    const settle = async () => { for (let i = 0; i < 200; i++) await Promise.resolve(); };
+    let errors: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => { errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
+    afterEach(() => { vi.useRealTimers(); errors.mockRestore(); });
+
+    it("stops a sign-in whose server never answers initialize after 60 s", async () => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      vi.useFakeTimers();
+      const run = started(await m.signIn("antigravity", 7));
+      await settle();
+      const login = processes.at(-1)!;
+      expect(login.requests().map(r => r.method)).toEqual(["initialize"]);
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(login.stopped).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(login.stopped).toBe(true);
+      expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+      expect(errors.mock.calls.map((call: unknown[]) => call.join(" ")).join("\n")).toContain("doan: antigravity sign-in failed: the server did not answer initialize within 60000 ms");
+    });
+    it("gives a server logout 20 s from its initialize answer, however late that answer comes", async () => {
+      const m = manager({ adapters: withAcp(), statusTimeoutMs: 20_000 }); await m.load();
+      await signedInAntigravity(m);
+      vi.useFakeTimers();
+      const out = started(await m.signOut("antigravity"));
+      await settle();
+      const logout = processes.at(-1)!;
+      expect(logout.requests().map(r => r.method)).toEqual(["initialize"]);
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(logout.stopped).toBe(false);
+      logout.reply("initialize", INIT); await settle();
+      expect(logout.requests().at(-1)?.method).toBe("logout");
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(logout.stopped).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(logout.stopped).toBe(true);
+      await settle();
+      expect(errors.mock.calls.map((call: unknown[]) => call.join(" ")).join("\n")).toContain("server logout failed; removing Doan's copy: the server was stopped after 20000 ms without an answer");
+      vi.useRealTimers();
+      const after = await acpRequest("initialize"); after.reply("initialize", INIT); await acpRequest("authenticate");
+      after.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
+      expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
     });
   });
   it("counts the status check's time limit from the server's initialize answer, not from its start", async () => {
