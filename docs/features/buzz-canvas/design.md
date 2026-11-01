@@ -17,7 +17,9 @@
 | `states` | 로딩, 로드 실패(Reload), 폭 없음, 목록에 없는 페이지, 프로젝트 문제 메시지 |
 | `notices` | 선택 잃음 알림, 오류 알림, 토스트가 동시에 뜬 모습 |
 | `on-dark` · `on-violet` | 어두운 캔버스, violet이 많은 캔버스 위의 선택·hover·이동 하이라이트(부모 design '조사 메모: 캔버스 영역') |
-| `narrow` | 960×600. 서랍의 긴 이름이 먼저 줄어드는지, 컨트롤·알림·토스트가 겹치지 않는지 |
+| `agent-working` | 이 캔버스의 현재 대화가 일함: 가장자리 accent 안쪽 그림자, 상단 가운데 안내(점, 문구, Stop) |
+| `agent-waiting` | 응답 대기 문구, Stop을 누른 뒤의 "Stopping…" |
+| `narrow` | 960×600. 작업 안내가 서랍·배율 컨트롤러 사이에서 줄어드는 모습을 포함한다. 서랍의 긴 이름이 먼저 줄어드는지, 컨트롤·알림·토스트가 겹치지 않는지 |
 
 참고: Buzz에는 캔버스 화면이 없다. 컨트롤 모양은 Buzz의 공용 프리미티브(버튼, 메뉴, 팝오버, 툴팁)와 doan 공용 컴포넌트(`ds/controls.css`, `ds/surfaces.css`)에서 가져오고, 새 프리미티브를 만들지 않는다. 그 밖의 디자인 도구를 참고하면 출처를 이 절에 적는다(AGENTS.md 'Leave evidence for references').
 
@@ -61,6 +63,16 @@
 - Fit, 서랍·Quick Open 이동, 코멘트 locate는 위 inset(서랍·배율 컨트롤러 아래 끝 + 간격)과 아래 inset(도구모음 위 끝 + 간격) 안에 프레임을 둔다. 좌우는 지금처럼 32px다. 값은 초안에서 정하고 `viewport.test.ts`가 고정한다.
 - 높이가 안전 영역보다 큰 프레임은 지금처럼 위에서부터 읽는다(위 inset에 맞춤).
 
+### 에이전트 작업 표시
+
+- 참고: ego lite(citrolabs)의 에이전트 탭 표시. 탭 가장자리의 안쪽 빛, 움직이는 점, 상단 가운데 안내와 Stop이다. 출처는 사용자 설명(2026-11-01)이다. 공개 리포 `citrolabs/ego-lite`에는 스킬·SDK만 있고 브라우저 UI 코드가 없어서 색·크기·모션 값은 확인하지 못했다(2026-11-01 `gh api` 트리 확인). 값은 doan 토큰으로 새로 정한다.
+- 조건: 이 캔버스의 현재 대화가 일함(working) 또는 응답 대기(permission)일 때. 현재 대화는 Overview의 캔버스 행과 같은 매칭(`canvasConversationRows.ts`: 양쪽에 ID가 있으면 ID, 없으면 경로)으로 찾는다. 상태는 main의 대화 목록(`conversation:list`, `listChanged`)에서 읽으므로 다시 로드·재시작 뒤에도 같다.
+- 모양: 캔버스 영역(`.area`) 안쪽 가장자리에 accent 안쪽 그림자. `pointer-events: none`이라 선택·팬·줌을 막지 않는다. 상단 가운데 안내는 캡슐로, 움직이는 accent 점 → 문구 → Stop(sm 버튼) 순서다. 서랍·배율 컨트롤러와 같은 줄에 놓고, 좁은 창에서는 문구가 먼저 줄어든다(초안 `narrow`에서 확정).
+- 문구 후보: 일함 "<Provider> is working on this canvas", 응답 대기 "<Provider> is waiting for your answer". Provider는 지금 쓰는 공급자 표시 이름이다. 확정은 §5와 같이 clarify 프리셋으로 한다.
+- Stop: 확인 없이 `interruptConversation({ conversationId })`. 누른 뒤 응답이 올 때까지 "Stopping…"으로 비활성. 실패하면 안내를 그대로 두고 공용 토스트로 알린다. 턴이 끝나면(목록 상태 변경) 표시가 사라진다.
+- 접근성: 안내는 `role="status"`(polite). 점은 `aria-hidden`. 동작 줄이기에서는 점이 멈춘다.
+- 지금 캔버스 페이지에 뜨는 임시 상태줄에도 Stop이 있다. `buzz-canvas-conversation`이 상태줄을 대화 패널로 바꿀 때까지 둘이 함께 있다.
+
 ### 겹침 순서
 
 - 아래에서 위로: 보드 → 오버레이(외곽선·치수·이동 하이라이트) → 코멘트 핀 → 컨트롤(서랍·배율·도구모음)·알림·변경 표시 → 팝오버·메뉴 → 토스트. 포커스된 핀은 지금처럼 컨트롤 아래다(DESIGN 'Comments' Pins).
@@ -74,6 +86,7 @@
 | `zoomControlView(state)` | `app/src/renderer/zoomControl.ts` | 프레임 없음("—", 비활성); 한계(0.05, 4)에서 −·+ 활성 여부(지금 동작 유지); 메뉴 항목과 단축키 표기 |
 | `fitWidth` · `fitFrame` · `locateView`의 inset 판 | `app/src/renderer/viewport.ts` | 위·아래 inset이 다를 때 Fit의 y; 안전 영역에 들어가는 프레임은 안전 영역 가운데; 안전 영역보다 큰 프레임은 위 inset에 맞춤; 크기 0 프레임; 안전 영역이 0 이하인 아주 낮은 창 |
 | `zoomTo(view, scale, center, limits)` | `viewport.ts` | 50%·200%; 한계 밖 값은 한계로; 가운데 점 고정 |
+| `agentPresence(list, canvas)` | `app/src/renderer/agentPresence.ts` | 현재 대화 없음; 일함; 응답 대기; 끝남·실패·중단(표시 없음); 다른 캔버스의 대화; 프로젝트 대화; ID 없는 캔버스의 경로 매칭; 옮겨진 캔버스(ID 매칭); 목록 읽기 실패(표시 없음); 공급자 이름과 문구 |
 
 ## 4. 형식·규칙·결정 영향
 

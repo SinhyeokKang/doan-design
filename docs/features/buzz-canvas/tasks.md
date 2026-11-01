@@ -25,6 +25,8 @@
   - 검증: `npm --prefix app test`.
 - [ ] R3. 도구모음: 하단 가운데 줄, 선택 피커(`aria-pressed="true"`, 툴팁). Tab 순서 서랍 → 배율 → 도구모음.
   - 검증: `npm --prefix app test`.
+- [ ] R5. 에이전트 작업 표시: 이 캔버스의 현재 대화(`canvasConversationRows`와 같은 ID·경로 매칭)가 일하거나 응답을 기다리면 가장자리 그림자와 상단 가운데 안내(점, 문구, Stop → `interruptConversation`). 동작 줄이기에서 점 정지.
+  - 검증: `npm --prefix app test` (다른 캔버스·프로젝트 대화는 표시 없음, 턴 끝에 사라짐, Stop 실패 시 안내 유지와 오류 토스트, 포인터를 막지 않음).
 - [ ] R4. 보드 바탕, 오버레이(`.mark`·`.dims`·이동 하이라이트), `.canvas-status`, 알림, 변경 표시, 겹침 순서를 초안 값으로. Fit·이동·locate가 inset을 쓴다.
   - 검증: `npm --prefix app test`, `npm --prefix app run build`.
 
@@ -47,7 +49,7 @@
 
 ## Z. 승격과 정리 (문서마다 커밋)
 
-- [ ] Z1. PRODUCT §5 항목 2·3: 서랍(이동하고 선택함), 배율 컨트롤러와 메뉴, 도구모음의 선택 피커.
+- [ ] Z1. PRODUCT §5 항목 2·3: 서랍(이동하고 선택함), 배율 컨트롤러와 메뉴, 도구모음의 선택 피커, 에이전트 작업 표시(조건, 응답 대기 문구, Stop). §6 Open questions에 "에이전트가 작업 중인 곳을 캔버스에서 실시간으로 짚기(사용자는 실시간을 원함, 근거 PoC 필요, 다시 로드 때 프레임 비교는 대안)"를 더한다(spec 비목표).
   - 검증: `grep -n "Frame jumps are available" docs/PRODUCT.md`가 서랍을 함께 적는다.
   - ── commit: `docs(PRODUCT): canvas frame drawer and zoom controls` ──
 - [ ] Z2. ARCHITECTURE §3 'Canvas view'의 32px 여백을 inset으로, 'Jump and current frame'에 서랍의 `selectFrame` 경로, 'Actions and focus'의 캔버스 안 Tab 순서.
@@ -56,6 +58,6 @@
 - [ ] Z3. DESIGN.md: 'Canvas area and right panel'의 캔버스 부분, 'Select and inspect'의 오버레이 부분에서 "buzz-ds 이전" 표시를 걷고 측정값을 적는다. 오른쪽 패널·Inspector 부분은 `buzz-inspector` 몫으로 남긴다.
   - 검증: `grep -n 'buzz-ds 이전' docs/DESIGN.md`에 남은 줄이 모두 다른 자식 몫.
   - ── commit: `docs(DESIGN): record the buzz canvas` ──
-- [ ] Z4. 부모 `buzz-restyle`: tasks C8 체크, spec 표 8번에서 '입력창 요소 피커가 쓰는 선택 모드'를 빼고 12번에 더한다(2026-11-01 user), design.md 'DESIGN.md 절과 담당' 표 갱신. `docs/features/buzz-canvas/`를 지운다.
+- [ ] Z4. 부모 `buzz-restyle`: tasks C8 체크, spec 표 8번에서 '입력창 요소 피커가 쓰는 선택 모드'를 빼고 12번에 더한다, 표 8번에 에이전트 작업 표시와 선행 `buzz-conversation`을 더한다, 공통 결정 2에 '에이전트 작업 표시(가장자리 그림자·점·안내)는 accent' 예외를 더한다(모두 2026-11-01 user), design.md 'DESIGN.md 절과 담당' 표 갱신. `docs/features/buzz-canvas/`를 지운다.
   - 검증: 디렉터리가 없다.
   - ── commit: `docs(feature): complete buzz-canvas` ──
