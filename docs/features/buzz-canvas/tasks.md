@@ -18,7 +18,7 @@
 
 ## R. renderer
 
-- [ ] R1. 캔버스 헤더와 프레임 서랍: Overview 헤더(`.ov-head`) 상자의 헤더(서랍만, 구분선 없음), 서랍 트리거(지금 보는 프레임의 "번호. 이름", 비활성 이유), Radix 팝오버 목록(roving tabindex, 지금 보는 행 스크롤·포커스, 말줄임과 `title`, 잘린 목록 안내), 고르면 닫고 `selectFrame(index)`.
+- [ ] R1. 캔버스 헤더와 프레임 서랍: Overview 헤더(`.ov-head`) 상자의 헤더(캔버스 / 서랍, 구분선 없음), 서랍 트리거(지금 보는 프레임의 "번호. 이름", 비활성 이유), Radix 팝오버 목록(roving tabindex, 지금 보는 행 스크롤·포커스, 말줄임과 `title`, 잘린 목록 안내), 고르면 닫고 `selectFrame(index)`.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
   - 경우: 초안 가드가 거절(이동·선택 없음), 목록이 열린 사이 다시 로드로 프레임이 바뀜, Esc가 메뉴만 닫고 선택은 남음, 포커스가 서랍 버튼으로 돌아옴.
 - [ ] R2. 배율 컨트롤러: −·값(메뉴 트리거)·+, 메뉴 Fit ⌘1·100% ⌘0·50%·200%, `CanvasController.zoomTo`, 프레임 없을 때 "—"와 비활성.
