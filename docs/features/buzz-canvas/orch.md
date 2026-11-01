@@ -18,6 +18,7 @@
 | 2026-11-01 | 1차 병렬 배치(BT·BD·BP)는 앱 동작을 바꾸지 않는다(아직 어디에도 연결되지 않은 순수 함수와 파서). `/runtime-test`는 해당하지 않는다고 handoff에 적는다 | 지휘자 판단. AGENTS 'Verification policy'(변경된 앱 동작만 probe) |
 | 2026-11-01 | 실제 공급자로 이 캔버스의 대화를 돌려야 하는 작업 표시 probe(BR5 `/runtime-test`, BV의 V2)는 아래 로그인 프로필을 쓴다. 실행 중 상태를 실제로 만들지 못하면 미검증으로 남긴다 | tasks V2, memory 'provider login probes'(실제 HOME과 사용자 로그인 승인이 필요하다) |
 | 2026-11-01 | 공급자 로그인은 지휘자가 미리 만든다. 실제 HOME으로 dev 앱을 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 띄우고, 사용자가 브라우저에서 Claude Code 로그인을 승인한다. BR5·BV probe는 이 프로필을 복사해서 쓴다. 이 실행이 끝나도 로그아웃·삭제하지 않고 바로 이어지는 `buzz-canvas-conversation`이 이어 쓰며, 폐기도 그 실행이 한다 | 사용자("CC, Codex 로그인 쓸 일 있음? 미리 실제 HOME에 세션 만들어놓으면 좋겠는데", "로그인 세션은 canvas-conversation에서 이어서 사용하고, 폐기는 거기서 한다"). 공급자는 하나면 된다(지휘자 판단) |
+| 2026-11-01 | Antigravity 로그인 실패는 buzz-canvas와 관계없어 별도 배치 BG가 맡는다. main에서 `fix-antigravity-signin` 브랜치를 만들고 PR도 따로 낸다 | 사용자("agy 로그인 문제는 원인 확인되면 이 지휘 세션에서 해결해줘"). 브랜치 분리는 지휘자 판단: 이 PR의 범위가 아니다 |
 | 2026-11-01 | `/agent-eval`은 해당하지 않는다 | design §1·§4. CLI·형식·스킬·`doan check` 규칙이 그대로다 |
 | 2026-11-01 | probe 위치는 `.scratch/runtime-test/buzz-canvas/`, 측정 위치는 `.scratch/design-sync/buzz-canvas/`다 | `/runtime-test`·`/design-sync` 스킬의 위치 규칙 |
 
@@ -33,6 +34,7 @@
 | BR5 | R5 | `App.tsx`, `styles.css`, 새 작업 표시·점 필드 컴포넌트 | BR4, BD, BT | Claude Opus high (rAF 수명과 정지 조건, `interruptConversation` 오류 처리, 동작·투명도 줄이기) | test, build, 변경 범위 `/runtime-test` | 대기 |
 | BR6 | R6, X1 | `styles.css`, `App.tsx`, `CanvasController.ts`(inset 적용), `canvasView.ts`와 테스트 | BR5 | Claude Sonnet high (CSS 재배치와 grep으로 확인하는 제거. 겹침 순서와 inset 적용만 판단이 필요하다) | test, typecheck, build, X1 grep, 변경 범위 `/runtime-test` | 대기 |
 | BV | V1, V2, Z3와 그 수정 | 위 배치들의 파일 수정, `.scratch/design-sync/buzz-canvas/`, `.scratch/runtime-test/buzz-canvas/`, `docs/DESIGN.md` | BR6 | Claude Opus high (실제 앱 측정, 960·1238 겹침, 초안과의 차이 수정, 회귀 테스트) | V1 통과 조건, V2 항목별 결과, DESIGN.md 기록 | 대기 |
+| BG | Antigravity 로그인 버그(범위 밖, 별도 브랜치 `fix-antigravity-signin`) | `app/src/main/agentAuth/` 등 원인에 따라. buzz-canvas 파일과 겹치지 않는다 | — | Claude Opus high (실제 공급자 로그인 재현, 인증 수명·vault 판단. 틀리면 사용자 자격 증명을 잃는다) | 원인 증거, 회귀 테스트 red, `verify.mjs`, 복사 프로필로 `/runtime-test` | 진행 중 |
 | BZ | Z1, Z2, Z4 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/buzz-restyle/*`, `docs/features/buzz-canvas/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z1·Z2·Z4 grep | 대기 |
 
 리뷰 작업자(보고만, `/code-review`): BT·BP → Codex `gpt-6-astra` medium(교차 리뷰). BD → Claude Sonnet medium(Codex 구현의 교차 리뷰). BR1·BR4·BR5 → Codex `gpt-6-astra` medium(교차 리뷰, 포커스·수명·저장 판단). BR6 → Codex `gpt-6-astra` medium. BV의 코드 수정 → Codex `gpt-6-astra` medium.
@@ -46,3 +48,7 @@
 ## 진행 기록
 
 - 2026-11-01: intake. 결정과 배치 표를 작성했다.
+- 2026-11-01: Run `run_ac5b4279c92b`. BT(`ctx_4c6985551f11`, Sonnet high), BD(`ctx_b532be8d6da5`, Codex `gpt-6.1-sol` high), BP(`ctx_22f21290e57a`, Sonnet high)를 `894b434f`에서 시작했다. `launch.effective`가 요청과 같고, 세 터미널 모두 작업 중인 것을 확인했다. BD의 시작 확인은 30초 안에 관찰되지 않았지만 터미널에서 진행을 확인했다.
+- 2026-11-01: BD 질문에 답했다. 테스트만 담은 커밋이 typecheck를 통과할 수 없으면 테스트와 구현을 한 커밋으로 묶고 red 출력을 handoff에 적는다(BT·BP에도 알림). 같은 기반에서 `shell.test.ts`·`thumbnails.test.ts`가 실패했지만, thumbnails는 단독 실행에서 26/26 통과했다. 부하 평균 약 117에서 생긴 시간 초과로 판단했다.
+- 2026-11-01: 사용자가 dev 앱으로 Claude Code·Codex·Cursor·Copilot 로그인을 마쳤다(`metadata.json`). Antigravity만 실패했다. 앱 밖에서 같은 서버와 같은 계정으로는 성공했으므로 앱 쪽 문제로 보고 BG(`ctx_d0b91e863083`, Opus high, main 기반)를 시작했다.
+
