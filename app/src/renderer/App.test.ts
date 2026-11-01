@@ -1,5 +1,5 @@
-import { expect, it, vi } from "vitest";
-import { App, menuCommand } from "./App";
+import { expect, it, test, vi } from "vitest";
+import { App, menuCommand, pickFocusReturns } from "./App";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => (() => void) | undefined)[], dispose: vi.fn(), command: vi.fn(), updateEntries: vi.fn() }));
 vi.mock("react", async importOriginal => ({
@@ -18,6 +18,7 @@ vi.mock("./CanvasController", async importOriginal => ({
     dispose = harness.dispose;
     command = harness.command;
     updateEntries = harness.updateEntries;
+    onPicked = vi.fn();
   },
 }));
 
@@ -54,7 +55,7 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
 
 // R-M ⚪5: a command App does not name must not run the Undo toast's action.
 it("routes each menu command to its own handler, and the removed Resolved Comment commands never reach Undo", () => {
-  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), newConversation: vi.fn() };
+  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), newConversation: vi.fn(), addSelection: vi.fn() };
   menuCommand("nextResolved" as never, to);
   menuCommand("previousResolved" as never, to);
   expect(to.undo).not.toHaveBeenCalled();
@@ -69,4 +70,17 @@ it("routes each menu command to its own handler, and the removed Resolved Commen
   menuCommand("newConversation", to);
   expect(to.newConversation).toHaveBeenCalledOnce();
   expect(to.undo).toHaveBeenCalledOnce();
+  // buzz-canvas-conversation: Edit > Add Selection to Conversation (⌘L).
+  menuCommand("addSelectionToConversation", to);
+  expect(to.addSelection).toHaveBeenCalledOnce();
+  expect(to.undo).toHaveBeenCalledOnce();
+});
+
+// design §2 'Focus return' and POSTMORTEM 2026-10-23 R-L: focus goes back to the composer only while it is still
+// where the pick left it, and never into an IME composition.
+test.each([
+  ["start", false, true], ["page", false, true], ["canvas", false, true], ["field", false, true],
+  ["elsewhere", false, false], ["start", true, false], ["field", true, false],
+] as const)("a pick that ended with focus on %s (composing: %s) returns focus: %s", (where, composing, returns) => {
+  expect(pickFocusReturns(where, composing)).toBe(returns);
 });

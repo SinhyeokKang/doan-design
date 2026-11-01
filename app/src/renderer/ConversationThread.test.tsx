@@ -162,6 +162,7 @@ test("agent reply lists keep their bullets and numbers", () => {
 
 // buzz-canvas-conversation design §2 'Chip locate': a sent message's chips, named as the composer names them.
 describe("sent message chips", () => {
+  const located = async () => "shown" as const;
   const user = (anchors: readonly Anchor[]): ThreadItem => ({
     kind: "user", key: "u1", seq: 1, preset: null, attachments: [], anchors,
     parts: [{ text: "Make " }, { anchor: 1 }, { text: " match " }, { anchor: 2 }, { text: " at " }, { anchor: 3 }, { text: " and " }, { anchor: 4 }],
@@ -173,7 +174,7 @@ describe("sent message chips", () => {
   ];
 
   test("in the canvas panel each chip is a button that names its target; a marker without its anchor stays text", () => {
-    const out = html([user(anchors)], { onLocate: noop, frames: [{ id: "payment", title: "Checkout payment" }] });
+    const out = html([user(anchors)], { onLocate: located, frames: [{ id: "payment", title: "Checkout payment" }] });
     expect(out).toContain('aria-label="Show Checkout payment on canvas"');
     expect(out).toContain('aria-label="Show button “Pay $42.00” on canvas"');
     expect(out).toContain('aria-label="Show Point in Checkout payment on canvas"');
@@ -185,17 +186,38 @@ describe("sent message chips", () => {
   test("without a canvas to locate in, chips are drawn but are not buttons; a canvas that cannot show disables them", () => {
     expect(html([user(anchors)])).not.toContain("<button type=\"button\" class=\"anchor-chip\"");
     expect(html([user(anchors)])).toContain('<span class="anchor-chip" data-kind="frame"');
-    expect(html([user(anchors)], { onLocate: noop, locateDisabled: true })).toContain('aria-disabled="true"');
+    expect(html([user(anchors)], { onLocate: located, locateDisabled: true })).toContain('aria-disabled="true"');
   });
 
-  test("a chip hands its anchor and element to onLocate, and does nothing while disabled", () => {
-    const located: unknown[] = [];
-    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: anchor => located.push(anchor) }) as ReactElement<{ onClick(event: { currentTarget: unknown }): void }>;
-    chip.props.onClick({ currentTarget: "node" });
-    expect(located).toEqual([anchors[0]]);
-    const off = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: true, onLocate: anchor => located.push(anchor) }) as ReactElement<{ onClick(event: { currentTarget: unknown }): void }>;
-    off.props.onClick({ currentTarget: "node" });
-    expect(located).toHaveLength(1);
+  test("a chip hands its anchor to onLocate, and does nothing while disabled", () => {
+    const asked: unknown[] = [];
+    const onLocate = async (anchor: Anchor) => { asked.push(anchor); return "shown" as const; };
+    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate }) as ReactElement<{ onClick(): void }>;
+    chip.props.onClick();
+    expect(asked).toEqual([anchors[0]]);
+    const off = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: true, onLocate }) as ReactElement<{ onClick(): void }>;
+    off.props.onClick();
+    expect(asked).toHaveLength(1);
+  });
+
+  // design §2 'Chip locate': only a target the canvas no longer has shows the note; a canvas that did not answer, or
+  // could not be asked, ends silently (orch decision: a timeout is not "missing").
+  test.each([["missing", 1], ["timeout", 0], ["unavailable", 0], ["shown", 0]] as const)("a locate that ends %s shows the note %i times", async (outcome, times) => {
+    const shown: string[] = [];
+    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: async () => outcome,
+      missing: { key: "m-0", shownFor: null, show: key => shown.push(key) } }) as ReactElement<{ onClick(): void }>;
+    chip.props.onClick();
+    await Promise.resolve(); await Promise.resolve();
+    expect(shown).toHaveLength(times);
+  });
+
+  test("the note's chip is described by it", () => {
+    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
+      missing: { key: "m-0", shownFor: "m-0", show: () => {} } }) as ReactElement<{ "aria-describedby"?: string }>;
+    expect(chip.props["aria-describedby"]).toBe("m-0-missing");
+    const other = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
+      missing: { key: "m-1", shownFor: "m-0", show: () => {} } }) as ReactElement<{ "aria-describedby"?: string }>;
+    expect(other.props["aria-describedby"]).toBeUndefined();
   });
 });
 

@@ -11,7 +11,7 @@ import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, locateView, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
@@ -187,11 +187,11 @@ export class CanvasController {
     }
   }
 
-  // Chip locate (design §2 'Chip locate'): finds the anchor in the shown document, moves the view to it at the same
-  // zoom and highlights it for 1.2 s; a point gets a 12 px ring at its offset in its frame. `settled` hears "missing"
-  // when the canvas has no unique match, "timeout" when it does not answer within MEASURE_ANSWER_MS. A newer locate or a new document
-  // drops one in flight without an answer. false: no shown document to ask, so locate is unavailable. Never changes
-  // the selection, main's selection or the composer.
+  // Chip locate (design §2 'Chip locate'): finds the anchor in the shown document, moves the view to it (settleLocate)
+  // and highlights it for 1.2 s; a point gets a 12 px ring at its offset in its frame. `settled` hears "missing" when
+  // the canvas has no unique match, "timeout" when it does not answer within MEASURE_ANSWER_MS. A newer locate or a
+  // new document drops one in flight without an answer. false: no shown document to ask, so locate is unavailable.
+  // Never changes the selection, main's selection or the composer.
   locate(anchor: Anchor, settled: (result: LocateResult) => void): boolean {
     this.endLocate();
     if (this.loading || this.state.status !== null || this.state.unlisted) return false;
@@ -215,29 +215,21 @@ export class CanvasController {
     this.locating = null;
   }
 
+  // Frames move as picking one in the drawer does (fitFrame); elements and points keep the scale and are centred,
+  // an element larger than the view zoomed out to fit (design §2 'Chip locate', 2026-11-02 user).
   private settleLocate(locating: NonNullable<CanvasController["locating"]>, target: ReturnType<typeof resolveChipTarget>): void {
-    if (target.kind === "node" && this.jumpToNode(target.node, locating.generation)) { locating.settled("shown"); return; }
-    if (target.kind === "point" && this.frame !== null) {
-      this.view = locateView({ x: target.x, y: target.y, width: 0, height: 0 }, this.viewportSize(), this.view);
-      this.showJump({ x: target.x, y: target.y, width: 0, height: 0 }, "point");
-      this.applyView();
-      locating.settled("shown");
-      return;
+    if (this.frame === null || (target.kind !== "node" && target.kind !== "point")) { locating.settled("missing"); return; }
+    const size = this.viewportSize();
+    if (target.kind === "point") {
+      const spot = { x: target.x, y: target.y, width: 0, height: 0 };
+      this.view = elementView(spot, size, FIT_INSET, this.view);
+      this.showJump(spot, "point");
+    } else {
+      this.view = locating.anchor.element ? elementView(target.rect, size, FIT_INSET, this.view) : fitFrame(target.rect, size, FIT_INSET, this.view);
+      this.showJump(target.rect);
     }
-    locating.settled("missing");
-  }
-
-  // Moves the view to a node of the current anchors at the same zoom and
-  // highlights it, without selecting (like a frame jump). `generation` is the
-  // one the node came from: node tokens restart in every new document, so an
-  // older one may name another element.
-  jumpToNode(node: string, generation: number): boolean {
-    const rect = generation === this.anchorGeneration ? this.anchors?.rects.get(node) : undefined;
-    if (!rect || this.frame === null) return false;
-    this.view = locateView(rect, this.viewportSize(), this.view);
-    this.showJump(rect);
     this.applyView();
-    return true;
+    locating.settled("shown");
   }
 
   constructor(

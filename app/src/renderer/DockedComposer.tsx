@@ -1,5 +1,5 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactElement } from "react";
-import { Clock, Gauge, Plus, X } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
+import { Clock, Crosshair, Gauge, Plus, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor } from "../main/conversation/types";
@@ -16,6 +16,9 @@ import {
   type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
+import type { ChipInsert } from "./chipField";
+import { ANCHOR_LIMIT_TEXT } from "./canvasPicker";
+import { LOCATE_MISSING_TEXT, useLocateNote, type LocateOutcome } from "./ConversationThread";
 import {
   attachmentChipView, chipRemoval, presetListView, providerLogo, slashQuery, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
@@ -29,6 +32,17 @@ import type { SettingsTarget } from "./settingsSections";
 // the reason line and focus.
 
 export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[] }
+
+// The canvas page's way into the shown composer's field (design §2 'Picker and Add to conversation'). `insert` puts a
+// chip at the field's caret, or at its end, and shows the 32-place line itself when the chip would pass the limit.
+export interface DockedFieldLink {
+  insert(anchor: Anchor, at: "caret" | "end"): ChipInsert;
+  focus(): void;
+  composing(): boolean;
+  element(): HTMLElement | null;
+}
+// The composer's Pick from canvas button: pressed while the canvas picks; `reason` is the tooltip while unavailable.
+export interface DockedPicker { pressed: boolean; enabled: boolean; reason: string | null; onToggle(): void }
 export type DockedOutcome = { ok: true } | { error: string; missing?: string[] };
 
 export interface DockedComposerProps {
@@ -78,6 +92,10 @@ export interface DockedComposerProps {
   onStop(): void;
   onRemoveQueued(id: string): void;
   onOpen(conversationId: string): void;
+  // The canvas panel's: Pick from canvas, the field link, and chip locate for a chip clicked in the field.
+  pick?: DockedPicker;
+  link?: MutableRefObject<DockedFieldLink | null>;
+  onLocate?(anchor: Anchor): Promise<LocateOutcome>;
 }
 
 const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
@@ -99,6 +117,9 @@ export function DockedComposer(props: DockedComposerProps) {
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const [highlightAt, setHighlightAt] = useState<{ key: string; index: number }>({ key, index: 0 });
   const [announcement, setAnnouncement] = useState("");
+  // The 32-place line, for the draft it was refused on; the next edit drops it.
+  const [limitAt, setLimitAt] = useState<string | null>(null);
+  const [missing, showMissing] = useLocateNote();
   const generation = useRef(0);
   // The key on screen when a reply lands, which may differ from the one the send left from.
   const shown = useRef(key); shown.current = key;
@@ -150,6 +171,7 @@ export function DockedComposer(props: DockedComposerProps) {
       return new Map(drafts).set(at, { ...next, shape });
     });
     clearRefusal(at);
+    setLimitAt(current => current === at ? null : current);
   };
   function clearRefusal(at: string) {
     hostSawBusy.current.delete(at);
@@ -201,6 +223,26 @@ export function DockedComposer(props: DockedComposerProps) {
   };
 
   const stop = () => { props.onStop(); focus({ kind: "stopped" }); };
+  // Read through a ref so the link the host holds always reaches this render's key.
+  const shownKey = useRef(key); shownKey.current = key;
+  useLayoutEffect(() => {
+    const link = props.link;
+    if (!link) return;
+    const mine: DockedFieldLink = {
+      insert: (anchor, at) => {
+        if (at === "end") field.current?.focus("end");
+        const result = field.current?.insertChip(anchor) ?? "refused";
+        if (result === "limit") setLimitAt(shownKey.current);
+        return result;
+      },
+      focus: () => field.current?.focus(),
+      composing: () => field.current?.composing() ?? false,
+      element: () => field.current?.element() ?? null,
+    };
+    link.current = mine;
+    return () => { if (link.current === mine) link.current = null; };
+  }, [props.link]);
+  const locate = (anchor: Anchor) => { void props.onLocate?.(anchor).then(outcome => { if (outcome === "missing") showMissing(); }); };
   const send = async () => {
     if (action === "stop" || !availability.enabled) return;
     const at = key, sent = draft, mine = ++generation.current;
@@ -256,7 +298,7 @@ export function DockedComposer(props: DockedComposerProps) {
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
-        placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement}
+        placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
@@ -271,6 +313,7 @@ export function DockedComposer(props: DockedComposerProps) {
       {drop.cover}
     </ComposerCard>
     <div className="composer-tray">
+      {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>
         <FixedTip label="Set in your terminal"><button type="button" className="composer-agent doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
           aria-label={`Model: set by the terminal session (${PROVIDER_NAMES[fixedProvider]})`}><img className="logo" src={providerLogo(fixedProvider)} alt="" /><span>Terminal session</span></button></FixedTip>
@@ -291,8 +334,20 @@ export function DockedComposer(props: DockedComposerProps) {
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
+    {limitAt === key && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
+    {missing && <div className="composer-reason docked-reason chip-missing" role="status"><span>{LOCATE_MISSING_TEXT}</span></div>}
     <div className="sr-only" role="status">{announcement}</div>
   </div>;
+}
+
+// Pick from canvas, at the left end of the model row (design §2 'Picker'). aria-disabled, not disabled, so its reason
+// shows as a tooltip on hover and focus.
+function PickButton({ pick }: { pick: DockedPicker }) {
+  const unavailable = !pick.enabled && !pick.pressed;
+  return <Tooltip><TooltipTrigger asChild>
+    <button type="button" className="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed={pick.pressed}
+      aria-disabled={unavailable || undefined} onClick={() => { if (!unavailable) pick.onToggle(); }}><Crosshair aria-hidden="true" /></button>
+  </TooltipTrigger><TooltipContent>{unavailable && pick.reason ? pick.reason : "Pick from canvas"}</TooltipContent></Tooltip>;
 }
 
 // A control that keeps its place but cannot be used: aria-disabled, so its tooltip still shows on hover and focus.

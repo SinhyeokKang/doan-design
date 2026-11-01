@@ -263,6 +263,27 @@ export function canvasScript(lib: CanvasLib): void {
   // selecting.
   let pickSeq = 0;
   let picking: number | null = null;
+  // The crosshair while picking: the cursor over the canvas is this document's, so a constructed sheet is adopted. It
+  // changes no DOM node, so neither the MutationObserver nor the layout runs for it, and sheets the canvas adopted
+  // itself stay as they are.
+  let crosshair: CSSStyleSheet | null = null;
+  const setPicking = (next: number | null) => {
+    picking = next;
+    try {
+      if (next !== null && crosshair === null && typeof CSSStyleSheet === "function") {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync("*{cursor:crosshair!important}");
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        crosshair = sheet;
+      } else if (next === null && crosshair !== null) {
+        const sheet = crosshair;
+        crosshair = null;
+        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(adopted => adopted !== sheet);
+      }
+    } catch {
+      // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks, without the crosshair.
+    }
+  };
 
   const isRoot = (el: unknown) => el === document.documentElement || el === document.body;
   const isElement = (target: unknown): target is Element => typeof target === "object" && target !== null && "nodeType" in target && target.nodeType === 1;
@@ -524,7 +545,7 @@ export function canvasScript(lib: CanvasLib): void {
     if (type === "pick-start" || type === "pick-cancel") {
       if (data.document !== documentToken || next <= pickSeq) return;
       pickSeq = next;
-      picking = type === "pick-start" ? next : null;
+      setPicking(type === "pick-start" ? next : null);
       if (picking !== null) post({ type: "pick-started", href: location.href, document: documentToken, pick: picking });
       return;
     }
@@ -708,7 +729,7 @@ export function canvasScript(lib: CanvasLib): void {
       if (picking !== null) {
         event.preventDefault();
         postPicked({ cancelled: true });
-        picking = null;
+        setPicking(null);
         return;
       }
       if (!editable(event.target)) postSelection("key", { key: "Escape" });

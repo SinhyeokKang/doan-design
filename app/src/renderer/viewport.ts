@@ -106,6 +106,20 @@ export function fitWidth(boardWidth: number, viewport: Size, inset: Inset): View
   return { x: safe.x + (safe.width - boardWidth * scale) / 2, y: safe.y, scale };
 }
 
+// Chip locate for an element or a point (buzz-canvas-conversation design §2 'Chip locate'): the person's scale, the
+// target centred in the safe area; an element larger than that area is zoomed out until it fits whole, never in.
+export function elementView(rect: Rect, viewport: Size, inset: Inset, current: View): View {
+  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return current;
+  const safe = safeArea(viewport, inset);
+  const fits = rect.width * current.scale <= safe.width && rect.height * current.scale <= safe.height;
+  const scale = fits ? current.scale : Math.max(MIN_SCALE, Math.min(safe.width / rect.width, safe.height / rect.height));
+  return {
+    x: safe.x + safe.width / 2 - (rect.x + rect.width / 2) * scale,
+    y: safe.y + safe.height / 2 - (rect.y + rect.height / 2) * scale,
+    scale,
+  };
+}
+
 // `current` is needed because a zero-size frame has no size to fit and keeps
 // the scale the person already chose.
 export function fitFrame(rect: Rect, viewport: Size, inset: Inset, current: View): View {
@@ -127,18 +141,6 @@ export function fitFrame(rect: Rect, viewport: Size, inset: Inset, current: View
       ? safe.y - rect.y * scale
       : safe.y + safe.height / 2 - (rect.y + rect.height / 2) * scale;
   return { x, y, scale };
-}
-
-// Locate moves the board without zooming: the rect is centered at the current
-// scale, and one taller than the viewport is read from its top, as in fitFrame.
-export function locateView(rect: Rect, viewport: Size, view: View): View {
-  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return view;
-  const x = viewport.width / 2 - (rect.x + rect.width / 2) * view.scale;
-  const y =
-    rect.height * view.scale > viewport.height
-      ? FIT_MARGIN - rect.y * view.scale
-      : viewport.height / 2 - (rect.y + rect.height / 2) * view.scale;
-  return { x, y, scale: view.scale };
 }
 
 export interface WheelInput {

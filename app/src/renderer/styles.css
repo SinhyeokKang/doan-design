@@ -972,6 +972,19 @@ body:has(.shell-top) { background: transparent; }
 .bubble .anchor-chip { background: var(--surface-panel); }
 button.anchor-chip { cursor: pointer; }
 button.anchor-chip[aria-disabled="true"] { cursor: default; }
+/* Chip locate (buzz-canvas-conversation design §2): a chip in the composer's field locates too, so it points as a
+   thread chip does; a target that is gone gets the metadata line under its message or composer. */
+.composer-input .anchor-chip { cursor: pointer; }
+.chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.mark.jump-highlight.jump-point { border-radius: 50%; }
+/* Pick from canvas (design §2 'Picker'): the left end of the model row; the picking hint is the agent notice's capsule
+   with an outlined Esc key, and the board shows a crosshair (the canvas script sets the one over the canvas). */
+.docked .composer-tray .composer-pick { margin-right: auto; color: var(--text-subtle); }
+.composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.docked .composer-tray .composer-pick[aria-disabled="true"] { color: var(--text-disabled); }
+.doan-picking { padding-right: var(--space-2); }
+.doan-picking-esc.doan-kbd { background: transparent; color: var(--text-on-prominent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-prominent) 45%, transparent); }
+.area[data-picking] { cursor: crosshair; }
 /* A permission answer that did not reach the agent, under its request's choices. */
 .conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 /* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar

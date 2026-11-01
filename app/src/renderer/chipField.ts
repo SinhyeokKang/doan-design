@@ -26,6 +26,8 @@ export interface ChipFieldHooks {
   onAnnounce(text: string): void;
   // The canvas this field's chips belong to; null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
+  // A click on a chip, after the caret moved right after it: its host locates the chip on the canvas.
+  onChipClick?(anchor: Anchor): void;
 }
 
 interface Selection { anchor: number; focus: number }
@@ -34,11 +36,11 @@ interface Step { segments: FieldSegment[]; before: Selection; after: Selection; 
 // Chromium adds its own when an edit leaves a line holding nothing but a chip; neither is read.
 interface Unit { node: Node; kind: "text" | "chip" | "filler"; at: number; length: number }
 
-// Icons of the confirmed draft's chips (lucide Frame and MapPin; the element icon as the draft draws it).
+// Icons of the chips: lucide Frame, SquareMousePointer and MapPin (design §2 'Chip field').
 const SVG = "http://www.w3.org/2000/svg";
 const ICONS: Record<"frame" | "element" | "point", [string, Record<string, string>][]> = {
   frame: [["line", { x1: "22", x2: "2", y1: "6", y2: "6" }], ["line", { x1: "22", x2: "2", y1: "18", y2: "18" }], ["line", { x1: "6", x2: "6", y1: "2", y2: "22" }], ["line", { x1: "18", x2: "18", y1: "2", y2: "22" }]],
-  element: [["path", { d: "M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }], ["path", { d: "m9 15 3-3" }]],
+  element: [["path", { d: "M12.034 12.681a.498.498 0 0 1 .647-.647l9 3.5a.5.5 0 0 1-.033.943l-3.444 1.068a1 1 0 0 0-.66.66l-1.067 3.443a.5.5 0 0 1-.943.033z" }], ["path", { d: "M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" }]],
   point: [["path", { d: "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" }], ["circle", { cx: "12", cy: "10", r: "3" }]],
 };
 const KIND_PREFIX = { frame: "Frame", element: "Element", point: "Point" } as const;
@@ -80,6 +82,7 @@ export class ChipField {
     // Dragging text or a chip out would bypass the segments.
     on("dragstart", event => event.preventDefault());
     on("pointerdown", () => { this.pointer = true; });
+    on("click", event => this.onChipClick(event));
     // A focus from the keyboard or from code (App and Overview call focus() on the element) puts the caret back where
     // it was; a click places its own caret.
     on("focus", () => { if (!this.pointer) this.placeCaret(this.selection); this.pointer = false; });
@@ -93,6 +96,22 @@ export class ChipField {
   dispose(): void { for (const cleanup of this.cleanups) cleanup(); this.el.removeAttribute("data-chip-field"); }
 
   composing(): boolean { return this.composingNow; }
+
+  // A chip is one unit the caret cannot enter, so a click on it puts the caret right after it (design §2 'Chip
+  // locate'), focus included, and tells the host which chip it was. The DOM never changes here.
+  private onChipClick(event: MouseEvent): void {
+    let chip: Node | null = event.target instanceof Node ? event.target : null;
+    while (chip && chip !== this.el && !this.chips.has(chip)) chip = chip.parentNode;
+    const anchor = chip && chip !== this.el ? this.chips.get(chip) : undefined;
+    const unit = anchor && this.units().find(entry => entry.node === chip);
+    if (!anchor || !unit || this.composingNow) return;
+    event.preventDefault();
+    const after = { anchor: unit.at + 1, focus: unit.at + 1 };
+    this.selection = after;
+    if (document.activeElement !== this.el) { this.pointer = false; this.el.focus(); }
+    this.placeCaret(after);
+    this.hooks.onChipClick?.(anchor);
+  }
 
   // The host's value and the draft it belongs to. Another draft ends this one's history, caret and waiting chips even
   // when the two hold the same content, so ⌘Z never brings back the previous draft's text or chips. Within one draft,

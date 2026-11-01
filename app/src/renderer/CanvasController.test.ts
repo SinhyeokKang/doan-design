@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import { CanvasController, initialCanvasState, MEASURE_ANSWER_MS } from "./CanvasController";
-import { FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, locateView, screenToBoard } from "./viewport";
+import { elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, screenToBoard } from "./viewport";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
 import { activityFor } from "./activity";
@@ -770,34 +770,31 @@ it("resets both channels on reload and rejects old-window, href and viewport hov
 });
 
 // buzz-canvas-conversation keeps the anchors query and reply for chip locate: the controller asks for plain targets,
-// takes only the newest reply for its own request in the current document, and jumps to a node it named.
+// takes only the newest reply for its own request in the current document, and moves to the node it names.
 describe("anchors channel", () => {
   const queries = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query");
-  const reply = (q: { generation: number; request: number }, over: Record<string, unknown> = {}) => ({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
-    results: [{ id: "chip", candidates: { frame: ["n1"] } }], rects: [{ node: "n1", x: 40, y: 3000, width: 200, height: 100 }], ...over });
+  const reply = (q: { generation: number; request: number; targets: { id: string }[] }, over: Record<string, unknown> = {}) => ({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+    results: [{ id: q.targets[0]!.id, candidates: { frame: ["n1"] } }], rects: [{ node: "n1", x: 40, y: 3000, width: 200, height: 100 }], ...over });
 
-  it("asks for plain targets, takes the reply and jumps to its node without selecting", () => {
+  it("asks for plain targets only once a document has laid out, and moves without selecting", () => {
     const h = selectionHarness();
     try {
-      expect(h.controller.requestAnchors([{ id: "chip", frame: "hero" }])).toBeNull();
+      expect(h.controller.locate({ frame: { id: "hero" } }, vi.fn())).toBe(false);
       expect(queries(h)).toEqual([]);
       h.layout({ document: "doc" });
       h.select(1);
       const selected = h.state().selection;
-      const generation = h.controller.requestAnchors([{ id: "chip", frame: "hero" }]);
+      const settled = vi.fn();
+      expect(h.controller.locate({ frame: { id: "hero" } }, settled)).toBe(true);
       const q = queries(h).at(-1);
-      expect(q).toMatchObject({ document: "doc", generation, targets: [{ id: "chip", frame: "hero" }] });
-      expect(h.controller.jumpToNode("n1", generation!)).toBe(false);
-      h.receive(reply(q));
+      expect(q).toMatchObject({ document: "doc", targets: [{ frame: "hero" }] });
       h.send.mockClear(); h.current().contentWindow.postMessage.mockClear();
-      const before = h.controller.currentView();
-      expect(h.controller.jumpToNode("n1", generation!)).toBe(true);
-      expect(h.controller.currentView()).toEqual(locateView({ x: 40, y: 3000, width: 200, height: 100 }, { width: 800, height: 600 }, before));
+      h.receive(reply(q));
+      expect(settled).toHaveBeenCalledExactlyOnceWith("shown");
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
       expect(h.current().contentWindow.postMessage).not.toHaveBeenCalled();
       expect(h.send).not.toHaveBeenCalled();
       expect(h.state().selection).toEqual(selected);
-      expect(h.controller.jumpToNode("missing", generation!)).toBe(false);
     } finally { h.controller.dispose(); }
   });
 
@@ -805,34 +802,35 @@ describe("anchors channel", () => {
     const h = selectionHarness();
     try {
       h.layout({ document: "doc" });
-      const generation = h.controller.requestAnchors([{ id: "chip", frame: "hero" }])!;
+      const settled = vi.fn();
+      h.controller.locate({ frame: { id: "hero" } }, settled);
       const q = queries(h).at(-1);
       for (const patch of [{ request: q.request - 1 }, { generation: q.generation - 1 }, { document: "old" }, { href: "http://localhost/other" }, { viewport: 149 }, { width: 599 },
-        { results: [{ id: "other", candidates: { frame: ["n1"] } }] }, { results: [] }]) h.receive(reply(q, patch));
-      expect(h.controller.jumpToNode("n1", generation)).toBe(false);
-      h.receive(reply(q, { revision: 2 }));
-      h.receive(reply(q, { revision: 1, rects: [] }));
-      expect(h.controller.jumpToNode("n1", generation)).toBe(true);
+        { results: [{ id: "other", candidates: { frame: ["n1"] } }] }, { results: [] }, { revision: 0 }]) h.receive(reply(q, patch));
+      expect(settled).not.toHaveBeenCalled();
+      h.receive(reply(q));
+      expect(settled).toHaveBeenCalledExactlyOnceWith("shown");
     } finally { h.controller.dispose(); }
   });
 
-  it("forgets the reply and its node tokens with the document", () => {
+  it("forgets the query with the document: a reply from the replaced one settles nothing", () => {
     const h = selectionHarness();
     try {
       h.layout({ document: "doc" });
-      const generation = h.controller.requestAnchors([{ id: "chip", frame: "hero" }])!;
+      const settled = vi.fn();
+      h.controller.locate({ frame: { id: "hero" } }, settled);
       const q = queries(h).at(-1);
-      h.receive(reply(q));
       const old = h.current();
       h.controller.command("reload");
-      h.receive(reply(q, { revision: 2 }), old);
-      expect(h.controller.jumpToNode("n1", generation)).toBe(false);
+      h.receive(reply(q), old);
       h.layout({ document: "doc2" });
-      const next = h.controller.requestAnchors([{ id: "chip", frame: "hero" }])!;
-      expect(next).not.toBe(generation);
-      h.receive(reply(queries(h).at(-1), { document: "doc2" }));
-      expect(h.controller.jumpToNode("n1", generation)).toBe(false);
-      expect(h.controller.jumpToNode("n1", next)).toBe(true);
+      h.receive(reply(q, { document: "doc2" }));
+      expect(settled).not.toHaveBeenCalled();
+      h.controller.locate({ frame: { id: "hero" } }, settled);
+      const next = queries(h).at(-1);
+      expect(next.generation).not.toBe(q.generation);
+      h.receive(reply(next, { document: "doc2" }));
+      expect(settled).toHaveBeenCalledExactlyOnceWith("shown");
     } finally { h.controller.dispose(); }
   });
 });
@@ -2242,7 +2240,8 @@ describe("chip locate", () => {
       expect(query(h).targets).toEqual([{ id: expect.any(String), doanId: "pay", selector: "#pay" }]);
       answer(h, { doanId: ["n1"], selector: ["n1"] });
       expect(settled).toHaveBeenCalledExactlyOnceWith("shown");
-      expect(h.controller.currentView()).toEqual(locateView({ x: 40, y: 3000, width: 200, height: 100 }, { width: 800, height: 600 }, before));
+      // An element keeps the scale and is centred (2026-11-02 user).
+      expect(h.controller.currentView()).toEqual(elementView({ x: 40, y: 3000, width: 200, height: 100 }, { width: 800, height: 600 }, FIT_INSET, before));
       expect(h.markOf("jump-highlight")?.hidden).toBe(false);
       expect(h.state().selection).toEqual(selection);
       expect(h.send).not.toHaveBeenCalled();
@@ -2262,14 +2261,29 @@ describe("chip locate", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("a frame chip finds its frame by id", () => {
+  it("a frame chip finds its frame by id and moves as picking the frame in the drawer does", () => {
     const h = loaded();
     try {
       const settled = vi.fn();
+      const before = h.controller.currentView();
       h.controller.locate({ frame: { id: "hero" } }, settled);
       expect(query(h).targets).toEqual([{ id: expect.any(String), frame: "hero" }]);
       answer(h, { frame: ["n1"] });
       expect(settled).toHaveBeenCalledExactlyOnceWith("shown");
+      expect(h.controller.currentView()).toEqual(fitFrame({ x: 40, y: 3000, width: 200, height: 100 }, { width: 800, height: 600 }, FIT_INSET, before));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an element larger than the view is zoomed out to fit whole", () => {
+    const h = loaded();
+    try {
+      const before = h.controller.currentView();
+      h.controller.locate({ element: { selector: "#big" } }, vi.fn());
+      const big = { x: 0, y: 0, width: 4000, height: 3000 };
+      answer(h, { selector: ["n1"] }, [{ node: "n1", ...big }]);
+      const view = h.controller.currentView();
+      expect(view).toEqual(elementView(big, { width: 800, height: 600 }, FIT_INSET, before));
+      expect(view.scale).toBeLessThan(before.scale);
     } finally { h.controller.dispose(); }
   });
 
@@ -2287,7 +2301,7 @@ describe("chip locate", () => {
       expect(ring?.hidden).toBe(false);
       const center = { x: view.x + 120 * view.scale, y: view.y + 230 * view.scale };
       expect(ring?.style).toMatchObject({ left: `${center.x - 6}px`, top: `${center.y - 6}px`, width: "12px", height: "12px" });
-      expect(center).toEqual({ x: 400, y: 300 });
+      expect(view).toEqual(elementView({ x: 120, y: 230, width: 0, height: 0 }, { width: 800, height: 600 }, FIT_INSET, view));
       vi.advanceTimersByTime(1199);
       expect(ring?.hidden).toBe(false);
       vi.advanceTimersByTime(1);

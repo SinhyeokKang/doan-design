@@ -38,6 +38,7 @@ beforeEach(() => {
   } });
 });
 afterEach(() => vi.unstubAllGlobals());
+const PICK = { pressed: false, enabled: true, reason: null, onToggle: () => {} };
 
 async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {}, patch: Partial<CanvasConversationProps> = {}) {
   const lists = new Map<string, ListView>([[ROOT, list]]);
@@ -50,7 +51,7 @@ async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {},
   const props: CanvasConversationProps = {
     run, support: new DockedSupport(() => {}), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
     list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(), onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), ...patch,
+    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), ...patch,
   };
   return renderToStaticMarkup(<TooltipProvider>{<CanvasConversation {...props} /> as ReactElement}</TooltipProvider>);
 }
@@ -135,7 +136,7 @@ test("New while the list loads holds Send after the session answers, until the l
   await flush();
   const draw = () => renderToStaticMarkup(<TooltipProvider>{<CanvasConversation run={run} support={support} target={{ root: ROOT, canvas: CANVAS }} canvasName="checkout" project="acme-web" entry={ENTRY}
     list={lists.get(ROOT)!} seen={new Set()} prefs={null} defaults={null} now={Date.parse("2026-11-01T15:00:00")} blocked={null} frames={[]} locateDisabled={false} arrival={null}
-    onArrived={vi.fn()} onLocate={vi.fn()} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} /> as ReactElement}</TooltipProvider>);
+    onArrived={vi.fn()} onLocate={vi.fn(async () => "shown" as const)} pick={PICK} composerLink={{ current: null }} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} /> as ReactElement}</TooltipProvider>);
   expect(run.view()).toMatchObject({ kind: "new" });
   expect(draw()).toMatch(/aria-label="Send"[^>]*disabled=""/);
   lists.set(ROOT, [summary("now", { phase: "running", working: true })]);

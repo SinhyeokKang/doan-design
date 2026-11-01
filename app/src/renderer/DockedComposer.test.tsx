@@ -103,3 +103,22 @@ test("a chip makes the box and draws the chip row before the field", () => {
   expect(html).toContain('data-shape="box"');
   expect(html.indexOf("composer-chips")).toBeLessThan(html.indexOf("composer-input"));
 });
+
+// buzz-canvas-conversation design §2 'Picker': Pick from canvas at the left end of the model row, pressed while the
+// canvas picks; unavailable with aria-disabled (not disabled) so its reason shows as a tooltip.
+test("the canvas panel's composer draws Pick from canvas first in the model row", () => {
+  const html = render({ pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
+  expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
+  expect(render({ pick: { pressed: true, enabled: true, reason: null, onToggle: () => {} } })).toContain('aria-label="Pick from canvas" aria-pressed="true"');
+  const off = render({ pick: { pressed: false, enabled: false, reason: "Pick from canvas isn’t available while the canvas can’t be shown.", onToggle: () => {} } });
+  expect(off).toMatch(/aria-label="Pick from canvas" aria-pressed="false" aria-disabled="true"/);
+  expect(off).not.toMatch(/composer-pick"[^>]*disabled=""/);
+  expect(render()).not.toContain("composer-pick");
+});
+
+test("a terminal session's composer keeps Pick from canvas before its fixed triggers", () => {
+  const html = render({ fixed: true, pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
+  expect(html.indexOf("composer-pick")).toBeGreaterThan(-1);
+  expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
+});

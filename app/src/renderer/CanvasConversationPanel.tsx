@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ChevronDown, Info, Plus } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
@@ -16,11 +16,11 @@ import type { CanvasRun, CanvasTarget, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
 import { GroupIcon } from "./ComposerParts";
 import { ConversationHead } from "./ConversationLine";
-import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle } from "./ConversationThread";
+import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ListView } from "./conversationStore";
 import { stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
-import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
+import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedMode, type DockedRefusal } from "./dockedRules";
 import { modelsKey, type DockedSupport } from "./dockedSupport";
 import {
@@ -60,7 +60,11 @@ export interface CanvasConversationProps {
   arrival: { focus: "permission" | "composer"; seq: number } | null;
   // An arrival was applied: the host drops it, so a panel drawn again later does not take focus for it once more.
   onArrived(seq: number): void;
-  onLocate(anchor: Anchor, chip: HTMLElement): void;
+  // Chip locate from the thread and from the composer's field (design §2 'Chip locate').
+  onLocate(anchor: Anchor): Promise<LocateOutcome>;
+  // The composer's Pick from canvas, and the page's way into its field (picker results, Add to conversation).
+  pick: DockedPicker;
+  composerLink: MutableRefObject<DockedFieldLink | null>;
   onSettings(target: SettingsTarget): void;
   onNotice(text: string): void;
   // The drawing project conversation's Open: its root's Overview shows it.
@@ -340,6 +344,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     </div>
     <div className="cp-foot">
       <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} chipScope={canvasScope(target)}
+        pick={props.pick} link={props.composerLink} onLocate={props.onLocate}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}

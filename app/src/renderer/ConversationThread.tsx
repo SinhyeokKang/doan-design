@@ -37,8 +37,9 @@ export interface ConversationThreadProps {
   onOpenLink(url: string): void;
   onCopy(text: string): Promise<boolean>;
   // The canvas panel's: a sent message's chips are buttons that show their target on the canvas (design §2 'Chip
-  // locate'); without it they are drawn as plain chips. `locateDisabled` while the canvas cannot be shown.
-  onLocate?(anchor: Anchor, chip: HTMLElement): void;
+  // locate'); without it they are drawn as plain chips. `locateDisabled` while the canvas cannot be shown. Settles
+  // with how the locate ended; only "missing" shows "No longer in the canvas".
+  onLocate?(anchor: Anchor): Promise<LocateOutcome>;
   locateDisabled?: boolean;
   // The open canvas's frames, which name a frame chip by its current title.
   frames?: readonly FrameName[];
@@ -46,6 +47,31 @@ export interface ConversationThreadProps {
 export interface ConversationThreadHandle { scrollToItem(key: string): void }
 
 export const LOADING_DELAY_MS = 300;
+
+// How a chip locate ended: "timeout" (the canvas did not answer) and "unavailable" end silently, because neither says
+// the target is gone (design §2 'Chip locate').
+export type LocateOutcome = "shown" | "missing" | "timeout" | "unavailable";
+export const LOCATE_MISSING_TEXT = "No longer in the canvas";
+export const LOCATE_NOTE_MS = 4000;
+
+// "No longer in the canvas" next to a chip, for 4 s or until the person's next action. The result arrives after the
+// click or Enter that asked for it, so the listeners added here only see later input. Each show restarts the 4 s.
+export function useLocateNote(): [shown: boolean, show: () => void] {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    if (shown === 0) return;
+    const hide = () => setShown(0);
+    const timer = setTimeout(hide, LOCATE_NOTE_MS);
+    window.addEventListener("pointerdown", hide, true);
+    window.addEventListener("keydown", hide, true);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointerdown", hide, true);
+      window.removeEventListener("keydown", hide, true);
+    };
+  }, [shown]);
+  return [shown !== 0, () => setShown(n => n + 1)];
+}
 const COPIED_MS = 2000;
 
 // The draft's copy (thread-states). Codes without a frame of their own read as an unexpected stop.
@@ -139,7 +165,10 @@ export async function answerReached(send: () => Promise<void | { error: string }
 
 const CHIP_ICONS = { frame: Frame, element: SquareMousePointer, point: MapPin } as const;
 // A chip in a sent message. A marker without its anchor (a malformed history) keeps its {{n}} text.
-export function SentChip({ marker, anchor, frames, disabled, onLocate }: { marker: number; anchor: Anchor | undefined; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"] }) {
+export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }: { marker: number; anchor: Anchor | undefined; frames: readonly FrameName[] | undefined; disabled: boolean;
+  onLocate: ConversationThreadProps["onLocate"];
+  // The message's "No longer in the canvas" note: `shownFor` is the chip it is shown for (its id describes that chip).
+  missing?: { key: string; shownFor: string | null; show(key: string): void } }) {
   if (!anchor) return <span className="bubble-anchor">{`{{${marker}}}`}</span>;
   const view = chipLabel(anchor, frames);
   const Icon = CHIP_ICONS[view.kind];
@@ -147,7 +176,25 @@ export function SentChip({ marker, anchor, frames, disabled, onLocate }: { marke
   if (!onLocate) return <span className="anchor-chip" data-kind={view.kind} title={view.title}>{body}</span>;
   // aria-disabled, so the chip stays in the Tab order and keeps its name while the canvas cannot be shown.
   return <button type="button" className="anchor-chip" data-kind={view.kind} title={view.title} aria-label={`Show ${view.label} on canvas`} aria-disabled={disabled || undefined}
-    onClick={event => { if (!disabled) onLocate(anchor, event.currentTarget); }}>{body}</button>;
+    aria-describedby={missing && missing.shownFor === missing.key ? `${missing.key}-missing` : undefined}
+    onClick={() => { if (!disabled) void onLocate(anchor).then(outcome => { if (outcome === "missing") missing?.show(missing.key); }); }}>{body}</button>;
+}
+
+// A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`).
+function UserMessage({ entry, frames, disabled, onLocate }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"] }) {
+  const base = useId();
+  const [shown, show] = useLocateNote();
+  const [chip, setChip] = useState<string | null>(null);
+  const shownFor = shown ? chip : null;
+  const missing = (key: string) => ({ key, shownFor, show: (at: string) => { setChip(at); show(); } });
+  return <div className="msg-user">
+    <div className="bubble">{entry.preset && <span className="bubble-preset"><PencilSparkles aria-hidden="true" />{entry.preset.title}</span>}{entry.preset && entry.parts.length > 0 && "\n"}
+      {entry.parts.map((part, i) => "text" in part ? <Fragment key={i}>{part.text}</Fragment> : <SentChip key={i} marker={part.anchor} anchor={entry.anchors[part.anchor - 1]} frames={frames}
+        disabled={disabled} onLocate={onLocate} missing={missing(`${base}-${i}`)} />)}</div>
+    {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => <span key={i} className="attach-chip">
+      <span className="file-icon" aria-hidden="true"><FileText /></span><span className="attach-text"><b>{file.name}</b><small>{formatSize(file.size)}</small></span></span>)}</div>}
+    {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
+  </div>;
 }
 
 const STEP_ICONS = { read: Eye, edit: Pencil, command: Terminal, other: Terminal } as const;
@@ -256,13 +303,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   const toggle = (key: string) => setExpanded(current => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   const item = (entry: ThreadItem): ReactNode => {
     switch (entry.kind) {
-      case "user": return <div className="msg-user">
-        <div className="bubble">{entry.preset && <span className="bubble-preset"><PencilSparkles aria-hidden="true" />{entry.preset.title}</span>}{entry.preset && entry.parts.length > 0 && "\n"}
-          {entry.parts.map((part, i) => "text" in part ? <Fragment key={i}>{part.text}</Fragment> : <SentChip key={i} marker={part.anchor} anchor={entry.anchors[part.anchor - 1]} frames={props.frames}
-            disabled={!!props.locateDisabled} onLocate={props.onLocate} />)}</div>
-        {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => <span key={i} className="attach-chip">
-          <span className="file-icon" aria-hidden="true"><FileText /></span><span className="attach-text"><b>{file.name}</b><small>{formatSize(file.size)}</small></span></span>)}</div>}
-      </div>;
+      case "user": return <UserMessage entry={entry} frames={props.frames} disabled={!!props.locateDisabled} onLocate={props.onLocate} />;
       case "agent": return <AgentMessage text={entry.text} streaming={entry.streaming} />;
       case "noReply": return <div className="msg-agent"><p className="muted">No reply.</p></div>;
       case "activity": {

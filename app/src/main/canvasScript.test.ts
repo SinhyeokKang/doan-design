@@ -1629,6 +1629,42 @@ describe("canvasScript picking", () => {
       expect.objectContaining({ point: { x: 5, y: 45 } }),
     ]);
   });
+  // The board's crosshair while picking (design §2 'Picker'). The cursor over the canvas is the canvas document's own,
+  // so the script adopts a constructed sheet: it changes no DOM node, so no MutationObserver or layout runs for it.
+  test("adopts a crosshair sheet while picking and removes only its own when picking ends", () => {
+    const { canvas, span } = heroCanvas();
+    class FakeSheet { text = ""; replaceSync(text: string) { this.text = text; } }
+    canvas.context.CSSStyleSheet = FakeSheet;
+    const own = new FakeSheet();
+    const doc = canvas.document as unknown as { adoptedStyleSheets: FakeSheet[] };
+    doc.adoptedStyleSheets = [own];
+    const ours = () => doc.adoptedStyleSheets.filter(sheet => sheet !== own);
+    startPick(canvas, 1);
+    expect(doc.adoptedStyleSheets[0]).toBe(own);
+    expect(ours().map(sheet => sheet.text)).toEqual(["*{cursor:crosshair!important}"]);
+    // A second start keeps one sheet.
+    startPick(canvas, 2);
+    expect(ours()).toHaveLength(1);
+    cancelPick(canvas, 3);
+    expect(doc.adoptedStyleSheets).toEqual([own]);
+    startPick(canvas, 4);
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
+    expect(doc.adoptedStyleSheets).toEqual([own]);
+    // The canvas replacing its own list meanwhile keeps whatever it set.
+    startPick(canvas, 5);
+    const later = new FakeSheet();
+    doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, later];
+    cancelPick(canvas, 6);
+    expect(doc.adoptedStyleSheets).toEqual([own, later]);
+    expect(ofType(canvas, "layout")).toHaveLength(0);
+  });
+
+  test("picks without a crosshair where constructed sheets are missing", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 1);
+    click(canvas, span);
+    expect(picked(canvas)).toHaveLength(1);
+  });
 });
 
 describe("anchors-query reply", () => {

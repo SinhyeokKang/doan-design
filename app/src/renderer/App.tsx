@@ -6,9 +6,9 @@ import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { MenuCommand, ViewCommand } from "../main/index";
-import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
+import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
-import { CanvasTools } from "./CanvasTools";
+import { CanvasTools, type AddTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
 import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
@@ -29,7 +29,9 @@ import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle } from "./CanvasConversationPanel";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
 import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelTrigger } from "./rightPanelOpen";
-import { pickerAvailability, type CanvasLoad } from "./canvasPicker";
+import { PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad } from "./canvasPicker";
+import type { DockedFieldLink } from "./DockedComposer";
+import type { LocateOutcome } from "./ConversationThread";
 import { distinctTargets } from "./anchorField";
 import type { ScrollTo } from "./overviewRun";
 import { ConversationPanel } from "./ConversationPanel";
@@ -52,7 +54,7 @@ import { OverviewRun } from "./overviewRun";
 import { DockedSupport } from "./dockedSupport";
 import { sameCanvas } from "./ProjectOverview";
 import { slotKey as canvasSlotKey, type Slot } from "./homeConversations";
-import type { Canvas } from "../main/conversation/types";
+import type { Anchor, Canvas } from "../main/conversation/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
@@ -66,11 +68,20 @@ import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences"
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; newConversation: () => void }): void {
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; newConversation: () => void; addSelection: () => void }): void {
   if (name === "home") to.home();
   else if (name === "newConversation") to.newConversation();
+  else if (name === "addSelectionToConversation") to.addSelection();
   else if (name === "quickOpen") to.quickOpen();
   else if (name === "undoRemove") to.undo();
+}
+
+// Where focus stood when a pick ended: the control that started it, the page itself, the canvas, the composer field, or
+// somewhere the person moved it. Focus goes back to the composer only in the first four, and never into an IME
+// composition (design §2 'Focus return', POSTMORTEM 2026-10-23 R-L: a wait-then-focus carries its starting intent).
+export type PickFocus = "start" | "page" | "canvas" | "field" | "elsewhere";
+export function pickFocusReturns(where: PickFocus, composing: boolean): boolean {
+  return !composing && where !== "elsewhere";
 }
 
 // Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
@@ -321,6 +332,7 @@ export function App() {
       setExpanded(previous => previous[folder] ? { ...previous, [folder]: moveExpanded(previous[folder], from, row.path) } : previous);
     };
     instance.viewChanged = () => live.current.save();
+    instance.onPicked(result => live.current.pickEnded(result));
     instance.linkedCanvas = root => live.current.completeNavigation(root);
     const stopCommands = window.doan.onViewCommand(name => { if (currentScreen.current === "workspace") instance.command(name); });
     return () => { navigationIntent.current++; stopFolders(); stopCommands(); instance.dispose(); controller.current = null; };
@@ -604,8 +616,8 @@ export function App() {
 
   const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || projectSettings !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -835,6 +847,7 @@ export function App() {
       quickOpen: () => live.current.search(),
       undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
       newConversation: () => live.current.newConversation(),
+      addSelection: () => live.current.addSelection(),
     });
   }), []);
   const onPage = screen === "addProjects", onSettings = screen === "settings";
@@ -885,12 +898,68 @@ export function App() {
   const canvasLoad: CanvasLoad = state.unlisted ? "unlisted" : state.status === null && state.layout ? "loaded" : state.status === "failed" ? "failed" : state.status === "noWidth" ? "noWidth" : "loading";
   const composerKey = canvasRun.current!.composerKey();
   const composerChips = composerKey ? distinctTargets(overviewRun.current!.store.drafts.get(composerKey)?.segments ?? []) : 0;
-  const pickerReady = panelTarget !== null && pickerAvailability(panelBlocked, canvasLoad, composerChips).enabled;
+  const pickerView = panelTarget !== null ? pickerAvailability(panelBlocked, canvasLoad, composerChips) : { enabled: false, reason: PICKER_UNAVAILABLE };
+  const pickerReady = pickerView.enabled;
   // Edit > Add Selection to Conversation follows the canvas toolbar's Add to conversation: a selection to add, and the
   // picker available (the composer takes input and the canvas is loaded).
   const canvasPageShown = screen === "workspace" && !!state.open && shownOverview === null;
   const menuSelection = canvasPageShown && state.selection !== null;
   const menuPicker = canvasPageShown && pickerReady;
+  const picking = state.tool === "pick";
+  // Pick from canvas and Add to conversation (design §2 'Picker and Add to conversation'). The pick's start keeps
+  // where focus was, so the end can tell whether focus still waits for the composer.
+  const pickIntent = useRef<{ from: Element | null } | null>(null);
+  // The shown composer's field, which the panel's composer registers (DockedFieldLink).
+  const composerLink = useRef<DockedFieldLink | null>(null);
+  const togglePick = () => {
+    const instance = controller.current;
+    if (!instance) return;
+    if (picking) { instance.cancelPick(); return; }
+    if (!pickerReady) return;
+    pickIntent.current = { from: document.activeElement };
+    if (!instance.pick()) pickIntent.current = null;
+  };
+  function pickEnded(result: PickResult) {
+    const intent = pickIntent.current;
+    pickIntent.current = null;
+    const link = composerLink.current;
+    if (!link) return;
+    const active = document.activeElement, field = link.element();
+    const where: PickFocus = !active || active === document.body ? "page" : active === intent?.from ? "start" : active === field ? "field"
+      : viewport.current?.contains(active) ? "canvas" : "elsewhere";
+    const returns = intent !== null && pickFocusReturns(where, link.composing());
+    // Focus first, then the chip: the field puts its kept caret back on focus, and Chromium moves a caret set in an
+    // unfocused field to the field's start when it takes focus afterwards (BR4b runtime probe).
+    if (returns) link.focus();
+    if (result.kind !== "picked") return;
+    link.insert(result.anchor, "caret");
+    // Placing the caret for the chip can pull focus into the field; focus that may not move goes back where it was.
+    if (!returns && active instanceof HTMLElement && active !== document.activeElement) active.focus({ preventScroll: true });
+  }
+  // The picker stops when its composer changes (another conversation from the menu, New) or stops taking chips
+  // (design §2 'Esc and cancel'); a reload or a same-ID move keeps both, so the pick goes on.
+  useEffect(() => { controller.current?.cancelPick(); }, [composerKey]);
+  useEffect(() => { if (!pickerReady) controller.current?.cancelPick(); }, [pickerReady]);
+  const addReady = menuSelection && pickerReady;
+  // A folded panel keeps its composer mounted but inert: the chip goes in now, focus once the panel shows.
+  const focusFieldOnOpen = useRef(false);
+  function addSelection() {
+    if (live.current.modal || !addReady || !state.selection) return;
+    const anchor = targetAnchor(state.selection), link = composerLink.current;
+    if (!anchor || !link) return;
+    const focused = link.element() !== null && link.element() === document.activeElement;
+    link.insert(anchor, focused ? "caret" : "end");
+    if (rightPanelRef.current.open) link.focus();
+    else { focusFieldOnOpen.current = true; foldPanel(true, "content"); }
+  }
+  useEffect(() => {
+    if (!rightPanel.open || !focusFieldOnOpen.current) return;
+    focusFieldOnOpen.current = false;
+    composerLink.current?.focus();
+  }, [rightPanel.open]);
+  const locateChip = (anchor: Anchor) => new Promise<LocateOutcome>(settle => {
+    if (!controller.current?.locate(anchor, settle)) settle("unavailable");
+  });
   useEffect(() => {
     void window.doan.setMenuState({ screen: onPage || onSettings ? screen : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo",
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null ? { overview: true } : {}),
@@ -1060,7 +1129,8 @@ export function App() {
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null,
-        onOpen: openRequest, onStopFailed: text => toast.show(text) }} />
+        onOpen: openRequest, onStopFailed: text => toast.show(text) }}
+      picking={picking} add={{ enabled: addReady, reason: canvasPageShown && !pickerReady ? pickerView.reason : null, onAdd: addSelection }} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -1074,14 +1144,15 @@ export function App() {
       onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} />}
     {overview ? <div className="right-stack"><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} /></div>
-      : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => foldPanel(false)} onResize={resizePanel} preview={previewPanel}
+      : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={Date.now()} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
         {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked}
           frames={state.layout?.frames ?? []} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
-          onLocate={() => {}} onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
+          onLocate={locateChip} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink}
+          onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))} />}
       </ConversationPanel>}
   </main>
@@ -1118,10 +1189,11 @@ function TopBar({ back, forward, previous, next, page, locked, addProjects, proj
 
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; onOpen(): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent }: {
+function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, add }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
   zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
+  picking: boolean; add: AddTool;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project…"
@@ -1156,11 +1228,14 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
   return <div className="doan-canvas-panel" ref={panel} inert={covered}>
     <CanvasHeader state={state} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} panel={conversation} />
-    <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport}>
+    <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />
     {/* The agent notice comes first, the canvas notices stack under it (design §2 '겹침 순서', 'Esc와 포커스'). */}
     <CanvasAgent {...agent}>
+      {/* The picking hint sits right under the agent notice (design §2 'Picker' accessibility). */}
+      {picking && <div className="doan-agent doan-picking" role="status"><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
+        <span className="doan-kbd doan-picking-esc" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
       {state.error && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
       {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
       {state.notice && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.notice}</span></div>}
@@ -1171,7 +1246,7 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
-    <div className="doan-canvas-bottom"><CanvasTools /></div>
+    <div className="doan-canvas-bottom"><CanvasTools add={add} /></div>
     </section>
   </div>;
 }
