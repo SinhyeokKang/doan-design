@@ -86,3 +86,13 @@ D1은 이미 끝났다(초안 확정).
 - BM 통합: `73197dbc`, `2d45413d`. 워크트리 정리.
 - 지휘자 판단: BR4a를 웨이브 3까지 기다리지 않고 BR1과 병렬로 시작했다(`ctx_d7d609d5ab3a`, bcc-br4). 근거: 선행(BT·BX)이 통합됐고, BR4a 파일(canvasScript·CanvasController·canvasMessage·canvasPicker)은 BR1과 겹치지 않는다.
 - 결정(2026-11-01 user, BR4a 질문): 고르기 중 프레임 배경 클릭은 프레임 칩, 요소 클릭은 요소 칩, 프레임 안 ⇧-클릭은 그 자리의 점 칩이다. 지휘자 판단(문구, clarify 적용): 고르기 안내는 "Click a frame or an element, or Shift-click a spot"(kbd Esc, sr "Press Escape to cancel" 그대로). design.md §0·§2를 고쳤다. 초안의 `picker-mode` 안내 문구와 다른 점은 V1에서 사용자 결정에 따른 차이로 기록한다.
+- BR1 발견: 빌드한 앱에서 Edit 메뉴 Redo가 칩 필드에 닿지 않는다(필드가 Chromium 실행 취소 스택을 막아 historyRedo가 오지 않음). textarea에서는 됐으므로 회귀다. 사용자 네이티브 확인과 결과가 달랐다(PoC 페이지에서는 Chromium 스택이 남아 있었던 것으로 보임). 지휘자 판단: BR1이 `main/index.ts` Edit 메뉴 Undo·Redo와 preload 채널 하나를 맡아, 칩 필드에 포커스가 있으면 필드로 보내고 아니면 `webContents.undo/redo`를 그대로 부른다. 근거: 회귀를 남기지 않고, BM이 통합돼 겹치는 배치가 없다.
+- BR4a 완료 `c164ff2e`: 고르기 명령·응답, `select | pick`, locate(1.2초 강조, 12px 고리). 지휘자 판단: 리뷰를 BR4b와 합치지 않고 지금 핵심부터 Codex astra로 본다(검증을 확실히).
+- BR4a 리뷰(Codex astra): 🔴 3(프레임 밖 요소가 칩이 됨, pick-start 도착 전 클릭이 선택을 바꿈, 같은 URL 문서 교체 뒤 고르기 끊김), 🟡 1(locate 무응답을 '없음'으로 취급). 지휘자 판단: locate 무응답은 '없음'이 아니라 따로 끝내고 BR4b는 조용히 끝낸다. 근거: clarify(확인되지 않은 원인을 말하지 않는다), design은 찾지 못함만 정한다. 수정 라운드 1 전송.
+- BR4a 수정 1 `ae02b32c`: 넷 모두 red 테스트 먼저. 재리뷰 Codex astra.
+- BR1 완료: R1 `70051c7d`(칩 필드, ⌘⌫·⌘⌦ 줄 범위 직접 계산, Edit 메뉴 Undo·Redo 라우팅, 회귀 수정 — postmortem 후보), R2a `e3021ebb`. verify PASS, 하네스 probe 9/9, 빌드 앱 probe 26/26. 미해결: (1) 줄 머리에 칩이 있으면 그 칩 앞에 커서를 둘 수 없다(Chromium 한계), (2) 사용자 네이티브 실패("글자+칩+글자+칩|" ⌘⌫)는 CDP로 재현되지 않아 수정 확인은 네이티브로만 가능. 리뷰 Codex astra `ctx_1f33402065d8`.
+- BR4a 재리뷰: 🔴 1(같은 문서의 늦은 iframe load가 pick seq를 되감아 입력 차단이 고착됨, 메모리 진단으로 재현). 수정 라운드 2 전송.
+- BR1 리뷰(Codex astra): 🔴 2(같은 값의 다른 초안으로 바꿔도 Undo 기록이 남음, 칩과 함께 복사한 직접 입력 마커가 붙여넣기에서 칩이 됨), 🟡 1(선택 교체 전 칩 상한 계산). 지휘자 판단(사용자 답 전, 리뷰도 같은 권고): 줄 머리 칩 앞 커서는 폭 0 filler로 고친다. 근거: 메시지 첫머리 칩 앞에 말을 덧붙이는 일이 흔하고 design §5 '칩 앞뒤 커서' 기대를 채운다. 수정 라운드 1 전송.
+- 결정(2026-11-02 user): 줄 머리 칩 앞 커서를 고친다(BR1 수정 라운드 1에 이미 포함).
+- BR4a 수정 2 `de04db75`(pickDocument 분리). 재리뷰 2 Codex astra.
+- BR4a 재리뷰 2 통과(🔴 0). 통합한다.
