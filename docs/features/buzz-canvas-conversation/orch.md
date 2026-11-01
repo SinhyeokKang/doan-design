@@ -99,3 +99,4 @@ D1은 이미 끝났다(초안 확정).
 - BR1 수정 1 `c17f468e`: 초안 키로 기록 수명 끊기, 클립보드에 검증된 segments 보존, 선택 교체 뒤 상한, 줄 머리 칩 filler. 하네스 13/13, 빌드 앱 probe 26/26. 부작용: 사용자가 친 U+200B를 필드가 버림. 재리뷰 Codex astra.
 - 결정(2026-11-02 user): 입력창 칩도 누르면 locate하므로 hover 커서는 pointer, 누른 뒤 입력창 커서는 칩 바로 뒤. BR4b에 넣는다.
 - 결정(2026-11-02 user): 칩 locate의 뷰 — 프레임 칩은 서랍 프레임 이동과 같은 `fitFrame`, 요소·점 칩은 지금 배율을 유지하고 가운데로 옮기되 요소가 화면보다 크면 전체가 보이게 배율을 줄인다. BR4b(필요하면 CanvasController locate 수정 포함)에 넣는다.
+- 결정(2026-11-02 user): 요소 칩 아이콘을 lucide `SquareMousePointer`로 바꾼다(초안과 다른 점, V1에 기록). BR4b에 넣는다.

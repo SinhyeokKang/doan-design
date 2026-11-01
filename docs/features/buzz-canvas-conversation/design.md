@@ -86,6 +86,7 @@
 ### 칩 필드
 
 - 칩은 인라인 원자다: 커서는 칩 앞뒤에만 서고, Backspace/Delete는 칩 하나를 통째로 지운다. 칩 모양은 공통 결정 2의 "인라인 앵커 칩"(연한 accent 채움 + 진한 accent 글자)이다.
+- 칩 아이콘(2026-11-02 user): 프레임 lucide `Frame`, 요소 lucide `SquareMousePointer`(초안의 요소 아이콘은 `Scaling`의 일부를 잘라 쓴 것이라 바꿨다), 점 lucide `MapPin`.
 - 칩 이름: 프레임 "<프레임 이름>"(아이콘 Frame), 요소 "<이름> <doan-id>" 또는 `<이름> “<text>”`(최대 40자), 점 "Point in <프레임>". 요소의 이름은 tag를 사람이 읽는 이름으로 바꾼 것이다: h1~h6 → heading, a → link, img → image, input·textarea·select → field, button → button, 그 밖은 tag 그대로(2026-11-01 user). 클래스에서 오는 이름은 쓰지 않는다. 전체 대상은 `title`.
 - 값: 필드는 `{text, anchors}`를 준다. text의 칩 자리는 `{{n}}`(1부터, 등장 순)이고, 같은 대상을 두 번 넣으면 같은 번호를 쓴다(백엔드는 반복을 허용). 사람이 `{{`나 `}}`를 직접 치면 지금처럼 Send가 막힌다. 이 검사(`draftProblem`)는 사람이 친 텍스트 조각만 본다. 칩 마커는 검사하지 않는다.
 - 칩 수 상한: 서로 다른 대상은 한 메시지에 32개까지다(`LIMITS.anchors`). 넘으면 피커와 Add to conversation이 칩을 넣지 않고 입력창 아래 이유 줄 "A message can point at up to 32 places. Remove one to add another."를 보인다. 상한 값은 main 모듈이 아닌 공용 모듈에서 가져온다.
