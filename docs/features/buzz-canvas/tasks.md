@@ -1,0 +1,61 @@
+# buzz-canvas — tasks
+
+선행: `buzz-shell`(main 병합). 순서는 초안 → 순수 함수 → renderer → 제거 → 실제 앱 → 승격이다. 커밋 경계는 `── commit ──`으로 표시한다. 검증 명령은 AGENTS.md 'Commands'에 있는 것만 쓴다.
+
+## D. 초안
+
+- [ ] D1. `/design-draft buzz-canvas`: `.doan/canvases/buzz-canvas.html`(design §0 프레임). `board-options`에서 사용자가 보드 바탕을 고르면 나머지 시안을 지우고, 고른 바탕으로 다른 프레임을 맞춘다. 위·아래 inset 값, 알림·변경 표시 위치, 다시 로드 중 서랍의 비활성 여부, 문구(design §5, clarify 프리셋)를 초안에서 정한다. 사용자가 앱에서 초안을 확정한다.
+  - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
+
+── commit: `docs(canvases): buzz-canvas draft` ──
+
+## T. 순수 함수
+
+- [ ] T1. `frameDrawerView`, `zoomControlView`, `zoomTo`, inset을 받는 `fitWidth`·`fitFrame`·`locateView`(design §3 표의 경우를 모두). `viewport.test.ts`의 32px 고정값을 inset 고정값으로 바꾼다.
+  - 검증: `npm --prefix app test`.
+
+── commit: `feat(renderer): frame drawer, zoom control and inset fitting models` ──
+
+## R. renderer
+
+- [ ] R1. 프레임 서랍: 버튼(지금 보는 프레임, `n/N`, 비활성 이유), Radix 팝오버 목록(roving tabindex, 지금 보는 행 스크롤·포커스, 말줄임과 `title`, 잘린 목록 안내), 고르면 닫고 `selectFrame(index)`.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+  - 경우: 초안 가드가 거절(이동·선택 없음), 목록이 열린 사이 다시 로드로 프레임이 바뀜, Esc가 메뉴만 닫고 선택은 남음, 포커스가 서랍 버튼으로 돌아옴.
+- [ ] R2. 배율 컨트롤러: −·값(메뉴 트리거)·+, 메뉴 Fit ⌘1·100% ⌘0·50%·200%, `CanvasController.zoomTo`, 프레임 없을 때 "—"와 비활성.
+  - 검증: `npm --prefix app test`.
+- [ ] R3. 도구모음: 하단 가운데 줄, 선택 피커(`aria-pressed="true"`, 툴팁). Tab 순서 서랍 → 배율 → 도구모음.
+  - 검증: `npm --prefix app test`.
+- [ ] R4. 보드 바탕, 오버레이(`.mark`·`.dims`·이동 하이라이트), `.canvas-status`, 알림, 변경 표시, 겹침 순서를 초안 값으로. Fit·이동·locate가 inset을 쓴다.
+  - 검증: `npm --prefix app test`, `npm --prefix app run build`.
+
+── commit: `feat(renderer): buzz canvas controls and board` ──
+
+## X. 제거
+
+- [ ] X1. `.zctl` 띠, 캔버스 위 Reload 버튼, 쓰지 않게 된 `.zoom`·`.canvas-notice`·`.updated` 규칙을 지운다. 워크스페이스 토스트 여백을 다시 정한다.
+  - 셀렉터 문자열 검색(POSTMORTEM 2026-10-30): `grep -rn "zctl\|\.zoom\b\|canvas-notice\|\.updated\b\|Reload canvas" app/src app/runtime`.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`, 위 grep에서 남은 줄이 모두 의도한 것.
+
+── commit: `refactor(renderer): drop the bottom-right canvas control strip` ──
+
+## V. 실제 앱
+
+- [ ] V1. `/design-sync`: `buzz-canvas.html`의 프레임을 빌드한 앱에서 맞추고 DESIGN.md를 갱신한다. 960×600과 1238×780에서 컨트롤·알림·변경 표시·토스트·핀의 사각형이 겹치지 않는지 잰다. 어두운·밝은·violet 픽스처 캔버스 위 선택 표시를 확인한다.
+  - 검증: `/design-sync` 절차의 측정 스크립트(`node .scratch/design-sync/<screen>/measure.mjs`).
+- [ ] V2. `/runtime-test`: 서랍에서 프레임을 고른 뒤 `DOAN_RUNTIME=<tmp>/runtime.json <cli> active --json --repo <tmp repo>`가 그 프레임을 돌려준다. Quick Open 프레임 이동 뒤에는 선택이 바뀌지 않는다. 배율 메뉴 Esc 뒤 선택이 남는다. ⌘R과 로드 실패 Reload가 동작한다. 결과는 `.scratch/runtime-test/buzz-canvas/`에 남긴다.
+  - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과 뒤 `/runtime-test` probe.
+
+## Z. 승격과 정리 (문서마다 커밋)
+
+- [ ] Z1. PRODUCT §5 항목 2·3: 서랍(이동하고 선택함), 배율 컨트롤러와 메뉴, 도구모음의 선택 피커.
+  - 검증: `grep -n "Frame jumps are available" docs/PRODUCT.md`가 서랍을 함께 적는다.
+  - ── commit: `docs(PRODUCT): canvas frame drawer and zoom controls` ──
+- [ ] Z2. ARCHITECTURE §3 'Canvas view'의 32px 여백을 inset으로, 'Jump and current frame'에 서랍의 `selectFrame` 경로, 'Actions and focus'의 캔버스 안 Tab 순서.
+  - 검증: `grep -n "margin 32px" docs/ARCHITECTURE.md` 결과 없음.
+  - ── commit: `docs(ARCHITECTURE): canvas insets and frame drawer` ──
+- [ ] Z3. DESIGN.md: 'Canvas area and right panel'의 캔버스 부분, 'Select and inspect'의 오버레이 부분에서 "buzz-ds 이전" 표시를 걷고 측정값을 적는다. 오른쪽 패널·Inspector 부분은 `buzz-inspector` 몫으로 남긴다.
+  - 검증: `grep -n 'buzz-ds 이전' docs/DESIGN.md`에 남은 줄이 모두 다른 자식 몫.
+  - ── commit: `docs(DESIGN): record the buzz canvas` ──
+- [ ] Z4. 부모 `buzz-restyle`: tasks C8 체크, spec 표 8번에서 '입력창 요소 피커가 쓰는 선택 모드'를 빼고 12번에 더한다(2026-11-01 user), design.md 'DESIGN.md 절과 담당' 표 갱신. `docs/features/buzz-canvas/`를 지운다.
+  - 검증: 디렉터리가 없다.
+  - ── commit: `docs(feature): complete buzz-canvas` ──
