@@ -29,7 +29,7 @@
 - 사용자 결정: 보드 바탕은 연한 회색 `--surface-inset`이다(수정 3, 2026-11-01 user; 수정 1의 흰색을 대체). 헤더는 흰색 그대로다. 캔버스 패널 위에 흰 불투명 헤더를 따로 두고, 프레임 서랍은 Overview 헤더의 대화 드롭다운과 같은 모양이다. 그래서 `board-options` 프레임을 지웠다.
 - 캔버스 헤더: Overview 헤더 상자(`.ov-head`, 56px, 안쪽 8/16, 흰 불투명, 아래 구분선 없음). 위계는 Overview의 프로젝트 / 대화처럼 캔버스 / 프레임이다(수정 10, 2026-11-01 user): 캔버스(사이드바와 같은 `PanelsTopLeft` 아이콘과 이름, subtle 글자·regular, `title`은 경로, 최대 40%) · `/` · 프레임 서랍(`ov-title` 트리거: "번호. 이름", ▾, standard·medium). 프레임 이름이 먼저 줄어든다. 프로젝트와 `n/N`은 넣지 않는다. 오른쪽에 − · 배율 값(메뉴) · +, 패널이 접혔을 때만 그 뒤에 구분선 · 열기 버튼.
 - 서랍 목록과 배율 메뉴는 Overview 대화 메뉴처럼 트리거 바로 아래에 연다. 서랍 목록 320px, 배율 메뉴 184px.
-- 보드 위에 뜨는 것: 작업 안내와 알림은 보드 위쪽 가운데(헤더 아래 12px, 위 여백 56px 안, 안내가 먼저), 도구모음은 아래 가운데. 왼쪽 아래 변경 표시(Opened·Changed·Reloaded)는 없앤다(수정 7, 2026-11-01 user: Activity를 보이던 Canvas info도 빠지고, 에이전트가 고치는 중인지는 작업 표시가 보여 준다). 작업 안내가 나타날 때 뷰를 옮기지 않는다.
+- 보드 위에 뜨는 것: 작업 안내와 알림은 보드 위쪽 가운데(헤더 아래 20px, 안내가 먼저; 2026-11-01 user), 도구모음은 아래 가운데. 왼쪽 아래 변경 표시(Opened·Changed·Reloaded)는 없앤다(수정 7, 2026-11-01 user: Activity를 보이던 Canvas info도 빠지고, 에이전트가 고치는 중인지는 작업 표시가 보여 준다). 작업 안내가 나타날 때 뷰를 옮기지 않는다.
 - Fit inset: 헤더 아래 56px(헤더 높이만큼, 수정 5), 좌우 32px, 도구모음 위 64px(12 + 40 + 12). 헤더는 보드 위를 덮지 않고 보드 밖에 있다.
 - 에이전트 작업 그림자는 헤더를 뺀 보드 영역 안쪽에만 두른다.
 - 작업 안내 문구는 짧게 한다: "Codex is working", 응답 대기 "Codex needs your answer"(Overview의 "Needs your answer"와 같은 말). 응답 대기 중에는 점이 멈춘다.
@@ -91,11 +91,11 @@
 ### 에이전트 작업 표시
 
 - 참고: ego lite(citrolabs)의 에이전트 탭 표시. 탭 가장자리의 안쪽 빛, 움직이는 점, 상단 가운데 안내와 Stop이다. 출처는 사용자 설명(2026-11-01)이다. 공개 리포 `citrolabs/ego-lite`에는 스킬·SDK만 있고 브라우저 UI 코드가 없어서 색·크기·모션 값은 확인하지 못했다(2026-11-01 `gh api` 트리 확인). 값은 doan 토큰으로 새로 정한다.
-- 위치: 보드 위쪽 가운데(헤더 아래 12px, 위 여백 56px 안). (수정 6, 2026-11-01 user)
+- 위치: 보드 위쪽 가운데, 헤더 아래 20px(2026-11-01 user). 높이 40px라 Fit 위 여백 56px보다 4px 내려와 Fit 상태의 맨 위 프레임 제목 줄에 살짝 걸린다.
 - 조건: 이 캔버스의 현재 대화가 일함(working) 또는 응답 대기(permission)일 때. 현재 대화는 Overview의 캔버스 행과 같은 매칭(`canvasConversationRows.ts`: 양쪽에 ID가 있으면 ID, 없으면 경로)으로 찾는다. 상태는 main의 대화 목록(`conversation:list`, `listChanged`)에서 읽으므로 다시 로드·재시작 뒤에도 같다.
 - 보드 표시(수정 12·13, 2026-11-01 user, 사용자의 ego 스크린샷 참고). 모두 `pointer-events: none`이라 선택·팬·줌을 막지 않는다.
   - 가장자리 그라디언트: 테두리 선 없이, 보드 가장자리에서 가장 진하고 약 15px 안에서 사라지는 accent 띠(초안: 안쪽 그림자 두 겹, 8px·accent 70%와 24px·accent 35%; 처음 값의 절반, 2026-11-01 user). 8초 주기로 숨쉰다(불투명도 0.55↔1, 2026-11-01 user). ego는 파랑이지만 doan은 accent violet을 쓴다.
-  - 점 필드: malmoi KV의 `DotField`(`components/signin/dot-field.tsx`, 판정 `lib/signin/dot-field.ts`, malmoi `6dcdd575`)를 옮긴다. 캔버스 2D, 16px 격자, 반지름 2→2.75(malmoi 3.5의 절반만 커짐, 2026-11-01 user), 알파 0.08→0.3, 가상 커서 반경 180px, ㄹ자 자동 순회(320px/s, 5줄, 반경만큼 영역 밖에서 줄바꿈), 포인터는 받지 않는다. 색은 투명한 흰색(`--text-on-prominent`를 캔버스 요소의 계산된 `color`로 읽음). 동작 줄이기에서는 한 번만 그린다. 순수 함수(`dotGrid`·`dotScale`·`autoCursor`)는 doan 코드로 다시 쓴다(§3).
+  - 점 필드: malmoi KV의 `DotField`(`components/signin/dot-field.tsx`, 판정 `lib/signin/dot-field.ts`, malmoi `6dcdd575`)를 옮긴다. 캔버스 2D, 12px 격자(malmoi 16), 반지름 2→2.5(malmoi 3.5) (2026-11-01 user), 알파 0.08→0.3, 가상 커서 반경 180px, ㄹ자 자동 순회(320px/s, 5줄, 반경만큼 영역 밖에서 줄바꿈), 포인터는 받지 않는다. 색은 투명한 흰색(`--text-on-prominent`를 캔버스 요소의 계산된 `color`로 읽음). 동작 줄이기에서는 한 번만 그린다. 순수 함수(`dotGrid`·`dotScale`·`autoCursor`)는 doan 코드로 다시 쓴다(§3).
   - ego의 표시는 네이티브 `AgentTaskOverlayView`(`ego/browser/ui/views/frame/agent_task_overlay_view.cc`, 앱 바이너리 문자열로 확인)라 값을 읽지 못했다. 웹 토큰에서 확인한 값은 작업 막대 바탕 `--bg-agent-task-bar: #0009` 하나다.
 - 안내 캡슐: 움직이는 점 → 문구 → Stop(sm 버튼).
   - 바탕은 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60%(ego `--bg-agent-task-bar`와 같음)로, 글자는 `--text-on-prominent`, `--blur-md` 블러, 알약 모서리, `--shadow-sm`. 투명도 줄이기에서는 불투명 검정이다. 캔버스 전용이고 공용 프리미티브로 올리지 않는다(수정 8).
