@@ -142,11 +142,14 @@ body{padding:var(--space-8);width:1440px;background:var(--surface-inset);color:v
 .cv-bar.cv-agent .doan-button:active:not(:disabled){background:color-mix(in srgb,var(--text-on-prominent) 34%,transparent)}
 @media (prefers-reduced-transparency:reduce){.cv-bar.cv-agent{background:var(--affordance-prominent);-webkit-backdrop-filter:none;backdrop-filter:none}}
 .cv-agent-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
-/* One violet tone; the motion is the dot's own size, growing and shrinking. */
-.agent-dot{flex:none;width:var(--space-2);height:var(--space-2);border-radius:50%;background:var(--affordance-accent);animation:agent-breathe 2.4s var(--ease-state) infinite}
-.agent-dot.steady{animation:none}
+/* One violet tone: the dot grows and shrinks. */
+.agent-dot{position:relative;flex:none;width:var(--space-2);height:var(--space-2);border-radius:50%;background:var(--affordance-accent);animation:agent-breathe 2.4s var(--ease-state) infinite}
+/* A faint ring spreads from the dot and fades, in step with its breathing. */
+.agent-dot::after{content:"";position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 0 color-mix(in srgb,var(--affordance-accent) 70%,transparent);animation:agent-ring 2.4s var(--ease-settle) infinite}
+.agent-dot.steady,.agent-dot.steady::after{animation:none}
 @keyframes agent-breathe{0%,100%{transform:scale(.75)}50%{transform:scale(1.25)}}
-@media (prefers-reduced-motion:reduce){.agent-dot{animation:none}}
+@keyframes agent-ring{to{box-shadow:0 0 0 var(--space-2) transparent}}
+@media (prefers-reduced-motion:reduce){.agent-dot,.agent-dot::after{animation:none}}
 .cv-agent .doan-button svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
 
 /* ── Mock canvas (the design under review): colours from mock.css ── */
