@@ -40,8 +40,9 @@ To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]
 
 | Document | Contents |
 |---|---|
-| [docs/PRODUCT.md](./docs/PRODUCT.md) | Problem, users, scope, core loop, MVP, open questions |
+| [docs/PRODUCT.md](./docs/PRODUCT.md) | Problem, users, scope, core loop, MVP |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Conventions, formats, rendering, CLI ↔ app, skills, stack |
+| [docs/BACKLOG.md](./docs/BACKLOG.md) | Open product questions, unverified surfaces, known defects |
 | [docs/DESIGN.md](./docs/DESIGN.md) | Measured values of the app UI |
 | [docs/DIRECTORY.md](./docs/DIRECTORY.md) | Directory layout |
 | [AGENTS.md](./AGENTS.md) | How agents work in this repo |
