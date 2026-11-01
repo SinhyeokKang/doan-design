@@ -100,6 +100,9 @@ export interface ComposerFieldHandle {
 }
 export const ComposerField = forwardRef<ComposerFieldHandle, {
   value: readonly FieldSegment[]; onChange(value: FieldSegment[]): void; readOnly: boolean; placeholder: string;
+  // The draft the value belongs to (draftKey(mode) in the docked composer). A change ends the field's undo history,
+  // caret and waiting chips even when the values are equal; the element itself stays, so focus and shape do too.
+  draftKey?: string;
   // The canvas the field's chips belong to (its canvas panel sets it); null, the default, takes no chips.
   chipScope?: string | null;
   // The `/` preset list while it is open: the field is its combobox.
@@ -123,11 +126,11 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       onInput: () => latest.current.onInput?.(),
       onAnnounce: text => latest.current.onAnnounce?.(text),
       scope: () => latest.current.chipScope ?? null,
-    }, latest.current.value);
+    }, latest.current.value, latest.current.draftKey);
     field.current = created;
     return () => { created.dispose(); field.current = null; };
   }, []);
-  useLayoutEffect(() => { field.current?.setValue(props.value); }, [props.value]);
+  useLayoutEffect(() => { field.current?.setValue(props.value, props.draftKey); }, [props.value, props.draftKey]);
   useImperativeHandle(ref, () => ({
     focus: caret => field.current?.focus(caret === "end"),
     caretAtStart: () => field.current?.caretAtStart() ?? true,

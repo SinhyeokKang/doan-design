@@ -2,9 +2,10 @@ import { describe, expect, test } from "vitest";
 import { combineQueued } from "../main/conversation/queue";
 import type { Anchor } from "../main/conversation/types";
 import {
-  chipAt, distinctTargets, fromMessage, hardLine, hasContent, normalize, plainText, sameSegments, sameTarget, sliceUnits, spliceUnits, textSegments,
-  toMessage, typedText, unitLength, type FieldSegment,
+  chipAt, distinctTargets, FILLER, fromMessage, hardLine, hasContent, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sameTarget,
+  sliceUnits, spliceUnits, textSegments, toMessage, typedText, unitLength, withoutFiller, writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
+import { draftProblem } from "./homeComposer";
 
 const frame: Anchor = { frame: { id: "payment", title: "Payment" } };
 const button: Anchor = { frame: { id: "payment" }, element: { selector: "#pay", tag: "button", text: "Pay" } };
@@ -107,5 +108,31 @@ describe("field units", () => {
     expect(sameSegments(field, [text("ab"), chip({ frame: { id: "payment", title: "Payment" } }), text("c\nde"), chip(point)])).toBe(true);
     expect(sameSegments([chip(frame)], [chip({ frame: { id: "payment", title: "Checkout" } })])).toBe(false);
     expect(sameSegments([text("a")], [text("a"), chip(frame)])).toBe(false);
+  });
+});
+
+// BR1 fix round 1.
+describe("line-start chips and the chip clipboard", () => {
+  test("isLineStart: the field's start and the place after a line break", () => {
+    const field = [chip(frame), text("a\n"), chip(point)];
+    expect([0, 1, 2, 3, 4].map(unit => isLineStart(field, unit))).toEqual([true, false, false, true, false]);
+  });
+  test("withoutFiller drops the zero-width filler, so it never reaches a message", () => {
+    expect(withoutFiller([text(`a${FILLER}`), text(FILLER), chip(frame)])).toEqual([text("a"), chip(frame)]);
+    expect(toMessage(withoutFiller([text(FILLER), chip(frame)]))).toEqual({ text: "{{1}}", anchors: [frame] });
+  });
+  test("a copied fragment keeps a typed {{1}} as typed text, so draftProblem still refuses it after the paste", () => {
+    const fragment = [text("{{1}} "), chip(frame)];
+    const pasted = readFieldClipboard(writeFieldClipboard("canvas:a", fragment), "canvas:a");
+    expect(pasted).toEqual(fragment);
+    expect(draftProblem(pasted!, null, [])?.kind).toBe("anchorMarkers");
+  });
+  test("a chip clipboard of another canvas, another shape or broken JSON is not read as chips", () => {
+    const raw = writeFieldClipboard("canvas:a", [chip(frame)]);
+    expect(readFieldClipboard(raw, "canvas:b")).toBeNull();
+    expect(readFieldClipboard("{", "canvas:a")).toBeNull();
+    expect(readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", text: "{{1}}", anchors: [frame] }), "canvas:a")).toBeNull();
+    expect(readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", segments: [{ kind: "chip", anchor: "x" }] }), "canvas:a")).toBeNull();
+    expect(readFieldClipboard(JSON.stringify({ v: 2, scope: "canvas:a", segments: [] }), "canvas:a")).toBeNull();
   });
 });

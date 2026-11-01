@@ -133,3 +133,41 @@ export function sameSegments(a: readonly FieldSegment[], b: readonly FieldSegmen
     return other.kind === "chip" && (other.anchor === segment.anchor || JSON.stringify(other.anchor) === JSON.stringify(segment.anchor));
   });
 }
+
+// A chip that starts a line: Chromium cannot hold a caret before a contenteditable=false element at a line's start, so
+// ChipField draws a zero-width filler there. The filler is never a unit: it is not in segments, the clipboard or a
+// message, and text that arrives with one (a paste, a host value) loses it.
+export const FILLER = "​";
+export function isLineStart(segments: readonly FieldSegment[], unit: number): boolean {
+  if (unit === 0) return true;
+  let at = 0;
+  for (const segment of segments) {
+    const length = segment.kind === "text" ? segment.text.length : 1;
+    if (unit - 1 < at + length) return segment.kind === "text" && segment.text[unit - 1 - at] === "\n";
+    at += length;
+  }
+  return false;
+}
+export function withoutFiller(segments: readonly FieldSegment[]): FieldSegment[] {
+  return normalize(segments.map(segment => (segment.kind === "text" ? { kind: "text", text: segment.text.replaceAll(FILLER, "") } : segment)));
+}
+
+// The chip clipboard between Doan fields keeps segments, not {text, anchors}: a typed {{1}} next to a chip must come
+// back as typed text, which a marker string cannot tell apart. The scope is the canvas the chips belong to.
+export function writeFieldClipboard(scope: string, segments: readonly FieldSegment[]): string {
+  return JSON.stringify({ v: 1, scope, segments });
+}
+// The segments, or null when the clipboard is not a chip clipboard of this scope. Anchors are checked by main on send.
+export function readFieldClipboard(raw: string, scope: string): FieldSegment[] | null {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { return null; }
+  if (!value || typeof value !== "object") return null;
+  const { v, scope: from, segments } = value as { v?: unknown; scope?: unknown; segments?: unknown };
+  if (v !== 1 || from !== scope || !Array.isArray(segments)) return null;
+  const valid = segments.every((segment: unknown) => {
+    if (!segment || typeof segment !== "object") return false;
+    const { kind, text, anchor } = segment as { kind?: unknown; text?: unknown; anchor?: unknown };
+    return kind === "text" ? typeof text === "string" : kind === "chip" && !!anchor && typeof anchor === "object" && !Array.isArray(anchor);
+  });
+  return valid ? withoutFiller(segments as FieldSegment[]) : null;
+}

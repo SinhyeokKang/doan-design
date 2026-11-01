@@ -315,3 +315,12 @@ test("a draft with chips sends numbered markers and its anchors, and Backspace a
 test("Overview's field takes no chips: chipScope defaults to null", () => {
   expect(input(setup().render()).chipScope).toBeNull();
 });
+
+// BR1 fix round 1: the field learns which draft it shows, so a switch ends the previous draft's undo history.
+test("the field gets the draft key, which changes with the conversation while the element keeps its key", () => {
+  const { props, render, draw } = setup({}, [["conversation:a", draft("")], ["conversation:b", draft("")]]);
+  expect(input(render()).draftKey).toBe("conversation:a");
+  props.mode = B;
+  expect(input(render()).draftKey).toBe("conversation:b");
+  expect(cardChildren(draw()).find(([name]) => name === "ComposerField")?.[1]).toBe(".$field");
+});
