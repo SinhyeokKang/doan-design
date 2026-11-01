@@ -171,7 +171,7 @@
 - **형식 변경**: 파일 형식은 없다. 앵커(`Anchor`)와 `{{n}}`, 대화 이벤트 JSONL은 이미 있다. 코멘트 JSON Schema와 파일은 그대로다. IPC 계약 하나가 바뀐다: `startConversation` `mode: "new"`가 `model`·`effort`·`attachments`를 받는다(§1). 대화 제목은 `{{n}}` 대신 칩 이름이 들어간 한 줄 텍스트가 된다.
 - **규칙(ARCHITECTURE §1, `doan check`)**: 없다.
 - **구조 결정**: 앱 코멘트 IPC가 사라진다. 코멘트 본문은 데이터라는 규칙(§2)과 append-only 이벤트는 CLI 쪽에 그대로 남는다. 선택 수명·`doan active`는 바뀌지 않는다. 캔버스 스크립트는 클릭하면 `select`를 보내기 전에 자기 `selected`·`anchor`를 바꾸고 클릭 좌표를 보내지 않으므로, 고르기는 스크립트의 내부 명령으로 한다(2026-11-01 user): 고르기 시작·취소 명령과 응답 `picked {target | point}`. 이 명령은 자기 seq를 쓰고 `selected`·`anchor`·hover를 건드리지 않으며, 고르기 중 스크립트 안의 Esc도 선택 해제가 아닌 취소다. 앱 내부 메시지라 형식이 아니다.
-- **제품 결정**: PRODUCT가 바뀌는 곳은 tasks Z1에 모두 적었다(§1 문제 2·4, §3 In scope 2·3과 끝 문단, §4 Loop, §5 머리·항목 1·3·4·6, Dogfooding, §6 열린 질문). `buzz-canvas` Z1이 먼저 고친 본문을 기준으로 한다.
+- **제품 결정**: PRODUCT가 바뀌는 곳은 tasks Z1에 모두 적었다(§1 문제 2·4, §3 In scope 2·3과 끝 문단, §4 Loop, §5 머리·항목 1·3·4·6, Dogfooding, `docs/BACKLOG.md`). `buzz-canvas` Z1이 먼저 고친 본문을 기준으로 한다.
 
 ## 5. PoC
 

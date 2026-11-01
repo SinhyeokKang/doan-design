@@ -52,7 +52,7 @@
 ## 비목표
 
 - 코멘트 CLI·스킬·JSON Schema·eval의 제거(별도 feature, 2026-10-26 user).
-- 에이전트가 작업 중인 곳을 실시간으로 짚기(`buzz-canvas` 비목표, PRODUCT Open questions).
+- 에이전트가 작업 중인 곳을 실시간으로 짚기(`buzz-canvas` 비목표, `docs/BACKLOG.md`).
 - 인스펙터와 도구모음의 인스펙트 도구(`buzz-inspector`).
 - 한 캔버스에 현재 대화를 둘 이상 두기, 대화 삭제, 대화 이름 바꾸기.
 - 프로젝트 대화를 캔버스 패널에서 읽기. 프로젝트 대화는 Overview가 맡는다.

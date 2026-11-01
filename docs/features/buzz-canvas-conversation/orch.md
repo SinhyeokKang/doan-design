@@ -57,7 +57,7 @@ D1은 이미 끝났다(초안 확정).
 - BT 수정 1 `9cd3f75a`. 지휘자 판단(문구 승인): 터미널 세션 거절 목록(handoff 'Fix round 1' 3번)과 `attachment_limit` notice "Only 10 files can be attached to a message. Remove some, then send again."를 승인했다. 근거: 출하된 "Only 10 files can be attached."·docked 로그인 문구와 같고, clarify대로 코드가 말하는 것만 쓴다. 재리뷰: Codex astra `ctx_f3344cfd6be5`(앞 리뷰 터미널이 stale이라 새로 띄움).
 - BR1에 넘길 것: `dockedAvailability`가 segments를 넘기게 바꾼다. BR2에 넘길 것: `overviewRun.takeDraft`가 돌려받은 마커 번호를 다시 매기지 않는다(fromMessage/toMessage로 합친다). `attachment_limit`은 반환된 초안의 이유로만 온다.
 - BT 재리뷰 통과(🔴 0, 추가 지적 없음).
-- 네이티브 IME 확인(사용자, 진행 중): 3번 — 조합 중 첫 Enter에 조합 확정과 전송이 함께 일어나고, 보낸 텍스트("안녕")는 온전하다. PoC의 Enter 처리는 출하된 textarea와 같다(`isComposing`·keyCode 229). 출하된 입력창과의 동작 비교는 미검증으로 남기고, R1 이후 실제 앱(V2)이나 PRODUCT §6에서 다룬다. 4번 — box에서 줄을 지워도 capsule로 돌아가지 않는 것은 출하 규칙(비었을 때만 capsule)이다.
+- 네이티브 IME 확인(사용자, 진행 중): 3번 — 조합 중 첫 Enter에 조합 확정과 전송이 함께 일어나고, 보낸 텍스트("안녕")는 온전하다. PoC의 Enter 처리는 출하된 textarea와 같다(`isComposing`·keyCode 229). 출하된 입력창과의 동작 비교는 미검증으로 남기고, R1 이후 실제 앱(V2)이나 `docs/BACKLOG.md`에서 다룬다. 4번 — box에서 줄을 지워도 capsule로 돌아가지 않는 것은 출하 규칙(비었을 때만 capsule)이다.
 - BX 완료 `d25ea9a0`(84 파일, −11401). 지휘자 판단: 이번 제거로 생긴 고아(`authorizeCanvas`, `stableDiskHash`·`DocumentBindings.current()`, `--border-pin`·`--halo-pin`, `view.ts` `commentsError`·`open`·`resolved`)는 다른 사용처가 없으면 지운다. 근거: AGENTS '내 변경이 만든 고아만 지운다'. 지휘자 판단(검증을 확실히): BX에 Quit·Remove·Go 메뉴·캔버스 클릭 경로의 짧은 `/runtime-test` probe를 더했다. 후속 `ctx_6fec4aa57d7c`, 리뷰 Codex astra `ctx_80992de088da`(범위 `...d25ea9a0`).
 - 네이티브 IME 6번(사용자): ⌥⌫는 칩만 지운다(기대대로). ⌘⌫도 칩만 지웠다(기대: 줄 머리까지, 칩 앞 글자 유무 확인 중).
 - 지휘자 판단(BX-2 질문): `DocumentBindings` 연쇄(current(), 인스펙터 문서 관찰, `X-Doan-Response`)는 남기고, 읽는 곳이 전혀 없는 것만 지운다. 근거: design §1 남김·지움 표(2026-11-01 user)가 document bindings를 남긴다. 연쇄를 지우면 캔버스 로드 타이밍(iframe 시작 일시정지)도 바뀌어 범위 밖이다. 읽는 곳이 없어진 `current()`는 사용자에게 따로 묻는다.
@@ -116,3 +116,7 @@ D1은 이미 끝났다(초안 확정).
 - BR2 재리뷰: R1·R2·R3·Y1·Y2 해결, R4 재발 경로 1건(목록 읽는 중 ⌘N 뒤 세션 조회가 먼저 끝나면 Send가 열림). 수정 라운드 2 전송.
 - BR2 수정 2 `f577dd53`. 재리뷰 2 Codex astra.
 - BR2 재리뷰 2 통과(🔴 0). 통합한다.
+- BR2 통합: `73cc2ead`, `bc687c78`, `1d7411ae`. bcc-br2 정리.
+- BR4b 시작(BR4a 워커 재사용, `ctx_25447f7999bc`, bcc-br4를 통합 브랜치로 rebase).
+- 지휘자 판단(BR4b 질문): 고르기 중 캔버스 위 십자 커서는 캔버스 스크립트가 `adoptedStyleSheets`로 넣고 끝날 때 뺀다(BR4b가 canvasScript.ts를 맡음). 근거: design §2 '보드 커서가 십자'; DOM을 건드리지 않아 레이아웃 감시에 영향이 없다.
+- 결정(2026-11-02 user): PRODUCT §6 'Open questions'를 `docs/BACKLOG.md`로 분리했다(정할 것 18 · 실제 앱 미검증 4 · 알려진 결함 6). PRODUCT §6은 BACKLOG를 가리키는 한 줄만 남겨 절 번호와 기존 'PRODUCT §6' 참조가 그대로 이어진다. AGENTS·feature·feature-review 스킬·README·ARCHITECTURE·이 feature 문서의 참조를 고쳤다. Z1·Z3은 미검증 표면과 코멘트 관련 항목을 BACKLOG에 맞춰 쓴다.
