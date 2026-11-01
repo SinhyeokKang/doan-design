@@ -9,6 +9,7 @@ import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools } from "./CanvasTools";
+import { AlertIcon } from "./AlertIcon";
 import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
@@ -1049,9 +1050,9 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
     <div className="overlay" ref={overlay} />
     {/* The agent notice comes first, the canvas notices stack under it (design §2 '겹침 순서', 'Esc와 포커스'). */}
     <CanvasAgent {...agent}>
-      {state.error && <div className="doan-notice doan-panel" role="status">{state.error}</div>}
-      {state.unlisted && <div className="doan-notice doan-panel" role="status">This page is not a listed canvas. Choose a canvas from the Sidebar.</div>}
-      {state.notice && <div className="doan-notice doan-panel" role="status">{state.notice}</div>}
+      {state.error && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
+      {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
+      {state.notice && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.notice}</span></div>}
     </CanvasAgent>
     {(state.status || problemMessage) && <div className="canvas-status" role="status">
       {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading…</p>
