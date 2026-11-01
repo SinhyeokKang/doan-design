@@ -272,6 +272,8 @@ describe("sign-in", () => {
       await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
       const status = await acpRequest("initialize");
       status.print("I1101 main.py:118] Starting AGY ACP Server...\n", "stderr");
+      status.reply("initialize", INIT);
+      await acpRequest("authenticate");
       expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
       const text = logged();
       expect(text).toContain("doan: antigravity status check failed: the server was stopped after 20 ms without an answer");
@@ -286,6 +288,21 @@ describe("sign-in", () => {
       expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null });
       expect(errors).not.toHaveBeenCalled();
     });
+  });
+  it("counts the status check's time limit from the server's initialize answer, not from its start", async () => {
+    // Under heavy load (load average ~120 to ~190 on 8 cores) the 278 MB server took about 30 s to answer initialize, so a
+    // status check whose limit also covered the server's start failed a sign-in the user had just approved (2026-11-01).
+    const m = manager({ adapters: withAcp(), statusTimeoutMs: 30 }); await m.load();
+    const run = started(await m.signIn("antigravity", 7));
+    const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+    await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
+    const status = await acpRequest("initialize");
+    await new Promise(resolve => setTimeout(resolve, 80));
+    expect(status.stopped).toBe(false);
+    status.reply("initialize", INIT);
+    await acpRequest("authenticate"); status.reply("authenticate", {});
+    expect(await run.done).toMatchObject({ phase: "connected", verified: true });
+    expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify({ id: "g1" })) });
   });
   it("refuses an ACP server that is not the pinned agent and version", async () => {
     const m = manager({ adapters: withAcp() });
