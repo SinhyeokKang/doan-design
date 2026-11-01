@@ -18,7 +18,7 @@
 | `chips-composer` | 프레임·요소·점 칩이 든 입력창(box) |
 | `picker-mode` | 고르기 상태: 위쪽 가운데 안내 캡슐("Click a frame, an element or an empty spot"과 kbd "Esc", 숨긴 sr 텍스트 "Press Escape to cancel"), hover 후보, 눌린 피커 |
 | `add-tool` | 선택이 있을 때 Add to conversation 활성과 툴팁, 칩이 들어간 입력창 |
-| `chip-locate` | 보낸 칩을 눌러 대상 강조. 대상을 찾지 못함("Not in the current canvas")은 `panel-states`의 타일 |
+| `chip-locate` | 보낸 칩을 눌러 대상 강조. 대상을 찾지 못함("No longer in the canvas")은 `panel-states`의 타일 |
 | `open-badge` | 접힌 패널의 Show conversation에 새 소식 점(답 대기). 답 대기 중 작업 안내 캡슐은 Stop 대신 Open |
 | `narrow` | 960×600, 패널 최소 폭 320(`max(320px, 28dvw)`, `buzz-canvas` 폭 규칙). 칩이 들어가면 입력창이 box가 되어 글자와 칩이 도구 위에서 줄바꿈된다 |
 
@@ -72,7 +72,7 @@
 - 본 것: 패널이 펴져 있고, 창이 포커스를 가지고, 그 대화가 보일 때 `markSeen`. 접힌 패널, 다른 화면, 창 포커스 없음에서는 기록하지 않는다.
 - 상태: 목록 읽는 중(300ms 뒤 "Loading conversation…"), 읽기 실패("Couldn’t read conversations"와 Retry), 대화 하나 읽기 실패(그 대화만 오류)는 Overview와 같다.
 - 현재 대화가 일하는 동안(running·waiting) 새 대화 상태에서 보내기를 막는다. 보관 대화 복원과 같은 busy 줄 "The current conversation on this canvas is still running."과 Open을 보인다(2026-11-01 user). 백엔드는 이 경우 현재 턴을 interrupted로 끝내므로 renderer가 막는다.
-- 프로젝트 대화가 이 캔버스를 그리는 동안(그 대화가 턴 중에 이 캔버스를 만들었고 아직 승격 판단 전): 새 대화 상태의 입력창 위에 "A project conversation is drawing this canvas."와 Open(Overview의 그 대화)을 둔다. 보내기는 막지 않는다. 패널을 연 채 승격되면 보이던 것은 바꾸지 않고, 입력창 위에 "A conversation from the Overview is now current on this canvas."와 Open(승격된 대화)을 보인다(2026-11-01 user).
+- 프로젝트 대화가 이 캔버스를 그리는 동안(그 대화가 턴 중에 이 캔버스를 만들었고 아직 승격 판단 전): 새 대화 상태의 입력창 위에 "A project conversation is drawing this canvas. Sending here starts a separate conversation."와 Open(Overview의 그 대화)을 둔다. 보내기는 막지 않는다. 패널을 연 채 승격되면 보이던 것은 바꾸지 않고, 입력창 위에 "A project conversation is now current on this canvas."와 Open(승격된 대화)을 보인다(2026-11-01 user).
 - 터미널 세션 선택지: 새 대화 상태가 처음 보일 때 `conversationResumeTarget`을 한 번 부르고 캔버스가 바뀔 때까지 재사용한다. 응답 전에는 선택지 없이 새 대화로 보이고 Send는 막는다(늦게 나타난 선택지 때문에 다른 모드로 보내지 않게). 늦은 응답은 캔버스 revision으로 버린다(2026-11-01 user).
 
 ### 패널을 여는 규칙 (2026-11-01 user)
@@ -88,7 +88,7 @@
 - 칩은 인라인 원자다: 커서는 칩 앞뒤에만 서고, Backspace/Delete는 칩 하나를 통째로 지운다. 칩 모양은 공통 결정 2의 "인라인 앵커 칩"(연한 accent 채움 + 진한 accent 글자)이다.
 - 칩 이름: 프레임 "<프레임 이름>"(아이콘 Frame), 요소 "<이름> <doan-id>" 또는 `<이름> “<text>”`(최대 40자), 점 "Point in <프레임>". 요소의 이름은 tag를 사람이 읽는 이름으로 바꾼 것이다: h1~h6 → heading, a → link, img → image, input·textarea·select → field, button → button, 그 밖은 tag 그대로(2026-11-01 user). 클래스에서 오는 이름은 쓰지 않는다. 전체 대상은 `title`.
 - 값: 필드는 `{text, anchors}`를 준다. text의 칩 자리는 `{{n}}`(1부터, 등장 순)이고, 같은 대상을 두 번 넣으면 같은 번호를 쓴다(백엔드는 반복을 허용). 사람이 `{{`나 `}}`를 직접 치면 지금처럼 Send가 막힌다. 이 검사(`draftProblem`)는 사람이 친 텍스트 조각만 본다. 칩 마커는 검사하지 않는다.
-- 칩 수 상한: 서로 다른 대상은 한 메시지에 32개까지다(`LIMITS.anchors`). 넘으면 피커와 Add to conversation이 칩을 넣지 않고 입력창 아래 이유 줄 "A message can point at up to 32 places."를 보인다. 상한 값은 main 모듈이 아닌 공용 모듈에서 가져온다.
+- 칩 수 상한: 서로 다른 대상은 한 메시지에 32개까지다(`LIMITS.anchors`). 넘으면 피커와 Add to conversation이 칩을 넣지 않고 입력창 아래 이유 줄 "A message can point at up to 32 places. Remove one to add another."를 보인다. 상한 값은 main 모듈이 아닌 공용 모듈에서 가져온다.
 - 한 줄 텍스트: 제목·미리보기·대기열·알림처럼 한 줄로 보이는 곳은 `{{n}}`을 칩 이름으로 바꾼 텍스트를 쓴다(§3 `messageLine`).
 - 대기열 합치기와 반환된 초안은 백엔드의 `combineQueued`가 번호를 다시 매긴 `{text, anchors}`를 돌려주므로, 필드는 그것을 칩으로 다시 그린다.
 - 붙여넣기: 이미지·파일은 지금처럼 첨부로 가고, 텍스트는 순수 텍스트로 들어간다. Doan 입력창 사이에서 자르기·복사·붙여넣기를 하면 칩이 칩으로 남고, 바깥으로 붙이면 칩 이름 텍스트가 된다.
@@ -111,7 +111,7 @@
 
 - 보낸 메시지(스레드의 사람 말풍선)와 입력창의 칩을 누르면 대상을 찾아 뷰를 옮기고 1.2초 강조한다(Quick Open 프레임 이동과 같은 하이라이트). 찾는 순서: 요소는 유일한 `data-doan-id` → selector, 프레임은 frame id, 점은 그 프레임의 offset. 점의 프레임이 사라졌으면 찾지 못함이다. 점은 그 자리에 지름 12px 고리를 1.2초 보인다.
 - 스레드의 칩은 버튼이라 Tab과 Enter로 locate할 수 있고, 이름은 "Show <label> on canvas"다. 캔버스가 로드되지 않은 동안은 locate를 비활성으로 둔다.
-- 찾지 못하면 칩 옆에 "Not in the current canvas"(`role="status"`)를 보이고, 다음 동작이 있거나 4초가 지나면 사라진다. 다른 캔버스의 대화가 보이는 일은 없다(패널은 열린 캔버스의 대화만).
+- 찾지 못하면 칩 옆에 "No longer in the canvas"(`role="status"`)를 보이고, 다음 동작이 있거나 4초가 지나면 사라진다. 다른 캔버스의 대화가 보이는 일은 없다(패널은 열린 캔버스의 대화만).
 - locate는 선택·`doan active`·입력창 내용을 바꾸지 않는다.
 
 ### 상태줄과 대화 상태 (2026-11-01 user)
@@ -129,7 +129,7 @@
 | 시작 거절(새 대화, `not_logged_in`·`cli_missing`·`runtime_unsupported`·`credential_override`·`rate_limited`·`session_unavailable`·`session_in_use`·`process_exited`·`cli_install_failed`) | 입력창 아래 notice, `startErrorView` 문구 | 다른 에이전트 고르기 또는 Retry(코드별 `retry`), 로그인 문제는 Settings > Agents |
 | 전송 거절(이어 가기, `busy`·`not_logged_in`·`rate_limited`·그 밖) | 입력창 아래 notice, `dockedRefusal` 문구 | 잠시 뒤 다시 보내기, Settings > Agents |
 | 보관 대화 복원 중 현재 대화가 일함(`busy`) | busy 줄 "The current conversation on this canvas is still running." | 현재 대화로 가기(Open) 또는 끝날 때까지 기다리기 |
-| 캔버스를 찾을 수 없음(목록에 없는 페이지, ID 중복) | 캔버스 페이지가 이미 아는 상태라 보내기 전에 입력창을 초안을 가진 채 비활성으로 두고 이유 줄을 보인다: 목록에 없음 "This canvas isn’t in <project>’s list, so its conversation can’t continue.", ID 중복 "Another canvas has this canvas’s ID, so its conversation can’t continue."(2026-11-01 user). 보낸 뒤 `canvas_not_found`가 오면 같은 줄을 보인다. 캔버스 목록에서 대화의 캔버스가 사라진 경우(다른 화면)는 `canvasGoneText` 그대로 | 캔버스 페이지 자체의 missing·중복 ID 안내를 따른다(`buzz-canvas`·기존 규칙) |
+| 캔버스를 찾을 수 없음(목록에 없는 페이지, ID 중복) | 캔버스 페이지가 이미 아는 상태라 보내기 전에 입력창을 초안을 가진 채 비활성으로 두고 이유 줄을 보인다: 목록에 없음 "This canvas isn’t listed in <project>, so its conversation can’t continue.", ID 중복 "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it."(2026-11-01 user). 보낸 뒤 `canvas_not_found`가 오면 같은 줄을 보인다. 캔버스 목록에서 대화의 캔버스가 사라진 경우(다른 화면)는 `canvasGoneText` 그대로 | 캔버스 페이지 자체의 missing·중복 ID 안내를 따른다(`buzz-canvas`·기존 규칙) |
 | 대기열 거절(`queue_limit`, `not_running`) | `queue_limit`은 notice, `not_running`은 보내기로 바꿔 다시 시도(기존 규칙) | — |
 | 첨부 문제(`attachment_missing`·`attachment_limit`) | 첨부 칩의 이동됨 표시와 notice(기존 규칙) | 칩 지우기 |
 | 칩 앵커 문제(`bad_request`가 앵커 때문) | 보내기 전에 막는다: 선택 payload의 selector는 스크립트가 이미 1000자로 줄이므로(`validAnchor` 상한 2048 아래) 그대로 쓴다. 칩 수는 32개 상한(§2 '칩 필드') | — |
@@ -139,12 +139,12 @@
 | 사람이 멈춤·로그아웃·앱 재시작으로 끊긴 턴 | 스레드의 중단 항목, 만료된 권한 요청 표시 | 다시 보내기 |
 | 권한 요청 답 전송 실패 | 그 권한 항목 아래 오류 줄(기존 Overview 규칙) | 다시 고르기 |
 | 캔버스가 로드되지 않음(로딩, 실패, 폭 없음, 목록에 없는 페이지) | 대화는 그대로 쓸 수 있다(목록에 없는 페이지는 위 '캔버스를 찾을 수 없음'). 입력창 피커와 Add to conversation은 비활성이고 이유 툴팁 "Pick from canvas isn’t available while the canvas can’t be shown." | 캔버스 Reload |
-| 칩 대상을 찾지 못함(locate) | 칩 옆 "Not in the current canvas" | — |
+| 칩 대상을 찾지 못함(locate) | 칩 옆 "No longer in the canvas" | — |
 | 고르기 중 캔버스가 다시 로드됨 | 고르기 상태를 유지하고 새 문서에 적용 | Esc로 취소 |
 | 고르기 중 다른 캔버스·화면으로 이동 | 고르기 취소, 칩 없음 | — |
-| 터미널 세션 이어 가기 불가(`conversationResumeTarget`의 `available: false`, 또는 resume 모드의 모든 거절: `no_session`·`session_unavailable`·`session_in_use`·`not_logged_in`·`cli_missing`·`runtime_unsupported`·`process_exited` 등) | 연결이 없으면 선택지를 보이지 않는다. 이어 가기 전송이 거절되면 입력창 아래 notice("Couldn’t continue the terminal session: <이유>. Start a new conversation instead.")와 새 계정 연결로 바꾸는 버튼 "Start a new conversation"(긴 이유 줄이라 버튼은 글 아래 줄). resume 모드에서는 "Choose another agent."를 쓰지 않는다. 버튼은 새 대화 모드로 바꾸고 초안을 유지한 채 입력창에 포커스를 준다 | 새 대화로 시작 |
+| 터미널 세션 이어 가기 불가(`conversationResumeTarget`의 `available: false`, 또는 resume 모드의 모든 거절: `no_session`·`session_unavailable`·`session_in_use`·`not_logged_in`·`cli_missing`·`runtime_unsupported`·`process_exited` 등) | 연결이 없으면 선택지를 보이지 않는다. 이어 가기 전송이 거절되면 입력창 아래 notice("Couldn’t continue the terminal session: <이유>.")와 새 계정 연결로 바꾸는 버튼 "Start a new conversation"(긴 이유 줄이라 버튼은 글 아래 줄). resume 모드에서는 "Choose another agent."를 쓰지 않는다. 버튼은 새 대화 모드로 바꾸고 초안을 유지한 채 입력창에 포커스를 준다 | 새 대화로 시작 |
 | 모델 목록 읽기 실패 | 모델 "Default"(기존 규칙) | — |
-| 칩 수 상한 초과 | 칩을 넣지 않고 이유 줄 "A message can point at up to 32 places." | 칩 지우기 |
+| 칩 수 상한 초과 | 칩을 넣지 않고 이유 줄 "A message can point at up to 32 places. Remove one to add another." | 칩 지우기 |
 
 ## 3. 순수 함수 (`/tdd` 대상)
 
@@ -184,4 +184,4 @@
 - **2026-10-23 — Draft guards changed existing transition timing**: 코멘트 초안 가드를 걷어낼 때 `transition`의 타이밍에 기대던 경로(캔버스 열기, 선택, 이동)가 같은 순서로 동작하는지 테스트로 확인한다.
 - **2026-10-30 — A renderer import of a main module left the built app's window blank**: `chipLabel`·`messageLine`·앵커 상한은 main과 renderer가 함께 쓰므로 `prompt.ts`(ajv까지 닿는다)에서 가져오지 않고 공용 모듈에 둔다. `rendererImports.test.ts`의 EXTRA_ROOTS에 새 renderer 파일을 더한다.
 - **2026-10-23 — R-L recurrence (wait-then-focus must carry the intent)**: 고르기·Add to conversation 뒤 입력창 포커스 복귀는 시작할 때의 의도를 들고 가고, 포커스가 옮겨졌거나 IME 조합 중이면 포기한다. command 응답은 seq만이 아니라 응답 표시로 묶는다.
-- **2026-10-30 — Timing tests failed under machine load**: 300ms 로딩, 1.2초 강조, 4초 "Not in the current canvas"는 fake timer로 보고, 대기보다 넉넉한 테스트 한도를 둔다.
+- **2026-10-30 — Timing tests failed under machine load**: 300ms 로딩, 1.2초 강조, 4초 "No longer in the canvas"는 fake timer로 보고, 대기보다 넉넉한 테스트 한도를 둔다.

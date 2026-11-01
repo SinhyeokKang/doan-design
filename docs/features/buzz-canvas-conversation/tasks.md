@@ -62,7 +62,7 @@
 
 ── commit: `feat(renderer): canvas conversation panel` ──
 
-- [ ] R4. 입력창 피커와 고르기 상태: 캔버스 스크립트의 내부 고르기 명령(시작·취소)과 응답 `picked`(자기 seq, `selected`·`anchor`·hover 불변), `CanvasController` 도구 상태 `select | pick`, 안내, Esc 순서와 취소 조건, 포커스 복귀, 점 앵커(프레임 안만). 도구모음 Add to conversation과 ⌘L. 칩 locate(`anchors` 채널, `select-anchor` 없이 이동만, 점 고리)와 "Not in the current canvas". 쓸 수 있는 때와 `aria-disabled` 툴팁, 칩 32개 상한.
+- [ ] R4. 입력창 피커와 고르기 상태: 캔버스 스크립트의 내부 고르기 명령(시작·취소)과 응답 `picked`(자기 seq, `selected`·`anchor`·hover 불변), `CanvasController` 도구 상태 `select | pick`, 안내, Esc 순서와 취소 조건, 포커스 복귀, 점 앵커(프레임 안만). 도구모음 Add to conversation과 ⌘L. 칩 locate(`anchors` 채널, `select-anchor` 없이 이동만, 점 고리)와 "No longer in the canvas". 쓸 수 있는 때와 `aria-disabled` 툴팁, 칩 32개 상한.
   - 경우: Esc나 토글 뒤, 또는 다른 화면으로 간 뒤 도착한 고르기 응답은 버린다. 다시 로드·같은 ID 이동이면 새 문서에 적용한다. 선택 seq와 hover seq를 섞지 않는다(POSTMORTEM 2026-10-23 Hover). command 응답은 seq만이 아니라 응답 표시로 묶는다. 포커스 복귀는 시작할 때의 의도를 들고 가고 포커스가 옮겨졌거나 IME 조합 중이면 포기한다(POSTMORTEM 2026-10-23 R-L). 렌더 전 스냅샷을 읽지 않는다(POSTMORTEM 2026-10-25). 고르기 클릭과 칩 locate가 선택·`doan active`를 바꾸지 않는다. 1.2초 강조·4초 문구는 fake timer와 넉넉한 테스트 한도로 본다(POSTMORTEM 2026-10-30 Timing).
   - 검증: `npm --prefix app test`(`CanvasController.test.ts`, 캔버스 스크립트 테스트), `npm --prefix app run build`. `ds/checks.test.ts`의 accent 자리 목록에 칩과 고르기 표시를 더한다.
 
