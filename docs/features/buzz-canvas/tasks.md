@@ -43,7 +43,7 @@
 ── commit: `feat(renderer): canvas header, frame drawer, zoom and tools` ──
 
 - [ ] R4. 캔버스 대화 패널 껍데기와 틀: 오른쪽 열을 껍데기(Overview `aside.right.ov-right` + `h2.phead.rp-head` "Conversation", 우상단 닫기, 한 줄 빈 본문)로 바꾼다. 캔버스 페이지에서 `RightPanel`을 그리지 않고 코멘트 세션(`useComments`)을 열지 않는다(컴포넌트는 남김). 그리드 세 번째 열 폭 CSS 변수, 직접 만든 경계 손잡이(끌기, 덮개, 커서, ←/→/Home/End, 두 번 클릭, 끄는 중 Esc, 최소에서 멈춤, malmoi 모양), 접혔을 때만 캔버스 헤더의 열기, 닫기·열기 포커스 이동, 접힌 상태의 모서리, `UiState.rightPanel` 저장·복원. 첫 Fit을 열 폭이 적용된 뒤로 미룬다(design §2 '첫 Fit').
-  - 검증: `npm --prefix app test`(저장 폭이 최대보다 클 때 보이는 폭과 저장값 분리, 960 창 최대 356, 폭 변경 뒤 뷰 기준 유지, 캔버스 페이지에 Inspector·Comments·핀 없음, 요소 선택이 `selection:set`을 그대로 부름), `npm --prefix app run typecheck`, `npm --prefix app run build`.
+  - 검증: `npm --prefix app test`(저장 폭이 최대보다 클 때 보이는 폭과 저장값 분리, 기본·최소 `max(320px, 28dvw)`, 960 창 최대 356, 폭 변경 뒤 뷰 기준 유지, 캔버스 페이지에 Inspector·Comments·핀 없음, 요소 선택이 `selection:set`을 그대로 부름), `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
 ── commit: `feat(renderer): canvas conversation panel shell` ──
 
