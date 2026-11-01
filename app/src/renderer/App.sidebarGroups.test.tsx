@@ -62,11 +62,9 @@ vi.mock("./CanvasController", async original => ({
   },
 }));
 vi.mock("./useComments", () => ({
-  useComments: () => ({ session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), orphans: {}, orphanIntent: vi.fn(), reviewStep: vi.fn(), openAt: vi.fn() }),
+  useComments: () => ({ session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), reviewStep: vi.fn() }),
 }));
-vi.mock("./Home", async original => ({ ...await original<typeof import("./Home")>(), useProjectComments: () => ({ comments: new Map(), reads: new Map(), refresh: vi.fn() }) }));
-vi.mock("./ProjectOverview", async original => ({ ...await original<typeof import("./ProjectOverview")>(), useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
-vi.mock("./FirstPrompt", async original => ({ ...await original<typeof import("./FirstPrompt")>(), useFirstPromptWait: () => ({}) }));
+vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");

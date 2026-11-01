@@ -9,7 +9,7 @@ import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
-import { Home, ProblemActions, useProjectComments } from "./Home";
+import { Home, ProblemActions } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
 import { useToast } from "./Toast";
@@ -19,20 +19,25 @@ import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
 import { useComments } from "./useComments";
-import { RightPanel } from "./RightPanel";
-import { FeedbackPanel } from "./FeedbackPanel";
+import { CanvasConversations, RightPanel } from "./RightPanel";
 import { duplicateIdText } from "./canvasView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
-import { FirstPromptContext, useFirstPromptWait } from "./FirstPrompt";
-import { ProjectOverview, useThumbnails } from "./ProjectOverview";
+import { ProjectOverview } from "./ProjectOverview";
+import { useThumbnails } from "./thumbnails";
+import { canvasConversationRows } from "./canvasConversationRows";
+import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
-import type { HomeMemory, UiState, ShellProject } from "../restore/uiState";
+import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
-import { defaultProject } from "./homeComposer";
+import { defaultProject, startErrorView } from "./homeComposer";
+import { OverviewRun } from "./overviewRun";
+import { DockedSupport } from "./dockedSupport";
+import { sameCanvas } from "./ProjectOverview";
+import type { Canvas } from "../main/conversation/types";
 import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
@@ -45,8 +50,9 @@ import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences"
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; review: (move: "next" | "previous") => void }): void {
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; review: (move: "next" | "previous") => void; newConversation: () => void }): void {
   if (name === "home") to.home();
+  else if (name === "newConversation") to.newConversation();
   else if (name === "quickOpen") to.quickOpen();
   else if (name === "undoRemove") to.undo();
   else if (name === "nextResolved") to.review("next");
@@ -60,14 +66,21 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection }): UiState | null {
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null }): UiState | null {
   const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection } = input;
+  const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}) };
+}
+
+// The start's ui-state read under what the run wrote before it (buzz-project T1): a root the run set, cleared (New) or
+// removed keeps the run's word, so a late read never brings back a cleared memory.
+export function mergeConversationMemory(saved: Readonly<Record<string, string>> | undefined, current: Readonly<Record<string, string>>, touched: ReadonlySet<string>): Record<string, string> {
+  return { ...Object.fromEntries(Object.entries(saved ?? {}).filter(([root]) => !touched.has(root))), ...current };
 }
 
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
@@ -107,6 +120,8 @@ export function App() {
     if (document.activeElement === document.body || !document.activeElement?.isConnected) focusCurrent(previous);
   });
   const workspaceFocus = useRef<HTMLElement | null>(null);
+  // Set by the Overview's branch chip menu; the workspace focus effect then focuses the new Overview's chip.
+  const chipFocus = useRef(false);
   const currentScreen = useRef(screen);
   currentScreen.current = screen;
   const [entries, setEntries] = useState<FolderEntry[]>([]);
@@ -148,11 +163,16 @@ export function App() {
     view: () => ({ screen: currentScreen.current, loadedRoot: loadedRootRef.current, entries: entriesRef.current, canvas: openRef.current?.folder === loadedRootRef.current ? openRef.current.canvas : null }),
     label: root => live.current.projectLabel(root),
     // The move after a send cancels the restore like any navigation but is not the person's own move.
-    openOverview: (root, arrived, unavailable) => {
+    openOverview: (root, arrived, unavailable, conversationId) => {
       // The run settles with its started toast instead of waiting for a move that cannot happen.
       if (locked()) { unavailable(); return; }
       navigationIntent.current++; restoreCancelled.current = true; setRestore("done");
-      controller.current?.openWorkspace(root, next => { if (!arrived()) return; workspaceFocus.current = null; live.current.completeNavigation(next); }, false, () => unavailable(), true);
+      // Already on that Overview: only the main conversation changes (buzz-project design §2.4).
+      if (shownOverviewRef.current === root) { if (arrived()) live.current.askConversation(root, conversationId); return; }
+      controller.current?.openWorkspace(root, next => {
+        if (!arrived()) return;
+        workspaceFocus.current = null; live.current.askConversation(root, conversationId); live.current.completeNavigation(next);
+      }, false, () => unavailable(), true);
     },
     // The controller's own wait for the project's read; the person's next navigation starts after this.
     cancelMove: () => controller.current?.cancelWorkspaceOpen(),
@@ -162,8 +182,41 @@ export function App() {
     toast: (message, label, run) => live.current.toast.show(message, label, run),
     sent: request => setHomeMemory(previous => ({ ...previous, lastRoot: request.root, lastProvider: request.runtime,
       ...(request.model ? { models: { ...previous?.models, [request.runtime]: { model: request.model, ...(request.effort ? { effort: request.effort } : {}) } } } : {}) })),
+    changed: () => { setRunTick(tick => tick + 1); overviewRun.current?.sync(); },
+  });
+  // The Overview's main conversation and its composer's lists (buzz-project), for the run; the root it shows, as
+  // committed.
+  const shownOverviewRef = useRef<string | null>(null);
+  // conversationByRoot is written from the start; the Overview reads it only once ui-state was read (memoryRead).
+  const conversationByRoot = useRef<Record<string, string>>({});
+  const memoryRead = useRef(false);
+  // Roots the run wrote, cleared or removed before that read.
+  const memoryTouched = useRef(new Set<string>());
+  const [memoryTick, setMemoryTick] = useState(0);
+  const overviewRun = useRef<OverviewRun | null>(null);
+  if (!overviewRun.current) overviewRun.current = new OverviewRun({
+    list: root => homeRun.current.listState(root),
+    readsStarted: root => homeRun.current.readsStarted(root),
+    readsApplied: root => homeRun.current.readsApplied(root),
+    reread: root => homeRun.current.retryList(root),
+    remembered: () => memoryRead.current ? conversationByRoot.current : null,
+    remember: (root, id) => {
+      if (!memoryRead.current) memoryTouched.current.add(root);
+      const current = conversationByRoot.current;
+      if (current[root] === (id ?? undefined)) return;
+      const next = { ...current };
+      if (id === null) delete next[root]; else next[root] = id;
+      conversationByRoot.current = next; setMemoryTick(tick => tick + 1);
+    },
+    markSeen: (id, seq) => homeRun.current.markSeenThrough(id, seq),
+    focused: () => document.hasFocus(),
+    openCanvas: (root, canvas) => live.current.openConversationCanvas(root, canvas),
+    toast: (message, label, run) => live.current.toast.show(message, label, run),
+    label: root => live.current.projectLabel(root),
     changed: () => setRunTick(tick => tick + 1),
   });
+  const support = useRef<DockedSupport | null>(null);
+  if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1));
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
   const openRef = useRef(state.open); openRef.current = state.open;
   function focusCurrent(previous: HTMLElement | null = null) {
@@ -203,6 +256,7 @@ export function App() {
         const previous = historyRef.current;
         const nextHistory = { visits: previous.visits.filter(visit => !removed.includes(visit.root)), cursor: previous.visits.slice(0, previous.cursor + 1).filter(visit => !removed.includes(visit.root)).length - 1 };
         historyRef.current = nextHistory; setHistory(nextHistory);
+        forgetConversations(removed);
       }
       entriesRef.current = next;
       setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
@@ -242,21 +296,11 @@ export function App() {
     beforeWizard.current = null;
     focusCurrent(previous);
   }, [wizard]);
-  // Set once the project counts below exist; a raised review marker refreshes them.
-  const reviewedRoot = useRef<(root: string) => void>(() => {});
   // While the Add Projects page selects or clones, or a Settings category holds a confirmation or a write, every move
   // away is ignored here, in one place (buzz-add-projects and buzz-settings design '잠금'): marking the controls alone
   // would leak through toasts, the comment guard and keyboard activation.
   const locked = () => (currentScreen.current === "addProjects" && pageRef.current.locked) || (currentScreen.current === "settings" && settingsRef.current.locked);
-  // The id-change notice's Show: the Overview's Feedback expands that id's
-  // orphan group and focuses its head (project-feedback design §5).
-  const [reveal, setReveal] = useState<{ root: string; id: string; seq: number } | null>(null);
-  const showOrphans = (root: string, id: string) => {
-    if (locked()) return;
-    cancelRestore();
-    controller.current?.showOverview(() => { completeNavigation(root); setReveal(previous => ({ root, id, seq: (previous?.seq ?? 0) + 1 })); });
-  };
-  const comments = useComments(state, controller, () => { if (!locked()) setScreen("workspace"); }, entries, root => reviewedRoot.current(root), homeDirectory, showOrphans);
+  const comments = useComments(state, controller, () => { if (!locked()) setScreen("workspace"); }, entries, homeDirectory);
   const home = () => {
     if (locked()) return;
     cancelRestore();
@@ -269,8 +313,10 @@ export function App() {
     if (screen === "home") {
       document.querySelector<HTMLElement>(".home-shell .composer-input")?.focus();
     } else if (screen === "workspace") {
-      // A Home send lands on the strip's first action (design §4.9).
-      if (homeRun.current.takeFocus() === "stop") { const stop = document.querySelector<HTMLElement>(".workspace .convo-strip [data-strip-stop]"); if (stop) { stop.focus(); return; } }
+      // A Home send lands in the Overview's composer field (buzz-project design §2.5).
+      if (homeRun.current.takeFocus() === "composer") { const field = document.querySelector<HTMLElement>(".workspace .ov-main .composer-input"); if (field) { field.focus(); return; } }
+      // A worktree picked from the Overview's branch chip lands on the new Overview's chip (design §2.5).
+      if (chipFocus.current) { chipFocus.current = false; const chip = document.querySelector<HTMLElement>(".workspace .ov-main .wt-chip"); if (chip) { chip.focus(); return; } }
       if (comments.session.draft.draft) { document.querySelector<HTMLTextAreaElement>(".comments-panel textarea")?.focus(); return; }
       const previous = workspaceFocus.current;
       (previous?.isConnected && previous.closest(".workspace") ? previous : document.querySelector<HTMLElement>('.side [role="treeitem"][tabindex="0"]'))?.focus();
@@ -293,6 +339,8 @@ export function App() {
       // Main replaces the whole state on each save, so Home's memory is kept even when the restore was cancelled.
       // A send that finished before this read keeps its newer choices over the saved ones.
       if (active) setHomeMemory(previous => ({ ...state?.home, ...previous }));
+      // The same for the Overview's memory: a conversation shown before the read keeps its newer entry.
+      if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
     });
@@ -337,7 +385,7 @@ export function App() {
     if (restore !== "done") return;
     const instance = controller.current;
     if (!instance) return;
-    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory() });
+    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
@@ -345,7 +393,7 @@ export function App() {
   const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section });
   persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -365,17 +413,37 @@ export function App() {
     if (root === loadedRoot) { controller.current?.cancelWorkspaceOpen(); setScreen("workspace"); }
     else controller.current?.openWorkspace(root, next => completeNavigation(next), false);
   };
-  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number) => {
+  // opened: after the canvas shows, for a caller that records something only once the open went through.
+  const openShellCanvas = (root: string, row: CanvasRow, cursor?: number, opened?: () => void) => {
     if (locked()) return;
     cancelRestore();
-    controller.current?.openCanvas(root, row, undefined, { opened: () => completeNavigation(root, cursor), unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
+    controller.current?.openCanvas(root, row, undefined, { opened: () => { completeNavigation(root, cursor); opened?.(); }, unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)) });
   };
-  const showShellOverview = (root: string, cursor?: number) => {
+  // arrived: after the move commits, for an entry point that asks the Overview for a conversation.
+  const showShellOverview = (root: string, cursor?: number, arrived?: () => void) => {
     if (locked()) return;
     cancelRestore();
-    if (root === loadedRoot) controller.current?.showOverview(() => completeNavigation(root, cursor));
-    else controller.current?.openWorkspace(root, next => completeNavigation(next, cursor), false, undefined, true);
+    if (root === loadedRoot) controller.current?.showOverview(() => { arrived?.(); completeNavigation(root, cursor); });
+    else controller.current?.openWorkspace(root, next => { arrived?.(); completeNavigation(next, cursor); }, false, undefined, true);
   };
+  // An entry point's conversation: the root's Overview shows it (a waiting one scrolled to its request), a canvas one
+  // opens its canvas (buzz-project design §2.4).
+  function askConversation(root: string, conversationId: string) {
+    const list = homeRun.current.listState(root);
+    const waiting = Array.isArray(list) && list.some(c => c.conversationId === conversationId && c.phase === "waiting");
+    overviewRun.current!.request(root, conversationId, waiting ? "permission" : null);
+  }
+  function openConversationCanvas(root: string, canvas: Canvas) {
+    const listed = entriesRef.current.find(entry => entry.path === root);
+    const row = listed?.kind === "list" ? listed.canvases.find(row => sameCanvas(canvas, row)) : undefined;
+    if (row) live.current.openShellCanvas(root, row);
+    else live.current.toast.show(unavailableCanvasMessage(listed, canvas.path));
+  }
+  function forgetConversations(roots: readonly string[]) {
+    if (!memoryRead.current) for (const root of roots) memoryTouched.current.add(root);
+    conversationByRoot.current = withoutRoots(conversationByRoot.current, roots); setMemoryTick(tick => tick + 1);
+    overviewRun.current?.forgetRoots(roots);
+  }
   const cards = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
   const card = cards.find(card => card.rows.some(row => row.path === loadedRoot));
   const entry = entries.find(entry => entry.path === loadedRoot);
@@ -415,7 +483,11 @@ export function App() {
     }
     // Home and the Add Projects page show the sidebar without a current project; its row goes back to the loaded
     // workspace (design §3).
-    if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) { if (currentScreen.current !== "workspace") enter(loadedRoot); return; }
+    if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) {
+      if (currentScreen.current !== "workspace") enter(loadedRoot);
+      else if (shownOverviewRef.current === loadedRoot) askSlot(loadedRoot);
+      return;
+    }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
     if (memory.expanded) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
@@ -428,8 +500,14 @@ export function App() {
     if (selected?.kind !== "list" && selected?.kind !== "loading") { setShellProjects(previous => ({ ...previous, [key]: { ...memory, selectedRoot: root, expanded: true } })); return; }
     controller.current?.openWorkspace(root, next => {
       setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
+      askSlot(next);
       completeNavigation(next);
     });
+  };
+  // The project row's slot stands for a project conversation with work left: its Overview opens on it.
+  const askSlot = (root: string) => {
+    const slot = homeRun.current.slotConversation(root);
+    if (slot) overviewRun.current!.request(root, slot.conversationId, slot.waiting ? "permission" : null);
   };
   // A locked page keeps the disclosure, as project expansion does (design-system-canvases design 'sidebar').
   const toggleShellGroup = (key: string, id: GroupId) => {
@@ -451,8 +529,8 @@ export function App() {
 
   const modal = wizard !== null || !!comments.dialog || setup !== null || quickOpen || homeRun.current.removing !== null || projectSettings !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root });
-  live.current = { home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root) };
+  const live = useRef({ home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, newConversation: () => {} });
+  live.current = { home, enter, toast, modal, save, comments, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, newConversation };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -548,7 +626,12 @@ export function App() {
     const registered = entriesRef.current.some(entry => entry.path === click.root);
     const to = notificationTarget(click, known, registered, locked() || live.current.modal);
     if (to.kind === "conversation") homeRun.current.openConversation(to.conversationId);
-    else if (to.kind === "overview") showShellOverview(to.root);
+    // A conversation this run has not listed yet is asked for on its root's Overview, which reads the list again and
+    // falls back to its default when main does not list it either.
+    else if (to.kind === "overview") {
+      if (shownOverviewRef.current === to.root) askConversation(to.root, click.conversationId);
+      else showShellOverview(to.root, undefined, () => askConversation(to.root, click.conversationId));
+    }
   }
   function leavePage(event: AddPageEvent) {
     if ((currentScreen.current !== "addProjects" && currentScreen.current !== "settings") || locked()) return;
@@ -592,7 +675,7 @@ export function App() {
   // when the window comes back to the front (design 'App 수준 로그인 컨트롤러').
   useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
   useEffect(() => {
-    const focused = () => agentSignIn().windowFocused();
+    const focused = () => { agentSignIn().windowFocused(); overviewRun.current!.focusChanged(); };
     window.addEventListener("focus", focused);
     return () => window.removeEventListener("focus", focused);
   }, []);
@@ -642,6 +725,7 @@ export function App() {
       })));
       setExpanded(previous => Object.fromEntries(Object.entries(previous).filter(([root]) => !paths.includes(root))));
       for (const root of paths) controller.current?.remember(root, null);
+      forgetConversations(paths);
       const previous = historyRef.current;
       const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
       const nextHistory = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
@@ -676,14 +760,11 @@ export function App() {
       quickOpen: () => live.current.search(),
       undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
       review: move => live.current.comments.reviewStep(move),
+      newConversation: () => live.current.newConversation(),
     });
   }), []);
   const onPage = screen === "addProjects", onSettings = screen === "settings";
   const pageLocked = (onPage && page.locked) || (onSettings && settings.locked);
-  useEffect(() => {
-    void window.doan.setMenuState({ screen: onPage || onSettings ? screen : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing,
-      ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}) });
-  }, [screen, state.open, modal, toast.toast?.action, comments.reviewing, page.choose, pageLocked]);
   // Home and the pages end a Review like another canvas; the progress passed stays raised.
   useEffect(() => { if (screen !== "workspace") comments.closeReview(); }, [screen]);
   const command = (name: ViewCommand) => controller.current?.command(name);
@@ -700,59 +781,58 @@ export function App() {
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
     controller.current?.openCanvas(result.root, row, frameId, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
   }
-  const thumbs = useThumbnails(entry?.kind === "list" ? entry.path : null, entry?.kind === "list" ? entry.canvases : []);
-  const overview = screen === "workspace" && entry?.kind === "list" && !state.open ? entry : null;
+  // An Overview that was open when its project turned into a problem stays, its thread readable and Send held; one
+  // entered while the project is a problem shows the problem screen (buzz-project spec decision 12).
+  const healthyOverview = screen === "workspace" && entry?.kind === "list" && !state.open ? entry.path : null;
+  const [keptOverview, setKeptOverview] = useState<string | null>(null);
+  useEffect(() => {
+    if (healthyOverview) setKeptOverview(healthyOverview);
+    else if (screen !== "workspace" || state.open || loadedRoot !== keptOverview) setKeptOverview(null);
+  }, [healthyOverview, screen, state.open, loadedRoot]);
+  const overview = healthyOverview !== null || (keptOverview !== null && screen === "workspace" && !state.open && loadedRoot === keptOverview && entry) ? entry ?? null : null;
   const shownOverview = overview?.path ?? null;
-  // Only roots on screen are read: an open canvas being edited would otherwise
-  // cost a second ls per change. A root is read again when it comes back on
-  // screen, so `projectComments.refresh` matters only for one already shown.
-  const countedRoots = useMemo(() => shownOverview ? [shownOverview] : [], [shownOverview]);
-  const projectComments = useProjectComments(entries, countedRoots);
-  reviewedRoot.current = projectComments.refresh;
-  // A Feedback row or its "N resolved to review": the canvas opens (draft guard
-  // applies), then the Comments panel goes to the comment or starts Review.
-  // `unavailable` gets the entry the controller judged by, not this render's
-  // (POSTMORTEM 2026-10-25 "Navigation feedback read the previous React snapshot").
-  const openFeedback = (root: string, row: CanvasRow, target: { comment: string; status: "open" | "resolved" } | "review") => {
-    cancelRestore();
-    controller.current?.openCanvas(root, row, undefined, {
-      unavailable: entry => live.current.toast.show(unavailableCanvasMessage(entry, row.path)),
-      opened: () => { completeNavigation(root); live.current.comments.openAt(target === "review" ? { root, path: row.path, review: true } : { root, path: row.path, ...target }); },
-    });
-  };
-  const feedback = overview && <FeedbackPanel key={overview.path} root={overview.path} rows={overview.canvases} read={projectComments.reads.get(overview.path)} orphans={comments.orphans}
-    onRetry={() => projectComments.refresh(overview.path)}
-    onOrphan={(intent, at, comment) => { comments.orphanIntent(intent, at, comment); if (intent === "read-latest") projectComments.refresh(at.root); }}
-    onRetryGit={() => { void comments.orphans.retryGit(overview.path); }}
-    onOpenComment={(row, comment, status) => openFeedback(overview.path, row, { comment, status })}
-    onOpenCanvas={row => openShellCanvas(overview.path, row)}
-    onReview={row => openFeedback(overview.path, row, "review")}
-    reveal={reveal?.root === overview.path ? reveal : null} onRevealed={() => setReveal(null)} />;
+  shownOverviewRef.current = shownOverview;
+  useEffect(() => {
+    void window.doan.setMenuState({ screen: onPage || onSettings ? screen : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: comments.reviewing,
+      ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null ? { overview: true } : {}) });
+  }, [screen, state.open, modal, toast.toast?.action, comments.reviewing, page.choose, pageLocked, shownOverview]);
+  useLayoutEffect(() => { overviewRun.current!.show(shownOverview); }, [shownOverview]);
+  // The window's focus decides whether the shown conversation is seen (spec decision 11); the focus listener is the
+  // sign-in controller's below.
+  useEffect(() => {
+    const blur = () => overviewRun.current!.focusChanged();
+    window.addEventListener("blur", blur);
+    return () => window.removeEventListener("blur", blur);
+  }, []);
+  // File > New Conversation (⌘N) on the shown Overview: the new conversation state, its composer field focused.
+  function newConversation() {
+    const root = shownOverviewRef.current;
+    if (!root || live.current.modal) return;
+    overviewRun.current!.select(root, null);
+    queueMicrotask(() => document.querySelector<HTMLElement>(".workspace .ov-main .composer-input")?.focus());
+  }
   const previousOverview = useRef(shownOverview);
   useEffect(() => {
-    if (previousOverview.current !== null && previousOverview.current !== shownOverview) { setOverviewNotice(null); setReveal(null); }
+    if (previousOverview.current !== null && previousOverview.current !== shownOverview) setOverviewNotice(null);
     previousOverview.current = shownOverview;
   }, [shownOverview]);
   const rendered = useMemo(() => state.open && state.layout ? { root: state.open.folder, path: state.open.canvas, frames: state.layout.frames } : undefined, [state.open?.folder, state.open?.canvas, state.layout]);
   const names = projectNames(entries.map(entry => entry.path));
   const name = names.get(state.open?.folder ?? entries[0]?.path ?? "") ?? "";
-  const firstPrompt = useFirstPromptWait({
-    entries, wizardOpen: wizard !== null, workspaceRoot: screen === "workspace" ? loadedRoot : null,
-    toast: (message, label, run) => toast.show(message, label, run),
-    projectName: root => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root,
-    openCanvas: (root: string, row: CanvasRow, explicit: boolean) => {
-      if (locked()) return;
-      cancelRestore();
-      const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, row.path));
-      controller.current?.openCanvas(root, row, undefined, { ...(explicit ? { unavailable } : {}), opened: () => completeNavigation(root) });
-    },
-  });
-
   // Home conversations (buzz-home design §7) are decided by HomeRun; App wires its navigation, toasts and dialogs.
   const projectLabel = (root: string) => cards.find(card => card.rows.some(row => row.path === root))?.name ?? names.get(root) ?? root;
   const projectLabelRef = useRef(projectLabel); projectLabelRef.current = projectLabel;
   const run = homeRun.current;
-  useEffect(() => window.doan.onConversationEvent(event => homeRun.current.event(event)), []);
+  // The Overview's right panel (design §2.3): canvases with a current conversation, thumbnails asked for those only.
+  const listed = overview ? run.listState(overview.path) : null;
+  const canvasList: CanvasList = overview === null || listed === null ? [] : typeof listed === "string" ? listed
+    : canvasConversationRows(listed, overview.kind === "list" ? overview.canvases : [], Date.now(), run.seenPending());
+  const thumbs = useThumbnails(overview?.kind === "list" ? overview.path : null, typeof canvasList === "string" ? [] : canvasList.flatMap(item => item.row ? [item.row] : []));
+  // A canvas opened from its row: its current conversation is seen through main's last seq (spec decision 11, until C12).
+  function markCanvasSeen(conversationId: string) {
+    void window.doan.readConversation({ conversationId }).then(read => { if (!("error" in read)) homeRun.current.markSeenThrough(conversationId, read.lastSeq); }, () => {});
+  }
+  useEffect(() => window.doan.onConversationEvent(event => { homeRun.current.event(event); overviewRun.current!.event(event); }), []);
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
   useEffect(() => {
     if (modal) { homeRun.current.modalChanged(true); return; }
@@ -768,7 +848,7 @@ export function App() {
     setRunTick(tick => tick + 1);
   }, [screen, loadedRoot, state.open?.canvas, run.conversations, run.revision]);
   const shown = run.strip(loadedRoot);
-  const strip = shown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
+  const strip = overview === null && shown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
     onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
@@ -782,7 +862,7 @@ export function App() {
   const modelRoot = defaultProject(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])), {
     current: composerMemory.current.root ? { root: composerMemory.current.root, name: composerMemory.current.root } : null, loaded: loadedRoot, lastRoot: homeMemory?.lastRoot ?? null }).root;
   const settingsProject = entries.some(entry => entry.path === modelRoot && entry.kind === "list") ? { root: modelRoot!, name: projectLabel(modelRoot!) } : null;
-  return <TooltipProvider><FirstPromptContext.Provider value={firstPrompt}>
+  return <TooltipProvider>
   {screen === "home" && <Home header={topBar} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
     memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
@@ -797,8 +877,19 @@ export function App() {
     {sidebar(false)}
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
-    {overview && <ProjectOverview key={overview.path} root={overview.path} rows={overview.canvases} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null} comments={projectComments.comments.get(overview.path)} open={row => openShellCanvas(overview.path, row)} />}
-    <div className="right-stack"><RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} feedback={feedback} />{comments.panel}</div>
+    {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
+      worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
+      unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
+      list={run.listState(overview.path)} seen={run.seenPending()} holder={run.running().get(overview.path) ?? null}
+      prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()}
+      onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={canvas => openConversationCanvas(overview.path, canvas)}
+      onRetryList={() => run.retryList(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
+      onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
+      onAction={(name, root) => action(name, root)}
+      onProjectSettings={root => { if (!live.current.modal && card) setProjectSettings(previous => ({ root, key: card.key, seq: (previous?.seq ?? 0) + 1 })); }}
+      onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} />}
+    <div className="right-stack">{overview ? <CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
+      open={item => { if (item.row) openShellCanvas(overview.path, item.row, undefined, () => markCanvasSeen(item.conversationId)); }} retry={() => run.retryList(overview.path)} /> : <RightPanel state={state} selectPath={item => controller.current?.selectPath(item)} />}{comments.panel}</div>
   </main>
   {comments.dialog}
   {projectSettings && <ProjectSettingsDialog key={projectSettings.seq} root={projectSettings.root} projectKey={projectSettings.key} entries={entries} reroot={reroot} homeDirectory={homeDirectory}
@@ -818,7 +909,7 @@ export function App() {
       if (wizardCloseFocus(root) === "composer") { beforeWizard.current = null; focusComposer.current = true; live.current.home(); choose(root ?? undefined); }
       else restoreFocus.current = true;
     }} />}
-  </FirstPromptContext.Provider></TooltipProvider>;
+  </TooltipProvider>;
 }
 
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks

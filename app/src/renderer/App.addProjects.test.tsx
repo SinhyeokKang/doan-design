@@ -36,7 +36,6 @@ vi.mock("react", async original => {
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
   showWorkspace: null as null | (() => void),
-  firstPrompt: null as null | { openCanvas(root: string, row: unknown, explicit: boolean): void },
   toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
 }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
@@ -58,12 +57,10 @@ vi.mock("./CanvasController", async original => ({
 vi.mock("./useComments", () => ({
   useComments: (_state: unknown, _controller: unknown, showWorkspace: () => void) => {
     harness.showWorkspace = showWorkspace;
-    return { session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), orphans: {}, orphanIntent: vi.fn(), reviewStep: vi.fn(), openAt: vi.fn() };
+    return { session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), reviewStep: vi.fn() };
   },
 }));
-vi.mock("./Home", async original => ({ ...await original<typeof import("./Home")>(), useProjectComments: () => ({ comments: new Map(), reads: new Map(), refresh: vi.fn() }) }));
-vi.mock("./ProjectOverview", async original => ({ ...await original<typeof import("./ProjectOverview")>(), useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
-vi.mock("./FirstPrompt", async original => ({ ...await original<typeof import("./FirstPrompt")>(), useFirstPromptWait: (options: never) => { harness.firstPrompt = options; return {}; } }));
+vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { AddProjectsPage } = await import("./AddProjectsPage");
@@ -220,7 +217,6 @@ test("while the page is locked every way out is ignored, one case per navigation
     ["Overview item (showShellOverview)", () => { page()!.props.sidebar.props.overview!("/w/b" as never); render(); }],
     ["Home send's move (HomeRun openOverview)", () => { const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openOverview(root: string, arrived: () => boolean, unavailable: () => void): void } }).host; host.openOverview("/w/b", () => true, vi.fn()); render(); }],
     ["Home run's canvas (HomeRun openCanvas)", () => { const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openCanvas(root: string, row: CanvasRow): void } }).host; host.openCanvas("/w/b", rowA); render(); }],
-    ["first prompt toast Open", () => { harness.firstPrompt!.openCanvas("/w/b", rowA, true); render(); }],
     ["comment guard's showWorkspace", () => { harness.showWorkspace!(); render(); }],
   ];
   for (const [name, move] of moves) {

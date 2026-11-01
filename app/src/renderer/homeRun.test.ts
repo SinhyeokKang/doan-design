@@ -62,17 +62,17 @@ function harness(entries: FolderEntry[] = [list(ROOT, ["a"])]) {
 }
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-test("a sent request moves to the project's Overview and focuses Stop, even when a permission request came before the reply", async () => {
+test("a sent request moves to the project's Overview with that conversation and focuses the composer field, even when a permission request came before the reply", async () => {
   const h = harness();
   h.run.event(event("c1", { type: "turn.started" }));
   h.run.event(event("c1", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
   const sending = h.run.start(REQUEST, LAST);
   start.resolve({ conversationId: "c1" });
-  expect(await sending).toEqual({ ok: true });
-  expect(h.host.openOverview).toHaveBeenCalledWith(ROOT, expect.any(Function), expect.any(Function));
+  expect(await sending).toEqual({ ok: true, conversationId: "c1" });
+  expect(h.host.openOverview).toHaveBeenCalledWith(ROOT, expect.any(Function), expect.any(Function), "c1");
   expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
   h.arrive();
-  expect(h.run.takeFocus()).toBe("stop");
+  expect(h.run.takeFocus()).toBe("composer");
   expect(h.run.takeFocus()).toBeNull();
   expect(h.host.sent).toHaveBeenCalledWith(REQUEST);
   // The request was toasted only because the person was not on that project when it arrived.
@@ -436,16 +436,93 @@ test("visiting the bound canvas marks its unseen ending seen; the project's Over
 });
 
 test("an ending that arrives while the person is on its row is marked seen before it is drawn", async () => {
-  lists({ [ROOT]: [summary({ conversationId: "u", phase: "running" })] });
+  const bound = { path: ".doan/canvases/a.html", id: "a" };
+  lists({ [ROOT]: [summary({ conversationId: "u", phase: "running", canvas: bound })] });
   const h = harness();
-  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT; h.view.canvas = bound.path;
   h.run.entriesChanged();
   await flush();
-  h.run.visit([ROOT]);
-  lists({ [ROOT]: [summary({ conversationId: "u", unseen: true })] });
+  h.run.visit([ROOT, `${ROOT}\n${bound.path}`]);
+  lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: bound })] });
   h.run.listChanged(ROOT);
   await flush();
   expect(h.run.slots().size).toBe(0);
+});
+
+// buzz-project spec decision 11: a project conversation is seen only while it shows in the Overview's main column with
+// the window focused (the Overview marks it); opening the workspace or the Overview alone marks none.
+test("visiting the project row leaves project conversations unseen and marks only canvas ones whose canvas left", async () => {
+  lists({ [ROOT]: [
+    summary({ conversationId: "p", unseen: true }),
+    summary({ conversationId: "gone", unseen: true, canvas: { path: ".doan/canvases/gone.html", id: "gone" } }),
+  ] });
+  doan.readConversation!.mockResolvedValue({ events: [event("x", { type: "turn.done" })], lastSeq: 7, turn: "idle" });
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  h.run.visit([ROOT]);
+  await flush(); await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(1);
+  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "gone", seq: 7 });
+  expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
+});
+
+test("the Overview's seen marks go through the run: a later seq waits for one still pending and then follows it", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p", unseen: true })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  const first = deferred<void>();
+  doan.markConversationSeen!.mockImplementationOnce(() => first.promise);
+  h.run.markSeenThrough("p", 4);
+  expect(h.run.slots().size).toBe(0);
+  expect(h.run.seenPending().has("p")).toBe(true);
+  h.run.markSeenThrough("p", 6);
+  await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(1);
+  first.resolve();
+  await flush(); await flush();
+  expect(doan.markConversationSeen).toHaveBeenLastCalledWith({ conversationId: "p", seq: 6 });
+  expect(doan.markConversationSeen).toHaveBeenCalledTimes(2);
+});
+
+test("each root's list reads are counted, and a failed read shows as an error until a retry answers", async () => {
+  const h = harness();
+  doan.listConversations!.mockResolvedValueOnce({ error: "unknown" });
+  h.run.entriesChanged();
+  expect(h.run.listState(ROOT)).toBe("loading");
+  expect(h.run.readsStarted(ROOT)).toBe(1);
+  await flush();
+  expect(h.run.listState(ROOT)).toBe("error");
+  expect(h.run.readsApplied(ROOT)).toBe(0);
+  lists({ [ROOT]: [summary({})] });
+  h.run.retryList(ROOT);
+  expect(h.run.listState(ROOT)).toBe("error");
+  await flush();
+  expect(h.run.listState(ROOT)).toEqual([summary({})]);
+  expect(h.run.readsApplied(ROOT)).toBe(2);
+});
+
+test("a start from the Overview stays there: no move, no started toast, and the run still tracks the conversation", async () => {
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  const sending = h.run.start(REQUEST, LAST, { stay: true });
+  start.resolve({ conversationId: "c1" });
+  expect(await sending).toEqual({ ok: true, conversationId: "c1" });
+  expect(h.host.openOverview).not.toHaveBeenCalled();
+  expect(h.host.toast).not.toHaveBeenCalled();
+  expect(h.run.knows("c1")).toBe(true);
+  expect(h.run.takeFocus()).toBeNull();
+});
+
+test("opening a project conversation asks for it on its project's Overview", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  h.run.openConversation("p");
+  expect(h.host.openOverview).toHaveBeenCalledWith(ROOT, expect.any(Function), expect.any(Function), "p");
 });
 
 test("a list that arrives right after a switch to another canvas does not mark the previous canvas's ending seen", async () => {
@@ -586,4 +663,138 @@ test("Edit on Home after a reload carries the re-issued images' thumbnails", asy
   await h.run.editOnHome("c1");
   const request = h.run.restore!.request;
   expect(request.thumbnails).toEqual({ [request.attachments[0]!.key]: bytes });
+});
+
+test("a project row's slot names the project conversation the Overview should open, never a canvas one", async () => {
+  lists({ [ROOT]: [
+    summary({ conversationId: "done", unseen: true, lastActivityAt: "2026-11-01T00:05:00.000Z" }),
+    summary({ conversationId: "asks", phase: "waiting" }),
+    summary({ conversationId: "canvas", phase: "waiting", canvas: { path: ".doan/canvases/a.html", id: "a" } }),
+  ], [OTHER]: [summary({ conversationId: "quiet" })] });
+  // After a reload the run reads each one's history for the strip; the waiting one's has its request.
+  doan.readConversation!.mockImplementation(async ({ conversationId }: { conversationId: string }) => ({ events: conversationId === "asks"
+    ? [event("asks", { type: "turn.started" }), event("asks", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] })]
+    : [event(conversationId, { type: "turn.started" }), event(conversationId, { type: "turn.done" })], lastSeq: 2, turn: "idle" }));
+  const h = harness([list(ROOT, ["a"]), list(OTHER, [])]);
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(h.run.slotConversation(ROOT)).toEqual({ conversationId: "asks", waiting: true });
+  expect(h.run.slotConversation(OTHER)).toBeNull();
+});
+
+// Review RM r1 🟡5, spec decision 6 last bullet: a turn sent in an existing project conversation that makes a new
+// canvas opens it during the turn, from a baseline taken before the send and only while the person opened none.
+test("a send in an existing project conversation opens the new canvas its turn makes, after one existing at the send", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("p", { type: "turn.started" }, "t0"), event("p", { type: "turn.done" }, "t0")], lastSeq: 2, turn: "idle" });
+  const send = deferred<void>();
+  doan.sendConversation = vi.fn(() => send.promise);
+  const h = harness();
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  const sending = h.run.send(ROOT, "claude", { conversationId: "p", text: "Draw a pricing page.", anchors: [] });
+  // The canvas appears before main's reply: still new to this turn.
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  send.resolve();
+  expect(await sending).toBeUndefined();
+  h.run.event(event("p", { type: "turn.started" }, "t1"));
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+  // An edit of a canvas that already existed opens nothing (promotion by edit resets the Overview instead).
+  vi.mocked(h.host.openCanvas).mockClear();
+  const second = h.run.send(ROOT, "claude", { conversationId: "p", text: "Edit pricing.", anchors: [] });
+  send.resolve(); await second;
+  h.run.event(event("p", { type: "turn.started" }, "t2"));
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+});
+
+test("a send whose canvas appears after the person opened another canvas is offered in a toast", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "p" })] });
+  doan.sendConversation = vi.fn(async () => {});
+  const h = harness([list(ROOT, ["a"])]);
+  h.view.screen = "workspace"; h.view.loadedRoot = ROOT;
+  h.run.entriesChanged();
+  await flush(); await flush();
+  await h.run.send(ROOT, "claude", { conversationId: "p", text: "Draw.", anchors: [] });
+  h.run.event(event("p", { type: "turn.started" }, "t1"));
+  h.run.canvasShown(ROOT, ".doan/canvases/a.html");
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  h.run.entriesChanged();
+  expect(h.host.openCanvas).not.toHaveBeenCalled();
+  expect(h.host.toast).toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
+});
+
+test("a refused send registers no turn", async () => {
+  doan.sendConversation = vi.fn(async () => ({ error: "busy" }));
+  const h = harness();
+  expect(await h.run.send(ROOT, "claude", { conversationId: "p", text: "x", anchors: [] })).toEqual({ error: "busy" });
+  expect(h.run.knows("p")).toBe(false);
+});
+
+// Review RM r2 🟡2: a send's turn that starts and ends before main's reply keeps main's binding window for its canvas.
+test("a send's new canvas opens within the binding window whether the reply, the events or an immediate end came first", async () => {
+  for (const order of ["reply first", "events first", "untracked immediate end"] as const) {
+    lists({ [ROOT]: [summary({ conversationId: "p" })] });
+    doan.readConversation!.mockResolvedValue({ events: [], lastSeq: 0, turn: "idle" });
+    const h = harness();
+    h.view.screen = "workspace"; h.view.loadedRoot = ROOT; h.view.entries = [list(ROOT, ["a"])];
+    h.run.entriesChanged();
+    await flush(); await flush();
+    if (order !== "untracked immediate end") {
+      // The run knows the conversation from an earlier send whose turn ended.
+      doan.sendConversation = vi.fn(async () => {});
+      await h.run.send(ROOT, "claude", { conversationId: "p", text: "first", anchors: [] });
+      h.run.event(event("p", { type: "turn.started" }, "t1"));
+      h.run.event(event("p", { type: "turn.done" }, "t1"));
+      await flush();
+    }
+    const reply = deferred<void>();
+    doan.sendConversation = vi.fn(() => reply.promise);
+    const sending = h.run.send(ROOT, "claude", { conversationId: "p", text: "Draw pricing.", anchors: [] });
+    if (order === "reply first") { reply.resolve(); await sending; }
+    h.run.event(event("p", { type: "turn.started" }, "t2"));
+    h.run.event(event("p", { type: "turn.done" }, "t2"));
+    if (order !== "reply first") { reply.resolve(); await sending; }
+    h.view.entries = [list(ROOT, ["a", "pricing"])];
+    h.run.entriesChanged();
+    expect(h.host.openCanvas, order).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/pricing.html" }));
+  }
+});
+
+// Review RM r3 🟡1: a permission request the send's turn raised before main's reply still gets the away toast once;
+// on its own project's screen none.
+test("a send's permission request toasts once away from its project, whether it came before or after the reply", async () => {
+  for (const tracked of [false, true]) for (const before of [true, false]) for (const away of [true, false]) {
+    const label = `tracked ${tracked}, before ${before}, away ${away}`;
+    seq = 0;
+    lists({ [ROOT]: [] });
+    doan.readConversation!.mockResolvedValue({ events: [], lastSeq: 0, turn: "idle" });
+    const h = harness([list(ROOT, ["a"]), list(OTHER, [])]);
+    h.view.screen = "workspace"; h.view.loadedRoot = away ? OTHER : ROOT;
+    h.run.entriesChanged();
+    await flush();
+    if (tracked) {
+      start = deferred();
+      const sending = h.run.start(REQUEST, LAST, { stay: true }); start.resolve({ conversationId: "c1" }); await sending;
+      await flush();
+      h.run.event(event("c1", { type: "turn.started" }, "t1"));
+      h.run.event(event("c1", { type: "turn.done" }, "t1"));
+    }
+    const ask = () => {
+      h.run.event(event("c1", { type: "turn.started" }, "t2"));
+      h.run.event(event("c1", { type: "permission.request", requestId: "r2", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }, "t2"));
+    };
+    const reply = deferred<void>();
+    doan.sendConversation = vi.fn(() => reply.promise);
+    const sending = h.run.send(ROOT, "claude", { conversationId: "c1", text: "Draw.", anchors: [] });
+    if (before) ask();
+    reply.resolve(); await sending;
+    if (!before) ask();
+    await flush();
+    expect(h.run.strip(ROOT)?.state.kind, label).toBe("permission");
+    const toasts = vi.mocked(h.host.toast).mock.calls.filter(call => call[0] === "Claude Code needs your answer in doan.");
+    expect(toasts, label).toHaveLength(away ? 1 : 0);
+  }
 });

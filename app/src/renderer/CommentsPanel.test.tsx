@@ -240,7 +240,6 @@ test("newer-version warning explains the record and preserves valid comments", (
   expect(out).toContain("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;\n  Keep spaces ");
 });
 
-
 test("uncertain quit explicitly warns about memory loss and cancellation restores focus", () => {
   const onStay = vi.fn(), onQuit = vi.fn(), restoreEditorFocus = vi.fn();
   const dialog = UncertainCommentDialog({ kind: "quit", context: "repo / a", onStay, onQuit, restoreEditorFocus });
@@ -606,8 +605,8 @@ describe("editing a resolved comment and replacing a missing target (revision-re
 // project-feedback design §5, draft `id-change-notice`: the first banner under
 // the head, above the review notice, and above the canvas-ID block.
 describe("id change notice", () => {
-  const notice = { text: "3 comments still use the old ID checkout-v1 and no longer show here.", onShow: noop };
-  const banner = `<div class="comments-message warning notice" role="status">${icon}3 comments still use the old ID checkout-v1 and no longer show here.<button type="button" class="comments-btn doan-button" data-ui-variant="subtle" data-ui-size="sm">Show</button></div>`;
+  const notice = { text: "3 comments still use the old ID checkout-v1 and no longer show here. Run doan check in a terminal." };
+  const banner = `<div class="comments-message warning notice" role="status">${icon}3 comments still use the old ID checkout-v1 and no longer show here. Run doan check in a terminal.</div>`;
 
   test("sits right under the head, before the review notice", () => {
     const html = renderToStaticMarkup(<CommentsPanel {...panel({ idNotice: notice, reviewNotice: { count: 3, firstSeen: false, blocked: false, onStart: noop } })} />);
@@ -618,22 +617,6 @@ describe("id change notice", () => {
   test("stays first above the canvas-ID block", () => {
     const html = renderToStaticMarkup(<CommentsPanel {...panel({ idNotice: notice, identityCause: "duplicate" })} />);
     expect(html).toContain(`<h3 class="comments-title alone" tabindex="-1">Comments</h3>${banner}<div class="comments-message error" role="alert">`);
-  });
-
-  test("Show calls back", () => {
-    const onShow = vi.fn();
-    const element = CommentsPanel(panel({ idNotice: { ...notice, onShow } })) as { props: { children: ReactNode } };
-    const find = (node: ReactNode): (() => void) | undefined => {
-      for (const child of Children.toArray(node)) {
-        if (!isValidElement<{ children?: ReactNode; onClick?: () => void }>(child)) continue;
-        if (child.props.children === "Show" && child.props.onClick) return child.props.onClick;
-        const found = find(child.props.children);
-        if (found) return found;
-      }
-      return undefined;
-    };
-    find(element.props.children)?.();
-    expect(onShow).toHaveBeenCalledTimes(1);
   });
 
   test("absent without a notice", () => {

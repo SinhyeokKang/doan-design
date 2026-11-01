@@ -45,12 +45,17 @@ export interface UiState {
   home?: HomeMemory;
   // The Settings page's last category. The page itself is not restored; only where it opens next.
   settingsSection?: SettingsSection;
+  // The project conversation last shown in each root's Overview (buzz-project design §2.4). Top-level, not in
+  // `shellProjects`: those entries are rebuilt per group on every save and would drop it.
+  conversationByRoot?: Record<string, string>;
 }
 
 export const UI_STATE_MAX_BYTES = 64 * 1024;
 
 // The kebab id rule main's comment files enforce (`main/comments/files.ts`).
 const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// The conversation id rule main's history files enforce (`main/conversation/io.ts`).
+const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 
 // A broken file or a size over the limit is `null`, which starts at home. A
 // wrong-typed optional field or map entry is dropped on its own so one bad
@@ -99,6 +104,7 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
     }
     state.shellProjects = Object.fromEntries(projects);
   }
+  if (isRecord(value["conversationByRoot"])) state.conversationByRoot = entries(value["conversationByRoot"], saved, (item) => (typeof item === "string" && CONVERSATION_ID.test(item) ? item : undefined));
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
   // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
   // Settings > Connections was removed; a stored one opens About.
@@ -163,4 +169,10 @@ function entries<T>(value: unknown, saved: ReadonlySet<string>, read: (item: unk
     if (parsed !== undefined) kept.push([root, parsed]);
   }
   return Object.fromEntries(kept);
+}
+
+// A per-root map without the removed roots, so a removed project keeps no memory until the next read prunes it.
+export function withoutRoots<T>(map: Readonly<Record<string, T>>, removed: readonly string[]): Record<string, T> {
+  const gone = new Set(removed);
+  return Object.fromEntries(Object.entries(map).filter(([root]) => !gone.has(root)));
 }

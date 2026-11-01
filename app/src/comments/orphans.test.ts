@@ -9,11 +9,11 @@ const orphan = (id: string, open: number, resolved: number, extra: Partial<Orpha
 describe("idChangeNotice", () => {
   test("counts every visible comment of the old id, plural", () => {
     expect(idChangeNotice("checkout-v1", [orphan("checkout-v1", 2, 1)]))
-      .toEqual({ id: "checkout-v1", count: 3, text: "3 comments still use the old ID checkout-v1 and no longer show here." });
+      .toEqual({ id: "checkout-v1", count: 3, text: "3 comments still use the old ID checkout-v1 and no longer show here. Run doan check in a terminal." });
   });
 
   test("uses the singular for one comment, open or resolved", () => {
-    const text = "1 comment still uses the old ID checkout-v1 and no longer shows here.";
+    const text = "1 comment still uses the old ID checkout-v1 and no longer shows here. Run doan check in a terminal.";
     expect(idChangeNotice("checkout-v1", [orphan("checkout-v1", 1, 0)])?.text).toBe(text);
     expect(idChangeNotice("checkout-v1", [orphan("checkout-v1", 0, 1)])?.text).toBe(text);
   });

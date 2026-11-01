@@ -191,12 +191,7 @@ test("thumbnail visibility uses its fixed channel in both directions", async () 
   ]);
 });
 
-test("first prompt always sends the subject", async () => {
-  await api.firstPrompt("/repo", "a sign-in screen");
-  expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:first-prompt", { root: "/repo", subject: "a sign-in screen" });
-  await api.copyFirstPrompt("/repo", "a sign-in screen");
-  expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:copy", { kind: "firstPrompt", root: "/repo", subject: "a sign-in screen" });
-});
+
 
 test("window visibility: the current value is asked for, and later changes follow", async () => {
   mocks.invoke.mockResolvedValueOnce({ visible: true });

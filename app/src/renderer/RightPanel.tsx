@@ -1,4 +1,5 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useRef } from "react";
+import { CanvasConversationList, type CanvasConversationListProps } from "./CanvasConversationList";
 import { activityFor, activityText, movedFrom, timeText } from "./activity";
 import { canvasInfo } from "./canvasInfo";
 import type { InspectRow } from "../main/inspect";
@@ -8,11 +9,8 @@ import { frameLabel } from "./canvasView";
 import { INSPECT_GROUPS, sourceNotes, swatchColor, tokenTitle } from "./inspector";
 import type { SelectionView } from "./selection";
 
-// `feedback`: the Overview's Feedback panel, which takes the place of
-// "No canvas open" there (project-feedback); other screens pass none.
-export function RightPanel({ state, selectPath, feedback }: { state: CanvasState; selectPath: (item: PathItem) => void; feedback?: ReactNode }) {
+export function RightPanel({ state, selectPath }: { state: CanvasState; selectPath: (item: PathItem) => void }) {
   const open = state.open;
-  if (!open && feedback) return <>{feedback}</>;
   if (open && state.selection) return <Inspector selection={state.selection} inspector={state.inspector} selectPath={selectPath} />;
   const info = open ? canvasInfo(open.row, state.unlisted ? null : state.layout) : null;
   return <aside className="right native-scroll" role="region" aria-label="Canvas info">
@@ -22,6 +20,17 @@ export function RightPanel({ state, selectPath, feedback }: { state: CanvasState
       <p className="pempty">Click an element or frame to inspect or comment on it.</p>
       <section className="isec activity" aria-label="Activity"><h3 className="ihead">Activity</h3><ol>{activityFor(state.activity, open.folder, open.canvas, open.row.id).map((event, index) => <li className="tl-row" key={index}><time>{timeText(event.at)}</time><b>{activityText(event)}</b>{event.kind === "moved" && <span className="from" title={movedFrom(event)}>· from {movedFrom(event)}</span>}</li>)}</ol></section>
     </>}
+  </aside>;
+}
+
+// The Overview's right panel (buzz-project design §2.3): the region and its title, named once; the list inside is
+// unnamed.
+export function CanvasConversations(props: Omit<CanvasConversationListProps, "scroller" | "title">) {
+  const scroller = useRef<HTMLElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
+  return <aside className="right native-scroll ov-right" role="region" aria-label="Canvas conversations" ref={scroller}>
+    <h2 className="phead rp-head" tabIndex={-1} ref={title}>Canvas conversations</h2>
+    <CanvasConversationList {...props} scroller={scroller} title={title} />
   </aside>;
 }
 

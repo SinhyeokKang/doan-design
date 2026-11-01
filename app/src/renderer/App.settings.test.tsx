@@ -60,11 +60,9 @@ vi.mock("./CanvasController", async original => ({
   },
 }));
 vi.mock("./useComments", () => ({
-  useComments: () => ({ session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), orphans: {}, orphanIntent: vi.fn(), reviewStep: vi.fn(), openAt: vi.fn() }),
+  useComments: () => ({ session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), reviewStep: vi.fn() }),
 }));
-vi.mock("./Home", async original => ({ ...await original<typeof import("./Home")>(), useProjectComments: () => ({ comments: new Map(), reads: new Map(), refresh: vi.fn() }) }));
-vi.mock("./ProjectOverview", async original => ({ ...await original<typeof import("./ProjectOverview")>(), useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
-vi.mock("./FirstPrompt", async original => ({ ...await original<typeof import("./FirstPrompt")>(), useFirstPromptWait: () => ({}) }));
+vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
 const { SettingsPage } = await import("./SettingsPage");
@@ -74,6 +72,9 @@ const { QuickOpen } = await import("./QuickOpenDialog");
 const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
 const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
+const { RightPanel } = await import("./RightPanel");
+const { KeyedConversationStrip } = await import("./ConversationStripView");
+const { ProjectOverview } = await import("./ProjectOverview");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -416,4 +417,64 @@ test("the project menu's Project Settings opens its dialog as a modal, even whil
   find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
   expect(find(ProjectSettingsDialog)).toHaveLength(1);
   expect(addPage()).toBeDefined();
+});
+
+const problemEntries: FolderEntry[] = [
+  { path: "/w/a", kind: "loading" },
+  { path: "/w/a", kind: "notFound" },
+  { path: "/w/a", kind: "uninitialized" },
+  { path: "/w/a", kind: "cliError", reason: "Unavailable" },
+  { path: "/w/a", kind: "error", message: "Invalid config" },
+];
+
+// buzz-project spec decision 12: an Overview that turns into a problem stays (thread readable, Send held) with its own
+// panel; a project entered as a problem shows the problem screen with Canvas info.
+test("the Overview's panel replaces Canvas info, and stays while the open Overview's project is a problem", () => {
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(find(RightPanel)).toHaveLength(0);
+  expect(find(ProjectOverview)).toHaveLength(1);
+  for (const entry of problemEntries) {
+    folders([entry]);
+    expect(find(RightPanel), entry.kind).toHaveLength(0);
+    expect(find<{ unavailable: string | null }>(ProjectOverview)[0]?.props.unavailable, entry.kind).toBe("a isn’t available. Fix it from its menu in the sidebar.");
+  }
+  listeners.menu!("home" as never); render();
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(find(ProjectOverview)).toHaveLength(0);
+  expect(find(RightPanel)).toHaveLength(1);
+});
+
+test("only Overview hides a conversation strip when no canvas is open", () => {
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
+  vi.spyOn(run, "strip").mockReturnValue({ conversation: { conversationId: "c1", root: "/w/a", provider: "codex", phase: "working" }, state: { kind: "working", activity: null } });
+  render();
+  expect(find(KeyedConversationStrip)).toHaveLength(0);
+  // The open Overview stays through a problem, so the strip stays hidden; a problem screen entered anew shows it.
+  for (const entry of problemEntries) {
+    folders([entry]);
+    expect(find(KeyedConversationStrip), entry.kind).toHaveLength(0);
+  }
+  listeners.menu!("home" as never); render();
+  for (const entry of problemEntries) {
+    folders([entry]);
+    find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+    expect(find(KeyedConversationStrip), entry.kind).toHaveLength(1);
+  }
+  folders([listed("/w/a")]);
+  expect(find(KeyedConversationStrip)).toHaveLength(0);
+});
+
+// buzz-project design §2.5: a worktree picked from the Overview's branch chip lands focus on the new Overview's chip;
+// the runtime test found it on the sidebar's project row, where the workspace's default focus put it after the chip.
+test("a worktree picked from the branch chip focuses the new Overview's chip, not the sidebar row", () => {
+  render(); folders([listed("/w/a"), listed("/w/b")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  const focused: string[] = [];
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelectorAll: () => [], querySelector: (selector: string) => ({ focus: () => focused.push(selector) }) });
+  find<{ onWorktree(root: string): void }>(ProjectOverview)[0]!.props.onWorktree("/w/b"); render();
+  expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/b");
+  expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
 });

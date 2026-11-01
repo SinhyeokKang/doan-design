@@ -268,7 +268,7 @@ it("sends the fixed preset guidance on a follow-up turn as on the first", async 
   for (const prompt of prompts) expect(prompt).toContain(PRESET_GUIDANCE);
 });
 
-// buzz-home: Home starts (newDesign without a subject), chosen models, attachments and binding by start-time lists.
+// buzz-home: Home starts (newDesign), chosen models, attachments and binding by start-time lists.
 // admit: resolve a canvas against the listed rows as main does (restore needs it); files: the queue's attachment hooks.
 function homeFixture(canvases: { path: string; id?: string }[] = [], options: { admit?: boolean; files?: QueueFiles } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
@@ -317,10 +317,6 @@ it("adds Home's paragraph to the prompt only, never to user.message or the title
   for (const secret of ["conn-secret", "acct-secret", "org-secret", "profile-secret", "/config-secret", '"sessionId"', "s1"]) expect(prompt).not.toContain(secret);
   expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", text: "Make a pricing page" });
   expect(h.store.list()[0]!.title).toBe("Make a pricing page");
-  // FirstPrompt's subject start is not a Home request. It may start once the first project turn is over.
-  h.service.receive(id, { type: "turn.done" }); h.passBindingWindow();
-  await h.service.start({ ...homeRequest, subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." });
-  expect(vi.mocked(h.runners[1]!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
 });
 it("records attachments on user.message, lists them in the prompt and hands them to the runner, marking them sent first", async () => {
   const h = homeFixture();
@@ -492,9 +488,10 @@ it("drops Home's paragraph once a Home conversation is promoted to a canvas, and
   expect(h.store.list()[0]!.canvas).toEqual({ path: ".doan/canvases/made.html" });
   expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![0]).not.toContain(HOME_GUIDANCE);
 });
-it("never adds Home's paragraph to a FirstPrompt conversation or an entry without the Home mark", async () => {
+it("never adds Home's paragraph to an entry without the Home mark", async () => {
   const h = homeFixture();
-  const id = (await h.service.start({ ...homeRequest, subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." })).conversationId;
+  const id = (await h.service.start(homeRequest)).conversationId;
+  h.store.save(h.store.list().map(m => { const { fromHome: _mark, ...old } = m; return old; }));
   expect(h.store.list()[0]).not.toHaveProperty("fromHome");
   h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2](); h.service.refreshed("/repo", []);
   await h.service.send(id, "again", []);

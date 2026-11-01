@@ -1,204 +1,370 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import type { ProjectCanvasComments } from "../main/projectComments";
-import type { CanvasRow } from "../main/view";
-import type { ThumbnailReply } from "../main/thumbnails";
-import type { CanvasNode } from "./canvasTree";
-import { focusAfterRemoval, overviewSections } from "./overviewOrder";
-import { ChangedTime, PathTip } from "./Home";
-import { FirstPrompt } from "./FirstPrompt";
+import { useEffect, useRef, useState } from "react";
+import { DropdownMenu } from "radix-ui";
+import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings } from "lucide-react";
+import type { Provider } from "../main/agentAuth/types";
+import type { ConversationSummary } from "../main/conversation/summary";
+import type { AttachmentResult } from "../main/attachments";
+import type { Canvas, ConversationEvent } from "../main/conversation/types";
+import type { FolderEntry } from "../main/view";
+import type { HomeMemory } from "../restore/uiState";
+import { AlertIcon } from "./AlertIcon";
+import { canvasLabel } from "./canvasTree";
+import { GroupIcon } from "./ComposerParts";
+import { ConversationHead } from "./ConversationLine";
+import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle } from "./ConversationThread";
+import { stripState } from "./conversationStrip";
+import { copyText } from "./copyText";
+import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
+import { draftKey, EMPTY_DRAFT, type DockedBusy, type DockedMode } from "./dockedRules";
+import { modelsKey, type DockedSupport } from "./dockedSupport";
+import { cardRow, type RowAction } from "./homeCards";
+import {
+  attachmentLimit, defaultEffort, defaultModel, defaultProvider, fixedPreference, groupIcon, modelOption, modelPickerView, presetPlaceholder,
+  selectableProvider, suggestedPresets, suggestedPrompts, type AttachmentDraft, type ModelsState, type NewConversationDefault,
+} from "./homeComposer";
+import type { LastRequest } from "./homeConversations";
+import type { StartInput, StartOutcome } from "./HomeComposerView";
+import { projectConversationMenu } from "./overviewConversation";
+import { scrollTarget, type ListView, type OverviewRun } from "./overviewRun";
+import { displayPath } from "./projectDisplay";
+import { projectHue, projectInitial } from "./shellNavigation";
+import type { SettingsTarget } from "./settingsSections";
+import { threadItems } from "./threadItems";
 
-// Keyed by canvas path. A path with no entry has not been captured yet.
-export type ThumbnailState = { kind: "pending" } | { kind: "ready"; url: string } | { kind: "failed" };
-export type ThumbnailView = ThumbnailState | { kind: "noWidth" } | { kind: "unreadable" };
+// The project Overview as the project conversation screen (buzz-project design §2.1, §2.2, §2.5): the header with the
+// project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
+// which conversation shows; this component draws it and makes the calls to main the thread and composer ask for.
 
-// An absent canvas ID says nothing about the supplied frame metadata, but a
-// canvas ls could not read has none to show. The
-// review count is the `comments:project` one for the row's ID; a canvas whose
-// comment file failed shows none rather than a wrong one.
-export function cardFacts(row: CanvasRow, comments?: readonly ProjectCanvasComments[]): { frames?: string; open?: string; review?: string } {
-  const count = row.frames?.length ?? 0;
-  const frames = row.frames === undefined || row.error ? undefined : row.framesTruncated ? "1,000+ frames" : `${count.toLocaleString("en-US")} ${count === 1 ? "frame" : "frames"}`;
-  const counts = row.id === undefined ? undefined : comments?.find(canvas => canvas.id === row.id);
-  const toReview = counts && !("error" in counts) ? counts.toReview : 0;
-  return { ...(frames === undefined ? {} : { frames }), ...(row.open > 0 ? { open: `${row.open} open` } : {}), ...(toReview > 0 ? { review: `${toReview} resolved to review` } : {}) };
-}
-
-export function thumbnailView(row: CanvasRow, state: ThumbnailState | undefined): ThumbnailView {
-  if (row.error) return { kind: "unreadable" };
-  if (row.width === undefined) return { kind: "noWidth" };
-  return state ?? { kind: "pending" };
-}
-
-export function applyVisibility(current: ReadonlySet<string>, changes: readonly { path: string; visible: boolean }[]): Set<string> | null {
-  const next = new Set(current);
-  for (const change of changes) if (change.visible) next.add(change.path); else next.delete(change.path);
-  return next.size === current.size && [...next].every(path => current.has(path)) ? null : next;
-}
-
-// Thumbnails for one root's cards. Nothing is asked before the first
-// visibility report, so main's queue starts with a card on screen; a pending
-// reply is followed by `onThumbnailChanged`, and so is a stale image.
-export class ThumbnailRequests {
-  private items = new Map<string, ThumbnailState>();
-  private rows: readonly CanvasRow[] = [];
-  private asked = new Set<string>();
-  private visible = new Set<string>();
-  // Only the newest request for a listed path may land: an older reply, or one
-  // for a path removed since (or removed and made again), is dropped.
-  private requests = new Map<string, number>();
-  private seq = 0;
-  private disposed = false;
-
-  constructor(private readonly root: string, private readonly get: (root: string, path: string, onScreen: boolean) => Promise<ThumbnailReply>, private readonly publish: (items: ReadonlyMap<string, ThumbnailState>) => void, private readonly visibility: (root: string, path: string, visible: boolean) => void) {}
-
-  setRows(rows: readonly CanvasRow[]): void {
-    this.rows = rows;
-    const listed = new Set(rows.map(row => row.path));
-    let changed = false;
-    for (const path of new Set([...this.items.keys(), ...this.asked, ...this.visible])) {
-      if (listed.has(path)) continue;
-      const item = this.items.get(path);
-      if (item?.kind === "ready") URL.revokeObjectURL(item.url);
-      changed = this.items.delete(path) || changed;
-      this.asked.delete(path); this.visible.delete(path); this.requests.delete(path);
-    }
-    if (changed) this.publish(new Map(this.items));
-  }
-
-  onVisible(paths: readonly string[]): void {
-    const next = new Set(paths);
-    for (const path of this.asked) {
-      if (this.visible.has(path) !== next.has(path)) this.visibility(this.root, path, next.has(path));
-    }
-    this.visible = next;
-    if (next.size === 0) return;
-    const capturable = this.rows.filter(row => row.width !== undefined).map(row => row.path);
-    for (const path of capturable) if (next.has(path) && !this.asked.has(path)) this.ask(path, true);
-    for (const path of capturable) if (!this.asked.has(path)) this.ask(path, false);
-  }
-
-  changed(path: string): void {
-    if (this.rows.some(row => row.path === path && row.width !== undefined)) this.ask(path, this.visible.has(path));
-  }
-
-  dispose(): void {
-    this.onVisible([]);
-    this.disposed = true;
-    for (const item of this.items.values()) if (item.kind === "ready") URL.revokeObjectURL(item.url);
-    this.items.clear();
-  }
-
-  private ask(path: string, onScreen: boolean): void {
-    const id = ++this.seq;
-    this.asked.add(path);
-    this.requests.set(path, id);
-    void this.get(this.root, path, onScreen).then(reply => {
-      if (this.disposed || this.requests.get(path) !== id) return;
-      const old = this.items.get(path);
-      // Keep showing the old image while a new one is made.
-      if (reply.kind === "pending" && old?.kind === "ready") return;
-      if (old?.kind === "ready") URL.revokeObjectURL(old.url);
-      this.items.set(path, reply.kind === "ready" ? { kind: "ready", url: URL.createObjectURL(new Blob([reply.png as Uint8Array<ArrayBuffer>], { type: "image/png" })) } : reply.kind === "pending" ? { kind: "pending" } : { kind: "failed" });
-      this.publish(new Map(this.items));
-    }, (error: unknown) => console.error("thumbnails:get failed", error));
-  }
-}
-
-export function useThumbnails(root: string | null, rows: readonly CanvasRow[]): { thumbnails: ReadonlyMap<string, ThumbnailState>; onVisible: (paths: readonly string[]) => void } {
-  const [thumbnails, setThumbnails] = useState<ReadonlyMap<string, ThumbnailState>>(new Map());
-  const requests = useRef<ThumbnailRequests | null>(null);
-  useEffect(() => {
-    if (root === null) return;
-    const current = new ThumbnailRequests(root, (at, path, onScreen) => window.doan.getThumbnail(at, path, onScreen), setThumbnails, (at, path, visible) => {
-      void window.doan.setThumbnailVisibility(at, path, visible).catch((error: unknown) => console.error("thumbnails:visible failed", error));
-    });
-    requests.current = current;
-    const stop = window.doan.onThumbnailChanged(target => { if (target.root === root) current.changed(target.path); });
-    return () => { stop(); current.dispose(); requests.current = null; setThumbnails(new Map()); };
-  }, [root]);
-  // After the effect above, so a new root's requests get its rows.
-  useEffect(() => { requests.current?.setRows(rows); }, [root, rows]);
-  const onVisible = useCallback((paths: readonly string[]) => requests.current?.onVisible(paths), []);
-  return { thumbnails, onVisible };
-}
-
-interface ProjectOverviewProps {
+export interface ProjectOverviewProps {
+  run: OverviewRun;
+  support: DockedSupport;
   root: string;
-  rows: readonly CanvasRow[];
-  thumbnails: ReadonlyMap<string, ThumbnailState>;
-  // Paths of the cards on screen, so their thumbnails are made first.
-  onVisible: (paths: readonly string[]) => void;
-  open: (row: CanvasRow) => void;
-  // A band at the top, such as why the open canvas was closed.
-  notice?: string | null;
-  // `comments:project` counts for this root, absent until the first read lands.
-  comments?: readonly ProjectCanvasComments[] | undefined;
+  project: string;
+  entry: FolderEntry;
+  // The project's worktrees (the sidebar card's rows): two or more make the branch chip a worktree menu.
+  worktrees: readonly FolderEntry[];
+  homeDirectory: string | null;
+  // The duplicate-ID notice (App's), under the header.
+  notice: string | null;
+  // Home's reason when the open Overview's project turned into a problem (spec decision 12); Send waits on it.
+  unavailable: string | null;
+  list: ListView;
+  // HomeRun's pending seen marks, so a status never flashes back between a mark and the next read.
+  seen: ReadonlySet<string>;
+  // The project conversation that holds this root (HomeRun's running map).
+  holder: { conversationId: string; waiting: boolean } | null;
+  prefs: HomeMemory | null;
+  defaults: NewConversationDefault | null | undefined;
+  now: number;
+  onWorktree(root: string): void;
+  onOpenCanvas(canvas: Canvas): void;
+  onRetryList(): void;
+  onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
+  // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens (spec decision 6).
+  onSendConversation(provider: Provider, request: Parameters<Window["doan"]["sendConversation"]>[0]): Promise<void | { error: string; missing?: string[] }>;
+  // A problem worktree's repair actions in the branch chip's menu, as the sidebar's project menu runs them.
+  onAction(name: RowAction, root: string): void;
+  onProjectSettings(root: string): void;
+  onSettings(target: SettingsTarget): void;
+  onNotice?(text: string): void;
 }
 
-export function ProjectOverview({ root, rows, thumbnails, onVisible, open, notice, comments }: ProjectOverviewProps) {
-  const region = useRef<HTMLElement>(null);
-  const sections = overviewSections(rows);
-  const order = sections.flatMap(section => section.canvases.map(canvas => canvas.key));
-  const orderKey = order.join("\n");
-  const previous = useRef(order);
-  // Kept through a blur to nowhere: Chromium blurs a focused card as React
-  // removes it, with no related target.
-  const focused = useRef<string | null>(null);
-  useLayoutEffect(() => {
-    const before = previous.current;
-    previous.current = order;
-    const lost = focused.current;
-    if (lost === null || (document.activeElement !== document.body && document.activeElement !== null)) return;
-    const next = focusAfterRemoval(before, order, lost);
-    if (next !== null) region.current?.querySelector<HTMLElement>(`.ocard[data-path="${CSS.escape(next)}"]`)?.focus();
-  }, [orderKey]);
-  const report = useRef(onVisible);
-  report.current = onVisible;
+const NEW_PLACEHOLDER = "Ask or describe what to design, / for presets";
+const REPLY_PLACEHOLDER = "Reply, / for presets";
+const NEW = "";
+// The sidebar project menu's labels (ShellSidebar.tsx).
+const REPAIR_LABELS: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
+
+// A worktree row in the branch chip's menu does what the sidebar's does (design §2.1): a listed or reading worktree
+// opens its Overview; a problem one turns the menu to its repair actions. Show in Finder and Project Settings are
+// fixed items there, and removing the project stays in the sidebar.
+export function worktreeChoice(row: FolderEntry): { kind: "open" } | { kind: "repair"; actions: RowAction[] } {
+  if (row.kind === "list" || row.kind === "loading") return { kind: "open" };
+  return { kind: "repair", actions: cardRow(row, null, null).actions.filter(action => action !== "remove" && action !== "showInFinder") };
+}
+
+// The canvas a conversation names, as main matches it: an ID on either side matches by ID only, else the path.
+export function sameCanvas(a: Canvas, b: Canvas): boolean {
+  return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
+}
+const focusField = () => queueMicrotask(() => {
+  const field = document.querySelector<HTMLTextAreaElement>(".ov-main .composer-input");
+  if (!field) return;
+  field.focus();
+  field.setSelectionRange(field.value.length, field.value.length);
+});
+// Main's turn as the composer reads it: the merged events first (the list lags them), then the list's work flag.
+function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
+  const kind = events && events.length ? stripState(events).kind : null;
+  if (kind === "permission") return "waiting";
+  if ((kind === "starting" || kind === "working") && live) return "running";
+  if (summary?.phase === "waiting") return "waiting";
+  return summary?.working ? "running" : "idle";
+}
+
+export function ProjectOverview(props: ProjectOverviewProps) {
+  const { run, support, root, project, list } = props;
+  const listed = Array.isArray(list) ? list : null;
+  const view = run.view(root);
+  // A failed first read leaves nothing to wait for: the column is a new conversation (design §2.5).
+  const conversationId = view.kind === "conversation" ? view.conversationId : null;
+  const waiting = view.kind === "wait" && list !== "error";
+  const summary = conversationId ? listed?.find(c => c.conversationId === conversationId) : undefined;
+  const thread = conversationId ? run.thread(conversationId) : null;
+  const provider: Provider | null = conversationId ? summary?.provider ?? run.providerOf(conversationId) : null;
+  const mode: DockedMode = conversationId && provider ? { kind: "existing", conversationId, provider } : { kind: "new", root };
+  const key = draftKey(mode);
+  const draft = run.drafts.get(key) ?? EMPTY_DRAFT;
+  const healthy = props.entry.kind === "list" && !props.unavailable;
+  const live = conversationId ? run.live(root, conversationId) : false;
+
+  // Presets are read once for the run; accounts come from main's snapshots.
+  useEffect(() => { if (!support.presets?.ok) support.readPresets(); }, []);
+  useEffect(() => window.doan.onAgentAuth(snapshot => support.setAuth(snapshot)), []);
+
+  // The composer's agent, model and effort, as Home decides them for a new conversation; an existing one keeps its
+  // provider and starts from its own model.
+  const auth = support.auth;
+  const pick = support.picks[key] ?? {};
+  const chosen = mode.kind === "new" ? pick.provider ?? defaultProvider(auth, props.prefs?.lastProvider, props.defaults ?? null) : mode.provider;
+  const fixed = mode.kind === "new" && chosen ? fixedPreference(props.defaults ?? null, chosen) : null;
+  const lists: Partial<Record<Provider, ModelsState>> = Object.fromEntries((auth?.providers ?? []).map(status => [status.provider, support.models[modelsKey(root, status.provider)]]));
+  const listState = chosen ? lists[chosen] : undefined;
+  const saved = mode.kind === "new" ? (chosen ? props.prefs?.models?.[chosen] : undefined) : summary?.model ? { model: summary.model, ...(summary.effort ? { effort: summary.effort } : {}) } : undefined;
+  const model = chosen ? modelOption(listState, pick.model ?? null)?.id ?? defaultModel(listState, saved, fixed) : null;
+  const option = modelOption(listState, model);
+  const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, fixed);
+  const picker = modelPickerView(auth, lists, { provider: chosen, model, effort });
+  const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
+  useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready]);
+
+  const presets = support.presets?.ok ? support.presets.result.presets : [];
+  const prompts = mode.kind === "new" && !waiting && ready && healthy ? suggestedPrompts(props.entry, project, presets) : [];
+  const started = draft.text !== "" || draft.preset !== null || draft.attachments.length > 0;
+
+  // The thread
+  const handle = useRef<ConversationThreadHandle | null>(null);
+  const items = thread?.read === "ready" ? threadItems(thread.events, root, live) : thread?.read === "error" ? "error" as const : null;
+  // An entry's scroll, also for the conversation already shown; it waits for the request's item when the list told
+  // of it before its event arrived.
+  const scroll = conversationId ? run.scrollRequest(conversationId) : null;
+  const asking = summary?.phase === "waiting";
   useEffect(() => {
-    const scroller = region.current;
-    if (!scroller) return;
-    let visible = new Set<string>();
-    const observer = new IntersectionObserver(changes => {
-      const next = applyVisibility(visible, changes.map(change => ({ path: (change.target as HTMLElement).dataset.path ?? "", visible: change.isIntersecting })));
-      if (next) { visible = next; report.current([...next]); }
-    }, { root: scroller });
-    for (const card of scroller.querySelectorAll<HTMLElement>(".ocard[data-path]")) observer.observe(card);
-    return () => { observer.disconnect(); report.current([]); };
-  }, [orderKey]);
-  if (rows.length === 0) return <section className="ov" role="region" aria-label="Overview"><OverviewEmpty root={root} /></section>;
-  return <section className="ov native-scroll" role="region" aria-label="Overview" ref={region}>
-    {notice && <div className="canvas-notice" role="status">{notice}</div>}
-    {sections.map(section => <section key={section.key} aria-label={section.key}>
-      <div className="sec">{section.key} <span className="r">{section.canvases.length}</span></div>
-      <div className="ocards">{section.canvases.map(canvas => <CanvasCard key={canvas.key} canvas={canvas} comments={comments} thumbnail={thumbnailView(canvas.row, thumbnails.get(canvas.key))} open={open}
-        focus={path => { focused.current = path; }} blur={(path, to) => { if (to !== null && focused.current === path) focused.current = null; }} />)}</div>
-    </section>)}
+    if (!conversationId || !scroll || !Array.isArray(items)) return;
+    const target = scrollTarget(items, asking);
+    if (target.kind === "wait") return;
+    run.takeScroll(conversationId);
+    if (target.kind === "item") handle.current?.scrollToItem(target.key);
+  }, [conversationId, scroll?.seq, Array.isArray(items) ? items.length : -1, asking]);
+  const canvasListed = (canvas: Canvas) => props.entry.kind === "list" && props.entry.canvases.some(row => sameCanvas(canvas, row));
+  const editAndResend = (id: string) => { void run.editAndResend(root, id).then(focus => { if (focus) focusField(); }); };
+
+  // Attachments go through main, which checks each file; each answer lands on its chip wherever the draft is now.
+  const settle = (keys: string[], results: readonly (AttachmentResult | null)[]) => {
+    const { notices, images } = run.settleAttachments(keys, results);
+    if (typeof URL.createObjectURL === "function") for (const image of images) support.setThumbnail(image.key, URL.createObjectURL(new Blob([new Uint8Array(image.thumbnail)], { type: "image/png" })));
+    if (notices.length) props.onNotice?.(notices.join(" "));
+  };
+  const addChips = (at: string, chips: AttachmentDraft[]) => run.setDrafts(drafts => {
+    const current = drafts.get(at) ?? EMPTY_DRAFT;
+    return new Map(drafts).set(at, { ...current, attachments: [...current.attachments, ...chips] });
+  });
+  const addFiles = (files: File[], pasted: boolean) => {
+    const at = key;
+    const limit = attachmentLimit(draft.attachments.length, files.map(file => ({ pasted: false, size: file.size })));
+    if (limit.notices.length) props.onNotice?.(limit.notices.join(" "));
+    const accepted = limit.accept.map(i => files[i]!);
+    if (!accepted.length) return;
+    const keys = accepted.map(() => crypto.randomUUID());
+    addChips(at, accepted.map((file, i) => ({ key: keys[i]!, name: file.name, kind: file.type.startsWith("image/") ? "image" : "file", pasted: false, status: "checking", size: file.size })));
+    void window.doan.addAttachmentFiles(accepted).catch(() => null).then(async results => {
+      if (!results) { settle(keys, keys.map(() => null)); return; }
+      // A copied screenshot has no path on disk; it attaches as a pasted image instead (buzz-home design §4.8).
+      const final = await Promise.all(results.map(async (result, i) => {
+        const file = accepted[i]!;
+        if (!pasted || result.ok || result.error !== "not_found" || !file.type.startsWith("image/")) return result;
+        if (file.size > 50 * 1024 * 1024) return { ok: false as const, name: "Pasted image", error: "too_large" as const };
+        return window.doan.addPastedImage(await file.arrayBuffer()).catch(() => null);
+      }));
+      settle(keys, final);
+    });
+  };
+  const chooseFiles = () => {
+    const at = key;
+    void window.doan.chooseAttachments().catch(() => []).then(results => {
+      const ok = results.filter(result => result.ok);
+      const limit = attachmentLimit((run.drafts.get(at) ?? EMPTY_DRAFT).attachments.length, ok.map(() => ({ pasted: false, size: 0 })));
+      const keep = new Set(limit.accept.map(i => ok[i]!));
+      for (const result of ok) if (!keep.has(result) && result.ok) void window.doan.removeAttachment(result.attachment.id);
+      const chosen = results.filter(result => !result.ok || keep.has(result));
+      const keys = chosen.map(() => crypto.randomUUID());
+      addChips(at, chosen.map((result, i) => ({ key: keys[i]!, name: result.ok ? result.attachment.name : result.name, kind: "file", pasted: false, status: "checking" })));
+      settle(keys, chosen);
+      if (limit.notices.length) props.onNotice?.(limit.notices.join(" "));
+    });
+  };
+
+  // Send, queue and the rest of the composer's calls.
+  const changedModel = pick.model !== undefined || pick.effort !== undefined;
+  const send = async (request: DockedRequest): Promise<DockedOutcome> => {
+    if (mode.kind === "new") {
+      if (!chosen) return { error: "no_agent" };
+      const start: StartInput = {
+        root, mode: "newDesign", runtime: chosen, text: request.text,
+        ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+      };
+      const last: LastRequest = { root, text: draft.text, preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
+      const revision = run.revision(root);
+      const outcome = await props.onStart(start, last);
+      if ("ok" in outcome && outcome.conversationId) { support.clearPick(key); run.started(root, outcome.conversationId, chosen, revision); }
+      return "ok" in outcome ? { ok: true } : outcome;
+    }
+    const revision = run.revision(root);
+    const reply = await props.onSendConversation(mode.provider, {
+      conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
+      ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+    }).catch(() => ({ error: "unknown" }));
+    if (reply && "error" in reply) return reply;
+    run.sent(root, mode.conversationId, revision);
+    return { ok: true };
+  };
+  const queue = async (request: DockedRequest): Promise<DockedOutcome> => {
+    if (mode.kind === "new") return { error: "not_running" };
+    const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
+    if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
+    run.queued(root, mode.conversationId, { id: reply.itemId, text: request.text });
+    return { ok: true };
+  };
+  const busy: DockedBusy | null = props.holder && props.holder.conversationId !== conversationId
+    ? { kind: "project", waiting: props.holder.waiting, open: props.holder.conversationId || null } : null;
+  const openOther = (id: string) => { run.request(root, id, props.holder?.waiting ? "permission" : null); };
+
+  // The header
+  const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];
+  const firstMessage = thread?.events.find(event => event.type === "user.message");
+  const title = conversationId ? summary?.title || (firstMessage?.type === "user.message" ? firstMessage.text : "") : "New conversation";
+  const picked = useRef(false);
+  const choose = (value: string) => {
+    picked.current = true;
+    run.select(root, value === NEW ? null : value);
+  };
+  const branchOf = (row: FolderEntry) => cardRow(row, null, null).summary?.branch ?? null;
+  const branch = branchOf(props.entry);
+  const worktreePicked = useRef(false);
+  // The problem worktree whose repair actions the chip's menu shows, as the sidebar's menu does.
+  const [repair, setRepair] = useState<string | null>(null);
+  const repairRow = repair ? props.worktrees.find(row => row.path === repair) : undefined;
+  const repairChoice = repairRow ? worktreeChoice(repairRow) : null;
+  const chipLabel = branch ?? root.split("/").at(-1) ?? root;
+
+  const moved = view.kind === "new" ? view.moved : null;
+  const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, open: 0, resolved: 0, url: "" });
+  const placeholder = draft.preset && draft.text === "" ? presetPlaceholder(draft.preset) : mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
+
+  return <section className="ov ov-main" role="region" aria-label="Overview">
+    <header className="ov-head">
+      <span className="ov-project">
+        <span className={`shell-thumbnail hue-${projectHue(project)}`} aria-hidden="true">{projectInitial(project)}</span>
+        <span className="ov-project-name">{project}</span>
+        {props.worktrees.length > 1 ? <DropdownMenu.Root onOpenChange={open => { if (open) setRepair(null); }}>
+          <DropdownMenu.Trigger asChild><button type="button" className="doan-chip shell-branch wt-chip" data-ui-variant="translucent" aria-label={`Worktree: ${chipLabel}`}>
+            <GitBranch aria-hidden="true" /><span>{chipLabel}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu shell-project-menu wt-menu" aria-label="Worktrees" align="start" sideOffset={4} collisionPadding={8}
+            onCloseAutoFocus={event => { if (worktreePicked.current) { worktreePicked.current = false; event.preventDefault(); } }}>
+            <DropdownMenu.Label className="doan-menu-head">Worktrees</DropdownMenu.Label>
+            {props.worktrees.map(row => {
+              const chip = row.kind === "list" || row.kind === "loading" ? undefined : cardRow(row, null, null).chip;
+              const marked = row.path === (repair ?? root);
+              return <DropdownMenu.Item key={row.path} className="doan-menu-item shell-worktree" aria-current={marked ? "true" : undefined}
+                onSelect={event => {
+                  if (worktreeChoice(row).kind === "repair") { event.preventDefault(); setRepair(row.path); return; }
+                  if (row.path === root) return;
+                  worktreePicked.current = true; props.onWorktree(row.path);
+                }}>
+                <GitBranch aria-hidden="true" /><span><span>{branchOf(row) ?? row.path.split("/").at(-1)}</span><small>{displayPath(row.path, props.homeDirectory)}</small></span>
+                {chip ? <span className="shell-problem">{chip}</span> : marked && <Check aria-hidden="true" />}
+              </DropdownMenu.Item>;
+            })}
+            {repairRow && repairChoice?.kind === "repair" && <>
+              <DropdownMenu.Separator className="doan-menu-sep" />
+              <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onAction("showInFinder", repairRow.path)}><FolderOpen aria-hidden="true" />{REPAIR_LABELS.showInFinder}</DropdownMenu.Item>
+              <DropdownMenu.Item className="doan-menu-item" onSelect={() => props.onProjectSettings(repairRow.path)}><Settings aria-hidden="true" />Project Settings</DropdownMenu.Item>
+              {repairChoice.actions.map(action => <DropdownMenu.Item key={action} className="doan-menu-item" onSelect={() => props.onAction(action, repairRow.path)}>{REPAIR_LABELS[action]}</DropdownMenu.Item>)}
+            </>}
+          </DropdownMenu.Content></DropdownMenu.Portal>
+        </DropdownMenu.Root>
+          : branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{branch}</span></span>}
+      </span>
+      <span className="ov-sep" aria-hidden="true">/</span>
+      <span className="ov-title-wrap">
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild disabled={list === "loading"}><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
+            <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
+            onCloseAutoFocus={event => { if (!picked.current) return; picked.current = false; event.preventDefault(); focusField(); }}>
+            <DropdownMenu.RadioGroup value={conversationId ?? NEW} onValueChange={choose}>
+              <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
+              <DropdownMenu.Separator className="doan-menu-sep" />
+              <DropdownMenu.Label className="doan-menu-head">{`Conversations in ${project}`}</DropdownMenu.Label>
+              {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
+                <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); props.onRetryList(); }}>Retry</DropdownMenu.Item></div>
+                : <div className="conv-list">{menuItems.map(item => <DropdownMenu.RadioItem key={item.conversationId} value={item.conversationId} textValue={item.title}
+                  className={`doan-menu-item conv-item${item.conversationId === conversationId ? " current" : ""}`}>
+                  <ConversationHead line={item} name={item.title} nameClass="t" />
+                  <span className="conv-preview">{item.preview}</span>
+                </DropdownMenu.RadioItem>)}</div>}
+            </DropdownMenu.RadioGroup>
+          </DropdownMenu.Content></DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </span>
+    </header>
+    {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text">{props.notice}</span></div>}
+    <div className="ov-scroll">
+      {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
+        liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={canvasListed}
+        onAnswer={(requestId, optionId) => void window.doan.answerConversationPermission({ conversationId, requestId, optionId }).catch(console.error)}
+        onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
+        onEditAndResend={() => editAndResend(conversationId)}
+        onSignIn={() => props.onSettings({ section: "agents", provider })}
+        onRetry={() => run.retryThread(conversationId)}
+        onOpenCanvas={props.onOpenCanvas}
+        onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
+        onCopy={text => Promise.resolve(copyText(text))} />
+        : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
+          {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text" title={`${moved.title} moved to ${movedCanvas}.`}>
+            <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
+            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas)}>Open</button></div>}
+          {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
+            <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
+              onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, text: prompt.text })); focusField(); }}>
+              <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>)}</div>}
+        </div>}
+    </div>
+    <div className="ov-foot"><div className="ov-col">
+      <DockedComposer mode={mode} project={project} homeDirectory={props.homeDirectory} placeholder={placeholder}
+        drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
+        auth={auth} picker={picker} provider={chosen} effort={effort}
+        onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
+        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), model: value === "default" ? undefined : value })}
+        onPickEffort={value => support.pick(key, { effort: value })}
+        onSettings={props.onSettings}
+        presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
+        onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}
+        thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
+        onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
+        turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable}
+        queued={conversationId ? run.queue(conversationId) : []}
+        onSend={send} onQueue={queue}
+        onStop={() => { if (conversationId) void window.doan.interruptConversation({ conversationId }).catch(console.error); }}
+        onRemoveQueued={itemId => { if (conversationId) void window.doan.removeQueuedMessage({ conversationId, itemId }).then(reply => { if (!reply || !("error" in reply)) run.unqueued(conversationId, itemId); }).catch(console.error); }}
+        onOpen={openOther} />
+    </div></div>
   </section>;
 }
 
-function CanvasCard({ canvas, comments, thumbnail, open, focus, blur }: { canvas: CanvasNode; comments: readonly ProjectCanvasComments[] | undefined; thumbnail: ThumbnailView; open: (row: CanvasRow) => void; focus: (path: string) => void; blur: (path: string, to: EventTarget | null) => void }) {
-  const facts = cardFacts(canvas.row, comments);
-  const id = useId();
-  return <button className="ocard" aria-labelledby={`${id}-title ${id}-file`} aria-describedby={`${id}-thumb ${id}-meta`} data-path={canvas.key} onClick={() => open(canvas.row)} onFocus={() => focus(canvas.key)} onBlur={event => blur(canvas.key, event.relatedTarget)}>
-    <div id={`${id}-thumb`} className={`thumb${thumbnail.kind === "pending" ? " pending" : ""}`}>
-      {thumbnail.kind === "ready" ? <img src={thumbnail.url} alt="" />
-        : thumbnail.kind === "failed" ? <p className="thumb-msg">Preview unavailable</p>
-        : thumbnail.kind === "unreadable" ? <p className="thumb-msg warn">Can't read this canvas — run doan check</p>
-        : thumbnail.kind === "noWidth" ? <p className="thumb-msg">Preview needs a valid <code>doan:width</code> — run doan check</p>
-        : null}
-    </div>
-    <div className="ocard-body">
-      <span id={`${id}-title`} className="ocard-title" title={canvas.name}>{canvas.name}</span>
-      <PathTip text={canvas.key.replace(/^\.doan\/canvases\//, "")}><span id={`${id}-file`} className="ocard-file">{canvas.fileName}</span></PathTip>
-      <span id={`${id}-meta`} className="ocard-meta">{facts.frames && <><span>{facts.frames}</span> · </>}{facts.open && <><span className="hot">{facts.open}</span> · </>}{facts.review && <><span className="review">{facts.review}</span> · </>}<span><ChangedTime at={canvas.row.mtimeMs} /></span></span>
-    </div>
-  </button>;
-}
-
-// The heading stays; the composer replaces the shipped Copy first prompt (app-setup).
-function OverviewEmpty({ root }: { root: string }) {
-  return <div className="empty">
-    <b>No canvases in .doan/canvases/ yet</b>
-    <div className="fp-card"><FirstPrompt root={root} /></div>
-  </div>;
+// The list or the history is read: blank first, then the thread's own loading line (design §2.5).
+function Waiting() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const timer = setTimeout(() => setSlow(true), LOADING_DELAY_MS); return () => clearTimeout(timer); }, []);
+  return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation…</span></div>}</div>;
 }

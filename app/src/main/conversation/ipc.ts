@@ -1,4 +1,3 @@
-import { promptSentence } from "../../firstPrompt/promptSentence";
 import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
@@ -104,13 +103,8 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         const mode = raw.mode; if (mode !== "resume" && mode !== "new" && mode !== "newDesign") throw new Error("bad_request");
         const request: StartRequest = { root: raw.root, mode, ...input, ...(validCanvas(canvas) ? { canvas } : {}), ...(validProvider(raw.runtime) ? { runtime: raw.runtime } : {}) };
         let attachments: unknown[] = [];
+        if (raw.subject !== undefined) throw new Error("bad_request");
         if (mode === "newDesign") {
-          // FirstPrompt sends a one-line subject that main turns into its sentence; Home sends its own text as is.
-          if (raw.subject !== undefined) {
-            if (typeof raw.subject !== "string") throw new Error("bad_request");
-            const sentence = promptSentence(raw.root, raw.subject); if (typeof sentence !== "string") throw new Error("bad_request");
-            request.subject = raw.subject; request.text = sentence;
-          }
           if (!request.runtime) throw new Error("no_agent");
           const extras = validateSendExtras({ model: raw.model, effort: raw.effort, attachments: raw.attachments }, raw.root, request.runtime, "doan", home);
           if (extras.model !== undefined) request.model = extras.model;

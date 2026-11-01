@@ -34,7 +34,7 @@ button:disabled { color: var(--text-disabled); cursor: default; }
 button, [role="treeitem"] { outline: none; }
 button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 /* Rows sit inside scrolling lists, which would clip an outer ring, so theirs is drawn inward. */
-[role="treeitem"].row:focus-visible, .fb-canvas:focus-visible, .fb-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+[role="treeitem"].row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 ol { list-style: none; }
 code, kbd { font-family: var(--type-family); }
 .app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 40px minmax(0, 1fr); height: 100%; background: var(--bg-app); }
@@ -76,11 +76,8 @@ code, kbd { font-family: var(--type-family); }
 .canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-subtle); font: 12.5px/1.6 var(--type-family); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
 .canvas-status b { color: var(--text-standard); font-weight: 500; }
-.canvas-status > :not(.empty) { max-width: 260px; overflow-wrap: anywhere; }
+.canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
 .canvas-status .doan-spinner { display: block; margin: 0 auto 10px; }
-.empty { font-size: 13px; color: var(--text-standard); position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; line-height: normal; }
-.empty b { font-size: 15px; font-weight: var(--type-weight-semibold); }
-.empty p { color: var(--text-metadata); max-width: 320px; font-size: 12.5px; line-height: 1.6; }
 .canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
 /* It sits on the canvas content, so the panel color goes behind it (.doan/canvases/comments-readability.html). */
@@ -376,9 +373,9 @@ code, kbd { font-family: var(--type-family); }
 .ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
 /* An inline error or warning is one line led by an icon, so colour is not the only signal. */
-.ob-msg:is(.warn, .error), .fp-error, .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-msg:is(.warn, .error), .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-msg.warn { color: var(--text-warning); }
-.ob-msg.error, .fp-error, .pj-msg { color: var(--text-danger); }
+.ob-msg.error, .pj-msg { color: var(--text-danger); }
 .ob-msg.ok { color: var(--text-success); }
 .ob-msg.ob-wide { grid-column: 1 / -1; }
 /* Status pill: a doan adjustment that keeps a row's state readable at a glance. */
@@ -399,17 +396,10 @@ code, kbd { font-family: var(--type-family); }
 .ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
 .ob-actions { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
 .ob-actions .ob-helper { flex: 1; }
-.ob-sentence { padding: var(--space-3) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-row); color: var(--text-standard); font-size: var(--type-body-size); line-height: 24px; overflow-wrap: anywhere; }
-/* The subject is an inset chip; an empty subject is a metadata slot. */
-.ob-sentence mark { padding: 1px var(--space-1); border-radius: var(--space-1h); background: var(--surface-inset); color: var(--text-standard); font-weight: var(--type-weight-medium); }
-.ob-prompt { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; }
-.ob-prompt .ob-actions { padding: 0; }
 /* The replace confirmation and the project setup dialog share the comments dialog surface. */
 .ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-dialog .ob-card { width: auto; }
 
-.ocard-meta .review { color: var(--text-subtle); }
-.ocard-meta > span { white-space: nowrap; }
 .wt-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; padding-left: 18px; margin-top: 3px; }
 
 .doan-menu-item .label { flex: none; }
@@ -462,24 +452,10 @@ code, kbd { font-family: var(--type-family); }
 /* The Overview covers the canvas area in the same cell; the area stays laid out beneath it. */
 .workspace > .area, .workspace > .ov { grid-column: 2; grid-row: -2; }
 .ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
-/* Section headings are folder paths, so they keep their case. */
 /* The shipped .canvas-notice band, stretched over the Overview's own padding. */
 .ov > .canvas-notice { margin: -4px -24px 0; }
-.ov .sec { padding: 16px 0 10px; text-transform: none; letter-spacing: 0; font-size: 11.5px; color: var(--text-subtle); }
-.ocards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
-.ocard { display: block; width: 100%; text-align: left; background: var(--surface-panel); border: 1px solid var(--border-standard); border-radius: 10px; overflow: hidden; min-width: 0; }
-.ocard:hover { background: var(--surface-inset); }
 .thumb { aspect-ratio: 16 / 10; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); position: relative; overflow: hidden; display: grid; place-items: center; }
-.thumb.pending { background: var(--surface-inset); }
 .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
-.thumb-msg { font: 11.5px/1.5 var(--type-family); color: var(--text-metadata); padding: 0 14px; text-align: center; }
-.thumb-msg code { color: var(--text-subtle); background: var(--surface-panel); border-radius: 4px; padding: 0 4px; }
-.thumb-msg.warn { color: var(--text-warning); }
-.ocard-body { display: grid; gap: 2px; padding: 9px 12px 10px; min-width: 0; }
-.ocard-title { font: 600 12.5px var(--type-family); color: var(--text-standard); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ocard-file { font: 11px var(--type-family); color: var(--text-metadata); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ocard-meta { font: 11px var(--type-family); color: var(--text-metadata); white-space: normal; margin-top: 4px; }
-.ocard-meta .hot { color: var(--text-standard); font-weight: var(--type-weight-medium); }
 /* Quick Open (confirmed .doan/canvases/buzz-search.html). The surface is the shared dialog's search presentation in
    ds/surfaces.css; these rules lay out its content. */
 /* Field: the shared input with the magnifier placed as in Home's preset search. */
@@ -522,63 +498,6 @@ code, kbd { font-family: var(--type-family); }
 .qo-match { background: none; color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: var(--space-half); }
 /* An empty or waiting list: the message fills the fixed-height list and sits in its centre. */
 .qo-none { flex: 1; display: flex; align-items: center; justify-content: center; margin: 0; padding-inline: var(--space-control-inset); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
-
-/* app-setup: first prompt and wizard (confirmed .doan/canvases/app-setup.html, frames wizard and first-prompt). */
-/* The subject field fills its row; an inline-block input would leave a descender gap below. */
-.fp-field .doan-input { display: block; }
-.fp-labelrow { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
-.fp-label { color: var(--text-standard); font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); }
-.fp-count { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
-.fp-count.err { color: var(--text-danger); }
-.ob-sentence mark.slot { color: var(--text-metadata); font-weight: var(--type-weight-regular); }
-.fp-wait { display: inline-flex; flex: 1; align-items: center; gap: var(--space-2); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* The workspace host gives the prompt the same group container as the wizard card. */
-.fp-card { width: 520px; max-width: 100%; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); text-align: left; }
-/* The shipped .empty p rule would narrow and dim the composer's paragraphs inside the empty Overview. */
-.empty .fp-card .ob-sentence { max-width: none; color: var(--text-standard); font-size: var(--type-body-size); line-height: 24px; }
-.empty .fp-card .ob-msg { max-width: none; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.empty .fp-card :is(.fp-error, .ob-msg.error) { max-width: none; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-danger); }
-
-/* project-feedback: the Overview's Feedback panel (.doan/canvases/project-feedback.html, feedback-panel, feedback-states, orphan-cards). */
-.feedback { display: flex; flex-direction: column; min-height: 0; overflow: auto; background: var(--surface-panel); overflow-wrap: anywhere; }
-.right-stack > .feedback { flex: 1; }
-.feedback .phead:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-.fb-filter { padding: 10px 12px 2px; border-bottom: 1px solid var(--border-standard); }
-.fb-tree { padding: 4px 0 8px; }
-/* Group heads reuse the 26 px tree row; level indent 14 px like the Sidebar. */
-.fb-tree .row { cursor: default; }
-.fb-tree .row .tw { width: 12px; flex: none; text-align: center; color: var(--text-disabled); font-size: 10px; }
-.fb-tree .row .g { color: var(--text-subtle); }
-.fb-tree .row.fb-l2 { padding-left: 26px; }
-.fb-tree .row .cnt { flex: none; }
-.fb-tree .row.fb-orphans .g { color: var(--text-standard); }
-.fb-tree .row .g.missing { color: var(--text-metadata); }
-/* Canvas group head: title, then the file name only when another canvas has the same title, then the review entry. */
-.fb-canvas { display: grid; grid-template-columns: 12px 12px minmax(0, 1fr) auto; column-gap: 8px; row-gap: 2px; align-items: center; min-height: 26px; padding: 5px 12px 5px 12px; font: 12.5px var(--type-family); color: var(--text-standard); position: relative; }
-.fb-canvas .tw { width: 12px; text-align: center; color: var(--text-disabled); font-size: 10px; }
-.fb-canvas .glyph { color: var(--text-disabled); }
-.fb-canvas .g { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fb-canvas .d { grid-column: 3 / -1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--text-metadata); }
-.fb-canvas .fb-review { grid-column: 3 / -1; justify-self: start; margin-top: 2px; }
-/* Comment rows: target label, then the first line of the body; both one line. Indent = a level-3 row's text start. */
-.fb-item { display: grid; gap: 1px; padding: 5px 12px 6px 60px; min-width: 0; position: relative; }
-.fb-item .t { font-size: 10.5px; line-height: 1.5; color: var(--text-subtle); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fb-item .b { font-size: 12px; line-height: 1.5; color: var(--text-standard); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fb-canvas:hover, .fb-item:hover { background: var(--surface-inset); }
-/* Messages inside a group keep the Comments message look, indented to the group's children.
-   A card's own save message stays the card's (orphan-cards "Save failed"). */
-/* Group messages keep the tree indent; a failure keeps its status-block padding. */
-.fb-tree .comments-message:not(.comments-card *) { border-bottom: 0; margin: 2px 12px 6px 26px; }
-.fb-tree .comments-message:not(.comments-card *, .error, .warning) { padding: 8px 10px; }
-.fb-tree .comments-message.inset { margin-left: 12px; }
-.fb-note { margin: 2px 12px 8px 12px; }
-/* Orphan comment cards: the Comments card, full width under its file group. */
-.fb-tree .comments-card { border-bottom: 0; border-top: 1px solid var(--border-standard); }
-.comments-target.static { color: var(--text-subtle); cursor: default; }
-.fb-count { padding: 0 12px 8px 46px; font-size: 11px; line-height: 1.5; color: var(--text-metadata); }
-.fb-count b { color: var(--text-subtle); font-weight: 400; }
-/* The id-change notice in the Comments head. */
-.comments-message.notice .doan-button { margin-left: 6px; vertical-align: middle; }
 
 /* The native sidebar material continues behind the shell; content stays opaque. */
 body:has(.shell-top) { background: transparent; }
@@ -785,6 +704,9 @@ body:has(.shell-top) { background: transparent; }
 .docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
 .docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
 .docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
+/* field-sizing sizes the empty field to its placeholder: a wrapped placeholder made the empty capsule taller than one
+   with a typed character. Chromium draws no text-overflow on a textarea placeholder, so a long one is clipped. */
+.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; }
 .docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
 /* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
 .docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
@@ -978,7 +900,10 @@ body:has(.shell-top) { background: transparent; }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
 .conversation-thread .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
 .conversation-thread .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
-.conversation-thread .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; }
+/* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
+.conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+/* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
+.conversation-thread .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
 .conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
@@ -991,3 +916,88 @@ body:has(.shell-top) { background: transparent; }
   .conversation-thread .caret { animation: none; }
   .conversation-thread .activity-head .chev { transition: none; }
 }
+
+/* buzz-project: the Overview as the project conversation screen (.doan/canvases/buzz-project.html, confirmed 2026-10-31).
+   The main panel keeps the workspace's white .ov surface; the thread scrolls inside it to the panel's edge while its
+   column stays 720px wide, and the composer sits under it. No mascot, greeting or gradient: that is Home's. */
+.workspace > .ov.ov-main { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+/* The body's tabular figures widen every "1" (short times like "1d", "12m", thread text), which the shell keeps for its
+   counts; these surfaces read like the page. The two menus are portalled out of .ov-main, so they are named too. */
+.ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-project-name { font-weight: var(--type-weight-medium); }
+/* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
+.wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
+.wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
+/* button.doan-chip's open fill (data-state="open", more specific) would otherwise replace the pressed fill. */
+.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.shell-project-menu.wt-menu { width: 280px; }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+/* The title gives way first in a narrow window (design §2.1). */
+.ov-title-wrap { display: flex; min-width: 0; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-notice { margin: 0 var(--space-4) var(--space-2); }
+.ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.ov-scroll > .conversation-thread { flex: 1; }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) 0; }
+.ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
+.ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
+.ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
+/* New conversation: the moved line and the suggestions sit right above the composer, start-aligned. */
+/* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
+.doan-notice.moved { margin-bottom: var(--space-3); }
+.doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
+/* One line: a title is the whole first message (up to 512 characters), so only it gives way and "moved to <canvas>."
+   stays readable; the text keeps the full sentence for assistive tech and the tooltip. */
+.moved-text { display: flex; min-width: 0; white-space: nowrap; }
+.moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ov-suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.ov-suggestions .suggestion span { white-space: nowrap; }
+/* The conversation dropdown: New, then the project conversations drawn like the right panel's rows, split by hairlines;
+   the shown one has the selected fill. It scrolls inside its height. */
+.conv-menu { width: 360px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
+.conv-new { display: flex; align-items: center; gap: var(--space-2); }
+.conv-new svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.conv-menu .doan-menu-item.current { background: var(--affordance-backdrop-pressed); }
+.conv-item { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-half); padding-block: var(--space-2); }
+.conv-list .conv-item + .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }
+.conv-list .conv-item:is(.current, [data-highlighted])::before, .conv-list .conv-item:is(.current, [data-highlighted]) + .conv-item::before { display: none; }
+.conv-item .t { font-weight: var(--type-weight-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* A conversation's first line, shared with the right panel's rows: logo, name, status mark, short time flush right. */
+.cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
+.cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
+.cv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-head .row-slot { margin-left: 0; }
+.cv-when { flex: none; margin-left: auto; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+/* The right panel on the Overview: its title; batch RL adds the canvas rows. */
+.right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); }
+.right.ov-right .rp-head:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.rp-list { list-style: none; margin: 0; padding: 0 var(--space-2) var(--space-2); }
+.cv-item { position: relative; }
+/* A hairline between rows, inset to the row's padding; it hides next to a hovered row so the fill reads as one shape. */
+.cv-item + .cv-item::before { content: ""; position: absolute; top: 0; left: var(--space-2); right: var(--space-2); height: 1px; background: var(--border-standard); }
+.cv-item:has(> .cv-row:not([aria-disabled="true"]):hover)::before, .cv-item:has(> .cv-row:not([aria-disabled="true"]):hover) + .cv-item::before { display: none; }
+/* Rows start at the top: the preview makes them taller than the thumbnail. */
+.cv-row { display: flex; align-items: flex-start; gap: var(--space-2); width: 100%; min-height: var(--size-row); padding: var(--space-3) var(--space-2); border-radius: var(--radius-row); text-align: start; }
+.cv-row:not([aria-disabled="true"]):hover { background: var(--affordance-backdrop-hover); }
+.cv-row:focus-visible { outline-offset: -2px; }
+.cv-row[aria-disabled="true"] { cursor: default; align-items: center; }
+.cv-thumb { position: relative; flex: none; width: 72px; height: var(--space-12); overflow: hidden; border-radius: var(--radius-toolbar-icon); box-shadow: inset 0 0 0 1px var(--border-standard); }
+/* Captures are 480px wide; the 72×48 cell shows their top. */
+.cv-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+/* Without a ready preview: the inset fill only, no glyph. */
+.cv-thumb.empty { background: var(--surface-inset); }
+.cv-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cv-text > b, .cv-text .cv-head b { font-weight: var(--type-weight-medium); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-text > small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.cv-text > small.err { color: var(--text-danger); }
+.cv-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: var(--space-half) 0; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.rp-empty { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }

@@ -1,219 +1,178 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, expect, test, vi } from "vitest";
-import type { ThumbnailReply } from "../main/thumbnails";
-import type { CanvasRow } from "../main/view";
-import type { ProjectCanvasComments } from "../main/projectComments";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { AuthSnapshot } from "../main/agentAuth/ipc";
+import { authStatus } from "../main/agentAuth/state";
+import type { AuthState, Provider } from "../main/agentAuth/types";
+import type { ConversationSummary } from "../main/conversation/summary";
+import type { CanvasRow, FolderEntry } from "../main/view";
+import { DockedSupport } from "./dockedSupport";
+import type { PresetSummary } from "./homeComposer";
+import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
+import { ProjectOverview, worktreeChoice, type ProjectOverviewProps } from "./ProjectOverview";
 import { TooltipProvider } from "./components/ui/tooltip";
-import { applyVisibility, cardFacts, ProjectOverview, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./ProjectOverview";
-import { focusAfterRemoval, overviewSections } from "./overviewOrder";
 
-const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
-const rows = [
-  row(".doan/canvases/tokens.html", { title: "Design tokens" }),
-  row(".doan/canvases/2026-10-checkout-revamp.html", { title: "Checkout revamp (Oct 2026)" }),
-  row(".doan/canvases/checkout/cart.html", { title: "Cart" }),
-  row(".doan/canvases/settings/team/members.html", { title: "Team members" }),
-  row(".doan/canvases/settings/billing.html", { title: "Billing & plans" }),
-];
-const render = (canvases: CanvasRow[], thumbnails: ReadonlyMap<string, ThumbnailState> = new Map(), comments?: readonly ProjectCanvasComments[]) =>
-  renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={canvases} thumbnails={thumbnails} onVisible={() => {}} open={() => {}} comments={comments} /></TooltipProvider>);
+// buzz-project design §2.1, §2.2, §2.5: the Overview's header and main column as static markup.
 
-test("sections run root first, then folders in tree order, each with its direct canvases in tree order", () => {
-  expect(overviewSections(rows).map(section => [section.key, section.canvases.map(canvas => canvas.name)])).toEqual([
-    [".doan/canvases", ["Checkout revamp (Oct 2026)", "Design tokens"]],
-    [".doan/canvases/checkout", ["Cart"]],
-    [".doan/canvases/settings", ["Billing & plans"]],
-    [".doan/canvases/settings/team", ["Team members"]],
-  ]);
-  // A folder holding only folders has no section of its own.
-  expect(overviewSections([row(".doan/canvases/a/b/c.html")]).map(section => section.key)).toEqual([".doan/canvases/a/b"]);
-  expect(overviewSections([])).toEqual([]);
+const ROOT = "/code/doan", WT = "/code/doan-checkout";
+const A = "aaaaaaaa-0000-4000-8000-000000000001";
+const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u", open: 0, resolved: 0 });
+const entry = (path: string, canvases: string[], branch = "main"): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: canvases.map(row), git: { branch, common: "/code/doan/.git" } } as FolderEntry);
+const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
+  conversationId: A, title: "What should the checkout empty state say when a cart has expired?", state: "current", owner: "doan", provider: "claude",
+  fromHome: true, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-10-30T00:00:00.000Z", preview: "p", ...patch,
 });
+const PRESETS: PresetSummary[] = ([["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["critique", "Critique the design", "review"], ["polish", "Polish the details", "refine"]] as const)
+  .map(([id, title, group]) => ({ id, title, description: "", scope: "", group }));
+function status(provider: Provider) {
+  const state: AuthState = { provider, generation: 1, verified: true, expired: false, connection: { provider, connectionId: "c", profile: provider, account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" };
+  return authStatus(state, { cli: "found", version: "supported", tools: "ready" }, 1);
+}
+const AUTH: AuthSnapshot = { revision: 1, providers: [status("claude")] };
 
-test("card facts count static frames, singular and capped, and show open comments only above zero", () => {
-  const frames = (count: number) => Array.from({ length: count }, (_, index) => ({ id: `f${index}` }));
-  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(4) }))).toEqual({ frames: "4 frames" });
-  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(1) }))).toEqual({ frames: "1 frame" });
-  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(0) }))).toEqual({ frames: "0 frames" });
-  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(1000), framesTruncated: true, open: 3 }))).toEqual({ frames: "1,000+ frames", open: "3 open" });
-  expect(cardFacts(row(".doan/canvases/a.html", { frames: frames(1000) }))).toEqual({ frames: "1,000 frames" });
-  // Missing ID does not invalidate known frame facts.
-  const { id: _id, ...withoutId } = row(".doan/canvases/a.html", { open: 2 });
-  expect(cardFacts(withoutId)).toEqual({ frames: "0 frames", open: "2 open" });
-});
+beforeEach(() => vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null) } }));
+afterEach(() => vi.unstubAllGlobals());
 
-test("thumbnail view: missing width beats capture state; missing id does not", () => {
-  const { id: _id, ...withoutId } = row(".doan/canvases/a.html");
-  const { width: _width, ...noWidth } = row(".doan/canvases/a.html");
-  expect(thumbnailView(withoutId, { kind: "ready", url: "blob:x" })).toEqual({ kind: "ready", url: "blob:x" });
-  expect(thumbnailView(noWidth, { kind: "failed" })).toEqual({ kind: "noWidth" });
-  expect(thumbnailView(row(".doan/canvases/a.html"), undefined)).toEqual({ kind: "pending" });
-  expect(thumbnailView(row(".doan/canvases/a.html"), { kind: "failed" })).toEqual({ kind: "failed" });
-  expect(thumbnailView(row(".doan/canvases/a.html"), { kind: "ready", url: "blob:x" })).toEqual({ kind: "ready", url: "blob:x" });
-});
-
-test("focus goes to the next remaining card, else the previous one", () => {
-  expect(focusAfterRemoval(["a", "b", "c"], ["a", "c"], "b")).toBe("c");
-  expect(focusAfterRemoval(["a", "b", "c", "d"], ["a", "d"], "b")).toBe("d");
-  expect(focusAfterRemoval(["a", "b", "c"], ["a", "b"], "c")).toBe("b");
-  expect(focusAfterRemoval(["a", "b"], [], "a")).toBeNull();
-  // Still there, or never known: nothing to move.
-  expect(focusAfterRemoval(["a", "b"], ["a", "b"], "a")).toBeNull();
-  expect(focusAfterRemoval(["a"], ["b"], "x")).toBeNull();
-});
-
-test("visibility changes report a new set only when it changed", () => {
-  const visible = applyVisibility(new Set(), [{ path: "a", visible: true }, { path: "b", visible: true }]);
-  expect(visible && [...visible]).toEqual(["a", "b"]);
-  expect(applyVisibility(new Set(["a", "b"]), [{ path: "a", visible: true }, { path: "c", visible: false }])).toBeNull();
-  const after = applyVisibility(new Set(["a", "b"]), [{ path: "a", visible: false }]);
-  expect(after && [...after]).toEqual(["b"]);
-});
-
-test("the overview shows thumbnail states without inferring parse failure from missing metadata", () => {
-  const { id: _id, title: _title, ...withoutId } = row(".doan/canvases/checkout/legacy-checkout.html", { mtimeMs: Date.now() });
-  const { width: _width, ...noWidth } = rows[0]!;
-  const html = render([noWidth, rows[1]!, rows[2]!, withoutId, { ...rows[4]!, open: 2, frames: [{ id: "plans" }] }], new Map<string, ThumbnailState>([
-    [".doan/canvases/2026-10-checkout-revamp.html", { kind: "ready", url: "blob:thumb" }],
-    [".doan/canvases/settings/billing.html", { kind: "failed" }],
-  ]));
-  expect(html).toContain('aria-label="Overview"');
-  expect(html).toMatch(/<div class="sec">\.doan\/canvases <span class="r">2<\/span><\/div>/);
-  expect(html).toMatch(/<div class="sec">\.doan\/canvases\/checkout <span class="r">2<\/span><\/div>/);
-  expect(html).toContain("Preview needs a valid <code>doan:width</code> — run doan check");
-  expect(html).toContain('<img src="blob:thumb" alt=""');
-  expect(html).toContain('class="thumb pending"');
-  expect(html).toContain("Preview unavailable");
-  expect(html).not.toContain("Can&#x27;t read this canvas");
-  expect(html).toMatch(/<span id="[^"]+-title" class="ocard-title" title="legacy-checkout">legacy-checkout<\/span>/);
-  expect(html).toContain("1 frame</span> · ");
-  expect(html).toContain('<span class="hot">2 open</span>');
-  // Zero open comments are not shown.
-  expect(html).not.toContain("0 open");
-  expect(html.match(/<button[^>]*class="ocard"/g)).toHaveLength(5);
-});
-
-test("a workspace without canvases keeps the heading and shows the first prompt composer in a card", () => {
-  const html = render([]);
-  expect(html).toMatch(/^<section class="ov" role="region" aria-label="Overview"><div class="empty"><b>No canvases in \.doan\/canvases\/ yet<\/b><div class="fp-card"><div class="ob-prompt">/);
-  expect(html).toContain('<p class="ob-sentence">Use the doan skill to make a design canvas in /code/acme-web for <mark class="slot">…</mark>.</p>');
-  expect(html).not.toContain("Copy first prompt");
-  expect(html).not.toContain("ocard");
-});
-
-// Each request waits until the test answers it, so replies can arrive late.
-function requests(root = "/code/acme-web") {
-  const asks: { path: string; onScreen: boolean; reply: (reply: ThumbnailReply) => Promise<void> }[] = [];
-  let urls = 0;
-  const created = vi.spyOn(URL, "createObjectURL").mockImplementation(() => `blob:${++urls}`);
-  const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
-  let shown: ReadonlyMap<string, ThumbnailState> = new Map();
-  const thumbs = new ThumbnailRequests(root, (_root, path, onScreen) => new Promise(resolve => {
-    asks.push({ path, onScreen, reply: async reply => { resolve(reply); await Promise.resolve(); } });
-  }), items => { shown = items; }, () => {});
-  const ready: ThumbnailReply = { kind: "ready", png: new Uint8Array([1]) };
-  return { thumbs, asks, created, revoked, ready, shown: () => shown };
+function render(list: ListView, patch: Partial<ProjectOverviewProps> = {}, setup?: (run: OverviewRun) => void) {
+  const host: OverviewRunHost = {
+    list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: () => {}, remembered: () => ({}), remember: () => {},
+    markSeen: () => {}, focused: () => true, openCanvas: () => {}, toast: () => {}, label: () => "doan", changed: () => {},
+  };
+  const run = new OverviewRun(host);
+  run.show(ROOT);
+  setup?.(run);
+  const support = new DockedSupport(() => {});
+  support.auth = AUTH;
+  support.presets = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
+  const props: ProjectOverviewProps = {
+    run, support, root: ROOT, project: "doan", entry: entry(ROOT, [".doan/canvases/checkout.html"]), worktrees: [entry(ROOT, [])], homeDirectory: "/code",
+    notice: null, unavailable: null, list, seen: new Set(), holder: null, prefs: {}, defaults: null, now: Date.parse("2026-10-30T00:03:00.000Z"),
+    onWorktree: () => {}, onOpenCanvas: () => {}, onRetryList: () => {}, onStart: async () => ({ ok: true }), onSettings: () => {},
+    onSendConversation: async () => {}, onAction: () => {}, onProjectSettings: () => {}, ...patch,
+  };
+  return renderToStaticMarkup(<TooltipProvider><ProjectOverview {...props} /></TooltipProvider>);
 }
 
-afterEach(() => vi.restoreAllMocks());
-
-test("thumbnails: a removed card releases its image and forgets its request and visibility", async () => {
-  const h = requests();
-  const [a, b] = [rows[0]!, rows[1]!];
-  h.thumbs.setRows([a, b]);
-  h.thumbs.onVisible([a.path]);
-  await h.asks[0]!.reply(h.ready);
-  expect(h.shown().get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
-  h.thumbs.setRows([b]);
-  expect(h.revoked).toHaveBeenCalledWith("blob:1");
-  expect(h.shown().has(a.path)).toBe(false);
+test("the header names the project, its branch read-only for one worktree, and the conversation's title", () => {
+  const html = render([summary()]);
+  expect(html).toContain('<span class="ov-project-name">doan</span>');
+  expect(html).toMatch(/<span class="doan-chip shell-branch" data-ui-variant="translucent">.*<span>main<\/span><\/span>/);
+  expect(html).not.toContain("wt-chip");
+  expect(html).toContain('<span class="ov-sep" aria-hidden="true">/</span>');
+  expect(html).toMatch(/class="ov-title doan-button"[^>]*>.*<span>What should the checkout empty state say when a cart has expired\?<\/span>/);
+  expect(html).toContain('placeholder="Reply, / for presets"');
+  expect(html).not.toContain("ov-suggestions");
 });
 
-test("thumbnails: a reply for a card removed in the meantime is dropped", async () => {
-  const h = requests();
-  const [a, b] = [rows[0]!, rows[1]!];
-  h.thumbs.setRows([a, b]);
-  h.thumbs.onVisible([a.path]);
-  h.thumbs.setRows([b]);
-  await h.asks.find(ask => ask.path === a.path)!.reply(h.ready);
-  expect(h.created).not.toHaveBeenCalled();
-  expect(h.shown().has(a.path)).toBe(false);
+test("with two worktrees the branch chip opens the worktree menu", () => {
+  const html = render([summary()], { worktrees: [entry(ROOT, []), entry(WT, [], "feat-checkout")] });
+  expect(html).toMatch(/<button[^>]*class="doan-chip shell-branch wt-chip"[^>]*aria-label="Worktree: main"/);
 });
 
-test("thumbnails: a card made again at the same path is asked again, and the old reply does not land", async () => {
-  const h = requests();
-  const a = rows[0]!;
-  h.thumbs.setRows([a]);
-  h.thumbs.onVisible([a.path]);
-  const old = h.asks[0]!;
-  h.thumbs.setRows([]);
-  h.thumbs.onVisible([]);
-  h.thumbs.setRows([a]);
-  h.thumbs.onVisible([a.path]);
-  expect(h.asks.map(ask => [ask.path, ask.onScreen])).toEqual([[a.path, true], [a.path, true]]);
-  await old.reply(h.ready);
-  expect(h.shown().has(a.path)).toBe(false);
-  await h.asks[1]!.reply(h.ready);
-  expect(h.shown().get(a.path)).toEqual({ kind: "ready", url: "blob:1" });
+test("a new conversation offers Home's suggestions over the composer, also for a project with only a design system", () => {
+  const html = render([], { entry: entry(ROOT, [".doan/ds/tokens.html"]) });
+  expect(html).toMatch(/class="ov-title doan-button"[^>]*>.*<span>New conversation<\/span>/);
+  expect(html).toContain('placeholder="Ask or describe what to design, / for presets"');
+  expect(html).toContain('<div class="ov-suggestions" role="group" aria-label="Suggested prompts">');
+  expect(html).toContain("Gather design context");
+  expect(html).toContain("Shape a first screen");
+  expect(html).not.toContain("Document the design system");
+  expect(html).not.toContain("Doany");
 });
 
-test("thumbnails: leaving the root releases every image and drops late replies", async () => {
-  const h = requests();
-  const [a, b] = [rows[0]!, rows[1]!];
-  h.thumbs.setRows([a, b]);
-  h.thumbs.onVisible([a.path, b.path]);
-  await h.asks.find(ask => ask.path === a.path)!.reply(h.ready);
-  h.thumbs.dispose();
-  expect(h.revoked).toHaveBeenCalledWith("blob:1");
-  await h.asks.find(ask => ask.path === b.path)!.reply(h.ready);
-  expect(h.created).toHaveBeenCalledTimes(1);
+test("canvases but no conversations: a new conversation with suggestions naming the canvas", () => {
+  const html = render([]);
+  expect(html).toContain("Critique the checkout canvas");
 });
 
-test("thumbnail requests accept valid width without an id and retain known frames", () => {
-  const h = requests();
-  const { id: _id, ...missingID } = row(".doan/canvases/no-id.html", { frames: [{ id: "known" }] });
-  const { width: _width, ...noWidth } = row(".doan/canvases/no-width.html");
-  h.thumbs.setRows([missingID, noWidth]);
-  h.thumbs.onVisible([missingID.path, noWidth.path]);
-  h.thumbs.changed(noWidth.path);
-  expect(h.asks.map(ask => ask.path)).toEqual([missingID.path]);
-  expect(cardFacts(missingID)).toEqual({ frames: "1 frame" });
-  h.thumbs.dispose();
+test("a promotion leaves the moved line with Open above the suggestions", () => {
+  const html = render([summary()], {}, run => {
+    run.sync();
+    (run as unknown as { roots: Map<string, { current: unknown; moved: unknown }> }).roots.get(ROOT)!.current = { conversationId: null, listed: false };
+    (run as unknown as { roots: Map<string, { moved: unknown }> }).roots.get(ROOT)!.moved = { conversationId: A, title: "Checkout copy", canvas: { path: ".doan/canvases/checkout.html", id: "checkout" } };
+  });
+  // review DS r1: one line; only the title gives way, and the whole sentence stays in the text (and the tooltip).
+  expect(html).toMatch(/<div class="doan-notice moved" role="status">.*<span class="grow-text moved-text" title="Checkout copy moved to checkout\."><span class="moved-title">Checkout copy<\/span><span class="moved-rest"> moved to checkout\.<\/span><\/span><button[^>]*>Open<\/button><\/div><div class="ov-suggestions"/);
 });
 
-test("a notice opens the overview as its first child band, and no notice adds nothing", () => {
+test("the duplicate-ID notice shows under the header", () => {
   const notice = "Checkout moved, but 2 canvases now use the ID checkout. Run doan check in a terminal.";
-  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/code/acme-web" rows={rows} thumbnails={new Map()} onVisible={() => {}} open={() => {}} notice={notice} /></TooltipProvider>);
-  expect(html).toContain(`<section class="ov native-scroll" role="region" aria-label="Overview"><div class="canvas-notice" role="status">${notice}</div><section aria-label=".doan/canvases">`);
-  expect(render(rows)).not.toContain("canvas-notice");
+  const html = render([summary()], { notice });
+  expect(html).toMatch(new RegExp(`</header><div class="doan-notice ov-notice" role="status">.*<span class="grow-text">${notice.replace(/\./g, "\\.")}</span></div>`));
 });
 
-test("a card shows resolved to review from the project read, matched by canvas ID; zero and a failed read show none", () => {
-  const counts: ProjectCanvasComments[] = [{ id: ".doan/canvases/a.html", open: 3, resolved: 2, toReview: 2 }, { id: "zero", open: 0, resolved: 1, toReview: 0 }, { id: "broken", error: "EACCES" }];
-  expect(cardFacts(row(".doan/canvases/a.html", { open: 3 }), counts)).toEqual({ frames: "0 frames", open: "3 open", review: "2 resolved to review" });
-  expect(cardFacts(row(".doan/canvases/b.html", { id: "zero" }), counts)).toEqual({ frames: "0 frames" });
-  expect(cardFacts(row(".doan/canvases/c.html", { id: "broken", open: 1 }), counts)).toEqual({ frames: "0 frames", open: "1 open" });
-  const { id: _id, ...withoutId } = row(".doan/canvases/a.html");
-  expect(cardFacts(withoutId, counts)).toEqual({ frames: "0 frames" });
-  const html = render([row(".doan/canvases/a.html", { open: 3 })], new Map(), counts);
-  expect(html).toContain('class="ocard-meta"><span>0 frames</span> · <span class="hot">3 open</span> · <span class="review">2 resolved to review</span> · <span>—</span></span>');
+test("while the list is read the title is unavailable and the composer is a new conversation; a failed read says so", () => {
+  const loading = render("loading");
+  const titleTag = (html: string) => html.match(/<button[^>]*class="ov-title doan-button"[^>]*>/)?.[0] ?? "";
+  expect(titleTag(loading)).toContain('disabled=""');
+  expect(loading).toContain('placeholder="Ask or describe what to design, / for presets"');
+  expect(loading).not.toContain("Loading conversation…");
+  const failed = render("error");
+  expect(titleTag(failed)).not.toContain("disabled");
 });
 
-// project-feedback draft `tree-errors`: the card of a canvas ls could not read
-// shows the tree row's sentence, and no frame count it does not know.
-test("the card of an unreadable canvas shows the tree row's sentence and no frame count", () => {
-  const unreadable: CanvasRow = { path: ".doan/canvases/legacy-checkout.html", url: "u", open: 0, resolved: 0, frames: [], error: { code: "unreadable_canvas", message: "Cannot read .doan/canvases/legacy-checkout.html: permission denied" } };
-  expect(thumbnailView(unreadable, undefined)).toEqual({ kind: "unreadable" });
-  expect(cardFacts(unreadable)).toEqual({});
-  const html = render([unreadable]);
-  expect(html).toContain('<p class="thumb-msg warn">Can&#x27;t read this canvas — run doan check</p>');
-  expect(html).not.toContain("doan:width");
-  expect(html).not.toContain("0 frames");
-  expect(html).not.toContain("permission denied");
+test("a long title is cut by style only, so the trigger's name keeps the whole title", () => {
+  const title = "Does the design system cover dark mode? It should explain how tokens map when the app follows the system setting";
+  const html = render([summary({ title })]);
+  expect(html).toContain(`<span>${title}</span>`);
 });
 
-test("a card never shows a count of comments without a canvas", () => {
-  const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview root="/r" rows={[row(".doan/canvases/a.html", { open: 1 })]} thumbnails={new Map()} onVisible={() => {}} open={() => {}} comments={[{ id: ".doan/canvases/a.html", open: 1, resolved: 0, toReview: 1 }]} /></TooltipProvider>);
-  expect(html).toContain("1 resolved to review");
-  expect(html).not.toContain("without a canvas");
+test("a project that turned into a problem keeps the thread and holds Send with Home's reason", () => {
+  const html = render([summary()], { unavailable: "doan isn’t available. Fix it from its menu in the sidebar." });
+  expect(html).toContain("doan isn’t available. Fix it from its menu in the sidebar.");
+});
+
+// POSTMORTEM 2026-10-25: a switch draws the other conversation's own draft in the very next render, never the previous
+// one's.
+test("switching conversations draws each one's own draft and title at once", () => {
+  const B = "aaaaaaaa-0000-4000-8000-000000000002";
+  const list = [summary(), summary({ conversationId: B, title: "Ideas for onboarding" })];
+  let run!: OverviewRun;
+  const first = render(list, {}, r => {
+    run = r; r.sync();
+    r.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { text: "for A", anchors: [], preset: null, attachments: [], shape: "capsule" }).set(`conversation:${B}`, { text: "for B", anchors: [], preset: null, attachments: [], shape: "capsule" }));
+  });
+  expect(first).toContain(">for A</textarea>");
+  const second = render(list, {}, r => {
+    r.sync();
+    r.drafts = run.drafts;
+    r.select(ROOT, B);
+  });
+  expect(second).toContain(">for B</textarea>");
+  expect(second).toContain("<span>Ideas for onboarding</span>");
+  expect(second).not.toContain("for A");
+});
+
+// Review RM r1 🟡7, design §2.1: the chip's worktree rows behave as the sidebar's: a listed or reading worktree opens,
+// a problem one turns the menu to its repair actions.
+test("a problem worktree in the chip menu shows its repair actions instead of opening", () => {
+  const missing = { kind: "notFound", path: "/code/gone" } as FolderEntry;
+  const unset = { kind: "uninitialized", path: "/code/new" } as FolderEntry;
+  expect(worktreeChoice(entry(WT, []))).toEqual({ kind: "open" });
+  expect(worktreeChoice({ kind: "loading", path: WT } as FolderEntry)).toEqual({ kind: "open" });
+  expect(worktreeChoice(missing)).toEqual({ kind: "repair", actions: ["locate"] });
+  expect(worktreeChoice(unset)).toEqual({ kind: "repair", actions: ["setUp"] });
+});
+
+// design-sync (buzz-project.html, buzz-conversation.html), measured in the built app: the app body's tabular figures
+// widened the short times ("12m" by 2.5px), button.doan-chip's open fill replaced the open worktree chip's pressed
+// fill, and two bare lucide glyphs (the moved line's, the Stopped notice's) rendered at 24px instead of 16.
+test("the Overview's surfaces take plain numerals, the open chip its pressed fill, and notice glyphs the icon size", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }");
+  expect(css).toContain('.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }');
+  expect(css).toContain(".doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
+  expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
+  expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
+  expect(css).toContain(".conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
+});
+
+// runtime-test (buzz-project RT): at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
+// (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
+test("the capsule's placeholder stays on one line", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain('.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; }');
 });

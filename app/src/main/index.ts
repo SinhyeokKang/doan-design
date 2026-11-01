@@ -55,14 +55,12 @@ import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
-import { parseProjectCommentsRequest, readProjectComments, type ProjectComments } from "./projectComments";
 import { removalLabel } from "./removal";
 import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewState";
 import { readFoldersFileForPruning } from "./folderStore";
 import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
-import { promptSentence } from "../firstPrompt/promptSentence";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
@@ -80,11 +78,12 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved";
+export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved" | "newConversation";
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `reviewing`: a Review runs on the open canvas (revision-recheck); absent is false.
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean; choose?: boolean; locked?: boolean }
+// `overview`: a project Overview shows (File > New Conversation).
+export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean; choose?: boolean; locked?: boolean; overview?: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -240,7 +239,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -257,6 +256,7 @@ function setMenu(): void {
       {
         label: "File",
         submenu: [
+          { label: "New Conversation", accelerator: "CmdOrCtrl+N", enabled: enabled.newConversation, click: command("newConversation") },
           { label: "Add Project…", accelerator: "CmdOrCtrl+O", enabled: enabled.addProject, click: openAddProjects },
           { type: "separator" },
           { label: "Close Window", accelerator: "CmdOrCtrl+W", click: () => {
@@ -309,12 +309,12 @@ const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast && next.reviewing === menuInputs.reviewing &&
-    next.choose === menuInputs.choose && next.locked === menuInputs.locked) return;
+    next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["reviewing", "choose", "locked"] as const;
+const MENU_FLAGS = ["reviewing", "choose", "locked", "overview"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);
@@ -537,9 +537,8 @@ async function start(): Promise<void> {
       return inspector.documentCurrent(identity, url, origin);
     },
     clipboard: value => clipboard.writeText(value), invalidated: invalidate,
-    listing: root => readFolder(cli, root),
   });
-  const commentMethods = { list: "list", begin: "begin", mutate: "mutate", status: "status", author: "author", copy: "copy", orphanMutate: "orphan-mutate", orphanStatus: "orphan-status" } as const;
+  const commentMethods = { list: "list", begin: "begin", mutate: "mutate", status: "status", author: "author", copy: "copy" } as const;
   for (const [method, channel] of Object.entries(commentMethods) as [keyof typeof commentMethods, string][]) {
     handle(`comments:${channel}`, { ok: false, identity: null, error: "The request was refused." }, (event, value: unknown) => {
       if (!fromWindow(event)) return { ok: false, identity: null, error: "The request was refused." };
@@ -877,14 +876,6 @@ async function start(): Promise<void> {
     const request = parseReviewRaise(value);
     return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.raise(request.root, request.canvas, request.at) : null;
   });
-  handle("comments:project", null, (event, value: unknown): Promise<ProjectComments> | null => {
-    const request = parseProjectCommentsRequest(value);
-    if (!fromWindow(event) || request === null || !storedRoot(request.root)) return null;
-    return readProjectComments({
-      list: root => readFolder(cli, root), read: readCommentBytes, author: readAuthor,
-      marker: (root, canvas) => reviews.marker(root, canvas), epoch: root => ready.epoch(root),
-    }, request);
-  });
   // A saved root and a listed canvas only; main reads the bytes from its cache.
   handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 3 ||
@@ -948,24 +939,6 @@ async function start(): Promise<void> {
   handle("about:read", null, (_event, value: unknown) => value === undefined ? readAbout() : null);
   // Copies what About last showed, so the text matches the page.
   handle("about:copy", { kind: "stale" }, async (_event, value: unknown) => value === undefined ? copy(aboutText(lastAbout ?? await readAbout())) : { kind: "stale" });
-  // The sentence names only a stored, set-up project. `subject` is the one
-  // free text the renderer sends; promptSentence checks it.
-  const readyRoot = (value: unknown): string | null => typeof value === "string" &&
-    ready.entries().some(entry => entry.path === value && entry.kind === "list") ? value : null;
-  const promptText = (value: Record<string, unknown>, fixed: number): string | null => {
-    const root = readyRoot(value.root);
-    if (root === null || Object.keys(value).length - fixed !== 2 || !("subject" in value)) return null;
-    const text = typeof value.subject === "string" ? promptSentence(root, value.subject) : null;
-    return typeof text === "string" ? text : null;
-  };
-  handle("onboarding:first-prompt", null, (_event, value: unknown) =>
-    typeof value === "object" && value !== null && "root" in value ? promptText(value as Record<string, unknown>, 0) : null);
-  handle("onboarding:copy", { kind: "stale" }, async (_event, value: unknown) => {
-    if (typeof value !== "object" || value === null || !("kind" in value)) return { kind: "stale" };
-    let text: string | null = null;
-    if (value.kind === "firstPrompt" && "root" in value) text = promptText(value as Record<string, unknown>, 1);
-    return text === null ? { kind: "stale" } : copy(text);
-  });
   handle("onboarding:choose-folder", null, (event, value: unknown) => fromWindow(event) ? chooseFolder(value) : null);
 
   const bridge = createConfigBridge({

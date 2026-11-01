@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { savedUiState, wizardCloseFocus } from "./App";
+import { mergeConversationMemory, savedUiState, wizardCloseFocus } from "./App";
 import { removalConfirm, restoreRequest, type LastRequest } from "./homeConversations";
 
 // buzz-home tasks U5: App's own helpers; the send, move, binding, toast and removal wiring is in homeRun.test.ts.
@@ -17,6 +17,14 @@ test("every main-window save carries Home's memory, and none is sent before that
   expect(savedUiState({ ...base, home: null })).toBeNull();
 });
 
+// buzz-project tasks T1: the conversation last shown in each root's Overview is saved top-level with every save.
+test("every save carries the Overview conversation memory by root, and an empty one is left out", () => {
+  const home = {};
+  const conversationByRoot = { "/code/doan": "aaaaaaaa-0000-4000-8000-000000000001" };
+  expect(savedUiState({ ...base, home, conversationByRoot })).toMatchObject({ conversationByRoot });
+  expect(savedUiState({ ...base, home, conversationByRoot: {} })).not.toHaveProperty("conversationByRoot");
+});
+
 test("first run's project handoff focuses the composer ahead of the focus held before the wizard", () => {
   expect(wizardCloseFocus("/code/doan")).toBe("composer");
   expect(wizardCloseFocus(null)).toBe("previous");
@@ -30,4 +38,14 @@ test("removing a project with a running Home conversation asks first; cancel kee
 test("Edit on Home asks before replacing a different draft", () => {
   const last: LastRequest = { root: "/code/doan", text: "Polish it.", preset: null, attachments: [], provider: "claude", model: null, effort: null };
   expect(restoreRequest({ text: "Another idea", preset: null, attachments: [] }, last, "doan").confirm?.title).toBe("Replace your draft?");
+});
+
+// Review RM r1 🟡9: the start's ui-state read merges under what the run wrote, deletions included.
+test("a late ui-state read never brings back memory cleared by New or a removed root", () => {
+  const saved = { "/a": "aaaaaaaa-0000-4000-8000-000000000001", "/b": "aaaaaaaa-0000-4000-8000-000000000002", "/c": "aaaaaaaa-0000-4000-8000-000000000003" };
+  const now = { "/c": "aaaaaaaa-0000-4000-8000-000000000004" };
+  // /a: New before the read; /b: removed before the read; /c: shown before the read.
+  expect(mergeConversationMemory(saved, now, new Set(["/a", "/b", "/c"]))).toEqual(now);
+  expect(mergeConversationMemory(saved, {}, new Set())).toEqual(saved);
+  expect(mergeConversationMemory(undefined, now, new Set(["/c"]))).toEqual(now);
 });

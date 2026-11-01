@@ -217,14 +217,14 @@ describe("folderState partial failure and orphans", () => {
   });
 
   // A file named `.jsonl` has the empty stem as its id; doan check warns about
-  // it, and Feedback shows its ls counts like any id that is not a canvas id.
+  // it; the app preserves the CLI entry as it does other orphan IDs.
   test("keeps an orphan whose id is empty", () => {
     const empty = { id: "", file: ".doan/comments/.jsonl", comments: { open: 1, resolved: 0 }, uncertain: false };
     const state = folderState(run({ stdout: envelope({ v: 1, ok: true, result: { ...listResult, orphans: [empty] } }) }));
     expect(state).toEqual({ kind: "list", root: "/repo", scope: [".doan/canvases", "tokens.css"], canvases, orphans: [empty] });
   });
 
-  // Orphans are shown and gate writes; a malformed entry is dropped rather
+  // Orphan counts support the ID-change notice; malformed entries are dropped rather
   // than failing the listing, and an absent field is no orphans at all.
   test("drops malformed orphan entries and keeps the listing", () => {
     const bad = [

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { parseUiState, UI_STATE_MAX_BYTES } from "./uiState";
+import { parseUiState, UI_STATE_MAX_BYTES, withoutRoots } from "./uiState";
 
 const saved = ["/repo/a", "/repo/b"];
 const view = { scale: 1, x: 10, y: -20 };
@@ -265,4 +265,40 @@ test.each([
 
 test("keeps a known closed group beside an unknown one", () => {
   expect(parse({ screen: "home", shellProjects: { common: { roots: ["/repo/a"], expanded: true, groups: { ds: false, ds2: false, canvases: 0 } } } })?.shellProjects?.common?.groups).toEqual({ ds: false });
+});
+
+const ID_A = "0d6f2c1e-5b7a-4c3d-9e8f-1a2b3c4d5e6f";
+const ID_B = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d";
+
+test("keeps the last project conversation per saved root", () => {
+  expect(parse({ screen: "home", conversationByRoot: { "/repo/a": ID_A, "/repo/b": ID_B } })?.conversationByRoot).toEqual({ "/repo/a": ID_A, "/repo/b": ID_B });
+});
+
+test("a file without conversationByRoot has none", () => {
+  expect(parse({ screen: "home" })).not.toHaveProperty("conversationByRoot");
+});
+
+test("drops invalid conversation ids one by one and keeps the rest", () => {
+  const state = parse({ screen: "home", conversationByRoot: { "/repo/a": "not-an-id", "/repo/b": ID_B } });
+  expect(state?.conversationByRoot).toEqual({ "/repo/b": ID_B });
+  for (const bad of [42, null, "", ID_A.toUpperCase(), `${ID_A} `, ["x"], { id: ID_A }]) {
+    expect(parse({ screen: "home", conversationByRoot: { "/repo/a": bad } })?.conversationByRoot).toEqual({});
+  }
+});
+
+test("a malformed conversationByRoot is dropped without costing the rest", () => {
+  const state = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, conversationByRoot: [ID_A] });
+  expect(state).not.toHaveProperty("conversationByRoot");
+  expect(state?.root).toBe("/repo/a");
+});
+
+test("conversationByRoot never keeps a root outside the saved list", () => {
+  expect(parse({ screen: "home", conversationByRoot: { "/repo/a": ID_A, "/repo/gone": ID_B } }, ["/repo/a"])?.conversationByRoot).toEqual({ "/repo/a": ID_A });
+});
+
+test("removing roots forgets their entries and leaves the others", () => {
+  const memory = { "/repo/a": ID_A, "/repo/b": ID_B };
+  expect(withoutRoots(memory, ["/repo/a", "/repo/unknown"])).toEqual({ "/repo/b": ID_B });
+  expect(withoutRoots(memory, [])).toEqual(memory);
+  expect(memory).toEqual({ "/repo/a": ID_A, "/repo/b": ID_B });
 });

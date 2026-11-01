@@ -41,20 +41,15 @@ function home(dir: string, models?: ModelOption[]) {
   return { handle, start, prepare, catalog, attachments, service };
 }
 const MODELS: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }];
-it("keeps FirstPrompt's subject path and takes Home's multi-line text as is", async () => {
+it("takes newDesign multi-line text as is and rejects subject requests", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
   try {
     const h = home(dir);
-    const first = await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", subject: "a pricing page", text: "a pricing page" }) as { conversationId: string };
-    expect(h.start.mock.calls[0]![0]).toMatchObject({ mode: "newDesign", subject: "a pricing page", text: "Use the doan skill to make a design canvas in /repo for a pricing page." });
-    // One project conversation works at a time in a root: the next starts after the first's binding window.
-    h.service.receive(first.conversationId, { type: "turn.done" });
-    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now + 10_001);
     const text = "Make a pricing page\n\n- three tiers\n- dark header";
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text })).toHaveProperty("conversationId");
-    expect(h.start.mock.calls[1]![0]).toMatchObject({ mode: "newDesign", text });
-    expect(h.start.mock.calls[1]![0]).not.toHaveProperty("subject");
-    for (const bad of [{ text: "   \n" }, {}, { subject: "line\nbreak", text: "x" }, { text: "x", canvas: { path: ".doan/canvases/a.html" } }, { text: "x".repeat(32_769) }, { text: "{{1}}" }])
+    expect(h.start.mock.calls[0]![0]).toMatchObject({ mode: "newDesign", text });
+    expect(h.start.mock.calls[0]![0]).not.toHaveProperty("subject");
+    for (const bad of [{ text: "   \n" }, {}, { subject: "line\nbreak", text: "x" }, { subject: "a pricing page", text: "a pricing page" }, { text: "x", canvas: { path: ".doan/canvases/a.html" } }, { text: "x".repeat(32_769) }, { text: "{{1}}" }])
       expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", ...bad })).toEqual({ error: "bad_request" });
     expect(await h.handle(true, "start", { root: "/repo", mode: "newDesign", text: "x" })).toEqual({ error: "no_agent" });
   } finally { vi.restoreAllMocks(); rmSync(dir, { recursive: true, force: true }); }

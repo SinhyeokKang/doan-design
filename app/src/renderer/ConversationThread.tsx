@@ -64,10 +64,12 @@ function textOf(node: unknown): string {
   const n = node as { type?: string; value?: string; children?: unknown[] };
   return n.type === "text" ? n.value ?? "" : (n.children ?? []).map(textOf).join("");
 }
-function CodeBlock({ node, children }: { node: unknown; children?: ReactNode }) {
+// A pointer press does not take focus, so copying leaves the composer's focus, selection and IME composition alone;
+// keyboard activation still focuses the button first.
+export function CodeBlock({ node, children }: { node: unknown; children?: ReactNode }) {
   const { copy } = useContext(Actions);
   return <div className="md-code"><pre>{children}</pre>
-    <button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onClick={() => copy(textOf(node).replace(/\n$/, ""))}><Copy aria-hidden="true" /></button></div>;
+    <button type="button" className="doan-icon-button" data-ui-size="xs" aria-label="Copy code" onMouseDown={event => event.preventDefault()} onClick={() => copy(textOf(node).replace(/\n$/, ""))}><Copy aria-hidden="true" /></button></div>;
 }
 function Link({ href, children }: { href: string | undefined; children?: ReactNode }) {
   const { openLink } = useContext(Actions);

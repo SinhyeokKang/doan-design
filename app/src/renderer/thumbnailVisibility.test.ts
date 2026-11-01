@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { ThumbnailRequests } from "./ProjectOverview";
+import { ThumbnailRequests } from "./thumbnails";
 import { initialThumbnailQueue, thumbnailQueue } from "../main/thumbnailQueue";
 
 test("the next capture follows current visibility after scrolling", async () => {

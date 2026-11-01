@@ -115,13 +115,13 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 | Comments (2026-10-23) + comments-readability update | buzz-canvas-conversation (코멘트 UI를 걷어낼 때 절을 정리한다) |
 | Onboarding (2026-10-24) + app-setup update | buzz-onboarding |
 | Projects home (2026-10-25) + Cfix review round | buzz-home |
-| Design navigation (2026-10-25) + Final review follow-up | 트리/LNB는 buzz-shell에서 완료, Overview 본문 buzz-project, Quick Open buzz-search, 남은 표시 삭제 buzz-project |
+| Design navigation (2026-10-25) + Final review follow-up | 트리/LNB는 buzz-shell에서 완료, Overview 본문과 표시 삭제는 buzz-project에서 완료(새 'Project Overview' 절), Quick Open buzz-search |
 | Settings and Home setup (2026-10-25) | Settings buzz-settings, Home 설정 부분 buzz-home, 표시 삭제 buzz-settings |
 | UX audit recovery update (2026-10-25) | buzz-ds (툴팁·포커스 등 공용 수정) |
 | Revision continuity (2026-10-26) | buzz-canvas |
 | Comments Review (2026-10-26) | buzz-canvas-conversation (같음) |
 | Hand off dialog (2026-10-26) | buzz-canvas-conversation (같음) |
-| Feedback panel (2026-10-26) | buzz-project (Overview에서 Feedback 패널을 뺄 때 절을 정리한다) |
+| Feedback panel (2026-10-26) | buzz-project에서 완료(절 삭제, ID 변경 알림 행은 Comments 절로 옮김) |
 
 ## 자식 feature 조사 메모
 

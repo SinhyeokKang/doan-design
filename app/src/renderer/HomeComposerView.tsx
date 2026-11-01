@@ -66,7 +66,8 @@ function viewers(memory: { current: ComposerMemory }): Set<() => void> {
 }
 
 export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; attachments?: { id: string }[] }
-export type StartOutcome = { ok: true } | { error: string; missing?: string[] };
+// conversationId: the started conversation, for a host that shows it in place (the project Overview).
+export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[] };
 
 export interface HeroComposerProps {
   entries: readonly FolderEntry[]; homeDirectory: string | null;

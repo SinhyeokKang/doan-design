@@ -42,9 +42,7 @@ function fixture(initial: Comment[] = [one, two, three], marker: ReviewMarker = 
     }),
   };
   const session = new CommentsSession(api, () => {});
-  const reviewed = vi.fn();
-  session.onReviewed = reviewed;
-  return { session, api, reviewed, set: (next: Comment[]) => { comments = next; } };
+  return { session, api, set: (next: Comment[]) => { comments = next; } };
 }
 const step = (s: CommentsSession) => {
   const run = s.review!;
@@ -116,7 +114,7 @@ describe("a Review", () => {
   });
 
   test("Next raises the last review time to the step passed, Previous does not lower it, Esc keeps that progress", async () => {
-    const { session: s, api, reviewed } = fixture();
+    const { session: s, api } = fixture();
     await s.open(identity);
     expect(s.startReview()).toBe(true);
     expect(step(s)).toEqual({ at: 1, of: 3, comment: "c1", mark: "resolved" });
@@ -132,7 +130,6 @@ describe("a Review", () => {
     s.moveReview("close");
     expect(s.review).toBeNull();
     await settled();
-    expect(reviewed).toHaveBeenCalledWith("/repo");
     expect(s.pendingReview().map(c => c.comment)).toEqual(["c3"]);
     expect(s.reviewDone).toBeNull();
   });
