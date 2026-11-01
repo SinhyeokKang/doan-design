@@ -255,7 +255,7 @@ Reference: `.doan/canvases/buzz-onboarding.html`, 73 full-window frames at 1238 
 | Chosen and destination cards | Panel padding 16, min-height 72, gap 12; thumbnail 28 × 28, radius 7, 17px / 600; name 14/20 / 500; path caption `--text-metadata` | |
 | Project thumbnails (shared with the sidebar) | `projectHue` over 8 identity colours; background is the colour 14% into `--surface-panel`; letter is the colour 65% into `--text-standard`; first code point of the trimmed name, upper-cased (`projectInitial`) | Also in `ShellSidebar` (16 × 16 there). |
 | Repository access error | Heading, URL field, the error notice (title and body) and a full-width row: Choose local folder (subtle, left) and Retry (prominent, right), both 40 high; the local option and divider are hidden | Frame `repository-error`. |
-| Choice cards | Selectable `doan-panel` cards with the chosen card's box: min-height 72, height 72, padding 16, gap 12, title 14/20 / 500, caption path, the chosen card's check when selected; cards 8px apart | Measured with injected markup: equal to the chosen card in both lists. |
+| Choice cards | Selectable `doan-panel` cards: min-height 72, padding 16, gap 12, title 14/20 / 500, caption path; cards 8px apart. A visible 16px radio leads the card, centred on the title's first line (it stays there when the title wraps), then the thumbnail, then the text: off is a 1px `--border-prominent` ring on `--surface-panel`, on is `--affordance-prominent` with a 6px `--text-on-prominent` dot; no trailing check | Measured in the real flow on Your projects and on repositories in a folder (radio and first-line centres equal, a two-line title included). |
 
 ### Behaviour and copy beyond the measured draft
 
@@ -297,7 +297,7 @@ Frame ids name the canvas frames that draw each state.
 ### Limits and regression pointers
 
 - Markup runs prove the CSS against chosen props only. They do not prove that `ProjectStepSession` reaches those states (its unit tests do), and they do not show live focus. Notice spacing inside Project screens was checked only on the repository-error frame.
-- Not measured: the native vibrancy material itself, reduced transparency and forced colours (DOM screenshots show the transparent overlay as white); hover and focus rings of the onboarding controls; dark mode; real sign-in, the real paste and stop dialogs as modals (measured as open dialogs in a column); the choice cards in the real flow. The Project step was reached in the real app only with a forged ready-agent snapshot (scroll container, card drop, cloning line against a local git server).
+- Not measured: the native vibrancy material itself, reduced transparency and forced colours (DOM screenshots show the transparent overlay as white); hover and focus rings of the onboarding controls; dark mode; real sign-in, the real paste and stop dialogs as modals (measured as open dialogs in a column). The Project step was reached in the real app only with a forged ready-agent snapshot (scroll container, card drop, cloning line against a local git server).
 - Welcome's centring and focus order were measured in the built app; `Onboarding.test.tsx` pins the Welcome CSS ('Welcome centres its group 72px high…'), the markup order (atmosphere, Doany, wordmark) and `openOverlay` focusing the heading right after `showModal()` (red before the fix), and `onboardingView.test.ts` the DOM-order Tab rule. The test pins the helper's order only; that the heading ref is set before the dialog's ref (children's refs attach first) is shown by the probe. The overlay always opens on Welcome (`initialScene(false)`).
 - Regression tests (`app/src/renderer/Onboarding.test.tsx`, `ds/controls.test.ts`, `ShellSidebar.test.tsx`) pin the stepper markup and capsule rule, the overlay's `font-variant-numeric: normal` (fails when the declaration is removed) and the paste help ink; the `lg`, notice-on-panel and thumbnail rules; and the markup of every Project phase.
 
@@ -500,7 +500,7 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 - **Cursor.** Plain buttons (activity head, rows) take the app-wide `button { cursor: pointer }`; the draft's plain buttons keep the default cursor.
 - **Provider text.** Model and effort labels, activity summaries ("Using a tool") and permission option labels ("Allow", "Allow with suggested permissions") come from the provider; the draft's samples are "Opus 5.5", "High", "Editing …", "Allow once".
 - **Thumbnails.** The app shows the captured canvas (`object-fit: cover`, top); the draft draws a mock fill.
-- **Narrow placeholder.** The capsule's placeholder stays on one line, so the empty capsule is as tall as one with a typed character; at narrow widths it is clipped at the field edge without an ellipsis, because Chromium does not draw `text-overflow` on a textarea placeholder. The full text stays the placeholder attribute.
+- **Narrow placeholder.** The capsule's placeholder stays on one line, so the empty capsule is as tall as one with a typed character; at narrow widths it ends in an ellipsis. The full text stays the field's `aria-placeholder`.
 
 ### Not verified
 
@@ -584,13 +584,13 @@ Reference: `.doan/canvases/buzz-canvas.html` (16 frames; `conversation-menu` is 
 | Frame drawer list | `doan-floating doan-menu`, 320 wide, 4 below the trigger at its start edge, height from Radix's available height (384 at 1238 × 780). Rows: the shared 32 px menu row (12 inline, `--radius-row`), gap 8; number column minimum 24 in metadata ink with tabular figures; name ellipsized with the full name in `title`; the viewed row shows "Viewing" (caption 12/16, metadata ink) and no fill; the fill (`--affordance-floating-hover`) follows focus, which the pointer moves. Truncated note: caption, metadata ink, a 1 px `--border-standard` top rule, 8 above the text, 4 above the rule | |
 | Zoom menu | Compact `doan-menu` 184 wide, 4 below the value at its end edge: Fit ⌘1, 100% ⌘0, separator, 50%, 200%; shortcuts at the row end in metadata ink | |
 | Board | `--surface-inset` (#f5f5f6) with no dot texture | A white canvas stays distinguishable when zoomed out, and the agent's white dot field shows. |
-| Tools row | Centred 12 above the board's bottom. The shared `.doan-floating` surface (90 % white, `--blur-sm` 8 px, `--shadow-panel`, radius 24, inset 4): 42 × 42 around the one 32 px Select tool. The pressed tool keeps `--affordance-backdrop-pressed` (rgba(0,0,0,.1)) under the pointer and while held; tooltip "Select" | The shared hover and active fills would otherwise replace the pressed fill while the tooltip shows. |
+| Tools row | Centred 12 above the board's bottom. The shared `.doan-floating` surface (90 % white, `--blur-sm` 8 px, `--shadow-panel`, radius 24, inset 4): around the 32 px Select and Add to conversation tools. The pressed tool keeps `--affordance-backdrop-pressed` (rgba(0,0,0,.1)) under the pointer and while held; tooltip "Select" | The shared hover and active fills would otherwise replace the pressed fill while the tooltip shows. |
 | Top column | `.doan-canvas-top`: 20 under the board's top, centred, `min(420px, 100% − 24px)` wide, gap 8; the agent notice first at its own width, centred, then the canvas notices stretched to the column | One place for everything floating at the top; it never covers the header. |
 | Canvas notices | `doan-notice doan-panel` (white, `--shadow-panel`) with the 16 px alert icon, 12 / 16 padding; one line is 44 high, 420 wide at 1238 × 780 | The shared Notices rule. |
 | Canvas status | `.canvas-status`: 14/20 `--text-subtle`, padding 16, message at most 260 wide, the bold heading `--text-standard` 500; the loading spinner 16 px and hidden from accessibility; Reload is an sm `panel` button (white, 32 high) | |
 | Toast | The shared toast, 16 from the window's right and bottom | Nothing sits in the board's bottom-right corner any more. |
 | Overlay marks | Selection: 1 px solid `--border-focus` with a 1 px white outer ring. Hover: the same, dashed. Dimensions: the prominent capsule (Intended exceptions), caption 12/16, padding 4 / 8, 24 high, 5 below the mark. Jump highlight: 2 px `--border-focus`, radius 1, a 3 px `--affordance-backdrop-pressed` ring, fading over 1.2 s (no fade under reduced motion) | Visible on light, dark (#050507) and violet (#5b21b6) canvases: the selection edge measured 21, 20.4 and 9.0 : 1 against them (BR6 probe; the overlay CSS has not changed since). |
-| Conversation panel shell | `aside.right.ov-right`: white, 1 px `--border-standard` start edge, end corners 24. Title row `h2.phead.rp-head`: 56 high, label-sm 500, padding 8 / 16, "Conversation", then the 32 px Hide conversation icon button. Body: "Conversations about this canvas will show here." 14/20 `--text-subtle`, centred, at most 240 wide | The Overview right panel's title row. |
+| Conversation panel shell | `aside.right.ov-right`: white, 1 px `--border-standard` start edge, end corners 24. Its head, thread and composer: 'Canvas conversation panel' | The Overview right panel. |
 | Panel width | Default and minimum `max(320px, 28dvw)`: 347 at 1238, 320 at 960. Maximum `min(50dvw, the width that leaves the canvas 360)`: 619 at 1238, 356 at 960; a saved width above it shows at the maximum and stays saved | |
 | Folded panel | The column is 0 wide and leaves the Tab order; the header ends with a 1 × 20 `--border-standard` divider (4 inline margin) and the 32 px Show conversation icon button | |
 | Resize handle | An 8 px transparent strip centred on the panel's start edge (z-index 4, `touch-action: none`, `col-resize`). Its only visible part is a 4 px bar, `linear-gradient(transparent, --affordance-accent, transparent)`, shown on hover, while dragging and on keyboard focus; keyboard focus adds a 2 px `--border-focus` ring | |
@@ -624,6 +624,48 @@ Reference: `.doan/canvases/buzz-canvas.html` (16 frames; `conversation-menu` is 
 ### Regression pointers
 
 `viewport.test.ts` and `CanvasController.test.ts` (insets, Fit, jumps, first Fit), `frameDrawer.test.ts`, `frameDrawerList.test.ts`, `zoomControl.test.ts`, `canvasFocus.test.ts`, `CanvasHeader.test.tsx`, `CanvasTools.test.tsx`, `rightPanelSize.test.ts`, `ConversationPanel.test.tsx`, `agentPresence.test.ts`, `agentIndicator.test.ts`, `dotField.test.ts`, `CanvasAgent.test.tsx` and `CanvasAgent.hooks.test.tsx` (Stop glyph, "Stopping…" spinner, notice icon). Sizes, colours and geometry above are `.scratch/` probes only.
+
+## Canvas conversation panel
+
+Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-states` has 13 tiles), plus the shared choice card on first run's Your projects and Add Projects' repositories in a folder. Measured by `/design-sync` (`.scratch/design-sync/buzz-canvas-conversation/measure.mjs`) in the built app at 1238 × 780 and 960 × 600: the draft is copied into a fixture repo as the canvas `checkout` and read in the app's canvas iframe, next to the panel it draws; 787 pairs over 25 states, 37 computed properties each plus text, box and disabled / pressed / checked state, accessible names from the CDP AX tree. No provider is signed in: the signed-in states come from main's agent-auth, model, conversation list / read / start / send and resume-target handlers replaced in the isolated app.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Panel head | The Overview right panel title row: the conversation title is an sm `trigger` button (label-sm 14/20 500, padding 6 / 8, gap 6, 16 px `.chev`), then the 32 px Hide conversation icon button; 48 high with an 8 px end inset. No bar, divider or shadow; the thread scrolls under it and is clipped at its lower edge. While the list loads the trigger is disabled (`--text-disabled`) | Nothing to choose until the list reads. |
+| Conversation menu | The Overview `conv-menu`: 360 wide, `doan-floating`, 4 inset; New conversation, separator, "Conversations on <canvas>", then rows (logo 14, title, time, one-line preview) with the shared 1 px dividers; the shown conversation has the pressed fill | Same rows as the Overview. |
+| Thread | Thread insets 8 / 16 / 0 on `.thread-scroll`; gap 12; the person's bubble at most 92 %, padding 8 / 16, radius 16, light accent fill (rgb(245,240,253)); text body-sm 14/20 | The Overview thread at panel width. |
+| Anchor chip | Inline, 20 high in a bubble and 24 in the field (the line height), padding 0 / 6, gap 4, margin 0 / 2, radius 6, 500 weight, `--text-accent-subtle` (rgb(84,56,113)) on `--surface-accent-subtle`, on `--surface-panel` inside a bubble; 14 px Lucide icon (Frame, SquareMousePointer, MapPin); label ellipsized at a 180 px chip. Field chips carry a hidden kind prefix ("Frame", "Element", "Point"); thread chips are buttons named "Show <label> on canvas" | Component constants (180, 6): no token has them. |
+| Not found note | "No longer in the canvas": caption 12/16 `--text-metadata` next to the chip, `role="status"` | |
+| Docked composer | The shipped docked composer (Project Overview) in a 12 px foot: capsule while empty or one line of plain text; any chip — attachment, preset or anchor — makes the box (padding 16 / 12 / 12 / 16, radius 24). The capsule's placeholder is one line ending in an ellipsis | A chip in the capsule would clip in the 320–347 px panel. |
+| Pick from canvas | 24 px xs icon button at the start of the model row (`margin-right: auto`), `--text-subtle`; pressed: `--affordance-backdrop-pressed` and `--text-standard`; unavailable: `aria-disabled`, `--text-disabled`, pointer cursor (its tooltip names the reason) | |
+| Picking hint | The agent notice's capsule: 36 high, padding 4 / 8 / 4 / 16, gap 8, 60 % prominent with blur; wording 14/20 white; an outlined Esc key (28 high, padding 4 / 8, inset 1 px ring of 45 % white); hidden "Press Escape to cancel"; `role="status"`; under the agent notice when both show. The board shows a crosshair; the panel keeps its own cursors | |
+| Tools row | Select, then Add to conversation (32 px): disabled is `aria-disabled` with a not-allowed cursor and no hover or pressed fill, so its reason tooltip still shows (tooltip: 24 high, padding 4 / 8, radius 12, black, caption white) | |
+| Terminal session | Choice cards above the composer (`ob-choice-list cp-resume`, margin-bottom 4); the model and effort triggers keep their size without chevrons; Attach is `aria-disabled` in `--text-disabled` with a not-allowed cursor | The same triggers, not interactive. |
+| Loading and unreadable conversation | "Loading conversation…" and "Doan couldn’t read this conversation" sit in the middle of the panel body with the thread's 16 px side insets | |
+| Open button dot | Folded panel's Show conversation: 8 px `--affordance-accent` dot, 4 from the top and end, 2 px `--surface-panel` ring; named "Show conversation, needs your answer" / "Show conversation, new activity" | The sidebar slot's unseen dot. |
+| Locate | Frame chips jump like the drawer; the jump highlight is the canvas area's (2 px `--border-focus`, 3 px pressed ring, 1.2 s); a point shows a 12 px ring | |
+| Narrow | At 960 × 600 the panel is 320 and a chip makes the box | `max(320px, 28dvw)`. |
+
+### Documented deviations from the draft
+
+- **Send while empty.** Send is disabled while the field is empty (the shipped docked rule); several frames draw it enabled.
+- **Waiting reason line.** While a permission request waits, the composer shows "Answer or stop the request above." under the model row (shared docked rule); `panel-permission` leaves it out.
+- **Start refusal.** A refused start shows the shared composer notice (`doan-notice error doan-panel`) under the model row; the "Start refused" tile draws a reason line.
+- **Unavailable composer.** On a page outside the list Attach and Send are disabled with the field (shared availability rule) and the field is read-only (`aria-readonly`) so the kept draft can still be selected; the tile draws Attach enabled and the field `aria-disabled`.
+- Context, not deviations: the draft page's 14 px body against the app's 13 px, inherited by text-less containers; the draft's placeholder drawn as field text and its caret stand-in (2 px taller lines); the field's `pre-wrap`; the focused composer's shared ring; the draft's frame-wide crosshair in `picker-mode`; state tiles drawn as 347 × 420 cards; fixture text, conversation titles and provider names.
+
+### Not verified
+
+- `panel-states` "Project conversation drawing" and "Promoted while open": HomeRun's drawing and promotion state was not injected.
+- "Duplicate canvas ID": not reachable on the canvas page (the controller closes such a canvas).
+- Every signed-in state with a real provider (injected handlers only); element and point chips in the field were drawn from a returned draft, not picked (picking: `.scratch/runtime-test/bcc-BR4b`).
+- Hover of the chip, picker and tools (the draft draws none); dark mode and forced colours.
+
+### Regression pointers
+
+`DockedComposer.test.tsx` (an anchor chip makes the box), `canvasPicker.test.ts`, `CanvasController.test.ts`, `ConversationThread.locate.test.tsx`, `CanvasConversationPanel.test.tsx`, `Onboarding.test.tsx` (choice card markup). Sizes, colours and geometry above are `.scratch/` probes only.
 
 ## Select and inspect
 
