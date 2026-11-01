@@ -1,4 +1,3 @@
-import { activityText, type ActivityEvent } from "./activity";
 import { canvasLabel } from "./canvasTree";
 import type { CanvasRow, FolderEntry } from "../main/view";
 
@@ -116,16 +115,4 @@ export function layoutHeight(lastHref: string | null, current: number, layout: {
 
 export function frameLabel(frame: { id: string; title?: string }): { id: string; title?: string } {
   return { id: frame.id || "(no id)", ...(frame.title ? { title: frame.title } : {}) };
-}
-
-// The canvas's activity is newest first. A Resolved entry is about comments,
-// not the document, so the label keeps the latest document event.
-export function bottomLabel(events: readonly ActivityEvent[], now: Date): string | null {
-  const latest = events.find(event => event.kind !== "resolved");
-  if (latest === undefined) return null;
-  const two = (value: number) => String(value).padStart(2, "0");
-  const time = `${two(latest.at.getHours())}:${two(latest.at.getMinutes())}`;
-  const today = latest.at.toDateString() === now.toDateString();
-  const date = today ? "" : `${latest.at.toLocaleDateString("en-US", { month: "short", day: "numeric" })} `;
-  return `${activityText(latest)} ${date}${time}`;
 }

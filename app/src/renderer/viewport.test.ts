@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   boardRectToScreen,
   FIRST_LAYOUT_TIMEOUT_MS,
+  FIT_INSET,
   FIT_MARGIN,
   FIT_SCALE_MAX,
   LINE_PX,
@@ -34,6 +35,7 @@ describe("constants", () => {
     expect(ZOOM_STEP).toBe(1.25);
     expect(WHEEL_ZOOM_MAX).toBe(1.25);
     expect(FIT_MARGIN).toBe(32);
+    expect(FIT_INSET).toEqual({ top: 56, right: 32, bottom: 64, left: 32 });
     expect(FIT_SCALE_MAX).toBe(1);
     expect(FIRST_LAYOUT_TIMEOUT_MS).toBe(5000);
   });
@@ -115,86 +117,125 @@ describe("coordinate conversion", () => {
 });
 
 describe("fitWidth", () => {
-  test("fits a wide board into the viewport width minus the margins", () => {
-    const fitted = fitWidth(2000, viewport, FIT_MARGIN);
-    expect(fitted.scale).toBeCloseTo((1000 - 2 * FIT_MARGIN) / 2000);
+  // Safe area of `viewport` under FIT_INSET: x 32..968, y 56..736.
+  test("fits a wide board into the viewport width minus the left and right insets", () => {
+    const fitted = fitWidth(2000, viewport, FIT_INSET);
+    expect(fitted.scale).toBeCloseTo((1000 - 32 - 32) / 2000);
   });
 
   test("never zooms a 375px board past 100%", () => {
-    const fitted = fitWidth(375, viewport, FIT_MARGIN);
+    const fitted = fitWidth(375, viewport, FIT_INSET);
     expect(fitted.scale).toBe(1);
   });
 
-  test("aligns to the top and centers horizontally", () => {
-    const fitted = fitWidth(375, viewport, FIT_MARGIN);
-    expect(fitted.y).toBe(FIT_MARGIN);
-    expect(fitted.x).toBeCloseTo((1000 - 375) / 2);
+  test("aligns to the top inset and centers in the safe area horizontally", () => {
+    const fitted = fitWidth(375, viewport, FIT_INSET);
+    expect(fitted.y).toBe(56);
+    expect(fitted.x).toBeCloseTo(32 + (936 - 375) / 2);
+  });
+
+  test("centers on the safe area, not the viewport, when the side insets differ", () => {
+    const fitted = fitWidth(200, viewport, { top: 10, right: 100, bottom: 0, left: 20 });
+    expect(fitted).toEqual({ x: 20 + (880 - 200) / 2, y: 10, scale: 1 });
   });
 
   test("falls back to the minimum scale in a zero or tiny viewport", () => {
-    expect(fitWidth(1280, { width: 0, height: 0 }, FIT_MARGIN).scale).toBe(MIN_SCALE);
-    expect(fitWidth(1280, { width: 40, height: 40 }, FIT_MARGIN).scale).toBe(MIN_SCALE);
+    expect(fitWidth(1280, { width: 0, height: 0 }, FIT_INSET).scale).toBe(MIN_SCALE);
+    expect(fitWidth(1280, { width: 40, height: 40 }, FIT_INSET).scale).toBe(MIN_SCALE);
   });
 
   test("stays finite for a zero-width board", () => {
-    const fitted = fitWidth(0, viewport, FIT_MARGIN);
+    const fitted = fitWidth(0, viewport, FIT_INSET);
     expect(Number.isFinite(fitted.scale)).toBe(true);
     expect(Number.isFinite(fitted.x)).toBe(true);
     expect(fitted.scale).toBeLessThanOrEqual(1);
   });
 
-  test("does not depend on board height, so a zero-height board fits the same", () => {
-    expect(fitWidth(1280, viewport, FIT_MARGIN)).toEqual(fitWidth(1280, { width: 1000, height: 0 }, FIT_MARGIN));
+  test("does not depend on viewport height or the bottom inset", () => {
+    expect(fitWidth(1280, viewport, FIT_INSET)).toEqual(fitWidth(1280, { width: 1000, height: 0 }, FIT_INSET));
+    expect(fitWidth(1280, viewport, FIT_INSET)).toEqual(fitWidth(1280, viewport, { ...FIT_INSET, bottom: 0 }));
   });
 });
 
 describe("fitFrame", () => {
   const current: View = { x: 0, y: 0, scale: 0.5 };
+  // Safe area of `viewport` under FIT_INSET: x 32..968, y 56..736, center (500, 396).
+  const safeCenter = { x: 500, y: 396 };
 
-  test("a frame smaller than the viewport keeps scale 1 and is centered both ways", () => {
+  test("a frame that fits keeps scale 1 and is centered in the safe area both ways", () => {
     const rect = { x: 100, y: 200, width: 400, height: 300 };
-    const fitted = fitFrame(rect, viewport, FIT_MARGIN, current);
+    const fitted = fitFrame(rect, viewport, FIT_INSET, current);
     expect(fitted.scale).toBe(1);
     const center = boardToScreen(fitted, { x: 300, y: 350 });
-    expect(center.x).toBeCloseTo(500);
-    expect(center.y).toBeCloseTo(400);
+    expect(center.x).toBeCloseTo(safeCenter.x);
+    expect(center.y).toBeCloseTo(safeCenter.y);
   });
 
-  test("a frame wider than the viewport scales down to its width", () => {
+  test("a frame wider than the viewport scales down to the safe width", () => {
     const rect = { x: 0, y: 0, width: 4000, height: 500 };
-    const fitted = fitFrame(rect, viewport, FIT_MARGIN, current);
-    expect(fitted.scale).toBeCloseTo((1000 - 2 * FIT_MARGIN) / 4000);
+    const fitted = fitFrame(rect, viewport, FIT_INSET, current);
+    expect(fitted.scale).toBeCloseTo(936 / 4000);
   });
 
-  test("a frame taller than the viewport is aligned to the top", () => {
-    const rect = { x: 50, y: 900, width: 800, height: 5000 };
-    const fitted = fitFrame(rect, viewport, FIT_MARGIN, current);
+  test("a frame as tall as the safe area sits exactly between the top and bottom insets", () => {
+    const fitted = fitFrame({ x: 0, y: 500, width: 800, height: 680 }, viewport, FIT_INSET, current);
+    expect(boardToScreen(fitted, { x: 0, y: 500 }).y).toBeCloseTo(56);
+    expect(boardToScreen(fitted, { x: 0, y: 500 + 680 }).y).toBeCloseTo(800 - 64);
+  });
+
+  test("a frame taller than the safe area but shorter than the viewport is aligned to the top inset", () => {
+    const fitted = fitFrame({ x: 0, y: 900, width: 800, height: 750 }, viewport, FIT_INSET, current);
     expect(fitted.scale).toBe(1);
-    expect(boardToScreen(fitted, { x: 50, y: 900 }).y).toBeCloseTo(FIT_MARGIN);
+    expect(boardToScreen(fitted, { x: 0, y: 900 }).y).toBeCloseTo(56);
   });
 
-  test("a frame taller than the viewport after scaling is still top-aligned", () => {
-    const rect = { x: 0, y: 0, width: 4000, height: 6000 };
-    const fitted = fitFrame(rect, viewport, FIT_MARGIN, current);
-    expect(boardToScreen(fitted, { x: 0, y: 0 }).y).toBeCloseTo(FIT_MARGIN);
+  test("a frame taller than the viewport is aligned to the top inset", () => {
+    const rect = { x: 50, y: 900, width: 800, height: 5000 };
+    const fitted = fitFrame(rect, viewport, FIT_INSET, current);
+    expect(fitted.scale).toBe(1);
+    expect(boardToScreen(fitted, { x: 50, y: 900 }).y).toBeCloseTo(56);
   });
 
-  test("a zero-size frame keeps the current scale and centers its point", () => {
+  test("a frame taller than the safe area after scaling is still top-aligned", () => {
+    const fitted = fitFrame({ x: 0, y: 0, width: 4000, height: 6000 }, viewport, FIT_INSET, current);
+    expect(boardToScreen(fitted, { x: 0, y: 0 }).y).toBeCloseTo(56);
+  });
+
+  test("a zero-size frame keeps the current scale and centers its point in the safe area", () => {
     for (const rect of [
       { x: 700, y: 300, width: 0, height: 0 },
       { x: 700, y: 300, width: 0, height: 50 },
       { x: 700, y: 300, width: 50, height: 0 },
     ]) {
-      const fitted = fitFrame(rect, viewport, FIT_MARGIN, current);
+      const fitted = fitFrame(rect, viewport, FIT_INSET, current);
       expect(fitted.scale).toBe(0.5);
       const center = boardToScreen(fitted, { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
-      expect(center.x).toBeCloseTo(500);
-      expect(center.y).toBeCloseTo(400);
+      expect(center.x).toBeCloseTo(safeCenter.x);
+      expect(center.y).toBeCloseTo(safeCenter.y);
     }
   });
 
+  test("centers on the safe area when the side insets differ", () => {
+    const fitted = fitFrame({ x: 0, y: 0, width: 200, height: 100 }, viewport, { top: 0, right: 100, bottom: 0, left: 20 }, current);
+    expect(boardToScreen(fitted, { x: 100, y: 50 }).x).toBeCloseTo(20 + 880 / 2);
+  });
+
+  test("a window shorter than the top and bottom insets has no safe height: frames align to the top inset", () => {
+    const low = { width: 1000, height: 100 };
+    const fitted = fitFrame({ x: 0, y: 40, width: 800, height: 60 }, low, FIT_INSET, current);
+    expect(boardToScreen(fitted, { x: 0, y: 40 }).y).toBeCloseTo(56);
+    const point = fitFrame({ x: 700, y: 300, width: 0, height: 0 }, low, FIT_INSET, current);
+    expect(boardToScreen(point, { x: 700, y: 300 }).y).toBeCloseTo(56);
+  });
+
+  test("a window narrower than the side insets falls back to the minimum scale and stays finite", () => {
+    const narrow = fitFrame({ x: 0, y: 0, width: 100, height: 100 }, { width: 50, height: 800 }, FIT_INSET, current);
+    expect(narrow.scale).toBe(MIN_SCALE);
+    expect(Number.isFinite(narrow.x) && Number.isFinite(narrow.y)).toBe(true);
+  });
+
   test("never exceeds scale 1 and stays finite in a zero viewport", () => {
-    const fitted = fitFrame({ x: 0, y: 0, width: 100, height: 100 }, { width: 0, height: 0 }, FIT_MARGIN, current);
+    const fitted = fitFrame({ x: 0, y: 0, width: 100, height: 100 }, { width: 0, height: 0 }, FIT_INSET, current);
     expect(fitted.scale).toBe(MIN_SCALE);
     expect(Number.isFinite(fitted.x) && Number.isFinite(fitted.y)).toBe(true);
   });

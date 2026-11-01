@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
-import { UI_STATE_MAX_BYTES } from "../restore/uiState";
+import { parseUiState, UI_STATE_MAX_BYTES, type UiState } from "../restore/uiState";
 import { createUiStateStore, UI_STATE_DELAY_MS, type UiStateFs } from "./uiState";
 
 const tmp = mkdtempSync(join(tmpdir(), "doan-ui-state-"));
@@ -245,4 +245,69 @@ test("round-trips a project's closed sidebar groups and drops unknown ones on sa
   store.flushSync();
   expect(onDisk(path).shellProjects).toEqual({ common: { roots: ["/repo"], expanded: true, groups: { ds: false } } });
   expect((await store.read())?.shellProjects?.common?.groups).toEqual({ ds: false });
+});
+
+describe("rightPanel", () => {
+  test("is written to disk and read back with the other fields", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    const store = createUiStateStore(path, saved);
+    const rightPanel = { open: false, width: 420 };
+    store.save({ ...workspace(".doan/canvases/a.html"), rightPanel });
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await store.idle();
+    expect(onDisk(path)).toEqual({ ...workspace(".doan/canvases/a.html"), rightPanel });
+    expect(await createUiStateStore(path, saved).read()).toEqual({ ...workspace(".doan/canvases/a.html"), rightPanel });
+  });
+
+  test("survives flushSync at quit", async () => {
+    const path = file();
+    const store = createUiStateStore(path, saved);
+    store.save({ ...workspace(".doan/canvases/a.html"), rightPanel: { open: true, width: 380 } });
+    store.flushSync();
+    expect(onDisk(path).rightPanel).toEqual({ open: true, width: 380 });
+  });
+
+  test("a bad value is dropped before writing and costs no other field", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    const store = createUiStateStore(path, saved);
+    expect(store.save({ ...workspace(".doan/canvases/a.html"), rightPanel: { open: "no", width: -5 } })).toBe(true);
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await store.idle();
+    expect(onDisk(path)).toEqual(workspace(".doan/canvases/a.html"));
+  });
+
+  test("a file saved without it reads without it", async () => {
+    const path = file();
+    writeFileSync(path, JSON.stringify(workspace(".doan/canvases/a.html")));
+    expect(await createUiStateStore(path, saved).read()).not.toHaveProperty("rightPanel");
+  });
+});
+
+test("a fully populated state is saved and read back unchanged, and reparses to itself", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const path = file();
+  // Every optional field the parser knows, so a parser change that drops one fails here.
+  const full: UiState = {
+    screen: "workspace",
+    root: "/repo",
+    canvas: ".doan/canvases/a.html",
+    canvasId: "a-canvas",
+    view,
+    expanded: { "/repo": ["canvases", "a.html"] },
+    lastByRoot: { "/repo": { canvas: ".doan/canvases/b.html", view: { scale: 2, x: 5, y: -5 } } },
+    shellProjects: { common: { roots: ["/repo"], selectedRoot: "/repo", selectedAt: 1_700_000_000_000, expanded: true, groups: { ds: false, canvases: false } } },
+    home: { lastRoot: "/repo", lastProvider: "codex", models: { claude: { model: "m1", effort: "high" }, codex: { model: "m2" } } },
+    settingsSection: "notifications",
+    conversationByRoot: { "/repo": "0123abcd-4567-89ab-cdef-0123456789ab" },
+    rightPanel: { open: false, width: 420 },
+  };
+  const store = createUiStateStore(path, saved);
+  expect(store.save(full)).toBe(true);
+  vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+  await store.idle();
+  expect(onDisk(path)).toEqual(full);
+  expect(await createUiStateStore(path, saved).read()).toEqual(full);
+  expect(parseUiState(JSON.stringify(full), saved())).toEqual(full);
 });

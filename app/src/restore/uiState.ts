@@ -48,9 +48,14 @@ export interface UiState {
   // The project conversation last shown in each root's Overview (buzz-project design §2.4). Top-level, not in
   // `shellProjects`: those entries are rebuilt per group on every save and would drop it.
   conversationByRoot?: Record<string, string>;
+  // The canvas page's conversation panel (buzz-canvas design §2), one per device. A missing `width` is the
+  // window-relative default, which only the renderer can compute.
+  rightPanel?: { open: boolean; width?: number };
 }
 
 export const UI_STATE_MAX_BYTES = 64 * 1024;
+// No window is wider; the renderer clamps a kept width to the window's own bounds.
+const RIGHT_PANEL_MAX_SAVED_WIDTH = 10_000;
 
 // The kebab id rule main's comment files enforce (`main/comments/files.ts`).
 const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -105,6 +110,8 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
     state.shellProjects = Object.fromEntries(projects);
   }
   if (isRecord(value["conversationByRoot"])) state.conversationByRoot = entries(value["conversationByRoot"], saved, (item) => (typeof item === "string" && CONVERSATION_ID.test(item) ? item : undefined));
+  const rightPanel = parseRightPanel(value["rightPanel"]);
+  if (rightPanel !== undefined) state.rightPanel = rightPanel;
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
   // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
   // Settings > Connections was removed; a stored one opens About.
@@ -144,6 +151,16 @@ function parseHome(value: Record<string, unknown>, saved: ReadonlySet<string>): 
     home.models = Object.fromEntries(models);
   }
   return home;
+}
+
+// Each field falls back on its own; a value with neither field usable is dropped so it reads as the default.
+function parseRightPanel(value: unknown): UiState["rightPanel"] {
+  if (!isRecord(value)) return undefined;
+  const open = typeof value["open"] === "boolean" ? value["open"] : undefined;
+  const raw = value["width"];
+  const width = typeof raw === "number" && Number.isFinite(raw) && raw > 0 && raw <= RIGHT_PANEL_MAX_SAVED_WIDTH ? raw : undefined;
+  if (open === undefined && width === undefined) return undefined;
+  return width === undefined ? { open: open ?? true } : { open: open ?? true, width };
 }
 
 function nonEmpty(value: unknown): value is string {

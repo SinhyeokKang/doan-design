@@ -28,8 +28,43 @@ export function nextHeight(prev: HeightState | null, measured: number, inner: nu
 // Not scrollHeight alone: it never drops below the viewport, so a canvas could
 // not shrink. But with `html { height: 100% }` the rect is the viewport and the
 // content overflows it, so then only scrollHeight tells the content height.
-export function documentHeight(rect: number, scrollHeight: number, inner: number): number {
-  return Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect;
+// Absolutely positioned frames add nothing to the rect, and scrollHeight cannot
+// tell their extent from the viewport once the iframe is at least as tall, so
+// without their bottom such a canvas alternates between 0 and its extent.
+// `framesBottom` already ends clipped frames at their box (frameBottom); the
+// cap at scrollHeight only bounds clipping that misses, such as `contain: paint`.
+export function documentHeight(rect: number, scrollHeight: number, inner: number, framesBottom: number): number {
+  return Math.max(Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect, Math.min(Math.ceil(framesBottom), scrollHeight));
+}
+
+// One ancestor of a frame, nearest first, up to body. `bottom` is in document
+// coordinates and is only read when the ancestor clips.
+export interface ClipLink {
+  position: string;
+  overflowY: string;
+  display: string;
+  bottom: number;
+}
+
+
+// A frame inside a box that scrolls or clips it shows no further than that box,
+// and the box then stands for it in the document's height. An absolutely
+// positioned element escapes the static boxes below its containing block, a
+// fixed one escapes every box.
+export function frameBottom(bottom: number, position: string, ancestors: readonly ClipLink[]): number {
+  // Overflow applies to block, flex and grid containers only (CSS Overflow 3
+  // §3), but an inline span or a `display: contents` wrapper still computes
+  // `overflow: hidden`, so the display decides whether the box clips.
+  const noOverflow = /^(inline|contents|none|table-(row|row-group|header-group|footer-group|column|column-group)|ruby.*)$/;
+  if (position === "fixed") return bottom;
+  let escaping = position === "absolute";
+  for (const link of ancestors) {
+    const positioned = link.position !== "static";
+    if ((!escaping || positioned) && link.overflowY !== "visible" && !noOverflow.test(link.display)) bottom = Math.min(bottom, link.bottom);
+    if (link.position === "fixed") return bottom;
+    if (positioned) escaping = link.position === "absolute";
+  }
+  return bottom;
 }
 
 export function canScrollAxis(overflow: string, position: number, client: number, size: number, delta: number): boolean {
@@ -130,6 +165,7 @@ export function textQuote(text: string, max: number): string {
 interface CanvasLib {
   nextHeight: typeof nextHeight;
   documentHeight: typeof documentHeight;
+  frameBottom: typeof frameBottom;
   canScrollAxis: typeof canScrollAxis;
   clipText: typeof clipText;
   elementSelector: typeof elementSelector;
@@ -166,18 +202,35 @@ export function canvasScript(lib: CanvasLib): void {
       if (kept !== text) truncated = true;
       return kept;
     };
+    const html = document.documentElement;
+    const rootStyle = getComputedStyle(html);
+    // body's overflow belongs to the viewport while html's is visible, and then body clips nothing.
+    const bodyClips = rootStyle.overflowX !== "visible" || rootStyle.overflowY !== "visible";
+    const ancestors = (el: Element) => {
+      const links: ClipLink[] = [];
+      for (let node = el.parentElement; node !== null && node !== html; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        const overflowY = node === document.body && !bodyClips ? "visible" : style.overflowY;
+        const box = overflowY === "visible" ? null : node.getBoundingClientRect();
+        links.push({ position: style.position, overflowY, display: style.display, bottom: box === null ? Infinity : box.top + box.height + scrollY });
+      }
+      return links;
+    };
+    let bottom = 0;
     for (const el of document.querySelectorAll("[data-doan-frame]")) {
+      const rect = el.getBoundingClientRect();
+      // Frames past the listed ones still count toward the height.
+      bottom = Math.max(bottom, lib.frameBottom(rect.top + rect.height + scrollY, getComputedStyle(el).position, ancestors(el)));
       if (list.length === MAX_FRAMES) {
         truncated = true;
-        break;
+        continue;
       }
-      const rect = el.getBoundingClientRect();
       const frame: (typeof list)[number] = { id: clip(el.getAttribute("data-doan-frame") ?? ""), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
       const title = el.getAttribute("data-doan-title");
       if (title !== null) frame.title = clip(title);
       list.push(frame);
     }
-    return { list, truncated };
+    return { list, truncated, bottom };
   };
 
   // Selection state. `seq` is the last command seq from the renderer, raised by
@@ -387,9 +440,9 @@ export function canvasScript(lib: CanvasLib): void {
     if (firstLayoutAt === null) firstLayoutAt = performance.now();
     tryPending();
     const html = document.documentElement;
-    const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight);
+    const { list, truncated, bottom } = frames();
+    const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
     height = lib.nextHeight(height, measured, innerHeight);
-    const { list, truncated } = frames();
     // `viewport` lets the renderer drop a layout measured before its last
     // resize of the iframe reached this document.
     const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };
@@ -652,7 +705,7 @@ export function canvasScript(lib: CanvasLib): void {
 }
 
 export function canvasScriptSource(): string {
-  const lib = { nextHeight, documentHeight, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, commentAnchors };
+  const lib = { nextHeight, documentHeight, frameBottom, canScrollAxis, clipText, elementSelector, ancestorPath, clipHtml, textQuote, commentAnchors };
   return `(${canvasScript.toString()})({${Object.entries(lib).map(([name, fn]) => `${name}: ${fn.toString()}`).join(", ")}}); void 0;`;
 }
 

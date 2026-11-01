@@ -571,23 +571,63 @@ Not verified: the Cmd+K keystroke through AppKit (probes use the Go > Quick Open
 
 ## Canvas area and right panel
 
-> buzz-ds 이전. The App shell measurements cover only the header and sidebar; these canvas-area and right-panel values were not remeasured. No owner child is recorded for them.
+Reference: `.doan/canvases/buzz-canvas.html` (16 frames; `conversation-menu` is a reference frame for the canvas conversation panel's menu and was not compared). Measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600 against the draft read in the app's canvas iframe: 73 part pairs over 21 states (frames, and each tile of `states` and `agent-waiting`). States without a provider come from fixture projects in an isolated app (a real selection-lost notice, a real toast, a canvas busy for 20 s for Loading and the failed first layout, a missing project folder); the agent indicator comes from real Claude Code turns on the signed-in test profile, its canvas conversations started through the preload API because the app cannot start one yet. In the default state the development server and the production build matched every compared computed style within 0.5 px (one 0.28 px text-measurement margin), the production reading also holding a jump highlight left by the fixture.
 
-Reference: `.doan/canvases/app-shell.html` (frames `main`, `empty`, `canvas-states`, `sidebar-states`). All values are unpinned.
+### Measured contracts
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Line-height boundary | `body { line-height: normal }` cuts off Tailwind preflight's inherited `1.5` line height; explicit component line heights still apply, including status and hint text | Removing it adds vertical space from the inherited reset. |
-| Canvas status | 12.5px / 1.6; message maximum width 260 (wraps within 260px, measured on the design system); outer padding 18 | Keeps long error instructions readable and centred. |
-| Loading | The spinner is hidden from accessibility; the status text stays `Loading…` | |
-| Missing width | The no-width heading is emphasized (`.canvas-status b`) and the full message is unchanged | |
-| Panel header / empty text | Header padding 11px 14px 10px (`.phead`); empty text 12.5px with padding 14 (`.pempty`) | The Canvas panel's vertical rhythm. |
-| Activity | 11px; row gap 8; time width 54; padding 3px 12px 3px 0 | Event labels align independently of their time text. |
-| Zoom output | Minimum width 48 with 1px left/right dividers | Separates the value from the actions. |
+| Canvas panel | `.doan-canvas-panel`: white, start corners `--radius-container`, 8 px after the sidebar column; 647 × 716 at 1238 × 780 with the conversation panel at 347. Folded, it reaches the workspace's end (994 wide) and rounds all four corners | The header and board form one panel (buzz-restyle table row 8). |
+| Canvas header | The Overview header box (`.ov-head`): 56 high, padding 8 / 16, gap 8, white, no divider; the board starts under it. Canvas name: `PanelsTopLeft` 16, label-sm 14/20 regular `--text-subtle`, gap 6, at most 40 %, `title` = path. `/` in `--text-metadata`. Frame drawer trigger: sm `trigger` button, label-sm 500 `--text-standard`, gap 6, the shared 16 px `.chev` in metadata ink. An unlisted page or a project problem shows the disabled "Frames" trigger alone | Matches the Overview header so the two pages line up. |
+| Narrow header | At 960 × 600 the frame name ellipsizes before the canvas name, and the drawer ends before the zoom controller | `narrow`. |
+| Zoom controller | Zoom out and Zoom in are 32 px icon buttons in `--text-standard`; the value is an sm `trigger` button (minimum width 72, gap 4, tabular figures, 16 px chevron); gap 2. With no rendered board all three are disabled in `--text-disabled` and the value reads "—" | A changing percentage does not move the buttons. |
+| Frame drawer list | `doan-floating doan-menu`, 320 wide, 4 below the trigger at its start edge, height from Radix's available height (384 at 1238 × 780). Rows: the shared 32 px menu row (12 inline, `--radius-row`), gap 8; number column minimum 24 in metadata ink with tabular figures; name ellipsized with the full name in `title`; the viewed row shows "Viewing" (caption 12/16, metadata ink) and no fill; the fill (`--affordance-floating-hover`) follows focus, which the pointer moves. Truncated note: caption, metadata ink, a 1 px `--border-standard` top rule, 8 above the text, 4 above the rule | |
+| Zoom menu | Compact `doan-menu` 184 wide, 4 below the value at its end edge: Fit ⌘1, 100% ⌘0, separator, 50%, 200%; shortcuts at the row end in metadata ink | |
+| Board | `--surface-inset` (#f5f5f6) with no dot texture | A white canvas stays distinguishable when zoomed out, and the agent's white dot field shows. |
+| Tools row | Centred 12 above the board's bottom. The shared `.doan-floating` surface (90 % white, `--blur-sm` 8 px, `--shadow-panel`, radius 24, inset 4): 42 × 42 around the one 32 px Select tool. The pressed tool keeps `--affordance-backdrop-pressed` (rgba(0,0,0,.1)) under the pointer and while held; tooltip "Select" | The shared hover and active fills would otherwise replace the pressed fill while the tooltip shows. |
+| Top column | `.doan-canvas-top`: 20 under the board's top, centred, `min(420px, 100% − 24px)` wide, gap 8; the agent notice first at its own width, centred, then the canvas notices stretched to the column | One place for everything floating at the top; it never covers the header. |
+| Canvas notices | `doan-notice doan-panel` (white, `--shadow-panel`) with the 16 px alert icon, 12 / 16 padding; one line is 44 high, 420 wide at 1238 × 780 | The shared Notices rule. |
+| Canvas status | `.canvas-status`: 14/20 `--text-subtle`, padding 16, message at most 260 wide, the bold heading `--text-standard` 500; the loading spinner 16 px and hidden from accessibility; Reload is an sm `panel` button (white, 32 high) | |
+| Toast | The shared toast, 16 from the window's right and bottom | Nothing sits in the board's bottom-right corner any more. |
+| Overlay marks | Selection: 1 px solid `--border-focus` with a 1 px white outer ring. Hover: the same, dashed. Dimensions: the prominent capsule (Intended exceptions), caption 12/16, padding 4 / 8, 24 high, 5 below the mark. Jump highlight: 2 px `--border-focus`, radius 1, a 3 px `--affordance-backdrop-pressed` ring, fading over 1.2 s (no fade under reduced motion) | Visible on light, dark (#050507) and violet (#5b21b6) canvases: the selection edge measured 21, 20.4 and 9.0 : 1 against them (BR6 probe; the overlay CSS has not changed since). |
+| Conversation panel shell | `aside.right.ov-right`: white, 1 px `--border-standard` start edge, end corners 24. Title row `h2.phead.rp-head`: 56 high, label-sm 500, padding 8 / 16, "Conversation", then the 32 px Hide conversation icon button. Body: "Conversations about this canvas will show here." 14/20 `--text-subtle`, centred, at most 240 wide | The Overview right panel's title row. |
+| Panel width | Default and minimum `max(320px, 28dvw)`: 347 at 1238, 320 at 960. Maximum `min(50dvw, the width that leaves the canvas 360)`: 619 at 1238, 356 at 960; a saved width above it shows at the maximum and stays saved | |
+| Folded panel | The column is 0 wide and leaves the Tab order; the header ends with a 1 × 20 `--border-standard` divider (4 inline margin) and the 32 px Show conversation icon button | |
+| Resize handle | An 8 px transparent strip centred on the panel's start edge (z-index 4, `touch-action: none`, `col-resize`). Its only visible part is a 4 px bar, `linear-gradient(transparent, --affordance-accent, transparent)`, shown on hover, while dragging and on keyboard focus; keyboard focus adds a 2 px `--border-focus` ring | |
+| Agent notice | A pill 40 high, padding 4 4 4 16, gap 8: `--affordance-prominent` at 60 %, `--blur-md` (16 px), `--shadow-sm`; opaque black with no blur under reduced transparency. Dot: 8 px accent, scale .75 ↔ 1.25 over 2.4 s with a 70 % accent ring spreading 8 px; still while waiting and under reduced motion. Wording 14/20 white, the first to ellipsize. Action: sm button, 32 high, white text on 16 % white (26 % hover, 34 % pressed). Stop leads with the composer's filled square (14 px); "Stopping…" leads with the 16 px spinner, is `aria-disabled` with 60 % white text and the default cursor; Open has no glyph | The shared hover and pressed fills are light grey; the notice's own rule outweighs them so white text stays readable. |
+| Agent glow and dots | Inset shadows 8 px accent 70 % and 24 px accent 35 %, opacity .55 ↔ 1 over 8 s (still under reduced motion), corners following the canvas panel, no pointer input. The dot field is a 2D canvas over the board, its colour read from `--text-on-prominent` | |
+| No overlap | At 1238 × 780 (panel 347) and at 960 × 600 with the panel at its widest (356, board 360) the header, the live agent notice, a selection-lost notice, a real toast and the tools row do not overlap; a long wording ellipsizes while Stop keeps 85 px | POSTMORTEM 'Shell restyle lost navigation landmarks' (unlocked integration). |
+| Fit and jumps | Safe area: 56 from the board's top, 32 at the sides, 64 at the bottom (12 + tools 40 + 12). Fit puts the canvas top at 56 at both window sizes; drawer and Quick Open jumps keep a frame that fits the safe area inside it and above the tools row, and put a taller frame's top at 56 | Measured at both window sizes. |
+
+### Documented deviations from the draft
+
+- **Notice icon.** The draft draws the canvas notices without an icon; the app keeps the shared Notices rule, so each leads with the alert icon. The row stays 44 px.
+- **Drawer scroll.** Opening the list centres the viewed row (the draft shows it at the top), and focus starts on it, so it takes the focus fill until the pointer or a key moves focus.
+- **Top column.** The column is always in the page (empty when nothing shows) and passes the pointer through; it sets the notices' width, so a screen sets only margins on a notice (`ds/controls.test.ts`).
+- **Handle cursor.** The hand-written handle sets `col-resize` itself; the draft leaves the cursor to a library.
+- **Stopping… cursor.** The aria-disabled "Stopping…" shows the default cursor (the draft's button keeps the pointer).
+- Context, not deviations: the app body's 13 px/normal line and tabular figures inherited by containers (every text part sets its own type); fixture names, provider wording (Claude Code for the draft's Codex) and percentages; menus and the tooltip portalled by Radix where the draft draws them in place; animation phases; state tiles the draft draws at 420 × 320.
+
+### References
+
+- Resize handle: malmoi `components/ui/resizable.tsx` and its DESIGN.md 'Resizer' table (malmoi `6dcdd575`), drawn by hand rather than with `react-resizable-panels`.
+- Dot field: malmoi's sign-in `DotField` (`components/signin/dot-field.tsx`, `lib/signin/dot-field.ts`, malmoi `6dcdd575`), rewritten with doan's values: 12 px grid, radius 1.5 → 2, alpha 0.08 → 0.3, a virtual cursor of radius 320 sweeping 5 rows at 320 px/s; far dots painted in one path.
+- Agent notice and glow: ego lite's agent tab as the user described and showed it. Its values are compiled into a native view (`AgentTaskOverlayView`); the one web token read is the task bar's `--bg-agent-task-bar: #0009`, which the notice's 60 % prominent fill matches. doan uses its accent where ego uses blue.
+
+### Not verified
+
+- The settled colour of "Stopping…" in a real run: a real stop ended within 350 ms, so the reading is the transition's start (white). The rule is in `styles.css`; the state is unit-tested.
+- Physical trackpad pinch and two-finger scroll over the notices and the tools row (synthesized wheel and ctrl+wheel reach the board); an OS-level drag of the handle (Playwright pointer only).
+- Hover tooltips of Zoom out, Zoom in, Show and Hide conversation (markup and the Select tooltip only).
+- Dark mode and forced colours.
+
+### Regression pointers
+
+`viewport.test.ts` and `CanvasController.test.ts` (insets, Fit, jumps, first Fit), `frameDrawer.test.ts`, `frameDrawerList.test.ts`, `zoomControl.test.ts`, `canvasFocus.test.ts`, `CanvasHeader.test.tsx`, `CanvasTools.test.tsx`, `rightPanelSize.test.ts`, `ConversationPanel.test.tsx`, `agentPresence.test.ts`, `agentIndicator.test.ts`, `dotField.test.ts`, `CanvasAgent.test.tsx` and `CanvasAgent.hooks.test.tsx` (Stop glyph, "Stopping…" spinner, notice icon). Sizes, colours and geometry above are `.scratch/` probes only.
 
 ## Select and inspect
 
-> buzz-ds 이전. Owner: `buzz-canvas` (canvas) and `buzz-inspector` (Inspector; it removes the mark).
+> buzz-ds 이전 for the Inspector rows. Owner: `buzz-inspector` (it removes the mark). The canvas overlay rows (hover and selection outline, dimensions) were remeasured with the canvas page; see 'Canvas area and right panel'.
 
 Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-selected`, `frame-selected`, `inspector-states`, `long-values`, `interactive-element`, `selection-lost`. The no-selection screen is excluded.
 
@@ -606,7 +646,7 @@ Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-select
 | Source state | 10px / 15px; Hardcoded in the warning role | Provenance in text. |
 | Default value | Native title `Default`, no source line | The absence of an author declaration is visible. |
 | Color swatch | 12 × 12; 1px border; radius 3 | |
-| Selection-lost / unlisted notice | Padding 7px 12px; 11px | |
+| Selection-lost / unlisted notice | See 'Canvas area and right panel', Canvas notices | Remeasured with the canvas page. |
 | Pending values | `Reading styles…` in the notice styling while the selected element's values are pending; old computed rows are absent | |
 
 - The live panel is 280px wide with one 1px left divider (279px of content); the draft specimen leaves 278px. Panel height follows the window (740px at 1238 × 780).
@@ -653,7 +693,6 @@ Measured at 960 × 600 and 1238 × 780 with three comments on one target, equal 
 - “To:” line: a `span`, `nowrap`, ellipsis, e.g. “To: Element · label “Address” · in Shipping”.
 - Locatable target: `button.locatable`, title “Show on canvas\n<selector>”, underline on hover. Location unavailable or canvas target: a `span` with title = selector / “Canvas”. Frame and canvas targets carry a `title` (the frame selector, “Canvas”).
 - Badge note: “Not found in the current canvas.”
-- Updated label (the bottom label): padding 3px 8px, radius 6px.
 - Card action rows: one row, 23px (not remeasured since Hand off… was added to open cards).
 - Pin aria: “3 open comments” (“1 open comment”, unit tests only). Focus after Cancel returns to the “Comment on selection” button that opened the editor; pin Enter focuses the first `article.comments-card`.
 - Canvas info has no COMMENTS section: Path, ID, Width, Frames, then the guidance sentence, then Activity.
@@ -670,7 +709,7 @@ Transient Saving, Checking saved status, original-request retry, confirmed-saved
 
 ## Revision continuity
 
-> buzz-ds 이전. Owner: `buzz-canvas`.
+> buzz-ds 이전. Owner: `buzz-canvas-conversation`.
 
 Reference: `.doan/canvases/revision-continuity.html` (frames `continue-draft`, `selection-gone`, `duplicate-id`; `moved` and `no-document` only for their Activity row and target line). Target lines use the Comments format; the target-text rows were not remeasured after that format.
 

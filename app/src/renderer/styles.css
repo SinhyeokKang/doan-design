@@ -62,7 +62,8 @@ code, kbd { font-family: var(--type-family); }
 .hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--type-family); color: var(--text-metadata); overflow-wrap: anywhere; }
 .hint code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
 .recovery .doan-button { margin: 4px 4px 0 0; }
-.area { position: relative; overflow: hidden; background-color: var(--surface-inset); background-image: radial-gradient(var(--texture-dots-color) 1px, transparent 1px); background-size: 16px 16px; }
+/* The board is the light grey inset surface, so a white canvas stays distinguishable when zoomed out and the agent's white dot field shows. */
+.area { position: relative; overflow: hidden; background: var(--surface-inset); }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board iframe { display: block; border: 0; }
 /* Keep pin focus ordering inside the overlay, below canvas chrome. */
@@ -73,21 +74,12 @@ code, kbd { font-family: var(--type-family); }
 .mark.hover { border-style: dashed; }
 /* The same prominent capsule as the tooltip. */
 .dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--affordance-prominent); color: var(--text-on-prominent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); padding: var(--space-1) var(--space-2); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
-.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-subtle); font: 12.5px/1.6 var(--type-family); pointer-events: none; }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
-.canvas-status b { color: var(--text-standard); font-weight: 500; }
+.canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
-.canvas-status .doan-spinner { display: block; margin: 0 auto 10px; }
-.canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
+.canvas-status .doan-spinner { display: block; margin: 0 auto var(--space-2); }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
-/* It sits on the canvas content, so the panel color goes behind it (.doan/canvases/comments-readability.html). */
-.updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; background: var(--surface-panel); padding: 3px 8px; border-radius: 6px; }
-.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-success); display: inline-block; }
-.zctl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; }
-.zctl.disabled, .zctl.disabled :is(output, .kbd) { color: var(--text-disabled); }
-/* The zoom group floats over the canvas, so it keeps a panel fill behind its value. */
-.zoom { display: flex; align-items: center; gap: var(--space-half); padding: var(--space-half); background: var(--surface-panel); border-radius: var(--radius-row); box-shadow: var(--shadow-panel); font: 12px var(--type-family); }
-.zoom output { padding: 0 var(--space-2); min-width: 48px; text-align: center; }
 .phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
 .pempty { padding: 14px; font: 12.5px var(--type-family); color: var(--text-metadata); }
 .isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--border-standard); }
@@ -405,7 +397,7 @@ code, kbd { font-family: var(--type-family); }
 .doan-menu-item .label { flex: none; }
 .menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-/* Bottom-right on every screen: the canvas zoom toolbar is bottom-left, so nothing to clear. */
+/* Bottom-right on every screen, 16px from the window's edges; the canvas tools row sits at the board's bottom centre. */
 .toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
 
@@ -449,11 +441,9 @@ code, kbd { font-family: var(--type-family); }
 @media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
 
 /* Overview and Quick Open: confirmed .doan/canvases/design-nav.html overview, overview-empty and quick-open. */
-/* The Overview covers the canvas area in the same cell; the area stays laid out beneath it. */
-.workspace > .area, .workspace > .ov { grid-column: 2; grid-row: -2; }
+/* The Overview covers the canvas panel in the same cell; the panel stays laid out beneath it. */
+.workspace > .doan-canvas-panel, .workspace > .ov { grid-column: 2; grid-row: -2; }
 .ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
-/* The shipped .canvas-notice band, stretched over the Overview's own padding. */
-.ov > .canvas-notice { margin: -4px -24px 0; }
 .thumb { aspect-ratio: 16 / 10; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); position: relative; overflow: hidden; display: grid; place-items: center; }
 .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
 /* Quick Open (confirmed .doan/canvases/buzz-search.html). The surface is the shared dialog's search presentation in
@@ -501,7 +491,10 @@ code, kbd { font-family: var(--type-family); }
 
 /* The native sidebar material continues behind the shell; content stays opaque. */
 body:has(.shell-top) { background: transparent; }
-.workspace.app-shell { grid-template-columns: 220px minmax(0, 1fr) 280px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
+/* The right column's width: the Overview's 280px, or the canvas page's conversation panel, which App sets on the
+   workspace element (0 while folded). */
+:root { --doan-right-width: 280px; }
+.workspace.app-shell { grid-template-columns: 220px minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
 .workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 88px; }
@@ -566,7 +559,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-worktree > span { min-width: 0; flex: 1; }
 .shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
-.workspace > .area { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
+.workspace > .doan-canvas-panel { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
 .workspace > .ov { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
 .workspace > .right-stack { border-radius: 0 24px 24px 0; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) {
@@ -737,7 +730,7 @@ body:has(.shell-top) { background: transparent; }
 .workspace.with-status.with-strip { grid-template-rows: var(--size-chrome) auto auto minmax(0, 1fr); }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
 .workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
-.workspace.with-strip > :is(.area, .ov) { border-top-left-radius: 0; }
+.workspace.with-strip > :is(.doan-canvas-panel, .ov) { border-top-left-radius: 0; }
 .strip-agent { display: inline-grid; place-items: center; flex: none; }
 .strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
 .strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
@@ -1001,3 +994,115 @@ body:has(.shell-top) { background: transparent; }
 .rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+
+/* buzz-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/buzz-canvas.html, confirmed
+   2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
+   controls under the Overview, which covers the same grid cell. */
+.workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; }
+.doan-canvas-panel > .area { flex: 1; min-height: 0; }
+.doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+/* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
+   sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
+.doan-canvas-head { flex: none; background: var(--surface-panel); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The shared .chev size (16px), like the Overview title's chevron. */
+.doan-canvas-head .chev { flex: none; }
+.doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
+.doan-canvas-zoom { display: flex; align-items: center; gap: var(--space-half); }
+.doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.doan-canvas-head .doan-icon-button { color: var(--text-standard); }
+.doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
+/* The frame drawer's list opens under its trigger like the Overview's conversation menu. The viewed frame is marked by
+   "Viewing" only; the fill is for the pointer and keyboard focus, which move together as in a Radix menu. */
+.doan-frame-list { width: 320px; }
+.doan-frame-row { gap: var(--space-2); }
+.doan-frame-row:focus { background: var(--affordance-floating-hover); }
+.doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.doan-frame-note { margin: var(--space-1) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--border-standard); white-space: normal; }
+.doan-zoom-menu { width: 184px; }
+.doan-zoom-key { margin-left: auto; }
+/* The tools row floats at the board's bottom centre on the shared floating surface, like menus and toasts. */
+.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-3); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
+.doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
+/* The pressed tool keeps its fill under the pointer and while held: the shared hover (0,4,0) and active (0,5,0) fills
+   would otherwise replace it, and the default tool would look unpressed while its tooltip shows. Equal weight and later
+   in the cascade wins; a disabled tool still takes the shared disabled look. */
+.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+/* The conversation panel's open button closes the header row after a divider, only while the panel is folded. */
+.doan-canvas-head-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+
+/* buzz-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/buzz-canvas.html
+   'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
+   drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
+.workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+.workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
+.workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
+/* Folded, the column keeps its node (the open button's aria-controls) but leaves the page; while it folds it stays
+   visible until the column has closed. */
+.doan-conv-column[data-collapsed] { visibility: hidden; }
+.workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
+.workspace[data-panel="collapsed"] > .doan-canvas-panel { border-top-right-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
+.workspace[data-panel="collapsed"] > .strip-slot { border-top-right-radius: var(--radius-container); }
+.right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
+.doan-conv-head { display: flex; align-items: center; padding-right: var(--space-2); }
+.doan-conv-head .rp-head { flex: 1; min-width: 0; }
+.doan-conv-head .doan-icon-button { color: var(--text-standard); }
+.doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar
+   fading at both ends, shown on hover, while dragging and on keyboard focus (malmoi components/ui/resizable.tsx and its
+   DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */
+.doan-panel-handle { position: absolute; z-index: 4; top: 0; bottom: 0; left: calc(-1 * var(--space-1)); width: var(--space-2); background: transparent; touch-action: none; outline: none; cursor: col-resize; }
+.doan-panel-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--space-1); transform: translateX(-50%); background: linear-gradient(to bottom, transparent, var(--affordance-accent), transparent); opacity: 0; }
+.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 1; }
+.doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
+/* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
+.doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
+@media (prefers-reduced-motion: reduce) {
+  .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+}
+
+/* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html
+   'agent-working', 'agent-waiting'). Reference: ego lite's agent tab as the user described it (2026-11-01); its values are
+   compiled into a native view, and the one web token read is the task bar's #0009 (design §2). doan uses its accent for
+   the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
+   controls; nothing here takes pointer input. */
+.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 var(--space-2) color-mix(in srgb, var(--affordance-accent) 70%, transparent), inset 0 0 var(--space-6) color-mix(in srgb, var(--affordance-accent) 35%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
+.workspace[data-panel="collapsed"] .doan-agent-glow { border-radius: 0 0 var(--radius-container) var(--radius-container); }
+@keyframes doan-agent-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+/* The dot field's colour: translucent white dots, read from this computed colour by the canvas. */
+.doan-agent-dots { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--text-on-prominent); }
+/* The agent notice and the canvas notices stack at the board's top centre, 20px under its top edge, the agent notice first. */
+.doan-canvas-top { position: absolute; z-index: 3; top: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
+/* The column sets the notices' width and pointer (a screen sets only margins on a shared notice), so a trackpad scroll
+   over one still reaches the board's pan and zoom; the agent notice keeps its own width, centred. */
+.doan-canvas-top > * { pointer-events: auto; }
+.doan-canvas-top > .doan-agent { align-self: center; }
+/* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
+   primitive. The wording gives way first; the button keeps its size. */
+.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
+   white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
+.doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
+@media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
+.doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
+.doan-agent .doan-button.doan-agent-action[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-prominent) 60%, transparent); cursor: default; }
+.doan-agent-action svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
+.doan-agent-dot { position: relative; flex: none; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); animation: doan-agent-breathe 2.4s var(--ease-state) infinite; }
+.doan-agent-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 0 color-mix(in srgb, var(--affordance-accent) 70%, transparent); animation: doan-agent-ring 2.4s var(--ease-settle) infinite; }
+.doan-agent-dot[data-steady], .doan-agent-dot[data-steady]::after { animation: none; }
+@keyframes doan-agent-breathe { 0%, 100% { transform: scale(.75); } 50% { transform: scale(1.25); } }
+@keyframes doan-agent-ring { to { box-shadow: 0 0 0 var(--space-2) transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .doan-agent-glow, .doan-agent-dot, .doan-agent-dot::after { animation: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .doan-agent { background: var(--affordance-prominent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
