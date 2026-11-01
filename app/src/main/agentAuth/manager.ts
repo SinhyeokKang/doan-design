@@ -449,7 +449,7 @@ export class AuthManager {
         if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId) || this.links.get(attemptId)?.url === link.url) return false;
         this.links.set(attemptId, link); this.options.onPrompt?.({ provider, attemptId, owner, url: link.url });
         return false;
-      }, async acp => { await this.acpOpen(provider, acp); await acp.request("authenticate", { methodId: method }, null); });
+      }, acp => acp.request("authenticate", { methodId: method }, null));
     } catch (error) {
       if (error instanceof Cancelled || this.cancelled(provider, attemptId)) throw new Cancelled();
       if (error instanceof Failure) throw error;
@@ -463,7 +463,7 @@ export class AuthManager {
     let asked = false;
     try {
       await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => { asked = true; return true; },
-        async acp => { await this.acpOpen(provider, acp); await acp.request("authenticate", { methodId: this.adapters[provider].acpAuth!.method }, null); });
+        acp => acp.request("authenticate", { methodId: this.adapters[provider].acpAuth!.method }, null));
       return { code: 0, stdout: "", stderr: "" };
     } catch (error) {
       if (error instanceof Cancelled || error instanceof Failure) throw error;
@@ -474,7 +474,7 @@ export class AuthManager {
   private async acpLogout(provider: Provider, attemptId: string): Promise<void> {
     await this.hold(provider);
     try {
-      await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, async acp => { await this.acpOpen(provider, acp); await acp.request("logout", {}); });
+      await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, acp => acp.request("logout", {}));
     } catch (error) { console.error(`doan: ${provider} server logout failed; removing Doan's copy`, message(error)); }
     // In the queue like every hold and drop, but not drop(): absorbing the logged-out copy would write it back to the
     // vault, and signOutFlow removes both right after.
@@ -489,8 +489,10 @@ export class AuthManager {
       throw new Error(`unexpected ACP server ${String(info.name)} ${String(info.version)}`);
     }
   }
-  // One ACP exchange with the provider's server; resolves or rejects only after its process group is gone.
-  // onLink sees each sign-in link the server asks the browser to open and returns true to stop the server.
+  // One ACP exchange with the provider's server, after its checked initialize; resolves or rejects only after its
+  // process group is gone. onLink sees each sign-in link the server asks the browser to open and returns true to stop
+  // the server. timeoutMs starts at the initialize answer: under heavy load the 278 MB server alone took about 30 s to
+  // start, which a status check right after an approved sign-in must not count (ACP_OPEN_MS bounds the start).
   private async acpExec<T>(provider: Provider, attemptId: string, timeoutMs: number | null, onLink: (link: SignInLink) => boolean, script: (acp: AcpConnection) => Promise<T>): Promise<T> {
     const { command, env, profileDir } = await this.launch(provider, attemptId);
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
@@ -515,9 +517,14 @@ export class AuthManager {
         if (link && onLink(link)) child.stop();
       }
     });
-    const timer = timeoutMs === null ? undefined : setTimeout(() => { failure ||= `the server was stopped after ${timeoutMs} ms without an answer`; child.stop(); }, timeoutMs);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const exchange = async () => {
+      await this.acpOpen(provider, acp);
+      if (timeoutMs !== null) timer = setTimeout(() => { failure ||= `the server was stopped after ${timeoutMs} ms without an answer`; child.stop(); }, timeoutMs);
+      return script(acp);
+    };
     let result: T;
-    try { result = await Promise.race([script(acp), child.exit.then(() => { throw new Error(failure || "the ACP server exited"); })]); }
+    try { result = await Promise.race([exchange(), child.exit.then(() => { throw new Error(failure || "the ACP server exited"); })]); }
     catch (error) { if (this.stopRequests.has(attemptId)) throw new Cancelled(); throw new ServerError(message(error), [...recent]); }
     finally {
       clearTimeout(timer); acp.close(); child.stop(); await child.gone;
