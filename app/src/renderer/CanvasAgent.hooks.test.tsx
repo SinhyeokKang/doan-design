@@ -57,7 +57,8 @@ const button = (tree: ReactNode) => all(tree).find(element => element.type === "
 const label = (tree: ReactNode) => { const children = button(tree)?.props.children; return [children].flat().filter(child => typeof child === "string").join(""); };
 // What leads the words: the filled square on Stop, the spinner on "Stopping…" (the draft's 'agent-working' and
 // 'agent-waiting' frames; the square is the composer's Stop glyph).
-const lead = (tree: ReactNode) => { const first = all(button(tree)?.props.children as ReactNode)[0]; return first?.props.className === "doan-spinner" ? "spinner" : first ? "icon" : null; };
+// Both are hidden from assistive tech, so the button's name stays its words.
+const lead = (tree: ReactNode) => { const first = all(button(tree)?.props.children as ReactNode)[0]; if (first && first.props["aria-hidden"] !== "true" && first.props["aria-hidden"] !== true) return "announced"; return first?.props.className === "doan-spinner" ? "spinner" : first ? "icon" : null; };
 // The indicator itself (its glow and notice); the top column stays for the canvas notices.
 const shown = (tree: ReactNode) => all(tree).some(element => element.props.className === "doan-agent");
 
