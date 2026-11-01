@@ -2133,6 +2133,86 @@ describe("picking", () => {
       expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc2", seq: 2 });
     } finally { h.controller.dispose(); }
   });
+  // The canvas script's side of the pick channel, by its own rule (canvasScript.ts `command`): a command for another
+  // document token, or one whose seq is not newer than the last it took, changes nothing and is not acknowledged.
+  // `token` is the document the iframe holds now.
+  const scriptSide = (h: ReturnType<typeof selectionHarness>) => {
+    let seen = 0, pickSeq = 0, token = "", picking: number | null = null;
+    const pump = () => {
+      const calls = h.current().contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
+      for (const command of calls.slice(seen)) {
+        if (command.type !== "pick-start" && command.type !== "pick-cancel") continue;
+        if (command.document !== token || (command.seq as number) <= pickSeq) continue;
+        pickSeq = command.seq as number;
+        picking = command.type === "pick-start" ? pickSeq : null;
+        if (picking !== null) h.receive({ type: "pick-started", document: token, pick: picking });
+      }
+      seen = calls.length;
+    };
+    return {
+      // A new document in the iframe starts its pick channel again.
+      document(next: string) { token = next; pickSeq = 0; picking = null; seen = h.current().contentWindow.postMessage.mock.calls.length; },
+      pump,
+      picking: () => picking,
+    };
+  };
+
+  it("a late load of the same document keeps the pick: no second start, and clicks stay open to the canvas", () => {
+    const h = harness();
+    try {
+      const script = scriptSide(h);
+      script.document("doc");
+      const results = started(h);
+      script.pump();
+      expect(h.current().style.pointerEvents).toBe("");
+      // Subresources such as images finish after the first layout: the iframe's load comes late and asks for a measure.
+      h.current().dispatchEvent(new Event("load"));
+      h.layout({ document: "doc" });
+      script.pump();
+      expect(picks(h).filter(m => m.type === "pick-start")).toEqual([{ type: "pick-start", document: "doc", seq: 1 }]);
+      expect(h.current().style.pointerEvents).toBe("");
+      expect(script.picking()).toBe(1);
+      picked(h, { target: h.target });
+      expect(results).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: "picked" }));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("after a reload, that document's own late load keeps its pick", () => {
+    const h = harness();
+    try {
+      const script = scriptSide(h);
+      const results = started(h);
+      h.controller.command("reload");
+      script.document("doc2");
+      h.layout({ document: "doc2" });
+      script.pump();
+      expect(h.current().style.pointerEvents).toBe("");
+      h.current().dispatchEvent(new Event("load"));
+      h.layout({ document: "doc2" });
+      script.pump();
+      expect(picks(h).filter(m => m.type === "pick-start")).toEqual([{ type: "pick-start", document: "doc2", seq: 1 }]);
+      expect(h.current().style.pointerEvents).toBe("");
+      picked(h, { target: h.target, document: "doc2" });
+      expect(results).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: "picked" }));
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a new token in the same iframe after a load still restarts the pick on the new document", () => {
+    const h = harness();
+    try {
+      const script = scriptSide(h);
+      script.document("doc");
+      started(h);
+      script.pump();
+      h.current().dispatchEvent(new Event("load"));
+      script.document("doc2");
+      h.layout({ document: "doc2" });
+      script.pump();
+      expect(picks(h).filter(m => m.type === "pick-start").at(-1)).toEqual({ type: "pick-start", document: "doc2", seq: 1 });
+      expect(h.current().style.pointerEvents).toBe("");
+      expect(script.picking()).toBe(1);
+    } finally { h.controller.dispose(); }
+  });
 });
 
 describe("chip locate", () => {

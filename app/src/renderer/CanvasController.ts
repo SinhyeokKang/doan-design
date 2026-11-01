@@ -121,10 +121,13 @@ export class CanvasController {
   private anchorTargets: ReadonlySet<string> = new Set();
   private anchors: { generation: number; candidates: ReadonlyMap<string, TargetCandidates>; rects: ReadonlyMap<string, PinGeometry> } | null = null;
   // Picking (design §4 'Structure'). The pick channel has its own seq, apart from selection and hover, and lives as
-  // long as one canvas document (its token, `anchorDocument`): a reload, a same-ID move or the canvas replacing its
-  // own document at the same URL restarts it. `activePick` is the pick-start sent to the current document; null while
+  // long as one canvas document (its token, `pickDocument`): a reload, a same-ID move or the canvas replacing its
+  // own document at the same URL restarts it. Not `anchorDocument`: the iframe's load event clears that to re-ask for
+  // anchors, also when it comes late for the same document, and a channel restarted then would resend seq 1, which
+  // the script has already taken and ignores, leaving the canvas closed to clicks. `activePick` is the pick-start sent to the current document; null while
   // the pick waits for a document's first layout, and after the pick ended. `pickAcked`: that document took it.
   // Until then the iframe gets no pointer input, since a click there would still select.
+  private pickDocument: string | null = null;
   private pickSeq = 0;
   private activePick: number | null = null;
   private pickAcked = false;
@@ -502,6 +505,7 @@ export class CanvasController {
     if (fresh) this.pendingFrame = null;
     // A new document restarts the pick channel. Opening a canvas ends the pick (dropFrame below); a reload or a
     // same-ID move keeps it for the new document's first layout.
+    this.pickDocument = null;
     this.resetPickChannel();
     this.resetAnchors();
     // A plain reload that replaces a changed one before its layout keeps Changed.
@@ -566,6 +570,7 @@ export class CanvasController {
 
   private dropFrame(): void {
     this.endPick({ kind: "cancelled" });
+    this.pickDocument = null;
     this.clearJump();
     this.pendingFrame = null;
     this.state.currentFrame = null;
@@ -753,11 +758,11 @@ export class CanvasController {
   // Sent once the current document has laid out with its token; the token keeps a command from reaching the
   // document that replaces this one.
   private armPick(): void {
-    if (this.loading || this.frame === null || this.anchorDocument === null) return;
+    if (this.loading || this.frame === null || this.pickDocument === null) return;
     this.pickSeq += 1;
     this.activePick = this.pickSeq;
     this.pickAcked = false;
-    this.post({ type: "pick-start", document: this.anchorDocument, seq: this.pickSeq });
+    this.post({ type: "pick-start", document: this.pickDocument, seq: this.pickSeq });
     this.syncFrameInput();
   }
 
@@ -776,7 +781,7 @@ export class CanvasController {
   }
 
   private receivePickStarted(message: PickStartedMessage): void {
-    if (this.state.tool !== "pick" || message.pick !== this.activePick || message.document !== this.anchorDocument ||
+    if (this.state.tool !== "pick" || message.pick !== this.activePick || message.document !== this.pickDocument ||
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     this.pickAcked = true;
     this.syncFrameInput();
@@ -786,9 +791,9 @@ export class CanvasController {
   private endPick(result: PickResult): void {
     if (this.state.tool !== "pick") return;
     this.state.tool = "select";
-    if (this.activePick !== null && this.anchorDocument !== null) {
+    if (this.activePick !== null && this.pickDocument !== null) {
       this.pickSeq += 1;
-      this.post({ type: "pick-cancel", document: this.anchorDocument, seq: this.pickSeq });
+      this.post({ type: "pick-cancel", document: this.pickDocument, seq: this.pickSeq });
     }
     this.activePick = null;
     this.pickAcked = false;
@@ -799,7 +804,7 @@ export class CanvasController {
   // A reply counts only for the pick-start in force in the current document: one after Esc, a toggle, leaving the
   // canvas or a newer pick names another seq, or none, and one from a replaced document another token.
   private receivePicked(message: PickedMessage): void {
-    if (this.state.tool !== "pick" || this.activePick === null || message.pick !== this.activePick || message.document !== this.anchorDocument ||
+    if (this.state.tool !== "pick" || this.activePick === null || message.pick !== this.activePick || message.document !== this.pickDocument ||
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     if ("cancelled" in message) { this.cancelPick(); return; }
     // The picker's boundary: only frames and what is in them can be chips. A forged or stray reply for anything
@@ -867,7 +872,10 @@ export class CanvasController {
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
     // Another document, even at the same URL in the same iframe (the canvas's own location.reload()), ends the pick
     // channel of the one it replaced; the pick itself goes on below unless the page is another canvas.
-    if (documentChanged) this.resetPickChannel();
+    if (message.document !== undefined && message.document !== this.pickDocument) {
+      this.pickDocument = message.document;
+      this.resetPickChannel();
+    }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;
     const beforeSelection = this.state.selection;
