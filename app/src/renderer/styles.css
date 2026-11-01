@@ -977,6 +977,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .composer-input .anchor-chip { cursor: pointer; }
 .chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
+/* The composer's note sits under its chip, over the card, without entering the field's DOM. */
+.chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }
 /* Pick from canvas (design §2 'Picker'): the left end of the model row; the picking hint is the agent notice's capsule
    with an outlined Esc key, and the board shows a crosshair (the canvas script sets the one over the canvas). */
 .docked .composer-tray .composer-pick { margin-right: auto; color: var(--text-subtle); }

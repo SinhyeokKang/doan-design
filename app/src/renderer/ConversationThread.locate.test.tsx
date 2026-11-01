@@ -1,55 +1,78 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-// useLocateNote's state and effect run as plain values so its timer and listeners can be driven directly.
-const hooks = vi.hoisted(() => ({ state: 0, effect: null as null | (() => void | (() => void)), cleanup: undefined as void | (() => void) }));
+// useLocateNote's state and effect as React runs them: a render reads the state, and the effect runs again (after
+// the previous one's cleanup) only when its deps changed. The times below are literals, so a changed constant fails.
+const hooks = vi.hoisted(() => ({ state: 0, deps: null as unknown[] | null, cleanup: undefined as void | (() => void), effect: null as null | { run: () => void | (() => void); deps: unknown[] } }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useState: () => [hooks.state, (next: number | ((value: number) => number)) => { hooks.state = typeof next === "function" ? next(hooks.state) : next; }],
-  useEffect: (effect: () => void | (() => void)) => { hooks.effect = effect; },
+  useEffect: (run: () => void | (() => void), deps: unknown[]) => { hooks.effect = { run, deps }; },
 }));
-const { LOCATE_NOTE_MS, useLocateNote } = await import("./ConversationThread");
+const { useLocateNote } = await import("./ConversationThread");
 
-// Runs the hook as React would after a render: the previous effect's cleanup, then the new effect.
 function render() {
   const result = useLocateNote();
-  hooks.cleanup?.();
-  hooks.cleanup = hooks.effect?.();
+  const effect = hooks.effect!;
+  const same = hooks.deps !== null && effect.deps.length === hooks.deps.length && effect.deps.every((dep, i) => Object.is(dep, hooks.deps![i]));
+  if (!same) { hooks.cleanup?.(); hooks.cleanup = effect.run(); hooks.deps = effect.deps; }
   return result;
 }
+const shown = () => render()[0];
 
-beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", new EventTarget()); hooks.state = 0; hooks.cleanup = undefined; });
+beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", new EventTarget()); hooks.state = 0; hooks.deps = null; hooks.cleanup = undefined; });
 afterEach(() => { hooks.cleanup?.(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-test("the note shows for 4 s after a locate finds nothing", () => {
+test("the note shows for 4 s: still there at 3999 ms, gone 1 ms later", () => {
   const [, show] = render();
   show();
-  expect(render()[0]).toBe(true);
-  vi.advanceTimersByTime(LOCATE_NOTE_MS - 1);
-  expect(render()[0]).toBe(true);
-  vi.advanceTimersByTime(LOCATE_NOTE_MS);
-  expect(hooks.state).toBe(0);
-  expect(render()[0]).toBe(false);
+  expect(shown()).toBe(true);
+  vi.advanceTimersByTime(1000);
+  expect(shown()).toBe(true);
+  vi.advanceTimersByTime(2999);
+  expect(shown()).toBe(true);
+  vi.advanceTimersByTime(1);
+  expect(shown()).toBe(false);
 });
 
 test("the person's next action hides it at once: a pointer press or a key", () => {
   for (const type of ["pointerdown", "keydown"]) {
     const [, show] = render();
     show();
-    expect(render()[0]).toBe(true);
+    expect(shown()).toBe(true);
+    vi.advanceTimersByTime(500);
     window.dispatchEvent(new Event(type));
-    expect(render()[0]).toBe(false);
+    expect(shown()).toBe(false);
+    // Hidden by the action, no timer of its own is left to fire.
+    vi.advanceTimersByTime(10_000);
+    expect(shown()).toBe(false);
   }
 });
 
-test("another miss restarts the 4 s", () => {
+test("a second miss restarts the 4 s from its own moment", () => {
   const [, show] = render();
   show();
-  render();
+  expect(shown()).toBe(true);
   vi.advanceTimersByTime(3000);
   show();
-  render();
-  vi.advanceTimersByTime(3000);
-  expect(render()[0]).toBe(true);
-  vi.advanceTimersByTime(LOCATE_NOTE_MS);
-  expect(render()[0]).toBe(false);
+  expect(shown()).toBe(true);
+  // 3999 ms after the second miss (6999 ms after the first): still shown; 1 ms later it is gone.
+  vi.advanceTimersByTime(3999);
+  expect(shown()).toBe(true);
+  vi.advanceTimersByTime(1);
+  expect(shown()).toBe(false);
+});
+
+test("after an action hid it, a new miss shows it again for its own 4 s", () => {
+  const [, show] = render();
+  show();
+  shown();
+  vi.advanceTimersByTime(2000);
+  window.dispatchEvent(new Event("keydown"));
+  expect(shown()).toBe(false);
+  show();
+  expect(shown()).toBe(true);
+  vi.advanceTimersByTime(3999);
+  expect(shown()).toBe(true);
+  vi.advanceTimersByTime(1);
+  expect(shown()).toBe(false);
 });

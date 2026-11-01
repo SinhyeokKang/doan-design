@@ -5,7 +5,8 @@ import type { Provider } from "../main/agentAuth/types";
 import type { Anchor } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
-import { plainText, sameSegments, typedText } from "./anchorField";
+import { distinctTargets, plainText, sameSegments, typedText } from "./anchorField";
+import { LIMITS } from "../main/conversation/messageText";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PresetsButton,
   SendButton, SlashPresets, useComposerDrop, type ComposerFieldHandle,
@@ -120,13 +121,21 @@ export function DockedComposer(props: DockedComposerProps) {
   // The 32-place line, for the draft it was refused on; the next edit drops it.
   const [limitAt, setLimitAt] = useState<string | null>(null);
   const [missing, showMissing] = useLocateNote();
+  // "No longer in the canvas" by the composer chip that was not found (design §2 'Chip locate'): an overlay placed
+  // under the chip, outside the field's DOM, and the chip described by it like a thread chip.
+  const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number } | null>(null);
+  // A draft already pointing at the limit's number of places takes no more from the canvas, so the canvas panel's
+  // composer says why under the card (design §2 'Chip field'); removing one takes the line away.
+  const full = !!props.pick && distinctTargets(draft.segments) >= LIMITS.anchors;
   const generation = useRef(0);
   // The key on screen when a reply lands, which may differ from the one the send left from.
   const shown = useRef(key); shown.current = key;
   const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const hostSawBusy = useRef(new Set<string>());
-  const listId = useId(), reasonId = `${listId}-reason`;
+  // The composer's own box, which places the chip note.
+  const root = useRef<HTMLDivElement | null>(null);
+  const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`;
 
   const isSending = sending.has(key);
   const held = refusals.get(key);
@@ -235,14 +244,30 @@ export function DockedComposer(props: DockedComposerProps) {
         if (result === "limit") setLimitAt(shownKey.current);
         return result;
       },
-      focus: () => field.current?.focus(),
+      // No caret call while an IME composes: the composition owns the selection.
+      focus: () => { if (!field.current?.composing()) field.current?.focus(); },
       composing: () => field.current?.composing() ?? false,
       element: () => field.current?.element() ?? null,
     };
     link.current = mine;
     return () => { if (link.current === mine) link.current = null; };
   }, [props.link]);
-  const locate = (anchor: Anchor) => { void props.onLocate?.(anchor).then(outcome => { if (outcome === "missing") showMissing(); }); };
+  const locate = (anchor: Anchor, chip: HTMLElement) => {
+    void props.onLocate?.(anchor).then(outcome => {
+      const box = root.current?.getBoundingClientRect();
+      if (outcome !== "missing" || !box || !chip.isConnected) return;
+      const at = chip.getBoundingClientRect();
+      setMissingAt({ chip, left: at.left - box.left, top: at.bottom - box.top });
+      showMissing();
+    });
+  };
+  const noteShown = missing && missingAt !== null && missingAt.chip.isConnected;
+  useEffect(() => {
+    if (!noteShown || !missingAt) return;
+    const { chip } = missingAt;
+    chip.setAttribute("aria-describedby", noteId);
+    return () => { if (chip.getAttribute("aria-describedby") === noteId) chip.removeAttribute("aria-describedby"); };
+  }, [noteShown, missingAt]);
   const send = async () => {
     if (action === "stop" || !availability.enabled) return;
     const at = key, sent = draft, mine = ++generation.current;
@@ -290,7 +315,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const notice = refusal?.kind === "notice" ? refusal : null;
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = reason ? reasonId : undefined;
-  return <div className="docked" data-shape={shape} {...drop.handlers}>
+  return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
     {props.queued.length > 0 && <div className="queue" role="list" aria-label="Queued messages">{props.queued.map(item =>
       <div key={item.id} className="queue-item" role="listitem"><Clock aria-hidden="true" /><span className="queue-text">{item.text}</span>
         <button type="button" className="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" onClick={() => props.onRemoveQueued(item.id)}><X aria-hidden="true" /></button></div>)}</div>}
@@ -334,8 +359,8 @@ export function DockedComposer(props: DockedComposerProps) {
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
-    {limitAt === key && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
-    {missing && <div className="composer-reason docked-reason chip-missing" role="status"><span>{LOCATE_MISSING_TEXT}</span></div>}
+    {(limitAt === key || full) && <div className="composer-reason docked-reason" role="status"><span>{ANCHOR_LIMIT_TEXT}</span></div>}
+    {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
     <div className="sr-only" role="status">{announcement}</div>
   </div>;
 }

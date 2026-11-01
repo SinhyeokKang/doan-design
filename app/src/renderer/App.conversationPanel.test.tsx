@@ -377,3 +377,91 @@ test("a second entry after the first was consumed is a new arrival the panel app
   expect(second.focus).toBe("composer");
   expect(second.seq).toBeGreaterThan(first.seq);
 });
+
+// buzz-canvas-conversation R4 (design §2 'Focus return', POSTMORTEM 2026-10-23 R-L): the picker's and Add's waiting
+// focus moves carry the intent they started with; focus that went elsewhere meanwhile is never pulled back, and a
+// composing field gets its chip later but no focus or caret call.
+type Link = { insert: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; composing: ReturnType<typeof vi.fn>; element: ReturnType<typeof vi.fn> };
+type ConversationProps = { pick: { pressed: boolean; enabled: boolean; onToggle(): void }; composerLink: { current: unknown } };
+type Tools = { add: { enabled: boolean; onAdd(): void } };
+const ANCHOR = { frame: { id: "cart" } };
+async function canvasWithComposer(options: { panel?: boolean; composing?: boolean } = {}) {
+  vi.stubGlobal("Node", class {});
+  render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: options.panel ?? true } }); await Promise.resolve(); await Promise.resolve(); render();
+  folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null,
+    layout: { type: "layout", href: "u-a", height: 100, viewport: 100, frames: [{ id: "cart", x: 0, y: 0, width: 10, height: 10 }], truncated: false },
+    selection: { tag: "section", frame: { id: "cart" }, path: [] } });
+  render();
+  const field = { name: "field" };
+  const link: Link = { insert: vi.fn(() => "inserted"), focus: vi.fn(), composing: vi.fn(() => options.composing ?? false), element: vi.fn(() => field) };
+  const conversation = find<ConversationProps>(CanvasConversation)[0]!.props;
+  conversation.composerLink.current = link;
+  harness.controller!.pick!.mockReturnValue(true);
+  return { link, field, conversation };
+}
+const tools = () => (pane() as unknown as Tools | undefined)?.add;
+const focusMoved = (target: unknown) => windowListeners.focusin?.({ target } as never);
+
+test("a pick ends with focus back in the composer while focus stayed with the picker or the canvas", async () => {
+  const { link, conversation } = await canvasWithComposer();
+  conversation.pick.onToggle();
+  harness.setState!({ ...initialCanvasState(), tool: "pick" });
+  focusMoved(undefined);
+  const ended = harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
+  ended({ kind: "picked", anchor: ANCHOR, frames: [] });
+  expect(link.focus).toHaveBeenCalledOnce();
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
+});
+
+test("a pick whose focus went elsewhere meanwhile adds its chip but does not take focus back, also after focus returns", async () => {
+  const { link, conversation } = await canvasWithComposer();
+  conversation.pick.onToggle();
+  const ended = harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
+  focusMoved({ name: "a search field elsewhere" });
+  // Focus coming back to the picker before the canvas click does not restore the intent.
+  focusMoved(null);
+  ended({ kind: "picked", anchor: ANCHOR, frames: [] });
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.focus).not.toHaveBeenCalled();
+  conversation.pick.onToggle();
+  focusMoved({ name: "a menu" });
+  (harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void)({ kind: "cancelled" });
+  expect(link.focus).not.toHaveBeenCalled();
+});
+
+test("a pick that ends while the field composes keeps the chip waiting and makes no focus call", async () => {
+  const { link, conversation } = await canvasWithComposer({ composing: true });
+  link.insert.mockReturnValue("pending");
+  conversation.pick.onToggle();
+  (harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void)({ kind: "picked", anchor: ANCHOR, frames: [] });
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.focus).not.toHaveBeenCalled();
+});
+
+test("Add while the field composes puts the chip at the caret, waiting, with no focus or caret call", async () => {
+  const { link } = await canvasWithComposer({ composing: true });
+  link.insert.mockReturnValue("pending");
+  expect(tools()?.enabled).toBe(true);
+  tools()!.onAdd();
+  expect(link.insert).toHaveBeenCalledWith({ frame: { id: "cart" } }, "caret");
+  expect(link.focus).not.toHaveBeenCalled();
+});
+
+test("Add on a folded panel focuses the composer once it shows, unless focus went elsewhere meanwhile", async () => {
+  const first = await canvasWithComposer({ panel: false });
+  tools()!.onAdd(); render();
+  expect(first.link.insert).toHaveBeenCalledWith({ frame: { id: "cart" } }, "end");
+  expect(panel()?.open).toBe(true);
+  expect(first.link.focus).toHaveBeenCalledOnce();
+  reset();
+  const second = await canvasWithComposer({ panel: false });
+  tools()!.onAdd();
+  focusMoved({ name: "the sidebar" });
+  render();
+  expect(second.link.insert).toHaveBeenCalled();
+  expect(second.link.focus).not.toHaveBeenCalled();
+});

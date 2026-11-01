@@ -111,7 +111,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
   // Files are the host's; text the host leaves alone is pasted by the field.
   onPaste(event: ClipboardEvent<HTMLDivElement>): void; onInput?(): void; onAnnounce?(text: string): void;
   // A click on a chip in the field (the caret is already right after it).
-  onChipClick?: ((anchor: Anchor) => void) | undefined;
+  onChipClick?: ((anchor: Anchor, chip: HTMLElement) => void) | undefined;
   // The reason line under the docked card also describes the field (design §3.1).
   describedBy?: string | undefined;
 }>(function ComposerField(props, ref) {
@@ -128,7 +128,7 @@ export const ComposerField = forwardRef<ComposerFieldHandle, {
       onInput: () => latest.current.onInput?.(),
       onAnnounce: text => latest.current.onAnnounce?.(text),
       scope: () => latest.current.chipScope ?? null,
-      onChipClick: anchor => latest.current.onChipClick?.(anchor),
+      onChipClick: (anchor, chip) => latest.current.onChipClick?.(anchor, chip),
     }, latest.current.value, latest.current.draftKey);
     field.current = created;
     return () => { created.dispose(); field.current = null; };

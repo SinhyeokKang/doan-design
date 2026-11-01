@@ -26,8 +26,9 @@ export interface ChipFieldHooks {
   onAnnounce(text: string): void;
   // The canvas this field's chips belong to; null takes no chips, so a chip clipboard pastes as the chips' names.
   scope(): string | null;
-  // A click on a chip, after the caret moved right after it: its host locates the chip on the canvas.
-  onChipClick?(anchor: Anchor): void;
+  // A click on a chip, after the caret moved right after it: its host locates the chip on the canvas and may place a
+  // note by the chip's node (its attributes are not read back, so a describing id on it changes no segment).
+  onChipClick?(anchor: Anchor, chip: HTMLElement): void;
 }
 
 interface Selection { anchor: number; focus: number }
@@ -110,7 +111,7 @@ export class ChipField {
     this.selection = after;
     if (document.activeElement !== this.el) { this.pointer = false; this.el.focus(); }
     this.placeCaret(after);
-    this.hooks.onChipClick?.(anchor);
+    this.hooks.onChipClick?.(anchor, chip as HTMLElement);
   }
 
   // The host's value and the draft it belongs to. Another draft ends this one's history, caret and waiting chips even

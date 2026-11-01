@@ -122,3 +122,17 @@ test("a terminal session's composer keeps Pick from canvas before its fixed trig
   expect(html.indexOf("composer-pick")).toBeGreaterThan(-1);
   expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
 });
+
+// design §2 'Chip field': a draft that points at 32 places shows the reason line under the composer, whatever was
+// pressed; removing one place takes it away (Pick from canvas, Add and ⌘L stay unavailable meanwhile, App's part).
+test("a draft at 32 places shows the limit line under the composer until a chip goes", () => {
+  const chips = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: "chip" as const, anchor: { frame: { id: `frame-${i}` } } }));
+  const pick = { pressed: false, enabled: false, reason: "A message can point at up to 32 places. Remove one to add another.", onToggle: () => {} };
+  const line = '<div class="composer-reason docked-reason" role="status"><span>A message can point at up to 32 places. Remove one to add another.</span></div>';
+  expect(render({ pick }, { segments: chips(32) })).toContain(line);
+  // The same place twice counts once.
+  expect(render({ pick: { ...pick, enabled: true, reason: null } }, { segments: [...chips(31), ...chips(1)] })).not.toContain(line);
+  expect(render({ pick: { ...pick, enabled: true, reason: null } }, { segments: chips(31) })).not.toContain(line);
+  // Only the canvas panel's composer takes chips from the canvas.
+  expect(render({}, { segments: chips(32) })).not.toContain(line);
+});

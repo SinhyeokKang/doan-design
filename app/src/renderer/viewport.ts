@@ -41,8 +41,6 @@ export const ZOOM_LIMITS: ZoomLimits = { min: MIN_SCALE, max: MAX_SCALE };
 export const ZOOM_STEP = 1.25;
 // Cap per wheel event so one notch of a mouse wheel cannot jump across the range.
 export const WHEEL_ZOOM_MAX = 1.25;
-// Still used by `locateView`; Fit and frame jumps use FIT_INSET.
-export const FIT_MARGIN = 32;
 // Top clears the canvas header's height, bottom clears the floating toolbar (12 + 40 + 12).
 export const FIT_INSET: Inset = { top: 56, right: 32, bottom: 64, left: 32 };
 export const FIT_SCALE_MAX = 1;

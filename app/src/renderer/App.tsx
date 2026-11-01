@@ -76,12 +76,15 @@ export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen
   else if (name === "undoRemove") to.undo();
 }
 
-// Where focus stood when a pick ended: the control that started it, the page itself, the canvas, the composer field, or
-// somewhere the person moved it. Focus goes back to the composer only in the first four, and never into an IME
-// composition (design §2 'Focus return', POSTMORTEM 2026-10-23 R-L: a wait-then-focus carries its starting intent).
-export type PickFocus = "start" | "page" | "canvas" | "field" | "elsewhere";
-export function pickFocusReturns(where: PickFocus, composing: boolean): boolean {
-  return !composing && where !== "elsewhere";
+// A focus move that waits (a pick's end, Add on a folded panel) carries the intent it started with (design §2 'Focus
+// return', POSTMORTEM 2026-10-23 R-L): it holds while focus stays where the wait left it, and ends for good the moment
+// focus goes anywhere else, even if it comes back later.
+export class FocusIntent {
+  private live = true;
+  private readonly moved = (event: FocusEvent) => { if (!this.stays(event.target)) this.end(); };
+  constructor(private readonly stays: (target: EventTarget | null) => boolean) { window.addEventListener("focusin", this.moved, true); }
+  holds(): boolean { return this.live; }
+  end(): void { this.live = false; window.removeEventListener("focusin", this.moved, true); }
 }
 
 // Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
@@ -908,7 +911,8 @@ export function App() {
   const picking = state.tool === "pick";
   // Pick from canvas and Add to conversation (design §2 'Picker and Add to conversation'). The pick's start keeps
   // where focus was, so the end can tell whether focus still waits for the composer.
-  const pickIntent = useRef<{ from: Element | null } | null>(null);
+  // The pick's start: the composer field it will put the chip in, and whether focus may go back there.
+  const pickIntent = useRef<{ field: HTMLElement | null; focus: FocusIntent } | null>(null);
   // The shown composer's field, which the panel's composer registers (DockedFieldLink).
   const composerLink = useRef<DockedFieldLink | null>(null);
   const togglePick = () => {
@@ -916,18 +920,25 @@ export function App() {
     if (!instance) return;
     if (picking) { instance.cancelPick(); return; }
     if (!pickerReady) return;
-    pickIntent.current = { from: document.activeElement };
-    if (!instance.pick()) pickIntent.current = null;
+    const from = document.activeElement, field = composerLink.current?.element() ?? null;
+    // The picker, the page, the canvas and the field itself are where a pick leaves focus; anything else ends it.
+    const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field
+      || (target instanceof Node && !!viewport.current?.contains(target)));
+    pickIntent.current?.focus.end();
+    pickIntent.current = { field, focus };
+    if (!instance.pick()) { focus.end(); pickIntent.current = null; }
   };
   function pickEnded(result: PickResult) {
     const intent = pickIntent.current;
     pickIntent.current = null;
+    const holds = intent?.focus.holds() ?? false;
+    intent?.focus.end();
     const link = composerLink.current;
-    if (!link) return;
-    const active = document.activeElement, field = link.element();
-    const where: PickFocus = !active || active === document.body ? "page" : active === intent?.from ? "start" : active === field ? "field"
-      : viewport.current?.contains(active) ? "canvas" : "elsewhere";
-    const returns = intent !== null && pickFocusReturns(where, link.composing());
+    // A pick ends with its composer: another one now on screen gets nothing (the switch also cancels the pick).
+    if (!link || !intent || link.element() !== intent.field) return;
+    const active = document.activeElement;
+    // A composing field gets its chip once the composition ends, and no focus or caret call meanwhile.
+    const returns = holds && !link.composing();
     // Focus first, then the chip: the field puts its kept caret back on focus, and Chromium moves a caret set in an
     // unfocused field to the field's start when it takes focus afterwards (BR4b runtime probe).
     if (returns) link.focus();
@@ -942,20 +953,28 @@ export function App() {
   useEffect(() => { if (!pickerReady) controller.current?.cancelPick(); }, [pickerReady]);
   const addReady = menuSelection && pickerReady;
   // A folded panel keeps its composer mounted but inert: the chip goes in now, focus once the panel shows.
-  const focusFieldOnOpen = useRef(false);
+  const focusOnOpen = useRef<{ field: HTMLElement | null; focus: FocusIntent } | null>(null);
   function addSelection() {
     if (live.current.modal || !addReady || !state.selection) return;
     const anchor = targetAnchor(state.selection), link = composerLink.current;
     if (!anchor || !link) return;
-    const focused = link.element() !== null && link.element() === document.activeElement;
-    link.insert(anchor, focused ? "caret" : "end");
-    if (rightPanelRef.current.open) link.focus();
-    else { focusFieldOnOpen.current = true; foldPanel(true, "content"); }
+    const field = link.element(), from = document.activeElement;
+    // A composing field takes the chip at its caret once the composition ends; its caret and focus stay the person's.
+    if (link.composing()) { link.insert(anchor, "caret"); return; }
+    link.insert(anchor, field !== null && field === from ? "caret" : "end");
+    if (rightPanelRef.current.open) { link.focus(); return; }
+    focusOnOpen.current?.focus.end();
+    focusOnOpen.current = { field, focus: new FocusIntent(target => !target || target === from || target === document.body || target === field) };
+    foldPanel(true, "content");
   }
   useEffect(() => {
-    if (!rightPanel.open || !focusFieldOnOpen.current) return;
-    focusFieldOnOpen.current = false;
-    composerLink.current?.focus();
+    const waiting = focusOnOpen.current;
+    if (!rightPanel.open || !waiting) return;
+    focusOnOpen.current = null;
+    const holds = waiting.focus.holds();
+    waiting.focus.end();
+    const link = composerLink.current;
+    if (holds && link && link.element() === waiting.field && !link.composing()) link.focus();
   }, [rightPanel.open]);
   const locateChip = (anchor: Anchor) => new Promise<LocateOutcome>(settle => {
     if (!controller.current?.locate(anchor, settle)) settle("unavailable");

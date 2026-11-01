@@ -1,5 +1,5 @@
 import { expect, it, test, vi } from "vitest";
-import { App, menuCommand, pickFocusReturns } from "./App";
+import { App, menuCommand } from "./App";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => (() => void) | undefined)[], dispose: vi.fn(), command: vi.fn(), updateEntries: vi.fn() }));
 vi.mock("react", async importOriginal => ({
@@ -74,13 +74,4 @@ it("routes each menu command to its own handler, and the removed Resolved Commen
   menuCommand("addSelectionToConversation", to);
   expect(to.addSelection).toHaveBeenCalledOnce();
   expect(to.undo).toHaveBeenCalledOnce();
-});
-
-// design §2 'Focus return' and POSTMORTEM 2026-10-23 R-L: focus goes back to the composer only while it is still
-// where the pick left it, and never into an IME composition.
-test.each([
-  ["start", false, true], ["page", false, true], ["canvas", false, true], ["field", false, true],
-  ["elsewhere", false, false], ["start", true, false], ["field", true, false],
-] as const)("a pick that ended with focus on %s (composing: %s) returns focus: %s", (where, composing, returns) => {
-  expect(pickFocusReturns(where, composing)).toBe(returns);
 });

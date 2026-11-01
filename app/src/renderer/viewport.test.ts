@@ -4,7 +4,6 @@ import {
   elementView,
   FIRST_LAYOUT_TIMEOUT_MS,
   FIT_INSET,
-  FIT_MARGIN,
   FIT_SCALE_MAX,
   LINE_PX,
   MAX_SCALE,
@@ -34,7 +33,6 @@ describe("constants", () => {
     expect(ZOOM_LIMITS).toEqual({ min: 0.05, max: 4 });
     expect(ZOOM_STEP).toBe(1.25);
     expect(WHEEL_ZOOM_MAX).toBe(1.25);
-    expect(FIT_MARGIN).toBe(32);
     expect(FIT_INSET).toEqual({ top: 56, right: 32, bottom: 64, left: 32 });
     expect(FIT_SCALE_MAX).toBe(1);
     expect(FIRST_LAYOUT_TIMEOUT_MS).toBe(5000);
