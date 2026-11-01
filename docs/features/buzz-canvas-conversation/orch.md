@@ -105,3 +105,5 @@ D1은 이미 끝났다(초안 확정).
 - 발견: 코멘트 제거로 예전 초안 4개의 프레임 16개가 `CommentsPanel.tsx`를 가리켜 `doan check` 오류가 됐고, `.doan/ds/color.html`이 지운 핀 토큰을 쓴다. 결정(2026-11-02 user): 코멘트 UI만 다룬 초안 3개(comments-readability, revision-continuity, revision-recheck)를 지우고 project-feedback의 id-change-notice 프레임을 뺀다. 핀 토큰 견본도 뺀다. main에 이미 있던 `Sidebar.tsx` 오류 9개는 범위 밖. BD 후속 1.
 - BR1 재리뷰: 앞 지적 3건 해결. 새 🔴 1(일반 삭제로 줄 머리가 된 칩 앞에 줄바꿈이 생겨 메시지가 바뀜), 🟡 2(클립보드 앵커 중첩 타입 검증, 조합 중 초안 전환 검증). 지휘자 판단: 사용자가 친·붙인 U+200B는 지우지 않는다(filler 노드만 표시해 뺀다). 근거: PRODUCT §5 항목 1 '입력은 남는다', 리뷰 권고. 수정 라운드 2 전송.
 - BD 후속 1 `a39cbf86`: 코멘트 초안 3개 삭제, project-feedback id-change-notice 프레임, color.html pins 프레임 제거. `doan check` 오류는 main에 있던 Sidebar.tsx 6개만 남음. 남은 참조: 코드 주석 7곳(App.tsx:152, canvasView.ts:63, CanvasConversationList.tsx:15·test:124, CanvasController.ts:721, shell.test.ts:430, watch.test.ts:291) → BR2 브리프에 넣는다. 문서 참조(DESIGN 661·714·738, DIRECTORY 36) → Z3·Z5. POSTMORTEM·USABILITY-EVAL은 기록이라 그대로.
+- BR1 수정 2 `6f077513`: 하네스 17/17, 빌드 앱 26/26, verify PASS. 재리뷰 2 Codex astra.
+- BR1 재리뷰 2 통과(🔴·🟡 0). 통합한다.
