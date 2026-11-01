@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, test } from "vitest";
-import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, nextHeight, textQuote, type ChainLink } from "./canvasScript";
+import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, documentHeight, elementSelector, frameBottom, nextHeight, textQuote, type ChainLink } from "./canvasScript";
 
 describe("nextHeight", () => {
   test("sends the first measurement as is", () => {
@@ -129,6 +129,65 @@ describe("documentHeight with only absolutely positioned frames", () => {
     expect(documentHeight(0, 405, 150, 404.2)).toBe(405);
     expect(documentHeight(2016, 2016, 150, 900)).toBe(2016);
     expect(documentHeight(150, 2008, 150, 900)).toBe(2008);
+  });
+});
+
+// A frame's ancestors, nearest first, up to body: position, overflow-y and the
+// ancestor's bottom in document coordinates.
+describe("frameBottom", () => {
+  const clipper = (bottom: number, overflowY = "auto", position = "static") => ({ position, overflowY, bottom });
+  const plain = (position = "static") => ({ position, overflowY: "visible", bottom: Infinity });
+
+  test("keeps the bottom of a frame no ancestor clips", () => {
+    expect(frameBottom(405, "absolute", [plain()])).toBe(405);
+    expect(frameBottom(405, "static", [])).toBe(405);
+  });
+
+  test("ends a frame at the bottom of a box that scrolls or clips it", () => {
+    expect(frameBottom(3000, "static", [clipper(100), plain()])).toBe(100);
+    expect(frameBottom(3000, "static", [plain(), clipper(600, "hidden"), clipper(100, "clip")])).toBe(100);
+  });
+
+  test("lets an absolutely positioned frame escape clipping boxes below its containing block", () => {
+    expect(frameBottom(405, "absolute", [clipper(0, "hidden"), plain()])).toBe(405);
+    expect(frameBottom(405, "absolute", [clipper(100, "hidden", "relative")])).toBe(100);
+    expect(frameBottom(405, "absolute", [plain("relative"), clipper(100, "hidden")])).toBe(100);
+  });
+
+  test("passes the escape on through an absolutely positioned ancestor", () => {
+    expect(frameBottom(500, "static", [plain("absolute"), clipper(100, "hidden")])).toBe(500);
+    expect(frameBottom(500, "static", [plain("absolute"), clipper(100, "hidden", "relative")])).toBe(100);
+  });
+
+  test("no ancestor clips a fixed frame or anything inside a fixed ancestor", () => {
+    expect(frameBottom(500, "fixed", [clipper(100, "hidden", "relative")])).toBe(500);
+    expect(frameBottom(500, "static", [plain("fixed"), clipper(100, "hidden", "relative")])).toBe(500);
+    expect(frameBottom(500, "static", [clipper(300, "auto", "fixed"), clipper(100, "hidden", "relative")])).toBe(300);
+  });
+});
+
+// A 3,000 px frame inside an in-flow `overflow: auto` box: html is as tall as
+// the box, scrollHeight never below the viewport.
+describe("documentHeight with a frame inside a box that scrolls it", () => {
+  const run = (box: number, inner: number) => {
+    let state: ReturnType<typeof nextHeight> | null = null;
+    const sent: number[] = [];
+    for (let n = 0; n < 6; n++) {
+      const bottom = frameBottom(3000, "static", [{ position: "static", overflowY: "auto", bottom: box }]);
+      state = nextHeight(state, documentHeight(box, Math.max(inner, box), inner, bottom), inner);
+      inner = state.sent;
+      sent.push(inner);
+    }
+    return sent;
+  };
+
+  test("settles at a box shorter than the initial height", () => {
+    expect(run(100, 150)).toEqual([100, 100, 100, 100, 100, 100]);
+  });
+
+  test("shrinks with the box when it shrinks in place", () => {
+    expect(run(600, 150)).toEqual([600, 600, 600, 600, 600, 600]);
+    expect(run(100, 600)).toEqual([100, 100, 100, 100, 100, 100]);
   });
 });
 
@@ -370,6 +429,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
   const parent = { postMessage: (message: unknown, origin: string) => posted.push({ message, origin }) };
   const element = (el: FakeElement) => ({
     ...el,
+    parentElement: el.parentElement ?? null,
     getAttribute: (name: string) => el.attrs?.[name] ?? null,
     getBoundingClientRect: () => el.rect ?? { left: 0, top: 0, width: 0, height: 0 },
   });
@@ -403,7 +463,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
     requestAnimationFrame: (callback: () => void) => animationFrames.push(callback),
     setTimeout: (callback: () => void, delay: number) => timers.push({ at: state.now + delay, callback }),
     performance: { now: () => state.now },
-    getComputedStyle: (el: FakeElement) => el.style ?? { overflowX: "visible", overflowY: "visible" },
+    getComputedStyle: (el: FakeElement) => el.style ?? { overflowX: "visible", overflowY: "visible", position: "static" },
     ResizeObserver: class {
       constructor(callback: () => void) {
         resizeCallbacks.push(callback);
@@ -561,6 +621,14 @@ describe("canvasScriptSource", () => {
     const canvas = fakeCanvas({ height: 0, scrollHeight: 405, frames: [{ attrs: { "data-doan-frame": "a" }, rect: { left: 0, top: 265, width: 300, height: 100 } }] });
     canvas.ready();
     expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 405, viewport: 150 } });
+  });
+
+  test("does not grow past a short box that scrolls its frame", () => {
+    // The box ends at 20 + 40 + 40 = 100 in document coordinates (scrollY is 40 in the fake).
+    const box = { nodeType: 1, style: { overflowX: "auto", overflowY: "auto", position: "static" }, getBoundingClientRect: () => ({ left: 0, top: 20, width: 800, height: 40 }), parentElement: null };
+    const canvas = fakeCanvas({ height: 100, scrollHeight: 150, frames: [{ attrs: { "data-doan-frame": "a" }, rect: { left: 0, top: -40, width: 800, height: 3000 }, parentElement: box as unknown as FakeElement }] });
+    canvas.ready();
+    expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 100 } });
   });
 
   test("counts frames past the listed 1,000 in the height", () => {
