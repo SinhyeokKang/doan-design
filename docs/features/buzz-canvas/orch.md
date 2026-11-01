@@ -20,6 +20,8 @@
 | 2026-11-01 | 공급자 로그인은 지휘자가 미리 만든다. 실제 HOME으로 dev 앱을 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 띄우고, 사용자가 브라우저에서 Claude Code 로그인을 승인한다. BR5·BV probe는 이 프로필을 복사해서 쓴다. 이 실행이 끝나도 로그아웃·삭제하지 않고 바로 이어지는 `buzz-canvas-conversation`이 이어 쓰며, 폐기도 그 실행이 한다 | 사용자("CC, Codex 로그인 쓸 일 있음? 미리 실제 HOME에 세션 만들어놓으면 좋겠는데", "로그인 세션은 canvas-conversation에서 이어서 사용하고, 폐기는 거기서 한다"). 공급자는 하나면 된다(지휘자 판단) |
 | 2026-11-01 | Antigravity 로그인 실패는 buzz-canvas와 관계없어 별도 배치 BG가 맡는다. main에서 `fix-antigravity-signin` 브랜치를 만들고 PR도 따로 낸다 | 사용자("agy 로그인 문제는 원인 확인되면 이 지휘 세션에서 해결해줘"). 브랜치 분리는 지휘자 판단: 이 PR의 범위가 아니다 |
 | 2026-11-01 | spec 완료 조건의 Fit 여백 문장을 design §2·§3의 안전 영역 규칙에 맞춰 고쳤다. 안전 영역에 들어가는 프레임은 그 가운데에, 안전 영역보다 높은 프레임은 위 56px에 둔다. 예외 기준은 '보드보다 높은 프레임'이 아니라 '안전 영역보다 높은 프레임'이다 | 지휘자 판단. RBT 🟡3. 사용자가 확정한 design의 상세 규칙이 있고, 폭 기준 Fit에서는 보드보다 낮지만 안전 영역보다 높은 프레임의 아래 가장자리를 도구모음 위에 둘 수 없다 |
+| 2026-11-01 | Codex·Antigravity 계정 표시는 별도 feature로 만들고, 그 feature 문서(spec·design·tasks)는 이 PR에 함께 넣는다. 조사와 `/feature`·`/feature-review`는 BA가 맡는다 | 사용자("agy, Codex 계정 메타 받아오는 조사 끝나면 워커 띄워서 feature로 작성 시켜. 스펙문서 이 pr에 같이 들어가도 괜찮") |
+| 2026-11-01 | Codex는 app-server `account/read`의 이메일만 보이고 계정 ID는 null로 둔다. Antigravity는 Doan이 vault의 refresh token으로 갱신한 메모리 전용 access token으로 Google userinfo를 불러 보인다(경계 확장 승인) | 사용자(AskUserQuestion: Codex '이메일만 표시', Antigravity 'userinfo로 표시') |
 | 2026-11-01 | `/agent-eval`은 해당하지 않는다 | design §1·§4. CLI·형식·스킬·`doan check` 규칙이 그대로다 |
 | 2026-11-01 | probe 위치는 `.scratch/runtime-test/buzz-canvas/`, 측정 위치는 `.scratch/design-sync/buzz-canvas/`다 | `/runtime-test`·`/design-sync` 스킬의 위치 규칙 |
 
@@ -36,6 +38,7 @@
 | BR6 | R6, X1 | `styles.css`, `App.tsx`, `CanvasController.ts`(inset 적용), `canvasView.ts`와 테스트 | BR5 | Claude Sonnet high (CSS 재배치와 grep으로 확인하는 제거. 겹침 순서와 inset 적용만 판단이 필요하다) | test, typecheck, build, X1 grep, 변경 범위 `/runtime-test` | 대기 |
 | BV | V1, V2, Z3와 그 수정 | 위 배치들의 파일 수정, `.scratch/design-sync/buzz-canvas/`, `.scratch/runtime-test/buzz-canvas/`, `docs/DESIGN.md` | BR6 | Claude Opus high (실제 앱 측정, 960·1238 겹침, 초안과의 차이 수정, 회귀 테스트) | V1 통과 조건, V2 항목별 결과, DESIGN.md 기록 | 대기 |
 | BG | Antigravity 로그인 버그(범위 밖, 별도 브랜치 `fix-antigravity-signin`) | `app/src/main/agentAuth/` 등 원인에 따라. buzz-canvas 파일과 겹치지 않는다 | — | Claude Opus high (실제 공급자 로그인 재현, 인증 수명·vault 판단. 틀리면 사용자 자격 증명을 잃는다) | 원인 증거, 회귀 테스트 red, `verify.mjs`, 복사 프로필로 `/runtime-test` | 진행 중 |
+| BA | Codex·Antigravity 계정 표시 조사와 `/feature`(범위 밖 feature, 문서만 이 PR에) | 새 `docs/features/<slug>/`, `.scratch/` PoC | — | Claude Opus high (실제 서명 프로필에서 읽기 전용 PoC, 자격 증명 경계 판단) | PoC 근거, `/feature-review` 반영 | 진행 중 |
 | BZ | Z1, Z2, Z4 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/buzz-restyle/*`, `docs/features/buzz-canvas/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z1·Z2·Z4 grep | 대기 |
 
 리뷰 작업자(보고만, `/code-review`): BT·BP → Codex `gpt-6-astra` medium(교차 리뷰). BD → Claude Sonnet medium(Codex 구현의 교차 리뷰). BR1·BR4·BR5 → Codex `gpt-6-astra` medium(교차 리뷰, 포커스·수명·저장 판단). BR6 → Codex `gpt-6-astra` medium. BV의 코드 수정 → Codex `gpt-6-astra` medium.
