@@ -145,3 +145,5 @@ D1은 이미 끝났다(초안 확정).
 - BF 리뷰(Codex astra): 🔴 1(다른 캔버스의 send 응답이 같은 revision이면 현재 캔버스 승격 안내를 지움). 대기열 판단은 확인됨. 수정 라운드 1 전송.
 - BF 수정 1 `5daafffb`: sent를 캔버스·revision·보낸 시점의 안내로 묶음. 재리뷰 Codex astra.
 - BF 재리뷰 통과(🔴 0). 통합한다.
+- BF 통합: `0a80321a`, `1eb6c867`. bcc-bf 정리. 코드 변경 끝.
+- 마지막 코드 HEAD(`1eb6c867`) `verify --eval` PASS.
