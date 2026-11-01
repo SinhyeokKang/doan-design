@@ -260,6 +260,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const changedModel = pick.model !== undefined || pick.effort !== undefined;
   const send = async (request: DockedRequest): Promise<DockedOutcome> => {
     const revision = run.revision();
+    const sentUnder = notice;
     if (mode.kind === "new" || mode.kind === "resume") {
       const runtime = mode.kind === "resume" ? mode.provider : chosen;
       if (!runtime) return { error: "no_agent" };
@@ -278,7 +279,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
-    run.sent(revision);
+    run.sent(target, revision, sentUnder);
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {

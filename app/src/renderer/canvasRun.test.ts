@@ -200,7 +200,7 @@ test("an announced promotion stays over later list reads until the person acts; 
     h.answer([summary(A, { state: "archived" }), summary(P, { lastActivityAt: "2026-10-30T00:01:00.000Z" })]);
     return h;
   };
-  const notice = { kind: "promoted", text: PROMOTED_TEXT, open: P };
+  const notice = { kind: "promoted" as const, text: PROMOTED_TEXT, open: P };
   const reread = (h: ReturnType<typeof harness>) => h.answer([summary(A, { state: "archived" }), summary(P)]);
 
   const kept = promote("new");
@@ -219,7 +219,7 @@ test("an announced promotion stays over later list reads until the person acts; 
 
   // Sending: a continued conversation, or a start from the new conversation state.
   const sent = promote("conversation");
-  sent.run.sent(sent.run.revision());
+  sent.run.sent(checkout, sent.run.revision(), notice);
   reread(sent);
   expect(sent.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
   const started = promote("new");
@@ -231,7 +231,7 @@ test("an announced promotion stays over later list reads until the person acts; 
   late.run.select(A);
   late.answer([summary(A, { state: "archived" }), summary(P, { canvas: null })]);
   late.answer([summary(A, { state: "archived" }), summary(P)]);
-  late.run.sent(revision);
+  late.run.sent(checkout, revision, notice);
   expect(late.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice });
 
   // Leaving the canvas: back on it, no notice, even before another read.
@@ -254,6 +254,38 @@ test("an announced promotion stays over later list reads until the person acts; 
   const replaced = promote("conversation");
   replaced.answer([summary(A, { state: "archived" }), summary(P, { state: "archived" }), summary(B)]);
   expect(replaced.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
+});
+
+// Review BF 🔴: revisions count per canvas, so a send reply from the canvas left behind can carry the same number.
+test("a send reply from another canvas leaves this canvas's promotion notice", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A), summary(P, { canvas: null })]);
+  const revision = h.run.revision();
+  h.run.show(cart);
+  h.answer([summary(A), summary(P, { canvas: null })]);
+  expect(h.run.revision()).toBe(revision);
+  h.answer([summary(A), summary(P, { canvas: CART })]);
+  h.answer([summary(A), summary(P, { canvas: CART })]);
+  const notice = { kind: "promoted" as const, text: PROMOTED_TEXT, open: P };
+  expect(h.run.view()).toMatchObject({ kind: "new", notice });
+  h.run.sent(checkout, revision, notice);
+  expect(h.run.view()).toMatchObject({ kind: "new", notice });
+
+  // Back on the canvas it was sent from: a notice that showed after the send stays too.
+  const back = harness();
+  back.run.show(checkout);
+  back.answer([summary(A), summary(P, { canvas: null })]);
+  const sentAt = back.run.revision();
+  back.run.show(cart);
+  back.run.show(checkout);
+  back.answer([summary(A, { state: "archived" }), summary(P)]);
+  back.answer([summary(A, { state: "archived" }), summary(P)]);
+  expect(back.run.view()).toEqual({ kind: "conversation", conversationId: A, archived: true, notice });
+  back.run.sent(checkout, sentAt, null);
+  expect(back.run.view()).toMatchObject({ notice });
+  back.run.sent(checkout, sentAt, { kind: "promoted", text: PROMOTED_TEXT, open: B });
+  expect(back.run.view()).toMatchObject({ notice });
 });
 
 test("a project conversation drawing this canvas is announced in the new conversation state, without holding Send", () => {

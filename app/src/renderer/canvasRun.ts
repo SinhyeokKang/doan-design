@@ -172,11 +172,13 @@ export class CanvasRun {
     const now = this.showing();
     return now !== null && now.key === shown.key && now.conversationId === shown.conversationId && now.revision === shown.revision;
   }
-  // A send from the panel ends a promotion notice unless the person chose something else while it was sent; a restore
-  // made the archived conversation current again, and nothing else changes what shows.
-  sent(revision: number): void {
-    const s = this.shownState();
-    if (s && s.revision === revision) s.notice = null;
+  // A send from the panel ends the notice it was sent under, on the canvas it was sent from, unless the person chose
+  // something else there while it was sent. Revisions count per canvas, so the key and the notice bind the reply too:
+  // another canvas, or a notice that showed after the send, is left alone. A restore made the archived conversation
+  // current again, and nothing else changes what shows.
+  sent(target: CanvasTarget, revision: number, notice: CanvasNotice | null): void {
+    const s = this.canvases.get(canvasKey(target));
+    if (s && notice && s.revision === revision && s.notice?.kind === notice.kind && s.notice.open === notice.open) s.notice = null;
     this.host.changed();
   }
 
