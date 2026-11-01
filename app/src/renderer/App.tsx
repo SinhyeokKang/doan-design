@@ -70,8 +70,7 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-// `rightPanel` is null until ui-state was read: a save before that leaves it out rather than store the default.
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"] | null }): UiState | null {
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"] }): UiState | null {
   const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
   if (home === null) return null;
@@ -194,15 +193,15 @@ export function App() {
   const shownOverviewRef = useRef<string | null>(null);
   // conversationByRoot is written from the start; the Overview reads it only once ui-state was read (memoryRead).
   const conversationByRoot = useRef<Record<string, string>>({});
+  // The initial ui-state read has settled (a failed read counts). No save is sent before it: main replaces the whole
+  // file on each save, so an early save would drop every remembered field it does not carry (RBR4).
   const memoryRead = useRef(false);
   // Roots the run wrote, cleared or removed before that read.
   const memoryTouched = useRef(new Set<string>());
   const [memoryTick, setMemoryTick] = useState(0);
-  // The canvas page's conversation panel (buzz-canvas design §2): open state and width on this device. Saved only once
-  // ui-state was read (panelRead): main replaces the whole file on each save, and a default sent before the read
-  // would replace the remembered panel. A change the person made before the read wins over the read value.
+  // The canvas page's conversation panel (buzz-canvas design §2): open state and width on this device. A change the
+  // person made before the ui-state read wins over the read value.
   const [rightPanel, setRightPanelState] = useState<NonNullable<UiState["rightPanel"]>>({ open: true });
-  const panelRead = useRef(false);
   const panelTouched = useRef(false);
   const changePanel = (change: (previous: NonNullable<UiState["rightPanel"]>) => NonNullable<UiState["rightPanel"]>) => { panelTouched.current = true; setRightPanelState(change); };
   // The window and the measured column holding the canvas and the panel (sidebar and margins excluded).
@@ -359,7 +358,7 @@ export function App() {
       // The same for the Overview's memory: a conversation shown before the read keeps its newer entry.
       if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
-      if (active) { if (state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel); panelRead.current = true; }
+      if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
     });
     return () => { active = false; };
@@ -400,10 +399,10 @@ export function App() {
   // Sent at once, pans included: main debounces the write and flushes it on
   // quit, while a value still waiting here would be lost to a quick ⌘Q.
   const save = () => {
-    if (restore !== "done") return;
+    if (restore !== "done" || !memoryRead.current) return;
     const instance = controller.current;
     if (!instance) return;
-    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current, rightPanel: panelRead.current ? persisted.current.rightPanel : null });
+    const state = savedUiState({ ...persisted.current, view: instance.currentView(), memory: instance.memory(), conversationByRoot: conversationByRoot.current });
     if (state) void window.doan.saveUiState(state).then(saved => { if (!saved) console.error("doan: UI state was not saved"); }).catch(console.error);
   };
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
