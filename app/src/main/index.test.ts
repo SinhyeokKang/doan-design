@@ -800,6 +800,17 @@ describe("menus", () => {
     expect(menuEnabled("Add Selection to Conversation")).toBe(false);
   });
 
+  test("invalid menu state preserves an enabled canvas conversation action", async () => {
+    const contents = window().webContents;
+    const ready = { ...state("canvas"), selection: true, pickerAvailable: true };
+    await invoke("menu:state", contents, null, ready);
+    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    const builds = mocks.menu.mock.calls.length;
+    await invoke("menu:state", contents, null, { ...ready, selection: "true" });
+    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    expect(mocks.menu.mock.calls.length).toBe(builds);
+  });
+
   test("Go > Home tells the renderer", async () => {
     await invoke("menu:state", window().webContents, null, state("workspace"));
     click("Home");

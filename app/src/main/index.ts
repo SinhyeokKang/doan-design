@@ -75,6 +75,8 @@ export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "newConversation
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
+// `selection`: the canvas has a selection to add; `pickerAvailable`: the composer takes input and the canvas is loaded
+// (design §2), so the menu follows the same availability as the canvas toolbar.
 export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
