@@ -98,6 +98,12 @@ test("an archived conversation whose canvas is gone shows the line instead of th
   expect(html).toContain("This conversation’s canvas is no longer in doan-design, so it can’t continue.");
 });
 
+test("an anchor chip in the text makes the box, as an attachment chip does", () => {
+  const html = render({}, { segments: [{ kind: "text", text: "Make " }, { kind: "chip", anchor: { frame: { id: "payment", title: "Payment" } } }], shape: "capsule" });
+  expect(html).toContain('data-shape="box"');
+  expect(render({}, { text: "Make it quieter", shape: "capsule" })).toContain('data-shape="capsule"');
+});
+
 test("a chip makes the box and draws the chip row before the field", () => {
   const html = render({}, { attachments: [{ key: "k", id: "a", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }], shape: "box" });
   expect(html).toContain('data-shape="box"');

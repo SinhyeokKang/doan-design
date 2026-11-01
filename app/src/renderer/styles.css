@@ -587,9 +587,9 @@ body:has(.shell-top) { background: transparent; }
 .docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
 .docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
 .docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
-/* A wrapped placeholder made the empty capsule taller than one with a typed character; one clipped line keeps both
-   the same. */
-.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; }
+/* A wrapped placeholder made the empty capsule taller than one with a typed character; one line keeps both the same,
+   and the ellipsis shows the narrow panel cut the hint rather than ending it. */
+.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
 /* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
 .docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
@@ -953,6 +953,9 @@ body:has(.shell-top) { background: transparent; }
 .cp-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-2) var(--space-4) 0; }
 .cp-scroll:has(> .conversation-thread) { padding: 0; }
 .cp-scroll > .conversation-thread { flex: 1; min-height: 0; }
+/* A conversation still loading or that cannot be read has no thread-scroll to inset its row: the row takes the
+   thread's side insets and sits in the middle of the panel body instead of touching the panel edges at the top. */
+.cp-scroll > .conversation-thread:has(> :is(.thread-loading, .thread-notice)) { justify-content: center; padding: var(--space-2) var(--space-4) 0; }
 .cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
 .doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) 0; }
 .doan-conv-panel .conversation-thread .thread { gap: var(--space-3); }
@@ -984,7 +987,14 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .docked .composer-tray .composer-pick { margin-right: auto; color: var(--text-subtle); }
 .composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .docked .composer-tray .composer-pick[aria-disabled="true"] { color: var(--text-disabled); }
-.doan-picking { padding-right: var(--space-2); }
+/* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
+   look here: without it the terminal session's Attach and an unavailable Add to conversation read as working buttons. */
+.docked .composer-tools > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
+:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) { :is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
+:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
+/* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
+.doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-esc.doan-kbd { background: transparent; color: var(--text-on-prominent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-prominent) 45%, transparent); }
 .area[data-picking] { cursor: crosshair; }
 /* A permission answer that did not reach the agent, under its request's choices. */

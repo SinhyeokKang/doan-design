@@ -102,6 +102,10 @@ export interface DockedComposerProps {
 const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
   && a.attachments.map(item => item.key).join("\n") === b.attachments.map(item => item.key).join("\n");
 
+// Anchor chips count like attachment and preset chips: a message with a chip becomes a box whose text and chips wrap
+// above the tools, instead of a one-line capsule that clips them in the narrow panel.
+const chipCount = (draft: DockedDraft) => draft.attachments.length + (draft.preset ? 1 : 0) + distinctTargets(draft.segments);
+
 export function DockedComposer(props: DockedComposerProps) {
   const { mode } = props;
   const key = draftKey(mode);
@@ -146,7 +150,7 @@ export function DockedComposer(props: DockedComposerProps) {
   // Chips the host added (Attach, paste, drop) make a box as typing does (design §3.2); the drawn shape follows the
   // rule at once and the stored one catches up below.
   const text = plainText(draft.segments);
-  const shape = composerShape(draft.shape, { empty: text === "", chips: draft.attachments.length + (draft.preset ? 1 : 0), overflows: text.includes("\n") });
+  const shape = composerShape(draft.shape, { empty: text === "", chips: chipCount(draft), overflows: text.includes("\n") });
   // A busy refusal stands in for the host's busy until the host has reported the busy conversation itself; once the
   // host's busy has shown and cleared again, the refusal no longer holds Send.
   if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
@@ -176,7 +180,7 @@ export function DockedComposer(props: DockedComposerProps) {
     props.onDrafts(drafts => {
       const current = drafts.get(at) ?? EMPTY_DRAFT, next = { ...current, ...patch };
       const nextText = plainText(next.segments);
-      const shape = composerShape(current.shape, { empty: nextText === "", chips: next.attachments.length + (next.preset ? 1 : 0), overflows: wrapped || nextText.includes("\n") });
+      const shape = composerShape(current.shape, { empty: nextText === "", chips: chipCount(next), overflows: wrapped || nextText.includes("\n") });
       return new Map(drafts).set(at, { ...next, shape });
     });
     clearRefusal(at);
