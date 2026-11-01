@@ -51,6 +51,15 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
 class Failure extends Error { constructor(readonly code: "sign_in_failed" | "storage_failed" | "cli_install_failed", detail?: string) { super(detail ?? code); } }
+// A failed ACP exchange carries the server's last stderr lines, so its log says what the server reported. Lines with a
+// URL or token-like text stay out: the sign-in link, the callback and the e-mail in loadCodeAssist's reply would leak.
+class ServerError extends Error { constructor(detail: string, readonly lines: readonly string[]) { super(detail); } }
+const SERVER_LINES = 20;
+function loggable(line: string): string | null {
+  if (!line.trim() || /:\/\/|code=|_token/i.test(line)) return null;
+  return line.length > 300 ? `${line.slice(0, 300)}…` : line;
+}
+const serverLog = (error: unknown) => error instanceof ServerError && error.lines.length ? `; server log:\n  ${error.lines.join("\n  ")}` : "";
 
 export class AuthManager {
   private states = new Map<Provider, AuthState>();
@@ -444,6 +453,7 @@ export class AuthManager {
     } catch (error) {
       if (error instanceof Cancelled || this.cancelled(provider, attemptId)) throw new Cancelled();
       if (error instanceof Failure) throw error;
+      console.error(`doan: ${provider} sign-in failed: ${message(error)}${serverLog(error)}`);
       throw new Failure("sign_in_failed", message(error));
     }
   }
@@ -457,6 +467,7 @@ export class AuthManager {
       return { code: 0, stdout: "", stderr: "" };
     } catch (error) {
       if (error instanceof Cancelled || error instanceof Failure) throw error;
+      console.error(`doan: ${provider} status check ${asked ? "found no usable login: the server asked for a new browser sign-in" : `failed: ${message(error)}`}${serverLog(error)}`);
       return { code: asked ? 2 : 1, stdout: "", stderr: message(error) };
     }
   }
@@ -491,19 +502,23 @@ export class AuthManager {
     const acp = new AcpConnection(line => { if (!child.write) throw new Error("process_exited"); child.write(line); },
       (_params, id) => acp.respond(id, { outcome: { outcome: "cancelled" } }), () => {}, detail => { failure = detail; child.stop(); });
     let errors = "";
+    const recent: string[] = [];
     child.onOutput((text, stream) => {
       if (stream !== "stderr") { acp.receive(text); return; }
       errors = (errors + text).slice(-OUTPUT_LIMIT);
       let end: number;
       while ((end = errors.indexOf("\n")) >= 0) {
-        const link = signInLink(errors.slice(0, end)); errors = errors.slice(end + 1);
+        const line = errors.slice(0, end); errors = errors.slice(end + 1);
+        const kept = loggable(line);
+        if (kept) { recent.push(kept); if (recent.length > SERVER_LINES) recent.shift(); }
+        const link = signInLink(line);
         if (link && onLink(link)) child.stop();
       }
     });
-    const timer = timeoutMs === null ? undefined : setTimeout(() => child.stop(), timeoutMs);
+    const timer = timeoutMs === null ? undefined : setTimeout(() => { failure ||= `the server was stopped after ${timeoutMs} ms without an answer`; child.stop(); }, timeoutMs);
     let result: T;
     try { result = await Promise.race([script(acp), child.exit.then(() => { throw new Error(failure || "the ACP server exited"); })]); }
-    catch (error) { if (this.stopRequests.has(attemptId)) throw new Cancelled(); throw error; }
+    catch (error) { if (this.stopRequests.has(attemptId)) throw new Cancelled(); throw new ServerError(message(error), [...recent]); }
     finally {
       clearTimeout(timer); acp.close(); child.stop(); await child.gone;
       owned.delete(child); if (!owned.size) this.processes.delete(attemptId);

@@ -223,7 +223,7 @@ describe("sign-in", () => {
     let errors: ReturnType<typeof vi.spyOn>;
     beforeEach(() => { errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
     afterEach(() => errors.mockRestore());
-    const logged = () => errors.mock.calls.map(call => call.map(String).join(" ")).join("\n");
+    const logged = () => errors.mock.calls.map((call: unknown[]) => call.map(String).join(" ")).join("\n");
     const serverLines = (p: FakeProcess) => {
       p.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
       p.print(`Open the following link to authenticate the ACP server: ${googleLink(4321)}\n`, "stderr");
