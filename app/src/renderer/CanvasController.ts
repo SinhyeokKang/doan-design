@@ -96,6 +96,10 @@ export class CanvasController {
   private remeasureTimer: ReturnType<typeof setTimeout> | undefined;
   private anchorsTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
+  // The view a fresh load fitted to the board as it was then, until settleFit fits it again to the canvas page's
+  // column. Held by identity: any other view (a pan, a zoom, a jump, a remembered view) replaces the object and so
+  // ends the wait without a refit.
+  private firstFit: View | null = null;
   private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
   private jumpRect: CanvasRect | null = null;
   private jumpMark: HTMLElement | null = null;
@@ -615,6 +619,7 @@ export class CanvasController {
       this.board.style.visibility = "hidden";
       this.state.status = "loading";
       this.view = fitWidth(row.width, this.viewportSize(), EVEN_INSET);
+      this.firstFit = this.view;
       this.applyView();
     } else {
       this.frame.replaceWith(next);
@@ -1055,6 +1060,17 @@ export class CanvasController {
       case "actualSize": this.view = zoomAt(this.view, 1 / this.view.scale, center, ZOOM_LIMITS); break;
       case "fit": this.view = fitWidth(this.frameWidth, size, EVEN_INSET); break;
     }
+    this.applyView();
+  }
+
+  // The first Fit of a freshly opened canvas, again at the board's present size (buzz-canvas design §2 '첫 Fit'). The
+  // canvas loads while the Overview still lays out the page (its right column is 280 wide), so the renderer calls this
+  // once the canvas page's own column width is applied. Only once per load; later width changes keep the top-left.
+  settleFit(): void {
+    const pending = this.firstFit;
+    this.firstFit = null;
+    if (pending === null || pending !== this.view || this.frame === null) return;
+    this.view = fitWidth(this.frameWidth, this.viewportSize(), EVEN_INSET);
     this.applyView();
   }
 

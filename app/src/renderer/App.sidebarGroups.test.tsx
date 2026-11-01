@@ -61,9 +61,6 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./useComments", () => ({
-  useComments: () => ({ session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), reviewStep: vi.fn() }),
-}));
 vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");

@@ -59,9 +59,6 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-vi.mock("./useComments", () => ({
-  useComments: () => ({ session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), reviewStep: vi.fn() }),
-}));
 vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
@@ -73,6 +70,7 @@ const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
 const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
 const { RightPanel } = await import("./RightPanel");
+const { ConversationPanel } = await import("./ConversationPanel");
 const { KeyedConversationStrip } = await import("./ConversationStripView");
 const { ProjectOverview } = await import("./ProjectOverview");
 
@@ -428,8 +426,9 @@ const problemEntries: FolderEntry[] = [
 ];
 
 // buzz-project spec decision 12: an Overview that turns into a problem stays (thread readable, Send held) with its own
-// panel; a project entered as a problem shows the problem screen with Canvas info.
-test("the Overview's panel replaces Canvas info, and stays while the open Overview's project is a problem", () => {
+// panel; a project entered as a problem shows the problem screen with the canvas page's conversation panel
+// (buzz-canvas R4: no Canvas info on the canvas page).
+test("the Overview's panel replaces the conversation panel, and stays while the open Overview's project is a problem", () => {
   render(); folders([listed("/w/a")]);
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   expect(find(RightPanel)).toHaveLength(0);
@@ -442,7 +441,8 @@ test("the Overview's panel replaces Canvas info, and stays while the open Overvi
   listeners.menu!("home" as never); render();
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   expect(find(ProjectOverview)).toHaveLength(0);
-  expect(find(RightPanel)).toHaveLength(1);
+  expect(find(RightPanel)).toHaveLength(0);
+  expect(find(ConversationPanel)).toHaveLength(1);
 });
 
 test("only Overview hides a conversation strip when no canvas is open", () => {

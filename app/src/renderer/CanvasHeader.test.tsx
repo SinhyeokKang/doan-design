@@ -6,6 +6,7 @@ import type { LayoutMessage } from "./canvasMessage";
 import { CanvasHeader } from "./CanvasHeader";
 import { initialCanvasState, type CanvasState } from "./CanvasController";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 
 // buzz-canvas design §0 'default', 'no-frames', 'states' and §2 '프레임 서랍', '배율 컨트롤러', §5 copy.
 const row: CanvasRow = { path: ".doan/canvases/checkout.html", url: "doan://checkout", width: 1280, open: 0, resolved: 0 };
@@ -13,7 +14,7 @@ const frames = ["Cart", "Shipping", "Payment"].map((title, index) => ({ id: titl
 const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, ...over });
 const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true, layout: layout(), currentFrame: 2, zoom: 64, scale: 0.64, ...over });
 
-const html = (state: CanvasState) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} /> as ReactElement}</TooltipProvider>);
+const html = (state: CanvasState, panel?: { open: boolean; show(): void }) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("CanvasHeader", () => {
@@ -84,5 +85,19 @@ describe("CanvasHeader", () => {
   it("keeps the drawer open for a reload that still shows the previous layout", () => {
     const markup = html(opened({ reloading: true }));
     expect(button(markup, "Frame 3: Payment")).not.toContain("disabled");
+  });
+
+  // design §2 '오른쪽 패널': the open button exists only while the conversation panel is folded, last in the header.
+  it("shows the conversation panel's open button only while the panel is folded, after a divider", () => {
+    expect(html(opened(), { open: true, show: vi.fn() })).not.toContain("Show conversation");
+    const markup = html(opened(), { open: false, show: vi.fn() });
+    const open = button(markup, "Show conversation");
+    expect(open).toContain('aria-expanded="false"');
+    expect(open).toContain(`aria-controls="${CONVERSATION_PANEL_ID}"`);
+    expect(open).not.toContain("disabled");
+    expect(markup).toMatch(/<span class="doan-canvas-head-sep" aria-hidden="true"><\/span>(<[^>]*>)*<button[^>]*aria-label="Show conversation"/);
+    expect(markup.indexOf('aria-label="Zoom in"')).toBeLessThan(markup.indexOf('aria-label="Show conversation"'));
+    // A canvas that cannot render still offers the panel back.
+    expect(button(html({ ...initialCanvasState(), status: "missing", message: "gone" }, { open: false, show: vi.fn() }), "Show conversation")).not.toContain("disabled");
   });
 });

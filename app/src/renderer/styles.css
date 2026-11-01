@@ -501,7 +501,10 @@ code, kbd { font-family: var(--type-family); }
 
 /* The native sidebar material continues behind the shell; content stays opaque. */
 body:has(.shell-top) { background: transparent; }
-.workspace.app-shell { grid-template-columns: 220px minmax(0, 1fr) 280px; grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
+/* The right column's width: the Overview's 280px, or the canvas page's conversation panel, which App sets on the
+   workspace element (0 while folded). */
+:root { --doan-right-width: 280px; }
+.workspace.app-shell { grid-template-columns: 220px minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
 .workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 88px; }
@@ -1036,3 +1039,36 @@ body:has(.shell-top) { background: transparent; }
 .doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
 .doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-tool[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); }
+/* The conversation panel's open button closes the header row after a divider, only while the panel is folded. */
+.doan-canvas-head-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+
+/* buzz-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/buzz-canvas.html
+   'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
+   drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
+.workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+.workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
+.workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
+/* Folded, the column keeps its node (the open button's aria-controls) but leaves the page; while it folds it stays
+   visible until the column has closed. */
+.doan-conv-column[data-collapsed] { visibility: hidden; }
+.workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
+.workspace[data-panel="collapsed"] > .doan-canvas-panel { border-top-right-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
+.workspace[data-panel="collapsed"] > .strip-slot { border-top-right-radius: var(--radius-container); }
+.right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
+.doan-conv-head { display: flex; align-items: center; padding-right: var(--space-2); }
+.doan-conv-head .rp-head { flex: 1; min-width: 0; }
+.doan-conv-head .doan-icon-button { color: var(--text-standard); }
+.doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar
+   fading at both ends, shown on hover, while dragging and on keyboard focus (malmoi components/ui/resizable.tsx and its
+   DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */
+.doan-panel-handle { position: absolute; z-index: 4; top: 0; bottom: 0; left: calc(-1 * var(--space-1)); width: var(--space-2); background: transparent; touch-action: none; outline: none; cursor: col-resize; }
+.doan-panel-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--space-1); transform: translateX(-50%); background: linear-gradient(to bottom, transparent, var(--affordance-accent), transparent); opacity: 0; }
+.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 1; }
+.doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
+/* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
+.doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
+@media (prefers-reduced-motion: reduce) {
+  .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+}

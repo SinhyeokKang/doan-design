@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ChevronDown, Minus, PanelsTopLeft, Plus } from "lucide-react";
+import { ChevronDown, Minus, PanelRightOpen, PanelsTopLeft, Plus } from "lucide-react";
 import type { ViewCommand } from "../main/index";
 import type { CanvasState } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
@@ -9,14 +9,16 @@ import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawer
 import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 
 // The canvas page's header above the board (buzz-canvas design §0 'default', §2): canvas / frame drawer on the left,
 // the zoom controller on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
 // `canvasKey` names the open canvas: an open menu closes when it changes. `fallbackFocus` takes focus a closing menu
-// cannot hand back to its trigger (the canvas region).
-export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {} }: {
+// cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
+// the header only while it is folded (design §2 '오른쪽 패널').
+export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel }: {
   state: CanvasState; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
-  fallbackFocus?: () => void;
+  fallbackFocus?: () => void; panel?: { open: boolean; show(): void };
 }) {
   const board = { layout: state.layout, currentFrame: state.currentFrame, status: state.status, unlisted: state.unlisted };
   // An unlisted page or a canvas that left the list names no canvas; only the disabled drawer stays.
@@ -25,7 +27,10 @@ export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectF
   return <header className="ov-head doan-canvas-head">
     {canvas && <><span className="doan-canvas-name" title={canvas.path}><PanelsTopLeft aria-hidden="true" /><span>{name}</span></span><span className="ov-sep" aria-hidden="true">/</span></>}
     <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={name ? `Frames in ${name}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
-    <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: state.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} /></div>
+    <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: state.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
+      {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />
+        <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label="Show conversation" aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID} onClick={panel.show}><PanelRightOpen aria-hidden="true" /></button></IconTip></>}
+    </div>
   </header>;
 }
 

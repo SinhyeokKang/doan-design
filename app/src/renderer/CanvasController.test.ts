@@ -2524,3 +2524,77 @@ it("asks the draft guard for another canvas of the open root, but not for the op
     expect(opened).toHaveBeenCalledOnce();
   } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
 });
+
+// buzz-canvas design §2 '첫 Fit': a canvas opened under the Overview is fitted to the board the canvas page lays out
+// (its panel width, or none when folded), not to the Overview's layout; later width changes keep the view's top-left.
+describe("first Fit", () => {
+  function opened(width: number) {
+    const host = new EventTarget();
+    vi.stubGlobal("window", host);
+    const frame = Object.assign(new EventTarget(), { contentWindow: { postMessage: vi.fn() }, style: {}, setAttribute: vi.fn(), remove: vi.fn(), replaceWith: vi.fn() });
+    vi.stubGlobal("document", { createElement: () => frame });
+    const viewport = Object.assign(new EventTarget(), { clientWidth: width, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
+    const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
+    const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200, open: 0, resolved: 0 };
+    const other = { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" };
+    controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }, { path: "/other", kind: "list", servedRev: 0, canvases: [other] }]);
+    controller.openCanvas("/repo", row);
+    return { controller, viewport, board, row, other };
+  }
+  const fittedAt = (width: number) => { const h = opened(width); try { return h.board.style.transform; } finally { h.controller.dispose(); } };
+
+  it("is computed again once the canvas page's column is applied", () => {
+    const expected = fittedAt(500);
+    const h = opened(800);
+    try {
+      expect(h.board.style.transform).not.toBe(expected);
+      h.viewport.clientWidth = 500;
+      h.controller.settleFit();
+      expect(h.board.style.transform).toBe(expected);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("settles once: a later width change keeps the view's top-left instead of fitting again", () => {
+    const h = opened(800);
+    try {
+      h.viewport.clientWidth = 500;
+      h.controller.settleFit();
+      const settled = h.board.style.transform;
+      h.viewport.clientWidth = 900;
+      h.controller.settleFit();
+      expect(h.board.style.transform).toBe(settled);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not replace a view the person moved before it settled, nor a remembered view", () => {
+    const h = opened(800);
+    try {
+      h.controller.wheel({ dx: 40, dy: 10, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
+      const panned = h.board.style.transform;
+      h.viewport.clientWidth = 500;
+      h.controller.settleFit();
+      expect(h.board.style.transform).toBe(panned);
+      // Away to another project and back: the remembered view comes back as it was.
+      h.controller.openWorkspace("/other", vi.fn());
+      h.controller.openWorkspace("/repo", vi.fn());
+      expect(h.board.style.transform).toBe(panned);
+      h.viewport.clientWidth = 700;
+      h.controller.settleFit();
+      expect(h.board.style.transform).toBe(panned);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a newly opened canvas settles its own first Fit", () => {
+    const h = opened(800);
+    try {
+      h.viewport.clientWidth = 500;
+      h.controller.settleFit();
+      h.viewport.clientWidth = 800;
+      h.controller.openCanvas("/repo", h.other);
+      h.viewport.clientWidth = 500;
+      h.controller.settleFit();
+      expect(h.board.style.transform).toBe(fittedAt(500));
+    } finally { h.controller.dispose(); }
+  });
+});

@@ -54,6 +54,9 @@ const violetAllowed = [
   // design §0, confirmed draft 2026-10-31).
   ".conversation-thread .bubble",
   ".conversation-thread .bubble-preset",
+  // The canvas conversation panel's resize bar, shown on hover, drag and focus (buzz-canvas design §2, malmoi's
+  // resizer; confirmed draft 2026-11-01).
+  ".doan-panel-handle::after",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

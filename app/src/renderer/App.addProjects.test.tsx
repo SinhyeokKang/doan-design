@@ -35,7 +35,6 @@ vi.mock("react", async original => {
 });
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
-  showWorkspace: null as null | (() => void),
   toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
 }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
@@ -52,12 +51,6 @@ vi.mock("./CanvasController", async original => ({
       self.memory = vi.fn(() => ({}));
       harness.controller = self;
     }
-  },
-}));
-vi.mock("./useComments", () => ({
-  useComments: (_state: unknown, _controller: unknown, showWorkspace: () => void) => {
-    harness.showWorkspace = showWorkspace;
-    return { session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: vi.fn(), reviewStep: vi.fn() };
   },
 }));
 vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
@@ -217,7 +210,6 @@ test("while the page is locked every way out is ignored, one case per navigation
     ["Overview item (showShellOverview)", () => { page()!.props.sidebar.props.overview!("/w/b" as never); render(); }],
     ["Home send's move (HomeRun openOverview)", () => { const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openOverview(root: string, arrived: () => boolean, unavailable: () => void): void } }).host; host.openOverview("/w/b", () => true, vi.fn()); render(); }],
     ["Home run's canvas (HomeRun openCanvas)", () => { const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { openCanvas(root: string, row: CanvasRow): void } }).host; host.openCanvas("/w/b", rowA); render(); }],
-    ["comment guard's showWorkspace", () => { harness.showWorkspace!(); render(); }],
   ];
   for (const [name, move] of moves) {
     beforeEachReset();
