@@ -1092,6 +1092,7 @@ body:has(.shell-top) { background: transparent; }
 @media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
 .doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
 .doan-agent .doan-button.doan-agent-action[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-prominent) 60%, transparent); cursor: default; }
+.doan-agent-action svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
 .doan-agent-dot { position: relative; flex: none; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); animation: doan-agent-breathe 2.4s var(--ease-state) infinite; }
 .doan-agent-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 0 color-mix(in srgb, var(--affordance-accent) 70%, transparent); animation: doan-agent-ring 2.4s var(--ease-settle) infinite; }

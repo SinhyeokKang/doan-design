@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Square } from "lucide-react";
 import type { ConversationSummary } from "../main/conversation/summary";
 import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, stopTurn, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
 import { autoCursor, dotGrid, type Dot } from "./dotField";
@@ -44,7 +45,9 @@ export function CanvasAgent({ list, canvas, running, onOpen, onStopFailed, child
         <span className="doan-agent-text" role="status">{view.text}</span>
         {action.kind === "stop"
           // aria-disabled, not disabled: "Stopping…" keeps focus (design §2 'Esc와 포커스').
-          ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>{action.label}</button>
+          // The composer's Stop glyph; "Stopping…" spins in its place.
+          ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>
+            {action.disabled ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}{action.label}</button>
           : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={onOpen}>{action.label}</button>}
       </div>}
       {children}
