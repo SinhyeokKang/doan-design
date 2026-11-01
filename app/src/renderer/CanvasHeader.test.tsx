@@ -102,6 +102,33 @@ describe("CanvasHeader", () => {
     expect(button(html({ ...initialCanvasState(), status: "missing", message: "gone" }, { open: false, show: vi.fn() }), "Show conversation")).not.toContain("disabled");
   });
 
+  // The Reload button sits right of the zoom controller and, while the panel is folded, left of its divider and open button.
+  it("puts Reload after the zoom controller and before the conversation panel's open button", () => {
+    const markup = html(opened(), { open: false, show: vi.fn() });
+    const reload = button(markup, "Reload canvas");
+    expect(reload).toMatch(/^<button/);
+    expect(reload).not.toContain("disabled");
+    const order = ["Zoom in", "Reload canvas", "Show conversation"].map(label => markup.indexOf(`aria-label="${label}"`));
+    expect(order.every(index => index > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(markup.indexOf('aria-label="Reload canvas"')).toBeLessThan(markup.indexOf("doan-canvas-head-sep"));
+    expect(button(html(opened(), { open: true, show: vi.fn() }), "Reload canvas")).toMatch(/^<button(?![^>]*disabled)/);
+  });
+
+  // Reload works whenever a canvas is open, like ⌘R: also while it loads, failed or has no width.
+  it.each([
+    ["loading", { status: "loading", layout: null, currentFrame: null }],
+    ["failed", { status: "failed", layout: null, currentFrame: null }],
+    ["no width", { status: "noWidth", layout: null, currentFrame: null }],
+    ["reloading", { reloading: true }],
+  ] as const)("keeps Reload enabled while %s", (_name, over) => {
+    expect(button(html(opened(over)), "Reload canvas")).toMatch(/^<button(?![^>]*disabled)/);
+  });
+
+  it("disables Reload when no canvas is open", () => {
+    expect(button(html({ ...initialCanvasState(), status: "missing", message: "gone" }), "Reload canvas")).toMatch(/^<button[^>]*disabled/);
+  });
+
   // buzz-canvas-conversation design §2 'News dot': the folded panel's open button carries the dot and says why.
   it("puts the news dot and its longer name on the folded panel's open button", () => {
     const waiting = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "Show conversation, needs your answer" } }), "Show conversation, needs your answer");
