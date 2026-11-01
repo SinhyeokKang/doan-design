@@ -89,8 +89,8 @@ function fitScale(contentWidth: number, viewport: Size, inset: Inset): number {
   return Math.max(MIN_SCALE, Math.min(FIT_SCALE_MAX, wanted));
 }
 
-// The viewport minus the inset. A window smaller than its insets has no room: the size is 0, so content aligns to
-// the top/left inset instead of being centered on a negative size.
+// The viewport minus the inset. A window smaller than its insets has no room: the size is clamped to 0, so content
+// is centered on the point at the top/left inset (it extends past it on both sides) rather than on a negative size.
 function safeArea(viewport: Size, inset: Inset): Rect {
   return {
     x: inset.left,
