@@ -71,3 +71,9 @@ D1은 이미 끝났다(초안 확정).
 - 결정(2026-11-01 user): 조합 중 Enter가 조합 확정과 함께 전송되는 지금 동작을 그대로 둔다. Z1에서 PRODUCT §5 Home의 "Enter during IME composition never sends"를 실제 동작(조합 중인 글자를 확정하고 보낸다, 글자는 빠지거나 겹치지 않는다)으로 고친다.
 - 네이티브 1번(사용자): 조합 중 칩 삽입 대기와 확정 뒤 삽입 — 통과.
 - 네이티브 2번(사용자): 칩 사이에 한글이 들어간다 — 통과. 네이티브 IME 확인 끝: 실패는 6번의 칩 바로 뒤 ⌘⌫ 하나(R1 필수 수정), 3번 Enter 동작은 사용자 결정으로 유지.
+- 6번 ⌘⌫ 추가(사용자): 영어와 섞어도 칩 바로 뒤 ⌘⌫는 칩만 지운다. IME와 무관한 Chromium 범위 문제다(R1 필수 수정 그대로).
+- 결정(2026-11-01 user): 칩 바로 뒤 ⌘⌫ 수정은 IME와 무관하므로 영어 자동 probe로만 확인하고, 한글 수동 재확인은 하지 않는다.
+- BX 후속 1: rebase 뒤 `6b5fcdf9`(=d25ea9a0) + `6747eb10`(고아 정리, 44 파일). 실제 앱 probe 10/10(Go 메뉴, 사이드바 행, 캔버스 클릭·배경·중첩 iframe·⌥ 링크, Remove·Undo, Quit exit 0), `verify.mjs --eval` PASS. 미검증: 'Canvas changed while opening…' 경로(지금 UI로 만들 수 없음, 단위 테스트만). 관찰(이번 변경과 무관): 유일한 프로젝트를 지우면 워크스페이스에 "Frames"·"Pick a canvas from the list"가 토스트 뒤에 남는다. 후속 2(`canvasView` `idChanged`, `tokens.css` accent 주석)를 보냈다.
+- BX 후속 2 `b592bfe1`: tokens.css accent 주석만 고침. `idChanged`는 선택 해제에 쓰여 고아가 아니라 남김.
+- 지휘자 판단(BP 발견 1 다시 봄): 사용자 네이티브 확인에서 메뉴 Undo·Redo가 정상이었으므로 메뉴 라우팅은 넣지 않는다. BR1 runtime probe에서 한 번 더 보고, Redo가 닿지 않으면 그때 정한다. 근거: 라우팅은 BM의 `main/index.ts`와 겹치고, 확인된 문제가 없다.
+- BX 후속 리뷰(Codex astra) 통과: 🔴·🟡 0, 오래된 주석 1건 → 후속 3으로 고침.
