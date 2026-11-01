@@ -14,6 +14,7 @@
 | 2 | R1을 지휘자가 승인한다. `.scratch/provider-profile/userData`(Codex·Antigravity 포함 5개 연결)를 쓰고, 실행 직전 사용자에게 키체인 대화상자 가능성을 알린다 | 지휘자 판단 — tasks R1이 승인 주체를 코디네이터로 정했고, 같은 프로필을 실측 PoC에서 이미 썼다. 로그인·로그아웃은 하지 않는다 |
 | 3 | R1 검증 명령은 `.scratch/runtime-test/agent-account-identity/` probe(`app/runtime/` 지원)다 | 지휘자 판단 — AGENTS 'Verification policy'의 짧은 실제 앱 probe |
 | 4 | V1과 Z1은 지휘자가 한다 | orchestrate §4·§5: 통합 `/verify`와 승격은 지휘자 몫이고 문서만 바뀐다 |
+| 5 | `.scratch/provider-profile/userData`를 이 실행이 끝나도 로그아웃하거나 지우지 않는다. `buzz-canvas-conversation` V2가 이어서 쓴다 | 사용자 지시(2026-11-01) |
 
 ## 배치
 
