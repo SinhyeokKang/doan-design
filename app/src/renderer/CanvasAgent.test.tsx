@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
@@ -66,6 +67,16 @@ describe("CanvasAgent", () => {
   });
 
   // buzz-canvas R6: the canvas notices stack in the same top-centre column, the agent notice first.
+  test("the canvas notices App puts in the column lead with the alert icon, like every shared notice", () => {
+    // App's CanvasPane is not rendered without a DOM; its markup is read from the source (DESIGN 'Notices': every
+    // notice has the 16px icon on its first line).
+    const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+    const column = source.slice(source.indexOf("<CanvasAgent {...agent}>"), source.indexOf("</CanvasAgent>"));
+    const notices = column.match(/<div className="doan-notice[^"]*"[^>]*>.*?<\/div>/g) ?? [];
+    expect(notices).toHaveLength(3);
+    for (const notice of notices) expect(notice).toMatch(/^<div className="doan-notice doan-panel" role="status"><AlertIcon \/><span className="grow-text">.*<\/span><\/div>$/);
+  });
+
   test("the canvas notices come after the agent notice in the column, and alone when no indicator shows", () => {
     const notice = <div className="doan-notice doan-panel" role="status">The selection is no longer in the canvas.</div>;
     const html = renderToStaticMarkup(<CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
