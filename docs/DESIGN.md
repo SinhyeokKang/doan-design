@@ -653,7 +653,7 @@ Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-sta
 - **Send while empty.** Send is disabled while the field is empty (the shipped docked rule); several frames draw it enabled.
 - **Waiting reason line.** While a permission request waits, the composer shows "Answer or stop the request above." under the model row (shared docked rule); `panel-permission` leaves it out.
 - **Start refusal.** A refused start shows the shared composer notice (`doan-notice error doan-panel`) under the model row; the "Start refused" tile draws a reason line.
-- **Unavailable composer.** On a page outside the list Attach and Send are disabled with the field (shared availability rule) and the field is read-only (`aria-readonly`) so the kept draft can still be selected; the tile draws Attach enabled and the field `aria-disabled`.
+- **Unavailable composer.** On a page outside the list or with a duplicate canvas ID the composer keeps its draft and chips but takes no input: Attach, Presets and Send are disabled (`--text-disabled`), the chips cannot be removed, a dropped or pasted file is not attached, and the field is read-only (`aria-readonly`) so the kept draft can still be selected; the tile draws Attach and Presets enabled and the field `aria-disabled`.
 - Context, not deviations: the draft page's 14 px body against the app's 13 px, inherited by text-less containers; the draft's placeholder drawn as field text and its caret stand-in (2 px taller lines); the field's `pre-wrap`; the focused composer's shared ring; the draft's frame-wide crosshair in `picker-mode`; state tiles drawn as 347 × 420 cards; fixture text, conversation titles and provider names.
 
 ### Not verified
@@ -665,7 +665,7 @@ Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-sta
 
 ### Regression pointers
 
-`DockedComposer.test.tsx` (an anchor chip makes the box), `canvasPicker.test.ts`, `CanvasController.test.ts`, `ConversationThread.locate.test.tsx`, `CanvasConversationPanel.test.tsx`, `Onboarding.test.tsx` (choice card markup). Sizes, colours and geometry above are `.scratch/` probes only.
+`DockedComposer.test.tsx` (an anchor chip makes the box), `DockedComposer.interaction.test.tsx` (a locked composer takes no preset, file or chip removal), `canvasPicker.test.ts`, `CanvasController.test.ts`, `ConversationThread.locate.test.tsx`, `CanvasConversationPanel.test.tsx`, `Onboarding.test.tsx` (choice card markup). Sizes, colours and geometry above are `.scratch/` probes only.
 
 ## Select and inspect
 
