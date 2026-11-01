@@ -45,7 +45,7 @@ export function ProjectFields({ form, choose, chooseRef }: { form: ProjectForm; 
     </div>
     <div className="ob-field">
       <span className="ob-label">Will add</span>
-      <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — two lines</span></span>
+      <span className="ob-changes"><span><code>.doan/canvases/</code></span><span><code>.doan/config.json</code></span><span><code>.gitattributes</code> — missing Doan lines</span></span>
       <span />
     </div>
     {view.error && <div className="ob-field"><span className="ob-msg error ob-wide" role="alert"><AlertIcon /><span>{view.error}</span></span></div>}
