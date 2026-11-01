@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ChevronDown, Minus, PanelRightOpen, PanelsTopLeft, Plus } from "lucide-react";
+import { ChevronDown, Minus, PanelRightOpen, PanelsTopLeft, Plus, RotateCw } from "lucide-react";
 import type { ViewCommand } from "../main/index";
 import type { CanvasState } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
@@ -13,7 +13,7 @@ import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
 import type { OpenBadge } from "./rightPanelOpen";
 
 // The canvas page's header above the board (buzz-canvas design §0 'default', §2): canvas / frame drawer on the left,
-// the zoom controller on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
+// the zoom controller and Reload on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
 // `canvasKey` names the open canvas: an open menu closes when it changes. `fallbackFocus` takes focus a closing menu
 // cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
 // the header only while it is folded (design §2 '오른쪽 패널'), with a dot and a longer name while this canvas's
@@ -30,6 +30,8 @@ export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectF
     {canvas && <><span className="doan-canvas-name" title={canvas.path}><PanelsTopLeft aria-hidden="true" /><span>{name}</span></span><span className="ov-sep" aria-hidden="true">/</span></>}
     <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={name ? `Frames in ${name}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
     <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: state.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
+      {/* Like ⌘R, Reload stays available whenever a canvas is open, including while it loads or after it failed. */}
+      <IconTip label="Reload canvas ⌘R"><button type="button" className="doan-icon-button" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}><RotateCw aria-hidden="true" /></button></IconTip>
       {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />
         <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
           data-badge={panel.badge ? "true" : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" /></button></IconTip></>}
