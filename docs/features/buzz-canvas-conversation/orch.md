@@ -81,3 +81,5 @@ D1은 이미 끝났다(초안 확정).
 - 웨이브 2 시작: BM Codex gpt-6-astra medium `ctx_85ecb7cc92f7`(bcc-bm), BR1 Claude Opus high `ctx_48b23f81f47a`(bcc-br1). 둘 다 `launch.effective` 확인.
 - 지휘자 판단(BR1 질문): Home·Overview 입력창은 칩을 받지 않고, Doan 칩 클립보드를 칩 이름 텍스트로 붙인다. 클립보드에 원본 캔버스(root, 캔버스 id)를 싣고, 입력창의 캔버스가 같을 때만 칩으로 붙인다. 근거: spec 비목표 '다른 캔버스의 칩'과 design §2 '칩은 칩으로 남는다'를 함께 읽었다.
 - 웨이브 1 통합 HEAD(`35e898bf`) `verify --eval` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, eval-tests, eval-self-test, build). 통합 앱의 실제 probe는 BX probe(통합 전 같은 코드)로 대신하고, 칩 필드가 들어가는 웨이브 2 뒤에 다시 본다.
+- BM 완료 `98d8378e`(Codex). renderer 계약: `setMenuState`가 `selection`·`pickerAvailable`을 보내고, `addSelectionToConversation` 명령을 처리한다(R3/R4). 리뷰: Claude Opus medium.
+- BM 리뷰(Claude Opus medium) 통과: 🔴·🟡 0, ⚪ 4. 지휘자 판단: 잘못된 `menu:state` 입력은 기존 플래그처럼 직전 상태를 유지한다(테스트로 고정). 주석 보강과 함께 BM 후속 1(`ctx_54ddcace0b51`). ⚪2(⌘N·⌘L renderer 연결)는 BR2·BR4b 브리프에, ⚪4(ARCHITECTURE 368·496)는 Z2에 넣는다.
