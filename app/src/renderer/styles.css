@@ -226,7 +226,12 @@ code, kbd { font-family: var(--type-family); }
 .ob-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
 .ob-projects { margin-bottom: var(--space-6); }
 .ob-choice-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
-.ob-choice { position: relative; cursor: pointer; }
+.ob-choice { position: relative; align-items: flex-start; cursor: pointer; }
+/* The shared choice card's radio (buzz-canvas-conversation design §0): 16px, centred on the title's first line, so it
+   stays there when the title wraps; on, it takes the checkbox's fill and a 6px dot. */
+.ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
+.ob-choice:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.ob-choice:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 /* The radio stays in the tab order for arrows and Space; the card shows its state and focus instead. */
 .ob-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .ob-choice:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }

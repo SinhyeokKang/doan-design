@@ -236,16 +236,17 @@ export function ProjectThumbnail({ path }: { path: string }) {
 export function ChosenProject({ path, home }: { path: string; home: string | null }) {
   return <div className="doan-panel ob-chosen"><ProjectThumbnail path={path} /><div><strong>{nameOf(path)}</strong><p className="ob-path">{shown(path, home)}</p></div><Check aria-hidden="true" /></div>;
 }
-// D23 (2026-10-29 user): each choice is a card like the chosen project, the selected one with its check. A native
-// radio keeps arrow keys and Space; Enter picks too.
+// D23 (2026-10-29 user): each choice is a card like the chosen project. A visible radio at the start shows the choice
+// (buzz-canvas-conversation design §0, the shared choice card); the native radio under it keeps arrow keys and Space,
+// and Enter picks too.
 export function ProjectChoice({ paths, choice, home, pick, name }: {
   paths: readonly string[]; choice: string | null; home: string | null; pick: (path: string) => void; name: string;
 }) {
   return <div role="radiogroup" aria-label={name} className="ob-choice-list">{paths.map(path => <label className="doan-panel ob-choice" key={path}>
     <input type="radio" name={name} checked={choice === path} onChange={() => pick(path)} onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); pick(path); } }} />
+    <span className="ob-radio" aria-hidden="true" />
     <ProjectThumbnail path={path} />
     <span className="ob-choice-text"><strong>{nameOf(path)}</strong><small>{shown(path, home)}</small></span>
-    {choice === path && <Check aria-hidden="true" />}
   </label>)}</div>;
 }
 
