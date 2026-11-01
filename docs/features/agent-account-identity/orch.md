@@ -16,7 +16,7 @@
 | 4 | V1과 Z1은 지휘자가 한다 | orchestrate §4·§5: 통합 `/verify`와 승격은 지휘자 몫이고 문서만 바뀐다 |
 | 6 | 이 PR에 별도 배치 G를 더한다. `doan init`과 앱 프로젝트 설정이 `.gitattributes`에 `.doan/** linguist-documentation`을 함께 써서, 사용자 저장소의 GitHub 언어 통계에서 초안 캔버스를 뺀다. ARCHITECTURE §1 "the only Git configuration Doan writes"와 PRODUCT의 "one `.gitattributes` line"을 바꾼다 | 사용자 승인(2026-11-01, "이 PR에 같이 들어가도 괜찮아") |
 | 7 | "설정됨"은 지금처럼 config가 있는지로만 정한다. config가 있는 저장소는 다시 "설정 필요"가 되지 않고 `init`도 아무것도 쓰지 않으므로 새 줄을 받지 않는다. config가 없는 저장소의 변경 목록은 두 줄 중 하나라도 빠지면 `.gitattributes`를 넣는다. `init`은 빠진 줄만 채운다 | 지휘자 판단 — 표시용 속성 하나로 기존 프로젝트를 미설정으로 되돌리지 않는다. 처음 문장이 모호해 G가 병합 줄만으로 목록을 정했고, 수정 1차로 바로잡는다 |
-| 8 | 배치 G에는 `/agent-eval`을 돌리지 않는다 | 지휘자 판단 — 가이드(`skill.md`)·메시지·CLI 출력 형태가 그대로이고 변경 목록의 값 이름도 같다. 바뀐 것은 `init`이 쓰는 파일 내용이다 |
+| 8 | G 통합 뒤 `/agent-eval`을 설정에 닿는 시나리오(O1, O2, D9, D10, D10c, D10d, D12)로 돌린다 | 지휘자 판단(RV-G 지적 수용) — 처음엔 "파일 내용만 바뀐다"며 생략하려 했으나, 병합 줄만 있는 미설정 저장소에서 `init`의 `created`와 onboarding inspect의 `changes` 값이 달라진다. AGENTS는 CLI 출력 변경을 eval 대상으로 정한다 |
 | 5 | `.scratch/provider-profile/userData`를 이 실행이 끝나도 로그아웃하거나 지우지 않는다. `buzz-canvas-conversation` V2가 이어서 쓴다 | 사용자 지시(2026-11-01) |
 
 ## 배치
@@ -27,7 +27,7 @@
 | B | T1, M1 | `app/src/main/agentAuth/identity.ts`·`identity.test.ts`·`providers.ts`·`manager.ts`·`manager.test.ts`, `app/src/renderer/agentAuthView.ts`(주석) | — | Claude Opus high — 취소·hold·커밋 경계가 얽힌 동시성과 자격증명 처리 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n 'writeMetadata' app/src/main/agentAuth/manager.ts` | 통합 `668732bb..6febfb0b`(수정 1차 `8041e4df` 포함: 가짜 타이머 취소 테스트, 그룹 대기 고정). 소유 밖 `storage.ts` `readWorking` 추가는 수용. 워커 해제·worktree 제거 |
 | RV-B | B 리뷰 | 없음(보고만) | B | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료: 🔴0 🟡2 ⚪1(`.scratch/briefs/aai/review-B.md`). 🟡2(5초 상한 문구)는 지휘자가 spec·design에서 고쳤다. 워커 해제 |
 | C | R1 | `.scratch/runtime-test/agent-account-identity/`, `design.md` §1·§3 'PoC 의존' | B 통합 | Claude Opus medium — 실제 HOME·키체인을 쓰는 probe라 안전 판단이 필요 | tasks R1 통과 기준 | 통합 `ff000ced`. 14/14 통과, 두 이메일 표시, metadata sha256 유지, 키체인 대화상자 없음. 조회만 떼어 낸 시간은 못 잼(status check 포함 Codex 1.5–2.0초, Antigravity 4.1–8.4초). 워커 해제·worktree 제거, 프로필 유지 |
-| G | 결정 6·7 | `cli/internal/cli/init.go`와 테스트, `app/src/main/onboarding/`, `app/src/renderer/ProjectSetupDialog.tsx`, `eval/lib/`·`eval/scenarios/`의 `.gitattributes` 기대값, `cli/internal/cli/skill.md`(필요할 때), PRODUCT·ARCHITECTURE의 해당 문장 | — | Claude Opus medium — CLI·앱·eval 계약을 함께 맞추는 중간 난도 | `node .agents/skills/verify/scripts/verify.mjs --eval` | 10커밋 `55e7caa9..12fa14c1`(수정 1차 4커밋 포함), verify --eval PASS. Codex 리뷰 RV-G 진행. 격리 앱 probe는 통합 뒤 |
+| G | 결정 6·7 | `cli/internal/cli/init.go`와 테스트, `app/src/main/onboarding/`, `app/src/renderer/ProjectSetupDialog.tsx`, `eval/lib/`·`eval/scenarios/`의 `.gitattributes` 기대값, `cli/internal/cli/skill.md`(필요할 때), PRODUCT·ARCHITECTURE의 해당 문장 | — | Claude Opus medium — CLI·앱·eval 계약을 함께 맞추는 중간 난도 | `node .agents/skills/verify/scripts/verify.mjs --eval` | 10커밋 `55e7caa9..12fa14c1`(수정 1차 4커밋 포함), verify --eval PASS. RV-G 🔴0 🟡1("two lines"가 부분 설정 폴더에서 틀림) ⚪1(가짜 앱의 실패 순서, 범위 밖). 수정 2차 진행. 격리 앱 probe는 통합 뒤 |
 | 지휘자 | V1, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, 이 디렉터리 삭제 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 `rg` 확인 | 대기 |
 
 ## 실행 기록
