@@ -16,7 +16,8 @@
 | 2026-11-01 | R 배치(BR1 → BR4 → BR5 → BR6)는 직렬이다. 모두 `App.tsx`·`styles.css`를 고친다 | `/orchestrate` §0.4 |
 | 2026-11-01 | V1(`/design-sync`)과 V2(`/runtime-test`)는 한 배치(BV)가 맡고, Z3(DESIGN.md)도 `/design-sync` 기록으로 BV가 쓴다. Z1·Z2·Z4는 지휘자가 쓴다 | 지휘자 판단. 실제 앱을 띄우는 마지막 배치를 하나로 모아 GUI probe가 겹치지 않게 한다(doan-mascot 선례). DESIGN.md 측정 기록은 `/design-sync`의 일이다 |
 | 2026-11-01 | 1차 병렬 배치(BT·BD·BP)는 앱 동작을 바꾸지 않는다(아직 어디에도 연결되지 않은 순수 함수와 파서). `/runtime-test`는 해당하지 않는다고 handoff에 적는다 | 지휘자 판단. AGENTS 'Verification policy'(변경된 앱 동작만 probe) |
-| 2026-11-01 | 실제 공급자로 이 캔버스의 대화를 돌려야 하는 V2 작업 표시 probe는 BV를 시작할 때 사용자에게 묻는다. 묻지 못하거나 거절되면 실행 중 상태를 미검증으로 남긴다 | tasks V2, memory 'provider login probes'(실제 HOME과 사용자 로그인 승인이 필요하다) |
+| 2026-11-01 | 실제 공급자로 이 캔버스의 대화를 돌려야 하는 작업 표시 probe(BR5 `/runtime-test`, BV의 V2)는 아래 로그인 프로필을 쓴다. 실행 중 상태를 실제로 만들지 못하면 미검증으로 남긴다 | tasks V2, memory 'provider login probes'(실제 HOME과 사용자 로그인 승인이 필요하다) |
+| 2026-11-01 | 공급자 로그인은 지휘자가 미리 만든다. 실제 HOME으로 dev 앱을 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 띄우고, 사용자가 브라우저에서 Claude Code 로그인을 승인한다. BR5·BV probe는 이 프로필을 복사해서 쓴다. 이 실행이 끝나도 로그아웃·삭제하지 않고 바로 이어지는 `buzz-canvas-conversation`이 이어 쓰며, 폐기도 그 실행이 한다 | 사용자("CC, Codex 로그인 쓸 일 있음? 미리 실제 HOME에 세션 만들어놓으면 좋겠는데", "로그인 세션은 canvas-conversation에서 이어서 사용하고, 폐기는 거기서 한다"). 공급자는 하나면 된다(지휘자 판단) |
 | 2026-11-01 | `/agent-eval`은 해당하지 않는다 | design §1·§4. CLI·형식·스킬·`doan check` 규칙이 그대로다 |
 | 2026-11-01 | probe 위치는 `.scratch/runtime-test/buzz-canvas/`, 측정 위치는 `.scratch/design-sync/buzz-canvas/`다 | `/runtime-test`·`/design-sync` 스킬의 위치 규칙 |
 
