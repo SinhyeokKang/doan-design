@@ -23,7 +23,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 **Language**: these three documents are written in Korean, following AGENTS.md 'Korean writing rules'.
 
 ### `spec.md` — what, and for whom
-- **Users**: the human (who views and comments in the app) or the agent (who uses the CLI and skills)? If both, what each one gets.
+- **Users**: the human (who views, points and talks in the app) or the agent (who uses the CLI and skills)? If both, what each one gets.
 - **Problem**: what does not work now (as observed fact).
 - **Done when**: in verifiable sentences.
 - **Non-goals**: what this round does not do (including what is deferred).

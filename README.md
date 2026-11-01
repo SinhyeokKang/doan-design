@@ -2,7 +2,7 @@
 
 > The agent draws; the human views and points. Design drafts live in the code repo.
 
-A doan (도안, 圖案) is a drawing made in advance of the shape of something to be built. Doan is a Mac app and CLI where a coding agent (Claude Code, Codex and others) writes an HTML canvas (a design spec) inside a code repo, and a human views that canvas, selects elements and leaves comments for the agent to apply.
+A doan (도안, 圖案) is a drawing made in advance of the shape of something to be built. Doan is a Mac app and CLI where a coding agent (Claude Code, Codex and others) writes an HTML canvas (a design spec) inside a code repo, and a human views that canvas and talks to the agent about it, pointing at its frames and elements.
 
 Naming: product `Doan` · domain `doan.design` · CLI and identifiers `doan`
 
@@ -12,14 +12,14 @@ Naming: product `Doan` · domain `doan.design` · CLI and identifiers `doan`
 
 1. The agent writes `.doan/canvases/<spec>.html` and checks it with `doan check`.
 2. The human opens the repo in the Doan app, zooms and jumps between frames; the view reloads when the file changes.
-3. The human selects an element or frame and leaves a comment. Comments are append-only JSONL in `.doan/comments/`, shared through git.
-4. The agent reads them with `doan comments` and `doan active` (the current selection), edits the canvas, runs `doan check` and resolves the comments. The human checks and reopens if needed.
+3. The human talks to the agent in the canvas's conversation panel, putting frames, elements and spots of the canvas into the message as chips, or selects an element and asks their own agent outside Doan.
+4. The agent receives the chips as anchors (or reads the selection with `doan active`), edits the canvas and runs `doan check`. Comments already in `.doan/comments/` (append-only JSONL, shared through git) stay readable with `doan comments`, and the agent resolves the ones it applied.
 
 Canvases use the repo's real token CSS, and frames can point at the files that implement them (`data-doan-implements`). Doan does not draw, run a server, or run git commands on the agent's behalf.
 
 ## What works today
 
-- **App**: first-run sign-in to the agent connections (Claude Code, Codex, Cursor, Antigravity, GitHub Copilot; one account each) and project setup; a Home composer that starts a conversation with the signed-in agent; the project/canvas workspace with zoom, pan, frame jumps and Quick Open; element selection with a computed-style and token inspector; comments with pins, review and hand-off to the agent.
+- **App**: first-run sign-in to the agent connections (Claude Code, Codex, Cursor, Antigravity, GitHub Copilot; one account each) and project setup; a Home composer that starts a conversation with the signed-in agent; the project/canvas workspace with zoom, pan, frame jumps and Quick Open; element selection with a computed-style and token inspector; a conversation panel on each canvas that continues the canvas's conversations and puts frames, elements and spots into messages as chips.
 - **CLI `doan`**: `init`, `config`, `ls`, `comments`, `comment resolve`, `check`, `active`, `onboarding`, `skill`, `design-skill`. Everything except `active` and `onboarding` works without the app.
 - **Skills**: opening Doan from Applications links its skill stub and the `doan` command for Claude Code, Codex, Cursor, GitHub Copilot and Antigravity, with no setup; the guide comes from `doan skill`, plus bundled design presets (adapted from Impeccable).
 
