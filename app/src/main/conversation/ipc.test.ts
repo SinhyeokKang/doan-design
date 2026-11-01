@@ -29,7 +29,7 @@ it("passes a provider runtime install failure through as its own code", async ()
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-function home(dir: string, models?: ModelOption[]) {
+function home(dir: string, models?: ModelOption[], canvases: { path: string }[] = []) {
   let session = 0;
   const open = vi.fn(async () => ({ sessionId: `s${++session}`, send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
   const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime ?? "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
@@ -37,7 +37,7 @@ function home(dir: string, models?: ModelOption[]) {
   const start = vi.spyOn(service, "start");
   const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => models ?? []);
   const attachments = { resolve: vi.fn(), markSent: vi.fn(), consume: vi.fn() };
-  const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
+  const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
   return { handle, start, prepare, catalog, attachments, service };
 }
 const MODELS: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }];
@@ -331,4 +331,32 @@ describe("queue acceptance", () => {
       expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "queue_limit" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+});
+
+
+it("accepts validated extras for a new canvas conversation and refuses each extra for resume", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const canvas = { path: ".doan/canvases/a.html" };
+    const h = home(dir, MODELS, [canvas]);
+    const request = { root: "/repo", mode: "new", runtime: "claude", canvas, text: "change it" };
+    const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
+    const extras = { model: "sonnet", effort: "high", attachments: [{ id: "a" }] };
+    expect(await h.handle(true, "start", { ...request, ...extras })).toEqual({ error: "bad_request" });
+    await h.handle(true, "models", { root: "/repo", runtime: "claude" });
+    for (const bad of [{ model: "opus" }, { model: "sonnet", effort: "max" }, { effort: "high" }, { attachments: "a" }])
+      expect(await h.handle(true, "start", { ...request, ...bad })).toEqual({ error: "bad_request" });
+    h.attachments.resolve.mockReturnValueOnce({ ok: false, error: "attachment_missing", missing: ["a"] });
+    expect(await h.handle(true, "start", { ...request, ...extras })).toEqual({ error: "attachment_missing", missing: ["a"] });
+    for (const extra of [{ model: "sonnet" }, { effort: "high" }, { attachments: [] }, extras])
+      expect(await h.handle(true, "start", { ...request, mode: "resume", ...extra })).toEqual({ error: "bad_request" });
+    expect(h.start).not.toHaveBeenCalled();
+    h.attachments.resolve.mockReturnValue({ ok: true, records });
+    expect(await h.handle(true, "start", { ...request, ...extras })).toHaveProperty("conversationId");
+    expect(h.start.mock.calls[0]![0]).toMatchObject({ mode: "new", canvas, model: "sonnet", effort: "high", attachments: records });
+    expect(h.attachments.resolve).toHaveBeenCalledTimes(3);
+    expect(h.attachments.markSent).toHaveBeenCalledWith(extras.attachments);
+    expect(h.attachments.consume).toHaveBeenCalledWith(extras.attachments);
+    expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder[0]!);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

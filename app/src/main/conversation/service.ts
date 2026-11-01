@@ -5,6 +5,7 @@ import { promoteReservation, releaseReservation, reserveSession } from "./owners
 import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { turnPrompt } from "./prompt";
+import { messageLine } from "./messageText";
 import { BIND_GRACE_MS, projectBusy, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued } from "./queue";
@@ -142,7 +143,7 @@ export class ConversationService {
       // Every turn of a newDesign conversation carries Home's paragraph.
       const fromHome = request.mode === "newDesign";
       // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen.
-      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: request.text.slice(0, 512), state: "current" as const,
+      const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(request.text, request.anchors), state: "current" as const,
         ...choice(request), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.

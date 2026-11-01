@@ -1332,3 +1332,13 @@ describe("cancelled waits and their queues", () => {
     expect(new DraftStore(join(h.dir, "conversations")).returned(id)).toMatchObject({ text: "behind it", reason: "restarted" });
   });
 });
+
+
+it.each(["new", "newDesign", "resume"] as const)("stores a one-line chip title without changing the %s message", async mode => {
+  const h = fixture();
+  const anchors = [{ frame: { id: "hero", title: "Hero section" } }];
+  const text = "  Update {{1}}\n\n" + "x".repeat(600);
+  const id = (await h.service.start({ root: request.root, mode, ...(mode === "newDesign" ? {} : { canvas: request.canvas }), runtime: "codex", text, anchors })).conversationId;
+  expect(h.store.list()[0]!.title).toBe(("Update Hero section " + "x".repeat(600)).slice(0, 512));
+  expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", text, anchors });
+});

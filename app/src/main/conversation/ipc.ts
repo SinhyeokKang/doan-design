@@ -104,7 +104,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         const request: StartRequest = { root: raw.root, mode, ...input, ...(validCanvas(canvas) ? { canvas } : {}), ...(validProvider(raw.runtime) ? { runtime: raw.runtime } : {}) };
         let attachments: unknown[] = [];
         if (raw.subject !== undefined) throw new Error("bad_request");
-        if (mode === "newDesign") {
+        if (mode === "newDesign" || mode === "new") {
           if (!request.runtime) throw new Error("no_agent");
           const extras = validateSendExtras({ model: raw.model, effort: raw.effort, attachments: raw.attachments }, raw.root, request.runtime, "doan", home);
           if (extras.model !== undefined) request.model = extras.model;

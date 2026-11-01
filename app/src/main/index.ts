@@ -71,11 +71,11 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "newConversation";
+export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "newConversation" | "addSelectionToConversation";
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; choose?: boolean; locked?: boolean; overview?: boolean }
+export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean }
 export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
@@ -221,7 +221,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, selection: menuInputs.selection === true, pickerAvailable: menuInputs.pickerAvailable === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -252,6 +252,8 @@ function setMenu(): void {
         submenu: [
           undo, { role: "redo" }, { type: "separator" },
           { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "pasteAndMatchStyle" }, { role: "delete" }, { role: "selectAll" },
+          { type: "separator" },
+          { label: "Add Selection to Conversation", accelerator: "CmdOrCtrl+L", enabled: enabled.addSelectionToConversation, click: command("addSelectionToConversation") },
           { type: "separator" },
           { label: "Speech", submenu: [{ role: "startSpeaking" }, { role: "stopSpeaking" }] },
         ],
@@ -286,12 +288,13 @@ const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast &&
-    next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview) return;
+    next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview &&
+    next.selection === menuInputs.selection && next.pickerAvailable === menuInputs.pickerAvailable) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["choose", "locked", "overview"] as const;
+const MENU_FLAGS = ["choose", "locked", "overview", "selection", "pickerAvailable"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);

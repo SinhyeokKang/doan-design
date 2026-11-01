@@ -765,8 +765,8 @@ describe("menus", () => {
     expect(menuEnabled("Quick Open…")).toBe(false);
   });
 
-  // buzz-project spec decision 2: ⌘N starts a new conversation only while a project Overview shows.
-  test("New Conversation is enabled only while the renderer reports an Overview, and tells the renderer", async () => {
+  // A workspace must show an Overview before it can start a conversation.
+  test("New Conversation requires an Overview on a workspace, and tells the renderer", async () => {
     const contents = window().webContents;
     expect(menuEnabled("New Conversation")).toBe(false);
     await invoke("menu:state", contents, null, state("workspace"));
@@ -777,6 +777,27 @@ describe("menus", () => {
     expect(contents.send).toHaveBeenCalledWith("menu-command", "newConversation");
     await invoke("menu:state", contents, null, { ...state("workspace", true), overview: true });
     expect(menuEnabled("New Conversation")).toBe(false);
+  });
+
+  test("canvas conversation menu commands follow validated selection and picker state", async () => {
+    const contents = window().webContents;
+    const ready = { ...state("canvas"), selection: true, pickerAvailable: true };
+    await invoke("menu:state", contents, null, state("canvas"));
+    expect(menuEnabled("New Conversation")).toBe(true);
+    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+    for (const bad of [{ ...ready, selection: "true" }, { ...ready, pickerAvailable: 1 }, { ...ready, unknown: true }]) {
+      await invoke("menu:state", contents, null, bad);
+      expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+    }
+    await invoke("menu:state", contents, null, ready);
+    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    click("Add Selection to Conversation");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "addSelectionToConversation");
+    await invoke("menu:state", contents, null, { ...ready, selection: false });
+    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+    await invoke("menu:state", contents, null, ready);
+    await invoke("menu:state", contents, null, { ...ready, pickerAvailable: false });
+    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
   });
 
   test("Go > Home tells the renderer", async () => {
