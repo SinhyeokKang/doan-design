@@ -449,8 +449,8 @@ code, kbd { font-family: var(--type-family); }
 @media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
 
 /* Overview and Quick Open: confirmed .doan/canvases/design-nav.html overview, overview-empty and quick-open. */
-/* The Overview covers the canvas area in the same cell; the area stays laid out beneath it. */
-.workspace > .area, .workspace > .ov { grid-column: 2; grid-row: -2; }
+/* The Overview covers the canvas panel in the same cell; the panel stays laid out beneath it. */
+.workspace > .doan-canvas-panel, .workspace > .ov { grid-column: 2; grid-row: -2; }
 .ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
 /* The shipped .canvas-notice band, stretched over the Overview's own padding. */
 .ov > .canvas-notice { margin: -4px -24px 0; }
@@ -566,7 +566,7 @@ body:has(.shell-top) { background: transparent; }
 .shell-worktree > span { min-width: 0; flex: 1; }
 .shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
-.workspace > .area { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
+.workspace > .doan-canvas-panel { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
 .workspace > .ov { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
 .workspace > .right-stack { border-radius: 0 24px 24px 0; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) {
@@ -737,7 +737,7 @@ body:has(.shell-top) { background: transparent; }
 .workspace.with-status.with-strip { grid-template-rows: var(--size-chrome) auto auto minmax(0, 1fr); }
 .workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
 .workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
-.workspace.with-strip > :is(.area, .ov) { border-top-left-radius: 0; }
+.workspace.with-strip > :is(.doan-canvas-panel, .ov) { border-top-left-radius: 0; }
 .strip-agent { display: inline-grid; place-items: center; flex: none; }
 .strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
 .strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
@@ -1001,3 +1001,38 @@ body:has(.shell-top) { background: transparent; }
 .rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+
+/* buzz-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/buzz-canvas.html, confirmed
+   2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
+   controls under the Overview, which covers the same grid cell. */
+.workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; }
+.doan-canvas-panel > .area { flex: 1; min-height: 0; background: var(--surface-panel); }
+.doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+/* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
+   sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
+.doan-canvas-head { flex: none; background: var(--surface-panel); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doan-canvas-head .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); flex: none; }
+.doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
+.doan-canvas-zoom { display: flex; align-items: center; gap: var(--space-half); }
+.doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.doan-canvas-head .doan-icon-button { color: var(--text-standard); }
+.doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
+/* The frame drawer's list opens under its trigger like the Overview's conversation menu. The viewed frame is marked by
+   "Viewing" only; the fill is for the pointer and keyboard focus, which move together as in a Radix menu. */
+.doan-frame-list { width: 320px; }
+.doan-frame-row { gap: var(--space-2); }
+.doan-frame-row:focus { background: var(--affordance-floating-hover); }
+.doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.doan-frame-note { margin: var(--space-1) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--border-standard); white-space: normal; }
+.doan-zoom-menu { width: 184px; }
+.doan-zoom-key { margin-left: auto; }
+/* The tools row floats at the board's bottom centre on the shared floating surface, like menus and toasts. */
+.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-3); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
+.doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
+.doan-canvas-tool[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); }

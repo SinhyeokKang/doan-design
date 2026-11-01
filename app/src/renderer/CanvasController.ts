@@ -12,7 +12,8 @@ import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, locateView, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Inset, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, locateView, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Inset, type Point, type View, type WheelInput } from "./viewport";
+import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 
 export const MEASURE_ANSWER_MS = 1000;
@@ -49,6 +50,9 @@ export interface CanvasState {
   error: string;
   unlisted: boolean;
   zoom: number;
+  // The exact view scale behind the rounded `zoom`: the zoom controller's step limits read it. Published with the
+  // other changes, and whenever the view reaches or leaves a zoom limit.
+  scale: number;
   // The bottom label, from the open canvas's latest document event at the last publish.
   label: string | null;
   activity: ActivityEvent[];
@@ -60,7 +64,7 @@ export interface CanvasState {
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, label: null, activity: [], idChangedFrom: null };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, label: null, activity: [], idChangedFrom: null };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -998,13 +1002,21 @@ export class CanvasController {
     this.post({ type: "measure" });
   }
 
-  selectFrame(index: number): void {
-    const frame = this.state.layout?.frames[index];
-    if (!frame || this.state.unlisted) return;
+  // `index` and `id` are the row the frame drawer drew, which may predate the current layout. Like Quick Open's
+  // pending frame: the index while it still holds that id, else the id's first frame, else nothing. Resolved again
+  // when a guard answers late, since a reload may land meanwhile.
+  selectFrame(index: number, id: string): void {
+    const resolve = () => {
+      const frames = this.state.unlisted ? [] : this.state.layout?.frames ?? [];
+      return frames[index]?.id === id ? index : frames.findIndex(frame => frame.id === id);
+    };
+    if (resolve() < 0) return;
     this.transition(() => {
-      this.jump(index);
-      if (frame) this.sendCommand({ type: "pick-frame", index, id: frame.id });
-    }, () => frame !== undefined && this.state.layout?.frames[index]?.id === frame.id, "selection");
+      const at = resolve();
+      if (at < 0) return;
+      this.jump(at);
+      this.sendCommand({ type: "pick-frame", index: at, id });
+    }, () => resolve() >= 0, "selection");
   }
 
   private clearJump(): void {
@@ -1045,6 +1057,14 @@ export class CanvasController {
     this.applyView();
   }
 
+  // The zoom menu's fixed percentages: the view center stays put, like the steps and 100%.
+  zoomTo(scale: number): void {
+    if (this.frame === null) return;
+    const size = this.viewportSize();
+    this.view = zoomAt(this.view, scaleFactor(scale, this.view), { x: size.width / 2, y: size.height / 2 }, ZOOM_LIMITS);
+    this.applyView();
+  }
+
   private preventPageZoom = (event: WheelEvent): void => {
     if (event.ctrlKey || event.metaKey) event.preventDefault();
   };
@@ -1073,7 +1093,11 @@ export class CanvasController {
     const changedCurrent = current !== this.state.currentFrame;
     this.state.currentFrame = current;
     const zoom = Math.round(this.view.scale * 100);
-    if (zoom !== this.state.zoom || changedCurrent) { this.state.zoom = zoom; this.publish(); }
+    // Within one rounded percent the zoom steps only change at a limit, so only crossing one needs a render.
+    const limit = (scale: number) => scale <= MIN_SCALE ? -1 : scale >= MAX_SCALE ? 1 : 0;
+    const changedLimit = limit(this.view.scale) !== limit(this.state.scale);
+    this.state.scale = this.view.scale;
+    if (zoom !== this.state.zoom || changedCurrent || changedLimit) { this.state.zoom = zoom; this.publish(); }
     this.viewChanged?.();
   }
   // Marks live outside the iframe so the canvas DOM, its MutationObserver and

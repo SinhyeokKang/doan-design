@@ -7,6 +7,8 @@ import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
+import { CanvasHeader } from "./CanvasHeader";
+import { CanvasTools } from "./CanvasTools";
 import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
@@ -876,7 +878,8 @@ export function App() {
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
     {sidebar(false)}
     {strip}
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null} />
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
+      zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -923,9 +926,10 @@ function TopBar({ back, forward, previous, next, page, locked, addProjects, proj
   </header>;
 }
 
-function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered }: {
+function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered, zoomTo, selectFrame }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
+  zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project…"
@@ -933,8 +937,35 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
     : problem?.kind === "uninitialized" ? `The project ${projectName} is not set up. Use Set Up… on Home.`
     : problem?.kind === "error" ? "Could not read the project configuration. Use Details or Retry above."
     : problem?.kind === "cliError" ? "Could not read the project. Use Retry above." : null;
+  const panel = useRef<HTMLDivElement>(null);
+  const lastFocus = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const track = (event: FocusEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const control = target?.matches('button, [role="option"], [role="menuitem"]') && (panel.current?.contains(target) || target.closest(".doan-frame-list, .doan-zoom-menu"));
+      lastFocus.current = control ? target : null;
+    };
+    document.addEventListener("focusin", track);
+    return () => document.removeEventListener("focusin", track);
+  }, []);
+  // A canvas control that vanished or turned disabled under focus hands it to the canvas region, not the page
+  // (buzz-canvas design §2 'Esc와 포커스'). Checked a task later, after a closing Radix menu has tried its trigger.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const last = lastFocus.current, active = document.activeElement;
+      if (!last || covered) return;
+      const lost = !active || active === document.body || !active.isConnected || (active === last && last.matches(":disabled"));
+      if (!lost || (last.isConnected && !last.matches(":disabled"))) return;
+      lastFocus.current = null;
+      viewport.current?.focus();
+    }, 0);
+    return () => clearTimeout(timer);
+  });
+  const canvasKey = state.open ? JSON.stringify([state.open.folder, state.open.canvas]) : null;
   // Stays laid out under the Overview: opening a canvas fits it to this size at once.
-  return <section className="area" role="region" aria-label="Canvas" ref={viewport} inert={covered}>
+  return <div className="doan-canvas-panel" ref={panel} inert={covered}>
+    <CanvasHeader state={state} canvasKey={canvasKey} command={command} zoomTo={zoomTo} selectFrame={selectFrame} fallbackFocus={() => viewport.current?.focus()} />
+    <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />
     <div className="canvas-notices">
@@ -948,6 +979,7 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
+    <div className="doan-canvas-bottom"><CanvasTools /></div>
     {state.label && state.open && <output className="updated meta" aria-label={state.label}><span className="dot" /> {state.label}</output>}
     <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
       <button className="doan-button" data-ui-size="sm" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}>Reload</button>
@@ -958,5 +990,6 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
       </div>
       <Tooltip><TooltipTrigger asChild><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Fit" disabled={!state.hasFrame} onClick={() => command("fit")}>Fit <span className="kbd doan-kbd">⌘1</span></button></TooltipTrigger><TooltipContent>Fit to width</TooltipContent></Tooltip>
     </div>
-  </section>;
+    </section>
+  </div>;
 }

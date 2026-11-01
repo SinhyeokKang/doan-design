@@ -2,8 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import { projectList } from "../comments/projection";
-import { CanvasController } from "./CanvasController";
-import { FIRST_LAYOUT_TIMEOUT_MS, locateView } from "./viewport";
+import { CanvasController, initialCanvasState } from "./CanvasController";
+import { FIRST_LAYOUT_TIMEOUT_MS, locateView, screenToBoard } from "./viewport";
 import type { AnchorSnapshot } from "./commentAnchors";
 import type { Comment } from "../formats/types";
 import { unavailableCanvasMessage } from "./quickOpen";
@@ -39,6 +39,57 @@ it("notifies React only when the rounded zoom percentage changes", () => {
   zoom(-0.1);
   expect(changed).toHaveBeenCalledTimes(1);
   controller.dispose();
+});
+
+// buzz-canvas R2: the zoom menu's 50% and 200%, and the exact scale the zoom controller reads.
+describe("zoom to a scale", () => {
+  it("lands on the scale and keeps the view center fixed", () => {
+    const { controller, changed } = loadedController();
+    try {
+      const center = { x: 400, y: 300 };
+      const before = screenToBoard(controller.currentView(), center);
+      controller.zoomTo(0.5);
+      expect(controller.currentView().scale).toBe(0.5);
+      const after = screenToBoard(controller.currentView(), center);
+      expect(after.x).toBeCloseTo(before.x);
+      expect(after.y).toBeCloseTo(before.y);
+      expect(changed.mock.lastCall?.[0]).toMatchObject({ zoom: 50, scale: 0.5 });
+      controller.zoomTo(2);
+      expect(changed.mock.lastCall?.[0]).toMatchObject({ zoom: 200, scale: 2 });
+    } finally { controller.dispose(); }
+  });
+
+  it("does nothing without a rendered board", () => {
+    vi.stubGlobal("window", new EventTarget());
+    const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
+    const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
+    try {
+      controller.zoomTo(2);
+      expect(controller.currentView().scale).toBe(1);
+    } finally { controller.dispose(); }
+  });
+
+  it("publishes the exact scale when a step reaches a zoom limit within the same percent", () => {
+    const { controller, changed } = loadedController();
+    try {
+      controller.zoomTo(0.052);
+      expect(changed.mock.lastCall?.[0]).toMatchObject({ zoom: 5, scale: 0.052 });
+      changed.mockClear();
+      controller.command("zoomOut");
+      expect(changed).toHaveBeenCalledOnce();
+      expect(changed.mock.lastCall?.[0]).toMatchObject({ zoom: 5, scale: 0.05 });
+      controller.zoomTo(3.999);
+      changed.mockClear();
+      controller.command("zoomIn");
+      expect(changed).toHaveBeenCalledOnce();
+      expect(changed.mock.lastCall?.[0]).toMatchObject({ zoom: 400, scale: 4 });
+    } finally { controller.dispose(); }
+  });
+
+  it("starts with an exact scale of 1", () => {
+    expect(initialCanvasState().scale).toBe(1);
+  });
 });
 
 function loadedController() {
@@ -266,10 +317,84 @@ describe("selection", () => {
   it("Select asks the canvas to pick that frame by index and id", () => {
     const h = selectionHarness();
     try {
-      h.controller.selectFrame(1);
+      h.controller.selectFrame(1, "hero");
       const posted = h.current().contentWindow.postMessage.mock.calls.map((call) => call[0]);
       expect(posted.slice(-2)).toEqual([{ type: "measure" }, { type: "pick-frame", seq: 1, index: 1, id: "hero" }]);
     } finally { h.controller.dispose(); }
+  });
+
+  // buzz-canvas R1: the frame drawer's row carries the index and id it was drawn with; the layout may have changed
+  // since (POSTMORTEM 2026-10-25 'Navigation feedback read the previous React snapshot').
+  describe("a frame picked from the drawer", () => {
+    const frame = (id: string, y: number) => ({ id, x: 0, y, width: 10, height: 10 });
+    const picks = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0]).filter(message => message.type === "pick-frame" || message.type === "measure");
+
+    it("selects the row's frame by id after a reload reordered the frames", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ frames: [frame("hero", 20), frame("intro", 0)] });
+        h.current().contentWindow.postMessage.mockClear();
+        h.controller.selectFrame(1, "hero");
+        expect(picks(h)).toEqual([{ type: "measure" }, { type: "pick-frame", seq: 1, index: 0, id: "hero" }]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("jumps to the frame the id resolved to", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ frames: [frame("hero", 2000), frame("intro", 0)] });
+        h.controller.selectFrame(1, "hero");
+        h.layout({ frames: [frame("hero", 2000), frame("intro", 0)] });
+        expect(h.state().currentFrame).toBe(0);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("does nothing when the picked id is gone", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ frames: [frame("intro", 0)] });
+        h.current().contentWindow.postMessage.mockClear();
+        h.controller.selectFrame(1, "hero");
+        expect(picks(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("keeps the row's index when it still holds a repeated id, else takes the id's first frame", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ frames: [frame("intro", 0), frame("dup", 20), frame("dup", 40)] });
+        h.current().contentWindow.postMessage.mockClear();
+        h.controller.selectFrame(2, "dup");
+        expect(picks(h).at(-1)).toEqual({ type: "pick-frame", seq: 1, index: 2, id: "dup" });
+        h.layout({ frames: [frame("dup", 0), frame("intro", 20)] });
+        h.controller.selectFrame(2, "dup");
+        expect(picks(h).at(-1)).toEqual({ type: "pick-frame", seq: 2, index: 0, id: "dup" });
+      } finally { h.controller.dispose(); }
+    });
+
+    it("resolves the id again when a guard answers after a reload", async () => {
+      const h = selectionHarness();
+      try {
+        let allow: (allowed: boolean) => void = () => {};
+        h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { allow = resolve; }));
+        h.controller.selectFrame(1, "hero");
+        h.layout({ frames: [frame("hero", 20), frame("intro", 0)] });
+        h.current().contentWindow.postMessage.mockClear();
+        allow(true);
+        await Promise.resolve(); await Promise.resolve();
+        expect(picks(h)).toEqual([{ type: "measure" }, { type: "pick-frame", seq: 1, index: 0, id: "hero" }]);
+      } finally { h.controller.dispose(); }
+    });
+
+    it("does nothing on an unlisted page", () => {
+      const h = selectionHarness();
+      try {
+        h.layout({ href: "http://localhost/elsewhere.html" });
+        h.current().contentWindow.postMessage.mockClear();
+        h.controller.selectFrame(1, "hero");
+        expect(picks(h)).toEqual([]);
+      } finally { h.controller.dispose(); }
+    });
   });
 
   it("a path step asks the canvas for that anchor", () => {
@@ -441,7 +566,7 @@ describe("selection wiring (flow 7)", () => {
     try {
       h.select(1);
       h.key("Escape");
-      h.controller.selectFrame(1);
+      h.controller.selectFrame(1, "hero");
       h.layout({ href: h.other.url });
       h.select(1, { href: h.other.url });
       expect(h.state().selection).toMatchObject({ tag: "span" });
@@ -612,7 +737,7 @@ describe("independent pending selection and hover commands", () => {
     try {
       let selectionSeq = 1;
       if (kind === "ancestor" || kind === "reload") h.select(1);
-      if (kind === "frame") h.controller.selectFrame(1);
+      if (kind === "frame") h.controller.selectFrame(1, "hero");
       if (kind === "ancestor") { h.controller.selectPath(h.target.path[0]!); selectionSeq = 2; }
       if (kind === "reload") { h.controller.command("reload"); h.layout(); }
       h.receive({ type: "hover", seq: 0, rect: h.target.rect });
@@ -634,7 +759,7 @@ describe("independent pending selection and hover commands", () => {
       h.select(1);
       h.controller.selectPath(h.target.path[0]!);
       if (action === "Escape") h.key("Escape");
-      else h.controller.selectFrame(0);
+      else h.controller.selectFrame(0, "intro");
       h.key("Alt");
       h.host.dispatchEvent(Object.assign(new Event("keyup"), { key: "Alt" }));
       h.select(2, { target: { ...h.target, tag: "stale" } });
@@ -878,7 +1003,7 @@ describe("a draft blocked as reloaded", () => {
     try {
       h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "selection" });
       expect(h.posted().at(-1)).toEqual({ type: "transition-answer", document: "one", intent: 1 });
-      h.controller.selectFrame(0);
+      h.controller.selectFrame(0, "intro");
       expect(h.posted().at(-1)).toMatchObject({ type: "pick-frame", index: 0, id: "intro" });
       h.select(2);
       h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
@@ -1126,12 +1251,12 @@ it("guards Select and only sends the selection to main after its acknowledgement
     const guard = vi.fn(() => false);
     h.controller.setTransitionGuard(guard);
     h.current().contentWindow.postMessage.mockClear();
-    h.controller.selectFrame(0);
+    h.controller.selectFrame(0, "intro");
     expect(guard).toHaveBeenCalledOnce();
     expect(h.current().contentWindow.postMessage).not.toHaveBeenCalled();
     guard.mockReturnValue(true);
     h.send.mockClear();
-    h.controller.selectFrame(0);
+    h.controller.selectFrame(0, "intro");
     expect(h.send).not.toHaveBeenCalled();
     h.select(1, { target: { ...h.target, element: undefined, frame: { id: "intro" }, frameIndex: 0 } });
     expect(h.send).toHaveBeenCalledWith(expect.objectContaining({ frame: { id: "intro" } }));
