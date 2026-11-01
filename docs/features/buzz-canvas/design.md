@@ -55,7 +55,7 @@
 ### 프레임 서랍
 
 - 버튼: 지금 보는 프레임(`CanvasState.currentFrame`)의 번호와 이름("3. Payment", `frameLabel`의 number·name — 제목, 없으면 id)과 ▾. 전체 개수(`n/N`)는 보이지 않는다(2026-11-01 user). 접근 이름은 "Frame <번호>: <이름>". 지금 보는 프레임이 없으면(프레임 0개) 버튼은 비활성이고 "No frames"를 보인다. 로딩·실패·폭 없음·목록에 없는 페이지에서도 비활성이다.
-- 목록: Radix 팝오버에 roving tabindex 목록. 행은 `layout.frames` 순서(문서 순서)이고 번호와 이름을 보인다. 지금 보는 프레임 행에 표시가 있고, 목록을 열면 그 행이 보이도록 스크롤하고 그 행에 포커스를 둔다. 긴 이름은 말줄임하고 전체 이름을 `title`로 둔다. `layout.truncated`면 목록 끝에 "Showing the first 1,000 frames. Use Quick Open (⌘K) to search." 같은 안내를 둔다(문구는 초안에서 확정, 아래 '문구').
+- 목록: Radix 팝오버에 roving tabindex 목록. 행은 `layout.frames` 순서(문서 순서)이고 번호와 이름을 보인다. 지금 보는 프레임 행은 채움 없이 "Viewing" 글자로만 표시하고, 채움은 hover와 키보드 포커스에만 쓴다(2026-11-01 user, 검수 P2). 지금 보는 프레임 행에 표시가 있고, 목록을 열면 그 행이 보이도록 스크롤하고 그 행에 포커스를 둔다. 긴 이름은 말줄임하고 전체 이름을 `title`로 둔다. `layout.truncated`면 목록 끝에 "Showing the first 1,000 frames. Use Quick Open (⌘K) to search." 같은 안내를 둔다(문구는 초안에서 확정, 아래 '문구').
 - 행을 고르면(클릭, Enter, Space) 목록을 닫고 `controller.selectFrame(index)`를 부른다. 초안 가드가 거절하면 이동도 선택도 일어나지 않는다(기존 `transition` 규칙).
 - 지금 보는 프레임이 바뀌어도 열린 목록의 포커스는 움직이지 않는다. 표시만 따라간다.
 
@@ -68,6 +68,10 @@
 ### 도구모음
 
 - 하단 가운데, 아이콘 버튼 한 줄. 이번에는 선택 피커 하나다: `aria-pressed="true"`, 툴팁 "Select". 누르면 아무것도 바뀌지 않는다(이미 기본 도구). 도구가 하나뿐이어도 다음 자식이 버튼을 더할 수 있도록 줄 컨테이너를 쓰되, 빈 자리나 숨긴 버튼은 두지 않는다.
+
+### 툴팁 (2026-11-01 user, 검수 P2)
+
+- 아이콘만 있는 버튼은 공용 툴팁(`doan-tooltip`)으로 이름을 보인다: "Zoom out ⌘−", "Zoom in ⌘=", "Hide conversation", "Show conversation", "Select". 단축키 표기는 View 메뉴와 같다. 접근 이름은 지금처럼 `aria-label`이다.
 
 ### Esc와 포커스
 
@@ -100,7 +104,7 @@
   - 가장자리 그라디언트: 테두리 선 없이, 보드 가장자리에서 가장 진하고 약 15px 안에서 사라지는 accent 띠(초안: 안쪽 그림자 두 겹, 8px·accent 70%와 24px·accent 35%; 처음 값의 절반, 2026-11-01 user). 8초 주기로 숨쉰다(불투명도 0.55↔1, 2026-11-01 user). ego는 파랑이지만 doan은 accent violet을 쓴다.
   - 점 필드: malmoi KV의 `DotField`(`components/signin/dot-field.tsx`, 판정 `lib/signin/dot-field.ts`, malmoi `6dcdd575`)를 옮긴다. 캔버스 2D, 12px 격자(malmoi 16), 반지름 1.5→2(지름 3→4, malmoi 2→3.5) (2026-11-01 user), 알파 0.08→0.3, 가상 커서 반경 320px(malmoi 180, 2026-11-01 user), ㄹ자 자동 순회(320px/s, 5줄, 반경만큼 영역 밖에서 줄바꿈), 포인터는 받지 않는다. 색은 투명한 흰색(`--text-on-prominent`를 캔버스 요소의 계산된 `color`로 읽음). 동작 줄이기에서는 한 번만 그린다. 순수 함수(`dotGrid`·`dotScale`·`autoCursor`)는 doan 코드로 다시 쓴다(§3).
   - ego의 표시는 네이티브 `AgentTaskOverlayView`(`ego/browser/ui/views/frame/agent_task_overlay_view.cc`, 앱 바이너리 문자열로 확인)라 값을 읽지 못했다. 웹 토큰에서 확인한 값은 작업 막대 바탕 `--bg-agent-task-bar: #0009` 하나다.
-- 안내 캡슐: 움직이는 점 → 문구 → Stop(sm 버튼).
+- 안내 캡슐: 움직이는 점 → 문구 → (응답 대기일 때만) Answer → Stop, 모두 sm 버튼. Answer는 답하는 곳으로 포커스를 옮긴다: 지금은 캔버스 페이지 임시 상태줄의 첫 선택지, `buzz-canvas-conversation` 뒤에는 대화 패널의 권한 요청. Answer는 Stop과 같은 흰 베일 버튼이다(2026-11-01 user, 검수 P1).
   - 바탕은 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60%(ego `--bg-agent-task-bar`와 같음)로, 글자는 `--text-on-prominent`, `--blur-md` 블러, 알약 모서리, `--shadow-sm`. 투명도 줄이기에서는 불투명 검정이다. 캔버스 전용이고 공용 프리미티브로 올리지 않는다(수정 8).
   - Stop은 `--text-on-prominent` 16% 채움의 흰 글자 버튼, hover 26%, 누름 34%. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 흰 글자를 지우므로 안내 안 버튼 규칙이 그보다 무거워야 한다(수정 9).
   - 점은 accent 한 색(8px, 가운데 흰 속 없음)이고, 2.4초 주기로 0.75배와 1.25배 사이를 오간다. 같은 주기로 accent 70% 고리가 점에서 8px까지 연하게 퍼지며 사라진다(2026-11-01 user). 응답 대기와 동작 줄이기에서는 둘 다 멈춘다.

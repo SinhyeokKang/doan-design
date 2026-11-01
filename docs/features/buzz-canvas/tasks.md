@@ -23,11 +23,11 @@
   - 경우: 초안 가드가 거절(이동·선택 없음), 목록이 열린 사이 다시 로드로 프레임이 바뀜, Esc가 메뉴만 닫고 선택은 남음, 포커스가 서랍 버튼으로 돌아옴.
 - [ ] R2. 배율 컨트롤러: −·값(메뉴 트리거)·+, 메뉴 Fit ⌘1·100% ⌘0·50%·200%, `CanvasController.zoomTo`, 프레임 없을 때 "—"와 비활성.
   - 검증: `npm --prefix app test`.
-- [ ] R3. 도구모음: 하단 가운데 줄, 선택 피커(`aria-pressed="true"`, 툴팁). Tab 순서 서랍 → 배율 → 도구모음.
+- [ ] R3. 도구모음: 하단 가운데 줄, 선택 피커(`aria-pressed="true"`, 툴팁). 아이콘 버튼 툴팁(design §2 '툴팁')을 −·+·패널 열기·닫기에도 단다. Tab 순서 서랍 → 배율 → 도구모음.
   - 검증: `npm --prefix app test`.
 - [ ] R6. 캔버스 대화 패널 껍데기와 틀: 캔버스 페이지의 오른쪽 패널을 껍데기(헤더 "Conversation", 우상단 닫기, 빈 본문)로 바꾸고 `RightPanel`·Comments 패널·코멘트 핀·Review bar·Hand Off를 그리지 않는다(컴포넌트는 남김). 접혔을 때만 캔버스 헤더 우상단에 열기. shadcn `resizable`을 추가한다(`npx shadcn@4.22.1 add resizable` from `app/`; `react-resizable-panels`는 게시 2주가 지난 버전으로 `npm --prefix app install --save-exact`; design §2 '라이브러리'의 API 확인을 먼저). 토글 버튼, 경계 손잡이(끌기, 키보드, 두 번 클릭), 그리드 열 폭, 접힌 상태의 영역 모서리, `UiState.rightPanel` 저장·복원, 끄는 동안 보드 덮개.
   - 검증: `npm --prefix app test` (ui-state 왕복과 잘못된 값, 960 창 최대 폭, 폭 변경 뒤 뷰 기준 유지).
-- [ ] R5. 에이전트 작업 표시: 이 캔버스의 현재 대화(`canvasConversationRows`와 같은 ID·경로 매칭)가 일하거나 응답을 기다리면 테두리 없이 숨쉬는 가장자리 그라디언트, malmoi `DotField`를 옮긴 흰 점 필드(자동 순회, 포인터 무시), 보드 위쪽 가운데 안내(점, 문구, Stop → `interruptConversation`; 왼쪽 아래 변경 표시는 그대로). 동작 줄이기에서 점 정지.
+- [ ] R5. 에이전트 작업 표시: 이 캔버스의 현재 대화(`canvasConversationRows`와 같은 ID·경로 매칭)가 일하거나 응답을 기다리면 테두리 없이 숨쉬는 가장자리 그라디언트, malmoi `DotField`를 옮긴 흰 점 필드(자동 순회, 포인터 무시), 보드 위쪽 가운데 안내(점, 문구, 응답 대기일 때 Answer → 상태줄 첫 선택지로 포커스, Stop → `interruptConversation`; 왼쪽 아래 변경 표시는 그대로). 동작 줄이기에서 점 정지.
   - 검증: `npm --prefix app test` (다른 캔버스·프로젝트 대화는 표시 없음, 턴 끝에 사라짐, Stop 실패 시 안내 유지와 오류 토스트, 포인터를 막지 않음).
 - [ ] R4. 보드 바탕, 오버레이(`.mark`·`.dims`·이동 하이라이트), `.canvas-status`, 알림, 겹침 순서를 초안 값으로. Fit·이동·locate가 inset을 쓴다.
   - 검증: `npm --prefix app test`, `npm --prefix app run build`.
