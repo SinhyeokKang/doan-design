@@ -31,7 +31,7 @@ const AUTH: AuthSnapshot = { revision: 1, providers: [dto("claude")] };
 const PRESETS: PresetSummary[] = [["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["critique", "Critique the design", "review"], ["harden", "Harden for real conditions", "content"], ["polish", "Polish the details", "refine"]]
   .map(([id, title, group]) => ({ id: id!, title: title!, description: `About ${id}.`, scope: `${id} scope`, group: group! }));
 const LISTED: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
-const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u", open: 0, resolved: 0 });
+const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u" });
 const ENTRY: FolderEntry = { kind: "list", path: "/code/doan-design", servedRev: 0, canvases: [row("buzz-onboarding")], git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: "main", worktrees: [] } };
 
 let doan: Record<string, ReturnType<typeof vi.fn>>;

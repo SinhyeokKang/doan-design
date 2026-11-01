@@ -98,7 +98,7 @@ function loadedController() {
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const changed = vi.fn();
   const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
-  const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 600, open: 0, resolved: 0 };
+  const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 600 };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
   controller.openCanvas("/repo", row);
   const layout = { type: "layout", href: row.url, height: 600, viewport: 150, frames: [{ id: "a", title: "A", x: 0, y: 0, width: 100, height: 100 }], truncated: false };
@@ -159,7 +159,7 @@ function selectionHarness() {
   const inspections: { selector: string; resolve: (result: InspectResult) => void; reject: (error: unknown) => void }[] = [];
   const inspect = vi.fn((selector: string) => new Promise<InspectResult>((resolve, reject) => { inspections.push({ selector, resolve, reject }); }));
   const controller = new CanvasController(viewport, board, overlay, changed, send, inspect);
-  const row = { path: ".doan/canvases/a.html", id: "a", url: "http://localhost/t/k/f/.doan/canvases/a.html", width: 600, open: 0, resolved: 0 };
+  const row = { path: ".doan/canvases/a.html", id: "a", url: "http://localhost/t/k/f/.doan/canvases/a.html", width: 600 };
   const other = { ...row, path: ".doan/canvases/b.html", id: "b", url: "http://localhost/t/k/f/.doan/canvases/b.html" };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }]);
   controller.openCanvas("/repo", row);
@@ -1546,58 +1546,6 @@ describe("layout height without animation frames (150 px reload stall)", () => {
   });
 });
 
-// project-feedback design §5: the id the open path lost, for the Comments
-// panel's notice. Memory only, per (root, path), for this app run.
-describe("id change", () => {
-  afterEach(() => vi.unstubAllGlobals());
-  const list = (canvases: FolderEntry extends infer E ? E extends { kind: "list"; canvases: infer C } ? C : never : never): FolderEntry[] => [{ path: "/repo", kind: "list", servedRev: 0, canvases }];
-
-  it("remembers the first id the open path lost until that id comes back", () => {
-    const h = selectionHarness();
-    try {
-      expect(h.state().idChangedFrom).toBeNull();
-      h.controller.updateEntries(list([{ ...h.row, id: "checkout" }, h.other]));
-      expect(h.state().idChangedFrom).toBe("a");
-      h.controller.updateEntries(list([{ ...h.row, id: "checkout-2" }, h.other]));
-      expect(h.state().idChangedFrom).toBe("a");
-      h.controller.updateEntries(list([h.row, h.other]));
-      expect(h.state().idChangedFrom).toBeNull();
-    } finally { h.controller.dispose(); }
-  });
-
-  it("an invalid or duplicate new id (no id in ls) is a change too", () => {
-    const h = selectionHarness();
-    try {
-      const { id: _id, ...withoutId } = h.row;
-      h.controller.updateEntries(list([withoutId, h.other]));
-      expect(h.state().idChangedFrom).toBe("a");
-    } finally { h.controller.dispose(); }
-  });
-
-  it("a path that had no id remembers nothing", () => {
-    const h = selectionHarness();
-    try {
-      const { id: _id, ...idless } = h.other;
-      h.controller.updateEntries(list([h.row, idless]));
-      h.controller.openCanvas("/repo", idless);
-      h.controller.updateEntries(list([h.row, { ...idless, id: "fresh" }]));
-      expect(h.state().idChangedFrom).toBeNull();
-    } finally { h.controller.dispose(); }
-  });
-
-  it("belongs to its path: another canvas shows none, coming back shows it again", () => {
-    const h = selectionHarness();
-    try {
-      const renamed = { ...h.row, id: "checkout" };
-      h.controller.updateEntries(list([renamed, h.other]));
-      h.controller.openCanvas("/repo", h.other);
-      expect(h.state().idChangedFrom).toBeNull();
-      h.controller.openCanvas("/repo", renamed);
-      expect(h.state().idChangedFrom).toBe("a");
-    } finally { h.controller.dispose(); }
-  });
-});
-
 describe("feedback navigation callbacks", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -1736,7 +1684,7 @@ describe("first Fit", () => {
     const viewport = Object.assign(new EventTarget(), { clientWidth: width, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
     const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
-    const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200, open: 0, resolved: 0 };
+    const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200 };
     const other = { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" };
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }, { path: "/other", kind: "list", servedRev: 0, canvases: [other] }]);
     controller.openCanvas("/repo", row);

@@ -16,7 +16,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: ago(MIN), preview: "Done", ...patch,
 });
-const row = (patch: Partial<CanvasRow> & { path: string }): CanvasRow => ({ open: 0, resolved: 0, url: `doan://${patch.path}`, width: 1280, ...patch });
+const row = (patch: Partial<CanvasRow> & { path: string }): CanvasRow => ({ url: `doan://${patch.path}`, width: 1280, ...patch });
 
 const billing = row({ path: ".doan/canvases/billing.html", id: "billing", title: "Billing" });
 const receipt = row({ path: ".doan/canvases/receipt.html" });
@@ -77,7 +77,7 @@ describe("canvas conversation list", () => {
     expect(item(html, "r")).toContain('<span class="cv-thumb empty"><span class="sr-only">Preview loading</span></span>');
     expect(item(html, "f")).toContain('<span class="cv-thumb empty"><span class="sr-only">Preview unavailable</span></span>');
     for (const key of ["l", "g", "t"]) expect(item(html, key)).toContain('<span class="cv-thumb empty"><span class="sr-only">Preview unavailable</span></span>');
-    const noWidth = canvasConversationRows([summary({ conversationId: "w", canvas: { path: ".doan/canvases/w.html" } })], [{ path: ".doan/canvases/w.html", open: 0, resolved: 0, url: "doan://w" }], NOW);
+    const noWidth = canvasConversationRows([summary({ conversationId: "w", canvas: { path: ".doan/canvases/w.html" } })], [{ path: ".doan/canvases/w.html", url: "doan://w" }], NOW);
     expect(render(noWidth)).toContain('<span class="sr-only">Preview unavailable</span>');
     // A pending reply after a ready image keeps the image (ThumbnailRequests); a pending state alone is loading.
     expect(render(rows, new Map([[receipt.path, { kind: "pending" }]]))).toContain('<span class="sr-only">Preview loading</span>');

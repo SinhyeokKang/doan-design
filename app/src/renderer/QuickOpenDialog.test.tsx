@@ -6,7 +6,7 @@ import { activeIndex, activeScroll, closesOnClick, optionId, quickOpenTabKey, pr
 import { groupResults, outsideDialog, resultKey, searchIndex, searchMatch, type SearchFolder, type SearchResult } from "./quickOpen";
 import { projectHue } from "./shellNavigation";
 
-const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, open: 0, resolved: 0, url: "u", ...extra });
+const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, url: "u", ...extra });
 const git = (branch: string) => ({ common: "/code/acme-web/.git", main: "/code/acme-web", branch, worktrees: [] });
 const entries: FolderEntry[] = [
   { kind: "list", path: "/code/acme-web", servedRev: 0, git: git("main"), canvases: [row(".doan/canvases/settings/billing.html", { title: "Billing & plans", frames: [{ id: "plans" }, { id: "card-declined", title: "Card declined" }] }), row(".doan/canvases/tokens.html", { title: "Design tokens" })] },

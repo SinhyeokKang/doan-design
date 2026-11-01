@@ -148,11 +148,6 @@
   /* The chosen design preset in the Home composer (buzz-home): a soft accent fill with dark ink, like an anchor chip. */
   --surface-accent-subtle: var(--violet-3);
   --text-accent-subtle: var(--violet-11);
-  /* Pins sit on any canvas: the dark rim holds on light ones, the white halo on dark ones.
-     The rim is black, not a violet step: it must reach 3:1 against the violet 9 fill, and
-     a violet that dark would fall below step 12. */
-  --border-pin: var(--neutral-12);
-  --halo-pin: var(--neutral-1);
 
   /* macOS window control artwork, drawn by drafts; fixed by the OS, not by this system. */
   --window-close: #ff5f57;

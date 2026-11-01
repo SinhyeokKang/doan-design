@@ -10,7 +10,7 @@ test("every main-window save carries Home's memory, and none is sent before that
   const home = { lastRoot: "/code/doan", lastProvider: "claude" as const, models: { claude: { model: "opus", effort: "high" } } };
   expect(savedUiState({ ...base, home })).toEqual({ screen: "home", expanded: {}, shellProjects: {}, lastByRoot: {}, home });
   // Home → workspace: the workspace save keeps the same memory, so a restart still has it.
-  const row = { path: ".doan/canvases/a.html", id: "a", url: "u", open: 0, resolved: 0 };
+  const row = { path: ".doan/canvases/a.html", id: "a", url: "u" };
   const workspace = savedUiState({ ...base, home, screen: "workspace", loadedRoot: "/code/doan", open: { folder: "/code/doan", canvas: row.path, row } as never });
   expect(workspace).toMatchObject({ screen: "workspace", root: "/code/doan", canvas: row.path, canvasId: "a", home });
   expect(savedUiState({ ...base, home: {} })?.home).toEqual({});

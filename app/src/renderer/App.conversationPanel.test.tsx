@@ -67,7 +67,7 @@ const { ConversationPanel } = await import("./ConversationPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { HomeRun } = await import("./homeRun");
 
-const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
+const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;

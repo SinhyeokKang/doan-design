@@ -69,7 +69,7 @@ function compareAllowed(found: string[], allowed: string[]) {
 
 // Role pairs the light system must keep readable. Translucent backgrounds are
 // composited over both white and black by contrastPairs itself.
-// Non-text 3:1 covers what identifies a component: border-prominent, focus rings and pins.
+// Non-text 3:1 covers what identifies a component: border-prominent and focus rings.
 // Decorative hairlines (border-standard, about 1.2:1 on white) and text fields edged by their
 // inset fill (about 1.1:1) are left out on purpose (decided 2026-10-26): a hairline only
 // separates, and a field shows its border-prominent edge once focused.

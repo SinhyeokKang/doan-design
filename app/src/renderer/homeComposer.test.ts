@@ -24,7 +24,7 @@ const UNGROUPED: PresetSummary[] = PRESETS.map(({ group: _group, ...rest }) => r
 const preset = (id: string) => PRESETS.find(p => p.id === id)!;
 const listed = (presets = PRESETS): PresetListReply => ({ v: 1, ok: true, result: { version: "0.9.0", presets } });
 
-function canvas(path: string, extra: Partial<CanvasRow> = {}): CanvasRow { return { path, open: 0, resolved: 0, url: `doan://x/${path}`, ...extra }; }
+function canvas(path: string, extra: Partial<CanvasRow> = {}): CanvasRow { return { path, url: `doan://x/${path}`, ...extra }; }
 function list(path: string, canvases: CanvasRow[] = [], git?: { common: string; main?: string; branch?: string }): FolderEntry {
   return { path, kind: "list", canvases, servedRev: 1, ...(git ? { git: { worktrees: [], ...git } } : {}) };
 }

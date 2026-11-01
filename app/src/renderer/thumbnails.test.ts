@@ -3,7 +3,7 @@ import type { ThumbnailReply } from "../main/thumbnails";
 import type { CanvasRow } from "../main/view";
 import { applyVisibility, ThumbnailRequests, thumbnailView, type ThumbnailState } from "./thumbnails";
 
-const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
+const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, id: path, width: 1440, frames: [], url: `http://127.0.0.1/${path}`, ...extra });
 const rows = [
   row(".doan/canvases/tokens.html", { title: "Design tokens" }),
   row(".doan/canvases/2026-10-checkout-revamp.html", { title: "Checkout revamp (Oct 2026)" }),

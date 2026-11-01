@@ -258,7 +258,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const chipLabel = branch ?? root.split("/").at(-1) ?? root;
 
   const moved = view.kind === "new" ? view.moved : null;
-  const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, open: 0, resolved: 0, url: "" });
+  const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, url: "" });
   const placeholder = draft.preset && draft.text === "" ? presetPlaceholder(draft.preset) : mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
 
   return <section className="ov ov-main" role="region" aria-label="Overview">

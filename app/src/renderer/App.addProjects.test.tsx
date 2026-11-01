@@ -62,8 +62,8 @@ const { QuickOpen } = await import("./QuickOpenDialog");
 const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
 
-const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
-const rowB: CanvasRow = { path: ".doan/canvases/b.html", id: "b", url: "u-b", open: 0, resolved: 0 };
+const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
+const rowB: CanvasRow = { path: ".doan/canvases/b.html", id: "b", url: "u-b" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA, rowB] });
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;

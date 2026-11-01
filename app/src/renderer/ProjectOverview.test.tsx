@@ -15,7 +15,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 
 const ROOT = "/code/doan", WT = "/code/doan-checkout";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
-const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u", open: 0, resolved: 0 });
+const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u" });
 const entry = (path: string, canvases: string[], branch = "main"): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: canvases.map(row), git: { branch, common: "/code/doan/.git" } } as FolderEntry);
 const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
   conversationId: A, title: "What should the checkout empty state say when a cart has expired?", state: "current", owner: "doan", provider: "claude",

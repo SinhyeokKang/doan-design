@@ -3,7 +3,7 @@ import type { FolderEntry } from "../main/view";
 import { countMatches, emptyText, groupResults, markRuns, matchPositions, missingCanvasMessage, outsideDialog, removedCanvasMessage, resultKey, resultParts, unavailableCanvasMessage, pickTarget, searchIndex, searchMatch, type SearchCanvas, type SearchFolder, type SearchResult } from "./quickOpen";
 
 function canvas(path: string, extra: Partial<SearchCanvas> = {}): SearchCanvas {
-  return { path, open: 0, resolved: 0, url: `http://localhost/${path}`, ...extra };
+  return { path, url: `http://localhost/${path}`, ...extra };
 }
 
 function folder(path: string, canvases: SearchCanvas[], common?: string): SearchFolder {
@@ -210,7 +210,7 @@ describe("quick open target", () => {
 });
 
 it("uses the tree fallback for blank frame labels", () => {
-  const index = searchIndex([{ kind: "list", path: "/repo", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0, frames: [{ id: "", title: "  " }] }] }]);
+  const index = searchIndex([{ kind: "list", path: "/repo", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", url: "u", frames: [{ id: "", title: "  " }] }] }]);
   expect(index.find(row => row.kind === "frame")?.label).toBe("(no id)");
 });
 

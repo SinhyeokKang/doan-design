@@ -66,8 +66,8 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 
-const ds: CanvasRow = { path: ".doan/ds/color.html", id: "color", url: "u-color", open: 0, resolved: 0 };
-const screen: CanvasRow = { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-checkout", open: 0, resolved: 0 };
+const ds: CanvasRow = { path: ".doan/ds/color.html", id: "color", url: "u-color" };
+const screen: CanvasRow = { path: ".doan/canvases/checkout.html", id: "checkout", url: "u-checkout" };
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;

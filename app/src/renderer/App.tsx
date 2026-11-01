@@ -908,7 +908,9 @@ export function App() {
   useEffect(() => window.doan.onConversationListChanged(({ root }) => homeRun.current.listChanged(root)), []);
   useEffect(() => {
     if (modal) { homeRun.current.modalChanged(true); return; }
-    // The guard's answer applies the transition asynchronously; check once it has had the chance to arrive.
+    // Checked one task after the modal closes, the timing arrival settling has always had: a move the close leads to
+    // lands first. Kept as is when the comment draft guard went (POSTMORTEM 2026-10-23 'Draft guards changed existing
+    // transition timing').
     const timer = setTimeout(() => homeRun.current.modalChanged(false), 0);
     return () => clearTimeout(timer);
   }, [modal]);
@@ -921,7 +923,7 @@ export function App() {
   }, [screen, loadedRoot, state.open?.canvas, run.conversations, run.revision]);
   const shown = run.strip(loadedRoot);
   const strip = overview === null && shown && <div className="strip-slot"><KeyedConversationStrip conversationId={shown.conversation.conversationId} provider={shown.conversation.provider} state={shown.state}
-    view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, open: 0, resolved: 0, url: "" }) : null })}
+    view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: entry?.kind === "list" ? entry.git?.branch ?? null : null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, url: "" }) : null })}
     onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} toggleGroup={toggleShellGroup} worktree={enter} open={openShellCanvas} overview={showShellOverview} action={action} remove={remove}

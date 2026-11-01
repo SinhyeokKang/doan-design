@@ -10,7 +10,7 @@ test("the next capture follows current visibility after scrolling", async () => 
   }, () => {}, (_root, path, visible) => {
     queue = thumbnailQueue(queue, { type: "visible", key: path, visible });
   });
-  requests.setRows(["a", "b", "c"].map(path => ({ path, id: path, width: 800, open: 0, resolved: 0, url: path })));
+  requests.setRows(["a", "b", "c"].map(path => ({ path, id: path, width: 800, url: path })));
   requests.onVisible(["a", "b"]);
   await Promise.resolve();
   expect(queue.active).toBe("a");
@@ -29,7 +29,7 @@ test("leaving the overview demotes pending cards even before replies arrive", ()
   }, () => {}, (_root, path, visible) => {
     queue = thumbnailQueue(queue, { type: "visible", key: path, visible });
   });
-  requests.setRows(["a", "b"].map(path => ({ path, id: path, width: 800, open: 0, resolved: 0, url: path })));
+  requests.setRows(["a", "b"].map(path => ({ path, id: path, width: 800, url: path })));
   requests.onVisible(["a", "b"]);
   requests.onVisible([]);
   expect(queue.pending).toEqual([{ key: "b", visible: false }]);

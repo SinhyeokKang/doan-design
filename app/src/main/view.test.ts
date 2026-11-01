@@ -6,23 +6,17 @@ import { canvasRows, folderEntry, openDecision, servingUrl } from "./view";
 const base = "http://127.0.0.1:4000/t/tok/key/";
 
 describe("canvasRows", () => {
-  test("keeps path, title and open comment count", () => {
+  test("keeps path and title, and drops the listing's comment counts", () => {
     const rows = canvasRows(
       [{ path: ".doan/canvases/a.html", id: "a", title: "Login", width: 1280, frames: [], comments: { open: 2, resolved: 1 } }],
       base,
     );
-    expect(rows).toEqual([{ path: ".doan/canvases/a.html", id: "a", title: "Login", width: 1280, frames: [], open: 2, resolved: 1, url: `${base}.doan/canvases/a.html` }]);
+    expect(rows).toEqual([{ path: ".doan/canvases/a.html", id: "a", title: "Login", width: 1280, frames: [], url: `${base}.doan/canvases/a.html` }]);
   });
 
   test("omits absent and non-string ids", () => {
     const rows = canvasRows([{}, { id: 3 }, { id: null }].map((extra) => ({ path: ".doan/canvases/a.html", ...extra })), base);
     for (const row of rows) expect(row).not.toHaveProperty("id");
-  });
-
-  test("defaults malformed resolved counts to zero", () => {
-    const invalid = [undefined, -1, 1.5, "3", NaN, Infinity, Number.MAX_SAFE_INTEGER + 1];
-    expect(canvasRows(invalid.map((resolved) => ({ path: ".doan/canvases/a.html", comments: { resolved } })), base).map((row) => row.resolved)).toEqual(invalid.map(() => 0));
-    expect(canvasRows([{ path: ".doan/canvases/a.html", comments: { resolved: Number.MAX_SAFE_INTEGER } }], base)[0]?.resolved).toBe(Number.MAX_SAFE_INTEGER);
   });
 
   test("omits a width that is not a positive safe integer", () => {
@@ -45,7 +39,7 @@ describe("canvasRows", () => {
 
   test("omits a missing title", () => {
     const rows = canvasRows([{ path: ".doan/canvases/b.html", frames: [], comments: { open: 0, resolved: 0 } }], base);
-    expect(rows).toEqual([{ path: ".doan/canvases/b.html", frames: [], open: 0, resolved: 0, url: `${base}.doan/canvases/b.html` }]);
+    expect(rows).toEqual([{ path: ".doan/canvases/b.html", frames: [], url: `${base}.doan/canvases/b.html` }]);
     expect(rows[0]).not.toHaveProperty("title");
   });
 
@@ -93,7 +87,7 @@ describe("canvasRows", () => {
     expect(rows.map((row) => row.path)).toEqual([".doan/canvases/ok.html"]);
   });
 
-  test("treats a malformed comment count as zero", () => {
+  test("keeps a row whatever its comment counts hold", () => {
     const rows = canvasRows(
       [
         { path: ".doan/canvases/a.html", comments: { open: -1 } },
@@ -104,7 +98,8 @@ describe("canvasRows", () => {
       ],
       base,
     );
-    expect(rows.map((row) => row.open)).toEqual([0, 0, 0, 0, 0]);
+    expect(rows.map((row) => row.path)).toHaveLength(5);
+    for (const row of rows) expect(row).not.toHaveProperty("open");
   });
 
   test("ignores a title that is not a string", () => {
@@ -114,14 +109,14 @@ describe("canvasRows", () => {
 
   // project-feedback design §1: a row ls could not read stays in the tree
   // with its error; its counts are 0 only because ls sent none.
-  test("keeps unreadable rows with their error and comments error", () => {
+  test("keeps unreadable rows with their error, and ignores a comments error", () => {
     const rows = canvasRows([
       { path: ".doan/canvases/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: ".doan/comments/a.jsonl: permission denied" } },
       { path: ".doan/canvases/b.html", frames: [], error: { code: "unreadable_canvas", message: ".doan/canvases/b.html: permission denied" } },
     ], base);
     expect(rows).toEqual([
-      { path: ".doan/canvases/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: ".doan/comments/a.jsonl: permission denied" }, open: 0, resolved: 0, url: `${base}.doan/canvases/a.html` },
-      { path: ".doan/canvases/b.html", frames: [], error: { code: "unreadable_canvas", message: ".doan/canvases/b.html: permission denied" }, open: 0, resolved: 0, url: `${base}.doan/canvases/b.html` },
+      { path: ".doan/canvases/a.html", id: "a", frames: [], url: `${base}.doan/canvases/a.html` },
+      { path: ".doan/canvases/b.html", frames: [], error: { code: "unreadable_canvas", message: ".doan/canvases/b.html: permission denied" }, url: `${base}.doan/canvases/b.html` },
     ]);
   });
 
@@ -156,7 +151,7 @@ describe("servingUrl", () => {
 describe("folderEntry", () => {
   test("narrows a list into rows and carries the served revision", () => {
     const entry = folderEntry("/repo", { kind: "list", root: "/repo", scope: [".doan/canvases"], canvases: [{ path: ".doan/canvases/a.html" }] }, base, 3);
-    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 3, canvases: [{ path: ".doan/canvases/a.html", open: 0, resolved: 0, url: `${base}.doan/canvases/a.html` }] });
+    expect(entry).toEqual({ path: "/repo", kind: "list", servedRev: 3, canvases: [{ path: ".doan/canvases/a.html", url: `${base}.doan/canvases/a.html` }] });
   });
 
   test("passes git through and adds file mtimes with the newest as changedAt", () => {

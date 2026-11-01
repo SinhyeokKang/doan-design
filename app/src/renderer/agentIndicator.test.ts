@@ -6,7 +6,7 @@ import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, li
 
 // buzz-canvas R5 (design §2 '에이전트 작업 표시', §5 copy): which canvas the indicator reads, the notice's button, Stop's
 // lifecycle and the dot field's loop.
-const row: CanvasRow = { path: ".doan/canvases/billing.html", id: "billing", url: "u", open: 0, resolved: 0 };
+const row: CanvasRow = { path: ".doan/canvases/billing.html", id: "billing", url: "u" };
 const opened = { folder: "/w/a", canvas: row.path, row };
 const listed: FolderEntry = { path: "/w/a", kind: "list", servedRev: 0, canvases: [row] };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({

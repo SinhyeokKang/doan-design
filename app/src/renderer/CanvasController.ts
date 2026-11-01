@@ -43,15 +43,12 @@ export interface CanvasState {
   // other changes, and whenever the view reaches or leaves a zoom limit.
   scale: number;
   activity: ActivityEvent[];
-  // The id the open path held before a reload gave it another one (or none),
-  // until that id comes back (project-feedback design §5).
-  idChangedFrom: string | null;
 }
 
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], idChangedFrom: null };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [] };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -59,8 +56,6 @@ export function initialCanvasState(): CanvasState {
 function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] {
   return activityKind(before.rev ?? 0, after.rev ?? 0);
 }
-
-function pathKey(folder: string, path: string): string { return JSON.stringify([folder, path]); }
 
 // One target of an anchors query: a frame id, or an element's doan id and selector.
 export interface AnchorTarget { id: string; doanId?: string; selector?: string; frame?: string }
@@ -202,10 +197,6 @@ export class CanvasController {
   }
 
   private publish(): void {
-    const open = this.state.open;
-    const lost = open ? this.idChanges.get(pathKey(open.folder, open.canvas)) : undefined;
-    if (open && lost !== undefined && open.row.id === lost) this.idChanges.delete(pathKey(open.folder, open.canvas));
-    this.state.idChangedFrom = open && lost !== undefined && open.row.id !== lost ? lost : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
@@ -256,9 +247,6 @@ export class CanvasController {
     this.applySelectionEffect(update);
     switch (update.kind) {
       case "reload":
-        // The first id the path lost, kept through further changes: its
-        // comments are the ones that no longer show.
-        if (update.idChanged && open.row.id !== undefined && !this.idChanges.has(pathKey(open.folder, open.canvas))) this.idChanges.set(pathKey(open.folder, open.canvas), open.row.id);
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
         this.load(update.canvas, false, reloadKind(open.row, update.canvas));
@@ -270,8 +258,6 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
-        const lost = this.idChanges.get(pathKey(open.folder, open.canvas));
-        if (lost !== undefined) { this.idChanges.delete(pathKey(open.folder, open.canvas)); this.idChanges.set(pathKey(open.folder, to), lost); }
         this.recordDocument({ ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas });
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");
@@ -301,7 +287,7 @@ export class CanvasController {
       // Keep the last rendered document while its folder cannot be read.
       case "errorLine": this.state.error = update.message; break;
       case "none": {
-        // Comment-only changes update metadata without reloading the document.
+        // A listing change that needs no reload still updates the row.
         const entry = next.find(entry => entry.path === open.folder);
         const row = entry?.kind === "list" ? entry.canvases.find(row => row.path === open.canvas) : undefined;
         if (row) this.state.open = { ...open, row };
@@ -312,8 +298,6 @@ export class CanvasController {
   }
 
   private workspaceMemory = new Map<string, { path: string; view: View }>();
-  // (root, path) → the id that path lost, for this app run only.
-  private idChanges = new Map<string, string>();
   // The open canvas left the folder's list (deleted or moved). `duplicates`:
   // how many rows now use its id, when that is why it was not followed.
   canvasRemoved: ((removed: { folder: string; row: CanvasRow; duplicates: number | null }) => void) | null = null;

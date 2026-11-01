@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { CanvasRow } from "../main/view";
 import { countDescription, groupToOpen, headArrow, openGroup, sidebarGroups, toggleGroup, visibleItems } from "./sidebarGroups";
 
-const row = (path: string): CanvasRow => ({ path, url: path, open: 0, resolved: 0 });
+const row = (path: string): CanvasRow => ({ path, url: path });
 const rows = [row(".doan/canvases/b.html"), row(".doan/ds/color.html"), row(".doan/canvases/a.html"), row(".doan/ds/button.html")];
 
 it("splits rows into Design system first, then Canvases, keeping each group's given order and count", () => {

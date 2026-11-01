@@ -120,7 +120,7 @@ describe("Inspector for a frame", () => {
 
 describe("Canvas info", () => {
   test("puts the one-sentence hint above Activity and shows no comment counts", () => {
-    const row = { path: ".doan/canvases/a.html", id: "a", url: "u", width: 600, open: 2, resolved: 1 };
+    const row = { path: ".doan/canvases/a.html", id: "a", url: "u", width: 600 };
     const html = renderToStaticMarkup(<RightPanel state={{ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row } }} selectPath={() => {}} />);
     expect(html).toContain('<dd>—</dd></dl></div><p class="pempty">Click an element or frame to inspect or comment on it.</p><section class="isec activity" aria-label="Activity">');
     expect(html).toMatch(/<\/section><\/aside>$/);
@@ -130,7 +130,7 @@ describe("Canvas info", () => {
   });
 
   test("shows a move as Moved with the previous file name, cut with its full name in the tooltip", () => {
-    const row = { path: ".doan/canvases/flows/checkout.html", id: "checkout", url: "u", width: 600, open: 0, resolved: 0 };
+    const row = { path: ".doan/canvases/flows/checkout.html", id: "checkout", url: "u", width: 600 };
     const at = new Date(2026, 9, 26, 14, 12, 40);
     const activity = [{ folder: "/repo", canvas: row.path, id: row.id, at, kind: "moved" as const, from: ".doan/canvases/checkout-final.html" }, { folder: "/repo", canvas: row.path, id: row.id, at: new Date(2026, 9, 26, 14, 9, 3), kind: "reloaded" as const }];
     const html = renderToStaticMarkup(<RightPanel state={{ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, activity }} selectPath={() => {}} />);
@@ -139,7 +139,7 @@ describe("Canvas info", () => {
   });
 
   test("names each entry with its time", () => {
-    const row = { path: ".doan/canvases/pricing.html", id: "pricing", url: "u", width: 1440, open: 0, resolved: 0 };
+    const row = { path: ".doan/canvases/pricing.html", id: "pricing", url: "u", width: 1440 };
     const at = (minute: number, second: number) => new Date(2026, 9, 26, 14, minute, second);
     const activity = [
       { folder: "/repo", canvas: row.path, id: row.id, at: at(5, 41), kind: "changed" as const },
@@ -150,7 +150,7 @@ describe("Canvas info", () => {
   });
 
   test("lists only the open canvas id's events, not another id's at the same path", () => {
-    const row = { path: ".doan/canvases/a.html", id: "replacement", url: "u", width: 600, open: 0, resolved: 0 };
+    const row = { path: ".doan/canvases/a.html", id: "replacement", url: "u", width: 600 };
     const activity = [{ folder: "/repo", canvas: row.path, id: "a", at: new Date(2026, 9, 26, 14, 9, 3), kind: "opened" as const }];
     const html = renderToStaticMarkup(<RightPanel state={{ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, activity }} selectPath={() => {}} />);
     expect(html).toContain('aria-label="Activity"><h3 class="ihead">Activity</h3><ol></ol>');

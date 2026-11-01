@@ -15,7 +15,7 @@ import {
 const open = { folder: "/repo", canvas: ".doan/canvases/a.html", row: {} };
 
 function row(path: string, extra: Partial<CanvasRow> = {}): CanvasRow {
-  return { path, open: 0, resolved: 0, url: `http://127.0.0.1:1/t/tok/k/${path}`, width: 1200, ...extra };
+  return { path, url: `http://127.0.0.1:1/t/tok/k/${path}`, width: 1200, ...extra };
 }
 
 function list(path: string, servedRev: number, canvases: CanvasRow[]): FolderEntry {
@@ -42,10 +42,6 @@ describe("canvasViewUpdate", () => {
     expect(canvasViewUpdate(prev, now, open)).toEqual({ kind: "none" });
   });
 
-  test("does nothing when only comment counts change", () => {
-    const now = [list("/repo", 1, [row(".doan/canvases/a.html", { open: 4 }), row(".doan/canvases/b.html")])];
-    expect(canvasViewUpdate(before, now, open)).toEqual({ kind: "none" });
-  });
 
   test("does nothing when nothing changes", () => {
     expect(canvasViewUpdate(before, before, open)).toEqual({ kind: "none" });
@@ -57,7 +53,7 @@ describe("canvasViewUpdate", () => {
   });
 
   test("resizes when the width goes away", () => {
-    const gone: CanvasRow = { path: ".doan/canvases/a.html", open: 0, resolved: 0, url: row(".doan/canvases/a.html").url };
+    const gone: CanvasRow = { path: ".doan/canvases/a.html", url: row(".doan/canvases/a.html").url };
     const now = [list("/repo", 1, [gone])];
     expect(canvasViewUpdate(before, now, open)).toEqual({ kind: "resize", canvas: gone });
   });

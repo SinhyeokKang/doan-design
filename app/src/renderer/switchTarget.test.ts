@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { CanvasRow } from "../main/view";
 import { switchTarget } from "./switchTarget";
 
-const row = (path: string, id?: string): CanvasRow => ({ path, ...(id === undefined ? {} : { id }), url: path, open: 0, resolved: 0 });
+const row = (path: string, id?: string): CanvasRow => ({ path, ...(id === undefined ? {} : { id }), url: path });
 
 describe("switchTarget", () => {
   const rows = [row(".doan/canvases/a.html", "a"), row(".doan/canvases/b.html", "b"), row(".doan/canvases/c.html")];

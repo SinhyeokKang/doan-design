@@ -15,7 +15,7 @@ function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
 function fixture(loaded: string | null = "/a") {
-  const row = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
+  const row = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
   const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn() };
   const rendered = elements(ShellSidebar(props));
@@ -164,7 +164,7 @@ it("preserves modifier shortcuts and ordinary navigation around typeahead", () =
 it("uses natural filename order for both visible rows and keyboard navigation", () => {
   const { props } = fixture();
   const names = ["Zeta", "foo-bar", "foo", "page10", "page2"];
-  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `.doan/canvases/${name}.html`, url: name, open: 0, resolved: 0 })) };
+  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `.doan/canvases/${name}.html`, url: name })) };
   hooks.cursor = 0; hooks.refs = [];
   const rendered = elements(ShellSidebar(props));
   const rows = rendered.filter(item => item["aria-level"] === 3);
@@ -197,7 +197,7 @@ it("marks Search, project and canvas rows, Overview and worktree items aria-disa
 // design-system-canvases design 'sidebar' (Q11): the group heads join the one visible row list, and ←/→ follow the APG tree.
 function groupsFixture(closed?: { ds?: false; canvases?: false }, canvases = ["ds/button", "ds/color", "canvases/checkout"], extra: Record<string, unknown> = {}) {
   const { props } = fixture();
-  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name, open: 0, resolved: 0 })) };
+  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
   props.projects.common = { ...props.projects.common, ...(closed ? { groups: closed } : {}) } as typeof props.projects.common;
   hooks.cursor = 0; hooks.refs = [];
   const all = { ...props, canvas: undefined, ...extra };

@@ -27,7 +27,7 @@ const AUTH: AuthSnapshot = { revision: 1, providers: [dto("claude")] };
 const PRESETS: PresetSummary[] = [["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["critique", "Critique the design", "review"], ["polish", "Polish the details", "refine"]]
   .map(([id, title, group]) => ({ id: id!, title: title!, description: `About ${id}.`, scope: `${id} scope`, group: group! }));
 const LISTED: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
-const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u", open: 0, resolved: 0 });
+const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u" });
 const project = (path: string, canvases: CanvasRow[] = [row("buzz-onboarding")]): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases, git: { common: `${path}/.git`, main: path, branch: "main", worktrees: [] } });
 
 function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
