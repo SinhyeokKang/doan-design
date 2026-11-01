@@ -217,38 +217,68 @@ describe("sign-in", () => {
     expect(await started(await m.check("antigravity")).done).toMatchObject({ error: { code: "check_failed" } });
     expect(spawn.mock.calls.length).toBe(spawned);
   });
-  // An Antigravity sign-in failure was not reproducible and left nothing in the app's log (2026-11-01); the next one
-  // must say why it ended and what the server last reported, without the sign-in link or anything token-like.
+  // An Antigravity sign-in failure left nothing in the app's log (2026-11-01). Its log now says why the exchange ended and
+  // which server events led there, as Doan's own categories only: the server's messages, RPC error text, payloads and
+  // traceback lines can hold the sign-in link, the account and tokens, and are never printed.
   describe("ACP sign-in diagnostics", () => {
     let errors: ReturnType<typeof vi.spyOn>;
     beforeEach(() => { errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
     afterEach(() => errors.mockRestore());
     const logged = () => errors.mock.calls.map((call: unknown[]) => call.map(String).join(" ")).join("\n");
+    // A server log line as the 1.3.0 server writes it (absl: level+date, time, thread, file:line]).
+    const glog = (level: string, at: string, text: string) => `${level}1101 17:21:04.433963 8505041280 ${at}] ${text}\n`;
+    const SENTINELS = ["SENT_A", "SENT_B", "SENT_C", "SENT_D", "SENT_E", "SENT_F", "SENT_G", "SENT_H", "SENT_I", "SENT_J", "SENT_K", "SENT_L", "SENT_M", "SENT_N",
+      "accounts.google.com", "example.com", "Onboarding failed", "client_secret", "Traceback"];
+    const leaksNothing = (text: string) => { for (const secret of SENTINELS) expect(text).not.toContain(secret); };
     const serverLines = (p: FakeProcess) => {
       p.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
       p.print(`Open the following link to authenticate the ACP server: ${googleLink(4321)}\n`, "stderr");
-      p.print("I1101 credential_manager.py:529] Access token expired. Refreshing silently...\n", "stderr");
-      p.print("I1101 onboard.py:142] loadCodeAssist response: {'upgradeSubscriptionUri': 'https://accounts.google.com/AccountChooser?Email=ada%40example.com'}\n", "stderr");
-      p.print("E1101 oauth.py:1] refresh_token=1//secret code=4/0secret\n", "stderr");
-      p.print("I1101 server.py:2] Signing out after onboarding_failed: stored credentials are unusable.\n", "stderr");
-    };
-    const leaksNothing = (text: string) => {
-      for (const secret of ["accounts.google.com", "ada%40example.com", "1//secret", "4/0secret"]) expect(text).not.toContain(secret);
+      p.print(glog("I", "credential_manager.py:529", "Access token expired. Refreshing silently..."), "stderr");
+      p.print(glog("I", "onboard.py:142", "loadCodeAssist response: {'upgradeSubscriptionUri': 'https://accounts.google.com/AccountChooser?Email=SENT_H%40example.com'}"), "stderr");
+      p.print(glog("E", "oauth_manager.py:77", "Token exchange failed: {'client_secret': 'SENT_C', 'state': 'SENT_D', 'code': 'SENT_E'}"), "stderr");
+      p.print(glog("W", "credential_manager.py:12", "accessToken=SENT_F refreshToken=SENT_G for SENT_B@example.com"), "stderr");
+      p.print("Traceback (most recent call last):\n  File \"oauth.py\", line 3, in exchange: client_secret='SENT_I'\nValueError: ada@SENT_J.com\n", "stderr");
+      // Chunks split inside a line, and inside a secret.
+      p.print(glog("I", "server.py:2895", "Signing out after onboarding_failed: user SEN").trimEnd(), "stderr");
+      p.print("T_K is unusable.\n", "stderr");
+      p.print(glog("E", "storage.py:9", "Failed to save credentials to SEN").trimEnd(), "stderr");
+      p.print("T_L\n", "stderr");
+      p.print(glog("E", "onboard.py:150", `${"x".repeat(5000)}SENT_M`), "stderr");
     };
 
-    it("logs the reason and the server's last lines when the server refuses authenticate", async () => {
+    it("logs a refused authenticate by its code only, never the server's message or data", async () => {
       const m = manager({ adapters: withAcp() }); await m.load();
       const run = started(await m.signIn("antigravity", 7));
       const login = await acpRequest("initialize"); login.reply("initialize", INIT);
       await acpRequest("authenticate");
-      serverLines(login);
       const request = login.requests().find(r => r.method === "authenticate")!;
-      login.print(JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "Onboarding failed: ineligible" } }) + "\n");
+      login.print(JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: -32000,
+        message: "Onboarding failed: loadCodeAssist response: {'upgradeSubscriptionUri': 'https://accounts.google.com/AccountChooser?Email=SENT_A'}",
+        data: { message: "Signed in as SENT_B@example.com", reason: "onboarding_failed" } } }) + "\n");
       expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
       const text = logged();
-      expect(text).toContain("doan: antigravity sign-in failed: Onboarding failed: ineligible");
-      expect(text).toContain("Access token expired. Refreshing silently...");
-      expect(text).toContain("Signing out after onboarding_failed: stored credentials are unusable.");
+      expect(text).toContain("doan: antigravity sign-in failed: the server refused authenticate (code -32000)");
+      leaksNothing(text);
+    });
+    it("logs recognized server events by Doan's own wording and withholds every other line", async () => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+      await acpRequest("authenticate");
+      login.print(glog("I", "main.py:118", "Starting AGY ACP Server..."), "stderr");
+      serverLines(login);
+      login.finish(1);
+      expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+      const text = logged();
+      expect(text).toContain("doan: antigravity sign-in failed: the server exited (code 1)");
+      expect(text).toContain("17:21:04 main.py:118 server started");
+      expect(text).toContain("17:21:04 credential_manager.py:529 refreshing the stored credential");
+      expect(text).toContain("17:21:04 server.py:2895 server signed out after onboarding_failed");
+      expect(text).toContain("17:21:04 E oauth_manager.py:77 (message withheld)");
+      expect(text).toContain("17:21:04 W credential_manager.py:12 (message withheld)");
+      expect(text).toContain("17:21:04 E storage.py:9 (message withheld)");
+      expect(text).toContain("17:21:04 E onboard.py:150 (message withheld)");
+      expect(text).toMatch(/\(\d+ other lines withheld\)/);
       leaksNothing(text);
     });
     it("logs why the status check after a completed authenticate found no login", async () => {
@@ -258,11 +288,12 @@ describe("sign-in", () => {
       await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
       const status = await acpRequest("initialize"); status.reply("initialize", INIT);
       await acpRequest("authenticate");
+      status.print(glog("I", "credential_manager.py:561", "Credentials missing or invalid. Launching browser login flow..."), "stderr");
       serverLines(status);
       expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
       const text = logged();
       expect(text).toContain("doan: antigravity status check found no usable login: the server asked for a new browser sign-in");
-      expect(text).toContain("Signing out after onboarding_failed: stored credentials are unusable.");
+      expect(text).toContain("17:21:04 credential_manager.py:561 no usable stored credential; browser sign-in started");
       leaksNothing(text);
     });
     it("logs a status check the time limit stopped", async () => {
@@ -271,13 +302,22 @@ describe("sign-in", () => {
       const login = await acpRequest("initialize"); login.reply("initialize", INIT);
       await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
       const status = await acpRequest("initialize");
-      status.print("I1101 main.py:118] Starting AGY ACP Server...\n", "stderr");
+      status.print(glog("I", "main.py:118", "Starting AGY ACP Server..."), "stderr");
       status.reply("initialize", INIT);
       await acpRequest("authenticate");
       expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
       const text = logged();
       expect(text).toContain("doan: antigravity status check failed: the server was stopped after 20 ms without an answer");
-      expect(text).toContain("Starting AGY ACP Server...");
+      expect(text).toContain("17:21:04 main.py:118 server started");
+    });
+    it("names the expected server, not the reported one, when the server is not the pinned agent", async () => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      (await acpRequest("initialize")).reply("initialize", { ...INIT, agentInfo: { name: "SENT_N", version: "SENT_N" } });
+      expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+      const text = logged();
+      expect(text).toContain("doan: antigravity sign-in failed: the server is not fake-acp 1.3.0");
+      leaksNothing(text);
     });
     it("logs nothing for a cancelled sign-in", async () => {
       const m = manager({ adapters: withAcp() }); await m.load();
