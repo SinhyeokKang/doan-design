@@ -29,6 +29,10 @@ export interface CanvasPickContext {
   shown?: string | null;
   // The list read before this one: a current conversation that was a project conversation there was just promoted.
   previous?: readonly ConversationSummary[] | null;
+  // A promotion the panel announces now. It stays while that conversation is still current here, because main reads
+  // the list again right after a bind and the read before it no longer shows the change; the host drops it when the
+  // person acts.
+  promoted?: string | null;
   // A project conversation drawing this canvas before its promotion is judged, as the host knows it.
   drawing?: string | null;
 }
@@ -50,7 +54,7 @@ export function pickCanvasConversation(list: readonly ConversationSummary[] | "l
     if (onCanvas(asked, canvas)) return show(asked, null);
   }
   const current = mine.find(c => c.state === "current");
-  const promoted = current && context.previous?.some(c => c.conversationId === current.conversationId && c.canvas === undefined)
+  const promoted = current && (current.conversationId === context.promoted || context.previous?.some(c => c.conversationId === current.conversationId && c.canvas === undefined))
     ? { kind: "promoted" as const, text: PROMOTED_TEXT, open: current.conversationId } : null;
   const drawing = context.drawing ? { kind: "drawing" as const, text: DRAWING_TEXT, open: context.drawing } : null;
   if (context.shown === null) return { kind: "new", listError: false, notice: promoted ?? drawing };

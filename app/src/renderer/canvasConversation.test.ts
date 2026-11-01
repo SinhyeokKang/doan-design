@@ -68,6 +68,18 @@ describe("pickCanvasConversation", () => {
     expect(pickCanvasConversation(after, billing, null, { previous: before })).toEqual({ kind: "conversation", conversationId: "proj", archived: false, notice: null });
   });
 
+  test("an announced promotion stays while its conversation is still current here", () => {
+    const promoted = summary({ conversationId: "proj", lastActivityAt: at(1) });
+    const after = [archived, promoted];
+    const notice = { kind: "promoted", text: PROMOTED_TEXT, open: "proj" };
+    // The read after the bind no longer differs from the one before it.
+    expect(pickCanvasConversation(after, billing, null, { shown: null, previous: after, promoted: "proj" })).toEqual({ kind: "new", listError: false, notice });
+    expect(pickCanvasConversation(after, billing, null, { shown: "old", previous: after, promoted: "proj" })).toEqual({ kind: "conversation", conversationId: "old", archived: true, notice });
+    expect(pickCanvasConversation([archived, { ...promoted, state: "archived" }, current], billing, null, { shown: "old", previous: after, promoted: "proj" }))
+      .toEqual({ kind: "conversation", conversationId: "old", archived: true, notice: null });
+    expect(pickCanvasConversation(after, billing, null, { shown: "proj", previous: after, promoted: "proj" })).toEqual({ kind: "conversation", conversationId: "proj", archived: false, notice: null });
+  });
+
   test("a project conversation drawing this canvas is announced over the new conversation", () => {
     const notice = { kind: "drawing", text: DRAWING_TEXT, open: "proj" };
     expect(pickCanvasConversation([project], billing, null, { drawing: "proj" })).toEqual({ kind: "new", listError: false, notice });

@@ -278,7 +278,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
       ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
-    run.sent();
+    run.sent(revision);
     return { ok: true };
   };
   const queue = async (request: DockedRequest): Promise<DockedOutcome> => {

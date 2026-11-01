@@ -188,6 +188,74 @@ test("opened right after a promotion the promoted conversation shows; promoted w
   expect(open.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", text: PROMOTED_TEXT, open: P } });
 });
 
+test("an announced promotion stays over later list reads until the person acts; what shows stays", () => {
+  // Main announces a bind with more than one change, so the panel reads the list again right after it (BV2 6p).
+  const promote = (shown: "new" | "conversation") => {
+    const h = harness();
+    h.run.show(checkout);
+    h.answer([summary(A, { state: "archived" }), summary(P, { canvas: null })]);
+    if (shown === "conversation") h.run.select(A);
+    h.answer([summary(A, { state: "archived" }), summary(P)]);
+    h.answer([summary(A, { state: "archived" }), summary(P)]);
+    h.answer([summary(A, { state: "archived" }), summary(P, { lastActivityAt: "2026-10-30T00:01:00.000Z" })]);
+    return h;
+  };
+  const notice = { kind: "promoted", text: PROMOTED_TEXT, open: P };
+  const reread = (h: ReturnType<typeof harness>) => h.answer([summary(A, { state: "archived" }), summary(P)]);
+
+  const kept = promote("new");
+  expect(kept.run.view()).toMatchObject({ kind: "new", notice });
+  expect(promote("conversation").run.view()).toEqual({ kind: "conversation", conversationId: A, archived: true, notice });
+
+  // Open (the panel's select of the promoted conversation), the menu and New end it.
+  const opened = promote("new");
+  opened.run.select(P);
+  reread(opened);
+  expect(opened.run.view()).toEqual({ kind: "conversation", conversationId: P, archived: false, notice: null });
+  const fresh = promote("conversation");
+  fresh.run.select(null);
+  reread(fresh);
+  expect(fresh.run.view()).toMatchObject({ kind: "new", notice: null });
+
+  // Sending: a continued conversation, or a start from the new conversation state.
+  const sent = promote("conversation");
+  sent.run.sent(sent.run.revision());
+  reread(sent);
+  expect(sent.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
+  const started = promote("new");
+  started.run.started(checkout, B, "claude", started.run.revision());
+  expect(started.run.view()).toMatchObject({ kind: "conversation", conversationId: B, notice: null });
+  // A send reply that lands after a newer choice leaves that choice's notice alone.
+  const late = promote("conversation");
+  const revision = late.run.revision();
+  late.run.select(A);
+  late.answer([summary(A, { state: "archived" }), summary(P, { canvas: null })]);
+  late.answer([summary(A, { state: "archived" }), summary(P)]);
+  late.run.sent(revision);
+  expect(late.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice });
+
+  // Leaving the canvas: back on it, no notice, even before another read.
+  const left = promote("new");
+  left.run.show(cart);
+  left.run.show(checkout);
+  expect(left.run.view()).toMatchObject({ kind: "new", notice: null });
+  reread(left);
+  expect(left.run.view()).toMatchObject({ kind: "new", notice: null });
+  // Also when the bind was the last read before leaving.
+  const once = harness();
+  once.run.show(checkout);
+  once.answer([summary(P, { canvas: null })]);
+  once.answer([summary(P)]);
+  expect(once.run.view()).toMatchObject({ kind: "new", notice });
+  once.run.show(cart);
+  once.run.show(checkout);
+  expect(once.run.view()).toMatchObject({ kind: "new", notice: null });
+  // Once the promoted conversation is no longer current here, nothing is announced.
+  const replaced = promote("conversation");
+  replaced.answer([summary(A, { state: "archived" }), summary(P, { state: "archived" }), summary(B)]);
+  expect(replaced.run.view()).toMatchObject({ kind: "conversation", conversationId: A, notice: null });
+});
+
 test("a project conversation drawing this canvas is announced in the new conversation state, without holding Send", () => {
   const h = harness();
   h.state.drawing = P;

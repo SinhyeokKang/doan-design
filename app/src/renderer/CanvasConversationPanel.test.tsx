@@ -147,3 +147,27 @@ test("New while the list loads holds Send after the session answers, until the l
   expect(out).toMatch(/aria-label="Send"[^>]*disabled=""/);
   expect(out).toContain("<span>The current conversation on this canvas is still running.</span>");
 });
+
+// BV2 6p: main reads the list again right after a bind; the notice and what shows stay.
+test("a promotion while the panel is open keeps New conversation with the notice and Open over later reads", async () => {
+  const project = (extra: Partial<ConversationSummary> = {}) => { const { canvas: _canvas, ...rest } = summary("proj", extra); return rest as ConversationSummary; };
+  let list: ListView = [project()];
+  const store = new ConversationStore({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => list, readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  list = [summary("proj")];
+  run.sync();
+  list = [summary("proj", { lastActivityAt: "2026-11-01T00:01:00.000Z" })];
+  run.sync();
+  await flush();
+  const props: CanvasConversationProps = {
+    run, support: new DockedSupport(() => {}), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
+    list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(),
+  };
+  const out = renderToStaticMarkup(<TooltipProvider><CanvasConversation {...props} /></TooltipProvider>);
+  expect(canvasConversationTitle(run, list).title).toBe("New conversation");
+  expect(out).toContain("<span>A project conversation is now current on this canvas.</span>");
+  expect(out).toContain('aria-label="Open the current conversation"');
+});

@@ -84,7 +84,8 @@ export class CanvasRun {
     if (key !== this.visible) {
       // The terminal session is asked again on the next visit: a reply for the canvas left behind is dropped.
       const left = this.visible ? this.canvases.get(this.visible) : undefined;
-      if (left) { delete left.resume; left.ask = 0; delete left.choice; }
+      // Leaving also ends a promotion notice: the list it was read from is spent, so a return does not announce it again.
+      if (left) { delete left.resume; left.ask = 0; delete left.choice; left.notice = null; left.previous = left.last; }
       this.visible = key;
     }
     if (target) { const s = this.state(target); s.target = target; this.resolve(s); }
@@ -155,6 +156,7 @@ export class CanvasRun {
     const s = this.canvases.get(canvasKey(target));
     if (!s || s.revision !== revision) return;
     s.request = null;
+    s.notice = null;
     delete s.choice;
     const list = this.host.list(target.root);
     s.unconfirmed = Array.isArray(list) && list.some(c => c.conversationId === conversationId) ? null : conversationId;
@@ -170,8 +172,13 @@ export class CanvasRun {
     const now = this.showing();
     return now !== null && now.key === shown.key && now.conversationId === shown.conversationId && now.revision === shown.revision;
   }
-  // A restore made the archived conversation current again; nothing else changes what shows.
-  sent(): void { this.host.changed(); }
+  // A send from the panel ends a promotion notice unless the person chose something else while it was sent; a restore
+  // made the archived conversation current again, and nothing else changes what shows.
+  sent(revision: number): void {
+    const s = this.shownState();
+    if (s && s.revision === revision) s.notice = null;
+    this.host.changed();
+  }
 
   // After every list read HomeRun applied: requests waiting for the list, promotions and returned drafts.
   sync(): void {
@@ -210,7 +217,7 @@ export class CanvasRun {
     const drawing = this.host.drawing(s.target.root, s.target.canvas);
     if (s.request) {
       const request = s.request;
-      const pick = pickCanvasConversation(list, s.target.canvas, request.conversationId, { ...(s.shown !== undefined ? { shown: s.shown } : {}), previous: s.previous, drawing });
+      const pick = pickCanvasConversation(list, s.target.canvas, request.conversationId, { ...(s.shown !== undefined ? { shown: s.shown } : {}), previous: s.previous, promoted: s.notice?.kind === "promoted" ? s.notice.open : null, drawing });
       if (pick.kind === "wait") return;
       if (pick.kind === "reread") {
         // A read started after the request still does not list it: main does not know it on this canvas.
@@ -234,7 +241,7 @@ export class CanvasRun {
       if (!Array.isArray(list) || !list.some(c => c.conversationId === s.unconfirmed)) return;
       s.unconfirmed = null;
     }
-    const pick = pickCanvasConversation(list, s.target.canvas, null, { ...(s.shown !== undefined ? { shown: s.shown } : {}), previous: s.previous, drawing });
+    const pick = pickCanvasConversation(list, s.target.canvas, null, { ...(s.shown !== undefined ? { shown: s.shown } : {}), previous: s.previous, promoted: s.notice?.kind === "promoted" ? s.notice.open : null, drawing });
     // A failed first read shows the new conversation state (view) without picking: the next read that answers picks.
     if (pick.kind === "new" && pick.listError) { if (s.resume === undefined && s.ask === 0) this.askResume(s); return; }
     if (pick.kind === "wait" || pick.kind === "reread") return;
