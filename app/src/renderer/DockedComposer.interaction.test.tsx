@@ -347,6 +347,48 @@ test("locked, the field keeps the draft but takes no input, and the reason line 
   expect(button(render(), "Attach files").disabled).toBe(true);
 });
 
+// A dropped or pasted file, shaped as the composer reads it.
+const fileEvent = () => {
+  const file = new File(["x"], "notes.md");
+  return { preventDefault: vi.fn(), stopPropagation: vi.fn(),
+    dataTransfer: { types: ["Files"], files: [file], items: [{ kind: "file", webkitGetAsEntry: () => ({ isDirectory: false }) }], dropEffect: "" },
+    clipboardData: { files: [file], getData: () => "" } };
+};
+// A primitive's own props (elements() expands primitives into what they draw).
+function primitive(node: ReactNode, type: unknown): Record<string, unknown> | null {
+  for (const child of Children.toArray(node)) {
+    if (!isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child)) continue;
+    if (child.type === type) return child.props;
+    const inner = primitive(PRIMITIVES.has(child.type) ? expand(child.type, child.props) : child.props.children, type);
+    if (inner) return inner;
+  }
+  return null;
+}
+
+test("locked, Presets, a dropped file and a pasted file add nothing to the kept draft", () => {
+  const reason = "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.";
+  const onFiles = vi.fn();
+  const { render, draw } = setup({ unavailable: reason, locked: true, onFiles }, [["conversation:a", draft("Tighten the totals")]]);
+  expect(primitive(draw(), Parts.PresetsButton)?.disabled).toBe(true);
+  ((draw() as ReactElement<Record<string, unknown>>).props.onDrop as (event: unknown) => void)(fileEvent());
+  const paste = fileEvent();
+  (input(render()).onPaste as (event: unknown) => void)(paste);
+  expect(onFiles).not.toHaveBeenCalled();
+  expect(paste.preventDefault).toHaveBeenCalled();
+  expect(shownText(render())).toBe("Tighten the totals");
+  const withFile = setup({ unavailable: reason, locked: true }, [["conversation:a", { ...draft("Tighten the totals"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }] }]]);
+  expect(primitive(withFile.draw(), Parts.ComposerChips)?.disabled).toBe(true);
+});
+
+test("unlocked, the same drop and paste reach the host as files", () => {
+  const onFiles = vi.fn();
+  const { render, draw } = setup({ onFiles }, [["conversation:a", draft("Tighten the totals")]]);
+  expect(primitive(draw(), Parts.PresetsButton)?.disabled).toBe(false);
+  ((draw() as ReactElement<Record<string, unknown>>).props.onDrop as (event: unknown) => void)(fileEvent());
+  (input(render()).onPaste as (event: unknown) => void)(fileEvent());
+  expect(onFiles).toHaveBeenCalledTimes(2);
+});
+
 test("a terminal session keeps the trigger places, chosen by the terminal, and takes no files", () => {
   const { render } = setup({ mode: RESUME, provider: "codex", fixed: true });
   const agent = button(render(), "Model: set by the terminal session (Codex)");

@@ -213,7 +213,7 @@ export function DockedComposer(props: DockedComposerProps) {
     if (fromSlash) focus({ kind: "restored" });
   };
   const removeChip = (index: number, trigger: "button" | "backspace") => {
-    if (isSending) return false;
+    if (isSending || locked) return false;
     const removal = chipRemoval(chips, trigger === "button" ? { kind: "button", index } : { kind: "backspace", text, caret: field.current?.caretAtStart() === false ? 1 : 0 });
     if (!removal) return false;
     const removed = draft.attachments[removal.remove];
@@ -223,7 +223,8 @@ export function DockedComposer(props: DockedComposerProps) {
     queueMicrotask(() => { if (removal.focus === "textarea") field.current?.focus(); else removeButtons.current[removal.focus]?.focus(); });
     return true;
   };
-  const drop = useComposerDrop({ blocked: () => isSending, onFiles: files => props.onFiles(files, false), onNotice: text => setRefusals(previous => {
+  // A locked composer keeps its draft but takes no input of any kind: no preset, dropped or pasted file either.
+  const drop = useComposerDrop({ blocked: () => isSending || locked, onFiles: files => props.onFiles(files, false), onNotice: text => setRefusals(previous => {
     const next = new Map(previous);
     if (text === null) next.delete(key); else next.set(key, { refusal: { kind: "notice", text } });
     return next;
@@ -232,7 +233,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const files = Array.from(event.clipboardData.files);
     if (pasteAction(event.clipboardData.getData("text/plain"), files) !== "files") return;
     event.preventDefault();
-    if (!isSending) props.onFiles(files, true);
+    if (!isSending && !locked) props.onFiles(files, true);
   };
 
   const stop = () => { props.onStop(); focus({ kind: "stopped" }); };
@@ -324,7 +325,7 @@ export function DockedComposer(props: DockedComposerProps) {
       <div key={item.id} className="queue-item" role="listitem"><Clock aria-hidden="true" /><span className="queue-text">{item.text}</span>
         <button type="button" className="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" onClick={() => props.onRemoveQueued(item.id)}><X aria-hidden="true" /></button></div>)}</div>}
     <ComposerCard readonly={isSending}>
-      <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
+      <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
       <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
         placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement} onChipClick={props.onLocate ? locate : undefined}
@@ -333,7 +334,7 @@ export function DockedComposer(props: DockedComposerProps) {
       <ComposerTools>
         {props.fixed ? <FixedTip label="Files can’t be attached to a terminal session"><button type="button" className="doan-icon-button" aria-label="Attach files" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
           : <AttachButton disabled={isSending || locked} onClick={props.onAttach} />}
-        <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending}
+        <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
           onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} />
         {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
