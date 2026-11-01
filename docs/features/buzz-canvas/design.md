@@ -93,12 +93,15 @@
 - 참고: ego lite(citrolabs)의 에이전트 탭 표시. 탭 가장자리의 안쪽 빛, 움직이는 점, 상단 가운데 안내와 Stop이다. 출처는 사용자 설명(2026-11-01)이다. 공개 리포 `citrolabs/ego-lite`에는 스킬·SDK만 있고 브라우저 UI 코드가 없어서 색·크기·모션 값은 확인하지 못했다(2026-11-01 `gh api` 트리 확인). 값은 doan 토큰으로 새로 정한다.
 - 위치: 보드 위쪽 가운데(헤더 아래 12px, 위 여백 56px 안). (수정 6, 2026-11-01 user)
 - 조건: 이 캔버스의 현재 대화가 일함(working) 또는 응답 대기(permission)일 때. 현재 대화는 Overview의 캔버스 행과 같은 매칭(`canvasConversationRows.ts`: 양쪽에 ID가 있으면 ID, 없으면 경로)으로 찾는다. 상태는 main의 대화 목록(`conversation:list`, `listChanged`)에서 읽으므로 다시 로드·재시작 뒤에도 같다.
-- 모양(수정 12, 2026-11-01 user, 사용자의 ego 스크린샷 참고): 테두리 선 없이 두 가지가 함께 숨쉰다(2.4초 주기, 불투명도 0.55↔1).
-  - 가장자리 그라디언트: 보드 가장자리에서 가장 진하고 약 30px 안에서 사라지는 띠. 초안 값은 안쪽 그림자 두 겹(16px·accent 70%, 48px·accent 35%).
-  - 보일 듯 말 듯한 점: 보드 전체에 16px 간격 accent 25% 점. 가운데는 투명하고 가장자리로 갈수록 보이며(타원 마스크), 6초에 한 칸씩 흐른다.
-  - ego는 파랑이지만 doan은 accent violet을 쓴다. ego의 표시는 네이티브 `AgentTaskOverlayView`(`ego/browser/ui/views/frame/agent_task_overlay_view.cc`)라 값은 읽지 못했다(앱 바이너리 문자열로 확인). 웹 토큰에서 확인한 값은 작업 막대 바탕 `--bg-agent-task-bar: #0009` 하나로, 안내 캡슐 바탕을 검정 60%로 맞췄다.
-  - 동작 줄이기에서는 숨쉬기와 흐름이 멈추고 정지 상태로 보인다. `pointer-events: none`이라 선택·팬·줌을 막지 않는다. 안내는 캡슐로, 움직이는 accent 점 → 문구 → Stop(sm 버튼) 순서다. 모양은 ego처럼 진한 검정에 약간 투명한 블러다(수정 8, 2026-11-01 user의 기억; ego 앱 리소스는 압축돼 있어 값을 확인하지 못함). doan에서 가장 가까운 프리미티브인 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60% 불투명도(ego `--bg-agent-task-bar`와 같음)로, 글자는 `--text-on-prominent`로 쓰고, `.doan-floating`처럼 `--blur-md`를 건다. 모서리는 알약, 그림자는 `--shadow-sm`. Stop은 `--text-on-prominent` 16% 채움의 흰 글자 버튼이고, hover는 26%, 누름은 34%다. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 어두운 캡슐 위에서 흰 글자를 지우므로, 구현에서도 안내 안의 버튼 규칙이 그보다 무거워야 한다(수정 9). 점은 accent 한 색(`--affordance-accent`, 8px)이고, 움직임은 점 자체의 크기다: 1.2초 주기로 0.75배와 1.25배 사이를 오간다. 고리·속 채움은 없다. 응답 대기와 동작 줄이기에서는 멈춘다(수정 11, 2026-11-01 user). 투명도 줄이기에서는 불투명 검정이다. 캔버스 전용이고 공용 프리미티브로 올리지 않는다. 좁은 창에서는 문구가 줄어든다.
-- 문구 후보: 일함 "<Provider> is working on this canvas", 응답 대기 "<Provider> is waiting for your answer". Provider는 지금 쓰는 공급자 표시 이름이다. 확정은 §5와 같이 clarify 프리셋으로 한다.
+- 보드 표시(수정 12·13, 2026-11-01 user, 사용자의 ego 스크린샷 참고). 모두 `pointer-events: none`이라 선택·팬·줌을 막지 않는다.
+  - 가장자리 그라디언트: 테두리 선 없이, 보드 가장자리에서 가장 진하고 약 30px 안에서 사라지는 accent 띠(초안: 안쪽 그림자 두 겹, 16px·accent 70%와 48px·accent 35%). 2.4초 주기로 숨쉰다(불투명도 0.55↔1). ego는 파랑이지만 doan은 accent violet을 쓴다.
+  - 점 필드: malmoi KV의 `DotField`(`components/signin/dot-field.tsx`, 판정 `lib/signin/dot-field.ts`, malmoi `6dcdd575`)를 옮긴다. 캔버스 2D, 16px 격자, 반지름 2→3.5, 알파 0.08→0.3, 가상 커서 반경 180px, ㄹ자 자동 순회(320px/s, 5줄, 반경만큼 영역 밖에서 줄바꿈), 포인터는 받지 않는다. 색은 투명한 흰색(`--text-on-prominent`를 캔버스 요소의 계산된 `color`로 읽음). 동작 줄이기에서는 한 번만 그린다. 순수 함수(`dotGrid`·`dotScale`·`autoCursor`)는 doan 코드로 다시 쓴다(§3).
+  - ego의 표시는 네이티브 `AgentTaskOverlayView`(`ego/browser/ui/views/frame/agent_task_overlay_view.cc`, 앱 바이너리 문자열로 확인)라 값을 읽지 못했다. 웹 토큰에서 확인한 값은 작업 막대 바탕 `--bg-agent-task-bar: #0009` 하나다.
+- 안내 캡슐: 움직이는 점 → 문구 → Stop(sm 버튼).
+  - 바탕은 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60%(ego `--bg-agent-task-bar`와 같음)로, 글자는 `--text-on-prominent`, `--blur-md` 블러, 알약 모서리, `--shadow-sm`. 투명도 줄이기에서는 불투명 검정이다. 캔버스 전용이고 공용 프리미티브로 올리지 않는다(수정 8).
+  - Stop은 `--text-on-prominent` 16% 채움의 흰 글자 버튼, hover 26%, 누름 34%. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 흰 글자를 지우므로 안내 안 버튼 규칙이 그보다 무거워야 한다(수정 9).
+  - 점은 accent 한 색(8px)이고, 1.2초 주기로 0.75배와 1.25배 사이를 오간다. 응답 대기와 동작 줄이기에서는 멈춘다(수정 11).
+- 문구: 일함 "<Provider> is working", 응답 대기 "<Provider> needs your answer". Provider는 지금 쓰는 공급자 표시 이름이다.
 - Stop: 확인 없이 `interruptConversation({ conversationId })`. 누른 뒤 응답이 올 때까지 "Stopping…"으로 비활성. 실패하면 안내를 그대로 두고 공용 토스트로 알린다. 턴이 끝나면(목록 상태 변경) 표시가 사라진다.
 - 접근성: 안내는 `role="status"`(polite). 점은 `aria-hidden`. 동작 줄이기에서는 점이 멈춘다.
 - 지금 캔버스 페이지에 뜨는 임시 상태줄에도 Stop이 있다. `buzz-canvas-conversation`이 상태줄을 대화 패널로 바꿀 때까지 둘이 함께 있다.
@@ -117,6 +120,7 @@
 | `fitWidth` · `fitFrame` · `locateView`의 inset 판 | `app/src/renderer/viewport.ts` | 위·아래 inset이 다를 때 Fit의 y; 안전 영역에 들어가는 프레임은 안전 영역 가운데; 안전 영역보다 큰 프레임은 위 inset에 맞춤; 크기 0 프레임; 안전 영역이 0 이하인 아주 낮은 창 |
 | `zoomTo(view, scale, center, limits)` | `viewport.ts` | 50%·200%; 한계 밖 값은 한계로; 가운데 점 고정 |
 | `panelWidth(saved, windowWidth)` · `nudgePanel(width, key, bounds)` · `readRightPanel(raw)` | `app/src/renderer/rightPanelSize.ts`, `app/src/restore/uiState.ts` | 기본값; 최소·최대에서 자르기; 960 창의 최대; 창이 줄 때 보이는 폭과 저장값 분리; ←/→/Home/End; 두 번 클릭 초기화; ui-state의 빠진·잘못된 값 |
+| `dotGrid` · `dotScale` · `autoCursor` | `app/src/renderer/dotField.ts` | malmoi `lib/signin/dot-field.ts`의 경우를 doan 테스트로: 경계 포함, gap 0 이하, 반경 0, 반경 밖 기본값, ㄹ자 순회의 줄바꿈 연속성, 넘침 |
 | `agentPresence(list, canvas)` | `app/src/renderer/agentPresence.ts` | 현재 대화 없음; 일함; 응답 대기; 끝남·실패·중단(표시 없음); 다른 캔버스의 대화; 프로젝트 대화; ID 없는 캔버스의 경로 매칭; 옮겨진 캔버스(ID 매칭); 목록 읽기 실패(표시 없음); 공급자 이름과 문구 |
 
 ## 4. 형식·규칙·결정 영향
