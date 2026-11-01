@@ -15,7 +15,7 @@ Conducts one small, surgical change in the order **`/tdd` → commit → `/imple
 ## 0. Intake
 
 - **Scope guard**: spans multiple components (app, CLI, formats), out of scope (PRODUCT §3), changes ARCHITECTURE §1 'Conventions' or a structural decision, or a new feature that needs `docs/features/` — if any applies, stop and recommend starting with `/feature`. Out-of-scope items and decision changes do not pass even with `bypass` (they are user decisions).
-- **Branch** (AGENTS.md 'Commit conventions'): `/ship` always starts from main with `git switch -c feat-<slug>`. The same goes for docs-only changes. If already on `feat-<slug>`, keep using it. Write the name in the report. When running as an `/orchestrate` worker, use the branch the brief specifies.
+- **Branch** (AGENTS.md 'Commit conventions'): `/ship` always starts from main with `git switch -c <type>/<slug>`, `<type>` being the Conventional Commit type of the change's main commit (`feat`, `fix`, `docs`, `chore`, `refactor`); a docs-only change is `docs/<slug>`. If already on such a branch, keep using it. Write the name in the report. When running as an `/orchestrate` worker, use the branch the brief specifies.
 - **Worktree ownership**: if `git status --porcelain` shows tracked changes (`M`, `D`, `A`, `R`) this session did not make, stop. It means another session is working in the same checkout. Untracked (`??`) is only reported. Base this on `git worktree list` output, not on someone saying "it's being done in another worktree".
 - **Clean worktree**: if you have uncommitted changes of your own, commit them separately first. If that diff overlaps the current target, do not commit; stop (the tests-first order is already broken).
 - **Command check**: see whether the AGENTS.md 'Commands' section has test and type-check commands for this area. If not, stop here and ask. Docs-only changes skip this check.
@@ -32,7 +32,7 @@ Conducts one small, surgical change in the order **`/tdd` → commit → `/imple
 8. **`/postmortem`** [gated] — only if commit #1 is `fix:` or there is a postmortem candidate. If it changed something, commit with `docs(postmortem):`.
 9. **Docs freshness** — skim the diff to be pushed once and see whether it disagrees with `docs/PRODUCT.md` or `docs/ARCHITECTURE.md`. If a decision was newly made or reversed, rewrite the relevant section to the current rule (rationale in the commit message). If a feature started with `/feature` is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) and delete `docs/features/<slug>/`. If the way of working changed, update AGENTS.md. PRODUCT, ARCHITECTURE, and AGENTS.md are written in English. Split commits per document (`docs(PRODUCT): ...`).
 10. **Final gate** — use [/verify](../verify/SKILL.md) at the HEAD to be pushed. Select `--eval` when applicable; verify changed app behavior with a short `/runtime-test` probe and reuse unaffected evidence. Pure docs changes use targeted reference checks. The separate AGENTS `/agent-eval` requirement still applies.
-11. **push** — `git push -u origin feat-<slug>`, then `gh pr create --base main`. PR title and body are in English. Claude sessions append the attribution line the session provides to the end of the body. Do not merge.
+11. **push** — `git push -u origin <type>/<slug>`, then `gh pr create --base main`. PR title and body are in English. Claude sessions append the attribution line the session provides to the end of the body. Do not merge.
 
 **Commit rules**: English Conventional Commits. Stage paths one at a time (no `git add -A` or whole directories). If `.env`, `*.pem`, or credential files are staged, stop. Claude session commits end with the `Co-Authored-By` line the session provides; Codex session commits end with `Co-Authored-By: Codex <noreply@openai.com>`.
 
@@ -54,7 +54,7 @@ After stopping, do not work around or force through. Ask for user decisions one 
 
 ## Final report
 
-Delivered to the user in Korean. Put incomplete and unverified items at the top. Then: pass/skip (reason)/stop per step, commit hashes, whether bypass was used and the plan source, push target (`feat-<slug>` + PR URL), and the commands run with their results.
+Delivered to the user in Korean. Put incomplete and unverified items at the top. Then: pass/skip (reason)/stop per step, commit hashes, whether bypass was used and the plan source, push target (`<type>/<slug>` + PR URL), and the commands run with their results.
 
 ## Prohibited
 
