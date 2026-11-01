@@ -217,6 +217,76 @@ describe("sign-in", () => {
     expect(await started(await m.check("antigravity")).done).toMatchObject({ error: { code: "check_failed" } });
     expect(spawn.mock.calls.length).toBe(spawned);
   });
+  // An Antigravity sign-in failure was not reproducible and left nothing in the app's log (2026-11-01); the next one
+  // must say why it ended and what the server last reported, without the sign-in link or anything token-like.
+  describe("ACP sign-in diagnostics", () => {
+    let errors: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => { errors = vi.spyOn(console, "error").mockImplementation(() => {}); });
+    afterEach(() => errors.mockRestore());
+    const logged = () => errors.mock.calls.map(call => call.map(String).join(" ")).join("\n");
+    const serverLines = (p: FakeProcess) => {
+      p.print(`${AUTH_LINK_MARKER}${googleLink(4321)}\n`, "stderr");
+      p.print(`Open the following link to authenticate the ACP server: ${googleLink(4321)}\n`, "stderr");
+      p.print("I1101 credential_manager.py:529] Access token expired. Refreshing silently...\n", "stderr");
+      p.print("I1101 onboard.py:142] loadCodeAssist response: {'upgradeSubscriptionUri': 'https://accounts.google.com/AccountChooser?Email=ada%40example.com'}\n", "stderr");
+      p.print("E1101 oauth.py:1] refresh_token=1//secret code=4/0secret\n", "stderr");
+      p.print("I1101 server.py:2] Signing out after onboarding_failed: stored credentials are unusable.\n", "stderr");
+    };
+    const leaksNothing = (text: string) => {
+      for (const secret of ["accounts.google.com", "ada%40example.com", "1//secret", "4/0secret"]) expect(text).not.toContain(secret);
+    };
+
+    it("logs the reason and the server's last lines when the server refuses authenticate", async () => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+      await acpRequest("authenticate");
+      serverLines(login);
+      const request = login.requests().find(r => r.method === "authenticate")!;
+      login.print(JSON.stringify({ jsonrpc: "2.0", id: request.id, error: { code: -32000, message: "Onboarding failed: ineligible" } }) + "\n");
+      expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+      const text = logged();
+      expect(text).toContain("doan: antigravity sign-in failed: Onboarding failed: ineligible");
+      expect(text).toContain("Access token expired. Refreshing silently...");
+      expect(text).toContain("Signing out after onboarding_failed: stored credentials are unusable.");
+      leaksNothing(text);
+    });
+    it("logs why the status check after a completed authenticate found no login", async () => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+      await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
+      const status = await acpRequest("initialize"); status.reply("initialize", INIT);
+      await acpRequest("authenticate");
+      serverLines(status);
+      expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+      const text = logged();
+      expect(text).toContain("doan: antigravity status check found no usable login: the server asked for a new browser sign-in");
+      expect(text).toContain("Signing out after onboarding_failed: stored credentials are unusable.");
+      leaksNothing(text);
+    });
+    it("logs a status check the time limit stopped", async () => {
+      const m = manager({ adapters: withAcp(), statusTimeoutMs: 20 }); await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+      await acpRequest("authenticate"); writeToken(login, { id: "g1" }); login.reply("authenticate", {});
+      const status = await acpRequest("initialize");
+      status.print("I1101 main.py:118] Starting AGY ACP Server...\n", "stderr");
+      expect(await run.done).toMatchObject({ phase: "error", error: { code: "sign_in_failed" } });
+      const text = logged();
+      expect(text).toContain("doan: antigravity status check failed: the server was stopped after 20 ms without an answer");
+      expect(text).toContain("Starting AGY ACP Server...");
+    });
+    it("logs nothing for a cancelled sign-in", async () => {
+      const m = manager({ adapters: withAcp() }); await m.load();
+      const run = started(await m.signIn("antigravity", 7));
+      const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+      await acpRequest("authenticate");
+      await m.cancel("antigravity", run.attemptId, 7);
+      expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null });
+      expect(errors).not.toHaveBeenCalled();
+    });
+  });
   it("refuses an ACP server that is not the pinned agent and version", async () => {
     const m = manager({ adapters: withAcp() });
     await m.load();
