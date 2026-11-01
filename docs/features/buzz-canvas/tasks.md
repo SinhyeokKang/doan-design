@@ -29,7 +29,7 @@
   - 검증: `npm --prefix app test` (ui-state 왕복과 잘못된 값, 960 창 최대 폭, 폭 변경 뒤 뷰 기준 유지).
 - [ ] R5. 에이전트 작업 표시: 이 캔버스의 현재 대화(`canvasConversationRows`와 같은 ID·경로 매칭)가 일하거나 응답을 기다리면 테두리 없는 진한 안쪽 그림자와 보드 위쪽 가운데 안내(점, 문구, Stop → `interruptConversation`; 왼쪽 아래 변경 표시는 그대로). 동작 줄이기에서 점 정지.
   - 검증: `npm --prefix app test` (다른 캔버스·프로젝트 대화는 표시 없음, 턴 끝에 사라짐, Stop 실패 시 안내 유지와 오류 토스트, 포인터를 막지 않음).
-- [ ] R4. 보드 바탕, 오버레이(`.mark`·`.dims`·이동 하이라이트), `.canvas-status`, 알림, 변경 표시, 겹침 순서를 초안 값으로. Fit·이동·locate가 inset을 쓴다.
+- [ ] R4. 보드 바탕, 오버레이(`.mark`·`.dims`·이동 하이라이트), `.canvas-status`, 알림, 겹침 순서를 초안 값으로. Fit·이동·locate가 inset을 쓴다.
   - 검증: `npm --prefix app test`, `npm --prefix app run build`.
 
 ── commit: `feat(renderer): buzz canvas controls and board` ──
@@ -44,14 +44,14 @@
 
 ## V. 실제 앱
 
-- [ ] V1. `/design-sync`: `buzz-canvas.html`의 프레임을 빌드한 앱에서 맞추고 DESIGN.md를 갱신한다. 960×600과 1238×780에서 컨트롤·알림·변경 표시·토스트·핀의 사각형이 겹치지 않는지 잰다. 어두운·밝은·violet 픽스처 캔버스 위 선택 표시를 확인한다.
+- [ ] V1. `/design-sync`: `buzz-canvas.html`의 프레임을 빌드한 앱에서 맞추고 DESIGN.md를 갱신한다. 960×600과 1238×780에서 컨트롤·작업 안내·알림·토스트·핀의 사각형이 겹치지 않는지 잰다. 어두운·밝은·violet 픽스처 캔버스 위 선택 표시를 확인한다.
   - 검증: `/design-sync` 절차의 측정 스크립트(`node .scratch/design-sync/<screen>/measure.mjs`).
 - [ ] V2. `/runtime-test`: 서랍에서 프레임을 고른 뒤 `DOAN_RUNTIME=<tmp>/runtime.json <cli> active --json --repo <tmp repo>`가 그 프레임을 돌려준다. Quick Open 프레임 이동 뒤에는 선택이 바뀌지 않는다. 배율 메뉴 Esc 뒤 선택이 남는다. ⌘R과 로드 실패 Reload가 동작한다. 결과는 `.scratch/runtime-test/buzz-canvas/`에 남긴다.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과 뒤 `/runtime-test` probe.
 
 ## Z. 승격과 정리 (문서마다 커밋)
 
-- [ ] Z1. PRODUCT §5 항목 4·5: 캔버스 페이지에 Inspector와 Comments 화면이 없다는 현재 상태(선택과 `doan active`는 유지)를 적고, 오른쪽 패널을 캔버스 대화 패널 껍데기로 적는다. PRODUCT §5 항목 2·3: 서랍(이동하고 선택함), 배율 컨트롤러와 메뉴, 도구모음의 선택 피커, 에이전트 작업 표시(조건, 응답 대기 문구, Stop). §6 Open questions에 "에이전트가 작업 중인 곳을 캔버스에서 실시간으로 짚기(사용자는 실시간을 원함, 근거 PoC 필요, 다시 로드 때 프레임 비교는 대안)"를 더한다(spec 비목표).
+- [ ] Z1. PRODUCT §5 항목 5의 "bottom label" 규칙을 지운다(변경 표시 없앰, 2026-11-01 user). PRODUCT §5 항목 4·5: 캔버스 페이지에 Inspector와 Comments 화면이 없다는 현재 상태(선택과 `doan active`는 유지)를 적고, 오른쪽 패널을 캔버스 대화 패널 껍데기로 적는다. PRODUCT §5 항목 2·3: 서랍(이동하고 선택함), 배율 컨트롤러와 메뉴, 도구모음의 선택 피커, 에이전트 작업 표시(조건, 응답 대기 문구, Stop). §6 Open questions에 "에이전트가 작업 중인 곳을 캔버스에서 실시간으로 짚기(사용자는 실시간을 원함, 근거 PoC 필요, 다시 로드 때 프레임 비교는 대안)"를 더한다(spec 비목표).
   - 검증: `grep -n "Frame jumps are available" docs/PRODUCT.md`가 서랍을 함께 적는다.
   - ── commit: `docs(PRODUCT): canvas frame drawer and zoom controls` ──
 - [ ] Z2. ARCHITECTURE §3 'Canvas view'의 32px 여백을 inset으로, §7 UiState의 `rightPanel`, 'Jump and current frame'에 서랍의 `selectFrame` 경로, 'Actions and focus'의 캔버스 안 Tab 순서.
