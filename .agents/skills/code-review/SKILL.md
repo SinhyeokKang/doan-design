@@ -31,7 +31,7 @@ Statically review the changes. **Report only**; `/refactor` does the fixing.
 - **Widening agent permissions**: the CLI edits or deletes comment bodies (only resolve is allowed).
 - **Changing ids**: changing canvas or frame ids on file moves or title changes, which cuts off comments.
 - **Handling secrets**: reading or storing GitHub tokens, exposing secrets in logs or error messages.
-- **Doan performing git operations**: commits, branches, push (other than the `.gitattributes` union setting).
+- **Doan performing git operations**: commits, branches, push (other than the two `.gitattributes` lines `doan init` adds).
 - **TS/Go format divergence**: one side changes a format with a hand-written definition instead of the schema source.
 
 ### 🟡 Should fix
