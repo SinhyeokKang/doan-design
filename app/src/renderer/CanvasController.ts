@@ -1004,7 +1004,8 @@ export class CanvasController {
 
   // `index` and `id` are the row the frame drawer drew, which may predate the current layout. Like Quick Open's
   // pending frame: the index while it still holds that id, else the id's first frame, else nothing. Resolved again
-  // when a guard answers late, since a reload may land meanwhile.
+  // when a guard answers late, since a new layout of the same document may land meanwhile (a new document makes
+  // transition() drop the answer).
   selectFrame(index: number, id: string): void {
     const resolve = () => {
       const frames = this.state.unlisted ? [] : this.state.layout?.frames ?? [];

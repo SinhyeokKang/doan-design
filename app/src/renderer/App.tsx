@@ -9,6 +9,7 @@ import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools } from "./CanvasTools";
+import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
@@ -953,9 +954,8 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
   useEffect(() => {
     const timer = setTimeout(() => {
       const last = lastFocus.current, active = document.activeElement;
-      if (!last || covered) return;
-      const lost = !active || active === document.body || !active.isConnected || (active === last && last.matches(":disabled"));
-      if (!lost || (last.isConnected && !last.matches(":disabled"))) return;
+      if (!controlFocusLost({ last: last && { connected: last.isConnected, disabled: last.matches(":disabled") }, covered,
+        activeLost: !active || active === document.body || !active.isConnected, activeIsLast: !!last && active === last })) return;
       lastFocus.current = null;
       viewport.current?.focus();
     }, 0);

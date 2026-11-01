@@ -6,6 +6,7 @@ import type { CanvasState } from "./CanvasController";
 import { canvasLabel } from "./canvasTree";
 import { frameDrawerView, type FrameDrawerRow, type FrameDrawerView } from "./frameDrawer";
 import { drawerKeyTarget, drawerTypeahead, focusedRowAfter } from "./frameDrawerList";
+import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 
@@ -28,28 +29,26 @@ export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectF
   </header>;
 }
 
-// Where focus goes when a menu closes (design §2 'Esc와 포커스'). Normally Radix returns it to the trigger. A menu open
-// while the canvas changes (a link inside it, Back) closes without taking focus back: the move's own focus rule
-// applies. A trigger that turned disabled (the load failed, the canvas left the list) cannot take focus. Either way,
-// focus left on the page falls to the canvas region rather than staying lost.
-// A menu whose trigger turned disabled stays closed: it must not reopen by itself once the canvas reads again.
+// A header menu's closing and focus rules (canvasFocus.ts), applied to its trigger and Radix's close.
 function useMenuFocus(canvasKey: string | null, open: boolean, enabled: boolean, close: () => void, fallbackFocus: () => void) {
   const trigger = useRef<HTMLButtonElement>(null);
   const moved = useRef(false);
   const shown = useRef(canvasKey);
   useEffect(() => {
-    if (open && !enabled) close();
-    if (shown.current === canvasKey) return;
+    const canvasChanged = shown.current !== canvasKey;
     shown.current = canvasKey;
-    if (open) { moved.current = true; close(); }
+    const now = menuCloseNow({ open, enabled, canvasChanged });
+    if (now.moved) moved.current = true;
+    if (now.close) close();
   });
   const onCloseAutoFocus = (event: Event) => {
-    const usable = trigger.current?.isConnected && !trigger.current.disabled;
-    if (!moved.current && usable) return;
-    moved.current = false;
-    event.preventDefault();
     const active = document.activeElement;
-    if (!active || active === document.body || !active.isConnected) fallbackFocus();
+    const to = menuCloseFocus({ moved: moved.current, triggerUsable: !!trigger.current?.isConnected && !trigger.current.disabled,
+      focusLost: !active || active === document.body || !active.isConnected });
+    moved.current = false;
+    if (to === "trigger") return;
+    event.preventDefault();
+    if (to === "fallback") fallbackFocus();
   };
   return { trigger, onCloseAutoFocus };
 }

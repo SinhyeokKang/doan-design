@@ -372,7 +372,7 @@ describe("selection", () => {
       } finally { h.controller.dispose(); }
     });
 
-    it("resolves the id again when a guard answers after a reload", async () => {
+    it("resolves the id again when a guard answers after a new layout of the same document", async () => {
       const h = selectionHarness();
       try {
         let allow: (allowed: boolean) => void = () => {};
