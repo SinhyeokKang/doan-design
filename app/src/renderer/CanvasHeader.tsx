@@ -32,11 +32,13 @@ export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectF
 // while the canvas changes (a link inside it, Back) closes without taking focus back: the move's own focus rule
 // applies. A trigger that turned disabled (the load failed, the canvas left the list) cannot take focus. Either way,
 // focus left on the page falls to the canvas region rather than staying lost.
-function useMenuFocus(canvasKey: string | null, open: boolean, close: () => void, fallbackFocus: () => void) {
+// A menu whose trigger turned disabled stays closed: it must not reopen by itself once the canvas reads again.
+function useMenuFocus(canvasKey: string | null, open: boolean, enabled: boolean, close: () => void, fallbackFocus: () => void) {
   const trigger = useRef<HTMLButtonElement>(null);
   const moved = useRef(false);
   const shown = useRef(canvasKey);
   useEffect(() => {
+    if (open && !enabled) close();
     if (shown.current === canvasKey) return;
     shown.current = canvasKey;
     if (open) { moved.current = true; close(); }
@@ -61,7 +63,7 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
 // (preventing the default, so the canvas selection stays) and returns focus to the trigger.
 function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: FrameDrawerView; label: string; canvasKey: string | null; fallbackFocus(): void; select(index: number, id: string): void }) {
   const [open, setOpen] = useState(false);
-  const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, () => setOpen(false), fallbackFocus);
+  const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, view.enabled, () => setOpen(false), fallbackFocus);
   const [focused, setFocused] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const nodes = useRef(new Map<string, HTMLElement>());
@@ -140,7 +142,7 @@ function FrameDrawer({ view, label, canvasKey, fallbackFocus, select }: { view: 
 
 function ZoomControl({ view, canvasKey, fallbackFocus, command, zoomTo }: { view: ZoomControlView; canvasKey: string | null; fallbackFocus(): void; command(name: ViewCommand): void; zoomTo(scale: number): void }) {
   const [open, setOpen] = useState(false);
-  const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, () => setOpen(false), fallbackFocus);
+  const { trigger, onCloseAutoFocus } = useMenuFocus(canvasKey, open, view.enabled, () => setOpen(false), fallbackFocus);
   return <span className="doan-canvas-zoom">
     <IconTip label={view.zoomOut.tooltip}><button type="button" className="doan-icon-button" aria-label="Zoom out" disabled={view.zoomOut.disabled} onClick={() => command("zoomOut")}><Minus aria-hidden="true" /></button></IconTip>
     <DropdownMenu.Root open={open && view.enabled} onOpenChange={setOpen}>
