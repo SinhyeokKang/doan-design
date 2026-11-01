@@ -1,5 +1,5 @@
 import type { PinGeometry, TargetCandidates } from "../comments/projection";
-import type { AnchorsMessage, CanvasFrameRect, PickedMessage } from "./canvasMessage";
+import type { AnchorsMessage, CanvasFrameRect, PickedMessage, PickStartedMessage } from "./canvasMessage";
 import type { Anchor } from "../main/conversation/types";
 import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
@@ -51,7 +51,9 @@ export interface CanvasState {
 
 // How a pick ended. `frames` is the layout's frame list the anchor was taken from, for the chip's name.
 export type PickResult = { kind: "picked"; anchor: Anchor; frames: readonly CanvasFrameRect[] } | { kind: "cancelled" };
-export type LocateResult = "shown" | "missing";
+// "missing": the canvas answered with no unique match. "timeout": it did not answer in time, which says nothing about
+// the target, so the caller ends the locate without claiming the target is gone.
+export type LocateResult = "shown" | "missing" | "timeout";
 
 // A point's ring on the board, in screen px (design §2 'Chip locate').
 const POINT_RING = 12;
@@ -118,11 +120,14 @@ export class CanvasController {
   // The ids last asked for in this document, and the newest reply for them.
   private anchorTargets: ReadonlySet<string> = new Set();
   private anchors: { generation: number; candidates: ReadonlyMap<string, TargetCandidates>; rects: ReadonlyMap<string, PinGeometry> } | null = null;
-  // Picking (design §4 'Structure'). The pick channel has its own seq, apart from selection and hover, and restarts
-  // with each document like them. `activePick` is the pick-start the current document is answering; null while the
-  // pick waits for a reloaded document's first layout, and after the pick ended.
+  // Picking (design §4 'Structure'). The pick channel has its own seq, apart from selection and hover, and lives as
+  // long as one canvas document (its token, `anchorDocument`): a reload, a same-ID move or the canvas replacing its
+  // own document at the same URL restarts it. `activePick` is the pick-start sent to the current document; null while
+  // the pick waits for a document's first layout, and after the pick ended. `pickAcked`: that document took it.
+  // Until then the iframe gets no pointer input, since a click there would still select.
   private pickSeq = 0;
   private activePick: number | null = null;
+  private pickAcked = false;
   private pickListener: ((result: PickResult) => void) | null = null;
   // A pick that ended in a flow which publishes later: told after that publish, so the listener sees the new state.
   private pickEnded: PickResult | null = null;
@@ -181,7 +186,7 @@ export class CanvasController {
 
   // Chip locate (design §2 'Chip locate'): finds the anchor in the shown document, moves the view to it at the same
   // zoom and highlights it for 1.2 s; a point gets a 12 px ring at its offset in its frame. `settled` hears "missing"
-  // when the canvas has no unique match or does not answer within MEASURE_ANSWER_MS. A newer locate or a new document
+  // when the canvas has no unique match, "timeout" when it does not answer within MEASURE_ANSWER_MS. A newer locate or a new document
   // drops one in flight without an answer. false: no shown document to ask, so locate is unavailable. Never changes
   // the selection, main's selection or the composer.
   locate(anchor: Anchor, settled: (result: LocateResult) => void): boolean {
@@ -196,7 +201,7 @@ export class CanvasController {
     const timer = setTimeout(() => {
       const locating = this.locating;
       this.endLocate();
-      locating?.settled("missing");
+      locating?.settled("timeout");
     }, MEASURE_ANSWER_MS);
     this.locating = { anchor, generation, request: this.anchorRequest, settled, timer };
     return true;
@@ -497,8 +502,7 @@ export class CanvasController {
     if (fresh) this.pendingFrame = null;
     // A new document restarts the pick channel. Opening a canvas ends the pick (dropFrame below); a reload or a
     // same-ID move keeps it for the new document's first layout.
-    this.activePick = null;
-    this.pickSeq = 0;
+    this.resetPickChannel();
     this.resetAnchors();
     // A plain reload that replaces a changed one before its layout keeps Changed.
     this.loadKind = !fresh && this.loading && this.loadKind === "changed" && kind === "reloaded" ? "changed" : kind;
@@ -534,6 +538,7 @@ export class CanvasController {
     }
     this.setFrameWidth(row.width);
     this.setFrameHeight(INITIAL_HEIGHT);
+    this.syncFrameInput();
     this.lastHref = null;
     this.jumpTo = null;
     this.seq = 0;
@@ -606,6 +611,7 @@ export class CanvasController {
     if (message.type === "layout") { this.onLayout(message); return; }
     if (message.type === "anchors") { this.onAnchors(message); return; }
     if (message.type === "picked") { this.receivePicked(message); return; }
+    if (message.type === "pick-started") { this.receivePickStarted(message); return; }
     this.onSelectionMessage(message);
   };
 
@@ -733,6 +739,7 @@ export class CanvasController {
     if (this.state.tool === "pick") return true;
     this.state.tool = "pick";
     this.armPick();
+    this.syncFrameInput();
     this.publish();
     return true;
   }
@@ -743,31 +750,61 @@ export class CanvasController {
     this.publish();
   }
 
+  // Sent once the current document has laid out with its token; the token keeps a command from reaching the
+  // document that replaces this one.
   private armPick(): void {
-    if (this.loading || this.frame === null) return;
+    if (this.loading || this.frame === null || this.anchorDocument === null) return;
     this.pickSeq += 1;
     this.activePick = this.pickSeq;
-    this.post({ type: "pick-start", seq: this.pickSeq });
+    this.pickAcked = false;
+    this.post({ type: "pick-start", document: this.anchorDocument, seq: this.pickSeq });
+    this.syncFrameInput();
+  }
+
+  // A new document starts its pick seq at 0 and is not picking, so it gets no cancel.
+  private resetPickChannel(): void {
+    this.activePick = null;
+    this.pickSeq = 0;
+    this.pickAcked = false;
+    this.syncFrameInput();
+  }
+
+  // The canvas takes pointer input unless a pick waits for the current document to acknowledge its start. Pans and
+  // zooms then land on the board's margin handlers, so they keep working.
+  private syncFrameInput(): void {
+    if (this.frame) this.frame.style.pointerEvents = this.state.tool === "pick" && !this.pickAcked ? "none" : "";
+  }
+
+  private receivePickStarted(message: PickStartedMessage): void {
+    if (this.state.tool !== "pick" || message.pick !== this.activePick || message.document !== this.anchorDocument ||
+      this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
+    this.pickAcked = true;
+    this.syncFrameInput();
   }
 
   // Does not publish: the listener hears the result after the caller's publish.
   private endPick(result: PickResult): void {
     if (this.state.tool !== "pick") return;
     this.state.tool = "select";
-    if (this.activePick !== null) {
+    if (this.activePick !== null && this.anchorDocument !== null) {
       this.pickSeq += 1;
-      this.post({ type: "pick-cancel", seq: this.pickSeq });
+      this.post({ type: "pick-cancel", document: this.anchorDocument, seq: this.pickSeq });
     }
     this.activePick = null;
+    this.pickAcked = false;
+    this.syncFrameInput();
     this.pickEnded = result;
   }
 
-  // A reply counts only for the pick-start in force in this document: one after Esc, a toggle, leaving the canvas or
-  // a newer pick names another seq, or none.
+  // A reply counts only for the pick-start in force in the current document: one after Esc, a toggle, leaving the
+  // canvas or a newer pick names another seq, or none, and one from a replaced document another token.
   private receivePicked(message: PickedMessage): void {
-    if (this.state.tool !== "pick" || this.activePick === null || message.pick !== this.activePick ||
+    if (this.state.tool !== "pick" || this.activePick === null || message.pick !== this.activePick || message.document !== this.anchorDocument ||
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     if ("cancelled" in message) { this.cancelPick(); return; }
+    // The picker's boundary: only frames and what is in them can be chips. A forged or stray reply for anything
+    // outside every frame keeps picking (targetAnchor itself still takes such a selection for Add to conversation).
+    if ("target" in message && message.target.frame === undefined) return;
     const frames = this.state.layout?.frames ?? [];
     const anchor = "target" in message ? targetAnchor(message.target) : pointAnchor(message.point, frames);
     // Outside every frame there is nothing to point at, and the pick goes on.
@@ -828,6 +865,9 @@ export class CanvasController {
   private onLayout(message: LayoutMessage): void {
     const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
+    // Another document, even at the same URL in the same iframe (the canvas's own location.reload()), ends the pick
+    // channel of the one it replaced; the pick itself goes on below unless the page is another canvas.
+    if (documentChanged) this.resetPickChannel();
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;
     const beforeSelection = this.state.selection;
@@ -855,10 +895,8 @@ export class CanvasController {
       this.hoverSeq = 0;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
-      // A link or the canvas's own script left for another page: another canvas, so the pick ends. That page's
-      // script starts its pick seq at 0 and is not picking, so it gets no cancel.
-      this.activePick = null;
-      this.pickSeq = 0;
+      // A link or the canvas's own script left for another page: another canvas, so the pick ends.
+      this.resetPickChannel();
       this.endPick({ kind: "cancelled" });
     }
     const first = this.loading;
@@ -873,7 +911,7 @@ export class CanvasController {
     const linked = this.markShown(message.href);
     if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);
     if (this.state.unlisted) this.endPick({ kind: "cancelled" });
-    else if (first && this.state.tool === "pick") this.armPick();
+    else if (this.state.tool === "pick" && this.activePick === null) this.armPick();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
       this.recordDocument({ ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind });

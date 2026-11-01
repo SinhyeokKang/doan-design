@@ -468,12 +468,12 @@ test("drops a transition-intent message", () => {
 // buzz-canvas-conversation design §4: the canvas answers the app's pick with `picked`, bound to the pick command by
 // its own `pick` seq and its own type, never by the selection seq.
 describe("parseCanvasMessage: picked", () => {
-  const picked = (over: Record<string, unknown>) => ({ type: "picked", href: HREF, pick: 2, ...over });
+  const picked = (over: Record<string, unknown>) => ({ type: "picked", href: HREF, document: "doc", pick: 2, ...over });
 
   test("keeps a picked element or frame, a point in document coordinates, and Esc in the canvas", () => {
-    expect(parseCanvasMessage(picked({ target: target() }))).toEqual({ type: "picked", href: HREF, pick: 2, target: target() });
-    expect(parseCanvasMessage(picked({ point: { x: 12.5, y: -3 } }))).toEqual({ type: "picked", href: HREF, pick: 2, point: { x: 12.5, y: -3 } });
-    expect(parseCanvasMessage(picked({ cancelled: true }))).toEqual({ type: "picked", href: HREF, pick: 2, cancelled: true });
+    expect(parseCanvasMessage(picked({ target: target() }))).toEqual({ type: "picked", href: HREF, document: "doc", pick: 2, target: target() });
+    expect(parseCanvasMessage(picked({ point: { x: 12.5, y: -3 } }))).toEqual({ type: "picked", href: HREF, document: "doc", pick: 2, point: { x: 12.5, y: -3 } });
+    expect(parseCanvasMessage(picked({ cancelled: true }))).toEqual({ type: "picked", href: HREF, document: "doc", pick: 2, cancelled: true });
   });
 
   test("drops a message without exactly one valid answer", () => {
@@ -484,8 +484,15 @@ describe("parseCanvasMessage: picked", () => {
   });
 
   test("drops a message without a pick seq or a valid href", () => {
-    for (const over of [{ pick: -1 }, { pick: 1.5 }, { pick: "2" }, { pick: undefined }, { href: 1 }, { href: "h".repeat(MAX_HREF + 1) }]) {
+    for (const over of [{ pick: -1 }, { pick: 1.5 }, { pick: "2" }, { pick: undefined }, { href: 1 }, { href: "h".repeat(MAX_HREF + 1) },
+      { document: undefined }, { document: "" }, { document: 1 }, { document: "d".repeat(MAX_STRING + 1) }]) {
       expect(parseCanvasMessage(picked({ cancelled: true, ...over }))).toBeNull();
     }
+  });
+
+  test("keeps the canvas's acknowledgement of a pick-start, for its document and pick seq", () => {
+    const started = { type: "pick-started", href: HREF, document: "doc", pick: 2 };
+    expect(parseCanvasMessage({ ...started, extra: 1 })).toEqual(started);
+    for (const over of [{ pick: -1 }, { pick: undefined }, { document: "" }, { document: undefined }, { href: undefined }]) expect(parseCanvasMessage({ ...started, ...over })).toBeNull();
   });
 });

@@ -255,9 +255,12 @@ export function canvasScript(lib: CanvasLib): void {
   let hoverQueued = false;
   let lastHover = JSON.stringify([0, null]);
   // Picking (buzz-canvas-conversation design §4): the app's pick-start and pick-cancel commands carry their own seq,
-  // which neither clicks nor selection or hover commands move. `picking` is the seq of the pick-start in force. A pick
-  // click answers `picked` and leaves `selected`, `anchor` and the hover as they were; picking lasts until the app
-  // cancels it, so a second click before that cancel arrives answers again instead of selecting.
+  // which neither clicks nor selection or hover commands move, and name this document's token, so a command meant for
+  // the document this one replaced changes nothing here. `picking` is the seq of the pick-start in force. A pick-start
+  // is acknowledged with `pick-started`: until then the app keeps clicks away from this document, because a click
+  // here would select. A pick click answers `picked` and leaves `selected`, `anchor` and the hover as they were;
+  // picking lasts until the app cancels it, so a second click before that cancel arrives answers again instead of
+  // selecting.
   let pickSeq = 0;
   let picking: number | null = null;
 
@@ -399,13 +402,18 @@ export function canvasScript(lib: CanvasLib): void {
     anchors.schedule();
   };
 
-  const postPicked = (fields: Record<string, unknown>) => post({ type: "picked", href: location.href, pick: picking, ...fields });
+  const postPicked = (fields: Record<string, unknown>) => post({ type: "picked", href: location.href, document: documentToken, pick: picking, ...fields });
+  const inFrame = (el: Element) => {
+    for (let node: Element | null = el; node !== null; node = node.parentElement) if (node.hasAttribute("data-doan-frame")) return true;
+    return false;
+  };
   // A click picks what it lands on, as the select message would describe it: a frame's own background is the frame, an
   // element (or a nested iframe) is that element. A Shift-click picks the spot instead, whatever is under it: its
   // point goes in the document's coordinates, which the app turns into an offset from the innermost frame there.
-  // The document outside every frame answers nothing, and picking goes on.
+  // Anything outside every frame (the document, a frame's sibling, a wrapper, a nested iframe there) answers nothing,
+  // and picking goes on: an agent can only be pointed at frames and what is in them.
   const pickAt = (target: EventTarget | null, point: { x: number; y: number } | null) => {
-    if (!isElement(target) || !target.isConnected || isRoot(target)) return;
+    if (!isElement(target) || !target.isConnected || isRoot(target) || !inFrame(target)) return;
     if (point !== null) {
       postPicked({ point: { x: point.x + scrollX, y: point.y + scrollY } });
       return;
@@ -514,9 +522,10 @@ export function canvasScript(lib: CanvasLib): void {
     if (typeof next !== "number" || !Number.isInteger(next)) return;
     const { type, frame, doanId, selector, index, id } = data;
     if (type === "pick-start" || type === "pick-cancel") {
-      if (next <= pickSeq) return;
+      if (data.document !== documentToken || next <= pickSeq) return;
       pickSeq = next;
       picking = type === "pick-start" ? next : null;
+      if (picking !== null) post({ type: "pick-started", href: location.href, document: documentToken, pick: picking });
       return;
     }
     if (type === "select-anchor") {

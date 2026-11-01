@@ -130,9 +130,13 @@ export interface AnchorsMessage {
 // command it answers, on the pick channel's own seq that neither clicks nor selection or hover commands move; the
 // message type is the reply marker, so no selection reply can complete a pick. Exactly one of: the element or frame
 // under the click; a Shift-clicked spot, in the canvas document's coordinates; Esc pressed inside the canvas.
-export type PickedMessage = { type: "picked"; href: string; pick: number } & ({ target: SelectTarget } | { point: { x: number; y: number } } | { cancelled: true });
+// `document` is the answering document's token: a pick lives only as long as the document it was started in.
+export type PickedMessage = { type: "picked"; href: string; document: string; pick: number } & ({ target: SelectTarget } | { point: { x: number; y: number } } | { cancelled: true });
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage;
+// The canvas took the pick-start `pick` for its document `document`; until then the app keeps clicks off the canvas.
+export interface PickStartedMessage { type: "pick-started"; href: string; document: string; pick: number }
+
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -185,6 +189,7 @@ export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (!isRecord(data)) return null;
   if (data.type === "anchors") return parseAnchors(data);
   if (data.type === "picked") return parsePicked(data);
+  if (data.type === "pick-started") return parsePickStarted(data);
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
@@ -217,12 +222,18 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
   }
 }
 
+function parsePickStarted(data: Record<string, unknown>): PickStartedMessage | null {
+  const { href, document, pick } = data;
+  if (!within(href, MAX_HREF) || !within(document, MAX_STRING) || !document || !seqValue(pick)) return null;
+  return { type: "pick-started", href, document, pick };
+}
+
 function parsePicked(data: Record<string, unknown>): PickedMessage | null {
-  const { href, pick } = data;
-  if (!within(href, MAX_HREF) || !seqValue(pick)) return null;
+  const { href, document, pick } = data;
+  if (!within(href, MAX_HREF) || !within(document, MAX_STRING) || !document || !seqValue(pick)) return null;
   const answers = ["target", "point", "cancelled"].filter(key => data[key] !== undefined);
   if (answers.length !== 1) return null;
-  const base = { type: "picked" as const, href, pick };
+  const base = { type: "picked" as const, href, document, pick };
   if (data.cancelled !== undefined) return data.cancelled === true ? { ...base, cancelled: true } : null;
   if (data.point !== undefined) {
     if (!isRecord(data.point) || !finite(data.point.x) || !finite(data.point.y)) return null;

@@ -1762,7 +1762,10 @@ describe("picking", () => {
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
   const posted = (h: ReturnType<typeof selectionHarness>, frame = h.current()) => frame.contentWindow.postMessage.mock.calls.map(c => c[0] as Record<string, unknown>);
   const picks = (h: ReturnType<typeof selectionHarness>, frame = h.current()) => posted(h, frame).filter(m => m.type === "pick-start" || m.type === "pick-cancel");
-  const picked = (h: ReturnType<typeof selectionHarness>, over: Record<string, unknown>, frame = h.current()) => h.receive({ type: "picked", pick: 1, ...over }, frame);
+  const picked = (h: ReturnType<typeof selectionHarness>, over: Record<string, unknown>, frame = h.current()) => h.receive({ type: "picked", pick: 1, document: "doc", ...over }, frame);
+  const acked = (h: ReturnType<typeof selectionHarness>, over: Record<string, unknown> = {}) => h.receive({ type: "pick-started", pick: 1, document: "doc", ...over });
+  // Pick commands name the document they are for, so the harness's canvas starts with a document token.
+  const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
   const escape = (h: ReturnType<typeof selectionHarness>, over: Record<string, unknown> = {}) => {
     const { target, ...rest } = over;
     const event = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape", ...rest });
@@ -1779,14 +1782,14 @@ describe("picking", () => {
   };
 
   it("starts with the select tool, and pick publishes the pick tool and sends pick-start on its own seq", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       expect(initialCanvasState().tool).toBe("select");
       expect(h.state().tool).toBe("select");
       h.select(1);
       started(h);
       expect(h.state().tool).toBe("pick");
-      expect(picks(h)).toEqual([{ type: "pick-start", seq: 1 }]);
+      expect(picks(h)).toEqual([{ type: "pick-start", document: "doc", seq: 1 }]);
       // A second pick while picking changes nothing.
       expect(h.controller.pick()).toBe(true);
       expect(picks(h)).toHaveLength(1);
@@ -1794,7 +1797,7 @@ describe("picking", () => {
   });
 
   it("a picked element ends picking and hands its anchor and the frames to the callback, without touching the selection", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       h.select(1);
       const selection = h.state().selection;
@@ -1804,7 +1807,7 @@ describe("picking", () => {
       picked(h, { target: { ...h.target, tag: "button", element: { doanId: "pay", selector: '[data-doan-id="pay"]', html: "<button>" } } });
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "picked", anchor: { frame: { id: "hero" }, element: { doanId: "pay", selector: '[data-doan-id="pay"]', tag: "button" } },
         frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
-      expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", seq: 2 });
+      expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
       expect(h.state()).toMatchObject({ tool: "select", selection });
       expect(h.send).not.toHaveBeenCalled();
       expect(h.inspect).toHaveBeenCalledTimes(1);
@@ -1815,7 +1818,7 @@ describe("picking", () => {
   });
 
   it("a picked frame is a frame anchor", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       const results = started(h);
       picked(h, { target: { rect: h.target.rect, tag: "section", frame: { id: "hero", title: "Hero", implements: "x.tsx" }, frameIndex: 1, path: h.target.path } });
@@ -1824,7 +1827,7 @@ describe("picking", () => {
   });
 
   it("a point in a frame becomes an offset from the innermost frame there; outside every frame picking goes on", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       h.layout({ frames: [{ id: "shipping", title: "Shipping", x: 100, y: 200, width: 400, height: 300 }, { id: "card", x: 150, y: 250, width: 100, height: 100 }] });
       const results = started(h);
@@ -1838,7 +1841,7 @@ describe("picking", () => {
   });
 
   it("drops a reply for another pick, from another document, or one that arrives after the pick was cancelled", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       const results = started(h);
       picked(h, { pick: 0, target: h.target });
@@ -1846,13 +1849,13 @@ describe("picking", () => {
       expect(results).not.toHaveBeenCalled();
       h.controller.cancelPick();
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
-      expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", seq: 2 });
+      expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
       expect(h.state().tool).toBe("select");
       picked(h, { target: h.target });
       expect(results).toHaveBeenCalledTimes(1);
       // A new pick takes a newer seq, and the earlier pick's late reply cannot complete it.
       h.controller.pick();
-      expect(picks(h).at(-1)).toEqual({ type: "pick-start", seq: 3 });
+      expect(picks(h).at(-1)).toEqual({ type: "pick-start", document: "doc", seq: 3 });
       picked(h, { target: h.target });
       expect(results).toHaveBeenCalledTimes(1);
       picked(h, { pick: 3, target: h.target });
@@ -1861,7 +1864,7 @@ describe("picking", () => {
   });
 
   it("Esc while picking cancels only the pick, also from an editable target, and keeps the selection", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       h.select(1);
       const results = started(h);
@@ -1878,7 +1881,7 @@ describe("picking", () => {
   });
 
   it("an Esc another control already handled, or one during IME composition, does not cancel", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       started(h);
       const handled = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
@@ -1891,7 +1894,7 @@ describe("picking", () => {
   });
 
   it("Esc in the canvas cancels the pick, whether the canvas answered cancelled or, before its pick-start arrived, sent an Escape key", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       h.select(1);
       const results = started(h);
@@ -1904,7 +1907,7 @@ describe("picking", () => {
   });
 
   it("a click on the board margin while picking keeps picking and the selection", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       h.select(1);
       started(h);
@@ -1914,7 +1917,7 @@ describe("picking", () => {
   });
 
   it("keeps the selection and hover seqs apart from the pick seq", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       h.select(1);
       started(h);
@@ -1932,7 +1935,7 @@ describe("picking", () => {
   });
 
   it("keeps picking across a reload and applies it to the new document after its first layout", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       const results = started(h);
       const old = h.current();
@@ -1941,30 +1944,30 @@ describe("picking", () => {
       expect(picks(h)).toEqual([]);
       picked(h, { target: h.target }, old);
       expect(results).not.toHaveBeenCalled();
-      h.layout();
-      expect(picks(h)).toEqual([{ type: "pick-start", seq: 1 }]);
-      picked(h, { target: h.target });
+      h.layout({ document: "doc2" });
+      expect(picks(h)).toEqual([{ type: "pick-start", document: "doc2", seq: 1 }]);
+      picked(h, { target: h.target, document: "doc2" });
       expect(results).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: "picked" }));
     } finally { h.controller.dispose(); }
   });
 
   it("keeps picking when the canvas moves with the same id", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       const results = started(h);
       const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [moved, h.other] }]);
       expect(h.state().tool).toBe("pick");
-      h.layout({ href: moved.url });
-      expect(picks(h)).toEqual([{ type: "pick-start", seq: 1 }]);
-      picked(h, { target: h.target, href: moved.url });
+      h.layout({ href: moved.url, document: "doc2" });
+      expect(picks(h)).toEqual([{ type: "pick-start", document: "doc2", seq: 1 }]);
+      picked(h, { target: h.target, href: moved.url, document: "doc2" });
       expect(results).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: "picked" }));
     } finally { h.controller.dispose(); }
   });
 
   it("cancels when a reload never lays out, or lays out a page the list doesn't have", () => {
     vi.useFakeTimers();
-    const h = selectionHarness();
+    const h = harness();
     try {
       const results = started(h);
       h.controller.command("reload");
@@ -1972,17 +1975,17 @@ describe("picking", () => {
       expect(h.state()).toMatchObject({ status: "failed", tool: "select" });
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
       h.controller.command("reload");
-      h.layout();
+      h.layout({ document: "doc2" });
       expect(h.controller.pick()).toBe(true);
       h.controller.command("reload");
-      h.layout({ href: "http://localhost/t/k/f/.doan/canvases/unlisted.html" });
+      h.layout({ href: "http://localhost/t/k/f/.doan/canvases/unlisted.html", document: "doc3" });
       expect(h.state()).toMatchObject({ unlisted: true, tool: "select" });
       expect(results).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
   });
 
   it("cancels when another canvas id takes the same path", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       const results = started(h);
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [{ ...h.row, id: "z" }, h.other] }]);
@@ -1992,25 +1995,25 @@ describe("picking", () => {
   });
 
   it("cancels on leaving the canvas: another canvas, an in-canvas link, the Overview or another screen", () => {
-    const h = selectionHarness();
+    const h = harness();
     try {
       const results = started(h);
       h.controller.openCanvas("/repo", h.other);
       expect(h.state().tool).toBe("select");
-      h.layout({ href: h.other.url });
+      h.layout({ href: h.other.url, document: "b" });
       expect(h.controller.pick()).toBe(true);
       h.current().contentWindow.postMessage.mockClear();
-      h.layout({ href: h.row.url });
+      h.layout({ href: h.row.url, document: "linked" });
       expect(h.state().tool).toBe("select");
       // The linked page's script starts its pick seq again at 0: it gets no cancel, and the next pick starts at 1.
       expect(h.controller.pick()).toBe(true);
-      expect(picks(h)).toEqual([{ type: "pick-start", seq: 1 }]);
+      expect(picks(h)).toEqual([{ type: "pick-start", document: "linked", seq: 1 }]);
       h.controller.cancelPick();
       expect(h.controller.pick()).toBe(true);
       h.controller.showOverview();
       expect(h.state().tool).toBe("select");
       h.controller.openCanvas("/repo", h.row);
-      h.layout();
+      h.layout({ document: "again" });
       expect(h.controller.pick()).toBe(true);
       h.controller.setWorkspaceActive(false);
       expect(h.state().tool).toBe("select");
@@ -2021,7 +2024,7 @@ describe("picking", () => {
 
   it("does not start without a shown canvas", () => {
     vi.useFakeTimers();
-    const h = selectionHarness();
+    const h = harness();
     try {
       h.controller.command("reload");
       vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
@@ -2033,7 +2036,7 @@ describe("picking", () => {
   });
 
   it("does not call back after disposal or once the callback is removed", () => {
-    const h = selectionHarness();
+    const h = harness();
     const results = vi.fn();
     const off = h.controller.onPicked(results);
     h.controller.pick();
@@ -2044,6 +2047,91 @@ describe("picking", () => {
     h.controller.pick();
     h.controller.dispose();
     expect(results).not.toHaveBeenCalled();
+  });
+  it("a picked element or frame outside every frame is not a chip, and picking goes on", () => {
+    const h = harness();
+    try {
+      const results = started(h);
+      const { frame: _frame, frameIndex: _index, ...loose } = h.target;
+      picked(h, { target: loose });
+      expect(results).not.toHaveBeenCalled();
+      expect(h.state().tool).toBe("pick");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps clicks off the canvas until it acknowledges the pick-start, so a click in between selects nothing", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      const selection = h.state().selection;
+      h.send.mockClear();
+      started(h);
+      expect(h.current().style.pointerEvents).toBe("none");
+      // A click in between lands on the board instead of the canvas: picking goes on and nothing is selected.
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0, ctrlKey: false, altKey: false }));
+      expect(h.state()).toMatchObject({ tool: "pick", selection });
+      expect(h.send).not.toHaveBeenCalled();
+      expect(posted(h).some(m => m.type === "clear" || m.type === "select-anchor")).toBe(false);
+      // An acknowledgement for another pick or document does not open the canvas.
+      acked(h, { pick: 0 });
+      acked(h, { document: "other" });
+      expect(h.current().style.pointerEvents).toBe("none");
+      acked(h);
+      expect(h.current().style.pointerEvents).toBe("");
+      h.controller.cancelPick();
+      expect(h.current().style.pointerEvents).toBe("");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a cancel before the canvas acknowledged the start opens the canvas to clicks again", () => {
+    const h = harness();
+    try {
+      started(h);
+      h.controller.cancelPick();
+      expect(h.current().style.pointerEvents).toBe("");
+      expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
+      // The acknowledgement that arrives late keeps nothing open or closed.
+      acked(h);
+      expect(h.current().style.pointerEvents).toBe("");
+      expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a reloaded canvas stays closed to clicks until its own document acknowledges the new pick-start", () => {
+    const h = harness();
+    try {
+      started(h);
+      acked(h);
+      h.controller.command("reload");
+      expect(h.current().style.pointerEvents).toBe("none");
+      h.layout({ document: "doc2" });
+      expect(h.current().style.pointerEvents).toBe("none");
+      acked(h, { document: "doc2" });
+      expect(h.current().style.pointerEvents).toBe("");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("re-arms on a new document at the same URL in the same iframe and drops the old document's late replies", () => {
+    const h = harness();
+    try {
+      const results = started(h);
+      acked(h);
+      const frame = h.current();
+      // The canvas's own location.reload(): same iframe, same href, a new document token.
+      h.layout({ document: "doc2" });
+      expect(h.current()).toBe(frame);
+      expect(h.state().tool).toBe("pick");
+      expect(picks(h).at(-1)).toEqual({ type: "pick-start", document: "doc2", seq: 1 });
+      expect(h.current().style.pointerEvents).toBe("none");
+      picked(h, { target: h.target });
+      acked(h);
+      expect(results).not.toHaveBeenCalled();
+      expect(h.current().style.pointerEvents).toBe("none");
+      acked(h, { document: "doc2" });
+      picked(h, { target: h.target, document: "doc2" });
+      expect(results).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: "picked" }));
+      expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc2", seq: 2 });
+    } finally { h.controller.dispose(); }
   });
 });
 
@@ -2128,7 +2216,7 @@ describe("chip locate", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("reports a target that is gone, ambiguous, or never answered as missing and leaves the view", () => {
+  it("reports a target that is gone or ambiguous as missing, and no answer as a timeout, and leaves the view", () => {
     vi.useFakeTimers();
     const h = loaded();
     try {
@@ -2145,7 +2233,8 @@ describe("chip locate", () => {
       expect(settled).toHaveBeenCalledTimes(2);
       vi.advanceTimersByTime(1);
       expect(settled).toHaveBeenCalledTimes(3);
-      expect(settled).toHaveBeenLastCalledWith("missing");
+      // No answer is not proof the target is gone: it is reported apart from a real empty or duplicate reply.
+      expect(settled).toHaveBeenLastCalledWith("timeout");
       expect(h.controller.currentView()).toEqual(before);
       expect(h.markOf("jump-highlight")).toBeUndefined();
     } finally { h.controller.dispose(); }
