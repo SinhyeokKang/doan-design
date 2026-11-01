@@ -123,7 +123,7 @@ body{padding:var(--space-8);width:1440px;background:var(--surface-inset);color:v
    doan uses its accent for the edge instead of ego's blue; the dots are malmoi's KV dot field in translucent white. The edge follows the user's ego screenshot (2026-11-01): a soft band strongest at the very edge and gone within about 15px (half of the first try, 2026-11-01 user). The gradient is the inner shadow and breathes; the dot field is below. Nothing here takes pointer input. */
 .agent-glow{position:absolute;inset:0;z-index:2;pointer-events:none;box-shadow:inset 0 0 var(--space-2) color-mix(in srgb,var(--affordance-accent) 70%,transparent),inset 0 0 var(--space-6) color-mix(in srgb,var(--affordance-accent) 35%,transparent);animation:agent-glow-breathe 8s var(--ease-state) infinite}
 /* The dot field: malmoi's DotField (components/signin/dot-field.tsx and lib/signin/dot-field.ts at 6dcdd575), ported to
-   the script at the end of this draft. Translucent white dots, a 12px grid (malmoi 16), radius 1.5 to 2.5 (malmoi 2 to 3.5) and alpha 0.08 to 0.3 near a
+   the script at the end of this draft. Translucent white dots, a 12px grid (malmoi 16), radius 1.5 to 2 (malmoi 2 to 3.5) and alpha 0.08 to 0.3 near a
    virtual cursor that sweeps the board in a serpentine (320px/s, 5 rows, 180px radius); it ignores the pointer. */
 .agent-dots{position:absolute;inset:0;width:100%;height:100%;color:var(--text-on-prominent);animation:none}
 @keyframes agent-glow-breathe{0%,100%{opacity:.55}50%{opacity:1}}
@@ -263,7 +263,7 @@ button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2
 /* Draft-only animation of the agent dot field: a port of malmoi's DotField (lib/signin/dot-field.ts, 6dcdd575) so the
    motion can be reviewed. The app implements it as its own component; this script is not app code. */
 (() => {
-  const GAP = 12, BASE_R = 1.5, MAX_R = 2.5, BASE_A = 0.08, MAX_A = 0.3, RADIUS = 180, SPEED = 320, ROWS = 5;
+  const GAP = 12, BASE_R = 1.5, MAX_R = 2, BASE_A = 0.08, MAX_A = 0.3, RADIUS = 180, SPEED = 320, ROWS = 5;
   const scale = (d, base, max) => d >= RADIUS ? base : base + (max - base) * (1 - d / RADIUS);
   const leg = (t, w, row, over) => { const span = w + 2 * over; const p = Math.min(1, (t / 1000) * SPEED / span); return row % 2 === 0 ? p * span - over : span - p * span - over; };
   const cursor = (elapsed, w, h, over) => {
