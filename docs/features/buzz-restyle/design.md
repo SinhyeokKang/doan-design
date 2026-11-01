@@ -111,14 +111,15 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 | DESIGN.md 절 | 담당 |
 |---|---|
 | App shell — initial app-ui implementation (2026-10-22) | buzz-shell |
-| Select and inspect (2026-10-23) | 캔버스 부분 buzz-canvas, 인스펙터 부분 buzz-inspector, 표시 삭제 buzz-inspector |
+| Canvas area and right panel | buzz-canvas에서 완료(측정값을 바꾸고 "buzz-ds 이전" 표시 삭제) |
+| Select and inspect (2026-10-23) | 캔버스 오버레이 부분은 buzz-canvas에서 완료, 인스펙터 부분과 표시 삭제는 buzz-inspector |
 | Comments (2026-10-23) + comments-readability update | buzz-canvas-conversation (코멘트 UI를 걷어낼 때 절을 정리한다) |
 | Onboarding (2026-10-24) + app-setup update | buzz-onboarding |
 | Projects home (2026-10-25) + Cfix review round | buzz-home |
 | Design navigation (2026-10-25) + Final review follow-up | 트리/LNB는 buzz-shell에서 완료, Overview 본문과 표시 삭제는 buzz-project에서 완료(새 'Project Overview' 절), Quick Open buzz-search |
 | Settings and Home setup (2026-10-25) | Settings buzz-settings, Home 설정 부분 buzz-home, 표시 삭제 buzz-settings |
 | UX audit recovery update (2026-10-25) | buzz-ds (툴팁·포커스 등 공용 수정) |
-| Revision continuity (2026-10-26) | buzz-canvas |
+| Revision continuity (2026-10-26) | buzz-canvas-conversation (변경 표시는 buzz-canvas가 없앴다) |
 | Comments Review (2026-10-26) | buzz-canvas-conversation (같음) |
 | Hand off dialog (2026-10-26) | buzz-canvas-conversation (같음) |
 | Feedback panel (2026-10-26) | buzz-project에서 완료(절 삭제, ID 변경 알림 행은 Comments 절로 옮김) |
