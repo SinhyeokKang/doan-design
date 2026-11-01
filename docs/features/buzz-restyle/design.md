@@ -132,12 +132,7 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 
 - AppShell: 구현·main 병합 완료(PR #30, `c625057`). 과거 헤더 배치·Home 포함 여부 질문과 점 격자/불투명 LNB 제안은 다시 적용하지 않는다. [DESIGN의 최종 완료 기록](../../DESIGN.md#app-shell)을 따른다.
 - 온보딩: Buzz 원본 `OnboardingScreen.tsx`·`IdentitySetup.module.css` 확인 근거와 채택/조정 내용은 buzz-onboarding이 [DESIGN](../../DESIGN.md)에 남겼다. 기존 네 단계·Close/Escape 유지 제안은 새 필수 설정 흐름이 대체한다.
-
-### 조사 메모: 캔버스 영역 (`buzz-canvas`용)
-
-- Buzz는 점 격자를 셸 바닥에만 두고, 읽기 패널은 불투명하게 둔다. doan의 캔버스 보드(`.area`, 지금 `--board-bg` + 16px 점)를 메인 `Panel` 안 불투명 보드로 둘지, 구현된 반투명 셸 배경이 비치는 영역으로 둘지는 `buzz-canvas`에서 묻는다.
-- 선택·hover 표시는 무채색이 된다. 에이전트가 그린 캔버스는 어떤 색이든 될 수 있으므로, 선택 표시와 요소 피커의 선택 모드 표시는 무채색·액센트와 별개로 바깥 halo나 외곽선을 갖추고, 어두운·밝은·violet이 많은 픽스처 캔버스 위에서 확인한다.
-- `color-scheme`을 dark에서 light로 바꾸면 다른 `color-scheme`을 가진 캔버스 iframe의 바탕 처리가 달라질 수 있다(POSTMORTEM 2026-10-25 예방 항목). iframe 미디어 선호와 computed `color-scheme`을 따로 확인한다.
+- 캔버스 영역: buzz-canvas가 보드를 캔버스 패널(흰 헤더 + 회색 보드) 안에 두기로 정했고, 무채색 선택·hover 표시를 어두운·밝은·violet 픽스처에서 확인했으며, iframe `color-scheme`을 따로 확인했다. 결과는 [DESIGN 'Canvas area and right panel'](../../DESIGN.md)에 있다. 요소 피커의 선택 모드 표시는 buzz-canvas-conversation 몫이다.
 
 ## 금지 표현 (모든 자식 공통, 2026-10-26 user)
 
