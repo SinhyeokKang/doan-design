@@ -4,7 +4,7 @@
 
 ## P. PoC
 
-- [ ] P1. Codex 조회 시간 하한: `.scratch/account-identity/codex-account-read.mjs`에 시간 측정을 더해, app-server 시작부터 `account/read` 응답까지를 격리된 빈 `CODEX_HOME`으로 5회 잰다(로그인 상태가 아니어서 하한이다). 서명된 프로필의 측정은 R1에서 한다.
+- [x] P1. Codex 조회 시간 하한: `.scratch/account-identity/codex-account-read.mjs`에 시간 측정을 더해, app-server 시작부터 `account/read` 응답까지를 격리된 빈 `CODEX_HOME`으로 5회 잰다(로그인 상태가 아니어서 하한이다). 서명된 프로필의 측정은 R1에서 한다.
   - 판정: 최대가 2.5초 미만이면 5초 예산을 유지한다. 넘으면 design §2 '시간 예산'을 다시 정하고 코디네이터에게 알린다.
   - 검증: command undecided — needs user confirmation(`node .scratch/account-identity/codex-account-read.mjs <temp CODEX_HOME>`). 결과(중앙값·최대, 날짜, 버전)를 design §1에 적는다.
 

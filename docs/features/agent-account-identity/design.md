@@ -27,7 +27,7 @@ account/rateLimits/read keys [ordinaryUsageAllowed, rateLimits, rateLimitsByLimi
 - macOS 대화상자는 뜨지 않았고 `auth.json`도 생기지 않았다.
 - app-server가 프로필에 만든 파일: `goals_1.sqlite*`, `installation_id`, `logs_2.sqlite`, `memories_1.sqlite*`, `models_cache.json`, `plugins/{.remote-plugin-install-staging,cache}`, `queue_1.sqlite*`, `skills/.system`, `state_5.sqlite*`. Doan의 Codex 대화 실행도 같은 파일을 만든다. `models_cache.json`이 생긴 것으로 보아 app-server는 시작할 때 네트워크를 쓴다.
 - 빈 `CODEX_HOME`에서는 `account: null`, `workspaceRouting: null`이었다.
-- 걸린 시간은 재지 않았다(tasks P1).
+- 조회 시간 하한(P1, 2026-11-01 KST, `codex-cli 0.164.0`, 호스트 `gangsinhyeog-ui-MacBookPro-3.local`): 매회 새로 만든 빈 임시 `CODEX_HOME`에서 프로세스 시작부터 `account/read` 응답까지 5회 측정했다. 모두 종료 코드 0과 `account: null`을 반환했고, 중앙값은 100.252ms, 최대는 102.668ms였다. 최대가 2.5초 미만이므로 5초 예산을 유지한다. 로그인된 프로필의 조회 시간은 R1에서 확인한다.
 
 ### Antigravity ACP 서버 1.3.0 (`<userData>/agent-runtimes/antigravity-acp/1.3.0/agy_acp_server.par`)
 
