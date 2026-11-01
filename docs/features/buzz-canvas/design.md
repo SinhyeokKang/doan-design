@@ -152,6 +152,7 @@
 - 툴팁: "Select", "Zoom out ⌘−", "Zoom in ⌘=", "Hide conversation", "Show conversation"
 - 손잡이 접근 이름: "Resize conversation panel"
 - 작업 안내: "<Provider> is working", "<Provider> needs your answer", "Stop", "Stopping…"
+- 멈추기 실패 토스트: "Couldn’t stop <Provider>. Try again." (Stop이 다시 활성이 된다. 앱에 같은 상황의 문구가 없어 BR5에서 clarify 프리셋을 읽고 정했다)
 - 대화 패널 빈 본문: "Conversations about this canvas will show here."
 - 출하된 상태 문구(로드 실패, 폭 없음, 목록에 없는 페이지, 프로젝트 문제, 선택 잃음)는 그대로 쓴다.
 
