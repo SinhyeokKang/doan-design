@@ -244,11 +244,14 @@ export class CanvasRun {
   private newView(s: CanvasState, listError: boolean): CanvasView {
     const current = this.listed(s.target.root).find(c => c.state === "current" && c.canvas !== undefined && sameTarget(c.canvas, s.target.canvas));
     const resume = s.resume;
-    const start = newConversationMode(resume, { ...(s.choice ? { choice: s.choice } : {}), ...(current ? { current } : {}) });
-    const mode: DockedMode = start.mode === "resume" && start.offer
+    const mode = newConversationMode(resume, { ...(s.choice ? { choice: s.choice } : {}), ...(current ? { current } : {}) });
+    // Until the first list read answers, nobody knows whether the canvas's current conversation still works, and a new
+    // conversation would end its turn: Send waits as for the terminal session. A failed read lets a new one start.
+    const start = this.host.list(s.target.root) === "loading" ? { ...mode, pending: true } : mode;
+    const docked: DockedMode = start.mode === "resume" && start.offer
       ? { kind: "resume", root: s.target.root, canvas: s.target.canvas, provider: start.offer as Runtime }
       : { kind: "new", root: s.target.root, canvas: s.target.canvas };
-    return { kind: "new", listError, notice: s.notice, start, resume, mode };
+    return { kind: "new", listError, notice: s.notice, start, resume, mode: docked };
   }
   // Called once when the new conversation state first shows on a canvas; reused until the canvas changes. Send waits
   // for the answer so a choice that appears late never changes the mode of a send already made (design §2).

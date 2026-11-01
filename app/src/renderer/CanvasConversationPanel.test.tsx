@@ -119,3 +119,30 @@ test("a queued message and the title before the list names the conversation show
   await flush();
   expect(canvasConversationTitle(run, []).title).toBe("Make Cart quieter");
 });
+
+// Re-review BR2 R4: ⌘N while the first list read is still loading, with the terminal session answering first, must
+// not open Send before the list says whether the canvas's current conversation runs.
+test("New while the list loads holds Send after the session answers, until the list shows the running current", async () => {
+  resume = { available: false, reason: "no_record" };
+  const lists = new Map<string, ListView>([[ROOT, "loading"]]);
+  const store = new ConversationStore({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: root => lists.get(root) ?? "loading", readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  const support = new DockedSupport(() => {});
+  support.setAuth({ revision: 1, providers: [connected("claude")] });
+  run.show({ root: ROOT, canvas: CANVAS });
+  store.setDrafts(drafts => new Map(drafts).set(canvasScope({ root: ROOT, canvas: CANVAS }), { segments: textSegments("Fix the totals"), preset: null, attachments: [], shape: "capsule" }));
+  run.select(null);
+  await flush();
+  const draw = () => renderToStaticMarkup(<TooltipProvider>{<CanvasConversation run={run} support={support} target={{ root: ROOT, canvas: CANVAS }} canvasName="checkout" project="acme-web" entry={ENTRY}
+    list={lists.get(ROOT)!} seen={new Set()} prefs={null} defaults={null} now={Date.parse("2026-11-01T15:00:00")} blocked={null} frames={[]} locateDisabled={false} arrival={null}
+    onArrived={vi.fn()} onLocate={vi.fn()} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} /> as ReactElement}</TooltipProvider>);
+  expect(run.view()).toMatchObject({ kind: "new" });
+  expect(draw()).toMatch(/aria-label="Send"[^>]*disabled=""/);
+  lists.set(ROOT, [summary("now", { phase: "running", working: true })]);
+  run.sync();
+  // The canvas's current conversation shows by default; New again keeps the draft and shows its busy line.
+  run.select(null);
+  const out = draw();
+  expect(out).toMatch(/aria-label="Send"[^>]*disabled=""/);
+  expect(out).toContain("<span>The current conversation on this canvas is still running.</span>");
+});

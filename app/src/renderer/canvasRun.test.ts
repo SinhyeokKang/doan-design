@@ -334,3 +334,23 @@ test("what shows is identified by canvas, conversation and revision", () => {
   h.run.select(null); h.run.select(A);
   expect(h.run.stillShowing(shown!)).toBe(false);
 });
+
+// Re-review BR2 R4: New chosen while the first list read loads stays held after the session answers.
+test("New chosen while the list loads holds Send until the list answers; a failed read lets a new one start", async () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.run.select(null);
+  resume[0]!.resolve({ available: false, reason: "no_record" });
+  await flush();
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: true, offer: null } });
+  h.answer([summary(A, { phase: "running", working: true })]);
+  h.run.select(null);
+  expect(h.run.view()).toMatchObject({ kind: "new", start: { pending: false, busy: { kind: "restore", open: A } } });
+  const failed = harness();
+  failed.run.show(checkout);
+  failed.run.select(null);
+  resume[1]!.resolve({ available: false, reason: "no_record" });
+  failed.answer("error");
+  await flush();
+  expect(failed.run.view()).toMatchObject({ kind: "new", listError: true, start: { pending: false } });
+});
