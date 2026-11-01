@@ -57,3 +57,17 @@ D1은 이미 끝났다(초안 확정).
 - BT 수정 1 `9cd3f75a`. 지휘자 판단(문구 승인): 터미널 세션 거절 목록(handoff 'Fix round 1' 3번)과 `attachment_limit` notice "Only 10 files can be attached to a message. Remove some, then send again."를 승인했다. 근거: 출하된 "Only 10 files can be attached."·docked 로그인 문구와 같고, clarify대로 코드가 말하는 것만 쓴다. 재리뷰: Codex astra `ctx_f3344cfd6be5`(앞 리뷰 터미널이 stale이라 새로 띄움).
 - BR1에 넘길 것: `dockedAvailability`가 segments를 넘기게 바꾼다. BR2에 넘길 것: `overviewRun.takeDraft`가 돌려받은 마커 번호를 다시 매기지 않는다(fromMessage/toMessage로 합친다). `attachment_limit`은 반환된 초안의 이유로만 온다.
 - BT 재리뷰 통과(🔴 0, 추가 지적 없음).
+- 네이티브 IME 확인(사용자, 진행 중): 3번 — 조합 중 첫 Enter에 조합 확정과 전송이 함께 일어나고, 보낸 텍스트("안녕")는 온전하다. PoC의 Enter 처리는 출하된 textarea와 같다(`isComposing`·keyCode 229). 출하된 입력창과의 동작 비교는 미검증으로 남기고, R1 이후 실제 앱(V2)이나 PRODUCT §6에서 다룬다. 4번 — box에서 줄을 지워도 capsule로 돌아가지 않는 것은 출하 규칙(비었을 때만 capsule)이다.
+- BX 완료 `d25ea9a0`(84 파일, −11401). 지휘자 판단: 이번 제거로 생긴 고아(`authorizeCanvas`, `stableDiskHash`·`DocumentBindings.current()`, `--border-pin`·`--halo-pin`, `view.ts` `commentsError`·`open`·`resolved`)는 다른 사용처가 없으면 지운다. 근거: AGENTS '내 변경이 만든 고아만 지운다'. 지휘자 판단(검증을 확실히): BX에 Quit·Remove·Go 메뉴·캔버스 클릭 경로의 짧은 `/runtime-test` probe를 더했다. 후속 `ctx_6fec4aa57d7c`, 리뷰 Codex astra `ctx_80992de088da`(범위 `...d25ea9a0`).
+- 네이티브 IME 6번(사용자): ⌥⌫는 칩만 지운다(기대대로). ⌘⌫도 칩만 지웠다(기대: 줄 머리까지, 칩 앞 글자 유무 확인 중).
+- 지휘자 판단(BX-2 질문): `DocumentBindings` 연쇄(current(), 인스펙터 문서 관찰, `X-Doan-Response`)는 남기고, 읽는 곳이 전혀 없는 것만 지운다. 근거: design §1 남김·지움 표(2026-11-01 user)가 document bindings를 남긴다. 연쇄를 지우면 캔버스 로드 타이밍(iframe 시작 일시정지)도 바뀌어 범위 밖이다. 읽는 곳이 없어진 `current()`는 사용자에게 따로 묻는다.
+- 지휘자 판단(BX-2 질문 2): `CanvasRow.open`·`resolved`·`commentsError`를 지금 모두 지운다(38 파일 기계적 수정). BX는 먼저 BT가 들어간 통합 브랜치로 rebase한다. 근거: BR1·BR2 시작 전이라 겹침이 없고, 뒤 배치가 죽은 필드를 물려받지 않는다.
+- 네이티브 IME 6번 결과(사용자): "한글 + 칩" 줄에서 칩 바로 뒤 ⌘⌫가 칩만 지운다 — 실패. 기대는 macOS 규칙대로 줄 머리까지(앞 한글 포함) 지우기다. CDP probe의 P1-4는 이 경우를 놓쳤다. R1 필수 수정: `deleteSoftLineBackward`·`deleteHardLineBackward`(와 ⌘⌦ 대응)는 Chromium 범위에 맡기지 않고 필드가 줄 머리·끝을 직접 계산해 칩과 글자를 함께 지운다. R1 probe에 "글자 + 칩 + 커서" ⌘⌫ 경우를 더한다.
+- BX 리뷰(Codex astra) 통과: 🔴·🟡 0, 오래된 주석 1건(🟢). 후속 커밋은 끝난 뒤 따로 리뷰한다.
+- 네이티브 6번 나머지(사용자): Shift+←로 칩이 한 번에 선택된다 — 통과. ⌥⌫ 칩만 지움 — 통과.
+- 네이티브 7번(사용자): Doan 필드 사이 복사·붙여넣기는 칩으로, 외부 필드에는 텍스트로 들어간다 — 통과.
+- 네이티브 5번(사용자): Undo·Redo 정상. R1의 메뉴 Undo·Redo 연결(BP 발견 1)은 probe에서 재현된 경우를 막기 위해 그대로 둔다.
+- 네이티브 6번 ⌘⌫ 정밀화(사용자): "한글 + 칩 + 한글|"은 줄 전체를 지운다(통과). "한글 + 칩 + 한글 + 칩|"처럼 커서가 칩 바로 뒤면 마지막 칩만 지운다(실패). R1 필수 수정의 대상은 커서가 칩 바로 뒤에 있는 ⌘⌫(와 칩 바로 앞의 ⌘⌦)다.
+- 결정(2026-11-01 user): 조합 중 Enter가 조합 확정과 함께 전송되는 지금 동작을 그대로 둔다. Z1에서 PRODUCT §5 Home의 "Enter during IME composition never sends"를 실제 동작(조합 중인 글자를 확정하고 보낸다, 글자는 빠지거나 겹치지 않는다)으로 고친다.
+- 네이티브 1번(사용자): 조합 중 칩 삽입 대기와 확정 뒤 삽입 — 통과.
+- 네이티브 2번(사용자): 칩 사이에 한글이 들어간다 — 통과. 네이티브 IME 확인 끝: 실패는 6번의 칩 바로 뒤 ⌘⌫ 하나(R1 필수 수정), 3번 Enter 동작은 사용자 결정으로 유지.
