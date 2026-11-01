@@ -42,6 +42,9 @@
 - [ ] R3. 패널 여는 규칙과 진입점: Overview 행, 알림·토스트 Open, 승격 알림 Open, 사이드바 슬롯이 요청된 대화와 함께 캔버스를 열고 패널을 편다. 캔버스 페이지에서 임시 상태줄을 그리지 않는다(문제 워크스페이스 화면은 그대로). 접힌 패널의 열기 버튼에 새 소식 점과 접근 이름.
   - 검증: `npm --prefix app test`.
 
+- [ ] R3a. 공용 선택 카드(design §0 '선택 카드 라디오'): `ProjectChoice`(`Onboarding.tsx`)와 `styles.css`의 `ob-choice`에서 오른쪽 체크를 빼고 왼쪽 위 라디오로 바꾼다. 온보딩·Add Projects·캔버스 세션 이어 가기가 모두 같은 카드를 쓴다. `Onboarding.test.tsx`의 마크업·CSS 기대값과 docs/DESIGN.md 'Choice cards'를 함께 고친다.
+  - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
+
 ── commit: `feat(renderer): canvas conversation panel` ──
 
 - [ ] R4. 입력창 피커와 고르기 상태(캔버스 표시, 안내, Esc, 점 앵커), 도구모음 Add to conversation, 칩 locate와 "Not in the current canvas". 캔버스 로드 문제 중 비활성 이유.

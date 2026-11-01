@@ -22,7 +22,9 @@
 | `open-badge` | 접힌 패널의 Show conversation에 새 소식 점(답 대기) |
 | `narrow` | 960×600, 패널 최소 폭 320(`max(320px, 28dvw)`, `buzz-canvas` 폭 규칙). 칩이 들어가면 입력창이 box가 되어 글자와 칩이 도구 위에서 줄바꿈된다 |
 
-재사용(2026-11-01 user 검수): 새로 그리지 않고 출하 단위를 쓴다. 대화 드롭다운 = Overview `conv-menu`·`conv-item`·`cv-head`. 스레드·입력창·추천 칩(`ov-suggestions`·`suggestion`, quiet 버튼)·알림·표시 = Overview·buzz-conversation. 세션 이어 가기 선택 = 온보딩의 선택 카드(`ob-choice-list`·`doan-panel ob-choice`, 숨긴 radio와 체크 아이콘). 시작·전송 거절 = 입력창 아래 `composer-reason docked-reason`. 빈 본문 = Overview 오른쪽 패널의 `rp-empty`. 새로 만드는 단위는 인라인 앵커 칩(공통 결정 2), 고르기 안내(캔버스 작업 안내 캡슐 재사용), 열기 버튼 새 소식 점(사이드바 슬롯의 안 본 점과 같은 크기·색)뿐이다.
+재사용(2026-11-01 user 검수): 새로 그리지 않고 출하 단위를 쓴다. 대화 드롭다운 = Overview `conv-menu`·`conv-item`·`cv-head`. 스레드·입력창·추천 칩(`ov-suggestions`·`suggestion`, quiet 버튼)·알림·표시 = Overview·buzz-conversation. 세션 이어 가기 선택 = 온보딩의 선택 카드(`ob-choice-list`·`doan-panel ob-choice`, 숨긴 radio). 시작·전송 거절 = 입력창 아래 `composer-reason docked-reason`. 빈 본문 = Overview 오른쪽 패널의 `rp-empty`. 새로 만드는 단위는 인라인 앵커 칩(공통 결정 2), 고르기 안내(캔버스 작업 안내 캡슐 재사용), 열기 버튼 새 소식 점(사이드바 슬롯의 안 본 점과 같은 크기·색)뿐이다.
+
+선택 카드 라디오(2026-11-01 user, 공용 선택 카드 변경): 오른쪽 체크 아이콘을 없애고, 그 자리를 카드 왼쪽 위의 보이는 라디오가 대신한다. 라디오는 16px(`--size-icon`) 원이고 제목 첫 줄(`--type-label-sm-line-height`)의 가운데에 맞춘다. 제목이 두 줄이 되어도 라디오는 첫 줄에 남는다. 꺼짐은 `--border-prominent` 테두리와 `--surface-panel` 채움, 켜짐은 `--affordance-prominent` 채움과 6px(`--space-1h`) `--text-on-prominent` 점(체크박스 `doan-checkbox`와 같은 색). 숨긴 native radio·카드 포커스 외곽선·Enter 고르기는 그대로다. 이 변경은 이 화면만이 아니라 `ob-choice`를 쓰는 모든 곳(온보딩 Your projects, Add Projects의 폴더 안 저장소)에 반영한다.
 
 모델·effort(2026-11-01 user 질문에 대한 답, 출하된 `dockedPicker` 규칙): 기존·보관 대화는 공급자를 바꿀 수 없어 그 공급자의 모델만 고를 수 있고, 트리거 접근 이름에 공급자가 붙는다("Model: Opus 5.5 (Claude Code)"). effort는 그 모델의 단계만. 새 대화는 Home과 같은 공급자 선택기와 Settings 기본값. 터미널 세션 이어 가기는 모델·effort·첨부를 받지 않는다. 모양은 같게 두고 고를 수만 없게 한다: 같은 xs 트리거, chevron 없음, `aria-disabled`, 툴팁 "Set in your terminal"(2026-11-01 user).
 
