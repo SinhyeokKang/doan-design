@@ -9,12 +9,14 @@ import { partitionDots, dotScale, type Dot } from "./dotField";
 
 // The agent indicator on the board (buzz-canvas design §2 '에이전트 작업 표시').
 
-// The canvas the indicator reads: the open canvas while its project is a listed one and the page is a listed canvas.
-// Loading, failed and no-width canvases count (Stop is needed while the HTML is broken); an unlisted page or a project
-// problem has none.
-export function workingCanvas(open: CanvasState["open"], unlisted: boolean, entry: FolderEntry | undefined): Canvas | null {
+// The canvas the indicator reads, with its project root: the open canvas while its project is a listed one and the page
+// is a listed canvas. Loading, failed and no-width canvases count (Stop is needed while the HTML is broken); an unlisted
+// page or a project problem has none. The root is part of the identity: worktrees of one repository share canvas ids
+// and paths.
+export interface WorkingCanvas { root: string; canvas: Canvas }
+export function workingCanvas(open: CanvasState["open"], unlisted: boolean, entry: FolderEntry | undefined): WorkingCanvas | null {
   if (!open || unlisted || entry?.kind !== "list" || entry.path !== open.folder) return null;
-  return open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas };
+  return { root: open.folder, canvas: open.row.id ? { path: open.canvas, id: open.row.id } : { path: open.canvas } };
 }
 
 // HomeRun's list state for the root: a list still loading or failed is a failed read to agentPresence.
@@ -22,15 +24,18 @@ export function listForPresence(state: readonly ConversationSummary[] | "loading
   return Array.isArray(state) ? state : null;
 }
 
-export interface CanvasAgentState { presence: AgentPresence; provider: string }
+export interface CanvasAgentState { root: string; presence: AgentPresence; provider: string }
 
 // agentPresence with the provider's display name, which the Stop failure toast names. A failed read keeps the previous
-// presence, and with it the provider.
-export function canvasAgent(list: readonly ConversationSummary[] | null, canvas: Canvas | null, previous: CanvasAgentState | null): CanvasAgentState | null {
-  const presence = agentPresence(list, canvas, previous?.presence ?? null);
+// presence, and with it the provider, only within the same project: a twin canvas in another worktree (same id or
+// path) must never show, or Stop, the first project's conversation (RBR5).
+export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null): CanvasAgentState | null {
+  if (!target) return null;
+  const kept = previous?.root === target.root ? previous : null;
+  const presence = agentPresence(list, target.canvas, kept?.presence ?? null);
   if (!presence) return null;
   const listed = list?.find(c => c.conversationId === presence.conversationId);
-  return { presence, provider: listed ? PROVIDER_NAMES[listed.provider] : previous?.provider ?? "" };
+  return { root: target.root, presence, provider: listed ? PROVIDER_NAMES[listed.provider] : kept?.provider ?? "" };
 }
 
 export interface AgentNoticeView {

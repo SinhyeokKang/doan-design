@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ConversationSummary } from "../main/conversation/summary";
-import type { Canvas } from "../main/conversation/types";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, stopTurn, type CanvasAgentState } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, stopTurn, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
 import { autoCursor, dotGrid, type Dot } from "./dotField";
 
 // The agent indicator on the board while this canvas's current conversation works or waits (buzz-canvas design §2
@@ -11,7 +10,7 @@ import { autoCursor, dotGrid, type Dot } from "./dotField";
 // `list` is HomeRun's list state for the canvas's project; `running` is false while the workspace is hidden or the
 // Overview covers the canvas, which pauses the dot field.
 export function CanvasAgent({ list, canvas, running, onOpen, onStopFailed }: {
-  list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: Canvas | null; running: boolean;
+  list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean;
   onOpen(): void; onStopFailed(text: string): void;
 }) {
   // The last answer, kept across a failed list read (agentPresence).

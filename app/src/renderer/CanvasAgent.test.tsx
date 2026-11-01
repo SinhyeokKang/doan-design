@@ -12,7 +12,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   canvas, ...patch,
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
-  renderToStaticMarkup(<CanvasAgent list={list} canvas={canvas} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()} {...over} />);
+  renderToStaticMarkup(<CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()} {...over} />);
 const tag = (html: string, pattern: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${pattern}[^>]*>`))?.[0] ?? "";
 
 describe("CanvasAgent", () => {

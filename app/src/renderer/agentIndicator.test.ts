@@ -18,12 +18,12 @@ const working: AgentPresence = { conversationId: "c1", kind: "working", label: "
 const waiting: AgentPresence = { ...working, kind: "waiting", label: "Codex needs your answer" };
 
 describe("workingCanvas", () => {
-  test("a read canvas shows the indicator in every state: normal, loading, failed, no width", () => {
-    expect(workingCanvas(opened, false, listed)).toEqual({ path: row.path, id: "billing" });
+  test("a read canvas shows the indicator in every state: normal, loading, failed, no width; the target names its project", () => {
+    expect(workingCanvas(opened, false, listed)).toEqual({ root: "/w/a", canvas: { path: row.path, id: "billing" } });
   });
   test("a canvas without an id is matched by its path", () => {
     const bare = { ...row, id: undefined } as unknown as CanvasRow;
-    expect(workingCanvas({ ...opened, row: bare }, false, listed)).toEqual({ path: row.path });
+    expect(workingCanvas({ ...opened, row: bare }, false, listed)).toEqual({ root: "/w/a", canvas: { path: row.path } });
   });
   test("an unlisted page shows nothing", () => {
     expect(workingCanvas(opened, true, listed)).toBeNull();
@@ -50,29 +50,59 @@ describe("listForPresence", () => {
 });
 
 describe("canvasAgent", () => {
-  const canvas = { path: row.path, id: "billing" };
+  const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   test("carries the provider's display name for the Stop failure toast", () => {
-    expect(canvasAgent([summary({})], canvas, null)).toEqual({ presence: working, provider: "Codex" });
+    expect(canvasAgent([summary({})], target, null)).toEqual({ root: "/w/a", presence: working, provider: "Codex" });
   });
   test("a failed read keeps the previous presence and its provider", () => {
-    const previous = canvasAgent([summary({})], canvas, null);
-    expect(canvasAgent(null, canvas, previous)).toEqual(previous);
+    const previous = canvasAgent([summary({})], target, null);
+    expect(canvasAgent(null, target, previous)).toEqual(previous);
   });
   test("the turn's end clears it", () => {
-    const previous = canvasAgent([summary({})], canvas, null);
-    expect(canvasAgent([summary({ phase: "ended" })], canvas, previous)).toBeNull();
+    const previous = canvasAgent([summary({})], target, null);
+    expect(canvasAgent([summary({ phase: "ended" })], target, previous)).toBeNull();
   });
   test("another canvas's conversation shows nothing", () => {
-    expect(canvasAgent([summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], canvas, null)).toBeNull();
+    expect(canvasAgent([summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], target, null)).toBeNull();
   });
   test("a project conversation shows nothing", () => {
     const { canvas: _c, ...project } = summary({});
-    expect(canvasAgent([project], canvas, null)).toBeNull();
+    expect(canvasAgent([project], target, null)).toBeNull();
   });
   test("no canvas (unlisted page, project problem) shows nothing even with a kept presence", () => {
-    const previous = canvasAgent([summary({})], canvas, null);
+    const previous = canvasAgent([summary({})], target, null);
     expect(canvasAgent([summary({})], null, previous)).toBeNull();
     expect(canvasAgent(null, null, previous)).toBeNull();
+  });
+  // RBR5 🔴1: worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
+  // B's twin canvas while B's list is still loading or failed must not offer A's Stop.
+  describe("a kept presence stays in its project", () => {
+    const b = { root: "/w/b", canvas: target.canvas };
+    for (const [name, state] of [["loading", "loading"], ["failed", "error"]] as const) {
+      test(`A → B with B's list ${name}, matching ids: nothing from A`, () => {
+        const previous = canvasAgent([summary({})], target, null);
+        const after = canvasAgent(listForPresence(state), b, previous);
+        expect(after).toBeNull();
+        expect(agentNoticeView(after?.presence ?? null, null)).toBeNull();
+      });
+      test(`A → B with B's list ${name}, id-less canvases at the same path: nothing from A`, () => {
+        const bare = { path: row.path };
+        const previous = canvasAgent([summary({ canvas: bare })], { root: "/w/a", canvas: bare }, null);
+        expect(previous?.presence.conversationId).toBe("c1");
+        expect(canvasAgent(listForPresence(state), { root: "/w/b", canvas: bare }, previous)).toBeNull();
+      });
+    }
+    test("B's own read decides B; A's presence does not come back on returning to A with a failed read", () => {
+      const inA = canvasAgent([summary({})], target, null);
+      const inB = canvasAgent(listForPresence("error"), b, inA);
+      expect(inB).toBeNull();
+      expect(canvasAgent(listForPresence("error"), target, inB)).toBeNull();
+    });
+    test("within one project a moved canvas keeps its presence across a failed read (id match)", () => {
+      const previous = canvasAgent([summary({})], target, null);
+      const moved = { root: "/w/a", canvas: { path: ".doan/canvases/archive/billing.html", id: "billing" } };
+      expect(canvasAgent(null, moved, previous)?.presence.conversationId).toBe("c1");
+    });
   });
 });
 
