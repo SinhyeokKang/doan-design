@@ -62,7 +62,8 @@ code, kbd { font-family: var(--type-family); }
 .hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--type-family); color: var(--text-metadata); overflow-wrap: anywhere; }
 .hint code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
 .recovery .doan-button { margin: 4px 4px 0 0; }
-.area { position: relative; overflow: hidden; background-color: var(--surface-inset); background-image: radial-gradient(var(--texture-dots-color) 1px, transparent 1px); background-size: 16px 16px; }
+/* The board is the light grey inset surface, so a white canvas stays distinguishable when zoomed out and the agent's white dot field shows. */
+.area { position: relative; overflow: hidden; background: var(--surface-inset); }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board iframe { display: block; border: 0; }
 /* Keep pin focus ordering inside the overlay, below canvas chrome. */
@@ -73,12 +74,11 @@ code, kbd { font-family: var(--type-family); }
 .mark.hover { border-style: dashed; }
 /* The same prominent capsule as the tooltip. */
 .dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--affordance-prominent); color: var(--text-on-prominent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); padding: var(--space-1) var(--space-2); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
-.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: var(--text-subtle); font: 12.5px/1.6 var(--type-family); pointer-events: none; }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }
 .canvas-status button { pointer-events: auto; }
-.canvas-status b { color: var(--text-standard); font-weight: 500; }
+.canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
 .canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
-.canvas-status .doan-spinner { display: block; margin: 0 auto 10px; }
-.canvas-notices { position: absolute; top: 0; left: 0; right: 0; z-index: 1; pointer-events: none; }
+.canvas-status .doan-spinner { display: block; margin: 0 auto var(--space-2); }
 .canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
 /* It sits on the canvas content, so the panel color goes behind it (.doan/canvases/comments-readability.html). */
 .updated { position: absolute; left: 12px; bottom: 12px; pointer-events: none; background: var(--surface-panel); padding: 3px 8px; border-radius: 6px; }
@@ -405,7 +405,7 @@ code, kbd { font-family: var(--type-family); }
 .doan-menu-item .label { flex: none; }
 .menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
-/* Bottom-right on every screen: the canvas zoom toolbar is bottom-left, so nothing to clear. */
+/* Bottom-right on every screen, 16px from the window's edges; the canvas tools row sits at the board's bottom centre. */
 .toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
 .toast .msg { min-width: 0; overflow-wrap: anywhere; }
 
@@ -1009,7 +1009,7 @@ body:has(.shell-top) { background: transparent; }
    2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
    controls under the Overview, which covers the same grid cell. */
 .workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; }
-.doan-canvas-panel > .area { flex: 1; min-height: 0; background: var(--surface-panel); }
+.doan-canvas-panel > .area { flex: 1; min-height: 0; }
 .doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 /* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
    sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
@@ -1083,8 +1083,12 @@ body:has(.shell-top) { background: transparent; }
 @keyframes doan-agent-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 /* The dot field's colour: translucent white dots, read from this computed colour by the canvas. */
 .doan-agent-dots { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--text-on-prominent); }
-/* The notice and, later, the canvas notices stack at the board's top centre, 20px under its top edge. */
-.doan-canvas-top { position: absolute; z-index: 3; top: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
+/* The agent notice and the canvas notices stack at the board's top centre, 20px under its top edge, the agent notice first. */
+.doan-canvas-top { position: absolute; z-index: 3; top: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
+/* The column sets the notices' width and pointer (a screen sets only margins on a shared notice), so a trackpad scroll
+   over one still reaches the board's pan and zoom; the agent notice keeps its own width, centred. */
+.doan-canvas-top > * { pointer-events: auto; }
+.doan-canvas-top > .doan-agent { align-self: center; }
 /* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
    primitive. The wording gives way first; the button keeps its size. */
 .doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }

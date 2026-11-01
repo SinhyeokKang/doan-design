@@ -1047,16 +1047,15 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />
-    {/* Under the board's floating controls; the notice comes first in the Tab order (design §2 '겹침 순서', 'Esc와 포커스'). */}
-    <CanvasAgent {...agent} />
-    <div className="canvas-notices">
-      {state.error && <div className="canvas-notice" role="status">{state.error}</div>}
-      {state.unlisted && <div className="canvas-notice" role="status">This page is not a listed canvas. Choose a canvas from the Sidebar.</div>}
-      {state.notice && <div className="canvas-notice" role="status">{state.notice}</div>}
-    </div>
+    {/* The agent notice comes first, the canvas notices stack under it (design §2 '겹침 순서', 'Esc와 포커스'). */}
+    <CanvasAgent {...agent}>
+      {state.error && <div className="doan-notice doan-panel" role="status">{state.error}</div>}
+      {state.unlisted && <div className="doan-notice doan-panel" role="status">This page is not a listed canvas. Choose a canvas from the Sidebar.</div>}
+      {state.notice && <div className="doan-notice doan-panel" role="status">{state.notice}</div>}
+    </CanvasAgent>
     {(state.status || problemMessage) && <div className="canvas-status" role="status">
-      {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="spinner doan-spinner" aria-hidden="true" />Loading…</p>
-        : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
+      {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading…</p>
+        : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}

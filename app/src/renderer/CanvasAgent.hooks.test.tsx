@@ -54,6 +54,8 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 }
 const button = (tree: ReactNode) => all(tree).find(element => element.type === "button");
 const label = (tree: ReactNode) => button(tree)?.props.children;
+// The indicator itself (its glow and notice); the top column stays for the canvas notices.
+const shown = (tree: ReactNode) => all(tree).some(element => element.props.className === "doan-agent");
 
 const canvas = { path: ".doan/canvases/billing.html", id: "billing" };
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
@@ -112,7 +114,7 @@ describe("CanvasAgent Stop", () => {
     tree = render(agent([summary({})]));
     expect(label(tree)).toBe("Stopping…");
     tree = render(agent([summary({ phase: "ended" })]));
-    expect(tree).toBeNull();
+    expect(shown(tree)).toBe(false);
     expect(onStopFailed).not.toHaveBeenCalled();
     // A later turn of the same conversation starts with Stop again.
     tree = render(agent([summary({})]));
@@ -122,7 +124,7 @@ describe("CanvasAgent Stop", () => {
   test("a twin canvas in another project shows nothing from the first while its list is unread", () => {
     render(agent([summary({})]));
     const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, running: true, onOpen: vi.fn(), onStopFailed }));
-    expect(tree).toBeNull();
+    expect(shown(tree)).toBe(false);
   });
 });
 

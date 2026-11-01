@@ -13,6 +13,8 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
   renderToStaticMarkup(<CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()} {...over} />);
+// Without an indicator the column stays, empty, for the canvas notices.
+const COLUMN = '<div class="doan-canvas-top"></div>';
 const tag = (html: string, pattern: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${pattern}[^>]*>`))?.[0] ?? "";
 
 describe("CanvasAgent", () => {
@@ -46,16 +48,27 @@ describe("CanvasAgent", () => {
   test("nothing shows for an ended turn, another canvas's or a project conversation", () => {
     const { canvas: _c, ...project } = summary({});
     for (const list of [[summary({ phase: "ended" })], [summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], [project]]) {
-      expect(markup(list)).toBe("");
+      expect(markup(list)).toBe(COLUMN);
     }
   });
 
   test("nothing shows on an unlisted page or a project problem (no canvas)", () => {
-    expect(markup([summary({})], { canvas: null })).toBe("");
+    expect(markup([summary({})], { canvas: null })).toBe(COLUMN);
   });
 
   test("nothing shows before the first list read", () => {
-    expect(markup("loading")).toBe("");
-    expect(markup("error")).toBe("");
+    expect(markup("loading")).toBe(COLUMN);
+    expect(markup("error")).toBe(COLUMN);
+  });
+
+  // buzz-canvas R6: the canvas notices stack in the same top-centre column, the agent notice first.
+  test("the canvas notices come after the agent notice in the column, and alone when no indicator shows", () => {
+    const notice = <div className="doan-notice doan-panel" role="status">The selection is no longer in the canvas.</div>;
+    const html = renderToStaticMarkup(<CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
+    expect(html.indexOf('class="doan-agent"')).toBeGreaterThan(-1);
+    expect(html.indexOf('class="doan-agent"')).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
+    expect(html.match(/class="doan-canvas-top"/g)).toHaveLength(1);
+    const alone = renderToStaticMarkup(<CanvasAgent list={undefined} canvas={null} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
+    expect(alone).toBe(`<div class="doan-canvas-top">${renderToStaticMarkup(notice)}</div>`);
   });
 });

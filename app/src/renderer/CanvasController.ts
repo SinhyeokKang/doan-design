@@ -12,14 +12,12 @@ import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_MARGIN, fitFrame, fitWidth, locateView, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Inset, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, locateView, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
-// Fit and frame jumps keep today's even margin until the canvas page adopts FIT_INSET (buzz-canvas R6).
-const EVEN_INSET: Inset = { top: FIT_MARGIN, right: FIT_MARGIN, bottom: FIT_MARGIN, left: FIT_MARGIN };
 
 // A selection change inside the open canvas, or anything that leaves it.
 export type TransitionDestination = "selection" | "navigation";
@@ -618,7 +616,7 @@ export class CanvasController {
       this.board.hidden = false;
       this.board.style.visibility = "hidden";
       this.state.status = "loading";
-      this.view = fitWidth(row.width, this.viewportSize(), EVEN_INSET);
+      this.view = fitWidth(row.width, this.viewportSize(), FIT_INSET);
       this.firstFit = this.view;
       this.applyView();
     } else {
@@ -957,7 +955,7 @@ export class CanvasController {
     if (this.jumpTo !== null) {
       const target = message.frames[this.jumpTo];
       if (target !== undefined) {
-        this.view = fitFrame(target, this.viewportSize(), EVEN_INSET, this.view);
+        this.view = fitFrame(target, this.viewportSize(), FIT_INSET, this.view);
         this.showJump(target);
         this.applyView();
       }
@@ -1058,7 +1056,7 @@ export class CanvasController {
       case "zoomIn": this.view = zoomAt(this.view, ZOOM_STEP, center, ZOOM_LIMITS); break;
       case "zoomOut": this.view = zoomAt(this.view, 1 / ZOOM_STEP, center, ZOOM_LIMITS); break;
       case "actualSize": this.view = zoomAt(this.view, 1 / this.view.scale, center, ZOOM_LIMITS); break;
-      case "fit": this.view = fitWidth(this.frameWidth, size, EVEN_INSET); break;
+      case "fit": this.view = fitWidth(this.frameWidth, size, FIT_INSET); break;
     }
     this.applyView();
   }
@@ -1070,7 +1068,7 @@ export class CanvasController {
     const pending = this.firstFit;
     this.firstFit = null;
     if (pending === null || pending !== this.view || this.frame === null) return;
-    this.view = fitWidth(this.frameWidth, this.viewportSize(), EVEN_INSET);
+    this.view = fitWidth(this.frameWidth, this.viewportSize(), FIT_INSET);
     this.applyView();
   }
 

@@ -196,10 +196,10 @@ describe("selection", () => {
     const h = selectionHarness();
     try {
       h.select(1);
-      expect(h.markOf("selected")?.style).toMatchObject({ left: "110px", top: "52px", width: "60px", height: "18px" });
+      expect(h.markOf("selected")?.style).toMatchObject({ left: "110px", top: "76px", width: "60px", height: "18px" });
       h.changed.mockClear();
       h.controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
-      expect(h.markOf("selected")?.style).toMatchObject({ left: "100px", top: "32px" });
+      expect(h.markOf("selected")?.style).toMatchObject({ left: "100px", top: "56px" });
       expect(h.changed).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
@@ -225,7 +225,7 @@ describe("selection", () => {
       h.layout({ seq: 1, selected: { x: 0, y: 0, width: 5, height: 5 } });
       h.layout({ seq: 1, selected: { x: 0, y: 3, width: 5, height: 5 } });
       expect(h.send).toHaveBeenCalledTimes(1);
-      expect(h.markOf("selected")?.style).toMatchObject({ top: "35px", width: "5px" });
+      expect(h.markOf("selected")?.style).toMatchObject({ top: "59px", width: "5px" });
     } finally { h.controller.dispose(); }
   });
 
@@ -494,7 +494,7 @@ describe("selection", () => {
     const h = selectionHarness();
     try {
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
-      expect(h.markOf("hover")).toMatchObject({ hidden: false, style: { left: "100px", top: "32px", width: "4px" } });
+      expect(h.markOf("hover")).toMatchObject({ hidden: false, style: { left: "100px", top: "56px", width: "4px" } });
       h.key("Alt");
       expect(h.markOf("hover")?.hidden).toBe(true);
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
