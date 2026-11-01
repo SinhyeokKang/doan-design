@@ -175,6 +175,30 @@
 
 - **칩 필드와 IME(먼저)**: 지금 입력창은 textarea다. 인라인 칩을 담으려면 contenteditable 필드가 필요하고, 한글 IME 조합, 커서 이동, Backspace, 붙여넣기, capsule↔box 전환에서의 포커스 유지가 알려진 위험이다. tasks P1에서 `.scratch/`의 독립 PoC로 확인한다: 한글 조합 중 칩 삽입 대기, 조합 끝 뒤 칩 삽입, 칩 앞뒤 커서, 칩 단위 삭제, 순수 텍스트 붙여넣기, 마운트 유지. 추가로 확인한다: contenteditable에서 `/` 프리셋 목록 열기와 combobox ARIA, 이미지 붙여넣기는 첨부·텍스트는 순수 텍스트, Doan 입력창 사이의 잘라 붙이기에서 칩 유지, 칩 삽입·삭제 뒤 ⌘Z·⇧⌘Z, ⌥⌫·⌘⌫·Shift+화살표의 칩 단위 동작, 칩 바로 앞에서의 IME 조합. 통과하지 못하면 대안(칩을 입력창 위 줄에 따로 두고 text에 `{{n}}`만)을 사용자에게 묻는다.
 
+### P1 결과 (2026-11-01)
+
+- **환경**: Electron 45.0.0(Chromium 156.0.8078.48), macOS 26.6.2. `.scratch/anchor-field/`의 독립 페이지이고 앱에 연결하지 않았다.
+- **확인 방법**: `node .scratch/anchor-field/probe.mjs`(Playwright `_electron`, 임시 userData·HOME, `app/runtime/`의 격리·정리·클립보드 복원)가 10개 항목을 모두 통과했다(exit 0, 두 번 실행). 한글 조합은 CDP `Input.imeSetComposition`·`Input.insertText`로 흉내 냈다. 키는 Playwright가 macOS 키 바인딩과 같은 편집 명령(`deleteWordBackward:`·`undo:`·`paste:` 등)으로 보냈다. 클립보드는 실제 시스템 클립보드를 쓰고 끝에 되돌렸다. 조합 중 칩 대기를 빼거나 단어 삭제를 칩에서 멈추는 규칙을 빼면 각각 1번·4번이 실패한다.
+- **미검증**: 네이티브 한글 IME, 실제 키보드의 ⌘Z가 메뉴보다 렌더러에 먼저 가는지, 다른 앱으로 붙여넣기. 사람이 `node .scratch/anchor-field/open.mjs`로 확인한다.
+
+| 항목 | 결과(흉내) | 확인한 것 |
+|---|---|---|
+| 한글 조합 중 칩 삽입 대기, 조합 끝 뒤 삽입 | 통과 | 조합 중 칩 넣기는 대기("pending")하고 DOM과 조합 글자를 건드리지 않는다. 조합이 이어져도 기다리고, 끝나면 확정된 글자 뒤에 칩이 들어가며 커서는 칩 뒤에 선다 |
+| 칩 바로 앞에서의 IME 조합 | 통과 | 맨 앞 칩 앞, 두 칩 사이, 글자 뒤 칩 앞, 끝 칩 뒤에서 조합한 글자가 칩 밖에 들어가고 칩은 그대로다 |
+| 칩 앞뒤 커서와 화살표 | 통과 | ←·→가 칩을 한 칸으로 건너고, DOM 커서가 칩 안에 서지 않는다. 두 칩 사이, 맨 앞 칩 앞, 끝 칩 뒤에서 입력할 수 있다 |
+| 칩 단위 Backspace/Delete·⌥⌫·⌘⌫·Shift+화살표 | 통과 | ⌫·⌦는 칩 하나를 통째로 지운다. ⌥⌫·⌥⌦는 바로 옆이 칩이면 칩만 지우고, `[칩]world`에서 ⌥⌫는 world만 지운다(Chromium 기본은 칩까지 함께 지우므로 필드가 단어 삭제를 칩에서 멈춘다). ⌘⌫는 줄 머리까지 칩을 포함해 지우고 윗줄은 남긴다. Shift+←·→는 칩을 한 단위로 선택한다 |
+| ⌘Z·⇧⌘Z로 칩 넣기·지우기 되돌리기 | 통과 | 칩 넣기와 지우기가 각각 한 단계이고 앵커까지 돌아온다. 입력도 되돌린다. 필드가 자체 기록을 갖고(1초 안의 입력은 한 단계) 키와 `beforeinput` historyUndo·historyRedo를 막는다 |
+| 텍스트는 순수 텍스트, 이미지는 첨부 | 통과 | text/html이 함께 있어도 text/plain만 들어가고 필드에 요소가 생기지 않는다. PNG는 첨부 하나가 되고 필드는 그대로다 |
+| Doan 입력창 사이 잘라 붙이기 | 통과 | ⌘A·⌘X 뒤 다른 필드에 ⌘V하면 칩 두 개와 앵커가 남는다. 부분 ⌘C(공백과 칩)도 칩을 유지한다. 바깥 textarea에는 칩 이름 텍스트가 들어간다. 클립보드에 text/plain과 Chromium 사용자 정의 형식 `application/x-doan-field+json`을 함께 쓴다 |
+| `/` 프리셋 목록 열기와 combobox ARIA | 통과(차이 하나) | `/c`로 목록이 열리고, 접근성 트리에서 필드의 role·expanded·controls·activedescendant가 지금 textarea와 같다. ↓가 activedescendant를 옮기고, Enter로 고르면 목록이 닫히며 textbox·multiline으로 돌아간다. Esc는 필드를 비울 때까지 닫힘을 유지한다. 차이: Chromium은 contenteditable combobox에 aria-autocomplete를 노출하지 않는다(textarea는 "list") |
+| 줄바꿈으로 capsule→box 전환 | 통과 | Shift+Enter로 box가 되어도 같은 요소에 포커스가 남는다. 조합 중 줄이 넘어가 box가 될 때 compositionend는 확정할 때 한 번만 오고 글자를 잃지 않는다. 칩을 넣어 box가 될 때도 같은 요소다 |
+| `{text, anchors}` 왕복 | 통과 | 등장 순 번호의 메시지는 그대로 돌아온다. 칩이 없는 메시지, 앵커 없는 `{{n}}`(친 텍스트로 남음), 키 순서만 다른 같은 대상(같은 번호), 번호 순서가 뒤바뀐 메시지(등장 순으로 다시 매김)를 확인했다. 친 텍스트 검사는 칩을 빼고 본다. DOM에 그렸다 읽어도 값이 같다. 서로 다른 대상 33번째는 넣지 않고("limit"), 같은 대상 반복은 들어간다 |
+
+- **항목 밖 발견(R1이 다룬다, 고르지 않았다)**:
+  - Edit 메뉴에서 Undo·Redo를 마우스로 고르면 Chromium 편집 명령이 실행되고, Chromium 자체 되돌리기 기록이 비어 있으면 `beforeinput`이 오지 않는다. probe에서 Undo는 필드에 닿았지만 이어서 Redo는 닿지 않았다(필드가 Chromium의 되돌리기를 막으므로 Chromium의 다시 실행 기록이 비어 있다). 앱 Edit 메뉴는 `role: "undo"`·`role: "redo"`다(`app/src/main/index.ts`). 대안: 포커스가 칩 필드에 있을 때 메뉴 Undo·Redo를 renderer로 보내 필드가 처리한다.
+  - aria-autocomplete 차이(위 표): 받아들이거나, ARIA 1.1 방식(바깥 요소가 combobox, 필드는 textbox와 aria-autocomplete)으로 노출할 수 있다. `.scratch/anchor-field/ax-variants.mjs`에서 Chromium이 이 방식의 textbox에는 autocomplete "list"를 노출했다.
+- **R1 이식 기준**: `field-model.js`(세그먼트, `toMessage`·`fromMessage`, 칩은 한 칸)와 `field-dom.js`(DOM·선택·클립보드·되돌리기·IME). 글자 입력과 조합은 브라우저에 맡기고 `input` 뒤 DOM을 읽는다. 칩이 걸린 삭제, 붙여넣기, 자르기, 되돌리기는 모델에서 하고 같은 요소의 자식만 다시 그린다. 조합 중에는 다시 그리지 않는다. 한글은 음절마다 조합을 끝내고 같은 키 이벤트에서 다시 시작하므로, 대기 칩은 compositionend 다음 작업에서 새 조합이 없을 때만 넣는다. 포커스가 없는 필드에 선택을 놓으면 Chromium이 포커스를 옮기므로 커서만 기억한다. 앵커는 칩 노드의 WeakMap에 두고 DOM 속성에 쓰지 않는다. 칩은 `contenteditable="false"` span이고 숨긴 종류 접두어를 텍스트로 가진다.
+
 ## 6. POSTMORTEM에서 온 함정
 
 - **2026-10-26 — late replies (ARCHITECTURE §7 'Late replies')**: start·send 응답이 그 사이의 대화 고르기·New·진입 요청을 덮지 않게 root(여기서는 캔버스) revision을 함께 들고 다닌다.
