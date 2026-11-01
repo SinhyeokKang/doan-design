@@ -24,7 +24,7 @@ Codex와 Antigravity에 로그인한 뒤에도 Doan이 어느 계정인지 보�
 2. Antigravity에 로그인하면 같은 자리에 그 Google 계정의 이메일이 보인다. 이메일은 Google OIDC userinfo가 돌려준 값이다. 확인 범위는 1과 같다.
 3. 이 변경 전에 로그인한 연결은 앱을 다시 켠 뒤 Settings > Agents를 열면, 자동 check가 끝나고 조회가 성공한 뒤 이메일이 보인다. 조회가 실패하면 그 앱 세션 동안 계정 줄이 비어 있다. 새 로그인은 커밋 때 이메일을 저장해, 재시작 직후 Settings > Agents에도 보인다(First run Agent step은 check 전 unverified 행에 "Connected · not checked"를 보여 이메일을 가린다. 원래 동작이다).
 4. 계정 조회가 실패해도(네트워크, 시간 초과, 응답 모양 다름, Google 거절) 로그인·check·대화 실행은 조회가 없을 때와 같은 결과로 끝난다. 실패는 화면에 알리지 않는다(design §2 '실패').
-5. 조회는 provider마다 5초 안에 끝나거나 멈춘다. 그래서 로그인 마무리, 화면의 check, 재시작 뒤 첫 Doan 대화의 시작이 최대 5초 늦어질 수 있다. 실제 시간은 R1에서 잰다.
+5. 조회는 provider마다 5초 예산 안에 끝나거나 멈춘다. Codex 예산은 app-server를 띄운 때부터 응답까지이고, 그 앞의 CLI 찾기(로그인 셸 탐지)와 뒤의 프로세스 그룹 정리는 예산에 들지 않는다. Antigravity 예산은 두 요청을 합친 시간이다. 그래서 로그인 마무리, 화면의 check, 재시작 뒤 첫 Doan 대화의 시작이 조회 때문에 늦어질 수 있고, Codex는 CLI 찾기 시간만큼 5초보다 더 늦어질 수 있다. 실제 시간은 R1에서 잰다.
 6. 두 provider의 계정 ID는 그대로 `null`이다. 대화 재개 규칙(ARCHITECTURE §7 'Conversations on a Doan connection')은 바뀌지 않는다.
 7. Antigravity 조회에 쓴 access token은 메모리에만 있고 파일·메타데이터·로그·창에 나가지 않는다. Doan은 Antigravity 자격증명 파일을 고치지 않는다.
 8. 실제 앱(R1)에서 서명된 Codex·Antigravity 연결로: 재시작 뒤 Settings > Agents를 열면 자동 check 뒤 두 이메일이 보이고, 앱을 한 번 더 재시작해도 Antigravity 자동 check가 다시 성공하며, 두 provider의 새 대화 한 턴이 끝난다. 키체인 대화상자 가능성이 있어 실행 전 코디네이터 승인이 필요하다.

@@ -67,7 +67,7 @@ account/rateLimits/read keys [ordinaryUsageAllowed, rateLimits, rateLimitsByLimi
 
 조회는 마지막 취소 지점과 메타데이터 커밋 앞에 있어, 커밋 뒤에 실패할 수 있는 단계가 생기지 않는다(POSTMORTEM 2026-10-29). 조회가 끝나면 취소 여부를 다시 확인한다.
 
-**시간 예산**: provider마다 조회 전체에 5초 하나를 둔다(Codex는 프로세스 시작부터 응답까지, Antigravity는 두 요청 합). 예산은 attempt의 `AbortController`와 합쳐, `stop(attemptId)`(로그인 취소, sign-in·sign-out이 check를 대체할 때, quit)가 조회를 바로 끝낸다. 5초는 P1·R1 측정으로 확인한다.
+**시간 예산**: provider마다 조회 전체에 5초 하나를 둔다(Codex는 프로세스 시작부터 응답까지, Antigravity는 두 요청 합). Codex의 CLI 찾기(로그인 셸 탐지)와 끝난 뒤 프로세스 그룹 정리는 예산 밖이다. 예산은 attempt의 `AbortController`와 합쳐, `stop(attemptId)`(로그인 취소, sign-in·sign-out이 check를 대체할 때, quit)가 조회를 바로 끝낸다. 단 CLI 찾기 중에는 기존 `exec`처럼 셸 탐지가 끝날 때까지 기다릴 수 있다. 5초는 P1·R1 측정으로 확인한다.
 
 **Codex**: manager에 작은 `rpcExec`를 둔다.
 
