@@ -316,7 +316,7 @@ export function initializeRepo(root: string, changes: string[], manifest: string
     writeFileSync(join(root, ".doan/config.json"), INIT_CONFIG);
     written[".doan/config.json"] = INIT_CONFIG;
   }
-  // init adds each missing attribute line even when the app's planned changes, keyed on the merge line, omit the file.
+  // Like init, adds only the attribute lines that are missing.
   if (changes.includes(".gitattributes") || changes.includes(".doan/config.json")) {
     let attributes = existsSync(join(root, ".gitattributes")) ? readFileSync(join(root, ".gitattributes"), "utf8") : "";
     const present = attributes.split("\n").map(line => line.replace(/\r$/, ""));
