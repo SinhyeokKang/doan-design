@@ -135,3 +135,5 @@ D1은 이미 끝났다(초안 확정).
 - 지휘자 판단(BV1 질문): 초안과 다른 셋(목록 읽기 실패 안내 위치와 추천 칩, 목록 읽는 중 제목 트리거 비활성, 공용 추천 문구)은 Overview 공용 동작을 따르는 구현을 남기고, 사용자 지시(2026-11-02 '초안은 맞춰 놓는다')대로 BV1이 초안을 그 셋만 고친다. 근거: design §0 '같은 새 대화 상태(Overview 패턴)'.
 - BV4 완료: eval R8(앱 turnPrompt 출력 그대로, drift 테스트, Electron 렌더로 배치 판정, doan active 불변). 실제 라운드 bcc-r8-261102: claude pass/partial/pass, codex pass/pass/pass. U-020 측정 완료(앵커 처리 문제 없음), 새 U-021(Claude 1/3이 doan skill을 건너뛰어 가이드 규칙 G의 not-in-code 표시를 놓침, turnPrompt가 doan skill을 프리셋 안내에만 언급). ARCHITECTURE §14·DIRECTORY의 R8 언급은 Z에서. 리뷰 Codex astra.
 - BV4 리뷰(Codex astra): 🔴 0, 🟡 1(R8이 라벨을 span으로 감싼 올바른 버튼을 실패로 판정). 기록된 6회는 이 마크업을 쓰지 않아 결과는 유효. 수정 라운드 1 전송.
+- BV4 수정 1 `3f4a8524`(라벨 마크업 판정). 통합: `9591da5d`, `4f4404ff`, `03c69829`. 지휘자 확인: 통합 브랜치에서 R8 self-test PASS, eval 테스트 215/215. 🟡 수정은 재리뷰 없이 테스트로 확인(🔴 0). bcc-v4 정리, 라운드 원자료는 지휘자 `.scratch/agent-eval/bcc-r8-261102/`.
+- BV1 완료: 25 상태 787 쌍 측정, 실제 차이 수정, 초안 세 곳 다시 그림, DESIGN.md 기록, 내부 리뷰 🔴 0. 미검증: 프로젝트 대화가 그리는 중·패널 연 채 승격 타일, 중복 ID 타일(도달 불가), 실제 로그인 상태(IPC 주입으로 측정). 지휘자 판단(BV1 열린 질문): 잠긴 입력창은 프리셋·파일 드롭도 받지 않는다(design §2 '입력창 비활성'). BV1 후속 1.
