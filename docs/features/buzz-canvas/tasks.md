@@ -47,7 +47,7 @@
 
 ── commit: `feat(renderer): canvas conversation panel shell` ──
 
-- [ ] R5. 에이전트 작업 표시: `agentPresence`로 이 캔버스의 현재 대화가 `running`·`waiting`이면 가장자리 그라디언트(8초 숨쉬기), 점 필드(캔버스 2D, 자동 순회, 포인터 무시, 숨김·덮개·창 숨김에서 정지, 반경 밖 묶어 칠하기), 보드 위쪽 가운데 안내(점, 문구, Stop). Stop → `interruptConversation`, "Stopping…"(`aria-disabled`)은 `phase`가 `ended`가 될 때까지, `ConversationError`면 Stop 복귀와 토스트. 읽힌 캔버스가 있는 상태 화면에서도 보임. 동작 줄이기·투명도 줄이기.
+- [ ] R5. 에이전트 작업 표시: `agentPresence`로 이 캔버스의 현재 대화가 `running`·`waiting`이면 가장자리 그라디언트(8초 숨쉬기), 점 필드(캔버스 2D, 자동 순회, 포인터 무시, 숨김·덮개·창 숨김에서 정지, 반경 밖 묶어 칠하기), 보드 위쪽 가운데 안내(점, 문구, 일하는 중 Stop·응답 대기 중 Open). Open → 패널 펴기와 패널 포커스. Stop → `interruptConversation`, "Stopping…"(`aria-disabled`)은 `phase`가 `ended`가 될 때까지, `ConversationError`면 Stop 복귀와 토스트. 읽힌 캔버스가 있는 상태 화면에서도 보임. 동작 줄이기·투명도 줄이기.
   - 검증: `npm --prefix app test`(다른 캔버스·프로젝트 대화는 표시 없음, 턴 끝에 사라짐, Stop 오류, 목록에 없는 페이지에서 없음), `npm --prefix app run build`.
 
 ── commit: `feat(renderer): agent working indicator on the canvas` ──
@@ -78,7 +78,7 @@
   - 배율: 메뉴 Esc 뒤 선택이 남음, ⌘R과 로드 실패 Reload가 동작.
   - 패널: 닫기 → 열기 버튼이 생기고 이전 폭으로 복원, 끌기·방향키, 다시 시작해도 열림 상태와 폭이 남음, 저장 폭 400·접힘에서 Overview → 캔버스를 열어도 첫 Fit이 맞음.
   - 오른쪽 패널에 Inspector·Comments가 없고, 요소를 고르면 `doan active`가 그 선택을 돌려줌.
-  - 작업 표시: 나타남·사라짐, Stop과 "Stopping…", 동작 줄이기에서 점·숨쉬기·점 필드 정지(computed style). 이 캔버스의 대화를 실제로 돌리지 못하면 미검증으로 남긴다(로그인한 공급자가 필요하면 memory 'provider login probes' 절차).
+  - 작업 표시: 나타남·사라짐, Stop과 "Stopping…", 응답 대기 중 Open으로 패널 펴기, 동작 줄이기에서 점·숨쉬기·점 필드 정지(computed style). 이 캔버스의 대화를 실제로 돌리지 못하면 미검증으로 남긴다(로그인한 공급자가 필요하면 memory 'provider login probes' 절차).
   - 빌드 CSP에서 화면이 비지 않음.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과 뒤 `/runtime-test` probe.
 
@@ -87,7 +87,7 @@
 - [ ] Z1. PRODUCT를 현재 규칙으로 고친다.
   - §3 In scope 1·2와 "A canvas page does not show its conversation yet", "The comment UI and the §4 loop remain the review path": 캔버스 페이지에 Inspector·Comments 화면이 없고 작업 표시가 있다는 현재 상태.
   - §4 Loop의 코멘트 단계.
-  - §5 항목 2·3: 캔버스 헤더, 서랍(이동하고 선택함), 배율 컨트롤러와 메뉴, 도구모음의 선택 피커, 에이전트 작업 표시(조건, 문구, Stop).
+  - §5 항목 2·3: 캔버스 헤더, 서랍(이동하고 선택함), 배율 컨트롤러와 메뉴, 도구모음의 선택 피커, 에이전트 작업 표시(조건, 문구, Stop·Open).
   - §5 항목 4: Canvas info와 Inspector가 캔버스 페이지에 없음(선택과 `doan active`는 유지).
   - §5 항목 5: "Activity and bottom label"을 지우고, 캔버스 페이지에서 코멘트 화면이 빠졌다는 사실.
   - §6 Open questions: "에이전트가 작업 중인 곳을 캔버스에서 실시간으로 짚기(사용자는 실시간을 원함, 근거 PoC 필요, 다시 로드 때 프레임 비교는 대안)"와, 실제 앱에서 확인하지 못한 표면(V2의 미검증 항목).

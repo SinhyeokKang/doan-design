@@ -18,7 +18,7 @@
 | `panel-collapsed` | 패널을 접은 캔버스 페이지(캔버스가 창 오른쪽 끝까지, 캔버스 헤더 우상단에 "Show conversation") |
 | `panel-resize` | 끌어서 넓힌 패널, 경계 손잡이의 hover 모습 |
 | `agent-working` | 이 캔버스의 현재 대화가 일함: 가장자리 그라디언트, 점 필드, 위쪽 가운데 안내(점, 문구, Stop) |
-| `agent-waiting` | 응답 대기 문구(점 정지), Stop hover, Stop을 누른 뒤의 "Stopping…" |
+| `agent-waiting` | 응답 대기 문구(점 정지)와 Open hover, 일하는 중 Stop을 누른 뒤의 "Stopping…" |
 | `on-dark` · `on-violet` | 어두운 캔버스, violet이 많은 캔버스 위의 선택·hover·이동 하이라이트와 작업 표시 |
 | `narrow` | 960×600. 긴 프레임 이름이 먼저 줄어들고, 컨트롤·안내가 겹치지 않음 |
 | `conversation-menu` | 참고 프레임(구현 몫은 `buzz-canvas-conversation`): 대화 패널 헤더의 대화 드롭다운 모양. buzz-canvas의 `/design-sync`는 이 프레임을 비교하지 않는다 |
@@ -84,7 +84,7 @@
 - 메뉴가 열린 채 누른 Esc가 선택까지 지우지 않는 데는 새 코드가 필요 없다. 선택 해제는 `CanvasController.keydown`(window, bubble)이 하고 `event.defaultPrevented`이면 넘어가는데, Radix의 Esc 처리(`useEscapeKeydown`, document capture)가 닫으면서 `preventDefault()`를 부른다. 실제 앱 probe로 확인한다.
 - 메뉴를 닫으면 포커스는 연 버튼으로 돌아온다. 서랍에서 프레임을 고른 뒤에도 서랍 버튼으로 돌아온다.
 - 포커스된 컨트롤이 사라지거나 비활성이 되면(턴이 끝나 안내가 사라짐, 로드가 실패해 서랍이 비활성, 메뉴가 열린 채 캔버스가 바뀜) 포커스를 캔버스 region("Canvas", `tabindex=-1`)으로 옮긴다. 캔버스가 바뀐 경우에는 그 이동의 포커스 규칙을 따르고, 사라진 트리거로 되돌리지 않는다. "Stopping…"은 `disabled` 대신 `aria-disabled`라 포커스가 남는다.
-- Tab 순서: 상단 바 → 사이드바 → 캔버스 헤더(서랍 → − → 배율 값 → + → 접혔을 때 Show conversation) → 보드 위(작업 안내의 Stop → 알림·상태 메시지의 동작 → 도구모음) → 경계 손잡이 → 패널(Hide conversation → 본문). 패널이 접혀 있으면 손잡이와 패널은 Tab 순서에서 빠진다. DOM 순서를 이에 맞춘다(ARCHITECTURE §3 'Actions and focus'의 "canvas" 안을 정한다).
+- Tab 순서: 상단 바 → 사이드바 → 캔버스 헤더(서랍 → − → 배율 값 → + → 접혔을 때 Show conversation) → 보드 위(작업 안내의 Stop 또는 Open → 알림·상태 메시지의 동작 → 도구모음) → 경계 손잡이 → 패널(Hide conversation → 본문). 패널이 접혀 있으면 손잡이와 패널은 Tab 순서에서 빠진다. DOM 순서를 이에 맞춘다(ARCHITECTURE §3 'Actions and focus'의 "canvas" 안을 정한다).
 
 ### 여백(inset)과 첫 Fit
 
@@ -109,12 +109,13 @@
 - 보드 표시. 모두 `pointer-events: none`이라 선택·팬·줌을 막지 않는다.
   - 가장자리 그라디언트: 테두리 선 없이, 보드 가장자리에서 가장 진하고 약 15px 안에서 사라지는 accent 띠(안쪽 그림자 두 겹, 8px·accent 70%와 24px·accent 35%). 8초 주기로 숨쉰다(불투명도 0.55↔1). ego는 파랑이지만 doan은 accent violet을 쓴다.
   - 점 필드: malmoi KV의 `DotField`(`components/signin/dot-field.tsx`, 판정 `lib/signin/dot-field.ts`, malmoi `6dcdd575`)를 doan 코드로 다시 쓴다. 캔버스 2D, 12px 격자, 반지름 1.5→2(지름 3→4), 알파 0.08→0.3, 가상 커서 반경 320px, ㄹ자 자동 순회(320px/s, 5줄, 반경만큼 영역 밖에서 줄바꿈), 포인터는 받지 않는다. 반경 밖 점은 한 path로 묶어 한 번에 칠한다(malmoi R8, `partitionDots`). 색은 투명한 흰색(`--text-on-prominent`를 캔버스 요소의 계산된 `color`로 읽음). 동작 줄이기에서는 한 번만 그린다. 워크스페이스가 숨겨질 때(`setWorkspaceActive`), Overview가 덮을 때(`covered`), 창이 숨겨질 때 rAF 루프를 멈춘다(숨긴 화면에서는 rAF가 멈추지 않는다).
-- 안내 캡슐: 움직이는 점 → 문구(`role="status"`는 문구 span에만) → Stop(sm 버튼).
+- 안내 캡슐: 움직이는 점 → 문구(`role="status"`는 문구 span에만) → 버튼 하나(sm). 일하는 중은 Stop, 응답 대기 중은 Open(2026-11-01 user).
   - 바탕: 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60%(ego `--bg-agent-task-bar`와 같음), 글자 `--text-on-prominent`, `--blur-md` 블러, 알약 모서리, `--shadow-sm`. 투명도 줄이기에서는 불투명 검정. 캔버스 전용이고 공용 프리미티브로 올리지 않는다.
-  - Stop: `--text-on-prominent` 16% 채움의 흰 글자 버튼, hover 26%, 누름 34%. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 흰 글자를 지우므로 안내 안 버튼 규칙이 그보다 무거워야 한다.
+  - Stop·Open: `--text-on-prominent` 16% 채움의 흰 글자 버튼, hover 26%, 누름 34%. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 흰 글자를 지우므로 안내 안 버튼 규칙이 그보다 무거워야 한다.
   - 점: accent 한 색(8px)이고, 2.4초 주기로 0.75배와 1.25배 사이를 오가며, 같은 주기로 accent 70% 고리가 8px까지 퍼지며 사라진다. 응답 대기와 동작 줄이기에서는 둘 다 멈춘다.
-- 문구: 일함 "<Provider> is working", 응답 대기 "<Provider> needs your answer". Provider는 그 대화의 공급자 표시 이름이다. 960 창에서 패널을 최대로 넓혀도 문구가 먼저 말줄임되고 Stop은 줄지 않는다.
-- Stop: 확인 없이 `interruptConversation({ conversationId })`. 누르면 "Stopping…"(`aria-disabled`)이 되고, 목록에서 그 턴이 끝날 때까지(`phase`가 `ended`) 유지한다. `interruptConversation`은 실패해도 reject하지 않고 `ConversationError`를 돌려주므로, 오류가 오면 Stop을 다시 활성으로 돌리고 공용 토스트로 알린다. 턴이 끝나면 표시 전체가 사라진다.
+- 문구: 일함 "<Provider> is working", 응답 대기 "<Provider> needs your answer". Provider는 그 대화의 공급자 표시 이름이다. 960 창에서 패널을 최대로 넓혀도 문구가 먼저 말줄임되고 버튼은 줄지 않는다.
+- Stop: 확인 없이 `interruptConversation({ conversationId })`. 누르면 "Stopping…"(`aria-disabled`)이 되고, 목록에서 그 턴이 끝날 때까지(`phase`가 `ended`) 유지한다. `interruptConversation`은 실패해도 reject하지 않고 `ConversationError`를 돌려주므로, 오류가 오면 Stop을 다시 활성으로 돌리고 공용 토스트로 알린다. 턴이 끝나면 표시 전체가 사라진다. 응답 대기 중에는 Stop이 없다. 멈추기는 대화 패널의 권한 요청에서 한다.
+- Open(응답 대기 중): 패널이 접혀 있으면 펴고 패널로 포커스를 옮긴다. 펴져 있으면 패널로 포커스만 옮긴다. 그 권한 요청으로 스크롤하고 첫 선택지에 포커스를 주는 것은 `buzz-canvas-conversation`이 더한다. 그 전까지는 임시 상태줄(Stop 포함)이 캔버스 페이지에 남아 있으므로 멈추는 길은 사라지지 않는다. 접근 이름은 "Open the request".
 - 답하기·실패 알림은 없다(대화 패널 몫, spec 비목표). 지금 캔버스 페이지에 뜨는 임시 상태줄은 그대로 있고, 그 상태줄에도 Stop이 있다. `buzz-canvas-conversation`이 상태줄을 대화 패널로 바꿀 때까지 둘이 함께 있다.
 - 이 캔버스의 현재 대화가 실제로 일하는 상태에 닿는 경로는 좁다(PRODUCT §5 항목 1: 캔버스 대화는 아직 앱에서 이어 갈 수 없다. 승격 직후 대기열 메시지가 나가는 경우 등). 실제 앱에서 만들지 못하면 미검증으로 남긴다.
 
