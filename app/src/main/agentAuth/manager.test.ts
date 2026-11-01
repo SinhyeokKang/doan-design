@@ -9,9 +9,9 @@ import { AuthManager, removeStaleLinkDirs, spawnAuthProcess, type AuthProcess, t
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
-import type { CheckResult, Provider } from "./types";
+import { PROVIDERS, type CheckResult, type Provider } from "./types";
 
-type Step = "login" | "status" | "logout" | "acp";
+type Step = "login" | "status" | "logout" | "acp" | "rpc";
 class FakeProcess implements AuthProcess {
   listeners: ((text: string, stream?: "stderr") => void)[] = [];
   stopped = false;
@@ -38,13 +38,13 @@ class FakeProcess implements AuthProcess {
 let stopReleases = true;
 const fileProvider = (status: (dir: string) => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: [], env: { FAKE_STORE: "file" }, login: ["login"], status: ["status"], logout: null,
-  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false,
+  vault: ["creds/token.json"], plaintext: [], settings: { "conf/settings.json": '{"storeTokenPlaintext":true}' }, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null,
   parseStatus: run => run.code === 0 ? status(run.profileDir) : { status: "failed", code: "check_failed" },
 });
 // Antigravity's shape: sign-in, status and sign-out are ACP calls on one server binary.
 const acpProvider = (): ProviderAuth => ({
   command: "fake-server", args: [], env: {}, login: [], status: [], logout: null, vault: ["creds/token.json"], plaintext: [], settings: {},
-  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false, hookLink: null, loginClears: false,
+  acpAuth: { method: "oauth-personal", agent: "fake-acp", version: "1.3.0" }, acp: { args: [], authenticate: "oauth-personal", sessions: "sessions" }, verifyByRun: false, hookLink: null, loginClears: false, identity: null,
   parseStatus: run => run.code === 2 ? { status: "disconnected" } : run.code === 0 ? { status: "connected", account: { id: null, workspace: null } } : { status: "failed", code: "check_failed", detail: run.stderr },
 });
 const INIT = { protocolVersion: 1, agentInfo: { name: "fake-acp", version: "1.3.0" }, authMethods: [{ id: "oauth-personal" }], agentCapabilities: { loadSession: true } };
@@ -62,7 +62,7 @@ const googleLink = (port: number) => `https://accounts.google.com/o/oauth2/v2/au
 const withAcp = () => ({ claude: keychainProvider(() => keychain), codex: keychainProvider(() => keychain), cursor: fileProvider(tokenAccount), antigravity: acpProvider(), copilot: fileProvider(tokenAccount) });
 const keychainProvider = (status: () => CheckResult): ProviderAuth => ({
   command: "fake-cli", args: ["-c", "store=keyring"], env: {}, login: ["login"], status: ["status"], logout: ["logout"],
-  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
+  vault: null, plaintext: ["auth.json"], settings: {}, acpAuth: null, acp: null, verifyByRun: false, hookLink: null, loginClears: false, identity: null, parseStatus: run => run.code === 0 ? status() : { status: "failed", code: "check_failed" },
 });
 const tokenAccount = (dir: string): CheckResult => {
   const path = join(dir, "creds/token.json");
@@ -106,7 +106,7 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "doan-auth-manager-")); cipher = fakeCipher(); storage = new AuthStorage(root, cipher);
   processes = []; settledSet.clear(); replied.clear(); keychain = { status: "disconnected" }; ids = 0; stopReleases = true;
   spawn = vi.fn<Spawn>((_command, args, options) => {
-    const step: Step = options.input ? "acp" : args.includes("login") ? "login" : args.includes("logout") ? "logout" : "status";
+    const step: Step = options.input ? (args.includes("app-server") ? "rpc" : "acp") : args.includes("login") ? "login" : args.includes("logout") ? "logout" : "status";
     const p = new FakeProcess(step, args, options.env, options.cwd); processes.push(p); return p;
   });
 });
@@ -1537,5 +1537,357 @@ describe("profile doan stub", () => {
     const check = started(await m.check("cursor"));
     await finish("status", 0, p => expect(readFileSync(join(p.cwd, rel), "utf8")).toBe(bundled));
     await check.done;
+  });
+});
+
+describe("account identity lookup", () => {
+  const ACCESS = "ya29.ACCESS-SENTINEL";
+  const GOOGLE_TOKEN = { client_id: "cid.apps.googleusercontent.com", client_secret: "CLIENT-SECRET", refresh_token: "1//REFRESH-SENTINEL",
+    token_uri: "https://oauth2.googleapis.com/token", scopes: ["https://www.googleapis.com/auth/userinfo.email", "openid"], project_id: "p-1" };
+  const CHATGPT = (email = "ada@example.com") => ({ account: { type: "chatgpt", email, planType: "free" }, requiresOpenaiAuth: true });
+  const NONE = { id: null, workspace: null };
+  type Reply = { status?: number; body?: unknown } | "hang" | "reject";
+  // Google's two endpoints; "hang" answers only the abort signal, as fetch does.
+  const googleFetch = (token: Reply = { body: { access_token: ACCESS, expires_in: 3599, token_type: "Bearer" } }, info: Reply = { body: { sub: "1", email: "ada@gmail.example", email_verified: true } }) =>
+    vi.fn(async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const reply = String(url) === "https://oauth2.googleapis.com/token" ? token : info;
+      if (reply === "reject") throw new TypeError("fetch failed");
+      if (reply === "hang") return new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
+      return new Response(JSON.stringify(reply.body ?? {}), { status: reply.status ?? 200 });
+    });
+  const adapters = () => ({ ...withAcp(), codex: { ...keychainProvider(() => keychain), identity: "codex-app-server" as const }, antigravity: { ...acpProvider(), identity: "google-userinfo" as const } });
+  const lookupManager = (fetch: ReturnType<typeof googleFetch> = googleFetch(), over: Partial<ConstructorParameters<typeof AuthManager>[0]> = {}) => manager({ adapters: adapters(), fetch, ...over });
+  const until = async (test: () => boolean, what: string) => { for (let i = 0; i < 200; i++) { if (test()) return; await flush(); } throw new Error(`no ${what}`); };
+  // The next app-server: answers initialize, then account/read with reply.
+  async function codexLookup(reply: unknown): Promise<FakeProcess> {
+    const p = await next("rpc"); settledSet.add(p);
+    await until(() => p.requests().some(r => r.method === "initialize"), "initialize");
+    p.reply("initialize", { userAgent: "codex_app_server/0.164.0" });
+    await until(() => p.requests().some(r => r.method === "account/read"), "account/read");
+    p.reply("account/read", reply);
+    return p;
+  }
+  const writeFile = (cwd: string, token: object | string) => {
+    const path = join(cwd, "creds/token.json"); mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, typeof token === "string" ? token : JSON.stringify(token));
+  };
+  // token null: the login leaves no working copy.
+  async function antigravitySignIn(m: AuthManager, token: object | string | null = GOOGLE_TOKEN) {
+    const run = started(await m.signIn("antigravity", 7));
+    const login = await acpRequest("initialize"); login.reply("initialize", INIT);
+    await acpRequest("authenticate"); if (token !== null) writeFile(login.cwd, token); login.reply("authenticate", {});
+    const status = await acpRequest("initialize"); status.reply("initialize", INIT);
+    await acpRequest("authenticate"); status.reply("authenticate", {});
+    return run;
+  }
+  async function antigravityCheck(m: AuthManager) {
+    const check = started(await m.check("antigravity"));
+    const status = await acpRequest("initialize"); status.reply("initialize", INIT);
+    await acpRequest("authenticate"); status.reply("authenticate", {});
+    return check;
+  }
+  const storedCodex = (account: object = NONE) => storage.writeMetadata({ v: 1, accounts: [{ provider: "codex", connectionId: "c-1", profile: "codex", account: { ...NONE, ...account } }] });
+  async function storedAntigravity(token: object | string | null = GOOGLE_TOKEN, account: object = NONE) {
+    storage.writeMetadata({ v: 1, accounts: [{ provider: "antigravity", connectionId: "c-1", profile: "antigravity", account: { ...NONE, ...account } }] });
+    if (token !== null) await storage.saveVault("antigravity", { "creds/token.json": Buffer.from(typeof token === "string" ? token : JSON.stringify(token)) });
+  }
+  let errors: ReturnType<typeof vi.spyOn>, warnings: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    errors = vi.spyOn(console, "error").mockImplementation(() => {}); warnings = vi.spyOn(console, "warn").mockImplementation(() => {});
+    keychain = { status: "connected", account: NONE };
+  });
+  afterEach(() => { vi.useRealTimers(); errors.mockRestore(); warnings.mockRestore(); });
+  const logged = () => [...errors.mock.calls, ...warnings.mock.calls].map((call: unknown[]) => call.map(String).join(" ")).join("\n");
+
+  it("looks up only Codex and Antigravity", () => {
+    expect(Object.fromEntries(PROVIDERS.map(p => [p, PROVIDER_AUTH[p].identity]))).toEqual({ claude: null, codex: "codex-app-server", cursor: null, antigravity: "google-userinfo", copilot: null });
+  });
+
+  describe("Codex", () => {
+    it("stores the account/read email with a new connection, read through the profile's own app-server", async () => {
+      const m = lookupManager(); await m.load();
+      const run = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0);
+      const rpc = await codexLookup(CHATGPT());
+      const state = await run.done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, error: null });
+      expect(state.connection!.account).toEqual({ ...NONE, email: "ada@example.com" });
+      expect(storage.readMetadata().accounts).toEqual([state.connection]);
+      expect(rpc.args).toEqual(["-c", "store=keyring", "app-server"]);
+      expect(rpc.cwd).toBe(storage.profileDir("codex")); expect(rpc.env.CODEX_HOME).toBe(storage.profileDir("codex"));
+      expect(rpc.requests().map(r => r.method)).toEqual(["initialize", "initialized", "account/read"]);
+      expect(rpc.requests()[0]!.params).toMatchObject({ clientInfo: { name: "doan" }, capabilities: { experimentalApi: true } });
+      expect(rpc.requests().at(-1)!.params).toEqual({ refreshToken: false });
+      expect(rpc.stopped).toBe(true);
+    });
+    it("looks a staged replacement up in the staging profile and never carries the previous email over", async () => {
+      const m = manager({ adapters: { ...adapters(), codex: { ...adapters().codex, loginClears: true } }, fetch: googleFetch() }); await m.load();
+      const first = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0); await codexLookup(CHATGPT("old@example.com"));
+      expect((await first.done).connection!.account.email).toBe("old@example.com");
+      const replaced = started(await m.signIn("codex", 7));
+      const login = await finish("login", 0); await finish("status", 0);
+      const rpc = await codexLookup(CHATGPT("new@example.com"));
+      expect(rpc.cwd).toBe(login.cwd); expect(rpc.env.CODEX_HOME).toBe(login.cwd);
+      await finish("logout", 0);
+      expect((await replaced.done).connection!.account).toEqual({ ...NONE, email: "new@example.com" });
+      // A replacement whose lookup fails stores no email rather than the replaced account's.
+      const again = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0); await codexLookup({ account: null, requiresOpenaiAuth: true });
+      await finish("logout", 0);
+      const state = await again.done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, error: null });
+      expect(state.connection!.account).toEqual(NONE);
+      expect(storage.readMetadata().accounts[0]!.account).toEqual(NONE);
+    });
+    it("shows the email after a check of a connection stored without one, without writing metadata", async () => {
+      storedCodex();
+      const m = lookupManager(); await m.load();
+      const write = vi.spyOn(storage, "writeMetadata");
+      const check = started(await m.check("codex"));
+      await finish("status", 0); await codexLookup(CHATGPT());
+      expect(await check.outcome).toBe("ok");
+      expect(m.state("codex")).toMatchObject({ phase: "connected", verified: true, connection: { account: { ...NONE, email: "ada@example.com" } } });
+      expect(write).not.toHaveBeenCalled();
+      expect(storage.readMetadata().accounts[0]!.account).toEqual(NONE);
+    });
+    it("keeps the email a check showed when a later lookup fails", async () => {
+      storedCodex();
+      const m = lookupManager(); await m.load();
+      const first = started(await m.check("codex"));
+      await finish("status", 0); await codexLookup(CHATGPT());
+      await first.done;
+      const second = started(await m.check("codex"));
+      await finish("status", 0); await codexLookup({ account: null, requiresOpenaiAuth: true });
+      expect(await second.outcome).toBe("ok");
+      expect(m.state("codex").connection!.account).toEqual({ ...NONE, email: "ada@example.com" });
+    });
+    // Each way the app-server can fail leaves sign-in and check as they are without a lookup.
+    const failures: [string, (p: FakeProcess) => Promise<void> | void][] = [
+      ["exits before answering", p => p.finish(1)],
+      ["refuses account/read", async p => {
+        await until(() => p.requests().some(r => r.method === "initialize"), "initialize"); p.reply("initialize", {});
+        await until(() => p.requests().some(r => r.method === "account/read"), "account/read");
+        const id = p.requests().find(r => r.method === "account/read")!.id;
+        p.print(JSON.stringify({ id, error: { code: -32600, message: "nope" } }) + "\n");
+      }],
+      ["answers with an API key account", async p => {
+        await until(() => p.requests().some(r => r.method === "initialize"), "initialize"); p.reply("initialize", {});
+        await until(() => p.requests().some(r => r.method === "account/read"), "account/read"); p.reply("account/read", { account: { type: "apiKey" }, requiresOpenaiAuth: true });
+      }],
+      ["breaks the protocol", p => p.print("not json\n")],
+    ];
+    it.each(failures)("signs in and checks without an email when the app-server %s", async (_name, fail) => {
+      const m = lookupManager(); await m.load();
+      const run = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0);
+      let rpc = await next("rpc"); settledSet.add(rpc); await fail(rpc);
+      const state = await run.done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, error: null });
+      expect(state.connection!.account).toEqual(NONE);
+      expect(rpc.stopped).toBe(true);
+      const check = started(await m.check("codex"));
+      await finish("status", 0);
+      rpc = await next("rpc"); settledSet.add(rpc); await fail(rpc);
+      expect(await check.outcome).toBe("ok");
+      expect(m.state("codex")).toMatchObject({ phase: "connected", verified: true, error: null, connection: { account: NONE } });
+      expect(logged()).toContain("doan: codex account lookup failed");
+    });
+    it("signs in and checks without an email when the app-server cannot be started", async () => {
+      const m = lookupManager(); await m.load();
+      spawn.mockImplementation((_command, args, options) => {
+        if (args.includes("app-server")) throw new Error("spawn ENOENT");
+        const p = new FakeProcess(args.includes("login") ? "login" : "status", args, options.env, options.cwd); processes.push(p); return p;
+      });
+      const run = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0);
+      expect(await run.done).toMatchObject({ phase: "connected", verified: true, error: null, connection: { account: NONE } });
+      const check = started(await m.check("codex"));
+      await finish("status", 0);
+      expect(await check.outcome).toBe("ok");
+    });
+    it("stops an app-server that does not answer within 5 s and keeps the sign-in and check results", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const m = lookupManager(); await m.load();
+      const run = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0);
+      let rpc = await next("rpc");
+      await vi.advanceTimersByTimeAsync(4800);
+      expect(rpc.stopped).toBe(false);
+      await vi.advanceTimersByTimeAsync(400);
+      expect(rpc.stopped).toBe(true);
+      expect(await run.done).toMatchObject({ phase: "connected", verified: true, error: null, connection: { account: NONE } });
+      const check = started(await m.check("codex"));
+      await finish("status", 0);
+      rpc = await next("rpc");
+      await vi.advanceTimersByTimeAsync(5200);
+      expect(rpc.stopped).toBe(true);
+      expect(await check.outcome).toBe("ok");
+    });
+    it("leaves a check replaced by a sign-out stale, its lookup stopped", async () => {
+      storedCodex({ email: "old@example.com" });
+      const m = lookupManager(); await m.load();
+      const check = started(await m.check("codex"));
+      await finish("status", 0);
+      const rpc = await next("rpc");
+      const out = started(await m.signOut("codex"));
+      await until(() => rpc.stopped, "stopped lookup");
+      expect(await check.outcome).toBe("replaced");
+      expect(m.state("codex")).toMatchObject({ phase: "signingOut", connection: { account: { email: "old@example.com" } } });
+      keychain = { status: "disconnected" };
+      await finish("logout", 0); await finish("status", 0);
+      expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+      expect(processes.filter(p => p.step === "rpc")).toEqual([rpc]);
+    });
+  });
+
+  describe("Antigravity", () => {
+    it("stores the Google userinfo email with a new connection and keeps the access token in memory only", async () => {
+      const fetch = googleFetch();
+      const states: unknown[] = [];
+      const m = lookupManager(fetch, { onChange: state => states.push(state) }); await m.load();
+      const run = await antigravitySignIn(m);
+      const state = await run.done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, error: null });
+      expect(state.connection!.account).toEqual({ ...NONE, email: "ada@gmail.example" });
+      expect(storage.readMetadata().accounts).toEqual([state.connection]);
+      const [[tokenUrl, tokenInit], [infoUrl, infoInit]] = fetch.mock.calls as [string, RequestInit][];
+      expect(tokenUrl).toBe("https://oauth2.googleapis.com/token");
+      expect(tokenInit).toMatchObject({ method: "POST" });
+      expect(new Headers(tokenInit.headers).get("content-type")).toBe("application/x-www-form-urlencoded");
+      expect(Object.fromEntries(new URLSearchParams(String(tokenInit.body)))).toEqual({ grant_type: "refresh_token", client_id: GOOGLE_TOKEN.client_id, client_secret: "CLIENT-SECRET", refresh_token: "1//REFRESH-SENTINEL" });
+      expect(infoUrl).toBe("https://www.googleapis.com/oauth2/v3/userinfo");
+      expect(new Headers(infoInit.headers).get("authorization")).toBe(`Bearer ${ACCESS}`);
+      expect(JSON.stringify(state)).not.toContain(ACCESS);
+      expect(readFileSync(join(root, "metadata.json"), "utf8")).not.toContain(ACCESS);
+      expect(JSON.stringify(states)).not.toContain(ACCESS);
+      expect(existsSync(tokenFile("antigravity"))).toBe(false);
+      expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(GOOGLE_TOKEN)) });
+    });
+    it("reads the working copy inside the check's hold and sends the requests after the drop", async () => {
+      await storedAntigravity();
+      const present: boolean[] = [];
+      const fetch = googleFetch();
+      fetch.mockImplementation(async (url: string | URL | Request) => {
+        present.push(existsSync(tokenFile("antigravity")));
+        return new Response(JSON.stringify(String(url).endsWith("/token") ? { access_token: ACCESS } : { email: "ada@gmail.example" }));
+      });
+      const m = lookupManager(fetch); await m.load();
+      const write = vi.spyOn(storage, "writeMetadata");
+      const check = await antigravityCheck(m);
+      expect(await check.outcome).toBe("ok");
+      expect(present).toEqual([false, false]);
+      expect(m.state("antigravity").connection!.account).toEqual({ ...NONE, email: "ada@gmail.example" });
+      expect(write).not.toHaveBeenCalled();
+      expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(GOOGLE_TOKEN)) });
+    });
+    it("keeps the email a check showed when a later lookup is refused", async () => {
+      await storedAntigravity();
+      const fetch = googleFetch();
+      const m = lookupManager(fetch); await m.load();
+      await (await antigravityCheck(m)).done;
+      fetch.mockImplementation(async () => new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 }));
+      expect(await (await antigravityCheck(m)).outcome).toBe("ok");
+      expect(m.state("antigravity").connection!.account).toEqual({ ...NONE, email: "ada@gmail.example" });
+    });
+    const failures: [string, Reply, Reply, object | string | null][] = [
+      ["the token request is refused (invalid_grant)", { status: 400, body: { error: "invalid_grant", error_description: "Bad Request" } }, { body: {} }, GOOGLE_TOKEN],
+      ["userinfo answers 401", { body: { access_token: ACCESS } }, { status: 401, body: { error: "invalid_token" } }, GOOGLE_TOKEN],
+      ["Google answers 503", { status: 503 }, { body: {} }, GOOGLE_TOKEN],
+      ["the request cannot be sent", "reject", "reject", GOOGLE_TOKEN],
+      ["the working copy is missing", { body: {} }, { body: {} }, null],
+      ["the working copy is not JSON", { body: {} }, { body: {} }, "{not json"],
+      ["token_uri is not Google's", { body: {} }, { body: {} }, { ...GOOGLE_TOKEN, token_uri: "https://evil.example/token" }],
+    ];
+    it.each(failures)("signs in and checks without an email when %s", async (name, token, info, file) => {
+      const fetch = googleFetch(token, info);
+      const m = lookupManager(fetch); await m.load();
+      const state = await (await antigravitySignIn(m, file)).done;
+      expect(state).toMatchObject({ phase: "connected", verified: true, error: null });
+      expect(state.connection!.account).toEqual(NONE);
+      const check = await antigravityCheck(m);
+      expect(await check.outcome).toBe("ok");
+      expect(m.state("antigravity")).toMatchObject({ phase: "connected", verified: true, error: null, connection: { account: NONE } });
+      if (name.startsWith("token_uri") || name.startsWith("the working copy")) expect(fetch).not.toHaveBeenCalled();
+      const text = logged();
+      expect(text).toContain("doan: antigravity account lookup failed");
+      for (const secret of [ACCESS, "CLIENT-SECRET", "1//REFRESH-SENTINEL", "Bad Request"]) expect(text).not.toContain(secret);
+    });
+    it("warns without the value when Google returns a refresh token, and leaves the credential file alone", async () => {
+      const fetch = googleFetch({ body: { access_token: ACCESS, refresh_token: "1//NEW-REFRESH" } });
+      const m = lookupManager(fetch); await m.load();
+      const state = await (await antigravitySignIn(m)).done;
+      expect(state.connection!.account.email).toBe("ada@gmail.example");
+      expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(GOOGLE_TOKEN)) });
+      await (await antigravityCheck(m)).done;
+      expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(GOOGLE_TOKEN)) });
+      const text = logged();
+      expect(text).toContain("Google returned a refresh token; Doan ignored it");
+      for (const secret of ["1//NEW-REFRESH", ACCESS]) expect(text).not.toContain(secret);
+    });
+    it("ends a sign-in cancelled during an unanswered request at once", async () => {
+      const fetch = googleFetch("hang");
+      const m = lookupManager(fetch); await m.load();
+      const run = await antigravitySignIn(m);
+      await until(() => fetch.mock.calls.length === 1, "token request");
+      const at = Date.now();
+      await m.cancel("antigravity", run.attemptId, 7);
+      expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null, connection: null });
+      expect(Date.now() - at).toBeLessThan(1000);
+      expect((fetch.mock.calls[0]![1] as RequestInit).signal!.aborted).toBe(true);
+      expect(storage.readMetadata().accounts).toEqual([]);
+    });
+    it("quits within its wait during an unanswered request and keeps the stored credential", async () => {
+      await storedAntigravity();
+      const fetch = googleFetch("hang");
+      const m = lookupManager(fetch); await m.load();
+      await antigravityCheck(m);
+      await until(() => fetch.mock.calls.length === 1, "token request");
+      // A replacement's request is the sign-in's; quit cancels it too.
+      const at = Date.now();
+      await m.quit();
+      expect(Date.now() - at).toBeLessThan(1000);
+      expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(GOOGLE_TOKEN)) });
+      expect(existsSync(tokenFile("antigravity"))).toBe(false);
+    });
+    it("quits during a replacement's unanswered request and keeps the previous credential", async () => {
+      const OLD = { ...GOOGLE_TOKEN, refresh_token: "1//OLD" };
+      await storedAntigravity(OLD, { email: "old@gmail.example" });
+      const fetch = googleFetch("hang");
+      const m = lookupManager(fetch); await m.load();
+      const run = await antigravitySignIn(m);
+      await until(() => fetch.mock.calls.length === 1, "token request");
+      const at = Date.now();
+      await m.quit();
+      expect(Date.now() - at).toBeLessThan(1000);
+      expect(await run.done).toMatchObject({ connection: { connectionId: "c-1", account: { email: "old@gmail.example" } } });
+      expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(OLD)) });
+      expect(storage.readMetadata().accounts[0]!.connectionId).toBe("c-1");
+    });
+  });
+
+  describe("other providers", () => {
+    it("start no lookup process or request for Claude, Cursor and Copilot sign-in, check and run confirmation", async () => {
+      const fetch = googleFetch();
+      const m = lookupManager(fetch); await m.load();
+      keychain = { status: "connected", account: { id: "acct", workspace: "org", email: "claude@example.com" } };
+      const claude = started(await m.signIn("claude", 7));
+      await finish("login", 0); await finish("status", 0);
+      expect((await claude.done).connection!.account).toEqual(keychain.account);
+      const check = started(await m.check("claude")); await finish("status", 0);
+      expect(await check.outcome).toBe("ok");
+      expect(m.state("claude").connection!.account).toEqual(keychain.account);
+      for (const provider of ["cursor", "copilot"] as const) {
+        const run = started(await m.signIn(provider, 7));
+        await finish("login", 0, p => writeToken(p, { id: provider })); await finish("status", 0);
+        expect((await run.done).connection!.account).toEqual({ id: provider, workspace: null, email: `${provider}@example.com` });
+        const again = started(await m.check(provider)); await finish("status", 0);
+        expect(await again.outcome).toBe("ok");
+        expect(m.state(provider).connection!.account).toEqual({ id: provider, workspace: null, email: `${provider}@example.com` });
+      }
+      m.confirm("copilot", m.state("copilot").connection!.connectionId);
+      expect(m.state("copilot").connection!.account).toEqual({ id: "copilot", workspace: null, email: "copilot@example.com" });
+      expect(processes.filter(p => p.step === "rpc" || p.step === "acp")).toEqual([]);
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 });
