@@ -52,7 +52,7 @@ export function CanvasAgent({ list, canvas, running, onOpen, onStopFailed }: {
 
 // The board-wide dot field (design §2): canvas 2D, a virtual cursor sweeping the board, the colour read from the
 // element's computed `color` so the theme's role decides it.
-function DotField({ running }: { running: boolean }) {
+export function DotField({ running }: { running: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const loop = useRef<DotFieldLoop | null>(null);
   const [windowShown, setWindowShown] = useState(true);
