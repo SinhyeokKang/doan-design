@@ -154,11 +154,18 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	if e != nil && !os.IsNotExist(e) {
 		return Outcome{}, internal(e)
 	}
-	line := ".doan/comments/*.jsonl merge=union"
-	has := false
-	for _, s := range strings.Split(string(attrs), "\n") {
-		if strings.TrimSuffix(s, "\r") == line {
-			has = true
+	// The union merge keeps comment lines from both sides; linguist-documentation keeps the HTML canvases out of
+	// GitHub's language stats, so they are not counted as the repository's code.
+	missing := []string{}
+	for _, line := range []string{".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"} {
+		has := false
+		for _, s := range strings.Split(string(attrs), "\n") {
+			if strings.TrimSuffix(s, "\r") == line {
+				has = true
+			}
+		}
+		if !has {
+			missing = append(missing, line)
 		}
 	}
 	created := []string{}
@@ -194,7 +201,7 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 	if e := staged.Close(); e != nil {
 		return Outcome{}, internal(e)
 	}
-	if !has {
+	if len(missing) > 0 {
 		newline := "\n"
 		if bytes.Contains(attrs, []byte("\r\n")) {
 			newline = "\r\n"
@@ -202,7 +209,9 @@ func initWithRename(ctx Context, f Flags, args []string, rename func(string, str
 		if len(attrs) > 0 && attrs[len(attrs)-1] != '\n' {
 			attrs = append(attrs, newline...)
 		}
-		attrs = append(attrs, line+newline...)
+		for _, line := range missing {
+			attrs = append(attrs, line+newline...)
+		}
 		if e := os.WriteFile(attrsPath, attrs, 0644); e != nil {
 			return Outcome{}, internal(e)
 		}

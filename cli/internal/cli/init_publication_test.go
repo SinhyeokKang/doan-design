@@ -13,7 +13,7 @@ import (
 func TestInitPublicationFailureThenRetry(t *testing.T) {
 	root := t.TempDir()
 	const foreign = "*.txt text\r\n"
-	const union = ".doan/comments/*.jsonl merge=union\r\n"
+	const union = ".doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n"
 	putFile(t, root, ".gitattributes", foreign)
 	injected := &os.LinkError{Op: "rename", Err: syscall.EIO}
 	calls := 0

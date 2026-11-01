@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -86,6 +87,20 @@ func createLine(id, n, html string) string {
 	hash := fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(html)))
 	return fmt.Sprintf(`{"v":1,"id":"evt_00000000-0000-4000-8000-%012s","at":"2090-01-01T00:00:00.000Z","type":"create","comment":%q,"by":{"kind":"human","name":"Human"},"body":"change this","canvasHash":%q,"target":{}}`, n, id, hash)
 }
+
+const (
+	mergeLine    = ".doan/comments/*.jsonl merge=union"
+	linguistLine = ".doan/** linguist-documentation"
+)
+
+func TestInitFreshRepoWritesBothAttributeLines(t *testing.T) {
+	r := t.TempDir()
+	got := result(t, r, 0, "init")
+	if readFile(t, r, ".gitattributes") != mergeLine+"\n"+linguistLine+"\n" || !reflect.DeepEqual(got["created"], []any{".doan/canvases/", ".doan/config.json", ".gitattributes"}) {
+		t.Fatal(got, readFile(t, r, ".gitattributes"))
+	}
+}
+
 func TestInitAndEmptyCommands(t *testing.T) {
 	root := initialized(t)
 	config := readFile(t, root, ".doan/config.json")
@@ -128,7 +143,14 @@ func TestInitAndEmptyCommands(t *testing.T) {
 	for _, tt := range []struct {
 		before, after string
 		changed       bool
-	}{{"x", "x\n.doan/comments/*.jsonl merge=union\n", true}, {"x\r\n", "x\r\n.doan/comments/*.jsonl merge=union\r\n", true}, {".doan/comments/*.jsonl merge=union\r\n", ".doan/comments/*.jsonl merge=union\r\n", false}} {
+	}{
+		{"x", "x\n" + mergeLine + "\n" + linguistLine + "\n", true},
+		{"x\r\n", "x\r\n" + mergeLine + "\r\n" + linguistLine + "\r\n", true},
+		// A repo set up before the linguist line gets only the missing line.
+		{mergeLine + "\r\n", mergeLine + "\r\n" + linguistLine + "\r\n", true},
+		{linguistLine + "\n", linguistLine + "\n" + mergeLine + "\n", true},
+		{mergeLine + "\r\n" + linguistLine + "\r\n", mergeLine + "\r\n" + linguistLine + "\r\n", false},
+	} {
 		r := t.TempDir()
 		putFile(t, r, ".gitattributes", tt.before)
 		got := result(t, r, 0, "init")
