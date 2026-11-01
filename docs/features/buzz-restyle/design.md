@@ -7,7 +7,7 @@
 사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [승격된 구조 계약](../../ARCHITECTURE.md#7-app-stack-electron--typescript)가 우선한다. Shell 구현·검증 결과는 [DESIGN.md](../../DESIGN.md)의 2026-10-27 완료 기록을 따른다.
 
 - Shell/LNB는 투명·블러, 본문만 흰 Panel이다. LNB의 별도 Panel·점 격자·violet 선택은 사용하지 않는다.
-- LNB 프로젝트→캔버스 IA와 프로젝트 메뉴·워크트리 선택은 buzz-shell이 맡는다. buzz-project는 Overview 본문, buzz-home은 프로젝트 선택 전 본문, buzz-conversation은 대화 공용 UI, buzz-canvas-conversation은 오른쪽 패널 표시 정책과 캔버스 대화를 맡는다.
+- LNB 프로젝트→캔버스 IA와 프로젝트 메뉴·워크트리 선택은 buzz-shell이 맡는다. buzz-project는 Overview 본문, buzz-home은 프로젝트 선택 전 본문, buzz-conversation은 대화 공용 UI, buzz-canvas-conversation은 대화 전용 도킹 패널의 표시 정책과 캔버스 대화를 맡는다. 인스펙터는 buzz-inspector의 플로팅 패널이다(spec '캔버스 페이지 방향').
 - Geist는 앱 전역 공통 폰트로 로컬 제공하며 시스템 스택은 대체 글꼴이다. 공통 칩 기본값은 12px·상하 2px·좌우 6px, 워크트리는 translucent 변형이다.
 - 현재 프로젝트는 접을 수 없다. 브랜치 뱃지는 읽기 전용이다. 우측 … 메뉴는 워크트리·Overview·Finder·설정·프로젝트 전체 등록 제거를 제공한다.
 - 이전/다음은 실행 중의 캔버스·워크트리·Overview 방문 기록이다. 전환 보호를 통과한 이동만 기록한다.

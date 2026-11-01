@@ -56,10 +56,10 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 | 5 | `buzz-add-projects` | 프로젝트 추가 페이지 | 헤더 Add Projects(Cmd+O, File > Add Project…)가 네이티브 폴더 선택 대신 AppShell 안의 페이지를 연다. 온보딩 Project 단계(로컬 폴더, GitHub URL 재사용·clone, 설정이 필요한 폴더의 Set up)를 가능한 만큼 재사용한다(2026-10-30 user). 헤더 캡슐 Add Projects / Projects / Settings가 페이지를 오가는 진짜 탭이 되는 첫 자식이다(Add Projects ↔ Projects). 여러 폴더 선택·하위 저장소 체크리스트·폴더 드롭을 어떻게 옮길지는 이 자식의 `/feature`가 정한다. `AddProjectsDialog`(공통 결정 10의 buzz-ds 공유 요소)를 바꾸거나 걷어내는 일을 포함한다 | buzz-shell, buzz-onboarding |
 | 6 | `buzz-settings` | 설정 페이지 | 별도 Settings 창(`settings.html`, `settingsWindow.tsx`, `settingsProjects.tsx`, `settings.css`, `preload/settings.ts`)을 AppShell 안의 페이지로 바꾼다(2026-10-30 user). LNB는 ShellSidebar를 그대로 쓰고 카테고리 Agents · Notifications · Connections · About을 보인다. 본문은 Buzz Settings의 카테고리 구성(제목 → 섹션 + `SettingsGroup` + `PreferenceRow`, 48rem 열)만 참고한다. 헤더 Settings 탭과 Settings…(Cmd+,)가 이 페이지를 연다. 알림·새 대화 기본값·About을 새로 더하고, 저장소별 Token CSS·Serve는 프로젝트 메뉴의 Project Settings 다이얼로그로 옮긴다. 확정 초안은 `.doan/canvases/buzz-settings.html`, 세부는 자식 문서에 있다. 2026-10-25 app-setup 'Settings는 별도 창' 결정을 대체한다(구현 완료 때 본문을 현재 규칙으로 고친다) | buzz-ds, buzz-add-projects |
 | 7 | `buzz-project` | 프로젝트 Overview | 완료. Overview를 프로젝트 대화 화면으로 바꿨다(2026-10-31 user). 헤더는 프로젝트·브랜치 칩(워크트리가 둘 이상이면 워크트리 선택)·대화 제목 드롭다운, 메인은 `buzz-conversation`의 스레드와 하단 `docked` 입력창, 오른쪽 패널은 현재 대화가 있는 캔버스 목록(캔버스당 현재 대화 하나, 미리보기, 펼치지 않음)이다. 캔버스 대화는 항상 캔버스로 연다. 기존 캔버스 수정으로 승격되면 메인이 새 대화로 초기화되고 이동 알림을 남긴다. FirstPrompt, Feedback 패널, 캔버스 없는 코멘트의 앱 경로를 지웠다(CLI로만 다룸). 현재 규칙은 PRODUCT §5 항목 3 'Project Overview'와 DESIGN 'Project Overview'가 정본이다 | buzz-shell, buzz-conversation |
-| 8 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 줌·프레임 컨트롤, 오버레이 표시(선택·hover·치수, 요소 피커가 쓰는 선택 모드), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
-| 9 | `buzz-inspector` | 인스펙터 | 오른쪽 패널 Inspector 탭의 내용(스타일·토큰 목록, 섹션, 값 행). 패널의 표시·숨김과 탭 틀은 `buzz-canvas-conversation` | buzz-shell |
+| 8 | `buzz-canvas` | 캔버스 | 캔버스 영역과 보드, 오버레이 표시(선택·hover·치수, 입력창 요소 피커가 쓰는 선택 모드), 프레임 하이라이트, 캔버스 로딩·문제 메시지, `.canvas-notice`. 캔버스 위 컨트롤 세 곳(아래 '캔버스 페이지 방향'): 좌상단 프레임 서랍, 우상단 배율 컨트롤러, 하단 도구모음과 그 안의 선택 피커. 컨트롤이 가리는 만큼 맞춤·프레임 이동 여백(지금 32px)과 notice 위치를 다시 정한다. 보드를 `Panel` 안에 둘지 결정 | buzz-shell |
+| 9 | `buzz-inspector` | 인스펙터 | 캔버스 위에 뜨는 앱 안 플로팅 패널(별도 OS 창 아님)과 그 내용(스타일·토큰 목록, 섹션, 값 행), 선택이 없을 때의 Canvas info(지금 오른쪽 패널의 Path·ID·Width·Frames·Activity), 도구모음의 인스펙트 도구 | buzz-canvas |
 | 10 | `buzz-conversation` | 대화 (공용) | 에이전트와의 실시간 대화 UI 중 캔버스에 묶이지 않은 공용 부분(기존 `buzz-comment` 자리, 2026-10-26 user. 2026-10-31 user가 캔버스 전용 부분을 12번으로 나눴다): 대화 스레드 프리미티브(메시지, 권한 요청, 진행·실패 상태, 새 대화 시작), 입력창 공용 프리미티브와 두 타입 — `hero`(Home: 항상 box, 프로젝트 선택·워크트리 트레이·히어로 배치)와 `docked`(Overview·캔버스 대화 패널: 비어 있으면 한 줄 capsule, 줄바꿈·첨부·프리셋 칩이 생기면 box, 텍스트와 칩이 모두 없을 때만 capsule로 돌아감, 에이전트·effort는 카드 아래 줄, 모양 전환에 textarea를 다시 마운트하지 않음). 대화 목록의 재시작 뒤 유지, 캔버스에 묶이지 않은 프로젝트 대화 여러 개, 캔버스별 보관 대화 다시 열기. 홈 대화의 임시 상태줄·LNB 상태 슬롯·프로젝트당 홈 대화 1개 규칙을 다시 정한다. 구현 완료 때 PRODUCT §3 항목 6·§5 항목 1을 고친다. 기반은 [`agent-conversation`](../../PRODUCT.md#agent-conversation-foundation-contract) | agent-conversation, agent-auth, buzz-shell |
-| 12 | `buzz-canvas-conversation` | 캔버스 대화 | `buzz-conversation` 프리미티브를 캔버스 오른쪽 패널에 놓는다(2026-10-31 user): 오른쪽 패널의 표시·숨김(요소를 고르거나 대화를 시작하면 열림)과 대화·인스펙터 탭 틀(`RightPanel.tsx`), 캔버스당 현재 대화 하나인 대화 탭, 입력창 옆 요소 피커, 인라인 앵커 칩, 보관한 대화를 여는 캔버스 구석 버튼. Overview 오른쪽 행에서 들어온 캔버스는 그 현재 대화 탭으로 열고, 본 것 규칙을 '대화 패널이 보일 때'로 바꾼다. 프로젝트 대화가 캔버스로 넘어오면 이 패널에서 이어 간다. 캔버스 페이지의 임시 상태줄을 대화 패널로 바꾼다. 앱의 코멘트 화면 제거(Comments 패널, 코멘트 핀, Review bar·배너, Hand Off 다이얼로그. FirstPrompt, Overview의 Feedback 패널, 캔버스 없는 코멘트의 앱 경로는 `buzz-project`가 지웠다). CLI·MCP·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user) | buzz-conversation, buzz-canvas, buzz-inspector |
+| 12 | `buzz-canvas-conversation` | 캔버스 대화 | `buzz-conversation` 프리미티브를 캔버스 오른쪽 도킹 패널에 놓는다(2026-10-31 user). 도킹 패널은 대화 전용이고 탭 틀이 없다(2026-11-01 user, 아래 '캔버스 페이지 방향'): 패널의 표시·숨김(사람이 열고 닫으며, 대화를 시작하거나 대화에 넣기를 누르면 열림), Overview의 스레드·`docked` 입력창·대화 제목 메뉴를 가능한 만큼 재사용한 캔버스당 현재 대화 하나인 대화 패널(보관한 대화는 대화 제목 메뉴에서 연다), 입력창 옆 요소 피커, 인라인 앵커 칩, 도구모음의 대화에 넣기 도구. 지금 오른쪽 패널(`RightPanel.tsx`)의 Inspector·Comments 자리를 걷어낸다. Overview 오른쪽 행에서 들어온 캔버스는 그 현재 대화 패널로 열고, 본 것 규칙을 '대화 패널이 보일 때'로 바꾼다. 프로젝트 대화가 캔버스로 넘어오면 이 패널에서 이어 간다. 캔버스 페이지의 임시 상태줄을 대화 패널로 바꾼다. 앱의 코멘트 화면 제거(Comments 패널, 코멘트 핀, Review bar·배너, Hand Off 다이얼로그. FirstPrompt, Overview의 Feedback 패널, 캔버스 없는 코멘트의 앱 경로는 `buzz-project`가 지웠다). CLI·MCP·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user) | buzz-conversation, buzz-canvas, buzz-inspector |
 
 나눈 기준:
 - 사용자가 예로 든 `buzz-onboarding`, `buzz-home`, `buzz-search`처럼 화면 하나를 단위로 했다.
@@ -72,7 +72,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 ### 대화 UI 상세 (PRODUCT에서 옮김)
 
-- `buzz-canvas-conversation`: 입력창 옆 요소 피커를 켜면 캔버스 요소 선택에 들어가고, Esc로 취소한다. 요소를 고르면 입력창 커서 위치에 인라인 앵커 칩이 들어가고 입력창 포커스가 돌아온다. 캔버스 빈 곳을 누르면 좌표 칩이 들어간다.
+- `buzz-canvas-conversation`: 입력창 옆 요소 피커를 켜면 캔버스 요소 선택에 들어가고, Esc로 취소한다. 프레임이나 요소를 고르면 입력창 커서 위치에 인라인 앵커 칩이 들어가고 입력창 포커스가 돌아온다. 캔버스 빈 곳을 누르면 좌표 칩이 들어간다.
 - `buzz-canvas-conversation`: 보낸 메시지의 칩을 누르면 그 대상으로 이동해 강조한다. 요소는 `data-doan-id`로 먼저, 다음으로 selector로 찾고, 둘 다 못 찾으면 위치를 쓸 수 없다는 상태를 보인다.
 - `buzz-conversation`: busy·오류 응답으로 거절된 입력은 입력창에 남는다. 동시 대화 수 상한은 이 화면이 정한다(기반은 상한을 두지 않는다).
 - main은 마지막 자식이 병합될 때까지 반쯤 바뀐 화면을 보일 수 있고, 그 전에는 릴리스하지 않는다.
@@ -80,6 +80,19 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 ## 프로젝트 Overview 방향 (2026-10-31 user)
 
 2026-10-28 메모(선택 프로젝트에 묶인 입력창과 추천 프롬프트)를 구체화했다. Home은 프로젝트를 가로지르는 시작 화면(가운데 `hero` 입력창)이고, Overview는 한 프로젝트의 대화를 이어 가는 화면(메인 스레드와 하단 `docked` 입력창)이다. 추천 칩은 입력창을 채우기만 하고 사람이 전송한다. 예: `.doan/ds/`가 없으면 “{SelectedProject} 디자인 시스템을 만들어줘”가 먼저 온다. 범위는 표 7·10·12번이다.
+
+## 캔버스 페이지 방향 (2026-11-01 user)
+
+캔버스 페이지는 가운데 캔버스와 오른쪽 도킹 대화 패널로 이뤄진다. 범위는 표 8·9·12번이다.
+
+- **도킹 패널**에는 캔버스 대화만 둔다. 인스펙터는 도킹 패널의 탭이 아니라, 캔버스 위에 뜨는 앱 안 플로팅 패널이다. 앱은 창 하나라는 전제(ARCHITECTURE §7)를 유지하고 별도 OS 창을 만들지 않는다.
+- **캔버스 위 컨트롤**: 좌상단에 프레임 서랍, 우상단에 배율 컨트롤러, 하단에 도구모음이 있다.
+  - 프레임 서랍에서 프레임을 고르면 뷰가 그 프레임으로 이동하고 프레임을 선택한다. Quick Open의 프레임 이동은 지금 규칙(선택을 바꾸지 않음, PRODUCT §5 항목 3)을 그대로 둔다. 서랍은 buzz-shell이 지운 사이드바 프레임 행(공통 결정 6)을 되살리지 않고, 프레임 목록을 캔버스 안에 둔다.
+  - 도구모음은 디자인 도구처럼 아이콘 버튼을 가로로 놓은 줄이다. 도구는 그 기능을 만드는 자식이 하나씩 더한다: 선택 피커(`buzz-canvas`), 인스펙트(`buzz-inspector`), 대화에 넣기(`buzz-canvas-conversation`). 쓸 도구가 없는 빈 자리를 미리 만들지 않는다.
+  - 선택 피커는 켜고 끄는 모드가 아니다. 캔버스 클릭은 지금처럼 항상 선택하고 ⌥-클릭은 캔버스로 통과한다. 피커는 기본 도구로 눌린 상태로 보이기만 한다.
+  - 인스펙트와 대화에 넣기는 선택(프레임 또는 요소)이 있을 때만 활성이다.
+- **대상**: 도구모음과 입력창 피커는 모두 현재 선택(프레임 또는 요소)을 다룬다. 요소 선택·요소 인스펙트·요소 앵커 칩은 그대로 남는다. 도구모음의 대화에 넣기(선택 → 입력창)와 입력창 피커(입력창 → 캔버스에서 고르기)는 같은 앵커 칩을 넣는다.
+- **캡처 도구**는 이 부모의 범위가 아니다. 나중에 도구로 더할 후보이며, PRODUCT §5 Deferred의 Screenshots(에이전트 스크린샷)와 어떻게 다른지는 그때 정한다.
 
 ## 별도 기반 기능과 인계
 
