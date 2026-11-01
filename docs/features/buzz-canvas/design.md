@@ -36,7 +36,7 @@
 - 비활성 서랍: 로딩·실패·폭 없음·목록에 없는 페이지·프로젝트 문제에서는 "Frames", 프레임이 0개인 읽힌 캔버스에서만 "No frames".
 - 알림은 `doan-notice doan-panel`(흰 채움)에 패널 그림자를 더해 회색 보드 위에서 보이게 한다. 상태 메시지의 Reload는 panel 변형이다. 토스트는 창 오른쪽 아래 16px로 돌아간다.
 - 변경 표시는 왼쪽 아래 흰 캡슐(캡션 글자, 성공색 점)이다.
-- 패널 손잡이 막대 색은 `--border-focus`(거의 검정)로 그렸다. malmoi의 파랑 `--ring`보다 진하므로 검토 때 확인한다.
+- 패널 손잡이 막대는 accent 그라디언트다(2026-11-01 user).
 
 ## 1. 영향 범위
 
@@ -84,7 +84,7 @@
 - 열기: 패널이 접혀 있을 때만 캔버스 헤더 오른쪽 끝(배율 묶음 뒤, 1px 구분선 다음)에 "Show conversation"(`PanelRightOpen`) 아이콘 버튼이 생긴다. 두 버튼 모두 `aria-expanded`와 `aria-controls`로 패널을 가리킨다. 닫으면 포커스는 열기 버튼으로, 열면 닫기 버튼으로 간다. 접히면 캔버스 패널 오른쪽 모서리도 24px 둥글게 된다.
 - 폭: 기본 280px, 최소 280px, 최대는 560px와 '캔버스 영역이 360px 이상 남는 폭' 중 작은 값이다(1238 창에서 560, 960 창에서 356). 창이 줄어 저장된 폭이 최대를 넘으면 최대로 보이되 저장값은 바꾸지 않는다. 숫자는 초안에서 확정한다.
 - 라이브러리(2026-11-01 user 허락): 끌기와 접기는 shadcn `resizable` 컴포넌트(`npx shadcn@4.22.1 add resizable`, 내부는 `react-resizable-panels`)로 한다. 버전은 설치할 때 게시된 지 2주가 지난 것으로 정확히 고정한다(`app/.npmrc` `save-exact=true`; 2026-11-01 `npm view` 기준 4.16.0은 10-31 게시라 아직 안 되고, 4.14.5는 10-12 게시). 설치 전에 그 버전에서 px 단위 최소·최대 폭, 접기(`collapsible`)·`collapse()`·`expand()` API, 손잡이의 키보드·`aria-value*` 처리를 확인하고, 라이브러리 자체 저장(localStorage `autoSaveId`)은 쓰지 않는다(기억은 ui-state 한 곳). 확인한 내용과 버전은 ARCHITECTURE §7 스택에 승격한다.
-- 손잡이 스타일(2026-11-01 user): malmoi의 `components/ui/resizable.tsx`와 그 DESIGN.md 'Resizer' 표(`~/code/malmoi` `6dcdd575`에서 읽음)를 따른다. 손잡이 자체는 투명한 8px 띠이고, 보이는 것은 가운데 4px `::after` 막대 하나다. 막대는 위아래 끝이 사라지는 세로 그라디언트(투명 → 강조색 → 투명)이고, 라이브러리가 DOM에 쓰는 손잡이 상태가 hover·drag일 때만 보인다(React state 아님). 강조색은 doan의 `--border-focus`다(malmoi는 자기 `--ring`). 손잡이에 `cursor`를 걸지 않는다(끄는 동안 라이브러리가 문서 전체에 resize 커서를 건다). 히트 영역은 라이브러리의 기본 여백에 맡기고 덮지 않는다. `touch-action: none`. malmoi는 `react-resizable-panels` 2.1.9의 `data-resize-handle-state`를 썼으므로, 고르는 버전에서 같은 속성 이름인지 설치 전에 확인한다. malmoi에서 온 함정: 라이브러리 `expand()`는 % 기억이라 펼칠 때는 마지막 px로 `setLayout`; 전이는 버튼 토글에만(끌기에 걸면 손잡이가 포인터를 늦게 따라감); 패널에 `min-width: 0`; 라이브러리는 접근 이름을 만들지 않는다.
+- 손잡이 스타일(2026-11-01 user): malmoi의 `components/ui/resizable.tsx`와 그 DESIGN.md 'Resizer' 표(`~/code/malmoi` `6dcdd575`에서 읽음)를 따른다. 손잡이 자체는 투명한 8px 띠이고, 보이는 것은 가운데 4px `::after` 막대 하나다. 막대는 위아래 끝이 사라지는 세로 그라디언트(투명 → 강조색 → 투명)이고, 라이브러리가 DOM에 쓰는 손잡이 상태가 hover·drag일 때만 보인다(React state 아님). 강조색은 accent `--affordance-accent`다(2026-11-01 user; malmoi는 자기 `--ring`). 공통 결정 2의 accent 예외에 더한다. 손잡이에 `cursor`를 걸지 않는다(끄는 동안 라이브러리가 문서 전체에 resize 커서를 건다). 히트 영역은 라이브러리의 기본 여백에 맡기고 덮지 않는다. `touch-action: none`. malmoi는 `react-resizable-panels` 2.1.9의 `data-resize-handle-state`를 썼으므로, 고르는 버전에서 같은 속성 이름인지 설치 전에 확인한다. malmoi에서 온 함정: 라이브러리 `expand()`는 % 기억이라 펼칠 때는 마지막 px로 `setLayout`; 전이는 버튼 토글에만(끌기에 걸면 손잡이가 포인터를 늦게 따라감); 패널에 `min-width: 0`; 라이브러리는 접근 이름을 만들지 않는다.
 - 경계 손잡이: 캔버스와 패널 사이 1px 구분선 위의 투명한 8px 영역. `role="separator"`, `aria-orientation="vertical"`, `aria-valuenow/min/max`, `aria-label="Resize panel"`. 포커스 가능하고 ←/→는 16px씩, Home/End는 최소/최대. 두 번 클릭하면 280px로 돌아간다. 끄는 동안 캔버스 iframe이 포인터를 가져가지 않도록 끌기 중에만 보드 위에 투명 덮개를 둔다.
 - 기억: `UiState.rightPanel = { open, width }`(기기 전체, 캔버스별 아님). 공유 형식(JSON Schema)이 아닌 기기 안 ui-state라서 `v`와 fixture 변경은 없다. 잘못된 값은 기본값으로 읽는다.
 - 뷰: 폭이 바뀌면 캔버스 영역 크기가 바뀐다. 창 크기 변경과 같이 뷰의 왼쪽 위 기준을 유지하고 다시 맞추지 않는다(ARCHITECTURE §3 'Zoom and pan').

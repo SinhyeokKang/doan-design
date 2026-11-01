@@ -60,6 +60,6 @@
 - [ ] Z3. DESIGN.md: 'Canvas area and right panel'의 캔버스 부분, 'Select and inspect'의 오버레이 부분에서 "buzz-ds 이전" 표시를 걷고 측정값을 적는다. 오른쪽 패널·Inspector 부분은 `buzz-inspector` 몫으로 남긴다.
   - 검증: `grep -n 'buzz-ds 이전' docs/DESIGN.md`에 남은 줄이 모두 다른 자식 몫.
   - ── commit: `docs(DESIGN): record the buzz canvas` ──
-- [ ] Z4. 부모 `buzz-restyle`: tasks C8 체크, 공통 결정 6에 보존 예외(캔버스 페이지의 Inspector·Comments 화면 제거, 2026-11-01 user)를 적고 표 9·12번의 "오른쪽 패널" 서술을 고친다, spec 표 12번의 '오른쪽 패널의 표시·숨김' 중 틀(접기·펼치기·폭)을 8번으로 옮긴다(자동으로 여는 규칙은 12번에 남음), 표 8번에서 '입력창 요소 피커가 쓰는 선택 모드'를 빼고 12번에 더한다, 표 8번에 에이전트 작업 표시와 선행 `buzz-conversation`을 더한다, 공통 결정 2에 '에이전트 작업 표시(가장자리 그림자·점·안내)는 accent' 예외를 더한다(모두 2026-11-01 user), design.md 'DESIGN.md 절과 담당' 표 갱신. `docs/features/buzz-canvas/`를 지운다.
+- [ ] Z4. 부모 `buzz-restyle`: tasks C8 체크, 공통 결정 6에 보존 예외(캔버스 페이지의 Inspector·Comments 화면 제거, 2026-11-01 user)를 적고 표 9·12번의 "오른쪽 패널" 서술을 고친다, spec 표 12번의 '오른쪽 패널의 표시·숨김' 중 틀(접기·펼치기·폭)을 8번으로 옮긴다(자동으로 여는 규칙은 12번에 남음), 표 8번에서 '입력창 요소 피커가 쓰는 선택 모드'를 빼고 12번에 더한다, 표 8번에 에이전트 작업 표시와 선행 `buzz-conversation`을 더한다, 공통 결정 2에 '에이전트 작업 표시(가장자리 그림자·점·안내)와 패널 손잡이 막대는 accent' 예외를 더한다(모두 2026-11-01 user), design.md 'DESIGN.md 절과 담당' 표 갱신. `docs/features/buzz-canvas/`를 지운다.
   - 검증: 디렉터리가 없다.
   - ── commit: `docs(feature): complete buzz-canvas` ──
