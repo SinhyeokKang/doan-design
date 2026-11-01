@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
+import { plainText, textSegments, type FieldSegment } from "./anchorField";
 import * as Parts from "./ComposerParts";
 import { DockedComposer, type DockedComposerProps, type DockedOutcome } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
@@ -15,6 +16,7 @@ vi.mock("react", async original => ({
   useId: () => "id",
   useEffect: (effect: () => unknown) => { hooks.effects.push(effect); },
   useLayoutEffect: (effect: () => unknown) => { hooks.effects.push(effect); },
+  useImperativeHandle: () => {},
   useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
   useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (v: unknown) => unknown)(hooks.states[index]) : next; }]; },
 }));
@@ -43,7 +45,8 @@ function expand(type: unknown, props: Record<string, unknown>): ReactNode {
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child)) return [];
-    if (PRIMITIVES.has(child.type)) return elements(expand(child.type, child.props));
+    // The field's own props (value, onChange, readOnly) are kept beside the element it draws.
+    if (PRIMITIVES.has(child.type)) return [...(child.type === Parts.ComposerField ? [child.props] : []), ...elements(expand(child.type, child.props))];
     return [child.props, ...elements(child.props.children)];
   });
 }
@@ -74,10 +77,15 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
 }
 const find = (tree: Record<string, unknown>[], test: (props: Record<string, unknown>) => boolean) => { const found = tree.find(test); if (!found) throw new Error("not found"); return found; };
 const field = (tree: Record<string, unknown>[]) => find(tree, props => props["aria-label"] === "Message");
+// ComposerField's props: its value as segments, onChange and readOnly.
+const input = (tree: Record<string, unknown>[]) => find(tree, props => typeof props.onKey === "function" && "value" in props);
+const type = (tree: Record<string, unknown>[], text: string) => (input(tree).onChange as (value: FieldSegment[]) => void)(textSegments(text));
+const shownText = (tree: Record<string, unknown>[]) => plainText(input(tree).value as FieldSegment[]);
 const button = (tree: Record<string, unknown>[], label: string) => find(tree, props => props["aria-label"] === label);
 const enter = () => ({ key: "Enter", shiftKey: false, keyCode: 13, nativeEvent: { isComposing: false }, preventDefault: vi.fn() });
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
-const draft = (text: string, shape: DockedDraft["shape"] = "capsule"): DockedDraft => ({ ...EMPTY_DRAFT, text, shape });
+const draft = (text: string, shape: DockedDraft["shape"] = "capsule"): DockedDraft => ({ ...EMPTY_DRAFT, segments: textSegments(text), shape });
+const draftText = (value: DockedDraft | undefined) => plainText(value?.segments ?? []);
 
 test("the field is the same element, at the same place and with the same key, in both shapes", () => {
   const capsule = cardChildren(setup({}, [["conversation:a", draft("Short", "capsule")]]).draw());
@@ -88,7 +96,7 @@ test("the field is the same element, at the same place and with the same key, in
 
 test("typing a line break makes a box; the box stays when the text fits one line again, and only emptying returns to a capsule", () => {
   const { store, render } = setup();
-  const change = (text: string) => (field(render()).onChange as (event: { target: { value: string } }) => void)({ target: { value: text } });
+  const change = (text: string) => type(render(), text);
   change("one");
   expect(store.current.get("conversation:a")?.shape).toBe("capsule");
   change("one\ntwo");
@@ -102,24 +110,24 @@ test("typing a line break makes a box; the box stays when the text fits one line
 test("a capsule whose text wraps at its own width becomes a box after the draw", () => {
   const { store, draw } = setup({}, [["conversation:a", draft("A long line that wraps in the capsule")]]);
   draw();
-  hooks.refs[2]!.current = { scrollHeight: 40 };
+  hooks.refs[2]!.current = { element: () => ({ scrollHeight: 40 }) };
   for (const effect of hooks.effects) effect();
   expect(store.current.get("conversation:a")?.shape).toBe("box");
 });
 
 test("each conversation keeps its own draft, and a switch shows the other draft in the same render", () => {
   const { props, render } = setup({}, [["conversation:a", draft("For A")], ["conversation:b", draft("For B")]]);
-  expect(field(render()).value).toBe("For A");
+  expect(shownText(render())).toBe("For A");
   props.mode = B;
-  expect(field(render()).value).toBe("For B");
+  expect(shownText(render())).toBe("For B");
   expect(draftKey({ kind: "new", root: "/r" })).toBe("root:/r");
 });
 
 test("an accepted send empties the field, returns it to a capsule and keeps focus in it", async () => {
-  const { store, send, render } = setup({}, [["conversation:a", { ...draft("Make the header lighter", "box"), anchors: [] }]]);
+  const { store, send, render } = setup({}, [["conversation:a", draft("Make the header lighter", "box")]]);
   const focus = vi.fn();
   render();
-  hooks.refs[2]!.current = { focus, setSelectionRange: vi.fn(), value: "" };
+  hooks.refs[2]!.current = { focus };
   (field(render()).onKeyDown as (event: unknown) => void)(enter());
   await flush();
   expect(send).toHaveBeenCalledWith({ text: "Make the header lighter", anchors: [], attachments: [] });
@@ -153,10 +161,10 @@ test("a late project_busy keeps the draft and shows Home's busy sentence until t
   const { store, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")]]);
   (button(render(), "Send").onClick as () => void)();
   await flush();
-  expect(store.current.get("conversation:a")?.text).toBe("Draw it");
+  expect(draftText(store.current.get("conversation:a"))).toBe("Draw it");
   expect(render().some(item => item.children === "Another conversation is still running in doan-design.")).toBe(true);
   expect(button(render(), "Send").disabled).toBe(true);
-  (field(render()).onChange as (event: { target: { value: string } }) => void)({ target: { value: "Draw it again" } });
+  type(render(), "Draw it again");
   expect(render().some(item => item.children === "Another conversation is still running in doan-design.")).toBe(false);
 });
 
@@ -216,14 +224,14 @@ test("a reply that lands after a switch settles its own draft and leaves focus w
   const { store, props, render } = setup({ onSend: () => new Promise(resolve => { reply = resolve; }) }, [["conversation:a", draft("For A")], ["conversation:b", draft("For B")]]);
   render();
   const focus = vi.fn();
-  hooks.refs[2]!.current = { focus, setSelectionRange: vi.fn(), value: "" };
+  hooks.refs[2]!.current = { focus };
   (button(render(), "Send").onClick as () => void)();
   props.mode = B;
-  expect(field(render()).readOnly).toBe(false);
+  expect(input(render()).readOnly).toBe(false);
   reply({ ok: true });
   await flush();
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
-  expect(store.current.get("conversation:b")?.text).toBe("For B");
+  expect(draftText(store.current.get("conversation:b"))).toBe("For B");
   expect(focus).not.toHaveBeenCalled();
 });
 
@@ -235,14 +243,14 @@ test("sends from two conversations stay pending independently, and each reply se
   props.mode = B;
   (button(render(), "Send").onClick as () => void)();
   props.mode = A;
-  expect(field(render()).readOnly).toBe(true);
+  expect(input(render()).readOnly).toBe(true);
   replies.get("B")!({ ok: true });
   await flush();
-  expect(field(render()).readOnly).toBe(true);
+  expect(input(render()).readOnly).toBe(true);
   expect(store.current.get("conversation:b")).toEqual(EMPTY_DRAFT);
   replies.get("A")!({ ok: true });
   await flush();
-  expect(field(render()).readOnly).toBe(false);
+  expect(input(render()).readOnly).toBe(false);
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
 
@@ -281,9 +289,29 @@ test("the / list's closed state and highlight belong to the draft on screen", ()
   const { props, render } = setup({}, [["conversation:a", draft("/po")], ["conversation:b", draft("/cr")]]);
   const escape = { key: "Escape", shiftKey: false, keyCode: 27, nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
   (field(render()).onKeyDown as (event: unknown) => void)(escape);
-  expect(field(render()).role).toBeUndefined();
+  expect(field(render()).role).toBe("textbox");
   props.mode = B;
   render();
   for (const effect of hooks.effects) effect();
   expect(field(render()).role).toBe("combobox");
+});
+
+// buzz-canvas-conversation R1: the field holds chips as segments; they leave as markers and anchors.
+test("a draft with chips sends numbered markers and its anchors, and Backspace at the start keeps the preset while chips remain", async () => {
+  const payment = { frame: { id: "payment", title: "Payment" } };
+  const preset = { id: "critique", title: "Critique the design", description: "", scope: "" };
+  const segments: FieldSegment[] = [{ kind: "chip", anchor: payment }, { kind: "text", text: " feels crowded" }];
+  const { send, render } = setup({ chipScope: "canvas:payment" }, [["conversation:a", { ...EMPTY_DRAFT, segments, preset, shape: "box" }]]);
+  expect(input(render()).chipScope).toBe("canvas:payment");
+  hooks.refs[2]!.current = { focus: vi.fn(), caretAtStart: () => true };
+  const back = { key: "Backspace", shiftKey: false, keyCode: 8, nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
+  (field(render()).onKeyDown as (event: unknown) => void)(back);
+  expect(back.preventDefault).not.toHaveBeenCalled();
+  (field(render()).onKeyDown as (event: unknown) => void)(enter());
+  await flush();
+  expect(send).toHaveBeenCalledWith({ text: "Use the Doan design preset `critique` (Critique the design).\n\n{{1}} feels crowded", anchors: [payment], attachments: [] });
+});
+
+test("Overview's field takes no chips: chipScope defaults to null", () => {
+  expect(input(setup().render()).chipScope).toBeNull();
 });

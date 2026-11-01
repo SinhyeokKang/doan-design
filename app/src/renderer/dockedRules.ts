@@ -1,6 +1,7 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
+import { hasContent, toMessage, typedText, type FieldSegment } from "./anchorField";
 import { pickerAction, PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
 import type { ComposerShape } from "./composerRules";
 import {
@@ -21,11 +22,12 @@ export type DockedMode =
   | { kind: "resume"; root: string; canvas: Canvas; provider: Provider };
 
 export interface DockedDraft {
-  text: string; anchors: readonly Anchor[]; preset: PresetSummary | null; attachments: readonly AttachmentDraft[];
+  // The field's text and chips; converted to {text, anchors} only when sent.
+  segments: readonly FieldSegment[]; preset: PresetSummary | null; attachments: readonly AttachmentDraft[];
   // Kept with the draft: a box whose text fits one line again stays a box (composerShape), also after a switch back.
   shape: ComposerShape;
 }
-export const EMPTY_DRAFT: DockedDraft = { text: "", anchors: [], preset: null, attachments: [], shape: "capsule" };
+export const EMPTY_DRAFT: DockedDraft = { segments: [], preset: null, attachments: [], shape: "capsule" };
 
 // Drafts are kept per conversation; a new conversation's draft per root, or per canvas of a root in a canvas panel.
 // The terminal session shares its canvas's new-conversation draft, so switching between the two keeps the text.
@@ -68,11 +70,10 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   const agent = mode.kind === "new" ? agentProblem(input.auth, input.provider) : providerProblem(input.auth, mode.provider);
   if (agent) return off({ text: agent.text, ...("action" in agent && agent.action ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
-  if (!draft.text.trim() && !draft.preset && draft.attachments.length === 0) return off(waiting);
+  if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
   // A running turn takes the message into its queue, so the limits on starting a turn do not apply yet.
   if (input.busy && input.turn === "idle") return off(busyReason(input.busy, input.project));
-  // Typed text only until the chip field passes its segments here (buzz-canvas-conversation R1).
-  const problem = draftProblem(draft.text, draft.preset, draft.attachments);
+  const problem = draftProblem(draft.segments, draft.preset, draft.attachments);
   return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };
 }
 
@@ -96,9 +97,10 @@ function providerProblem(auth: AuthSnapshot | null | undefined, provider: Provid
   return { text: `${name} can’t run right now.`, action };
 }
 
-// The text main receives: the preset line and the person's text, as Home composes it.
-export function dockedComposed(draft: DockedDraft): string {
-  return composeRequest(draft.text, draft.preset, draft.attachments.length);
+// What main receives: the preset line and the person's text as Home composes it, each chip a {{n}} marker.
+export function dockedMessage(draft: DockedDraft): { text: string; anchors: Anchor[] } {
+  const message = toMessage(draft.segments) ?? { text: typedText(draft.segments), anchors: [] };
+  return { text: composeRequest(message.text, draft.preset, draft.attachments.length), anchors: message.anchors };
 }
 
 // A send or start main refused. The limits become the busy line until the host reports the busy conversation and it

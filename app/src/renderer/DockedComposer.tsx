@@ -4,13 +4,14 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor } from "../main/conversation/types";
 import { AlertIcon } from "./AlertIcon";
+import { plainText, sameSegments, typedText } from "./anchorField";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PresetsButton,
-  SendButton, SlashPresets, useComposerDrop,
+  SendButton, SlashPresets, useComposerDrop, type ComposerFieldHandle,
 } from "./ComposerParts";
 import { composerAction, composerShape, focusAfter, type FocusAction } from "./composerRules";
 import {
-  canvasGoneText, dockedAvailability, dockedComposed, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
+  canvasGoneText, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT,
   type DockedBusy, type DockedDraft, type DockedMode, type DockedRefusal,
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
@@ -33,6 +34,8 @@ export interface DockedComposerProps {
   project: string; homeDirectory: string | null;
   // The host's placeholder: a reply, a new conversation in the project, or restoring an archived conversation.
   placeholder: string;
+  // The canvas whose chips the field takes (the canvas panel's); none in Overview, where a pasted chip reads as text.
+  chipScope?: string | null;
   // Drafts by draftKey(mode), kept by the host so a switch between conversations, or leaving the screen, keeps each.
   drafts: ReadonlyMap<string, DockedDraft>;
   onDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void;
@@ -64,7 +67,7 @@ export interface DockedComposerProps {
   onOpen(conversationId: string): void;
 }
 
-const sameDraft = (a: DockedDraft, b: DockedDraft) => a.text === b.text && (a.preset?.id ?? null) === (b.preset?.id ?? null)
+const sameDraft = (a: DockedDraft, b: DockedDraft) => sameSegments(a.segments, b.segments) && (a.preset?.id ?? null) === (b.preset?.id ?? null)
   && a.attachments.map(item => item.key).join("\n") === b.attachments.map(item => item.key).join("\n");
 
 export function DockedComposer(props: DockedComposerProps) {
@@ -86,7 +89,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const generation = useRef(0);
   // The key on screen when a reply lands, which may differ from the one the send left from.
   const shown = useRef(key); shown.current = key;
-  const field = useRef<HTMLTextAreaElement | null>(null);
+  const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const hostSawBusy = useRef(new Set<string>());
   const listId = useId(), reasonId = `${listId}-reason`;
@@ -99,17 +102,19 @@ export function DockedComposer(props: DockedComposerProps) {
   const setHighlight = (index: number) => setHighlightAt({ key, index });
   // Chips the host added (Attach, paste, drop) make a box as typing does (design §3.2); the drawn shape follows the
   // rule at once and the stored one catches up below.
-  const shape = composerShape(draft.shape, { empty: draft.text === "", chips: draft.attachments.length + (draft.preset ? 1 : 0), overflows: draft.text.includes("\n") });
+  const text = plainText(draft.segments);
+  const shape = composerShape(draft.shape, { empty: text === "", chips: draft.attachments.length + (draft.preset ? 1 : 0), overflows: text.includes("\n") });
   // A busy refusal stands in for the host's busy until the host has reported the busy conversation itself; once the
   // host's busy has shown and cleared again, the refusal no longer holds Send.
   if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
   const busy = props.busy ?? (refusal?.kind === "busy" && !hostSawBusy.current.has(key) ? refusal.busy : null);
   const availability = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null });
-  const composed = dockedComposed(draft);
-  const action = composerAction(props.turn !== "idle", composed);
+  const message = dockedMessage(draft);
+  const action = composerAction(props.turn !== "idle", message.text);
   const picker = dockedPicker(props.picker, mode);
   const presets = props.presets?.ok ? props.presets.result.presets : [];
-  const slash = slashQuery(draft.text, dismissed);
+  // The `/` list reads a field of typed text only; a chip anywhere means the field holds a message, not a search.
+  const slash = slashQuery(text === typedText(draft.segments) ? text : "", dismissed);
   const slashView = slash !== null ? presetListView(props.presets, { project: props.project, suggested: props.suggested, query: slash, tab: null, slash: true }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !isSending;
@@ -120,7 +125,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const edit = (patch: Partial<Omit<DockedDraft, "shape">>, at = key, wrapped = false) => {
     props.onDrafts(drafts => {
       const current = drafts.get(at) ?? EMPTY_DRAFT, next = { ...current, ...patch };
-      const shape = composerShape(current.shape, { empty: next.text === "", chips: next.attachments.length + (next.preset ? 1 : 0), overflows: wrapped || next.text.includes("\n") });
+      const nextText = plainText(next.segments);
+      const shape = composerShape(current.shape, { empty: nextText === "", chips: next.attachments.length + (next.preset ? 1 : 0), overflows: wrapped || nextText.includes("\n") });
       return new Map(drafts).set(at, { ...next, shape });
     });
     clearRefusal(at);
@@ -133,29 +139,27 @@ export function DockedComposer(props: DockedComposerProps) {
   // returns to a capsule only when emptied, so the narrower capsule's wrap cannot flip it back and forth.
   useLayoutEffect(() => {
     if (shape !== draft.shape) { edit({}, key); return; }
-    const node = field.current;
-    if (shape !== "capsule" || !node || draft.text === "") return;
+    const node = field.current?.element();
+    if (shape !== "capsule" || !node || text === "") return;
     const line = parseFloat(getComputedStyle(node).lineHeight);
     if (line > 0 && node.scrollHeight > line * 1.5) edit({}, key, true);
-  }, [key, draft.text, draft.shape, shape]);
-  useEffect(() => { if (draft.text === "") setDismissedKey(current => current === key ? null : current); }, [draft.text]);
+  }, [key, text, draft.shape, shape]);
+  useEffect(() => { if (text === "") setDismissedKey(current => current === key ? null : current); }, [text]);
   useEffect(() => { setHighlight(0); }, [slash]);
 
   const focus = (after: FocusAction) => queueMicrotask(() => {
-    const target = focusAfter(after, { pending: [] }), node = field.current;
-    if (target.kind !== "field" || !node) return;
-    node.focus();
-    if (target.caretAtEnd) node.setSelectionRange(node.value.length, node.value.length);
+    const target = focusAfter(after, { pending: [] });
+    if (target.kind === "field") field.current?.focus(target.caretAtEnd ? "end" : undefined);
   });
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);
     if (!chosen) return;
-    edit({ preset: chosen, ...(fromSlash ? { text: "" } : {}) });
+    edit({ preset: chosen, ...(fromSlash ? { segments: [] } : {}) });
     if (fromSlash) focus({ kind: "restored" });
   };
   const removeChip = (index: number, trigger: "button" | "backspace") => {
     if (isSending) return false;
-    const removal = chipRemoval(chips, trigger === "button" ? { kind: "button", index } : { kind: "backspace", text: draft.text, caret: field.current?.selectionStart ?? 0 });
+    const removal = chipRemoval(chips, trigger === "button" ? { kind: "button", index } : { kind: "backspace", text, caret: field.current?.caretAtStart() === false ? 1 : 0 });
     if (!removal) return false;
     const removed = draft.attachments[removal.remove];
     if (removal.remove >= draft.attachments.length) edit({ preset: null });
@@ -169,7 +173,7 @@ export function DockedComposer(props: DockedComposerProps) {
     if (text === null) next.delete(key); else next.set(key, { refusal: { kind: "notice", text } });
     return next;
   }) });
-  const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+  const paste = (event: ClipboardEvent<HTMLDivElement>) => {
     const files = Array.from(event.clipboardData.files);
     if (pasteAction(event.clipboardData.getData("text/plain"), files) !== "files") return;
     event.preventDefault();
@@ -180,7 +184,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const send = async () => {
     if (action === "stop" || !availability.enabled) return;
     const at = key, sent = draft, mine = ++generation.current;
-    const request: DockedRequest = { text: composed, anchors: draft.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []) };
+    const request: DockedRequest = { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []) };
     setSending(current => new Map(current).set(at, mine));
     const outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
     setSending(current => { if (current.get(at) !== mine) return current; const next = new Map(current); next.delete(at); return next; });
@@ -203,7 +207,7 @@ export function DockedComposer(props: DockedComposerProps) {
     }
     if (at === shown.current) focus({ kind: "sent" });
   };
-  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+  const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
       const step = slashKey(event.key, highlight, slashRows.length, composing);
@@ -228,8 +232,8 @@ export function DockedComposer(props: DockedComposerProps) {
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
-      <ComposerField key="field" ref={field} value={{ text: draft.text, anchors: draft.anchors }} onChange={value => edit({ text: value.text, anchors: value.anchors })} readOnly={isSending}
-        placeholder={props.placeholder} rows={1} describedBy={describedBy}
+      <ComposerField key="field" ref={field} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending}
+        placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>

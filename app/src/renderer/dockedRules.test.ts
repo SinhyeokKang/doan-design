@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider, ToolFacts } from "../main/agentAuth/types";
+import type { Anchor } from "../main/conversation/types";
+import { textSegments } from "./anchorField";
 import {
-  canvasGoneText, dockedAvailability, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
+  canvasGoneText, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
 } from "./dockedRules";
 import type { AttachmentDraft, ModelPickerView } from "./homeComposer";
 
@@ -15,7 +17,9 @@ function status(provider: Provider, patch: Partial<AuthState> = {}, facts: ToolF
 const auth = (...providers: ReturnType<typeof status>[]): AuthSnapshot => ({ revision: 1, providers });
 const READY = auth(status("claude"), status("codex"));
 const EXISTING = { kind: "existing", conversationId: "c1", provider: "claude" } as const;
-const draft = (patch: Partial<DockedDraft>): DockedDraft => ({ ...EMPTY_DRAFT, ...patch });
+// `text` is typed text only; chips go in `segments`.
+const draft = ({ text, ...patch }: Partial<DockedDraft> & { text?: string }): DockedDraft => ({ ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...patch });
+const payment: Anchor = { frame: { id: "payment", title: "Payment" } };
 const file = (patch: Partial<AttachmentDraft>): AttachmentDraft => ({ key: "k", id: "id", name: "notes.md", kind: "file", pasted: false, status: "ready", ...patch });
 const input = (patch: Partial<DockedInput>): DockedInput => ({ mode: EXISTING, project: "doan-design", auth: READY, provider: "claude", draft: draft({ text: "Make it lighter" }), turn: "idle", busy: null, sending: false, ...patch });
 
@@ -63,6 +67,13 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "checking" })] }) })).reason).toEqual({ text: "Checking attachments…" });
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "missing" })] }) })).reason).toEqual({ text: "notes.md was moved or deleted. Remove it, or attach it again.", alert: true });
   });
+  test("a typed {{1}} is refused even with a chip in the draft; the chip's own marker is not (BT handoff)", () => {
+    const chip = { kind: "chip" as const, anchor: payment };
+    expect(dockedAvailability(input({ draft: draft({ segments: [{ kind: "text", text: "Use {{1}} near " }, chip] }) })).reason).toEqual({ text: "Remove {{ and }} from the message to send it." });
+    expect(dockedAvailability(input({ draft: draft({ segments: [{ kind: "text", text: "Move " }, chip] }) }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ draft: draft({ segments: [chip] }) }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ draft: draft({ text: "   " }) }))).toEqual({ enabled: false, reason: null });
+  });
   test("another project conversation running or waiting blocks with Home's sentence and Open", () => {
     expect(dockedAvailability(input({ mode: { kind: "new", root: "/r" }, busy: { kind: "project", waiting: false, open: "c9" } })))
       .toEqual({ enabled: false, reason: { text: "Another conversation is still running in doan-design.", open: "c9" } });
@@ -96,6 +107,16 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ mode: fresh, provider: null })).reason).toEqual({ text: "No agent is ready to run." });
     expect(dockedAvailability(input({ mode: fresh, auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
       .toEqual({ text: "Claude Code can’t run right now. Choose another agent." });
+  });
+});
+
+describe("dockedMessage", () => {
+  test("chips become numbered markers after the preset line; anchors go beside the text", () => {
+    const preset = { id: "critique", title: "Critique the design", description: "", scope: "" };
+    const segments = [{ kind: "text" as const, text: "Look at " }, { kind: "chip" as const, anchor: payment }];
+    expect(dockedMessage(draft({ segments }))).toEqual({ text: "Look at {{1}}", anchors: [payment] });
+    expect(dockedMessage(draft({ segments, preset }))).toEqual({ text: "Use the Doan design preset `critique` (Critique the design).\n\nLook at {{1}}", anchors: [payment] });
+    expect(dockedMessage(EMPTY_DRAFT)).toEqual({ text: "", anchors: [] });
   });
 });
 

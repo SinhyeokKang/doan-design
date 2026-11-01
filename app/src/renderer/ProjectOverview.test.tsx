@@ -5,6 +5,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { textSegments } from "./anchorField";
 import { DockedSupport } from "./dockedSupport";
 import type { PresetSummary } from "./homeComposer";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
@@ -129,15 +130,17 @@ test("switching conversations draws each one's own draft and title at once", () 
   let run!: OverviewRun;
   const first = render(list, {}, r => {
     run = r; r.sync();
-    r.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { text: "for A", anchors: [], preset: null, attachments: [], shape: "capsule" }).set(`conversation:${B}`, { text: "for B", anchors: [], preset: null, attachments: [], shape: "capsule" }));
+    r.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { segments: textSegments("for A"), preset: null, attachments: [], shape: "capsule" }).set(`conversation:${B}`, { segments: textSegments("for B\nand more"), preset: null, attachments: [], shape: "box" }));
   });
-  expect(first).toContain(">for A</textarea>");
+  // The field's text is drawn by ChipField once mounted, so static markup shows the draft through its shape; the
+  // switch within one render is DockedComposer.interaction's "each conversation keeps its own draft".
+  expect(first).toContain('class="docked" data-shape="capsule"');
   const second = render(list, {}, r => {
     r.sync();
     r.drafts = run.drafts;
     r.select(ROOT, B);
   });
-  expect(second).toContain(">for B</textarea>");
+  expect(second).toContain('class="docked" data-shape="box"');
   expect(second).toContain("<span>Ideas for onboarding</span>");
   expect(second).not.toContain("for A");
 });
@@ -174,5 +177,5 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
 test("the capsule's placeholder stays on one line", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain('.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; }');
+  expect(css).toContain('.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; }');
 });

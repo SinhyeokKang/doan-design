@@ -58,6 +58,9 @@ const violetAllowed = [
   ".doan-agent-glow",
   ".doan-agent-dot",
   ".doan-agent-dot::after",
+  // Inline anchor chips in the composer field: light accent fill, dark accent ink (buzz-canvas-conversation common
+  // decision 2, confirmed draft 2026-11-01).
+  ".anchor-chip",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

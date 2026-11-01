@@ -3,6 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent } from "../main/conversation/types";
 import { PROVIDER_NAMES } from "./agentAuthView";
+import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { mergeConversationEvents } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
@@ -70,7 +71,7 @@ function endSeq(events: readonly ConversationEvent[], live: boolean): number | n
   if (!last) return null;
   return TERMINAL.has(last.type) || !live ? last.seq : null;
 }
-const emptyDraft = (draft: DockedDraft) => draft.text === "" && !draft.preset && draft.attachments.length === 0;
+const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 const ATTACH_ERRORS: Record<string, (name: string) => string> = {
   not_found: name => `${name} wasn’t found, so it wasn’t attached.`,
   not_file: name => `${name} isn’t a file, so it wasn’t attached.`,
@@ -458,9 +459,11 @@ export class OverviewRun {
       const key = `conversation:${conversationId}`;
       this.setDrafts(drafts => {
         const current = drafts.get(key) ?? EMPTY_DRAFT;
-        // What the person typed meanwhile stays first; the returned text follows it.
-        const text = [current.text, returned.text].filter(Boolean).join("\n\n");
-        return new Map(drafts).set(key, { ...current, text, anchors: [...current.anchors, ...returned.anchors], preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments], shape: text.includes("\n") || returned.attachments.length ? "box" : current.shape });
+        // What the person typed meanwhile stays first; the returned text follows it. Chips stay segments, so the
+        // returned draft's markers are not numbered against the current draft's.
+        const between: FieldSegment[] = current.segments.length && returned.segments.length ? [{ kind: "text", text: "\n\n" }] : [];
+        const segments = normalize([...current.segments, ...between, ...returned.segments]);
+        return new Map(drafts).set(key, { ...current, segments, preset: current.preset ?? returned.preset, attachments: [...current.attachments, ...returned.attachments], shape: plainText(segments).includes("\n") || returned.attachments.length ? "box" : current.shape });
       });
     });
   }
@@ -477,5 +480,5 @@ export async function draftFrom(text: string, anchors: readonly Anchor[], record
     if (result?.ok) return { key, id: result.attachment.id, name: result.attachment.name, kind: result.attachment.kind, pasted: result.attachment.pasted, status: "ready", size: result.attachment.size, path: result.attachment.path };
     return { key, name: record.name, kind: record.kind, pasted: false, status: "missing", size: record.size, path: record.path };
   });
-  return { text: body, anchors: [...anchors], preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, shape: body.includes("\n") || attachments.length ? "box" : "capsule" };
+  return { segments: fromMessage(body, anchors), preset: preset ? { ...preset, description: "", scope: "" } : null, attachments, shape: body.includes("\n") || attachments.length ? "box" : "capsule" };
 }

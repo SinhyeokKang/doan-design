@@ -1,7 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { combineQueued } from "../main/conversation/queue";
 import type { Anchor } from "../main/conversation/types";
-import { distinctTargets, fromMessage, sameTarget, toMessage, type FieldSegment } from "./anchorField";
+import {
+  chipAt, distinctTargets, fromMessage, hardLine, hasContent, normalize, plainText, sameSegments, sameTarget, sliceUnits, spliceUnits, textSegments,
+  toMessage, typedText, unitLength, type FieldSegment,
+} from "./anchorField";
 
 const frame: Anchor = { frame: { id: "payment", title: "Payment" } };
 const button: Anchor = { frame: { id: "payment" }, element: { selector: "#pay", tag: "button", text: "Pay" } };
@@ -67,5 +70,42 @@ describe("fromMessage", () => {
   test("a returned draft comes back as the same chips", () => {
     const returned = { text: "{{1}} is too tight near {{2}}", anchors: [frame, point] };
     expect(toMessage(fromMessage(returned.text, returned.anchors))).toEqual(returned);
+  });
+});
+
+// buzz-canvas-conversation R1: the unit model ChipField edits through (a chip is one unit).
+describe("field units", () => {
+  const field = [text("ab"), chip(frame), text("c\nde"), chip(point)];
+  test("normalize joins neighbouring text and drops empty text", () => {
+    expect(normalize([text("a"), text(""), text("b"), chip(frame), text("")])).toEqual([text("ab"), chip(frame)]);
+    expect(textSegments("")).toEqual([]);
+    expect(textSegments("hi")).toEqual([text("hi")]);
+  });
+  test("a chip counts as one unit; slice and splice never split one", () => {
+    expect(unitLength(field)).toBe(8);
+    expect(sliceUnits(field, 1, 4)).toEqual([text("b"), chip(frame), text("c")]);
+    expect(spliceUnits(field, 2, 3, [])).toEqual({ segments: [text("abc\nde"), chip(point)], caret: 2 });
+    expect(spliceUnits(field, 0, 0, [chip(button)])).toEqual({ segments: [chip(button), ...field], caret: 1 });
+    expect(chipAt(field, 2)).toBe(frame);
+    expect(chipAt(field, 3)).toBeNull();
+    expect(chipAt(field, 7)).toBe(point);
+    expect(chipAt(field, 8)).toBeNull();
+  });
+  test("hardLine spans from after the line break before the range to the one after it", () => {
+    expect(hardLine(field, 3, 3)).toEqual([0, 4]);
+    expect(hardLine(field, 6, 6)).toEqual([5, 8]);
+    expect(hardLine([text("one")], 1, 2)).toEqual([0, 3]);
+  });
+  test("plain text names chips; typed text leaves them out; content needs a chip or non-blank text", () => {
+    expect(plainText(field)).toBe("abPaymentc\ndePoint in shipping");
+    expect(typedText(field)).toBe("abc\nde");
+    expect(hasContent([text("  \n")])).toBe(false);
+    expect(hasContent([text(" "), chip(frame)])).toBe(true);
+    expect(hasContent([])).toBe(false);
+  });
+  test("sameSegments compares labels too, so a renamed frame draws again", () => {
+    expect(sameSegments(field, [text("ab"), chip({ frame: { id: "payment", title: "Payment" } }), text("c\nde"), chip(point)])).toBe(true);
+    expect(sameSegments([chip(frame)], [chip({ frame: { id: "payment", title: "Checkout" } })])).toBe(false);
+    expect(sameSegments([text("a")], [text("a"), chip(frame)])).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
+import { textSegments } from "./anchorField";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { DockedComposer, type DockedComposerProps } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
@@ -23,10 +24,11 @@ const PICKER: ModelPickerView = {
 };
 const MODE = { kind: "existing", conversationId: "c1", provider: "claude" } as const;
 const ok = async () => ({ ok: true as const });
-function render(patch: Partial<DockedComposerProps> = {}, draft: Partial<DockedDraft> = {}) {
+// `text` is typed text only; the field draws no children in static markup (ChipField draws them once mounted).
+function render(patch: Partial<DockedComposerProps> = {}, { text, ...draft }: Partial<DockedDraft> & { text?: string } = {}) {
   const props: DockedComposerProps = {
     mode: MODE, project: "doan-design", homeDirectory: "/Users/ada", placeholder: "Reply, / for presets",
-    drafts: new Map([[draftKey(patch.mode ?? MODE), { ...EMPTY_DRAFT, ...draft }]]), onDrafts: () => {},
+    drafts: new Map([[draftKey(patch.mode ?? MODE), { ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...draft }]]), onDrafts: () => {},
     auth: AUTH, picker: PICKER, provider: "claude", effort: "high",
     onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onSettings: () => {},
     presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: () => {},
@@ -53,8 +55,8 @@ test("an existing conversation names its model with the fixed provider, on xs bu
   const html = render();
   expect(html).toMatch(/class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 \(Claude Code\)"/);
   expect(html).toMatch(/class="composer-effort doan-button" data-ui-size="xs"/);
-  expect(html).toContain('placeholder="Reply, / for presets"');
-  expect(html).toContain('rows="1"');
+  expect(html).toContain('aria-placeholder="Reply, / for presets"');
+  expect(html).toContain('class="composer-input" aria-label="Message" tabindex="0" contentEditable="true"');
 });
 
 test("new-conversation mode keeps Home's agent label", () => {

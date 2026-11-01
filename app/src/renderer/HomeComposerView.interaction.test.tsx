@@ -4,6 +4,7 @@ import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { textSegments } from "./anchorField";
 import * as Parts from "./ComposerParts";
 import { tabKey } from "./ComposerParts";
 import { emptyComposer, HeroComposer, pasteAction, slashKey, type ComposerMemory, type HeroComposerProps } from "./HomeComposerView";
@@ -16,6 +17,8 @@ vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
   useId: () => "id",
   useEffect: (effect: () => unknown) => { hooks.effects.push(effect); },
+  useLayoutEffect: () => {},
+  useImperativeHandle: () => {},
   useReducer: () => [0, hooks.redraw],
   useRef: (value: unknown) => { const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
   useState: (value: unknown) => { const index = hooks.cursor++; if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value; return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (v: unknown) => unknown)(hooks.states[index]) : next; }]; },
@@ -58,7 +61,8 @@ function expand(type: unknown, props: Record<string, unknown>): ReactNode {
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => {
     if (!isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child)) return [];
-    if (PRIMITIVES.has(child.type)) return elements(expand(child.type, child.props));
+    // The field's own props (value, onChange, readOnly, onInput) are kept beside the element it draws.
+    if (PRIMITIVES.has(child.type)) return [...(child.type === Parts.ComposerField ? [child.props] : []), ...elements(expand(child.type, child.props))];
     return [child.props, ...elements(child.props.children)];
   });
 }
@@ -71,6 +75,8 @@ function setup(memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposer
 }
 const find = (tree: Record<string, unknown>[], test: (props: Record<string, unknown>) => boolean) => { const found = tree.find(test); if (!found) throw new Error("not found"); return found; };
 const field = (tree: Record<string, unknown>[]) => find(tree, props => props["aria-label"] === "Message");
+// ComposerField's props: its value as segments, onChange, readOnly and onInput.
+const input = (tree: Record<string, unknown>[]) => find(tree, props => typeof props.onKey === "function" && "value" in props);
 const key = (name: string, extra: Record<string, unknown> = {}) => ({ key: name, shiftKey: false, keyCode: 0, nativeEvent: { isComposing: false }, preventDefault: vi.fn(), ...extra });
 const call = (props: Record<string, unknown>, handler: string, event: unknown) => (props[handler] as (event: unknown) => void)(event);
 
@@ -79,8 +85,8 @@ test("/ at the start opens a combobox on the field; arrows move, Enter picks and
   let tree = render();
   const textarea = field(tree);
   expect(textarea).toMatchObject({ role: "combobox", "aria-expanded": true, "aria-controls": "id-slash", "aria-autocomplete": "list", "aria-activedescendant": "id-s-0" });
-  const focus = vi.fn(), setSelectionRange = vi.fn();
-  hooks.refs[0]!.current = { focus, setSelectionRange, value: "" };
+  const focus = vi.fn();
+  hooks.refs[0]!.current = { focus };
   const down = key("ArrowDown");
   call(textarea, "onKeyDown", down);
   expect(down.preventDefault).toHaveBeenCalled();
@@ -115,9 +121,9 @@ test("Escape closes the / list and it does not open again until the field is emp
   const escape = key("Escape");
   call(field(render()), "onKeyDown", escape);
   expect(escape.preventDefault).toHaveBeenCalled();
-  expect(field(render()).role).toBeUndefined();
+  expect(field(render()).role).toBe("textbox");
   box.current = { ...box.current, text: "/crit" };
-  expect(field(render()).role).toBeUndefined();
+  expect(field(render()).role).toBe("textbox");
   box.current = { ...box.current, text: "" };
   render(); for (const effect of hooks.effects) effect();
   box.current = { ...box.current, text: "/" };
@@ -125,7 +131,7 @@ test("Escape closes the / list and it does not open again until the field is emp
   const tab = key("Tab");
   call(field(render()), "onKeyDown", tab);
   expect(tab.preventDefault).not.toHaveBeenCalled();
-  expect(field(render()).role).toBeUndefined();
+  expect(field(render()).role).toBe("textbox");
   expect(slashKey("Tab", 0, 2, false)).toEqual({ kind: "close", dismiss: true });
 });
 
@@ -154,7 +160,7 @@ test("Backspace at the start of an empty field removes the preset chip first, th
   const attachments = [{ key: "a", id: "id-a", name: "a.pdf", kind: "file" as const, pasted: false, status: "ready" as const, size: 10, path: "/u/a.pdf" }];
   const { box, render } = setup({ attachments, preset: PRESETS[2]! });
   render();
-  hooks.refs[0]!.current = { selectionStart: 0, focus: vi.fn() };
+  hooks.refs[0]!.current = { caretAtStart: () => true, focus: vi.fn() };
   const first = key("Backspace");
   call(field(render()), "onKeyDown", first);
   expect(first.preventDefault).toHaveBeenCalled();
@@ -276,7 +282,7 @@ test("a pending start keeps Home locked on a later visit, and a late reply clear
   hooks.states = []; hooks.refs = [];
   const again = { ...first, render: () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return elements(HeroComposer({ ...first.props })); } };
   const tree = again.render();
-  expect(field(tree).readOnly).toBe(true);
+  expect(input(tree).readOnly).toBe(true);
   expect(find(tree, props => props["aria-label"] === "Send").disabled).toBe(true);
   call(field(tree), "onKeyDown", key("Enter"));
   expect(first.start).toHaveBeenCalledTimes(1);
@@ -378,11 +384,11 @@ test("a refusal that arrives after leaving and coming back redraws the Home now 
   first.unmount();
   const redraw = vi.fn();
   const second = mount(props, redraw);
-  expect(field(second.tree()).readOnly).toBe(true);
+  expect(input(second.tree()).readOnly).toBe(true);
   reply.resolve({ error: "busy" });
   await vi.waitFor(() => expect(redraw).toHaveBeenCalled());
   expect(box.current.notice?.text).toBe("Claude Code is finishing a previous run. Try again in a moment.");
-  expect(field(second.tree()).readOnly).toBe(false);
+  expect(input(second.tree()).readOnly).toBe(false);
 });
 
 test("an attachment reply after a remount redraws the new mount too", async () => {
@@ -499,7 +505,7 @@ test("settings action: a changed default waits for the next input; the draft kee
   const { box, start, render, props } = setup({ auth: { revision: 1, providers: [dto("claude"), dto("codex")] } }, { defaults: { provider: "codex" } });
   render();
   for (const effect of hooks.effects) effect();
-  call(field(render()), "onChange", { target: { value: "Draft" } });
+  call(input(render()), "onChange", textSegments("Draft"));
   props.defaults = { provider: "claude" };
   render();
   for (const effect of hooks.effects) effect();
@@ -560,8 +566,9 @@ test("input in the field, an IME composition's included, draws Doany's gaze", ()
   const { render } = setup();
   const tree = render();
   const doany = withDoany(tree);
-  call(field(tree), "onInput", { nativeEvent: { isComposing: false } });
-  call(field(tree), "onInput", { nativeEvent: { isComposing: true } });
+  // The field calls onInput for every input event, composition updates included (chipField.ts).
+  call(input(tree), "onInput", undefined);
+  call(input(tree), "onInput", undefined);
   expect(doany.typing).toHaveBeenCalledTimes(2);
   expect(doany.hop).not.toHaveBeenCalled();
 });

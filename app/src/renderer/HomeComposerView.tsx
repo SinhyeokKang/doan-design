@@ -9,8 +9,10 @@ import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PresetsButton, SendButton, SlashPresets, useComposerDrop,
+  type ComposerFieldHandle,
 } from "./ComposerParts";
 import { Doany, type DoanyHandle } from "./Doany";
+import { textSegments, typedText } from "./anchorField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { cardRow, groupProjects } from "./homeCards";
 import {
@@ -184,7 +186,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const [dismissed, setDismissed] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [confirm, setConfirm] = useState<{ request: LastRequest; title: string; body: string; cancel: string; confirm: string } | null>(null);
-  const textarea = useRef<HTMLTextAreaElement | null>(null);
+  const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const doany = useRef<DoanyHandle | null>(null);
   const listId = useId();
@@ -268,12 +270,7 @@ export function HeroComposer(props: HeroComposerProps) {
   useEffect(() => { if (text === "") setDismissed(false); }, [text]);
   useEffect(() => { setHighlight(0); }, [slash]);
 
-  const focusEnd = () => {
-    const field = textarea.current;
-    if (!field) return;
-    field.focus();
-    field.setSelectionRange(field.value.length, field.value.length);
-  };
+  const focusEnd = () => field.current?.focus("end");
   // Either way of picking puts the caret at the end of the field (design §4.9); the popover does it once it closes.
   const choosePreset = (id: string, fromSlash: boolean) => {
     const chosen = presets.find(p => p.id === id);
@@ -348,7 +345,7 @@ export function HeroComposer(props: HeroComposerProps) {
   };
   const removeChip = (index: number, trigger: "button" | "backspace") => {
     if (memory.current.sending) return false;
-    const removal = chipRemoval(chips, trigger === "button" ? { kind: "button", index } : { kind: "backspace", text, caret: textarea.current?.selectionStart ?? 0 });
+    const removal = chipRemoval(chips, trigger === "button" ? { kind: "button", index } : { kind: "backspace", text, caret: field.current?.caretAtStart() === false ? 1 : 0 });
     if (!removal) return false;
     const removed = attachments[removal.remove];
     if (removal.remove >= attachments.length) edit({ preset: null });
@@ -366,14 +363,14 @@ export function HeroComposer(props: HeroComposerProps) {
     }
     setAnnouncement(removal.announcement);
     queueMicrotask(() => {
-      if (removal.focus === "textarea") textarea.current?.focus();
+      if (removal.focus === "textarea") field.current?.focus();
       else removeButtons.current[removal.focus]?.focus();
     });
     return true;
   };
 
   const drop = useComposerDrop({ blocked: () => sending, onFiles: files => addFiles(files, false), onNotice: text => setNotice(text === null ? null : { text, retry: false }) });
-  const paste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+  const paste = (event: ClipboardEvent<HTMLDivElement>) => {
     const files = Array.from(event.clipboardData.files);
     const action = pasteAction(event.clipboardData.getData("text/plain"), files);
     if (action !== "files") return;
@@ -423,7 +420,7 @@ export function HeroComposer(props: HeroComposerProps) {
     // A late project_busy is shown by the reason line, which the run's list now carries (design §3.4).
     } else if (outcome.error === "project_busy") update({ sending: null });
     else update({ sending: null, notice: startErrorView(outcome.error, provider, project) });
-    queueMicrotask(() => textarea.current?.focus());
+    queueMicrotask(() => field.current?.focus());
   };
 
   // Edit on Home: a different draft is never replaced without asking (design §7.4).
@@ -458,7 +455,7 @@ export function HeroComposer(props: HeroComposerProps) {
   };
 
   // Keys the field does not handle itself; true when handled, so Enter reaches send only when nothing took it.
-  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+  const keyDown = (event: KeyboardEvent<HTMLDivElement>): boolean => {
     const composing = event.nativeEvent.isComposing || event.keyCode === 229;
     if (slashOpen) {
       const action = slashKey(event.key, highlight, slashRows.length, composing);
@@ -508,7 +505,7 @@ export function HeroComposer(props: HeroComposerProps) {
         {drop.cover}
         <ComposerCard readonly={sending}>
           <ComposerChips attachments={attachments} preset={preset} thumbnails={m.thumbnails} homeDirectory={props.homeDirectory} disabled={sending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
-          <ComposerField ref={textarea} value={{ text, anchors: [] }} onChange={value => edit({ text: value.text })} readOnly={sending} placeholder={presetPlaceholder(preset)} rows={2}
+          <ComposerField ref={field} value={textSegments(text)} onChange={value => edit({ text: typedText(value) })} readOnly={sending} placeholder={presetPlaceholder(preset)}
             combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
             onKey={keyDown} onSubmit={() => void send()} onPaste={paste} onInput={() => doany.current?.typing()} />
           {counter && <div className={`composer-count${composed.length > TEXT_LIMIT ? " over" : ""}`} aria-live="polite">{counter}</div>}

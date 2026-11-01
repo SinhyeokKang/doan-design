@@ -27,7 +27,7 @@ import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { DocumentBindings } from "./comments/document";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -216,6 +216,21 @@ function injectCanvasScript(window: BrowserWindow): void {
   });
 }
 
+// The composer's chip field keeps its own undo history and refuses Chromium's, so Chromium's redo stack stays empty and
+// the Redo role never reached the field (nor Undo after only a chip or a paste). Edit > Undo and Redo hand a focused,
+// editable chip field (ChipField marks it data-chip-field) the history beforeinput it handles; anything else focused
+// gets the WebContents undo or redo the role items ran. The keys never double up: the field takes ⌘Z/⇧⌘Z in keydown,
+// and a key the page handles is not a menu key equivalent.
+function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOptions["click"]> {
+  const script = `(() => { const field = document.activeElement; if (!(field instanceof HTMLElement) || !field.hasAttribute("data-chip-field") || !field.isContentEditable) return false;
+    field.dispatchEvent(new InputEvent("beforeinput", { inputType: "${kind === "undo" ? "historyUndo" : "historyRedo"}", bubbles: true, cancelable: true })); return true; })()`;
+  return (_item, window: BaseWindow | undefined) => {
+    const contents = window instanceof BrowserWindow ? window.webContents : webContents.getFocusedWebContents();
+    if (!contents || contents.isDestroyed()) return;
+    void contents.executeJavaScript(script).catch(() => false).then(handled => { if (handled !== true && !contents.isDestroyed()) contents[kind](); });
+  };
+}
+
 // Page zoom and reload roles would act on the whole window; the view commands
 // go to the renderer, which zooms the board and reloads only the canvas.
 // The menu is rebuilt whenever its enablement changes; Undo Remove takes the
@@ -226,7 +241,7 @@ function setMenu(): void {
   const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, selection: menuInputs.selection === true, pickerAvailable: menuInputs.pickerAvailable === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
-    : { role: "undo" };
+    : { label: "Undo", accelerator: "CmdOrCtrl+Z", click: editHistory("undo") };
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       // Role labels would read "About doan" from app.name, which stays "doan" for userData.
@@ -252,7 +267,7 @@ function setMenu(): void {
       {
         label: "Edit",
         submenu: [
-          undo, { role: "redo" }, { type: "separator" },
+          undo, { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: editHistory("redo") }, { type: "separator" },
           { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "pasteAndMatchStyle" }, { role: "delete" }, { role: "selectAll" },
           { type: "separator" },
           { label: "Add Selection to Conversation", accelerator: "CmdOrCtrl+L", enabled: enabled.addSelectionToConversation, click: command("addSelectionToConversation") },

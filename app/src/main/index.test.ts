@@ -13,7 +13,7 @@ const mocks = await vi.hoisted(async () => {
     destroyed = false;
     contentsDestroyed = false;
     webContents = Object.assign(new EventEmitter(), { id: ++Window.ids, send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
-      executeJavaScript: vi.fn(async () => ({ x: 0, y: 0, width: 800, height: 500 })),
+      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(),
       capturePage: vi.fn(async () => ({ isEmpty: () => false, resize: () => ({ toPNG: () => Buffer.from("png") }) })) });
     show = vi.fn();
     hide = vi.fn();
@@ -95,6 +95,7 @@ vi.mock("electron", () => ({
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
   webFrameMain: { fromId: vi.fn() },
+  webContents: { getFocusedWebContents: () => null },
   nativeTheme: mocks.nativeTheme,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
@@ -695,9 +696,9 @@ describe("menus", () => {
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
     expect(submenu("Go").map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"]]);
-    // Without a removal toast the system Undo keeps working in text fields.
-    expect(submenu("Edit")[0]?.role).toBe("undo");
-    expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["redo", "cut", "copy", "paste", "selectAll"]));
+    // Without a removal toast Undo and Redo keep working in text fields (routed below).
+    expect(submenu("Edit").slice(0, 2).map((entry) => [entry.label, entry.accelerator])).toEqual([["Undo", "CmdOrCtrl+Z"], ["Redo", "Shift+CmdOrCtrl+Z"]]);
+    expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectAll"]));
   });
 
   test("the app starts on Home, where only canvas-free items are enabled", () => {
@@ -717,7 +718,7 @@ describe("menus", () => {
     await invoke("menu:state", contents, null, state("canvas", true, true));
     for (const label of ["Add Project…", "Home", "Zoom In"]) expect(menuEnabled(label), label).toBe(false);
     // A modal may hold a text field, so its ⌘Z stays a text undo.
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
   });
 
   test("Undo Remove takes ⌘Z only while the removal toast is up", async () => {
@@ -727,8 +728,25 @@ describe("menus", () => {
     click("Undo Remove");
     expect(contents.send).toHaveBeenCalledWith("menu-command", "undoRemove");
     await invoke("menu:state", contents, null, state("home"));
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
     expect(() => item("Undo Remove")).toThrow();
+  });
+
+  // buzz-canvas-conversation R1: the chip field refuses Chromium's undo, so the role items could not redo it.
+  test("Edit > Undo and Redo hand a focused chip field its history step, and run the WebContents undo or redo otherwise", async () => {
+    const contents = window().webContents;
+    const run = async (label: string) => { Reflect.apply(item(label).click!, undefined, [{}, window(), {}]); await new Promise(resolve => setTimeout(resolve, 0)); };
+    contents.executeJavaScript.mockResolvedValueOnce(true);
+    await run("Undo");
+    expect(String(contents.executeJavaScript.mock.calls.at(-1)?.[0])).toContain('inputType: "historyUndo"');
+    expect(contents.undo).not.toHaveBeenCalled();
+    contents.executeJavaScript.mockResolvedValueOnce(false);
+    await run("Redo");
+    expect(String(contents.executeJavaScript.mock.calls.at(-1)?.[0])).toContain('inputType: "historyRedo"');
+    expect(contents.redo).toHaveBeenCalledTimes(1);
+    contents.executeJavaScript.mockRejectedValueOnce(new Error("gone"));
+    await run("Undo");
+    expect(contents.undo).toHaveBeenCalledTimes(1);
   });
 
   test("refuses bad menu states and other senders", async () => {
@@ -749,7 +767,7 @@ describe("menus", () => {
     await invoke("menu:state", contents, null, state("canvas", false, true));
     window().webContents.emit(event);
     expect(menuEnabled("Zoom In")).toBe(false);
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
   });
 
   test("Quick Open… is enabled on every screen, disabled under a modal, and tells the renderer", async () => {
@@ -847,7 +865,7 @@ describe("menus", () => {
     const contents = window().webContents;
     await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: true });
     for (const label of ["Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
     await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: false });
     expect(menuEnabled("Add Project…")).toBe(true);
     expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });

@@ -485,8 +485,15 @@ body:has(.shell-top) { background: transparent; }
 .composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
 /* Grows with the text up to eight lines, then scrolls inside the card (design §4.1). */
-.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; resize: none; field-sizing: content; overflow-y: auto; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
-.composer-input::placeholder { color: var(--text-metadata); }
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+/* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
+   by the field's padding. */
+.composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+/* Inline anchor chips (buzz-canvas-conversation design §0, confirmed draft; 180px and 6px are component constants with no
+   token). contenteditable=false keeps the caret before or after a chip, never inside. */
+.anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
+.anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
+.anchor-chip span:not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-card.readonly .composer-input { color: var(--text-subtle); }
 .composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 .composer-count.over { color: var(--text-danger); }
@@ -575,9 +582,9 @@ body:has(.shell-top) { background: transparent; }
 .docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
 .docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
 .docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
-/* field-sizing sizes the empty field to its placeholder: a wrapped placeholder made the empty capsule taller than one
-   with a typed character. Chromium draws no text-overflow on a textarea placeholder, so a long one is clipped. */
-.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; }
+/* A wrapped placeholder made the empty capsule taller than one with a typed character; one clipped line keeps both
+   the same. */
+.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; }
 .docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
 /* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
 .docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
