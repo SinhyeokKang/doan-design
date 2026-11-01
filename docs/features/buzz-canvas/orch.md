@@ -22,6 +22,7 @@
 | 2026-11-01 | spec 완료 조건의 Fit 여백 문장을 design §2·§3의 안전 영역 규칙에 맞춰 고쳤다. 안전 영역에 들어가는 프레임은 그 가운데에, 안전 영역보다 높은 프레임은 위 56px에 둔다. 예외 기준은 '보드보다 높은 프레임'이 아니라 '안전 영역보다 높은 프레임'이다 | 지휘자 판단. RBT 🟡3. 사용자가 확정한 design의 상세 규칙이 있고, 폭 기준 Fit에서는 보드보다 낮지만 안전 영역보다 높은 프레임의 아래 가장자리를 도구모음 위에 둘 수 없다 |
 | 2026-11-01 | Codex·Antigravity 계정 표시는 별도 feature로 만들고, 그 feature 문서(spec·design·tasks)는 이 PR에 함께 넣는다. 조사와 `/feature`·`/feature-review`는 BA가 맡는다 | 사용자("agy, Codex 계정 메타 받아오는 조사 끝나면 워커 띄워서 feature로 작성 시켜. 스펙문서 이 pr에 같이 들어가도 괜찮") |
 | 2026-11-01 | Codex는 app-server `account/read`의 이메일만 보이고 계정 ID는 null로 둔다. Antigravity는 Doan이 vault의 refresh token으로 갱신한 메모리 전용 access token으로 Google userinfo를 불러 보인다(경계 확장 승인) | 사용자(AskUserQuestion: Codex '이메일만 표시', Antigravity 'userinfo로 표시') |
+| 2026-11-01 | Codex 자격 증명은 키체인에 그대로 두고 app-server `account/read`로 이메일을 읽는다. `auth.json`을 vault 작업 사본으로 두는 방식은 사람 단위 Codex ID가 필요해질 때 다시 볼 질문으로 남긴다 | 사용자(AskUserQuestion 'A 키체인 유지'). BA 비교: 평문 노출, refresh token 회전 위험, 기존 연결 재로그인 |
 | 2026-11-01 | `/agent-eval`은 해당하지 않는다 | design §1·§4. CLI·형식·스킬·`doan check` 규칙이 그대로다 |
 | 2026-11-01 | probe 위치는 `.scratch/runtime-test/buzz-canvas/`, 측정 위치는 `.scratch/design-sync/buzz-canvas/`다 | `/runtime-test`·`/design-sync` 스킬의 위치 규칙 |
 
