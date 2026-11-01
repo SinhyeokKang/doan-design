@@ -4,7 +4,7 @@
 
 ## D. 초안
 
-- [ ] D1. `/design-draft buzz-canvas`: `.doan/canvases/buzz-canvas.html`(design §0 프레임). 보드 바탕은 연한 회색, 캔버스 헤더는 Overview 헤더 상자에 서랍만(2026-11-01 user, 수정 1–4). 위·아래 inset 값, 알림·변경 표시 위치, 다시 로드 중 서랍의 비활성 여부, 문구(design §5, clarify 프리셋)를 초안에서 정한다. 사용자가 앱에서 초안을 확정한다.
+- [ ] D1. `/design-draft buzz-canvas`: `.doan/canvases/buzz-canvas.html`(design §0 프레임). 보드 바탕은 연한 회색, 캔버스 헤더는 Overview 헤더 상자에 서랍만(2026-11-01 user, 수정 1–4). 위·아래 inset 값, 알림 위치, 다시 로드 중 서랍의 비활성 여부, 문구(design §5, clarify 프리셋)를 초안에서 정한다. 사용자가 앱에서 초안을 확정한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
 
 ── commit: `docs(canvases): buzz-canvas draft` ──
