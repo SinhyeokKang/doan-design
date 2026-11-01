@@ -182,15 +182,27 @@ describe("canvasConversationError", () => {
     });
   });
 
+  test("a moved attachment marks its chips; too many files ask to remove some; nothing to queue behind sends instead", () => {
+    for (const mode of [NEW, EXISTING, ARCHIVED, RESUME]) {
+      expect(canvasConversationError("attachment_missing", mode, "claude", "acme-web", ["a1", "a2"])).toEqual({ kind: "attachments", missing: ["a1", "a2"] });
+      expect(canvasConversationError("not_running", mode, "claude", "acme-web")).toEqual({ kind: "resend" });
+      expect(canvasConversationError("attachment_limit", mode, "claude", "acme-web")).toEqual({
+        kind: "notice", text: "Only 10 files can be attached to a message. Remove some, then send again.", retry: false, startNew: false,
+      });
+    }
+    expect(canvasConversationError("attachment_missing", EXISTING, "claude", "acme-web")).toEqual({ kind: "attachments", missing: [] });
+  });
+
   test.each([
     ["session_in_use", "Couldn’t continue the terminal session: it’s in use in another terminal."],
     ["no_session", "Couldn’t continue the terminal session: it’s no longer available."],
     ["session_unavailable", "Couldn’t continue the terminal session: it isn’t available right now."],
-    ["not_logged_in", "Couldn’t continue the terminal session: Codex’s sign-in has expired."],
+    ["not_logged_in", "Couldn’t continue the terminal session: sign in to Codex in Settings > Agents, then send again."],
     ["cli_missing", "Couldn’t continue the terminal session: Codex isn’t installed on this Mac."],
     ["runtime_unsupported", "Couldn’t continue the terminal session: Doan doesn’t support this version of Codex."],
     ["process_exited", "Couldn’t continue the terminal session: Codex stopped before it could continue."],
     ["rate_limited", "Couldn’t continue the terminal session: Codex is rate limited."],
+    ["busy", "Couldn’t continue the terminal session: Codex is finishing a previous run."],
     ["unknown", "Couldn’t continue the terminal session."],
     ["constructor", "Couldn’t continue the terminal session."],
   ])("every terminal session refusal (%s) offers a new conversation, never another agent", (code, text) => {

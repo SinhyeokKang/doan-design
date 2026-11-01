@@ -1,11 +1,10 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
-import { splitMarkers } from "../main/conversation/messageText";
-import type { Anchor } from "../main/conversation/types";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { canvasKind } from "../formats/canvasPath";
 import { PROVIDER_NAMES } from "./agentAuthView";
+import { toMessage, type FieldSegment } from "./anchorField";
 import { canvasLabel } from "./canvasTree";
 import { groupProjects } from "./homeCards";
 import { anotherConversation } from "./homeConversations";
@@ -101,18 +100,34 @@ export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Pr
   return null;
 }
 
-// What in a non-empty draft stops the send. Shared with the docked composer, whose text carries a {{n}} marker for
-// each chip of `anchors`.
-export function draftProblem(text: string, preset: PresetRef | null, attachments: readonly AttachmentDraft[], anchors: readonly Anchor[] = []): SendReason | null {
+// What in a non-empty draft stops the send. Shared with the docked composer. A plain string is typed text only; the
+// chip field passes its segments, because {text, anchors} cannot tell a typed {{1}} from a chip's marker.
+export function draftProblem(draft: string | readonly FieldSegment[], preset: PresetRef | null, attachments: readonly AttachmentDraft[]): SendReason | null {
+  const typed = typedPieces(draft);
+  const text = typeof draft === "string" ? draft : toMessage(draft)?.text ?? typed.join("");
   const request = composeRequest(text, preset, attachments.length);
   if (request.length > TEXT_LIMIT) return { kind: "overLimit", text: "Shorten the message to send it." };
-  // The conversation IPC reads {{ and }} as anchor markers and refuses stray ones. Only the typed pieces are checked,
-  // one by one: a chip's marker is the field's own, and braces typed on both sides of a chip are not one marker.
-  const typed = [preset ? composeRequest("", preset, 0) : "", ...splitMarkers(text, anchors.length).flatMap(part => ("text" in part ? [part.text] : []))];
+  // The conversation IPC reads {{ and }} as anchor markers and refuses stray ones. Only what the person typed is
+  // checked, piece by piece between chips: braces typed on both sides of a chip are not one marker.
+  if (preset) typed.push(composeRequest("", preset, 0));
   if (typed.some(piece => piece.includes("{{") || piece.includes("}}"))) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
   if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments…" };
   const moved = attachments.find(a => a.status === "missing");
   return moved ? { kind: "attachmentMissing", text: movedNotice(moved) } : null;
+}
+
+// Neighbouring text segments join first, so {{ split across two of them is still caught.
+function typedPieces(draft: string | readonly FieldSegment[]): string[] {
+  if (typeof draft === "string") return [draft];
+  const pieces: string[] = [];
+  let run: string | null = null;
+  for (const segment of draft) {
+    if (segment.kind === "text") { run = (run ?? "") + segment.text; continue; }
+    if (run !== null) pieces.push(run);
+    run = null;
+  }
+  if (run !== null) pieces.push(run);
+  return pieces;
 }
 
 function unavailableProject(project: string): string { return `${project} isn’t available. Fix it from its menu in the sidebar.`; }

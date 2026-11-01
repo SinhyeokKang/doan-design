@@ -61,7 +61,15 @@ describe("messageLine", () => {
     expect(messageLine("Look at {{1}} and {{2}}", [payment])).toBe("Look at Payment and {{2}}");
   });
 
+  test("line breaks and runs of spaces read as one space, in the text and in a frame's name", () => {
+    expect(messageLine("First\nSecond {{1}}", [{ frame: { id: "f", title: "Frame" } }])).toBe("First Second Frame");
+    expect(messageLine("  Fix\n\n{{1}}  now ", [{ frame: { id: "f", title: "Check\nout" } }])).toBe("Fix Check out now");
+    expect(messageLine("Fix {{1}}", [{ frame: { id: "f" } }], [{ id: "f", title: "Pay\n  page" }])).toBe("Fix Pay page");
+    expect(messageLine("Fix {{1}}", [{ frame: { id: "f", title: " \n " } }])).toBe("Fix f");
+  });
+
   test("cut to the label limit", () => {
     expect(messageLine(`${"x".repeat(600)}{{1}}`, [payment])).toHaveLength(LIMITS.label);
+    expect(messageLine(`${"a\n".repeat(300)}`, [])).toHaveLength(LIMITS.label);
   });
 });

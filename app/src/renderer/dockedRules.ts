@@ -71,7 +71,8 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (!draft.text.trim() && !draft.preset && draft.attachments.length === 0) return off(waiting);
   // A running turn takes the message into its queue, so the limits on starting a turn do not apply yet.
   if (input.busy && input.turn === "idle") return off(busyReason(input.busy, input.project));
-  const problem = draftProblem(draft.text, draft.preset, draft.attachments, draft.anchors);
+  // Typed text only until the chip field passes its segments here (buzz-canvas-conversation R1).
+  const problem = draftProblem(draft.text, draft.preset, draft.attachments);
   return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };
 }
 
@@ -131,7 +132,8 @@ const RESUME_REASONS: Record<string, (p: string) => string> = {
   no_session: () => "it’s no longer available",
   session_unavailable: () => "it isn’t available right now",
   session_in_use: () => "it’s in use in another terminal",
-  not_logged_in: p => `${p}’s sign-in has expired`,
+  // The code alone does not tell an expired sign-in from none (decision 18).
+  not_logged_in: p => `sign in to ${p} in Settings > Agents, then send again`,
   cli_missing: p => `${p} isn’t installed on this Mac`,
   runtime_unsupported: p => `Doan doesn’t support this version of ${p}`,
   process_exited: p => `${p} stopped before it could continue`,

@@ -43,7 +43,7 @@ const cut = (value: string) => (value.length > CHIP_TEXT_MAX ? `${value.slice(0,
 
 // The open canvas's frame list names a frame when it has one; otherwise the title the anchor carried, then its id.
 function frameName(id: string, carried: string | undefined, frames: readonly FrameName[]): string {
-  return frames.find(frame => frame.id === id)?.title || carried || id;
+  return oneLine(frames.find(frame => frame.id === id)?.title || carried || "") || id;
 }
 
 export function chipLabel(anchor: Anchor, frames: readonly FrameName[] = []): ChipLabel {
@@ -68,8 +68,9 @@ export function chipLabel(anchor: Anchor, frames: readonly FrameName[] = []): Ch
 }
 
 // The one-line form of a message for titles, previews, the queue and notifications: each chip marker reads as its
-// chip's name. A marker without an anchor stays as typed.
+// chip's name, and line breaks and runs of spaces, in the text or in a frame's name, read as one space. A marker
+// without an anchor stays as typed.
 export function messageLine(text: string, anchors: readonly Anchor[], frames: readonly FrameName[] = []): string {
   const line = splitMarkers(text, anchors.length).map(part => ("n" in part ? chipLabel(anchors[part.n - 1]!, frames).label : part.text)).join("");
-  return line.slice(0, LIMITS.label);
+  return oneLine(line).slice(0, LIMITS.label);
 }

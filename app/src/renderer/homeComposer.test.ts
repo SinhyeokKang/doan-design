@@ -106,19 +106,23 @@ test("{{ or }} in the text blocks Send with the draft's reason", () => {
   expect(sendAvailability(base({ text: "single { and } are fine" })).enabled).toBe(true);
 });
 
-test("draftProblem checks only the typed pieces: a chip's marker passes, typed braces do not", () => {
+test("draftProblem checks only what was typed: a chip passes, typed braces do not, even as a valid marker", () => {
   const frame = { frame: { id: "payment" } };
+  const text = (t: string) => ({ kind: "text" as const, text: t }), chip = { kind: "chip" as const, anchor: frame };
   const markers = { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
-  expect(draftProblem("Move {{1}} left", null, [], [frame])).toBeNull();
-  expect(draftProblem("{{1}} and {{1}}", null, [], [frame])).toBeNull();
+  expect(draftProblem([chip], null, [])).toBeNull();
+  expect(draftProblem([text("Move "), chip, text(" left of "), chip], null, [])).toBeNull();
   // Braces typed on both sides of a chip are separate pieces.
-  expect(draftProblem("{{{1}}}", null, [], [frame])).toBeNull();
-  expect(draftProblem("Use {{ near {{1}}", null, [], [frame])).toEqual(markers);
-  expect(draftProblem("{{1}} then }}", null, [], [frame])).toEqual(markers);
-  // A marker no chip stands for was typed.
-  expect(draftProblem("Move {{2}}", null, [], [frame])).toEqual(markers);
+  expect(draftProblem([text("{"), chip, text("}")], null, [])).toBeNull();
+  // A typed {{1}} is refused even though a chip has that number.
+  expect(draftProblem([text("Literal {{1}} then "), chip], null, [])).toEqual(markers);
+  expect(draftProblem([chip, text(" then }}")], null, [])).toEqual(markers);
+  // Text segments next to each other read as one piece.
+  expect(draftProblem([text("Use {"), text("{ here"), chip], null, [])).toEqual(markers);
+  expect(draftProblem([chip], { id: "clarify", title: "Clarify" }, [])).toBeNull();
+  // A plain string is typed text, so any marker in it was typed.
   expect(draftProblem("Move {{1}}", null, [])).toEqual(markers);
-  expect(draftProblem("Move {{1}}", { id: "clarify", title: "Clarify" }, [], [frame])).toBeNull();
+  expect(draftProblem([text("x".repeat(32_767)), chip], null, [])).toEqual({ kind: "overLimit", text: "Shorten the message to send it." });
 });
 
 test("an empty composer disables Send without a reason line; a preset or an attachment alone can be sent", () => {

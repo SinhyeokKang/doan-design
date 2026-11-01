@@ -60,7 +60,6 @@ describe("dockedAvailability", () => {
   test("Home's draft reasons: length, anchor markers, checking and a moved file (as an alert)", () => {
     expect(dockedAvailability(input({ draft: draft({ text: "x".repeat(32769) }) })).reason).toEqual({ text: "Shorten the message to send it." });
     expect(dockedAvailability(input({ draft: draft({ text: "Use {{1}} here" }) })).reason).toEqual({ text: "Remove {{ and }} from the message to send it." });
-    expect(dockedAvailability(input({ draft: draft({ text: "Use {{1}} here", anchors: [{ frame: { id: "payment" } }] }) }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "checking" })] }) })).reason).toEqual({ text: "Checking attachments…" });
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "missing" })] }) })).reason).toEqual({ text: "notes.md was moved or deleted. Remove it, or attach it again.", alert: true });
   });

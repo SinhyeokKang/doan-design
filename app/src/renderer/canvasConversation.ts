@@ -4,7 +4,7 @@ import type { Canvas, Runtime } from "../main/conversation/types";
 import type { SettingsAction } from "./agentAuthView";
 import { sameCanvas } from "./canvasConversationRows";
 import { dockedRefusal, type DockedBusy, type DockedMode } from "./dockedRules";
-import { startErrorView } from "./homeComposer";
+import { MAX_ATTACHMENTS, startErrorView } from "./homeComposer";
 import { byActivity, menuItem, type MenuItem } from "./overviewConversation";
 
 // Which conversation the canvas panel shows, its dropdown, seen marks, the new conversation's start mode and its
@@ -100,18 +100,28 @@ export function newConversationMode(resumeTarget: ResumeTarget | undefined, pref
 }
 
 export function canvasUnlistedText(project: string): string { return `This canvas isn’t listed in ${project}, so its conversation can’t continue.`; }
+export const ATTACHMENT_LIMIT_TEXT = `Only ${MAX_ATTACHMENTS} files can be attached to a message. Remove some, then send again.`;
 export const DUPLICATE_CANVAS_TEXT = "Another canvas has the same ID, so this conversation can’t continue. Run doan check in a terminal to find it.";
 
 // busy: the busy line with Open. blocked: the composer keeps the draft but takes no input, with this reason line.
 // notice: under the card; retry offers Retry, startNew the terminal session's "Start a new conversation".
+// attachments: those chips read as moved, and the draft's own reason line explains it (the shipped composer rule).
+// resend: nothing was working to queue behind, so the host sends the same draft instead (the shipped queue rule).
 export type CanvasConversationError =
   | { kind: "busy"; busy: DockedBusy }
+  | { kind: "attachments"; missing: readonly string[] }
+  | { kind: "resend" }
   | { kind: "blocked"; text: string; action?: SettingsAction }
   | { kind: "notice"; text: string; retry: boolean; startNew: boolean };
 
 // A refused start or send in the canvas panel (design §2 'Errors'). Codes the Overview also meets read the same
 // (startErrorView, dockedRefusal); canvas_duplicate is the host's own code for a canvas whose id another one shares.
-export function canvasConversationError(code: string, mode: DockedMode, provider: Provider, project: string): CanvasConversationError {
+// `missing` is attachment_missing's list of attachment ids.
+export function canvasConversationError(code: string, mode: DockedMode, provider: Provider, project: string, missing: readonly string[] = []): CanvasConversationError {
+  if (code === "attachment_missing") return { kind: "attachments", missing };
+  // A queue main gave back with more files than a message takes; the person removes some before sending again.
+  if (code === "attachment_limit") return { kind: "notice", text: ATTACHMENT_LIMIT_TEXT, retry: false, startNew: false };
+  if (code === "not_running") return { kind: "resend" };
   if (code === "canvas_not_found") return { kind: "blocked", text: canvasUnlistedText(project) };
   if (code === "canvas_duplicate") return { kind: "blocked", text: DUPLICATE_CANVAS_TEXT };
   if (code === "project_not_open") return { kind: "blocked", text: startErrorView(code, provider, project).text };
