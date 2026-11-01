@@ -130,3 +130,8 @@ D1은 이미 끝났다(초안 확정).
 - BR4b 통합: `5f5f5b3e`, `7a5b3101`, `c6fc2cf6`. bcc-br4 정리. 구현 배치 끝. 통합 HEAD `verify --eval` 실행.
 - 웨이브 5 시작: BV1 Claude Opus high `ctx_b440baf360c3`(bcc-v1, design-sync), BV3 Claude Sonnet medium `ctx_d89cf4bf1179`(bcc-v3, eval 판단·self-test). BV2(실제 공급자 runtime-test)는 BV1 뒤(GUI probe 겹침 방지).
 - 구현 통합 HEAD(`c6fc2cf6`) `verify --eval` PASS.
+- BV3 완료·통합: 앵커를 보내는 eval scenario가 없어 실제 라운드는 생략, USABILITY-EVAL U-020으로 남김(`2c2af54f` 통합). self-test PASS, eval 단위 203/203. bcc-v3 정리.
+- 결정(2026-11-02 user): 앵커 eval scenario를 이번에 추가하고 실제 라운드로 검증까지 한다. BV4 Claude Opus high(scenario 설계 판단) 시작. 실제 라운드는 사용자 승인됨, 교차 judge는 agent-eval 상시 예외.
+- 지휘자 판단(BV1 질문): 초안과 다른 셋(목록 읽기 실패 안내 위치와 추천 칩, 목록 읽는 중 제목 트리거 비활성, 공용 추천 문구)은 Overview 공용 동작을 따르는 구현을 남기고, 사용자 지시(2026-11-02 '초안은 맞춰 놓는다')대로 BV1이 초안을 그 셋만 고친다. 근거: design §0 '같은 새 대화 상태(Overview 패턴)'.
+- BV4 완료: eval R8(앱 turnPrompt 출력 그대로, drift 테스트, Electron 렌더로 배치 판정, doan active 불변). 실제 라운드 bcc-r8-261102: claude pass/partial/pass, codex pass/pass/pass. U-020 측정 완료(앵커 처리 문제 없음), 새 U-021(Claude 1/3이 doan skill을 건너뛰어 가이드 규칙 G의 not-in-code 표시를 놓침, turnPrompt가 doan skill을 프리셋 안내에만 언급). ARCHITECTURE §14·DIRECTORY의 R8 언급은 Z에서. 리뷰 Codex astra.
+- BV4 리뷰(Codex astra): 🔴 0, 🟡 1(R8이 라벨을 span으로 감싼 올바른 버튼을 실패로 판정). 기록된 6회는 이 마크업을 쓰지 않아 결과는 유효. 수정 라운드 1 전송.
