@@ -120,3 +120,4 @@ D1은 이미 끝났다(초안 확정).
 - BR4b 시작(BR4a 워커 재사용, `ctx_25447f7999bc`, bcc-br4를 통합 브랜치로 rebase).
 - 지휘자 판단(BR4b 질문): 고르기 중 캔버스 위 십자 커서는 캔버스 스크립트가 `adoptedStyleSheets`로 넣고 끝날 때 뺀다(BR4b가 canvasScript.ts를 맡음). 근거: design §2 '보드 커서가 십자'; DOM을 건드리지 않아 레이아웃 감시에 영향이 없다.
 - 결정(2026-11-02 user): PRODUCT §6 'Open questions'를 `docs/BACKLOG.md`로 분리했다(정할 것 18 · 실제 앱 미검증 4 · 알려진 결함 6). PRODUCT §6은 BACKLOG를 가리키는 한 줄만 남겨 절 번호와 기존 'PRODUCT §6' 참조가 그대로 이어진다. AGENTS·feature·feature-review 스킬·README·ARCHITECTURE·이 feature 문서의 참조를 고쳤다. Z1·Z3은 미검증 표면과 코멘트 관련 항목을 BACKLOG에 맞춰 쓴다.
+- BACKLOG 점검(2026-11-02, Claude Opus 에이전트, 이 브랜치 기준): 유지 19, 문구 수정 4, 대상 사라짐 5, 해결 0. 결정(user): 문구 3개(프리셋 대상 문구, Claude 권한 요약, Tab 순서)는 지금 고쳤다. Z1에서 할 일: 캔버스 미검증 표면 항목의 "the app cannot start a canvas conversation yet" 문장을 V2 결과로 고치고, 코멘트 화면 제거로 대상이 사라진 5개(잘못된/없는 캔버스 ID 구분, 다른 기기 시계와 리뷰 표시, Git으로 온 코멘트 new 표시, 카드 recovery-blocked 문구, `process.kill` ESRCH 조사)를 PRODUCT 코멘트 본문과 함께 지운다.
