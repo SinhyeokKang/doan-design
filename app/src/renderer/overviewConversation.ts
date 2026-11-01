@@ -56,16 +56,21 @@ export function conversationLine(c: ConversationSummary, now: number, seen: Read
 const isProject = (c: ConversationSummary) => c.canvas === undefined;
 
 // The most recent activity first. ISO times compare as strings, and an unreadable history's empty time sorts last; the
-// id breaks ties so the default pick and the dropdown agree whatever order main lists them in.
-function byActivity(a: ConversationSummary, b: ConversationSummary): number {
+// id breaks ties so the default pick and the dropdown agree whatever order main lists them in. Shared with the canvas
+// panel's dropdown.
+export function byActivity(a: ConversationSummary, b: ConversationSummary): number {
   if (a.lastActivityAt !== b.lastActivityAt) return a.lastActivityAt < b.lastActivityAt ? 1 : -1;
   return a.conversationId < b.conversationId ? -1 : a.conversationId > b.conversationId ? 1 : 0;
 }
 
 export interface MenuItem extends ConversationLine { title: string; readError: boolean }
+// One dropdown row, the same in the Overview and the canvas panel.
+export function menuItem(c: ConversationSummary, now: number, seen: ReadonlySet<string>): MenuItem {
+  return { ...conversationLine(c, now, seen), title: c.title, readError: c.readError === true };
+}
 
 export function projectConversationMenu(list: readonly ConversationSummary[], now: number, seen: ReadonlySet<string> = new Set()): MenuItem[] {
-  return list.filter(isProject).sort(byActivity).map(c => ({ ...conversationLine(c, now, seen), title: c.title, readError: c.readError === true }));
+  return list.filter(isProject).sort(byActivity).map(c => menuItem(c, now, seen));
 }
 
 // wait: the list was not read yet, so nothing is shown rather than a new conversation that then changes. reread: the

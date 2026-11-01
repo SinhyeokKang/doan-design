@@ -15,7 +15,11 @@ const NODE = new Set(builtinModules.flatMap(name => [name, `node:${name}`]));
 // Modules the app does not import yet but a later screen will: the walk starts from them too, so a value import
 // added now cannot wait for that screen to fail (POSTMORTEM 2026-10-30; buzz-project places the thread and the
 // docked composer).
-const EXTRA_ROOTS = [join(SRC, "renderer/ConversationThread.tsx"), join(SRC, "renderer/DockedComposer.tsx")];
+const EXTRA_ROOTS = [
+  join(SRC, "renderer/ConversationThread.tsx"), join(SRC, "renderer/DockedComposer.tsx"),
+  // buzz-canvas-conversation: the chip field and the picker, which import the shared limits.
+  join(SRC, "renderer/anchorField.ts"), join(SRC, "renderer/canvasPicker.ts"),
+];
 
 function entries(): string[] {
   // Every renderer entry electron-vite builds is an HTML file whose module script starts the closure.

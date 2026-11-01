@@ -26,6 +26,18 @@ describe("draftKey", () => {
     expect(draftKey({ kind: "new", root: "/code/doan" })).toBe("root:/code/doan");
     expect(draftKey({ kind: "new", root: "/code/doan" })).not.toBe(draftKey({ kind: "new", root: "/code/acme" }));
   });
+  test("a canvas panel's new conversation keeps its draft per canvas of a root, shared with the terminal session", () => {
+    const billing = { path: ".doan/canvases/billing.html", id: "billing" };
+    const canvasNew = draftKey({ kind: "new", root: "/code/doan", canvas: billing });
+    expect(canvasNew).not.toBe(draftKey({ kind: "new", root: "/code/doan" }));
+    expect(canvasNew).not.toBe(draftKey({ kind: "new", root: "/code/acme", canvas: billing }));
+    expect(canvasNew).not.toBe(draftKey({ kind: "new", root: "/code/doan", canvas: { path: ".doan/canvases/home.html", id: "home" } }));
+    // A moved canvas keeps its id and its draft.
+    expect(draftKey({ kind: "new", root: "/code/doan", canvas: { ...billing, path: ".doan/canvases/pay/billing.html" } })).toBe(canvasNew);
+    expect(draftKey({ kind: "resume", root: "/code/doan", canvas: billing, provider: "codex" })).toBe(canvasNew);
+    // Without an id, the path; an id and a path that read alike stay apart.
+    expect(draftKey({ kind: "new", root: "/code/doan", canvas: { path: "billing" } })).not.toBe(draftKey({ kind: "new", root: "/code/doan", canvas: { path: "x", id: "billing" } }));
+  });
 });
 
 describe("dockedAvailability", () => {
@@ -48,6 +60,7 @@ describe("dockedAvailability", () => {
   test("Home's draft reasons: length, anchor markers, checking and a moved file (as an alert)", () => {
     expect(dockedAvailability(input({ draft: draft({ text: "x".repeat(32769) }) })).reason).toEqual({ text: "Shorten the message to send it." });
     expect(dockedAvailability(input({ draft: draft({ text: "Use {{1}} here" }) })).reason).toEqual({ text: "Remove {{ and }} from the message to send it." });
+    expect(dockedAvailability(input({ draft: draft({ text: "Use {{1}} here", anchors: [{ frame: { id: "payment" } }] }) }))).toEqual({ enabled: true, reason: null });
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "checking" })] }) })).reason).toEqual({ text: "Checking attachments…" });
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "missing" })] }) })).reason).toEqual({ text: "notes.md was moved or deleted. Remove it, or attach it again.", alert: true });
   });
@@ -102,6 +115,10 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
     // Decision 18: the code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
+  });
+  test("a terminal session's refusal names the session, not another agent", () => {
+    const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;
+    expect(dockedRefusal("session_in_use", resume, "codex", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t continue the terminal session: it’s in use in another terminal." });
   });
 });
 

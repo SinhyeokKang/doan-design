@@ -1,5 +1,7 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
+import { splitMarkers } from "../main/conversation/messageText";
+import type { Anchor } from "../main/conversation/types";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { canvasKind } from "../formats/canvasPath";
@@ -99,12 +101,15 @@ export function agentProblem(auth: AuthSnapshot | null | undefined, provider: Pr
   return null;
 }
 
-// What in a non-empty draft stops the send. Shared with the docked composer.
-export function draftProblem(text: string, preset: PresetRef | null, attachments: readonly AttachmentDraft[]): SendReason | null {
+// What in a non-empty draft stops the send. Shared with the docked composer, whose text carries a {{n}} marker for
+// each chip of `anchors`.
+export function draftProblem(text: string, preset: PresetRef | null, attachments: readonly AttachmentDraft[], anchors: readonly Anchor[] = []): SendReason | null {
   const request = composeRequest(text, preset, attachments.length);
   if (request.length > TEXT_LIMIT) return { kind: "overLimit", text: "Shorten the message to send it." };
-  // The conversation IPC reads {{ and }} as anchor markers and refuses them even without anchors.
-  if (request.includes("{{") || request.includes("}}")) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
+  // The conversation IPC reads {{ and }} as anchor markers and refuses stray ones. Only the typed pieces are checked,
+  // one by one: a chip's marker is the field's own, and braces typed on both sides of a chip are not one marker.
+  const typed = [preset ? composeRequest("", preset, 0) : "", ...splitMarkers(text, anchors.length).flatMap(part => ("text" in part ? [part.text] : []))];
+  if (typed.some(piece => piece.includes("{{") || piece.includes("}}"))) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
   if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments…" };
   const moved = attachments.find(a => a.status === "missing");
   return moved ? { kind: "attachmentMissing", text: movedNotice(moved) } : null;

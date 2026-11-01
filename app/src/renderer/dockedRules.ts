@@ -1,6 +1,6 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
-import type { Anchor } from "../main/conversation/types";
+import type { Anchor, Canvas } from "../main/conversation/types";
 import { pickerAction, PROVIDER_NAMES, type SettingsAction } from "./agentAuthView";
 import type { ComposerShape } from "./composerRules";
 import {
@@ -12,11 +12,13 @@ import { anotherConversation } from "./homeConversations";
 // the canvas panel. Its host owns the conversation, the lists and every call to main; these functions only decide.
 
 // existing: the conversation's provider is fixed, so only its model and effort are chosen. archived: the same, and a
-// send restores it. new: the person picks the provider, and Send starts a conversation in `root`.
+// send restores it. new: the person picks the provider, and Send starts a conversation in `root`, on `canvas` from a
+// canvas panel. resume: Send continues the canvas's terminal session, whose provider, model and effort are its own.
 export type DockedMode =
   | { kind: "existing"; conversationId: string; provider: Provider }
   | { kind: "archived"; conversationId: string; provider: Provider }
-  | { kind: "new"; root: string };
+  | { kind: "new"; root: string; canvas?: Canvas }
+  | { kind: "resume"; root: string; canvas: Canvas; provider: Provider };
 
 export interface DockedDraft {
   text: string; anchors: readonly Anchor[]; preset: PresetSummary | null; attachments: readonly AttachmentDraft[];
@@ -25,9 +27,14 @@ export interface DockedDraft {
 }
 export const EMPTY_DRAFT: DockedDraft = { text: "", anchors: [], preset: null, attachments: [], shape: "capsule" };
 
-// Drafts are kept per conversation; a new conversation's draft is kept per root (design §3.1).
+// Drafts are kept per conversation; a new conversation's draft per root, or per canvas of a root in a canvas panel.
+// The terminal session shares its canvas's new-conversation draft, so switching between the two keeps the text.
+// A canvas is keyed by its id when it has one, so a moved canvas keeps its draft.
 export function draftKey(mode: DockedMode): string {
-  return mode.kind === "new" ? `root:${mode.root}` : `conversation:${mode.conversationId}`;
+  if (mode.kind === "existing" || mode.kind === "archived") return `conversation:${mode.conversationId}`;
+  const canvas = mode.canvas;
+  if (!canvas) return `root:${mode.root}`;
+  return `canvas:${JSON.stringify([mode.root, canvas.id === undefined ? "path" : "id", canvas.id ?? canvas.path])}`;
 }
 
 // Another project conversation holds the root (project_busy), or the canvas's current conversation still runs while
@@ -64,7 +71,7 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (!draft.text.trim() && !draft.preset && draft.attachments.length === 0) return off(waiting);
   // A running turn takes the message into its queue, so the limits on starting a turn do not apply yet.
   if (input.busy && input.turn === "idle") return off(busyReason(input.busy, input.project));
-  const problem = draftProblem(draft.text, draft.preset, draft.attachments);
+  const problem = draftProblem(draft.text, draft.preset, draft.attachments, draft.anchors);
   return problem ? off({ text: problem.text, ...(problem.kind === "attachmentMissing" ? { alert: true as const } : {}) }) : { enabled: true, reason: waiting };
 }
 
@@ -102,6 +109,7 @@ export function dockedRefusal(code: string, mode: DockedMode, provider: Provider
   if (mode.kind === "archived" && code === "busy") return { kind: "busy", busy: { kind: "restore", open: null } };
   if (code === "canvas_not_found") return { kind: "gone" };
   if (mode.kind === "new") return { kind: "notice", text: startErrorView(code, provider, project).text };
+  if (mode.kind === "resume") return { kind: "notice", text: resumeRefusalText(code, provider) };
   const p = PROVIDER_NAMES[provider];
   const text = SEND_ERRORS[code]?.(p) ?? "Couldn’t send your message. Try again.";
   return { kind: "notice", text };
@@ -111,6 +119,24 @@ const SEND_ERRORS: Record<string, (p: string) => string> = {
   // The code alone does not tell an expired sign-in from none (decision 18).
   not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
   rate_limited: p => `${p} is rate limited. Try again later.`,
+};
+
+// Every refusal of a terminal session reads the same way and never says "Choose another agent": its provider is the
+// terminal's, and the notice's own button starts a new conversation instead (design §2 'Errors').
+export function resumeRefusalText(code: string, provider: Provider): string {
+  const reason = Object.hasOwn(RESUME_REASONS, code) ? RESUME_REASONS[code]!(PROVIDER_NAMES[provider]) : null;
+  return reason ? `Couldn’t continue the terminal session: ${reason}.` : "Couldn’t continue the terminal session.";
+}
+const RESUME_REASONS: Record<string, (p: string) => string> = {
+  no_session: () => "it’s no longer available",
+  session_unavailable: () => "it isn’t available right now",
+  session_in_use: () => "it’s in use in another terminal",
+  not_logged_in: p => `${p}’s sign-in has expired`,
+  cli_missing: p => `${p} isn’t installed on this Mac`,
+  runtime_unsupported: p => `Doan doesn’t support this version of ${p}`,
+  process_exited: p => `${p} stopped before it could continue`,
+  rate_limited: p => `${p} is rate limited`,
+  busy: p => `${p} is finishing a previous run`,
 };
 
 // Shown instead of the composer when an archived conversation's canvas left the project (design §3.1).

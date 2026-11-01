@@ -6,7 +6,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
   GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
-  presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
+  draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
 } from "./homeComposer";
@@ -104,6 +104,21 @@ test("{{ or }} in the text blocks Send with the draft's reason", () => {
     expect(sendAvailability(base({ text }))).toEqual({ enabled: false, reason: { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." } });
   }
   expect(sendAvailability(base({ text: "single { and } are fine" })).enabled).toBe(true);
+});
+
+test("draftProblem checks only the typed pieces: a chip's marker passes, typed braces do not", () => {
+  const frame = { frame: { id: "payment" } };
+  const markers = { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
+  expect(draftProblem("Move {{1}} left", null, [], [frame])).toBeNull();
+  expect(draftProblem("{{1}} and {{1}}", null, [], [frame])).toBeNull();
+  // Braces typed on both sides of a chip are separate pieces.
+  expect(draftProblem("{{{1}}}", null, [], [frame])).toBeNull();
+  expect(draftProblem("Use {{ near {{1}}", null, [], [frame])).toEqual(markers);
+  expect(draftProblem("{{1}} then }}", null, [], [frame])).toEqual(markers);
+  // A marker no chip stands for was typed.
+  expect(draftProblem("Move {{2}}", null, [], [frame])).toEqual(markers);
+  expect(draftProblem("Move {{1}}", null, [])).toEqual(markers);
+  expect(draftProblem("Move {{1}}", { id: "clarify", title: "Clarify" }, [], [frame])).toBeNull();
 });
 
 test("an empty composer disables Send without a reason line; a preset or an attachment alone can be sent", () => {
