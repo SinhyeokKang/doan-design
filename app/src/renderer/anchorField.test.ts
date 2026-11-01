@@ -3,7 +3,7 @@ import { combineQueued } from "../main/conversation/queue";
 import type { Anchor } from "../main/conversation/types";
 import {
   chipAt, distinctTargets, FILLER, fromMessage, hardLine, hasContent, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sameTarget,
-  sliceUnits, spliceUnits, textSegments, toMessage, typedText, unitLength, withoutFiller, writeFieldClipboard, type FieldSegment,
+  sliceUnits, spliceUnits, textSegments, toMessage, typedText, unitLength, writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
 import { draftProblem } from "./homeComposer";
 
@@ -117,9 +117,10 @@ describe("line-start chips and the chip clipboard", () => {
     const field = [chip(frame), text("a\n"), chip(point)];
     expect([0, 1, 2, 3, 4].map(unit => isLineStart(field, unit))).toEqual([true, false, false, true, false]);
   });
-  test("withoutFiller drops the zero-width filler, so it never reaches a message", () => {
-    expect(withoutFiller([text(`a${FILLER}`), text(FILLER), chip(frame)])).toEqual([text("a"), chip(frame)]);
-    expect(toMessage(withoutFiller([text(FILLER), chip(frame)]))).toEqual({ text: "{{1}}", anchors: [frame] });
+  test("a U+200B in the person's text is text: it survives the clipboard and the message (fix round 2)", () => {
+    const fragment = [text(`a${FILLER}b `), chip(frame)];
+    expect(readFieldClipboard(writeFieldClipboard("canvas:a", fragment), "canvas:a")).toEqual(fragment);
+    expect(toMessage(fragment)).toEqual({ text: `a${FILLER}b {{1}}`, anchors: [frame] });
   });
   test("a copied fragment keeps a typed {{1}} as typed text, so draftProblem still refuses it after the paste", () => {
     const fragment = [text("{{1}} "), chip(frame)];
@@ -134,5 +135,18 @@ describe("line-start chips and the chip clipboard", () => {
     expect(readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", text: "{{1}}", anchors: [frame] }), "canvas:a")).toBeNull();
     expect(readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", segments: [{ kind: "chip", anchor: "x" }] }), "canvas:a")).toBeNull();
     expect(readFieldClipboard(JSON.stringify({ v: 2, scope: "canvas:a", segments: [] }), "canvas:a")).toBeNull();
+  });
+  test("an anchor field of the wrong type makes the whole payload not-chips (the review's title: 123), so the paste falls back to text", () => {
+    const read = (anchor: unknown) => readFieldClipboard(JSON.stringify({ v: 1, scope: "canvas:a", segments: [{ kind: "chip", anchor }] }), "canvas:a");
+    expect(read({ frame: { id: "x", title: 123 } })).toBeNull();
+    expect(read({ frame: { id: 7 } })).toBeNull();
+    expect(read({ element: { selector: "#a", tag: 1 } })).toBeNull();
+    expect(read({ element: { doanId: "a" } })).toBeNull();
+    expect(read({ point: { frameId: "f", dx: "1", dy: 2 } })).toBeNull();
+    expect(read({ point: { dx: 1, dy: Number.NaN } })).toBeNull();
+    expect(read({})).toBeNull();
+    expect(read([frame])).toBeNull();
+    expect(read(button)).toEqual([chip(button)]);
+    expect(read(point)).toEqual([chip(point)]);
   });
 });

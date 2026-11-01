@@ -135,8 +135,8 @@ export function sameSegments(a: readonly FieldSegment[], b: readonly FieldSegmen
 }
 
 // A chip that starts a line: Chromium cannot hold a caret before a contenteditable=false element at a line's start, so
-// ChipField draws a zero-width filler there. The filler is never a unit: it is not in segments, the clipboard or a
-// message, and text that arrives with one (a paste, a host value) loses it.
+// ChipField draws a zero-width filler there. Only that drawn node's character is skipped; a U+200B the person typed or
+// pasted is text like any other.
 export const FILLER = "​";
 export function isLineStart(segments: readonly FieldSegment[], unit: number): boolean {
   if (unit === 0) return true;
@@ -148,26 +148,36 @@ export function isLineStart(segments: readonly FieldSegment[], unit: number): bo
   }
   return false;
 }
-export function withoutFiller(segments: readonly FieldSegment[]): FieldSegment[] {
-  return normalize(segments.map(segment => (segment.kind === "text" ? { kind: "text", text: segment.text.replaceAll(FILLER, "") } : segment)));
-}
-
 // The chip clipboard between Doan fields keeps segments, not {text, anchors}: a typed {{1}} next to a chip must come
 // back as typed text, which a marker string cannot tell apart. The scope is the canvas the chips belong to.
 export function writeFieldClipboard(scope: string, segments: readonly FieldSegment[]): string {
   return JSON.stringify({ v: 1, scope, segments });
 }
-// The segments, or null when the clipboard is not a chip clipboard of this scope. Anchors are checked by main on send.
+// The segments, or null when the clipboard is not a chip clipboard of this scope or any field the field reads (the chip
+// label, the marker) has the wrong type; the caller then pastes the plain text. main checks anchors again on send.
 export function readFieldClipboard(raw: string, scope: string): FieldSegment[] | null {
   let value: unknown;
   try { value = JSON.parse(raw); } catch { return null; }
-  if (!value || typeof value !== "object") return null;
-  const { v, scope: from, segments } = value as { v?: unknown; scope?: unknown; segments?: unknown };
+  if (!isObject(value)) return null;
+  const { v, scope: from, segments } = value;
   if (v !== 1 || from !== scope || !Array.isArray(segments)) return null;
   const valid = segments.every((segment: unknown) => {
-    if (!segment || typeof segment !== "object") return false;
-    const { kind, text, anchor } = segment as { kind?: unknown; text?: unknown; anchor?: unknown };
-    return kind === "text" ? typeof text === "string" : kind === "chip" && !!anchor && typeof anchor === "object" && !Array.isArray(anchor);
+    if (!isObject(segment)) return false;
+    return segment.kind === "text" ? typeof segment.text === "string" : segment.kind === "chip" && isAnchor(segment.anchor);
   });
-  return valid ? withoutFiller(segments as FieldSegment[]) : null;
+  return valid ? normalize(segments as FieldSegment[]) : null;
+}
+
+type Fields = Record<string, unknown>;
+const isObject = (value: unknown): value is Fields => typeof value === "object" && value !== null && !Array.isArray(value);
+const optional = (value: unknown, type: "string" | "number") => value === undefined || (type === "number" ? typeof value === "number" && Number.isFinite(value) : typeof value === type);
+// The Anchor shape, with every member chipLabel and toMessage read typed as declared (types.ts).
+function isAnchor(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  const { frame, element, point } = value;
+  if (frame === undefined && element === undefined && point === undefined) return false;
+  if (frame !== undefined && !(isObject(frame) && typeof frame.id === "string" && optional(frame.title, "string"))) return false;
+  if (element !== undefined && !(isObject(element) && typeof element.selector === "string" && optional(element.doanId, "string") && optional(element.text, "string") && optional(element.tag, "string"))) return false;
+  if (point !== undefined && !(isObject(point) && optional(point.frameId, "string") && typeof point.dx === "number" && Number.isFinite(point.dx) && typeof point.dy === "number" && Number.isFinite(point.dy))) return false;
+  return true;
 }

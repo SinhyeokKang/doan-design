@@ -2,7 +2,7 @@ import { chipLabel, LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
 import {
   chipAt, distinctTargets, FILLER, hardLine, isLineStart, normalize, plainText, readFieldClipboard, sameSegments, sliceUnits, spliceUnits,
-  unitLength, withoutFiller, writeFieldClipboard, type FieldSegment,
+  unitLength, writeFieldClipboard, type FieldSegment,
 } from "./anchorField";
 
 // The composer field's DOM, selection, clipboard, undo and IME handling over a contenteditable element
@@ -30,7 +30,9 @@ export interface ChipFieldHooks {
 
 interface Selection { anchor: number; focus: number }
 interface Step { segments: FieldSegment[]; before: Selection; after: Selection; kind: string; at: number }
-interface Unit { node: Node; kind: "text" | "chip" | "br" | "filler"; at: number; length: number }
+// A <br> is never a unit: line breaks live in text as "\n". The field draws one only to show a trailing empty line, and
+// Chromium adds its own when an edit leaves a line holding nothing but a chip; neither is read.
+interface Unit { node: Node; kind: "text" | "chip" | "filler"; at: number; length: number }
 
 // Icons of the confirmed draft's chips (lucide Frame and MapPin; the element icon as the draft draws it).
 const SVG = "http://www.w3.org/2000/svg";
@@ -43,6 +45,11 @@ const KIND_PREFIX = { frame: "Frame", element: "Element", point: "Point" } as co
 
 export class ChipField {
   private readonly chips = new WeakMap<Node, Anchor>(); // chip node → anchor; the DOM never holds anchors as attributes
+  // Text nodes drawn as a line-start chip's filler; only their first character, while it is still the filler, is skipped.
+  private readonly fillers = new WeakSet<Node>();
+  private readonly breaks = new WeakSet<Node>(); // the trailing <br> the field drew
+  // Set while a draft switch ends the previous draft's composition: its last events belong to that draft, not this one.
+  private discarding = false;
   private segments: FieldSegment[] = [];
   private composingNow = false;
   private pending: Anchor[] = [];
@@ -80,7 +87,7 @@ export class ChipField {
     const selectionChange = () => this.onSelectionChange();
     document.addEventListener("selectionchange", selectionChange);
     this.cleanups.push(() => document.removeEventListener("selectionchange", selectionChange));
-    this.reset(withoutFiller(initial));
+    this.reset(normalize(initial));
   }
 
   dispose(): void { for (const cleanup of this.cleanups) cleanup(); this.el.removeAttribute("data-chip-field"); }
@@ -94,12 +101,24 @@ export class ChipField {
   setValue(value: readonly FieldSegment[], draft?: string): void {
     if (draft !== this.draft) {
       this.draft = draft;
-      this.composingNow = false;
-      this.reset(withoutFiller(value));
+      if (this.composingNow) this.endComposition();
+      this.reset(normalize(value));
       return;
     }
     if (this.composingNow || sameSegments(value, this.segments)) return;
-    this.reset(withoutFiller(value));
+    this.reset(normalize(value));
+  }
+
+  // A blur makes Chromium finish the composition in the old DOM and tells the input method to drop it, so no late commit
+  // lands in the next draft. Its compositionend and input still fire; `discarding` keeps them out of this draft's value
+  // and history (the host already holds the previous draft's text from the live updates).
+  private endComposition(): void {
+    this.discarding = true;
+    this.composingNow = false;
+    if (document.activeElement === this.el) {
+      this.el.blur();
+      this.el.focus({ preventScroll: true });
+    }
   }
 
   private reset(segments: FieldSegment[]): void {
@@ -186,6 +205,7 @@ export class ChipField {
   private readOnly(): boolean { return !this.el.isContentEditable; }
 
   private onKeyDown(event: KeyboardEvent): void {
+    if (this.discarding && event.keyCode !== 229) this.discarding = false;
     // keyCode 229 is the IME's own key; the composition owns it.
     if (event.isComposing || event.keyCode === 229 || this.composingNow) return;
     if (event.metaKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === "z") {
@@ -222,6 +242,7 @@ export class ChipField {
       if (type === "historyUndo") this.undo(); else this.redo();
       return;
     }
+    if (this.discarding && !type.startsWith("insertComposition")) this.discarding = false;
     if (this.composingNow || type.startsWith("insertComposition")) return;
     if (type.startsWith("format")) { event.preventDefault(); return; }
     if (type === "insertParagraph" || type === "insertLineBreak") { event.preventDefault(); this.insertTyped("\n"); return; }
@@ -291,7 +312,7 @@ export class ChipField {
       if (unit < entry.at || unit >= entry.at + entry.length) continue;
       if (entry.kind === "chip") return (entry.node as Element).getBoundingClientRect();
       if (entry.kind !== "text") return null;
-      const data = (entry.node as Text).data, from = domOffset(data, unit - entry.at);
+      const from = this.domOffset(entry.node, unit - entry.at);
       const range = document.createRange();
       range.setStart(entry.node, from);
       range.setEnd(entry.node, from + 1);
@@ -314,13 +335,16 @@ export class ChipField {
   }
 
   private onInput(): void {
+    if (this.discarding) return;
     this.hooks.onInput();
     this.markEmpty();
-    if (this.composingNow) this.hooks.onChange(this.read());
-    else this.sync();
+    if (this.composingNow) { this.hooks.onChange(this.read()); return; }
+    this.sync();
+    this.repair();
   }
 
   private onCompositionStart(): void {
+    if (this.discarding) return;
     this.composingNow = true;
     this.groupBefore ??= this.readSelection();
   }
@@ -329,9 +353,46 @@ export class ChipField {
   // input ends one syllable's composition and starts the next in the same key event, so a waiting chip goes in only
   // after the event has run and only if no new composition started meanwhile.
   private onCompositionEnd(): void {
+    if (this.discarding) {
+      // The previous draft's composition, finished by endComposition: draw this draft again over whatever it left.
+      this.discarding = false;
+      if (!sameSegments(this.read(), this.segments)) { const selection = this.readSelection(); this.render(this.segments); this.placeCaret(selection); }
+      return;
+    }
     this.composingNow = false;
     this.sync();
-    setTimeout(() => this.flushPending(), 0);
+    setTimeout(() => { this.repair(); this.flushPending(); }, 0);
+  }
+
+  // Browser edits keep the DOM drawn as render() would draw it: a chip that an edit leaves at a line's start gets its
+  // filler, a filler or <br> Chromium left behind goes, and nothing nests. Drawn again with the same selection, never
+  // during a composition (that would cancel it).
+  private repair(): void {
+    if (this.composingNow || !this.misdrawn()) return;
+    const selection = this.readSelection();
+    this.render(this.segments);
+    this.placeCaret(selection);
+  }
+
+  private misdrawn(): boolean {
+    const nodes = Array.from(this.el.childNodes);
+    let at = 0;
+    for (const [index, node] of nodes.entries()) {
+      if (node.nodeType === Node.TEXT_NODE) { at += this.textOf(node).length; continue; }
+      if (this.chips.has(node)) {
+        const previous = nodes[index - 1];
+        const filled = previous !== undefined && this.fillers.has(previous) && this.textOf(previous) === "" && (previous as Text).data === FILLER;
+        if (filled !== isLineStart(this.segments, at)) return true;
+        at += 1;
+        continue;
+      }
+      if (node.nodeName === "BR" && this.breaks.has(node) && index === nodes.length - 1) continue;
+      return true;
+    }
+    // A filler is only ever directly before a chip; one that took typed text keeps it as text until the next draw.
+    const last = this.segments[this.segments.length - 1];
+    const trailing = nodes[nodes.length - 1];
+    return last?.kind === "text" && last.text.endsWith("\n") && !(trailing && this.breaks.has(trailing));
   }
 
   private flushPending(): void {
@@ -373,7 +434,7 @@ export class ChipField {
     let inserted = custom && scope !== null ? readFieldClipboard(custom, scope) : null;
     // Counted on the result of replacing the selection, as for an inserted chip.
     if (inserted && distinctTargets(spliceUnits(this.segments, start, end, inserted).segments) > LIMITS.anchors) inserted = null;
-    inserted ??= withoutFiller([{ kind: "text", text: data.getData("text/plain").replace(/\r\n?/g, "\n") }]);
+    inserted ??= normalize([{ kind: "text", text: data.getData("text/plain").replace(/\r\n?/g, "\n") }]);
     this.replace(start, end, inserted, "paste");
   }
 
@@ -406,13 +467,13 @@ export class ChipField {
     let at = 0;
     for (const segment of segments) {
       if (segment.kind === "text") { nodes.push(document.createTextNode(segment.text)); at += segment.text.length; continue; }
-      if (isLineStart(segments, at)) nodes.push(document.createTextNode(FILLER));
+      if (isLineStart(segments, at)) { const filler = document.createTextNode(FILLER); this.fillers.add(filler); nodes.push(filler); }
       nodes.push(this.chipNode(segment.anchor));
       at += 1;
     }
     const last = segments[segments.length - 1];
     // A trailing line break needs a filler <br> to show its empty line; units() never counts it.
-    if (last?.kind === "text" && last.text.endsWith("\n")) nodes.push(document.createElement("br"));
+    if (last?.kind === "text" && last.text.endsWith("\n")) { const filler = document.createElement("br"); this.breaks.add(filler); nodes.push(filler); }
     this.el.replaceChildren(...nodes);
     this.segments = segments;
     this.markEmpty();
@@ -451,22 +512,19 @@ export class ChipField {
     let at = 0;
     const visit = (parent: Node) => {
       for (const node of Array.from(parent.childNodes)) {
-        if (node.nodeType === Node.TEXT_NODE) { const length = (node as Text).data.replaceAll(FILLER, "").length; entries.push({ node, kind: "text", at, length }); at += length; }
+        if (node.nodeType === Node.TEXT_NODE) { const length = this.textOf(node).length; entries.push({ node, kind: "text", at, length }); at += length; }
         else if (this.chips.has(node)) { entries.push({ node, kind: "chip", at, length: 1 }); at += 1; }
-        else if (node.nodeName === "BR") { entries.push({ node, kind: "br", at, length: 1 }); at += 1; }
+        else if (node.nodeName === "BR") entries.push({ node, kind: "filler", at, length: 0 });
         else if (node.nodeType === Node.ELEMENT_NODE) visit(node);
       }
     };
     visit(this.el);
-    const last = entries[entries.length - 1];
-    if (last?.kind === "br") { last.kind = "filler"; last.length = 0; at -= 1; }
     return Object.assign(entries, { total: at });
   }
 
   private read(): FieldSegment[] {
     return normalize(this.units().flatMap((entry): FieldSegment[] =>
-      entry.kind === "text" ? [{ kind: "text", text: (entry.node as Text).data.replaceAll(FILLER, "") }]
-        : entry.kind === "br" ? [{ kind: "text", text: "\n" }]
+      entry.kind === "text" ? [{ kind: "text", text: this.textOf(entry.node) }]
         : entry.kind === "chip" ? [{ kind: "chip", anchor: this.chips.get(entry.node)! }] : []));
   }
 
@@ -474,7 +532,7 @@ export class ChipField {
   private offsetOf(container: Node, offset: number): number {
     const entries = this.units();
     for (const entry of entries) {
-      if (entry.kind === "text" && entry.node === container) return entry.at + (entry.node as Text).data.slice(0, offset).replaceAll(FILLER, "").length;
+      if (entry.kind === "text" && entry.node === container) { const at = this.skip(entry.node); return entry.at + (at >= 0 && at < offset ? offset - 1 : offset); }
       if (entry.kind === "chip" && entry.node.contains(container)) {
         const range = document.createRange();
         range.setStart(entry.node, 0);
@@ -497,13 +555,30 @@ export class ChipField {
     // The last text node that reaches the offset: at a line-start chip that is the filler, after its zero-width
     // space, so the caret stands on the chip's line rather than at the end of the line above.
     const text = [...entries].reverse().find(entry => entry.kind === "text" && offset >= entry.at && offset <= entry.at + entry.length);
-    if (text) return [text.node, domOffset((text.node as Text).data, offset - text.at)];
+    if (text) return [text.node, this.domOffset(text.node, offset - text.at)];
     for (const entry of entries) {
-      if ((entry.kind === "chip" || entry.kind === "br") && offset === entry.at) return [entry.node.parentNode!, indexIn(entry.node)];
+      if (entry.kind === "chip" && offset === entry.at) return [entry.node.parentNode!, indexIn(entry.node)];
     }
     const last = [...entries].reverse().find(entry => entry.kind !== "filler");
     if (last && last.kind !== "text") return [last.node.parentNode!, indexIn(last.node) + 1];
     return [this.el, 0];
+  }
+
+  // A drawn filler node skips one character, its filler: at the start once text is typed after it, at the end once text
+  // is typed before it (Chromium may put the caret either side). -1: nothing to skip.
+  private skip(node: Node): number {
+    if (!this.fillers.has(node)) return -1;
+    const data = (node as Text).data;
+    return data.startsWith(FILLER) ? 0 : data.endsWith(FILLER) ? data.length - 1 : -1;
+  }
+  private textOf(node: Node): string {
+    const data = (node as Text).data, at = this.skip(node);
+    return at < 0 ? data : data.slice(0, at) + data.slice(at + 1);
+  }
+  // The DOM offset in a text node after `units` units; past a leading filler, so the caret stands on the chip's line.
+  private domOffset(node: Node, units: number): number {
+    const at = this.skip(node);
+    return at < 0 || units < at ? units : units + 1;
   }
 
   private readSelection(): Selection {
@@ -533,13 +608,6 @@ export function focusFieldEnd(node: HTMLElement | null): void {
   selection.collapseToEnd();
 }
 
-// The DOM offset in a text node after `units` units, past any filler that follows them.
-function domOffset(data: string, units: number): number {
-  let index = 0, counted = 0;
-  while (index < data.length && counted < units) { if (data[index] !== FILLER) counted++; index++; }
-  while (data[index] === FILLER) index++;
-  return index;
-}
 function ordered({ anchor, focus }: Selection): [number, number] { return anchor <= focus ? [anchor, focus] : [focus, anchor]; }
 function indexIn(node: Node): number { return Array.prototype.indexOf.call(node.parentNode!.childNodes, node); }
 // Two boxes on one drawn row overlap by more than half the shorter one's height.
