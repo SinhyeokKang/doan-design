@@ -143,7 +143,7 @@ body{padding:var(--space-8);width:1440px;background:var(--surface-inset);color:v
 @media (prefers-reduced-transparency:reduce){.cv-bar.cv-agent{background:var(--affordance-prominent);-webkit-backdrop-filter:none;backdrop-filter:none}}
 .cv-agent-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
 /* One violet tone; the motion is the dot's own size, growing and shrinking. */
-.agent-dot{flex:none;width:var(--space-2);height:var(--space-2);border-radius:50%;background:var(--affordance-accent);animation:agent-breathe 1.2s var(--ease-state) infinite}
+.agent-dot{flex:none;width:var(--space-2);height:var(--space-2);border-radius:50%;background:var(--affordance-accent);animation:agent-breathe 2.4s var(--ease-state) infinite}
 .agent-dot.steady{animation:none}
 @keyframes agent-breathe{0%,100%{transform:scale(.75)}50%{transform:scale(1.25)}}
 @media (prefers-reduced-motion:reduce){.agent-dot{animation:none}}
