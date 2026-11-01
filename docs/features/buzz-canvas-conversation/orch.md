@@ -107,3 +107,6 @@ D1은 이미 끝났다(초안 확정).
 - BD 후속 1 `a39cbf86`: 코멘트 초안 3개 삭제, project-feedback id-change-notice 프레임, color.html pins 프레임 제거. `doan check` 오류는 main에 있던 Sidebar.tsx 6개만 남음. 남은 참조: 코드 주석 7곳(App.tsx:152, canvasView.ts:63, CanvasConversationList.tsx:15·test:124, CanvasController.ts:721, shell.test.ts:430, watch.test.ts:291) → BR2 브리프에 넣는다. 문서 참조(DESIGN 661·714·738, DIRECTORY 36) → Z3·Z5. POSTMORTEM·USABILITY-EVAL은 기록이라 그대로.
 - BR1 수정 2 `6f077513`: 하네스 17/17, 빌드 앱 26/26, verify PASS. 재리뷰 2 Codex astra.
 - BR1 재리뷰 2 통과(🔴·🟡 0). 통합한다.
+- BR1 통합: `fc9779a2`, `fce56e54`, `cf9f856e`, `38586ff4`. bcc-br1 워크트리는 사용자 네이티브 ⌘⌫ 확인용 하네스 때문에 남긴다(증거는 지휘자 `.scratch/runtime-test/bcc-BR1/`로 복사). 통합 HEAD `verify --eval` 실행 중.
+- BR2 시작: Claude Opus high `ctx_5f2c2599c8aa`(bcc-br2).
+- 웨이브 2 통합 HEAD(`38586ff4`, BT·BX·BM·BR1·BR4a·BD 포함) `verify --eval` PASS. 로그의 FAILED 줄 둘은 verify 러너 자체 테스트(verify-tests)의 의도된 실패다.
