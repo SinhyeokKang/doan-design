@@ -571,7 +571,7 @@ Not verified: the Cmd+K keystroke through AppKit (probes use the Go > Quick Open
 
 ## Canvas area and right panel
 
-Reference: `.doan/canvases/buzz-canvas.html` (16 frames; `conversation-menu` is a reference frame for the canvas conversation panel's menu and was not compared). Measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600 against the draft read in the app's canvas iframe: 73 part pairs over 21 states (frames, and each tile of `states` and `agent-waiting`). States without a provider come from fixture projects in an isolated app (a real selection-lost notice, a real toast, a canvas busy for 20 s for Loading and the failed first layout, a missing project folder); the agent indicator comes from real Claude Code turns on the signed-in test profile, its canvas conversations started through the preload API because the app cannot start one yet. The development server and the production build give identical computed styles in the default state.
+Reference: `.doan/canvases/buzz-canvas.html` (16 frames; `conversation-menu` is a reference frame for the canvas conversation panel's menu and was not compared). Measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600 against the draft read in the app's canvas iframe: 73 part pairs over 21 states (frames, and each tile of `states` and `agent-waiting`). States without a provider come from fixture projects in an isolated app (a real selection-lost notice, a real toast, a canvas busy for 20 s for Loading and the failed first layout, a missing project folder); the agent indicator comes from real Claude Code turns on the signed-in test profile, its canvas conversations started through the preload API because the app cannot start one yet. In the default state the development server and the production build matched every compared computed style within 0.5 px (one 0.28 px text-measurement margin), the production reading also holding a jump highlight left by the fixture.
 
 ### Measured contracts
 
@@ -646,7 +646,7 @@ Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-select
 | Source state | 10px / 15px; Hardcoded in the warning role | Provenance in text. |
 | Default value | Native title `Default`, no source line | The absence of an author declaration is visible. |
 | Color swatch | 12 × 12; 1px border; radius 3 | |
-| Selection-lost / unlisted notice | Padding 7px 12px; 11px | |
+| Selection-lost / unlisted notice | See 'Canvas area and right panel', Canvas notices | Remeasured with the canvas page. |
 | Pending values | `Reading styles…` in the notice styling while the selected element's values are pending; old computed rows are absent | |
 
 - The live panel is 280px wide with one 1px left divider (279px of content); the draft specimen leaves 278px. Panel height follows the window (740px at 1238 × 780).
