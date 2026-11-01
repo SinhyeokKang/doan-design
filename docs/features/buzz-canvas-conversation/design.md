@@ -14,10 +14,10 @@
 | `panel-archived` | 이전 대화 읽기와 보관 표시, 보내면 다시 현재가 됨 |
 | `panel-permission` | 스레드 안 권한 요청 선택지와 캔버스 작업 표시(답 대기라 캡슐은 Open) |
 | `panel-failed` | 실패한 턴과, 칩이 든 반환된 초안 |
-| `panel-states` | 목록 읽는 중, 목록 읽기 실패(헤더는 "New conversation"), 대화 읽기 실패, 시작 거절(새 대화라 헤더는 "New conversation"), 캔버스가 사라짐, 캔버스가 로드되지 않음(피커 비활성), 보관 대화 복원 대기(출하된 restore busy 줄과 Open), 터미널 세션 이어 가기 거절, 칩 대상을 찾지 못함 |
+| `panel-states` | 목록 읽는 중, 목록 읽기 실패(헤더는 "New conversation"), 대화 읽기 실패, 시작 거절(새 대화라 헤더는 "New conversation"), 캔버스가 사라짐, 캔버스가 로드되지 않음(피커 비활성), 보관 대화 복원 대기(출하된 restore busy 줄과 Open), 터미널 세션 이어 가기 거절, 칩 대상을 찾지 못함, 프로젝트 대화가 그리는 중 안내, 패널을 연 채 승격 안내, 칩 32개 상한, 캔버스 ID 중복 |
 | `chips-composer` | 프레임·요소·점 칩이 든 입력창(box) |
 | `picker-mode` | 고르기 상태: 위쪽 가운데 안내 캡슐("Click a frame, an element or an empty spot"과 kbd "Esc", 숨긴 sr 텍스트 "Press Escape to cancel"), hover 후보, 눌린 피커 |
-| `add-tool` | 선택이 있을 때 Add to conversation 활성과 툴팁, 칩이 들어간 입력창 |
+| `add-tool` | 선택이 있을 때 Add to conversation 활성과 툴팁, 칩이 들어간 입력창. 프레임 밖 참고 타일에 네이티브 메뉴 File > New Conversation ⌘N, Edit > Add Selection to Conversation ⌘L(항목과 켜짐 조건만, `/design-sync` 비교 대상 아님) |
 | `chip-locate` | 보낸 칩을 눌러 대상 강조. 대상을 찾지 못함("No longer in the canvas")은 `panel-states`의 타일 |
 | `open-badge` | 접힌 패널의 Show conversation에 새 소식 점(답 대기). 답 대기 중 작업 안내 캡슐은 Stop 대신 Open |
 | `narrow` | 960×600, 패널 최소 폭 320(`max(320px, 28dvw)`, `buzz-canvas` 폭 규칙). 칩이 들어가면 입력창이 box가 되어 글자와 칩이 도구 위에서 줄바꿈된다 |
