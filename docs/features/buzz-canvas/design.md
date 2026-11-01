@@ -17,6 +17,8 @@
 | `states` | 로딩, 로드 실패(Reload), 폭 없음, 목록에 없는 페이지, 프로젝트 문제 메시지 |
 | `notices` | 선택 잃음 알림, 오류 알림, 토스트가 동시에 뜬 모습 |
 | `on-dark` · `on-violet` | 어두운 캔버스, violet이 많은 캔버스 위의 선택·hover·이동 하이라이트(부모 design '조사 메모: 캔버스 영역') |
+| `panel-collapsed` | 패널을 접은 캔버스 페이지(캔버스가 창 오른쪽 끝까지, 토글 "Show panel") |
+| `panel-resize` | 끌어서 넓힌 패널, 경계 손잡이의 hover·포커스 모습 |
 | `agent-working` | 이 캔버스의 현재 대화가 일함: 가장자리 accent 안쪽 그림자, 상단 가운데 안내(점, 문구, Stop) |
 | `agent-waiting` | 응답 대기 문구, Stop을 누른 뒤의 "Stopping…" |
 | `narrow` | 960×600. 작업 안내가 서랍·배율 컨트롤러 사이에서 줄어드는 모습을 포함한다. 서랍의 긴 이름이 먼저 줄어드는지, 컨트롤·알림·토스트가 겹치지 않는지 |
@@ -63,6 +65,15 @@
 - Fit, 서랍·Quick Open 이동, 코멘트 locate는 위 inset(서랍·배율 컨트롤러 아래 끝 + 간격)과 아래 inset(도구모음 위 끝 + 간격) 안에 프레임을 둔다. 좌우는 지금처럼 32px다. 값은 초안에서 정하고 `viewport.test.ts`가 고정한다.
 - 높이가 안전 영역보다 큰 프레임은 지금처럼 위에서부터 읽는다(위 inset에 맞춤).
 
+### 오른쪽 패널 접기·펼치기와 폭
+
+- 틀: 캔버스 페이지의 `.right-stack`(지금 `RightPanel`과 Comments 패널을 담음)이 폭과 열림 상태를 가진다. 워크스페이스 그리드의 세 번째 열이 280px 고정에서 이 폭으로 바뀐다. Overview의 오른쪽 패널(`CanvasConversations`)은 280px 고정 그대로다.
+- 토글: 캔버스 영역 오른쪽 위 컨트롤 줄의 가장 바깥(배율 컨트롤러 오른쪽)에 아이콘 버튼 하나. 펼쳐져 있으면 "Hide panel", 접혀 있으면 "Show panel"이고 `aria-expanded`와 `aria-controls`로 패널을 가리킨다. 접히면 캔버스 영역 오른쪽 모서리도 24px 둥글게 된다.
+- 폭: 기본 280px, 최소 280px, 최대는 560px와 '캔버스 영역이 360px 이상 남는 폭' 중 작은 값이다(1238 창에서 560, 960 창에서 356). 창이 줄어 저장된 폭이 최대를 넘으면 최대로 보이되 저장값은 바꾸지 않는다. 숫자는 초안에서 확정한다.
+- 경계 손잡이: 캔버스와 패널 사이 1px 구분선 위의 투명한 8px 영역. `role="separator"`, `aria-orientation="vertical"`, `aria-valuenow/min/max`, `aria-label="Resize panel"`. 포커스 가능하고 ←/→는 16px씩, Home/End는 최소/최대. 두 번 클릭하면 280px로 돌아간다. 끄는 동안 캔버스 iframe이 포인터를 가져가지 않도록 끌기 중에만 보드 위에 투명 덮개를 둔다.
+- 기억: `UiState.rightPanel = { open, width }`(기기 전체, 캔버스별 아님). 공유 형식(JSON Schema)이 아닌 기기 안 ui-state라서 `v`와 fixture 변경은 없다. 잘못된 값은 기본값으로 읽는다.
+- 뷰: 폭이 바뀌면 캔버스 영역 크기가 바뀐다. 창 크기 변경과 같이 뷰의 왼쪽 위 기준을 유지하고 다시 맞추지 않는다(ARCHITECTURE §3 'Zoom and pan').
+
 ### 에이전트 작업 표시
 
 - 참고: ego lite(citrolabs)의 에이전트 탭 표시. 탭 가장자리의 안쪽 빛, 움직이는 점, 상단 가운데 안내와 Stop이다. 출처는 사용자 설명(2026-11-01)이다. 공개 리포 `citrolabs/ego-lite`에는 스킬·SDK만 있고 브라우저 UI 코드가 없어서 색·크기·모션 값은 확인하지 못했다(2026-11-01 `gh api` 트리 확인). 값은 doan 토큰으로 새로 정한다.
@@ -86,6 +97,7 @@
 | `zoomControlView(state)` | `app/src/renderer/zoomControl.ts` | 프레임 없음("—", 비활성); 한계(0.05, 4)에서 −·+ 활성 여부(지금 동작 유지); 메뉴 항목과 단축키 표기 |
 | `fitWidth` · `fitFrame` · `locateView`의 inset 판 | `app/src/renderer/viewport.ts` | 위·아래 inset이 다를 때 Fit의 y; 안전 영역에 들어가는 프레임은 안전 영역 가운데; 안전 영역보다 큰 프레임은 위 inset에 맞춤; 크기 0 프레임; 안전 영역이 0 이하인 아주 낮은 창 |
 | `zoomTo(view, scale, center, limits)` | `viewport.ts` | 50%·200%; 한계 밖 값은 한계로; 가운데 점 고정 |
+| `panelWidth(saved, windowWidth)` · `nudgePanel(width, key, bounds)` · `readRightPanel(raw)` | `app/src/renderer/rightPanelSize.ts`, `app/src/restore/uiState.ts` | 기본값; 최소·최대에서 자르기; 960 창의 최대; 창이 줄 때 보이는 폭과 저장값 분리; ←/→/Home/End; 두 번 클릭 초기화; ui-state의 빠진·잘못된 값 |
 | `agentPresence(list, canvas)` | `app/src/renderer/agentPresence.ts` | 현재 대화 없음; 일함; 응답 대기; 끝남·실패·중단(표시 없음); 다른 캔버스의 대화; 프로젝트 대화; ID 없는 캔버스의 경로 매칭; 옮겨진 캔버스(ID 매칭); 목록 읽기 실패(표시 없음); 공급자 이름과 문구 |
 
 ## 4. 형식·규칙·결정 영향
