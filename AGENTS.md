@@ -104,9 +104,9 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 - `/design-sync` compares an app screen's first implementation with its draft canvas in `.doan/canvases/` by computed style in the real app. Run it inside a `/ship` or `/orchestrate` branch; the draft is the source of truth only until that screen's first implementation is on main. Exception: a redesign child's new draft is the source of truth for that screen until the child's branch is merged.
 - `/agent-eval` runs the fixed scenarios in `eval/` with real Claude Code and Codex and records results and usability issues in `docs/USABILITY-EVAL.md`. Run it when a PR changes the guide, CLI output or messages, `doan check` rules or the skill stub, before a feature's last integration, and after an agent version change. Fixes go through `/ship` or `/feature`.
 - If you fixed a regression or bug, run `/postmortem`. `/implement` · `/refactor` · `/code-review` grep `docs/POSTMORTEM.md` before starting (when the file exists).
-- `/ship` · `/orchestrate` always start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. They do not merge.
+- `/ship` · `/orchestrate` always start by creating a `<type>/<slug>` branch from main ('Commit conventions') and end with a push of that branch + a PR. They do not merge.
 - **Chains**: several `/orchestrate` runs linked in series follow `/orchestrate` §6 'Linked runs'. Each link runs in a new session and worktree from the latest main, merges before the next starts when the chain file grants it, and hands off to the next session before retiring. The chain file `docs/features/chain-<YYMMDD>/chain.md` is the source for order and standing permissions; it is deleted after the last merge.
-- In Orca, start `/orchestrate` workers with `--worktree new-child --base-branch feat-<slug>`: without `--base-branch`, the child worktree branches from main, not from the conductor's checkout.
+- In Orca, start `/orchestrate` workers with `--worktree new-child --base-branch feat/<slug>`: without `--base-branch`, the child worktree branches from main, not from the conductor's checkout.
 
 ## Documents
 
@@ -127,13 +127,15 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 ## Commit conventions
 
 - **Branches**: there are two paths.
-  - **Code changes** are requested by the user via `/ship` or `/orchestrate`. Both skills start by creating a `feat-<slug>` branch from main and end with a push of that branch + a PR. Even a docs-only change takes the same path if it goes through these skills.
-  - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation. Commit them on whichever branch is checked out — do not switch branches just for a harness change. On main, push straight to main; on a `feat-<slug>` branch, they reach main with its PR.
+  - **Code changes** are requested by the user via `/ship` or `/orchestrate`. Both skills start by creating a `<type>/<slug>` branch from main and end with a push of that branch + a PR. Even a docs-only change takes the same path if it goes through these skills.
+  - **Branch names**: `<type>` is the Conventional Commit type of the change's main commit (`feat`, `fix`, `docs`, `chore`, `refactor`), so a bug fix is `fix/<slug>` and a docs-only change `docs/<slug>`. `/orchestrate` integration branches are always `feat/<slug>`.
+  - **Harness and docs changes** (AGENTS.md · skills · hooks · PRODUCT.md, etc.) are fixed directly during the conversation. Commit them on whichever branch is checked out — do not switch branches just for a harness change. On main, push straight to main; on a `<type>/<slug>` branch, they reach main with its PR.
 - **Commit messages are in English**, Conventional Commits (`feat:` `fix:` `docs:` `docs(scope):` `chore:`).
 - Split commits per document.
 - **Write comments in English, and only the "why"** (the project will be open-sourced, so outside contributors must be able to read them). Do not repeat the "what" the code already says. Record non-obvious constraints and pitfalls.
 - Put one-off experiment files in `.scratch/` (gitignored).
-- Remove a local worktree (and its temporary branch) as soon as its work is merged, handed off or abandoned; check `git status` in it first and ask before discarding uncommitted work.
+- Remove a local worktree as soon as its work is merged, handed off or abandoned; check `git status` in it first and ask before discarding uncommitted work.
+- **Keep implementation branches.** A branch used for implementation (a PR branch or a worker's batch branch) stays, local and remote, after its merge until the user says to delete it. `orca worktree rm` also deletes the checked-out local branch when it is merged, so note the branch tip before removing the worktree and recreate it (`git branch <name> <sha>`) if the receipt shows it deleted.
 - PoC experiment code also goes in `.scratch/`. `.scratch/` is not committed, so write what the PoC established as current facts in PRODUCT or ARCHITECTURE, and the observations (pass/fail, measurements, date) in the commit message or the feature documents.
 - Commits made in a Codex session end with `Co-Authored-By: Codex <noreply@openai.com>` as the last line. This is to tell from the history which runtime made a commit (the same rule as malmoi `.agents/PREAMBLE.md`).
 
