@@ -87,6 +87,32 @@ describe("frameDrawerView", () => {
     expect(frameDrawerView(board({ layout: { frames, truncated: false } })).rows.map(row => row.key)).toEqual(keys);
   });
 
+  const keysOf = (ids: string[]) => frameDrawerView(board({ layout: { frames: ids.map(id => frame(id)), truncated: false } })).rows.map(row => row.key);
+
+  test("a generated duplicate key never takes a real id's key: removing a duplicate keeps the unique frame's key", () => {
+    const before = keysOf(["a", "a", "a#2"]);
+    const after = keysOf(["a", "a#2"]);
+    expect(new Set(before).size).toBe(3);
+    expect(before[2]).toBe(after[1]);
+    // The unique frame's key is its own id, so no duplicate's key can be mistaken for it.
+    expect(after).toEqual(["a", "a#2"]);
+    expect(before[1]).not.toBe("a#2");
+  });
+
+  test("a unique frame keeps its key when frames around it are reordered, duplicated or removed", () => {
+    const layouts = [["a", "a", "a#2", "a#2"], ["a#2", "a", "a"], ["a#2"], ["a", "a#2", "a", "a#3", "a#2"]];
+    const uniqueKeys = layouts.map(ids => keysOf(ids)[ids.indexOf("a#2")]);
+    expect(new Set(uniqueKeys)).toEqual(new Set(["a#2"]));
+  });
+
+  test("a generated key never equals any raw id in the layout, wherever that id sits", () => {
+    const ids = ["x", "x", "x#2", "x#2_", "x"];
+    const keys = keysOf(ids);
+    expect(new Set(keys).size).toBe(ids.length);
+    const rawKeys = new Set(ids);
+    for (const [i, key] of keys.entries()) if (ids.indexOf(ids[i]!) !== i) expect(rawKeys.has(key)).toBe(false);
+  });
+
   test("a unique id keeps its key when frames before it are added or removed", () => {
     const a = frameDrawerView(board({ layout: { frames: [frame("x"), frame("target")], truncated: false } })).rows[1];
     const b = frameDrawerView(board({ layout: { frames: [frame("target")], truncated: false } })).rows[0];
