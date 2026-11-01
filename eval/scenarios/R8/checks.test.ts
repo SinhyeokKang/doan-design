@@ -52,6 +52,15 @@ test("R8 only_canvas_changed fails when another file changes", () => {
 test("R8 element_anchor_applied fails when the anchored button keeps its text", () => {
   assert.deepEqual(failed(setup(swap(">Save draft<", ">Save<"))), ["element_anchor_applied"]);
 });
+test("R8 element_anchor_applied reads the anchored label with its markup", () => {
+  // The label wrapped in markup inside the button is the same label, and that markup is not an added element.
+  assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Save draft</span><"))), []);
+  assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Save</span> <span>draft</span><"))), []);
+  assert.match(checks(setup(swap(">Save draft<", "><span>Save draft</span><"))).find(c => c.id === "seed_structure_kept")!.detail, /added besides the badge: \(none\)/);
+  // A wrong label fails whether or not it is wrapped.
+  assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Draft saved</span><"))), ["element_anchor_applied"]);
+  assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Save</span><"))), ["element_anchor_applied"]);
+});
 test("R8 stale_selection_unchanged fails when the doan active selection is renamed", () => {
   assert.deepEqual(failed(setup(swap(">Publish<", ">Publish now<"))), ["stale_selection_unchanged", "other_identities_unchanged", "seed_structure_kept"]);
 });

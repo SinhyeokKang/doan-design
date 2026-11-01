@@ -15,8 +15,10 @@ const point: { frameId: string; dx: number; dy: number } = turn.anchors[1].point
 const TOLERANCE = 16;
 
 type Rect = { x: number; y: number; width: number; height: number };
-type Identity = { key: string; tag: string; parent: string | null; own: string };
-type Layout = { frames: Record<string, Rect>; identities: Identity[]; badges: { frame: string | null; rect: Rect; html: string }[]; structure: Record<string, [string, string | null, string][]> };
+type Identity = { key: string; tag: string; parent: string | null; own: string; label: string };
+type Layout = { frames: Record<string, Rect>; identities: Identity[]; badges: { frame: string | null; within: string | null; rect: Rect; html: string }[]; structure: Record<string, [string, string | null, string, string | null][]> };
+// The anchored element: its label is scored with any markup inside it, and that markup is part of the label.
+const ANCHORED = "id:save";
 
 // Renders the seed and the final canvas in the app's Electron (layout.cjs).
 function layouts(ctx: Parameters<Checks>[0], final: string, seed: string): Layout[] | string {
@@ -58,16 +60,20 @@ const checks: Checks = ctx => {
   const find = (l: Layout, key: string) => l.identities.filter(i => i.key === key);
   const saves = find(now, "id:save"), save = saves[0];
   const publish = find(now, "id:publish");
-  // Every seed identity once, with its tag, parent and own text; the anchored button may change only its text.
+  // Every seed identity once, with its tag, parent and own text (the preservation comparison; `label` includes
+  // descendants and is left out); the anchored button may change only its text.
+  const kept = (i: Identity) => ({ key: i.key, tag: i.tag, parent: i.parent, own: i.key === ANCHORED ? "" : i.own });
   const moved = before.identities.filter(was => {
     const found = find(now, was.key);
-    return found.length !== 1 || !same({ ...found[0], own: was.key === "id:save" ? "" : found[0]!.own }, { ...was, own: was.key === "id:save" ? "" : was.own });
+    return found.length !== 1 || !same(kept(found[0]!), kept(was));
   }).map(i => i.key);
   // Per frame (and outside frames), the seed's elements must all remain in order with their tag, id and own text;
   // the anchored button's text is left out (element_anchor_applied scores it). Added elements are allowed and
   // listed: guide rule G asks for a note on the canvas about copy that is not in code, and the agent chooses where
   // it goes, so whether an addition is that note or an unrequested change is the judge's call.
-  const masked = (l: Layout) => Object.fromEntries(Object.entries(l.structure).map(([frame, rows]) => [frame, rows.map(([tag, key, own]) => JSON.stringify([tag, key, key === "id:save" ? "" : own]))]));
+  const masked = (l: Layout) => Object.fromEntries(Object.entries(l.structure).map(([frame, rows]) => [frame, rows
+    .filter(([, key, , within]) => key !== null || within !== ANCHORED)
+    .map(([tag, key, own]) => JSON.stringify([tag, key, key === ANCHORED ? "" : own]))]));
   const was = masked(before), is = masked(now);
   const structureChanged: string[] = [], added: string[] = [];
   for (const frame of new Set([...Object.keys(was), ...Object.keys(is)])) {
@@ -76,7 +82,9 @@ const checks: Checks = ctx => {
     for (const row of have) if (i < want.length && row === want[i]) i++; else added.push(`${frame}: ${row}`);
     if (i < want.length) structureChanged.push(frame);
   }
-  const badge = now.badges.length === 1 ? now.badges[0]! : null;
+  // A word of the anchored label wrapped on its own ("Save <span>draft</span>") is not a badge.
+  const badges = now.badges.filter(b => b.within !== ANCHORED);
+  const badge = badges.length === 1 ? badges[0]! : null;
   const frame = now.frames[point.frameId];
   let offset = "no single badge in the anchored frame";
   let atPoint = false;
@@ -89,11 +97,11 @@ const checks: Checks = ctx => {
   }
   return [
     ...results,
-    { id: "element_anchor_applied", pass: saves.length === 1 && save!.tag === "button" && save!.own === "Save draft", detail: `save: ${saves.length === 1 ? `<${save!.tag}> "${save!.own}"` : `${saves.length} elements`}` },
+    { id: "element_anchor_applied", pass: saves.length === 1 && save!.tag === "button" && save!.label === "Save draft", detail: `save: ${saves.length === 1 ? `<${save!.tag}> "${save!.label}"` : `${saves.length} elements`}` },
     { id: "stale_selection_unchanged", pass: publish.length === 1 && same(publish[0], find(before, "id:publish")[0]), detail: `doan active's selection (publish): ${JSON.stringify(publish)}` },
     { id: "other_identities_unchanged", pass: moved.length === 0, detail: moved.length ? `changed or missing: ${moved.join(", ")}` : "every seed frame and element id kept its tag, parent and text" },
     { id: "seed_structure_kept", pass: structureChanged.length === 0, detail: `${structureChanged.length ? `seed elements removed, changed or reordered in: ${structureChanged.join(", ")}` : "every seed element is still there, in order, with its text"}; added besides the badge: ${added.join("; ") || "(none)"}` },
-    { id: "badge_in_point_frame", pass: !!badge && badge.frame === point.frameId, detail: `"Draft" elements: ${JSON.stringify(now.badges.map(b => ({ frame: b.frame, html: b.html })))}` },
+    { id: "badge_in_point_frame", pass: !!badge && badge.frame === point.frameId, detail: `"Draft" elements: ${JSON.stringify(badges.map(b => ({ frame: b.frame, html: b.html })))}` },
     { id: "badge_at_point_offset", pass: atPoint, detail: offset },
   ];
 };
