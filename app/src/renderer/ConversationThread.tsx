@@ -56,7 +56,9 @@ export const LOCATE_NOTE_MS = 4000;
 
 // "No longer in the canvas" next to a chip, for 4 s or until the person's next action. The result arrives after the
 // click or Enter that asked for it, so the listeners added here only see later input. Each show restarts the 4 s.
-export function useLocateNote(): [shown: boolean, show: () => void] {
+// `scroller`: the field that scrolls the chip under a note placed by it; a scroll there also counts as the next action,
+// since the note would otherwise point at another line or outlive a chip scrolled out of view.
+export function useLocateNote(scroller?: () => EventTarget | null): [shown: boolean, show: () => void] {
   const [shown, setShown] = useState(0);
   useEffect(() => {
     if (shown === 0) return;
@@ -64,7 +66,10 @@ export function useLocateNote(): [shown: boolean, show: () => void] {
     const timer = setTimeout(hide, LOCATE_NOTE_MS);
     window.addEventListener("pointerdown", hide, true);
     window.addEventListener("keydown", hide, true);
+    const field = scroller?.() ?? null;
+    field?.addEventListener("scroll", hide);
     return () => {
+      field?.removeEventListener("scroll", hide);
       clearTimeout(timer);
       window.removeEventListener("pointerdown", hide, true);
       window.removeEventListener("keydown", hide, true);

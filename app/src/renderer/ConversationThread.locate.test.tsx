@@ -10,8 +10,9 @@ vi.mock("react", async original => ({
 }));
 const { useLocateNote } = await import("./ConversationThread");
 
+let scroller: EventTarget | null = null;
 function render() {
-  const result = useLocateNote();
+  const result = useLocateNote(() => scroller);
   const effect = hooks.effect!;
   const same = hooks.deps !== null && effect.deps.length === hooks.deps.length && effect.deps.every((dep, i) => Object.is(dep, hooks.deps![i]));
   if (!same) { hooks.cleanup?.(); hooks.cleanup = effect.run(); hooks.deps = effect.deps; }
@@ -19,7 +20,7 @@ function render() {
 }
 const shown = () => render()[0];
 
-beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", new EventTarget()); hooks.state = 0; hooks.deps = null; hooks.cleanup = undefined; });
+beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal("window", new EventTarget()); scroller = null; hooks.state = 0; hooks.deps = null; hooks.cleanup = undefined; });
 afterEach(() => { hooks.cleanup?.(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 test("the note shows for 4 s: still there at 3999 ms, gone 1 ms later", () => {
@@ -75,4 +76,25 @@ test("after an action hid it, a new miss shows it again for its own 4 s", () => 
   expect(shown()).toBe(true);
   vi.advanceTimersByTime(1);
   expect(shown()).toBe(false);
+});
+
+// A scroll of the field that holds the chip moves the chip away from the note placed by it (BR4b re-review R3), so it
+// counts as the next action: the note goes, and with it the chip's describing link (DockedComposer's effect cleanup).
+test("a scroll of the chip's field hides the note at once and leaves no timer", () => {
+  const field = new EventTarget();
+  scroller = field;
+  const [, show] = render();
+  show();
+  expect(shown()).toBe(true);
+  vi.advanceTimersByTime(1000);
+  field.dispatchEvent(new Event("scroll"));
+  expect(shown()).toBe(false);
+  vi.advanceTimersByTime(10_000);
+  expect(shown()).toBe(false);
+  // Once hidden, that field's scroll listener is gone: a note shown for a chip in another field ignores it.
+  scroller = new EventTarget();
+  show();
+  expect(shown()).toBe(true);
+  field.dispatchEvent(new Event("scroll"));
+  expect(shown()).toBe(true);
 });

@@ -120,7 +120,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const [announcement, setAnnouncement] = useState("");
   // The 32-place line, for the draft it was refused on; the next edit drops it.
   const [limitAt, setLimitAt] = useState<string | null>(null);
-  const [missing, showMissing] = useLocateNote();
+  const [missing, showMissing] = useLocateNote(() => field.current?.element() ?? null);
   // "No longer in the canvas" by the composer chip that was not found (design §2 'Chip locate'): an overlay placed
   // under the chip, outside the field's DOM, and the chip described by it like a thread chip.
   const [missingAt, setMissingAt] = useState<{ chip: HTMLElement; left: number; top: number } | null>(null);
