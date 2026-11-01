@@ -4,7 +4,7 @@
 
 ## D. 초안
 
-- [ ] D1. `/design-draft buzz-canvas`: `.doan/canvases/buzz-canvas.html`(design §0 프레임). `board-options`에서 사용자가 보드 바탕을 고르면 나머지 시안을 지우고, 고른 바탕으로 다른 프레임을 맞춘다. 위·아래 inset 값, 알림·변경 표시 위치, 다시 로드 중 서랍의 비활성 여부, 문구(design §5, clarify 프리셋)를 초안에서 정한다. 사용자가 앱에서 초안을 확정한다.
+- [ ] D1. `/design-draft buzz-canvas`: `.doan/canvases/buzz-canvas.html`(design §0 프레임). 보드 바탕은 흰색, 캔버스 헤더는 Overview 헤더 패턴(2026-11-01 user, 수정 1). 위·아래 inset 값, 알림·변경 표시 위치, 다시 로드 중 서랍의 비활성 여부, 문구(design §5, clarify 프리셋)를 초안에서 정한다. 사용자가 앱에서 초안을 확정한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .`.
 
 ── commit: `docs(canvases): buzz-canvas draft` ──
@@ -18,7 +18,7 @@
 
 ## R. renderer
 
-- [ ] R1. 프레임 서랍: 버튼(지금 보는 프레임, `n/N`, 비활성 이유), Radix 팝오버 목록(roving tabindex, 지금 보는 행 스크롤·포커스, 말줄임과 `title`, 잘린 목록 안내), 고르면 닫고 `selectFrame(index)`.
+- [ ] R1. 캔버스 헤더와 프레임 서랍: Overview 헤더(`.ov-head`) 패턴의 헤더(프로젝트 / 캔버스 / 서랍, 560px 미만에서 프로젝트 숨김), 서랍 트리거(지금 보는 프레임, `n/N`, 비활성 이유), Radix 팝오버 목록(roving tabindex, 지금 보는 행 스크롤·포커스, 말줄임과 `title`, 잘린 목록 안내), 고르면 닫고 `selectFrame(index)`.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`.
   - 경우: 초안 가드가 거절(이동·선택 없음), 목록이 열린 사이 다시 로드로 프레임이 바뀜, Esc가 메뉴만 닫고 선택은 남음, 포커스가 서랍 버튼으로 돌아옴.
 - [ ] R2. 배율 컨트롤러: −·값(메뉴 트리거)·+, 메뉴 Fit ⌘1·100% ⌘0·50%·200%, `CanvasController.zoomTo`, 프레임 없을 때 "—"와 비활성.
