@@ -196,7 +196,7 @@ One canvas per token group, shared component and shared surface in `.doan/ds/`, 
 | `quick-open` | Browse, results, no match | `QuickOpenDialog.tsx` |
 | `shell-layout` | Header, sidebar (projects, Settings), project menu, body panels | `App.tsx`, `ShellSidebar.tsx`, `Home.tsx` |
 
-The surface canvas is `shell-layout` because the id `app-shell` belongs to an older draft in `.doan/canvases/`. Not drawn, each seen on one screen only: the switch (Settings › Notifications), `.doan-kbd` outside a button (it appears only in the canvas toolbar's Fit button, drawn on `button`), the conversation strip and the first-run wizard. Not drawn because nothing renders them: `.doan-popover`, `.doan-textarea` and `.doan-checkbox` (no markup uses them since the app's comment screens left) and the tooltip provider, root and trigger (wrappers that draw nothing).
+The surface canvas is `shell-layout`. Not drawn, each seen on one screen only: the switch (Settings › Notifications), `.doan-kbd` outside a button (it appears only in the canvas toolbar's Fit button, drawn on `button`), the conversation strip and the first-run wizard. Not drawn because nothing renders them: `.doan-popover`, `.doan-textarea` and `.doan-checkbox` (no markup uses them since the app's comment screens left) and the tooltip provider, root and trigger (wrappers that draw nothing).
 
 ### Open decisions
 
@@ -440,8 +440,6 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 
 > buzz-ds 이전. Owner on the mark: `buzz-home`, which has shipped without remeasuring these surfaces, so no child owns the mark now. Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal toast with Undo and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page).
 
-Reference: `.doan/canvases/projects-home.html` (eight frames).
-
 ### Measured contracts
 
 | Element | Measured contract | Reason |
@@ -511,7 +509,7 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 
 ## Design navigation
 
-Reference: `.doan/canvases/design-nav.html` (frames `workspace-tree`, `tree-rows`, `quick-open`, `frame-highlight`, `toasts`) and, for Quick Open, `.doan/canvases/buzz-search.html`. The project Overview is in 'Project Overview'.
+Reference for Quick Open: `.doan/canvases/buzz-search.html`. The project Overview is in 'Project Overview'.
 
 ### Overview placement
 
