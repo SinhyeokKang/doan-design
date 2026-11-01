@@ -24,9 +24,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | A | P1 | `.scratch/account-identity/`, `design.md` §1 Codex 절(측정 결과 줄) | — | Codex `gpt-6.1-sol` medium — 스크립트를 돌려 숫자를 적는 기계적 일 | 스크립트 5회 출력, design §1 결과 | 통합 `90641ef1`. 중앙값 100.252ms·최대 102.668ms로 5초 예산 유지. 워커 해제·worktree 제거 |
-| B | T1, M1 | `app/src/main/agentAuth/identity.ts`·`identity.test.ts`·`providers.ts`·`manager.ts`·`manager.test.ts`, `app/src/renderer/agentAuthView.ts`(주석) | — | Claude Opus high — 취소·hold·커밋 경계가 얽힌 동시성과 자격증명 처리 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n 'writeMetadata' app/src/main/agentAuth/manager.ts` | 5커밋 `72ad94ad..aade6762`, verify PASS. 수정 1차 진행(RV-B 🟡1·⚪1). 소유 밖 `storage.ts` `readWorking` 추가는 수용 |
+| B | T1, M1 | `app/src/main/agentAuth/identity.ts`·`identity.test.ts`·`providers.ts`·`manager.ts`·`manager.test.ts`, `app/src/renderer/agentAuthView.ts`(주석) | — | Claude Opus high — 취소·hold·커밋 경계가 얽힌 동시성과 자격증명 처리 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n 'writeMetadata' app/src/main/agentAuth/manager.ts` | 통합 `668732bb..6febfb0b`(수정 1차 `8041e4df` 포함: 가짜 타이머 취소 테스트, 그룹 대기 고정). 소유 밖 `storage.ts` `readWorking` 추가는 수용. 워커 해제·worktree 제거 |
 | RV-B | B 리뷰 | 없음(보고만) | B | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료: 🔴0 🟡2 ⚪1(`.scratch/briefs/aai/review-B.md`). 🟡2(5초 상한 문구)는 지휘자가 spec·design에서 고쳤다. 워커 해제 |
-| C | R1 | `.scratch/runtime-test/agent-account-identity/`, `design.md` §1·§3 'PoC 의존' | B 통합 | Claude Opus medium — 실제 HOME·키체인을 쓰는 probe라 안전 판단이 필요 | tasks R1 통과 기준 | 대기 |
+| C | R1 | `.scratch/runtime-test/agent-account-identity/`, `design.md` §1·§3 'PoC 의존' | B 통합 | Claude Opus medium — 실제 HOME·키체인을 쓰는 probe라 안전 판단이 필요 | tasks R1 통과 기준 | 진행(실제 HOME, 프로필 유지) |
 | G | 결정 6·7 | `cli/internal/cli/init.go`와 테스트, `app/src/main/onboarding/`, `app/src/renderer/ProjectSetupDialog.tsx`, `eval/lib/`·`eval/scenarios/`의 `.gitattributes` 기대값, `cli/internal/cli/skill.md`(필요할 때), PRODUCT·ARCHITECTURE의 해당 문장 | — | Claude Opus medium — CLI·앱·eval 계약을 함께 맞추는 중간 난도 | `node .agents/skills/verify/scripts/verify.mjs --eval` | 6커밋 `55e7caa9..ad6c6592`, verify --eval PASS. 수정 1차 진행(변경 목록 간극). 격리 앱 probe는 C에서 함께 |
 | 지휘자 | V1, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, 이 디렉터리 삭제 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 `rg` 확인 | 대기 |
 
@@ -38,6 +38,7 @@
 - RV-B: dispatch `ctx_d830864e5bc3`, `gpt-6-astra` medium(effective 확인), B worktree에서 읽기만.
 - B 수정 1차: dispatch `ctx_491e261a9110`, 같은 터미널 재사용.
 - G: dispatch `ctx_281813449dab`, worktree `aai-G`, Claude `opus` medium(effective 확인).
+- C: dispatch `ctx_155776a9a15c`, worktree `aai-C`, Claude `opus` medium(effective 확인).
 - G 수정 1차: dispatch `ctx_fed84459911d`, 같은 터미널 재사용.
 
 ## 파일 겹침과 순서
