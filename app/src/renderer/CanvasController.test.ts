@@ -1,11 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
-import { projectList } from "../comments/projection";
 import { CanvasController, initialCanvasState } from "./CanvasController";
 import { FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, locateView, screenToBoard } from "./viewport";
-import type { AnchorSnapshot } from "./commentAnchors";
-import type { Comment } from "../formats/types";
 import { unavailableCanvasMessage } from "./quickOpen";
 import { SELECTION_LOST } from "./selection";
 import { activityFor } from "./activity";
@@ -358,20 +355,6 @@ describe("selection", () => {
         h.layout({ frames: [frame("dup", 0), frame("intro", 20)] });
         h.controller.selectFrame(2, "dup");
         expect(picks(h).at(-1)).toEqual({ type: "pick-frame", seq: 2, index: 0, id: "dup" });
-      } finally { h.controller.dispose(); }
-    });
-
-    it("resolves the id again when a guard answers after a new layout of the same document", async () => {
-      const h = selectionHarness();
-      try {
-        let allow: (allowed: boolean) => void = () => {};
-        h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { allow = resolve; }));
-        h.controller.selectFrame(1, "hero");
-        h.layout({ frames: [frame("hero", 20), frame("intro", 0)] });
-        h.current().contentWindow.postMessage.mockClear();
-        allow(true);
-        await Promise.resolve(); await Promise.resolve();
-        expect(picks(h)).toEqual([{ type: "measure" }, { type: "pick-frame", seq: 1, index: 0, id: "hero" }]);
       } finally { h.controller.dispose(); }
     });
 
@@ -786,252 +769,74 @@ it("resets both channels on reload and rejects old-window, href and viewport hov
   } finally { h.controller.dispose(); }
 });
 
-describe("comment anchor channel", () => {
-  it("rejects stale request/document/viewport replies without consuming held selection or hover", () => {
+// buzz-canvas-conversation keeps the anchors query and reply for chip locate: the controller asks for plain targets,
+// takes only the newest reply for its own request in the current document, and jumps to a node it named.
+describe("anchors channel", () => {
+  const queries = (h: ReturnType<typeof selectionHarness>) => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query");
+  const reply = (q: { generation: number; request: number }, over: Record<string, unknown> = {}) => ({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+    results: [{ id: "chip", candidates: { frame: ["n1"] } }], rects: [{ node: "n1", x: 40, y: 3000, width: 200, height: 100 }], ...over });
+
+  it("asks for plain targets, takes the reply and jumps to its node without selecting", () => {
     const h = selectionHarness();
-    const changed = vi.fn();
+    try {
+      expect(h.controller.requestAnchors([{ id: "chip", frame: "hero" }])).toBeNull();
+      expect(queries(h)).toEqual([]);
+      h.layout({ document: "doc" });
+      h.select(1);
+      const selected = h.state().selection;
+      const generation = h.controller.requestAnchors([{ id: "chip", frame: "hero" }]);
+      const q = queries(h).at(-1);
+      expect(q).toMatchObject({ document: "doc", generation, targets: [{ id: "chip", frame: "hero" }] });
+      expect(h.controller.jumpToNode("n1", generation!)).toBe(false);
+      h.receive(reply(q));
+      h.send.mockClear(); h.current().contentWindow.postMessage.mockClear();
+      const before = h.controller.currentView();
+      expect(h.controller.jumpToNode("n1", generation!)).toBe(true);
+      expect(h.controller.currentView()).toEqual(locateView({ x: 40, y: 3000, width: 200, height: 100 }, { width: 800, height: 600 }, before));
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      expect(h.current().contentWindow.postMessage).not.toHaveBeenCalled();
+      expect(h.send).not.toHaveBeenCalled();
+      expect(h.state().selection).toEqual(selected);
+      expect(h.controller.jumpToNode("missing", generation!)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("rejects replies for another request, document, page, size or target set, and an older revision", () => {
+    const h = selectionHarness();
     try {
       h.layout({ document: "doc" });
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [] }, { changed, guard: async () => true, open: vi.fn(), focusFallback: vi.fn() });
-      const request = () => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
-      const q = request();
-      expect(q).toMatchObject({ document: "doc", targets: [] });
-      const reply = { type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null, results: [], rects: [] };
-      h.receive(reply);
-      const accepted = changed.mock.calls.length;
-      for (const patch of [{ request: q.request - 1 }, { generation: q.generation - 1 }, { document: "old" }, { href: "http://localhost/other" }, { viewport: 149 }, { width: 599 }]) h.receive({ ...reply, revision: 2, ...patch });
-      expect(changed).toHaveBeenCalledTimes(accepted);
-      h.select(1);
-      expect(h.state().selection.element.doanId).toBe("cta");
-      h.receive({ type: "hover", seq: 1, rect: { x: 20, y: 20, width: 10, height: 10 } });
-      expect(h.markOf("hover")?.hidden).toBe(false);
+      const generation = h.controller.requestAnchors([{ id: "chip", frame: "hero" }])!;
+      const q = queries(h).at(-1);
+      for (const patch of [{ request: q.request - 1 }, { generation: q.generation - 1 }, { document: "old" }, { href: "http://localhost/other" }, { viewport: 149 }, { width: 599 },
+        { results: [{ id: "other", candidates: { frame: ["n1"] } }] }, { results: [] }]) h.receive(reply(q, patch));
+      expect(h.controller.jumpToNode("n1", generation)).toBe(false);
+      h.receive(reply(q, { revision: 2 }));
+      h.receive(reply(q, { revision: 1, rects: [] }));
+      expect(h.controller.jumpToNode("n1", generation)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("forgets the reply and its node tokens with the document", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc" });
+      const generation = h.controller.requestAnchors([{ id: "chip", frame: "hero" }])!;
+      const q = queries(h).at(-1);
+      h.receive(reply(q));
       const old = h.current();
       h.controller.command("reload");
-      h.receive({ ...reply, revision: 10 }, old);
-      expect(changed.mock.lastCall?.[0].lookup.nodes.size).toBe(0);
+      h.receive(reply(q, { revision: 2 }), old);
+      expect(h.controller.jumpToNode("n1", generation)).toBe(false);
+      h.layout({ document: "doc2" });
+      const next = h.controller.requestAnchors([{ id: "chip", frame: "hero" }])!;
+      expect(next).not.toBe(generation);
+      h.receive(reply(queries(h).at(-1), { document: "doc2" }));
+      expect(h.controller.jumpToNode("n1", generation)).toBe(false);
+      expect(h.controller.jumpToNode("n1", next)).toBe(true);
     } finally { h.controller.dispose(); }
   });
 });
 
-
-it("guards pin selection before applying it and cancels a deferred decision after reload", async () => {
-  const h = selectionHarness();
-  try {
-    h.layout({ document: "doc" });
-    let answer: (value: boolean) => void = () => {};
-    const guard = vi.fn(() => new Promise<boolean>(resolve => { answer = resolve; }));
-    const open = vi.fn();
-    const comment = { comment: "f", target: { frame: "hero" }, status: "open" as const, body: "x", canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: { kind: "human" as const, name: "A" } };
-    h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment] }, { guard, open, changed: vi.fn(), focusFallback: vi.fn() });
-    const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
-    h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
-      results: [{ id: "f", candidates: { frame: ["node"] } }], rects: [{ node: "node", x: 10, y: 10, width: 10, height: 10 }] });
-    const pending = h.controller.activatePin("node");
-    expect(guard).toHaveBeenCalledWith({ node: "node", comments: ["f"], originalTarget: { frame: "hero" } });
-    expect(h.state()?.selection ?? null).toBeNull();
-    expect(h.current().contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-comment")).toBe(false);
-    const old = h.current();
-    h.controller.command("reload");
-    answer(true); await pending;
-    expect(old.contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-comment")).toBe(false);
-    expect(open).not.toHaveBeenCalled();
-  } finally { h.controller.dispose(); }
-});
-
-function pinHarness() {
-  const h = selectionHarness(), changed = vi.fn(), open = vi.fn();
-  const comments = ["a", "b"].map(id => ({ comment: id, target: { frame: id }, status: "open" as const, body: "x", canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: { kind: "human" as const, name: "A" } }));
-  const hooks = { changed, open, guard: vi.fn(async () => true), focusFallback: vi.fn() };
-  const bind = (items = comments) => h.controller.setComments({ root: "/repo", canvas: "a", comments: items }, hooks);
-  let revision = 0;
-  const reply = (selectionSeq = 0, selected: string | null = null) => {
-    const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
-    h.receive({ type: "anchors", document: "doc", generation: q.generation, request: q.request, revision: ++revision, width: 600, selectionSeq, selected,
-      results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })),
-      rects: comments.map(c => ({ node: c.comment, x: 10, y: 10, width: 10, height: 10 })) });
-  };
-  h.layout({ document: "doc" }); bind(); reply();
-  return { ...h, comments, hooks, bind, reply, changed, open };
-}
-
-it("Y1 does not project B before its sent selection command is acknowledged", () => {
-  const h = pinHarness();
-  try {
-    h.select(1); h.reply(1, "a");
-    expect(h.changed.mock.lastCall?.[0].selected).toBe("a");
-    h.controller.selectPath(h.target.path[0]!);
-    h.reply(2, "b");
-    const snapshot = h.changed.mock.lastCall![0];
-    expect(h.state().selection.element.doanId).toBe("cta");
-    expect(projectList(h.comments, snapshot.lookup, snapshot.lookup, { scope: "selection", status: "open", node: snapshot.selected }).map(c => c.comment)).not.toContain("b");
-    expect(snapshot.selected).toBeNull();
-    h.select(2); h.reply(2, "b");
-    expect(h.changed.mock.lastCall?.[0].selected).toBe("b");
-  } finally { h.controller.dispose(); }
-});
-
-it.each(["new guard", "binding change"])("Y3 cancels old pin panel effects after %s but accepts actual selection", async kind => {
-  const h = pinHarness();
-  try {
-    await h.controller.activatePin("a");
-    let answer: (allowed: boolean) => void = () => {};
-    let pending: Promise<void> | undefined;
-    if (kind === "new guard") {
-      h.hooks.guard.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
-      pending = h.controller.activatePin("b");
-    } else { h.bind([h.comments[1]!]); h.reply(); }
-    h.select(1, { answer: "select-comment" });
-    expect(h.state().selection.element.doanId).toBe("cta");
-    expect(h.open).not.toHaveBeenCalled();
-    if (pending) {
-      h.reply(1, "a");
-      answer(true); await pending;
-      expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment").at(-1)).toMatchObject({ node: "b", seq: 2 });
-      h.select(2, { answer: "select-comment" });
-      expect(h.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ node: "b", originalTarget: { frame: "b" } }));
-    }
-  } finally { h.controller.dispose(); }
-});
-
-// R-F F-1, shared with locate: only the canvas's answer to select-comment opens the pin's comments.
-it("does not open a pin's comments for a manual pick that took its seq before the command arrived", async () => {
-  const h = pinHarness();
-  try {
-    await h.controller.activatePin("a");
-    expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment").at(-1)).toMatchObject({ node: "a", seq: 1 });
-    h.select(1);
-    expect(h.state().selection.element.doanId).toBe("cta");
-    expect(h.open).not.toHaveBeenCalled();
-    await h.controller.activatePin("a");
-    h.select(2, { answer: "select-comment" });
-    expect(h.open).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ node: "a" }));
-  } finally { h.controller.dispose(); }
-});
-
-// R-L3 ⚪ L3-2: the click that took a sent pin's seq is the person's newer
-// intent, so a pin still waiting on its guard must not select over it.
-it("a click that takes a sent pin's seq cancels a newer pin still in its guard", async () => {
-  const h = pinHarness();
-  try {
-    await h.controller.activatePin("a");
-    let answer: (allowed: boolean) => void = () => {};
-    h.hooks.guard.mockImplementation(() => new Promise(resolve => { answer = resolve; }));
-    const pending = h.controller.activatePin("b");
-    h.select(1);
-    answer(true); await pending;
-    expect(h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "select-comment")).toHaveLength(1);
-    expect(h.open).not.toHaveBeenCalled();
-  } finally { h.controller.dispose(); }
-});
-
-it("holds manual reload before replacing a document and rejects superseded approval", async () => {
-  const h = selectionHarness();
-  try {
-    h.changed.mockClear();
-    const releases: ((allow: boolean) => void)[] = [];
-    h.controller.setTransitionGuard(() => new Promise(resolve => releases.push(resolve)));
-    h.controller.command("reload");
-    expect(h.changed).not.toHaveBeenCalled();
-    h.controller.openCanvas("/repo", h.other);
-    releases[0]?.(true); await Promise.resolve();
-    expect(h.changed).not.toHaveBeenCalled();
-    releases[1]?.(false); await Promise.resolve();
-    expect(h.changed).not.toHaveBeenCalled();
-  } finally { h.controller.dispose(); }
-});
-
-it("independently rejects replayed canvas intents and approval after same-URL document replacement", async () => {
-  const h = selectionHarness();
-  try {
-    h.layout({ document: "one" });
-    const allow: ((value: boolean) => void)[] = [];
-    const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
-    h.controller.setTransitionGuard(guard);
-    h.receive({ type: "transition-intent", document: "one", intent: 2, kind: "selection" });
-    h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "selection" });
-    h.receive({ type: "transition-intent", document: "one", intent: 2, kind: "selection" });
-    expect(guard).toHaveBeenCalledTimes(1);
-    h.layout({ document: "two" });
-    allow[0]?.(true); await Promise.resolve();
-    expect(h.current().contentWindow.postMessage.mock.calls.some(([message]) => message.type === "transition-answer")).toBe(false);
-    h.receive({ type: "transition-intent", document: "two", intent: 1, kind: "selection" });
-    expect(guard).toHaveBeenCalledTimes(2);
-    allow[1]?.(true); await Promise.resolve();
-    expect(h.current().contentWindow.postMessage).toHaveBeenLastCalledWith({ type: "transition-answer", document: "two", intent: 1 }, "*");
-  } finally { h.controller.dispose(); }
-});
-
-it("prevents the triggering Escape from cancelling its newly opened draft dialog", () => {
-  const h = selectionHarness();
-  try {
-    h.select(1); h.controller.setDraftGuard(true);
-    h.controller.setTransitionGuard(async () => false);
-    const event = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
-    h.host.dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(true);
-    expect(h.state().selection).not.toBeNull();
-  } finally { h.controller.dispose(); }
-});
-
-describe("a draft blocked as reloaded", () => {
-  afterEach(() => vi.unstubAllGlobals());
-  // The session answers same-canvas selection changes at once and asks about everything else.
-  function blockedHarness() {
-    const h = selectionHarness();
-    h.layout({ document: "one" });
-    const asked: string[] = [];
-    const guard = vi.fn((destination: "selection" | "navigation") => destination === "selection" ? true : new Promise<boolean>(() => { asked.push(destination); }));
-    h.controller.setTransitionGuard(guard);
-    h.controller.setDraftGuard(true, false);
-    const posted = () => h.current().contentWindow.postMessage.mock.calls.map(([message]) => message);
-    return { ...h, guard, asked, posted };
-  }
-
-  it("changes the selection on a canvas click, Select, ancestor path, blank margin and Escape without asking", () => {
-    const h = blockedHarness();
-    try {
-      h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "selection" });
-      expect(h.posted().at(-1)).toEqual({ type: "transition-answer", document: "one", intent: 1 });
-      h.controller.selectFrame(0, "intro");
-      expect(h.posted().at(-1)).toMatchObject({ type: "pick-frame", index: 0, id: "intro" });
-      h.select(2);
-      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
-      expect(h.posted().at(-1)).toMatchObject({ type: "select-anchor", doanId: "cta" });
-      h.select(3);
-      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
-      expect(h.state().selection).toBeNull();
-      h.select(4);
-      const escape = Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
-      h.host.dispatchEvent(escape);
-      expect(h.state().selection).toBeNull();
-      expect(escape.defaultPrevented).toBe(false);
-      expect(h.guard.mock.calls.every(([destination]) => destination === "selection")).toBe(true);
-      expect(h.asked).toEqual([]);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("still asks before another canvas, an in-canvas link, Reload or Overview", () => {
-    const h = blockedHarness();
-    try {
-      h.receive({ type: "transition-intent", document: "one", intent: 1, kind: "navigation" });
-      h.controller.openCanvas("/repo", h.other);
-      h.controller.command("reload");
-      h.controller.showOverview();
-      h.controller.openWorkspace("/repo", () => {});
-      expect(h.asked).toEqual(["navigation", "navigation", "navigation", "navigation", "navigation"]);
-      expect(h.posted().some(message => message.type === "transition-answer")).toBe(false);
-      expect(h.state().open.canvas).toBe(h.row.path);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("drops a transition intent without a known kind", () => {
-    const h = blockedHarness();
-    try {
-      h.receive({ type: "transition-intent", document: "one", intent: 1 });
-      expect(h.guard).not.toHaveBeenCalled();
-    } finally { h.controller.dispose(); }
-  });
-});
 
 it("reports reanchoring while a reloaded canvas looks for the selection", () => {
   const h = selectionHarness();
@@ -1047,31 +852,69 @@ it("reports reanchoring while a reloaded canvas looks for the selection", () => 
   } finally { h.controller.dispose(); }
 });
 
-it("keeps synchronous canvas opening when the draft guard immediately allows it", () => {
+// POSTMORTEM 2026-10-23 draft guards: opening stays synchronous, so Loading shows within the call.
+it("opens another canvas synchronously", () => {
   const h = selectionHarness();
   try {
-    h.controller.setTransitionGuard(() => true);
     h.controller.openCanvas("/repo", h.other);
     expect(h.state().status).toBe("loading");
     expect(h.state().open.canvas).toBe(h.other.path);
   } finally { h.controller.dispose(); }
 });
 
-it("uses freshly revalidated destination metadata after a draft decision", async () => {
-  const h = selectionHarness();
-  try {
-    let allow: ((value: boolean) => void) | undefined;
-    h.controller.setTransitionGuard(() => new Promise(resolve => { allow = resolve; }));
-    h.controller.openCanvas("/repo", h.other);
-    const { width: _width, ...invalidWidth } = h.other;
-    h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, invalidWidth] }]);
-    allow?.(true); await Promise.resolve();
-    expect(h.state().open.row.width).toBeUndefined();
-    expect(h.state().status).toBe("noWidth");
-  } finally { h.controller.dispose(); }
+// buzz-canvas-conversation X1 (POSTMORTEM 2026-10-23 draft guards): with the comment draft guard gone, opening,
+// selecting, reloading and following a move still happen within the call, in the order they did without a draft.
+describe("canvas open, select, reload and move without a draft guard", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("publishes the opened canvas before telling `opened`, then selects and clears within each event", () => {
+    const h = selectionHarness();
+    try {
+      const order: string[] = [];
+      h.changed.mockImplementation(state => order.push(`changed:${state.open?.canvas}:${state.status}`));
+      h.controller.openCanvas("/repo", h.other, undefined, { opened: () => order.push("opened") });
+      expect(order).toEqual([`changed:${h.other.path}:loading`, "opened"]);
+      h.layout({ href: h.other.url });
+      h.send.mockClear();
+      h.select(1, { href: h.other.url });
+      expect(h.state().selection?.element).toEqual(h.target.element);
+      expect(h.send).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ canvas: { path: h.other.path, id: "b" } }));
+      h.current().contentWindow.postMessage.mockClear();
+      h.key("Escape");
+      expect(h.state().selection).toBeNull();
+      expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "clear", seq: 2 }, "*");
+      expect(h.send).toHaveBeenLastCalledWith(null);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("shows a reload as reloading within the Reload command", () => {
+    const h = selectionHarness();
+    try {
+      h.changed.mockClear();
+      h.controller.command("reload");
+      expect(h.changed).toHaveBeenCalled();
+      expect(h.state()).toMatchObject({ status: null, reloading: true });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("follows a moved canvas within the folder update and asks the new document for the selection", () => {
+    const h = selectionHarness();
+    try {
+      const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
+      // The new path is published (its load) before the move is told.
+      const followed = vi.fn(() => expect(h.state().open?.canvas).toBe(moved.path));
+      h.controller.canvasMoved = followed;
+      h.select(1);
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [moved, h.other] }]);
+      expect(followed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", from: h.row.path, row: moved });
+      expect(h.state()).toMatchObject({ open: { canvas: moved.path }, reanchoring: true });
+      h.layout({ href: moved.url });
+      expect(h.current().contentWindow.postMessage).toHaveBeenCalledWith({ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }, "*");
+    } finally { h.controller.dispose(); }
+  });
 });
 
-it("switches workspaces through the draft guard and restores the previous canvas view", async () => {
+it("switches workspaces and restores the previous canvas view", () => {
   const { controller, row, changed, board } = loadedController();
   try {
     const other = { ...row, url: "http://localhost/other.html" };
@@ -1083,10 +926,6 @@ it("switches workspaces through the draft guard and restores the previous canvas
     controller.wheel({ dx: 20, dy: 30, ctrl: false, meta: false, deltaMode: 0 }, { x: 0, y: 0 });
     const before = board.style.transform;
     const entered = vi.fn();
-    controller.setTransitionGuard(() => false);
-    controller.openWorkspace("/other", entered);
-    expect(entered).not.toHaveBeenCalled();
-    controller.setTransitionGuard(() => true);
     controller.openWorkspace("/other", entered);
     expect(entered).toHaveBeenCalledWith("/other");
     expect(changed.mock.lastCall?.[0].open).toBeNull();
@@ -1132,51 +971,6 @@ it("drops a waiting workspace open when a later navigation, a failed read or lea
       controller.setWorkspaceActive(true);
     }
     expect(entered).not.toHaveBeenCalled();
-  } finally { controller.dispose(); }
-});
-
-it("asks the draft guard again before entering a waited-for workspace", async () => {
-  const { controller, row, changed } = loadedController();
-  try {
-    const repo: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [row] };
-    const answers: ((allow: boolean) => void)[] = [];
-    let hasDraft = false;
-    const guard = vi.fn(() => hasDraft ? new Promise<boolean>(resolve => answers.push(resolve)) : true);
-    controller.setTransitionGuard(guard);
-    const entered = vi.fn();
-    // The click passes the guard with no draft; a draft is started while the read is pending.
-    const waitWithDraft = (path: string) => {
-      hasDraft = false;
-      controller.updateEntries([repo, { path, kind: "loading" }]);
-      controller.openWorkspace(path, entered);
-      hasDraft = true;
-      controller.updateEntries([repo, { path, kind: "list", servedRev: 0, canvases: [] }]);
-    };
-
-    waitWithDraft("/kept");
-    expect(guard).toHaveBeenCalledTimes(2);
-    answers[0]?.(false); await Promise.resolve();
-    expect(entered).not.toHaveBeenCalled();
-    expect(changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
-
-    waitWithDraft("/superseded");
-    controller.showOverview();
-    answers[1]?.(true); await Promise.resolve();
-    expect(entered).not.toHaveBeenCalled();
-    answers[2]?.(false); await Promise.resolve();
-
-    waitWithDraft("/discarded");
-    expect(entered).not.toHaveBeenCalled();
-    answers[3]?.(true); await Promise.resolve();
-    expect(entered).toHaveBeenCalledExactlyOnceWith("/discarded");
-    expect(changed.mock.lastCall?.[0].open).toBeNull();
-
-    hasDraft = false;
-    entered.mockClear();
-    controller.updateEntries([repo, { path: "/ready", kind: "loading" }]);
-    controller.openWorkspace("/ready", entered);
-    controller.updateEntries([repo, { path: "/ready", kind: "list", servedRev: 0, canvases: [] }]);
-    expect(entered).toHaveBeenCalledExactlyOnceWith("/ready");
   } finally { controller.dispose(); }
 });
 
@@ -1239,17 +1033,14 @@ describe("Fit and frame jumps inside FIT_INSET", () => {
 });
 
 describe("frame navigation", () => {
-  it("jumps without a guard, selection command or main selection update", () => {
+  it("jumps without a selection command or main selection update", () => {
     const h = selectionHarness();
     try {
       h.select(1);
       const selected = h.state().selection;
-      const guard = vi.fn(() => false);
-      h.controller.setTransitionGuard(guard);
       h.send.mockClear();
       h.current().contentWindow.postMessage.mockClear();
       h.controller.jump(0);
-      expect(guard).not.toHaveBeenCalled();
       expect(h.current().contentWindow.postMessage.mock.calls.map(call => call[0])).toEqual([{ type: "measure" }]);
       h.layout();
       expect(h.state().selection).toEqual(selected);
@@ -1259,14 +1050,11 @@ describe("frame navigation", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("keeps the same canvas and selection without consulting the draft guard", () => {
+  it("keeps the same canvas and selection when it is opened again", () => {
     const h = selectionHarness();
     try {
       h.select(1);
-      const guard = vi.fn(() => false);
-      h.controller.setTransitionGuard(guard);
       h.controller.openCanvas("/repo", h.row);
-      expect(guard).not.toHaveBeenCalled();
       expect(h.frames).toHaveLength(1);
       expect(h.state().selection?.tag).toBe("span");
     } finally { h.controller.dispose(); }
@@ -1291,18 +1079,13 @@ describe("frame navigation", () => {
 });
 
 
-it("guards Select and only sends the selection to main after its acknowledgement", () => {
+it("sends Select to the canvas at once and the selection to main only after its acknowledgement", () => {
   const h = selectionHarness();
   try {
-    const guard = vi.fn(() => false);
-    h.controller.setTransitionGuard(guard);
     h.current().contentWindow.postMessage.mockClear();
-    h.controller.selectFrame(0, "intro");
-    expect(guard).toHaveBeenCalledOnce();
-    expect(h.current().contentWindow.postMessage).not.toHaveBeenCalled();
-    guard.mockReturnValue(true);
     h.send.mockClear();
     h.controller.selectFrame(0, "intro");
+    expect(h.current().contentWindow.postMessage.mock.calls.map(call => call[0])).toContainEqual({ type: "pick-frame", seq: 1, index: 0, id: "intro" });
     expect(h.send).not.toHaveBeenCalled();
     h.select(1, { target: { ...h.target, element: undefined, frame: { id: "intro" }, frameIndex: 0 } });
     expect(h.send).toHaveBeenCalledWith(expect.objectContaining({ frame: { id: "intro" } }));
@@ -1428,30 +1211,21 @@ it("does not diagnose missing markup when the board width could not be read", ()
   } finally { h.controller.dispose(); }
 });
 
-it("reports a non-list Added Open target immediately or after loading, through the draft guard", async () => {
+it("reports a non-list Added Open target immediately or after loading", () => {
   const h = loadedController();
   try {
     const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
     const problem: FolderEntry = { kind: "uninitialized", path: "/added" };
     const entered = vi.fn(), unavailable = vi.fn();
-    h.controller.setTransitionGuard(() => true);
     h.controller.updateEntries([repo, problem]);
     h.controller.openWorkspace("/added", entered, false, unavailable);
-    expect(unavailable).toHaveBeenCalledOnce();
+    expect(unavailable).toHaveBeenCalledExactlyOnceWith(problem);
     unavailable.mockClear();
     h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
     h.controller.openWorkspace("/added", entered, false, unavailable);
-    const answers: ((allow: boolean) => void)[] = [];
-    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => answers.push(resolve)));
-    h.controller.updateEntries([repo, problem]);
     expect(unavailable).not.toHaveBeenCalled();
-    answers[0]?.(false); await Promise.resolve();
-    expect(unavailable).not.toHaveBeenCalled();
-    h.controller.setTransitionGuard(() => true);
-    h.controller.updateEntries([repo, { kind: "loading", path: "/added" }]);
-    h.controller.openWorkspace("/added", entered, false, unavailable);
     h.controller.updateEntries([repo, problem]);
-    expect(unavailable).toHaveBeenCalledOnce();
+    expect(unavailable).toHaveBeenCalledExactlyOnceWith(problem);
     expect(entered).not.toHaveBeenCalled();
     expect(h.changed.mock.lastCall?.[0].open?.folder).toBe("/repo");
   } finally { h.controller.dispose(); }
@@ -1470,74 +1244,58 @@ it("does not apply Added Open recovery after a newer navigation", () => {
   } finally { h.controller.dispose(); }
 });
 
-it("reports a canvas that becomes unavailable while the user approves its draft guard", async () => {
+it("reports a canvas that left the list before it opens, and keeps the open one", () => {
   const h = loadedController();
   try {
     const target = { ...h.row, path: ".doan/canvases/next.html", url: "http://localhost/next.html" };
-    h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row, target] }]);
-    let approve: (allow: boolean) => void = () => {};
-    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { approve = resolve; }));
-    const unavailable = vi.fn();
-    h.controller.openCanvas("/repo", target, undefined, { unavailable });
     h.controller.updateEntries([{ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] }]);
-    approve(true); await Promise.resolve();
-    expect(unavailable).toHaveBeenCalledOnce();
+    const unavailable = vi.fn(), opened = vi.fn();
+    h.controller.openCanvas("/repo", target, undefined, { unavailable, opened });
+    expect(unavailable).toHaveBeenCalledExactlyOnceWith({ kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] });
+    expect(opened).not.toHaveBeenCalled();
     expect(h.changed.mock.lastCall?.[0].open?.canvas).toBe(h.row.path);
   } finally { h.controller.dispose(); }
 });
 
-it("leaving the workspace supersedes a pending Added recovery approval", async () => {
+it("leaving the workspace supersedes a waiting Added recovery", () => {
   const h = loadedController();
   try {
     const repo: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
     h.controller.updateEntries([repo, { path: "/added", kind: "loading" }]);
     const unavailable = vi.fn();
     h.controller.openWorkspace("/added", vi.fn(), false, unavailable);
-    let approve: (allow: boolean) => void = () => {};
-    h.controller.setTransitionGuard(() => new Promise<boolean>(resolve => { approve = resolve; }));
-    h.controller.updateEntries([repo, { path: "/added", kind: "uninitialized" }]);
     h.controller.setWorkspaceActive(false);
-    approve(true); await Promise.resolve();
+    h.controller.updateEntries([repo, { path: "/added", kind: "uninitialized" }]);
     expect(unavailable).not.toHaveBeenCalled();
   } finally { h.controller.dispose(); }
 });
 
 
-it.each(["id", "url"])("reports a changed %s after guarded cross-root navigation without opening it", async field => {
+it.each(["id", "url"])("reports a %s that changed while its workspace was read, without opening it", field => {
   const h = loadedController();
   try {
     const source: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
     const row = { ...h.row, id: "original" };
     const target: FolderEntry = { kind: "list", path: "/target", servedRev: 0, canvases: [row] };
-    h.controller.updateEntries([source, target]);
-    let approve = (_allowed: boolean) => {};
-    let draft = true;
-    h.controller.setTransitionGuard(() => draft ? new Promise<boolean>(resolve => { approve = resolve; }) : true);
+    h.controller.updateEntries([source, { kind: "loading", path: "/target" }]);
     const messages: string[] = [];
     const unavailable = (entry: FolderEntry | undefined) => messages.push(unavailableCanvasMessage(entry, row.path));
     h.controller.openWorkspace("/target", root => h.controller.openCanvas(root, row, undefined, { unavailable }), false, unavailable);
-    const changed = { ...target, canvases: [{ ...row, [field]: "changed" }] };
-    h.controller.updateEntries([source, changed]);
     expect(messages).toEqual([]);
-    draft = false; approve(true); await Promise.resolve();
+    h.controller.updateEntries([source, { ...target, canvases: [{ ...row, [field]: "changed" }] }]);
     expect(messages).toEqual(["Canvas changed while opening. Choose it again from the sidebar or Quick Open."]);
     expect(h.changed.mock.lastCall?.[0].open).toBeNull();
   } finally { h.controller.dispose(); }
 });
 
-it.each(["cliError", "missing-path", "removed"])("passes the consumed %s entry to the waiting Open callback before returning", async kind => {
+it.each(["cliError", "missing-path", "removed"])("passes the consumed %s entry to the waiting Open callback before returning", kind => {
   const h = loadedController();
   try {
     const source: FolderEntry = { kind: "list", path: "/repo", servedRev: 0, canvases: [h.row] };
     const target: FolderEntry = { kind: "list", path: "/target", servedRev: 0, canvases: [h.row] };
-    h.controller.updateEntries([source, target]);
-    let approve = (_allowed: boolean) => {};
-    let draft = true;
-    h.controller.setTransitionGuard(() => draft ? new Promise<boolean>(resolve => { approve = resolve; }) : true);
+    h.controller.updateEntries([source, { kind: "loading", path: "/target" }]);
     const unavailable = vi.fn();
     h.controller.openWorkspace("/target", root => h.controller.openCanvas(root, h.row, undefined, { unavailable }), false, unavailable);
-    h.controller.updateEntries([source, { kind: "loading", path: "/target" }]);
-    draft = false; approve(true); await Promise.resolve();
     expect(unavailable).not.toHaveBeenCalled();
     const latest: FolderEntry | undefined = kind === "removed" ? undefined : kind === "missing-path" ? { ...target, canvases: [] } : { kind: "cliError", path: "/target", reason: "failed" };
     h.controller.updateEntries(latest ? [source, latest] : [source]);
@@ -1645,19 +1403,6 @@ describe("a canvas moved with the same id", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("treats the move as a removal while the comments session cannot follow", () => {
-    const h = movedHarness();
-    try {
-      h.select(1);
-      h.controller.setFollowGuard(() => false);
-      h.controller.updateEntries(h.list(h.moved, h.other));
-      expect(h.removed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", row: h.row, duplicates: null });
-      expect(h.followed).not.toHaveBeenCalled();
-      expect(h.state()).toMatchObject({ open: null, selection: null, status: "missing", message: ".doan/canvases/a.html is no longer in the list. It was deleted or moved." });
-      expect(h.send).toHaveBeenLastCalledWith(null);
-    } finally { h.controller.dispose(); }
-  });
-
   it("closes with the duplicate count when several canvases now use the id", () => {
     const h = movedHarness();
     try {
@@ -1721,254 +1466,58 @@ describe("Activity", () => {
     } finally { h.controller.dispose(); }
   });
 
-  const by = { codex: { kind: "agent" as const, name: "codex" }, kim: { kind: "human" as const, name: "Kim Doe", email: "kim@example.com" } };
-  const comment = (id: string, resolvedBy?: Comment["resolvedBy"], resolvedAt = "2026-10-26T10:00:00.000Z"): Comment => ({ comment: id, target: { frame: "hero" }, status: resolvedBy ? "resolved" : "open", body: "x",
-    canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: by.kim, ...(resolvedBy ? { resolvedBy, resolvedAt } : {}) });
-  const hooks = () => ({ changed: vi.fn(), open: vi.fn(), guard: vi.fn(async () => true), focusFallback: vi.fn() });
 
-  it("groups comments that turned resolved between reads, after a baseline first read", () => {
-    const h = activityHarness();
-    const kinds = () => activityFor(h.state().activity, "/repo", h.row.path, "a").map(event => event.kind);
-    try {
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y"), comment("z"), comment("w")] }, hooks());
-      expect(kinds()).toEqual(["opened"]);
-      h.changed.mockClear();
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex, "2026-10-26T10:01:00.000Z"), comment("z", by.kim, "2026-10-26T10:02:00.000Z"), comment("w")] }, hooks());
-      const [latest] = activityFor(h.state().activity, "/repo", h.row.path, "a");
-      expect(latest).toMatchObject({ kind: "resolved", count: 2, resolvedBy: ["codex", "Kim Doe"] });
-      expect(h.changed).toHaveBeenCalled();
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex), comment("z", by.kim), comment("w", by.kim)] }, hooks());
-      expect(kinds()).toEqual(["resolved", "resolved", "opened"]);
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex), comment("z", by.kim), comment("w", by.kim)] }, hooks());
-      expect(kinds()).toEqual(["resolved", "resolved", "opened"]);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("takes the first read after the canvas opens again as a baseline, and ignores another canvas's comments", () => {
-    const h = activityHarness();
-    const resolved = () => h.state().activity.filter((event: { kind: string }) => event.kind === "resolved");
-    try {
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x")] }, hooks());
-      h.controller.setComments({ root: "/repo", canvas: "b", comments: [comment("x", by.codex)] }, hooks());
-      expect(resolved()).toEqual([]);
-      h.controller.openCanvas("/repo", h.other);
-      h.layout({ href: h.other.url });
-      h.controller.openCanvas("/repo", h.row);
-      h.layout();
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex)] }, hooks());
-      expect(resolved()).toEqual([]);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("keeps the baseline across a reload and a followed move", () => {
-    const h = activityHarness();
-    try {
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x"), comment("y")] }, hooks());
-      h.controller.command("reload");
-      h.layout();
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y")] }, hooks());
-      const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
-      h.controller.updateEntries(h.list(moved, h.other));
-      h.layout({ href: moved.url });
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.kim)] }, hooks());
-      expect(activityFor(h.state().activity, "/repo", moved.path, "a").map(event => [event.kind, event.resolvedBy])).toEqual([
-        ["resolved", ["Kim Doe"]], ["moved", undefined], ["resolved", ["codex"]], ["reloaded", undefined], ["opened", undefined]]);
-    } finally { h.controller.dispose(); }
-  });
-
-  // R-V V-2: the switch itself ends the baseline, whether or not the other canvas's read arrived.
-  it("takes a baseline again after linking to another canvas and back before any read", () => {
-    const h = activityHarness();
-    try {
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x")] }, hooks());
-      h.layout({ href: h.other.url, document: "linked-b" });
-      h.layout({ href: h.row.url, document: "linked-a" });
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex)] }, hooks());
-      expect(h.state().activity.filter((event: { kind: string }) => event.kind === "resolved")).toEqual([]);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("takes a baseline again when the id at the open path changes and changes back before any read", () => {
-    const h = activityHarness();
-    try {
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x")] }, hooks());
-      h.controller.updateEntries(h.list({ ...h.row, id: "c" }, h.other));
-      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.row, h.other] }]);
-      h.layout();
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex)] }, hooks());
-      expect(h.state().activity.filter((event: { kind: string }) => event.kind === "resolved")).toEqual([]);
-    } finally { h.controller.dispose(); }
-  });
 });
 
 describe("Escape and a blank click without a selection (L-17)", () => {
   afterEach(() => vi.unstubAllGlobals());
   const escapeKey = () => Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
+  function waiting(h: ReturnType<typeof selectionHarness>) {
+    const entered = vi.fn();
+    const repo: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] };
+    h.controller.updateEntries([repo, { path: "/added", kind: "loading" }]);
+    h.controller.openWorkspace("/added", entered);
+    return { entered, listed: () => h.controller.updateEntries([repo, { path: "/added", kind: "list", servedRev: 0, canvases: [] }]) };
+  }
 
-  it("neither asks about a draft nor prevents Escape, and still cancels a pending Open", async () => {
+  it("does not prevent Escape, and still cancels a waiting Open", () => {
     const h = selectionHarness();
     try {
-      const allow: ((value: boolean) => void)[] = [];
-      const guard = vi.fn(() => new Promise<boolean>(resolve => allow.push(resolve)));
-      h.controller.setDraftGuard(true);
-      h.controller.setTransitionGuard(guard);
-      h.controller.openCanvas("/repo", h.other);
-      expect(guard).toHaveBeenCalledOnce();
+      const open = waiting(h);
       const event = escapeKey();
       h.host.dispatchEvent(event);
       expect(event.defaultPrevented).toBe(false);
-      expect(guard).toHaveBeenCalledOnce();
-      allow[0]?.(true); await Promise.resolve();
+      open.listed();
+      expect(open.entered).not.toHaveBeenCalled();
       expect(h.state().open.canvas).toBe(h.row.path);
     } finally { h.controller.dispose(); }
   });
 
-  it("skips the guard for an Escape forwarded from the canvas and a blank margin click", () => {
-    const h = selectionHarness();
-    try {
-      const guard = vi.fn(() => false);
-      h.controller.setDraftGuard(true);
-      h.controller.setTransitionGuard(guard);
-      h.receive({ type: "key", seq: 0, key: "Escape" });
-      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
-      expect(guard).not.toHaveBeenCalled();
-      h.select(1);
-      h.receive({ type: "key", seq: 1, key: "Escape" });
-      expect(guard).toHaveBeenLastCalledWith("selection");
-      expect(h.state().selection).not.toBeNull();
-    } finally { h.controller.dispose(); }
-  });
-
-  it("lets a click on the canvas background through without asking when nothing is selected (R-B8)", () => {
-    const h = selectionHarness();
-    try {
-      h.layout({ document: "doc" });
-      const guard = vi.fn(() => false);
-      h.controller.setDraftGuard(true);
-      h.controller.setTransitionGuard(guard);
-      h.current().contentWindow.postMessage.mockClear();
-      h.receive({ type: "transition-intent", document: "doc", intent: 1, kind: "selection", clear: true });
-      expect(guard).not.toHaveBeenCalled();
-      expect(h.current().contentWindow.postMessage.mock.calls.map(call => call[0])).toContainEqual({ type: "transition-answer", document: "doc", intent: 1 });
-      // An element click still asks, and so does a background click once something is selected.
-      h.receive({ type: "transition-intent", document: "doc", intent: 2, kind: "selection" });
-      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
-      h.select(1);
-      h.receive({ type: "transition-intent", document: "doc", intent: 3, kind: "selection", clear: true });
-      expect(guard).toHaveBeenCalledTimes(2);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("still asks before a background click clears a selection the reloaded canvas looks for", () => {
-    const h = selectionHarness();
-    try {
-      h.select(1);
-      h.controller.command("reload");
-      h.layout({ document: "doc2" });
-      expect(h.state().reanchoring).toBe(true);
-      const guard = vi.fn(() => false);
-      h.controller.setDraftGuard(true);
-      h.controller.setTransitionGuard(guard);
-      h.receive({ type: "transition-intent", document: "doc2", intent: 1, kind: "selection", clear: true });
-      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
-    } finally { h.controller.dispose(); }
-  });
-
-  it("still guards Escape while the reloaded canvas looks for the selection", () => {
-    const h = selectionHarness();
-    try {
-      h.select(1);
-      h.controller.command("reload");
-      expect(h.state().reanchoring).toBe(true);
-      const guard = vi.fn(() => false);
-      h.controller.setDraftGuard(true);
-      h.controller.setTransitionGuard(guard);
-      const event = escapeKey();
-      h.host.dispatchEvent(event);
-      expect(event.defaultPrevented).toBe(true);
-      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
-      expect(h.state().reanchoring).toBe(true);
-    } finally { h.controller.dispose(); }
-  });
-});
-
-describe("comment anchors through a reload (T-11, W-9)", () => {
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
-  const status = (h: ReturnType<typeof pinHarness>) => h.changed.mock.lastCall?.[0].status;
-
-  it("is pending while the same canvas reloads and answered once the new document replies", () => {
-    const h = pinHarness();
-    try {
-      expect(status(h)).toBe("answered");
-      h.controller.command("reload");
-      expect(status(h)).toBe("pending");
-      h.layout({ document: "doc2" });
-      expect(status(h)).toBe("pending");
-      // A late answer from the old document does not end the wait.
-      h.reply();
-      expect(status(h)).toBe("pending");
-      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
-      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
-        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
-      expect(status(h)).toBe("answered");
-    } finally { h.controller.dispose(); }
-  });
-
-  it("ends the wait as none when the laid-out document never answers within the measure limit (R-B8)", async () => {
-    vi.useFakeTimers();
-    const h = pinHarness();
-    try {
-      h.controller.command("reload");
-      h.layout({ document: "doc2" });
-      vi.advanceTimersByTime(999);
-      expect(status(h)).toBe("pending");
-      vi.advanceTimersByTime(1);
-      expect(status(h)).toBe("none");
-      expect(h.changed.mock.lastCall?.[0].lookup.nodes.size).toBe(0);
-      expect(h.state().status).toBeNull();
-      // Nothing is left to locate, so the panel shows the target as text instead of a silent no-op.
-      const before = h.current().contentWindow.postMessage.mock.calls.length;
-      await h.controller.activatePin("a");
-      expect(h.current().contentWindow.postMessage.mock.calls.slice(before).map(c => c[0].type)).not.toContain("select-comment");
-      // A late answer still lands.
-      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
-      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
-        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
-      expect(status(h)).toBe("answered");
-    } finally { h.controller.dispose(); }
-  });
-
-  it("keeps an answer that arrived within the measure limit", () => {
-    vi.useFakeTimers();
-    const h = pinHarness();
-    try {
-      h.controller.command("reload");
-      h.layout({ document: "doc2" });
-      vi.advanceTimersByTime(500);
-      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
-      h.receive({ type: "anchors", document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
-        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: [t.id] } })), rects: q.targets.map((t: { id: string }) => ({ node: t.id, x: 10, y: 10, width: 10, height: 10 })) });
-      h.changed.mockClear();
-      vi.advanceTimersByTime(5000);
-      expect(h.changed).not.toHaveBeenCalled();
-    } finally { h.controller.dispose(); }
-  });
-
-  it("ends the wait when the reload fails, the page is unlisted, the width is gone or the id changes", () => {
-    vi.useFakeTimers();
-    const cases: [string, (h: ReturnType<typeof pinHarness>) => void][] = [
-      ["failed", h => { h.controller.command("reload"); vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS); }],
-      ["unlisted", h => { h.current().dispatchEvent(new Event("load")); expect(status(h)).toBe("pending"); vi.advanceTimersByTime(1000); }],
-      ["no width", h => { const { width: _width, ...row } = h.row; h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [row, h.other] }]); }],
-      ["another id", h => { h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, id: "replaced" }, h.other] }]); }],
-    ];
-    for (const [name, end] of cases) {
-      const h = pinHarness();
+  it("an Escape forwarded from the canvas and a blank margin click cancel a waiting Open too", () => {
+    for (const act of [(h: ReturnType<typeof selectionHarness>) => h.receive({ type: "key", seq: 0, key: "Escape" }),
+      (h: ReturnType<typeof selectionHarness>) => h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }))]) {
+      const h = selectionHarness();
       try {
-        end(h);
-        expect([name, status(h)]).toEqual([name, "none"]);
+        const open = waiting(h);
+        act(h);
+        open.listed();
+        expect(open.entered).not.toHaveBeenCalled();
       } finally { h.controller.dispose(); }
     }
+  });
+
+  it("clears a selection the reloaded canvas looks for at once", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      expect(h.state().reanchoring).toBe(true);
+      const event = escapeKey();
+      h.host.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(h.state().reanchoring).toBe(false);
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
   });
 });
 
@@ -1993,353 +1542,6 @@ describe("layout height without animation frames (150 px reload stall)", () => {
       h.layout({ document: "two", viewport: 2600, height: 2600 });
       vi.advanceTimersByTime(1000);
       expect(measures()).toEqual([{ type: "measure" }]);
-    } finally { h.controller.dispose(); }
-  });
-});
-
-// feature revision-recheck task 5: a card's target line goes to its target
-// even when no pin shows it, and Review steps move without selecting (RR3).
-describe("locate and jump to a comment's node", () => {
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
-  const by = { kind: "human" as const, name: "A" };
-  const open: Comment = { comment: "o", status: "open", body: "x", target: { frame: "hero", element: { doanId: "cta", selector: '[data-doan-id="cta"]', html: "<span/>" } }, canvasHash: "h", createdAt: "t", updatedAt: "t", createdBy: by };
-  const resolved: Comment = { ...open, comment: "r", status: "resolved", target: { frame: "intro" } };
-  // Far below the 600 px viewport, so neither has a pin on screen.
-  const far = { x: 40, y: 3000, width: 200, height: 100 };
-  function locateHarness(rects: { node: string; x: number; y: number; width: number; height: number }[] = [{ node: "n1", ...far }, { node: "n2", ...far, y: 4000 }],
-    candidates: Record<string, Record<string, string[]>> = { o: { doanId: ["n1"], selector: ["n1"] }, r: { frame: ["n2"] } }) {
-    const h = selectionHarness(), changed = vi.fn(), open_ = vi.fn(), guard = vi.fn(async () => true);
-    h.layout({ document: "doc" });
-    h.controller.setComments({ root: "/repo", canvas: "a", comments: [open, resolved] }, { changed, open: open_, guard, focusFallback: vi.fn() });
-    const reply = (document = "doc") => {
-      const q = h.current().contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query").at(-1);
-      h.receive({ type: "anchors", document, generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
-        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: candidates[t.id] ?? {} })), rects });
-    };
-    reply();
-    const snapshot = (): AnchorSnapshot => changed.mock.lastCall![0];
-    const posted = () => h.current().contentWindow.postMessage.mock.calls.map(c => c[0]);
-    const viewport = { width: 800, height: 600 };
-    return { ...h, changed, open: open_, guard, reply, snapshot, posted, viewport };
-  }
-
-  it("moves an open comment's target into view without zooming, highlights it and selects it through select-anchor, not the pin path", () => {
-    vi.useFakeTimers();
-    const h = locateHarness();
-    try {
-      const before = h.controller.currentView(), { lookup } = h.snapshot();
-      expect(lookup.nodes.get("o")).toBe("n1");
-      h.current().contentWindow.postMessage.mockClear();
-      h.controller.locate("n1", lookup.generation, open);
-      expect(h.controller.currentView()).toEqual(locateView(far, h.viewport, before));
-      expect(h.controller.currentView().scale).toBe(before.scale);
-      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
-      expect(h.posted()).toEqual([{ type: "select-anchor", seq: 1, doanId: "cta", selector: '[data-doan-id="cta"]' }]);
-      h.select(1, { answer: "select-anchor" });
-      expect(h.state().selection.element.doanId).toBe("cta");
-      expect(h.state().located).toBe(true);
-      expect(h.open).not.toHaveBeenCalled();
-      vi.advanceTimersByTime(1200);
-      expect(h.markOf("jump-highlight")?.hidden).toBe(true);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("locates a resolved comment, which never has a pin, by its frame", () => {
-    const h = locateHarness();
-    try {
-      const before = h.controller.currentView(), { lookup } = h.snapshot();
-      h.current().contentWindow.postMessage.mockClear();
-      h.controller.locate("n2", lookup.generation, resolved);
-      expect(h.controller.currentView()).toEqual(locateView({ ...far, y: 4000 }, h.viewport, before));
-      expect(h.posted()).toEqual([{ type: "select-anchor", seq: 1, frame: "intro" }]);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("goes to the element matched by its selector when its data-doan-id is duplicated", () => {
-    const h = locateHarness([{ node: "n1", ...far }, { node: "n3", ...far, y: 4500 }], { o: { doanId: ["n1", "n3"], selector: ["n3"] } });
-    try {
-      const before = h.controller.currentView(), { lookup } = h.snapshot();
-      expect(lookup.nodes.get("o")).toBe("n3");
-      h.controller.locate("n3", lookup.generation, open);
-      expect(h.controller.currentView()).toEqual(locateView({ ...far, y: 4500 }, h.viewport, before));
-    } finally { h.controller.dispose(); }
-  });
-
-  it("does nothing for a target that is not in the current anchors", () => {
-    const h = locateHarness([{ node: "n1", ...far }], { o: { doanId: ["n1"], selector: ["n1"] } });
-    try {
-      const before = h.controller.currentView(), { lookup } = h.snapshot();
-      h.current().contentWindow.postMessage.mockClear();
-      // The resolved comment's frame was not found, and a node it was never mapped to is not its target.
-      h.controller.locate("n2", lookup.generation, resolved);
-      h.controller.locate("n1", lookup.generation, resolved);
-      expect(h.controller.currentView()).toEqual(before);
-      expect(h.posted()).toEqual([]);
-      expect(h.markOf("jump-highlight")).toBeUndefined();
-    } finally { h.controller.dispose(); }
-  });
-
-  it("does nothing on a canvas without a width", () => {
-    const h = locateHarness();
-    try {
-      const { lookup } = h.snapshot();
-      const { width: _width, ...row } = h.row;
-      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [row, h.other] }]);
-      expect(h.state().status).toBe("noWidth");
-      const before = h.controller.currentView();
-      h.controller.locate("n1", lookup.generation, open);
-      h.controller.jumpToNode("n1", lookup.generation);
-      expect(h.controller.currentView()).toEqual(before);
-    } finally { h.controller.dispose(); }
-  });
-
-  it.each(["reload", "moved"])("drops a locate from the previous document after a %s, also once the new document answers", kind => {
-    const h = locateHarness();
-    try {
-      const { lookup } = h.snapshot();
-      if (kind === "reload") h.controller.command("reload");
-      else h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" }, h.other] }]);
-      const href = kind === "reload" ? h.row.url : "http://localhost/t/k/f/.doan/canvases/flows/a.html";
-      const before = h.controller.currentView();
-      h.controller.locate("n1", lookup.generation, open);
-      expect(h.controller.currentView()).toEqual(before);
-      // Node tokens restart in the new document, so the same token may name another element there.
-      h.layout({ document: "doc2", href });
-      const q = h.posted().filter(c => c.type === "anchors-query").at(-1);
-      h.receive({ type: "anchors", href, document: "doc2", generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
-        results: q.targets.map((t: { id: string }) => ({ id: t.id, candidates: { frame: ["n1"], doanId: ["n1"], selector: ["n1"] } })), rects: [{ node: "n1", ...far, y: 100 }] });
-      h.current().contentWindow.postMessage.mockClear();
-      h.controller.locate("n1", lookup.generation, open);
-      h.controller.jumpToNode("n1", lookup.generation);
-      expect(h.controller.currentView()).toEqual(before);
-      expect(h.posted()).toEqual([]);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("does not select in a new document when the draft guard answers after a reload", async () => {
-    const h = locateHarness();
-    try {
-      let answer: (allowed: boolean) => void = () => {};
-      h.controller.setTransitionGuard(() => new Promise(resolve => { answer = resolve; }));
-      const { lookup } = h.snapshot();
-      h.controller.locate("n1", lookup.generation, open);
-      const old = h.current();
-      h.controller.setTransitionGuard(null);
-      h.controller.command("reload");
-      h.layout({ document: "doc2" });
-      answer(true); await Promise.resolve(); await Promise.resolve();
-      for (const frame of [old, h.current()]) expect(frame.contentWindow.postMessage.mock.calls.some(c => c[0].type === "select-anchor")).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("does not select a target whose comment left the anchors while the draft guard waited", async () => {
-    const h = locateHarness();
-    try {
-      let answer: (allowed: boolean) => void = () => {};
-      h.controller.setTransitionGuard(() => new Promise(resolve => { answer = resolve; }));
-      const { lookup } = h.snapshot();
-      h.controller.locate("n1", lookup.generation, open);
-      // Deleted by an agent meanwhile: the same document answers without it.
-      h.controller.setComments({ root: "/repo", canvas: "a", comments: [resolved] }, { changed: h.changed, open: h.open, guard: h.guard, focusFallback: vi.fn() });
-      h.reply();
-      expect(h.snapshot().lookup.generation).toBe(lookup.generation);
-      answer(true); await Promise.resolve(); await Promise.resolve();
-      expect(h.posted().some(c => c.type === "select-anchor")).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("asks the draft guard before selecting, and keeps the selection when it refuses", () => {
-    const h = locateHarness();
-    try {
-      const guard = vi.fn(() => false);
-      h.controller.setTransitionGuard(guard);
-      const { lookup } = h.snapshot(), before = h.controller.currentView();
-      h.current().contentWindow.postMessage.mockClear();
-      h.controller.locate("n1", lookup.generation, open);
-      expect(guard).toHaveBeenCalledExactlyOnceWith("selection");
-      expect(h.posted().some(c => c.type === "select-anchor")).toBe(false);
-      // Moving the view is not a selection change, like a frame jump.
-      expect(h.controller.currentView()).toEqual(locateView(far, h.viewport, before));
-      // Nothing was sent, so the person's own next pick is not the locate's answer.
-      h.select(1);
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  // R-L L-1/L-2: the scope exemption belongs to the answer of that one
-  // select-anchor, whatever identity it carries, and ends with the request.
-  it("marks only the answer to its own select-anchor as located", () => {
-    const h = locateHarness();
-    try {
-      expect(h.state().located).toBe(false);
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      // The answer may name the target differently from the stored one.
-      h.select(1, { answer: "select-anchor", target: { ...h.target, element: { selector: "section > div > span", html: "<span>x</span>" } } });
-      expect(h.state().located).toBe(true);
-      // The person's next pick raises seq in the canvas.
-      h.select(2);
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  // R-F F-1: a click that reaches the canvas before the command takes its seq,
-  // and the canvas then drops the command as stale.
-  it("does not mark a manual pick that took the locate's seq before the command arrived", () => {
-    const h = locateHarness();
-    try {
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.select(1, { target: { ...h.target, element: { selector: "#other", html: "<div id=other></div>" } } });
-      expect(h.state().selection.element.selector).toBe("#other");
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("marks only an answer to select-anchor, not one to another command at that seq", () => {
-    const h = locateHarness();
-    try {
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.select(1, { answer: "select-comment" });
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("leaves no mark for a later selection when the target is gone at select time", () => {
-    const h = locateHarness();
-    try {
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.receive({ type: "select", seq: 1, target: null, answer: "select-anchor" });
-      expect(h.state().located).toBe(false);
-      h.select(2);
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("ends the locate on a newer command before its answer", () => {
-    const h = locateHarness();
-    try {
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
-      // Both answers carry the canvas's mark, as the real canvas sends them:
-      // only the seq tells the selectPath answer from the locate's (R-L3 ⚪ L3-1).
-      h.select(1, { answer: "select-anchor" });
-      h.select(2, { answer: "select-anchor" });
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("ends the locate and its mark with the document, though seq restarts in the next one", () => {
-    const h = locateHarness();
-    try {
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.controller.command("reload");
-      h.layout({ document: "doc2" });
-      // Seq 1 again, now from the person in the new document.
-      h.select(1);
-      expect(h.state().located).toBe(false);
-      h.reply("doc2");
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.select(2, { answer: "select-anchor" });
-      expect(h.state().located).toBe(true);
-      h.controller.command("reload");
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("ends the locate when the canvas navigates to another document on its own", () => {
-    const h = locateHarness();
-    try {
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      const href = "http://localhost/t/k/f/.doan/canvases/c.html";
-      h.layout({ document: "doc2", href });
-      h.select(1, { href });
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("drops the mark with a cleared selection", () => {
-    const h = locateHarness();
-    try {
-      h.controller.locate("n1", h.snapshot().lookup.generation, open);
-      h.select(1, { answer: "select-anchor" });
-      expect(h.state().located).toBe(true);
-      h.receive({ type: "clear", seq: 2 });
-      expect(h.state().located).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-
-  it("jumps to a node without a guard, selection command or main selection update (RR3)", () => {
-    const h = locateHarness();
-    try {
-      h.select(1);
-      const selected = h.state().selection, guard = vi.fn(() => false);
-      h.controller.setTransitionGuard(guard);
-      h.send.mockClear(); h.current().contentWindow.postMessage.mockClear();
-      const before = h.controller.currentView(), { lookup } = h.snapshot();
-      expect(h.controller.jumpToNode("n2", lookup.generation)).toBe(true);
-      expect(h.controller.currentView()).toEqual(locateView({ ...far, y: 4000 }, h.viewport, before));
-      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
-      expect(guard).not.toHaveBeenCalled();
-      expect(h.posted()).toEqual([]);
-      expect(h.send).not.toHaveBeenCalled();
-      expect(h.state().selection).toEqual(selected);
-      expect(h.controller.jumpToNode("missing", lookup.generation)).toBe(false);
-    } finally { h.controller.dispose(); }
-  });
-});
-
-describe("an Escape handler set by the panel (revision-recheck Review)", () => {
-  afterEach(() => vi.unstubAllGlobals());
-  const escapeKey = () => Object.assign(new Event("keydown", { cancelable: true }), { key: "Escape" });
-
-  it("takes the app's Escape and the canvas's forwarded Escape before the selection, and lets both through when it declines", () => {
-    const h = selectionHarness();
-    try {
-      let reviewing = true;
-      const handler = vi.fn(() => reviewing);
-      h.controller.setEscapeHandler(handler);
-      h.select(1);
-      const event = escapeKey();
-      h.host.dispatchEvent(event);
-      expect(handler).toHaveBeenCalledOnce();
-      expect(event.defaultPrevented).toBe(true);
-      expect(h.state().selection).not.toBeNull();
-      h.receive({ type: "key", seq: 1, key: "Escape" });
-      expect(handler).toHaveBeenCalledTimes(2);
-      expect(h.state().selection).not.toBeNull();
-      reviewing = false;
-      h.host.dispatchEvent(escapeKey());
-      expect(handler).toHaveBeenCalledTimes(3);
-      expect(h.state().selection).toBeNull();
-    } finally { h.controller.dispose(); }
-  });
-
-  // Code review 🟡2: only an Escape closes Review; a click on the margin still clears the selection.
-  it("is not asked for a click on the blank margin", () => {
-    const h = selectionHarness();
-    try {
-      const handler = vi.fn(() => true);
-      h.controller.setEscapeHandler(handler);
-      h.select(1);
-      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
-      expect(handler).not.toHaveBeenCalled();
-      expect(h.state().selection).toBeNull();
-    } finally { h.controller.dispose(); }
-  });
-
-  it("is not asked for an Escape typed into a text field, and is removed with null", () => {
-    const h = selectionHarness();
-    try {
-      const handler = vi.fn(() => true);
-      h.controller.setEscapeHandler(handler);
-      const typed = escapeKey();
-      Object.defineProperty(typed, "target", { value: { tagName: "TEXTAREA", isContentEditable: false } });
-      h.host.dispatchEvent(typed);
-      expect(handler).not.toHaveBeenCalled();
-      h.controller.setEscapeHandler(null);
-      h.select(1);
-      h.host.dispatchEvent(escapeKey());
-      expect(handler).not.toHaveBeenCalled();
-      expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
 });
@@ -2399,20 +1601,12 @@ describe("id change", () => {
 describe("feedback navigation callbacks", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("tells `opened` once the guarded open ran, and not when the guard refuses", async () => {
+  it("tells `opened` once the open ran, and at once when the canvas is already shown", () => {
     const h = selectionHarness();
     try {
-      const opened = vi.fn();
-      h.controller.setTransitionGuard(() => false);
+      const opened = vi.fn(() => expect(h.state().open?.canvas).toBe(".doan/canvases/b.html"));
       h.controller.openCanvas("/repo", h.other, undefined, { opened });
-      expect(opened).not.toHaveBeenCalled();
-      let allow: (value: boolean) => void = () => {};
-      h.controller.setTransitionGuard(() => new Promise(resolve => { allow = resolve; }));
-      h.controller.openCanvas("/repo", h.other, undefined, { opened });
-      expect(opened).not.toHaveBeenCalled();
-      allow(true); await Promise.resolve(); await Promise.resolve();
       expect(opened).toHaveBeenCalledTimes(1);
-      expect(h.state().open?.canvas).toBe(".doan/canvases/b.html");
       // Already shown: no transition, told at once.
       h.controller.openCanvas("/repo", h.other, undefined, { opened });
       expect(opened).toHaveBeenCalledTimes(2);
@@ -2422,30 +1616,21 @@ describe("feedback navigation callbacks", () => {
   it("tells `shown` once the Overview is shown, at once when it already is", () => {
     const h = selectionHarness();
     try {
-      const shown = vi.fn();
-      h.controller.setTransitionGuard(() => false);
-      h.controller.showOverview(shown);
-      expect(shown).not.toHaveBeenCalled();
-      h.controller.setTransitionGuard(null);
+      const shown = vi.fn(() => expect(h.state().open).toBeNull());
       h.controller.showOverview(shown);
       expect(shown).toHaveBeenCalledTimes(1);
-      expect(h.state().open).toBeNull();
       h.controller.showOverview(shown);
       expect(shown).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
   });
 });
 
-it("opens an explicit Overview in one guarded workspace transition", async () => {
+it("opens an explicit Overview in one workspace transition", () => {
   const { controller, row, changed } = loadedController();
   try {
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [row] }]);
     controller.remember("/other", { canvas: row.path, view: { x: 1, y: 2, scale: 1 } });
     const entered = vi.fn();
-    controller.setTransitionGuard(() => false);
-    controller.openWorkspace("/other", entered, false, undefined, true);
-    expect(entered).not.toHaveBeenCalled();
-    controller.setTransitionGuard(() => true);
     controller.openWorkspace("/other", entered, false, undefined, true);
     expect(entered).toHaveBeenCalledOnce();
     expect(changed.mock.calls.at(-1)?.[0].open).toBeNull();
@@ -2457,10 +1642,7 @@ it("remembers the source view when an explicit canvas opens in another workspace
   try {
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [row] }]);
     const view = controller.currentView();
-    controller.setTransitionGuard(() => false);
-    controller.openCanvas("/other", row);
     expect(controller.memory()["/repo"]).toBeUndefined();
-    controller.setTransitionGuard(() => true);
     controller.openCanvas("/other", row);
     expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
   } finally { controller.dispose(); }
@@ -2492,7 +1674,7 @@ it("repicking the current Overview cancels an older waiting worktree selection",
   } finally { controller.dispose(); }
 });
 
-it("remembers the approved same-workspace Overview source and restores it after another workspace", () => {
+it("remembers the same-workspace Overview source and restores it after another workspace", () => {
   const { controller, row } = loadedController();
   try {
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }, { path: "/other", kind: "list", servedRev: 0, canvases: [] }]);
@@ -2501,11 +1683,8 @@ it("remembers the approved same-workspace Overview source and restores it after 
     controller.wheel({ dx: 25, dy: 40, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
     controller.wheel({ dx: 0, dy: -20, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
     const view = controller.currentView();
-    controller.setTransitionGuard(() => false);
-    controller.showOverview();
     expect(controller.memory()["/repo"]).toEqual(previous);
     expect(controller.destination("/repo")).toEqual({ root: "/repo", canvas: row.path });
-    controller.setTransitionGuard(() => true);
     controller.showOverview();
     expect(controller.memory()["/repo"]).toEqual({ canvas: row.path, view });
     controller.openWorkspace("/other", () => {});
@@ -2532,21 +1711,17 @@ it("reports a completed listed iframe link once, excluding reloads and unlisted 
   } finally { h.controller.dispose(); }
 });
 
-// buzz-add-projects (review-BP 🟡1): a Quick Open pick from the Add Projects page goes through openCanvas, which asks
-// the draft guard for another canvas of the same root and lets only the canvas already open through.
-it("asks the draft guard for another canvas of the open root, but not for the open canvas itself", () => {
+it("opens another canvas of the open root at once, and only tells `opened` for the open canvas itself", () => {
   const h = selectionHarness();
   try {
-    const guard = vi.fn(() => false);
-    h.controller.setDraftGuard(true);
-    h.controller.setTransitionGuard(guard);
     const opened = vi.fn();
     h.controller.openCanvas("/repo", h.row, undefined, { opened });
-    expect(guard).not.toHaveBeenCalled();
     expect(opened).toHaveBeenCalledOnce();
+    expect(h.frames).toHaveLength(1);
     h.controller.openCanvas("/repo", h.other, undefined, { opened });
-    expect(guard).toHaveBeenCalledOnce();
-    expect(opened).toHaveBeenCalledOnce();
+    expect(opened).toHaveBeenCalledTimes(2);
+    expect(h.frames).toHaveLength(2);
+    expect(h.state().open.canvas).toBe(h.other.path);
   } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
 });
 

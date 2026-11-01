@@ -354,8 +354,9 @@ describe("parseCanvasMessage: select", () => {
   test("keeps the command a selection answers, and drops a message naming any other", () => {
     expect(parseCanvasMessage(select())).not.toHaveProperty("answer");
     expect(parseCanvasMessage(select({ answer: "select-anchor" }))).toHaveProperty("answer", "select-anchor");
-    expect(parseCanvasMessage(select({ answer: "select-comment", target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null, answer: "select-comment" });
-    for (const answer of ["pick-frame", "clear", "", 1, null, true]) expect(parseCanvasMessage(select({ answer }))).toBeNull();
+    expect(parseCanvasMessage(select({ answer: "select-anchor", target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null, answer: "select-anchor" });
+    // The pin answer went with the app's comment pins.
+    for (const answer of ["select-comment", "pick-frame", "clear", "", 1, null, true]) expect(parseCanvasMessage(select({ answer }))).toBeNull();
     expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 3, viewport: 150, answer: "select-anchor" })).toEqual({ type: "clear", href: HREF, seq: 3, viewport: 150 });
   });
 
@@ -459,19 +460,7 @@ test("validates Alt state messages separately from Escape", () => {
   }
 });
 
-describe("parseCanvasMessage: transition-intent", () => {
-  const intent = (over: Record<string, unknown> = {}) => ({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection", ...over });
-  test("keeps the kind that separates a selection from a link", () => {
-    expect(parseCanvasMessage(intent())).toEqual(intent());
-    expect(parseCanvasMessage(intent({ kind: "navigation" }))).toHaveProperty("kind", "navigation");
-  });
-  test("keeps the flag of a click that only clears the selection", () => {
-    expect(parseCanvasMessage(intent({ clear: true }))).toEqual(intent({ clear: true }));
-  });
-  test.each([false, "true", 1])("rejects clear %j", clear => {
-    expect(parseCanvasMessage(intent({ clear }))).toBeNull();
-  });
-  test.each([undefined, "other", 1])("rejects kind %j", kind => {
-    expect(parseCanvasMessage(intent({ kind }))).toBeNull();
-  });
+// The draft guard's transition request went with the app's comment drafts.
+test("drops a transition-intent message", () => {
+  expect(parseCanvasMessage({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection" })).toBeNull();
 });

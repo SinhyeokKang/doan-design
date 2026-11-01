@@ -26,11 +26,7 @@ import { onboardingComplete, readCompletion, writeCompletion } from "./onboardin
 import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
-import { createCommentsService } from "./comments/service";
-import { readCommentBytes, withCommentAppend } from "./comments/files";
-import { readAuthor } from "./comments/author";
-import { DocumentBindings, stableDiskHash } from "./comments/document";
-import { createTransitionGuard } from "./comments/transitions";
+import { DocumentBindings } from "./comments/document";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell as electronShell, systemPreferences, webFrameMain, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
@@ -56,9 +52,6 @@ import { createInspector, parseInspectRequest, type Inspector } from "./inspecto
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
 import { removalLabel } from "./removal";
-import { createReviewStore, parseReviewRaise, parseReviewRead } from "./reviewState";
-import { readFoldersFileForPruning } from "./folderStore";
-import type { ReviewMarker } from "../comments/review";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
@@ -78,13 +71,12 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "nextResolved" | "previousResolved" | "newConversation";
+export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "newConversation";
 // What the renderer reports so main can enable menu items (design 'Menus').
-// `reviewing`: a Review runs on the open canvas (revision-recheck); absent is false.
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; reviewing?: boolean; choose?: boolean; locked?: boolean; overview?: boolean }
-export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "cancelled" } | { kind: "unavailable" };
+export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; choose?: boolean; locked?: boolean; overview?: boolean }
+export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "unavailable" };
 export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
@@ -125,16 +117,6 @@ let inspector: Inspector | undefined;
 // its own project. Memory only, never written to disk.
 let selection: Selection | null = null;
 const documents = new DocumentBindings();
-const transitionGuard = createTransitionGuard(request => {
-  if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) {
-    if (request.kind === "quit") {
-      if (appHidden) app.show();
-      showWindow(win);
-      win.focus();
-    }
-    win.webContents.send("comments:transition", request);
-  }
-});
 // First run is open from a launch without a completion record (P's v1 marker; the legacy `{}` is not one) until the
 // session reports completion. Settings and the menu wait for it, as they waited for the old wizard.
 let onboardingOpen = false;
@@ -239,7 +221,7 @@ function injectCanvasScript(window: BrowserWindow): void {
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, reviewing: menuInputs.reviewing === true, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true });
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true });
   const undo: MenuItemConstructorOptions = enabled.undoRemove
     ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
     : { role: "undo" };
@@ -293,11 +275,6 @@ function setMenu(): void {
       { label: "Go", submenu: [
         { label: "Home", accelerator: "Shift+CmdOrCtrl+H", enabled: enabled.home, click: command("home") },
         { label: "Quick Open…", accelerator: "CmdOrCtrl+K", enabled: enabled.quickOpen, click: command("quickOpen") },
-        { type: "separator" },
-        // ⌘] and ⌘[ are not text-editing keys, so they can stay bound while a
-        // field has focus; they are enabled only during a Review.
-        { label: "Next Resolved Comment", accelerator: "CmdOrCtrl+]", enabled: enabled.resolvedNav, click: command("nextResolved") },
-        { label: "Previous Resolved Comment", accelerator: "CmdOrCtrl+[", enabled: enabled.resolvedNav, click: command("previousResolved") },
       ] },
       { role: "windowMenu" },
     ]),
@@ -308,13 +285,13 @@ function setMenu(): void {
 const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
-  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast && next.reviewing === menuInputs.reviewing &&
+  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast &&
     next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["reviewing", "choose", "locked", "overview"] as const;
+const MENU_FLAGS = ["choose", "locked", "overview"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);
@@ -366,8 +343,8 @@ function createWindow(): BrowserWindow {
   // A reloaded or crashed renderer has lost the selection it reported; an
   // in-page navigation is not a new document, so it does not count.
   // A new renderer starts on Home again with no toast up.
-  window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
-  window.webContents.on("did-navigate", () => { selection = null; documents.clear(); transitionGuard.reset(); setMenuInputs(HOME); });
+  window.webContents.on("render-process-gone", () => { selection = null; documents.clear(); setMenuInputs(HOME); });
+  window.webContents.on("did-navigate", () => { selection = null; documents.clear(); setMenuInputs(HOME); });
   // Only the renderer showed and could cancel the Add Projects page's clone. First run's may belong to the CLI, so
   // it keeps running.
   window.webContents.on("render-process-gone", () => addPage?.rendererGone());
@@ -483,11 +460,7 @@ async function start(): Promise<void> {
   const userData = app.getPath("userData");
   // folderStore writes beside folders.json but does not create the directory.
   await mkdir(userData, { recursive: true });
-  const invalidate = (root: string) => {
-    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("comments:invalidated", { root });
-  };
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
-  const savedRoots = await readFoldersFileForPruning(join(userData, "folders.json"));
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     const refreshes = folderRefreshes(conversationLists, entries);
     conversationLists = refreshes.next;
@@ -499,7 +472,7 @@ async function start(): Promise<void> {
     }
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
-  }, { response: record => documents.response(record), invalidate });
+  }, { response: record => documents.response(record) });
   shell = ready;
   // The capture window is made on the first capture and stays out of the
   // app window's lifecycle: `win` alone is shown, closed and trusted for IPC.
@@ -516,41 +489,6 @@ async function start(): Promise<void> {
   // Starts the once-per-launch cache cleanup even when no folder update follows.
   thumbs.entriesChanged(ready.entries());
   const cli = cliCommand(process.env, app.isPackaged, process.resourcesPath);
-  const comments = createCommentsService({
-    authorize: identity => ready.authorizeComments(identity),
-    epoch: root => ready.epoch(root),
-    currentHash: identity => stableDiskHash(identity.root, identity.path),
-    author: readAuthor, read: readCommentBytes, append: withCommentAppend,
-    async document(identity, scope, url) {
-      if (!inspector) throw new Error("Canvas document is unavailable.");
-      const target: import("../formats/types").Target = {};
-      if (scope === "selection") {
-        if (!selection || selection.root !== identity.root || selection.canvas.path !== identity.path || selection.canvas.id !== identity.canvas || (!selection.frame && !selection.element)) throw new Error("No matching selection.");
-        if (selection.frame) target.frame = selection.frame.id;
-        if (selection.element) target.element = selection.element;
-      }
-      return inspector.commentDocument(identity, url, target);
-    },
-    async validateDocument(identity, origin, url) {
-      if (!inspector || !await inspector.documentCurrent(identity, url, origin)) return false;
-      if (await stableDiskHash(identity.root, identity.path) !== origin.hash) return false;
-      return inspector.documentCurrent(identity, url, origin);
-    },
-    clipboard: value => clipboard.writeText(value), invalidated: invalidate,
-  });
-  const commentMethods = { list: "list", begin: "begin", mutate: "mutate", status: "status", author: "author", copy: "copy" } as const;
-  for (const [method, channel] of Object.entries(commentMethods) as [keyof typeof commentMethods, string][]) {
-    handle(`comments:${channel}`, { ok: false, identity: null, error: "The request was refused." }, (event, value: unknown) => {
-      if (!fromWindow(event)) return { ok: false, identity: null, error: "The request was refused." };
-      return comments[method](String(event.sender.id), value);
-    });
-  }
-  handle("comments:guard", undefined, (event, value: unknown) => {
-    if (fromWindow(event) && typeof value === "boolean") transitionGuard.set(value);
-  });
-  handle("comments:transition-answer", undefined, (event, value: unknown) => {
-    if (fromWindow(event)) transitionGuard.answer(value);
-  });
   // Read-only preset lookups through the bundled CLI: the page names an id, never a command or argument.
   handle(DESIGN_SKILL_CHANNELS.list, DESIGN_SKILL_REFUSED, async (_event, value: unknown) =>
     value === undefined ? interpretList(await runDesignSkill(cli)) : DESIGN_SKILL_REFUSED);
@@ -769,22 +707,13 @@ async function start(): Promise<void> {
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
-  const storedRoot = (root: string) => ready.entries().some(entry => entry.path === root);
-  const reviews = createReviewStore(join(userData, "review-state.json"), () => savedRoots);
   const flow = createAddFlow({
     ls: async target => folderState(await runLs(cli, target)),
     saved: () => ready.entries().map((entry) => entry.path),
     store: (paths) => ready.store(paths),
   });
   addFlow = flow;
-  // Review markers outlive a removal while Undo can bring the project back;
-  // a root stored again meanwhile keeps them.
-  const removedForGood = (paths: readonly string[]) => {
-    const gone = paths.filter(path => !ready.entries().some(entry => entry.path === path));
-    if (gone.length > 0) reviews.forget(gone);
-  };
-  // A row or a whole card. The draft guard asks once when a draft is open; the
-  // renderer knows whether the draft belongs to one of these roots.
+  // A row or a whole card.
   handle("folders:remove", { kind: "unavailable" }, (event, value: unknown): Promise<RemoveResult> | RemoveResult => {
     if (!fromWindow(event) || typeof value !== "object" || value === null || Object.keys(value).length !== 1 || !("paths" in value)) return { kind: "unavailable" };
     const paths: unknown = value.paths;
@@ -792,26 +721,22 @@ async function start(): Promise<void> {
     if (!Array.isArray(paths) || paths.length === 0 || new Set(paths).size !== paths.length ||
       !paths.every((path) => stored.some((entry) => entry.path === path))) return { kind: "unavailable" };
     const roots = paths.map(String);
+    const before = ready.entries();
+    const entries = before.filter((entry) => roots.includes(entry.path));
+    const label = removalLabel(entries);
+    if (selection && roots.includes(selection.root)) selection = null;
+    // The list changes before folders.json is written: the old Undo goes
+    // now, not when the write ends.
+    const generation = ++removals;
+    removal = null;
     return new Promise((resolve) => {
-      transitionGuard.request({ kind: "remove-projects", roots }, () => {
-        const before = ready.entries();
-        const entries = before.filter((entry) => roots.includes(entry.path));
-        const label = removalLabel(entries);
-        if (selection && roots.includes(selection.root)) selection = null;
-        // The list changes before folders.json is written: the old Undo goes
-        // now, not when the write ends.
-        const generation = ++removals;
-        if (removal !== null) removedForGood(removal.paths);
-        removal = null;
-        void ready.remove(roots).then((removed) => {
-          if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
-          void thumbs.removed(removed.paths, before);
-          const id = randomUUID();
-          if (generation === removals) removal = { id, ...removed };
-          else removedForGood(removed.paths);
-          resolve({ kind: "removed", removalId: id, label });
-        });
-      }, () => resolve({ kind: "cancelled" }));
+      void ready.remove(roots).then((removed) => {
+        if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
+        void thumbs.removed(removed.paths, before);
+        const id = randomUUID();
+        if (generation === removals) removal = { id, ...removed };
+        resolve({ kind: "removed", removalId: id, label });
+      });
     });
   });
   const removalId = (value: unknown): string | null => typeof value === "object" && value !== null && Object.keys(value).length === 1 &&
@@ -825,7 +750,7 @@ async function start(): Promise<void> {
   });
   // The toast expired: Undo is gone, so is what it needed.
   handle("folders:forget-removal", undefined, (event, value: unknown) => {
-    if (fromWindow(event) && removal !== null && removalId(value) === removal.id) { removedForGood(removal.paths); removal = null; }
+    if (fromWindow(event) && removal !== null && removalId(value) === removal.id) removal = null;
   });
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);
@@ -866,15 +791,6 @@ async function start(): Promise<void> {
   handle("notifications:open-settings", false, async (_event, value: unknown) => {
     if (value !== undefined) return false;
     try { await electronShell.openExternal(NOTIFICATION_SETTINGS_URL); return true; } catch { return false; }
-  });
-  // revision-recheck: the renderer reads markers and may only ask for raises.
-  handle("review-state:get", null, (event, value: unknown): ReviewMarker | null => {
-    const request = parseReviewRead(value);
-    return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.marker(request.root, request.canvas) : null;
-  });
-  handle("review-state:raise", null, (event, value: unknown): ReviewMarker | null => {
-    const request = parseReviewRaise(value);
-    return fromWindow(event) && request !== null && storedRoot(request.root) ? reviews.raise(request.root, request.canvas, request.at) : null;
   });
   // A saved root and a listed canvas only; main reads the bytes from its cache.
   handle("thumbnails:get", { kind: "unavailable" }, (event, value: unknown): Promise<ThumbnailReply> | ThumbnailReply => {
@@ -988,32 +904,30 @@ app.on("before-quit", (event) => {
   if (quitting) return;
   event.preventDefault();
   if (quitScheduled) return;
-  transitionGuard.request({ kind: "quit" }, () => {
-    // An inspector quit can interrupt a BrowserWindow constructor before its
-    // JS wrapper exists. Electron then crashes trying to emit its close event.
-    // Let the native stack unwind before either disposal or app.quit().
-    quitScheduled = true;
-    // Accepted: onboarding saves no completion, and neither it nor the Add Projects page starts project work from here,
-    // before any teardown is awaited.
-    onboarding?.closeForQuit();
-    addPage?.closeForQuit();
-    setImmediate(async () => {
-      // Stop the queue before Electron closes windows so it cannot reopen
-      // the capture window and block will-quit. Persist state before teardown.
-      try { await conversations?.quit(); } catch (error) {
-        quitScheduled = false;
-        onboarding?.reopenAfterAbortedQuit();
-        addPage?.reopenAfterAbortedQuit();
-        console.error("doan: conversation persistence failed during quit", error);
-        return;
-      }
-      // After conversations: their runs hold auth leases whose working credentials are written back here.
-      await agentAuth?.quit();
-      // Each adder owns only its clones; stopping them removes their temporary directories.
-      await Promise.all([onboarding?.quit(), addPage?.quit()]);
-      quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
-      app.quit();
-    });
+  // An inspector quit can interrupt a BrowserWindow constructor before its
+  // JS wrapper exists. Electron then crashes trying to emit its close event.
+  // Let the native stack unwind before either disposal or app.quit().
+  quitScheduled = true;
+  // Accepted: onboarding saves no completion, and neither it nor the Add Projects page starts project work from here,
+  // before any teardown is awaited.
+  onboarding?.closeForQuit();
+  addPage?.closeForQuit();
+  setImmediate(async () => {
+    // Stop the queue before Electron closes windows so it cannot reopen
+    // the capture window and block will-quit. Persist state before teardown.
+    try { await conversations?.quit(); } catch (error) {
+      quitScheduled = false;
+      onboarding?.reopenAfterAbortedQuit();
+      addPage?.reopenAfterAbortedQuit();
+      console.error("doan: conversation persistence failed during quit", error);
+      return;
+    }
+    // After conversations: their runs hold auth leases whose working credentials are written back here.
+    await agentAuth?.quit();
+    // Each adder owns only its clones; stopping them removes their temporary directories.
+    await Promise.all([onboarding?.quit(), addPage?.quit()]);
+    quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
+    app.quit();
   });
 });
 app.on("activate", () => {

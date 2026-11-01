@@ -66,7 +66,7 @@ code, kbd { font-family: var(--type-family); }
 .area { position: relative; overflow: hidden; background: var(--surface-inset); }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board iframe { display: block; border: 0; }
-/* Keep pin focus ordering inside the overlay, below canvas chrome. */
+/* Keep the overlay's marks below canvas chrome. */
 .overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
@@ -119,135 +119,13 @@ code, kbd { font-family: var(--type-family); }
 /* Short attribute labels stay fully readable at the fixed panel width. */
 .doan-attributes .prop { overflow: visible; text-overflow: clip; }
 
-/* Presentation values from .doan/canvases/comments-ui.html; integration owns the panel split. */
-/* Size containment lets a short panel shrink the input by its own height, not the window's. */
-.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--surface-panel); overflow-wrap: anywhere; container-type: size; }
-.comments-head { padding: 12px; border-bottom: 1px solid var(--border-standard); }
-/* A direct child of the scrolling panel: a sticky title inside .comments-head would leave with the head. */
-.comments-title { position: sticky; top: 0; z-index: 1; background: var(--surface-panel); font-size: 12px; font-weight: 700; padding: 12px 12px 10px; }
-.comments-title:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-.comments-title + .comments-head { padding-top: 0; }
-.comments-title.alone { padding-bottom: 12px; border-bottom: 1px solid var(--border-standard); }
-.comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border-standard); border-radius: 7px; margin-bottom: 8px; }
-.comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-metadata); }
-.comments-segment button[aria-pressed=true] { color: var(--text-standard); background: var(--surface-navigation-selected); }
 /* These buttons set a colour at the same specificity as button:disabled and come later, so they restate disabled. */
-:is(.ancestors, .comments-segment, .comments-status) button:disabled { color: var(--text-disabled); }
-/* A dialog action row takes its spacing from the dialog frame instead. */
-.comments-tools:not(.doan-dialog-actions) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-/* A label longer than the narrow panel stays inside it. */
-.comments-btn { max-width: 100%; }
-/* Saving a comment is the one button that carries the accent. */
-.comments-btn.primary.submit { background: var(--affordance-accent); color: var(--text-on-accent); }
-@media (hover: hover) and (pointer: fine) {
-  .comments-btn.primary.submit:hover:not(:disabled) { background: var(--affordance-accent-hover); }
-}
-.comments-btn.primary.submit:active:not(:disabled) { background: var(--affordance-accent-pressed); }
-.comments-btn.primary.submit:disabled { background: var(--affordance-disabled); color: var(--text-disabled); }
-.comments-card { padding: 12px; border-bottom: 1px solid var(--border-standard); }
-.comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
-.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--surface-inset); color: var(--text-subtle); display: grid; place-items: center; font-size: 10px; font-weight: var(--type-weight-semibold); }
-.comments-by { min-width: 0; flex: 1; }
-.comments-by b { display: block; font-size: 11.5px; font-weight: var(--type-weight-semibold); overflow-wrap: anywhere; }
-.comments-by time, .comments-email { display: block; font-size: 10px; color: var(--text-metadata); line-height: 1.5; overflow-wrap: anywhere; }
-.comments-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 8px 0 10px; }
-/* One line with an ellipsis; the full selector is in title. */
-.comments-target { display: block; max-width: 100%; color: var(--text-subtle); font-size: 10.5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; text-align: left; }
-/* Only a locatable target is a button; the unlocatable twin is a span, so the button:disabled colour never reaches it. */
-.comments-target.locatable { color: var(--text-link); width: 100%; text-decoration: underline; text-underline-offset: 2px; }
-.comments-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
-.comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--border-standard); border-radius: 4px; color: var(--text-metadata); }
-.comments-badge.open { color: var(--text-standard); font-weight: var(--type-weight-medium); }
-.comments-badge.warning { color: var(--text-warning); }
-.comments-badge.resolved { color: var(--text-success); }
-.comments-badge-note { font-size: 10px; line-height: 1.5; color: var(--text-metadata); padding: 2px 0; }
-/* Values from .doan/canvases/revision-recheck.html (resolution-meta, status-lines). */
-.comments-resolution { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 6px 0 0; overflow-wrap: anywhere; }
-.comments-resolution b { font-weight: 500; color: var(--text-subtle); }
-.comments-status { padding: 10px 12px; border-bottom: 1px solid var(--border-standard); font-size: 11.5px; line-height: 1.6; color: var(--text-subtle); }
-/* Values from .doan/canvases/revision-recheck.html (status-lines Show, missing-target). */
-.comments-status button { border: 0; background: transparent; color: var(--text-link); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; margin-left: 4px; }
-.comments-tools.instead { margin-top: 6px; }
-.comments-btn.danger { color: var(--text-danger); }
-.comments-message { padding: 12px; font-size: 11.5px; line-height: 1.6; color: var(--text-subtle); border-bottom: 1px solid var(--border-standard); overflow-wrap: anywhere; }
-.comments-message b { display: block; color: var(--text-standard); margin-bottom: 4px; font-size: 12px; }
-/* A failure the panel can recover from is a status block; its icon, not colour alone, names the kind. */
-.comments-message:is(.error, .warning):not(.notice) { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); margin: var(--space-3); padding: var(--space-6) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); text-align: center; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.comments-message:is(.error, .warning):not(.notice) b { margin: 0; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
-.comments-message:is(.error, .warning):not(.notice) .comments-tools { justify-content: center; gap: var(--space-2); margin-top: 0; }
-.comments-message.error > .doan-alert-icon { color: var(--text-danger); }
-.comments-message.warning > .doan-alert-icon { color: var(--text-warning); }
-.comments-message > .doan-alert-icon { margin: 0; }
-/* The id-change notice is one line in the panel head, so its icon stays inline with the text. */
-.comments-message.notice > .doan-alert-icon { display: inline-block; vertical-align: -3px; margin-right: var(--space-1h); color: var(--text-warning); }
-.comments-message .comments-tools { margin-top: 10px; }
-.comments-message .detail { padding: var(--space-2) var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); text-align: start; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* The ignored-change list reads as a list, not as part of the centred block. */
-.comments-warnings ul { align-self: stretch; text-align: start; }
-.comments-warnings li { margin-top: 6px; }
-.comments-warnings .lines { display: block; color: var(--text-metadata); font-size: 10.5px; }
-.comments-warnings .file { margin-top: 8px; color: var(--text-metadata); }
-.comments-composer { padding: 12px; border-bottom: 1px solid var(--border-standard); }
-.comments-composer label { display: block; font-size: 11.5px; margin: 0 0 8px; }
-.comments-composer label > .comments-target { margin-top: 8px; }
-.comments-composer textarea { display: block; min-height: 104px; resize: none; margin: 8px 0; }
-@container (max-height: 359px) { .comments-composer textarea { min-height: 64px; } }
-.comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 8px 0; overflow-wrap: anywhere; }
-/* Dialog paragraphs read as the dialog description; the frame spaces them. */
-.comments-dialog p:not(.doan-notice) { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* Values from .doan/canvases/agent-handoff.html (dialog, dialog-states, copy-states). The list
-   shrinks first and the preview has its own cap; in a window too short for both, the
-   dialog itself scrolls so Cancel and Copy stay reachable. */
-.handoff-dialog { overflow: auto; }
-/* Copy moves focus here while its button is disabled; the dialog itself is not a control. */
-.handoff-dialog:focus { outline: none; }
-.handoff-dialog .handoff-context { font-size: 11.5px; color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-quick { display: flex; gap: 6px; }
-.handoff-list { position: relative; flex: 0 1 auto; min-height: 44px; max-height: 352px; border: 1px solid var(--border-standard); border-radius: 7px; background: var(--surface-panel); }
-.handoff-row { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px; border-bottom: 1px solid var(--border-standard); cursor: pointer; }
-.handoff-row:last-child { border-bottom: 0; }
-.handoff-row input { flex: none; }
-.handoff-row input:disabled + .handoff-text > * { color: var(--text-metadata); }
-.handoff-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.handoff-target { color: var(--text-subtle); font-size: 10.5px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-body { color: var(--text-standard); font-size: 12px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-instruction { font-size: 11.5px; color: var(--text-subtle); }
-.handoff-instruction summary { cursor: pointer; width: max-content; }
-.handoff-instruction summary:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
-.handoff-preview { margin-top: 8px; max-height: 160px; overflow: auto; padding: 10px; border: 1px solid var(--border-standard); border-radius: 6px; background: var(--surface-panel); color: var(--text-subtle); font: 11.5px/1.6 var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
-.handoff-actions { flex: none; }
-.handoff-actions .comments-helper { flex: 1; margin: 0; }
-.handoff-summary { font-size: 10.5px; color: var(--text-metadata); white-space: nowrap; }
-/* Values from .doan/canvases/revision-recheck.html (review-notice, review-bar, review-done). */
-.review-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--border-standard); background: var(--surface-inset); font-size: 11.5px; color: var(--text-subtle); }
-/* The text ellipsizes before the buttons shrink. */
-.review-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review-banner .text b { font-weight: var(--type-weight-semibold); color: var(--text-standard); }
-.review-help { padding: 0 12px 6px; margin: 0; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
-/* Stuck right under the sticky Comments title (37 px tall) while the list scrolls under it. */
-.review-bar { position: sticky; top: 37px; z-index: 1; padding: 10px 12px 12px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
-.review-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.review-step output { flex: 1; font-size: 11.5px; font-weight: var(--type-weight-semibold); color: var(--text-standard); }
-/* Not shrunk by a long summary beside it: the text is the part that ellipsizes. */
-.review-close { flex: none; }
-.review-bar .comments-target { margin-bottom: 2px; }
-.review-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 4px 0 6px; }
-.review-meta { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); overflow-wrap: anywhere; }
-.review-flag { font-size: 11px; line-height: 1.5; color: var(--text-subtle); margin: 6px 0 0; }
-.review-flag.warn { color: var(--text-warning); }
-.review-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.review-nav { display: flex; gap: 6px; margin-top: 8px; }
-.review-nav .review-next { margin-left: auto; }
+.ancestors button:disabled { color: var(--text-disabled); }
 
 .right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--border-standard); }
-.right-stack > .comments-panel { min-height: 160px; flex: 1 1 0; }
 
 .right-stack > .right:only-child { flex: 1; border-bottom: 0; }
-
-/* Pins sit on whatever an agent drew: the dark rim holds on light canvases, the white halo on dark ones. */
-.comment-pin { z-index: 2; border: 1px solid var(--border-pin); background: var(--affordance-accent); color: var(--text-on-accent); font: var(--type-weight-medium) var(--type-caption-size)/22px var(--type-family); text-align: center; box-shadow: 0 0 0 2px var(--halo-pin), var(--shadow-xs); }
-.comment-pin:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; box-shadow: 0 0 0 4px var(--halo-pin); z-index: 3; }
 
 /* Onboarding (.doan/canvases/buzz-onboarding.html). The first run covers the window as a modal dialog; its text is
    set without the shell's tabular figures, which widened the stepper's "1" by 3px against the draft. The app
@@ -388,7 +266,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
 .ob-actions { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
 .ob-actions .ob-helper { flex: 1; }
-/* The replace confirmation and the project setup dialog share the comments dialog surface. */
+/* The replace confirmation and the project setup dialog share this dialog surface. */
 .ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-dialog .ob-card { width: auto; }
 

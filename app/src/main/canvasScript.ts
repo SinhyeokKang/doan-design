@@ -265,7 +265,7 @@ export function canvasScript(lib: CanvasLib): void {
   const byAttribute = (attribute: string, value: string) => Array.from(document.querySelectorAll(`[${attribute}]`)).filter((el) => el.getAttribute(attribute) === value);
   const postSelection = (type: "select" | "clear" | "key", fields: Record<string, unknown>) => post({ type, href: location.href, seq, viewport: innerHeight, ...fields });
 
-  const describe = (start: Element, allowRoot = false) => {
+  const describe = (start: Element) => {
     const chain: ChainLink[] = [];
     const nodes: Element[] = [];
     for (let el: Element | null = start; el !== null; el = el.parentElement) {
@@ -300,7 +300,7 @@ export function canvasScript(lib: CanvasLib): void {
     }
     const own = chain.slice(depth);
     const el = nodes[depth];
-    if (el === undefined || (!allowRoot && isRoot(el))) return null;
+    if (el === undefined || isRoot(el)) return null;
     const target: Record<string, unknown> = { rect: rectOf(el), tag: lib.clipText(el.localName, MAX_STRING) };
     const frameAt = own.findIndex((link) => link.frameId !== undefined);
     const frameEl = frameAt === -1 ? undefined : nodes[depth + frameAt];
@@ -376,7 +376,7 @@ export function canvasScript(lib: CanvasLib): void {
   // `answer` names the renderer command this selection answers. A click can
   // take a queued command's seq before it arrives, so seq alone cannot tell
   // that click from the answer; clicks never carry it.
-  type Answer = "select-anchor" | "select-comment";
+  type Answer = "select-anchor";
   const apply = (described: NonNullable<ReturnType<typeof describe>>, answer?: Answer) => {
     selected = described.el;
     anchor = described.anchor;
@@ -492,9 +492,7 @@ export function canvasScript(lib: CanvasLib): void {
     const next = data.seq;
     if (typeof next !== "number" || !Number.isInteger(next)) return;
     const { type, frame, doanId, selector, index, id } = data;
-    if (type === "select-comment") {
-      if (data.document !== documentToken || !anchors.current(data.generation, data.request) || typeof data.node !== "string") return;
-    } else if (type === "select-anchor") {
+    if (type === "select-anchor") {
       if (!optionalString(frame) || !optionalString(doanId) || !optionalString(selector)) return;
       if (frame === undefined && doanId === undefined && selector === undefined) return;
     } else if (type === "pick-frame") {
@@ -510,12 +508,7 @@ export function canvasScript(lib: CanvasLib): void {
       if (next <= seq) return;
       seq = next;
     }
-    if (type === "select-comment") {
-      const found = anchors.find(String(data.node));
-      const described = found === null ? null : describe(found, true);
-      if (described !== null && described.el === found) apply(described, "select-comment");
-      else postSelection("select", { target: null, answer: "select-comment" });
-    } else if (type === "hover-alt") {
+    if (type === "hover-alt") {
       alt = data.alt === true;
       postHover();
     } else if (type === "hover-leave") {
@@ -539,27 +532,10 @@ export function canvasScript(lib: CanvasLib): void {
     }
   };
 
-  let draftGuard = false;
-  let transitionIntent = 0;
-  let pendingTransition: { intent: number; apply: () => void; seq: number } | null = null;
-  // `kind` lets the app let a selection through while still asking before a link leaves.
-  // `clear`: the click only clears the selection, which changes nothing when
-  // the app has none (L-17).
-  const requestTransition = (apply: () => void, kind: "selection" | "navigation", clear = false) => {
-    const intent = ++transitionIntent;
-    if (!draftGuard) { pendingTransition = null; apply(); return; }
-    pendingTransition = { intent, apply, seq };
-    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent, kind, ...(clear ? { clear: true } : {}) });
-  };
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
     const data: unknown = event.data;
     if (typeof data !== "object" || data === null) return;
-    if ("type" in data && data.type === "draft-guard" && "active" in data && typeof data.active === "boolean") { draftGuard = data.active; return; }
-    if ("type" in data && data.type === "transition-answer") {
-      if (!pendingTransition || !("document" in data) || data.document !== documentToken || !("intent" in data) || data.intent !== pendingTransition?.intent || pendingTransition.seq !== seq) return;
-      const pending = pendingTransition; pendingTransition = null; pending.apply(); return;
-    }
     if ((data as { type?: unknown }).type === "measure") send();
     else command(data as Record<string, unknown>);
   });
@@ -615,9 +591,8 @@ export function canvasScript(lib: CanvasLib): void {
           const link = type === "click" ? linkOf(event.target) : null;
           if (link !== null) {
             event.preventDefault();
-            if (draftGuard) event.stopImmediatePropagation();
             const href = link.getAttribute("href") ?? "";
-            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); }, "navigation");
+            if (link.isConnected && link.getAttribute("href") === href) location.assign(href);
           }
           return;
         }
@@ -630,7 +605,7 @@ export function canvasScript(lib: CanvasLib): void {
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
         } else if (type === "click") {
           const target = event.target;
-          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); }, "selection", isElement(target) && isRoot(target));
+          if (!isElement(target) || target.isConnected) choose(target);
         }
       },
       { capture: true },
@@ -643,7 +618,7 @@ export function canvasScript(lib: CanvasLib): void {
     setTimeout(() => {
       const active = document.activeElement;
       if (alt || active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
-      requestTransition(() => { if (active.isConnected) choose(active); }, "selection");
+      if (active.isConnected) choose(active);
     }, 0);
   });
 
@@ -812,6 +787,5 @@ export function commentAnchors(documentToken: string, selected: () => { element:
     query = { generation: data.generation, request: data.request, targets };
     schedule();
   });
-  return { schedule, current: (generation: unknown, request: unknown) => query !== null && generation === query.generation && request === query.request,
-    find: (id: string) => { const el = nodes.get(id); return el?.isConnected ? el : null; } };
+  return { schedule };
 }

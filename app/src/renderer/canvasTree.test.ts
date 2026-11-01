@@ -182,9 +182,10 @@ test("a move into another folder expands the new ancestors and moves the canvas 
   expect(moveExpanded([".doan/canvases/old"], ".doan/canvases/old/a.html", ".doan/canvases/flows/a.html")).toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows"]);
 });
 
-test("rowProblem names an unreadable canvas first, else unreadable comments, with the raw error as detail", () => {
+// buzz-canvas-conversation: a comment file ls could not read no longer shows under the row.
+test("rowProblem names an unreadable canvas with the raw error as detail, and nothing for unreadable comments", () => {
   const error = { code: "canvas_unreadable", message: "EACCES" };
   expect(rowProblem(row(".doan/canvases/a.html"))).toBeNull();
   expect(rowProblem(row(".doan/canvases/a.html", { error, commentsError: { code: "comments_unreadable", message: "bad" } }))).toEqual({ sentence: "Can't read this canvas — run doan check", detail: "canvas_unreadable: EACCES" });
-  expect(rowProblem(row(".doan/canvases/a.html", { commentsError: { code: "comments_unreadable", message: "bad" } }))).toEqual({ sentence: "Couldn’t read this canvas’s comments — run doan check", detail: "comments_unreadable: bad" });
+  expect(rowProblem(row(".doan/canvases/a.html", { commentsError: { code: "comments_unreadable", message: "bad" } }))).toBeNull();
 });

@@ -87,7 +87,7 @@ export interface SelectMessage extends SelectionMessageBase {
   target: SelectTarget | null;
   // The command this selection answers; absent for a click, which can share
   // the seq of a command the script then drops.
-  answer?: "select-anchor" | "select-comment";
+  answer?: "select-anchor";
 }
 
 export interface ClearMessage extends SelectionMessageBase {
@@ -126,11 +126,7 @@ export interface AnchorsMessage {
   rects: (PinGeometry & { node: string })[];
 }
 
-// `kind` tells a selection inside this canvas from a link that navigates away.
-// `clear`: a click that only clears the selection (the document's own background).
-export interface TransitionIntentMessage { type: "transition-intent"; document: string; href: string; viewport: number; intent: number; kind: "selection" | "navigation"; clear?: true }
-
-export type CanvasMessage = TransitionIntentMessage | LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage;
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -181,11 +177,6 @@ function parseRect(raw: unknown): CanvasRect | null {
 
 export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (!isRecord(data)) return null;
-  if (data.type === "transition-intent") {
-    if (!within(data.document, MAX_STRING) || !data.document || !within(data.href, MAX_HREF) || !nonNegative(data.viewport) || !seqValue(data.intent) || (data.kind !== "selection" && data.kind !== "navigation") ||
-      (data.clear !== undefined && data.clear !== true)) return null;
-    return { type: "transition-intent", document: data.document, href: data.href, viewport: data.viewport, intent: data.intent, kind: data.kind, ...(data.clear ? { clear: true as const } : {}) };
-  }
   if (data.type === "anchors") return parseAnchors(data);
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
@@ -208,7 +199,7 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
       return rect === null ? null : { type, ...base, rect };
     }
     case "select": {
-      const answer: SelectMessage["answer"] = data.answer === "select-anchor" || data.answer === "select-comment" ? data.answer : undefined;
+      const answer: SelectMessage["answer"] = data.answer === "select-anchor" ? data.answer : undefined;
       if (answer === undefined && data.answer !== undefined) return null;
       const marked = answer === undefined ? base : { ...base, answer };
       if (data.target === null) return { type, ...marked, target: null };

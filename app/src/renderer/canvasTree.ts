@@ -113,11 +113,10 @@ export function moveExpanded(paths: readonly string[], from: string, to: string)
   return [...next];
 }
 
-// A row ls could not fully read: the fixed sentence under it, and the raw
-// error for Details. A canvas file error wins, as its row has no comment
-// counts at all.
+// A canvas ls could not read: the fixed sentence under its row, and the raw
+// error for Details.
 export function rowProblem(row: CanvasRow): { sentence: string; detail: string } | null {
-  const error = row.error ?? row.commentsError;
+  const error = row.error;
   if (!error) return null;
-  return { sentence: row.error ? "Can't read this canvas — run doan check" : "Couldn’t read this canvas’s comments — run doan check", detail: `${error.code}: ${error.message}` };
+  return { sentence: "Can't read this canvas — run doan check", detail: `${error.code}: ${error.message}` };
 }

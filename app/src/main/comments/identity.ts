@@ -1,4 +1,5 @@
-import type { CommentIdentity } from "./service";
+// A canvas named by its root, its repo-relative path and its id.
+export interface CommentIdentity { root: string; path: string; canvas: string }
 
 export type CanvasIdentityCause = "missing" | "invalid" | "duplicate";
 

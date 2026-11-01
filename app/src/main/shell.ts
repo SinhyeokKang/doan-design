@@ -1,5 +1,3 @@
-import { authorizeCanvas } from "./comments/identity";
-import type { CommentIdentity } from "./comments/service";
 import type { ResponseRecord } from "./comments/document";
 import { realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
@@ -22,7 +20,6 @@ export interface Shell {
   epoch(root: string): number | null;
   // The serving scope of the last `doan ls` (repo-relative); empty unless listed.
   scope(root: string): string[];
-  authorizeComments(identity: CommentIdentity): Promise<{ width: number | null; url: string }>;
   // The stored root (the picked folder or the repo above it), or a message for
   // the human when the folder is not opened.
   open(picked: string): Promise<{ root: string } | { refused: string }>;
@@ -82,9 +79,9 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
 }
 
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
-export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, comments?: { response(record: ResponseRecord): void; invalidate(root: string): void }): Promise<Shell> {
+export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, documents?: { response(record: ResponseRecord): void }): Promise<Shell> {
   const store = await openFolderStore(foldersFile);
-  const server: LocalServer = await startServer(comments?.response);
+  const server: LocalServer = await startServer(documents?.response);
   // Insertion order is folders.json order, which is the order the human opened them.
   let nextEpoch = 0;
   const folders = new Map<string, Folder>();
@@ -109,7 +106,6 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       onChange(entries());
       return null;
     }
-    comments?.invalidate(folder.path);
     const read = ++folder.reads;
     let view = await readFolder(cli, folder.path);
     if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
@@ -205,7 +201,6 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
 
   const detach = (folder: Folder) => {
     folders.delete(folder.path);
-    comments?.invalidate(folder.path);
     folder.watch?.close();
     server.removeFolder(folder.key);
   };
@@ -217,14 +212,6 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     entries,
     epoch(root) { return folders.get(root)?.epoch ?? null; },
     scope(root) { return [...(folders.get(root)?.scope ?? [])]; },
-    async authorizeComments(identity) {
-      const folder = folders.get(identity.root);
-      if (!folder) throw new Error("Project is closed.");
-      const listing = await readFolder(cli, folder.path);
-      if (folders.get(identity.root) !== folder) throw new Error("Project is closed.");
-      const eligibility = authorizeCanvas(identity, listing);
-      return { ...eligibility, url: baseUrl(folder.key) + identity.path.split("/").map(encodeURIComponent).join("/") };
-    },
     async open(picked) {
       let real: string;
       try {

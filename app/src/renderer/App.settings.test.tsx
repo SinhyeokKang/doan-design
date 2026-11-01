@@ -161,7 +161,7 @@ test("the header Settings tab opens the page on the last category's title; the s
   expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
   expect(settings()!.props.sidebar.props.settings?.section).toBe("agents");
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, reviewing: false });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
   expect(doan.openSettings).not.toHaveBeenCalled();
 });
 
@@ -229,7 +229,7 @@ test("while a category holds a confirmation or a write, incoming targets wait an
   lock();
   const bar = topBar(settings()!.props.header);
   for (const button of [bar.add, bar.projects, bar.settings, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, reviewing: false, locked: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, locked: true });
   const before = settings()!.props.arrival;
   cmdComma({ section: "about" });
   harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } });

@@ -1349,10 +1349,10 @@ describe("comment anchors", () => {
     expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
     canvas.fromParent({ type: "select-anchor", seq: 1, selector: ".child" });
     expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 1, answer: "select-anchor" });
+    // The pin command went with the app's comment pins: an anchors node selects nothing.
+    const selects = messages().filter(p => p.type === "select").length;
     canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 2, node: reply?.results[3]?.candidates.selector?.[0] });
-    expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 2, answer: "select-comment", target: { tag: "body", element: { selector: "body" } } });
-    canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 3, node: "missing" });
-    expect(messages().filter(p => p.type === "select").at(-1)).toEqual({ type: "select", href: expect.any(String), seq: 3, viewport: expect.any(Number), target: null, answer: "select-comment" });
+    expect(messages().filter(p => p.type === "select")).toHaveLength(selects);
   });
 });
 
@@ -1375,52 +1375,40 @@ test("Y2 same-size replacement recovers selected anchor token without another ev
   expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
 });
 
-describe("draft preselection protocol", () => {
-  test("waits before actual selection and rejects old, foreign and changed-document approvals", () => {
+// buzz-canvas-conversation removed the app's comment drafts and their guard: a click, a background click and an
+// ⌥-clicked link act at once, and the guard's messages from the app change nothing.
+describe("selection without a draft guard", () => {
+  test("a click selects at once, and draft-guard and transition-answer messages are ignored", () => {
     const { canvas, span, hero } = heroCanvas();
-    const command = (data: unknown, source: unknown = canvas.parent) => canvas.fireWindow("message", { source, data });
-    command({ type: "draft-guard", active: true });
-    click(canvas, span);
-    const first = ofType(canvas, "transition-intent").at(-1)!;
-    expect(first.kind).toBe("selection");
-    expect(ofType(canvas, "select")).toHaveLength(0);
-    click(canvas, hero);
-    const second = ofType(canvas, "transition-intent").at(-1)!;
-    command({ type: "transition-answer", document: first.document, intent: first.intent });
-    command({ type: "transition-answer", document: second.document, intent: second.intent }, {});
-    command({ type: "transition-answer", document: "old", intent: second.intent });
-    expect(ofType(canvas, "select")).toHaveLength(0);
-    command({ type: "transition-answer", document: second.document, intent: second.intent });
-    expect(ofType(canvas, "select")).toHaveLength(1);
-    expect(ofType(canvas, "select")[0]?.target).toMatchObject({ frame: { id: "hero" } });
-    command({ type: "transition-answer", document: second.document, intent: second.intent });
-    expect(ofType(canvas, "select")).toHaveLength(1);
-  });
-  test("a click on the document's own background asks as a clear; a click on an element does not", () => {
-    const { canvas, span } = heroCanvas();
     canvas.fromParent({ type: "draft-guard", active: true });
-    click(canvas, canvas.body);
-    const background = ofType(canvas, "transition-intent").at(-1)!;
-    expect(background).toMatchObject({ kind: "selection", clear: true });
-    canvas.fromParent({ type: "transition-answer", document: background.document, intent: background.intent });
-    expect(ofType(canvas, "clear")).toHaveLength(1);
     click(canvas, span);
-    expect(ofType(canvas, "transition-intent").at(-1)).not.toHaveProperty("clear");
+    expect(ofType(canvas, "select")).toHaveLength(1);
+    click(canvas, hero);
+    expect(ofType(canvas, "select")).toHaveLength(2);
+    expect(ofType(canvas, "select")[1]?.target).toMatchObject({ frame: { id: "hero" } });
+    const document = ofType(canvas, "layout")[0]?.document;
+    canvas.fromParent({ type: "transition-answer", document, intent: 1 });
+    expect(ofType(canvas, "select")).toHaveLength(2);
+    expect(ofType(canvas, "transition-intent")).toHaveLength(0);
   });
-  test("an ⌥-clicked link asks as navigation and waits for the answer", () => {
+  test("a click on the document's own background clears at once", () => {
+    const { canvas, span } = heroCanvas();
+    click(canvas, span);
+    click(canvas, canvas.body);
+    expect(ofType(canvas, "clear")).toHaveLength(1);
+    expect(ofType(canvas, "transition-intent")).toHaveLength(0);
+  });
+  test("an ⌥-clicked link navigates at once and leaves the event to the page", () => {
     const anchor = node("a", { href: "other.html" }, [node("b")]);
     const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [anchor]) });
     canvas.fromParent({ type: "draft-guard", active: true });
     let stopped = 0;
     click(canvas, anchor, { altKey: true, stopImmediatePropagation: () => { stopped++; } } as Partial<FakeEvent>);
-    expect(stopped).toBe(1);
-    const intent = ofType(canvas, "transition-intent").at(-1)!;
-    expect(intent.kind).toBe("navigation");
-    expect(canvas.assigned).toEqual([]);
-    canvas.fromParent({ type: "transition-answer", document: intent.document, intent: intent.intent });
+    expect(stopped).toBe(0);
     expect(canvas.assigned).toEqual(["other.html"]);
+    expect(ofType(canvas, "transition-intent")).toHaveLength(0);
   });
-  test("native composition Escape does not emit a transition", () => {
+  test("native composition Escape does not emit a key", () => {
     const { canvas, span } = heroCanvas();
     canvas.fireWindow("keydown", input({ target: span, key: "Escape", isComposing: true }));
     expect(ofType(canvas, "key")).toHaveLength(0);

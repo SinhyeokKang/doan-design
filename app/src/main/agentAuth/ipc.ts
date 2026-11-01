@@ -3,7 +3,7 @@ import { authStatus, readiness, recordedFacts } from "./state";
 import { PROVIDERS, validProvider, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type ToolFacts } from "./types";
 import type { AuthPrompt, CheckOutcome, CheckStarted, Started, WriteOptions } from "./manager";
 
-// Kebab-case namespaces like ui-state and review-state. Main window and Settings both reach these (senderAllowed);
+// Kebab-case namespaces like ui-state. Main window and Settings both reach these (senderAllowed);
 // neither gets conversation-run rights from them.
 export const AUTH_CHANNELS = {
   read: "agent-auth:read", check: "agent-auth:check", signIn: "agent-auth:sign-in", cancel: "agent-auth:cancel",

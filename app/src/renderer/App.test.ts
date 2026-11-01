@@ -53,11 +53,11 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
 });
 
 // R-M ⚪5: a command App does not name must not run the Undo toast's action.
-it("routes each menu command to its own handler, and Next/Previous Resolved Comment never reach Undo", () => {
-  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), review: vi.fn(), newConversation: vi.fn() };
-  menuCommand("nextResolved", to);
-  menuCommand("previousResolved", to);
-  expect(to.review.mock.calls).toEqual([["next"], ["previous"]]);
+it("routes each menu command to its own handler, and the removed Resolved Comment commands never reach Undo", () => {
+  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), newConversation: vi.fn() };
+  menuCommand("nextResolved" as never, to);
+  menuCommand("previousResolved" as never, to);
+  expect(to.undo).not.toHaveBeenCalled();
   menuCommand("undoRemove", to);
   expect(to.undo).toHaveBeenCalledOnce();
   menuCommand("future" as never, to);

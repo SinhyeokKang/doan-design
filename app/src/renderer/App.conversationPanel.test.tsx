@@ -58,10 +58,6 @@ vi.mock("./CanvasController", async original => ({
     }
   },
 }));
-const comments = vi.hoisted(() => ({ opened: 0 }));
-vi.mock("./useComments", () => ({
-  useComments: () => { comments.opened++; return { session: { draft: { draft: null } }, dialog: null, panel: null, reviewing: false, closeReview: () => {}, reviewStep: () => {} }; },
-}));
 vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), onVisible: vi.fn() }) }));
 
 const { App } = await import("./App");
@@ -142,14 +138,11 @@ async function canvasPage(state: unknown = null) {
   expect(find(ProjectOverview)).toHaveLength(0);
 }
 
-test("the canvas page shows the conversation panel shell, not Canvas info, the Inspector or Comments", async () => {
-  comments.opened = 0;
+test("the canvas page shows the conversation panel shell, not Canvas info or the Inspector", async () => {
   await canvasPage();
   expect(find(ConversationPanel)).toHaveLength(1);
   expect(find(RightPanel)).toHaveLength(0);
-  // No comment session: no Comments panel, pins, Review bar or Hand Off.
-  expect(comments.opened).toBe(0);
-  expect(doan.setMenuState!.mock.lastCall?.[0]).toMatchObject({ reviewing: false });
+  expect(doan.setMenuState!.mock.lastCall?.[0]).not.toHaveProperty("reviewing");
 });
 
 test("the Overview keeps its own right panel", () => {

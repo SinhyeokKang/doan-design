@@ -58,13 +58,11 @@ import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences"
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; review: (move: "next" | "previous") => void; newConversation: () => void }): void {
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; newConversation: () => void }): void {
   if (name === "home") to.home();
   else if (name === "newConversation") to.newConversation();
   else if (name === "quickOpen") to.quickOpen();
   else if (name === "undoRemove") to.undo();
-  else if (name === "nextResolved") to.review("next");
-  else if (name === "previousResolved") to.review("previous");
 }
 
 // Main replaces the main window's ui-state wholesale on each save, so every save carries Home's memory, and none is
@@ -321,7 +319,7 @@ export function App() {
   }, [wizard]);
   // While the Add Projects page selects or clones, or a Settings category holds a confirmation or a write, every move
   // away is ignored here, in one place (buzz-add-projects and buzz-settings design '잠금'): marking the controls alone
-  // would leak through toasts, the comment guard and keyboard activation.
+  // would leak through toasts and keyboard activation.
   const locked = () => (currentScreen.current === "addProjects" && pageRef.current.locked) || (currentScreen.current === "settings" && settingsRef.current.locked);
   const home = () => {
     if (locked()) return;
@@ -781,15 +779,13 @@ export function App() {
       home: () => live.current.home(),
       quickOpen: () => live.current.search(),
       undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
-      // The canvas page opens no comment session, so no Review runs and its menu items stay disabled.
-      review: () => {},
       newConversation: () => live.current.newConversation(),
     });
   }), []);
   const onPage = screen === "addProjects", onSettings = screen === "settings";
   const pageLocked = (onPage && page.locked) || (onSettings && settings.locked);
   const command = (name: ViewCommand) => controller.current?.command(name);
-  // A pick from the Add Projects page goes through openCanvas too, whose draft guard is per canvas.
+  // A pick from the Add Projects page goes through openCanvas too.
   function pick(result: SearchResult) {
     if (locked()) return;
     cancelRestore();
@@ -814,7 +810,7 @@ export function App() {
   const shownOverview = overview?.path ?? null;
   shownOverviewRef.current = shownOverview;
   useEffect(() => {
-    void window.doan.setMenuState({ screen: onPage || onSettings ? screen : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo", reviewing: false,
+    void window.doan.setMenuState({ screen: onPage || onSettings ? screen : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo",
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null ? { overview: true } : {}) });
   }, [screen, state.open, modal, toast.toast?.action, page.choose, pageLocked, shownOverview]);
   useLayoutEffect(() => { overviewRun.current!.show(shownOverview); }, [shownOverview]);

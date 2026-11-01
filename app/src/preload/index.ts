@@ -13,8 +13,6 @@ import type {
   Author, OnboardingCancelRequest, OnboardingCheckRequest, OnboardingCompleteRequest, OnboardingProjectCloneRequest,
   OnboardingProjectInspectRequest, OnboardingProjectSelectRequest, OnboardingResponse, OnboardingState, OnboardingStatusRequest,
 } from "../formats/types";
-import type { BeginRequest, BeginResult, CommentList, CommentReply, CommentRequest, CopyRequest, MutationRequest, SavedStatus } from "../main/comments/service";
-import type { TransitionRequest } from "../main/comments/transitions";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
@@ -26,7 +24,6 @@ import type { NotificationTarget } from "../main/notifications";
 import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
 import type { InspectResult } from "../main/inspect";
-import type { ReviewMarker } from "../comments/review";
 import type { FolderEntry } from "../main/view";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
@@ -227,27 +224,6 @@ const api = {
     return path === "" ? null : path;
   },
   openInstallPage: (target: ExternalTarget): Promise<boolean> => ipcRenderer.invoke("setup:open-external", { target }),
-  commentsList: (request: CommentRequest): Promise<CommentReply<CommentList>> => ipcRenderer.invoke("comments:list", request),
-  commentsBegin: (request: BeginRequest): Promise<CommentReply<BeginResult>> => ipcRenderer.invoke("comments:begin", request),
-  commentsMutate: (request: MutationRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:mutate", request),
-  commentsStatus: (request: CommentRequest): Promise<CommentReply<SavedStatus>> => ipcRenderer.invoke("comments:status", request),
-  commentsAuthor: (request: CommentRequest): Promise<CommentReply<Author>> => ipcRenderer.invoke("comments:author", request),
-  commentsCopy: (request: CopyRequest): Promise<CommentReply<{ copied: true }>> => ipcRenderer.invoke("comments:copy", request),
-  setCommentDraftGuard: (active: boolean): Promise<void> => ipcRenderer.invoke("comments:guard", active),
-  answerCommentTransition: (answer: { id: string; allow: boolean }): Promise<void> => ipcRenderer.invoke("comments:transition-answer", answer),
-  onCommentTransition(listener: (request: TransitionRequest) => void): () => void {
-    const receive = (_event: Electron.IpcRendererEvent, request: TransitionRequest) => listener(request);
-    ipcRenderer.on("comments:transition", receive);
-    return () => ipcRenderer.removeListener("comments:transition", receive);
-  },
-  // The device-local last review time of one canvas; main only ever raises it.
-  reviewMarker: (root: string, canvas: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:get", { root, canvas }),
-  raiseReviewMarker: (root: string, canvas: string, at: string): Promise<ReviewMarker | null> => ipcRenderer.invoke("review-state:raise", { root, canvas, at }),
-  onCommentsInvalidated(listener: (change: { root: string }) => void): () => void {
-    const receive = (_event: Electron.IpcRendererEvent, change: { root: string }) => listener(change);
-    ipcRenderer.on("comments:invalidated", receive);
-    return () => ipcRenderer.removeListener("comments:invalidated", receive);
-  },
   chooseTokenCss: (root: string): Promise<TokenCssChoice> => ipcRenderer.invoke("project:choose-token-css", { root }),
   initializeProject: (request: ProjectInitRequest): Promise<ProjectInitResult> => ipcRenderer.invoke("project:init", request),
   // The stored root, or null when the sheet was cancelled or the folder refused.
