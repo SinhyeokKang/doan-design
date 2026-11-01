@@ -51,8 +51,8 @@ const LINK_DIR_PREFIX = "doan-auth-link-";
 const STALE_LINK_DIR_MS = 60 * 60 * 1000;
 // An ACP run answers a cancel within 5 s before its group is stopped (acpRunner); SIGKILL follows 500 ms after SIGTERM.
 const DRAIN_MS = 15_000;
-// One budget for a provider's whole account lookup: Codex from locating the CLI to the account/read answer, Antigravity
-// both Google requests. Sign-in, a check and so the first run after a restart wait for it (agent-account-identity P1/R1).
+// One budget for a provider's account lookup: Codex from the app-server start to the account/read answer, Antigravity
+// both Google requests. Sign-in, a check and so the first run after a restart wait for it.
 const IDENTITY_MS = 5000;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
@@ -67,8 +67,9 @@ class UnexpectedServer extends Error {}
 // An account lookup's failure in Doan's own words: never a reply body, a token or a provider message.
 class LookupFailure extends Error {}
 type Found = { email: string } | null;
-// Antigravity's token file as read inside the hold, so its requests can run after the hold is dropped.
-type TokenSource = { file: unknown } | { failure: string };
+// The refresh grant built from Antigravity's token file inside the hold, so its requests can run after the drop and
+// only the values they send outlive the read.
+type TokenSource = { request: { url: string; body: string } } | { failure: string };
 const SERVER_EVENTS = 20;
 // An absl log line of the 1.3.0 server: level and date, time, thread, file:line]. Traceback and payload continuation
 // lines and the printed sign-in link do not match and are withheld.
@@ -616,11 +617,12 @@ export class AuthManager {
     const controller = new AbortController();
     this.lookups.set(attemptId, controller);
     if (this.stopRequests.has(attemptId)) controller.abort();
-    let late = false;
-    const timer = setTimeout(() => { late = true; controller.abort(); }, IDENTITY_MS);
+    let late = false, timer: ReturnType<typeof setTimeout> | undefined;
+    const arm = () => { timer ??= setTimeout(() => { late = true; controller.abort(); }, IDENTITY_MS); };
     try {
-      const email = this.adapters[provider].identity === "codex-app-server" ? await this.codexEmail(provider, attemptId, profile, controller.signal)
-        : await this.googleLookup(provider, source, controller.signal);
+      const codex = this.adapters[provider].identity === "codex-app-server";
+      if (!codex) arm();
+      const email = codex ? await this.codexEmail(provider, attemptId, profile, controller.signal, arm) : await this.googleLookup(provider, source, controller.signal);
       if (email) return { email };
       throw new LookupFailure("the answer had no account email");
     } catch (error) {
@@ -632,11 +634,13 @@ export class AuthManager {
   }
   // account/read from a short app-server in the profile, with a Codex conversation's store and handshake. The
   // dispatcher is the conversation runner's: AcpConnection refuses Codex messages, which carry no jsonrpc field.
-  private async codexEmail(provider: Provider, attemptId: string, profile: string, signal: AbortSignal): Promise<string | undefined> {
+  // arm starts the budget once the CLI is located: the login-shell probe is the status run's cost as well, not the lookup's.
+  private async codexEmail(provider: Provider, attemptId: string, profile: string, signal: AbortSignal, arm: () => void): Promise<string | undefined> {
     let child: AuthProcess;
     try {
       const { command, env, profileDir } = await this.launch(provider, attemptId, {}, profile);
       if (signal.aborted) throw new Cancelled();
+      arm();
       child = this.options.spawn(command, [...this.adapters[provider].args, "app-server"], { cwd: profileDir, env, input: true });
     } catch (error) { throw error instanceof Cancelled ? error : new LookupFailure("the app-server could not be started"); }
     const owned = this.processes.get(attemptId) ?? new Set();
@@ -655,8 +659,8 @@ export class AuthManager {
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
         if (!line.trim()) continue;
         let raw: unknown;
-        try { raw = JSON.parse(line); } catch { broken = true; child.stop(); return; }
-        dispatcher.receive(raw);
+        // A throw here would escape the output listener into main.
+        try { raw = JSON.parse(line); dispatcher.receive(raw); } catch { broken = true; child.stop(); return; }
       }
     });
     const exchange = async () => {
@@ -678,15 +682,17 @@ export class AuthManager {
     let bytes: Buffer | null;
     try { bytes = rel ? this.options.storage.readWorking(provider, rel, profile) : null; } catch { return { failure: "the token file could not be read" }; }
     if (!bytes) return { failure: "the token file is missing" };
+    let file: unknown;
     // A parse error quotes its input, which is a credential.
-    try { return { file: JSON.parse(bytes.toString("utf8")) }; } catch { return { failure: "the token file is not JSON" }; }
+    try { file = JSON.parse(bytes.toString("utf8")); } catch { return { failure: "the token file is not JSON" }; }
+    const request = googleRefreshRequest(file);
+    return request ? { request } : { failure: "the token file is not one Doan sends" };
   }
   // A refresh grant with the server's own client, then userinfo. The access token lives in this call only, and a
   // returned refresh token is never written: Doan does not change the server's credential file.
   private async googleLookup(provider: Provider, source: TokenSource | undefined, signal: AbortSignal): Promise<string | undefined> {
     if (!source || "failure" in source) throw new LookupFailure(source?.failure ?? "no token file was read");
-    const request = googleRefreshRequest(source.file);
-    if (!request) throw new LookupFailure("the token file is not one Doan sends");
+    const { request } = source;
     const fetch = this.options.fetch ?? globalThis.fetch;
     // No redirects: the client secret and the bearer token go to these exact addresses only.
     const granted = await fetch(request.url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: request.body, signal, redirect: "error" });

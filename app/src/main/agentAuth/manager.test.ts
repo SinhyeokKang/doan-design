@@ -1723,6 +1723,32 @@ describe("account identity lookup", () => {
       expect(rpc.stopped).toBe(true);
       expect(await check.outcome).toBe("ok");
     });
+    it("counts the 5 s from the app-server start, not from locating the CLI", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      let slow = false;
+      const m = lookupManager(googleFetch(), { locate: async () => { if (slow) await new Promise(resolve => setTimeout(resolve, 3000)); return { command: "/bin/fake-cli", path: "/verified/bin" }; } });
+      await m.load();
+      const run = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0);
+      slow = true;
+      await vi.advanceTimersByTimeAsync(3000);
+      const rpc = await next("rpc");
+      await vi.advanceTimersByTimeAsync(4800);
+      expect(rpc.stopped).toBe(false);
+      await vi.advanceTimersByTimeAsync(400);
+      expect(rpc.stopped).toBe(true);
+      expect(await run.done).toMatchObject({ phase: "connected", verified: true, connection: { account: NONE } });
+    });
+    it("ends a sign-in cancelled during its app-server lookup at once and stops the app-server", async () => {
+      const m = lookupManager(); await m.load();
+      const run = started(await m.signIn("codex", 7));
+      await finish("login", 0); await finish("status", 0);
+      const rpc = await next("rpc");
+      await m.cancel("codex", run.attemptId, 7);
+      expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null, connection: null });
+      expect(rpc.stopped).toBe(true);
+      expect(storage.readMetadata().accounts).toEqual([]);
+    });
     it("leaves a check replaced by a sign-out stale, its lookup stopped", async () => {
       storedCodex({ email: "old@example.com" });
       const m = lookupManager(); await m.load();
@@ -1824,6 +1850,17 @@ describe("account identity lookup", () => {
       expect(text).toContain("Google returned a refresh token; Doan ignored it");
       for (const secret of ["1//NEW-REFRESH", ACCESS]) expect(text).not.toContain(secret);
     });
+    it("gives up on an unanswered request after 5 s and keeps the sign-in result", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const fetch = googleFetch("hang");
+      const m = lookupManager(fetch); await m.load();
+      const run = await antigravitySignIn(m);
+      await until(() => fetch.mock.calls.length === 1, "token request");
+      await vi.advanceTimersByTimeAsync(5200);
+      expect(await run.done).toMatchObject({ phase: "connected", verified: true, error: null, connection: { account: NONE } });
+      expect((fetch.mock.calls[0]![1] as RequestInit).signal!.aborted).toBe(true);
+      expect(logged()).toContain("doan: antigravity account lookup failed: no answer within 5000 ms");
+    });
     it("ends a sign-in cancelled during an unanswered request at once", async () => {
       const fetch = googleFetch("hang");
       const m = lookupManager(fetch); await m.load();
@@ -1842,7 +1879,6 @@ describe("account identity lookup", () => {
       const m = lookupManager(fetch); await m.load();
       await antigravityCheck(m);
       await until(() => fetch.mock.calls.length === 1, "token request");
-      // A replacement's request is the sign-in's; quit cancels it too.
       const at = Date.now();
       await m.quit();
       expect(Date.now() - at).toBeLessThan(1000);

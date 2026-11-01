@@ -12,7 +12,7 @@
 
 ## T. 순수 함수
 
-- [ ] T1. `app/src/main/agentAuth/identity.ts`의 `codexAccountEmail`, `googleRefreshRequest`, `googleAccessToken`, `googleEmail`, `withIdentity`(design §2 '순수 함수' 표). 테스트는 `app/src/main/agentAuth/identity.test.ts`.
+- [x] T1. `app/src/main/agentAuth/identity.ts`의 `codexAccountEmail`, `googleRefreshRequest`, `googleAccessToken`, `googleEmail`, `withIdentity`(design §2 '순수 함수' 표). 테스트는 `app/src/main/agentAuth/identity.test.ts`.
   - 경우: chatgpt·apiKey·amazonBedrock·`account: null`; 빈·512자 초과·`\0` 이메일; 파일이 JSON 객체가 아님(배열, `null`, 문자열); `token_uri` 다름(`http:`, 다른 호스트, 다른 경로, 끝 `/`); `scopes`가 배열이 아님·`userinfo.email` 없음; 필드 빠짐·숫자; form 인코딩(`+`, `&`, `=`가 든 secret); `access_token` 없음; 응답에 `refresh_token` 있음 → `refreshTokenReturned: true`; `email_verified: false`; `withIdentity`의 `found: null` + `previous` 있음·`previous: null`, `id`/`workspace`/`displayName`은 상태 계정의 것.
   - 검증: `npm --prefix app test`.
 
@@ -20,7 +20,7 @@
 
 ## M. main
 
-- [ ] M1. 조회 단계(design §2 '조회 단계'):
+- [x] M1. 조회 단계(design §2 '조회 단계'):
   - `providers.ts`: `ProviderAuth.identity`(Codex `"codex-app-server"`, Antigravity `"google-userinfo"`, 나머지 `null`), `label` export.
   - `manager.ts`: `AuthManagerOptions.fetch`; attempt별 `AbortController`를 `stop()`이 abort; provider별 5초 예산; Codex `rpcExec`(`launch(..., profile)`, `processes` 등록, `CodexDispatcher`, `experimentalApi: true`); Antigravity는 hold 안에서 파일만 읽고 요청은 `drop` 뒤(로그인은 seal·scrub 전); `signInFlow`는 `previous = null`, `check`는 적용 시점의 상태 계정; 조회 뒤 취소 재확인; 응답의 `refresh_token`은 값 없는 경고만.
   - `agentAuthView.ts`의 `detail` 주석을 고친다.
