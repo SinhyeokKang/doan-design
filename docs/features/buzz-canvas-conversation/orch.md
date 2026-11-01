@@ -100,3 +100,8 @@ D1은 이미 끝났다(초안 확정).
 - 결정(2026-11-02 user): 입력창 칩도 누르면 locate하므로 hover 커서는 pointer, 누른 뒤 입력창 커서는 칩 바로 뒤. BR4b에 넣는다.
 - 결정(2026-11-02 user): 칩 locate의 뷰 — 프레임 칩은 서랍 프레임 이동과 같은 `fitFrame`, 요소·점 칩은 지금 배율을 유지하고 가운데로 옮기되 요소가 화면보다 크면 전체가 보이게 배율을 줄인다. BR4b(필요하면 CanvasController locate 수정 포함)에 넣는다.
 - 결정(2026-11-02 user): 요소 칩 아이콘을 lucide `SquareMousePointer`로 바꾼다(초안과 다른 점, V1에 기록). BR4b에 넣는다.
+- 결정(2026-11-02 user): 초안을 결정에 맞춰 고친다(차이로 남기지 않음). 지휘자는 초안 코드를 고치지 않으므로 BD 워커(Claude Sonnet medium, 기계적 반영)에 맡기고 지휘자가 검토한다: 고르기 안내 문구, 요소 칩 아이콘, locate 캡션.
+- BD 완료 `97b8fcb4`(초안: 고르기 안내, 요소 아이콘 16곳, locate 캡션). 지휘자 검토: 문구·캡션이 결정과 맞고 이 캔버스에 `doan check` 지적이 없다(실제 앱 렌더 확인은 생략, 아이콘·문구만 바뀜).
+- 발견: 코멘트 제거로 예전 초안 4개의 프레임 16개가 `CommentsPanel.tsx`를 가리켜 `doan check` 오류가 됐고, `.doan/ds/color.html`이 지운 핀 토큰을 쓴다. 결정(2026-11-02 user): 코멘트 UI만 다룬 초안 3개(comments-readability, revision-continuity, revision-recheck)를 지우고 project-feedback의 id-change-notice 프레임을 뺀다. 핀 토큰 견본도 뺀다. main에 이미 있던 `Sidebar.tsx` 오류 9개는 범위 밖. BD 후속 1.
+- BR1 재리뷰: 앞 지적 3건 해결. 새 🔴 1(일반 삭제로 줄 머리가 된 칩 앞에 줄바꿈이 생겨 메시지가 바뀜), 🟡 2(클립보드 앵커 중첩 타입 검증, 조합 중 초안 전환 검증). 지휘자 판단: 사용자가 친·붙인 U+200B는 지우지 않는다(filler 노드만 표시해 뺀다). 근거: PRODUCT §5 항목 1 '입력은 남는다', 리뷰 권고. 수정 라운드 2 전송.
+- BD 후속 1 `a39cbf86`: 코멘트 초안 3개 삭제, project-feedback id-change-notice 프레임, color.html pins 프레임 제거. `doan check` 오류는 main에 있던 Sidebar.tsx 6개만 남음. 남은 참조: 코드 주석 7곳(App.tsx:152, canvasView.ts:63, CanvasConversationList.tsx:15·test:124, CanvasController.ts:721, shell.test.ts:430, watch.test.ts:291) → BR2 브리프에 넣는다. 문서 참조(DESIGN 661·714·738, DIRECTORY 36) → Z3·Z5. POSTMORTEM·USABILITY-EVAL은 기록이라 그대로.
