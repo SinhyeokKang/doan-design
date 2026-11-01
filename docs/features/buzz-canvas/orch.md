@@ -38,8 +38,8 @@
 | BR5 | R5 | `App.tsx`, `styles.css`, 새 작업 표시·점 필드 컴포넌트 | BR4, BD, BT | Claude Opus high (rAF 수명과 정지 조건, `interruptConversation` 오류 처리, 동작·투명도 줄이기) | test, build, 변경 범위 `/runtime-test` | 대기 |
 | BR6 | R6, X1 | `styles.css`, `App.tsx`, `CanvasController.ts`(inset 적용), `canvasView.ts`와 테스트 | BR5 | Claude Sonnet high (CSS 재배치와 grep으로 확인하는 제거. 겹침 순서와 inset 적용만 판단이 필요하다) | test, typecheck, build, X1 grep, 변경 범위 `/runtime-test` | 대기 |
 | BV | V1, V2, Z3와 그 수정 | 위 배치들의 파일 수정, `.scratch/design-sync/buzz-canvas/`, `.scratch/runtime-test/buzz-canvas/`, `docs/DESIGN.md` | BR6 | Claude Opus high (실제 앱 측정, 960·1238 겹침, 초안과의 차이 수정, 회귀 테스트) | V1 통과 조건, V2 항목별 결과, DESIGN.md 기록 | 대기 |
-| BG | Antigravity 로그인 버그(범위 밖, 별도 브랜치 `fix-antigravity-signin`) | `app/src/main/agentAuth/` 등 원인에 따라. buzz-canvas 파일과 겹치지 않는다 | — | Claude Opus high (실제 공급자 로그인 재현, 인증 수명·vault 판단. 틀리면 사용자 자격 증명을 잃는다) | 원인 증거, 회귀 테스트 red, `verify.mjs`, 복사 프로필로 `/runtime-test` | 진행 중 |
-| BA | Codex·Antigravity 계정 표시 조사와 `/feature`(범위 밖 feature, 문서만 이 PR에) | 새 `docs/features/<slug>/`, `.scratch/` PoC | — | Claude Opus high (실제 서명 프로필에서 읽기 전용 PoC, 자격 증명 경계 판단) | PoC 근거, `/feature-review` 반영 | 진행 중 |
+| BG | Antigravity 로그인 버그(범위 밖, 별도 브랜치 `fix-antigravity-signin`) | `app/src/main/agentAuth/` 등 원인에 따라. buzz-canvas 파일과 겹치지 않는다 | — | Claude Opus high (실제 공급자 로그인 재현, 인증 수명·vault 판단. 틀리면 사용자 자격 증명을 잃는다) | 원인 증거, 회귀 테스트 red, `verify.mjs`, 복사 프로필로 `/runtime-test` | PR #52 (push 완료, 병합 안 함) |
+| BA | Codex·Antigravity 계정 표시 조사와 `/feature`(범위 밖 feature, 문서만 이 PR에) | 새 `docs/features/<slug>/`, `.scratch/` PoC | — | Claude Opus high (실제 서명 프로필에서 읽기 전용 PoC, 자격 증명 경계 판단) | PoC 근거, `/feature-review` 반영 | 통합(`610479fe`·`601e0acb`) |
 | BZ | Z1, Z2, Z4 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/buzz-restyle/*`, `docs/features/buzz-canvas/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z1·Z2·Z4 grep | 대기 |
 
 리뷰 작업자(보고만, `/code-review`): BT·BP → Codex `gpt-6-astra` medium(교차 리뷰). BD → Claude Sonnet medium(Codex 구현의 교차 리뷰). BR1·BR4·BR5 → Codex `gpt-6-astra` medium(교차 리뷰, 포커스·수명·저장 판단). BR6 → Codex `gpt-6-astra` medium. BV의 코드 수정 → Codex `gpt-6-astra` medium.
@@ -59,4 +59,9 @@
 - 2026-11-01: BD 완료(`324729b8`). RBD(Claude Sonnet medium) 결과 🔴·🟡 없음, ⚪ 2건. `b81d1de4`로 통합했다. BD와 RBD는 해제했고 워크트리는 Orca로 지웠다.
 - 2026-11-01: BP 완료(`2d774666`). RBP(Codex `gpt-6-astra` medium) 결과 🔴·🟡 없음. ⚪2(모든 필드를 채운 ui-state 왕복 테스트)는 BP2로 같은 작업자에게 보냈다(`0f997be8`). `7aafc8e3`·`41db7562`로 통합했다. 관련 테스트 112개 통과. BP는 해제했고 워크트리는 지웠다. S1의 renderer 저장 연결과 '읽은 뒤에만 저장' 규칙은 BR4가 맡는다(RBP ⚪1).
 - 2026-11-01: BT 완료(`9ef73ad8`·`2794be62`·`bc6850cf`). RBT(Codex `gpt-6-astra` medium) 결과 🟡 3건: 중복 id 행 key 충돌, 반올림 배율 때문에 한계 전에 −·+가 비활성됨, spec·design의 inset 문장 충돌. 앞의 둘은 BT2로 같은 작업자에게 보냈다. 셋째는 지휘자가 spec 문장을 design에 맞춰 고쳤다. `CanvasController`의 `EVEN_INSET`은 높은 프레임 띠에서 동작을 바꾸므로 BR1·BR6 runtime 증거에 넣는다(RBT ⚪1).
+- 2026-11-01: BT2(RBT 🟡1·🟡2 수정, 증거 서술 정정) 완료. BT 커밋 6개를 `079d7bb2`..`22457dbe`로 통합했다. 1차 통합 HEAD `22457dbe`에서 `verify.mjs` 통과. BT는 해제했고 워크트리는 지웠다.
+- 2026-11-01: BR1 시작(`ctx_eaa2ffde49c3`, Opus high). 자체 리뷰에서 비활성 중 닫힌 서랍이 다시 열리는 버그를 찾아 고쳤다(probe red → 22/22). RBR1(Codex `gpt-6-astra` medium) 결과 코드 결함은 없고, 🟡 1건은 열린 목록의 수명 주기(행 제거, 전체 삭제, 실제 로드 실패, 캔버스 전환) 검증 누락이었다. BR1b로 보냈다: 포커스 결정을 `canvasFocus.ts` 순수 함수와 테스트 13개로 고정했고, probe 8/8 통과, postmortem을 추가했다. `11a40ea6`·`abc6a1ac`·`392c9f59`·`e7fb982f`로 통합했다. 통합 HEAD에서 `verify.mjs` 통과(작업자 쪽은 부하 때문에 실패했다). 실제 앱에서 확인하지 못한 것: 메뉴가 열린 채 Back/Forward, typeahead 초기화와 Space 선택. BR1은 해제했고 워크트리는 지웠다.
+- 2026-11-01: BG 진행. 정상 부하에서는 재현되지 않아(성공 3회) 진단 로그를 넣었다. 사용자가 실패 당시 부하가 높았다고 확인해, BG2에서 부하 약 190으로 재현했다. 원인: 상태 확인의 20초 제한이 서버 시작 시간(부하에서 약 30초)까지 포함해 셌다. 수정: `initialize`를 60초 안에서 기다리고, 20초는 그 응답 뒤부터 센다. 부하 약 227에서 성공했고, 약 270에서는 여전히 실패한다. RBG·RBG2(Codex)가 진단 로그의 원문 노출을 두 번 찾아 BG3·BG4에서 고쳤다(범주만 남김). `fix-antigravity-signin`을 push해 PR #52를 냈다. BG는 해제했고 워크트리는 지웠다. 로그인 승인은 지휘자가 ego(`ox501501@gmail.com`)로 했다.
+- 2026-11-01: BA 완료. `agent-account-identity` feature 문서를 통합했다. BA는 해제했고 워크트리는 지웠다.
+- 2026-11-01: BR4 시작(`ctx_0d1c7fd78c04`, Opus high, `e7fb982f`).
 
