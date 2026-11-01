@@ -1072,3 +1072,38 @@ body:has(.shell-top) { background: transparent; }
 @media (prefers-reduced-motion: reduce) {
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
 }
+
+/* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html
+   'agent-working', 'agent-waiting'). Reference: ego lite's agent tab as the user described it (2026-11-01); its values are
+   compiled into a native view, and the one web token read is the task bar's #0009 (design §2). doan uses its accent for
+   the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
+   controls; nothing here takes pointer input. */
+.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 var(--space-2) color-mix(in srgb, var(--affordance-accent) 70%, transparent), inset 0 0 var(--space-6) color-mix(in srgb, var(--affordance-accent) 35%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
+.workspace[data-panel="collapsed"] .doan-agent-glow { border-radius: 0 0 var(--radius-container) var(--radius-container); }
+@keyframes doan-agent-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+/* The dot field's colour: translucent white dots, read from this computed colour by the canvas. */
+.doan-agent-dots { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--text-on-prominent); }
+/* The notice and, later, the canvas notices stack at the board's top centre, 20px under its top edge. */
+.doan-canvas-top { position: absolute; z-index: 3; top: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
+/* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
+   primitive. The wording gives way first; the button keeps its size. */
+.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
+   white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
+.doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
+@media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
+.doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
+.doan-agent .doan-button.doan-agent-action[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-prominent) 60%, transparent); cursor: default; }
+/* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
+.doan-agent-dot { position: relative; flex: none; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); animation: doan-agent-breathe 2.4s var(--ease-state) infinite; }
+.doan-agent-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 0 color-mix(in srgb, var(--affordance-accent) 70%, transparent); animation: doan-agent-ring 2.4s var(--ease-settle) infinite; }
+.doan-agent-dot[data-steady], .doan-agent-dot[data-steady]::after { animation: none; }
+@keyframes doan-agent-breathe { 0%, 100% { transform: scale(.75); } 50% { transform: scale(1.25); } }
+@keyframes doan-agent-ring { to { box-shadow: 0 0 0 var(--space-2) transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .doan-agent-glow, .doan-agent-dot, .doan-agent-dot::after { animation: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .doan-agent { background: var(--affordance-prominent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

@@ -9,6 +9,8 @@ import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools } from "./CanvasTools";
+import { CanvasAgent } from "./CanvasAgent";
+import { workingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
 import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
@@ -42,6 +44,7 @@ import { OverviewRun } from "./overviewRun";
 import { DockedSupport } from "./dockedSupport";
 import { sameCanvas } from "./ProjectOverview";
 import type { Canvas } from "../main/conversation/types";
+import type { ConversationSummary } from "../main/conversation/summary";
 import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
@@ -207,8 +210,9 @@ export function App() {
   // The window and the measured column holding the canvas and the panel (sidebar and margins excluded).
   const [panelSize, setPanelSize] = useState<{ window: number; shell: number } | null>(null);
   const shellRoot = useRef<HTMLElement>(null);
-  // Which button takes focus after the panel folds ("show") or comes back ("hide").
-  const panelFocus = useRef<"show" | "hide" | null>(null);
+  // Which button takes focus after the panel folds ("show") or comes back ("hide"), or the panel itself ("panel", the
+  // agent notice's Open).
+  const panelFocus = useRef<"show" | "hide" | "panel" | null>(null);
   // Only folding and unfolding animate the column; a drag, a window resize or the Overview's own column must not.
   const [panelMotion, setPanelMotion] = useState(false);
   const overviewRun = useRef<OverviewRun | null>(null);
@@ -863,16 +867,21 @@ export function App() {
   // A canvas opened under the Overview was fitted to the Overview's layout; fit it again once this commit has applied
   // the canvas page's column (design §2 '첫 Fit'). The controller does it once per opened canvas.
   useLayoutEffect(() => { if (panelSize && canvasPage) controller.current?.settleFit(); });
-  const foldPanel = (open: boolean) => {
-    panelFocus.current = open ? "hide" : "show";
+  const foldPanel = (open: boolean, focus: "panel" | null = null) => {
+    panelFocus.current = focus ?? (open ? "hide" : "show");
     setPanelMotion(true);
     changePanel(previous => ({ ...previous, open }));
   };
+  // The panel's title takes focus: buzz-canvas-conversation moves it on to the request (design §2 'Open').
+  const focusPanel = () => document.querySelector<HTMLElement>(".doan-conv-panel .rp-head")?.focus();
+  // The agent notice's Open (design §2): a folded panel unfolds, and focus moves into the panel either way.
+  const openRequest = () => { if (rightPanel.open) focusPanel(); else foldPanel(true, "panel"); };
   // Folding hands focus to the button that undoes it (design §2: close → open button, open → close button).
   useEffect(() => {
     const to = panelFocus.current;
     panelFocus.current = null;
-    if (to) document.querySelector<HTMLElement>(to === "show" ? ".doan-canvas-head .doan-panel-show" : ".doan-conv-panel .doan-panel-hide")?.focus();
+    if (to === "panel") focusPanel();
+    else if (to) document.querySelector<HTMLElement>(to === "show" ? ".doan-canvas-head .doan-panel-show" : ".doan-conv-panel .doan-panel-hide")?.focus();
   }, [rightPanel.open]);
   useEffect(() => {
     if (!panelMotion) return;
@@ -946,7 +955,9 @@ export function App() {
     {sidebar(false)}
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
-      zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true) }} />
+      zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true) }}
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null,
+        onOpen: openRequest, onStopFailed: text => toast.show(text) }} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -993,10 +1004,12 @@ function TopBar({ back, forward, previous, next, page, locked, addProjects, proj
   </header>;
 }
 
-function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation }: {
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: Canvas | null; running: boolean; onOpen(): void; onStopFailed(text: string): void };
+
+function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
-  zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void };
+  zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void }; agent: AgentProps;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project…"
@@ -1034,6 +1047,8 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />
+    {/* Under the board's floating controls; the notice comes first in the Tab order (design §2 '겹침 순서', 'Esc와 포커스'). */}
+    <CanvasAgent {...agent} />
     <div className="canvas-notices">
       {state.error && <div className="canvas-notice" role="status">{state.error}</div>}
       {state.unlisted && <div className="canvas-notice" role="status">This page is not a listed canvas. Choose a canvas from the Sidebar.</div>}

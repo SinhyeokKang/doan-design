@@ -218,3 +218,50 @@ test("a read that fails still lets saves through, with the panel's own state", a
   readUiState(null); await Promise.resolve(); await Promise.resolve(); render();
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", rightPanel: { open: true } });
 });
+
+// buzz-canvas R5 (design §2 '에이전트 작업 표시'): the agent notice's Open unfolds the panel and moves focus into it; a Stop
+// failure is the shared toast; a page without a listed canvas gives the indicator no canvas.
+type Agent = { canvas: unknown; running: boolean; list: unknown; onOpen(): void; onStopFailed(text: string): void };
+const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
+function focusable() {
+  const focus = vi.fn();
+  const querySelector = vi.fn((selector: string) => selector === ".doan-conv-panel .rp-head" ? { focus } : null);
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector, querySelectorAll: () => [] });
+  return { focus, querySelector };
+}
+
+test("Open unfolds a folded panel and moves focus to the panel, not to its close button", async () => {
+  await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  const { focus, querySelector } = focusable();
+  agent()!.onOpen(); render();
+  expect(panel()?.open).toBe(true);
+  expect(saved()?.rightPanel).toEqual({ open: true, width: 400 });
+  expect(focus).toHaveBeenCalledTimes(1);
+  expect(querySelector).not.toHaveBeenCalledWith(".doan-conv-panel .doan-panel-hide");
+});
+
+test("Open with the panel already open only moves focus to the panel", async () => {
+  await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 } });
+  const { focus } = focusable();
+  const before = doan.saveUiState!.mock.calls.length;
+  agent()!.onOpen(); render();
+  expect(panel()?.open).toBe(true);
+  expect(focus).toHaveBeenCalledTimes(1);
+  expect(doan.saveUiState!.mock.calls.length).toBe(before);
+});
+
+test("a Stop failure is shown in the shared toast", async () => {
+  await canvasPage();
+  agent()!.onStopFailed("Couldn’t stop Codex. Try again.");
+  expect(harness.toast.show).toHaveBeenCalledWith("Couldn’t stop Codex. Try again.");
+});
+
+test("a project problem gives the indicator no canvas; the canvas page runs it, the Overview does not", async () => {
+  await canvasPage();
+  expect(agent()?.canvas).toBeNull();
+  expect(agent()?.running).toBe(true);
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(find(ProjectOverview)).toHaveLength(1);
+  expect(agent()?.running).toBe(false);
+});
