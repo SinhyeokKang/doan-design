@@ -83,3 +83,6 @@ D1은 이미 끝났다(초안 확정).
 - 웨이브 1 통합 HEAD(`35e898bf`) `verify --eval` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, eval-tests, eval-self-test, build). 통합 앱의 실제 probe는 BX probe(통합 전 같은 코드)로 대신하고, 칩 필드가 들어가는 웨이브 2 뒤에 다시 본다.
 - BM 완료 `98d8378e`(Codex). renderer 계약: `setMenuState`가 `selection`·`pickerAvailable`을 보내고, `addSelectionToConversation` 명령을 처리한다(R3/R4). 리뷰: Claude Opus medium.
 - BM 리뷰(Claude Opus medium) 통과: 🔴·🟡 0, ⚪ 4. 지휘자 판단: 잘못된 `menu:state` 입력은 기존 플래그처럼 직전 상태를 유지한다(테스트로 고정). 주석 보강과 함께 BM 후속 1(`ctx_54ddcace0b51`). ⚪2(⌘N·⌘L renderer 연결)는 BR2·BR4b 브리프에, ⚪4(ARCHITECTURE 368·496)는 Z2에 넣는다.
+- BM 통합: `73197dbc`, `2d45413d`. 워크트리 정리.
+- 지휘자 판단: BR4a를 웨이브 3까지 기다리지 않고 BR1과 병렬로 시작했다(`ctx_d7d609d5ab3a`, bcc-br4). 근거: 선행(BT·BX)이 통합됐고, BR4a 파일(canvasScript·CanvasController·canvasMessage·canvasPicker)은 BR1과 겹치지 않는다.
+- 결정(2026-11-01 user, BR4a 질문): 고르기 중 프레임 배경 클릭은 프레임 칩, 요소 클릭은 요소 칩, 프레임 안 ⇧-클릭은 그 자리의 점 칩이다. 지휘자 판단(문구, clarify 적용): 고르기 안내는 "Click a frame or an element, or Shift-click a spot"(kbd Esc, sr "Press Escape to cancel" 그대로). design.md §0·§2를 고쳤다. 초안의 `picker-mode` 안내 문구와 다른 점은 V1에서 사용자 결정에 따른 차이로 기록한다.

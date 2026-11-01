@@ -16,7 +16,7 @@
 | `panel-failed` | 실패한 턴과, 칩이 든 반환된 초안 |
 | `panel-states` | 목록 읽는 중, 목록 읽기 실패(헤더는 "New conversation"), 대화 읽기 실패, 시작 거절(새 대화라 헤더는 "New conversation"), 캔버스가 사라짐, 캔버스가 로드되지 않음(피커 비활성), 보관 대화 복원 대기(출하된 restore busy 줄과 Open), 터미널 세션 이어 가기 거절, 칩 대상을 찾지 못함, 프로젝트 대화가 그리는 중 안내, 패널을 연 채 승격 안내, 칩 32개 상한, 캔버스 ID 중복 |
 | `chips-composer` | 프레임·요소·점 칩이 든 입력창(box) |
-| `picker-mode` | 고르기 상태: 위쪽 가운데 안내 캡슐("Click a frame, an element or an empty spot"과 kbd "Esc", 숨긴 sr 텍스트 "Press Escape to cancel"), hover 후보, 눌린 피커 |
+| `picker-mode` | 고르기 상태: 위쪽 가운데 안내 캡슐("Click a frame or an element, or Shift-click a spot"과 kbd "Esc"; 초안의 "Click a frame, an element or an empty spot"에서 바뀌었다, 2026-11-01 user, 숨긴 sr 텍스트 "Press Escape to cancel"), hover 후보, 눌린 피커 |
 | `add-tool` | 선택이 있을 때 Add to conversation 활성과 툴팁, 칩이 들어간 입력창. 프레임 밖 참고 타일에 네이티브 메뉴 File > New Conversation ⌘N, Edit > Add Selection to Conversation ⌘L(항목과 켜짐 조건만, `/design-sync` 비교 대상 아님) |
 | `chip-locate` | 보낸 칩을 눌러 대상 강조. 대상을 찾지 못함("No longer in the canvas")은 `panel-states`의 타일 |
 | `open-badge` | 접힌 패널의 Show conversation에 새 소식 점(답 대기). 답 대기 중 작업 안내 캡슐은 Stop 대신 Open |
@@ -98,11 +98,11 @@
 
 ### 피커와 Add to conversation
 
-- 입력창 피커("Pick from canvas", 입력창 카드 아래 모델 줄의 왼쪽 끝 xs 아이콘 버튼; 에이전트·effort는 오른쪽, 2026-11-01 user): 누르면 캔버스가 한 번 고르기 상태가 된다. 보드 커서가 십자, 위쪽 가운데에 "Click a frame, an element or an empty spot. Esc to cancel." 안내, hover 후보는 지금 hover 외곽선. 누르면 앵커가 정해지고 칩이 커서 위치에 들어가며 입력창 포커스가 돌아온다. 고르기는 현재 선택·`doan active`를 바꾸지 않는다. Esc·피커 다시 누르기·다른 화면으로 가기는 취소다.
+- 입력창 피커("Pick from canvas", 입력창 카드 아래 모델 줄의 왼쪽 끝 xs 아이콘 버튼; 에이전트·effort는 오른쪽, 2026-11-01 user): 누르면 캔버스가 한 번 고르기 상태가 된다. 보드 커서가 십자, 위쪽 가운데에 "Click a frame or an element, or Shift-click a spot" 안내와 kbd "Esc", hover 후보는 지금 hover 외곽선. 누르면 앵커가 정해지고 칩이 커서 위치에 들어가며 입력창 포커스가 돌아온다. 고르기는 현재 선택·`doan active`를 바꾸지 않는다. Esc·피커 다시 누르기·다른 화면으로 가기는 취소다.
 - 고르기 Esc와 취소(2026-11-01 user): Esc 순서는 메뉴·팝오버 → `/` 목록 → 고르기 → 선택 해제다. 고르기 중 Esc는 포커스가 입력창·iframe·패널 어디에 있어도 고르기만 취소하고 선택을 지우지 않는다(`preventDefault`). Hide conversation, 메뉴에서 대화 전환, 입력창을 쓸 수 없게 됨(전송 중 아님, gone·프로젝트 문제), 다시 로드 뒤 로드 실패나 목록에 없음도 고르기를 취소한다. 같은 ID로 캔버스가 옮겨지면 다시 로드처럼 고르기를 유지한다. 고르기 중에도 두 손가락 팬·핀치는 동작하고, ⌥-클릭도 고른다.
 - 포커스 복귀: 고르기를 시작할 때 입력창 커서 위치를 저장하고, 칩을 넣으면 커서를 칩 바로 뒤에, 취소하면 저장한 위치에 둔다. 복귀는 시작할 때의 의도를 들고 가서, 그 사이 포커스가 다른 곳으로 갔거나 IME 조합 중이면 옮기지 않는다(POSTMORTEM 2026-10-23 R-L).
 - 접근성: 피커는 `aria-pressed`, 안내 문구는 `role="status"`이고 숨긴 텍스트 "Press Escape to cancel"을 가진다. 작업 안내 캡슐과 함께 뜨면 작업 안내가 위, 고르기 안내가 그 아래다.
-- 빈 곳: 프레임 안의 빈 곳을 누르면 점 앵커(`point {frameId, dx, dy}`, 그 프레임 기준 offset, 겹치면 가장 안쪽 프레임)다. 프레임 밖(문서의 프레임 바깥과 보드 여백)을 누르면 아무것도 넣지 않고 고르기를 유지한다. 보드 좌표는 앱 내부 배치라 에이전트가 HTML과 연결할 수 없기 때문이다(2026-11-01 user). "Point on canvas" 칩은 없다.
+- 프레임과 점(2026-11-01 user): 프레임의 배경(프레임 요소 자체)을 누르면 프레임 칩, 요소를 누르면 요소 칩이다. 프레임 안 어디든 ⇧-클릭하면 그 자리의 점 앵커(`point {frameId, dx, dy}`, 그 프레임 기준 offset, 겹치면 가장 안쪽 프레임)다. 프레임 배경이 곧 프레임 요소라 "빈 곳 → 점"과 "프레임 → 프레임 칩"이 겹쳐서 점을 ⇧-클릭으로 나눴다. 프레임 밖(문서의 프레임 바깥과 보드 여백)을 누르면 아무것도 넣지 않고 고르기를 유지한다. 보드 좌표는 앱 내부 배치라 에이전트가 HTML과 연결할 수 없기 때문이다(2026-11-01 user). "Point on canvas" 칩은 없다.
 - Add to conversation(도구모음, `buzz-canvas`가 만든 `role="toolbar"`에 더함): 현재 선택(프레임·요소)이 있을 때 활성. 누르면 패널을 펴고(접혀 있었으면) 입력창 커서 위치(포커스가 없었으면 끝)에 선택의 칩을 넣고 입력창에 포커스를 준다. 보관 대화가 보이는 중이면 그 입력창에 넣는다.
 - 쓸 수 있는 때: 피커와 Add to conversation(⌘L 포함)은 입력창이 입력을 받고 캔버스가 로드되었을 때만 활성이다. 비활성은 `disabled` 대신 `aria-disabled`라 툴팁이 hover·포커스로 나온다. 툴팁은 캔버스를 보일 수 없으면 "Pick from canvas isn’t available while the canvas can’t be shown.", 입력창을 쓸 수 없으면 그 이유 줄과 같은 문구다.
 - 단축키: Edit > Add Selection to Conversation ⌘L(2026-11-01 user). 피커에는 단축키를 두지 않는다.
