@@ -15,7 +15,8 @@
 | 3 | R1 검증 명령은 `.scratch/runtime-test/agent-account-identity/` probe(`app/runtime/` 지원)다 | 지휘자 판단 — AGENTS 'Verification policy'의 짧은 실제 앱 probe |
 | 4 | V1과 Z1은 지휘자가 한다 | orchestrate §4·§5: 통합 `/verify`와 승격은 지휘자 몫이고 문서만 바뀐다 |
 | 6 | 이 PR에 별도 배치 G를 더한다. `doan init`과 앱 프로젝트 설정이 `.gitattributes`에 `.doan/** linguist-documentation`을 함께 써서, 사용자 저장소의 GitHub 언어 통계에서 초안 캔버스를 뺀다. ARCHITECTURE §1 "the only Git configuration Doan writes"와 PRODUCT의 "one `.gitattributes` line"을 바꾼다 | 사용자 승인(2026-11-01, "이 PR에 같이 들어가도 괜찮아") |
-| 7 | 이미 설정한 저장소(병합 줄은 있고 새 줄은 없음)를 다시 "설정 필요"로 표시하지 않는다. `init`을 실행하면 빠진 줄을 각각 채운다 | 지휘자 판단 — 표시용 속성 하나로 기존 프로젝트를 모두 미설정으로 되돌리지 않는다 |
+| 7 | "설정됨"은 지금처럼 config가 있는지로만 정한다. config가 있는 저장소는 다시 "설정 필요"가 되지 않고 `init`도 아무것도 쓰지 않으므로 새 줄을 받지 않는다. config가 없는 저장소의 변경 목록은 두 줄 중 하나라도 빠지면 `.gitattributes`를 넣는다. `init`은 빠진 줄만 채운다 | 지휘자 판단 — 표시용 속성 하나로 기존 프로젝트를 미설정으로 되돌리지 않는다. 처음 문장이 모호해 G가 병합 줄만으로 목록을 정했고, 수정 1차로 바로잡는다 |
+| 8 | 배치 G에는 `/agent-eval`을 돌리지 않는다 | 지휘자 판단 — 가이드(`skill.md`)·메시지·CLI 출력 형태가 그대로이고 변경 목록의 값 이름도 같다. 바뀐 것은 `init`이 쓰는 파일 내용이다 |
 | 5 | `.scratch/provider-profile/userData`를 이 실행이 끝나도 로그아웃하거나 지우지 않는다. `buzz-canvas-conversation` V2가 이어서 쓴다 | 사용자 지시(2026-11-01) |
 
 ## 배치
@@ -26,7 +27,7 @@
 | B | T1, M1 | `app/src/main/agentAuth/identity.ts`·`identity.test.ts`·`providers.ts`·`manager.ts`·`manager.test.ts`, `app/src/renderer/agentAuthView.ts`(주석) | — | Claude Opus high — 취소·hold·커밋 경계가 얽힌 동시성과 자격증명 처리 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n 'writeMetadata' app/src/main/agentAuth/manager.ts` | 5커밋 `72ad94ad..aade6762`, verify PASS. 수정 1차 진행(RV-B 🟡1·⚪1). 소유 밖 `storage.ts` `readWorking` 추가는 수용 |
 | RV-B | B 리뷰 | 없음(보고만) | B | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료: 🔴0 🟡2 ⚪1(`.scratch/briefs/aai/review-B.md`). 🟡2(5초 상한 문구)는 지휘자가 spec·design에서 고쳤다. 워커 해제 |
 | C | R1 | `.scratch/runtime-test/agent-account-identity/`, `design.md` §1·§3 'PoC 의존' | B 통합 | Claude Opus medium — 실제 HOME·키체인을 쓰는 probe라 안전 판단이 필요 | tasks R1 통과 기준 | 대기 |
-| G | 결정 6·7 | `cli/internal/cli/init.go`와 테스트, `app/src/main/onboarding/`, `app/src/renderer/ProjectSetupDialog.tsx`, `eval/lib/`·`eval/scenarios/`의 `.gitattributes` 기대값, `cli/internal/cli/skill.md`(필요할 때), PRODUCT·ARCHITECTURE의 해당 문장 | — | Claude Opus medium — CLI·앱·eval 계약을 함께 맞추는 중간 난도 | `node .agents/skills/verify/scripts/verify.mjs --eval` | 진행 |
+| G | 결정 6·7 | `cli/internal/cli/init.go`와 테스트, `app/src/main/onboarding/`, `app/src/renderer/ProjectSetupDialog.tsx`, `eval/lib/`·`eval/scenarios/`의 `.gitattributes` 기대값, `cli/internal/cli/skill.md`(필요할 때), PRODUCT·ARCHITECTURE의 해당 문장 | — | Claude Opus medium — CLI·앱·eval 계약을 함께 맞추는 중간 난도 | `node .agents/skills/verify/scripts/verify.mjs --eval` | 6커밋 `55e7caa9..ad6c6592`, verify --eval PASS. 수정 1차 진행(변경 목록 간극). 격리 앱 probe는 C에서 함께 |
 | 지휘자 | V1, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, 이 디렉터리 삭제 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 `rg` 확인 | 대기 |
 
 ## 실행 기록
@@ -37,6 +38,7 @@
 - RV-B: dispatch `ctx_d830864e5bc3`, `gpt-6-astra` medium(effective 확인), B worktree에서 읽기만.
 - B 수정 1차: dispatch `ctx_491e261a9110`, 같은 터미널 재사용.
 - G: dispatch `ctx_281813449dab`, worktree `aai-G`, Claude `opus` medium(effective 확인).
+- G 수정 1차: dispatch `ctx_fed84459911d`, 같은 터미널 재사용.
 
 ## 파일 겹침과 순서
 
