@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ACP_PROTOCOL_VERSION, AcpConnection } from "../conversation/acp";
+import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
 import { OwnedGroup } from "../conversation/process";
 import { object } from "../conversation/sessions";
 import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
@@ -51,15 +51,47 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
 class Failure extends Error { constructor(readonly code: "sign_in_failed" | "storage_failed" | "cli_install_failed", detail?: string) { super(detail ?? code); } }
-// A failed ACP exchange carries the server's last stderr lines, so its log says what the server reported. Lines with a
-// URL or token-like text stay out: the sign-in link, the callback and the e-mail in loadCodeAssist's reply would leak.
-class ServerError extends Error { constructor(detail: string, readonly lines: readonly string[]) { super(detail); } }
-const SERVER_LINES = 20;
-function loggable(line: string): string | null {
-  if (!line.trim() || /:\/\/|code=|_token/i.test(line)) return null;
-  return line.length > 300 ? `${line.slice(0, 300)}…` : line;
+// A failed ACP exchange is logged in Doan's own words only: the server's messages, RPC error text and data, payloads and
+// exception lines can hold the sign-in link, the account and tokens (the 1.3.0 server puts the whole loadCodeAssist
+// reply into an onboarding error). reason is Doan's category of how the exchange ended; events are the server's
+// recognized log lines, reworded. The detail stays the full message for the in-memory outcome only.
+class ServerError extends Error { constructor(detail: string, readonly reason: string, readonly events: readonly string[], readonly withheld: number) { super(detail); } }
+class UnexpectedServer extends Error {}
+const SERVER_EVENTS = 20;
+// An absl log line of the 1.3.0 server: level and date, time, thread, file:line]. Traceback and payload continuation
+// lines and the printed sign-in link do not match and are withheld.
+const SERVER_LINE = /^([IWEF])\d{4} (\d\d:\d\d:\d\d)\.\d+ +\d+ ([A-Za-z0-9_]{1,64}\.py):(\d{1,6})\] (.*)$/;
+// Messages of the 1.3.0 auth path (credential_manager.py, onboard.py, oauth_manager.py, server.py, settings_writer.py).
+const SERVER_EVENT_NAMES: [RegExp, string | ((found: RegExpExecArray) => string)][] = [
+  [/^Starting AGY ACP Server\b/, "server started"],
+  [/^Authenticate called\b/, "authenticate received"],
+  [/^Credentials missing or invalid\. Launching browser login flow\b/, "no usable stored credential; browser sign-in started"],
+  [/^Access token expired\. Refreshing silently\b/, "refreshing the stored credential"],
+  [/^Running CCPA loadCodeAssist\b/, "onboarding check started"],
+  [/^User is already onboarded\b/, "onboarding check passed"],
+  [/^settings: recorded auth\.type\b/, "sign-in method saved"],
+  [/^Signing out after (onboarding_failed|ge_license_cancelled|ge_license_failed|ge_auth_failed|ge_backend_http_\d{3}):/, found => `server signed out after ${found[1]}`],
+  [/^Cleared credential file\b/, "server deleted its stored credential"],
+  [/^Refusing to persist credentials without a refresh token\b/, "no refresh token returned; credential not saved"],
+  [/^Failed to refresh token\b/, "credential refresh failed"],
+  [/^Onboarding failed with terminal error\b/, "onboarding failed (terminal)"],
+  [/^Failed to run onboarding\b/, "onboarding failed"],
+];
+function serverEvent(line: string): string | null {
+  const parts = SERVER_LINE.exec(line);
+  if (!parts) return null;
+  const [, level, time, file, at, text] = parts as unknown as [string, string, string, string, string, string];
+  for (const [pattern, name] of SERVER_EVENT_NAMES) {
+    const found = pattern.exec(text);
+    if (found) return `${time} ${file}:${at} ${typeof name === "string" ? name : name(found)}`;
+  }
+  return level === "I" ? null : `${time} ${level} ${file}:${at} (message withheld)`;
 }
-const serverLog = (error: unknown) => error instanceof ServerError && error.lines.length ? `; server log:\n  ${error.lines.join("\n  ")}` : "";
+const serverLog = (error: unknown) => {
+  if (!(error instanceof ServerError) || (!error.events.length && !error.withheld)) return "";
+  return `; server events:${error.events.map(event => `\n  ${event}`).join("")}${error.withheld ? `\n  (${error.withheld} other lines withheld)` : ""}`;
+};
+const exchangeReason = (error: unknown) => error instanceof ServerError ? error.reason : "the server could not be started";
 
 export class AuthManager {
   private states = new Map<Provider, AuthState>();
@@ -449,11 +481,11 @@ export class AuthManager {
         if (this.stopRequests.has(attemptId) || this.cancelled(provider, attemptId) || this.links.get(attemptId)?.url === link.url) return false;
         this.links.set(attemptId, link); this.options.onPrompt?.({ provider, attemptId, owner, url: link.url });
         return false;
-      }, acp => acp.request("authenticate", { methodId: method }, null));
+      }, "authenticate", { methodId: method });
     } catch (error) {
       if (error instanceof Cancelled || this.cancelled(provider, attemptId)) throw new Cancelled();
       if (error instanceof Failure) throw error;
-      console.error(`doan: ${provider} sign-in failed: ${message(error)}${serverLog(error)}`);
+      console.error(`doan: ${provider} sign-in failed: ${exchangeReason(error)}${serverLog(error)}`);
       throw new Failure("sign_in_failed", message(error));
     }
   }
@@ -463,18 +495,18 @@ export class AuthManager {
     let asked = false;
     try {
       await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => { asked = true; return true; },
-        acp => acp.request("authenticate", { methodId: this.adapters[provider].acpAuth!.method }, null));
+        "authenticate", { methodId: this.adapters[provider].acpAuth!.method });
       return { code: 0, stdout: "", stderr: "" };
     } catch (error) {
       if (error instanceof Cancelled || error instanceof Failure) throw error;
-      console.error(`doan: ${provider} status check ${asked ? "found no usable login: the server asked for a new browser sign-in" : `failed: ${message(error)}`}${serverLog(error)}`);
+      console.error(`doan: ${provider} status check ${asked ? "found no usable login: the server asked for a new browser sign-in" : `failed: ${exchangeReason(error)}`}${serverLog(error)}`);
       return { code: asked ? 2 : 1, stdout: "", stderr: message(error) };
     }
   }
   private async acpLogout(provider: Provider, attemptId: string): Promise<void> {
     await this.hold(provider);
     try {
-      await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, acp => acp.request("logout", {}));
+      await this.acpExec(provider, attemptId, this.options.statusTimeoutMs ?? 20_000, () => true, "logout", {});
     } catch (error) { console.error(`doan: ${provider} server logout failed; removing Doan's copy`, message(error)); }
     // In the queue like every hold and drop, but not drop(): absorbing the logged-out copy would write it back to the
     // vault, and signOutFlow removes both right after.
@@ -486,33 +518,35 @@ export class AuthManager {
     const info = object(init) && object(init.agentInfo) ? init.agentInfo : {};
     const methods = object(init) && Array.isArray(init.authMethods) ? init.authMethods.filter(object).map(m => m.id) : [];
     if (!object(init) || init.protocolVersion !== ACP_PROTOCOL_VERSION || info.name !== expected.agent || info.version !== expected.version || !methods.includes(expected.method)) {
-      throw new Error(`unexpected ACP server ${String(info.name)} ${String(info.version)}`);
+      throw new UnexpectedServer(`unexpected ACP server ${String(info.name)} ${String(info.version)}`);
     }
   }
   // One ACP exchange with the provider's server, after its checked initialize; resolves or rejects only after its
   // process group is gone. onLink sees each sign-in link the server asks the browser to open and returns true to stop
   // the server. timeoutMs starts at the initialize answer: under heavy load the 278 MB server alone took about 30 s to
   // start, which a status check right after an approved sign-in must not count (ACP_OPEN_MS bounds the start).
-  private async acpExec<T>(provider: Provider, attemptId: string, timeoutMs: number | null, onLink: (link: SignInLink) => boolean, script: (acp: AcpConnection) => Promise<T>): Promise<T> {
+  private async acpExec(provider: Provider, attemptId: string, timeoutMs: number | null, onLink: (link: SignInLink) => boolean, method: string, params: unknown): Promise<unknown> {
     const { command, env, profileDir } = await this.launch(provider, attemptId);
     if (this.stopRequests.has(attemptId)) throw new Cancelled();
     const child = this.options.spawn(command, this.adapters[provider].args, { cwd: profileDir, env, input: true });
     const owned = this.processes.get(attemptId) ?? new Set();
     owned.add(child); this.processes.set(attemptId, owned);
     if (this.stopRequests.has(attemptId)) child.stop();
-    let failure = "";
+    let failure = "", protocol = "", stage = "initialize", stopped = false, exited = false, exitCode: number | null = null;
+    // protocol details are acp.ts's own fixed sentences, never server text.
     const acp = new AcpConnection(line => { if (!child.write) throw new Error("process_exited"); child.write(line); },
-      (_params, id) => acp.respond(id, { outcome: { outcome: "cancelled" } }), () => {}, detail => { failure = detail; child.stop(); });
-    let errors = "";
-    const recent: string[] = [];
+      (_params, id) => acp.respond(id, { outcome: { outcome: "cancelled" } }), () => {}, detail => { failure = protocol = detail; child.stop(); });
+    void child.exit.then(code => { exited = true; exitCode = code; });
+    let errors = "", withheld = 0;
+    const events: string[] = [];
     child.onOutput((text, stream) => {
       if (stream !== "stderr") { acp.receive(text); return; }
       errors = (errors + text).slice(-OUTPUT_LIMIT);
       let end: number;
       while ((end = errors.indexOf("\n")) >= 0) {
         const line = errors.slice(0, end); errors = errors.slice(end + 1);
-        const kept = loggable(line);
-        if (kept) { recent.push(kept); if (recent.length > SERVER_LINES) recent.shift(); }
+        const event = serverEvent(line);
+        if (event) { events.push(event); if (events.length > SERVER_EVENTS) events.shift(); } else if (line.trim()) withheld += 1;
         const link = signInLink(line);
         if (link && onLink(link)) child.stop();
       }
@@ -520,12 +554,22 @@ export class AuthManager {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const exchange = async () => {
       await this.acpOpen(provider, acp);
-      if (timeoutMs !== null) timer = setTimeout(() => { failure ||= `the server was stopped after ${timeoutMs} ms without an answer`; child.stop(); }, timeoutMs);
-      return script(acp);
+      stage = method;
+      if (timeoutMs !== null) timer = setTimeout(() => { stopped = true; failure ||= `the server was stopped after ${timeoutMs} ms without an answer`; child.stop(); }, timeoutMs);
+      return acp.request(method, params, null);
     };
-    let result: T;
+    const reason = (error: unknown) => {
+      if (stopped) return `the server was stopped after ${timeoutMs} ms without an answer`;
+      if (protocol) return `the server broke the ACP protocol (${protocol})`;
+      if (error instanceof UnexpectedServer) { const expected = this.adapters[provider].acpAuth!; return `the server is not ${expected.agent} ${expected.version}`; }
+      if (error instanceof AcpError && typeof error.code === "number") return `the server refused ${stage} (code ${Number.isSafeInteger(error.code) ? error.code : "not an integer"})`;
+      if (error instanceof AcpError && error.message === `${stage} timed out`) return `the server did not answer ${stage} within ${ACP_OPEN_MS} ms`;
+      if (exited) return `the server exited (code ${exitCode})`;
+      return "the exchange failed";
+    };
+    let result: unknown;
     try { result = await Promise.race([exchange(), child.exit.then(() => { throw new Error(failure || "the ACP server exited"); })]); }
-    catch (error) { if (this.stopRequests.has(attemptId)) throw new Cancelled(); throw new ServerError(message(error), [...recent]); }
+    catch (error) { if (this.stopRequests.has(attemptId)) throw new Cancelled(); throw new ServerError(message(error), reason(error), [...events], withheld); }
     finally {
       clearTimeout(timer); acp.close(); child.stop(); await child.gone;
       owned.delete(child); if (!owned.size) this.processes.delete(attemptId);
