@@ -121,7 +121,7 @@ body{padding:var(--space-8);width:1440px;background:var(--surface-inset);color:v
 /* Agent at work (ego lite's agent tab as the user describes it: a gradient along the edges that breathes, and faint
    dots over the whole canvas; ego's own values are compiled into its native AgentTaskOverlayView, so none were read).
    doan uses its accent for the edge instead of ego's blue; the dots are malmoi's KV dot field in translucent white. The edge follows the user's ego screenshot (2026-11-01): a soft band strongest at the very edge and gone within about 30px. The gradient is the inner shadow and breathes; the dot field is below. Nothing here takes pointer input. */
-.agent-glow{position:absolute;inset:0;z-index:2;pointer-events:none;box-shadow:inset 0 0 var(--space-4) color-mix(in srgb,var(--affordance-accent) 70%,transparent),inset 0 0 var(--space-12) color-mix(in srgb,var(--affordance-accent) 35%,transparent);animation:agent-glow-breathe 2.4s var(--ease-state) infinite}
+.agent-glow{position:absolute;inset:0;z-index:2;pointer-events:none;box-shadow:inset 0 0 var(--space-4) color-mix(in srgb,var(--affordance-accent) 70%,transparent),inset 0 0 var(--space-12) color-mix(in srgb,var(--affordance-accent) 35%,transparent);animation:agent-glow-breathe 8s var(--ease-state) infinite}
 /* The dot field: malmoi's DotField (components/signin/dot-field.tsx and lib/signin/dot-field.ts at 6dcdd575), ported to
    the script at the end of this draft. Translucent white dots, a 16px grid, radius 2 to 3.5 and alpha 0.08 to 0.3 near a
    virtual cursor that sweeps the board in a serpentine (320px/s, 5 rows, 180px radius); it ignores the pointer. */
