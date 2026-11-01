@@ -23,6 +23,8 @@
 | 2026-11-01 | Codex·Antigravity 계정 표시는 별도 feature로 만들고, 그 feature 문서(spec·design·tasks)는 이 PR에 함께 넣는다. 조사와 `/feature`·`/feature-review`는 BA가 맡는다 | 사용자("agy, Codex 계정 메타 받아오는 조사 끝나면 워커 띄워서 feature로 작성 시켜. 스펙문서 이 pr에 같이 들어가도 괜찮") |
 | 2026-11-01 | Codex는 app-server `account/read`의 이메일만 보이고 계정 ID는 null로 둔다. Antigravity는 Doan이 vault의 refresh token으로 갱신한 메모리 전용 access token으로 Google userinfo를 불러 보인다(경계 확장 승인) | 사용자(AskUserQuestion: Codex '이메일만 표시', Antigravity 'userinfo로 표시') |
 | 2026-11-01 | Codex 자격 증명은 키체인에 그대로 두고 app-server `account/read`로 이메일을 읽는다. `auth.json`을 vault 작업 사본으로 두는 방식은 사람 단위 Codex ID가 필요해질 때 다시 볼 질문으로 남긴다 | 사용자(AskUserQuestion 'A 키체인 유지'). BA 비교: 평문 노출, refresh token 회전 위험, 기존 연결 재로그인 |
+| 2026-11-01 | 절대 위치 프레임만 있는 캔버스에서 보드 iframe 높이가 0↔405px를 오가는 main의 기존 버그를 이 PR에서 고친다. BR6 뒤, BV 전에 별도 배치 BH가 맡는다 | 사용자(AskUserQuestion '이 PR에서 고침'). RBR5 ⚪1: `canvasScript.ts` 높이 측정과 `canvasView.ts` `nextHeight`, 순수 함수로 재현 |
+| 2026-11-01 | Stop 실패 토스트 문구는 "Couldn’t stop <Provider>. Try again."이다 | 지휘자 판단. 앱에 같은 상황의 문구가 없다. BR5 제안, clarify 프리셋 |
 | 2026-11-01 | `/agent-eval`은 해당하지 않는다 | design §1·§4. CLI·형식·스킬·`doan check` 규칙이 그대로다 |
 | 2026-11-01 | probe 위치는 `.scratch/runtime-test/buzz-canvas/`, 측정 위치는 `.scratch/design-sync/buzz-canvas/`다 | `/runtime-test`·`/design-sync` 스킬의 위치 규칙 |
 
@@ -37,7 +39,8 @@
 | BR4 | R4 | `App.tsx`, `styles.css`, `CanvasController.ts`(첫 Fit), 새 패널 껍데기·손잡이 컴포넌트, ui-state 저장 연결 | BR1, BP | Claude Opus high (직접 만든 끌기 손잡이, 저장 시점, 첫 Fit 지연, 캔버스 페이지에서 RightPanel·코멘트 세션 제거) | test, typecheck, build, 변경 범위 `/runtime-test` | 대기 |
 | BR5 | R5 | `App.tsx`, `styles.css`, 새 작업 표시·점 필드 컴포넌트 | BR4, BD, BT | Claude Opus high (rAF 수명과 정지 조건, `interruptConversation` 오류 처리, 동작·투명도 줄이기) | test, build, 변경 범위 `/runtime-test` | 대기 |
 | BR6 | R6, X1 | `styles.css`, `App.tsx`, `CanvasController.ts`(inset 적용), `canvasView.ts`와 테스트 | BR5 | Claude Sonnet high (CSS 재배치와 grep으로 확인하는 제거. 겹침 순서와 inset 적용만 판단이 필요하다) | test, typecheck, build, X1 grep, 변경 범위 `/runtime-test` | 대기 |
-| BV | V1, V2, Z3와 그 수정 | 위 배치들의 파일 수정, `.scratch/design-sync/buzz-canvas/`, `.scratch/runtime-test/buzz-canvas/`, `docs/DESIGN.md` | BR6 | Claude Opus high (실제 앱 측정, 960·1238 겹침, 초안과의 차이 수정, 회귀 테스트) | V1 통과 조건, V2 항목별 결과, DESIGN.md 기록 | 대기 |
+| BH | 절대 위치 프레임 캔버스의 iframe 높이 진동 수정(main 기존 버그) | `app/src/main/canvasScript.ts`, `canvasView.ts`, `CanvasController.ts`의 높이 경로와 테스트 | BR6 | Claude Opus high (높이 고정점 판단. POSTMORTEM 2026-10-26 높이 함정과 맞닿아 있다) | red 기록, test, `/runtime-test`, `/postmortem` | 대기 |
+| BV | V1, V2, Z3와 그 수정 | 위 배치들의 파일 수정, `.scratch/design-sync/buzz-canvas/`, `.scratch/runtime-test/buzz-canvas/`, `docs/DESIGN.md` | BR6, BH | Claude Opus high (실제 앱 측정, 960·1238 겹침, 초안과의 차이 수정, 회귀 테스트) | V1 통과 조건, V2 항목별 결과, DESIGN.md 기록 | 대기 |
 | BG | Antigravity 로그인 버그(범위 밖, 별도 브랜치 `fix-antigravity-signin`) | `app/src/main/agentAuth/` 등 원인에 따라. buzz-canvas 파일과 겹치지 않는다 | — | Claude Opus high (실제 공급자 로그인 재현, 인증 수명·vault 판단. 틀리면 사용자 자격 증명을 잃는다) | 원인 증거, 회귀 테스트 red, `verify.mjs`, 복사 프로필로 `/runtime-test` | PR #52 (push 완료, 병합 안 함) |
 | BA | Codex·Antigravity 계정 표시 조사와 `/feature`(범위 밖 feature, 문서만 이 PR에) | 새 `docs/features/<slug>/`, `.scratch/` PoC | — | Claude Opus high (실제 서명 프로필에서 읽기 전용 PoC, 자격 증명 경계 판단) | PoC 근거, `/feature-review` 반영 | 통합(`610479fe`·`601e0acb`) |
 | BZ | Z1, Z2, Z4 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/features/buzz-restyle/*`, `docs/features/buzz-canvas/` 삭제 | 모든 배치 | 지휘자 (`/verify`, 문서 승격 커밋) | `verify.mjs` exit 0, tasks Z1·Z2·Z4 grep | 대기 |
