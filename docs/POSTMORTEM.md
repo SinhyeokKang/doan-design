@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-11-01 — A frame drawer list closed by a disabled trigger reopened by itself
+
+- **Area**: `app/src/renderer/CanvasHeader.tsx` (`FrameDrawer`, `ZoomControl`, `useMenuFocus`), `app/src/renderer/canvasFocus.ts` (`menuCloseNow`).
+- **Symptom**: with the frame drawer's list open, the canvas lost its board width (the drawer turned disabled, "Frames") and the list disappeared. When the width came back on the same canvas, the list popped open again with nobody touching it. Seen in the buzz-canvas BR1 runtime probe before merge, not on main.
+- **Root cause**: the menus were shown as `open && view.enabled`, a derived value, while the person's `open` state stayed `true` underneath. Hiding a popup by masking its state with an availability flag keeps the stale intent, so the popup returns as soon as the flag does. Static markup tests render the closed trigger only and never run an open → disabled → enabled sequence.
+- **Net**: caught by the BR1 `/code-review` reading the open-state logic, then pinned by a runtime probe step (width removed and restored with the list open): red on the pre-fix build (`.scratch/runtime-test/buzz-canvas/BR1/run6-red.log`, list `open: true` after recovery), green after `77b66249` (`run7.log`). Missed by the implementation's unit and markup tests.
+- **Prevention**: a popup whose trigger becomes disabled closes its own state (`menuCloseNow` returns `close` for an open, disabled menu; `canvasFocus.test.ts`), and focus goes to the canvas region. Do not express "unavailable" as `open && enabled` alone. Keep the probe's restore step. Grep: `grep -rnE 'open=\{[a-zA-Z.]+ && |const shown = open && ' app/src/renderer --include='*.tsx'` (on 2026-11-01 it finds only the two canvas header menus, both now closing through `menuCloseNow`).
+
 ### 2026-11-01 — A failed Antigravity sign-in left no evidence of why
 
 - **Area**: `app/src/main/agentAuth/manager.ts` (`acpSignIn`, `acpStatus`, `acpExec`, `ServerError`, `serverEvent`).
