@@ -246,3 +246,41 @@ test("round-trips a project's closed sidebar groups and drops unknown ones on sa
   expect(onDisk(path).shellProjects).toEqual({ common: { roots: ["/repo"], expanded: true, groups: { ds: false } } });
   expect((await store.read())?.shellProjects?.common?.groups).toEqual({ ds: false });
 });
+
+describe("rightPanel", () => {
+  test("is written to disk and read back with the other fields", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    const store = createUiStateStore(path, saved);
+    const rightPanel = { open: false, width: 420 };
+    store.save({ ...workspace(".doan/canvases/a.html"), rightPanel });
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await store.idle();
+    expect(onDisk(path)).toEqual({ ...workspace(".doan/canvases/a.html"), rightPanel });
+    expect(await createUiStateStore(path, saved).read()).toEqual({ ...workspace(".doan/canvases/a.html"), rightPanel });
+  });
+
+  test("survives flushSync at quit", async () => {
+    const path = file();
+    const store = createUiStateStore(path, saved);
+    store.save({ ...workspace(".doan/canvases/a.html"), rightPanel: { open: true, width: 380 } });
+    store.flushSync();
+    expect(onDisk(path).rightPanel).toEqual({ open: true, width: 380 });
+  });
+
+  test("a bad value is dropped before writing and costs no other field", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const path = file();
+    const store = createUiStateStore(path, saved);
+    expect(store.save({ ...workspace(".doan/canvases/a.html"), rightPanel: { open: "no", width: -5 } })).toBe(true);
+    vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+    await store.idle();
+    expect(onDisk(path)).toEqual(workspace(".doan/canvases/a.html"));
+  });
+
+  test("a file saved without it reads without it", async () => {
+    const path = file();
+    writeFileSync(path, JSON.stringify(workspace(".doan/canvases/a.html")));
+    expect(await createUiStateStore(path, saved).read()).not.toHaveProperty("rightPanel");
+  });
+});

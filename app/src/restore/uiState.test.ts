@@ -302,3 +302,46 @@ test("removing roots forgets their entries and leaves the others", () => {
   expect(withoutRoots(memory, [])).toEqual(memory);
   expect(memory).toEqual({ "/repo/a": ID_A, "/repo/b": ID_B });
 });
+
+test("reads the right panel's open flag and width", () => {
+  expect(parse({ screen: "home", rightPanel: { open: false, width: 400 } })?.rightPanel).toEqual({ open: false, width: 400 });
+  expect(parse({ screen: "home", rightPanel: { open: true, width: 347.5 } })?.rightPanel).toEqual({ open: true, width: 347.5 });
+});
+
+test("a file without rightPanel has none", () => {
+  expect(parse({ screen: "home" })).not.toHaveProperty("rightPanel");
+});
+
+test.each([
+  ["null", null],
+  ["an array", [{ open: false, width: 400 }]],
+  ["a string", "open"],
+  ["an empty object", {}],
+  ["wrong types", { open: "no", width: "400" }],
+])("a malformed rightPanel is dropped without costing the rest: %s", (_name, rightPanel) => {
+  const state = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, rightPanel });
+  expect(state).not.toHaveProperty("rightPanel");
+  expect(state?.root).toBe("/repo/a");
+});
+
+test("a wrong-typed field falls back on its own and keeps the other", () => {
+  expect(parse({ screen: "home", rightPanel: { open: "no", width: 400 } })?.rightPanel).toEqual({ open: true, width: 400 });
+  expect(parse({ screen: "home", rightPanel: { open: false, width: "400" } })?.rightPanel).toEqual({ open: false });
+  expect(parse({ screen: "home", rightPanel: { open: false } })?.rightPanel).toEqual({ open: false });
+  expect(parse({ screen: "home", rightPanel: { width: 400 } })?.rightPanel).toEqual({ open: true, width: 400 });
+});
+
+// Written as JSON text: 1e999 reads as Infinity, which JSON.stringify could not produce.
+test.each(["0", "-1", "1e999", "-1e999", "10001", "1e9"])("an out-of-range width reads as the default: %s", (width) => {
+  expect(parseUiState(`{"screen":"home","rightPanel":{"open":false,"width":${width}}}`, saved)?.rightPanel).toEqual({ open: false });
+});
+
+test("the widest and the narrowest accepted widths round trip", () => {
+  for (const width of [1, 10_000]) expect(parse({ screen: "home", rightPanel: { open: true, width } })?.rightPanel).toEqual({ open: true, width });
+});
+
+test("a parsed rightPanel survives a second parse unchanged", () => {
+  const first = parse({ screen: "workspace", root: "/repo/a", canvas: "a.html", view, expanded: {}, lastByRoot: {}, rightPanel: { open: false, width: 420, extra: 1 } });
+  expect(first?.rightPanel).toEqual({ open: false, width: 420 });
+  expect(parse(first)).toEqual(first);
+});
