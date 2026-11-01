@@ -11,7 +11,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: true,
   phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: ago(MIN), preview: "Done", ...patch,
 });
-const row = (patch: Partial<CanvasRow> & { path: string }): CanvasRow => ({ open: 0, resolved: 0, url: `doan://${patch.path}`, ...patch });
+const row = (patch: Partial<CanvasRow> & { path: string }): CanvasRow => ({ url: `doan://${patch.path}`, ...patch });
 
 const billing = row({ path: ".doan/canvases/billing.html", id: "billing", title: "Billing" });
 const plain = row({ path: ".doan/canvases/plain.html" });

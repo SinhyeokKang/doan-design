@@ -49,7 +49,7 @@ vi.mock("./CanvasController", async original => ({
   CanvasController: class {
     constructor() {
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -74,7 +74,7 @@ const { ConversationPanel } = await import("./ConversationPanel");
 const { KeyedConversationStrip } = await import("./ConversationStripView");
 const { ProjectOverview } = await import("./ProjectOverview");
 
-const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
+const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
 let listeners: Record<string, (...args: never[]) => void>;
@@ -161,7 +161,7 @@ test("the header Settings tab opens the page on the last category's title; the s
   expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
   expect(settings()!.props.sidebar.props.settings?.section).toBe("agents");
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, reviewing: false });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
   expect(doan.openSettings).not.toHaveBeenCalled();
 });
 
@@ -229,7 +229,7 @@ test("while a category holds a confirmation or a write, incoming targets wait an
   lock();
   const bar = topBar(settings()!.props.header);
   for (const button of [bar.add, bar.projects, bar.settings, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, reviewing: false, locked: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, locked: true });
   const before = settings()!.props.arrival;
   cmdComma({ section: "about" });
   harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } });

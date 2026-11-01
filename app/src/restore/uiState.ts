@@ -57,7 +57,7 @@ export const UI_STATE_MAX_BYTES = 64 * 1024;
 // No window is wider; the renderer clamps a kept width to the window's own bounds.
 const RIGHT_PANEL_MAX_SAVED_WIDTH = 10_000;
 
-// The kebab id rule main's comment files enforce (`main/comments/files.ts`).
+// The kebab canvas id rule `doan check` enforces (`cli/internal/check/check.go`).
 const CANVAS_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // The conversation id rule main's history files enforce (`main/conversation/io.ts`).
 const CONVERSATION_ID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;

@@ -31,10 +31,6 @@ const violetAllowed = [
   '.side .row[aria-current="location"]',
   // Everything drawn inside the current row takes the row's ink.
   '.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw)',
-  ".comments-btn.primary.submit",
-  ".comments-btn.primary.submit:hover:not(:disabled)",
-  ".comments-btn.primary.submit:active:not(:disabled)",
-  ".comment-pin",
   // The onboarding Welcome glow (buzz-onboarding approved draft, 2026-10-28 user).
   ".ob-atmosphere",
   // Home's Send, the shared accent icon button (buzz-home approved draft, 2026-10-29 user).
@@ -62,6 +58,12 @@ const violetAllowed = [
   ".doan-agent-glow",
   ".doan-agent-dot",
   ".doan-agent-dot::after",
+  // Inline anchor chips in the composer field: light accent fill, dark accent ink (buzz-canvas-conversation common
+  // decision 2, confirmed draft 2026-11-01).
+  ".anchor-chip",
+  // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (buzz-canvas-conversation
+  // design §2 'News dot', confirmed draft open-badge).
+  '.doan-icon-button[data-badge="true"]::after',
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {
@@ -73,7 +75,7 @@ function compareAllowed(found: string[], allowed: string[]) {
 
 // Role pairs the light system must keep readable. Translucent backgrounds are
 // composited over both white and black by contrastPairs itself.
-// Non-text 3:1 covers what identifies a component: border-prominent, focus rings and pins.
+// Non-text 3:1 covers what identifies a component: border-prominent and focus rings.
 // Decorative hairlines (border-standard, about 1.2:1 on white) and text fields edged by their
 // inset fill (about 1.1:1) are left out on purpose (decided 2026-10-26): a hairline only
 // separates, and a field shows its border-prominent edge once focused.
@@ -102,10 +104,6 @@ const rolePairs: ContrastPair[] = [
   { fg: "--border-focus", bg: "--bg-app", kind: "nontext" },
   { fg: "--border-focus", bg: "--surface-navigation-selected", kind: "nontext" },
   { fg: "--border-prominent", bg: "--surface-panel", kind: "nontext" },
-  // Pins sit on arbitrary canvases: the dark rim carries light canvases, the white halo dark ones.
-  { fg: "--border-pin", bg: "--halo-pin", kind: "nontext" },
-  { fg: "--border-pin", bg: "--affordance-accent", kind: "nontext" },
-  { fg: "--halo-pin", bg: "--neutral-12", kind: "nontext" },
   { fg: "--text-disabled", bg: "--surface-panel", kind: "disabled" },
 ];
 
@@ -240,7 +238,7 @@ describe("accentPlaces", () => {
   test("lists every selector or TS file whose var() chain reaches the violet palette", () => {
     const files: SourceFile[] = [
       { path: "styles.css", text: '.side .row[aria-current="location"], .side .row[aria-current="location"]::before { background: var(--fill-accent); }\n.side .row:hover { background: var(--fill-accent-hover); }\n.plain { color: var(--plain); }\n@media (hover: hover) { .x:hover { color: var(--violet-9); } }' },
-      { path: "CommentPins.ts", text: "pin.style.background = 'var(--legacy)';" },
+      { path: "Marks.ts", text: "mark.style.background = 'var(--legacy)';" },
       { path: "Other.ts", text: "const x = 'var(--plain)';" },
     ];
     expect(accentPlaces(files, tokens)).toEqual([
@@ -248,7 +246,7 @@ describe("accentPlaces", () => {
       '.side .row[aria-current="location"]::before',
       ".side .row:hover",
       ".x:hover",
-      "CommentPins.ts",
+      "Marks.ts",
     ]);
   });
 

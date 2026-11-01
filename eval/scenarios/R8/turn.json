@@ -1,0 +1,8 @@
+{
+  "text": "Rename {{1}} to \"Save draft\" and add a small \"Draft\" badge at {{2}}. Keep {{1}} where it is.",
+  "anchors": [
+    { "frame": { "id": "editor", "title": "Editor" }, "element": { "doanId": "save", "selector": "[data-doan-id=\"save\"]", "text": "Save", "tag": "button" } },
+    { "frame": { "id": "preview", "title": "Preview" }, "point": { "frameId": "preview", "dx": 360, "dy": 290 } }
+  ],
+  "canvas": { "path": ".doan/canvases/drafts.html", "id": "drafts" }
+}

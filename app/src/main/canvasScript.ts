@@ -254,6 +254,36 @@ export function canvasScript(lib: CanvasLib): void {
   let alt = false;
   let hoverQueued = false;
   let lastHover = JSON.stringify([0, null]);
+  // Picking (buzz-canvas-conversation design §4): the app's pick-start and pick-cancel commands carry their own seq,
+  // which neither clicks nor selection or hover commands move, and name this document's token, so a command meant for
+  // the document this one replaced changes nothing here. `picking` is the seq of the pick-start in force. A pick-start
+  // is acknowledged with `pick-started`: until then the app keeps clicks away from this document, because a click
+  // here would select. A pick click answers `picked` and leaves `selected`, `anchor` and the hover as they were;
+  // picking lasts until the app cancels it, so a second click before that cancel arrives answers again instead of
+  // selecting.
+  let pickSeq = 0;
+  let picking: number | null = null;
+  // The crosshair while picking: the cursor over the canvas is this document's, so a constructed sheet is adopted. It
+  // changes no DOM node, so neither the MutationObserver nor the layout runs for it, and sheets the canvas adopted
+  // itself stay as they are.
+  let crosshair: CSSStyleSheet | null = null;
+  const setPicking = (next: number | null) => {
+    picking = next;
+    try {
+      if (next !== null && crosshair === null && typeof CSSStyleSheet === "function") {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync("*{cursor:crosshair!important}");
+        document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+        crosshair = sheet;
+      } else if (next === null && crosshair !== null) {
+        const sheet = crosshair;
+        crosshair = null;
+        document.adoptedStyleSheets = document.adoptedStyleSheets.filter(adopted => adopted !== sheet);
+      }
+    } catch {
+      // The cursor is only a hint: a canvas that broke adoptedStyleSheets still picks, without the crosshair.
+    }
+  };
 
   const isRoot = (el: unknown) => el === document.documentElement || el === document.body;
   const isElement = (target: unknown): target is Element => typeof target === "object" && target !== null && "nodeType" in target && target.nodeType === 1;
@@ -265,7 +295,7 @@ export function canvasScript(lib: CanvasLib): void {
   const byAttribute = (attribute: string, value: string) => Array.from(document.querySelectorAll(`[${attribute}]`)).filter((el) => el.getAttribute(attribute) === value);
   const postSelection = (type: "select" | "clear" | "key", fields: Record<string, unknown>) => post({ type, href: location.href, seq, viewport: innerHeight, ...fields });
 
-  const describe = (start: Element, allowRoot = false) => {
+  const describe = (start: Element) => {
     const chain: ChainLink[] = [];
     const nodes: Element[] = [];
     for (let el: Element | null = start; el !== null; el = el.parentElement) {
@@ -300,7 +330,7 @@ export function canvasScript(lib: CanvasLib): void {
     }
     const own = chain.slice(depth);
     const el = nodes[depth];
-    if (el === undefined || (!allowRoot && isRoot(el))) return null;
+    if (el === undefined || isRoot(el)) return null;
     const target: Record<string, unknown> = { rect: rectOf(el), tag: lib.clipText(el.localName, MAX_STRING) };
     const frameAt = own.findIndex((link) => link.frameId !== undefined);
     const frameEl = frameAt === -1 ? undefined : nodes[depth + frameAt];
@@ -376,7 +406,7 @@ export function canvasScript(lib: CanvasLib): void {
   // `answer` names the renderer command this selection answers. A click can
   // take a queued command's seq before it arrives, so seq alone cannot tell
   // that click from the answer; clicks never carry it.
-  type Answer = "select-anchor" | "select-comment";
+  type Answer = "select-anchor";
   const apply = (described: NonNullable<ReturnType<typeof describe>>, answer?: Answer) => {
     selected = described.el;
     anchor = described.anchor;
@@ -391,6 +421,26 @@ export function canvasScript(lib: CanvasLib): void {
     anchor = null;
     pending = null;
     anchors.schedule();
+  };
+
+  const postPicked = (fields: Record<string, unknown>) => post({ type: "picked", href: location.href, document: documentToken, pick: picking, ...fields });
+  const inFrame = (el: Element) => {
+    for (let node: Element | null = el; node !== null; node = node.parentElement) if (node.hasAttribute("data-doan-frame")) return true;
+    return false;
+  };
+  // A click picks what it lands on, as the select message would describe it: a frame's own background is the frame, an
+  // element (or a nested iframe) is that element. A Shift-click picks the spot instead, whatever is under it: its
+  // point goes in the document's coordinates, which the app turns into an offset from the innermost frame there.
+  // Anything outside every frame (the document, a frame's sibling, a wrapper, a nested iframe there) answers nothing,
+  // and picking goes on: an agent can only be pointed at frames and what is in them.
+  const pickAt = (target: EventTarget | null, point: { x: number; y: number } | null) => {
+    if (!isElement(target) || !target.isConnected || isRoot(target) || !inFrame(target)) return;
+    if (point !== null) {
+      postPicked({ point: { x: point.x + scrollX, y: point.y + scrollY } });
+      return;
+    }
+    const described = describe(target);
+    if (described !== null) postPicked({ target: described.target });
   };
 
   // Human input raises seq so a renderer command already on its way loses.
@@ -492,9 +542,14 @@ export function canvasScript(lib: CanvasLib): void {
     const next = data.seq;
     if (typeof next !== "number" || !Number.isInteger(next)) return;
     const { type, frame, doanId, selector, index, id } = data;
-    if (type === "select-comment") {
-      if (data.document !== documentToken || !anchors.current(data.generation, data.request) || typeof data.node !== "string") return;
-    } else if (type === "select-anchor") {
+    if (type === "pick-start" || type === "pick-cancel") {
+      if (data.document !== documentToken || next <= pickSeq) return;
+      pickSeq = next;
+      setPicking(type === "pick-start" ? next : null);
+      if (picking !== null) post({ type: "pick-started", href: location.href, document: documentToken, pick: picking });
+      return;
+    }
+    if (type === "select-anchor") {
       if (!optionalString(frame) || !optionalString(doanId) || !optionalString(selector)) return;
       if (frame === undefined && doanId === undefined && selector === undefined) return;
     } else if (type === "pick-frame") {
@@ -510,12 +565,7 @@ export function canvasScript(lib: CanvasLib): void {
       if (next <= seq) return;
       seq = next;
     }
-    if (type === "select-comment") {
-      const found = anchors.find(String(data.node));
-      const described = found === null ? null : describe(found, true);
-      if (described !== null && described.el === found) apply(described, "select-comment");
-      else postSelection("select", { target: null, answer: "select-comment" });
-    } else if (type === "hover-alt") {
+    if (type === "hover-alt") {
       alt = data.alt === true;
       postHover();
     } else if (type === "hover-leave") {
@@ -539,27 +589,10 @@ export function canvasScript(lib: CanvasLib): void {
     }
   };
 
-  let draftGuard = false;
-  let transitionIntent = 0;
-  let pendingTransition: { intent: number; apply: () => void; seq: number } | null = null;
-  // `kind` lets the app let a selection through while still asking before a link leaves.
-  // `clear`: the click only clears the selection, which changes nothing when
-  // the app has none (L-17).
-  const requestTransition = (apply: () => void, kind: "selection" | "navigation", clear = false) => {
-    const intent = ++transitionIntent;
-    if (!draftGuard) { pendingTransition = null; apply(); return; }
-    pendingTransition = { intent, apply, seq };
-    post({ type: "transition-intent", document: documentToken, href: location.href, viewport: innerHeight, intent, kind, ...(clear ? { clear: true } : {}) });
-  };
   addEventListener("message", (event: MessageEvent) => {
     if (event.source !== parent) return;
     const data: unknown = event.data;
     if (typeof data !== "object" || data === null) return;
-    if ("type" in data && data.type === "draft-guard" && "active" in data && typeof data.active === "boolean") { draftGuard = data.active; return; }
-    if ("type" in data && data.type === "transition-answer") {
-      if (!pendingTransition || !("document" in data) || data.document !== documentToken || !("intent" in data) || data.intent !== pendingTransition?.intent || pendingTransition.seq !== seq) return;
-      const pending = pendingTransition; pendingTransition = null; pending.apply(); return;
-    }
     if ((data as { type?: unknown }).type === "measure") send();
     else command(data as Record<string, unknown>);
   });
@@ -609,15 +642,15 @@ export function canvasScript(lib: CanvasLib): void {
       (event: MouseEvent) => {
         if (!event.isTrusted) return;
         if (type !== "pointerdown" && (event.button !== 0 || event.ctrlKey)) return;
-        if (event.altKey) {
+        // ⌥ picks like a plain click while picking, so nothing reaches the canvas then.
+        if (event.altKey && picking === null) {
           // Chromium turns an ⌥-clicked link into a download, which the
           // sandbox does not stop; navigating here still passes main's gate.
           const link = type === "click" ? linkOf(event.target) : null;
           if (link !== null) {
             event.preventDefault();
-            if (draftGuard) event.stopImmediatePropagation();
             const href = link.getAttribute("href") ?? "";
-            requestTransition(() => { if (link.isConnected && link.getAttribute("href") === href) location.assign(href); }, "navigation");
+            if (link.isConnected && link.getAttribute("href") === href) location.assign(href);
           }
           return;
         }
@@ -628,9 +661,11 @@ export function canvasScript(lib: CanvasLib): void {
           // Focus left inside by an ⌥-click would make Esc look like typing.
           const active = document.activeElement;
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
+        } else if (type === "click" && picking !== null) {
+          pickAt(event.target, event.shiftKey ? { x: event.clientX, y: event.clientY } : null);
         } else if (type === "click") {
           const target = event.target;
-          requestTransition(() => { if (!isElement(target) || target.isConnected) choose(target); }, "selection", isElement(target) && isRoot(target));
+          if (!isElement(target) || target.isConnected) choose(target);
         }
       },
       { capture: true },
@@ -642,8 +677,13 @@ export function canvasScript(lib: CanvasLib): void {
   addEventListener("blur", () => {
     setTimeout(() => {
       const active = document.activeElement;
-      if (alt || active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
-      requestTransition(() => { if (active.isConnected) choose(active); }, "selection");
+      if (active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
+      if (picking !== null) {
+        if (active.isConnected) pickAt(active, null);
+        return;
+      }
+      if (alt) return;
+      if (active.isConnected) choose(active);
     }, 0);
   });
 
@@ -684,7 +724,15 @@ export function canvasScript(lib: CanvasLib): void {
         postSelection("key", { key: "Alt", alt, seq: hoverSeq });
         postHover();
       }
-      if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229 && !editable(event.target)) postSelection("key", { key: "Escape" });
+      if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+      // Esc while picking cancels only the pick, wherever focus is in the canvas; the selection stays.
+      if (picking !== null) {
+        event.preventDefault();
+        postPicked({ cancelled: true });
+        setPicking(null);
+        return;
+      }
+      if (!editable(event.target)) postSelection("key", { key: "Escape" });
     },
     { capture: true },
   );
@@ -810,8 +858,9 @@ export function commentAnchors(documentToken: string, selected: () => { element:
         ...(item.selector === undefined ? {} : { selector: item.selector }), ...(item.frame === undefined ? {} : { frame: item.frame }) });
     }
     query = { generation: data.generation, request: data.request, targets };
-    schedule();
+    // Answered at once, like the first layout: an iframe outside the viewport gets no animation frames. Later
+    // changes still batch on one.
+    measure();
   });
-  return { schedule, current: (generation: unknown, request: unknown) => query !== null && generation === query.generation && request === query.request,
-    find: (id: string) => { const el = nodes.get(id); return el?.isConnected ? el : null; } };
+  return { schedule };
 }

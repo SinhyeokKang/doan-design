@@ -43,7 +43,7 @@ vi.mock("./CanvasController", async original => ({
   CanvasController: class {
     constructor() {
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "showOverview", "cancelWorkspaceOpen", "remember", "selectPath"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "showOverview", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate"]) self[name] = vi.fn();
       // The guarded moves report arrival at once, as when no draft guard is up.
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.destination = vi.fn((root: string) => ({ root }));
@@ -62,8 +62,8 @@ const { QuickOpen } = await import("./QuickOpenDialog");
 const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
 
-const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
-const rowB: CanvasRow = { path: ".doan/canvases/b.html", id: "b", url: "u-b", open: 0, resolved: 0 };
+const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
+const rowB: CanvasRow = { path: ".doan/canvases/b.html", id: "b", url: "u-b" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA, rowB] });
 let listeners: Record<string, (...args: never[]) => void>;
 let windowListeners: Record<string, (event: never) => void>;
@@ -143,7 +143,7 @@ test("the header tab opens the page: Add Projects is the current page, the sideb
   expect(bar.forward.props.disabled).toBe(true);
   expect(bar.back.props.disabled).toBe(false);
   expect(page()!.props.sidebar.props.home).toBe(true);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, reviewing: false, choose: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, choose: true });
   // Reopening from the page does nothing; File > Add Project… there runs Choose folder.
   const seq = page()!.props.choose;
   click(bar.add);
@@ -236,7 +236,7 @@ test("the lock shows on the header tabs and Back, and reaches the menu", () => {
   lock();
   const bar = topBar(page()!.props.header);
   for (const button of [bar.add, bar.projects, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, reviewing: false, locked: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "addProjects", modal: false, toast: false, locked: true });
   page()!.props.onState({ locked: false, choose: false }); render();
   expect(topBar(page()!.props.header).projects.props["aria-disabled"]).toBeUndefined();
   click(topBar(page()!.props.header).projects);

@@ -1,4 +1,4 @@
-import { forwardRef, Fragment, useRef, useState, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { forwardRef, Fragment, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -6,6 +6,8 @@ import type { Provider } from "../main/agentAuth/types";
 import type { Anchor } from "../main/conversation/types";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import type { FieldSegment } from "./anchorField";
+import { ChipField, type ChipInsert } from "./chipField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import type { ComposerAction } from "./composerRules";
 import type { SettingsTarget } from "./settingsSections";
@@ -82,29 +84,72 @@ export function ComposerChips(props: {
   </div>;
 }
 
-// The text field. The value travels as {text, anchors} so a later field that holds anchor chips can replace the
-// textarea without changing its hosts (spec decision 17). Enter sends unless an IME is composing; `onKey` sees every
-// key first and returns true when it handled one.
-export interface FieldValue { text: string; anchors: readonly Anchor[] }
+// The text field: typed text and inline anchor chips (buzz-canvas-conversation design §2 'Chip field'), drawn by
+// ChipField into one contenteditable element that both shapes keep (remounting would drop focus and IME composition).
+// The value is segments: {text, anchors} cannot tell a typed {{1}} from a chip's marker, so hosts convert at send time
+// (anchorField.ts toMessage). Enter sends unless an IME is composing; `onKey` sees every key first and returns true when
+// it handled one.
 export interface ComboboxProps { listId: string; activeId: string | undefined }
-export const ComposerField = forwardRef<HTMLTextAreaElement, {
-  value: FieldValue; onChange(value: FieldValue): void; readOnly: boolean; placeholder: string; rows: number;
+export interface ComposerFieldHandle {
+  focus(caret?: "end"): void;
+  // The caret stands at the very start with nothing selected (chipRemoval's Backspace).
+  caretAtStart(): boolean;
+  insertChip(anchor: Anchor): ChipInsert;
+  composing(): boolean;
+  element(): HTMLElement | null;
+}
+export const ComposerField = forwardRef<ComposerFieldHandle, {
+  value: readonly FieldSegment[]; onChange(value: FieldSegment[]): void; readOnly: boolean; placeholder: string;
+  // The draft the value belongs to (draftKey(mode) in the docked composer). A change ends the field's undo history,
+  // caret and waiting chips even when the values are equal; the element itself stays, so focus and shape do too.
+  draftKey?: string;
+  // The canvas the field's chips belong to (its canvas panel sets it); null, the default, takes no chips.
+  chipScope?: string | null;
   // The `/` preset list while it is open: the field is its combobox.
   combobox: ComboboxProps | null;
-  onKey(event: KeyboardEvent<HTMLTextAreaElement>): boolean; onSubmit(): void;
-  onPaste(event: ClipboardEvent<HTMLTextAreaElement>): void; onInput?(event: FormEvent<HTMLTextAreaElement>): void;
+  onKey(event: KeyboardEvent<HTMLDivElement>): boolean; onSubmit(): void;
+  // Files are the host's; text the host leaves alone is pasted by the field.
+  onPaste(event: ClipboardEvent<HTMLDivElement>): void; onInput?(): void; onAnnounce?(text: string): void;
+  // A click on a chip in the field (the caret is already right after it).
+  onChipClick?: ((anchor: Anchor, chip: HTMLElement) => void) | undefined;
   // The reason line under the docked card also describes the field (design §3.1).
   describedBy?: string | undefined;
 }>(function ComposerField(props, ref) {
   const { combobox } = props;
-  return <textarea ref={ref} className="composer-input" aria-label="Message" rows={props.rows} value={props.value.text} readOnly={props.readOnly} placeholder={props.placeholder} aria-describedby={props.describedBy}
-    role={combobox ? "combobox" : undefined} aria-expanded={combobox ? true : undefined} aria-controls={combobox ? combobox.listId : undefined}
+  const node = useRef<HTMLDivElement | null>(null);
+  const field = useRef<ChipField | null>(null);
+  const latest = useRef(props);
+  latest.current = props;
+  // Created before the first paint and kept for the element's life; the hooks read the latest props.
+  useLayoutEffect(() => {
+    if (!node.current) return;
+    const created = new ChipField(node.current, {
+      onChange: value => latest.current.onChange(value),
+      onInput: () => latest.current.onInput?.(),
+      onAnnounce: text => latest.current.onAnnounce?.(text),
+      scope: () => latest.current.chipScope ?? null,
+      onChipClick: (anchor, chip) => latest.current.onChipClick?.(anchor, chip),
+    }, latest.current.value, latest.current.draftKey);
+    field.current = created;
+    return () => { created.dispose(); field.current = null; };
+  }, []);
+  useLayoutEffect(() => { field.current?.setValue(props.value, props.draftKey); }, [props.value, props.draftKey]);
+  useImperativeHandle(ref, () => ({
+    focus: caret => field.current?.focus(caret === "end"),
+    caretAtStart: () => field.current?.caretAtStart() ?? true,
+    insertChip: anchor => field.current?.insertChip(anchor) ?? "refused",
+    composing: () => field.current?.composing() ?? false,
+    element: () => node.current,
+  }), []);
+  return <div ref={node} className="composer-input" aria-label="Message" tabIndex={0} contentEditable={!props.readOnly} suppressContentEditableWarning
+    aria-readonly={props.readOnly || undefined} aria-placeholder={props.placeholder} aria-describedby={props.describedBy}
+    role={combobox ? "combobox" : "textbox"} aria-multiline={combobox ? undefined : true} aria-expanded={combobox ? true : undefined} aria-controls={combobox ? combobox.listId : undefined}
     aria-autocomplete={combobox ? "list" : undefined} aria-activedescendant={combobox?.activeId}
-    onChange={event => props.onChange({ text: event.target.value, anchors: props.value.anchors })} onInput={props.onInput}
     onKeyDown={event => {
       if (props.onKey(event)) return;
       if (isSubmitKey({ key: event.key, shiftKey: event.shiftKey, isComposing: event.nativeEvent.isComposing, keyCode: event.keyCode })) { event.preventDefault(); props.onSubmit(); }
-    }} onPaste={props.onPaste} />;
+    }}
+    onPaste={event => { props.onPaste(event); if (!event.defaultPrevented) field.current?.paste(event.nativeEvent); }} />;
 });
 
 export function ComposerTools({ children }: { children: ReactNode }) {

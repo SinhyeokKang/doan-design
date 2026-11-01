@@ -1,4 +1,4 @@
-import type { Canvas, ConversationEvent, FailureCode, PermissionOption } from "../main/conversation/types";
+import type { Anchor, Canvas, ConversationEvent, FailureCode, PermissionOption } from "../main/conversation/types";
 import { splitRequest, type PresetRef } from "./homeComposer";
 
 // A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them
@@ -9,7 +9,8 @@ export type MessagePart = { text: string } | { anchor: number };
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null }
 export type TurnEnd = { kind: "failed"; code: FailureCode } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
 export type ThreadItem =
-  | { kind: "user"; key: string; seq: number; parts: MessagePart[]; preset: PresetRef | null; attachments: { name: string; size: number; kind: "image" | "file" }[] }
+  // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips.
+  | { kind: "user"; key: string; seq: number; parts: MessagePart[]; anchors: readonly Anchor[]; preset: PresetRef | null; attachments: { name: string; size: number; kind: "image" | "file" }[] }
   // `streaming`: more text may still come; a stopped or failed turn keeps what arrived and drops the caret.
   | { kind: "agent"; key: string; messageId: string; text: string; streaming: boolean }
   | { kind: "noReply"; key: string }
@@ -98,7 +99,7 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
         if (turn !== null && event.turnId !== turn && !ended.has(turn)) foldCrashed(turn);
         const attachments = (event.attachments ?? []).map(a => ({ name: a.name, size: a.size, kind: a.kind }));
         const { preset, body } = splitRequest(event.text, attachments.length);
-        push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), preset, attachments });
+        push({ kind: "user", key: `u${event.seq}`, seq: event.seq, parts: anchorParts(body), anchors: event.anchors, preset, attachments });
         continue;
       }
       case "turn.started":

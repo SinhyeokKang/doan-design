@@ -3,7 +3,7 @@ import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
 import { cardRow, groupProjects, measureNarrow } from "./homeCards";
 import type { SelectionView } from "./selection";
 
-const canvas = (open: number): CanvasRow => ({ path: ".doan/canvases/a.html", url: "u", open, resolved: 0 });
+const canvas = (): CanvasRow => ({ path: ".doan/canvases/a.html", url: "u" });
 const listRow = (path: string, git?: GitInfo, extra: { canvases?: CanvasRow[]; changedAt?: number } = {}): FolderEntry => ({
   path, kind: "list", servedRev: 0, canvases: extra.canvases ?? [], ...(git ? { git } : {}), ...(extra.changedAt === undefined ? {} : { changedAt: extra.changedAt }),
 });
@@ -78,7 +78,7 @@ describe("cardRow", () => {
   });
 
   test("a list row has no chip and summarizes branch and change; the counts are homeSummary's", () => {
-    const entry = listRow("/code/acme", acme("", "main"), { canvases: [canvas(2), canvas(0), canvas(1)], changedAt: 1234 });
+    const entry = listRow("/code/acme", acme("", "main"), { canvases: [canvas(), canvas(), canvas()], changedAt: 1234 });
     const row = cardRow(entry, null, null);
     expect(row.chip).toBeUndefined();
     expect(row.summary).toEqual({ branch: "main", changedAt: 1234 });

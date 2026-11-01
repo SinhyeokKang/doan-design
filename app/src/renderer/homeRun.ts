@@ -28,7 +28,9 @@ export interface HomeRunHost {
   openOverview(root: string, arrived: () => boolean, unavailable: () => void, conversationId: string): void;
   // The person moved first: a move still waiting for the project's read must not land later.
   cancelMove(): void;
-  openCanvas(root: string, row: CanvasRow): void;
+  // A canvas the run opens itself (the new canvas a turn made), or with `conversation` the canvas a conversation is bound
+  // to, opened with that conversation in its panel (an entry: a toast's or notification's Open).
+  openCanvas(root: string, row: CanvasRow, conversation?: { conversationId: string; waiting: boolean }): void;
   goHome(): void;
   removeNow(paths: string[]): Promise<void>;
   toast(message: string, action?: string, run?: () => void): void;
@@ -38,7 +40,8 @@ export interface HomeRunHost {
 }
 // opened: the new canvas this conversation's turn made was already opened or offered; one per conversation.
 // endedAt: when this run saw the conversation's turn end (Date.now()).
-interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number }
+// drew: the path of the canvas the turn made, until main binds it.
+interface Extras { atStart: string[]; checked: string[]; canvasOpens: number; toasted: string | null; opened: boolean; endedAt?: number; drew?: string }
 interface Pending { conversationId: string; root: string; moves: number; sawModal: boolean }
 export interface Removing { paths: string[]; conversations: string[]; title: string; body: string; cancel: string; confirm: string }
 
@@ -249,7 +252,7 @@ export class HomeRun {
     const root = this.conversations.find(item => item.conversationId === conversationId)?.root ?? found?.root;
     if (!root) return;
     const row = this.canvasRow(root, conversationId);
-    if (row) this.host.openCanvas(root, row);
+    if (row) this.host.openCanvas(root, row, { conversationId, waiting: found?.phase === "waiting" || this.strips[conversationId]?.kind === "permission" });
     else this.host.openOverview(root, () => true, () => {}, conversationId);
   }
 
@@ -284,7 +287,7 @@ export class HomeRun {
       if (!extras || extras.opened || !live || listed?.kind !== "list") continue;
       const rows = newCanvasCandidates(listed.canvases, extras.atStart, extras.checked);
       extras.checked.push(...rows.map(row => row.path));
-      if (rows[0]) { extras.opened = true; this.canvasAppeared(conversation.conversationId, rows[0]); }
+      if (rows[0]) { extras.opened = true; extras.drew = rows[0].path; this.canvasAppeared(conversation.conversationId, rows[0]); }
     }
   }
   private canvasAppeared(conversationId: string, row: CanvasRow): void {
@@ -302,17 +305,32 @@ export class HomeRun {
     this.host.changed();
   }
 
-  // A row's screen on view marks its unseen endings seen, also when a turn ends while the person is already there
-  // (App calls this again when the list changes).
-  // A project conversation is seen only in the Overview's main column (buzz-project spec decision 11, markSeenThrough),
-  // so a visit marks canvas conversations only, on their canvas row or, once that canvas left, on the project row.
+  // A project row's screen on view marks the unseen endings of canvas conversations whose canvas left the project:
+  // their slot moved to the project row and no canvas panel can show them (App calls this again when the list
+  // changes). A project conversation is seen only in the Overview's main column (buzz-project spec decision 11), and a
+  // canvas conversation only in its canvas's open panel (buzz-canvas-conversation design §2), both through
+  // markSeenThrough.
   visit(keys: readonly string[]): void {
     for (const [root, list] of this.lists) {
       for (const c of list) {
         if (!c.fromHome || !c.canvas || c.phase !== "ended" || !c.unseen || this.seen.has(c.conversationId)) continue;
-        if (keys.includes(slotKeyOf(root, c, this.rows(root)))) this.markSeen(c.conversationId);
+        const key = slotKeyOf(root, c, this.rows(root));
+        if (key === slotKey(root) && keys.includes(key)) this.markSeen(c.conversationId);
       }
     }
+  }
+  // A project conversation whose turn drew this canvas and whose promotion main has not judged yet: still working, or
+  // within the binding window after its turn ended (design §2 'Conversation panel').
+  drawing(root: string, canvas: { path: string; id?: string }): string | null {
+    for (const conversation of this.conversations) {
+      const extras = this.extras.get(conversation.conversationId);
+      if (conversation.root !== root || extras?.drew !== canvas.path) continue;
+      const summary = this.summary(conversation.conversationId);
+      if (summary?.canvas) continue;
+      const live = RUNNING.includes(conversation.phase) || (extras.endedAt !== undefined && Date.now() - extras.endedAt <= BIND_GRACE_MS);
+      if (live) return conversation.conversationId;
+    }
+    return null;
   }
   // The Overview marks what it showed up to `seq`; a mark still waiting for main is followed by this one.
   markSeenThrough(conversationId: string, seq: number): void {

@@ -1349,10 +1349,10 @@ describe("comment anchors", () => {
     expect(messages().filter(p => p.type === "anchors")).toHaveLength(before + 1);
     canvas.fromParent({ type: "select-anchor", seq: 1, selector: ".child" });
     expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 1, answer: "select-anchor" });
+    // The pin command went with the app's comment pins: an anchors node selects nothing.
+    const selects = messages().filter(p => p.type === "select").length;
     canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 2, node: reply?.results[3]?.candidates.selector?.[0] });
-    expect(messages().filter(p => p.type === "select").at(-1)).toMatchObject({ seq: 2, answer: "select-comment", target: { tag: "body", element: { selector: "body" } } });
-    canvas.fromParent({ type: "select-comment", document, generation: 1, request: 1, seq: 3, node: "missing" });
-    expect(messages().filter(p => p.type === "select").at(-1)).toEqual({ type: "select", href: expect.any(String), seq: 3, viewport: expect.any(Number), target: null, answer: "select-comment" });
+    expect(messages().filter(p => p.type === "select")).toHaveLength(selects);
   });
 });
 
@@ -1375,52 +1375,40 @@ test("Y2 same-size replacement recovers selected anchor token without another ev
   expect(after.selected).toBe(after.results[0].candidates.doanId[0]);
 });
 
-describe("draft preselection protocol", () => {
-  test("waits before actual selection and rejects old, foreign and changed-document approvals", () => {
+// buzz-canvas-conversation removed the app's comment drafts and their guard: a click, a background click and an
+// ⌥-clicked link act at once, and the guard's messages from the app change nothing.
+describe("selection without a draft guard", () => {
+  test("a click selects at once, and draft-guard and transition-answer messages are ignored", () => {
     const { canvas, span, hero } = heroCanvas();
-    const command = (data: unknown, source: unknown = canvas.parent) => canvas.fireWindow("message", { source, data });
-    command({ type: "draft-guard", active: true });
-    click(canvas, span);
-    const first = ofType(canvas, "transition-intent").at(-1)!;
-    expect(first.kind).toBe("selection");
-    expect(ofType(canvas, "select")).toHaveLength(0);
-    click(canvas, hero);
-    const second = ofType(canvas, "transition-intent").at(-1)!;
-    command({ type: "transition-answer", document: first.document, intent: first.intent });
-    command({ type: "transition-answer", document: second.document, intent: second.intent }, {});
-    command({ type: "transition-answer", document: "old", intent: second.intent });
-    expect(ofType(canvas, "select")).toHaveLength(0);
-    command({ type: "transition-answer", document: second.document, intent: second.intent });
-    expect(ofType(canvas, "select")).toHaveLength(1);
-    expect(ofType(canvas, "select")[0]?.target).toMatchObject({ frame: { id: "hero" } });
-    command({ type: "transition-answer", document: second.document, intent: second.intent });
-    expect(ofType(canvas, "select")).toHaveLength(1);
-  });
-  test("a click on the document's own background asks as a clear; a click on an element does not", () => {
-    const { canvas, span } = heroCanvas();
     canvas.fromParent({ type: "draft-guard", active: true });
-    click(canvas, canvas.body);
-    const background = ofType(canvas, "transition-intent").at(-1)!;
-    expect(background).toMatchObject({ kind: "selection", clear: true });
-    canvas.fromParent({ type: "transition-answer", document: background.document, intent: background.intent });
-    expect(ofType(canvas, "clear")).toHaveLength(1);
     click(canvas, span);
-    expect(ofType(canvas, "transition-intent").at(-1)).not.toHaveProperty("clear");
+    expect(ofType(canvas, "select")).toHaveLength(1);
+    click(canvas, hero);
+    expect(ofType(canvas, "select")).toHaveLength(2);
+    expect(ofType(canvas, "select")[1]?.target).toMatchObject({ frame: { id: "hero" } });
+    const document = ofType(canvas, "layout")[0]?.document;
+    canvas.fromParent({ type: "transition-answer", document, intent: 1 });
+    expect(ofType(canvas, "select")).toHaveLength(2);
+    expect(ofType(canvas, "transition-intent")).toHaveLength(0);
   });
-  test("an ⌥-clicked link asks as navigation and waits for the answer", () => {
+  test("a click on the document's own background clears at once", () => {
+    const { canvas, span } = heroCanvas();
+    click(canvas, span);
+    click(canvas, canvas.body);
+    expect(ofType(canvas, "clear")).toHaveLength(1);
+    expect(ofType(canvas, "transition-intent")).toHaveLength(0);
+  });
+  test("an ⌥-clicked link navigates at once and leaves the event to the page", () => {
     const anchor = node("a", { href: "other.html" }, [node("b")]);
     const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [anchor]) });
     canvas.fromParent({ type: "draft-guard", active: true });
     let stopped = 0;
     click(canvas, anchor, { altKey: true, stopImmediatePropagation: () => { stopped++; } } as Partial<FakeEvent>);
-    expect(stopped).toBe(1);
-    const intent = ofType(canvas, "transition-intent").at(-1)!;
-    expect(intent.kind).toBe("navigation");
-    expect(canvas.assigned).toEqual([]);
-    canvas.fromParent({ type: "transition-answer", document: intent.document, intent: intent.intent });
+    expect(stopped).toBe(0);
     expect(canvas.assigned).toEqual(["other.html"]);
+    expect(ofType(canvas, "transition-intent")).toHaveLength(0);
   });
-  test("native composition Escape does not emit a transition", () => {
+  test("native composition Escape does not emit a key", () => {
     const { canvas, span } = heroCanvas();
     canvas.fireWindow("keydown", input({ target: span, key: "Escape", isComposing: true }));
     expect(ofType(canvas, "key")).toHaveLength(0);
@@ -1431,5 +1419,260 @@ describe("nextHeight after a first measurement of 0", () => {
   test("does not freeze at 0 when the document has content once the iframe is 0 tall", () => {
     const first = nextHeight(null, 0, 150);
     expect(nextHeight(first, 2600, 0)).toEqual({ sent: 2600, inner: 0, frozen: false });
+  });
+});
+
+// buzz-canvas-conversation design §4 'Structure': picking is the canvas script's internal command. Start and cancel
+// use their own seq, a pick click answers `picked` and leaves the selection, its anchor and the hover as they were.
+describe("canvasScript picking", () => {
+  const at = (x: number, y: number) => ({ clientX: x, clientY: y }) as Partial<FakeEvent>;
+  const picked = (canvas: ReturnType<typeof fakeCanvas>) => ofType(canvas, "picked");
+  const tokenOf = (canvas: ReturnType<typeof fakeCanvas>) => {
+    const before = canvas.posted.length;
+    canvas.fromParent({ type: "measure" });
+    const token = (canvas.posted[before] as { message: { document: string } }).message.document;
+    canvas.posted.splice(before);
+    return token;
+  };
+  // Sends a pick command for the current document and leaves no message of its own behind (the ack has its own test).
+  const command = (canvas: ReturnType<typeof fakeCanvas>, type: string, seq: number, extra: Record<string, unknown> = {}) => {
+    const document = tokenOf(canvas);
+    const before = canvas.posted.length;
+    canvas.fromParent({ type, seq, document, ...extra });
+    canvas.posted.splice(before);
+  };
+  const startPick = (canvas: ReturnType<typeof fakeCanvas>, seq: number) => command(canvas, "pick-start", seq);
+  const cancelPick = (canvas: ReturnType<typeof fakeCanvas>, seq: number) => command(canvas, "pick-cancel", seq);
+
+  test("a click while picking answers with the element and changes no selection, anchor or hover", () => {
+    const { canvas, span, button } = heroCanvas();
+    canvas.context.innerWidth = 600;
+    click(canvas, button);
+    startPick(canvas, 1);
+    canvas.posted.length = 0;
+    const event = click(canvas, span);
+    expect(event.prevented).toBe(true);
+    expect(event.stopped).toBe(true);
+    expect(messages(canvas)).toEqual([{ type: "picked", href: HREF, document: expect.any(String), pick: 1, target: expect.objectContaining({ tag: "span", element: expect.objectContaining({ selector: '[data-doan-id="cta"] > span:nth-of-type(1)' }) }) }]);
+    // The selection is still the button: the next layout reports its rect at the click's selection seq.
+    canvas.fromParent({ type: "measure" });
+    expect(ofType(canvas, "layout").at(-1)).toMatchObject({ seq: 1, selected: { x: 1, y: 2, width: 30, height: 40 } });
+    canvas.fromParent({ type: "anchors-query", document: ofType(canvas, "layout")[0]?.document, generation: 1, request: 1, targets: [{ id: "a", doanId: "cta", selector: "x" }] });
+    const reply = ofType(canvas, "anchors").at(-1) as { selected: string; results: { candidates: { doanId: string[] } }[]; selectionSeq: number };
+    expect(reply.selected).toBe(reply.results[0]?.candidates.doanId[0]);
+    expect(reply.selectionSeq).toBe(1);
+  });
+
+  test("keeps picking until the app cancels, then a click selects again", () => {
+    const { canvas, span, button } = heroCanvas();
+    startPick(canvas, 1);
+    click(canvas, span);
+    click(canvas, button);
+    expect(picked(canvas)).toHaveLength(2);
+    expect(ofType(canvas, "select")).toHaveLength(0);
+    cancelPick(canvas, 2);
+    click(canvas, span);
+    expect(picked(canvas)).toHaveLength(2);
+    expect(ofType(canvas, "select")).toEqual([expect.objectContaining({ seq: 1 })]);
+  });
+
+  test("the pick channel has its own seq: stale pick commands are ignored and selection commands still apply", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 5);
+    cancelPick(canvas, 4);
+    click(canvas, span);
+    expect(picked(canvas).at(-1)).toMatchObject({ pick: 5 });
+    canvas.fromParent({ type: "select-anchor", seq: 1, doanId: "cta" });
+    expect(ofType(canvas, "select").at(-1)).toMatchObject({ seq: 1, answer: "select-anchor" });
+    cancelPick(canvas, 6);
+    startPick(canvas, 6);
+    click(canvas, span);
+    expect(picked(canvas)).toHaveLength(1);
+    const document = tokenOf(canvas);
+    for (const bad of [{ type: "pick-start", document }, { type: "pick-start", seq: 7.5, document }, { type: "pick-start", seq: "8", document }, { type: "pick-start", seq: 9 }, { type: "pick-start", seq: 9, document: "other" }]) canvas.fromParent(bad);
+    click(canvas, span);
+    expect(picked(canvas)).toHaveLength(1);
+  });
+
+  test("Esc while picking answers cancelled instead of an Escape key, wherever focus is in the canvas, and ends picking", () => {
+    const { canvas, span, field } = heroCanvas();
+    startPick(canvas, 3);
+    const event = input({ target: field, key: "Escape" });
+    canvas.fireWindow("keydown", event);
+    expect(event.prevented).toBe(true);
+    expect(picked(canvas)).toEqual([{ type: "picked", href: HREF, document: expect.any(String), pick: 3, cancelled: true }]);
+    expect(ofType(canvas, "key")).toHaveLength(0);
+    click(canvas, span);
+    expect(picked(canvas)).toHaveLength(1);
+    expect(ofType(canvas, "select")).toHaveLength(1);
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
+    expect(ofType(canvas, "key")).toEqual([expect.objectContaining({ key: "Escape" })]);
+  });
+
+  test("an Escape during IME composition does not cancel", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 1);
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape", isComposing: true }));
+    expect(picked(canvas)).toHaveLength(0);
+  });
+
+  test("an ⌥-click picks too, and a link under it does not navigate", () => {
+    const anchor = node("a", { href: "other.html" }, [node("b")]);
+    const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [node("section", { "data-doan-frame": "nav" }, [anchor])]) });
+    startPick(canvas, 1);
+    for (const type of ["pointerdown", "mousedown", "click"]) {
+      const event = input({ target: anchor, altKey: true });
+      canvas.fireWindow(type, event);
+      expect(event.prevented).toBe(true);
+    }
+    expect(canvas.assigned).toEqual([]);
+    expect(picked(canvas)).toEqual([expect.objectContaining({ pick: 1, target: expect.objectContaining({ tag: "a" }) })]);
+  });
+
+  test("right and Ctrl clicks do not pick", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 1);
+    click(canvas, span, { button: 2 });
+    click(canvas, span, { ctrlKey: true });
+    expect(picked(canvas)).toHaveLength(0);
+  });
+
+  test("a click on a frame's own background picks the frame", () => {
+    const { canvas, hero } = heroCanvas();
+    startPick(canvas, 1);
+    click(canvas, hero, at(30, 50));
+    const target = picked(canvas)[0]?.target as Record<string, unknown>;
+    expect(target).toMatchObject({ tag: "section", frame: { id: "hero", title: "Hero" } });
+    expect(target).not.toHaveProperty("element");
+  });
+
+  // Shift had no meaning in the canvas before (a Shift-click selected like a click, and still does outside picking).
+  test("a Shift-click is a point at that spot in document coordinates, whatever element is under it, also with ⌥", () => {
+    const { canvas, hero, span } = heroCanvas();
+    startPick(canvas, 1);
+    click(canvas, span, { ...at(30, 50), shiftKey: true } as Partial<FakeEvent>);
+    click(canvas, hero, { ...at(7, 8), shiftKey: true, altKey: true } as Partial<FakeEvent>);
+    expect(picked(canvas)).toEqual([
+      { type: "picked", href: HREF, document: expect.any(String), pick: 1, point: { x: 30, y: 90 } },
+      { type: "picked", href: HREF, document: expect.any(String), pick: 1, point: { x: 7, y: 48 } },
+    ]);
+    cancelPick(canvas, 2);
+    click(canvas, span, { shiftKey: true } as Partial<FakeEvent>);
+    expect(ofType(canvas, "select")).toHaveLength(1);
+  });
+
+  test("a click on the document outside every frame inserts nothing and keeps picking", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 1);
+    click(canvas, canvas.body, at(5, 5));
+    click(canvas, canvas.html, at(5, 5));
+    click(canvas, canvas.body, { ...at(5, 5), shiftKey: true } as Partial<FakeEvent>);
+    expect(messages(canvas)).toEqual([]);
+    click(canvas, span);
+    expect(picked(canvas)).toHaveLength(1);
+  });
+
+  test("the wheel still pans and zooms the board while picking", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 1);
+    canvas.fireWindow("wheel", wheelEvent({ target: span, deltaY: 30, ctrlKey: true }));
+    expect(ofType(canvas, "wheel")).toEqual([expect.objectContaining({ dy: 30, ctrl: true })]);
+  });
+
+  test("focus moving into a nested iframe picks the iframe instead of selecting it", () => {
+    const nested = node("iframe");
+    const frame = node("section", { "data-doan-frame": "embed" }, [nested]);
+    const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [frame]) });
+    startPick(canvas, 1);
+    canvas.document.activeElement = nested;
+    canvas.fireWindow("blur", {});
+    canvas.advance(0);
+    expect(ofType(canvas, "select")).toHaveLength(0);
+    expect(picked(canvas)).toEqual([expect.objectContaining({ pick: 1, target: expect.objectContaining({ tag: "iframe" }) })]);
+  });
+  test("acknowledges a pick-start for its own document only, so the app can open the canvas to clicks", () => {
+    const { canvas, span } = heroCanvas();
+    const document = tokenOf(canvas);
+    canvas.fromParent({ type: "pick-start", seq: 1, document: "an earlier document" });
+    click(canvas, span);
+    expect(ofType(canvas, "pick-started")).toEqual([]);
+    expect(picked(canvas)).toEqual([]);
+    canvas.fromParent({ type: "pick-start", seq: 2, document });
+    expect(ofType(canvas, "pick-started")).toEqual([{ type: "pick-started", href: HREF, document, pick: 2 }]);
+    canvas.fromParent({ type: "pick-start", seq: 2, document });
+    expect(ofType(canvas, "pick-started")).toHaveLength(1);
+    click(canvas, span);
+    expect(picked(canvas)).toEqual([expect.objectContaining({ document, pick: 2 })]);
+  });
+
+  test("elements, wrappers and nested iframes outside every frame pick nothing, with or without Shift, and picking goes on", () => {
+    const note = node("p", {}, [node("em")]);
+    const inside = node("span");
+    const frame = node("section", { "data-doan-frame": "card" }, [inside]);
+    const wrapper = node("div", {}, [frame]);
+    const loose = node("iframe");
+    const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [note, wrapper, loose]) });
+    canvas.posted.length = 0;
+    startPick(canvas, 1);
+    for (const target of [note, note.children[0], wrapper, loose]) {
+      click(canvas, target);
+      click(canvas, target, { ...at(5, 5), shiftKey: true } as Partial<FakeEvent>);
+    }
+    canvas.document.activeElement = loose;
+    canvas.fireWindow("blur", {});
+    canvas.advance(0);
+    expect(messages(canvas)).toEqual([]);
+    click(canvas, inside);
+    click(canvas, inside, { ...at(5, 5), shiftKey: true } as Partial<FakeEvent>);
+    expect(picked(canvas)).toEqual([
+      expect.objectContaining({ target: expect.objectContaining({ tag: "span", frame: { id: "card" } }) }),
+      expect.objectContaining({ point: { x: 5, y: 45 } }),
+    ]);
+  });
+  // The board's crosshair while picking (design §2 'Picker'). The cursor over the canvas is the canvas document's own,
+  // so the script adopts a constructed sheet: it changes no DOM node, so no MutationObserver or layout runs for it.
+  test("adopts a crosshair sheet while picking and removes only its own when picking ends", () => {
+    const { canvas, span } = heroCanvas();
+    class FakeSheet { text = ""; replaceSync(text: string) { this.text = text; } }
+    canvas.context.CSSStyleSheet = FakeSheet;
+    const own = new FakeSheet();
+    const doc = canvas.document as unknown as { adoptedStyleSheets: FakeSheet[] };
+    doc.adoptedStyleSheets = [own];
+    const ours = () => doc.adoptedStyleSheets.filter(sheet => sheet !== own);
+    startPick(canvas, 1);
+    expect(doc.adoptedStyleSheets[0]).toBe(own);
+    expect(ours().map(sheet => sheet.text)).toEqual(["*{cursor:crosshair!important}"]);
+    // A second start keeps one sheet.
+    startPick(canvas, 2);
+    expect(ours()).toHaveLength(1);
+    cancelPick(canvas, 3);
+    expect(doc.adoptedStyleSheets).toEqual([own]);
+    startPick(canvas, 4);
+    canvas.fireWindow("keydown", input({ target: span, key: "Escape" }));
+    expect(doc.adoptedStyleSheets).toEqual([own]);
+    // The canvas replacing its own list meanwhile keeps whatever it set.
+    startPick(canvas, 5);
+    const later = new FakeSheet();
+    doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, later];
+    cancelPick(canvas, 6);
+    expect(doc.adoptedStyleSheets).toEqual([own, later]);
+    expect(ofType(canvas, "layout")).toHaveLength(0);
+  });
+
+  test("picks without a crosshair where constructed sheets are missing", () => {
+    const { canvas, span } = heroCanvas();
+    startPick(canvas, 1);
+    click(canvas, span);
+    expect(picked(canvas)).toHaveLength(1);
+  });
+});
+
+describe("anchors-query reply", () => {
+  test("answers a new query without waiting for an animation frame, which an off-screen iframe never gets", () => {
+    const { canvas } = heroCanvas();
+    canvas.context.innerWidth = 600;
+    canvas.fromParent({ type: "measure" });
+    canvas.fromParent({ type: "anchors-query", document: ofType(canvas, "layout")[0]?.document, generation: 1, request: 1, targets: [{ id: "f", frame: "hero" }] });
+    expect(ofType(canvas, "anchors")).toEqual([expect.objectContaining({ generation: 1, request: 1, results: [{ id: "f", candidates: { frame: [expect.any(String)] } }] })]);
   });
 });

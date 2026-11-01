@@ -6,7 +6,7 @@ describe("projectRow", () => {
   test("separates reading and empty hints from status chips", () => {
     expect(projectRow({ path: "/repo", kind: "loading" })).toEqual({ hint: "Reading…", actions: ["close"] });
     expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [] })).toEqual({ hint: "No canvases", actions: ["copyPrompt", "close"] });
-    expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", url: "url", open: 0, resolved: 0 }] })).toEqual({ actions: ["close"] });
+    expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", url: "url" }] })).toEqual({ actions: ["close"] });
   });
 
   test("matches the draft's initialization and error copy", () => {

@@ -13,7 +13,7 @@ const mocks = await vi.hoisted(async () => {
     destroyed = false;
     contentsDestroyed = false;
     webContents = Object.assign(new EventEmitter(), { id: ++Window.ids, send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
-      executeJavaScript: vi.fn(async () => ({ x: 0, y: 0, width: 800, height: 500 })),
+      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(),
       capturePage: vi.fn(async () => ({ isEmpty: () => false, resize: () => ({ toPNG: () => Buffer.from("png") }) })) });
     show = vi.fn();
     hide = vi.fn();
@@ -79,10 +79,7 @@ const mocks = await vi.hoisted(async () => {
     createUiStateStore: vi.fn(),
     thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
-    reviewStore: { marker: vi.fn(), raise: vi.fn(), forget: vi.fn() },
-    createReviewStore: vi.fn(),
     readFolder: vi.fn(),
-    readFoldersFileForPruning: vi.fn(),
     nativeTheme: { themeSource: "system" },
     // Folder work the Add Projects page and onboarding share; each delegates to the real module unless a test says otherwise.
     projects: { canonicalFolder: vi.fn(), inspectPath: vi.fn(), selectProject: vi.fn(), cloneDestination: vi.fn(), cloneProject: vi.fn() },
@@ -98,6 +95,7 @@ vi.mock("electron", () => ({
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(), on: mocks.sessionOn } },
   webFrameMain: { fromId: vi.fn() },
+  webContents: { getFocusedWebContents: () => null },
   nativeTheme: mocks.nativeTheme,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
@@ -117,13 +115,11 @@ vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 
 vi.mock("./agentSetup/runner", () => ({ runAgentSetup: mocks.runAgentSetup, osascriptAdmin: mocks.osascriptAdmin }));
 vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
-vi.mock("./folderStore", () => ({ readFoldersFileForPruning: mocks.readFoldersFileForPruning }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
-vi.mock("./reviewState", async (importOriginal) => ({ ...await importOriginal<typeof import("./reviewState")>(), createReviewStore: mocks.createReviewStore }));
 vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
 const actualProjects = await vi.importActual<typeof import("./onboarding/projects")>("./onboarding/projects");
 
@@ -147,7 +143,6 @@ beforeEach(async () => {
   mocks.runAgentSetup.mockReturnValue(launchSetup === HELD ? new Promise(resolve => { settleSetup = resolve; }) : Promise.resolve(launchSetup));
   mocks.app.whenReady.mockResolvedValue();
   mocks.startShell.mockResolvedValue(mocks.shell);
-  mocks.readFoldersFileForPruning.mockResolvedValue(entries.map((entry) => entry.path));
   mocks.startRuntime.mockResolvedValue(mocks.runtime);
   mocks.createInspector.mockReturnValue(mocks.inspector);
   mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
@@ -168,7 +163,6 @@ beforeEach(async () => {
   mocks.electronShell.openExternal.mockResolvedValue(undefined);
   mocks.createThumbnails.mockReturnValue(mocks.thumbnails);
   mocks.thumbnails.removed.mockResolvedValue(undefined);
-  mocks.createReviewStore.mockReturnValue(mocks.reviewStore);
   for (const name of Object.keys(mocks.projects) as (keyof typeof mocks.projects)[]) mocks.projects[name].mockImplementation(actualProjects[name] as never);
   await import("./index");
   await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
@@ -526,13 +520,6 @@ test("inspect:get refuses other senders and bad requests without inspecting", as
   expect(mocks.inspector.inspect).not.toHaveBeenCalled();
 });
 
-test.each(["list", "begin", "mutate", "status", "author", "copy"])("comments %s refuses iframe and other-window callers", async method => {
-  for (const [sender, parent] of [[window().webContents, {}], [{}, null]]) {
-    expect(await invoke(`comments:${method}`, sender, parent, {})).toEqual({ ok: false, identity: null, error: "The request was refused." });
-  }
-  expect(await invoke(`comments:${method}`, window().webContents, null, { forged: true })).toMatchObject({ ok: false });
-});
-
 describe("design skills", () => {
   const LIST = { v: 1, ok: true, result: { version: "9.8.7", presets: [{ id: "clarify", title: "Clarify copy", description: "d", scope: "copy" }] } };
   const BODY = "# Clarify copy\n\n[doan:design-skill] end of preset clarify v9.8.7\n";
@@ -573,18 +560,15 @@ describe("design skills", () => {
   });
 });
 
-test("a guarded quit waits for a matching main-frame acknowledgement", async () => {
-  await invoke("comments:guard", window().webContents, null, true);
+// Nothing asks the renderer before Quit: the teardown is scheduled within the event.
+test("a quit goes ahead without asking the renderer", async () => {
   const event = { preventDefault: vi.fn() };
+  window().webContents.send.mockClear();
   mocks.app.emit("before-quit", event);
   expect(event.preventDefault).toHaveBeenCalledOnce();
-  const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
-  expect(call?.[1]).toMatchObject({ kind: "quit" });
-  await invoke("comments:transition-answer", window().webContents, {}, { id: call?.[1].id, allow: true });
-  expect(mocks.app.quit).not.toHaveBeenCalled();
-  await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
   await new Promise<void>(resolve => setImmediate(resolve));
   expect(mocks.app.quit).toHaveBeenCalledOnce();
+  expect(window().webContents.send).not.toHaveBeenCalled();
 });
 
 test("project setup IPC rejects untrusted frames, arbitrary paths and forged choices", async () => {
@@ -711,11 +695,10 @@ describe("menus", () => {
     expect(item("New Conversation").accelerator).toBe("CmdOrCtrl+N");
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
-    expect(submenu("Go").map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"], ["separator", undefined],
-      ["Next Resolved Comment", "CmdOrCtrl+]"], ["Previous Resolved Comment", "CmdOrCtrl+["]]);
-    // Without a removal toast the system Undo keeps working in text fields.
-    expect(submenu("Edit")[0]?.role).toBe("undo");
-    expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["redo", "cut", "copy", "paste", "selectAll"]));
+    expect(submenu("Go").map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"]]);
+    // Without a removal toast Undo and Redo keep working in text fields (routed below).
+    expect(submenu("Edit").slice(0, 2).map((entry) => [entry.label, entry.accelerator])).toEqual([["Undo", "CmdOrCtrl+Z"], ["Redo", "Shift+CmdOrCtrl+Z"]]);
+    expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectAll"]));
   });
 
   test("the app starts on Home, where only canvas-free items are enabled", () => {
@@ -735,7 +718,7 @@ describe("menus", () => {
     await invoke("menu:state", contents, null, state("canvas", true, true));
     for (const label of ["Add Project…", "Home", "Zoom In"]) expect(menuEnabled(label), label).toBe(false);
     // A modal may hold a text field, so its ⌘Z stays a text undo.
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
   });
 
   test("Undo Remove takes ⌘Z only while the removal toast is up", async () => {
@@ -745,15 +728,32 @@ describe("menus", () => {
     click("Undo Remove");
     expect(contents.send).toHaveBeenCalledWith("menu-command", "undoRemove");
     await invoke("menu:state", contents, null, state("home"));
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
     expect(() => item("Undo Remove")).toThrow();
+  });
+
+  // buzz-canvas-conversation R1: the chip field refuses Chromium's undo, so the role items could not redo it.
+  test("Edit > Undo and Redo hand a focused chip field its history step, and run the WebContents undo or redo otherwise", async () => {
+    const contents = window().webContents;
+    const run = async (label: string) => { Reflect.apply(item(label).click!, undefined, [{}, window(), {}]); await new Promise(resolve => setTimeout(resolve, 0)); };
+    contents.executeJavaScript.mockResolvedValueOnce(true);
+    await run("Undo");
+    expect(String(contents.executeJavaScript.mock.calls.at(-1)?.[0])).toContain('inputType: "historyUndo"');
+    expect(contents.undo).not.toHaveBeenCalled();
+    contents.executeJavaScript.mockResolvedValueOnce(false);
+    await run("Redo");
+    expect(String(contents.executeJavaScript.mock.calls.at(-1)?.[0])).toContain('inputType: "historyRedo"');
+    expect(contents.redo).toHaveBeenCalledTimes(1);
+    contents.executeJavaScript.mockRejectedValueOnce(new Error("gone"));
+    await run("Undo");
+    expect(contents.undo).toHaveBeenCalledTimes(1);
   });
 
   test("refuses bad menu states and other senders", async () => {
     const contents = window().webContents;
     const builds = mocks.menu.mock.calls.length;
     for (const bad of [null, "canvas", { screen: "canvas" }, state("about"), { ...state("canvas"), more: 1 }, { screen: "canvas", modal: 1, toast: false },
-      { ...state("canvas"), reviewing: 1 }, { ...state("canvas"), reviewing: true, more: 1 }]) {
+      { ...state("canvas"), reviewing: true }]) {
       await invoke("menu:state", contents, null, bad);
     }
     await invoke("menu:state", contents, {}, state("canvas"));
@@ -767,7 +767,7 @@ describe("menus", () => {
     await invoke("menu:state", contents, null, state("canvas", false, true));
     window().webContents.emit(event);
     expect(menuEnabled("Zoom In")).toBe(false);
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
   });
 
   test("Quick Open… is enabled on every screen, disabled under a modal, and tells the renderer", async () => {
@@ -783,8 +783,8 @@ describe("menus", () => {
     expect(menuEnabled("Quick Open…")).toBe(false);
   });
 
-  // buzz-project spec decision 2: ⌘N starts a new conversation only while a project Overview shows.
-  test("New Conversation is enabled only while the renderer reports an Overview, and tells the renderer", async () => {
+  // A workspace must show an Overview before it can start a conversation.
+  test("New Conversation requires an Overview on a workspace, and tells the renderer", async () => {
     const contents = window().webContents;
     expect(menuEnabled("New Conversation")).toBe(false);
     await invoke("menu:state", contents, null, state("workspace"));
@@ -797,23 +797,36 @@ describe("menus", () => {
     expect(menuEnabled("New Conversation")).toBe(false);
   });
 
-  // e2e clicks these items from main: Playwright cannot press native accelerators.
-  test("Next/Previous Resolved Comment are enabled only while the renderer reports a Review, and tell the renderer", async () => {
+  test("canvas conversation menu commands follow validated selection and picker state", async () => {
     const contents = window().webContents;
-    const labels = ["Next Resolved Comment", "Previous Resolved Comment"];
+    const ready = { ...state("canvas"), selection: true, pickerAvailable: true };
     await invoke("menu:state", contents, null, state("canvas"));
-    for (const label of labels) expect(menuEnabled(label), label).toBe(false);
-    await invoke("menu:state", contents, null, { ...state("canvas"), reviewing: true });
-    for (const label of labels) expect(menuEnabled(label), label).toBe(true);
-    click("Next Resolved Comment");
-    click("Previous Resolved Comment");
-    expect(contents.send).toHaveBeenCalledWith("menu-command", "nextResolved");
-    expect(contents.send).toHaveBeenCalledWith("menu-command", "previousResolved");
-    await invoke("menu:state", contents, null, { ...state("canvas", true), reviewing: true });
-    for (const label of labels) expect(menuEnabled(label), label).toBe(false);
-    await invoke("menu:state", contents, null, { ...state("canvas"), reviewing: true });
-    window().webContents.emit("did-navigate");
-    for (const label of labels) expect(menuEnabled(label), label).toBe(false);
+    expect(menuEnabled("New Conversation")).toBe(true);
+    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+    for (const bad of [{ ...ready, selection: "true" }, { ...ready, pickerAvailable: 1 }, { ...ready, unknown: true }]) {
+      await invoke("menu:state", contents, null, bad);
+      expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+    }
+    await invoke("menu:state", contents, null, ready);
+    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    click("Add Selection to Conversation");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "addSelectionToConversation");
+    await invoke("menu:state", contents, null, { ...ready, selection: false });
+    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+    await invoke("menu:state", contents, null, ready);
+    await invoke("menu:state", contents, null, { ...ready, pickerAvailable: false });
+    expect(menuEnabled("Add Selection to Conversation")).toBe(false);
+  });
+
+  test("invalid menu state preserves an enabled canvas conversation action", async () => {
+    const contents = window().webContents;
+    const ready = { ...state("canvas"), selection: true, pickerAvailable: true };
+    await invoke("menu:state", contents, null, ready);
+    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    const builds = mocks.menu.mock.calls.length;
+    await invoke("menu:state", contents, null, { ...ready, selection: "true" });
+    expect(menuEnabled("Add Selection to Conversation")).toBe(true);
+    expect(mocks.menu.mock.calls.length).toBe(builds);
   });
 
   test("Go > Home tells the renderer", async () => {
@@ -841,7 +854,7 @@ describe("menus", () => {
     expect(menuEnabled("Add Project…")).toBe(true);
     expect(menuEnabled("Home")).toBe(true);
     expect(menuEnabled("Quick Open…")).toBe(true);
-    for (const label of ["Zoom In", "Reload Canvas", "Next Resolved Comment"]) expect(menuEnabled(label), label).toBe(false);
+    for (const label of ["Zoom In", "Reload Canvas"]) expect(menuEnabled(label), label).toBe(false);
     await invoke("menu:state", contents, null, state("addProjects"));
     expect(menuEnabled("Add Project…")).toBe(false);
     await invoke("menu:state", contents, null, { ...state("addProjects"), choose: false });
@@ -851,8 +864,8 @@ describe("menus", () => {
   test("a locked page disables everything that leaves it; Undo Remove gives ⌘Z back", async () => {
     const contents = window().webContents;
     await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: true });
-    for (const label of ["Add Project…", "Home", "Quick Open…", "Next Resolved Comment", "Previous Resolved Comment"]) expect(menuEnabled(label), label).toBe(false);
-    expect(submenu("Edit")[0]?.role).toBe("undo");
+    for (const label of ["Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
+    expect(submenu("Edit")[0]?.label).toBe("Undo");
     await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: false });
     expect(menuEnabled("Add Project…")).toBe(true);
     expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });
@@ -876,7 +889,7 @@ describe("menus", () => {
     await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true });
     const builds = mocks.menu.mock.calls.length;
     for (const bad of [{ ...state("addProjects"), locked: "yes" }, { ...state("addProjects"), choose: 1 }, { ...state("addProjects"), locked: true, more: 1 },
-      { ...state("addProjects"), choose: true, locked: false, reviewing: false, more: 1 }, { ...state("add-projects") }]) {
+      { ...state("addProjects"), choose: true, locked: false, more: 1 }, { ...state("add-projects") }]) {
       await invoke("menu:state", contents, null, bad);
     }
     expect(mocks.menu.mock.calls.length).toBe(builds);
@@ -927,25 +940,13 @@ describe("removing and restoring", () => {
     expect(await invoke("folders:remove", contents, null, { paths: [APP, WT] })).toEqual({ kind: "removed", removalId: expect.any(String), label: "app and 1 worktree" });
   });
 
-  test("a cancelled draft guard removes nothing", async () => {
-    const contents = window().webContents;
-    await invoke("comments:guard", contents, null, true);
-    const pending = invoke("folders:remove", contents, null, { paths: [APP] }) as Promise<unknown>;
-    const request = contents.send.mock.calls.find((call) => call[0] === "comments:transition")?.[1];
-    expect(request).toMatchObject({ kind: "remove-projects", roots: [APP] });
-    await invoke("comments:transition-answer", contents, null, { id: request.id, allow: false });
-    expect(await pending).toEqual({ kind: "cancelled" });
-    expect(mocks.shell.remove).not.toHaveBeenCalled();
-  });
-
-  test("an allowed draft guard removes once and clears the removed project's selection", async () => {
+  // Nothing asks the renderer first: the removal starts within the request.
+  test("a removal starts at once and clears the removed project's selection", async () => {
     const contents = window().webContents;
     const selection = { root: APP, canvas: { path: ".doan/canvases/a.html", id: "a" }, element: { selector: "button", html: "<button>Go</button>" } };
     await invoke("selection:set", contents, null, selection);
-    await invoke("comments:guard", contents, null, true);
     const pending = invoke("folders:remove", contents, null, { paths: [APP] }) as Promise<unknown>;
-    const request = contents.send.mock.calls.find((call) => call[0] === "comments:transition")?.[1];
-    await invoke("comments:transition-answer", contents, null, { id: request.id, allow: true });
+    expect(mocks.shell.remove).toHaveBeenCalledOnce();
     expect(await pending).toMatchObject({ kind: "removed" });
     expect(mocks.shell.remove).toHaveBeenCalledOnce();
     expect(runtimeState().selection()).toBeNull();
@@ -1000,16 +1001,6 @@ describe("removing and restoring", () => {
     expect(await invoke("folders:restore", contents, null, { removalId: second.removalId })).toEqual({ kind: "restored", paths: [WT] });
   });
 
-  test("a removal the draft guard cancels keeps the last Undo", async () => {
-    const contents = window().webContents;
-    const first = await invoke("folders:remove", contents, null, { paths: [APP] }) as { removalId: string };
-    await invoke("comments:guard", contents, null, true);
-    const pending = invoke("folders:remove", contents, null, { paths: [WT] }) as Promise<unknown>;
-    const request = contents.send.mock.calls.find((call) => call[0] === "comments:transition")?.[1];
-    await invoke("comments:transition-answer", contents, null, { id: request.id, allow: false });
-    expect(await pending).toEqual({ kind: "cancelled" });
-    expect(await invoke("folders:restore", contents, null, { removalId: first.removalId })).toEqual({ kind: "restored", paths: [APP] });
-  });
 });
 
 describe("locate and reveal", () => {
@@ -1243,18 +1234,6 @@ describe("thumbnails", () => {
     expect(mocks.thumbnails.pause).toHaveBeenCalledOnce();
   });
 
-  // Quit closes every window before will-quit; captures still running then
-  // would open the capture window again and keep the app from quitting.
-  test("a quit disposes the thumbnails once it is allowed, before will-quit", async () => {
-    await invoke("comments:guard", window().webContents, null, true);
-    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
-    expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
-    const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
-    await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: true });
-    await new Promise<void>(resolve => setImmediate(resolve));
-    expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
-  });
-
   test("quitting disposes the thumbnails, and the capturer destroys its window", async () => {
     mocks.app.emit("before-quit", { preventDefault: vi.fn() });
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -1384,54 +1363,7 @@ test("repeated quit requests before deferred teardown schedule only one quit", a
   expect(mocks.app.quit).toHaveBeenCalledOnce();
 });
 
-test("a cancelled quit leaves thumbnails alive and allows a later approved quit", async () => {
-  await invoke("comments:guard", window().webContents, null, true);
-  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
-  const call = window().webContents.send.mock.calls.find(call => call[0] === "comments:transition");
-  await invoke("comments:transition-answer", window().webContents, null, { id: call?.[1].id, allow: false });
-  await new Promise<void>(resolve => setImmediate(resolve));
-  expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
-  expect(mocks.app.quit).not.toHaveBeenCalled();
-  await invoke("comments:guard", window().webContents, null, false);
-  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
-  expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
-  await new Promise<void>(resolve => setImmediate(resolve));
-  expect(mocks.thumbnails.dispose).toHaveBeenCalledOnce();
-  expect(mocks.app.quit).toHaveBeenCalledOnce();
-});
-
-test.each(["window", "app", "both"])("guarded quit reveals and focuses main before dispatch after hiding %s", async hidden => {
-  const main = window(), contents = main.webContents;
-  if (hidden !== "app") main.emit("close", { preventDefault: vi.fn() });
-  if (hidden !== "window") mocks.notifications.get("NSApplicationDidHideNotification")?.();
-  mocks.app.show.mockImplementationOnce(() => { mocks.notifications.get("NSApplicationDidUnhideNotification")?.(); });
-  await invoke("comments:guard", contents, null, true);
-  contents.send.mockClear();
-  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
-  expect(main.show).toHaveBeenCalledOnce();
-  expect(main.focus).toHaveBeenCalledOnce();
-  expect(mocks.app.show).toHaveBeenCalledTimes(hidden === "window" ? 0 : 1);
-  const index = contents.send.mock.calls.findIndex(call => call[0] === "comments:transition");
-  const request = contents.send.mock.calls[index]?.[1];
-  expect(request).toMatchObject({ kind: "quit" });
-  expect(main.show.mock.invocationCallOrder[0]).toBeLessThan(main.focus.mock.invocationCallOrder[0] ?? 0);
-  expect(main.focus.mock.invocationCallOrder[0]).toBeLessThan(contents.send.mock.invocationCallOrder[index] ?? 0);
-  if (hidden !== "window") expect(mocks.app.show.mock.invocationCallOrder[0]).toBeLessThan(main.show.mock.invocationCallOrder[0] ?? 0);
-  expect(await invoke("window:visible", contents, null)).toEqual({ visible: true });
-  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
-  expect(main.show).toHaveBeenCalledOnce();
-  expect(contents.send.mock.calls.filter(call => call[0] === "comments:transition")).toHaveLength(1);
-  await invoke("comments:transition-answer", contents, null, { id: "stale", allow: true });
-  await invoke("comments:transition-answer", contents, {}, { id: request.id, allow: true });
-  await new Promise<void>(resolve => setImmediate(resolve));
-  expect(mocks.app.quit).not.toHaveBeenCalled();
-  await invoke("comments:transition-answer", contents, null, { id: request.id, allow: false });
-  await new Promise<void>(resolve => setImmediate(resolve));
-  expect(mocks.app.quit).not.toHaveBeenCalled();
-  expect(mocks.thumbnails.dispose).not.toHaveBeenCalled();
-});
-
-test.each(["window", "app", "both"])("unguarded quit does not reveal hidden %s", async hidden => {
+test.each(["window", "app", "both"])("quit does not reveal hidden %s", async hidden => {
   const main = window();
   if (hidden !== "app") main.emit("close", { preventDefault: vi.fn() });
   if (hidden !== "window") mocks.notifications.get("NSApplicationDidHideNotification")?.();
@@ -1442,115 +1374,6 @@ test.each(["window", "app", "both"])("unguarded quit does not reveal hidden %s",
   expect(mocks.app.quit).not.toHaveBeenCalled();
   await new Promise<void>(resolve => setImmediate(resolve));
   expect(mocks.app.quit).toHaveBeenCalledOnce();
-});
-
-test("guarded quit cancels a pending fullscreen hide before presenting the guard", async () => {
-  const main = window();
-  main.isFullScreen.mockReturnValue(true);
-  main.emit("close", { preventDefault: vi.fn() });
-  await invoke("comments:guard", main.webContents, null, true);
-  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
-  main.emit("leave-full-screen");
-  expect(main.show).toHaveBeenCalledOnce();
-  expect(main.hide).not.toHaveBeenCalled();
-});
-
-describe("review state", () => {
-  const MARKER = { since: "2026-10-26T09:00:00.000Z" };
-  const RAISED = { since: "2026-10-26T09:00:00.000Z", lastReviewedAt: "2026-10-26T10:00:00.000Z" };
-  beforeEach(() => {
-    mocks.shell.entries.mockReturnValue(entries);
-    mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths, indexes: paths.map((path) => entries.findIndex((entry) => entry.path === path)) }));
-    mocks.shell.restore.mockImplementation(async (paths: string[]) => paths);
-    mocks.reviewStore.marker.mockReturnValue(MARKER);
-    mocks.reviewStore.raise.mockReturnValue(RAISED);
-  });
-
-  test("the store lives beside folders.json and prunes against the saved roots", () => {
-    const [file, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
-    expect(file).toBe("/tmp/doan-index-test/review-state.json");
-    expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
-    mocks.shell.entries.mockReturnValue([]);
-    expect(typeof saved === "function" ? saved() : null).toEqual(entries.map((entry) => entry.path));
-  });
-
-  test("startup leaves pruning unauthorized when folders.json could not be read", async () => {
-    mocks.readFoldersFileForPruning.mockResolvedValue(null);
-    vi.resetModules();
-    mocks.createReviewStore.mockClear();
-    await import("./index");
-    await vi.waitFor(() => expect(mocks.createReviewStore).toHaveBeenCalledOnce());
-    const [, saved] = mocks.createReviewStore.mock.calls[0] ?? [];
-    expect(mocks.readFoldersFileForPruning).toHaveBeenCalledWith("/tmp/doan-index-test/folders.json");
-    expect(typeof saved === "function" ? saved() : "missing callback").toBeNull();
-  });
-
-  test("read and raise answer only the window's main frame, for a saved root and a valid request", async () => {
-    const contents = window().webContents;
-    expect(await invoke("review-state:get", contents, null, { root: APP, canvas: "home" })).toEqual(MARKER);
-    expect(mocks.reviewStore.marker).toHaveBeenCalledExactlyOnceWith(APP, "home");
-    expect(await invoke("review-state:raise", contents, null, { root: APP, canvas: "home", at: RAISED.lastReviewedAt })).toEqual(RAISED);
-    expect(mocks.reviewStore.raise).toHaveBeenCalledExactlyOnceWith(APP, "home", RAISED.lastReviewedAt);
-    mocks.reviewStore.marker.mockClear();
-    mocks.reviewStore.raise.mockClear();
-    for (const [sender, parent] of [[contents, {}], [{}, null]]) {
-      expect(await invoke("review-state:get", sender, parent, { root: APP, canvas: "home" })).toBeNull();
-      expect(await invoke("review-state:raise", sender, parent, { root: APP, canvas: "home", at: RAISED.lastReviewedAt })).toBeNull();
-    }
-    for (const bad of [null, { root: "/nope", canvas: "home" }, { root: APP, canvas: "Bad" }, { root: APP }]) {
-      expect(await invoke("review-state:get", contents, null, bad), JSON.stringify(bad)).toBeNull();
-    }
-    for (const bad of [{ root: "/nope", canvas: "home", at: RAISED.lastReviewedAt }, { root: APP, canvas: "home", at: "yesterday" }, { root: APP, canvas: "home" }]) {
-      expect(await invoke("review-state:raise", contents, null, bad), JSON.stringify(bad)).toBeNull();
-    }
-    expect(mocks.reviewStore.marker).not.toHaveBeenCalled();
-    expect(mocks.reviewStore.raise).not.toHaveBeenCalled();
-  });
-
-  test("a removal keeps the markers while Undo is possible and forgets them when the toast expires", async () => {
-    const contents = window().webContents;
-    const removed = await invoke("folders:remove", contents, null, { paths: [APP] }) as { removalId: string };
-    expect(mocks.reviewStore.forget).not.toHaveBeenCalled();
-    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== APP));
-    await invoke("folders:forget-removal", contents, null, { removalId: removed.removalId });
-    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([APP]);
-  });
-
-  test("Undo keeps the markers", async () => {
-    const contents = window().webContents;
-    const removed = await invoke("folders:remove", contents, null, { paths: [APP, WT] }) as { removalId: string };
-    expect(await invoke("folders:restore", contents, null, { removalId: removed.removalId })).toMatchObject({ kind: "restored" });
-    expect(mocks.reviewStore.forget).not.toHaveBeenCalled();
-  });
-
-  test("a newer removal makes the previous one permanent and forgets its markers", async () => {
-    const contents = window().webContents;
-    await invoke("folders:remove", contents, null, { paths: [APP] });
-    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== APP));
-    await invoke("folders:remove", contents, null, { paths: [WT] });
-    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([APP]);
-  });
-
-  test("an older removal saved after a newer one started is permanent at once", async () => {
-    const contents = window().webContents;
-    let save!: () => void;
-    mocks.shell.remove.mockImplementationOnce((paths: string[]) => new Promise((resolve) => { save = () => resolve({ paths, indexes: [0] }); }));
-    const first = invoke("folders:remove", contents, null, { paths: [APP] }) as Promise<unknown>;
-    await invoke("folders:remove", contents, null, { paths: [WT] });
-    expect(mocks.reviewStore.forget).not.toHaveBeenCalled();
-    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== APP && entry.path !== WT));
-    save();
-    await first;
-    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([APP]);
-  });
-
-  test("a root added again before the removal became permanent keeps its markers", async () => {
-    const contents = window().webContents;
-    const removed = await invoke("folders:remove", contents, null, { paths: [APP, WT] }) as { removalId: string };
-    mocks.shell.entries.mockReturnValue(entries.filter((entry) => entry.path !== WT));
-    await invoke("folders:forget-removal", contents, null, { removalId: removed.removalId });
-    expect(mocks.reviewStore.forget).toHaveBeenCalledExactlyOnceWith([WT]);
-  });
 });
 
 test("conversation IPC rejects foreign windows and canvas frames", async () => {

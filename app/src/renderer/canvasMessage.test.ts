@@ -354,8 +354,9 @@ describe("parseCanvasMessage: select", () => {
   test("keeps the command a selection answers, and drops a message naming any other", () => {
     expect(parseCanvasMessage(select())).not.toHaveProperty("answer");
     expect(parseCanvasMessage(select({ answer: "select-anchor" }))).toHaveProperty("answer", "select-anchor");
-    expect(parseCanvasMessage(select({ answer: "select-comment", target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null, answer: "select-comment" });
-    for (const answer of ["pick-frame", "clear", "", 1, null, true]) expect(parseCanvasMessage(select({ answer }))).toBeNull();
+    expect(parseCanvasMessage(select({ answer: "select-anchor", target: null }))).toEqual({ type: "select", href: HREF, seq: 3, viewport: 150, target: null, answer: "select-anchor" });
+    // The pin answer went with the app's comment pins.
+    for (const answer of ["select-comment", "pick-frame", "clear", "", 1, null, true]) expect(parseCanvasMessage(select({ answer }))).toBeNull();
     expect(parseCanvasMessage({ type: "clear", href: HREF, seq: 3, viewport: 150, answer: "select-anchor" })).toEqual({ type: "clear", href: HREF, seq: 3, viewport: 150 });
   });
 
@@ -459,19 +460,39 @@ test("validates Alt state messages separately from Escape", () => {
   }
 });
 
-describe("parseCanvasMessage: transition-intent", () => {
-  const intent = (over: Record<string, unknown> = {}) => ({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection", ...over });
-  test("keeps the kind that separates a selection from a link", () => {
-    expect(parseCanvasMessage(intent())).toEqual(intent());
-    expect(parseCanvasMessage(intent({ kind: "navigation" }))).toHaveProperty("kind", "navigation");
+// The draft guard's transition request went with the app's comment drafts.
+test("drops a transition-intent message", () => {
+  expect(parseCanvasMessage({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection" })).toBeNull();
+});
+
+// buzz-canvas-conversation design §4: the canvas answers the app's pick with `picked`, bound to the pick command by
+// its own `pick` seq and its own type, never by the selection seq.
+describe("parseCanvasMessage: picked", () => {
+  const picked = (over: Record<string, unknown>) => ({ type: "picked", href: HREF, document: "doc", pick: 2, ...over });
+
+  test("keeps a picked element or frame, a point in document coordinates, and Esc in the canvas", () => {
+    expect(parseCanvasMessage(picked({ target: target() }))).toEqual({ type: "picked", href: HREF, document: "doc", pick: 2, target: target() });
+    expect(parseCanvasMessage(picked({ point: { x: 12.5, y: -3 } }))).toEqual({ type: "picked", href: HREF, document: "doc", pick: 2, point: { x: 12.5, y: -3 } });
+    expect(parseCanvasMessage(picked({ cancelled: true }))).toEqual({ type: "picked", href: HREF, document: "doc", pick: 2, cancelled: true });
   });
-  test("keeps the flag of a click that only clears the selection", () => {
-    expect(parseCanvasMessage(intent({ clear: true }))).toEqual(intent({ clear: true }));
+
+  test("drops a message without exactly one valid answer", () => {
+    for (const over of [{}, { target: target(), point: { x: 1, y: 1 } }, { point: { x: 1, y: 1 }, cancelled: true }, { target: null }, { cancelled: false },
+      { point: { x: Infinity, y: 0 } }, { point: { x: 1 } }, { point: null }, { target: target({ tag: 1 }) }]) {
+      expect(parseCanvasMessage(picked(over))).toBeNull();
+    }
   });
-  test.each([false, "true", 1])("rejects clear %j", clear => {
-    expect(parseCanvasMessage(intent({ clear }))).toBeNull();
+
+  test("drops a message without a pick seq or a valid href", () => {
+    for (const over of [{ pick: -1 }, { pick: 1.5 }, { pick: "2" }, { pick: undefined }, { href: 1 }, { href: "h".repeat(MAX_HREF + 1) },
+      { document: undefined }, { document: "" }, { document: 1 }, { document: "d".repeat(MAX_STRING + 1) }]) {
+      expect(parseCanvasMessage(picked({ cancelled: true, ...over }))).toBeNull();
+    }
   });
-  test.each([undefined, "other", 1])("rejects kind %j", kind => {
-    expect(parseCanvasMessage(intent({ kind }))).toBeNull();
+
+  test("keeps the canvas's acknowledgement of a pick-start, for its document and pick seq", () => {
+    const started = { type: "pick-started", href: HREF, document: "doc", pick: 2 };
+    expect(parseCanvasMessage({ ...started, extra: 1 })).toEqual(started);
+    for (const over of [{ pick: -1 }, { pick: undefined }, { document: "" }, { document: undefined }, { href: undefined }]) expect(parseCanvasMessage({ ...started, ...over })).toBeNull();
   });
 });

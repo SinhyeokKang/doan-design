@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
-import { ConversationThread, endView, httpsUrl, type ConversationThreadProps } from "./ConversationThread";
+import type { ReactElement } from "react";
+import type { Anchor } from "../main/conversation/types";
+import { answerReached, ConversationThread, endView, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 
 const noop = () => {};
@@ -60,7 +62,7 @@ describe("agent Markdown", () => {
 
 describe("thread items", () => {
   test("the person's message: plain text that keeps its line breaks, the preset line, anchors in place and sent files", () => {
-    const out = html([{ kind: "user", key: "u1", seq: 1, preset: { id: "shape", title: "Shape" }, parts: [{ text: "Make <b>" }, { anchor: 1 }, { text: " darker\nplease" }], attachments: [{ name: "spec.md", size: 6144, kind: "file" }] }]);
+    const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: { id: "shape", title: "Shape" }, parts: [{ text: "Make <b>" }, { anchor: 1 }, { text: " darker\nplease" }], attachments: [{ name: "spec.md", size: 6144, kind: "file" }] }]);
     expect(out).toContain('<div class="msg-user"><div class="bubble"><span class="bubble-preset">');
     expect(out).toContain("Shape</span>\nMake &lt;b&gt;<span class=\"bubble-anchor\">{{1}}</span> darker\nplease</div>");
     expect(out).toContain('<div class="msg-files"><span class="attach-chip"><span class="file-icon" aria-hidden="true">');
@@ -97,7 +99,7 @@ describe("thread items", () => {
     expect(out).toContain("<b>Claude Code’s sign-in expired</b><span>Sign in again, then resend your request.</span>");
     expect(out).toContain(">Sign in again…</button>");
     expect(out).toContain(">Edit and resend</button>");
-    const later = html([failed, { kind: "user", key: "u6", seq: 6, preset: null, parts: [{ text: "Again" }], attachments: [] }]);
+    const later = html([failed, { kind: "user", key: "u6", seq: 6, anchors: [], preset: null, parts: [{ text: "Again" }], attachments: [] }]);
     expect(later).not.toContain("Edit and resend");
     expect(endView({ kind: "interrupted", reason: "user" }, "codex")).toEqual({ title: "Stopped", body: "You stopped the agent.", tone: null, signIn: false });
     expect(endView({ kind: "interrupted", reason: "crashed" }, "codex").body).toBe("The agent stopped before it finished.");
@@ -107,7 +109,7 @@ describe("thread items", () => {
   });
 
   test("a crash-folded turn's end offers Edit and resend like any other end", () => {
-    const out = html([{ kind: "user", key: "u1", seq: 1, preset: null, parts: [{ text: "Draw it" }], attachments: [] }, { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
+    const out = html([{ kind: "user", key: "u1", seq: 1, anchors: [], preset: null, parts: [{ text: "Draw it" }], attachments: [] }, { kind: "end", key: "xt1", seq: null, end: { kind: "interrupted", reason: "crashed" } }]);
     expect(out).toContain("<b>Stopped</b><span>The agent stopped before it finished.</span>");
     expect(out).toContain(">Edit and resend</button>");
   });
@@ -156,4 +158,72 @@ test("agent reply lists keep their bullets and numbers", () => {
   for (const rule of rules) expect(css).toContain(rule);
   // After the global ol reset, so the thread's rule is the later one.
   expect(css.indexOf(rules[1]!)).toBeGreaterThan(css.indexOf("ol { list-style: none; }"));
+});
+
+// buzz-canvas-conversation design §2 'Chip locate': a sent message's chips, named as the composer names them.
+describe("sent message chips", () => {
+  const located = async () => "shown" as const;
+  const user = (anchors: readonly Anchor[]): ThreadItem => ({
+    kind: "user", key: "u1", seq: 1, preset: null, attachments: [], anchors,
+    parts: [{ text: "Make " }, { anchor: 1 }, { text: " match " }, { anchor: 2 }, { text: " at " }, { anchor: 3 }, { text: " and " }, { anchor: 4 }],
+  });
+  const anchors: Anchor[] = [
+    { frame: { id: "payment", title: "Payment" } },
+    { element: { selector: "#pay", tag: "button", text: "Pay $42.00" }, frame: { id: "payment" } },
+    { frame: { id: "payment" }, point: { frameId: "payment", dx: 12, dy: 40 } },
+  ];
+
+  test("in the canvas panel each chip is a button that names its target; a marker without its anchor stays text", () => {
+    const out = html([user(anchors)], { onLocate: located, frames: [{ id: "payment", title: "Checkout payment" }] });
+    expect(out).toContain('aria-label="Show Checkout payment on canvas"');
+    expect(out).toContain('aria-label="Show button “Pay $42.00” on canvas"');
+    expect(out).toContain('aria-label="Show Point in Checkout payment on canvas"');
+    expect(out).toMatch(/<button type="button" class="anchor-chip" data-kind="frame" title="[^"]*" aria-label="Show Checkout payment on canvas">/);
+    expect(out).toContain('<span class="bubble-anchor">{{4}}</span>');
+    expect(out).not.toContain("{{1}}");
+  });
+
+  test("without a canvas to locate in, chips are drawn but are not buttons; a canvas that cannot show disables them", () => {
+    expect(html([user(anchors)])).not.toContain("<button type=\"button\" class=\"anchor-chip\"");
+    expect(html([user(anchors)])).toContain('<span class="anchor-chip" data-kind="frame"');
+    expect(html([user(anchors)], { onLocate: located, locateDisabled: true })).toContain('aria-disabled="true"');
+  });
+
+  test("a chip hands its anchor to onLocate, and does nothing while disabled", () => {
+    const asked: unknown[] = [];
+    const onLocate = async (anchor: Anchor) => { asked.push(anchor); return "shown" as const; };
+    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate }) as ReactElement<{ onClick(): void }>;
+    chip.props.onClick();
+    expect(asked).toEqual([anchors[0]]);
+    const off = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: true, onLocate }) as ReactElement<{ onClick(): void }>;
+    off.props.onClick();
+    expect(asked).toHaveLength(1);
+  });
+
+  // design §2 'Chip locate': only a target the canvas no longer has shows the note; a canvas that did not answer, or
+  // could not be asked, ends silently (orch decision: a timeout is not "missing").
+  test.each([["missing", 1], ["timeout", 0], ["unavailable", 0], ["shown", 0]] as const)("a locate that ends %s shows the note %i times", async (outcome, times) => {
+    const shown: string[] = [];
+    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: async () => outcome,
+      missing: { key: "m-0", shownFor: null, show: key => shown.push(key) } }) as ReactElement<{ onClick(): void }>;
+    chip.props.onClick();
+    await Promise.resolve(); await Promise.resolve();
+    expect(shown).toHaveLength(times);
+  });
+
+  test("the note's chip is described by it", () => {
+    const chip = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
+      missing: { key: "m-0", shownFor: "m-0", show: () => {} } }) as ReactElement<{ "aria-describedby"?: string }>;
+    expect(chip.props["aria-describedby"]).toBe("m-0-missing");
+    const other = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
+      missing: { key: "m-1", shownFor: "m-0", show: () => {} } }) as ReactElement<{ "aria-describedby"?: string }>;
+    expect(other.props["aria-describedby"]).toBeUndefined();
+  });
+});
+
+// design §2 'Errors': an answer that did not reach the agent says so under its request.
+test("a permission answer counts as sent only when main took it", async () => {
+  expect(await answerReached(async () => {})).toBe(true);
+  expect(await answerReached(async () => ({ error: "not_found" }))).toBe(false);
+  expect(await answerReached(() => Promise.reject(new Error("ipc")))).toBe(false);
 });

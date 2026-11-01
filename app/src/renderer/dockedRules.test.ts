@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider, ToolFacts } from "../main/agentAuth/types";
+import type { Anchor } from "../main/conversation/types";
+import { textSegments } from "./anchorField";
 import {
-  canvasGoneText, dockedAvailability, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
+  canvasGoneText, dockedAvailability, dockedMessage, dockedPicker, dockedRefusal, draftKey, EMPTY_DRAFT, type DockedDraft, type DockedInput,
 } from "./dockedRules";
 import type { AttachmentDraft, ModelPickerView } from "./homeComposer";
 
@@ -15,7 +17,9 @@ function status(provider: Provider, patch: Partial<AuthState> = {}, facts: ToolF
 const auth = (...providers: ReturnType<typeof status>[]): AuthSnapshot => ({ revision: 1, providers });
 const READY = auth(status("claude"), status("codex"));
 const EXISTING = { kind: "existing", conversationId: "c1", provider: "claude" } as const;
-const draft = (patch: Partial<DockedDraft>): DockedDraft => ({ ...EMPTY_DRAFT, ...patch });
+// `text` is typed text only; chips go in `segments`.
+const draft = ({ text, ...patch }: Partial<DockedDraft> & { text?: string }): DockedDraft => ({ ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...patch });
+const payment: Anchor = { frame: { id: "payment", title: "Payment" } };
 const file = (patch: Partial<AttachmentDraft>): AttachmentDraft => ({ key: "k", id: "id", name: "notes.md", kind: "file", pasted: false, status: "ready", ...patch });
 const input = (patch: Partial<DockedInput>): DockedInput => ({ mode: EXISTING, project: "doan-design", auth: READY, provider: "claude", draft: draft({ text: "Make it lighter" }), turn: "idle", busy: null, sending: false, ...patch });
 
@@ -26,9 +30,27 @@ describe("draftKey", () => {
     expect(draftKey({ kind: "new", root: "/code/doan" })).toBe("root:/code/doan");
     expect(draftKey({ kind: "new", root: "/code/doan" })).not.toBe(draftKey({ kind: "new", root: "/code/acme" }));
   });
+  test("a canvas panel's new conversation keeps its draft per canvas of a root, shared with the terminal session", () => {
+    const billing = { path: ".doan/canvases/billing.html", id: "billing" };
+    const canvasNew = draftKey({ kind: "new", root: "/code/doan", canvas: billing });
+    expect(canvasNew).not.toBe(draftKey({ kind: "new", root: "/code/doan" }));
+    expect(canvasNew).not.toBe(draftKey({ kind: "new", root: "/code/acme", canvas: billing }));
+    expect(canvasNew).not.toBe(draftKey({ kind: "new", root: "/code/doan", canvas: { path: ".doan/canvases/home.html", id: "home" } }));
+    // A moved canvas keeps its id and its draft.
+    expect(draftKey({ kind: "new", root: "/code/doan", canvas: { ...billing, path: ".doan/canvases/pay/billing.html" } })).toBe(canvasNew);
+    expect(draftKey({ kind: "resume", root: "/code/doan", canvas: billing, provider: "codex" })).toBe(canvasNew);
+    // Without an id, the path; an id and a path that read alike stay apart.
+    expect(draftKey({ kind: "new", root: "/code/doan", canvas: { path: "billing" } })).not.toBe(draftKey({ kind: "new", root: "/code/doan", canvas: { path: "x", id: "billing" } }));
+  });
 });
 
 describe("dockedAvailability", () => {
+  test("a terminal session, and a conversation continued from one, do not need a Doan account for the provider", () => {
+    const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;
+    expect(dockedAvailability(input({ mode: resume, auth: auth() }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth() })).enabled).toBe(false);
+    expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth(), external: true })).enabled).toBe(true);
+  });
   // buzz-project spec decision 12: an open Overview whose project turned into a problem keeps its thread readable,
   // and Send says why it is held, as Home does.
   test("an unavailable project holds Send with its reason before anything else", () => {
@@ -50,6 +72,13 @@ describe("dockedAvailability", () => {
     expect(dockedAvailability(input({ draft: draft({ text: "Use {{1}} here" }) })).reason).toEqual({ text: "Remove {{ and }} from the message to send it." });
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "checking" })] }) })).reason).toEqual({ text: "Checking attachments…" });
     expect(dockedAvailability(input({ draft: draft({ attachments: [file({ status: "missing" })] }) })).reason).toEqual({ text: "notes.md was moved or deleted. Remove it, or attach it again.", alert: true });
+  });
+  test("a typed {{1}} is refused even with a chip in the draft; the chip's own marker is not (BT handoff)", () => {
+    const chip = { kind: "chip" as const, anchor: payment };
+    expect(dockedAvailability(input({ draft: draft({ segments: [{ kind: "text", text: "Use {{1}} near " }, chip] }) })).reason).toEqual({ text: "Remove {{ and }} from the message to send it." });
+    expect(dockedAvailability(input({ draft: draft({ segments: [{ kind: "text", text: "Move " }, chip] }) }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ draft: draft({ segments: [chip] }) }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ draft: draft({ text: "   " }) }))).toEqual({ enabled: false, reason: null });
   });
   test("another project conversation running or waiting blocks with Home's sentence and Open", () => {
     expect(dockedAvailability(input({ mode: { kind: "new", root: "/r" }, busy: { kind: "project", waiting: false, open: "c9" } })))
@@ -87,6 +116,16 @@ describe("dockedAvailability", () => {
   });
 });
 
+describe("dockedMessage", () => {
+  test("chips become numbered markers after the preset line; anchors go beside the text", () => {
+    const preset = { id: "critique", title: "Critique the design", description: "", scope: "" };
+    const segments = [{ kind: "text" as const, text: "Look at " }, { kind: "chip" as const, anchor: payment }];
+    expect(dockedMessage(draft({ segments }))).toEqual({ text: "Look at {{1}}", anchors: [payment] });
+    expect(dockedMessage(draft({ segments, preset }))).toEqual({ text: "Use the Doan design preset `critique` (Critique the design).\n\nLook at {{1}}", anchors: [payment] });
+    expect(dockedMessage(EMPTY_DRAFT)).toEqual({ text: "", anchors: [] });
+  });
+});
+
 describe("dockedRefusal", () => {
   test("project_busy and a restore's busy become the busy line until the list names the conversation", () => {
     expect(dockedRefusal("project_busy", EXISTING, "claude", "doan-design")).toEqual({ kind: "busy", busy: { kind: "project", waiting: false, open: null } });
@@ -102,6 +141,10 @@ describe("dockedRefusal", () => {
     expect(dockedRefusal("bad_request", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t send your message. Try again." });
     // Decision 18: the code alone does not tell an expired sign-in from none.
     expect(dockedRefusal("not_logged_in", EXISTING, "claude", "doan-design")).toEqual({ kind: "notice", text: "Sign in to Claude Code in Settings > Agents, then send again." });
+  });
+  test("a terminal session's refusal names the session, not another agent", () => {
+    const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;
+    expect(dockedRefusal("session_in_use", resume, "codex", "doan-design")).toEqual({ kind: "notice", text: "Couldn’t continue the terminal session: it’s in use in another terminal." });
   });
 });
 

@@ -1,6 +1,3 @@
-import { createHash } from "node:crypto";
-import { join } from "node:path";
-import { openNoFollow } from "../serve/server";
 import { object } from "./identity";
 
 export interface ResponseRecord { marker: string; root: string; path: string; hash: string | null; complete: boolean; stable: boolean }
@@ -91,17 +88,4 @@ export class DocumentBindings {
     return { ...response, generation: frame.loaderId, frame: frameId };
   }
   clear(): void { this.responses.clear(); this.loaders.clear(); this.requests.clear(); this.finished.clear(); this.frames.clear(); this.pending.clear(); }
-}
-
-export async function stableDiskHash(root: string, path: string): Promise<string> {
-  // The path comes from Go's exact canvas listing, never a free-form renderer path.
-  const file = await openNoFollow(join(root, path));
-  try {
-    const before = await file.stat({ bigint: true });
-    if (!before.isFile()) throw new Error("Canvas is not a regular file.");
-    const bytes = await file.readFile();
-    const after = await file.stat({ bigint: true });
-    if (before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs || BigInt(bytes.length) !== after.size) throw new Error("Canvas changed while reading.");
-    return "sha256:" + createHash("sha256").update(bytes).digest("hex");
-  } finally { await file.close(); }
 }

@@ -1,0 +1,16 @@
+{
+  "canvas": {
+    "path": ".doan/canvases/drafts.html",
+    "id": "drafts"
+  },
+  "frame": {
+    "id": "editor",
+    "title": "Editor"
+  },
+  "element": {
+    "doanId": "publish",
+    "selector": "[data-doan-id=\"publish\"]",
+    "html": "<button data-doan-id=\"publish\">Publish</button>",
+    "text": "Publish"
+  }
+}

@@ -39,7 +39,7 @@ Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its dr
 ### 1. Read the draft
 
 - Read the canvas HTML and list its frames (`data-doan-frame`, `data-doan-title`). Frames that point to the implementing file use `data-doan-implements` (ARCHITECTURE §1); use it to find the code, and treat a missing one as a question for the canvas author, not a guess.
-- Do not edit the canvas. A draft problem is a comment in the doan app or a question to the user.
+- Do not edit the canvas. A draft problem is a question to the user that names the frame or element (its frame id or `data-doan-id`).
 
 ### 2. Comparison table — pair the elements
 

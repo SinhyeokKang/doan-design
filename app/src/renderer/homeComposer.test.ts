@@ -6,7 +6,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import {
   attachmentChipView, attachmentLimit, chipRemoval, composeRequest, defaultEffort, defaultModel, defaultProject, defaultProvider, dropTarget, fixedPreference,
   GREETINGS, greetingText, groupIcon, groupLabel, isSubmitKey, lengthCounter, MAX_ATTACHMENTS, MAX_PASTED_BYTES, modelPickerView, pickGreeting, presetListView,
-  presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
+  draftProblem, presetPlaceholder, rootForProject, searchPresets, selectableProvider, sendAvailability, slashQuery, startErrorView, suggestedPresets,
   suggestedPrompts, TEXT_LIMIT,
   type AttachmentDraft, type ModelsState, type PresetListReply, type PresetSummary, type SendInput,
 } from "./homeComposer";
@@ -24,7 +24,7 @@ const UNGROUPED: PresetSummary[] = PRESETS.map(({ group: _group, ...rest }) => r
 const preset = (id: string) => PRESETS.find(p => p.id === id)!;
 const listed = (presets = PRESETS): PresetListReply => ({ v: 1, ok: true, result: { version: "0.9.0", presets } });
 
-function canvas(path: string, extra: Partial<CanvasRow> = {}): CanvasRow { return { path, open: 0, resolved: 0, url: `doan://x/${path}`, ...extra }; }
+function canvas(path: string, extra: Partial<CanvasRow> = {}): CanvasRow { return { path, url: `doan://x/${path}`, ...extra }; }
 function list(path: string, canvases: CanvasRow[] = [], git?: { common: string; main?: string; branch?: string }): FolderEntry {
   return { path, kind: "list", canvases, servedRev: 1, ...(git ? { git: { worktrees: [], ...git } } : {}) };
 }
@@ -104,6 +104,25 @@ test("{{ or }} in the text blocks Send with the draft's reason", () => {
     expect(sendAvailability(base({ text }))).toEqual({ enabled: false, reason: { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." } });
   }
   expect(sendAvailability(base({ text: "single { and } are fine" })).enabled).toBe(true);
+});
+
+test("draftProblem checks only what was typed: a chip passes, typed braces do not, even as a valid marker", () => {
+  const frame = { frame: { id: "payment" } };
+  const text = (t: string) => ({ kind: "text" as const, text: t }), chip = { kind: "chip" as const, anchor: frame };
+  const markers = { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
+  expect(draftProblem([chip], null, [])).toBeNull();
+  expect(draftProblem([text("Move "), chip, text(" left of "), chip], null, [])).toBeNull();
+  // Braces typed on both sides of a chip are separate pieces.
+  expect(draftProblem([text("{"), chip, text("}")], null, [])).toBeNull();
+  // A typed {{1}} is refused even though a chip has that number.
+  expect(draftProblem([text("Literal {{1}} then "), chip], null, [])).toEqual(markers);
+  expect(draftProblem([chip, text(" then }}")], null, [])).toEqual(markers);
+  // Text segments next to each other read as one piece.
+  expect(draftProblem([text("Use {"), text("{ here"), chip], null, [])).toEqual(markers);
+  expect(draftProblem([chip], { id: "clarify", title: "Clarify" }, [])).toBeNull();
+  // A plain string is typed text, so any marker in it was typed.
+  expect(draftProblem("Move {{1}}", null, [])).toEqual(markers);
+  expect(draftProblem([text("x".repeat(32_767)), chip], null, [])).toEqual({ kind: "overLimit", text: "Shorten the message to send it." });
 });
 
 test("an empty composer disables Send without a reason line; a preset or an attachment alone can be sent", () => {

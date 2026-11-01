@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import type { CanvasRow } from "../main/view";
 import { buildCanvasTree, canvasLabel, frameLabel, moveExpanded, rowProblem, typeaheadNext, type CanvasNode, type FolderNode, type TreeNode } from "./canvasTree";
 
-const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, open: 0, resolved: 0, url: `http://127.0.0.1/${path}`, ...extra });
+const row = (path: string, extra: Partial<CanvasRow> = {}): CanvasRow => ({ path, url: `http://127.0.0.1/${path}`, ...extra });
 
 const at = <T>(list: readonly T[], index: number): T => {
   const item = list[index];
@@ -182,9 +182,8 @@ test("a move into another folder expands the new ancestors and moves the canvas 
   expect(moveExpanded([".doan/canvases/old"], ".doan/canvases/old/a.html", ".doan/canvases/flows/a.html")).toEqual([".doan/canvases/old", ".doan/canvases", ".doan/canvases/flows"]);
 });
 
-test("rowProblem names an unreadable canvas first, else unreadable comments, with the raw error as detail", () => {
+test("rowProblem names an unreadable canvas with the raw error as detail", () => {
   const error = { code: "canvas_unreadable", message: "EACCES" };
   expect(rowProblem(row(".doan/canvases/a.html"))).toBeNull();
-  expect(rowProblem(row(".doan/canvases/a.html", { error, commentsError: { code: "comments_unreadable", message: "bad" } }))).toEqual({ sentence: "Can't read this canvas — run doan check", detail: "canvas_unreadable: EACCES" });
-  expect(rowProblem(row(".doan/canvases/a.html", { commentsError: { code: "comments_unreadable", message: "bad" } }))).toEqual({ sentence: "Couldn’t read this canvas’s comments — run doan check", detail: "comments_unreadable: bad" });
+  expect(rowProblem(row(".doan/canvases/a.html", { error }))).toEqual({ sentence: "Can't read this canvas — run doan check", detail: "canvas_unreadable: EACCES" });
 });

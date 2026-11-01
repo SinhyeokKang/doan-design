@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, ConversationEvent, EventPayload } from "../main/conversation/types";
+import { plainText, textSegments } from "./anchorField";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { OverviewRun, scrollTarget, type ListView, type OverviewRunHost } from "./overviewRun";
 
@@ -17,7 +18,8 @@ const summary = (conversationId: string, extra: Partial<ConversationSummary> = {
 let seq = 0;
 const event = (conversationId: string, payload: EventPayload, turnId = "t1"): ConversationEvent => ({ v: 1, conversationId, seq: ++seq, turnId, at: "2026-10-30T00:00:00Z", ...payload } as ConversationEvent);
 const ended = (conversationId: string) => [event(conversationId, { type: "user.message", text: "hi", anchors: [] }), event(conversationId, { type: "turn.started" }), event(conversationId, { type: "message.done", messageId: "m", text: "hello" }), event(conversationId, { type: "turn.done" })];
-const draft = (text: string): DockedDraft => ({ ...EMPTY_DRAFT, text });
+const draft = (text: string): DockedDraft => ({ ...EMPTY_DRAFT, segments: textSegments(text) });
+const textOf = (value: DockedDraft | undefined) => plainText(value?.segments ?? []);
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 
@@ -147,7 +149,7 @@ test("a requested canvas conversation opens its canvas instead of the main threa
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A), summary(B, { canvas: CANVAS })]);
   h.run.request(ROOT, B, "permission");
-  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, CANVAS);
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, CANVAS, B, "permission");
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 
@@ -164,15 +166,15 @@ test("reopening an Overview picks again by decision 5, and each root keeps its n
   // New cleared the memory, so the latest project conversation shows again.
   h.run.show(ROOT);
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
-  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("Ask about checkout");
+  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("Ask about checkout");
   h.run.select(ROOT, null);
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
-  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("Ask about checkout");
+  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("Ask about checkout");
   // A root that was new on its first visit opens the conversation that appeared since.
   h.answer(OTHER, [summary(C)]);
   h.run.show(OTHER);
   expect(h.run.view(OTHER)).toEqual({ kind: "conversation", conversationId: C });
-  expect(h.run.drafts.get(`root:${OTHER}`)?.text).toBe("Other root");
+  expect(textOf(h.run.drafts.get(`root:${OTHER}`))).toBe("Other root");
   // A plain list refresh on the same screen does not pick again.
   h.run.select(OTHER, null);
   h.answer(OTHER, [summary(C, { lastActivityAt: "2026-11-01T00:00:00.000Z" })]);
@@ -239,7 +241,7 @@ test("a returned queue is taken into the open conversation's draft once, after w
   h.run.sync();
   await flush(); await flush();
   expect(doan.takeConversationDraft).toHaveBeenCalledTimes(1);
-  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("typed meanwhile\n\nalso this");
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("typed meanwhile\n\nalso this");
   // The list still says so until a read that started after the take: no second take.
   h.run.sync();
   await flush();
@@ -286,7 +288,7 @@ test("Edit and resend restores the request unless the draft changed or the perso
   let pending = h.run.editAndResend(ROOT, A);
   issued.resolve([{ ok: true, attachment: { id: "x", name: "a.png", kind: "image", pasted: false, size: 1, path: "/tmp/a.png" } }]);
   expect(await pending).toBe(true);
-  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("Draw it");
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("Draw it");
   // Typing while it is restored: the typing stays.
   const later = deferred<unknown[]>();
   doan.attachmentsFromPaths!.mockImplementation(() => later.promise);
@@ -295,7 +297,7 @@ test("Edit and resend restores the request unless the draft changed or the perso
   h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("new words")));
   later.resolve([]);
   expect(await pending).toBe(false);
-  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("new words");
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("new words");
   // Another conversation chosen meanwhile: restored into A's draft, but no focus to take elsewhere.
   const third = deferred<unknown[]>();
   doan.attachmentsFromPaths!.mockImplementation(() => third.promise);
@@ -303,7 +305,7 @@ test("Edit and resend restores the request unless the draft changed or the perso
   h.run.select(ROOT, B);
   third.resolve([]);
   expect(await pending).toBe(false);
-  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("Draw it");
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("Draw it");
 });
 
 // Review RM r1 🟡8: an entry for the conversation already open scrolls again; the request waits for its item.
@@ -396,7 +398,7 @@ test("a promotion moves the draft into the new conversation, shows the notice an
   h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("한글 조합")));
   h.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: { conversationId: A, title: "Checkout copy", canvas: CANVAS } });
-  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("한글 조합");
+  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("한글 조합");
   expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
   expect(h.state.remembered).toEqual({});
   // Choosing anything clears the notice.
@@ -440,12 +442,27 @@ test("a promoted conversation that is already archived still resets and notifies
   expect(h.run.view(ROOT)).toMatchObject({ kind: "new", moved: { conversationId: A } });
 });
 
+test("a returned draft's chips join the current draft's as chips, so neither side's markers are renumbered", async () => {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  await flush();
+  const mine = { frame: { id: "payment" } }, theirs = { frame: { id: "shipping" } };
+  h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { ...EMPTY_DRAFT, segments: [{ kind: "text", text: "Fix " }, { kind: "chip", anchor: mine }] }));
+  doan.takeConversationDraft!.mockResolvedValueOnce({ text: "and {{1}}", anchors: [theirs], attachments: [], reason: "stopped" });
+  h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+  h.run.sync();
+  await flush(); await flush();
+  expect(h.run.drafts.get(`conversation:${A}`)?.segments).toEqual([{ kind: "text", text: "Fix " }, { kind: "chip", anchor: mine }, { kind: "text", text: "\n\nand " }, { kind: "chip", anchor: theirs }]);
+});
+
 test("a shown conversation archived without a canvas, or gone, resets without a notice", async () => {
   const h = promotedSetup(true);
   h.run.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, draft("kept")));
   h.answer(ROOT, []);
   expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
-  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("kept");
+  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("kept");
 });
 
 test("a just-started conversation the list does not have yet stays shown", () => {
@@ -534,7 +551,7 @@ test("reopening after the shown conversation left the list while away picks the 
   h.answer(ROOT, [summary(B)]);
   h.run.show(ROOT);
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
-  expect(h.run.drafts.get(`root:${ROOT}`)?.text).toBe("kept");
+  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("kept");
 });
 
 // Review RM r2 ⚪1: a discarded Edit and resend restore gives back the files it was issued.
@@ -553,5 +570,5 @@ test("an Edit and resend restore dropped for newer typing releases its issued at
   issued.resolve([{ ok: true, attachment: { id: "issued-1", name: "a.png", kind: "image", pasted: false, size: 1, path: "/tmp/a.png" } }]);
   expect(await pending).toBe(false);
   expect(doan.removeAttachment).toHaveBeenCalledWith("issued-1");
-  expect(h.run.drafts.get(`conversation:${A}`)?.text).toBe("newer");
+  expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("newer");
 });

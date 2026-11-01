@@ -27,7 +27,7 @@ const AUTH: AuthSnapshot = { revision: 1, providers: [dto("claude")] };
 const PRESETS: PresetSummary[] = [["context", "Gather design context", "start"], ["shape", "Shape a first screen", "start"], ["document", "Document the design system", "start"], ["critique", "Critique the design", "review"], ["polish", "Polish the details", "refine"]]
   .map(([id, title, group]) => ({ id: id!, title: title!, description: `About ${id}.`, scope: `${id} scope`, group: group! }));
 const LISTED: PresetListReply = { v: 1, ok: true, result: { version: "1", presets: PRESETS } };
-const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u", open: 0, resolved: 0 });
+const row = (name: string): CanvasRow => ({ path: `.doan/canvases/${name}.html`, id: name, url: "u" });
 const project = (path: string, canvases: CanvasRow[] = [row("buzz-onboarding")]): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases, git: { common: `${path}/.git`, main: path, branch: "main", worktrees: [] } });
 
 function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
@@ -57,7 +57,7 @@ test("the greeting is one of the five questions, with the chosen project's name"
 test("an empty composer for a project with canvases: project above, tray below, three suggested prompts and no reason line", () => {
   const html = render([project("/code/doan-design")]);
   expect(html).toContain('aria-label="Project: doan-design"');
-  expect(html).toContain('<textarea class="composer-input" aria-label="Message" rows="2" placeholder="Describe what to design, / for presets"></textarea>');
+  expect(html).toContain('<div class="composer-input" aria-label="Message" tabindex="0" contentEditable="true" aria-placeholder="Describe what to design, / for presets" role="textbox" aria-multiline="true"></div>');
   expect(html).toMatch(/<button type="button" class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Send" disabled=""/);
   expect(html).toContain('<div class="composer-tray"><span class="tray-branch">');
   expect(html).toContain('<span class="tray-path">/code/doan-design</span>');
@@ -100,7 +100,7 @@ test("a preset chip and attachments sit above the request; Send is enabled; the 
 test("Tab order is project, chip ×, field, toolbar, Send, worktree, suggestions, then the reason line's Open (design §4.9)", () => {
   const worktrees: FolderEntry[] = ["/code/doan-design", "/code/doan-wt"].map((path, i) => ({ ...project(path), git: { common: "/code/doan-design/.git", main: "/code/doan-design", branch: i ? "feat" : "main", worktrees: [] } }));
   const html = render(worktrees, { preset: PRESETS[3]!, text: "" }, { running: new Map([["/code/doan-design", { conversationId: "c1", waiting: false }]]) });
-  const order = [...html.matchAll(/<(button|textarea)[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
+  const order = [...html.matchAll(/<(button|div class="composer-input")[^>]*?(aria-label="([^"]*)"|>([^<]*))/g)].map(m => m[3] ?? m[4] ?? "");
   const at = (label: string) => order.findIndex(item => item.startsWith(label));
   const sequence = ["Project:", "Remove preset", "Message", "Attach files", "Design presets", "Agent:", "Send", "Worktree:", "Open"].map(at);
   expect(sequence.every(index => index >= 0)).toBe(true);

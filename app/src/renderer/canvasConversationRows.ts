@@ -21,7 +21,7 @@ export function sameCanvas(a: Canvas, b: Canvas): boolean {
   return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
 }
 
-const label = (path: string) => canvasLabel({ path, open: 0, resolved: 0, url: "" });
+const label = (path: string) => canvasLabel({ path, url: "" });
 
 // Ordered by the current conversation's latest activity, then canvas path. A gone canvas stays only while its
 // conversation has work left (running, waiting, an unseen ending), the same rule as its status.

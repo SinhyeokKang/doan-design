@@ -87,7 +87,7 @@ export interface SelectMessage extends SelectionMessageBase {
   target: SelectTarget | null;
   // The command this selection answers; absent for a click, which can share
   // the seq of a command the script then drops.
-  answer?: "select-anchor" | "select-comment";
+  answer?: "select-anchor";
 }
 
 export interface ClearMessage extends SelectionMessageBase {
@@ -126,11 +126,17 @@ export interface AnchorsMessage {
   rects: (PinGeometry & { node: string })[];
 }
 
-// `kind` tells a selection inside this canvas from a link that navigates away.
-// `clear`: a click that only clears the selection (the document's own background).
-export interface TransitionIntentMessage { type: "transition-intent"; document: string; href: string; viewport: number; intent: number; kind: "selection" | "navigation"; clear?: true }
+// The canvas's answer to the app's pick (buzz-canvas-conversation design §4). `pick` is the seq of the pick-start
+// command it answers, on the pick channel's own seq that neither clicks nor selection or hover commands move; the
+// message type is the reply marker, so no selection reply can complete a pick. Exactly one of: the element or frame
+// under the click; a Shift-clicked spot, in the canvas document's coordinates; Esc pressed inside the canvas.
+// `document` is the answering document's token: a pick lives only as long as the document it was started in.
+export type PickedMessage = { type: "picked"; href: string; document: string; pick: number } & ({ target: SelectTarget } | { point: { x: number; y: number } } | { cancelled: true });
 
-export type CanvasMessage = TransitionIntentMessage | LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage;
+// The canvas took the pick-start `pick` for its document `document`; until then the app keeps clicks off the canvas.
+export interface PickStartedMessage { type: "pick-started"; href: string; document: string; pick: number }
+
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage | PickStartedMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -181,12 +187,9 @@ function parseRect(raw: unknown): CanvasRect | null {
 
 export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (!isRecord(data)) return null;
-  if (data.type === "transition-intent") {
-    if (!within(data.document, MAX_STRING) || !data.document || !within(data.href, MAX_HREF) || !nonNegative(data.viewport) || !seqValue(data.intent) || (data.kind !== "selection" && data.kind !== "navigation") ||
-      (data.clear !== undefined && data.clear !== true)) return null;
-    return { type: "transition-intent", document: data.document, href: data.href, viewport: data.viewport, intent: data.intent, kind: data.kind, ...(data.clear ? { clear: true as const } : {}) };
-  }
   if (data.type === "anchors") return parseAnchors(data);
+  if (data.type === "picked") return parsePicked(data);
+  if (data.type === "pick-started") return parsePickStarted(data);
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
@@ -208,7 +211,7 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
       return rect === null ? null : { type, ...base, rect };
     }
     case "select": {
-      const answer: SelectMessage["answer"] = data.answer === "select-anchor" || data.answer === "select-comment" ? data.answer : undefined;
+      const answer: SelectMessage["answer"] = data.answer === "select-anchor" ? data.answer : undefined;
       if (answer === undefined && data.answer !== undefined) return null;
       const marked = answer === undefined ? base : { ...base, answer };
       if (data.target === null) return { type, ...marked, target: null };
@@ -217,6 +220,27 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
     }
     default: return null;
   }
+}
+
+function parsePickStarted(data: Record<string, unknown>): PickStartedMessage | null {
+  const { href, document, pick } = data;
+  if (!within(href, MAX_HREF) || !within(document, MAX_STRING) || !document || !seqValue(pick)) return null;
+  return { type: "pick-started", href, document, pick };
+}
+
+function parsePicked(data: Record<string, unknown>): PickedMessage | null {
+  const { href, document, pick } = data;
+  if (!within(href, MAX_HREF) || !within(document, MAX_STRING) || !document || !seqValue(pick)) return null;
+  const answers = ["target", "point", "cancelled"].filter(key => data[key] !== undefined);
+  if (answers.length !== 1) return null;
+  const base = { type: "picked" as const, href, document, pick };
+  if (data.cancelled !== undefined) return data.cancelled === true ? { ...base, cancelled: true } : null;
+  if (data.point !== undefined) {
+    if (!isRecord(data.point) || !finite(data.point.x) || !finite(data.point.y)) return null;
+    return { ...base, point: { x: data.point.x, y: data.point.y } };
+  }
+  const target = parseTarget(data.target);
+  return target === null ? null : { ...base, target };
 }
 
 function parseTarget(raw: unknown): SelectTarget | null {

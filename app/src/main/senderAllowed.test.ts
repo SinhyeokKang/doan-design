@@ -3,15 +3,13 @@ import { senderAllowed } from "./senderAllowed";
 import { AUTH_CHANNELS } from "./agentAuth/ipc";
 import { ONBOARDING_CHANNELS } from "./onboarding/service";
 const mainOnly = [
-  "app:home", "comments:list", "comments:begin", "comments:mutate", "comments:status", "comments:author", "comments:copy", "comments:guard", "comments:transition-answer",
+  "app:home",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:restore", "folders:forget-removal", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",
   "onboarding:choose-folder", "folders:get",
-  // Comments review and toasts need native visibility.
+  // Toasts need native visibility.
   "window:visible",
-  // Device-local review markers.
-  "review-state:get", "review-state:raise",
   // buzz-onboarding: the session the CLI shares; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // doan-design-skills: preset reads for the home; Settings has no preset UI.
@@ -51,6 +49,8 @@ test("rejects unknown channels and every unregistered window", () => {
   // zero-setup-agents removed Settings > Connections and its setup channels.
   // Built from the operation names so a search for the channel literals finds only live code.
   const removed = ["read", "run", "answer", "check-again", "status"].map(op => `setup:${op}`);
+  // buzz-canvas-conversation removed the app's comment screens with their channels.
+  removed.push(...["list", "begin", "mutate", "status", "author", "copy", "guard", "transition-answer"].map(op => `comments:${op}`), "review-state:get", "review-state:raise");
   for (const kind of ["main", "settings"]) for (const channel of [...removed, "", "setup:delete", "comments:evil", "toString", "__proto__", "agent-auth:changed", "agent-auth:prompt", "agent-auth:delete"]) expect(senderAllowed(channel, kind)).toBe(false);
 });
 test("restricts every onboarding session request channel to main", () => {

@@ -1,8 +1,9 @@
 import { object } from "./sessions";
+import { LIMITS } from "./messageText";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
 
-// UTF-16 code units, matching renderer string lengths; these are input bounds, not model budgets.
-export const LIMITS = { text: 32_768, anchors: 32, selector: 2_048, excerpt: 2_048, label: 512, path: 4_096, attachments: 10 };
+// Defined in messageText.ts so the renderer can read the limits without importing this module (POSTMORTEM 2026-10-30).
+export { LIMITS };
 function string(value: unknown, limit: number, empty = false): value is string {
   return typeof value === "string" && (empty || value.length > 0) && value.length <= limit && !value.includes("\0");
 }

@@ -19,13 +19,10 @@ export interface CanvasRow {
   // Bumped by the shell when this file changed without a served bump, so the
   // open canvas and its thumbnail reload for their own file only.
   rev?: number;
-  // `doan ls` could not read the canvas file (`error`) or its comment file
-  // (`commentsError`). ls then sends no counts, so `open`/`resolved` are 0
-  // without meaning none: check these first (project-feedback design §1).
+  // `doan ls` could not read the canvas file (project-feedback design §1).
+  // The listing's comment counts and `commentsError` are not kept: nothing in
+  // the app shows comments.
   error?: RowError;
-  commentsError?: RowError;
-  open: number;
-  resolved: number;
   url: string;
 }
 
@@ -77,16 +74,13 @@ export function canvasRows(canvases: readonly unknown[], baseUrl: string): Canva
     const id: unknown = Reflect.get(canvas, "id");
     const title: unknown = Reflect.get(canvas, "title");
     const width: unknown = Reflect.get(canvas, "width");
-    const comments: unknown = Reflect.get(canvas, "comments");
     if (typeof path !== "string" || path === "") continue;
-    const row: CanvasRow = { path, open: commentCount(comments, "open"), resolved: commentCount(comments, "resolved"), url: servingUrl(baseUrl, path) };
+    const row: CanvasRow = { path, url: servingUrl(baseUrl, path) };
     if (typeof id === "string") row.id = id;
     if (typeof title === "string") row.title = title;
     if (typeof width === "number" && Number.isSafeInteger(width) && width > 0) row.width = width;
     const error: unknown = Reflect.get(canvas, "error");
-    const commentsError: unknown = Reflect.get(canvas, "commentsError");
     if (isRowError(error)) row.error = { code: error.code, message: error.message };
-    if (isRowError(commentsError)) row.commentsError = { code: commentsError.code, message: commentsError.message };
     const frames = staticFrames(Reflect.get(canvas, "frames"));
     if (frames !== undefined) {
       const capped = capFrames(frames);
@@ -116,12 +110,6 @@ function staticFrames(frames: unknown): StaticFrame[] | undefined {
 export function isRowError(value: unknown): value is RowError {
   return typeof value === "object" && value !== null &&
     typeof Reflect.get(value, "code") === "string" && typeof Reflect.get(value, "message") === "string";
-}
-
-function commentCount(comments: unknown, key: "open" | "resolved"): number {
-  if (typeof comments !== "object" || comments === null) return 0;
-  const count: unknown = Reflect.get(comments, key);
-  return typeof count === "number" && Number.isSafeInteger(count) && count >= 0 ? count : 0;
 }
 
 // Segment-wise encoding is the inverse of `parseServePath`, which decodes each

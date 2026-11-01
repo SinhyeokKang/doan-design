@@ -46,7 +46,7 @@ If spec and design leave a visible choice open (a state, a label, a placement), 
 
 Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 convention 1).
 
-- **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or commented on.
+- **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or a message will point at.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
 - **Tokens first** (docs/DESIGN.md 'Adopted rules'): link `../../app/src/renderer/tokens.css` by a relative path and write every app value a token covers as that token — color, type roles (size, line height and tracking together), spacing, radius, control/icon size, shadow, motion. A literal is allowed only when no token has the value and the value is needed; list each one in the report as a component constant or a new token. A new token that follows the rules in docs/DESIGN.md 'Tokens first' may be added to `app/src/renderer/tokens.css` in the same change (the one exception to 'Do not edit app code' below: add tokens only, never change an existing token's value), and recorded in docs/DESIGN.md. Never pick an approximate token without asking the user. Before handing over, scan the draft's CSS for literals that have an exact token and replace them; a replacement must leave the computed value unchanged. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `.doan/assets/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Follow the theme in DESIGN.md 'Design system' and the feature documents: light only, using the role variables in `tokens.css`, never the legacy aliases kept for old drafts.
 - **No coloured edge stripes**: never mark a message, notice, card or row with a coloured or thick left/start border. Errors use an icon plus danger text or a status block; notices use an inset fill. A 1px neutral divider between panes is fine.
@@ -71,7 +71,7 @@ go build -o <tmp>/doan ./cli/cmd/doan
 DOAN_CLI=<tmp>/doan npm --prefix app run dev -- -- --user-data-dir=<tmp>/userdata
 ```
 
-then add this repo with Add Project… on Home and open the canvas. Stop here and report. Feedback comes back as comments on the canvas (read them with `go run ./cli/cmd/doan comments --json --repo .`) or through the conversation or the conductor, then `/design-draft <slug> --revise`. Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
+then add this repo with Add Project… on Home and open the canvas. Stop here and report. Feedback comes back through this conversation or the conductor, often pointing at frames and elements the user put into a message as chips in the canvas's conversation panel, then `/design-draft <slug> --revise`. Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
 
 ### 5. Commit
 

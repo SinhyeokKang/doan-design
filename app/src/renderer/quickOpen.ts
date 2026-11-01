@@ -250,7 +250,7 @@ export function pickTarget(result: SearchResult, loadedRoot: string | null, open
 const listedIn = (path: string) => (canvasDir(path) === "ds" ? ".doan/ds/" : ".doan/canvases/");
 
 export function missingCanvasMessage(path: string): string {
-  return `${canvasLabel({ path, url: "", open: 0, resolved: 0 })} is no longer in ${listedIn(path)}`;
+  return `${canvasLabel({ path, url: "" })} is no longer in ${listedIn(path)}`;
 }
 
 export function removedCanvasMessage(row: CanvasRow): string {

@@ -224,8 +224,9 @@ test("U2 Choose your project: local folder card, divider, URL field and a disabl
 test("U2 Your projects lists registered projects with the sidebar thumbnail rule", () => {
   const html = screen({ listChoice: "/Users/ada/code/doan-design" }, { projects: ["/Users/ada/code/doan-design"] });
   expect(html).toContain('<div class="ob-field-label">Your projects</div>');
-  // D23: each project is a selectable card like the chosen card; the selected one carries its check.
-  expect(html).toMatch(/<div role="radiogroup" aria-label="Your projects" class="ob-choice-list"><label class="doan-panel ob-choice"><input type="radio" name="Your projects" checked=""\/><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D<\/span><span class="ob-choice-text"><strong>doan-design<\/strong><small>~\/code\/doan-design<\/small><\/span><svg[^>]*lucide-check[^>]*>/);
+  // D23 and the shared choice card: radio, thumbnail, then text; no check at the end.
+  expect(html).toContain('<div role="radiogroup" aria-label="Your projects" class="ob-choice-list"><label class="doan-panel ob-choice"><input type="radio" name="Your projects" checked=""/><span class="ob-radio" aria-hidden="true"></span><span class="shell-thumbnail onboarding-thumbnail hue-indigo" aria-hidden="true">D</span><span class="ob-choice-text"><strong>doan-design</strong><small>~/code/doan-design</small></span></label></div>');
+  expect(html).not.toMatch(/ob-choice-list.*lucide-check/);
   expect(html).toContain('data-ui-size="sm">Use this folder</button>');
 });
 
@@ -408,6 +409,16 @@ test("D23: choice cards take the chosen card's box and show keyboard focus on th
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.ob-chosen, \.ob-choice \{[^}]*min-height: var\(--size-row\);[^}]*padding: var\(--space-4\);/);
   expect(css).toMatch(/\.ob-choice:has\(input:focus-visible\) \{[^}]*outline:/);
+});
+
+// buzz-canvas-conversation R2a: the visible radio replaces the end check (design §0 '선택 카드 라디오').
+test("the choice card's radio is 16px, centred on the title's first line, and filled with a 6px dot when on", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.ob-choice \{[^}]*align-items: flex-start;/);
+  expect(css).toContain(".ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }");
+  expect(css).toContain(".ob-choice:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }");
+  expect(css).toContain('.ob-choice:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }');
 });
 
 test("D24: buttons that write or consent are marked, so focus recovery skips them", () => {

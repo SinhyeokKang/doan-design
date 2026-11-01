@@ -60,7 +60,7 @@ export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly
   }
 }
 
-// Why a moved canvas was not followed (.doan/canvases/revision-continuity.html, duplicate-id).
+// Why a moved canvas was not followed: another canvas now shares its ID, so the page cannot tell which one to show.
 export function duplicateIdText(row: CanvasRow, count: number): string {
   return `${canvasLabel(row)} moved, but ${count} canvases now use the ID ${row.id ?? ""}. Run doan check in a terminal.`;
 }

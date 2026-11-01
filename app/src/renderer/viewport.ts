@@ -41,8 +41,6 @@ export const ZOOM_LIMITS: ZoomLimits = { min: MIN_SCALE, max: MAX_SCALE };
 export const ZOOM_STEP = 1.25;
 // Cap per wheel event so one notch of a mouse wheel cannot jump across the range.
 export const WHEEL_ZOOM_MAX = 1.25;
-// Still used by `locateView`; Fit and frame jumps use FIT_INSET.
-export const FIT_MARGIN = 32;
 // Top clears the canvas header's height, bottom clears the floating toolbar (12 + 40 + 12).
 export const FIT_INSET: Inset = { top: 56, right: 32, bottom: 64, left: 32 };
 export const FIT_SCALE_MAX = 1;
@@ -106,6 +104,20 @@ export function fitWidth(boardWidth: number, viewport: Size, inset: Inset): View
   return { x: safe.x + (safe.width - boardWidth * scale) / 2, y: safe.y, scale };
 }
 
+// Chip locate for an element or a point (buzz-canvas-conversation design §2 'Chip locate'): the person's scale, the
+// target centred in the safe area; an element larger than that area is zoomed out until it fits whole, never in.
+export function elementView(rect: Rect, viewport: Size, inset: Inset, current: View): View {
+  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return current;
+  const safe = safeArea(viewport, inset);
+  const fits = rect.width * current.scale <= safe.width && rect.height * current.scale <= safe.height;
+  const scale = fits ? current.scale : Math.max(MIN_SCALE, Math.min(safe.width / rect.width, safe.height / rect.height));
+  return {
+    x: safe.x + safe.width / 2 - (rect.x + rect.width / 2) * scale,
+    y: safe.y + safe.height / 2 - (rect.y + rect.height / 2) * scale,
+    scale,
+  };
+}
+
 // `current` is needed because a zero-size frame has no size to fit and keeps
 // the scale the person already chose.
 export function fitFrame(rect: Rect, viewport: Size, inset: Inset, current: View): View {
@@ -127,18 +139,6 @@ export function fitFrame(rect: Rect, viewport: Size, inset: Inset, current: View
       ? safe.y - rect.y * scale
       : safe.y + safe.height / 2 - (rect.y + rect.height / 2) * scale;
   return { x, y, scale };
-}
-
-// Locate moves the board without zooming: the rect is centered at the current
-// scale, and one taller than the viewport is read from its top, as in fitFrame.
-export function locateView(rect: Rect, viewport: Size, view: View): View {
-  if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return view;
-  const x = viewport.width / 2 - (rect.x + rect.width / 2) * view.scale;
-  const y =
-    rect.height * view.scale > viewport.height
-      ? FIT_MARGIN - rect.y * view.scale
-      : viewport.height / 2 - (rect.y + rect.height / 2) * view.scale;
-  return { x, y, scale: view.scale };
 }
 
 export interface WheelInput {

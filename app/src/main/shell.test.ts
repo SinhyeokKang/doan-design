@@ -427,7 +427,7 @@ describe("served revision", () => {
     expect(rowRev(changes, root, ".doan/canvases/b.html")).toBeGreaterThanOrEqual(1);
   });
 
-  // Another canvas's save must not reload the open one (revision-continuity Q1).
+  // Another canvas's save must not reload the open one: a reload would drop its view and selection for nothing.
   test.each<[string, (root: string) => void]>([
     ["a plain write", (root) => writeFileSync(join(root, ".doan/canvases", "b.html"), "<!doctype html><title>B2</title>")],
     ["a save through a temporary sibling", (root) => {
@@ -526,32 +526,6 @@ describe("reopening stored folders", () => {
     await sleep(500);
     expect(counting.reads()).toBe(reads + 1);
   });
-});
-
-test("same-count comment edits and replaced comments directories invalidate without served revision changes", async () => {
-  const root = writeRepo(dir());
-  mkdirSync(join(root, ".doan/comments"));
-  const invalidated = vi.fn();
-  const shell = await startShell(join(dir(), "folders.json"), cli, () => {}, { response: () => {}, invalidate: invalidated });
-  shells.push(shell); await shell.open(root);
-  await vi.waitFor(() => expect(shell.entries()[0]?.kind).toBe("list"));
-  const before = shell.entries()[0];
-  if (before?.kind !== "list") throw new Error("missing list");
-  const revision = before.servedRev;
-  invalidated.mockClear();
-  writeFileSync(join(root, ".doan/comments/a.jsonl"), "broken line\n");
-  await vi.waitFor(() => expect(invalidated).toHaveBeenCalledWith(root));
-  invalidated.mockClear();
-  writeFileSync(join(root, ".doan/comments/a.jsonl"), "another line\n");
-  await vi.waitFor(() => expect(invalidated).toHaveBeenCalledWith(root));
-  renameSync(join(root, ".doan/comments"), join(root, ".doan/old-comments"));
-  mkdirSync(join(root, ".doan/comments"));
-  await new Promise(resolve => setTimeout(resolve, 300));
-  invalidated.mockClear();
-  writeFileSync(join(root, ".doan/comments/a.jsonl"), "new inode\n");
-  await vi.waitFor(() => expect(invalidated).toHaveBeenCalledWith(root));
-  const after = shell.entries()[0];
-  expect(after?.kind === "list" && after.servedRev).toBe(revision);
 });
 
 async function uninitialized(root: string, cliPath = cli) {

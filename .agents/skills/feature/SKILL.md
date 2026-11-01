@@ -23,7 +23,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 **Language**: these three documents are written in Korean, following AGENTS.md 'Korean writing rules'.
 
 ### `spec.md` — what, and for whom
-- **Users**: the human (who views and comments in the app) or the agent (who uses the CLI and skills)? If both, what each one gets.
+- **Users**: the human (who views, points and talks in the app) or the agent (who uses the CLI and skills)? If both, what each one gets.
 - **Problem**: what does not work now (as observed fact).
 - **Done when**: in verifiable sentences.
 - **Non-goals**: what this round does not do (including what is deferred).
@@ -34,7 +34,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 - **Format changes**: does it change the JSON Schema source (ARCHITECTURE §11 'Shared formats')? If so, whether the format version `v` goes up, and which fixtures TS and Go will both read.
 - **Conventions impact**: does it change ARCHITECTURE §1 'Conventions' (canvas conventions, agent rules) or add a `doan check` rule?
 - **Decision impact**: does it touch ARCHITECTURE's structural decisions (serving scope, sandbox iframe, append-only events, no token handling, no git operations, etc.)? If so, why, and how they are preserved.
-- **PoC dependency**: does it lean on an assumption no PoC has established yet (PRODUCT 'Open questions' or the feature's own unknowns)? If so, put the PoC first as a task.
+- **PoC dependency**: does it lean on an assumption no PoC has established yet (`docs/BACKLOG.md` or the feature's own unknowns)? If so, put the PoC first as a task.
 
 ### `tasks.md` — order
 - Each task has **one line on how to verify it** ("schema fixture tests green", "`doan check` reports X as an error"). Use only commands from the AGENTS.md 'Commands' section. If none exists, write "command undecided — needs user confirmation".

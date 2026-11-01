@@ -288,7 +288,7 @@ describe("watchFolder classifies changes", () => {
   });
 
   // Claude Code saves through `<name>.tmp.<pid>.<hex>` renamed over the file;
-  // both names arrive within one debounce (revision-continuity task 1).
+  // both names arrive within one debounce, so one save must still read as one change of that canvas.
   test("a save through a temporary sibling carries both names in one call", async () => {
     const root = repo();
     const w = await watchScope(root, [".doan/canvases"]);

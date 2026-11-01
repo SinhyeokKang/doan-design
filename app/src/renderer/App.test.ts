@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it, test, vi } from "vitest";
 import { App, menuCommand } from "./App";
 
 const harness = vi.hoisted(() => ({ effects: [] as (() => (() => void) | undefined)[], dispose: vi.fn(), command: vi.fn(), updateEntries: vi.fn() }));
@@ -18,6 +18,7 @@ vi.mock("./CanvasController", async importOriginal => ({
     dispose = harness.dispose;
     command = harness.command;
     updateEntries = harness.updateEntries;
+    onPicked = vi.fn();
   },
 }));
 
@@ -53,11 +54,11 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
 });
 
 // R-M ⚪5: a command App does not name must not run the Undo toast's action.
-it("routes each menu command to its own handler, and Next/Previous Resolved Comment never reach Undo", () => {
-  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), review: vi.fn(), newConversation: vi.fn() };
-  menuCommand("nextResolved", to);
-  menuCommand("previousResolved", to);
-  expect(to.review.mock.calls).toEqual([["next"], ["previous"]]);
+it("routes each menu command to its own handler, and the removed Resolved Comment commands never reach Undo", () => {
+  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), newConversation: vi.fn(), addSelection: vi.fn() };
+  menuCommand("nextResolved" as never, to);
+  menuCommand("previousResolved" as never, to);
+  expect(to.undo).not.toHaveBeenCalled();
   menuCommand("undoRemove", to);
   expect(to.undo).toHaveBeenCalledOnce();
   menuCommand("future" as never, to);
@@ -68,5 +69,9 @@ it("routes each menu command to its own handler, and Next/Previous Resolved Comm
   // buzz-project: File > New Conversation (⌘N).
   menuCommand("newConversation", to);
   expect(to.newConversation).toHaveBeenCalledOnce();
+  expect(to.undo).toHaveBeenCalledOnce();
+  // buzz-canvas-conversation: Edit > Add Selection to Conversation (⌘L).
+  menuCommand("addSelectionToConversation", to);
+  expect(to.addSelection).toHaveBeenCalledOnce();
   expect(to.undo).toHaveBeenCalledOnce();
 });

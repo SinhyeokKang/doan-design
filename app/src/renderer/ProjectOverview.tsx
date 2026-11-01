@@ -8,7 +8,9 @@ import type { Canvas, ConversationEvent } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
+import { plainText, textSegments } from "./anchorField";
 import { canvasLabel } from "./canvasTree";
+import { focusFieldEnd } from "./chipField";
 import { GroupIcon } from "./ComposerParts";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle } from "./ConversationThread";
@@ -57,7 +59,8 @@ export interface ProjectOverviewProps {
   defaults: NewConversationDefault | null | undefined;
   now: number;
   onWorktree(root: string): void;
-  onOpenCanvas(canvas: Canvas): void;
+  // A promoted conversation's canvas, opened with that conversation in its panel.
+  onOpenCanvas(canvas: Canvas, conversationId?: string): void;
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens (spec decision 6).
@@ -87,12 +90,7 @@ export function worktreeChoice(row: FolderEntry): { kind: "open" } | { kind: "re
 export function sameCanvas(a: Canvas, b: Canvas): boolean {
   return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
 }
-const focusField = () => queueMicrotask(() => {
-  const field = document.querySelector<HTMLTextAreaElement>(".ov-main .composer-input");
-  if (!field) return;
-  field.focus();
-  field.setSelectionRange(field.value.length, field.value.length);
-});
+const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".ov-main .composer-input")));
 // Main's turn as the composer reads it: the merged events first (the list lags them), then the list's work flag.
 function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
   const kind = events && events.length ? stripState(events).kind : null;
@@ -140,7 +138,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
 
   const presets = support.presets?.ok ? support.presets.result.presets : [];
   const prompts = mode.kind === "new" && !waiting && ready && healthy ? suggestedPrompts(props.entry, project, presets) : [];
-  const started = draft.text !== "" || draft.preset !== null || draft.attachments.length > 0;
+  const started = draft.segments.length > 0 || draft.preset !== null || draft.attachments.length > 0;
 
   // The thread
   const handle = useRef<ConversationThreadHandle | null>(null);
@@ -213,7 +211,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         root, mode: "newDesign", runtime: chosen, text: request.text,
         ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
-      const last: LastRequest = { root, text: draft.text, preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
+      const last: LastRequest = { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
       if ("ok" in outcome && outcome.conversationId) { support.clearPick(key); run.started(root, outcome.conversationId, chosen, revision); }
@@ -258,8 +256,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const chipLabel = branch ?? root.split("/").at(-1) ?? root;
 
   const moved = view.kind === "new" ? view.moved : null;
-  const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, open: 0, resolved: 0, url: "" });
-  const placeholder = draft.preset && draft.text === "" ? presetPlaceholder(draft.preset) : mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
+  const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, url: "" });
+  const placeholder = draft.preset && draft.segments.length === 0 ? presetPlaceholder(draft.preset) : mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
 
   return <section className="ov ov-main" role="region" aria-label="Overview">
     <header className="ov-head">
@@ -322,21 +320,21 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     <div className="ov-scroll">
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={canvasListed}
-        onAnswer={(requestId, optionId) => void window.doan.answerConversationPermission({ conversationId, requestId, optionId }).catch(console.error)}
+        onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}
-        onOpenCanvas={props.onOpenCanvas}
+        onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)}
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
         onCopy={text => Promise.resolve(copyText(text))} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
           {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text" title={`${moved.title} moved to ${movedCanvas}.`}>
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
-            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas)}>Open</button></div>}
+            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
-              onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, text: prompt.text })); focusField(); }}>
+              onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
               <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>)}</div>}
         </div>}
     </div>

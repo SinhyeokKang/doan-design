@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="doan:canvas" content="drafts">
+  <meta name="doan:width" content="1200">
+  <title>Drafts</title>
+  <link rel="stylesheet" href="../../styles/tokens.css">
+  <style>
+    body { margin: 0; padding: var(--space-8); display: flex; gap: var(--space-8); align-items: flex-start; background: var(--color-surface); color: var(--color-text); font: 16px/1.5 var(--font-body); }
+    [data-doan-frame] { box-sizing: border-box; flex: none; width: 480px; height: 360px; padding: var(--space-4); background: var(--color-panel); }
+    h1 { margin: 0 0 var(--space-2); font-size: 24px; line-height: 32px; }
+    p { margin: 0 0 var(--space-4); }
+    [data-doan-frame="preview"] { position: relative; }
+    .badge { position: absolute; left: 360px; top: 290px; padding: 0 var(--space-2); font-size: 12px; line-height: 20px; background: var(--color-primary); color: var(--color-on-primary); }
+    button { font: inherit; padding: var(--space-2) var(--space-4); border: 0; background: var(--color-muted); color: var(--color-text); }
+  </style>
+</head>
+<body>
+  <section data-doan-frame="editor" data-doan-title="Editor">
+    <h1 data-doan-id="editor-title">Quarterly update</h1>
+    <p data-doan-id="editor-body">Revenue grew in every region this quarter.</p>
+    <div data-doan-id="editor-actions">
+      <button data-doan-id="publish">Publish</button>
+      <button data-doan-id="save">Save draft</button>
+    </div>
+  </section>
+  <section data-doan-frame="preview" data-doan-title="Preview">
+    <h1 data-doan-id="preview-title">Quarterly update</h1>
+    <p data-doan-id="preview-body">Revenue grew in every region this quarter.</p>
+    <button data-doan-id="share">Share</button>
+    <span class="badge" data-doan-id="draft-badge">Draft</span>
+  </section>
+</body>
+</html>

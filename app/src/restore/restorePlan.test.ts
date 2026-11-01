@@ -7,7 +7,7 @@ import type { UiState } from "./uiState";
 const view = { scale: 1.5, x: 10, y: 20 };
 
 function row(path: string): CanvasRow {
-  return { path, open: 0, resolved: 0, url: `http://127.0.0.1:1/${path}` };
+  return { path, url: `http://127.0.0.1:1/${path}` };
 }
 
 function list(path: string, ...canvases: string[]): FolderEntry {

@@ -1,8 +1,7 @@
-import { projectPins, type CommentPin } from "../comments/projection";
-import { anchorSnapshot, type AnchorSnapshot, type CommentBinding, type CommentHooks, type PinDestination } from "./commentAnchors";
-import { CommentPins } from "./CommentPins";
-import type { AnchorsMessage } from "./canvasMessage";
-import type { Comment, Selection } from "../formats/types";
+import type { PinGeometry, TargetCandidates } from "../comments/projection";
+import type { AnchorsMessage, CanvasFrameRect, PickedMessage, PickStartedMessage } from "./canvasMessage";
+import type { Anchor } from "../main/conversation/types";
+import type { Selection } from "../formats/types";
 import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -10,17 +9,15 @@ import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem
 import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
-import { activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
+import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
 import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, shouldGuardEscape, sizeLabel, type AnchorRequest, type SelectionTrigger, type SelectionView } from "./selection";
-import { boardRectToScreen, boardToScreen, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, locateView, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
+import { boardRectToScreen, boardToScreen, elementView, FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, MAX_SCALE, MIN_SCALE, panBy, wheelAction, ZOOM_LIMITS, ZOOM_STEP, zoomAt, type Point, type View, type WheelInput } from "./viewport";
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
+import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
-
-// A selection change inside the open canvas, or anything that leaves it.
-export type TransitionDestination = "selection" | "navigation";
 
 export interface CanvasState {
   hasFrame: boolean;
@@ -28,10 +25,6 @@ export interface CanvasState {
   shown: string | null;
   layout: LayoutMessage | null;
   selection: SelectionView | null;
-  // The selection answers a card's locate, so the panel keeps its scope for
-  // it (feature revision-recheck). Any other answer, a cleared selection or a
-  // load ends it.
-  located: boolean;
   currentFrame: number | null;
   // The selection-lost line, until the next selection or canvas change.
   notice: string;
@@ -52,15 +45,24 @@ export interface CanvasState {
   // other changes, and whenever the view reaches or leaves a zoom limit.
   scale: number;
   activity: ActivityEvent[];
-  // The id the open path held before a reload gave it another one (or none),
-  // until that id comes back (project-feedback design §5).
-  idChangedFrom: string | null;
+  // `pick` while the canvas waits for one click to name a chip's target (buzz-canvas-conversation design §2 'Picker').
+  tool: "select" | "pick";
 }
+
+// How a pick ended. `frames` is the layout's frame list the anchor was taken from, for the chip's name.
+export type PickResult = { kind: "picked"; anchor: Anchor; frames: readonly CanvasFrameRect[] } | { kind: "cancelled" };
+// "missing": the canvas answered with no unique match. "timeout": it did not answer in time, which says nothing about
+// the target, so the caller ends the locate without claiming the target is gone.
+export type LocateResult = "shown" | "missing" | "timeout";
+
+// A point's ring on the board, in screen px (design §2 'Chip locate').
+const POINT_RING = 12;
+const LOCATE_ID = "locate";
 
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], idChangedFrom: null };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select" };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -69,11 +71,8 @@ function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] 
   return activityKind(before.rev ?? 0, after.rev ?? 0);
 }
 
-// The identity Activity groups a canvas's events by (activity.ts sameCanvas).
-function pathKey(folder: string, path: string): string { return JSON.stringify([folder, path]); }
-function documentKey(key: Pick<ActivityEvent, "folder" | "canvas" | "id">): string {
-  return JSON.stringify([key.folder, key.id ?? null, key.id === undefined ? key.canvas : null]);
-}
+// One target of an anchors query: a frame id, or an element's doan id and selector.
+export interface AnchorTarget { id: string; doanId?: string; selector?: string; frame?: string }
 
 // React owns the surrounding shell; only this controller owns the board's children.
 export class CanvasController {
@@ -90,7 +89,6 @@ export class CanvasController {
   private loadTimer: ReturnType<typeof setTimeout> | undefined;
   private answerTimer: ReturnType<typeof setTimeout> | undefined;
   private remeasureTimer: ReturnType<typeof setTimeout> | undefined;
-  private anchorsTimer: ReturnType<typeof setTimeout> | undefined;
   private jumpTo: number | null = null;
   // The view a fresh load fitted to the board as it was then, until settleFit fits it again to the canvas page's
   // column. Held by identity: any other view (a pan, a zoom, a jump, a remembered view) replaces the object and so
@@ -98,13 +96,13 @@ export class CanvasController {
   private firstFit: View | null = null;
   private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
   private jumpRect: CanvasRect | null = null;
+  private jumpKind: "rect" | "point" = "rect";
   private jumpMark: HTMLElement | null = null;
   private viewResize: ResizeObserver | null = null;
   private jumpTimer: ReturnType<typeof setTimeout> | undefined;
   // Selection (design flows 3–7). `seq` orders the renderer's commands against
   // the script's own clicks; each new document starts again at 0.
   private seq = 0;
-  private acceptedSelectionSeq = 0;
   private hoverSeq = 0;
   private selectedRect: CanvasRect | null = null;
   private hoverRect: CanvasRect | null = null;
@@ -119,84 +117,31 @@ export class CanvasController {
   private anchorGeneration = 0;
   private anchorRequest = 0;
   private anchorRevision = 0;
-  private comments: CommentBinding | null = null;
-  // The last comments read for the open canvas, which the next read is compared
-  // with for Resolved activity. Cleared when another canvas opens or is shown.
-  private commentBaseline: CommentBinding | null = null;
-  private commentHooks: CommentHooks | null = null;
-  private anchors: AnchorSnapshot | null = null;
-  private pinLayer: CommentPins | null = null;
-  private pins: CommentPin[] = [];
-  private pinResize: ResizeObserver | null = null;
-  private pinIntent = 0;
-  // Selection acknowledgements refresh queries without replacing the binding.
-  private commentRevision = 0;
-  private pendingPin: { seq: number; intent: number; generation: number; revision: number; destination: PinDestination } | null = null;
-  // The seq of a card's locate select-anchor until any answer or a new document;
-  // a newer command's answer carries a higher seq.
-  private pendingLocate: number | null = null;
+  // The ids last asked for in this document, and the newest reply for them.
+  private anchorTargets: ReadonlySet<string> = new Set();
+  private anchors: { generation: number; candidates: ReadonlyMap<string, TargetCandidates>; rects: ReadonlyMap<string, PinGeometry> } | null = null;
+  // Picking (design §4 'Structure'). The pick channel has its own seq, apart from selection and hover, and lives as
+  // long as one canvas document (its token, `pickDocument`): a reload, a same-ID move or the canvas replacing its
+  // own document at the same URL restarts it. Not `anchorDocument`: the iframe's load event clears that to re-ask for
+  // anchors, also when it comes late for the same document, and a channel restarted then would resend seq 1, which
+  // the script has already taken and ignores, leaving the canvas closed to clicks. `activePick` is the pick-start sent to the current document; null while
+  // the pick waits for a document's first layout, and after the pick ended. `pickAcked`: that document took it.
+  // Until then the iframe gets no pointer input, since a click there would still select.
+  private pickDocument: string | null = null;
+  private pickSeq = 0;
+  private activePick: number | null = null;
+  private pickAcked = false;
+  private pickListener: ((result: PickResult) => void) | null = null;
+  // A pick that ended in a flow which publishes later: told after that publish, so the listener sees the new state.
+  private pickEnded: PickResult | null = null;
+  private locating: { anchor: Anchor; generation: number; request: number; settled: (result: LocateResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
 
-  private transitionGuard: ((destination: TransitionDestination) => boolean | Promise<boolean>) | null = null;
-  // Whether the comments session can follow the open canvas to a new path.
-  private followGuard: (() => boolean) | null = null;
-  setFollowGuard(guard: (() => boolean) | null): void { this.followGuard = guard; }
-  // Asked first for an Esc that reaches the canvas (the app's or one forwarded
-  // from the iframe); true means the panel took it, so the selection stays
-  // (feature revision-recheck: an open Review closes before selection clears).
-  private escapeHandler: (() => boolean) | null = null;
-  setEscapeHandler(handler: (() => boolean) | null): void { this.escapeHandler = handler; }
+  // Raised by every move or selection change; a workspace open that waits for its folder's read goes ahead only
+  // while it is still the latest. `valid` checks the destination against the current list right before applying.
   private transitionIntent = 0;
-  private inputGuard = false;
-  private selectionGuard = false;
-  private canvasIntent = 0;
-  setTransitionGuard(guard: ((destination: TransitionDestination) => boolean | Promise<boolean>) | null): void { this.transitionGuard = guard; }
-  // `selection`: whether a selection change inside the open canvas is guarded
-  // too; a draft blocked as `reloaded` lets it through (comments/draft.ts).
-  setDraftGuard(active: boolean, selection = active): void {
-    this.inputGuard = active;
-    this.selectionGuard = active && selection;
-    this.post({ type: "draft-guard", active });
-  }
-  private transition(apply: () => void, valid: () => boolean = () => true, destination: TransitionDestination = "navigation"): void {
-    const intent = ++this.transitionIntent, frame = this.frame, href = this.lastHref, document = this.state.layout?.document;
-    if (!this.transitionGuard) { apply(); return; }
-    const allowed = this.transitionGuard(destination);
-    if (typeof allowed === "boolean") { if (allowed && valid()) apply(); return; }
-    void allowed.then(allow => {
-      if (allow && intent === this.transitionIntent && frame === this.frame && href === this.lastHref && document === this.state.layout?.document && valid()) apply();
-    }).catch(error => console.error("Comment transition failed", error));
-  }
-
-  setComments(binding: CommentBinding, hooks: CommentHooks): void {
-    this.commentRevision++;
-    this.comments = { ...binding, comments: structuredClone([...binding.comments]) };
-    this.commentHooks = hooks;
-    this.recordResolved(this.comments);
-    if (!this.pinResize && typeof ResizeObserver !== "undefined" && "nodeType" in this.viewport) {
-      this.pinResize = new ResizeObserver(() => this.drawPins());
-      this.pinResize.observe(this.viewport as Element);
-    }
-    this.requestAnchors();
-  }
-
-  // A switch to another (root, canvas id) ends the comparison even when the
-  // other canvas's read never arrived; a followed move or reload keeps it.
-  private endBaselineUnless(before: NonNullable<CanvasState["open"]>): void {
-    const open = this.state.open;
-    if (!open || documentKey(activityKey(open.folder, open.row)) !== documentKey(activityKey(before.folder, before.row))) this.commentBaseline = null;
-  }
-
-  // Bindings arrive with every comments read, including after the person's own
-  // Resolve. The first read of an opened canvas is only the baseline.
-  private recordResolved(binding: CommentBinding): void {
-    const open = this.state.open;
-    if (!open || binding.root !== open.folder || binding.canvas !== open.row.id) return;
-    const base = this.commentBaseline;
-    this.commentBaseline = binding;
-    const resolved = resolvedActivity(base?.root === binding.root && base.canvas === binding.canvas ? base.comments : null, binding.comments);
-    if (resolved === null) return;
-    this.state.activity = pushActivity(this.state.activity, { ...activityKey(open.folder, open.row), at: new Date(), kind: "resolved", ...resolved }, 50);
-    this.publish();
+  private transition(apply: () => void, valid: () => boolean = () => true): void {
+    this.transitionIntent++;
+    if (valid()) apply();
   }
 
   private recordDocument(event: ActivityEvent): void {
@@ -204,110 +149,87 @@ export class CanvasController {
   }
 
   private resetAnchors(): void {
-    this.canvasIntent = 0;    this.anchorGeneration++;
+    // A locate asked the document being replaced; its nodes mean nothing in the next one.
+    this.endLocate();
+    this.anchorGeneration++;
     this.anchorDocument = null;
     this.anchorRevision = 0;
-    this.pinIntent++;
-    this.pendingPin = null;
-    this.clearAnchors();
+    this.anchorTargets = new Set();
+    this.anchors = null;
   }
 
-  private clearAnchors(): void {
-    const binding = this.comments;
-    this.anchors = binding ? { lookup: { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration, nodes: new Map() }, rects: new Map(), selected: null,
-      status: this.anchorsExpected(binding) ? "pending" : "none" } : null;
-    this.drawPins();
-    if (this.anchors) this.commentHooks?.changed(this.anchors);
-  }
-
-  // A document of the bound canvas is loading or about to answer. A failed
-  // load, a missing width or an unlisted page ends the wait (clearAnchors).
-  private anchorsExpected(binding: CommentBinding): boolean {
-    const open = this.state.open;
-    return !!open && binding.root === open.folder && binding.canvas === open.row.id && this.frame !== null &&
-      !this.state.unlisted && (this.state.status === null || this.state.status === "loading");
-  }
-
-  private matchingComments(): CommentBinding | null {
-    const open = this.state.open, binding = this.comments;
-    return binding && open && binding.root === open.folder && binding.canvas === open.row.id &&
-      !this.state.unlisted && this.state.status === null ? binding : null;
-  }
-
-  private requestAnchors(): void {
-    const binding = this.matchingComments();
+  // Asks the canvas where `targets` are now; its reply replaces any earlier one. The canvas answers again by
+  // itself when its layout, scroll or DOM changes. Returns the generation the reply's node tokens belong to, or
+  // null when no document has laid out yet.
+  requestAnchors(targets: readonly AnchorTarget[]): number | null {
     this.anchorRequest++;
     this.anchorRevision = 0;
-    if (!binding || !this.anchorDocument || !this.frame) { this.clearAnchors(); return; }
+    this.anchors = null;
+    this.anchorTargets = new Set(targets.map(target => target.id));
+    if (!this.anchorDocument || !this.frame) return null;
     this.post({ type: "anchors-query", document: this.anchorDocument, generation: this.anchorGeneration, request: this.anchorRequest,
-      targets: binding.comments.map(comment => ({ id: comment.comment,
-        ...(comment.target.element ? { selector: comment.target.element.selector, ...(comment.target.element.doanId === undefined ? {} : { doanId: comment.target.element.doanId }) }
-          : comment.target.frame === undefined ? {} : { frame: comment.target.frame }) })) });
+      targets: targets.map(target => ({ ...target })) });
+    return this.anchorGeneration;
   }
 
   private onAnchors(message: AnchorsMessage): void {
-    const binding = this.matchingComments();
-    if (!binding || message.document !== this.anchorDocument || message.generation !== this.anchorGeneration ||
+    if (message.document !== this.anchorDocument || message.generation !== this.anchorGeneration ||
       message.request !== this.anchorRequest || message.revision <= this.anchorRevision || message.href !== this.lastHref ||
       message.viewport !== this.frameHeight || message.width !== this.frameWidth) return;
-    const ids = new Set(binding.comments.map(comment => comment.comment));
-    if (message.results.length !== ids.size || message.results.some(result => !ids.has(result.id))) return;
+    if (message.results.length !== this.anchorTargets.size || message.results.some(result => !this.anchorTargets.has(result.id))) return;
     this.anchorRevision = message.revision;
-    clearTimeout(this.anchorsTimer);
-    this.anchors = anchorSnapshot(binding.comments, { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration }, { ...message, selected: this.state.selection !== null && message.selectionSeq === this.acceptedSelectionSeq ? message.selected : null });
-    this.drawPins();
-    this.commentHooks?.changed(this.anchors);
+    this.anchors = { generation: this.anchorGeneration, candidates: new Map(message.results.map(item => [item.id, item.candidates])),
+      rects: new Map(message.rects.map(({ node, ...rect }) => [node, rect])) };
+    const locating = this.locating;
+    if (locating && locating.generation === this.anchorGeneration && locating.request === this.anchorRequest) {
+      this.endLocate();
+      this.settleLocate(locating, resolveChipTarget(locating.anchor, { candidates: this.anchors.candidates.get(LOCATE_ID) ?? {}, rects: this.anchors.rects }));
+    }
   }
 
-  private drawPins(): void {
-    const binding = this.matchingComments(), snapshot = this.anchors;
-    const size = this.viewportSize();
-    this.pins = binding && snapshot ? projectPins(binding.comments,
-      { root: binding.root, canvas: binding.canvas, generation: this.anchorGeneration }, snapshot.lookup, snapshot.rects,
-      this.view, { x: 0, y: 0, ...size }) : [];
-    if (!this.pinLayer && this.pins.length) this.pinLayer = new CommentPins(this.overlay, node => { void this.activatePin(node); }, () => this.commentHooks?.focusFallback());
-    this.pinLayer?.render(this.pins);
-  }
-
-  async activatePin(node: string): Promise<void> {
-    const pin = this.pins.find(pin => pin.node === node), binding = this.matchingComments();
-    const original = binding?.comments.find(comment => comment.comment === pin?.comments[0]);
-    const hooks = this.commentHooks;
-    if (!pin || !original || !hooks) return;
-    const destination: PinDestination = { node, comments: [...pin.comments], originalTarget: structuredClone(original.target) };
-    const intent = ++this.pinIntent, generation = this.anchorGeneration, revision = this.commentRevision;
-    let allowed: boolean;
-    try { allowed = await hooks.guard(destination); } catch { return; }
-    if (!allowed || intent !== this.pinIntent || generation !== this.anchorGeneration || revision !== this.commentRevision ||
-      !this.pins.some(pin => pin.node === node)) return;
-    this.pendingPin = { seq: this.seq + 1, intent, generation, revision, destination };
-    this.sendCommand({ type: "select-comment", node, document: this.anchorDocument, generation, request: this.anchorRequest });
-  }
-
-  // Moves the view to a node of the current anchors at the same zoom and
-  // highlights it, without selecting (Review steps, RR3; like a frame jump).
-  // `generation` is the anchors' lookup the node came from: node tokens
-  // restart in every new document, so an older one may name another element.
-  jumpToNode(node: string, generation: number): boolean {
-    const rect = generation === this.anchorGeneration ? this.anchors?.rects.get(node) : undefined;
-    if (!rect || this.frame === null) return false;
-    this.view = locateView(rect, this.viewportSize(), this.view);
-    this.showJump(rect);
-    this.applyView();
+  // Chip locate (design §2 'Chip locate'): finds the anchor in the shown document, moves the view to it (settleLocate)
+  // and highlights it for 1.2 s; a point gets a 12 px ring at its offset in its frame. `settled` hears "missing" when
+  // the canvas has no unique match, "timeout" when it does not answer within MEASURE_ANSWER_MS. A newer locate or a
+  // new document drops one in flight without an answer. false: no shown document to ask, so locate is unavailable.
+  // Never changes the selection, main's selection or the composer.
+  locate(anchor: Anchor, settled: (result: LocateResult) => void): boolean {
+    this.endLocate();
+    if (this.loading || this.state.status !== null || this.state.unlisted) return false;
+    const frame = anchor.frame?.id ?? anchor.point?.frameId;
+    const target: AnchorTarget = anchor.element
+      ? { id: LOCATE_ID, ...(anchor.element.doanId === undefined ? {} : { doanId: anchor.element.doanId }), selector: anchor.element.selector }
+      : { id: LOCATE_ID, ...(frame === undefined ? {} : { frame }) };
+    const generation = this.requestAnchors([target]);
+    if (generation === null) return false;
+    const timer = setTimeout(() => {
+      const locating = this.locating;
+      this.endLocate();
+      locating?.settled("timeout");
+    }, MEASURE_ANSWER_MS);
+    this.locating = { anchor, generation, request: this.anchorRequest, settled, timer };
     return true;
   }
 
-  // A card's target line: unlike a pin, it works for a target no pin shows
-  // (off screen, resolved) and selects through select-anchor, so the panel's
-  // filters stay (feature revision-recheck). Only the answer to this command
-  // is `located`: the canvas may name the target differently from the stored
-  // one, and a failed answer must not mark a later selection (R-L L-1, L-2).
-  locate(node: string, generation: number, comment: Comment): void {
-    const current = () => generation === this.anchorGeneration && this.anchors?.lookup.nodes.get(comment.comment) === node;
-    if (!current() || !this.jumpToNode(node, generation)) return;
-    const { frame, element } = comment.target;
-    const anchor = element ? { ...(element.doanId === undefined ? {} : { doanId: element.doanId }), selector: element.selector } : { frame };
-    this.transition(() => { this.sendCommand({ type: "select-anchor", ...anchor }); this.pendingLocate = this.seq; }, current, "selection");
+  private endLocate(): void {
+    if (this.locating) clearTimeout(this.locating.timer);
+    this.locating = null;
+  }
+
+  // Frames move as picking one in the drawer does (fitFrame); elements and points keep the scale and are centred,
+  // an element larger than the view zoomed out to fit (design §2 'Chip locate', 2026-11-02 user).
+  private settleLocate(locating: NonNullable<CanvasController["locating"]>, target: ReturnType<typeof resolveChipTarget>): void {
+    if (this.frame === null || (target.kind !== "node" && target.kind !== "point")) { locating.settled("missing"); return; }
+    const size = this.viewportSize();
+    if (target.kind === "point") {
+      const spot = { x: target.x, y: target.y, width: 0, height: 0 };
+      this.view = elementView(spot, size, FIT_INSET, this.view);
+      this.showJump(spot, "point");
+    } else {
+      this.view = locating.anchor.element ? elementView(target.rect, size, FIT_INSET, this.view) : fitFrame(target.rect, size, FIT_INSET, this.view);
+      this.showJump(target.rect);
+    }
+    this.applyView();
+    locating.settled("shown");
   }
 
   constructor(
@@ -332,7 +254,8 @@ export class CanvasController {
   }
 
   dispose(): void {
-    this.pinResize?.disconnect();
+    this.pickListener = null;
+    this.endLocate();
     this.viewResize?.disconnect();
     window.removeEventListener("message", this.receive);
     window.removeEventListener("wheel", this.preventPageZoom);
@@ -345,15 +268,14 @@ export class CanvasController {
   }
 
   private publish(): void {
-    const open = this.state.open;
-    const lost = open ? this.idChanges.get(pathKey(open.folder, open.canvas)) : undefined;
-    if (open && lost !== undefined && open.row.id === lost) this.idChanges.delete(pathKey(open.folder, open.canvas));
-    this.state.idChangedFrom = open && lost !== undefined && open.row.id !== lost ? lost : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
     this.syncMain();
     this.changed({ ...this.state });
+    const ended = this.pickEnded;
+    this.pickEnded = null;
+    if (ended) this.pickListener?.(ended);
   }
 
   // Main keeps the one app-wide selection for `doan active` (design flow 11).
@@ -379,8 +301,6 @@ export class CanvasController {
     const kind = waiting && next.find(entry => entry.path === waiting.folder)?.kind;
     if (!waiting || kind === "loading") return;
     this.waitingWorkspace = null;
-    // A draft can start while the read is pending, so the click's approval is
-    // stale: ask again, and re-validate the result like any other transition.
     if (waiting.intent === this.transitionIntent && (kind === "list" || waiting.unavailable)) {
       this.transition(waiting.open, () => this.entries.find(entry => entry.path === waiting.folder)?.kind !== "loading");
     }
@@ -394,18 +314,15 @@ export class CanvasController {
     this.entries = next;
     const open = this.state.open;
     if (open === null) return;
-    const found = canvasViewUpdate(prev, next, open);
-    // A pending or unsettled comment request names the old path, so the move is a removal (R2).
-    const update = found.kind === "moved" && this.followGuard?.() === false ? { kind: "clear" as const, reason: "missing" as const } : found;
+    const update = canvasViewUpdate(prev, next, open);
     // Reads the flow-7 table for every folder update in one place. For reload
     // and clear, load() and dropFrame() apply the same effect again, so either
     // path alone keeps the rule (the clearing-row tests go red only without both).
     this.applySelectionEffect(update);
     switch (update.kind) {
       case "reload":
-        // The first id the path lost, kept through further changes: its
-        // comments are the ones that no longer show.
-        if (update.idChanged && open.row.id !== undefined && !this.idChanges.has(pathKey(open.folder, open.canvas))) this.idChanges.set(pathKey(open.folder, open.canvas), open.row.id);
+        // Another canvas id at this path is another canvas: like opening one, it ends the pick.
+        if (update.idChanged) this.endPick({ kind: "cancelled" });
         this.state.error = "";
         this.state.open = { ...open, row: update.canvas };
         this.load(update.canvas, false, reloadKind(open.row, update.canvas));
@@ -417,8 +334,6 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
-        const lost = this.idChanges.get(pathKey(open.folder, open.canvas));
-        if (lost !== undefined) { this.idChanges.delete(pathKey(open.folder, open.canvas)); this.idChanges.set(pathKey(open.folder, to), lost); }
         this.recordDocument({ ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas });
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");
@@ -448,21 +363,17 @@ export class CanvasController {
       // Keep the last rendered document while its folder cannot be read.
       case "errorLine": this.state.error = update.message; break;
       case "none": {
-        // Comment-only changes update metadata without reloading the document.
+        // A listing change that needs no reload still updates the row.
         const entry = next.find(entry => entry.path === open.folder);
         const row = entry?.kind === "list" ? entry.canvases.find(row => row.path === open.canvas) : undefined;
         if (row) this.state.open = { ...open, row };
         break;
       }
     }
-    this.endBaselineUnless(open);
-    if (this.comments && !this.matchingComments()) this.clearAnchors();
     this.publish();
   }
 
   private workspaceMemory = new Map<string, { path: string; view: View }>();
-  // (root, path) → the id that path lost, for this app run only.
-  private idChanges = new Map<string, string>();
   // The open canvas left the folder's list (deleted or moved). `duplicates`:
   // how many rows now use its id, when that is why it was not followed.
   canvasRemoved: ((removed: { folder: string; row: CanvasRow; duplicates: number | null }) => void) | null = null;
@@ -484,6 +395,8 @@ export class CanvasController {
   setWorkspaceActive(active: boolean): void {
     this.workspaceActive = active;
     if (!active) this.cancelWorkspaceOpen();
+    // Leaving the canvas page for another screen cancels the pick.
+    if (!active && this.state.tool === "pick") { this.endPick({ kind: "cancelled" }); this.publish(); }
   }
 
   destination(root: string): { root: string; canvas?: string } {
@@ -525,7 +438,7 @@ export class CanvasController {
     entered(folder);
   }
 
-  // `shown`: told once the Overview is on screen, which a draft guard may refuse.
+  // `shown`: told once the Overview is on screen.
   showOverview(shown?: () => void): void {
     if (!this.state.open) { this.cancelWorkspaceOpen(); shown?.(); return; }
     this.transition(() => {
@@ -538,7 +451,7 @@ export class CanvasController {
     });
   }
 
-  // `opened`: told once the canvas is the open one, which a draft guard may refuse.
+  // `opened`: told once the canvas is the open one.
   openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void }): void {
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
       this.cancelWorkspaceOpen();
@@ -582,8 +495,11 @@ export class CanvasController {
     this.clearJump();
     // A reload of the same row before its first layout still owes the picked frame.
     if (fresh) this.pendingFrame = null;
+    // A new document restarts the pick channel. Opening a canvas ends the pick (dropFrame below); a reload or a
+    // same-ID move keeps it for the new document's first layout.
+    this.pickDocument = null;
+    this.resetPickChannel();
     this.resetAnchors();
-    if (fresh) this.commentBaseline = null;
     // A plain reload that replaces a changed one before its layout keeps Changed.
     this.loadKind = !fresh && this.loading && this.loadKind === "changed" && kind === "reloaded" ? "changed" : kind;
     this.applySelectionEffect({ kind: fresh ? "otherCanvas" : "reload" });
@@ -618,13 +534,10 @@ export class CanvasController {
     }
     this.setFrameWidth(row.width);
     this.setFrameHeight(INITIAL_HEIGHT);
+    this.syncFrameInput();
     this.lastHref = null;
     this.jumpTo = null;
-    // Seq restarts, so a pending locate's seq could match the next document's answers.
-    this.pendingLocate = null;
-    this.state.located = false;
     this.seq = 0;
-    this.acceptedSelectionSeq = 0;
     this.hoverSeq = 0;
     this.hoverRect = null;
     this.drawMarks();
@@ -632,7 +545,6 @@ export class CanvasController {
     this.loading = true;
     clearTimeout(this.answerTimer);
     clearTimeout(this.remeasureTimer);
-    clearTimeout(this.anchorsTimer);
     clearTimeout(this.loadTimer);
     this.loadTimer = setTimeout(() => {
       if (!this.loading || this.frame === null) return;
@@ -642,13 +554,15 @@ export class CanvasController {
       this.pendingFrame?.found?.(false);
       this.pendingFrame = null;
       this.applySelectionEffect({ kind: "loadFailed" });
-      this.clearAnchors();
+      this.endPick({ kind: "cancelled" });
       this.publish();
     }, FIRST_LAYOUT_TIMEOUT_MS);
     this.publish();
   }
 
   private dropFrame(): void {
+    this.endPick({ kind: "cancelled" });
+    this.pickDocument = null;
     this.clearJump();
     this.pendingFrame = null;
     this.state.currentFrame = null;
@@ -664,7 +578,6 @@ export class CanvasController {
     clearTimeout(this.loadTimer);
     clearTimeout(this.answerTimer);
     clearTimeout(this.remeasureTimer);
-    clearTimeout(this.anchorsTimer);
     this.board.hidden = true;
     this.state.unlisted = false;
   }
@@ -680,7 +593,7 @@ export class CanvasController {
       this.applySelectionEffect({ kind: "unlisted" });
       this.state.shown = null;
       this.state.unlisted = true;
-      this.clearAnchors();
+      this.endPick({ kind: "cancelled" });
       this.publish();
     }, MEASURE_ANSWER_MS);
     // The sandbox has an opaque origin, so a concrete target origin cannot match it.
@@ -691,23 +604,11 @@ export class CanvasController {
     if (this.frame === null) return;
     const message = acceptCanvasMessage(event, this.frame.contentWindow);
     if (message === null) return;
-    if (message.type === "transition-intent") {
-      if (message.document !== this.state.layout?.document || message.href !== this.lastHref || message.viewport !== this.frameHeight || message.intent <= this.canvasIntent) return;
-      this.canvasIntent = message.intent;
-      const frame = this.frame, document = message.document;
-      // Like a blank margin click (escape), clearing nothing does not ask.
-      if (message.clear && !shouldGuardEscape(this.state.selection, this.reanchor)) {
-        this.transitionIntent++;
-        this.post({ type: "transition-answer", document, intent: message.intent });
-        return;
-      }
-      this.transition(() => this.post({ type: "transition-answer", document, intent: message.intent }),
-        () => frame === this.frame && document === this.state.layout?.document, message.kind);
-      return;
-    }
     if (message.type === "wheel") { this.wheel(message, boardToScreen(this.view, message)); return; }
     if (message.type === "layout") { this.onLayout(message); return; }
     if (message.type === "anchors") { this.onAnchors(message); return; }
+    if (message.type === "picked") { this.receivePicked(message); return; }
+    if (message.type === "pick-started") { this.receivePickStarted(message); return; }
     this.onSelectionMessage(message);
   };
 
@@ -722,7 +623,9 @@ export class CanvasController {
     const verdict = acceptSelectionMessage(expected, message);
     if (verdict === "drop") return;
     if (message.type === "key") {
-      if (message.key === "Escape") this.escape();
+      // An Escape the canvas sent before its pick-start arrived still meant the pick.
+      if (message.key === "Escape" && this.state.tool === "pick") this.cancelPick();
+      else if (message.key === "Escape") this.clearOnEscape();
       // Unlike Escape, an old modifier snapshot must not override a newer press.
       else if (message.seq >= this.hoverSeq) {
         this.hoverSeq = message.seq;
@@ -732,17 +635,7 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
-    // A click can take a sent command's seq before the canvas drops it, so an
-    // answer is the message the canvas marks as one, at that command's seq.
-    const answer = message.type === "select" ? message.answer : undefined;
-    const pin = this.pendingPin?.seq === message.seq && answer === "select-comment" ? this.pendingPin : null;
-    // A sent pin's acknowledgement is document state, not a newer user intent.
-    if (pin === null) this.pinIntent++;
-    this.pendingPin = null;
-    const located = this.pendingLocate === message.seq && answer === "select-anchor";
-    this.pendingLocate = null;
     this.seq = message.seq;
-    this.acceptedSelectionSeq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
     const { rect, ...view } = message.target;
@@ -750,14 +643,10 @@ export class CanvasController {
     this.markHidden = false;
     this.selectedRect = verdict === "apply" ? rect : null;
     this.state.selection = view;
-    this.state.located = located;
     this.state.notice = "";
     this.drawMarks();
     this.requestRows(view);
     this.publish();
-    if (pin !== null && pin.intent === this.pinIntent && pin.generation === this.anchorGeneration &&
-      pin.revision === this.commentRevision) this.commentHooks?.open(pin.destination);
-    if (this.comments) this.requestAnchors();
   }
 
   // Every select (click, Frames list, ancestor path, the anchor found again
@@ -795,9 +684,6 @@ export class CanvasController {
 
   // Does not publish: callers publish once with their other changes.
   private clearSelection(notice: boolean): void {
-    this.pendingPin = null;
-    this.state.located = false;
-    this.pinIntent++;
     this.state.selection = null;
     this.state.inspector = null;
     this.inspectTag++;
@@ -814,7 +700,6 @@ export class CanvasController {
   }
 
   private sendCommand(message: object): void {
-    if (!("type" in message) || message.type !== "select-comment") { this.pinIntent++; this.pendingPin = null; }
     this.seq += 1;
     this.post({ ...message, seq: this.seq });
   }
@@ -824,16 +709,11 @@ export class CanvasController {
     this.post({ ...message, seq: this.hoverSeq });
   }
 
-  // Without a selection to clear, Esc and a blank click skip the draft guard;
-  // the bumped intent still cancels a pending Open (feature revision-continuity L-17).
-  private escape(): void {
-    if (this.escapeHandler?.()) return;
-    this.clearOnEscape();
-  }
-
+  // Without a selection to clear, Esc and a blank click only raise the intent,
+  // which still cancels a pending Open: the person's latest action wins over an open that was still waiting.
   private clearOnEscape(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
-    this.transition(() => this.escapeNow(), undefined, "selection");
+    this.transition(() => this.escapeNow());
   }
 
   private escapeNow(): void {
@@ -843,7 +723,94 @@ export class CanvasController {
     this.publish();
   }
 
-  selectPath(item: PathItem): void { this.transition(() => this.selectPathNow(item), undefined, "selection"); }
+  // The one listener for how picks end; returns its removal.
+  onPicked(listener: (result: PickResult) => void): () => void {
+    this.pickListener = listener;
+    return () => { if (this.pickListener === listener) this.pickListener = null; };
+  }
+
+  // Puts the shown canvas in the pick tool until one click names a target, Esc, cancelPick or leaving the canvas.
+  // false: no canvas is shown. A reload in progress keeps the pick for the new document's first layout.
+  pick(): boolean {
+    if (this.frame === null || this.state.open === null || this.state.status !== null || this.state.unlisted) return false;
+    if (this.state.tool === "pick") return true;
+    this.state.tool = "pick";
+    this.armPick();
+    this.syncFrameInput();
+    this.publish();
+    return true;
+  }
+
+  cancelPick(): void {
+    if (this.state.tool !== "pick") return;
+    this.endPick({ kind: "cancelled" });
+    this.publish();
+  }
+
+  // Sent once the current document has laid out with its token; the token keeps a command from reaching the
+  // document that replaces this one.
+  private armPick(): void {
+    if (this.loading || this.frame === null || this.pickDocument === null) return;
+    this.pickSeq += 1;
+    this.activePick = this.pickSeq;
+    this.pickAcked = false;
+    this.post({ type: "pick-start", document: this.pickDocument, seq: this.pickSeq });
+    this.syncFrameInput();
+  }
+
+  // A new document starts its pick seq at 0 and is not picking, so it gets no cancel.
+  private resetPickChannel(): void {
+    this.activePick = null;
+    this.pickSeq = 0;
+    this.pickAcked = false;
+    this.syncFrameInput();
+  }
+
+  // The canvas takes pointer input unless a pick waits for the current document to acknowledge its start. Pans and
+  // zooms then land on the board's margin handlers, so they keep working.
+  private syncFrameInput(): void {
+    if (this.frame) this.frame.style.pointerEvents = this.state.tool === "pick" && !this.pickAcked ? "none" : "";
+  }
+
+  private receivePickStarted(message: PickStartedMessage): void {
+    if (this.state.tool !== "pick" || message.pick !== this.activePick || message.document !== this.pickDocument ||
+      this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
+    this.pickAcked = true;
+    this.syncFrameInput();
+  }
+
+  // Does not publish: the listener hears the result after the caller's publish.
+  private endPick(result: PickResult): void {
+    if (this.state.tool !== "pick") return;
+    this.state.tool = "select";
+    if (this.activePick !== null && this.pickDocument !== null) {
+      this.pickSeq += 1;
+      this.post({ type: "pick-cancel", document: this.pickDocument, seq: this.pickSeq });
+    }
+    this.activePick = null;
+    this.pickAcked = false;
+    this.syncFrameInput();
+    this.pickEnded = result;
+  }
+
+  // A reply counts only for the pick-start in force in the current document: one after Esc, a toggle, leaving the
+  // canvas or a newer pick names another seq, or none, and one from a replaced document another token.
+  private receivePicked(message: PickedMessage): void {
+    if (this.state.tool !== "pick" || this.activePick === null || message.pick !== this.activePick || message.document !== this.pickDocument ||
+      this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
+    if ("cancelled" in message) { this.cancelPick(); return; }
+    // The picker's boundary: only frames and what is in them can be chips. A forged or stray reply for anything
+    // outside every frame keeps picking (targetAnchor itself still takes such a selection for Add to conversation).
+    if ("target" in message && message.target.frame === undefined) return;
+    const frames = this.state.layout?.frames ?? [];
+    const anchor = "target" in message ? targetAnchor(message.target) : pointAnchor(message.point, frames);
+    // Outside every frame there is nothing to point at, and the pick goes on.
+    if (anchor === null) return;
+    this.endPick({ kind: "picked", anchor, frames });
+    this.publish();
+  }
+
+  selectPath(item: PathItem): void { this.transition(() => this.selectPathNow(item)); }
 
   private selectPathNow(item: PathItem): void {
     if (this.frame === null) return;
@@ -859,9 +826,11 @@ export class CanvasController {
       this.drawMarks();
       return;
     }
-    if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented || editableTarget(event.target)) return;
-    if (this.escapeHandler?.()) { event.preventDefault(); return; }
-    if (this.selectionGuard && shouldGuardEscape(this.state.selection, this.reanchor)) event.preventDefault();
+    if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return;
+    // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
+    // the `/` list handle their Esc first and prevent it (design §2 'Esc and cancel').
+    if (this.state.tool === "pick") { event.preventDefault(); this.cancelPick(); return; }
+    if (editableTarget(event.target)) return;
     this.clearOnEscape();
   };
 
@@ -885,17 +854,25 @@ export class CanvasController {
   private clickOnMargin = (event: MouseEvent): void => {
     if (!Object.is(event.target, this.viewport) && !Object.is(event.target, this.board)) return;
     if (event.button !== 0 || event.ctrlKey || event.altKey) return;
+    // The board margin is outside every frame: picking goes on and the selection stays.
+    if (this.state.tool === "pick") return;
     this.clearOnEscape();
   };
 
   private onLayout(message: LayoutMessage): void {
-    this.post({ type: "draft-guard", active: this.inputGuard });
     const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
+    // Another document, even at the same URL in the same iframe (the canvas's own location.reload()), ends the pick
+    // channel of the one it replaced; the pick itself goes on below unless the page is another canvas.
+    if (message.document !== undefined && message.document !== this.pickDocument) {
+      this.pickDocument = message.document;
+      this.resetPickChannel();
+    }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;
     const beforeSelection = this.state.selection;
     const previousActivity = this.state.activity;
+    const previousTool = this.state.tool;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
     // Against the height before this layout resizes the iframe, as layoutHeight does.
     const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
@@ -914,12 +891,13 @@ export class CanvasController {
     if (newDocument) {
       this.clearJump();
       this.jumpTo = null;
-      this.pendingLocate = null;
       this.seq = 0;
-      this.acceptedSelectionSeq = 0;
       this.hoverSeq = 0;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
+      // A link or the canvas's own script left for another page: another canvas, so the pick ends.
+      this.resetPickChannel();
+      this.endPick({ kind: "cancelled" });
     }
     const first = this.loading;
     if (first) {
@@ -932,7 +910,8 @@ export class CanvasController {
     this.state.layout = message;
     const linked = this.markShown(message.href);
     if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);
-    if (this.state.unlisted) this.clearAnchors();
+    if (this.state.unlisted) this.endPick({ kind: "cancelled" });
+    else if (this.state.tool === "pick" && this.activePick === null) this.armPick();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
       this.recordDocument({ ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind });
@@ -957,21 +936,8 @@ export class CanvasController {
       if (selected === null) this.applySelectionEffect({ kind: "anchorLost" });
       else { this.selectedRect = selected; this.drawMarks(); }
     }
-    if (this.comments && (documentChanged || first || linked)) this.requestAnchors();
-    // The panel keeps the last answer while this wait lasts, and the canvas
-    // answers on an animation frame it may never get; a laid-out document that
-    // stays silent ends the wait like an unlisted one (R-B8).
-    if (first || documentChanged) {
-      clearTimeout(this.anchorsTimer);
-      const generation = this.anchorGeneration;
-      this.anchorsTimer = setTimeout(() => {
-        if (generation !== this.anchorGeneration || this.anchors?.status !== "pending") return;
-        this.anchors = { ...this.anchors, status: "none" };
-        this.commentHooks?.changed(this.anchors);
-      }, MEASURE_ANSWER_MS);
-    }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
-    if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection) this.publish();
+    if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection || previousTool !== this.state.tool) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -984,7 +950,6 @@ export class CanvasController {
     if (linked) {
       this.state.open = { folder: open.folder, canvas: row.path, row };
       if (row.width !== undefined) this.setFrameWidth(row.width);
-      this.endBaselineUnless(open);
     }
     this.state.shown = row?.path ?? null;
     this.state.unlisted = row === undefined;
@@ -998,9 +963,7 @@ export class CanvasController {
   }
 
   // `index` and `id` are the row the frame drawer drew, which may predate the current layout. Like Quick Open's
-  // pending frame: the index while it still holds that id, else the id's first frame, else nothing. Resolved again
-  // when a guard answers late, since a new layout of the same document may land meanwhile (a new document makes
-  // transition() drop the answer).
+  // pending frame: the index while it still holds that id, else the id's first frame, else nothing.
   selectFrame(index: number, id: string): void {
     const resolve = () => {
       const frames = this.state.unlisted ? [] : this.state.layout?.frames ?? [];
@@ -1012,7 +975,7 @@ export class CanvasController {
       if (at < 0) return;
       this.jump(at);
       this.sendCommand({ type: "pick-frame", index: at, id });
-    }, () => resolve() >= 0, "selection");
+    }, () => resolve() >= 0);
   }
 
   private clearJump(): void {
@@ -1021,20 +984,25 @@ export class CanvasController {
     if (this.jumpMark) this.jumpMark.hidden = true;
   }
 
-  private showJump(rect: CanvasRect): void {
+  private showJump(rect: CanvasRect, kind: "rect" | "point" = "rect"): void {
     this.clearJump();
     this.jumpRect = rect;
+    this.jumpKind = kind;
     // A fresh element restarts the CSS animation even for repeated jumps.
     this.jumpMark?.remove();
     this.jumpMark = document.createElement("div");
-    this.jumpMark.className = "mark jump-highlight";
+    this.jumpMark.className = kind === "point" ? "mark jump-highlight jump-point" : "mark jump-highlight";
     this.overlay.append(this.jumpMark);
     this.jumpTimer = setTimeout(() => this.clearJump(), 1200);
   }
 
   private drawJump(): void {
     if (!this.jumpRect || !this.jumpMark) return;
-    const rect = boardRectToScreen(this.view, this.jumpRect);
+    const center = boardToScreen(this.view, this.jumpRect);
+    // A point's ring keeps its screen size at every zoom.
+    const rect = this.jumpKind === "point"
+      ? { x: center.x - POINT_RING / 2, y: center.y - POINT_RING / 2, width: POINT_RING, height: POINT_RING }
+      : boardRectToScreen(this.view, this.jumpRect);
     this.jumpMark.hidden = false;
     Object.assign(this.jumpMark.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` });
   }
@@ -1094,7 +1062,6 @@ export class CanvasController {
   private applyView(): void {
     this.board.style.transform = `translate(${this.view.x}px, ${this.view.y}px) scale(${this.view.scale})`;
     this.drawMarks();
-    this.drawPins();
     this.drawJump();
     const current = this.state.unlisted ? null : currentFrame(this.state.layout?.frames ?? [], this.view, this.viewportSize());
     const changedCurrent = current !== this.state.currentFrame;

@@ -1,7 +1,4 @@
-import type { Selection, Target } from "../formats/types";
-import { validateSelection } from "../formats/validate";
 import type { DocumentBindings } from "./comments/document";
-import type { CommentIdentity, DocumentOrigin } from "./comments/service";
 import { object } from "./comments/identity";
 import { isCanvasFrame } from "./canvasFrame";
 import { inspectRows, type InspectResult, type MatchedStyles } from "./inspect";
@@ -24,8 +21,6 @@ export interface DebuggerLike {
 
 export interface Inspector {
   inspect(selector: string): Promise<InspectResult>;
-  commentDocument(identity: CommentIdentity, url: string, target: Target): Promise<DocumentOrigin>;
-  documentCurrent(identity: CommentIdentity, url: string, origin: DocumentOrigin): Promise<boolean>;
 }
 
 interface DomNode {
@@ -195,33 +190,7 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
     }
   };
 
-  const commentDocument = async (identity: CommentIdentity, url: string, target: Target): Promise<DocumentOrigin> => {
-    await connect();
-    const session = await canvasSession();
-    if (!session || !documents) throw new Error("No verified canvas document is loaded.");
-    const frame = await frameOf(session);
-    const loaded = documents.current(frame.id, url);
-    if (!loaded || loaded.root !== identity.root || loaded.path !== identity.path || !loaded.hash) throw new Error("The loaded response is not verified.");
-    const result = await dbg.sendCommand("Runtime.evaluate", { expression: `(${readCommentTarget.toString()})(${JSON.stringify(target)})`, returnByValue: true }, session);
-    if (!object(result) || !object(result.result) || !object(result.result.value)) throw new Error("Original target is missing or not unique.");
-    const candidate: unknown = { root: identity.root, canvas: { path: identity.path, id: identity.canvas }, ...result.result.value };
-    if (!validateSelection(candidate)) throw new Error("Original target is invalid.");
-    const current = documents.current(frame.id, url);
-    if (!current || current.generation !== loaded.generation || current.hash !== loaded.hash) throw new Error("Canvas navigated during target validation.");
-    const checked: Target = {};
-    if (candidate.frame) checked.frame = candidate.frame.id;
-    if (candidate.element) checked.element = candidate.element;
-    return { generation: loaded.generation, hash: loaded.hash, target: checked };
-  };
-
   return {
-    commentDocument,
-    async documentCurrent(identity, url, origin) {
-      try {
-        const current = await commentDocument(identity, url, origin.target);
-        return current.generation === origin.generation && current.hash === origin.hash;
-      } catch { return false; }
-    },
     inspect(selector) {
       // The budget counts from the call, so time spent waiting in the queue counts too.
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -234,33 +203,4 @@ export function createInspector(dbg: DebuggerLike, tokenBase: () => string, docu
       return result;
     },
   };
-}
-
-// Runs only in the verified direct-child canvas's CDP execution context.
-function readCommentTarget(target: Target): Omit<Selection, "root" | "canvas"> | null {
-  const result: Omit<Selection, "root" | "canvas"> = {};
-  let frame: Element | undefined;
-  if (target.frame) {
-    const matches = [...document.querySelectorAll("[data-doan-frame]")].filter(node => node.getAttribute("data-doan-frame") === target.frame);
-    if (matches.length !== 1) return null;
-    frame = matches[0];
-    result.frame = { id: target.frame };
-  }
-  if (target.element) {
-    const original = target.element;
-    let nodes: Element[] = [];
-    if (original.doanId) nodes = [...document.querySelectorAll("[data-doan-id]")].filter(node => node.getAttribute("data-doan-id") === original.doanId);
-    if (nodes.length !== 1) {
-      try { nodes = [...document.querySelectorAll(original.selector)]; } catch { return null; }
-    }
-    const node = nodes[0];
-    if (nodes.length !== 1 || !node || (frame && !frame.contains(node))) return null;
-    const html = [...node.outerHTML];
-    const text = [...(node.textContent ?? "").replace(/\s+/g, " ").trim()].slice(0, 500).join("");
-    result.element = { selector: original.selector, html: html.slice(0, 2000).join("") };
-    if (text) result.element.text = text;
-    if (html.length > 2000) result.element.truncated = true;
-    if (original.doanId && [...document.querySelectorAll("[data-doan-id]")].filter(candidate => candidate.getAttribute("data-doan-id") === original.doanId).length === 1) result.element.doanId = original.doanId;
-  }
-  return result;
 }

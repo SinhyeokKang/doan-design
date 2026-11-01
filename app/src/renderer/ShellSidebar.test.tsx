@@ -2,10 +2,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, test, vi } from "vitest";
 import { projectSlot, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
-const row = { path: ".doan/canvases/folder/canvas.html", url: "u", open: 2, resolved: 0, frames: [{ id: "hidden-frame" }] };
+const row = { path: ".doan/canvases/folder/canvas.html", url: "u", frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
-  const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, commentsError: { code: "bad", message: "Unreadable" } }] } : entry;
+  const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, error: { code: "bad", message: "Unreadable" } }] } : entry;
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
 }
 it("renders project to canvas IA, locks current expansion, and keeps the branch passive", () => {
@@ -24,16 +24,15 @@ it("shows only the remembered worktree and keeps other projects collapsed", () =
   expect(render(null, "/other", true)).toContain("No canvases yet");
   expect(render(null, "/other", true)).not.toContain('aria-label="canvas"');
 });
-it("preserves the individual comments error instead of showing a zero count", () => {
+it("shows an unreadable canvas's sentence and Details under its row", () => {
   const html = render("/repo", "/repo", true, true);
-  expect(html).toContain("Couldn’t read this canvas’s comments — run doan check");
+  expect(html).toContain("Can&#x27;t read this canvas — run doan check");
   expect(html).toContain('aria-label="Details"');
 });
 
-it("describes a positive open-comment count without fabricating counts on read failure", () => {
-  expect(render("/repo")).toContain("2 open comments");
-  expect(render("/repo", "/repo", true, true)).not.toContain("2 open comments");
-  expect(render("/repo", "/repo", true, true)).not.toContain("0 open comments");
+// buzz-canvas-conversation: comment counts are no longer part of a canvas row's description.
+it("does not describe a canvas row by its open comments", () => {
+  expect(render("/repo")).not.toContain("open comment");
 });
 
 it("does not mark a canvas or Overview current for an unlisted iframe destination", () => {
@@ -75,7 +74,7 @@ it("keeps every thumbnail letter readable on its tint, for the sidebar's 10px le
 // a row (before a project's menu), and an added project's row flashes.
 test("on Home no row is current; the slot shows a permission hand, a spinner or an unseen Dot with its label", () => {
   const Sidebar = ShellSidebar;
-  const canvas = { path: ".doan/canvases/a.html", url: "u", open: 0, resolved: 0 };
+  const canvas = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = [{ path: "/a", kind: "list", servedRev: 0, canvases: [canvas] }, { path: "/b", kind: "list", servedRev: 0, canvases: [] }];
   const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {} };
   const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
@@ -98,7 +97,7 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
 
 // design-system-canvases design 'sidebar' (Q6–Q8): two groups under an expanded, listed project.
 function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, { kind: "permission" | "working" | "unseen"; label: string }>; entry?: FolderEntry } = {}) {
-  const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name, open: 0, resolved: 0 })) };
+  const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
     search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
 }

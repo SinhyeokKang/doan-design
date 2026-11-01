@@ -66,7 +66,7 @@ code, kbd { font-family: var(--type-family); }
 .area { position: relative; overflow: hidden; background: var(--surface-inset); }
 .board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board iframe { display: block; border: 0; }
-/* Keep pin focus ordering inside the overlay, below canvas chrome. */
+/* Keep the overlay's marks below canvas chrome. */
 .overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
@@ -119,135 +119,13 @@ code, kbd { font-family: var(--type-family); }
 /* Short attribute labels stay fully readable at the fixed panel width. */
 .doan-attributes .prop { overflow: visible; text-overflow: clip; }
 
-/* Presentation values from .doan/canvases/comments-ui.html; integration owns the panel split. */
-/* Size containment lets a short panel shrink the input by its own height, not the window's. */
-.comments-panel { width: 100%; min-width: 0; min-height: 0; overflow: auto; background: var(--surface-panel); overflow-wrap: anywhere; container-type: size; }
-.comments-head { padding: 12px; border-bottom: 1px solid var(--border-standard); }
-/* A direct child of the scrolling panel: a sticky title inside .comments-head would leave with the head. */
-.comments-title { position: sticky; top: 0; z-index: 1; background: var(--surface-panel); font-size: 12px; font-weight: 700; padding: 12px 12px 10px; }
-.comments-title:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
-.comments-title + .comments-head { padding-top: 0; }
-.comments-title.alone { padding-bottom: 12px; border-bottom: 1px solid var(--border-standard); }
-.comments-segment { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border-standard); border-radius: 7px; margin-bottom: 8px; }
-.comments-segment button { flex: 1; min-width: 0; padding: 5px 7px; font-size: 11.5px; border-radius: 4px; color: var(--text-metadata); }
-.comments-segment button[aria-pressed=true] { color: var(--text-standard); background: var(--surface-navigation-selected); }
 /* These buttons set a colour at the same specificity as button:disabled and come later, so they restate disabled. */
-:is(.ancestors, .comments-segment, .comments-status) button:disabled { color: var(--text-disabled); }
-/* A dialog action row takes its spacing from the dialog frame instead. */
-.comments-tools:not(.doan-dialog-actions) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-/* A label longer than the narrow panel stays inside it. */
-.comments-btn { max-width: 100%; }
-/* Saving a comment is the one button that carries the accent. */
-.comments-btn.primary.submit { background: var(--affordance-accent); color: var(--text-on-accent); }
-@media (hover: hover) and (pointer: fine) {
-  .comments-btn.primary.submit:hover:not(:disabled) { background: var(--affordance-accent-hover); }
-}
-.comments-btn.primary.submit:active:not(:disabled) { background: var(--affordance-accent-pressed); }
-.comments-btn.primary.submit:disabled { background: var(--affordance-disabled); color: var(--text-disabled); }
-.comments-card { padding: 12px; border-bottom: 1px solid var(--border-standard); }
-.comments-author { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
-.comments-avatar { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--surface-inset); color: var(--text-subtle); display: grid; place-items: center; font-size: 10px; font-weight: var(--type-weight-semibold); }
-.comments-by { min-width: 0; flex: 1; }
-.comments-by b { display: block; font-size: 11.5px; font-weight: var(--type-weight-semibold); overflow-wrap: anywhere; }
-.comments-by time, .comments-email { display: block; font-size: 10px; color: var(--text-metadata); line-height: 1.5; overflow-wrap: anywhere; }
-.comments-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 8px 0 10px; }
-/* One line with an ellipsis; the full selector is in title. */
-.comments-target { display: block; max-width: 100%; color: var(--text-subtle); font-size: 10.5px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 6px; text-align: left; }
-/* Only a locatable target is a button; the unlocatable twin is a span, so the button:disabled colour never reaches it. */
-.comments-target.locatable { color: var(--text-link); width: 100%; text-decoration: underline; text-underline-offset: 2px; }
-.comments-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
-.comments-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 1px 5px; border: 1px solid var(--border-standard); border-radius: 4px; color: var(--text-metadata); }
-.comments-badge.open { color: var(--text-standard); font-weight: var(--type-weight-medium); }
-.comments-badge.warning { color: var(--text-warning); }
-.comments-badge.resolved { color: var(--text-success); }
-.comments-badge-note { font-size: 10px; line-height: 1.5; color: var(--text-metadata); padding: 2px 0; }
-/* Values from .doan/canvases/revision-recheck.html (resolution-meta, status-lines). */
-.comments-resolution { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 6px 0 0; overflow-wrap: anywhere; }
-.comments-resolution b { font-weight: 500; color: var(--text-subtle); }
-.comments-status { padding: 10px 12px; border-bottom: 1px solid var(--border-standard); font-size: 11.5px; line-height: 1.6; color: var(--text-subtle); }
-/* Values from .doan/canvases/revision-recheck.html (status-lines Show, missing-target). */
-.comments-status button { border: 0; background: transparent; color: var(--text-link); font-size: 11.5px; text-decoration: underline; text-underline-offset: 2px; margin-left: 4px; }
-.comments-tools.instead { margin-top: 6px; }
-.comments-btn.danger { color: var(--text-danger); }
-.comments-message { padding: 12px; font-size: 11.5px; line-height: 1.6; color: var(--text-subtle); border-bottom: 1px solid var(--border-standard); overflow-wrap: anywhere; }
-.comments-message b { display: block; color: var(--text-standard); margin-bottom: 4px; font-size: 12px; }
-/* A failure the panel can recover from is a status block; its icon, not colour alone, names the kind. */
-.comments-message:is(.error, .warning):not(.notice) { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); margin: var(--space-3); padding: var(--space-6) var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); text-align: center; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.comments-message:is(.error, .warning):not(.notice) b { margin: 0; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
-.comments-message:is(.error, .warning):not(.notice) .comments-tools { justify-content: center; gap: var(--space-2); margin-top: 0; }
-.comments-message.error > .doan-alert-icon { color: var(--text-danger); }
-.comments-message.warning > .doan-alert-icon { color: var(--text-warning); }
-.comments-message > .doan-alert-icon { margin: 0; }
-/* The id-change notice is one line in the panel head, so its icon stays inline with the text. */
-.comments-message.notice > .doan-alert-icon { display: inline-block; vertical-align: -3px; margin-right: var(--space-1h); color: var(--text-warning); }
-.comments-message .comments-tools { margin-top: 10px; }
-.comments-message .detail { padding: var(--space-2) var(--space-3); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); text-align: start; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* The ignored-change list reads as a list, not as part of the centred block. */
-.comments-warnings ul { align-self: stretch; text-align: start; }
-.comments-warnings li { margin-top: 6px; }
-.comments-warnings .lines { display: block; color: var(--text-metadata); font-size: 10.5px; }
-.comments-warnings .file { margin-top: 8px; color: var(--text-metadata); }
-.comments-composer { padding: 12px; border-bottom: 1px solid var(--border-standard); }
-.comments-composer label { display: block; font-size: 11.5px; margin: 0 0 8px; }
-.comments-composer label > .comments-target { margin-top: 8px; }
-.comments-composer textarea { display: block; min-height: 104px; resize: none; margin: 8px 0; }
-@container (max-height: 359px) { .comments-composer textarea { min-height: 64px; } }
-.comments-helper { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); margin: 8px 0; overflow-wrap: anywhere; }
-/* Dialog paragraphs read as the dialog description; the frame spaces them. */
-.comments-dialog p:not(.doan-notice) { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-/* Values from .doan/canvases/agent-handoff.html (dialog, dialog-states, copy-states). The list
-   shrinks first and the preview has its own cap; in a window too short for both, the
-   dialog itself scrolls so Cancel and Copy stay reachable. */
-.handoff-dialog { overflow: auto; }
-/* Copy moves focus here while its button is disabled; the dialog itself is not a control. */
-.handoff-dialog:focus { outline: none; }
-.handoff-dialog .handoff-context { font-size: 11.5px; color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-quick { display: flex; gap: 6px; }
-.handoff-list { position: relative; flex: 0 1 auto; min-height: 44px; max-height: 352px; border: 1px solid var(--border-standard); border-radius: 7px; background: var(--surface-panel); }
-.handoff-row { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px; border-bottom: 1px solid var(--border-standard); cursor: pointer; }
-.handoff-row:last-child { border-bottom: 0; }
-.handoff-row input { flex: none; }
-.handoff-row input:disabled + .handoff-text > * { color: var(--text-metadata); }
-.handoff-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.handoff-target { color: var(--text-subtle); font-size: 10.5px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-body { color: var(--text-standard); font-size: 12px; line-height: 1.5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.handoff-instruction { font-size: 11.5px; color: var(--text-subtle); }
-.handoff-instruction summary { cursor: pointer; width: max-content; }
-.handoff-instruction summary:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
-.handoff-preview { margin-top: 8px; max-height: 160px; overflow: auto; padding: 10px; border: 1px solid var(--border-standard); border-radius: 6px; background: var(--surface-panel); color: var(--text-subtle); font: 11.5px/1.6 var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
-.handoff-actions { flex: none; }
-.handoff-actions .comments-helper { flex: 1; margin: 0; }
-.handoff-summary { font-size: 10.5px; color: var(--text-metadata); white-space: nowrap; }
-/* Values from .doan/canvases/revision-recheck.html (review-notice, review-bar, review-done). */
-.review-banner { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 12px; border-bottom: 1px solid var(--border-standard); background: var(--surface-inset); font-size: 11.5px; color: var(--text-subtle); }
-/* The text ellipsizes before the buttons shrink. */
-.review-banner .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review-banner .text b { font-weight: var(--type-weight-semibold); color: var(--text-standard); }
-.review-help { padding: 0 12px 6px; margin: 0; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
-/* Stuck right under the sticky Comments title (37 px tall) while the list scrolls under it. */
-.review-bar { position: sticky; top: 37px; z-index: 1; padding: 10px 12px 12px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
-.review-step { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.review-step output { flex: 1; font-size: 11.5px; font-weight: var(--type-weight-semibold); color: var(--text-standard); }
-/* Not shrunk by a long summary beside it: the text is the part that ellipsizes. */
-.review-close { flex: none; }
-.review-bar .comments-target { margin-bottom: 2px; }
-.review-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; margin: 4px 0 6px; }
-.review-meta { font-size: 10.5px; line-height: 1.5; color: var(--text-metadata); overflow-wrap: anywhere; }
-.review-flag { font-size: 11px; line-height: 1.5; color: var(--text-subtle); margin: 6px 0 0; }
-.review-flag.warn { color: var(--text-warning); }
-.review-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.review-nav { display: flex; gap: 6px; margin-top: 8px; }
-.review-nav .review-next { margin-left: auto; }
+.ancestors button:disabled { color: var(--text-disabled); }
 
 .right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
 .right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--border-standard); }
-.right-stack > .comments-panel { min-height: 160px; flex: 1 1 0; }
 
 .right-stack > .right:only-child { flex: 1; border-bottom: 0; }
-
-/* Pins sit on whatever an agent drew: the dark rim holds on light canvases, the white halo on dark ones. */
-.comment-pin { z-index: 2; border: 1px solid var(--border-pin); background: var(--affordance-accent); color: var(--text-on-accent); font: var(--type-weight-medium) var(--type-caption-size)/22px var(--type-family); text-align: center; box-shadow: 0 0 0 2px var(--halo-pin), var(--shadow-xs); }
-.comment-pin:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; box-shadow: 0 0 0 4px var(--halo-pin); z-index: 3; }
 
 /* Onboarding (.doan/canvases/buzz-onboarding.html). The first run covers the window as a modal dialog; its text is
    set without the shell's tabular figures, which widened the stepper's "1" by 3px against the draft. The app
@@ -348,7 +226,12 @@ code, kbd { font-family: var(--type-family); }
 .ob-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
 .ob-projects { margin-bottom: var(--space-6); }
 .ob-choice-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
-.ob-choice { position: relative; cursor: pointer; }
+.ob-choice { position: relative; align-items: flex-start; cursor: pointer; }
+/* The shared choice card's radio (buzz-canvas-conversation design §0): 16px, centred on the title's first line, so it
+   stays there when the title wraps; on, it takes the checkbox's fill and a 6px dot. */
+.ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
+.ob-choice:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.ob-choice:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
 /* The radio stays in the tab order for arrows and Space; the card shows its state and focus instead. */
 .ob-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .ob-choice:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
@@ -388,7 +271,7 @@ code, kbd { font-family: var(--type-family); }
 .ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
 .ob-actions { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
 .ob-actions .ob-helper { flex: 1; }
-/* The replace confirmation and the project setup dialog share the comments dialog surface. */
+/* The replace confirmation and the project setup dialog share this dialog surface. */
 .ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .ob-dialog .ob-card { width: auto; }
 
@@ -607,8 +490,15 @@ body:has(.shell-top) { background: transparent; }
 .composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
 .composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
 /* Grows with the text up to eight lines, then scrolls inside the card (design §4.1). */
-.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; resize: none; field-sizing: content; overflow-y: auto; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
-.composer-input::placeholder { color: var(--text-metadata); }
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+/* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
+   by the field's padding. */
+.composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+/* Inline anchor chips (buzz-canvas-conversation design §0, confirmed draft; 180px and 6px are component constants with no
+   token). contenteditable=false keeps the caret before or after a chip, never inside. */
+.anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
+.anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
+.anchor-chip span:not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-card.readonly .composer-input { color: var(--text-subtle); }
 .composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 .composer-count.over { color: var(--text-danger); }
@@ -697,9 +587,9 @@ body:has(.shell-top) { background: transparent; }
 .docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
 .docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
 .docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
-/* field-sizing sizes the empty field to its placeholder: a wrapped placeholder made the empty capsule taller than one
-   with a typed character. Chromium draws no text-overflow on a textarea placeholder, so a long one is clipped. */
-.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; }
+/* A wrapped placeholder made the empty capsule taller than one with a typed character; one line keeps both the same,
+   and the ellipsis shows the narrow panel cut the hint rather than ending it. */
+.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
 /* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
 .docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
@@ -891,12 +781,12 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .ask-answered { color: var(--text-subtle); }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
-.conversation-thread .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
-.conversation-thread .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
 /* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
-.conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
 /* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
-.conversation-thread .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
 .conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
@@ -1054,6 +944,61 @@ body:has(.shell-top) { background: transparent; }
 .doan-conv-head .doan-icon-button { color: var(--text-standard); }
 .doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
 .doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* buzz-canvas-conversation: the panel's content (.doan/canvases/buzz-canvas-conversation.html panel-*). The title is the
+   conversation menu with the close button at its end; the thread scrolls under it and the composer stays at the bottom. */
+.doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
+.doan-conv-title .ov-title.doan-button { max-width: 100%; }
+.doan-conv-body:has(> .doan-conv-content) { padding: 0; align-items: stretch; justify-content: stretch; }
+.doan-conv-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.cp-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-2) var(--space-4) 0; }
+.cp-scroll:has(> .conversation-thread) { padding: 0; }
+.cp-scroll > .conversation-thread { flex: 1; min-height: 0; }
+/* A conversation still loading or that cannot be read has no thread-scroll to inset its row: the row takes the
+   thread's side insets and sits in the middle of the panel body instead of touching the panel edges at the top. */
+.cp-scroll > .conversation-thread:has(> :is(.thread-loading, .thread-notice)) { justify-content: center; padding: var(--space-2) var(--space-4) 0; }
+.cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) 0; }
+.doan-conv-panel .conversation-thread .thread { gap: var(--space-3); }
+.doan-conv-panel .msg-user { max-width: 92%; }
+.doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.cp-foot { flex: none; padding: var(--space-3); }
+.cp-resume { margin-top: auto; margin-bottom: var(--space-1); }
+/* A reason whose action label is long puts the action under the text, so the text keeps the row's width. */
+.docked-reason.reason-stack { flex-wrap: wrap; }
+.docked-reason.reason-stack > span { flex-basis: 100%; }
+/* A terminal session sets its own model and effort: the same triggers without chevrons, not interactive. */
+.composer-tray .doan-button.is-fixed { cursor: default; }
+/* News on the folded panel's open button: the sidebar slot's unseen dot (design §2 'News dot'). */
+.doan-icon-button[data-badge="true"] { position: relative; }
+.doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
+/* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
+.bubble .anchor-chip { background: var(--surface-panel); }
+button.anchor-chip { cursor: pointer; }
+button.anchor-chip[aria-disabled="true"] { cursor: default; }
+/* Chip locate (buzz-canvas-conversation design §2): a chip in the composer's field locates too, so it points as a
+   thread chip does; a target that is gone gets the metadata line under its message or composer. */
+.composer-input .anchor-chip { cursor: pointer; }
+.chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.mark.jump-highlight.jump-point { border-radius: 50%; }
+/* The composer's note sits under its chip, over the card, without entering the field's DOM. */
+.chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }
+/* Pick from canvas (design §2 'Picker'): the left end of the model row; the picking hint is the agent notice's capsule
+   with an outlined Esc key, and the board shows a crosshair (the canvas script sets the one over the canvas). */
+.docked .composer-tray .composer-pick { margin-right: auto; color: var(--text-subtle); }
+.composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.docked .composer-tray .composer-pick[aria-disabled="true"] { color: var(--text-disabled); }
+/* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
+   look here: without it the terminal session's Attach and an unavailable Add to conversation read as working buttons. */
+.docked .composer-tools > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
+:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) { :is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
+:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
+/* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
+.doan-agent.doan-picking { padding-right: var(--space-2); }
+.doan-picking-esc.doan-kbd { background: transparent; color: var(--text-on-prominent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-prominent) 45%, transparent); }
+.area[data-picking] { cursor: crosshair; }
+/* A permission answer that did not reach the agent, under its request's choices. */
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 /* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar
    fading at both ends, shown on hover, while dragging and on keyboard focus (malmoi components/ui/resizable.tsx and its
    DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */

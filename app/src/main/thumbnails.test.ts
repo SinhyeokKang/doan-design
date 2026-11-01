@@ -111,7 +111,7 @@ function fixture(canvases = [".doan/canvases/a.html", ".doan/canvases/b.html"]):
 }
 
 function row(path: string, width: number | null = 1280): CanvasRow {
-  return { path, open: 0, resolved: 0, url: `http://127.0.0.1:1/t/tok/k/${path}`, ...(width === null ? {} : { width }) };
+  return { path, url: `http://127.0.0.1:1/t/tok/k/${path}`, ...(width === null ? {} : { width }) };
 }
 
 function bump(f: Fixture): FolderEntry[] {

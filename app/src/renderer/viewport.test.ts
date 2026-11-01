@@ -1,9 +1,9 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, it, test } from "vitest";
 import {
   boardRectToScreen,
+  elementView,
   FIRST_LAYOUT_TIMEOUT_MS,
   FIT_INSET,
-  FIT_MARGIN,
   FIT_SCALE_MAX,
   LINE_PX,
   MAX_SCALE,
@@ -16,7 +16,6 @@ import {
   boardToScreen,
   fitFrame,
   fitWidth,
-  locateView,
   panBy,
   screenToBoard,
   wheelAction,
@@ -34,7 +33,6 @@ describe("constants", () => {
     expect(ZOOM_LIMITS).toEqual({ min: 0.05, max: 4 });
     expect(ZOOM_STEP).toBe(1.25);
     expect(WHEEL_ZOOM_MAX).toBe(1.25);
-    expect(FIT_MARGIN).toBe(32);
     expect(FIT_INSET).toEqual({ top: 56, right: 32, bottom: 64, left: 32 });
     expect(FIT_SCALE_MAX).toBe(1);
     expect(FIRST_LAYOUT_TIMEOUT_MS).toBe(5000);
@@ -309,45 +307,41 @@ describe("boardRectToScreen", () => {
   });
 });
 
-describe("locateView", () => {
-  const current: View = { x: -200, y: -3000, scale: 0.5 };
+describe("elementView", () => {
+  const viewport = { width: 800, height: 600 };
+  const inset = { top: 10, right: 20, bottom: 30, left: 40 };
+  const safe = { x: 40, y: 10, width: 740, height: 560 };
+  const center = (view: { x: number; y: number; scale: number }, rect: { x: number; y: number; width: number; height: number }) =>
+    ({ x: view.x + (rect.x + rect.width / 2) * view.scale, y: view.y + (rect.y + rect.height / 2) * view.scale });
 
-  test("keeps the scale and centers a rect smaller than the viewport", () => {
-    const rect = { x: 400, y: 9000, width: 200, height: 100 };
-    const moved = locateView(rect, viewport, current);
-    expect(moved.scale).toBe(0.5);
-    const center = boardToScreen(moved, { x: 500, y: 9050 });
-    expect(center.x).toBeCloseTo(500);
-    expect(center.y).toBeCloseTo(400);
+  it("keeps the scale and centres an element that fits", () => {
+    const rect = { x: 1000, y: 2000, width: 100, height: 50 };
+    const view = elementView(rect, viewport, inset, { x: 0, y: 0, scale: 2 });
+    expect(view.scale).toBe(2);
+    expect(center(view, rect)).toEqual({ x: safe.x + safe.width / 2, y: safe.y + safe.height / 2 });
   });
 
-  test("aligns a rect taller than the viewport to the top, still centered across", () => {
-    const rect = { x: 0, y: 2000, width: 1200, height: 4000 };
-    const moved = locateView(rect, viewport, current);
-    expect(moved.scale).toBe(0.5);
-    expect(boardToScreen(moved, { x: 0, y: 2000 }).y).toBeCloseTo(FIT_MARGIN);
-    expect(boardToScreen(moved, { x: 600, y: 2000 }).x).toBeCloseTo(500);
+  it("zooms out until a larger element fits whole, by its tighter side", () => {
+    const rect = { x: 0, y: 0, width: 1480, height: 280 };
+    const view = elementView(rect, viewport, inset, { x: 5, y: 5, scale: 1 });
+    expect(view.scale).toBe(0.5);
+    expect(center(view, rect)).toEqual({ x: safe.x + safe.width / 2, y: safe.y + safe.height / 2 });
+    expect(elementView({ x: 0, y: 0, width: 100, height: 1120 }, viewport, inset, { x: 0, y: 0, scale: 1 }).scale).toBe(0.5);
   });
 
-  test("centers a rect wider than the viewport whose height fits", () => {
-    const moved = locateView({ x: 0, y: 100, width: 5000, height: 200 }, viewport, current);
-    const center = boardToScreen(moved, { x: 2500, y: 200 });
-    expect(center.x).toBeCloseTo(500);
-    expect(center.y).toBeCloseTo(400);
+  it("never zooms in, and never below the minimum scale", () => {
+    expect(elementView({ x: 0, y: 0, width: 10, height: 10 }, viewport, inset, { x: 0, y: 0, scale: 0.2 }).scale).toBe(0.2);
+    expect(elementView({ x: 0, y: 0, width: 1e9, height: 10 }, viewport, inset, { x: 0, y: 0, scale: 1 }).scale).toBe(MIN_SCALE);
   });
 
-  test("centers the point of a zero-size rect", () => {
-    for (const rect of [{ x: 700, y: 300, width: 0, height: 0 }, { x: 700, y: 300, width: 0, height: 50 }]) {
-      const moved = locateView(rect, viewport, current);
-      expect(moved.scale).toBe(0.5);
-      const center = boardToScreen(moved, { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 });
-      expect(center.x).toBeCloseTo(500);
-      expect(center.y).toBeCloseTo(400);
-    }
+  it("centres a point (a zero-size rect) at the current scale", () => {
+    const view = elementView({ x: 300, y: 400, width: 0, height: 0 }, viewport, inset, { x: 0, y: 0, scale: 1.5 });
+    expect(view.scale).toBe(1.5);
+    expect(center(view, { x: 300, y: 400, width: 0, height: 0 })).toEqual({ x: 410, y: 290 });
   });
 
-  test("keeps the view for a rect that is not finite", () => {
-    expect(locateView({ x: Number.NaN, y: 0, width: 10, height: 10 }, viewport, current)).toEqual(current);
-    expect(locateView({ x: 0, y: 0, width: Number.POSITIVE_INFINITY, height: 10 }, viewport, current)).toEqual(current);
+  it("keeps the view for values that aren't finite", () => {
+    const current = { x: 1, y: 2, scale: 1 };
+    expect(elementView({ x: Number.NaN, y: 0, width: 1, height: 1 }, viewport, inset, current)).toBe(current);
   });
 });

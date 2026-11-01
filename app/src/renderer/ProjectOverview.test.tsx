@@ -5,6 +5,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import { textSegments } from "./anchorField";
 import { DockedSupport } from "./dockedSupport";
 import type { PresetSummary } from "./homeComposer";
 import { OverviewRun, type ListView, type OverviewRunHost } from "./overviewRun";
@@ -15,7 +16,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 
 const ROOT = "/code/doan", WT = "/code/doan-checkout";
 const A = "aaaaaaaa-0000-4000-8000-000000000001";
-const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u", open: 0, resolved: 0 });
+const row = (path: string): CanvasRow => ({ path, id: path.split("/").at(-1)!.replace(/\.html$/, ""), url: "u" });
 const entry = (path: string, canvases: string[], branch = "main"): FolderEntry => ({ kind: "list", path, servedRev: 0, canvases: canvases.map(row), git: { branch, common: "/code/doan/.git" } } as FolderEntry);
 const summary = (patch: Partial<ConversationSummary> = {}): ConversationSummary => ({
   conversationId: A, title: "What should the checkout empty state say when a cart has expired?", state: "current", owner: "doan", provider: "claude",
@@ -129,15 +130,17 @@ test("switching conversations draws each one's own draft and title at once", () 
   let run!: OverviewRun;
   const first = render(list, {}, r => {
     run = r; r.sync();
-    r.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { text: "for A", anchors: [], preset: null, attachments: [], shape: "capsule" }).set(`conversation:${B}`, { text: "for B", anchors: [], preset: null, attachments: [], shape: "capsule" }));
+    r.setDrafts(drafts => new Map(drafts).set(`conversation:${A}`, { segments: textSegments("for A"), preset: null, attachments: [], shape: "capsule" }).set(`conversation:${B}`, { segments: textSegments("for B\nand more"), preset: null, attachments: [], shape: "box" }));
   });
-  expect(first).toContain(">for A</textarea>");
+  // The field's text is drawn by ChipField once mounted, so static markup shows the draft through its shape; the
+  // switch within one render is DockedComposer.interaction's "each conversation keeps its own draft".
+  expect(first).toContain('class="docked" data-shape="capsule"');
   const second = render(list, {}, r => {
     r.sync();
-    r.drafts = run.drafts;
+    r.setDrafts(() => run.drafts);
     r.select(ROOT, B);
   });
-  expect(second).toContain(">for B</textarea>");
+  expect(second).toContain('class="docked" data-shape="box"');
   expect(second).toContain("<span>Ideas for onboarding</span>");
   expect(second).not.toContain("for A");
 });
@@ -165,14 +168,15 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
   expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
   expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
-  expect(css).toContain(".conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
-  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
+  // The canvas panel's notices above its composer read the same (buzz-canvas-conversation).
+  expect(css).toContain(".conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, \.cp-scroll > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
 
 // runtime-test (buzz-project RT): at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule
 // (field 48px, docked 120px) and the first typed character dropped it to one (24/104). One line keeps both the same.
-test("the capsule's placeholder stays on one line", async () => {
+test("the capsule's placeholder stays on one line and ends in an ellipsis", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  expect(css).toContain('.docked[data-shape="capsule"] .composer-input::placeholder { overflow: hidden; white-space: nowrap; }');
+  expect(css).toContain('.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }');
 });

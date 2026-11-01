@@ -1,0 +1,8 @@
+{
+  "id": "R8",
+  "title": "Apply an app-sent turn with element and point anchors while doan active holds another selection",
+  "focus": "active",
+  "init": null,
+  "selection": "selection.json",
+  "timeoutSec": 900
+}

@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
+import { textSegments } from "./anchorField";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { DockedComposer, type DockedComposerProps } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
@@ -23,10 +24,11 @@ const PICKER: ModelPickerView = {
 };
 const MODE = { kind: "existing", conversationId: "c1", provider: "claude" } as const;
 const ok = async () => ({ ok: true as const });
-function render(patch: Partial<DockedComposerProps> = {}, draft: Partial<DockedDraft> = {}) {
+// `text` is typed text only; the field draws no children in static markup (ChipField draws them once mounted).
+function render(patch: Partial<DockedComposerProps> = {}, { text, ...draft }: Partial<DockedDraft> & { text?: string } = {}) {
   const props: DockedComposerProps = {
     mode: MODE, project: "doan-design", homeDirectory: "/Users/ada", placeholder: "Reply, / for presets",
-    drafts: new Map([[draftKey(patch.mode ?? MODE), { ...EMPTY_DRAFT, ...draft }]]), onDrafts: () => {},
+    drafts: new Map([[draftKey(patch.mode ?? MODE), { ...EMPTY_DRAFT, ...(text === undefined ? {} : { segments: textSegments(text) }), ...draft }]]), onDrafts: () => {},
     auth: AUTH, picker: PICKER, provider: "claude", effort: "high",
     onPickerOpen: () => {}, onPickModel: () => {}, onPickEffort: () => {}, onSettings: () => {},
     presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: () => {},
@@ -53,8 +55,8 @@ test("an existing conversation names its model with the fixed provider, on xs bu
   const html = render();
   expect(html).toMatch(/class="composer-agent doan-button" data-ui-size="xs" data-ui-variant="trigger" aria-label="Model: Opus 5.5 \(Claude Code\)"/);
   expect(html).toMatch(/class="composer-effort doan-button" data-ui-size="xs"/);
-  expect(html).toContain('placeholder="Reply, / for presets"');
-  expect(html).toContain('rows="1"');
+  expect(html).toContain('aria-placeholder="Reply, / for presets"');
+  expect(html).toContain('class="composer-input" aria-label="Message" tabindex="0" contentEditable="true"');
 });
 
 test("new-conversation mode keeps Home's agent label", () => {
@@ -96,8 +98,47 @@ test("an archived conversation whose canvas is gone shows the line instead of th
   expect(html).toContain("This conversation’s canvas is no longer in doan-design, so it can’t continue.");
 });
 
+test("an anchor chip in the text makes the box, as an attachment chip does", () => {
+  const html = render({}, { segments: [{ kind: "text", text: "Make " }, { kind: "chip", anchor: { frame: { id: "payment", title: "Payment" } } }], shape: "capsule" });
+  expect(html).toContain('data-shape="box"');
+  expect(render({}, { text: "Make it quieter", shape: "capsule" })).toContain('data-shape="capsule"');
+});
+
 test("a chip makes the box and draws the chip row before the field", () => {
   const html = render({}, { attachments: [{ key: "k", id: "a", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }], shape: "box" });
   expect(html).toContain('data-shape="box"');
   expect(html.indexOf("composer-chips")).toBeLessThan(html.indexOf("composer-input"));
+});
+
+// buzz-canvas-conversation design §2 'Picker': Pick from canvas at the left end of the model row, pressed while the
+// canvas picks; unavailable with aria-disabled (not disabled) so its reason shows as a tooltip.
+test("the canvas panel's composer draws Pick from canvas first in the model row", () => {
+  const html = render({ pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
+  expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
+  expect(render({ pick: { pressed: true, enabled: true, reason: null, onToggle: () => {} } })).toContain('aria-label="Pick from canvas" aria-pressed="true"');
+  const off = render({ pick: { pressed: false, enabled: false, reason: "Pick from canvas isn’t available while the canvas can’t be shown.", onToggle: () => {} } });
+  expect(off).toMatch(/aria-label="Pick from canvas" aria-pressed="false" aria-disabled="true"/);
+  expect(off).not.toMatch(/composer-pick"[^>]*disabled=""/);
+  expect(render()).not.toContain("composer-pick");
+});
+
+test("a terminal session's composer keeps Pick from canvas before its fixed triggers", () => {
+  const html = render({ fixed: true, pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
+  expect(html.indexOf("composer-pick")).toBeGreaterThan(-1);
+  expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
+});
+
+// design §2 'Chip field': a draft that points at 32 places shows the reason line under the composer, whatever was
+// pressed; removing one place takes it away (Pick from canvas, Add and ⌘L stay unavailable meanwhile, App's part).
+test("a draft at 32 places shows the limit line under the composer until a chip goes", () => {
+  const chips = (n: number) => Array.from({ length: n }, (_, i) => ({ kind: "chip" as const, anchor: { frame: { id: `frame-${i}` } } }));
+  const pick = { pressed: false, enabled: false, reason: "A message can point at up to 32 places. Remove one to add another.", onToggle: () => {} };
+  const line = '<div class="composer-reason docked-reason" role="status"><span>A message can point at up to 32 places. Remove one to add another.</span></div>';
+  expect(render({ pick }, { segments: chips(32) })).toContain(line);
+  // The same place twice counts once.
+  expect(render({ pick: { ...pick, enabled: true, reason: null } }, { segments: [...chips(31), ...chips(1)] })).not.toContain(line);
+  expect(render({ pick: { ...pick, enabled: true, reason: null } }, { segments: chips(31) })).not.toContain(line);
+  // Only the canvas panel's composer takes chips from the canvas.
+  expect(render({}, { segments: chips(32) })).not.toContain(line);
 });
