@@ -1,5 +1,6 @@
 import { LIMITS } from "../main/conversation/messageText";
 import type { Anchor } from "../main/conversation/types";
+import type { SelectTarget } from "./canvasMessage";
 
 // Pick from canvas and chip locate (buzz-canvas-conversation design §2 'Picker', 'Chip locate').
 
@@ -36,6 +37,15 @@ export function pointAnchor(click: { x: number; y: number }, frames: readonly Pi
   if (!best) return null;
   const dx = Math.round(click.x - best.x), dy = Math.round(click.y - best.y);
   return { frame: { id: best.id, ...(best.title ? { title: best.title } : {}) }, point: { frameId: best.id, dx, dy } };
+}
+
+// A picked or selected frame or element as a chip's anchor: only what an agent can find in the HTML. null: neither.
+export function targetAnchor(target: Omit<SelectTarget, "rect">): Anchor | null {
+  const frame = target.frame && { id: target.frame.id, ...(target.frame.title === undefined ? {} : { title: target.frame.title }) };
+  if (!target.element) return frame ? { frame } : null;
+  const { doanId, selector, text } = target.element;
+  const element = { ...(doanId === undefined ? {} : { doanId }), selector, ...(text === undefined ? {} : { text }), tag: target.tag };
+  return frame ? { frame, element } : { element };
 }
 
 // The canvas script's anchors reply for one chip: candidate nodes per lookup and the rects of those nodes.

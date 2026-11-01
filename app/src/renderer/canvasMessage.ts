@@ -126,7 +126,13 @@ export interface AnchorsMessage {
   rects: (PinGeometry & { node: string })[];
 }
 
-export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage;
+// The canvas's answer to the app's pick (buzz-canvas-conversation design §4). `pick` is the seq of the pick-start
+// command it answers, on the pick channel's own seq that neither clicks nor selection or hover commands move; the
+// message type is the reply marker, so no selection reply can complete a pick. Exactly one of: the element or frame
+// under the click; a Shift-clicked spot, in the canvas document's coordinates; Esc pressed inside the canvas.
+export type PickedMessage = { type: "picked"; href: string; pick: number } & ({ target: SelectTarget } | { point: { x: number; y: number } } | { cancelled: true });
+
+export type CanvasMessage = LayoutMessage | WheelMessage | SelectionMessage | AnchorsMessage | PickedMessage;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -178,6 +184,7 @@ function parseRect(raw: unknown): CanvasRect | null {
 export function parseCanvasMessage(data: unknown): CanvasMessage | null {
   if (!isRecord(data)) return null;
   if (data.type === "anchors") return parseAnchors(data);
+  if (data.type === "picked") return parsePicked(data);
   if (data.type === "layout") return parseLayout(data);
   if (data.type === "wheel") return parseWheel(data);
   if (data.type === "hover" || data.type === "select" || data.type === "clear" || data.type === "key") return parseSelectionMessage(data);
@@ -208,6 +215,21 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
     }
     default: return null;
   }
+}
+
+function parsePicked(data: Record<string, unknown>): PickedMessage | null {
+  const { href, pick } = data;
+  if (!within(href, MAX_HREF) || !seqValue(pick)) return null;
+  const answers = ["target", "point", "cancelled"].filter(key => data[key] !== undefined);
+  if (answers.length !== 1) return null;
+  const base = { type: "picked" as const, href, pick };
+  if (data.cancelled !== undefined) return data.cancelled === true ? { ...base, cancelled: true } : null;
+  if (data.point !== undefined) {
+    if (!isRecord(data.point) || !finite(data.point.x) || !finite(data.point.y)) return null;
+    return { ...base, point: { x: data.point.x, y: data.point.y } };
+  }
+  const target = parseTarget(data.target);
+  return target === null ? null : { ...base, target };
 }
 
 function parseTarget(raw: unknown): SelectTarget | null {

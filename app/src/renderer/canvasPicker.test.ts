@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Anchor } from "../main/conversation/types";
-import { ANCHOR_LIMIT_TEXT, PICKER_UNAVAILABLE, pickerAvailability, pointAnchor, resolveChipTarget, type ChipReply } from "./canvasPicker";
+import { ANCHOR_LIMIT_TEXT, PICKER_UNAVAILABLE, pickerAvailability, pointAnchor, resolveChipTarget, targetAnchor, type ChipReply } from "./canvasPicker";
 
 describe("pickerAvailability", () => {
   test("on while the composer takes input and the canvas is loaded", () => {
@@ -80,5 +80,35 @@ describe("resolveChipTarget", () => {
 
   test("an unloaded canvas disables locate", () => {
     expect(resolveChipTarget(element, null)).toEqual({ kind: "unavailable" });
+  });
+});
+
+// A picked or selected frame or element as the anchor a chip carries: what the agent can find in the HTML, nothing
+// the app only uses itself (the rect, the path, the outer HTML, the implements paths).
+describe("targetAnchor", () => {
+  const frame = { id: "shipping", title: "Shipping", implements: "app/src/Shipping.tsx" };
+  const path = [{ label: "shipping", selector: '[data-doan-frame="shipping"]' }];
+
+  test("an element keeps its doan-id, selector, text and tag, with the frame it sits in", () => {
+    const element = { doanId: "pay", selector: '[data-doan-id="pay"]', html: "<button>Pay</button>", text: "Pay", truncated: true };
+    expect(targetAnchor({ tag: "button", frame, frameIndex: 0, element, path, interactive: "control" })).toEqual({
+      frame: { id: "shipping", title: "Shipping" },
+      element: { doanId: "pay", selector: '[data-doan-id="pay"]', text: "Pay", tag: "button" },
+    });
+  });
+
+  test("an element outside every frame, without doan-id or text", () => {
+    expect(targetAnchor({ tag: "p", element: { selector: "body > p:nth-of-type(1)", html: "<p></p>" }, path: [] })).toEqual({
+      element: { selector: "body > p:nth-of-type(1)", tag: "p" },
+    });
+  });
+
+  test("a frame is its id and title", () => {
+    expect(targetAnchor({ tag: "section", frame, path })).toEqual({ frame: { id: "shipping", title: "Shipping" } });
+    expect(targetAnchor({ tag: "section", frame: { id: "card" }, path })).toEqual({ frame: { id: "card" } });
+  });
+
+  test("a target that is neither gives no anchor", () => {
+    expect(targetAnchor({ tag: "div", path: [] })).toBeNull();
   });
 });

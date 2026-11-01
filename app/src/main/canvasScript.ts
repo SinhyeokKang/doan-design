@@ -254,6 +254,12 @@ export function canvasScript(lib: CanvasLib): void {
   let alt = false;
   let hoverQueued = false;
   let lastHover = JSON.stringify([0, null]);
+  // Picking (buzz-canvas-conversation design §4): the app's pick-start and pick-cancel commands carry their own seq,
+  // which neither clicks nor selection or hover commands move. `picking` is the seq of the pick-start in force. A pick
+  // click answers `picked` and leaves `selected`, `anchor` and the hover as they were; picking lasts until the app
+  // cancels it, so a second click before that cancel arrives answers again instead of selecting.
+  let pickSeq = 0;
+  let picking: number | null = null;
 
   const isRoot = (el: unknown) => el === document.documentElement || el === document.body;
   const isElement = (target: unknown): target is Element => typeof target === "object" && target !== null && "nodeType" in target && target.nodeType === 1;
@@ -393,6 +399,21 @@ export function canvasScript(lib: CanvasLib): void {
     anchors.schedule();
   };
 
+  const postPicked = (fields: Record<string, unknown>) => post({ type: "picked", href: location.href, pick: picking, ...fields });
+  // A click picks what it lands on, as the select message would describe it: a frame's own background is the frame, an
+  // element (or a nested iframe) is that element. A Shift-click picks the spot instead, whatever is under it: its
+  // point goes in the document's coordinates, which the app turns into an offset from the innermost frame there.
+  // The document outside every frame answers nothing, and picking goes on.
+  const pickAt = (target: EventTarget | null, point: { x: number; y: number } | null) => {
+    if (!isElement(target) || !target.isConnected || isRoot(target)) return;
+    if (point !== null) {
+      postPicked({ point: { x: point.x + scrollX, y: point.y + scrollY } });
+      return;
+    }
+    const described = describe(target);
+    if (described !== null) postPicked({ target: described.target });
+  };
+
   // Human input raises seq so a renderer command already on its way loses.
   const choose = (target: EventTarget | null) => {
     if (!isElement(target)) return;
@@ -492,6 +513,12 @@ export function canvasScript(lib: CanvasLib): void {
     const next = data.seq;
     if (typeof next !== "number" || !Number.isInteger(next)) return;
     const { type, frame, doanId, selector, index, id } = data;
+    if (type === "pick-start" || type === "pick-cancel") {
+      if (next <= pickSeq) return;
+      pickSeq = next;
+      picking = type === "pick-start" ? next : null;
+      return;
+    }
     if (type === "select-anchor") {
       if (!optionalString(frame) || !optionalString(doanId) || !optionalString(selector)) return;
       if (frame === undefined && doanId === undefined && selector === undefined) return;
@@ -585,7 +612,8 @@ export function canvasScript(lib: CanvasLib): void {
       (event: MouseEvent) => {
         if (!event.isTrusted) return;
         if (type !== "pointerdown" && (event.button !== 0 || event.ctrlKey)) return;
-        if (event.altKey) {
+        // ⌥ picks like a plain click while picking, so nothing reaches the canvas then.
+        if (event.altKey && picking === null) {
           // Chromium turns an ⌥-clicked link into a download, which the
           // sandbox does not stop; navigating here still passes main's gate.
           const link = type === "click" ? linkOf(event.target) : null;
@@ -603,6 +631,8 @@ export function canvasScript(lib: CanvasLib): void {
           // Focus left inside by an ⌥-click would make Esc look like typing.
           const active = document.activeElement;
           if (active !== null && !isRoot(active) && "blur" in active && typeof active.blur === "function") active.blur();
+        } else if (type === "click" && picking !== null) {
+          pickAt(event.target, event.shiftKey ? { x: event.clientX, y: event.clientY } : null);
         } else if (type === "click") {
           const target = event.target;
           if (!isElement(target) || target.isConnected) choose(target);
@@ -617,7 +647,12 @@ export function canvasScript(lib: CanvasLib): void {
   addEventListener("blur", () => {
     setTimeout(() => {
       const active = document.activeElement;
-      if (alt || active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
+      if (active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
+      if (picking !== null) {
+        if (active.isConnected) pickAt(active, null);
+        return;
+      }
+      if (alt) return;
       if (active.isConnected) choose(active);
     }, 0);
   });
@@ -659,7 +694,15 @@ export function canvasScript(lib: CanvasLib): void {
         postSelection("key", { key: "Alt", alt, seq: hoverSeq });
         postHover();
       }
-      if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229 && !editable(event.target)) postSelection("key", { key: "Escape" });
+      if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
+      // Esc while picking cancels only the pick, wherever focus is in the canvas; the selection stays.
+      if (picking !== null) {
+        event.preventDefault();
+        postPicked({ cancelled: true });
+        picking = null;
+        return;
+      }
+      if (!editable(event.target)) postSelection("key", { key: "Escape" });
     },
     { capture: true },
   );
@@ -785,7 +828,9 @@ export function commentAnchors(documentToken: string, selected: () => { element:
         ...(item.selector === undefined ? {} : { selector: item.selector }), ...(item.frame === undefined ? {} : { frame: item.frame }) });
     }
     query = { generation: data.generation, request: data.request, targets };
-    schedule();
+    // Answered at once, like the first layout: an iframe outside the viewport gets no animation frames. Later
+    // changes still batch on one.
+    measure();
   });
   return { schedule };
 }

@@ -464,3 +464,28 @@ test("validates Alt state messages separately from Escape", () => {
 test("drops a transition-intent message", () => {
   expect(parseCanvasMessage({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection" })).toBeNull();
 });
+
+// buzz-canvas-conversation design §4: the canvas answers the app's pick with `picked`, bound to the pick command by
+// its own `pick` seq and its own type, never by the selection seq.
+describe("parseCanvasMessage: picked", () => {
+  const picked = (over: Record<string, unknown>) => ({ type: "picked", href: HREF, pick: 2, ...over });
+
+  test("keeps a picked element or frame, a point in document coordinates, and Esc in the canvas", () => {
+    expect(parseCanvasMessage(picked({ target: target() }))).toEqual({ type: "picked", href: HREF, pick: 2, target: target() });
+    expect(parseCanvasMessage(picked({ point: { x: 12.5, y: -3 } }))).toEqual({ type: "picked", href: HREF, pick: 2, point: { x: 12.5, y: -3 } });
+    expect(parseCanvasMessage(picked({ cancelled: true }))).toEqual({ type: "picked", href: HREF, pick: 2, cancelled: true });
+  });
+
+  test("drops a message without exactly one valid answer", () => {
+    for (const over of [{}, { target: target(), point: { x: 1, y: 1 } }, { point: { x: 1, y: 1 }, cancelled: true }, { target: null }, { cancelled: false },
+      { point: { x: Infinity, y: 0 } }, { point: { x: 1 } }, { point: null }, { target: target({ tag: 1 }) }]) {
+      expect(parseCanvasMessage(picked(over))).toBeNull();
+    }
+  });
+
+  test("drops a message without a pick seq or a valid href", () => {
+    for (const over of [{ pick: -1 }, { pick: 1.5 }, { pick: "2" }, { pick: undefined }, { href: 1 }, { href: "h".repeat(MAX_HREF + 1) }]) {
+      expect(parseCanvasMessage(picked({ cancelled: true, ...over }))).toBeNull();
+    }
+  });
+});
