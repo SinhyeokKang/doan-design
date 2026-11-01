@@ -40,7 +40,7 @@ const failed: CheckResult = { status: "failed", code: "check_failed" };
 function json(text: string): Record<string, unknown> | null {
   try { const value = JSON.parse(text); return typeof value === "object" && value !== null && !Array.isArray(value) ? value : null; } catch { return null; }
 }
-const label = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0") ? value : undefined;
+export const label = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0") ? value : undefined;
 function account(id: unknown, workspace: unknown, displayName: unknown, email: unknown): AccountIdentity {
   const name = label(displayName), mail = label(email);
   return { id: label(id) ?? null, workspace: label(workspace) ?? null, ...(name ? { displayName: name } : {}), ...(mail ? { email: mail } : {}) };
