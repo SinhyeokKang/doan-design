@@ -323,7 +323,6 @@ code, kbd { font-family: var(--type-family); }
 @keyframes frame-jump-fade { 0%, 66.6667% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
 
-/* Overview and Quick Open: confirmed .doan/canvases/design-nav.html overview, overview-empty and quick-open. */
 /* The Overview covers the canvas panel in the same cell; the panel stays laid out beneath it. */
 .workspace > .doan-canvas-panel, .workspace > .ov { grid-column: 2; grid-row: -2; }
 .ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
