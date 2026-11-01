@@ -121,3 +121,9 @@ D1은 이미 끝났다(초안 확정).
 - 지휘자 판단(BR4b 질문): 고르기 중 캔버스 위 십자 커서는 캔버스 스크립트가 `adoptedStyleSheets`로 넣고 끝날 때 뺀다(BR4b가 canvasScript.ts를 맡음). 근거: design §2 '보드 커서가 십자'; DOM을 건드리지 않아 레이아웃 감시에 영향이 없다.
 - 결정(2026-11-02 user): PRODUCT §6 'Open questions'를 `docs/BACKLOG.md`로 분리했다(정할 것 18 · 실제 앱 미검증 4 · 알려진 결함 6). PRODUCT §6은 BACKLOG를 가리키는 한 줄만 남겨 절 번호와 기존 'PRODUCT §6' 참조가 그대로 이어진다. AGENTS·feature·feature-review 스킬·README·ARCHITECTURE·이 feature 문서의 참조를 고쳤다. Z1·Z3은 미검증 표면과 코멘트 관련 항목을 BACKLOG에 맞춰 쓴다.
 - BACKLOG 점검(2026-11-02, Claude Opus 에이전트, 이 브랜치 기준): 유지 19, 문구 수정 4, 대상 사라짐 5, 해결 0. 결정(user): 문구 3개(프리셋 대상 문구, Claude 권한 요약, Tab 순서)는 지금 고쳤다. Z1에서 할 일: 캔버스 미검증 표면 항목의 "the app cannot start a canvas conversation yet" 문장을 V2 결과로 고치고, 코멘트 화면 제거로 대상이 사라진 5개(잘못된/없는 캔버스 ID 구분, 다른 기기 시계와 리뷰 표시, Git으로 온 코멘트 new 표시, 카드 recovery-blocked 문구, `process.kill` ESRCH 조사)를 PRODUCT 코멘트 본문과 함께 지운다.
+- BR4b 완료 `1309d5f4`: 피커 버튼·고르기 안내·십자 커서, Add to conversation·⌘L, 칩 locate(종류별 뷰), 요소 아이콘. 테스트 5038, 격리 probe 38/38(BR4a의 실제 앱 미확인 항목 포함, 두 번째 고르기부터 칩이 필드 맨 앞에 들어가던 버그를 찾아 고침). 미검증: 다른 곳으로 옮긴 포커스·IME 중 포커스 복귀, 입력창 not-found·32개 상한 줄. 열린 질문: 입력창 칩의 'No longer in the canvas'가 칩 옆이 아니라 입력창 아래에 뜬다. 리뷰 Codex astra.
+- BR4b 리뷰(Codex astra): 🔴 2(포커스 복귀가 시작 의도를 들고 가지 않음·조합 중 caret 조작, 32개 상한 이유 줄이 안 나옴), 🟡 2(입력창 not-found 위치, 4초 타이머 테스트). 지휘자 판단: 입력창 칩의 not-found는 design대로 칩 옆(필드 DOM을 건드리지 않는 overlay)에 둔다. 수정 라운드 1 전송.
+- BR4b 수정 1 `09b4dcf4`: FocusIntent, 32개 줄, 칩 옆 overlay, 타이머 테스트, FIT_MARGIN 제거. 테스트 5040, probe 45/45. 재리뷰 Codex astra.
+- BR4b 재리뷰: R1·R2·Y2·FIT_MARGIN 닫힘. 새 🔴 1(입력창이 스크롤되면 not-found 안내가 처음 좌표에 남음). 지휘자 판단: 스크롤을 '다음 동작'으로 보고 안내를 지운다(design의 '다음 동작 또는 4초'). 수정 라운드 2 전송.
+- BR4b 수정 2 `28d4e333`: 스크롤이 안내를 지움, probe 47/47. 지휘자 판단: 안내가 떠 있는 동안 창·패널 크기 변경은 처리하지 않는다(다음 동작 규칙의 범위 밖, 4초 뒤 사라짐). 재리뷰 2 Codex astra.
+- BR4b 재리뷰 2 통과(🔴 0). 통합한다.
