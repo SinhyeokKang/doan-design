@@ -26,6 +26,12 @@
 | C | R1 | `.scratch/runtime-test/agent-account-identity/`, `design.md` §1·§3 'PoC 의존' | B 통합 | Claude Opus medium — 실제 HOME·키체인을 쓰는 probe라 안전 판단이 필요 | tasks R1 통과 기준 | 대기 |
 | 지휘자 | V1, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, 이 디렉터리 삭제 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 `rg` 확인 | 대기 |
 
+## 실행 기록
+
+- Orca run `run_f23ded7e4e1f`.
+- A: dispatch `ctx_4b9c396f8ca1`, worktree `aai-A`, `gpt-6.1-sol` medium(effective 확인).
+- B: dispatch `ctx_a5fc7b6c1426`, worktree `aai-B`, Claude `opus` high(effective 확인).
+
 ## 파일 겹침과 순서
 
 - A와 B는 파일이 겹치지 않아 병렬로 돈다. B는 `design.md`를 고치지 않는다.
