@@ -28,8 +28,11 @@ export function nextHeight(prev: HeightState | null, measured: number, inner: nu
 // Not scrollHeight alone: it never drops below the viewport, so a canvas could
 // not shrink. But with `html { height: 100% }` the rect is the viewport and the
 // content overflows it, so then only scrollHeight tells the content height.
-export function documentHeight(rect: number, scrollHeight: number, inner: number): number {
-  return Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect;
+// Absolutely positioned frames add nothing to the rect, and scrollHeight cannot
+// tell their extent from the viewport once the iframe is at least as tall, so
+// without their bottom such a canvas alternates between 0 and its extent.
+export function documentHeight(rect: number, scrollHeight: number, inner: number, framesBottom: number): number {
+  return Math.max(Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect, Math.ceil(framesBottom));
 }
 
 export function canScrollAxis(overflow: string, position: number, client: number, size: number, delta: number): boolean {
@@ -166,18 +169,21 @@ export function canvasScript(lib: CanvasLib): void {
       if (kept !== text) truncated = true;
       return kept;
     };
+    let bottom = 0;
     for (const el of document.querySelectorAll("[data-doan-frame]")) {
+      const rect = el.getBoundingClientRect();
+      // Frames past the listed ones still count toward the height.
+      bottom = Math.max(bottom, rect.top + rect.height + scrollY);
       if (list.length === MAX_FRAMES) {
         truncated = true;
-        break;
+        continue;
       }
-      const rect = el.getBoundingClientRect();
       const frame: (typeof list)[number] = { id: clip(el.getAttribute("data-doan-frame") ?? ""), x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height };
       const title = el.getAttribute("data-doan-title");
       if (title !== null) frame.title = clip(title);
       list.push(frame);
     }
-    return { list, truncated };
+    return { list, truncated, bottom };
   };
 
   // Selection state. `seq` is the last command seq from the renderer, raised by
@@ -387,9 +393,9 @@ export function canvasScript(lib: CanvasLib): void {
     if (firstLayoutAt === null) firstLayoutAt = performance.now();
     tryPending();
     const html = document.documentElement;
-    const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight);
+    const { list, truncated, bottom } = frames();
+    const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
     height = lib.nextHeight(height, measured, innerHeight);
-    const { list, truncated } = frames();
     // `viewport` lets the renderer drop a layout measured before its last
     // resize of the iframe reached this document.
     const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };

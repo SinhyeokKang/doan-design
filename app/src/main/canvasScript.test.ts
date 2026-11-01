@@ -50,38 +50,76 @@ describe("nextHeight", () => {
 // a 150 rect with scrollHeight 2000 and 2008.
 describe("documentHeight", () => {
   test("uses the rect of a canvas that sizes to its content", () => {
-    expect(documentHeight(2016, 2016, 150)).toBe(2016);
-    expect(documentHeight(80, 150, 150)).toBe(80);
+    expect(documentHeight(2016, 2016, 150, 0)).toBe(2016);
+    expect(documentHeight(80, 150, 150, 0)).toBe(80);
   });
 
   test("uses scrollHeight when html is as tall as the viewport and the content is taller", () => {
-    expect(documentHeight(150, 2000, 150)).toBe(2000);
-    expect(documentHeight(150, 2008, 150)).toBe(2008);
-    expect(documentHeight(151, 2000, 150)).toBe(2000);
-    expect(documentHeight(149, 2000, 150)).toBe(2000);
+    expect(documentHeight(150, 2000, 150, 0)).toBe(2000);
+    expect(documentHeight(150, 2008, 150, 0)).toBe(2008);
+    expect(documentHeight(151, 2000, 150, 0)).toBe(2000);
+    expect(documentHeight(149, 2000, 150, 0)).toBe(2000);
   });
 
   test("keeps the rect when it is more than 1px from the viewport", () => {
-    expect(documentHeight(152, 2000, 150)).toBe(152);
-    expect(documentHeight(148, 2000, 150)).toBe(148);
+    expect(documentHeight(152, 2000, 150, 0)).toBe(152);
+    expect(documentHeight(148, 2000, 150, 0)).toBe(148);
   });
 
   test("keeps the viewport height when nothing overflows html (a body scroller)", () => {
-    expect(documentHeight(150, 150, 150)).toBe(150);
+    expect(documentHeight(150, 150, 150, 0)).toBe(150);
   });
 
   test("settles once the iframe is resized to the reported height", () => {
     for (const content of [2000, 2008]) {
-      const first = nextHeight(null, documentHeight(150, content, 150), 150);
+      const first = nextHeight(null, documentHeight(150, content, 150, 0), 150);
       expect(first.sent).toBe(content);
-      expect(nextHeight(first, documentHeight(content, content, content), content)).toEqual({ sent: content, inner: content, frozen: false });
+      expect(nextHeight(first, documentHeight(content, content, content, 0), content)).toEqual({ sent: content, inner: content, frozen: false });
     }
   });
 
   test("still freezes a 100% canvas whose content keeps outgrowing the viewport", () => {
     // html{height:100%} with body{min-height:100vh} and 8px margins: always 16px taller.
-    const first = nextHeight(null, documentHeight(150, 166, 150), 150);
-    expect(nextHeight(first, documentHeight(166, 182, 166), 166)).toEqual({ sent: 166, inner: 150, frozen: true });
+    const first = nextHeight(null, documentHeight(150, 166, 150, 0), 150);
+    expect(nextHeight(first, documentHeight(166, 182, 166, 0), 166)).toEqual({ sent: 166, inner: 150, frozen: true });
+  });
+});
+
+// Every frame `position: absolute`: html has no in-flow content (rect 0) and
+// scrollHeight is the frames' extent, but never less than the viewport.
+describe("documentHeight with only absolutely positioned frames", () => {
+  const run = (extent: number, inner: number) => {
+    let state: ReturnType<typeof nextHeight> | null = null;
+    const sent: number[] = [];
+    for (let n = 0; n < 6; n++) {
+      state = nextHeight(state, documentHeight(0, Math.max(inner, extent), inner, extent), inner);
+      inner = state.sent;
+      sent.push(inner);
+    }
+    return sent;
+  };
+
+  test("settles at the frames' extent instead of alternating with 0", () => {
+    expect(run(405, 150)).toEqual([405, 405, 405, 405, 405, 405]);
+  });
+
+  test("settles from a first layout measured before the iframe had a viewport", () => {
+    expect(run(405, 0)).toEqual([405, 405, 405, 405, 405, 405]);
+  });
+
+  test("settles at a frame extent below the initial height", () => {
+    expect(run(100, 150)).toEqual([100, 100, 100, 100, 100, 100]);
+  });
+
+  test("follows the frames when they move up", () => {
+    const first = nextHeight(null, documentHeight(0, 405, 405, 405), 405);
+    expect(nextHeight(first, documentHeight(0, 405, 405, 300), 405)).toEqual({ sent: 300, inner: 405, frozen: false });
+  });
+
+  test("rounds a fractional frame bottom up and keeps a taller flow height", () => {
+    expect(documentHeight(0, 405, 150, 404.2)).toBe(405);
+    expect(documentHeight(2016, 2016, 150, 900)).toBe(2016);
+    expect(documentHeight(150, 2008, 150, 900)).toBe(2008);
   });
 });
 
@@ -507,6 +545,20 @@ describe("canvasScriptSource", () => {
     const canvas = fakeCanvas({ height: 150.4, scrollHeight: 2008 });
     canvas.ready();
     expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 2008 } });
+  });
+
+  test("reports the bottom of absolutely positioned frames when html has no height", () => {
+    // scrollY is 40 in the fake: the frame ends at 365 + 40 in document coordinates.
+    const canvas = fakeCanvas({ height: 0, scrollHeight: 405, frames: [{ attrs: { "data-doan-frame": "a" }, rect: { left: 0, top: 265, width: 300, height: 100 } }] });
+    canvas.ready();
+    expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 405, viewport: 150 } });
+  });
+
+  test("counts frames past the listed 1,000 in the height", () => {
+    const many = Array.from({ length: 1001 }, (_, i) => ({ attrs: { "data-doan-frame": `f${i}` }, rect: { left: 0, top: i === 1000 ? 4960 : 0, width: 10, height: i === 1000 ? 100 : 10 } }));
+    const canvas = fakeCanvas({ height: 0, scrollHeight: 5100, frames: many });
+    canvas.ready();
+    expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 5100, truncated: true } });
   });
 
   test("watches html and body for size changes and the whole document for edits", () => {
