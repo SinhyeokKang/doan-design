@@ -29,15 +29,17 @@ export function scaleFactor(target: number, view: View): number {
   return target / view.scale;
 }
 
-// `zoom` is CanvasState.zoom, the view scale as an integer percent, so the step limits are compared in percent.
-export function zoomControlView(state: BoardState & { zoom: number }): ZoomControlView {
+// `scale` is the exact view scale: the step limits are the zoom limits themselves, and only the shown value is a
+// rounded percent (a scale of 0.052 shows 5% but can still zoom out).
+export function zoomControlView(state: BoardState & { scale: number }): ZoomControlView {
   const on = renderedBoard(state);
+  const percent = Math.round(state.scale * 100);
   return {
     enabled: on,
-    value: on ? `${state.zoom}%` : "—",
-    triggerLabel: on ? `Zoom ${state.zoom}%, zoom options` : "Zoom options",
-    zoomOut: { disabled: !on || state.zoom <= MIN_SCALE * 100, tooltip: "Zoom out ⌘−" },
-    zoomIn: { disabled: !on || state.zoom >= MAX_SCALE * 100, tooltip: "Zoom in ⌘=" },
+    value: on ? `${percent}%` : "—",
+    triggerLabel: on ? `Zoom ${percent}%, zoom options` : "Zoom options",
+    zoomOut: { disabled: !on || state.scale <= MIN_SCALE, tooltip: "Zoom out ⌘−" },
+    zoomIn: { disabled: !on || state.scale >= MAX_SCALE, tooltip: "Zoom in ⌘=" },
     items: ITEMS,
   };
 }
