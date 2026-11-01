@@ -108,7 +108,7 @@ describe("canvasRows", () => {
   });
 
   // project-feedback design §1: a row ls could not read stays in the tree
-  // with its error; its counts are 0 only because ls sent none.
+  // with its error.
   test("keeps unreadable rows with their error, and ignores a comments error", () => {
     const rows = canvasRows([
       { path: ".doan/canvases/a.html", id: "a", frames: [], commentsError: { code: "unreadable_comments", message: ".doan/comments/a.jsonl: permission denied" } },
