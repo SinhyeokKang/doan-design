@@ -49,7 +49,7 @@
 
 ### 대화 패널
 
-- 헤더: Overview 오른쪽 패널 제목 줄 자리의 대화 드롭다운. 트리거는 현재 보이는 대화의 제목(새 대화 상태면 "New conversation"), 메뉴는 New conversation → "Conversations on <canvas>" → 이 캔버스의 대화(현재 대화 먼저, 그다음 최근 활동 순, 공급자 로고·제목·상태·시각·한 줄 미리보기). Overview 메뉴(`conv-menu`, `conv-item`)와 같은 행이다.
+- 헤더: Overview 오른쪽 패널 제목 줄 자리의 대화 드롭다운. 트리거는 현재 보이는 대화의 제목(새 대화 상태면 "New conversation"), 메뉴는 New conversation → "Conversations on <canvas>" → 이 캔버스의 대화(현재 대화 먼저, 그다음 최근 활동 순, 공급자 로고·제목·상태·시각·한 줄 미리보기). Overview 메뉴(`conv-menu`, `conv-item`)와 같은 행이다. 헤더는 스크롤되지 않는 줄이고 스레드는 그 아래 영역에서만 스크롤된다. 헤더에는 따로 배경 바·구분선·그림자를 두지 않고, 위로 넘어간 메시지는 헤더 아래 경계에서 잘린다(Overview `.ov-head`·`.thread-scroll`과 같다, 2026-11-01 user).
 - 기본으로 보이는 대화: 요청된 대화(Overview 행, 알림 등) → 이 캔버스의 현재 대화 → 새 대화 상태. 보관 대화는 사람이 메뉴에서 고를 때만 보인다.
 - 보관 대화: 읽기 상태로 보이고, 입력창 위의 보관 표시에 "Archived when another conversation became current on this canvas. Send a message to make it current again." 안내가 있다. 보내면 복원(백엔드 restore)이다.
 - 본 것: 패널이 펴져 있고, 창이 포커스를 가지고, 그 대화가 보일 때 `markSeen`. 접힌 패널, 다른 화면, 창 포커스 없음에서는 기록하지 않는다.
