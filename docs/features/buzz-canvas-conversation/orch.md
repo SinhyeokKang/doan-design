@@ -77,3 +77,7 @@ D1은 이미 끝났다(초안 확정).
 - BX 후속 2 `b592bfe1`: tokens.css accent 주석만 고침. `idChanged`는 선택 해제에 쓰여 고아가 아니라 남김.
 - 지휘자 판단(BP 발견 1 다시 봄): 사용자 네이티브 확인에서 메뉴 Undo·Redo가 정상이었으므로 메뉴 라우팅은 넣지 않는다. BR1 runtime probe에서 한 번 더 보고, Redo가 닿지 않으면 그때 정한다. 근거: 라우팅은 BM의 `main/index.ts`와 겹치고, 확인된 문제가 없다.
 - BX 후속 리뷰(Codex astra) 통과: 🔴·🟡 0, 오래된 주석 1건 → 후속 3으로 고침.
+- 웨이브 1 통합 끝: BX `d52ba1ba`·`788b6785`·`f2d328ea`·`35e898bf`. BP·BT·BX 워크트리 정리 완료. 통합 HEAD `verify --eval` 실행 중.
+- 웨이브 2 시작: BM Codex gpt-6-astra medium `ctx_85ecb7cc92f7`(bcc-bm), BR1 Claude Opus high `ctx_48b23f81f47a`(bcc-br1). 둘 다 `launch.effective` 확인.
+- 지휘자 판단(BR1 질문): Home·Overview 입력창은 칩을 받지 않고, Doan 칩 클립보드를 칩 이름 텍스트로 붙인다. 클립보드에 원본 캔버스(root, 캔버스 id)를 싣고, 입력창의 캔버스가 같을 때만 칩으로 붙인다. 근거: spec 비목표 '다른 캔버스의 칩'과 design §2 '칩은 칩으로 남는다'를 함께 읽었다.
+- 웨이브 1 통합 HEAD(`35e898bf`) `verify --eval` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, eval-tests, eval-self-test, build). 통합 앱의 실제 probe는 BX probe(통합 전 같은 코드)로 대신하고, 칩 필드가 들어가는 웨이브 2 뒤에 다시 본다.
