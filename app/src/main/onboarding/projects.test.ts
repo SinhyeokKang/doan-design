@@ -54,6 +54,13 @@ describe("planned changes", () => {
     expect(await plannedChanges(partly, { kind: "uninitialized" })).toEqual([".doan/config.json"]);
     expect(await plannedChanges(partly, { kind: "list", root: partly, scope: [], canvases: [] })).toEqual([]);
   });
+
+  it("keep a merge-line-only .gitattributes out of the changes; the linguist line alone does not make a repo need setup", async () => {
+    const mergeOnly = repo(temp(), { canvases: true, attributes: ".doan/comments/*.jsonl merge=union\n" });
+    expect(await plannedChanges(mergeOnly, { kind: "uninitialized" })).toEqual([".doan/config.json"]);
+    const linguistOnly = repo(temp(), { canvases: true, attributes: ".doan/** linguist-documentation\n" });
+    expect(await plannedChanges(linguistOnly, { kind: "uninitialized" })).toEqual([".doan/config.json", ".gitattributes"]);
+  });
 });
 
 describe("inspectPath", () => {
