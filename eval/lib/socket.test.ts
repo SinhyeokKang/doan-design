@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { connect } from "node:net";
 import { join } from "node:path";
 import { test } from "node:test";
-import { answer, onboardingApp, startFakeApp, validOnboardingRequest, validOnboardingResponse, validRequest, validResponse, validRuntimeFile, validSelection, type OnboardingScript } from "./socket.ts";
+import { answer, initializeRepo, onboardingApp, startFakeApp, validOnboardingRequest, validOnboardingResponse, validRequest, validResponse, validRuntimeFile, validSelection, type OnboardingScript } from "./socket.ts";
 
 const fixtures = join(import.meta.dirname, "../../schema/fixtures");
 
@@ -281,6 +282,20 @@ test("the fake app answers v2 only with a script and logs onboarding exchanges w
     assert.deepEqual(log, [{ request: { v: 2, op: "start" }, response: start }, { request: { v: 2, op: "start" }, response: refused }], "only v2 exchanges, in order");
     assert.equal(refused.error.code, "bad_token");
     assert.ok(!readFileSync(app.onboardingLog, "utf8").includes(token));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Mirrors doan init: each missing attribute line is added once, keeping the file's line endings.
+test("the fake initialize adds only the missing .gitattributes lines, like doan init", () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-fake-init-"));
+  try {
+    writeFileSync(join(dir, ".gitattributes"), "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n");
+    initializeRepo(dir, [".doan/canvases/", ".doan/config.json"], join(dir, "writes.json"));
+    assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n");
+    initializeRepo(dir, [".doan/config.json"], join(dir, "writes.json"));
+    assert.equal(readFileSync(join(dir, ".gitattributes"), "utf8"), "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

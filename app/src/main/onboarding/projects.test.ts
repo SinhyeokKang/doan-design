@@ -50,9 +50,18 @@ describe("planned changes", () => {
   it("name what doan init would create and nothing it would leave alone", async () => {
     const bare = temp();
     expect(await plannedChanges(bare, { kind: "uninitialized" })).toEqual([".doan/canvases/", ".doan/config.json", ".gitattributes"]);
-    const partly = repo(temp(), { canvases: true, attributes: "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n" });
+    const partly = repo(temp(), { canvases: true, attributes: "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n" });
     expect(await plannedChanges(partly, { kind: "uninitialized" })).toEqual([".doan/config.json"]);
     expect(await plannedChanges(partly, { kind: "list", root: partly, scope: [], canvases: [] })).toEqual([]);
+  });
+
+  it("list .gitattributes until both attribute lines are there; a folder with a config gets nothing", async () => {
+    const mergeOnly = repo(temp(), { canvases: true, attributes: "*.png binary\r\n.doan/comments/*.jsonl merge=union\r\n" });
+    expect(await plannedChanges(mergeOnly, { kind: "uninitialized" })).toEqual([".doan/config.json", ".gitattributes"]);
+    const both = repo(temp(), { canvases: true, attributes: ".doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n" });
+    expect(await plannedChanges(both, { kind: "uninitialized" })).toEqual([".doan/config.json"]);
+    const setUp = repo(temp(), { canvases: true, config: "{\"v\":1}", attributes: ".doan/comments/*.jsonl merge=union\n" });
+    expect(await plannedChanges(setUp, { kind: "list", root: setUp, scope: [], canvases: [] })).toEqual([]);
   });
 });
 

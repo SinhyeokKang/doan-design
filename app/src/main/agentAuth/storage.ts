@@ -122,6 +122,15 @@ export class AuthStorage {
       catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return false; throw new StorageError("unreadable", message(error)); }
     });
   }
+  // One working file for a main-only read (Antigravity's account lookup), or null when it is absent; links are
+  // refused as in collect.
+  readWorking(provider: Provider, rel: string, profile: string = provider): Buffer | null {
+    try {
+      const path = this.working(provider, rel, profile);
+      if (!lstatSync(path).isFile()) throw new StorageError("unreadable", `${rel} is not a regular file`);
+      return readFileSync(path);
+    } catch (error) { if (error instanceof StorageError) throw error; if (absent(error)) return null; throw new StorageError("unreadable", message(error)); }
+  }
   scrub(provider: Provider, rels: readonly string[]): void { for (const path of this.workingPaths(provider, rels)) this.remove(path); }
   private collect(provider: Provider, rels: readonly string[]): VaultFiles {
     const current: VaultFiles = {};

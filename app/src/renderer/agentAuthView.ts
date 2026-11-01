@@ -19,7 +19,8 @@ export type AuthButton = Button;
 export interface Notice<C extends string = AuthCommand> { role: "status" | "alert"; spinner: boolean; title?: string; body?: string; note?: string; actions: Button<C>[] }
 export interface ProviderView {
   provider: Provider; name: string;
-  // The line under the name; null when a connected account has nothing to show (Codex, Antigravity).
+  // The line under the name; null when a connected account has nothing to show (Codex and Antigravity when their
+  // account lookup found no email).
   detail: string | null; detailRole: "status" | null;
   // The row's own button; states with a notice put their buttons in the notice instead.
   button: AuthButton | null; helper: string | null; notice: Notice | null;

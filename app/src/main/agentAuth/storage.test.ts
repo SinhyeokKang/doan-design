@@ -124,6 +124,20 @@ describe("provider file bridge", () => {
     await expect(storage.absorb("cursor", files)).rejects.toThrow(expect.objectContaining({ code: "unreadable" }));
     expect(await storage.loadVault("cursor")).toBeNull();
   });
+  it("reads one working file for main, absent as null, and refuses a link or a symlinked parent", () => {
+    const storage = new AuthStorage(root, fakeCipher());
+    expect(storage.readWorking("cursor", "config/auth.json")).toBeNull();
+    plant(storage, "cursor", "config/auth.json", "{}");
+    expect(storage.readWorking("cursor", "config/auth.json")?.toString()).toBe("{}");
+    writeFileSync(join(root, "outside"), "not a credential");
+    rmSync(join(storage.profileDir("cursor"), "config/auth.json"));
+    symlinkSync(join(root, "outside"), join(storage.profileDir("cursor"), "config/auth.json"));
+    expect(() => storage.readWorking("cursor", "config/auth.json")).toThrow(expect.objectContaining({ code: "unreadable" }));
+    rmSync(join(storage.profileDir("cursor"), "config"), { recursive: true });
+    mkdirSync(join(root, "elsewhere")); writeFileSync(join(root, "elsewhere/auth.json"), "{}");
+    symlinkSync(join(root, "elsewhere"), join(storage.profileDir("cursor"), "config"));
+    expect(() => storage.readWorking("cursor", "config/auth.json")).toThrow(StorageError);
+  });
   it("reports a failed scrub so a sign-out cannot claim the file is gone", async () => {
     const storage = new AuthStorage(root, fakeCipher());
     plant(storage, "cursor", "config/auth.json", "left");

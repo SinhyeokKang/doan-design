@@ -25,7 +25,8 @@ export interface Candidate { path: string; changes: OnboardingChange[] }
 // leftovers: directories the clone made and could not remove (cleanup_failed only).
 export type ProjectOutcome = { ok: true; root: string } | { ok: false; code: OnboardingOperationErrorCode; leftovers?: string[] };
 
-const MERGE_LINE = ".doan/comments/*.jsonl merge=union";
+// The lines `doan init` adds to .gitattributes (cli/internal/cli/init.go); it writes the file while either is missing.
+const ATTRIBUTE_LINES = [".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"];
 const failed = (code: OnboardingOperationErrorCode): ProjectOutcome => ({ ok: false, code });
 
 export async function canonicalFolder(path: string): Promise<string | null> {
@@ -55,7 +56,8 @@ export async function plannedChanges(root: string, state: FolderState): Promise<
   const changes: OnboardingChange[] = [];
   try { await lstat(join(root, ".doan/canvases")); } catch { changes.push(".doan/canvases/"); }
   const attributes = await readFile(join(root, ".gitattributes"), "utf8").catch(() => "");
-  if (!attributes.split("\n").some(line => line.replace(/\r$/, "") === MERGE_LINE)) changes.push(".gitattributes");
+  const present = attributes.split("\n").map(line => line.replace(/\r$/, ""));
+  if (ATTRIBUTE_LINES.some(line => !present.includes(line))) changes.push(".gitattributes");
   changes.push(".doan/config.json");
   return changes.sort();
 }

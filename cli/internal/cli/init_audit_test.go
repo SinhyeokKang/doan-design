@@ -41,7 +41,7 @@ func TestInitAttributesFailureDoesNotPublishConfig(t *testing.T) {
 	if got["initialized"] != true || !reflect.DeepEqual(got["created"], []any{".doan/config.json", ".gitattributes"}) {
 		t.Fatal(got)
 	}
-	if readFile(t, root, ".gitattributes") != before+".doan/comments/*.jsonl merge=union\r\n" {
+	if readFile(t, root, ".gitattributes") != before+".doan/comments/*.jsonl merge=union\r\n.doan/** linguist-documentation\r\n" {
 		t.Fatal("retry attributes")
 	}
 	if result(t, root, 0, "init")["initialized"] != false {

@@ -84,7 +84,7 @@ test("a successful initialize writes what doan init writes, and only the agent's
     onboarding("status", "--session", "s_eval");
     assert.ok(statSync(join(ws.repo, ".doan/canvases")).isDirectory());
     assert.deepEqual(JSON.parse(readFileSync(join(ws.repo, ".doan/config.json"), "utf8")), { v: 1 });
-    assert.ok(readFileSync(join(ws.repo, ".gitattributes"), "utf8").split("\n").includes(".doan/comments/*.jsonl merge=union"));
+    assert.equal(readFileSync(join(ws.repo, ".gitattributes"), "utf8"), ".doan/comments/*.jsonl merge=union\n.doan/** linguist-documentation\n");
     const ls = sh(cli, ["ls", "--json", "--repo", ws.repo], ws.repo, ws.env);
     assert.equal(ls.code, 0, ls.stdout);
     assert.deepEqual(ctx.changedFiles(), []);

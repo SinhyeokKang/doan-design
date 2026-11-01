@@ -301,7 +301,7 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
 }
 
 // What the app's initialize writes: `doan init` without token CSS (cli/internal/cli/init.go).
-const MERGE_LINE = ".doan/comments/*.jsonl merge=union";
+const ATTRIBUTE_LINES = [".doan/comments/*.jsonl merge=union", ".doan/** linguist-documentation"];
 const INIT_CONFIG = JSON.stringify({ v: 1 }, null, 2) + "\n";
 
 // Sets `root` up as the real app would for the planned changes, so an agent
@@ -316,13 +316,18 @@ export function initializeRepo(root: string, changes: string[], manifest: string
     writeFileSync(join(root, ".doan/config.json"), INIT_CONFIG);
     written[".doan/config.json"] = INIT_CONFIG;
   }
-  if (changes.includes(".gitattributes")) {
+  // Like init, adds only the attribute lines that are missing.
+  if (changes.includes(".gitattributes") || changes.includes(".doan/config.json")) {
     let attributes = existsSync(join(root, ".gitattributes")) ? readFileSync(join(root, ".gitattributes"), "utf8") : "";
-    const newline = attributes.includes("\r\n") ? "\r\n" : "\n";
-    if (attributes !== "" && !attributes.endsWith("\n")) attributes += newline;
-    attributes += MERGE_LINE + newline;
-    writeFileSync(join(root, ".gitattributes"), attributes);
-    written[".gitattributes"] = attributes;
+    const present = attributes.split("\n").map(line => line.replace(/\r$/, ""));
+    const missing = ATTRIBUTE_LINES.filter(line => !present.includes(line));
+    if (missing.length > 0) {
+      const newline = attributes.includes("\r\n") ? "\r\n" : "\n";
+      if (attributes !== "" && !attributes.endsWith("\n")) attributes += newline;
+      for (const line of missing) attributes += line + newline;
+      writeFileSync(join(root, ".gitattributes"), attributes);
+      written[".gitattributes"] = attributes;
+    }
   }
   writeFileSync(manifest, JSON.stringify(written) + "\n", { mode: 0o600 });
 }
