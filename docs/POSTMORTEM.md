@@ -5,6 +5,14 @@
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 
+### 2026-11-01 — A failed Antigravity sign-in left no evidence of why
+
+- **Area**: `app/src/main/agentAuth/manager.ts` (`acpSignIn`, `acpStatus`, `acpExec`, `ServerError`, `loggable`).
+- **Symptom**: in a dev app's first-run Agent step, Antigravity sign-in failed twice in a row ("Sign-in to Antigravity keeps failing") while four other providers signed in. The profile afterwards held `settings.json` (written only after a successful `authenticate`) but no `acp_token.json`, no vault image and no metadata entry; the dev log held no `doan:` line about it. Two later real sign-ins with the same Google account, in copies of that profile through the window API and through the same UI, and a retry in the original profile all succeeded, so the cause was not found.
+- **Root cause**: diagnosis was impossible, not the failure itself: a failed ACP sign-in or status check kept its reason only in the in-memory `Failure` detail, which never reaches a window or the log, and `acpExec` discarded the server's stderr. The file evidence also misled: the 1.3.0 server deletes `acp_token.json` itself and keeps `settings.json` when `get_access_token` raises (`_sign_out_after_identity_failure`: onboarding failure, its 300 s login timeout, denied consent), so a missing token does not show that Doan lost it. Its loopback listener also answers exactly one request, so a second visit to the link (a second tab, "Open again") can end the flow.
+- **Net**: reported by the user; the profile's file times were the only evidence, and they fit no single Doan code path.
+- **Prevention**: a failed ACP sign-in, and a status check that ends without a login, now log the reason and the server's last 20 stderr lines without lines that hold a URL or token-like text (tests in `manager.test.ts` 'ACP sign-in diagnostics'); a status check stopped by its time limit says so. When a provider login fails, read that log before reading profile files, and read the provider's own source for what deletes its credentials before blaming Doan's scrub. Other providers' login failures still keep their output only in `Failure` detail. Grep: `grep -n 'console.error' app/src/main/agentAuth/manager.ts`.
+
 ### 2026-10-31 — A linked default directory served its unconfigured target
 
 - **Area**: `cli/internal/repo/scope.go` (`Scope`, `defaultServeDirs`), `cli/internal/repo/files.go` (`Canvases`), `cli/internal/repo/layout_test.go`.
