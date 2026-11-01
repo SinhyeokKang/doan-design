@@ -33,7 +33,10 @@ describe("CanvasAgent", () => {
     expect(stop).toMatch(/^<button/);
     expect(stop).toContain('data-ui-size="sm"');
     expect(stop).not.toContain("disabled");
-    expect(html).toMatch(/>Stop<\/button>/);
+    // The composer's Stop glyph, a filled square, leads the word.
+    const glyph = html.match(/<button[^>]*doan-agent-action[^>]*>(<svg[^>]*>).*?<\/svg>Stop<\/button>/)?.[1] ?? "";
+    expect(glyph).toContain("lucide-square");
+    expect(glyph).toContain('fill="currentColor"');
   });
 
   test("waiting: a still dot, 'needs your answer' and Open named for the request; no Stop", () => {
@@ -41,7 +44,8 @@ describe("CanvasAgent", () => {
     expect(html).toContain('class="doan-agent-dot" data-steady=""');
     expect(html).toContain("Codex needs your answer");
     expect(tag(html, 'aria-label="Open the request"')).toMatch(/^<button/);
-    expect(html).toMatch(/>Open<\/button>/);
+    // Open has no glyph.
+    expect(html).toMatch(/aria-label="Open the request">Open<\/button>/);
     expect(html).not.toMatch(/>Stop</);
   });
 

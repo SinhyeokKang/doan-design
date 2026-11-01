@@ -53,7 +53,11 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
 const button = (tree: ReactNode) => all(tree).find(element => element.type === "button");
-const label = (tree: ReactNode) => button(tree)?.props.children;
+// The button's words without its icon or spinner.
+const label = (tree: ReactNode) => { const children = button(tree)?.props.children; return [children].flat().filter(child => typeof child === "string").join(""); };
+// What leads the words: the filled square on Stop, the spinner on "Stopping…" (the draft's 'agent-working' and
+// 'agent-waiting' frames; the square is the composer's Stop glyph).
+const lead = (tree: ReactNode) => { const first = all(button(tree)?.props.children as ReactNode)[0]; return first?.props.className === "doan-spinner" ? "spinner" : first ? "icon" : null; };
 // The indicator itself (its glow and notice); the top column stays for the canvas notices.
 const shown = (tree: ReactNode) => all(tree).some(element => element.props.className === "doan-agent");
 
@@ -80,9 +84,11 @@ describe("CanvasAgent Stop", () => {
   test("a ConversationError brings back an enabled Stop and shows the toast", async () => {
     let tree = render(agent([summary({})]));
     expect(label(tree)).toBe("Stop");
+    expect(lead(tree)).toBe("icon");
     (button(tree)!.props.onClick as () => void)();
     tree = render(agent([summary({})]));
     expect(label(tree)).toBe("Stopping…");
+    expect(lead(tree)).toBe("spinner");
     expect(button(tree)!.props["aria-disabled"]).toBe(true);
     // "Stopping…" ignores another press.
     (button(tree)!.props.onClick as () => void)();
