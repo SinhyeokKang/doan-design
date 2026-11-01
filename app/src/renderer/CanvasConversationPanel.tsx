@@ -5,7 +5,7 @@ import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
-import type { FrameName } from "../main/conversation/messageText";
+import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
@@ -123,7 +123,8 @@ export function canvasConversationTitle(run: CanvasRun, list: ListView): { title
   if (view?.kind !== "conversation") return { title: "New conversation", current: null };
   const summary = Array.isArray(list) ? list.find(c => c.conversationId === view.conversationId) : undefined;
   const first = run.store.thread(view.conversationId)?.events.find(event => event.type === "user.message");
-  return { title: summary?.title || (first?.type === "user.message" ? first.text : ""), current: view.conversationId };
+  // Before a list names it, the first message stands in as main's title does: chips by name (messageLine).
+  return { title: summary?.title || (first?.type === "user.message" ? messageLine(first.text, first.anchors) : ""), current: view.conversationId };
 }
 
 export function CanvasConversation(props: CanvasConversationProps) {
@@ -280,7 +281,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
-    store.queued(root, mode.conversationId, { id: reply.itemId, text: request.text });
+    store.queued(root, mode.conversationId, { id: reply.itemId, text: queuedText(request) });
     return { ok: true };
   };
   // The canvas panel's reading of a refusal (canvasConversationError): attachment_missing is the composer's own.
@@ -312,7 +313,11 @@ export function CanvasConversation(props: CanvasConversationProps) {
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={() => true}
         onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
-        onEditAndResend={() => { void store.editAndResend(conversationId).then(applied => { if (applied && run.view()?.kind === "conversation") focusField(); }); }}
+        onEditAndResend={() => {
+          // Focus follows only while the same canvas still shows the same conversation as when it was asked for.
+          const shown = run.showing();
+          void store.editAndResend(conversationId).then(applied => { if (applied && shown && run.stillShowing(shown)) focusField(); });
+        }}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => store.retryThread(conversationId)}
         onOpenCanvas={() => {}}
@@ -346,7 +351,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         thumbnails={support.thumbnails} onAttach={chooseFiles} onFiles={addFiles}
         onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
         turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false}
-        unavailable={props.blocked} locked={props.blocked !== null} held={newView?.start.pending ?? false} fixed={fixed}
+        unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         refuse={refuse} onStartNew={() => run.choose("new")}
         queued={conversationId ? store.queue(conversationId) : []}
         onSend={send} onQueue={queue}
@@ -355,6 +360,11 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpen={openConversation} />
     </div>
   </div>;
+}
+
+// A queued message's line: chips by name, as other one-line places show them; the request keeps its markers.
+export function queuedText(request: DockedRequest): string {
+  return messageLine(request.text, request.anchors);
 }
 
 // The chips the canvas panel's field takes and pastes as chips: the open canvas's (design §2 'Chip field').

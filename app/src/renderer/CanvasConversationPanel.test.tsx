@@ -5,11 +5,18 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import { textSegments } from "./anchorField";
-import { CanvasConversation, linkedAt, type CanvasConversationProps } from "./CanvasConversationPanel";
+import { CanvasConversation, canvasConversationTitle, canvasScope, linkedAt, queuedText, type CanvasConversationProps } from "./CanvasConversationPanel";
 import { CanvasRun } from "./canvasRun";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { ConversationStore, type ListView } from "./conversationStore";
 import { DockedSupport } from "./dockedSupport";
+import { authStatus } from "../main/agentAuth/state";
+import type { AuthState, Provider } from "../main/agentAuth/types";
+
+function connected(provider: Provider) {
+  const state: AuthState = { provider, generation: 1, verified: true, expired: false, connection: { provider, connectionId: "c", profile: provider, account: { id: "a", workspace: "org", email: "ada@example.com" } }, attempt: null, error: null, phase: "connected" };
+  return authStatus(state, { cli: "found", version: "supported", tools: "ready" }, 1);
+}
 
 // buzz-canvas-conversation R2 (draft panel-states, panel-resume): what the panel draws for each state of its run.
 
@@ -88,4 +95,27 @@ test("the shown time of a terminal link reads as the time of day, with the date 
   expect(linkedAt("2026-10-30T09:05:00", now)).toBe("Oct 30, 09:05");
   expect(linkedAt(undefined, now)).toBeNull();
   expect(linkedAt("not a time", now)).toBeNull();
+});
+
+// Review BR2 R4: before the list answers, the panel does not know the busy line or the terminal session yet.
+test("while the list is read, Send waits even with a draft and a signed-in agent", async () => {
+  const support = new DockedSupport(() => {});
+  support.setAuth({ revision: 1, providers: [connected("claude")] });
+  const draft = (run: CanvasRun) => run.store.setDrafts(drafts => new Map(drafts).set(canvasScope({ root: ROOT, canvas: CANVAS }), { segments: textSegments("Fix the totals"), preset: null, attachments: [], shape: "capsule" }));
+  // The same draft and agent send once the list and the terminal session answered.
+  expect(await panel([], draft, { support })).not.toMatch(/aria-label="Send"[^>]*disabled=""/);
+  expect(await panel("loading", draft, { support })).toMatch(/aria-label="Send"[^>]*disabled=""/);
+});
+
+// Review BR2 Y1: one-line places name chips; the wire text keeps its markers.
+test("a queued message and the title before the list names the conversation show chip names", async () => {
+  expect(queuedText({ text: "Change {{1}}", anchors: [{ frame: { id: "cart", title: "Cart" } }], attachments: [] })).toBe("Change Cart");
+  const doan = (window as unknown as { doan: Record<string, ReturnType<typeof vi.fn>> }).doan;
+  doan.readConversation!.mockResolvedValue({ events: [{ v: 1, conversationId: "s1", seq: 1, turnId: "t", at: "2026-11-01T00:00:00Z", type: "user.message", text: "Make {{1}} quieter", anchors: [{ frame: { id: "cart", title: "Cart" } }] }], lastSeq: 1, turn: "idle" });
+  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.started({ root: ROOT, canvas: CANVAS }, "s1", "claude", run.revision());
+  await flush();
+  expect(canvasConversationTitle(run, []).title).toBe("Make Cart quieter");
 });

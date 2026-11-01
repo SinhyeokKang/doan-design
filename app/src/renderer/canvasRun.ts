@@ -50,6 +50,9 @@ interface CanvasState {
   resume?: ResumeReply;
   ask: number;
   choice?: "resume" | "new";
+  // A conversation a start reply showed before any list named it: kept until a list read names it, so a read that
+  // was older or already in flight cannot replace it (the Overview's `listed` rule).
+  unconfirmed: string | null;
 }
 
 // A canvas keeps its state by id when it has one, so a moved canvas keeps what it showed and its draft.
@@ -115,12 +118,15 @@ export class CanvasRun {
     if (this.scroll?.conversationId === conversationId) this.scroll = null;
   }
 
-  // The person's choice in the dropdown, New and ⌘N on this canvas.
+  // The person's choice in the dropdown, New and ⌘N on this canvas. Choosing what already shows is still a newer
+  // choice than a start or send in flight, so it moves the revision too.
   select(conversationId: string | null): void {
     const s = this.shownState();
     if (!s) return;
     s.request = null;
     s.notice = null;
+    s.unconfirmed = null;
+    s.revision++;
     this.setShown(s, conversationId);
     this.host.changed();
   }
@@ -130,6 +136,7 @@ export class CanvasRun {
     const s = this.state(target);
     s.target = target;
     s.revision++;
+    s.unconfirmed = null;
     s.request = { conversationId, after: this.host.readsStarted(target.root), asked: false, scroll };
     if (canvasKey(target) === this.visible) this.resolve(s);
     this.host.changed();
@@ -149,8 +156,19 @@ export class CanvasRun {
     if (!s || s.revision !== revision) return;
     s.request = null;
     delete s.choice;
+    const list = this.host.list(target.root);
+    s.unconfirmed = Array.isArray(list) && list.some(c => c.conversationId === conversationId) ? null : conversationId;
     this.setShown(s, conversationId);
     this.host.changed();
+  }
+  // What the panel shows now, to tell later whether it still does (a late Edit and resend takes focus only then).
+  showing(): { key: string; conversationId: string; revision: number } | null {
+    const s = this.shownState();
+    return s && typeof s.shown === "string" ? { key: canvasKey(s.target), conversationId: s.shown, revision: s.revision } : null;
+  }
+  stillShowing(shown: { key: string; conversationId: string; revision: number }): boolean {
+    const now = this.showing();
+    return now !== null && now.key === shown.key && now.conversationId === shown.conversationId && now.revision === shown.revision;
   }
   // A restore made the archived conversation current again; nothing else changes what shows.
   sent(): void { this.host.changed(); }
@@ -173,7 +191,7 @@ export class CanvasRun {
   private state(target: CanvasTarget): CanvasState {
     const key = canvasKey(target);
     let s = this.canvases.get(key);
-    if (!s) { s = { target, revision: 0, request: null, notice: null, previous: null, last: null, ask: 0 }; this.canvases.set(key, s); }
+    if (!s) { s = { target, revision: 0, request: null, notice: null, previous: null, last: null, ask: 0, unconfirmed: null }; this.canvases.set(key, s); }
     return s;
   }
   private listed(root: string): readonly ConversationSummary[] {
@@ -211,6 +229,10 @@ export class CanvasRun {
         }
         // A request for another canvas's conversation falls back to this canvas's default.
       }
+    }
+    if (s.unconfirmed !== null) {
+      if (!Array.isArray(list) || !list.some(c => c.conversationId === s.unconfirmed)) return;
+      s.unconfirmed = null;
     }
     const pick = pickCanvasConversation(list, s.target.canvas, null, { ...(s.shown !== undefined ? { shown: s.shown } : {}), previous: s.previous, drawing });
     // A failed first read shows the new conversation state (view) without picking: the next read that answers picks.

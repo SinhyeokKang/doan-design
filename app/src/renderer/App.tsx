@@ -262,7 +262,9 @@ export function App() {
     changed: () => setRunTick(tick => tick + 1),
   }, overviewRun.current.store);
   // Where focus goes once the panel shows what an entry asked for (design §2 'Opening the panel'); a new seq per entry.
+  // The seq only grows: the panel applies an arrival once by its seq, so a later entry must never reuse one.
   const [arrival, setArrival] = useState<{ focus: "permission" | "composer"; seq: number } | null>(null);
+  const panelArrivals = useRef(0);
   const support = useRef<DockedSupport | null>(null);
   if (!support.current) support.current = new DockedSupport(() => setRunTick(tick => tick + 1));
   const loadedRootRef = useRef(loadedRoot); loadedRootRef.current = loadedRoot;
@@ -964,7 +966,7 @@ export function App() {
   // shows it (design §2 'Opening the panel').
   function revealPanel(focus: "permission" | "composer") {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
-    setArrival(previous => ({ focus, seq: (previous?.seq ?? 0) + 1 }));
+    setArrival({ focus, seq: ++panelArrivals.current });
   }
   // The work capsule's Open while the agent waits for an answer (design §2): the panel shows that conversation, scrolled
   // to its request with focus on the first choice.

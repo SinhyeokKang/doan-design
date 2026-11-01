@@ -364,3 +364,16 @@ test("a sidebar canvas row without a mark keeps a folded panel folded", async ()
   expect(panel()?.open).toBe(false);
   expect(conversation()?.arrival).toBeNull();
 });
+
+// Review BR2 R1: each entry is a new arrival, also after the panel consumed the previous one.
+test("a second entry after the first was consumed is a new arrival the panel applies", async () => {
+  await openCanvas();
+  listeners.menu!("newConversation" as never); render();
+  const first = conversation()!.arrival!;
+  (find<{ onArrived(seq: number): void }>(CanvasConversation)[0]!.props.onArrived)(first.seq); render();
+  expect(conversation()?.arrival).toBeNull();
+  listeners.menu!("newConversation" as never); render();
+  const second = conversation()!.arrival!;
+  expect(second.focus).toBe("composer");
+  expect(second.seq).toBeGreaterThan(first.seq);
+});

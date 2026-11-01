@@ -277,3 +277,60 @@ test("an archived conversation shown in the panel is never marked seen", async (
   await flush();
   expect(h.host.markSeen).not.toHaveBeenCalled();
 });
+
+// Review BR2 R2: choosing New again while a start is in flight is a newer choice than that start.
+test("choosing New again while the first send starts keeps the new conversation state when the late reply lands", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  const revision = h.run.revision();
+  h.run.select(null);
+  h.run.started(checkout, A, "codex", revision);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+});
+
+// Review BR2 R3: a start shows before any list names it; a list read that does not name it yet keeps it.
+test("a started conversation stays shown through list reads that do not name it yet, then the list confirms it", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  h.run.started(checkout, A, "codex", h.run.revision());
+  h.run.sync();
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  // An older read with another current conversation on the canvas does not take it over either.
+  h.answer([summary(B)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  h.answer([summary(B, { state: "archived" }), summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  // Confirmed: from now on the list's own rules apply again.
+  h.run.select(null);
+  h.answer([summary(B, { state: "archived" }), summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+});
+
+test("a list naming the started conversation before its reply keeps it once the reply shows it", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  const revision = h.run.revision();
+  h.answer([summary(A)]);
+  // The list already picked A as the canvas's current; the start reply for it changes nothing.
+  h.run.started(checkout, A, "codex", revision);
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+});
+
+// Review BR2 Y2: a late Edit and resend focuses only while the same canvas still shows the same conversation.
+test("what shows is identified by canvas, conversation and revision", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A), summary(P, { canvas: CART })]);
+  const shown = h.run.showing();
+  expect(shown).toMatchObject({ conversationId: A });
+  expect(h.run.stillShowing(shown!)).toBe(true);
+  h.run.show(cart);
+  expect(h.run.stillShowing(shown!)).toBe(false);
+  h.run.show(checkout);
+  h.run.select(null); h.run.select(A);
+  expect(h.run.stillShowing(shown!)).toBe(false);
+});
