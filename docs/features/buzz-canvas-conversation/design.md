@@ -7,26 +7,26 @@
 | 프레임 | 내용 |
 |---|---|
 | `panel-thread` | 현재 대화가 있는 캔버스: 헤더 드롭다운(대화 제목), 스레드(칩이 든 사람 메시지), docked 입력창(Pick from canvas 포함), 도구모음 Add to conversation(비활성) |
-| `panel-new` | 대화가 없는 캔버스의 새 대화: Overview 새 대화 패턴(빈 본문, 입력창 바로 위 추천 칩 — Home·Overview와 같은 quiet `suggestion` 버튼과 간격, 공급자 선택기와 Settings 기본값, placeholder "Ask about this canvas, / for presets") |
+| `panel-new` | 대화가 없는 캔버스의 새 대화: Overview 새 대화 패턴(빈 본문, 입력창 바로 위 추천 칩 — Home·Overview와 같은 quiet `suggestion` 버튼과 간격, 공급자 선택기와 Settings 기본값, placeholder "Ask, / for presets"; 기본 패널 폭에서 잘리지 않게 Overview 답장 "Reply, / for presets"와 같은 길이로 줄였다) |
 | `panel-new-replace` | 대화가 있던 캔버스에서 메뉴의 New conversation: 같은 새 대화 상태, 더하는 것 없음(Overview 패턴). 첫 전송이 새 대화를 현재로 만들고 이전 대화는 메뉴의 이전 대화로 간다 |
 | `panel-resume` | 세션 연결이 있는 캔버스: "Continue the <Provider> session from your terminal"(기본, 선택지에는 공급자 로고를 넣지 않음)과 "Start a new conversation" 선택. 이어 가기면 모델 줄에 같은 에이전트·effort 트리거를 chevron 없이 비활성으로 둔다("Terminal session", "Default", 툴팁 "Set in your terminal") |
 | `panel-menu` | 대화 드롭다운(새 대화, 현재·이전 대화, 상태) |
 | `panel-archived` | 이전 대화 읽기와 보관 표시, 보내면 다시 현재가 됨 |
 | `panel-permission` | 스레드 안 권한 요청 선택지와 캔버스 작업 표시 |
 | `panel-failed` | 실패한 턴과, 칩이 든 반환된 초안 |
-| `panel-states` | 목록 읽는 중, 목록 읽기 실패, 대화 읽기 실패, 시작 거절, 캔버스가 사라짐, 캔버스가 로드되지 않음(피커 비활성) |
+| `panel-states` | 목록 읽는 중, 목록 읽기 실패(헤더는 "New conversation"), 대화 읽기 실패, 시작 거절(새 대화라 헤더는 "New conversation"), 캔버스가 사라짐, 캔버스가 로드되지 않음(피커 비활성), 보관 대화 복원 대기(출하된 restore busy 줄과 Open), 터미널 세션 이어 가기 거절, 칩 대상을 찾지 못함 |
 | `chips-composer` | 프레임·요소·점 칩이 든 입력창(box) |
 | `picker-mode` | 고르기 상태: 위쪽 가운데 안내 캡슐("Click a frame, an element or an empty spot" + Esc), hover 후보, 눌린 피커 |
 | `add-tool` | 선택이 있을 때 Add to conversation 활성과 툴팁, 칩이 들어간 입력창 |
-| `chip-locate` | 보낸 칩을 눌러 대상 강조, 대상을 찾지 못함("Not in the current canvas") |
+| `chip-locate` | 보낸 칩을 눌러 대상 강조. 대상을 찾지 못함("Not in the current canvas")은 `panel-states`의 타일 |
 | `open-badge` | 접힌 패널의 Show conversation에 새 소식 점(답 대기) |
 | `narrow` | 960×600, 패널 최소 폭 320(`max(320px, 28dvw)`, `buzz-canvas` 폭 규칙). 칩이 들어가면 입력창이 box가 되어 글자와 칩이 도구 위에서 줄바꿈된다 |
 
-재사용(2026-11-01 user 검수): 새로 그리지 않고 출하 단위를 쓴다. 대화 드롭다운 = Overview `conv-menu`·`conv-item`·`cv-head`. 스레드·입력창·추천 칩(`ov-suggestions`·`suggestion`, quiet 버튼)·알림·표시 = Overview·buzz-conversation. 세션 이어 가기 선택 = 온보딩의 선택 카드(`ob-choice-list`·`doan-panel ob-choice`, 숨긴 radio). 시작·전송 거절 = 입력창 아래 `composer-reason docked-reason`. 빈 본문 = Overview 오른쪽 패널의 `rp-empty`. 새로 만드는 단위는 인라인 앵커 칩(공통 결정 2), 고르기 안내(캔버스 작업 안내 캡슐 재사용), 열기 버튼 새 소식 점(사이드바 슬롯의 안 본 점과 같은 크기·색)뿐이다.
+재사용(2026-11-01 user 검수): 새로 그리지 않고 출하 단위를 쓴다. 대화 드롭다운 = Overview `conv-menu`·`conv-item`·`cv-head`. 스레드·입력창·추천 칩(`ov-suggestions`·`suggestion`, quiet 버튼)·알림·표시 = Overview·buzz-conversation. 세션 이어 가기 선택 = 온보딩의 선택 카드(`ob-choice-list`·`doan-panel ob-choice`, 숨긴 radio). 시작·전송 거절 = 입력창 아래 `composer-reason docked-reason`. 빈 본문 = Overview 오른쪽 패널의 `rp-empty`. 새로 만드는 단위는 인라인 앵커 칩(공통 결정 2; 컴포넌트 상수 최대 폭 180px·radius 6px, 맞는 토큰이 없다), 고르기 안내(캔버스 작업 안내 캡슐 재사용), 열기 버튼 새 소식 점(사이드바 슬롯의 안 본 점과 같은 크기·색)뿐이다.
 
-선택 카드 라디오(2026-11-01 user, 공용 선택 카드 변경): 오른쪽 체크 아이콘을 없애고, 그 자리를 카드 왼쪽 위의 보이는 라디오가 대신한다. 라디오는 16px(`--size-icon`) 원이고 제목 첫 줄(`--type-label-sm-line-height`)의 가운데에 맞춘다. 제목이 두 줄이 되어도 라디오는 첫 줄에 남는다. 꺼짐은 `--border-prominent` 테두리와 `--surface-panel` 채움, 켜짐은 `--affordance-prominent` 채움과 6px(`--space-1h`) `--text-on-prominent` 점(체크박스 `doan-checkbox`와 같은 색). 숨긴 native radio·카드 포커스 외곽선·Enter 고르기는 그대로다. 이 변경은 이 화면만이 아니라 `ob-choice`를 쓰는 모든 곳(온보딩 Your projects, Add Projects의 폴더 안 저장소)에 반영한다.
+선택 카드 라디오(2026-11-01 user, 공용 선택 카드 변경): 오른쪽 체크 아이콘을 없애고, 그 자리를 카드 왼쪽 위의 보이는 라디오가 대신한다. 라디오는 16px(`--size-icon`) 원이고 제목 첫 줄(`--type-label-sm-line-height`)의 가운데에 맞춘다. 제목이 두 줄이 되어도 라디오는 첫 줄에 남는다. 꺼짐은 `--border-prominent` 테두리와 `--surface-panel` 채움, 켜짐은 `--affordance-prominent` 채움과 6px(`--space-1h`) `--text-on-prominent` 점(체크박스 `doan-checkbox`와 같은 색). 숨긴 native radio·카드 포커스 외곽선·Enter 고르기는 그대로다. 이 변경은 이 화면만이 아니라 `ob-choice`를 쓰는 모든 곳(온보딩 Your projects, Add Projects의 폴더 안 저장소)에 반영한다. 썸네일이 있는 카드는 라디오 → 썸네일 → 텍스트 순서다.
 
-모델·effort(2026-11-01 user 질문에 대한 답, 출하된 `dockedPicker` 규칙): 기존·보관 대화는 공급자를 바꿀 수 없어 그 공급자의 모델만 고를 수 있고, 트리거 접근 이름에 공급자가 붙는다("Model: Opus 5.5 (Claude Code)"). effort는 그 모델의 단계만. 새 대화는 Home과 같은 공급자 선택기와 Settings 기본값. 터미널 세션 이어 가기는 모델·effort·첨부를 받지 않는다. 모양은 같게 두고 고를 수만 없게 한다: 같은 xs 트리거, chevron 없음, `aria-disabled`, 툴팁 "Set in your terminal"(2026-11-01 user).
+모델·effort(2026-11-01 user 질문에 대한 답, 출하된 `dockedPicker` 규칙): 기존·보관 대화는 공급자를 바꿀 수 없어 그 공급자의 모델만 고를 수 있고, 트리거 접근 이름에 공급자가 붙는다("Model: Opus 5.5 (Claude Code)"). effort는 그 모델의 단계만. 새 대화는 Home과 같은 공급자 선택기와 Settings 기본값. 터미널 세션 이어 가기는 모델·effort·첨부를 받지 않는다. 첨부 버튼은 비활성이고 툴팁은 "Files can’t be attached to a terminal session"이다. 프리셋은 그대로 쓸 수 있고, placeholder는 답장과 같은 "Reply, / for presets"다. 모양은 같게 두고 고를 수만 없게 한다: 같은 xs 트리거, chevron 없음, `aria-disabled`, 툴팁 "Set in your terminal"(2026-11-01 user).
 
 ## 1. 영향 범위
 
@@ -51,7 +51,7 @@
 
 - 헤더: Overview 오른쪽 패널 제목 줄 자리의 대화 드롭다운. 트리거는 현재 보이는 대화의 제목(새 대화 상태면 "New conversation"), 메뉴는 New conversation → "Conversations on <canvas>" → 이 캔버스의 대화(현재 대화 먼저, 그다음 최근 활동 순, 공급자 로고·제목·상태·시각·한 줄 미리보기). Overview 메뉴(`conv-menu`, `conv-item`)와 같은 행이다.
 - 기본으로 보이는 대화: 요청된 대화(Overview 행, 알림 등) → 이 캔버스의 현재 대화 → 새 대화 상태. 보관 대화는 사람이 메뉴에서 고를 때만 보인다.
-- 보관 대화: 읽기 상태로 보이고, 입력창 위에 "Sending makes this the canvas's current conversation." 안내가 있다. 보내면 복원(백엔드 restore)이다.
+- 보관 대화: 읽기 상태로 보이고, 입력창 위의 보관 표시에 "Archived when another conversation became current on this canvas. Send a message to make it current again." 안내가 있다. 보내면 복원(백엔드 restore)이다.
 - 본 것: 패널이 펴져 있고, 창이 포커스를 가지고, 그 대화가 보일 때 `markSeen`. 접힌 패널, 다른 화면, 창 포커스 없음에서는 기록하지 않는다.
 - 상태: 목록 읽는 중(300ms 뒤 "Loading conversation…"), 읽기 실패("Couldn’t read conversations"와 Retry), 대화 하나 읽기 실패(그 대화만 오류)는 Overview와 같다.
 
@@ -111,7 +111,7 @@
 | 칩 대상을 찾지 못함(locate) | 칩 옆 "Not in the current canvas" | — |
 | 고르기 중 캔버스가 다시 로드됨 | 고르기 상태를 유지하고 새 문서에 적용 | Esc로 취소 |
 | 고르기 중 다른 캔버스·화면으로 이동 | 고르기 취소, 칩 없음 | — |
-| 터미널 세션 이어 가기 불가(`conversationResumeTarget`의 `available: false`, 또는 이어 가기 전송이 `session_unavailable`·`session_in_use`) | 연결이 없으면 선택지를 보이지 않는다. 이어 가기 전송이 거절되면 입력창 아래 notice("Couldn’t continue the terminal session: <이유>. Start a new conversation instead.")와 새 계정 연결로 바꾸는 버튼 | 새 대화로 시작 |
+| 터미널 세션 이어 가기 불가(`conversationResumeTarget`의 `available: false`, 또는 이어 가기 전송이 `session_unavailable`·`session_in_use`) | 연결이 없으면 선택지를 보이지 않는다. 이어 가기 전송이 거절되면 입력창 아래 notice("Couldn’t continue the terminal session: <이유>. Start a new conversation instead.")와 새 계정 연결로 바꾸는 버튼 "Start a new conversation"(긴 이유 줄이라 버튼은 글 아래 줄) | 새 대화로 시작 |
 | 모델 목록 읽기 실패 | 모델 "Default"(기존 규칙) | — |
 
 ## 3. 순수 함수 (`/tdd` 대상)
