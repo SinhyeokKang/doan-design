@@ -11,7 +11,7 @@
 
 ## D. 초안
 
-- [ ] D1. `/design-draft buzz-canvas-conversation`: `.doan/canvases/buzz-canvas-conversation.html`(design §0 프레임, §2 '오류 처리'의 보이는 경우 포함). 문구는 clarify 프리셋으로. 사용자가 확정한다.
+- [x] D1. `/design-draft buzz-canvas-conversation`: `.doan/canvases/buzz-canvas-conversation.html`(design §0 프레임, §2 '오류 처리'의 보이는 경우 포함). 문구는 clarify 프리셋으로. 사용자가 확정한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`, `go run ./cli/cmd/doan ls --repo .`.
 
 ── commit: `docs(design): buzz-canvas-conversation draft` ──

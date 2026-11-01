@@ -2,7 +2,7 @@
 
 ## 0. 초안
 
-`/design-draft`가 새 파일 `.doan/canvases/buzz-canvas-conversation.html`을 그린다. 셸·캔버스 헤더·보드·도구모음은 `buzz-canvas.html`(확정), 스레드·docked 입력창은 `buzz-conversation.html`·`buzz-project.html`(출하)에서 가져온다. 대화 드롭다운은 `buzz-canvas.html`의 `conversation-menu` 참고 프레임을 그대로 쓴다.
+`/design-draft`가 새 파일 `.doan/canvases/buzz-canvas-conversation.html`을 그린다. 초안은 2026-11-01 user가 확정했다. 셸·캔버스 헤더·보드·도구모음은 `buzz-canvas.html`(확정), 스레드·docked 입력창은 `buzz-conversation.html`·`buzz-project.html`(출하)에서 가져온다. 대화 드롭다운은 `buzz-canvas.html`의 `conversation-menu` 참고 프레임을 그대로 쓴다.
 
 | 프레임 | 내용 |
 |---|---|
