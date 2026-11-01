@@ -110,3 +110,9 @@ D1은 이미 끝났다(초안 확정).
 - BR1 통합: `fc9779a2`, `fce56e54`, `cf9f856e`, `38586ff4`. bcc-br1 워크트리는 사용자 네이티브 ⌘⌫ 확인용 하네스 때문에 남긴다(증거는 지휘자 `.scratch/runtime-test/bcc-BR1/`로 복사). 통합 HEAD `verify --eval` 실행 중.
 - BR2 시작: Claude Opus high `ctx_5f2c2599c8aa`(bcc-br2).
 - 웨이브 2 통합 HEAD(`38586ff4`, BT·BX·BM·BR1·BR4a·BD 포함) `verify --eval` PASS. 로그의 FAILED 줄 둘은 verify 러너 자체 테스트(verify-tests)의 의도된 실패다.
+- BR2 완료 `176e84a3`(33 파일): ConversationStore 분리, CanvasRun·패널, 진입점·새 소식 점·메뉴 상태·상태줄 제거·본 것 규칙. 테스트 5009, 격리 probe 22/22. 미검증: 로그인 흐름(V2), 답 대기 점·중복 ID 입력창(실제 앱에서 만들 수 없음). 지휘자 판단(문구): 권한 답 전송 실패 "Couldn’t send your answer. Choose again."를 승인한다(clarify: 무엇이 실패했고 다음 동작, 출하된 "Couldn’t send your message. Try again."과 같은 꼴). 지휘자 판단: 중복 ID 입력창 비활성은 캔버스가 닫혀 도달하지 않으므로 받아들인다(design 표가 캔버스 페이지 자체의 중복 ID 안내를 따르게 한다). 리뷰 Codex astra.
+- BR2 리뷰(Codex astra): 🔴 4(반복 진입 포커스, 같은 값 New 재선택 revision, start 뒤 오래된 목록, 목록 읽는 중 Send), 🟡 2(대기열 `{{n}}` 표시, Edit and resend 늦은 포커스). 수정 라운드 1 전송.
+- BR2 수정 1 `4d0dcb8b`: 여섯 모두 red 먼저, 테스트 5016, probe 24/24. 재리뷰 Codex astra.
+- BR2 재리뷰: R1·R2·R3·Y1·Y2 해결, R4 재발 경로 1건(목록 읽는 중 ⌘N 뒤 세션 조회가 먼저 끝나면 Send가 열림). 수정 라운드 2 전송.
+- BR2 수정 2 `f577dd53`. 재리뷰 2 Codex astra.
+- BR2 재리뷰 2 통과(🔴 0). 통합한다.
