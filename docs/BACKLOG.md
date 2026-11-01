@@ -21,6 +21,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 - After a click in the canvas, Tab walks through the canvas's own inputs and buttons before it reaches the agent notice, the toolbar and the conversation panel; whether to change that needs a decision (Tab inside the canvas is allowed behavior).
 - Adding Git-discovered but unregistered worktrees from the sidebar's worktree selection: the Add Projects page adds worktrees one at a time and no longer suggests them, and the sidebar shows only registered worktrees.
 - Whether the Overview's “<title> moved to <canvas>.” line should survive leaving the Overview: after a promotion that happened while the person was on the new canvas page (the app opened it during the turn), returning to the Overview showed no line, possibly because the Overview clears it when it is left; this was observed once in a signed-in run, not traced, and no rule says either way.
+- Whether to remove the document-origin chain now that nothing reads it: `DocumentBindings.current()` lost its only reader with the app's comment screen, but the inspector still observes documents (Network/Page domains and `waitForDebuggerOnStart`, which pauses each new canvas iframe until main resumes it) and the serve path still publishes response records. Removing the chain would also change canvas load timing, so it needs its own change and a check of load behaviour.
 
 ## Not verified in the real app
 
