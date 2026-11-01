@@ -7,9 +7,9 @@
 | 프레임 | 내용 |
 |---|---|
 | `panel-thread` | 현재 대화가 있는 캔버스: 헤더 드롭다운(대화 제목), 스레드(칩이 든 사람 메시지), docked 입력창(Pick from canvas 포함), 도구모음 Add to conversation(비활성) |
-| `panel-new` | 대화가 없는 캔버스의 새 대화: Overview 새 대화 패턴(빈 본문, 입력창 바로 위 추천 칩, 공급자 선택기와 Settings 기본값, placeholder "Ask about this canvas, / for presets") |
+| `panel-new` | 대화가 없는 캔버스의 새 대화: Overview 새 대화 패턴(빈 본문, 입력창 바로 위 추천 칩 — Home·Overview와 같은 quiet `suggestion` 버튼과 간격, 공급자 선택기와 Settings 기본값, placeholder "Ask about this canvas, / for presets") |
 | `panel-new-replace` | 대화가 있던 캔버스에서 메뉴의 New conversation: 같은 새 대화 상태, 더하는 것 없음(Overview 패턴). 첫 전송이 새 대화를 현재로 만들고 이전 대화는 메뉴의 이전 대화로 간다 |
-| `panel-resume` | 세션 연결이 있는 캔버스: "Continue the <Provider> session from your terminal"(기본)과 "Start a new conversation" 선택, 이어 가기면 tray가 "Terminal session · <Provider>"(모델·effort·첨부 없음) |
+| `panel-resume` | 세션 연결이 있는 캔버스: "Continue the <Provider> session from your terminal"(기본)과 "Start a new conversation" 선택. 이어 가기면 모델 줄에 같은 에이전트·effort 트리거를 chevron 없이 비활성으로 둔다("Terminal session", "Default", 툴팁 "Set in your terminal") |
 | `panel-menu` | 대화 드롭다운(새 대화, 현재·이전 대화, 상태) |
 | `panel-archived` | 이전 대화 읽기와 보관 표시, 보내면 다시 현재가 됨 |
 | `panel-permission` | 스레드 안 권한 요청 선택지와 캔버스 작업 표시 |
@@ -22,7 +22,7 @@
 | `open-badge` | 접힌 패널의 Show conversation에 새 소식 점(답 대기) |
 | `narrow` | 960×600, 패널 기본 폭 |
 
-모델·effort(2026-11-01 user 질문에 대한 답, 출하된 `dockedPicker` 규칙): 기존·보관 대화는 공급자를 바꿀 수 없어 그 공급자의 모델만 고를 수 있고, 트리거 접근 이름에 공급자가 붙는다("Model: Opus 5.5 (Claude Code)"). effort는 그 모델의 단계만. 새 대화는 Home과 같은 공급자 선택기와 Settings 기본값. 터미널 세션 이어 가기는 모델·effort·첨부를 받지 않아 tray에 "Terminal session · <Provider>"만 보인다.
+모델·effort(2026-11-01 user 질문에 대한 답, 출하된 `dockedPicker` 규칙): 기존·보관 대화는 공급자를 바꿀 수 없어 그 공급자의 모델만 고를 수 있고, 트리거 접근 이름에 공급자가 붙는다("Model: Opus 5.5 (Claude Code)"). effort는 그 모델의 단계만. 새 대화는 Home과 같은 공급자 선택기와 Settings 기본값. 터미널 세션 이어 가기는 모델·effort·첨부를 받지 않는다. 모양은 같게 두고 고를 수만 없게 한다: 같은 xs 트리거, chevron 없음, `aria-disabled`, 툴팁 "Set in your terminal"(2026-11-01 user).
 
 ## 1. 영향 범위
 
@@ -68,7 +68,7 @@
 
 ### 피커와 Add to conversation
 
-- 입력창 피커(입력창 도구 줄의 아이콘 버튼, "Pick from canvas"): 누르면 캔버스가 한 번 고르기 상태가 된다. 보드 커서가 십자, 위쪽 가운데에 "Click a frame, an element or an empty spot. Esc to cancel." 안내, hover 후보는 지금 hover 외곽선. 누르면 앵커가 정해지고 칩이 커서 위치에 들어가며 입력창 포커스가 돌아온다. 고르기는 현재 선택·`doan active`를 바꾸지 않는다. Esc·피커 다시 누르기·다른 화면으로 가기는 취소다.
+- 입력창 피커("Pick from canvas", 입력창 카드 아래 모델 줄의 왼쪽 끝 xs 아이콘 버튼; 에이전트·effort는 오른쪽, 2026-11-01 user): 누르면 캔버스가 한 번 고르기 상태가 된다. 보드 커서가 십자, 위쪽 가운데에 "Click a frame, an element or an empty spot. Esc to cancel." 안내, hover 후보는 지금 hover 외곽선. 누르면 앵커가 정해지고 칩이 커서 위치에 들어가며 입력창 포커스가 돌아온다. 고르기는 현재 선택·`doan active`를 바꾸지 않는다. Esc·피커 다시 누르기·다른 화면으로 가기는 취소다.
 - 빈 곳: 캔버스 문서의 빈 곳이나 보드 여백을 누르면 점 앵커(`point {frameId?, dx, dy}`, 프레임 안이면 그 프레임 기준 offset, 밖이면 보드 기준)다.
 - Add to conversation(도구모음, `buzz-canvas`가 만든 `role="toolbar"`에 더함): 현재 선택(프레임·요소)이 있을 때 활성. 누르면 패널을 펴고(접혀 있었으면) 입력창 커서 위치(포커스가 없었으면 끝)에 선택의 칩을 넣고 입력창에 포커스를 준다. 보관 대화가 보이는 중이면 그 입력창에 넣는다.
 - 단축키는 두지 않는다(비목표 아님, 초안 뒤 판단).
