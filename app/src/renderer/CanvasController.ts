@@ -7,7 +7,7 @@ import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
-import { bottomLabel, canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
+import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, resolvedActivity, type ActivityEvent } from "./activity";
@@ -51,8 +51,6 @@ export interface CanvasState {
   // The exact view scale behind the rounded `zoom`: the zoom controller's step limits read it. Published with the
   // other changes, and whenever the view reaches or leaves a zoom limit.
   scale: number;
-  // The bottom label, from the open canvas's latest document event at the last publish.
-  label: string | null;
   activity: ActivityEvent[];
   // The id the open path held before a reload gave it another one (or none),
   // until that id comes back (project-feedback design §5).
@@ -62,7 +60,7 @@ export interface CanvasState {
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, label: null, activity: [], idChangedFrom: null };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, located: false, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], idChangedFrom: null };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -125,9 +123,6 @@ export class CanvasController {
   // The last comments read for the open canvas, which the next read is compared
   // with for Resolved activity. Cleared when another canvas opens or is shown.
   private commentBaseline: CommentBinding | null = null;
-  // The latest document event per canvas, for the bottom label: Resolved events
-  // share the Activity cap and could otherwise push it out of the log.
-  private lastDocument = new Map<string, ActivityEvent>();
   private commentHooks: CommentHooks | null = null;
   private anchors: AnchorSnapshot | null = null;
   private pinLayer: CommentPins | null = null;
@@ -206,7 +201,6 @@ export class CanvasController {
 
   private recordDocument(event: ActivityEvent): void {
     this.state.activity = pushActivity(this.state.activity, event, 50);
-    this.lastDocument.set(documentKey(event), event);
   }
 
   private resetAnchors(): void {
@@ -352,11 +346,9 @@ export class CanvasController {
 
   private publish(): void {
     const open = this.state.open;
-    const latest = open ? this.lastDocument.get(documentKey(activityKey(open.folder, open.row))) : undefined;
     const lost = open ? this.idChanges.get(pathKey(open.folder, open.canvas)) : undefined;
     if (open && lost !== undefined && open.row.id === lost) this.idChanges.delete(pathKey(open.folder, open.canvas));
     this.state.idChangedFrom = open && lost !== undefined && open.row.id !== lost ? lost : null;
-    this.state.label = latest ? bottomLabel([latest], new Date()) : null;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;

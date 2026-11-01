@@ -125,17 +125,6 @@ it("does not notify React for repeated layouts or geometry-only changes", () => 
   } finally { controller.dispose(); }
 });
 
-it("labels the open canvas with its last successful activity", () => {
-  const { controller, changed, row } = loadedController();
-  try {
-    const { width: _width, ...withoutWidth } = row;
-    controller.openCanvas("/repo", { ...withoutWidth, path: ".doan/canvases/b.html" });
-    expect(changed.mock.lastCall?.[0].label).toBeNull();
-    controller.openCanvas("/repo", row);
-    expect(changed.mock.lastCall?.[0].label).toMatch(/^Opened \d\d:\d\d$/);
-  } finally { controller.dispose(); }
-});
-
 interface FakeMark {
   className: string;
   hidden: boolean;
@@ -1601,7 +1590,6 @@ describe("a canvas moved with the same id", () => {
       h.layout({ href: h.moved.url });
       const activity = h.state().activity;
       expect(activityFor(activity, "/repo", h.moved.path, "a").map(event => [event.kind, event.from])).toEqual([["moved", h.row.path], ["opened", undefined]]);
-      expect(h.state().label).toMatch(/^Moved \d\d:\d\d$/);
     } finally { h.controller.dispose(); }
   });
 
@@ -1613,7 +1601,6 @@ describe("a canvas moved with the same id", () => {
       h.controller.updateEntries(h.list(replacement, h.other));
       h.layout();
       expect(activityFor(h.state().activity, "/repo", h.row.path, "replacement").map(event => event.kind)).toEqual(["reloaded"]);
-      expect(h.state().label).toMatch(/^Reloaded \d\d:\d\d$/);
       const moved = { ...replacement, path: ".doan/canvases/new.html", url: "http://localhost/t/k/f/.doan/canvases/new.html" };
       h.controller.updateEntries(h.list(moved, h.other));
       h.layout({ href: moved.url });
@@ -1712,11 +1699,9 @@ describe("Activity", () => {
       h.controller.updateEntries(h.list({ ...h.row, rev: 1 }, h.other));
       h.layout();
       expect(kinds()).toEqual(["changed", "opened"]);
-      expect(h.state().label).toMatch(/^Changed \d\d:\d\d$/);
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [{ ...h.row, rev: 1 }, h.other] }]);
       h.layout();
       expect(kinds()).toEqual(["reloaded", "changed", "opened"]);
-      expect(h.state().label).toMatch(/^Reloaded /);
       h.controller.command("reload");
       h.layout();
       expect(kinds()[0]).toBe("reloaded");
@@ -1752,8 +1737,6 @@ describe("Activity", () => {
       const [latest] = activityFor(h.state().activity, "/repo", h.row.path, "a");
       expect(latest).toMatchObject({ kind: "resolved", count: 2, resolvedBy: ["codex", "Kim Doe"] });
       expect(h.changed).toHaveBeenCalled();
-      // Resolved is about comments, so the label keeps the document event.
-      expect(h.state().label).toMatch(/^Opened /);
       h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex), comment("z", by.kim), comment("w", by.kim)] }, hooks());
       expect(kinds()).toEqual(["resolved", "resolved", "opened"]);
       h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex), comment("y", by.codex), comment("z", by.kim), comment("w", by.kim)] }, hooks());
@@ -1814,21 +1797,6 @@ describe("Activity", () => {
       h.layout();
       h.controller.setComments({ root: "/repo", canvas: "a", comments: [comment("x", by.codex)] }, hooks());
       expect(h.state().activity.filter((event: { kind: string }) => event.kind === "resolved")).toEqual([]);
-    } finally { h.controller.dispose(); }
-  });
-
-  // R-V V-1: Resolved events share the 50-event cap but must not push the label's document event out.
-  it("keeps the document label after 50 resolution reads", () => {
-    const h = activityHarness();
-    try {
-      const comments = Array.from({ length: 50 }, (_, i) => comment(String(i)));
-      h.controller.setComments({ root: "/repo", canvas: "a", comments }, hooks());
-      for (let i = 0; i < 50; i++) {
-        comments[i] = comment(String(i), by.codex);
-        h.controller.setComments({ root: "/repo", canvas: "a", comments }, hooks());
-      }
-      expect(activityFor(h.state().activity, "/repo", h.row.path, "a").every(event => event.kind === "resolved")).toBe(true);
-      expect(h.state().label).toMatch(/^Opened \d\d:\d\d$/);
     } finally { h.controller.dispose(); }
   });
 });

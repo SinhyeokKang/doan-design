@@ -13,7 +13,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Minus, Plus, Settings, LayoutGrid } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Settings, LayoutGrid } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsDialog } from "./ProjectSettingsDialog";
@@ -27,7 +27,7 @@ import { CanvasConversations } from "./RightPanel";
 import { ConversationPanel } from "./ConversationPanel";
 import { panelBounds, panelWidth } from "./rightPanelSize";
 import { duplicateIdText } from "./canvasView";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
@@ -1060,16 +1060,6 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
         : <p>{state.message}</p>}
     </div>}
     <div className="doan-canvas-bottom"><CanvasTools /></div>
-    {state.label && state.open && <output className="updated meta" aria-label={state.label}><span className="dot" /> {state.label}</output>}
-    <div className={`zctl${state.hasFrame ? "" : " disabled"}`}>
-      <button className="doan-button" data-ui-size="sm" aria-label="Reload canvas" disabled={!state.open} onClick={() => command("reload")}>Reload</button>
-      <div className="zoom">
-        <button className="doan-icon-button" data-ui-variant="subtle" aria-label="Zoom out" disabled={!state.hasFrame} onClick={() => command("zoomOut")}><Minus aria-hidden="true" /></button>
-        <output aria-label={state.hasFrame ? `Zoom ${state.zoom}%` : "Zoom"}>{state.hasFrame ? `${state.zoom}%` : "—"}</output>
-        <button className="doan-icon-button" data-ui-variant="subtle" aria-label="Zoom in" disabled={!state.hasFrame} onClick={() => command("zoomIn")}><Plus aria-hidden="true" /></button>
-      </div>
-      <Tooltip><TooltipTrigger asChild><button className="btn doan-button" data-ui-variant="subtle" data-ui-size="sm" aria-label="Fit" disabled={!state.hasFrame} onClick={() => command("fit")}>Fit <span className="kbd doan-kbd">⌘1</span></button></TooltipTrigger><TooltipContent>Fit to width</TooltipContent></Tooltip>
-    </div>
     </section>
   </div>;
 }
