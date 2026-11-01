@@ -127,3 +127,6 @@ D1은 이미 끝났다(초안 확정).
 - BR4b 재리뷰: R1·R2·Y2·FIT_MARGIN 닫힘. 새 🔴 1(입력창이 스크롤되면 not-found 안내가 처음 좌표에 남음). 지휘자 판단: 스크롤을 '다음 동작'으로 보고 안내를 지운다(design의 '다음 동작 또는 4초'). 수정 라운드 2 전송.
 - BR4b 수정 2 `28d4e333`: 스크롤이 안내를 지움, probe 47/47. 지휘자 판단: 안내가 떠 있는 동안 창·패널 크기 변경은 처리하지 않는다(다음 동작 규칙의 범위 밖, 4초 뒤 사라짐). 재리뷰 2 Codex astra.
 - BR4b 재리뷰 2 통과(🔴 0). 통합한다.
+- BR4b 통합: `5f5f5b3e`, `7a5b3101`, `c6fc2cf6`. bcc-br4 정리. 구현 배치 끝. 통합 HEAD `verify --eval` 실행.
+- 웨이브 5 시작: BV1 Claude Opus high `ctx_b440baf360c3`(bcc-v1, design-sync), BV3 Claude Sonnet medium `ctx_d89cf4bf1179`(bcc-v3, eval 판단·self-test). BV2(실제 공급자 runtime-test)는 BV1 뒤(GUI probe 겹침 방지).
+- 구현 통합 HEAD(`c6fc2cf6`) `verify --eval` PASS.
