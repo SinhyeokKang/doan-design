@@ -2,156 +2,162 @@
 
 ## 0. 초안
 
-`/design-draft`가 새 파일 `.doan/canvases/buzz-canvas.html`을 그린다(부모 공통 결정 11). 기존 `app-shell.html`·`select-inspect.html`·`revision-continuity.html`은 이력으로 두고 고치지 않는다. 프레임은 전체 창(1238×780, 사이드바 220px, 오른쪽 패널은 지금의 280px Inspector/Comments 자리를 회색 블록으로) 단위로 그린다.
+`/design-draft`가 새 파일 `.doan/canvases/buzz-canvas.html`을 그렸다(부모 공통 결정 11). 기존 `app-shell.html`·`select-inspect.html`·`revision-continuity.html`은 이력으로 두고 고치지 않는다. 프레임은 전체 창(1238×780, 사이드바 220px, 오른쪽에 캔버스 대화 패널 껍데기) 단위다.
 
 | 프레임 | 내용 |
 |---|---|
-| `default` | 캔버스를 연 직후(Fit). 캔버스 헤더(캔버스 / 프레임 서랍, 배율), 회색 보드, 캔버스 대화 패널 껍데기(제목과 닫기, 빈 본문), 도구모음(피커 눌림) |
+| `default` | 캔버스를 연 직후(Fit). 캔버스 헤더(캔버스 / 프레임 서랍, 배율), 회색 보드, 캔버스 대화 패널 껍데기(제목과 닫기, 한 줄 빈 본문), 도구모음(피커 눌림) |
 | `frame-selected` | 프레임 선택 외곽선과 치수 캡슐 |
-| `element-hover` | 요소 hover(점선)와 요소 선택(실선)이 함께 |
-| `drawer-open` | 서랍 팝오버. 지금 보는 프레임 표시, hover·키보드 포커스 행, 제목 없는 프레임(id), 긴 제목 말줄임, 목록 스크롤 |
-| `drawer-truncated` | 1,000개를 넘는 캔버스의 목록 끝 안내 |
+| `element-hover` | 요소 hover(점선)와 요소 선택(실선)이 함께, 피커 툴팁 |
+| `drawer-open` | 서랍 팝오버. 지금 보는 프레임 표시("Viewing", 채움 없음), hover 행, 긴 제목 말줄임, 목록 스크롤 |
+| `drawer-truncated` | 1,000개를 넘는 캔버스의 목록 끝 안내, 제목 없는 프레임(id) |
 | `zoom-menu` | 배율 메뉴(Fit ⌘1, 100% ⌘0, 50%, 200%) |
-| `no-frames` | 프레임이 없는 캔버스: 서랍과 배율 컨트롤러의 비활성 모습 |
-| `states` | 로딩, 로드 실패(Reload), 폭 없음, 목록에 없는 페이지, 프로젝트 문제 메시지 |
-| `notices` | 선택 잃음 알림, 오류 알림, 토스트가 동시에 뜬 모습 |
-| `on-dark` · `on-violet` | 어두운 캔버스, violet이 많은 캔버스 위의 선택·hover·이동 하이라이트(부모 design '조사 메모: 캔버스 영역') |
+| `no-frames` | 프레임이 0개인 읽힌 캔버스: 서랍만 비활성("No frames"), 배율은 동작 |
+| `states` | 로딩, 로드 실패(Reload), 폭 없음, 목록에 없는 페이지, 프로젝트 문제 |
+| `notices` | 선택 잃음 알림과 토스트가 함께 뜬 모습 |
 | `panel-collapsed` | 패널을 접은 캔버스 페이지(캔버스가 창 오른쪽 끝까지, 캔버스 헤더 우상단에 "Show conversation") |
-| `panel-resize` | 끌어서 넓힌 패널, 경계 손잡이의 hover·포커스 모습 |
-| `agent-working` | 이 캔버스의 현재 대화가 일함: 가장자리 accent 안쪽 그림자, 위쪽 가운데 안내(점, 문구, Stop) |
-| `agent-waiting` | 응답 대기 문구, Stop을 누른 뒤의 "Stopping…" |
-| `narrow` | 960×600. 작업 안내가 서랍·배율 컨트롤러 사이에서 줄어드는 모습을 포함한다. 서랍의 긴 이름이 먼저 줄어드는지, 컨트롤·알림·토스트가 겹치지 않는지 |
+| `panel-resize` | 끌어서 넓힌 패널, 경계 손잡이의 hover 모습 |
+| `agent-working` | 이 캔버스의 현재 대화가 일함: 가장자리 그라디언트, 점 필드, 위쪽 가운데 안내(점, 문구, Stop) |
+| `agent-waiting` | 응답 대기 문구(점 정지), Stop hover, Stop을 누른 뒤의 "Stopping…" |
+| `on-dark` · `on-violet` | 어두운 캔버스, violet이 많은 캔버스 위의 선택·hover·이동 하이라이트와 작업 표시 |
+| `narrow` | 960×600. 긴 프레임 이름이 먼저 줄어들고, 컨트롤·안내가 겹치지 않음 |
+| `conversation-menu` | 참고 프레임(구현 몫은 `buzz-canvas-conversation`): 대화 패널 헤더의 대화 드롭다운 모양. buzz-canvas의 `/design-sync`는 이 프레임을 비교하지 않는다 |
 
-참고: Buzz에는 캔버스 화면이 없다. 컨트롤 모양은 Buzz의 공용 프리미티브(버튼, 메뉴, 팝오버, 툴팁)와 doan 공용 컴포넌트(`ds/controls.css`, `ds/surfaces.css`)에서 가져오고, 새 프리미티브를 만들지 않는다. 그 밖의 디자인 도구를 참고하면 출처를 이 절에 적는다(AGENTS.md 'Leave evidence for references').
+참고: Buzz에는 캔버스 화면이 없다. 컨트롤 모양은 doan 공용 컴포넌트(`ds/controls.css`, `ds/surfaces.css`)와 이미 출하된 Overview 헤더·오른쪽 패널에서 가져오고, 새 공용 프리미티브를 만들지 않는다. 외부 참고와 출처는 아래 각 절에 적었다(AGENTS.md 'Leave evidence for references').
 
-### 초안에서 정한 값 (2026-11-01, 사용자가 외관 확정)
+### 확정 값 (2026-11-01, 사용자가 외관 확정)
 
-- 확정: 사용자가 2026-11-01 초안 `.doan/canvases/buzz-canvas.html`(16프레임)의 외관을 확정했다. 이 절과 아래 값이 `/design-sync`의 기준이다.
-- 열린 목록에 없는 캔버스(목록에 없는 페이지, 프로젝트 문제)에서는 헤더에 캔버스 이름과 `/`가 없고 비활성 서랍("Frames")만 있다.
-
-- 사용자 결정: 보드 바탕은 연한 회색 `--surface-inset`이다(수정 3, 2026-11-01 user; 수정 1의 흰색을 대체). 헤더는 흰색 그대로다. 캔버스 패널 위에 흰 불투명 헤더를 따로 두고, 프레임 서랍은 Overview 헤더의 대화 드롭다운과 같은 모양이다. 그래서 `board-options` 프레임을 지웠다.
-- 캔버스 헤더: Overview 헤더 상자(`.ov-head`, 56px, 안쪽 8/16, 흰 불투명, 아래 구분선 없음). 위계는 Overview의 프로젝트 / 대화처럼 캔버스 / 프레임이다(수정 10, 2026-11-01 user): 캔버스(사이드바와 같은 `PanelsTopLeft` 아이콘과 이름, subtle 글자·regular, `title`은 경로, 최대 40%) · `/` · 프레임 서랍(`ov-title` 트리거: "번호. 이름", ▾, standard·medium). 프레임 이름이 먼저 줄어든다. 프로젝트와 `n/N`은 넣지 않는다. 오른쪽에 − · 배율 값(메뉴) · +, 패널이 접혔을 때만 그 뒤에 구분선 · 열기 버튼.
-- 서랍 목록과 배율 메뉴는 Overview 대화 메뉴처럼 트리거 바로 아래에 연다. 서랍 목록 320px, 배율 메뉴 184px.
-- 보드 위에 뜨는 것: 작업 안내와 알림은 보드 위쪽 가운데(헤더 아래 20px, 안내가 먼저; 2026-11-01 user), 도구모음은 아래 가운데. 왼쪽 아래 변경 표시(Opened·Changed·Reloaded)는 없앤다(수정 7, 2026-11-01 user: Activity를 보이던 Canvas info도 빠지고, 에이전트가 고치는 중인지는 작업 표시가 보여 준다). 작업 안내가 나타날 때 뷰를 옮기지 않는다.
-- Fit inset: 헤더 아래 56px(헤더 높이만큼, 수정 5), 좌우 32px, 도구모음 위 64px(12 + 40 + 12). 헤더는 보드 위를 덮지 않고 보드 밖에 있다.
-- 에이전트 작업 그림자는 헤더를 뺀 보드 영역 안쪽에만 두른다.
-- 작업 안내 문구는 짧게 한다: "Codex is working", 응답 대기 "Codex needs your answer"(Overview의 "Needs your answer"와 같은 말). 응답 대기 중에는 점이 멈춘다.
+- 확정: 사용자가 2026-11-01 초안의 외관을 확정했다. 이 절과 아래 값이 `/design-sync`의 기준이다.
+- 보드 바탕은 연한 회색 `--surface-inset`이고, 캔버스 헤더는 흰색이다. 둘 사이에 구분선이 없고 헤더는 보드를 덮지 않는다(보드는 헤더 아래에서 시작한다). 이것이 부모 표 8번 "보드를 Panel 안에 둘지"의 답이다: 캔버스 패널(흰 헤더 + 회색 보드, 왼쪽 모서리 24px) 안에 둔다.
+- 캔버스 헤더: Overview 헤더 상자(`.ov-head`, 56px, 안쪽 8/16). 위계는 Overview의 프로젝트 / 대화처럼 캔버스 / 프레임이다. 캔버스(사이드바와 같은 `PanelsTopLeft` 아이콘과 이름, subtle 글자·regular, `title`은 경로, 최대 40%) · `/` · 프레임 서랍(`ov-title` 트리거: "번호. 이름", ▾, standard·medium). 프레임 이름이 먼저 줄어든다. 프로젝트와 `n/N`은 넣지 않는다. 오른쪽에 − · 배율 값(메뉴) · +, 패널이 접혔을 때만 그 뒤에 1px 구분선 · 열기 버튼.
+- 목록에 없는 페이지와 프로젝트 문제에서는 헤더에 캔버스 이름과 `/`가 없고 비활성 서랍("Frames")만 있다.
+- 서랍 목록(320px)과 배율 메뉴(184px)는 Overview 대화 메뉴처럼 트리거 바로 아래에 연다.
+- 보드 위에 뜨는 것: 작업 안내와 알림은 보드 위쪽 가운데(보드 위 끝에서 20px, 안내가 먼저), 도구모음은 아래 가운데(보드 아래 끝에서 12px, 40px 높이). 작업 안내와 알림은 오버레이라 캔버스 내용을 덮어도 되고 Fit 여백과 상관없다. 왼쪽 아래 변경 표시는 없다.
 - 비활성 서랍: 로딩·실패·폭 없음·목록에 없는 페이지·프로젝트 문제에서는 "Frames", 프레임이 0개인 읽힌 캔버스에서만 "No frames".
-- 알림은 `doan-notice doan-panel`(흰 채움)에 패널 그림자를 더해 회색 보드 위에서 보이게 한다. 상태 메시지의 Reload는 panel 변형이다. 토스트는 창 오른쪽 아래 16px로 돌아간다.
-- 패널 손잡이 막대는 accent 그라디언트다(2026-11-01 user).
+- 알림은 `doan-notice doan-panel`(흰 채움)에 `--shadow-panel`. 상태 메시지의 Reload는 panel 변형. 토스트는 창 오른쪽 아래 16px.
 
 ## 1. 영향 범위
 
-- **app renderer만** 바뀐다. main, preload, CLI, 스킬, 형식은 바뀌지 않는다.
-  - `App.tsx`의 `CanvasPane`: 서랍, 배율 컨트롤러, 도구모음, 알림, 상태 메시지의 마크업. `.zctl` 띠, Reload 버튼, 변경 표시(`.updated`)를 지운다. Activity 기록(`activity.ts`)과 `bottomLabel`은 쓰는 곳이 없어지면 함께 정리한다.
-  - `CanvasController.ts`: 서랍이 쓰는 `selectFrame(index)`는 이미 있다(이동 + `pick-frame` + 초안 가드 `transition`). 지금 호출하는 곳이 없으므로 서랍이 처음 쓰는 곳이 된다. 배율 메뉴의 50%·200%를 위해 `zoomTo(scale)`(뷰 가운데 기준)을 더한다. Fit·이동·locate가 쓰는 여백을 새 inset으로 바꾼다.
-  - `viewport.ts`: `fitWidth`·`fitFrame`·`locateView`가 사방 같은 `margin` 대신 위·오른쪽·아래·왼쪽 inset을 받는다.
-  - `styles.css`: `.area`, `.mark`, `.dims`, 프레임 이동 하이라이트, `.canvas-status`, `.canvas-notices`/`.canvas-notice`, `.updated`, `.zctl`/`.zoom` 규칙을 새 컨트롤 규칙으로 바꾼다. 새 클래스는 `doan-` 접두어를 쓴다(공통 결정 9).
+- **renderer**가 주로 바뀐다. main·preload·CLI·스킬·공유 형식(JSON Schema)은 바뀌지 않는다. 공유 파서 `app/src/restore/uiState.ts`(`parseUiState`)는 main의 ui-state 저장 검증에도 쓰이므로, `rightPanel` 필드를 더하면 main 저장소가 그 필드를 보존하는지 함께 확인한다.
+  - `App.tsx`: `CanvasPane`의 헤더·서랍·배율·도구모음·알림·상태 메시지 마크업, 오른쪽 열(`.right-stack`)의 캔버스 대화 패널 껍데기, 열 폭 CSS 변수. `.zctl` 띠, Reload 버튼, 변경 표시(`.updated`와 `state.label`)를 지운다. 캔버스 페이지에서 `RightPanel`을 그리지 않고 코멘트 세션(`useComments`)을 열지 않는다. 그래서 코멘트 초안·핀(`CanvasController.drawPins`의 바인딩)·Review가 생기지 않고, Go > Next/Previous Resolved Comment는 Review가 없어 지금 규칙(`menuState` `resolvedNav`)대로 비활성으로 남는다.
+  - `CanvasController.ts`: `selectFrame(index)`를 `selectFrame(index, id)`로 바꾼다(아래 '프레임 서랍'). 배율 메뉴의 50%·200%는 새 함수 없이 `zoomAt(view, scale / view.scale, center, ZOOM_LIMITS)`(`actualSize`와 같은 방식). Fit과 프레임 이동이 inset을 쓴다. 첫 Fit을 실제 보드 크기가 정해진 뒤로 미룬다(아래 '첫 Fit').
+  - `viewport.ts`: `fitWidth`·`fitFrame`이 사방 같은 `margin` 대신 위·오른쪽·아래·왼쪽 inset을 받는다. `locateView`(코멘트 locate 전용)는 캔버스 페이지에서 부를 곳이 없어지므로 바꾸지 않는다.
+  - `canvasConversationRows.ts`: 캔버스와 대화의 매칭 함수 `sameCanvas`를 export해 작업 표시가 같은 규칙을 쓴다(세 번째 복사본을 만들지 않는다).
+  - `canvasView.ts`의 `bottomLabel`과 `CanvasState.label`은 쓰는 곳이 없어져 지운다. `activity.ts`는 남겨 둔 `RightPanel`의 Canvas info가 계속 쓰므로 남긴다.
+  - `styles.css`: `.area`, `.mark`, `.dims`, 프레임 이동 하이라이트, `.canvas-status`, `.canvas-notices`/`.canvas-notice`, `.updated`, `.zctl`/`.zoom`, 워크스페이스 그리드 열 규칙을 새 규칙으로 바꾼다. 새 클래스는 `doan-` 접두어를 쓴다(공통 결정 9).
+- **의존성은 더하지 않는다.** 패널 끌기는 직접 구현한다(2026-11-01 user). `react-resizable-panels` 4.14.5를 읽어 보니 상태 속성(`data-separator`), 키보드 단위(5%), Home/End 방향, % 단위 aria·저장이 이 design과 맞지 않고, 앱 셸 grid를 Group 구조로 다시 짜야 했다(tech 리뷰).
 - **View 메뉴**(`app/src/main/index.ts`)와 `ViewCommand`는 그대로다. 배율 메뉴의 Fit·100%는 같은 명령(`fit`, `actualSize`)을 부른다.
 - **선택 경로**: 서랍의 선택은 `pick-frame` → 캔버스 스크립트의 `select` → 기존 `selection:set`이다. `doan active`, 선택 수명, 앵커 규칙(ARCHITECTURE §3 'Selection and inspector')은 바뀌지 않는다.
 
-## 2. 컨트롤 규칙
+## 2. 상호작용 규칙
 
 ### 프레임 서랍
 
-- 버튼: 지금 보는 프레임(`CanvasState.currentFrame`)의 번호와 이름("3. Payment", `frameLabel`의 number·name — 제목, 없으면 id)과 ▾. 전체 개수(`n/N`)는 보이지 않는다(2026-11-01 user). 접근 이름은 "Frame <번호>: <이름>". 지금 보는 프레임이 없으면(프레임 0개) 버튼은 비활성이고 "No frames"를 보인다. 로딩·실패·폭 없음·목록에 없는 페이지에서도 비활성이다.
-- 목록: Radix 팝오버에 roving tabindex 목록. 행은 `layout.frames` 순서(문서 순서)이고 번호와 이름을 보인다. 지금 보는 프레임 행은 채움 없이 "Viewing" 글자로만 표시하고, 채움은 hover와 키보드 포커스에만 쓴다(2026-11-01 user, 검수 P2). 지금 보는 프레임 행에 표시가 있고, 목록을 열면 그 행이 보이도록 스크롤하고 그 행에 포커스를 둔다. 긴 이름은 말줄임하고 전체 이름을 `title`로 둔다. `layout.truncated`면 목록 끝에 "Showing the first 1,000 frames. Use Quick Open (⌘K) to search." 같은 안내를 둔다(문구는 초안에서 확정, 아래 '문구').
-- 행을 고르면(클릭, Enter, Space) 목록을 닫고 `controller.selectFrame(index)`를 부른다. 초안 가드가 거절하면 이동도 선택도 일어나지 않는다(기존 `transition` 규칙).
-- 지금 보는 프레임이 바뀌어도 열린 목록의 포커스는 움직이지 않는다. 표시만 따라간다.
+- 버튼: 지금 보는 프레임(`CanvasState.currentFrame`)의 번호와 이름("3. Payment", `frameLabel`의 number·name — 제목, 없으면 id)과 ▾. 전체 개수는 보이지 않는다. 접근 이름은 "Frame <번호>: <이름>". `currentFrame`은 목록에 오른 프레임(최대 1,000개) 가운데 뷰 가운데에 가장 가까운 것이라, 1,000번째 뒤를 보고 있으면 가장 가까운 목록 프레임이 보인다.
+- 비활성: 렌더된 보드가 없을 때(로딩, 실패, 폭 없음, 목록에 없는 페이지, 프로젝트 문제)는 "Frames", 프레임이 0개인 읽힌 캔버스에서는 "No frames". 다시 로드 중(`CanvasState.reloading`)에는 이전 layout으로 열어 두고, 고른 행은 아래 id 확인을 거친다.
+- 목록: 팝오버 안의 roving tabindex 목록. 행은 `layout.frames` 순서(문서 순서)이고 번호와 이름을 보인다. 지금 보는 행은 채움 없이 "Viewing" 글자와 `aria-current="location"`으로 표시하고, 채움은 hover와 키보드 포커스에만 쓴다. 목록을 열면 지금 보는 행이 보이도록 스크롤하고 그 행에 포커스를 둔다. 긴 이름은 말줄임하고 전체 이름을 `title`로 둔다. 사이드바 트리와 같은 500ms typeahead가 있다. `layout.truncated`면 목록 끝에 "Showing the first 1,000 frames. Search all with Quick Open (⌘K)."를 둔다.
+- 행을 고르면(클릭, Enter, Space) 목록을 닫고 `selectFrame(index, id)`를 부른다. 컨트롤러는 Quick Open의 `pendingFrame` 규칙처럼 해석한다: 그 index의 id가 같으면 그대로, 아니면 `findIndex(id)`, 그래도 없으면 아무것도 하지 않는다. 지금의 `selectFrame(index)`는 호출 시점의 `layout.frames[index]`를 잡아서, 서랍이 그린 행과 그 사이 다시 로드된 layout이 다르면 다른 프레임을 고르기 때문이다(POSTMORTEM 2026-10-25 'Navigation feedback read the previous React snapshot').
+- 목록이 열린 사이 다시 로드로 행이 바뀌면 포커스 행을 frame id로 유지한다. 그 행이 없어지면 지금 보는 행으로, 목록이 비면 목록을 닫는다. 지금 보는 프레임이 바뀌어도 포커스는 움직이지 않고 "Viewing" 표시만 따라간다.
 
 ### 배율 컨트롤러
 
-- − · 배율 값(메뉴 트리거) · + 순서다. 값은 지금처럼 정수 %이고, 프레임이 없으면 "—"와 함께 모두 비활성이다.
-- 메뉴: Fit(⌘1), 100%(⌘0), 50%, 200%. 단축키 표기는 View 메뉴와 같다. 50%·200%는 `zoomTo(0.5)`·`zoomTo(2)`이고 뷰 가운데를 고정한다(−·+와 같은 기준).
+- − · 배율 값(메뉴 트리거) · + 순서다. 값은 정수 %다. 렌더된 보드가 없을 때만 "—"와 함께 모두 비활성이고, 프레임이 0개인 캔버스에서는 동작한다.
+- 메뉴: Fit(⌘1), 100%(⌘0), 50%, 200%. 단축키 표기는 View 메뉴와 같다. 50%·200%는 뷰 가운데를 고정한다(−·+와 같은 기준).
 - Reload 버튼은 없다. ⌘R, View > Reload Canvas, 로드 실패 화면의 Reload가 남는다.
 
 ### 도구모음
 
-- 하단 가운데, 아이콘 버튼 한 줄. 이번에는 선택 피커 하나다: `aria-pressed="true"`, 툴팁 "Select". 누르면 아무것도 바뀌지 않는다(이미 기본 도구). 도구가 하나뿐이어도 다음 자식이 버튼을 더할 수 있도록 줄 컨테이너를 쓰되, 빈 자리나 숨긴 버튼은 두지 않는다.
+- 하단 가운데, `role="toolbar"`(이름 "Canvas tools")에 Tab 정지점 하나, ←/→로 도구 사이를 움직인다. 다음 자식이 도구를 더해도 Tab 순서가 바뀌지 않게 지금부터 이렇게 둔다. 이번에는 선택 피커 하나다: `aria-pressed="true"`, 툴팁 "Select". 누르면 아무것도 바뀌지 않는다. 빈 자리나 숨긴 버튼은 두지 않는다.
 
-### 툴팁 (2026-11-01 user, 검수 P2)
+### 툴팁
 
-- 아이콘만 있는 버튼은 공용 툴팁(`doan-tooltip`)으로 이름을 보인다: "Zoom out ⌘−", "Zoom in ⌘=", "Hide conversation", "Show conversation", "Select". 단축키 표기는 View 메뉴와 같다. 접근 이름은 지금처럼 `aria-label`이다.
+- 아이콘만 있는 버튼은 공용 툴팁(`doan-tooltip`)으로 이름을 보인다: "Zoom out ⌘−", "Zoom in ⌘=", "Hide conversation", "Show conversation", "Select". 단축키 표기는 View 메뉴와 같다. 접근 이름은 `aria-label`이다.
+
+### 보드 위 컨트롤과 트랙패드
+
+- 도구모음, 작업 안내, 알림 위에서 두 손가락 스크롤·핀치를 하면 그 입력을 보드 뷰로 넘겨 팬·줌이 이어진다. 보드 위에 뜬 컨트롤이 팬·줌을 끊지 않게 하기 위해서다.
 
 ### Esc와 포커스
 
-- 서랍·배율 메뉴가 열린 채 Esc를 누르면 메뉴만 닫는다. App의 Esc 선택 해제(ARCHITECTURE §3 'Clear and keyboard')가 같은 키에 반응하지 않아야 한다. 메뉴의 Esc 처리에서 전파를 멈추거나, App의 Esc 처리가 열린 Radix 메뉴 안의 키를 건너뛴다(구현에서 고르되 테스트로 고정한다).
+- Esc 우선순위: 열린 메뉴·팝오버를 닫는다 → (다음 자식이 기본이 아닌 도구를 더하면) 기본 도구로 돌아간다 → 선택을 해제한다.
+- 메뉴가 열린 채 누른 Esc가 선택까지 지우지 않는 데는 새 코드가 필요 없다. 선택 해제는 `CanvasController.keydown`(window, bubble)이 하고 `event.defaultPrevented`이면 넘어가는데, Radix의 Esc 처리(`useEscapeKeydown`, document capture)가 닫으면서 `preventDefault()`를 부른다. 실제 앱 probe로 확인한다.
 - 메뉴를 닫으면 포커스는 연 버튼으로 돌아온다. 서랍에서 프레임을 고른 뒤에도 서랍 버튼으로 돌아온다.
-- Tab 순서는 상단 바 → 사이드바 → 캔버스 영역(서랍 → 배율 컨트롤러 → 도구모음) → 오른쪽 패널이다(ARCHITECTURE §3 'Actions and focus'의 "canvas" 안을 정한다).
+- 포커스된 컨트롤이 사라지거나 비활성이 되면(턴이 끝나 안내가 사라짐, 로드가 실패해 서랍이 비활성, 메뉴가 열린 채 캔버스가 바뀜) 포커스를 캔버스 region("Canvas", `tabindex=-1`)으로 옮긴다. 캔버스가 바뀐 경우에는 그 이동의 포커스 규칙을 따르고, 사라진 트리거로 되돌리지 않는다. "Stopping…"은 `disabled` 대신 `aria-disabled`라 포커스가 남는다.
+- Tab 순서: 상단 바 → 사이드바 → 캔버스 헤더(서랍 → − → 배율 값 → + → 접혔을 때 Show conversation) → 보드 위(작업 안내의 Stop → 알림·상태 메시지의 동작 → 도구모음) → 경계 손잡이 → 패널(Hide conversation → 본문). 패널이 접혀 있으면 손잡이와 패널은 Tab 순서에서 빠진다. DOM 순서를 이에 맞춘다(ARCHITECTURE §3 'Actions and focus'의 "canvas" 안을 정한다).
 
-### 여백(inset)
+### 여백(inset)과 첫 Fit
 
-- Fit, 서랍·Quick Open 이동, 코멘트 locate는 위 inset(서랍·배율 컨트롤러 아래 끝 + 간격)과 아래 inset(도구모음 위 끝 + 간격) 안에 프레임을 둔다. 좌우는 지금처럼 32px다. 값은 초안에서 정하고 `viewport.test.ts`가 고정한다.
-- 높이가 안전 영역보다 큰 프레임은 지금처럼 위에서부터 읽는다(위 inset에 맞춤).
+- 기준은 보드(`.area`)의 위 끝이다. Fit과 서랍·Quick Open 이동은 위 56px(헤더 높이만큼), 좌우 32px, 아래 64px(12 + 도구모음 40 + 12) 안에 프레임을 둔다. 높이가 안전 영역보다 큰 프레임은 위 inset에 맞춰 위에서부터 읽는다. 값은 `viewport.test.ts`가 고정한다.
+- 첫 Fit: 지금은 `openShellCanvas`가 `controller.openCanvas`를 부르면 `load`가 그 순간의 `viewportSize()`로 Fit을 계산한다. Overview 아래에 깔린 캔버스 영역은 Overview 배치(오른쪽 280 고정)의 폭이라, 캔버스 페이지의 저장된 패널 폭이 다르거나 접혀 있으면 처음부터 잘리거나 치우친다. 첫 Fit은 Overview 덮개가 걷히고 캔버스 페이지의 열 폭이 적용된 뒤의 보드 크기로 계산한다(2026-11-01 user). 그 뒤 폭이 바뀌면 지금처럼 뷰의 왼쪽 위 기준을 유지하고 다시 맞추지 않는다.
 
-### 오른쪽 패널 접기·펼치기와 폭
+### 오른쪽 패널: 캔버스 대화 패널 껍데기, 접기·펼치기와 폭
 
-- 틀: 캔버스 페이지의 `.right-stack`은 캔버스 대화 패널 껍데기(새 컴포넌트)를 담는다. 패널은 Overview 캔버스 대화 목록 패널의 프리미티브를 재사용한다(2026-11-01 user): `aside.right.ov-right`와 제목 줄 `h2.phead.rp-head`(56px, label-sm 500, 안쪽 8/16) 그대로, 제목만 "Conversation"이다. 제목 줄 끝에 닫기 아이콘 버튼("Hide conversation", `PanelRightClose`)만 더한다. 본문은 빈 상태 "No conversation on this canvas yet." / "Conversations about this canvas will show here."뿐이다. 캔버스 페이지는 `RightPanel`, Comments 패널, 코멘트 핀, Review bar, Hand Off를 그리지 않는다(2026-11-01 user). 그 컴포넌트와 main 경로는 남긴다(지우는 일은 `buzz-inspector`·`buzz-canvas-conversation`). Overview의 오른쪽 패널(`CanvasConversations`)은 280px 고정 그대로다.
-- 열기: 패널이 접혀 있을 때만 캔버스 헤더 오른쪽 끝(배율 묶음 뒤, 1px 구분선 다음)에 "Show conversation"(`PanelRightOpen`) 아이콘 버튼이 생긴다. 두 버튼 모두 `aria-expanded`와 `aria-controls`로 패널을 가리킨다. 닫으면 포커스는 열기 버튼으로, 열면 닫기 버튼으로 간다. 접히면 캔버스 패널 오른쪽 모서리도 24px 둥글게 된다.
-- 폭: 기본 280px, 최소 280px, 최대는 560px와 '캔버스 영역이 360px 이상 남는 폭' 중 작은 값이다(1238 창에서 560, 960 창에서 356). 창이 줄어 저장된 폭이 최대를 넘으면 최대로 보이되 저장값은 바꾸지 않는다. 숫자는 초안에서 확정한다.
-- 라이브러리(2026-11-01 user 허락): 끌기와 접기는 shadcn `resizable` 컴포넌트(`npx shadcn@4.22.1 add resizable`, 내부는 `react-resizable-panels`)로 한다. 버전은 설치할 때 게시된 지 2주가 지난 것으로 정확히 고정한다(`app/.npmrc` `save-exact=true`; 2026-11-01 `npm view` 기준 4.16.0은 10-31 게시라 아직 안 되고, 4.14.5는 10-12 게시). 설치 전에 그 버전에서 px 단위 최소·최대 폭, 접기(`collapsible`)·`collapse()`·`expand()` API, 손잡이의 키보드·`aria-value*` 처리를 확인하고, 라이브러리 자체 저장(localStorage `autoSaveId`)은 쓰지 않는다(기억은 ui-state 한 곳). 확인한 내용과 버전은 ARCHITECTURE §7 스택에 승격한다.
-- 손잡이 스타일(2026-11-01 user): malmoi의 `components/ui/resizable.tsx`와 그 DESIGN.md 'Resizer' 표(`~/code/malmoi` `6dcdd575`에서 읽음)를 따른다. 손잡이 자체는 투명한 8px 띠이고, 보이는 것은 가운데 4px `::after` 막대 하나다. 막대는 위아래 끝이 사라지는 세로 그라디언트(투명 → 강조색 → 투명)이고, 라이브러리가 DOM에 쓰는 손잡이 상태가 hover·drag일 때만 보인다(React state 아님). 강조색은 accent `--affordance-accent`다(2026-11-01 user; malmoi는 자기 `--ring`). 공통 결정 2의 accent 예외에 더한다. 손잡이에 `cursor`를 걸지 않는다(끄는 동안 라이브러리가 문서 전체에 resize 커서를 건다). 히트 영역은 라이브러리의 기본 여백에 맡기고 덮지 않는다. `touch-action: none`. malmoi는 `react-resizable-panels` 2.1.9의 `data-resize-handle-state`를 썼으므로, 고르는 버전에서 같은 속성 이름인지 설치 전에 확인한다. malmoi에서 온 함정: 라이브러리 `expand()`는 % 기억이라 펼칠 때는 마지막 px로 `setLayout`; 전이는 버튼 토글에만(끌기에 걸면 손잡이가 포인터를 늦게 따라감); 패널에 `min-width: 0`; 라이브러리는 접근 이름을 만들지 않는다.
-- 경계 손잡이: 캔버스와 패널 사이 1px 구분선 위의 투명한 8px 영역. `role="separator"`, `aria-orientation="vertical"`, `aria-valuenow/min/max`, `aria-label="Resize panel"`. 포커스 가능하고 ←/→는 16px씩, Home/End는 최소/최대. 두 번 클릭하면 280px로 돌아간다. 끄는 동안 캔버스 iframe이 포인터를 가져가지 않도록 끌기 중에만 보드 위에 투명 덮개를 둔다.
-- 기억: `UiState.rightPanel = { open, width }`(기기 전체, 캔버스별 아님). 공유 형식(JSON Schema)이 아닌 기기 안 ui-state라서 `v`와 fixture 변경은 없다. 잘못된 값은 기본값으로 읽는다.
-- 뷰: 폭이 바뀌면 캔버스 영역 크기가 바뀐다. 창 크기 변경과 같이 뷰의 왼쪽 위 기준을 유지하고 다시 맞추지 않는다(ARCHITECTURE §3 'Zoom and pan').
+- 틀: 캔버스 페이지의 오른쪽 열은 캔버스 대화 패널 껍데기(새 컴포넌트)를 담는다. Overview 캔버스 대화 목록 패널의 프리미티브를 재사용한다: `aside.right.ov-right`와 제목 줄 `h2.phead.rp-head`(56px, label-sm 500, 안쪽 8/16) 그대로, 제목만 "Conversation"이다. 제목 줄 끝에 닫기 아이콘 버튼("Hide conversation", `PanelRightClose`)만 더한다. 본문은 한 줄 "Conversations about this canvas will show here."뿐이다(대화가 있든 없든 틀리지 않고, 껍데기가 대화 목록을 읽지 않는다). 헤더의 대화 드롭다운(이전 대화 찾기)은 초안의 `conversation-menu` 참고 프레임에만 있고 `buzz-canvas-conversation`이 구현한다. Overview의 오른쪽 패널(`CanvasConversations`)은 280px 고정 그대로다.
+- 열기: 패널이 접혀 있을 때만 캔버스 헤더 오른쪽 끝에 "Show conversation"(`PanelRightOpen`) 아이콘 버튼이 생긴다. 두 버튼 모두 `aria-expanded`와 `aria-controls`로 패널을 가리킨다. 닫으면 포커스는 열기 버튼으로, 열면 닫기 버튼으로 간다. 접히면 캔버스 패널 오른쪽 모서리도 24px 둥글게 된다. 열기·닫기에만 짧은 전이를 걸고 끌기에는 걸지 않는다(끌기에 걸면 손잡이가 포인터를 늦게 따라간다, malmoi DESIGN '접기').
+- 폭: 기본 280px, 최소 280px, 최대는 560px와 '캔버스 패널이 360px 이상 남는 폭' 중 작은 값이다(1238 창에서 560, 960 창에서 356). 최대는 측정한 셸 열(사이드바·여백을 뺀 폭)에서 계산한다. 창이 줄어 저장된 폭이 최대를 넘으면 최대로 보이되 저장값은 바꾸지 않는다.
+- 구현: 워크스페이스 그리드의 세 번째 열 폭을 CSS 변수로 두고 손잡이를 직접 만든다. 라이브러리를 쓰지 않는다(§1).
+- 경계 손잡이: 캔버스와 패널 사이 1px 구분선 위의 투명한 8px 띠. `role="separator"`, `aria-orientation="vertical"`, `aria-valuenow/min/max`(패널 px 폭), `aria-label="Resize conversation panel"`, `tabindex=0`. ←는 경계를 왼쪽으로 옮겨 패널을 넓히고 →는 좁힌다(16px씩). Home은 최대, End는 최소. 두 번 클릭하면 280px로 돌아간다. 끌어서는 접히지 않는다(최소에서 멈추고, 접기는 버튼으로만). 끄는 중 Esc는 시작 폭으로 되돌린다. 끄는 동안에만 보드 위에 투명 덮개를 둬 캔버스 iframe이 포인터를 가져가지 않게 하고, 문서 전체에 `col-resize` 커서를 건다.
+- 손잡이 모양(2026-11-01 user): malmoi `components/ui/resizable.tsx`와 그 DESIGN.md 'Resizer' 표(`~/code/malmoi` `6dcdd575`에서 읽음)의 시각을 따른다. 보이는 것은 가운데 4px `::after` 막대 하나이고, 위아래 끝이 사라지는 세로 그라디언트(투명 → `--affordance-accent` → 투명)다. 손잡이의 자체 상태 속성(`data-ui-state="hover|drag"`)일 때와 키보드 포커스일 때만 보인다. `touch-action: none`. accent는 공통 결정 2의 예외로 더한다.
+- 기억: `UiState.rightPanel = { open, width }`(기기 전체, 캔버스별 아님). 공유 형식이 아닌 기기 안 ui-state라 `v`와 fixture 변경은 없다. 잘못된 값은 기본값으로 읽는다. 저장은 ui-state를 읽은 뒤에만 한다(`conversationByRoot`의 `memoryRead`와 같은 방식). 읽기 전에 저장하면 기본값이 저장값을 덮는다.
 
 ### 에이전트 작업 표시
 
-- 참고: ego lite(citrolabs)의 에이전트 탭 표시. 탭 가장자리의 안쪽 빛, 움직이는 점, 상단 가운데 안내와 Stop이다. 출처는 사용자 설명(2026-11-01)이다. 공개 리포 `citrolabs/ego-lite`에는 스킬·SDK만 있고 브라우저 UI 코드가 없어서 색·크기·모션 값은 확인하지 못했다(2026-11-01 `gh api` 트리 확인). 값은 doan 토큰으로 새로 정한다.
-- 위치: 보드 위쪽 가운데, 헤더 아래 20px(2026-11-01 user). 안내는 보드 위에 뜨는 오버레이라 Fit 여백과 상관없고, 캔버스 내용을 덮어도 된다. 지켜야 할 것은 헤더와 보드가 겹치지 않는 것뿐이다.
-- 조건: 이 캔버스의 현재 대화가 일함(working) 또는 응답 대기(permission)일 때. 현재 대화는 Overview의 캔버스 행과 같은 매칭(`canvasConversationRows.ts`: 양쪽에 ID가 있으면 ID, 없으면 경로)으로 찾는다. 상태는 main의 대화 목록(`conversation:list`, `listChanged`)에서 읽으므로 다시 로드·재시작 뒤에도 같다.
-- 보드 표시(수정 12·13, 2026-11-01 user, 사용자의 ego 스크린샷 참고). 모두 `pointer-events: none`이라 선택·팬·줌을 막지 않는다.
-  - 가장자리 그라디언트: 테두리 선 없이, 보드 가장자리에서 가장 진하고 약 15px 안에서 사라지는 accent 띠(초안: 안쪽 그림자 두 겹, 8px·accent 70%와 24px·accent 35%; 처음 값의 절반, 2026-11-01 user). 8초 주기로 숨쉰다(불투명도 0.55↔1, 2026-11-01 user). ego는 파랑이지만 doan은 accent violet을 쓴다.
-  - 점 필드: malmoi KV의 `DotField`(`components/signin/dot-field.tsx`, 판정 `lib/signin/dot-field.ts`, malmoi `6dcdd575`)를 옮긴다. 캔버스 2D, 12px 격자(malmoi 16), 반지름 1.5→2(지름 3→4, malmoi 2→3.5) (2026-11-01 user), 알파 0.08→0.3, 가상 커서 반경 320px(malmoi 180, 2026-11-01 user), ㄹ자 자동 순회(320px/s, 5줄, 반경만큼 영역 밖에서 줄바꿈), 포인터는 받지 않는다. 색은 투명한 흰색(`--text-on-prominent`를 캔버스 요소의 계산된 `color`로 읽음). 동작 줄이기에서는 한 번만 그린다. 순수 함수(`dotGrid`·`dotScale`·`autoCursor`)는 doan 코드로 다시 쓴다(§3).
-  - ego의 표시는 네이티브 `AgentTaskOverlayView`(`ego/browser/ui/views/frame/agent_task_overlay_view.cc`, 앱 바이너리 문자열로 확인)라 값을 읽지 못했다. 웹 토큰에서 확인한 값은 작업 막대 바탕 `--bg-agent-task-bar: #0009` 하나다.
-- 안내 캡슐: 움직이는 점 → 문구 → (응답 대기일 때만) Answer → Stop, 모두 sm 버튼. Answer는 답하는 곳으로 포커스를 옮긴다: 지금은 캔버스 페이지 임시 상태줄의 첫 선택지, `buzz-canvas-conversation` 뒤에는 대화 패널의 권한 요청. Answer는 Stop과 같은 흰 베일 버튼이다(2026-11-01 user, 검수 P1).
-  - 바탕은 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60%(ego `--bg-agent-task-bar`와 같음)로, 글자는 `--text-on-prominent`, `--blur-md` 블러, 알약 모서리, `--shadow-sm`. 투명도 줄이기에서는 불투명 검정이다. 캔버스 전용이고 공용 프리미티브로 올리지 않는다(수정 8).
-  - Stop은 `--text-on-prominent` 16% 채움의 흰 글자 버튼, hover 26%, 누름 34%. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 흰 글자를 지우므로 안내 안 버튼 규칙이 그보다 무거워야 한다(수정 9).
-  - 점은 accent 한 색(8px, 가운데 흰 속 없음)이고, 2.4초 주기로 0.75배와 1.25배 사이를 오간다. 같은 주기로 accent 70% 고리가 점에서 8px까지 연하게 퍼지며 사라진다(2026-11-01 user). 응답 대기와 동작 줄이기에서는 둘 다 멈춘다.
-- 문구: 일함 "<Provider> is working", 응답 대기 "<Provider> needs your answer". Provider는 지금 쓰는 공급자 표시 이름이다.
-- Stop: 확인 없이 `interruptConversation({ conversationId })`. 누른 뒤 응답이 올 때까지 "Stopping…"으로 비활성. 실패하면 안내를 그대로 두고 공용 토스트로 알린다. 턴이 끝나면(목록 상태 변경) 표시가 사라진다.
-- 접근성: 안내는 `role="status"`(polite). 점은 `aria-hidden`. 동작 줄이기에서는 점이 멈춘다.
-- 지금 캔버스 페이지에 뜨는 임시 상태줄에도 Stop이 있다. `buzz-canvas-conversation`이 상태줄을 대화 패널로 바꿀 때까지 둘이 함께 있다.
+- 참고와 출처: ego lite(citrolabs)의 에이전트 탭 표시. 사용자의 스크린샷과 설명(2026-11-01)을 따랐다. ego는 이 표시를 네이티브 `AgentTaskOverlayView`(`ego/browser/ui/views/frame/agent_task_overlay_view.cc`, 앱 바이너리 문자열로 확인)로 그려서 값을 읽지 못했다. 웹 토큰에서 읽은 값은 작업 막대 바탕 `--bg-agent-task-bar: #0009` 하나다. 공개 리포 `citrolabs/ego-lite`에는 브라우저 UI가 없다(2026-11-01 clone 확인).
+- 조건: 이 캔버스의 현재 대화의 `phase`가 `running` 또는 `waiting`일 때. 현재 대화는 Overview의 캔버스 행과 같은 `sameCanvas`로 찾는다. 상태는 main의 대화 목록(`conversation:list`, `listChanged`)에서 읽으므로 다시 로드·재시작 뒤에도 같다. 목록 읽기가 한 번 성공한 뒤 일시적으로 실패하면 직전 상태를 유지하고 다음 `listChanged`가 고친다.
+- 보이는 화면: 읽힌 캔버스가 있는 모든 상태(정상, 로딩, 로드 실패, 폭 없음). 에이전트가 HTML을 깨뜨린 순간에도 Stop이 필요해서다. 목록에 없는 페이지와 프로젝트 문제에서는 보이지 않는다.
+- 보드 표시. 모두 `pointer-events: none`이라 선택·팬·줌을 막지 않는다.
+  - 가장자리 그라디언트: 테두리 선 없이, 보드 가장자리에서 가장 진하고 약 15px 안에서 사라지는 accent 띠(안쪽 그림자 두 겹, 8px·accent 70%와 24px·accent 35%). 8초 주기로 숨쉰다(불투명도 0.55↔1). ego는 파랑이지만 doan은 accent violet을 쓴다.
+  - 점 필드: malmoi KV의 `DotField`(`components/signin/dot-field.tsx`, 판정 `lib/signin/dot-field.ts`, malmoi `6dcdd575`)를 doan 코드로 다시 쓴다. 캔버스 2D, 12px 격자, 반지름 1.5→2(지름 3→4), 알파 0.08→0.3, 가상 커서 반경 320px, ㄹ자 자동 순회(320px/s, 5줄, 반경만큼 영역 밖에서 줄바꿈), 포인터는 받지 않는다. 반경 밖 점은 한 path로 묶어 한 번에 칠한다(malmoi R8, `partitionDots`). 색은 투명한 흰색(`--text-on-prominent`를 캔버스 요소의 계산된 `color`로 읽음). 동작 줄이기에서는 한 번만 그린다. 워크스페이스가 숨겨질 때(`setWorkspaceActive`), Overview가 덮을 때(`covered`), 창이 숨겨질 때 rAF 루프를 멈춘다(숨긴 화면에서는 rAF가 멈추지 않는다).
+- 안내 캡슐: 움직이는 점 → 문구(`role="status"`는 문구 span에만) → Stop(sm 버튼).
+  - 바탕: 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60%(ego `--bg-agent-task-bar`와 같음), 글자 `--text-on-prominent`, `--blur-md` 블러, 알약 모서리, `--shadow-sm`. 투명도 줄이기에서는 불투명 검정. 캔버스 전용이고 공용 프리미티브로 올리지 않는다.
+  - Stop: `--text-on-prominent` 16% 채움의 흰 글자 버튼, hover 26%, 누름 34%. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 흰 글자를 지우므로 안내 안 버튼 규칙이 그보다 무거워야 한다.
+  - 점: accent 한 색(8px)이고, 2.4초 주기로 0.75배와 1.25배 사이를 오가며, 같은 주기로 accent 70% 고리가 8px까지 퍼지며 사라진다. 응답 대기와 동작 줄이기에서는 둘 다 멈춘다.
+- 문구: 일함 "<Provider> is working", 응답 대기 "<Provider> needs your answer". Provider는 그 대화의 공급자 표시 이름이다. 960 창에서 패널을 최대로 넓혀도 문구가 먼저 말줄임되고 Stop은 줄지 않는다.
+- Stop: 확인 없이 `interruptConversation({ conversationId })`. 누르면 "Stopping…"(`aria-disabled`)이 되고, 목록에서 그 턴이 끝날 때까지(`phase`가 `ended`) 유지한다. `interruptConversation`은 실패해도 reject하지 않고 `ConversationError`를 돌려주므로, 오류가 오면 Stop을 다시 활성으로 돌리고 공용 토스트로 알린다. 턴이 끝나면 표시 전체가 사라진다.
+- 답하기·실패 알림은 없다(대화 패널 몫, spec 비목표). 지금 캔버스 페이지에 뜨는 임시 상태줄은 그대로 있고, 그 상태줄에도 Stop이 있다. `buzz-canvas-conversation`이 상태줄을 대화 패널로 바꿀 때까지 둘이 함께 있다.
+- 이 캔버스의 현재 대화가 실제로 일하는 상태에 닿는 경로는 좁다(PRODUCT §5 항목 1: 캔버스 대화는 아직 앱에서 이어 갈 수 없다. 승격 직후 대기열 메시지가 나가는 경우 등). 실제 앱에서 만들지 못하면 미검증으로 남긴다.
 
 ### 겹침 순서
 
-- 아래에서 위로: 보드 → 오버레이(외곽선·치수·이동 하이라이트) → 코멘트 핀 → 컨트롤(서랍·배율·도구모음)·작업 안내·알림 → 팝오버·메뉴 → 토스트. 포커스된 핀은 지금처럼 컨트롤 아래다(DESIGN 'Comments' Pins).
-- 워크스페이스의 토스트 여백(64px, POSTMORTEM 2026-10-27)은 `.zctl`이 오른쪽 아래에 있어서 생겼다. 오른쪽 아래가 비면 다시 정하되, 도구모음과 겹치지 않는지 960 폭에서 잰다.
+- 아래에서 위로: 보드 → 오버레이(외곽선·치수·이동 하이라이트) → 작업 표시(그라디언트, 점 필드) → 보드 위 컨트롤(도구모음, 작업 안내, 알림) → 팝오버·메뉴 → 토스트. 캔버스 헤더는 보드 밖에 있다. 캔버스 페이지에 코멘트 핀은 없다.
+- 워크스페이스의 토스트 여백(64px, POSTMORTEM 2026-10-27)은 `.zctl`이 오른쪽 아래에 있어서 생겼다. 오른쪽 아래가 비므로 16px로 돌리고, 도구모음과 겹치지 않는지 960 폭에서 잰다.
 
 ## 3. 순수 함수 (`/tdd` 대상)
 
 | 함수 | 파일(안) | 경우 |
 |---|---|---|
-| `frameDrawerView(state)` | `app/src/renderer/frameDrawer.ts` | 프레임 0개, 1개, 여럿; 지금 보는 프레임 없음/있음; 제목 없는 프레임(id), id도 빈 프레임(`(no id)`); `truncated`; 로딩·실패·폭 없음·목록에 없는 페이지에서 비활성과 이유; 버튼 라벨과 접근 이름 |
-| `zoomControlView(state)` | `app/src/renderer/zoomControl.ts` | 프레임 없음("—", 비활성); 한계(0.05, 4)에서 −·+ 활성 여부(지금 동작 유지); 메뉴 항목과 단축키 표기 |
-| `fitWidth` · `fitFrame` · `locateView`의 inset 판 | `app/src/renderer/viewport.ts` | 위·아래 inset이 다를 때 Fit의 y; 안전 영역에 들어가는 프레임은 안전 영역 가운데; 안전 영역보다 큰 프레임은 위 inset에 맞춤; 크기 0 프레임; 안전 영역이 0 이하인 아주 낮은 창 |
-| `zoomTo(view, scale, center, limits)` | `viewport.ts` | 50%·200%; 한계 밖 값은 한계로; 가운데 점 고정 |
-| `panelWidth(saved, windowWidth)` · `nudgePanel(width, key, bounds)` · `readRightPanel(raw)` | `app/src/renderer/rightPanelSize.ts`, `app/src/restore/uiState.ts` | 기본값; 최소·최대에서 자르기; 960 창의 최대; 창이 줄 때 보이는 폭과 저장값 분리; ←/→/Home/End; 두 번 클릭 초기화; ui-state의 빠진·잘못된 값 |
-| `dotGrid` · `dotScale` · `autoCursor` | `app/src/renderer/dotField.ts` | malmoi `lib/signin/dot-field.ts`의 경우를 doan 테스트로: 경계 포함, gap 0 이하, 반경 0, 반경 밖 기본값, ㄹ자 순회의 줄바꿈 연속성, 넘침 |
-| `agentPresence(list, canvas)` | `app/src/renderer/agentPresence.ts` | 현재 대화 없음; 일함; 응답 대기; 끝남·실패·중단(표시 없음); 다른 캔버스의 대화; 프로젝트 대화; ID 없는 캔버스의 경로 매칭; 옮겨진 캔버스(ID 매칭); 목록 읽기 실패(표시 없음); 공급자 이름과 문구 |
+| `frameDrawerView(state)` | `app/src/renderer/frameDrawer.ts` | 프레임 0개("No frames"), 1개, 여럿; 지금 보는 프레임 없음/있음; 1,000개 넘는 캔버스(가장 가까운 목록 프레임); 제목 없는 프레임(id), id도 빈 프레임(`(no id)`); 중복 id(행 key); `truncated`; 렌더된 보드가 없는 다섯 상태("Frames", 비활성); 다시 로드 중(열림); 버튼 라벨과 접근 이름 |
+| `zoomControlView(state)` | `app/src/renderer/zoomControl.ts` | 렌더된 보드 없음("—", 비활성); 프레임 0개(동작); 한계(0.05, 4)에서 −·+; 메뉴 항목과 단축키 표기; 50%·200%가 `zoomAt`에 넘기는 배수 |
+| `fitWidth` · `fitFrame`의 inset 판 | `app/src/renderer/viewport.ts` | 위 56·좌우 32·아래 64; 안전 영역에 들어가는 프레임은 안전 영역 가운데; 안전 영역보다 큰 프레임은 위 inset에 맞춤; 크기 0 프레임; 안전 영역이 0 이하인 아주 낮은 창 |
+| `panelWidth(saved, shellWidth)` · `nudgePanel(width, key, bounds)` | `app/src/renderer/rightPanelSize.ts` | 기본값; 최소·최대에서 자르기; 960 창의 최대(356); 창이 줄 때 보이는 폭과 저장값 분리; ←(넓힘)/→/Home(최대)/End(최소); 두 번 클릭 초기화; 끌어서 최소 아래로 가도 280에서 멈춤 |
+| `rightPanel` 파싱 | `app/src/restore/uiState.ts` | 빠진 값, 잘못된 타입, 범위 밖 폭, 저장·읽기 왕복 |
+| `dotGrid` · `dotScale` · `autoCursor` · `partitionDots` | `app/src/renderer/dotField.ts` | malmoi `lib/signin/dot-field.ts`의 경우를 doan 테스트로: 경계 포함, gap 0 이하, 반경 0, 반경 밖 기본값, ㄹ자 순회의 줄바꿈 연속성, 넘침, 안·밖 경계가 `dotScale`과 같음 |
+| `agentPresence(list, canvas)` | `app/src/renderer/agentPresence.ts` | 현재 대화 없음; `running`; `waiting`; `ended`(표시 없음); 다른 캔버스의 대화; 프로젝트 대화; ID 없는 캔버스의 경로 매칭; 옮겨진 캔버스(ID 매칭); 목록 읽기 실패(직전 상태 유지, 첫 읽기 실패면 표시 없음); 공급자 이름과 문구; 목록에 없는 페이지·프로젝트 문제(표시 없음) |
 
 ## 4. 형식·규칙·결정 영향
 
-- **형식 변경**: 없다. JSON Schema, `v`, CLI 응답, 앱 소켓 메시지는 그대로다. 캔버스 스크립트 메시지도 새로 생기지 않는다(`pick-frame`은 이미 있다).
+- **형식 변경**: 없다. JSON Schema, `v`, CLI 응답, 앱 소켓 메시지는 그대로다. 캔버스 스크립트 메시지도 새로 생기지 않는다(`pick-frame`은 이미 있다). ui-state에 `rightPanel`이 더해지지만 공유 형식이 아니다.
 - **규칙(ARCHITECTURE §1 Conventions, `doan check`)**: 없다.
-- **구조 결정**: ARCHITECTURE §3 'Canvas view'의 고정값 "fit and frame-jump margin 32px"가 inset으로 바뀐다. 승격 때 고친다. 서빙 범위, sandbox iframe, 줌·팬을 iframe 밖 transform으로 하는 결정은 그대로다.
-- **제품 결정**: PRODUCT §5 항목 3의 "Frame jumps are available through Quick Open"에 서랍(이동하고 선택함)이 더해진다. "The sidebar has no frame rows"는 그대로다. 항목 2의 줌 컨트롤 서술, 항목 4의 "an ordinary click selects"는 그대로다.
-- **PoC**: 필요 없다. `selectFrame`과 `pick-frame`은 구현돼 있고 단위 테스트가 있다(`CanvasController.test.ts`). 실제 앱에서 이 경로를 서랍으로 처음 부르므로 `/runtime-test`에서 `doan active`까지 확인한다.
+- **구조 결정**: ARCHITECTURE §3 'Canvas view'의 고정값 "fit and frame-jump margin 32px"가 inset으로 바뀐다. 서빙 범위, sandbox iframe, 줌·팬을 iframe 밖 transform으로 하는 결정은 그대로다.
+- **제품 결정**: PRODUCT §3·§4·§5 항목 2–5가 바뀐다(tasks Z1). 부모 공통 결정 2(accent 예외)와 6(보존 예외)이 바뀐다(tasks Z4).
+- **PoC**: 필요 없다. `selectFrame`·`pick-frame`·`interruptConversation`·대화 목록은 구현돼 있다. 점 필드는 malmoi에서 같은 방식(캔버스 2D, 점 1만 3천 개까지 묶어 칠함)이 출하돼 있다. 실제 앱에서 서랍 경로를 처음 부르므로 `/runtime-test`에서 `doan active`까지 확인한다.
 
-## 5. 문구 (영어, Doan clarify 프리셋으로 다듬음)
+## 5. 문구 (영어, Doan clarify 프리셋을 읽고 정함)
 
-초안 단계에서 `go run ./cli/cmd/doan design-skill clarify --json`을 읽고 확정한다. 후보:
-
-- 서랍 버튼 접근 이름: "Frame 3: Payment" / 비활성: "No frames"
+- 서랍 버튼 접근 이름: "Frame 3: Payment" / 비활성: "Frames", "No frames"
 - 잘린 목록 안내: "Showing the first 1,000 frames. Search all with Quick Open (⌘K)."
 - 배율 메뉴: "Fit", "100%", "50%", "200%"; 트리거 접근 이름 "Zoom 64%, zoom options"
-- 피커 툴팁: "Select"
+- 툴팁: "Select", "Zoom out ⌘−", "Zoom in ⌘=", "Hide conversation", "Show conversation"
+- 손잡이 접근 이름: "Resize conversation panel"
+- 작업 안내: "<Provider> is working", "<Provider> needs your answer", "Stop", "Stopping…"
+- 대화 패널 빈 본문: "Conversations about this canvas will show here."
+- 출하된 상태 문구(로드 실패, 폭 없음, 목록에 없는 페이지, 프로젝트 문제, 선택 잃음)는 그대로 쓴다.
 
 ## 6. POSTMORTEM에서 온 함정
 
-- **2026-10-27 — Shell restyle lost navigation landmarks …(재발: unlocked integration)**: 셸 inset을 바꾸자 `.zctl`이 토스트와 2px 겹쳤다. 컨트롤을 옮길 때 의존하는 표면(토스트, 핀, 알림)의 실제 사각형을 960·1238 폭에서 함께 잰다. `rg -n 'toast|zctl' app/src/renderer/styles.css`.
+- **2026-10-27 — Shell restyle lost navigation landmarks …(Recurrence: unlocked integration)**: 셸 inset을 바꾸자 `.zctl`이 토스트와 2px 겹쳤다. 컨트롤을 옮길 때 의존하는 표면(토스트, 알림, 작업 안내)의 실제 사각형을 960·1238 폭에서 함께 잰다. `rg -n 'toast|zctl' app/src/renderer/styles.css`.
 - **2026-10-26 — A reloaded canvas stayed 150 px tall when its iframe was off-screen**: 서랍 이동이나 Fit 뒤 다시 로드할 때 iframe 위쪽이 화면 밖일 수 있다. 이동은 `measure`를 당겨서 다음 layout을 쓰는 기존 `jump` 경로를 그대로 쓴다. rAF에만 기대는 새 후속 메시지를 만들지 않는다.
-- **2026-10-26 — A reload that never laid out left a new comment unblocked**: 서랍의 비활성 조건은 `status === "loading"`만 보지 말고 `CanvasState.reloading`과 `failed`도 본다. 다시 로드 중에는 이전 layout의 프레임 목록이 남아 있으므로 서랍을 열 수 있게 둘지, 막을지 초안에서 정하고 `frameDrawerView`가 고정한다.
-- **2026-10-25 — Navigation feedback read the previous React snapshot**: 서랍이 렌더한 프레임 목록과 고른 순간의 `layout`이 다를 수 있다. `selectFrame`은 index와 id를 함께 확인하므로(`pick-frame`) 서랍은 행의 index만 넘기지 말고 id가 같은지 확인되는 경로를 쓴다(이미 `transition`의 두 번째 인자가 확인한다).
+- **2026-10-26 — A reload that never laid out left a new comment unblocked**: 서랍·배율의 비활성 조건은 `status === "loading"`만 보지 말고 `CanvasState.reloading`과 `failed`도 본다. 다시 로드 중에는 서랍을 열어 두고 id 확인에 맡긴다.
+- **2026-10-25 — Navigation feedback read the previous React snapshot**: 서랍이 렌더한 프레임 목록과 고른 순간의 `layout`이 다를 수 있다. 그래서 `selectFrame(index, id)`로 id를 함께 넘긴다(위 '프레임 서랍').
 - **2026-10-25 — Production CSS extraction concealed missing development styles**: 새 CSS는 개발과 프로덕션 빌드 모두에서 대표 요소의 computed style로 확인한다. iframe의 `prefers-color-scheme`과 computed `color-scheme`을 따로 본다.
-- **2026-10-30 — Removing a shared dialog class silently disabled two focus guards**: `.zctl`, `.zoom`, `.canvas-notice`, `.updated`를 지우거나 이름을 바꿀 때 셀렉터 문자열 검색으로 다른 사용처(포커스 가드, 테스트, e2e 지원, 측정 스크립트)를 찾는다. `grep -rn "zctl\|\.zoom\b\|canvas-notice\|\.updated\b" app/src app/runtime`.
+- **2026-10-30 — Removing a shared dialog class silently disabled two focus guards**: `.zctl`, `.zoom`, `.canvas-notice`, `.updated`, `bottomLabel`을 지우거나 이름을 바꿀 때 셀렉터·이름 문자열 검색으로 다른 사용처(포커스 가드, 테스트, runtime 지원, 측정 스크립트)를 찾는다.
