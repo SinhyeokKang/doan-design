@@ -17,7 +17,7 @@ export interface CanvasConversationRow extends ConversationLine {
 
 // main's rule (`main/conversation/sessions.ts`), restated because the renderer must not import main's modules
 // (POSTMORTEM 2026-10-30): an id on either side matches by id only, else the path matches.
-function sameCanvas(a: Canvas, b: Canvas): boolean {
+export function sameCanvas(a: Canvas, b: Canvas): boolean {
   return a.id !== undefined || b.id !== undefined ? a.id !== undefined && a.id === b.id : a.path === b.path;
 }
 
