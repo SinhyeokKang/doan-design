@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, test, vi } from "vitest";
-import { UI_STATE_MAX_BYTES } from "../restore/uiState";
+import { parseUiState, UI_STATE_MAX_BYTES, type UiState } from "../restore/uiState";
 import { createUiStateStore, UI_STATE_DELAY_MS, type UiStateFs } from "./uiState";
 
 const tmp = mkdtempSync(join(tmpdir(), "doan-ui-state-"));
@@ -283,4 +283,31 @@ describe("rightPanel", () => {
     writeFileSync(path, JSON.stringify(workspace(".doan/canvases/a.html")));
     expect(await createUiStateStore(path, saved).read()).not.toHaveProperty("rightPanel");
   });
+});
+
+test("a fully populated state is saved and read back unchanged, and reparses to itself", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const path = file();
+  // Every optional field the parser knows, so a parser change that drops one fails here.
+  const full: UiState = {
+    screen: "workspace",
+    root: "/repo",
+    canvas: ".doan/canvases/a.html",
+    canvasId: "a-canvas",
+    view,
+    expanded: { "/repo": ["canvases", "a.html"] },
+    lastByRoot: { "/repo": { canvas: ".doan/canvases/b.html", view: { scale: 2, x: 5, y: -5 } } },
+    shellProjects: { common: { roots: ["/repo"], selectedRoot: "/repo", selectedAt: 1_700_000_000_000, expanded: true, groups: { ds: false, canvases: false } } },
+    home: { lastRoot: "/repo", lastProvider: "codex", models: { claude: { model: "m1", effort: "high" }, codex: { model: "m2" } } },
+    settingsSection: "notifications",
+    conversationByRoot: { "/repo": "0123abcd-4567-89ab-cdef-0123456789ab" },
+    rightPanel: { open: false, width: 420 },
+  };
+  const store = createUiStateStore(path, saved);
+  expect(store.save(full)).toBe(true);
+  vi.advanceTimersByTime(UI_STATE_DELAY_MS);
+  await store.idle();
+  expect(onDisk(path)).toEqual(full);
+  expect(await createUiStateStore(path, saved).read()).toEqual(full);
+  expect(parseUiState(JSON.stringify(full), saved())).toEqual(full);
 });
