@@ -6,19 +6,23 @@
 
 | 프레임 | 내용 |
 |---|---|
-| `panel-thread` | 현재 대화가 있는 캔버스: 헤더 드롭다운(대화 제목), 스레드, docked 입력창 |
-| `panel-new` | 현재 대화가 없음 / New conversation: 빈 스레드 자리, 입력창. 세션 연결이 있는 캔버스의 터미널 세션 이어 가기(기본)와 새 계정 연결로 시작 |
-| `panel-menu` | 대화 드롭다운이 열린 모습(현재·보관 대화, 상태 표시, New conversation) |
-| `panel-archived` | 보관 대화를 연 읽기 상태와 "보내면 이 대화가 현재가 된다"는 안내 |
-| `panel-permission` | 권한 요청(스레드 안 선택지)과 캔버스 작업 표시가 함께 |
-| `panel-failed` | 실패·중단으로 끝난 턴, 반환된 초안 |
-| `panel-loading` · `panel-error` | 목록·대화 읽기 중, 읽기 실패와 Retry |
-| `chips-composer` | 프레임·요소·점 칩이 든 입력창(capsule → box), 긴 칩 이름 말줄임 |
-| `picker-mode` | 입력창 피커를 켠 캔버스: 고르기 상태 표시, hover 후보, 안내와 Esc |
-| `add-tool` | 선택이 있을 때 도구모음의 Add to conversation(활성)과 없을 때(비활성) |
-| `chip-locate` | 보낸 메시지의 칩을 눌러 대상이 강조된 모습, 찾지 못함 상태 |
-| `open-badge` | 패널이 접힌 캔버스 헤더의 Show conversation 버튼에 새 소식 점(답 대기, 본 적 없는 끝) |
-| `narrow` | 960×600, 패널 최대·최소 폭에서 입력창과 칩 |
+| `panel-thread` | 현재 대화가 있는 캔버스: 헤더 드롭다운(대화 제목), 스레드(칩이 든 사람 메시지), docked 입력창(Pick from canvas 포함), 도구모음 Add to conversation(비활성) |
+| `panel-new` | 대화가 없는 캔버스의 새 대화: Overview 새 대화 패턴(빈 본문, 입력창 바로 위 추천 칩, 공급자 선택기와 Settings 기본값, placeholder "Ask about this canvas, / for presets") |
+| `panel-new-replace` | 대화가 있던 캔버스에서 메뉴의 New conversation: 같은 새 대화 상태, 더하는 것 없음(Overview 패턴). 첫 전송이 새 대화를 현재로 만들고 이전 대화는 메뉴의 이전 대화로 간다 |
+| `panel-resume` | 세션 연결이 있는 캔버스: "Continue the <Provider> session from your terminal"(기본)과 "Start a new conversation" 선택, 이어 가기면 tray가 "Terminal session · <Provider>"(모델·effort·첨부 없음) |
+| `panel-menu` | 대화 드롭다운(새 대화, 현재·이전 대화, 상태) |
+| `panel-archived` | 이전 대화 읽기와 보관 표시, 보내면 다시 현재가 됨 |
+| `panel-permission` | 스레드 안 권한 요청 선택지와 캔버스 작업 표시 |
+| `panel-failed` | 실패한 턴과, 칩이 든 반환된 초안 |
+| `panel-states` | 목록 읽는 중, 목록 읽기 실패, 대화 읽기 실패, 시작 거절, 캔버스가 사라짐, 캔버스가 로드되지 않음(피커 비활성) |
+| `chips-composer` | 프레임·요소·점 칩이 든 입력창(box) |
+| `picker-mode` | 고르기 상태: 위쪽 가운데 안내 캡슐("Click a frame, an element or an empty spot" + Esc), hover 후보, 눌린 피커 |
+| `add-tool` | 선택이 있을 때 Add to conversation 활성과 툴팁, 칩이 들어간 입력창 |
+| `chip-locate` | 보낸 칩을 눌러 대상 강조, 대상을 찾지 못함("Not in the current canvas") |
+| `open-badge` | 접힌 패널의 Show conversation에 새 소식 점(답 대기) |
+| `narrow` | 960×600, 패널 기본 폭 |
+
+모델·effort(2026-11-01 user 질문에 대한 답, 출하된 `dockedPicker` 규칙): 기존·보관 대화는 공급자를 바꿀 수 없어 그 공급자의 모델만 고를 수 있고, 트리거 접근 이름에 공급자가 붙는다("Model: Opus 5.5 (Claude Code)"). effort는 그 모델의 단계만. 새 대화는 Home과 같은 공급자 선택기와 Settings 기본값. 터미널 세션 이어 가기는 모델·effort·첨부를 받지 않아 tray에 "Terminal session · <Provider>"만 보인다.
 
 ## 1. 영향 범위
 
