@@ -3,7 +3,7 @@ import type { InspectResult, InspectRow } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
 import { projectList } from "../comments/projection";
 import { CanvasController, initialCanvasState } from "./CanvasController";
-import { FIRST_LAYOUT_TIMEOUT_MS, locateView, screenToBoard } from "./viewport";
+import { FIRST_LAYOUT_TIMEOUT_MS, FIT_INSET, fitFrame, fitWidth, locateView, screenToBoard } from "./viewport";
 import type { AnchorSnapshot } from "./commentAnchors";
 import type { Comment } from "../formats/types";
 import { unavailableCanvasMessage } from "./quickOpen";
@@ -1191,6 +1191,63 @@ it("asks the draft guard again before entering a waited-for workspace", async ()
   } finally { controller.dispose(); }
 });
 
+
+// buzz-canvas R6: Fit and frame jumps keep the board's safe area (top 56, sides 32, bottom 64), not today's even 32.
+describe("Fit and frame jumps inside FIT_INSET", () => {
+  const size = { width: 800, height: 600 };
+  const tall = (height: number) => [{ id: "tall", x: 0, y: 0, width: 10, height }];
+
+  it("fits a freshly opened canvas below the header's height", () => {
+    const h = selectionHarness();
+    try {
+      expect(h.controller.currentView()).toEqual(fitWidth(600, size, FIT_INSET));
+      expect(h.controller.currentView().y).toBe(56);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the Fit command returns to the same view after a pan", () => {
+    const h = selectionHarness();
+    try {
+      h.controller.wheel({ dx: 40, dy: 90, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
+      h.controller.command("fit");
+      expect(h.controller.currentView()).toEqual(fitWidth(600, size, FIT_INSET));
+    } finally { h.controller.dispose(); }
+  });
+
+  // The band the old even margin got wrong: a frame between the safe height (480) and 536 was centred, so its top
+  // sat under the 56px header band and its bottom reached the toolbar. FIT_INSET reads it from the top.
+  it("a jump to a frame in the tall band puts its top edge 56px down", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ frames: tall(500) });
+      h.controller.jump(0);
+      h.layout({ frames: tall(500) });
+      expect(h.controller.currentView()).toEqual(fitFrame({ x: 0, y: 0, width: 10, height: 500 }, size, FIT_INSET, { x: 0, y: 0, scale: 1 }));
+      expect(h.controller.currentView().y).toBe(56);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a jump to a frame that fits the safe area centres it between the header and the toolbar", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ frames: tall(100) });
+      h.controller.jump(0);
+      h.layout({ frames: tall(100) });
+      // Safe area y 56..536: its centre is 296, the frame's 50px.
+      expect(h.controller.currentView().y).toBe(246);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the drawer's selectFrame jump uses the same inset", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ frames: tall(2000) });
+      h.controller.selectFrame(0, "tall");
+      h.layout({ frames: tall(2000) });
+      expect(h.controller.currentView().y).toBe(56);
+    } finally { h.controller.dispose(); }
+  });
+});
 
 describe("frame navigation", () => {
   it("jumps without a guard, selection command or main selection update", () => {
@@ -2552,6 +2609,15 @@ describe("first Fit", () => {
       h.viewport.clientWidth = 500;
       h.controller.settleFit();
       expect(h.board.style.transform).toBe(expected);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("settles inside FIT_INSET: the top edge 56px down", () => {
+    const h = opened(800);
+    try {
+      h.viewport.clientWidth = 500;
+      h.controller.settleFit();
+      expect(h.controller.currentView()).toEqual(fitWidth(1200, { width: 500, height: 600 }, FIT_INSET));
     } finally { h.controller.dispose(); }
   });
 
