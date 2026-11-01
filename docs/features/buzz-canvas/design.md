@@ -6,7 +6,7 @@
 
 | 프레임 | 내용 |
 |---|---|
-| `default` | 캔버스를 연 직후(Fit). 캔버스 헤더(프레임 서랍, 배율, 패널 토글), 흰 보드, 도구모음(피커 눌림), 변경 표시 |
+| `default` | 캔버스를 연 직후(Fit). 캔버스 헤더(프레임 서랍, 배율), 회색 보드, 캔버스 대화 패널 껍데기(제목과 닫기, 빈 본문), 도구모음(피커 눌림), 변경 표시 |
 | `frame-selected` | 프레임 선택 외곽선과 치수 캡슐 |
 | `element-hover` | 요소 hover(점선)와 요소 선택(실선)이 함께 |
 | `drawer-open` | 서랍 팝오버. 지금 보는 프레임 표시, hover·키보드 포커스 행, 제목 없는 프레임(id), 긴 제목 말줄임, 목록 스크롤 |
@@ -16,7 +16,7 @@
 | `states` | 로딩, 로드 실패(Reload), 폭 없음, 목록에 없는 페이지, 프로젝트 문제 메시지 |
 | `notices` | 선택 잃음 알림, 오류 알림, 토스트가 동시에 뜬 모습 |
 | `on-dark` · `on-violet` | 어두운 캔버스, violet이 많은 캔버스 위의 선택·hover·이동 하이라이트(부모 design '조사 메모: 캔버스 영역') |
-| `panel-collapsed` | 패널을 접은 캔버스 페이지(캔버스가 창 오른쪽 끝까지, 토글 "Show panel") |
+| `panel-collapsed` | 패널을 접은 캔버스 페이지(캔버스가 창 오른쪽 끝까지, 캔버스 헤더 우상단에 "Show conversation") |
 | `panel-resize` | 끌어서 넓힌 패널, 경계 손잡이의 hover·포커스 모습 |
 | `agent-working` | 이 캔버스의 현재 대화가 일함: 가장자리 accent 안쪽 그림자, 왼쪽 아래 안내(점, 문구, Stop; 도구모음과 세로 가운데 맞춤) |
 | `agent-waiting` | 응답 대기 문구, Stop을 누른 뒤의 "Stopping…" |
@@ -80,8 +80,8 @@
 
 ### 오른쪽 패널 접기·펼치기와 폭
 
-- 틀: 캔버스 페이지의 `.right-stack`(지금 `RightPanel`과 Comments 패널을 담음)이 폭과 열림 상태를 가진다. 워크스페이스 그리드의 세 번째 열이 280px 고정에서 이 폭으로 바뀐다. Overview의 오른쪽 패널(`CanvasConversations`)은 280px 고정 그대로다.
-- 토글: 캔버스 영역 오른쪽 위 컨트롤 줄의 가장 바깥(배율 컨트롤러 오른쪽)에 아이콘 버튼 하나. 펼쳐져 있으면 "Hide panel", 접혀 있으면 "Show panel"이고 `aria-expanded`와 `aria-controls`로 패널을 가리킨다. 접히면 캔버스 영역 오른쪽 모서리도 24px 둥글게 된다.
+- 틀: 캔버스 페이지의 `.right-stack`은 캔버스 대화 패널 껍데기(새 컴포넌트)를 담는다. 패널은 Overview 캔버스 대화 목록 패널의 프리미티브를 재사용한다(2026-11-01 user): `aside.right.ov-right`와 제목 줄 `h2.phead.rp-head`(56px, label-sm 500, 안쪽 8/16) 그대로, 제목만 "Conversation"이다. 제목 줄 끝에 닫기 아이콘 버튼("Hide conversation", `PanelRightClose`)만 더한다. 본문은 빈 상태 "No conversation on this canvas yet." / "Conversations about this canvas will show here."뿐이다. 캔버스 페이지는 `RightPanel`, Comments 패널, 코멘트 핀, Review bar, Hand Off를 그리지 않는다(2026-11-01 user). 그 컴포넌트와 main 경로는 남긴다(지우는 일은 `buzz-inspector`·`buzz-canvas-conversation`). Overview의 오른쪽 패널(`CanvasConversations`)은 280px 고정 그대로다.
+- 열기: 패널이 접혀 있을 때만 캔버스 헤더 오른쪽 끝(배율 묶음 뒤, 1px 구분선 다음)에 "Show conversation"(`PanelRightOpen`) 아이콘 버튼이 생긴다. 두 버튼 모두 `aria-expanded`와 `aria-controls`로 패널을 가리킨다. 닫으면 포커스는 열기 버튼으로, 열면 닫기 버튼으로 간다. 접히면 캔버스 패널 오른쪽 모서리도 24px 둥글게 된다.
 - 폭: 기본 280px, 최소 280px, 최대는 560px와 '캔버스 영역이 360px 이상 남는 폭' 중 작은 값이다(1238 창에서 560, 960 창에서 356). 창이 줄어 저장된 폭이 최대를 넘으면 최대로 보이되 저장값은 바꾸지 않는다. 숫자는 초안에서 확정한다.
 - 라이브러리(2026-11-01 user 허락): 끌기와 접기는 shadcn `resizable` 컴포넌트(`npx shadcn@4.22.1 add resizable`, 내부는 `react-resizable-panels`)로 한다. 버전은 설치할 때 게시된 지 2주가 지난 것으로 정확히 고정한다(`app/.npmrc` `save-exact=true`; 2026-11-01 `npm view` 기준 4.16.0은 10-31 게시라 아직 안 되고, 4.14.5는 10-12 게시). 설치 전에 그 버전에서 px 단위 최소·최대 폭, 접기(`collapsible`)·`collapse()`·`expand()` API, 손잡이의 키보드·`aria-value*` 처리를 확인하고, 라이브러리 자체 저장(localStorage `autoSaveId`)은 쓰지 않는다(기억은 ui-state 한 곳). 확인한 내용과 버전은 ARCHITECTURE §7 스택에 승격한다.
 - 손잡이 스타일(2026-11-01 user): malmoi의 `components/ui/resizable.tsx`와 그 DESIGN.md 'Resizer' 표(`~/code/malmoi` `6dcdd575`에서 읽음)를 따른다. 손잡이 자체는 투명한 8px 띠이고, 보이는 것은 가운데 4px `::after` 막대 하나다. 막대는 위아래 끝이 사라지는 세로 그라디언트(투명 → 강조색 → 투명)이고, 라이브러리가 DOM에 쓰는 손잡이 상태가 hover·drag일 때만 보인다(React state 아님). 강조색은 doan의 `--border-focus`다(malmoi는 자기 `--ring`). 손잡이에 `cursor`를 걸지 않는다(끄는 동안 라이브러리가 문서 전체에 resize 커서를 건다). 히트 영역은 라이브러리의 기본 여백에 맡기고 덮지 않는다. `touch-action: none`. malmoi는 `react-resizable-panels` 2.1.9의 `data-resize-handle-state`를 썼으므로, 고르는 버전에서 같은 속성 이름인지 설치 전에 확인한다. malmoi에서 온 함정: 라이브러리 `expand()`는 % 기억이라 펼칠 때는 마지막 px로 `setLayout`; 전이는 버튼 토글에만(끌기에 걸면 손잡이가 포인터를 늦게 따라감); 패널에 `min-width: 0`; 라이브러리는 접근 이름을 만들지 않는다.
