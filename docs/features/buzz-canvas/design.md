@@ -93,7 +93,7 @@
 - 참고: ego lite(citrolabs)의 에이전트 탭 표시. 탭 가장자리의 안쪽 빛, 움직이는 점, 상단 가운데 안내와 Stop이다. 출처는 사용자 설명(2026-11-01)이다. 공개 리포 `citrolabs/ego-lite`에는 스킬·SDK만 있고 브라우저 UI 코드가 없어서 색·크기·모션 값은 확인하지 못했다(2026-11-01 `gh api` 트리 확인). 값은 doan 토큰으로 새로 정한다.
 - 위치: 보드 위쪽 가운데(헤더 아래 12px, 위 여백 56px 안). (수정 6, 2026-11-01 user)
 - 조건: 이 캔버스의 현재 대화가 일함(working) 또는 응답 대기(permission)일 때. 현재 대화는 Overview의 캔버스 행과 같은 매칭(`canvasConversationRows.ts`: 양쪽에 ID가 있으면 ID, 없으면 경로)으로 찾는다. 상태는 main의 대화 목록(`conversation:list`, `listChanged`)에서 읽으므로 다시 로드·재시작 뒤에도 같다.
-- 모양: 캔버스 영역(`.area`) 안쪽 가장자리에 accent 안쪽 그림자만 둔다. 테두리 선은 없고, 그림자는 진하게(초안: 흐림 48px, accent 55%)(수정 6). `pointer-events: none`이라 선택·팬·줌을 막지 않는다. 안내는 캡슐로, 움직이는 accent 점 → 문구 → Stop(sm 버튼) 순서다. 좁은 창에서는 문구가 줄어든다.
+- 모양: 캔버스 영역(`.area`) 안쪽 가장자리에 accent 안쪽 그림자만 둔다. 테두리 선은 없고, 그림자는 진하게(초안: 흐림 48px, accent 55%)(수정 6). `pointer-events: none`이라 선택·팬·줌을 막지 않는다. 안내는 캡슐로, 움직이는 accent 점 → 문구 → Stop(sm 버튼) 순서다. 모양은 ego처럼 진한 검정에 약간 투명한 블러다(수정 8, 2026-11-01 user의 기억; ego 앱 리소스는 압축돼 있어 값을 확인하지 못함). doan에서 가장 가까운 프리미티브인 툴팁(`.doan-tooltip`)의 `--affordance-prominent`·`--text-on-prominent`를 85% 불투명도로 쓰고, `.doan-floating`처럼 `--blur-md`를 건다. 모서리는 알약, 그림자는 `--shadow-sm`. Stop은 `--text-on-prominent` 16% 채움의 흰 글자 버튼이다. 투명도 줄이기에서는 불투명 검정이다. 캔버스 전용이고 공용 프리미티브로 올리지 않는다. 좁은 창에서는 문구가 줄어든다.
 - 문구 후보: 일함 "<Provider> is working on this canvas", 응답 대기 "<Provider> is waiting for your answer". Provider는 지금 쓰는 공급자 표시 이름이다. 확정은 §5와 같이 clarify 프리셋으로 한다.
 - Stop: 확인 없이 `interruptConversation({ conversationId })`. 누른 뒤 응답이 올 때까지 "Stopping…"으로 비활성. 실패하면 안내를 그대로 두고 공용 토스트로 알린다. 턴이 끝나면(목록 상태 변경) 표시가 사라진다.
 - 접근성: 안내는 `role="status"`(polite). 점은 `aria-hidden`. 동작 줄이기에서는 점이 멈춘다.
