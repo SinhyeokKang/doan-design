@@ -27,8 +27,11 @@
 | B | T1, M1 | `app/src/main/agentAuth/identity.ts`·`identity.test.ts`·`providers.ts`·`manager.ts`·`manager.test.ts`, `app/src/renderer/agentAuthView.ts`(주석) | — | Claude Opus high — 취소·hold·커밋 경계가 얽힌 동시성과 자격증명 처리 | `npm --prefix app test`, `npm --prefix app run typecheck`, `rg -n 'writeMetadata' app/src/main/agentAuth/manager.ts` | 통합 `668732bb..6febfb0b`(수정 1차 `8041e4df` 포함: 가짜 타이머 취소 테스트, 그룹 대기 고정). 소유 밖 `storage.ts` `readWorking` 추가는 수용. 워커 해제·worktree 제거 |
 | RV-B | B 리뷰 | 없음(보고만) | B | Codex `gpt-6-astra` medium — 다른 계열의 독립 리뷰 | `/code-review` 보고 | 완료: 🔴0 🟡2 ⚪1(`.scratch/briefs/aai/review-B.md`). 🟡2(5초 상한 문구)는 지휘자가 spec·design에서 고쳤다. 워커 해제 |
 | C | R1 | `.scratch/runtime-test/agent-account-identity/`, `design.md` §1·§3 'PoC 의존' | B 통합 | Claude Opus medium — 실제 HOME·키체인을 쓰는 probe라 안전 판단이 필요 | tasks R1 통과 기준 | 통합 `ff000ced`. 14/14 통과, 두 이메일 표시, metadata sha256 유지, 키체인 대화상자 없음. 조회만 떼어 낸 시간은 못 잼(status check 포함 Codex 1.5–2.0초, Antigravity 4.1–8.4초). 워커 해제·worktree 제거, 프로필 유지 |
-| G | 결정 6·7 | `cli/internal/cli/init.go`와 테스트, `app/src/main/onboarding/`, `app/src/renderer/ProjectSetupDialog.tsx`, `eval/lib/`·`eval/scenarios/`의 `.gitattributes` 기대값, `cli/internal/cli/skill.md`(필요할 때), PRODUCT·ARCHITECTURE의 해당 문장 | — | Claude Opus medium — CLI·앱·eval 계약을 함께 맞추는 중간 난도 | `node .agents/skills/verify/scripts/verify.mjs --eval` | 10커밋 `55e7caa9..12fa14c1`(수정 1차 4커밋 포함), verify --eval PASS. RV-G 🔴0 🟡1("two lines"가 부분 설정 폴더에서 틀림) ⚪1(가짜 앱의 실패 순서, 범위 밖). 수정 2차 진행. 격리 앱 probe는 통합 뒤 |
-| 지휘자 | V1, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, 이 디렉터리 삭제 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 `rg` 확인 | 대기 |
+| G | 결정 6·7 | `cli/internal/cli/init.go`와 테스트, `app/src/main/onboarding/`, `app/src/renderer/ProjectSetupDialog.tsx`, `eval/lib/`·`eval/scenarios/`의 `.gitattributes` 기대값, `cli/internal/cli/skill.md`(필요할 때), PRODUCT·ARCHITECTURE의 해당 문장 | — | Claude Opus medium — CLI·앱·eval 계약을 함께 맞추는 중간 난도 | `node .agents/skills/verify/scripts/verify.mjs --eval` | 10커밋 `55e7caa9..12fa14c1`(수정 1차 4커밋 포함), verify --eval PASS. 통합 `6d309ebb..cee7bc25`. RV-G 🔴0 🟡1("two lines"가 부분 설정 폴더에서 틀림, 수정 2차로 해소) ⚪1(가짜 앱의 실패 순서, 범위 밖). 워커 해제·worktree 제거 |
+| G2 | 설정 문구 | `ProjectSetupDialog.tsx` 한 줄 | G | Claude Sonnet low — 지휘자가 정한 문구로 바꾸는 한 줄 | app test, typecheck | 통합 `3c1cd886`. 지휘자가 clarify 프리셋으로 "missing Doan lines"를 검수해 "two lines, if missing"으로 정함(사용자 요청). 워커 해제 |
+| E | 결정 8 | `docs/USABILITY-EVAL.md` | G2 | Claude Opus medium — 실패 분류 판단 | `/agent-eval` 라운드 기록 | 진행 |
+| P | G 격리 앱 probe | `.scratch/` | G2 | Claude Sonnet medium — 정해진 단계를 따르는 probe | 화면 문구, `.gitattributes` 바이트 | 진행 |
+| 지휘자 | V1, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, 이 디렉터리 삭제 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 `rg` 확인 | V1: `cee7bc25`에서 verify --eval PASS(G2 뒤 재실행 필요). Z1: ARCHITECTURE `cd9b8e88`, PRODUCT `163fbe78`. 디렉터리 삭제는 E·P 뒤 |
 
 ## 실행 기록
 
@@ -39,6 +42,7 @@
 - B 수정 1차: dispatch `ctx_491e261a9110`, 같은 터미널 재사용.
 - G: dispatch `ctx_281813449dab`, worktree `aai-G`, Claude `opus` medium(effective 확인).
 - RV-G: dispatch `ctx_402f9e88969a`, `gpt-6-astra` medium(effective 확인), G worktree에서 읽기만.
+- G2 `ctx_77d0868627b0`, E `ctx_e8154c905efb`, P `ctx_bdd611ff74c4`(모두 effective 확인).
 - C: dispatch `ctx_155776a9a15c`, worktree `aai-C`, Claude `opus` medium(effective 확인).
 - G 수정 1차: dispatch `ctx_fed84459911d`, 같은 터미널 재사용.
 
