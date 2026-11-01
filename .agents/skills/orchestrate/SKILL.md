@@ -3,7 +3,7 @@ name: orchestrate
 description: Use to split one batch plan document across several worker sessions running in parallel, with this session conducting decision gathering, review, integration, and push. A larger unit than /ship.
 ---
 
-Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from main with `git switch -c feat-<slug>`; the end is a push of that branch + PR. Do not merge.
+Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several worker sessions**, and this session **only conducts**. Workers implement with `/ship bypass`. Like `/ship`, start from main with `git switch -c feat/<slug>`; the end is a push of that branch + PR. Do not merge.
 
 > The conductor does not edit batch code. The only things the conductor writes are `orch.md`, integration commits, and docs-freshness commits. Defects go back to the worker that owns the batch.
 
@@ -28,7 +28,7 @@ Split a batch plan (usually `docs/features/<slug>/tasks.md`) **across several wo
 ## 1. Launching workers
 
 - In an Orca environment, read the `orchestration` skill and manage Run, Task, and Dispatch with its procedure.
-- Batches with non-overlapping file ownership each run in their own worktree. In Orca, start each with `--worktree new-child --base-branch feat-<slug>`; without `--base-branch` the child branches from main, not from the conductor's checkout (AGENTS.md 'Workflow').
+- Batches with non-overlapping file ownership each run in their own worktree. In Orca, start each with `--worktree new-child --base-branch feat/<slug>`; without `--base-branch` the child branches from main, not from the conductor's checkout (AGENTS.md 'Workflow').
 - **Write the brief to a file and send it as one line.** Include: the plan source and assigned items, files not to touch, allowed model, the `/ship` override (**stop before the push step** — no `git push` or `gh pr create`), gate commands (only from AGENTS.md 'Commands'; if none, the worker stops and reports), handoff protocol (write commits, verification results, and incomplete items to `.scratch/handoff-<batch>.md` and send the completion signal once).
 - Respect the sessions' permission settings. Do not add permission-bypass flags or click another session's approval prompts on its behalf.
 
@@ -66,27 +66,27 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 
 ## 4. Integration
 
-- Integration target: this run's single `feat-<slug>` branch (branched from main and recorded in `orch.md`).
+- Integration target: this run's single `feat/<slug>` branch (branched from main and recorded in `orch.md`).
 - Check that `git status --porcelain` is empty, then cherry-pick the batch commits. Run [/verify](../verify/SKILL.md) at the integration HEAD, selecting `--eval` when applicable and checking affected app behavior with a short `/runtime-test` probe. Coordinate with workers so static gates and GUI probes do not overlap. Worker passes do not verify the combined result; the separate AGENTS `/agent-eval` requirement still applies.
 - Like `/ship` step 9, check docs freshness and add PRODUCT and `orch.md` updates as per-document commits.
 - Tell workers with deferred items that the prerequisite has landed, and confirm they started.
 
 ## 5. Push and cleanup
 
-- When all batches are integrated, push `feat-<slug>` as in `/ship` step 11 and `gh pr create --base main`. Do not merge.
+- When all batches are integrated, push `feat/<slug>` as in `/ship` step 11 and `gh pr create --base main`. Do not merge.
 - If the feature is finished, promote the conclusions to PRODUCT (product judgments) and ARCHITECTURE (structure, formats, conventions) as current rules (rationale in the commit message) and delete `docs/features/<slug>/`. Delete `orch.md` along with it.
 - Clean up each finished worker as soon as it has no follow-up work; do not wait until the entire run ends. **Releasing a worker terminal does not remove its Orca child worktree or sidebar card**. Finish both cleanup layers:
   1. Confirm accepted Dispatch settlement, then use `orca orchestration worker-release --dispatch <dispatch_id> --json`. Verify the release receipt; follow its recovery instructions if uncertain. Never substitute `terminal close` for supervised release or release a live worker.
   2. Before deleting a batch worktree, confirm no active worker or pending task needs it, `git -C <path> status --porcelain` is empty, and no commit remains unintegrated. For cherry-picked batches, `git -C <path> cherry <integration_branch> HEAD` must have no `+` entries; differing commit hashes alone do not mean work is missing. Preserve unresolved differences instead of forcing deletion.
   3. Promote needed conclusions to the source of truth. Copy handoffs and any still-needed measurement, review, or verification evidence into the conductor checkout's `.scratch/` and verify the copies before removal. A worktree needed by a running reviewer or an unfinished design-sync remains until that dependency is satisfied.
-  4. Load the version-matched `orca-cli` guide, resolve the exact full worktree id, and run `orca worktree rm --worktree id:<repo-id>::<path> --json`. Use Orca rather than raw `git worktree remove` or `rm -rf`, so its managed card and lineage are removed too. Do not use `--force` to bypass dirty files, unintegrated work, or an archive-hook failure.
+  4. Load the version-matched `orca-cli` guide, resolve the exact full worktree id, and run `orca worktree rm --worktree id:<repo-id>::<path> --json`. Use Orca rather than raw `git worktree remove` or `rm -rf`, so its managed card and lineage are removed too. Note the batch branch's tip first: Orca also deletes the checked-out branch when it is merged, and implementation branches stay until the user says otherwise (AGENTS.md 'Commit conventions'), so recreate it at that tip if the receipt shows it deleted. Do not use `--force` to bypass dirty files, unintegrated work, or an archive-hook failure.
   5. Verify the removal receipt and `orca worktree list --repo id:<repo-id> --json`: the removed child id must be absent. Record any intentionally remaining worktree and its dependency in `orch.md` and the report. Terminal release alone is not completed cleanup.
 
 ## 6. Linked runs (chains)
 
 A **chain** runs several `/orchestrate` runs one after another, each feature merged to main before the next starts. The chain file `docs/features/chain-<YYMMDD>/chain.md` (Korean, committed on main) is the single source for the chain: order, the user's standing permissions, the status of each link and the handoff log. Read it at intake; it overrides the defaults below only where it says so.
 
-- **One session per link.** Each link starts in a new Claude Code session in its own Orca top-level worktree created from the freshly pulled `origin/main` (`orca worktree create --name <slug>-orch --no-parent --agent claude ...`). The conductor branches `feat-<slug>` from main inside that worktree as usual. A session never conducts two links.
+- **One session per link.** Each link starts in a new Claude Code session in its own Orca top-level worktree created from the freshly pulled `origin/main` (`orca worktree create --name <slug>-orch --no-parent --agent claude ...`). The conductor branches `feat/<slug>` from main inside that worktree as usual. A session never conducts two links.
 - **Permissions come from the chain file.** A chain may grant, for its listed links only: merging each link's PR to main (an exception to 'Do not merge PRs'), and crossing the model boundary for workers (for example Codex workers under a Claude conductor; AGENTS.md 'Runtime differences'). Use only what the chain file grants; anything else is asked as usual.
 - **Finish before handing off.** The outgoing conductor completes its link: all batches integrated, final `/verify`, docs promoted and the feature directory deleted, PR pushed and merged (when granted), local main pulled, its batch worktrees cleaned up (§5). It then records the result in the chain file (merge commit, PR, unverified items, decisions the next link must know) and pushes that to main.
 - **Responsible handoff.** The outgoing conductor starts the next link's session with a brief that points to the chain file, the next feature's documents and anything not yet written down, and lists what the next session must do first. It waits until the new session has visibly started on the brief (the receipt's prompt outcome, then a first message or a chain-file acknowledgement), and answers its questions about the previous link. A handoff that only launched a terminal is not complete.
@@ -101,7 +101,7 @@ The report is delivered to the user in Korean.
 Incomplete / unverified (first): <checks not run · remaining decisions>
 Batches: <table — status · integration hash · rounds · model·effort>
 Model crossing: none / <scope of permission>
-push: feat-<slug> + PR <url>
+push: feat/<slug> + PR <url>
 Worktrees: <what remains>
 ```
 
