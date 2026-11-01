@@ -46,3 +46,10 @@ D1은 이미 끝났다(초안 확정).
 
 ## 진행 기록
 
+- 2026-11-01 웨이브 1 시작: BP `ctx_6c2ce584dff3`(bcc-bp), BT `ctx_3792df711d75`(bcc-bt), BX `ctx_4d3550a3ed34`(bcc-bx). 셋 다 Claude Opus, `launch.effective` 확인.
+- 지휘자 판단(BX 질문): IPC 제거로 호출자가 없어진 `main/comments/`의 service·files·author·mkdir·mkdir-child·transitions와 테스트를 지우고, `app/electron.vite.config.ts`의 mkdir-child 입력을 BX가 지운다. 근거: AGENTS '내 변경이 만든 고아만 지운다'. eval·패키징이 쓰는 것은 남긴다.
+- BT 완료(`bc3859a4`): 공용 모듈은 `app/src/main/conversation/messageText.ts`(타입 import만, `prompt.ts`가 LIMITS를 다시 내보냄). 워커를 retain해 리뷰 수정에 재사용한다. 리뷰: Codex gpt-6-astra medium `ctx_1739ced8f125`(bcc-bt, `launch.effective` 확인 — astra id 유효).
+- BR1에 넘길 것: 사람이 직접 친 `{{n}}`이 칩 수 안이면 마커와 구별되지 않는다. 필드가 toMessage 전에 친 조각을 검사한다.
+- BP 완료, 통합 `f724f726`(원 `a447e35d`): probe 10/10 통과(CDP IME 에뮬레이션, Electron 45). 네이티브 한글 IME는 사용자 확인 대기(미검증). PoC 코드는 지휘자 `.scratch/anchor-field/`로 복사했다(R1이 옮겨 쓴다).
+- 지휘자 판단(BP 발견 1): 메뉴를 마우스로 고른 Edit > Undo·Redo는 Chromium 기본 스택이 비면 필드에 닿지 않는다. R1은 칩 필드에 포커스가 있을 때 메뉴 Undo·Redo를 renderer로 보내 필드의 실행 취소 기록을 쓴다. 근거: design §2 '편집'의 ⌘Z·⇧⌘Z 규칙을 메뉴에서도 지킨다.
+- 지휘자 판단(BP 발견 2): contenteditable combobox에서 Chromium이 `aria-autocomplete`를 노출하지 않는다. role·expanded·controls·activedescendant는 textarea와 같다. 감싸는 구조(ARIA 1.1)로 바꾸지 않고 이 차이를 받아들이며, 승격 때 DESIGN/ARCHITECTURE에 알려진 차이로 적는다. 근거: design §2가 요구하는 것은 `aria-activedescendant`이고, 감싸는 구조는 필드 재마운트·포커스 위험을 더한다.
