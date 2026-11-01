@@ -69,6 +69,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
+const { HomeRun } = await import("./homeRun");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a", open: 0, resolved: 0 };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -195,4 +196,25 @@ test("a change made before ui-state was read wins over the read value", async ()
   readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 500 } }); await Promise.resolve(); await Promise.resolve(); render();
   expect(panel()?.open).toBe(false);
   expect(saved()?.rightPanel).toMatchObject({ open: false });
+});
+
+// RBR4 🟡1: main replaces the whole ui-state file on each save, so leaving a field out does not keep it. Nothing is
+// saved until the initial read settles; the first save after it carries the saved panel and the early changes.
+test("no save is sent before the initial ui-state read, even after an early send and navigation", async () => {
+  render(); folders([listed("/w/a")]);
+  const host = (hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as { host: { sent(request: unknown): void } }).host;
+  host.sent({ root: "/w/a", runtime: "codex" }); render();
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(doan.saveUiState).toHaveBeenCalled();
+  expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", home: { lastRoot: "/w/a", lastProvider: "codex" }, rightPanel: { open: false, width: 400 } });
+});
+
+test("a read that fails still lets saves through, with the panel's own state", async () => {
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState(null); await Promise.resolve(); await Promise.resolve(); render();
+  expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", rightPanel: { open: true } });
 });
