@@ -47,6 +47,33 @@ account/rateLimits/read keys [ordinaryUsageAllowed, rateLimits, rateLimitsByLimi
 
 `/Applications/Orca.app/Contents/Resources/app.asar` → `out/main/index.js`(코디네이터가 풀어 둔 `/private/tmp/claude-501/orca-asar/x`에서 `chatgpt_account_id` 검색). Orca는 Codex `auth.json`의 `tokens.id_token`(JWT) 클레임을 풀어 email(`email` 또는 `https://api.openai.com/profile`.`email`), 계정 ID(`tokens.account_id` 또는 `https://api.openai.com/auth`.`chatgpt_account_id`), 워크스페이스 라벨(`workspace_name`, 없으면 `chatgpt_plan_type`에서 "Personal (Plus)", "Team" 등)을 얻는다. Doan의 Codex 프로필은 `auth.json`이 아니라 키체인에 자격증명을 두므로 이 방식을 쓸 수 없고, app-server가 같은 이메일을 준다. 같은 파일에 `acp_token`·`userinfo` 문자열이 없어, Orca는 Antigravity 계정을 보이지 않는 것으로 보인다. Orca 코드와 자격증명은 실행 중에 쓰지 않는다.
 
+### R1 실제 앱 확인 (2026-11-01 22:14 KST)
+
+- 환경: 이 worktree의 dev 앱(`6febfb0b`, Electron 45.0.0), `codex-cli 0.164.0`, Antigravity ACP 서버 1.3.0, 실제 HOME, 서명된 프로필 `.scratch/provider-profile/userData`. 로그인·로그아웃은 하지 않았고 키체인 대화상자는 뜨지 않았다. probe는 `.scratch/runtime-test/agent-account-identity/probe.mjs`이고, 마지막 실행이 14/14 통과·종료 코드 0이었다.
+- 조회 시간: main은 성공한 조회를 로그에 남기지 않아서 main 로그 시각으로는 잴 수 없었다. 대신 렌더러가 받은 agent-auth 스냅숏으로 `checking`에서 `connected`까지 쟀다. 이 값에는 status check와 조회가 함께 든다. 조회만 따로 떼어 낸 시간은 재지 못했다.
+
+  | 실행 | Codex | Antigravity |
+  |---|---|---|
+  | 첫 실행 | 2,012ms | 8,371ms |
+  | 재시작 | 1,530ms | 4,071ms |
+
+  두 provider 모두 이메일이 채워졌고 `account lookup failed` 로그가 없었다. 그래서 조회가 5초 예산 안에 끝났다고 본다(예산을 넘으면 abort되고 이 로그가 남는다). Antigravity 첫 실행의 8.4초는 status check와 조회를 합친 시간이다. 앞선 두 실행(같은 probe, 결과 저장 오류로 다시 돌림)에서는 Antigravity가 UI 기준 약 5.4초와 4.3초였다.
+- 통과 기준:
+
+  | 기준 | 결과 |
+  |---|---|
+  | (1) Settings > Agents에서 두 행이 "Not checked"에서 자동 check 뒤 이메일로 바뀐다. 그 사이 행이 사라지지 않는다 | 통과 |
+  | (2) 재시작 뒤 Antigravity 자동 check가 다시 `connected`이고 이메일이 보인다 | 통과 |
+  | (3) Codex·Antigravity 새 대화 한 턴씩 `turn.done` | 통과(3.9초, 7.4초) |
+  | `metadata.json` sha256 `37c0d344…` 실행 전후 같음, `profiles/` 목록 같음 | 통과 |
+  | main 로그에 `ya29.` 없음 | 통과 |
+  | 실행 뒤 `pgrep -fl 'provider-profile/userData'`가 비어 있음 | 통과 |
+  | dev 앱이 `agent setup: not set up: dev`를 남김, `real-state.ts` 실제 상태 변화 없음 | 통과 |
+
+- "Google returned a refresh token" 경고: 모든 실행에서 없었다.
+- Codex 프로필에 새로 생긴 파일(이번 R1의 모든 실행을 합친 결과): `.sandbox_migration`, `cache`, `sessions`, `shell_snapshots`, `thread_history_1.sqlite*`, `thread-writer-locks`. SQLite 체크포인트 때문에 `goals_1.sqlite-wal`, `memories_1.sqlite-shm`·`-wal`은 없어졌다. 대화 턴과 조회가 같은 실행에서 돌아서, 어느 쪽이 만든 파일인지는 나누지 못했다. 마지막 실행에서는 새 파일이 생기지 않았다.
+- 실행 동안 프로필에 `onboarding.json`·`folders.json`(임시 저장소 하나)을 두고 `ui-state.json`을 바꿨다. 실행 뒤 원래대로 되돌렸고, 만든 대화 기록도 지웠다.
+
 ## 2. 설계
 
 ### 영향 받는 부분
@@ -155,8 +182,9 @@ check는 sign-in·sign-out의 쓰기 슬롯(`writer`) 밖에서 돈다. check가
 
 ### PoC 의존
 
-- Antigravity userinfo 실 응답 모양과, Doan의 refresh grant 뒤에도 서버 토큰이 계속 쓰이는지는 실측하지 않았다(R1).
-- Codex 조회 시간은 재지 않았다. 5초 예산의 근거는 P1(빈 프로필, 하한)과 R1(서명된 프로필)이다.
+- Antigravity userinfo 실 응답 모양: **확인됨**(R1). 조회가 이메일을 돌려줘 계정 줄에 보였다. 응답 원문은 기록하지 않았다.
+- Doan의 refresh grant 뒤에도 서버 토큰이 계속 쓰이는지: **확인됨**(R1). 재시작 뒤 Antigravity 자동 check가 다시 `connected`였고 새 대화 턴이 `turn.done`으로 끝났다. Google은 새 refresh token을 돌려주지 않았다(경고 없음).
+- Codex 조회 시간: **일부 확인**. P1(빈 프로필, 하한)과 R1(서명된 프로필, 조회가 실패나 시간 초과 없이 끝남)이 5초 예산을 뒷받침한다. 조회만 따로 떼어 낸 시간은 재지 못했다. R1 수치(1.5–2.0초)에는 status check가 함께 든다.
 
 ## 4. POSTMORTEM에서 가져온 함정
 

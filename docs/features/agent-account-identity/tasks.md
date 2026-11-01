@@ -40,7 +40,7 @@
 
 ## R. 실제 앱
 
-- [ ] R1. `/runtime-test`: 서명된 Doan 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`(백업 `userData.bak-173237`)로 이 worktree의 dev 앱을 띄운다(`DOAN_CLI=<go build로 만든 절대 경로> npm --prefix app run dev -- -- --user-data-dir=<그 userData>`, 실제 HOME). 로그인·로그아웃은 하지 않는다.
+- [x] R1. `/runtime-test`: 서명된 Doan 프로필 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`(백업 `userData.bak-173237`)로 이 worktree의 dev 앱을 띄운다(`DOAN_CLI=<go build로 만든 절대 경로> npm --prefix app run dev -- -- --user-data-dir=<그 userData>`, 실제 HOME). 로그인·로그아웃은 하지 않는다.
   - **실행 전 코디네이터 승인**: 실제 HOME과 키체인(`Codex Auth`, `doan Safe Storage`)을 쓰고 대화상자가 뜰 수 있다. 실행 전 `pgrep -fl 'provider-profile/userData'`가 비어 있음을 확인하고, `agent-auth/metadata.json`의 sha256과 `profiles/` 목록을 기록한다.
   - 단계: (1) 앱을 띄우고 Settings > Agents를 연다 → Codex·Antigravity가 "not checked"에서 자동 check 뒤 이메일로 바뀌고, 그 사이 사라졌다 다시 나타나지 않는다. 조회 시간을 main 로그 시각으로 잰다. (2) 앱을 끄고 다시 띄워 Settings > Agents를 연다 → Antigravity 자동 check가 다시 `connected`이고 이메일이 보인다. (3) Codex·Antigravity 새 대화 한 턴씩 → `turn.done`. (4) main 로그에 "Google returned a refresh token" 경고가 있었는지 기록한다(값은 기록하지 않음).
   - 통과 기준: 두 이메일 표시, 두 번째 Antigravity check `connected`, 두 턴 완료, `metadata.json` sha256이 실행 전과 같음, 로그에 `ya29.`가 없음, 실행 뒤 `pgrep`이 비어 있음. Codex 프로필에 새로 생긴 파일을 기록한다.
