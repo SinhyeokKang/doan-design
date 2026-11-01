@@ -1750,7 +1750,7 @@ describe("account identity lookup", () => {
       expect(state).toMatchObject({ phase: "connected", verified: true, error: null });
       expect(state.connection!.account).toEqual({ ...NONE, email: "ada@gmail.example" });
       expect(storage.readMetadata().accounts).toEqual([state.connection]);
-      const [[tokenUrl, tokenInit], [infoUrl, infoInit]] = fetch.mock.calls as [string, RequestInit][];
+      const [[tokenUrl, tokenInit], [infoUrl, infoInit]] = fetch.mock.calls as unknown as [[string, RequestInit], [string, RequestInit]];
       expect(tokenUrl).toBe("https://oauth2.googleapis.com/token");
       expect(tokenInit).toMatchObject({ method: "POST" });
       expect(new Headers(tokenInit.headers).get("content-type")).toBe("application/x-www-form-urlencoded");

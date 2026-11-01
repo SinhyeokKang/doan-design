@@ -4,12 +4,14 @@ import { accessSync, constants, existsSync, lstatSync, mkdtempSync, readdirSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ACP_PROTOCOL_VERSION, AcpConnection, AcpError } from "../conversation/acp";
+import { CodexDispatcher, RpcError } from "../conversation/dispatcher";
 import { OwnedGroup } from "../conversation/process";
 import { object } from "../conversation/sessions";
 import { AUTH_LINK_FILE, BROWSER_HOOK, callbackAddress, INSTALL_FAILED, forwardCallback, signInLink, type SignInLink } from "./antigravity";
 import { probeShell } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { providerEnv } from "./environment";
+import { codexAccountEmail, GOOGLE_USERINFO_URL, googleAccessToken, googleEmail, googleRefreshRequest, withIdentity } from "./identity";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
 import { authStatus, checkVerdict, initialAuthState, transition } from "./state";
 import type { AuthStorage, CleanupRecord } from "./storage";
@@ -32,6 +34,8 @@ export interface AuthManagerOptions {
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
   // Closes the provider's doan-account conversation runs for a sign-out or replacement the user chose to stop them for.
   stopRuns?(provider: Provider): Promise<void>; drainTimeoutMs?: number;
+  // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
+  fetch?: typeof globalThis.fetch;
 }
 export interface WriteOptions { stop?: boolean }
 interface Run { code: number | null; stdout: string; stderr: string }
@@ -47,6 +51,9 @@ const LINK_DIR_PREFIX = "doan-auth-link-";
 const STALE_LINK_DIR_MS = 60 * 60 * 1000;
 // An ACP run answers a cancel within 5 s before its group is stopped (acpRunner); SIGKILL follows 500 ms after SIGTERM.
 const DRAIN_MS = 15_000;
+// One budget for a provider's whole account lookup: Codex from locating the CLI to the account/read answer, Antigravity
+// both Google requests. Sign-in, a check and so the first run after a restart wait for it (agent-account-identity P1/R1).
+const IDENTITY_MS = 5000;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const tail = (text: string) => text.trim().slice(-2000) || undefined;
 class Cancelled extends Error {}
@@ -57,6 +64,11 @@ class Failure extends Error { constructor(readonly code: "sign_in_failed" | "sto
 // recognized log lines, reworded. The detail stays the full message for the in-memory outcome only.
 class ServerError extends Error { constructor(detail: string, readonly reason: string, readonly events: readonly string[], readonly withheld: number) { super(detail); } }
 class UnexpectedServer extends Error {}
+// An account lookup's failure in Doan's own words: never a reply body, a token or a provider message.
+class LookupFailure extends Error {}
+type Found = { email: string } | null;
+// Antigravity's token file as read inside the hold, so its requests can run after the hold is dropped.
+type TokenSource = { file: unknown } | { failure: string };
 const SERVER_EVENTS = 20;
 // An absl log line of the 1.3.0 server: level and date, time, thread, file:line]. Traceback and payload continuation
 // lines and the printed sign-in link do not match and are withheld.
@@ -102,6 +114,7 @@ export class AuthManager {
   // Stop requests outlive process registration: exec honours one that arrived before its spawn.
   private stopRequests = new Set<string>();
   private locating = new Map<string, AbortController>();
+  private lookups = new Map<string, AbortController>();
   private checks = new Map<Provider, { attemptId: string; done: Promise<unknown> }>();
   private holds = new Map<Provider, number>();
   private runs = new Map<Provider, number>();
@@ -139,12 +152,23 @@ export class AuthManager {
     if (!result.ok) return result;
     let outcome: CheckOutcome = "replaced";
     const done = this.track((async () => {
-      let checked: CheckResult, lost: string | null = null;
+      let checked: CheckResult, lost: string | null = null, found: Found = null, source: TokenSource | null = null;
+      const identity = this.adapters[provider].identity;
       try {
         await this.hold(provider);
-        try { checked = await this.statusRun(provider, attemptId); } finally { lost = await this.drop(provider); }
+        try {
+          checked = await this.statusRun(provider, attemptId);
+          if (checked.status === "connected" && identity === "codex-app-server") found = await this.lookup(provider, attemptId, this.profileOf(provider));
+          // Antigravity's token file exists only while held.
+          else if (checked.status === "connected" && identity === "google-userinfo") source = this.tokenFile(provider, this.profileOf(provider));
+        } finally { lost = await this.drop(provider); }
+        // Requests run after the drop: quit force-releases holds after its wait, and a later drop by a check still
+        // waiting on the network would absorb the removed working copy as a sign-out and empty the vault.
+        if (source) found = await this.lookup(provider, attemptId, this.profileOf(provider), source);
       } catch (error) { checked = { status: "failed", code: error instanceof Failure && error.code === "cli_install_failed" ? error.code : "check_failed", detail: message(error) }; }
       try {
+        // The account shown when the result applies keeps its email if this lookup found none; never stored (writer slot).
+        if (identity && checked.status === "connected") checked = { ...checked, account: withIdentity(checked.account, found, this.state(provider).connection?.account ?? null) };
         // Judged before applying: a kept failed sign-out would hide this check's own failure in the new state.
         const verdict = checkVerdict(this.state(provider), checked);
         if (this.apply(provider, { type: "checked", attemptId, result: checked }).ok) outcome = verdict;
@@ -362,13 +386,21 @@ export class AuthManager {
     const checked = await this.statusRun(provider, attemptId, profile);
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
     if (checked.status !== "connected") throw new Failure("sign_in_failed", `status after login: ${checked.status}`);
+    let account = checked.account;
+    if (auth.identity) {
+      // Before the seal and scrub (the token file goes with them) and before the commit, after which nothing may fail.
+      // previous is null: a replacement never shows the replaced account's email.
+      const source = auth.identity === "google-userinfo" ? this.tokenFile(provider, profile) : undefined;
+      account = withIdentity(account, await this.lookup(provider, attemptId, profile, source), null);
+      if (this.cancelled(provider, attemptId)) throw new Cancelled();
+    }
     const profileDir = this.options.storage.profileDir(provider, profile), storage = this.options.storage;
     let sealed: Buffer | null = null;
     // The working copy goes before the commit: after the vault and metadata name the new login nothing may fail and
     // hand the previous connection back over it.
     if (auth.vault) await this.storageStep(async () => { sealed = await storage.seal(provider, auth.vault!); storage.scrub(provider, auth.vault!); });
     else if (auth.plaintext.some(rel => existsSync(join(profileDir, rel)))) throw new Failure("storage_failed", "provider wrote a plaintext credential file");
-    const connection: AccountConnection = { provider, connectionId: this.newId(), profile, account: checked.account };
+    const connection: AccountConnection = { provider, connectionId: this.newId(), profile, account };
     // Last cancellation point: from the vault and metadata writes to the signedIn transition only microtasks run, so
     // no cancel or window-close event can land between a persisted connection and its state.
     if (this.cancelled(provider, attemptId)) throw new Cancelled();
@@ -578,6 +610,95 @@ export class AuthManager {
     return result;
   }
 
+  // Never throws and never changes the result it adds to: every failure is "no email", logged in Doan's words only.
+  // The budget and the attempt's stop share one abort, so a cancel, replacement or quit ends the lookup at once.
+  private async lookup(provider: Provider, attemptId: string, profile: string, source?: TokenSource): Promise<Found> {
+    const controller = new AbortController();
+    this.lookups.set(attemptId, controller);
+    if (this.stopRequests.has(attemptId)) controller.abort();
+    let late = false;
+    const timer = setTimeout(() => { late = true; controller.abort(); }, IDENTITY_MS);
+    try {
+      const email = this.adapters[provider].identity === "codex-app-server" ? await this.codexEmail(provider, attemptId, profile, controller.signal)
+        : await this.googleLookup(provider, source, controller.signal);
+      if (email) return { email };
+      throw new LookupFailure("the answer had no account email");
+    } catch (error) {
+      if (!this.stopRequests.has(attemptId)) {
+        console.error(`doan: ${provider} account lookup failed: ${late ? `no answer within ${IDENTITY_MS} ms` : error instanceof LookupFailure ? error.message : "the request could not be completed"}`);
+      }
+      return null;
+    } finally { clearTimeout(timer); if (this.lookups.get(attemptId) === controller) this.lookups.delete(attemptId); }
+  }
+  // account/read from a short app-server in the profile, with a Codex conversation's store and handshake. The
+  // dispatcher is the conversation runner's: AcpConnection refuses Codex messages, which carry no jsonrpc field.
+  private async codexEmail(provider: Provider, attemptId: string, profile: string, signal: AbortSignal): Promise<string | undefined> {
+    let child: AuthProcess;
+    try {
+      const { command, env, profileDir } = await this.launch(provider, attemptId, {}, profile);
+      if (signal.aborted) throw new Cancelled();
+      child = this.options.spawn(command, [...this.adapters[provider].args, "app-server"], { cwd: profileDir, env, input: true });
+    } catch (error) { throw error instanceof Cancelled ? error : new LookupFailure("the app-server could not be started"); }
+    const owned = this.processes.get(attemptId) ?? new Set();
+    owned.add(child); this.processes.set(attemptId, owned);
+    const stop = () => child.stop();
+    if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true });
+    let broken = false, buffer = "", stage = "initialize";
+    const send = (value: unknown) => { if (!child.write) throw new Error("process_exited"); child.write(JSON.stringify(value) + "\n"); };
+    const dispatcher = new CodexDispatcher(send, () => {}, () => { broken = true; child.stop(); });
+    child.onOutput((text, stream) => {
+      if (stream === "stderr" || broken) return;
+      buffer += text;
+      if (buffer.length > OUTPUT_LIMIT) { broken = true; child.stop(); return; }
+      let end: number;
+      while ((end = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
+        if (!line.trim()) continue;
+        let raw: unknown;
+        try { raw = JSON.parse(line); } catch { broken = true; child.stop(); return; }
+        dispatcher.receive(raw);
+      }
+    });
+    const exchange = async () => {
+      await dispatcher.request("initialize", { clientInfo: { name: "doan", version: "0.1.0" }, capabilities: { experimentalApi: true } });
+      send({ method: "initialized" });
+      stage = "account/read";
+      return codexAccountEmail(await dispatcher.request("account/read", { refreshToken: false }));
+    };
+    try { return await Promise.race([exchange(), child.exit.then(() => { throw new Error("process_exited"); })]); }
+    catch (error) { throw new LookupFailure(broken ? "the app-server broke the protocol" : error instanceof RpcError ? `the app-server refused ${stage}` : "the app-server exited"); }
+    finally {
+      signal.removeEventListener("abort", stop); dispatcher.close(); child.stop(); await child.gone;
+      owned.delete(child); if (!owned.size) this.processes.delete(attemptId);
+    }
+  }
+  // The stored token file of the Antigravity server (the vault's only file), read without following links.
+  private tokenFile(provider: Provider, profile: string): TokenSource {
+    const rel = this.adapters[provider].vault?.[0];
+    let bytes: Buffer | null;
+    try { bytes = rel ? this.options.storage.readWorking(provider, rel, profile) : null; } catch { return { failure: "the token file could not be read" }; }
+    if (!bytes) return { failure: "the token file is missing" };
+    // A parse error quotes its input, which is a credential.
+    try { return { file: JSON.parse(bytes.toString("utf8")) }; } catch { return { failure: "the token file is not JSON" }; }
+  }
+  // A refresh grant with the server's own client, then userinfo. The access token lives in this call only, and a
+  // returned refresh token is never written: Doan does not change the server's credential file.
+  private async googleLookup(provider: Provider, source: TokenSource | undefined, signal: AbortSignal): Promise<string | undefined> {
+    if (!source || "failure" in source) throw new LookupFailure(source?.failure ?? "no token file was read");
+    const request = googleRefreshRequest(source.file);
+    if (!request) throw new LookupFailure("the token file is not one Doan sends");
+    const fetch = this.options.fetch ?? globalThis.fetch;
+    // No redirects: the client secret and the bearer token go to these exact addresses only.
+    const granted = await fetch(request.url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: request.body, signal, redirect: "error" });
+    const reply = await replyJson(granted);
+    const { token, refreshTokenReturned } = googleAccessToken(reply);
+    if (refreshTokenReturned) console.warn(`doan: ${provider} account lookup: Google returned a refresh token; Doan ignored it`);
+    if (!granted.ok || !token) throw new LookupFailure(`the token request answered ${granted.status}${googleError(reply)}`);
+    const info = await fetch(GOOGLE_USERINFO_URL, { headers: { authorization: `Bearer ${token}` }, signal, redirect: "error" });
+    if (!info.ok) throw new LookupFailure(`userinfo answered ${info.status}${googleError(await replyJson(info))}`);
+    return googleEmail(await replyJson(info));
+  }
+
   private async launch(provider: Provider, attemptId?: string, added: Record<string, string> = {}, profile = this.profileOf(provider)): Promise<{ command: string; env: Record<string, string>; profileDir: string }> {
     const locating = new AbortController();
     if (attemptId) { this.locating.set(attemptId, locating); if (this.stopRequests.has(attemptId)) locating.abort(); }
@@ -692,6 +813,7 @@ export class AuthManager {
   private stop(attemptId: string): void {
     this.stopRequests.add(attemptId);
     this.locating.get(attemptId)?.abort();
+    this.lookups.get(attemptId)?.abort();
     for (const child of this.processes.get(attemptId) ?? []) child.stop();
   }
   private track<T>(work: Promise<T>): Promise<T> {
@@ -747,6 +869,10 @@ export function removeStaleLinkDirs(tmp = tmpdir(), uid = process.getuid?.()): v
     }
   } catch (error) { console.error("doan: leftover sign-in link directories could not be listed", message(error)); }
 }
+
+const replyJson = async (reply: Response): Promise<unknown> => { try { return await reply.json(); } catch { return null; } };
+// Google's OAuth error code only (invalid_grant, invalid_token); its description and the rest of the body stay out.
+const googleError = (reply: unknown) => object(reply) && typeof reply.error === "string" && /^[a-z_]{1,64}$/.test(reply.error) ? ` (${reply.error})` : "";
 
 // Other providers' connections and failed sign-outs are kept as they are.
 function replaceAccount(metadata: AuthMetadata, provider: Provider, connection: AccountConnection | null, signOutFailed: boolean): AuthMetadata {
