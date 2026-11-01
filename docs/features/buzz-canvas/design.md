@@ -100,7 +100,7 @@
 - 안내 캡슐: 움직이는 점 → 문구 → Stop(sm 버튼).
   - 바탕은 툴팁(`.doan-tooltip`)의 `--affordance-prominent`를 60%(ego `--bg-agent-task-bar`와 같음)로, 글자는 `--text-on-prominent`, `--blur-md` 블러, 알약 모서리, `--shadow-sm`. 투명도 줄이기에서는 불투명 검정이다. 캔버스 전용이고 공용 프리미티브로 올리지 않는다(수정 8).
   - Stop은 `--text-on-prominent` 16% 채움의 흰 글자 버튼, hover 26%, 누름 34%. 공용 버튼의 hover·누름 규칙(명시도 0,4,0, 밝은 회색)이 흰 글자를 지우므로 안내 안 버튼 규칙이 그보다 무거워야 한다(수정 9).
-  - 점은 accent 한 색(8px)이고, 1.2초 주기로 0.75배와 1.25배 사이를 오간다. 응답 대기와 동작 줄이기에서는 멈춘다(수정 11).
+  - 점은 accent 한 색(8px)이고, 2.4초 주기로 0.75배와 1.25배 사이를 오간다(2026-11-01 user). 응답 대기와 동작 줄이기에서는 멈춘다(수정 11).
 - 문구: 일함 "<Provider> is working", 응답 대기 "<Provider> needs your answer". Provider는 지금 쓰는 공급자 표시 이름이다.
 - Stop: 확인 없이 `interruptConversation({ conversationId })`. 누른 뒤 응답이 올 때까지 "Stopping…"으로 비활성. 실패하면 안내를 그대로 두고 공용 토스트로 알린다. 턴이 끝나면(목록 상태 변경) 표시가 사라진다.
 - 접근성: 안내는 `role="status"`(polite). 점은 `aria-hidden`. 동작 줄이기에서는 점이 멈춘다.
