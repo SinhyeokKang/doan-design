@@ -116,6 +116,15 @@ describe("documentHeight with only absolutely positioned frames", () => {
     expect(nextHeight(first, documentHeight(0, 405, 405, 300), 405)).toEqual({ sent: 300, inner: 405, frozen: false });
   });
 
+  // html{height:100%} with body{height:100%;overflow:auto}: html cannot scroll,
+  // so scrollHeight is the viewport while the frames run on below it inside body.
+  test("does not count frames below what the document itself scrolls to", () => {
+    expect(documentHeight(150, 150, 150, 2000)).toBe(150);
+    // A 600px box that scrolls its own frames.
+    expect(documentHeight(600, 600, 150, 3000)).toBe(600);
+    expect(documentHeight(600, 600, 600, 3000)).toBe(600);
+  });
+
   test("rounds a fractional frame bottom up and keeps a taller flow height", () => {
     expect(documentHeight(0, 405, 150, 404.2)).toBe(405);
     expect(documentHeight(2016, 2016, 150, 900)).toBe(2016);

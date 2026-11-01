@@ -31,8 +31,10 @@ export function nextHeight(prev: HeightState | null, measured: number, inner: nu
 // Absolutely positioned frames add nothing to the rect, and scrollHeight cannot
 // tell their extent from the viewport once the iframe is at least as tall, so
 // without their bottom such a canvas alternates between 0 and its extent.
+// Capped at scrollHeight: frames clipped inside a box that scrolls them (or a
+// body that scrolls itself) are not part of the document's height.
 export function documentHeight(rect: number, scrollHeight: number, inner: number, framesBottom: number): number {
-  return Math.max(Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect, Math.ceil(framesBottom));
+  return Math.max(Math.abs(rect - inner) <= 1 && scrollHeight > rect ? scrollHeight : rect, Math.min(Math.ceil(framesBottom), scrollHeight));
 }
 
 export function canScrollAxis(overflow: string, position: number, client: number, size: number, delta: number): boolean {
