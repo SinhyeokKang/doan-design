@@ -53,3 +53,7 @@ D1은 이미 끝났다(초안 확정).
 - BP 완료, 통합 `f724f726`(원 `a447e35d`): probe 10/10 통과(CDP IME 에뮬레이션, Electron 45). 네이티브 한글 IME는 사용자 확인 대기(미검증). PoC 코드는 지휘자 `.scratch/anchor-field/`로 복사했다(R1이 옮겨 쓴다).
 - 지휘자 판단(BP 발견 1): 메뉴를 마우스로 고른 Edit > Undo·Redo는 Chromium 기본 스택이 비면 필드에 닿지 않는다. R1은 칩 필드에 포커스가 있을 때 메뉴 Undo·Redo를 renderer로 보내 필드의 실행 취소 기록을 쓴다. 근거: design §2 '편집'의 ⌘Z·⇧⌘Z 규칙을 메뉴에서도 지킨다.
 - 지휘자 판단(BP 발견 2): contenteditable combobox에서 Chromium이 `aria-autocomplete`를 노출하지 않는다. role·expanded·controls·activedescendant는 textarea와 같다. 감싸는 구조(ARIA 1.1)로 바꾸지 않고 이 차이를 받아들이며, 승격 때 DESIGN/ARCHITECTURE에 알려진 차이로 적는다. 근거: design §2가 요구하는 것은 `aria-activedescendant`이고, 감싸는 구조는 필드 재마운트·포커스 위험을 더한다.
+- BT 리뷰(Codex astra): 🔴 2(직접 친 `{{n}}` 오인, `messageLine` 줄바꿈), 🟡 2(`not_logged_in` 만료 단정 문구, 첨부·`not_running` 행). 수정 라운드 1을 BT 터미널에 보냈다(`ctx_2b6fb1cc644d`). 지휘자 판단: 직접 친 마커 문제는 BR1로 넘기지 않고 BT 모델에서 닫는다.
+- BT 수정 1 `9cd3f75a`. 지휘자 판단(문구 승인): 터미널 세션 거절 목록(handoff 'Fix round 1' 3번)과 `attachment_limit` notice "Only 10 files can be attached to a message. Remove some, then send again."를 승인했다. 근거: 출하된 "Only 10 files can be attached."·docked 로그인 문구와 같고, clarify대로 코드가 말하는 것만 쓴다. 재리뷰: Codex astra `ctx_f3344cfd6be5`(앞 리뷰 터미널이 stale이라 새로 띄움).
+- BR1에 넘길 것: `dockedAvailability`가 segments를 넘기게 바꾼다. BR2에 넘길 것: `overviewRun.takeDraft`가 돌려받은 마커 번호를 다시 매기지 않는다(fromMessage/toMessage로 합친다). `attachment_limit`은 반환된 초안의 이유로만 온다.
+- BT 재리뷰 통과(🔴 0, 추가 지적 없음).
