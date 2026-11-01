@@ -81,7 +81,10 @@ function manager(over: Partial<ConstructorParameters<typeof AuthManager>[0]> = {
     locate: async () => ({ command: "/bin/fake-cli", path: "/verified/bin" }), newId: () => `id-${++ids}`, ...over,
   });
 }
-const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+// The real timer, captured before any test fakes timers: the helpers that wait for fake processes keep working while a
+// test holds the product's own timers still.
+const realTimeout = setTimeout;
+const flush = () => new Promise(resolve => realTimeout(resolve, 0));
 async function next(step: Step): Promise<FakeProcess> {
   for (let i = 0; i < 50; i++) { const found = processes.find(p => p.step === step && !p.stopped && !settledSet.has(p)); if (found) return found; await flush(); }
   throw new Error(`no ${step} process`);
@@ -1749,6 +1752,32 @@ describe("account identity lookup", () => {
       expect(rpc.stopped).toBe(true);
       expect(storage.readMetadata().accounts).toEqual([]);
     });
+    it("commits or cancels a sign-in only after the app-server's process group is gone", async () => {
+      stopReleases = false;
+      const m = lookupManager(); await m.load();
+      let committed = false;
+      const run = started(await m.signIn("codex", 7));
+      void run.done.then(() => { committed = true; });
+      await finish("login", 0); await finish("status", 0);
+      const rpc = await codexLookup(CHATGPT());
+      await until(() => rpc.stopped, "stopped app-server");
+      for (let i = 0; i < 20; i++) await flush();
+      expect(committed).toBe(false);
+      expect(storage.readMetadata().accounts).toEqual([]);
+      rpc.release();
+      expect((await run.done).connection!.account).toEqual({ ...NONE, email: "ada@example.com" });
+      let cancelled = false;
+      const again = started(await m.signIn("codex", 7));
+      void again.done.then(() => { cancelled = true; });
+      await finish("login", 0); await finish("status", 0);
+      const second = await next("rpc");
+      await m.cancel("codex", again.attemptId, 7);
+      await until(() => second.stopped, "stopped app-server");
+      for (let i = 0; i < 20; i++) await flush();
+      expect(cancelled).toBe(false);
+      second.release();
+      expect(await again.done).toMatchObject({ phase: "connected", attempt: null, connection: { account: { email: "ada@example.com" } } });
+    });
     it("leaves a check replaced by a sign-out stale, its lookup stopped", async () => {
       storedCodex({ email: "old@example.com" });
       const m = lookupManager(); await m.load();
@@ -1861,41 +1890,47 @@ describe("account identity lookup", () => {
       expect((fetch.mock.calls[0]![1] as RequestInit).signal!.aborted).toBe(true);
       expect(logged()).toContain("doan: antigravity account lookup failed: no answer within 5000 ms");
     });
-    it("ends a sign-in cancelled during an unanswered request at once", async () => {
+    // These hold the product's timers still (the 5 s budget and quit's own wait never fire), so settling at all proves the
+    // attempt ended on the abort, not on a timer. Real time is only a hang guard.
+    const frozen = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const settles = <T>(work: Promise<T>) => Promise.race([work, new Promise<never>((_, reject) => realTimeout(() => reject(new Error("did not settle")), 10_000))]);
+    const signal = (fetch: ReturnType<typeof googleFetch>) => (fetch.mock.calls[0]![1] as RequestInit).signal!;
+    it("ends a sign-in cancelled during an unanswered request on the abort, not the budget", async () => {
+      frozen();
       const fetch = googleFetch("hang");
       const m = lookupManager(fetch); await m.load();
       const run = await antigravitySignIn(m);
       await until(() => fetch.mock.calls.length === 1, "token request");
-      const at = Date.now();
+      expect(signal(fetch).aborted).toBe(false);
       await m.cancel("antigravity", run.attemptId, 7);
-      expect(await run.done).toMatchObject({ phase: "disconnected", attempt: null, connection: null });
-      expect(Date.now() - at).toBeLessThan(1000);
-      expect((fetch.mock.calls[0]![1] as RequestInit).signal!.aborted).toBe(true);
+      expect(signal(fetch).aborted).toBe(true);
+      expect(await settles(run.done)).toMatchObject({ phase: "disconnected", attempt: null, connection: null });
       expect(storage.readMetadata().accounts).toEqual([]);
     });
-    it("quits within its wait during an unanswered request and keeps the stored credential", async () => {
+    it("quits during an unanswered request without waiting out a timer and keeps the stored credential", async () => {
       await storedAntigravity();
+      frozen();
       const fetch = googleFetch("hang");
       const m = lookupManager(fetch); await m.load();
-      await antigravityCheck(m);
+      const check = await antigravityCheck(m);
       await until(() => fetch.mock.calls.length === 1, "token request");
-      const at = Date.now();
-      await m.quit();
-      expect(Date.now() - at).toBeLessThan(1000);
+      await settles(m.quit());
+      expect(signal(fetch).aborted).toBe(true);
+      await settles(check.done);
       expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(GOOGLE_TOKEN)) });
       expect(existsSync(tokenFile("antigravity"))).toBe(false);
     });
     it("quits during a replacement's unanswered request and keeps the previous credential", async () => {
       const OLD = { ...GOOGLE_TOKEN, refresh_token: "1//OLD" };
       await storedAntigravity(OLD, { email: "old@gmail.example" });
+      frozen();
       const fetch = googleFetch("hang");
       const m = lookupManager(fetch); await m.load();
       const run = await antigravitySignIn(m);
       await until(() => fetch.mock.calls.length === 1, "token request");
-      const at = Date.now();
-      await m.quit();
-      expect(Date.now() - at).toBeLessThan(1000);
-      expect(await run.done).toMatchObject({ connection: { connectionId: "c-1", account: { email: "old@gmail.example" } } });
+      await settles(m.quit());
+      expect(signal(fetch).aborted).toBe(true);
+      expect(await settles(run.done)).toMatchObject({ connection: { connectionId: "c-1", account: { email: "old@gmail.example" } } });
       expect(await storage.loadVault("antigravity")).toEqual({ "creds/token.json": Buffer.from(JSON.stringify(OLD)) });
       expect(storage.readMetadata().accounts[0]!.connectionId).toBe("c-1");
     });
