@@ -135,8 +135,8 @@ describe("documentHeight with only absolutely positioned frames", () => {
 // A frame's ancestors, nearest first, up to body: position, overflow-y and the
 // ancestor's bottom in document coordinates.
 describe("frameBottom", () => {
-  const clipper = (bottom: number, overflowY = "auto", position = "static") => ({ position, overflowY, bottom });
-  const plain = (position = "static") => ({ position, overflowY: "visible", bottom: Infinity });
+  const clipper = (bottom: number, overflowY = "auto", position = "static", display = "block") => ({ position, overflowY, display, bottom });
+  const plain = (position = "static") => ({ position, overflowY: "visible", display: "block", bottom: Infinity });
 
   test("keeps the bottom of a frame no ancestor clips", () => {
     expect(frameBottom(405, "absolute", [plain()])).toBe(405);
@@ -159,10 +159,43 @@ describe("frameBottom", () => {
     expect(frameBottom(500, "static", [plain("absolute"), clipper(100, "hidden", "relative")])).toBe(100);
   });
 
+  // Overflow applies to block, flex and grid containers only (CSS Overflow 3 §3);
+  // elsewhere the computed value stays as specified and clips nothing.
+  test("ignores overflow on boxes it does not apply to", () => {
+    for (const display of ["inline", "contents", "table-row", "table-row-group", "table-column", "ruby"]) {
+      expect(frameBottom(405, "absolute", [clipper(20, "hidden", "relative", display)])).toBe(405);
+      expect(frameBottom(3000, "static", [clipper(20, "hidden", "static", display)])).toBe(3000);
+    }
+    for (const display of ["block", "inline-block", "flow-root", "flex", "inline-flex", "grid", "list-item", "table-cell"]) {
+      expect(frameBottom(3000, "static", [clipper(100, "hidden", "static", display)])).toBe(100);
+    }
+  });
+
+  test("an inline containing block still lets the boxes above it clip", () => {
+    expect(frameBottom(405, "absolute", [clipper(20, "hidden", "relative", "inline"), clipper(100, "hidden")])).toBe(100);
+  });
+
   test("no ancestor clips a fixed frame or anything inside a fixed ancestor", () => {
     expect(frameBottom(500, "fixed", [clipper(100, "hidden", "relative")])).toBe(500);
     expect(frameBottom(500, "static", [plain("fixed"), clipper(100, "hidden", "relative")])).toBe(500);
     expect(frameBottom(500, "static", [clipper(300, "auto", "fixed"), clipper(100, "hidden", "relative")])).toBe(300);
+  });
+});
+
+// An absolute 405 px frame in an inline `position: relative; overflow: hidden`
+// span: html is one short line tall, the span ends with it.
+describe("documentHeight with an absolute frame inside an inline wrapper", () => {
+  test("settles at the frame's extent, not the line's", () => {
+    let state: ReturnType<typeof nextHeight> | null = null;
+    let inner = 150;
+    const sent: number[] = [];
+    for (let n = 0; n < 6; n++) {
+      const bottom = frameBottom(405, "absolute", [{ position: "relative", overflowY: "hidden", display: "inline", bottom: 20 }]);
+      state = nextHeight(state, documentHeight(20, Math.max(inner, 405), inner, bottom), inner);
+      inner = state.sent;
+      sent.push(inner);
+    }
+    expect(sent).toEqual([405, 405, 405, 405, 405, 405]);
   });
 });
 
@@ -173,7 +206,7 @@ describe("documentHeight with a frame inside a box that scrolls it", () => {
     let state: ReturnType<typeof nextHeight> | null = null;
     const sent: number[] = [];
     for (let n = 0; n < 6; n++) {
-      const bottom = frameBottom(3000, "static", [{ position: "static", overflowY: "auto", bottom: box }]);
+      const bottom = frameBottom(3000, "static", [{ position: "static", overflowY: "auto", display: "block", bottom: box }]);
       state = nextHeight(state, documentHeight(box, Math.max(inner, box), inner, bottom), inner);
       inner = state.sent;
       sent.push(inner);
@@ -331,7 +364,7 @@ interface FakeElement {
   nodeType?: number;
   attrs?: Record<string, string>;
   rect?: { left: number; top: number; width: number; height: number };
-  style?: { overflowX: string; overflowY: string };
+  style?: { overflowX: string; overflowY: string; position?: string; display?: string };
   scrollTop?: number;
   scrollLeft?: number;
   clientHeight?: number;
@@ -621,6 +654,14 @@ describe("canvasScriptSource", () => {
     const canvas = fakeCanvas({ height: 0, scrollHeight: 405, frames: [{ attrs: { "data-doan-frame": "a" }, rect: { left: 0, top: 265, width: 300, height: 100 } }] });
     canvas.ready();
     expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 405, viewport: 150 } });
+  });
+
+  test("keeps an absolute frame that an inline wrapper's overflow cannot clip", () => {
+    // The span is one 20 px line: 20 - 40 + 40 = 20 in document coordinates (scrollY is 40 in the fake).
+    const span = { nodeType: 1, style: { overflowX: "hidden", overflowY: "hidden", position: "relative", display: "inline" }, getBoundingClientRect: () => ({ left: 0, top: -40, width: 100, height: 20 }), parentElement: null };
+    const canvas = fakeCanvas({ height: 20, scrollHeight: 405, frames: [{ attrs: { "data-doan-frame": "a" }, style: { overflowX: "visible", overflowY: "visible", position: "absolute" }, rect: { left: 0, top: -40, width: 100, height: 405 }, parentElement: span as unknown as FakeElement }] });
+    canvas.ready();
+    expect(canvas.posted[0]).toMatchObject({ message: { type: "layout", height: 405 } });
   });
 
   test("does not grow past a short box that scrolls its frame", () => {

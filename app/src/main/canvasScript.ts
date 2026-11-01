@@ -38,23 +38,29 @@ export function documentHeight(rect: number, scrollHeight: number, inner: number
 }
 
 // One ancestor of a frame, nearest first, up to body. `bottom` is in document
-// coordinates and is only read when `overflowY` clips.
+// coordinates and is only read when the ancestor clips.
 export interface ClipLink {
   position: string;
   overflowY: string;
+  display: string;
   bottom: number;
 }
+
 
 // A frame inside a box that scrolls or clips it shows no further than that box,
 // and the box then stands for it in the document's height. An absolutely
 // positioned element escapes the static boxes below its containing block, a
 // fixed one escapes every box.
 export function frameBottom(bottom: number, position: string, ancestors: readonly ClipLink[]): number {
+  // Overflow applies to block, flex and grid containers only (CSS Overflow 3
+  // §3), but an inline span or a `display: contents` wrapper still computes
+  // `overflow: hidden`, so the display decides whether the box clips.
+  const noOverflow = /^(inline|contents|none|table-(row|row-group|header-group|footer-group|column|column-group)|ruby.*)$/;
   if (position === "fixed") return bottom;
   let escaping = position === "absolute";
   for (const link of ancestors) {
     const positioned = link.position !== "static";
-    if ((!escaping || positioned) && link.overflowY !== "visible") bottom = Math.min(bottom, link.bottom);
+    if ((!escaping || positioned) && link.overflowY !== "visible" && !noOverflow.test(link.display)) bottom = Math.min(bottom, link.bottom);
     if (link.position === "fixed") return bottom;
     if (positioned) escaping = link.position === "absolute";
   }
@@ -206,7 +212,7 @@ export function canvasScript(lib: CanvasLib): void {
         const style = getComputedStyle(node);
         const overflowY = node === document.body && !bodyClips ? "visible" : style.overflowY;
         const box = overflowY === "visible" ? null : node.getBoundingClientRect();
-        links.push({ position: style.position, overflowY, bottom: box === null ? Infinity : box.top + box.height + scrollY });
+        links.push({ position: style.position, overflowY, display: style.display, bottom: box === null ? Infinity : box.top + box.height + scrollY });
       }
       return links;
     };
