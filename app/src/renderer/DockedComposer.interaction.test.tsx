@@ -324,3 +324,86 @@ test("the field gets the draft key, which changes with the conversation while th
   expect(input(render()).draftKey).toBe("conversation:b");
   expect(cardChildren(draw()).find(([name]) => name === "ComposerField")?.[1]).toBe(".$field");
 });
+
+// buzz-canvas-conversation design §2 'Errors' and §0 'Model and effort': the canvas panel's composer states.
+const RESUME: DockedMode = { kind: "resume", root: "/w", canvas: { path: ".doan/canvases/a.html", id: "a" }, provider: "codex" };
+// Drawn text outside the agent menu, whose own note can read like a reason.
+const has = (tree: Record<string, unknown>[], text: string) => tree.some(item => item.children === text && item.className !== "menu-note");
+
+test("held, Send waits without a reason line while the draft is kept", () => {
+  const { render } = setup({ mode: { kind: "new", root: "/w", canvas: RESUME.canvas }, held: true }, [[draftKey(RESUME), draft("Fix the totals")]]);
+  expect(button(render(), "Send").disabled).toBe(true);
+  expect(render().some(item => item.className === "composer-reason docked-reason")).toBe(false);
+  expect(shownText(render())).toBe("Fix the totals");
+});
+
+test("locked, the field keeps the draft but takes no input, and the reason line says why", () => {
+  const reason = "This canvas isn’t listed in acme-web, so its conversation can’t continue.";
+  const { render } = setup({ unavailable: reason, locked: true }, [["conversation:a", draft("Tighten the totals")]]);
+  expect(input(render()).readOnly).toBe(true);
+  expect(shownText(render())).toBe("Tighten the totals");
+  expect(has(render(), reason)).toBe(true);
+  expect(button(render(), "Send").disabled).toBe(true);
+  expect(button(render(), "Attach files").disabled).toBe(true);
+});
+
+test("a terminal session keeps the trigger places, chosen by the terminal, and takes no files", () => {
+  const { render } = setup({ mode: RESUME, provider: "codex", fixed: true });
+  const agent = button(render(), "Model: set by the terminal session (Codex)");
+  expect(agent["aria-disabled"]).toBe("true");
+  expect(button(render(), "Effort: set by the terminal session")["aria-disabled"]).toBe("true");
+  expect(button(render(), "Attach files")["aria-disabled"]).toBe("true");
+  expect(has(render(), "Terminal session")).toBe(true);
+  const tips = render().map(item => item.label);
+  expect(tips).toContain("Set in your terminal");
+  expect(tips).toContain("Files can’t be attached to a terminal session");
+});
+
+test("a refused terminal session offers a new conversation, which keeps the draft and drops the notice", async () => {
+  const onStartNew = vi.fn();
+  const refuse = vi.fn(() => ({ kind: "notice" as const, text: "Couldn’t continue the terminal session: it’s in use in another terminal.", startNew: true }));
+  const { store, render } = setup({ mode: RESUME, provider: "codex", fixed: true, refuse, onStartNew, onSend: async () => ({ error: "session_in_use" }) }, [[draftKey(RESUME), draft("Fix the totals")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  expect(refuse).toHaveBeenCalledWith("session_in_use", "codex");
+  expect(has(render(), "Couldn’t continue the terminal session: it’s in use in another terminal.")).toBe(true);
+  (find(render(), item => item.children === "Start a new conversation").onClick as () => void)();
+  expect(onStartNew).toHaveBeenCalledTimes(1);
+  expect(has(render(), "Couldn’t continue the terminal session: it’s in use in another terminal.")).toBe(false);
+  expect(draftText(store.current.get(draftKey(RESUME)))).toBe("Fix the totals");
+});
+
+test("a notice with Retry sends the same draft again", async () => {
+  const send = vi.fn(async (): Promise<DockedOutcome> => ({ error: "rate_limited" }));
+  const refuse = () => ({ kind: "notice" as const, text: "Couldn’t start with Codex: it is rate limited.", retry: true });
+  const { render } = setup({ mode: { kind: "new", root: "/w", canvas: RESUME.canvas }, refuse, onSend: send }, [[draftKey({ kind: "new", root: "/w", canvas: RESUME.canvas }), draft("Fix")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  (find(render(), item => item.children === "Retry").onClick as () => void)();
+  await flush();
+  expect(send).toHaveBeenCalledTimes(2);
+});
+
+test("a blocked refusal holds Send with its reason until the person edits the draft", async () => {
+  const refuse = () => ({ kind: "blocked" as const, text: "No agent is ready to run.", action: { label: "Sign in to an agent…", target: { section: "agents" as const } } });
+  const { render } = setup({ refuse, onSend: async () => ({ error: "no_agent" }) }, [["conversation:a", draft("Draw it")]]);
+  (button(render(), "Send").onClick as () => void)();
+  await flush();
+  expect(has(render(), "No agent is ready to run.")).toBe(true);
+  expect(has(render(), "Sign in to an agent…")).toBe(true);
+  expect(button(render(), "Send").disabled).toBe(true);
+  type(render(), "Draw it now");
+  expect(has(render(), "No agent is ready to run.")).toBe(false);
+});
+
+// The shipped queue rule (design §2 'Errors' not_running): the turn ended before the queue took the message.
+test("a queue refused as not_running goes out as a send of the same message", async () => {
+  const { props, store, send, queue, render } = setup({}, [["conversation:a", draft("Also this")]]);
+  props.turn = "running";
+  queue.mockResolvedValueOnce({ error: "not_running" });
+  (button(render(), "Queue").onClick as () => void)();
+  await flush();
+  expect(queue).toHaveBeenCalledTimes(1);
+  expect(send).toHaveBeenCalledWith(expect.objectContaining({ text: "Also this" }));
+  expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
+});

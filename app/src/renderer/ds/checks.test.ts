@@ -61,6 +61,9 @@ const violetAllowed = [
   // Inline anchor chips in the composer field: light accent fill, dark accent ink (buzz-canvas-conversation common
   // decision 2, confirmed draft 2026-11-01).
   ".anchor-chip",
+  // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (buzz-canvas-conversation
+  // design §2 'News dot', confirmed draft open-badge).
+  '.doan-icon-button[data-badge="true"]::after',
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

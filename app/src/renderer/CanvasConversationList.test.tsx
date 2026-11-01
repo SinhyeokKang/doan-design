@@ -121,7 +121,7 @@ describe("canvas conversation list", () => {
   });
 });
 
-// review RL r1 🟡1: only the row that still holds focus hands it on when it leaves (POSTMORTEM 2026-10-26 revision-recheck R-C).
+// Only the row that still holds focus hands it on when it leaves; a row the person moved away from takes none.
 describe("RowFocusMemory", () => {
   test("a focused row that leaves hands focus to the next row, else the previous, else the title", () => {
     const memory = new RowFocusMemory();

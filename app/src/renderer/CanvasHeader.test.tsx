@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import type { OpenBadge } from "./rightPanelOpen";
 import { describe, expect, it, vi } from "vitest";
 import type { CanvasRow } from "../main/view";
 import type { LayoutMessage } from "./canvasMessage";
@@ -14,7 +15,7 @@ const frames = ["Cart", "Shipping", "Payment"].map((title, index) => ({ id: titl
 const layout = (over: Partial<LayoutMessage> = {}): LayoutMessage => ({ type: "layout", href: row.url, height: 2700, viewport: 2700, frames, truncated: false, ...over });
 const opened = (over: Partial<CanvasState> = {}): CanvasState => ({ ...initialCanvasState(), open: { folder: "/repo", canvas: row.path, row }, shown: row.path, status: null, message: "", hasFrame: true, layout: layout(), currentFrame: 2, zoom: 64, scale: 0.64, ...over });
 
-const html = (state: CanvasState, panel?: { open: boolean; show(): void }) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
+const html = (state: CanvasState, panel?: { open: boolean; show(): void; badge?: OpenBadge | null }) => renderToStaticMarkup(<TooltipProvider>{<CanvasHeader state={state} command={vi.fn()} zoomTo={vi.fn()} selectFrame={vi.fn()} {...(panel ? { panel } : {})} /> as ReactElement}</TooltipProvider>);
 const button = (markup: string, label: string) => markup.match(new RegExp(`<button[^>]*aria-label="${label}"[^>]*>`))?.[0] ?? "";
 
 describe("CanvasHeader", () => {
@@ -99,5 +100,14 @@ describe("CanvasHeader", () => {
     expect(markup.indexOf('aria-label="Zoom in"')).toBeLessThan(markup.indexOf('aria-label="Show conversation"'));
     // A canvas that cannot render still offers the panel back.
     expect(button(html({ ...initialCanvasState(), status: "missing", message: "gone" }, { open: false, show: vi.fn() }), "Show conversation")).not.toContain("disabled");
+  });
+
+  // buzz-canvas-conversation design §2 'News dot': the folded panel's open button carries the dot and says why.
+  it("puts the news dot and its longer name on the folded panel's open button", () => {
+    const waiting = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "permission", label: "Show conversation, needs your answer" } }), "Show conversation, needs your answer");
+    expect(waiting).toContain('data-badge="true"');
+    const unseen = button(html(opened(), { open: false, show: vi.fn(), badge: { kind: "unseen", label: "Show conversation, new activity" } }), "Show conversation, new activity");
+    expect(unseen).toContain('data-badge="true"');
+    expect(button(html(opened(), { open: false, show: vi.fn(), badge: null }), "Show conversation")).not.toContain("data-badge");
   });
 });

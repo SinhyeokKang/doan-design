@@ -149,7 +149,7 @@ test("a requested canvas conversation opens its canvas instead of the main threa
   h.run.show(ROOT);
   h.answer(ROOT, [summary(A), summary(B, { canvas: CANVAS })]);
   h.run.request(ROOT, B, "permission");
-  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, CANVAS);
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, CANVAS, B, "permission");
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
 });
 

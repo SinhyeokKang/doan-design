@@ -427,7 +427,7 @@ describe("served revision", () => {
     expect(rowRev(changes, root, ".doan/canvases/b.html")).toBeGreaterThanOrEqual(1);
   });
 
-  // Another canvas's save must not reload the open one (revision-continuity Q1).
+  // Another canvas's save must not reload the open one: a reload would drop its view and selection for nothing.
   test.each<[string, (root: string) => void]>([
     ["a plain write", (root) => writeFileSync(join(root, ".doan/canvases", "b.html"), "<!doctype html><title>B2</title>")],
     ["a save through a temporary sibling", (root) => {

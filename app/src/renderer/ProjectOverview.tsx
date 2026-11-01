@@ -59,7 +59,8 @@ export interface ProjectOverviewProps {
   defaults: NewConversationDefault | null | undefined;
   now: number;
   onWorktree(root: string): void;
-  onOpenCanvas(canvas: Canvas): void;
+  // A promoted conversation's canvas, opened with that conversation in its panel.
+  onOpenCanvas(canvas: Canvas, conversationId?: string): void;
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens (spec decision 6).
@@ -319,18 +320,18 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     <div className="ov-scroll">
       {conversationId && provider ? <ConversationThread ref={handle} conversationId={conversationId} items={items} provider={provider} project={project}
         liveAfter={thread?.liveAfter ?? Number.MAX_SAFE_INTEGER} canvasListed={canvasListed}
-        onAnswer={(requestId, optionId) => void window.doan.answerConversationPermission({ conversationId, requestId, optionId }).catch(console.error)}
+        onAnswer={(requestId, optionId) => window.doan.answerConversationPermission({ conversationId, requestId, optionId })}
         onStop={() => void window.doan.interruptConversation({ conversationId }).catch(console.error)}
         onEditAndResend={() => editAndResend(conversationId)}
         onSignIn={() => props.onSettings({ section: "agents", provider })}
         onRetry={() => run.retryThread(conversationId)}
-        onOpenCanvas={props.onOpenCanvas}
+        onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)}
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
         onCopy={text => Promise.resolve(copyText(text))} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
           {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text" title={`${moved.title} moved to ${movedCanvas}.`}>
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
-            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas)}>Open</button></div>}
+            <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
               onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>

@@ -1,8 +1,9 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { Clock, X } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactElement } from "react";
+import { Clock, Gauge, Plus, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor } from "../main/conversation/types";
+import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, sameSegments, typedText } from "./anchorField";
 import {
@@ -16,9 +17,10 @@ import {
 } from "./dockedRules";
 import { slashKey, pasteAction } from "./HomeComposerView";
 import {
-  attachmentChipView, chipRemoval, presetListView, slashQuery, type AttachmentDraft, type ModelPickerView,
+  attachmentChipView, chipRemoval, presetListView, providerLogo, slashQuery, type AttachmentDraft, type ModelPickerView,
   type PresetListReply, type PresetSummary,
 } from "./homeComposer";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import type { SettingsTarget } from "./settingsSections";
 
 // The composer under a conversation (buzz-conversation design §3.1, draft frame `docked-composer`). It has no screen
@@ -58,6 +60,17 @@ export interface DockedComposerProps {
   canvasGone: boolean;
   // Why Send waits for the host's project (it turned into a problem while open); the thread stays readable.
   unavailable?: string | null;
+  // With `unavailable`, the field keeps the draft but takes no input (a canvas outside the list or sharing its ID).
+  locked?: boolean;
+  // Send waits without a reason line (a canvas's terminal session not answered yet, design §2).
+  held?: boolean;
+  // The provider, model and effort are the terminal session's own (a resume, or a legacy external conversation):
+  // the triggers keep their place but cannot be chosen, and nothing can be attached (design §0 'Model and effort').
+  fixed?: boolean;
+  // The host's reading of a refused send (the canvas panel's canvasConversationError); dockedRefusal otherwise.
+  refuse?(code: string, provider: Provider): DockedRefusal;
+  // A refused terminal session's "Start a new conversation".
+  onStartNew?(): void;
   queued: readonly { id: string; text: string }[];
   // Send in an existing conversation, a restore in an archived one, a start in new-conversation mode.
   onSend(request: DockedRequest): Promise<DockedOutcome>;
@@ -108,10 +121,17 @@ export function DockedComposer(props: DockedComposerProps) {
   // host's busy has shown and cleared again, the refusal no longer holds Send.
   if (props.busy && refusal?.kind === "busy") hostSawBusy.current.add(key);
   const busy = props.busy ?? (refusal?.kind === "busy" && !hostSawBusy.current.has(key) ? refusal.busy : null);
-  const availability = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null });
+  const locked = !!props.locked && !!props.unavailable;
+  // A blocked refusal holds Send with its reason until the person changes the draft (design §2 'Errors').
+  const blocked = refusal?.kind === "blocked" ? refusal : null;
+  const checked = dockedAvailability({ mode, project: props.project, auth: props.auth, provider: props.provider, draft, turn: props.turn, busy, sending: isSending, unavailable: props.unavailable ?? null, external: !!props.fixed });
+  const availability = blocked && !isSending && !props.unavailable ? { enabled: false, reason: { text: blocked.text, ...(blocked.action ? { action: blocked.action } : {}) } }
+    : props.held && checked.enabled ? { enabled: false, reason: checked.reason } : checked;
   const message = dockedMessage(draft);
   const action = composerAction(props.turn !== "idle", message.text);
   const picker = dockedPicker(props.picker, mode);
+  // The terminal's provider, drawn on the fixed trigger.
+  const fixedProvider = mode.kind === "new" ? props.provider : mode.provider;
   const presets = props.presets?.ok ? props.presets.result.presets : [];
   // The `/` list reads a field of typed text only; a chip anywhere means the field holds a message, not a search.
   const slash = slashQuery(text === typedText(draft.segments) ? text : "", dismissed);
@@ -186,7 +206,9 @@ export function DockedComposer(props: DockedComposerProps) {
     const at = key, sent = draft, mine = ++generation.current;
     const request: DockedRequest = { text: message.text, anchors: message.anchors, attachments: draft.attachments.flatMap(a => a.id ? [{ id: a.id }] : []) };
     setSending(current => new Map(current).set(at, mine));
-    const outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
+    let outcome = await (action === "queue" ? props.onQueue(request) : props.onSend(request)).catch((): DockedOutcome => ({ error: "unknown" }));
+    // The turn ended before the queue took the message: nothing works to queue behind, so it goes out as a send.
+    if (action === "queue" && "error" in outcome && outcome.error === "not_running") outcome = await props.onSend(request).catch((): DockedOutcome => ({ error: "unknown" }));
     setSending(current => { if (current.get(at) !== mine) return current; const next = new Map(current); next.delete(at); return next; });
     if ("ok" in outcome) {
       clearRefusal(at);
@@ -203,7 +225,8 @@ export function DockedComposer(props: DockedComposerProps) {
       });
     } else {
       const provider = mode.kind === "new" ? props.provider : mode.provider;
-      if (provider) setRefusals(previous => new Map(previous).set(at, { refusal: dockedRefusal(outcome.error, mode, provider, props.project), draft: sent }));
+      const refused = provider ? (props.refuse ? props.refuse(outcome.error, provider) : dockedRefusal(outcome.error, mode, provider, props.project)) : null;
+      if (refused) setRefusals(previous => new Map(previous).set(at, { refusal: refused, draft: sent }));
     }
     if (at === shown.current) focus({ kind: "sent" });
   };
@@ -222,7 +245,7 @@ export function DockedComposer(props: DockedComposerProps) {
 
   if (props.canvasGone || refusal?.kind === "gone") return <div className="canvas-gone" role="status"><AlertIcon /><span>{canvasGoneText(props.project)}</span></div>;
   const reason = availability.reason;
-  const notice = refusal?.kind === "notice" ? refusal.text : null;
+  const notice = refusal?.kind === "notice" ? refusal : null;
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = reason ? reasonId : undefined;
   return <div className="docked" data-shape={shape} {...drop.handlers}>
@@ -232,12 +255,13 @@ export function DockedComposer(props: DockedComposerProps) {
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
-      <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending}
+      <ComposerField key="field" ref={field} draftKey={key} value={draft.segments} onChange={segments => edit({ segments })} readOnly={isSending || locked}
         placeholder={props.placeholder} describedBy={describedBy} chipScope={props.chipScope ?? null} onAnnounce={setAnnouncement}
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
-        <AttachButton disabled={isSending} onClick={props.onAttach} />
+        {props.fixed ? <FixedTip label="Files can’t be attached to a terminal session"><button type="button" className="doan-icon-button" aria-label="Attach files" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
+          : <AttachButton disabled={isSending || locked} onClick={props.onAttach} />}
         <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending}
           onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} />
         {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
@@ -247,10 +271,21 @@ export function DockedComposer(props: DockedComposerProps) {
       {drop.cover}
     </ComposerCard>
     <div className="composer-tray">
-      <AgentPicker size="xs" picker={picker} auth={props.auth} disabled={isSending} onOpen={props.onPickerOpen} onPick={props.onPickModel} onSettings={target => queueMicrotask(() => props.onSettings(target))} />
-      {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} />}
+      {props.fixed && fixedProvider ? <>
+        <FixedTip label="Set in your terminal"><button type="button" className="composer-agent doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
+          aria-label={`Model: set by the terminal session (${PROVIDER_NAMES[fixedProvider]})`}><img className="logo" src={providerLogo(fixedProvider)} alt="" /><span>Terminal session</span></button></FixedTip>
+        <FixedTip label="Set in your terminal"><button type="button" className="composer-effort doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
+          aria-label="Effort: set by the terminal session"><Gauge aria-hidden="true" /><span>Default</span></button></FixedTip>
+      </> : <>
+        <AgentPicker size="xs" picker={picker} auth={props.auth} disabled={isSending} onOpen={props.onPickerOpen} onPick={props.onPickModel} onSettings={target => queueMicrotask(() => props.onSettings(target))} />
+        {picker.effort && <EffortPicker size="xs" view={picker.effort} effort={props.effort} disabled={isSending} onPick={props.onPickEffort} />}
+      </>}
     </div>
-    {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice}</span></div>}
+    {notice && (notice.startNew
+      ? <div className="composer-reason docked-reason reason-stack" role="status"><span>{notice.text}</span>
+        <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
+      : <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>
+        {notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => void send()}>Retry</button>}</div>)}
     {reason && (reason.alert
       ? <div className="doan-notice error doan-panel composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
@@ -258,4 +293,9 @@ export function DockedComposer(props: DockedComposerProps) {
         {reason.action && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onSettings(reason.action!.target)}>{reason.action.label}</button>}</div>)}
     <div className="sr-only" role="status">{announcement}</div>
   </div>;
+}
+
+// A control that keeps its place but cannot be used: aria-disabled, so its tooltip still shows on hover and focus.
+function FixedTip({ label, children }: { label: string; children: ReactElement }) {
+  return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent>{label}</TooltipContent></Tooltip>;
 }

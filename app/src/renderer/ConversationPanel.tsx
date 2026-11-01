@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactElement, type ReactNode } from "react";
 import { PanelRightClose } from "lucide-react";
 import { nudgePanel, type PanelBounds } from "./rightPanelSize";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
@@ -13,21 +13,24 @@ export function dragPanel(start: number, startX: number, x: number, bounds: Pane
 }
 
 // The canvas page's right column (buzz-canvas design §2 '오른쪽 패널'): the canvas conversation panel shell, its title row
-// reused from the Overview's right panel, and the resize handle on its left edge. buzz-canvas-conversation fills the
-// body. While folded the column stays in the DOM, out of the Tab order, so the open button's aria-controls resolves.
+// reused from the Overview's right panel, and the resize handle on its left edge. The canvas conversation fills it:
+// `title` is its conversation menu, `children` its thread and composer (buzz-canvas-conversation design §2); with no
+// canvas shown the shell keeps its own title and empty line. While folded the column stays in the DOM, out of the Tab
+// order, so the open button's aria-controls resolves.
 // `width` is the width shown; `onResize` commits a width (undefined: the window-relative default) and `preview` shows
 // one while a drag is still going, without a commit.
-export function ConversationPanel({ open, width, bounds, onHide, onResize, preview }: {
+export function ConversationPanel({ open, width, bounds, onHide, onResize, preview, title, children }: {
   open: boolean; width: number; bounds: PanelBounds; onHide(): void; onResize(width: number | undefined): void; preview(width: number): void;
+  title?: ReactNode; children?: ReactNode;
 }) {
   return <div className="doan-conv-column" data-collapsed={open ? undefined : ""} inert={!open}>
     <ResizeHandle width={width} bounds={bounds} onResize={onResize} preview={preview} />
     <aside className="right ov-right doan-conv-panel" id={CONVERSATION_PANEL_ID} role="region" aria-label="Conversation">
       <div className="doan-conv-head">
-        <h2 className="phead rp-head" tabIndex={-1}>Conversation</h2>
+        {title ?? <h2 className="phead rp-head" tabIndex={-1}>Conversation</h2>}
         <IconTip label="Hide conversation"><button type="button" className="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded={open} aria-controls={CONVERSATION_PANEL_ID} onClick={onHide}><PanelRightClose aria-hidden="true" /></button></IconTip>
       </div>
-      <div className="doan-conv-body"><p className="doan-conv-empty">Conversations about this canvas will show here.</p></div>
+      <div className="doan-conv-body">{children ?? <p className="doan-conv-empty">Conversations about this canvas will show here.</p>}</div>
     </aside>
   </div>;
 }

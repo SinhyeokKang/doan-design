@@ -718,7 +718,7 @@ export class CanvasController {
   }
 
   // Without a selection to clear, Esc and a blank click only raise the intent,
-  // which still cancels a pending Open (feature revision-continuity L-17).
+  // which still cancels a pending Open: the person's latest action wins over an open that was still waiting.
   private clearOnEscape(): void {
     if (!shouldGuardEscape(this.state.selection, this.reanchor)) { this.transitionIntent++; return; }
     this.transition(() => this.escapeNow());

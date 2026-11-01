@@ -36,6 +36,7 @@ vi.mock("react", async original => {
 });
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
+  setState: null as null | ((state: unknown) => void),
   toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
   signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn() },
 }));
@@ -46,7 +47,8 @@ vi.mock("./agentSignIn", () => ({
 vi.mock("./CanvasController", async original => ({
   ...await original<typeof import("./CanvasController")>(),
   CanvasController: class {
-    constructor() {
+    constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
+      harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
       for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "settleFit"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
@@ -66,6 +68,9 @@ const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { HomeRun } = await import("./homeRun");
+const { CanvasConversation } = await import("./CanvasConversationPanel");
+const { CanvasConversations } = await import("./RightPanel");
+const { initialCanvasState } = await import("./CanvasController");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -82,7 +87,7 @@ function reset() {
   harness.toast.show.mockClear(); harness.signIn.windowFocused.mockClear();
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
-    onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
+    onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(async () => ({ error: "not_found" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
@@ -90,7 +95,7 @@ function reset() {
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
   };
   vi.stubGlobal("window", { doan, addEventListener: (name: string, listener: (event: never) => void) => { windowListeners[name] = listener; }, removeEventListener: vi.fn() });
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: () => [], hasFocus: () => true });
   vi.stubGlobal("requestAnimationFrame", (run: () => void) => { run(); return 0; });
   vi.stubGlobal("HTMLElement", class {});
 }
@@ -218,8 +223,8 @@ type Agent = { canvas: unknown; running: boolean; list: unknown; onOpen(): void;
 const agent = () => (pane() as unknown as { agent: Agent } | undefined)?.agent;
 function focusable() {
   const focus = vi.fn();
-  const querySelector = vi.fn((selector: string) => selector === ".doan-conv-panel .rp-head" ? { focus } : null);
-  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector, querySelectorAll: () => [] });
+  const querySelector = vi.fn((selector: string) => selector === ".doan-conv-panel :is(.rp-head, .doan-conv-title .ov-title)" ? { focus } : null);
+  vi.stubGlobal("document", { activeElement: null, body: {}, querySelector, querySelectorAll: () => [], hasFocus: () => true });
   return { focus, querySelector };
 }
 
@@ -257,4 +262,105 @@ test("a project problem gives the indicator no canvas; the canvas page runs it, 
   find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
   expect(find(ProjectOverview)).toHaveLength(1);
   expect(agent()?.running).toBe(false);
+});
+
+// buzz-canvas-conversation R2/R3: the canvas page's panel holds the open canvas's conversation; entries unfold it.
+const rowSummary = (patch: Record<string, unknown> = {}) => ({ conversationId: "c1", canvas: { path: rowA.path, id: "a" }, title: "Payment copy", state: "current", owner: "doan", provider: "claude",
+  fromHome: false, phase: "ended", unseen: false, queued: 0, working: false, lastActivityAt: "2026-11-01T00:00:00.000Z", preview: "", ...patch });
+type Conversation = { target: { root: string; canvas: { path: string; id?: string } }; arrival: { focus: string; seq: number } | null; blocked: string | null };
+const conversation = () => find<Conversation>(CanvasConversation)[0]?.props;
+const menuState = () => doan.setMenuState!.mock.lastCall?.[0] as Record<string, unknown>;
+const flushAll = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); render(); };
+// The Overview of /w/a, then its canvas a open on the canvas page.
+async function openCanvas(state: unknown = { screen: "home", expanded: {}, lastByRoot: {}, home: {} }, patch: Record<string, unknown> = {}) {
+  render();
+  readUiState(state); await Promise.resolve(); await Promise.resolve(); render();
+  folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "",
+    layout: { frames: [], width: 800 }, ...patch });
+  render();
+  await flushAll();
+}
+
+test("the canvas page's panel holds the open canvas's conversation", async () => {
+  await openCanvas();
+  expect(find(ProjectOverview)).toHaveLength(0);
+  expect(conversation()?.target).toEqual({ root: "/w/a", canvas: { path: rowA.path, id: "a" } });
+  expect(conversation()?.blocked).toBeNull();
+  expect(doan.conversationResumeTarget).toHaveBeenCalledWith({ root: "/w/a", canvas: { path: rowA.path, id: "a" } });
+});
+
+test("a canvas page showing a page outside the list keeps the draft in a composer that takes no input", async () => {
+  await openCanvas(undefined, { unlisted: true });
+  expect(conversation()?.blocked).toBe("This canvas isn’t listed in a, so its conversation can’t continue.");
+});
+
+test("⌘N on the canvas page unfolds a folded panel in the new conversation state, focus for the composer", async () => {
+  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  expect(panel()?.open).toBe(false);
+  listeners.menu!("newConversation" as never); render();
+  expect(panel()?.open).toBe(true);
+  expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
+});
+
+test("Add Selection's menu flags follow the canvas page: a selection, and a loaded canvas whose composer takes input", async () => {
+  await openCanvas(undefined, { selection: { frame: { id: "f" } } });
+  expect(menuState()).toMatchObject({ screen: "canvas", selection: true, pickerAvailable: true });
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: "failed", message: "", selection: null });
+  render();
+  expect(menuState()).not.toHaveProperty("selection");
+  expect(menuState()).not.toHaveProperty("pickerAvailable");
+});
+
+test("an Overview row opens its canvas with that conversation and unfolds the panel, focus for the composer", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary()]);
+  render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
+  folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  await flushAll();
+  const row = { key: "c1", conversationId: "c1", row: rowA };
+  find<{ open(item: unknown): void }>(CanvasConversations)[0]!.props.open(row); render();
+  const [root, opened, , options] = harness.controller!.openCanvas!.mock.lastCall as [string, CanvasRow, unknown, { opened(): void }];
+  expect([root, opened.path]).toEqual(["/w/a", rowA.path]);
+  // The controller publishes the open canvas, then reports it opened.
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: rowA.path, row: rowA }, shown: rowA.path, status: null, message: "", layout: { frames: [], width: 800 } });
+  render();
+  expect(panel()?.open).toBe(false);
+  options.opened(); render();
+  expect(panel()?.open).toBe(true);
+  expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
+});
+
+test("a folded panel's open button carries the news dot while the canvas's conversation waits", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ phase: "waiting", working: true })]);
+  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  expect((pane() as unknown as { conversation: { badge: unknown } }).conversation.badge).toEqual({ kind: "permission", label: "Show conversation, needs your answer" });
+  pane()!.conversation.show(); render();
+  expect((pane() as unknown as { conversation: { badge: unknown } }).conversation.badge).toBeNull();
+});
+
+test("the capsule's Open shows the waiting conversation, unfolds the panel and sends focus to its first choice", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ phase: "waiting", working: true })]);
+  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  agent()!.onOpen(); render();
+  expect(panel()?.open).toBe(true);
+  expect(conversation()?.arrival).toMatchObject({ focus: "permission" });
+});
+
+test("a sidebar canvas row unfolds the panel only when its slot needs an answer or has an unseen ending", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ fromHome: true, unseen: true })]);
+  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  find<{ open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props.open("/w/a", rowA); render();
+  expect(panel()?.open).toBe(true);
+  expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
+});
+
+test("a sidebar canvas row without a mark keeps a folded panel folded", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ fromHome: true })]);
+  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  find<{ open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props.open("/w/a", rowA); render();
+  expect(panel()?.open).toBe(false);
+  expect(conversation()?.arrival).toBeNull();
 });

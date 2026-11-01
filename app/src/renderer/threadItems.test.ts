@@ -74,13 +74,14 @@ describe("threadItems", () => {
     ]);
   });
 
-  test("the person's message keeps anchor positions, the preset line and attachments", () => {
+  test("the person's message keeps anchor positions, its anchors, the preset line and attachments", () => {
     seq = 0;
+    const anchors = [{ frame: { id: "cart" } }, { element: { selector: "#pay", tag: "button" } }];
     const items = threadItems(turn("t1", "Use the Doan design preset `shape` (Shape).\n\nMake {{1}} match {{2}}.", {
-      anchors: [{}, {}], attachments: [{ name: "spec.md", size: 6144, kind: "file", path: "/Users/ada/spec.md" }],
+      anchors, attachments: [{ name: "spec.md", size: 6144, kind: "file", path: "/Users/ada/spec.md" }],
     }), ROOT, true);
     expect(items[0]).toEqual({
-      kind: "user", key: "u1", seq: 1, preset: { id: "shape", title: "Shape" },
+      kind: "user", key: "u1", seq: 1, preset: { id: "shape", title: "Shape" }, anchors,
       parts: [{ text: "Make " }, { anchor: 1 }, { text: " match " }, { anchor: 2 }, { text: "." }],
       attachments: [{ name: "spec.md", size: 6144, kind: "file" }],
     });

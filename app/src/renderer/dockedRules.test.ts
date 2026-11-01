@@ -45,6 +45,12 @@ describe("draftKey", () => {
 });
 
 describe("dockedAvailability", () => {
+  test("a terminal session, and a conversation continued from one, do not need a Doan account for the provider", () => {
+    const resume = { kind: "resume", root: "/r", canvas: { path: ".doan/canvases/billing.html" }, provider: "codex" } as const;
+    expect(dockedAvailability(input({ mode: resume, auth: auth() }))).toEqual({ enabled: true, reason: null });
+    expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth() })).enabled).toBe(false);
+    expect(dockedAvailability(input({ mode: { kind: "existing", conversationId: "c", provider: "codex" }, auth: auth(), external: true })).enabled).toBe(true);
+  });
   // buzz-project spec decision 12: an open Overview whose project turned into a problem keeps its thread readable,
   // and Send says why it is held, as Home does.
   test("an unavailable project holds Send with its reason before anything else", () => {

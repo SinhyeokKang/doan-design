@@ -137,7 +137,7 @@ test("switching conversations draws each one's own draft and title at once", () 
   expect(first).toContain('class="docked" data-shape="capsule"');
   const second = render(list, {}, r => {
     r.sync();
-    r.drafts = run.drafts;
+    r.setDrafts(() => run.drafts);
     r.select(ROOT, B);
   });
   expect(second).toContain('class="docked" data-shape="box"');
@@ -168,8 +168,9 @@ test("the Overview's surfaces take plain numerals, the open chip its pressed fil
   expect(css).toContain(".moved-text { display: flex; min-width: 0; white-space: nowrap; }");
   expect(css).toContain(".moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }");
   expect(css).toContain(".moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }");
-  expect(css).toContain(".conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
-  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
+  // The canvas panel's notices above its composer read the same (buzz-canvas-conversation).
+  expect(css).toContain(".conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }");
+  expect(css).toMatch(/\.conversation-thread \.thread-notice \.strip-text span, \.cp-scroll > \.thread-notice \.strip-text span \{[^}]*overflow: visible; text-overflow: clip; \}/);
 });
 
 // runtime-test (buzz-project RT): at 960×600 the new-conversation placeholder wrapped to two lines in the empty capsule

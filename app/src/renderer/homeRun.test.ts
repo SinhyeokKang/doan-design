@@ -143,6 +143,37 @@ test("a canvas that appeared before the start reply arrived is still taken and o
   expect(h.host.toast).not.toHaveBeenCalledWith("New canvas in doan", "Open", expect.any(Function));
 });
 
+// buzz-canvas-conversation design §2 'Conversation panel': until main judges the promotion, the canvas the project
+// conversation's turn drew names it as drawing there; once main binds it, or after the binding window, it does not.
+test("a project conversation drawing a canvas is named for that canvas until main binds it", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  h.view.entries = [list(ROOT, ["a", "pricing"])];
+  h.run.entriesChanged();
+  expect(h.run.drawing(ROOT, { path: ".doan/canvases/pricing.html", id: "pricing" })).toBe("c1");
+  expect(h.run.drawing(ROOT, { path: ".doan/canvases/a.html", id: "a" })).toBeNull();
+  expect(h.run.drawing("/elsewhere", { path: ".doan/canvases/pricing.html" })).toBeNull();
+  lists({ [ROOT]: [summary({ conversationId: "c1", canvas: { path: ".doan/canvases/pricing.html", id: "pricing" } })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  expect(h.run.drawing(ROOT, { path: ".doan/canvases/pricing.html", id: "pricing" })).toBeNull();
+});
+
+test("opening a canvas conversation opens its canvas with that conversation, waiting or not", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "w", phase: "waiting", canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  const h = harness();
+  h.run.entriesChanged();
+  await flush();
+  h.run.openConversation("w");
+  expect(h.host.openCanvas).toHaveBeenCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/a.html" }), { conversationId: "w", waiting: true });
+  lists({ [ROOT]: [summary({ conversationId: "w", canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
+  h.run.listChanged(ROOT);
+  await flush();
+  h.run.openConversation("w");
+  expect(h.host.openCanvas).toHaveBeenLastCalledWith(ROOT, expect.objectContaining({ path: ".doan/canvases/a.html" }), { conversationId: "w", waiting: false });
+});
+
 // Decision 17: main binds a new canvas only after the turn ends, so the open does not wait for main.
 test("a new canvas row during the turn opens without asking main; only the first, and only while the turn runs", async () => {
   const h = harness();
@@ -418,7 +449,9 @@ test("a failed seen marker brings the slot back", async () => {
   expect(h.run.slots().get(ROOT)?.kind).toBe("unseen");
 });
 
-test("visiting the bound canvas marks its unseen ending seen; the project's Overview does not", async () => {
+// buzz-canvas-conversation design §2 'Seen': a canvas conversation is seen only in its canvas's open panel, which marks
+// it through markSeenThrough; visiting its canvas row or its project marks nothing.
+test("visiting the bound canvas or its project leaves a canvas conversation's ending unseen", async () => {
   lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: { path: ".doan/canvases/a.html", id: "a" } })] });
   seq = 3;
   doan.readConversation!.mockResolvedValue({ events: [event("u", { type: "turn.done" })], lastSeq: 4, turn: "idle" });
@@ -427,15 +460,13 @@ test("visiting the bound canvas marks its unseen ending seen; the project's Over
   h.run.entriesChanged();
   await flush();
   h.run.visit([ROOT]);
-  await flush();
-  expect(doan.markConversationSeen).not.toHaveBeenCalled();
   h.run.visit([ROOT, `${ROOT}\n.doan/canvases/a.html`]);
-  expect(h.run.slots().size).toBe(0);
   await flush(); await flush();
-  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "u", seq: 4 });
+  expect(doan.markConversationSeen).not.toHaveBeenCalled();
+  expect(h.run.slots().get(`${ROOT}\n.doan/canvases/a.html`)?.kind).toBe("unseen");
 });
 
-test("an ending that arrives while the person is on its row is marked seen before it is drawn", async () => {
+test("an ending that arrives while the person is on its canvas row stays unseen until the panel marks it", async () => {
   const bound = { path: ".doan/canvases/a.html", id: "a" };
   lists({ [ROOT]: [summary({ conversationId: "u", phase: "running", canvas: bound })] });
   const h = harness();
@@ -446,7 +477,11 @@ test("an ending that arrives while the person is on its row is marked seen befor
   lists({ [ROOT]: [summary({ conversationId: "u", unseen: true, canvas: bound })] });
   h.run.listChanged(ROOT);
   await flush();
+  expect(h.run.slots().get(`${ROOT}\n${bound.path}`)?.kind).toBe("unseen");
+  h.run.markSeenThrough("u", 4);
   expect(h.run.slots().size).toBe(0);
+  await flush();
+  expect(doan.markConversationSeen).toHaveBeenCalledWith({ conversationId: "u", seq: 4 });
 });
 
 // buzz-project spec decision 11: a project conversation is seen only while it shows in the Overview's main column with

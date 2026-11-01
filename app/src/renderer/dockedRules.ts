@@ -57,6 +57,8 @@ export interface DockedInput {
   // The host's project turned into a problem while it was open (buzz-project spec decision 12): Send waits with
   // Home's reason, whatever the draft holds.
   unavailable?: string | null;
+  // The conversation runs on a terminal's own sign-in (a legacy external one), so Doan's accounts do not decide.
+  external?: boolean;
 }
 
 // Send's state and the reason line under the card. Home's reasons (agent, length, {{ }}, checking, a moved file) are
@@ -67,7 +69,8 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   const off = (reason: DockedReason | null) => ({ enabled: false, reason });
   if (input.sending) return off(null);
   if (input.unavailable) return off({ text: input.unavailable });
-  const agent = mode.kind === "new" ? agentProblem(input.auth, input.provider) : providerProblem(input.auth, mode.provider);
+  // A terminal session runs on the terminal's own sign-in, so Doan's accounts do not decide whether it can be sent to.
+  const agent = mode.kind === "new" ? agentProblem(input.auth, input.provider) : mode.kind === "resume" || input.external ? null : providerProblem(input.auth, mode.provider);
   if (agent) return off({ text: agent.text, ...("action" in agent && agent.action ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
   if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
@@ -106,7 +109,10 @@ export function dockedMessage(draft: DockedDraft): { text: string; anchors: Anch
 // A send or start main refused. The limits become the busy line until the host reports the busy conversation and it
 // clears, or the person edits the draft; a canvas that is
 // gone replaces the composer; the rest is a notice under the card.
-export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string };
+// A canvas panel's refusals add two (design §2 'Errors'): blocked keeps the draft in a field that takes no input, with
+// the reason line; a notice may offer Retry or, for a terminal session, "Start a new conversation".
+export type DockedRefusal = { kind: "busy"; busy: DockedBusy } | { kind: "gone" } | { kind: "notice"; text: string; retry?: boolean; startNew?: boolean }
+  | { kind: "blocked"; text: string; action?: SettingsAction };
 export function dockedRefusal(code: string, mode: DockedMode, provider: Provider, project: string): DockedRefusal {
   if (code === "project_busy") return { kind: "busy", busy: { kind: "project", waiting: false, open: null } };
   if (mode.kind === "archived" && code === "busy") return { kind: "busy", busy: { kind: "restore", open: null } };

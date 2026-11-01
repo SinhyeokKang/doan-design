@@ -12,7 +12,7 @@ const LOADING_DELAY_MS = 300;
 
 // The row that holds focus, for handing focus on when it leaves the list (design §2.3). A blur to nowhere (window
 // blur, the row's removal) keeps it; focus on another element or pointer input outside the rows ends it, so a row
-// removed after the person moved on takes no focus (POSTMORTEM 2026-10-26 revision-recheck R-C).
+// removed after the person moved on takes no focus, which would pull them back to a list they had left.
 export class RowFocusMemory {
   private key: string | null = null;
   focus(key: string): void { this.key = key; }

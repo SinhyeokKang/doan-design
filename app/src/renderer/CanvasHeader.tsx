@@ -10,15 +10,17 @@ import { menuCloseFocus, menuCloseNow } from "./canvasFocus";
 import { zoomControlView, type ZoomControlView } from "./zoomControl";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { CONVERSATION_PANEL_ID } from "./ConversationPanel";
+import type { OpenBadge } from "./rightPanelOpen";
 
 // The canvas page's header above the board (buzz-canvas design §0 'default', §2): canvas / frame drawer on the left,
 // the zoom controller on the right. It reuses the Overview header box (.ov-head), so the two headers line up.
 // `canvasKey` names the open canvas: an open menu closes when it changes. `fallbackFocus` takes focus a closing menu
 // cannot hand back to its trigger (the canvas region). `panel`: the conversation panel, whose open button sits last in
-// the header only while it is folded (design §2 '오른쪽 패널').
+// the header only while it is folded (design §2 '오른쪽 패널'), with a dot and a longer name while this canvas's
+// conversation needs an answer or has an unseen ending (buzz-canvas-conversation design §2 'News dot').
 export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectFrame, fallbackFocus = () => {}, panel }: {
   state: CanvasState; canvasKey?: string | null; command(name: ViewCommand): void; zoomTo(scale: number): void; selectFrame(index: number, id: string): void;
-  fallbackFocus?: () => void; panel?: { open: boolean; show(): void };
+  fallbackFocus?: () => void; panel?: { open: boolean; show(): void; badge?: OpenBadge | null };
 }) {
   const board = { layout: state.layout, currentFrame: state.currentFrame, status: state.status, unlisted: state.unlisted };
   // An unlisted page or a canvas that left the list names no canvas; only the disabled drawer stays.
@@ -29,7 +31,8 @@ export function CanvasHeader({ state, canvasKey = null, command, zoomTo, selectF
     <span className="ov-title-wrap"><FrameDrawer view={frameDrawerView(board)} label={name ? `Frames in ${name}` : "Frames"} canvasKey={canvasKey} fallbackFocus={fallbackFocus} select={selectFrame} /></span>
     <div className="doan-canvas-head-tools"><ZoomControl view={zoomControlView({ ...board, scale: state.scale })} canvasKey={canvasKey} fallbackFocus={fallbackFocus} command={command} zoomTo={zoomTo} />
       {panel && !panel.open && <><span className="doan-canvas-head-sep" aria-hidden="true" />
-        <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label="Show conversation" aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID} onClick={panel.show}><PanelRightOpen aria-hidden="true" /></button></IconTip></>}
+        <IconTip label="Show conversation"><button type="button" className="doan-icon-button doan-panel-show" aria-label={panel.badge?.label ?? "Show conversation"} aria-expanded={false} aria-controls={CONVERSATION_PANEL_ID}
+          data-badge={panel.badge ? "true" : undefined} onClick={panel.show}><PanelRightOpen aria-hidden="true" /></button></IconTip></>}
     </div>
   </header>;
 }

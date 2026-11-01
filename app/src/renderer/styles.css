@@ -781,12 +781,12 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .ask-answered { color: var(--text-subtle); }
 /* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
-.conversation-thread .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
-.conversation-thread .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
 /* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
-.conversation-thread .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
 /* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
-.conversation-thread .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
 .conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
 .conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
@@ -944,6 +944,36 @@ body:has(.shell-top) { background: transparent; }
 .doan-conv-head .doan-icon-button { color: var(--text-standard); }
 .doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
 .doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* buzz-canvas-conversation: the panel's content (.doan/canvases/buzz-canvas-conversation.html panel-*). The title is the
+   conversation menu with the close button at its end; the thread scrolls under it and the composer stays at the bottom. */
+.doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
+.doan-conv-title .ov-title.doan-button { max-width: 100%; }
+.doan-conv-body:has(> .doan-conv-content) { padding: 0; align-items: stretch; justify-content: stretch; }
+.doan-conv-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.cp-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-2) var(--space-4) 0; }
+.cp-scroll:has(> .conversation-thread) { padding: 0; }
+.cp-scroll > .conversation-thread { flex: 1; min-height: 0; }
+.cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) 0; }
+.doan-conv-panel .conversation-thread .thread { gap: var(--space-3); }
+.doan-conv-panel .msg-user { max-width: 92%; }
+.doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.cp-foot { flex: none; padding: var(--space-3); }
+.cp-resume { margin-top: auto; margin-bottom: var(--space-1); }
+/* A reason whose action label is long puts the action under the text, so the text keeps the row's width. */
+.docked-reason.reason-stack { flex-wrap: wrap; }
+.docked-reason.reason-stack > span { flex-basis: 100%; }
+/* A terminal session sets its own model and effort: the same triggers without chevrons, not interactive. */
+.composer-tray .doan-button.is-fixed { cursor: default; }
+/* News on the folded panel's open button: the sidebar slot's unseen dot (design §2 'News dot'). */
+.doan-icon-button[data-badge="true"] { position: relative; }
+.doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
+/* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
+.bubble .anchor-chip { background: var(--surface-panel); }
+button.anchor-chip { cursor: pointer; }
+button.anchor-chip[aria-disabled="true"] { cursor: default; }
+/* A permission answer that did not reach the agent, under its request's choices. */
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 /* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar
    fading at both ends, shown on hover, while dragging and on keyboard focus (malmoi components/ui/resizable.tsx and its
    DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */
