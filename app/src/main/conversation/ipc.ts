@@ -101,7 +101,14 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         const input = message(raw);
         if (method === "resumeTarget") {
           try { const ready = await prepare({ root: raw.root, mode: "resume", ...(validCanvas(canvas) ? { canvas } : {}), text: "", anchors: [] }); return { available: true, runtime: ready.runtime, lastCheckAt: ready.lastCheckAt ?? "", ...(ready.sessionId ? { session: ready.sessionId } : {}) }; }
-          catch (error) { const reason = error instanceof Error ? error.message : "session_unavailable"; return { available: false, reason: reason === "no_session" ? "no_record" : ["cli_missing", "outside_root", "session_unavailable", "session_in_use"].includes(reason) ? reason : "session_unavailable" }; }
+          catch (error) {
+            const reason = error instanceof Error ? error.message : "session_unavailable";
+            // A session a terminal process holds cannot run now, but it is still the target: the renderer matches it
+            // with the terminal work list (createPrepare names it).
+            if (reason === "session_in_use" && error instanceof Error && "runtime" in error && validProvider(error.runtime) && "sessionId" in error && typeof error.sessionId === "string")
+              return { available: false, reason, runtime: error.runtime, session: error.sessionId };
+            return { available: false, reason: reason === "no_session" ? "no_record" : ["cli_missing", "outside_root", "session_unavailable", "session_in_use"].includes(reason) ? reason : "session_unavailable" };
+          }
         }
         if (!input || !["resume", "new", "newDesign"].includes(String(raw.mode))) throw new Error("bad_request");
         if (raw.runtime !== undefined && !validProvider(raw.runtime)) throw new Error("bad_request");

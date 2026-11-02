@@ -120,21 +120,25 @@ test("a Claude session a terminal process holds waits on first entry and returns
   });
   const working: readonly WorkItem[] = [{ session: "s1", provider: "claude", root: ROOT, path: CANVAS.path }], none: readonly WorkItem[] = [];
   expect(resumeChoice(render(panel(working)))).toEqual({ offer: "claude", held: true });
+  await flush();
   // The turn ends but the terminal's claude still runs: the session is still held, and not offered.
+  let asked = target.mock.calls.length;
   render(panel(none));
   await flush();
-  expect(target).toHaveBeenCalledTimes(2);
+  expect(target).toHaveBeenCalledTimes(asked + 1);
   expect(resumeChoice(render(panel(none)))).toBeNull();
   // The person quits claude and comes back to the window.
   target.mockResolvedValue({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
+  asked = target.mock.calls.length;
   run.focusChanged();
   await flush();
-  expect(target).toHaveBeenCalledTimes(3);
+  expect(target).toHaveBeenCalledTimes(asked + 1);
   expect(resumeChoice(render(panel(none)))).toEqual({ offer: "claude", held: false });
   // A runnable target is not asked again on later changes.
+  asked = target.mock.calls.length;
   run.focusChanged(); render(panel(working)); render(panel(none));
   await flush();
-  expect(target).toHaveBeenCalledTimes(3);
+  expect(target).toHaveBeenCalledTimes(asked);
 });
 
 // RD1: the work ending with the process gone (the read after the change answers) brings the choice back at once.

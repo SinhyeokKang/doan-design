@@ -165,6 +165,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   // resume becomes new for good (the layout effect below), so it never comes back under a draft when the session ends.
   const held = view.kind === "new" && resumeHeld(view.resume, props.work);
   useLayoutEffect(() => { if (held) run.choose("new"); }, [held]);
+  const workKey = JSON.stringify(props.work);
+  useEffect(() => { run.recheckResume(); }, [workKey]);
   const mode: DockedMode = conversationId && provider ? { kind: archived ? "archived" : "existing", conversationId, provider }
     : view.kind === "new" ? (held ? { kind: "new", root, canvas: target.canvas } : view.mode) : { kind: "new", root, canvas: target.canvas };
   const key = draftKey(mode);
@@ -353,7 +355,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   const placeholder = draft.preset && draft.segments.length === 0 ? presetPlaceholder(draft.preset) : view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
   const notice = view.kind === "wait" ? null : view.notice;
-  const resume = newView?.start.offer ? newView : null;
+  // A held session a terminal process holds is not offered to run, but its choice shows, waiting.
+  const offer = newView?.start.offer ?? (held && newView?.resume && "runtime" in newView.resume ? newView.resume.runtime ?? null : null);
+  const resume = offer ? newView : null;
 
   return <div className="doan-conv-content">
     <div className={`cp-scroll${conversationId ? "" : " end"}`}>
@@ -375,7 +379,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
-          {resume && <ResumeChoice offer={resume.start.offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
+          {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
             <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
               onClick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>

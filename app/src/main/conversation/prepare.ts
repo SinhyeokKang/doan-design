@@ -48,7 +48,9 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
     if (!insideRoot(root, cwd)) throw new Error("outside_root");
     if (session && runtime === "claude") {
       const occupancy = await claudeOccupancy(configDir, session.sessionId);
-      if (occupancy !== "free") throw new Error(occupancy === "occupied" ? "session_in_use" : "session_unavailable");
+      // The resume target still names a session a terminal process holds, so the panel can show it waiting.
+      if (occupancy === "occupied") throw Object.assign(new Error("session_in_use"), { runtime, sessionId: session.sessionId });
+      if (occupancy !== "free") throw new Error("session_unavailable");
       if (!claudeSessionExists(configDir, session.sessionId)) throw new Error("session_unavailable");
     }
     if (session && runtime === "codex" && !codexSessionExists(configDir, session.sessionId, cwd)) throw new Error("session_unavailable");
