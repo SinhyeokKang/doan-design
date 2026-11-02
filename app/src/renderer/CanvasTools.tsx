@@ -18,10 +18,10 @@ export interface AddTool { enabled: boolean; reason: string | null; onAdd(): voi
 export function CanvasTools({ add }: { add: AddTool }) {
   return <div className="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" onKeyDown={moveBetweenTools}>
     <Tooltip><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" aria-pressed={true} aria-label="Select" tabIndex={0}><MousePointer2 aria-hidden="true" /></button>
+      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed={true} aria-label="Select" tabIndex={0}><MousePointer2 aria-hidden="true" /></button>
     </TooltipTrigger><TooltipContent>Select</TooltipContent></Tooltip>
     <Tooltip><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" aria-label="Add to conversation" aria-disabled={!add.enabled || undefined} tabIndex={-1}
+      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Add to conversation" aria-disabled={!add.enabled || undefined} tabIndex={-1}
         onClick={() => { if (add.enabled) add.onAdd(); }}><MessageSquarePlus aria-hidden="true" /></button>
     </TooltipTrigger><TooltipContent>{!add.enabled && add.reason ? add.reason : "Add to conversation"}</TooltipContent></Tooltip>
   </div>;

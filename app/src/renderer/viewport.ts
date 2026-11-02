@@ -41,8 +41,9 @@ export const ZOOM_LIMITS: ZoomLimits = { min: MIN_SCALE, max: MAX_SCALE };
 export const ZOOM_STEP = 1.25;
 // Cap per wheel event so one notch of a mouse wheel cannot jump across the range.
 export const WHEEL_ZOOM_MAX = 1.25;
-// Top clears the canvas header's height, bottom clears the floating toolbar (12 + 40 + 12).
-export const FIT_INSET: Inset = { top: 56, right: 32, bottom: 64, left: 32 };
+// Bottom clears the floating toolbar (20 + 50 + 10). Top matches it, so the safe area's centre is the viewport's,
+// which currentFrame reads: a jumped-to frame is then also the current one.
+export const FIT_INSET: Inset = { top: 80, right: 32, bottom: 80, left: 32 };
 export const FIT_SCALE_MAX = 1;
 export const FIRST_LAYOUT_TIMEOUT_MS = 5000;
 

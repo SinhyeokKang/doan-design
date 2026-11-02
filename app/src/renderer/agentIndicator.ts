@@ -48,9 +48,10 @@ export interface AgentNoticeView {
 // `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet.
 export function agentNoticeView(presence: AgentPresence | null, stopping: string | null): AgentNoticeView | null {
   if (!presence) return null;
-  if (presence.kind === "waiting") return { text: presence.label, steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
+  // A fixed name, not the provider's (dogfooding): the panel beside the board already says which agent this is.
+  if (presence.kind === "waiting") return { text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
   const held = stopping === presence.conversationId;
-  return { text: presence.label, steady: false, action: { kind: "stop", label: held ? "Stopping…" : "Stop", disabled: held } };
+  return { text: "Agent is working", steady: false, action: { kind: "stop", label: held ? "Stopping…" : "Stop", disabled: held } };
 }
 
 // "Stopping…" lasts until the list shows the turn ended (no presence) or another conversation takes the canvas.

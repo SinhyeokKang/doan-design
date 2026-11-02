@@ -182,10 +182,10 @@ describe("selection", () => {
     const h = selectionHarness();
     try {
       h.select(1);
-      expect(h.markOf("selected")?.style).toMatchObject({ left: "110px", top: "76px", width: "60px", height: "18px" });
+      expect(h.markOf("selected")?.style).toMatchObject({ left: "110px", top: "100px", width: "60px", height: "18px" });
       h.changed.mockClear();
       h.controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
-      expect(h.markOf("selected")?.style).toMatchObject({ left: "100px", top: "56px" });
+      expect(h.markOf("selected")?.style).toMatchObject({ left: "100px", top: "80px" });
       expect(h.changed).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
@@ -211,7 +211,7 @@ describe("selection", () => {
       h.layout({ seq: 1, selected: { x: 0, y: 0, width: 5, height: 5 } });
       h.layout({ seq: 1, selected: { x: 0, y: 3, width: 5, height: 5 } });
       expect(h.send).toHaveBeenCalledTimes(1);
-      expect(h.markOf("selected")?.style).toMatchObject({ top: "59px", width: "5px" });
+      expect(h.markOf("selected")?.style).toMatchObject({ top: "83px", width: "5px" });
     } finally { h.controller.dispose(); }
   });
 
@@ -466,7 +466,7 @@ describe("selection", () => {
     const h = selectionHarness();
     try {
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
-      expect(h.markOf("hover")).toMatchObject({ hidden: false, style: { left: "100px", top: "56px", width: "4px" } });
+      expect(h.markOf("hover")).toMatchObject({ hidden: false, style: { left: "100px", top: "80px", width: "4px" } });
       h.key("Alt");
       expect(h.markOf("hover")?.hidden).toBe(true);
       h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
@@ -982,7 +982,7 @@ describe("Fit and frame jumps inside FIT_INSET", () => {
     const h = selectionHarness();
     try {
       expect(h.controller.currentView()).toEqual(fitWidth(600, size, FIT_INSET));
-      expect(h.controller.currentView().y).toBe(56);
+      expect(h.controller.currentView().y).toBe(80);
     } finally { h.controller.dispose(); }
   });
 
@@ -1004,7 +1004,7 @@ describe("Fit and frame jumps inside FIT_INSET", () => {
       h.controller.jump(0);
       h.layout({ frames: tall(500) });
       expect(h.controller.currentView()).toEqual(fitFrame({ x: 0, y: 0, width: 10, height: 500 }, size, FIT_INSET, { x: 0, y: 0, scale: 1 }));
-      expect(h.controller.currentView().y).toBe(56);
+      expect(h.controller.currentView().y).toBe(80);
     } finally { h.controller.dispose(); }
   });
 
@@ -1014,8 +1014,8 @@ describe("Fit and frame jumps inside FIT_INSET", () => {
       h.layout({ frames: tall(100) });
       h.controller.jump(0);
       h.layout({ frames: tall(100) });
-      // Safe area y 56..536: its centre is 296, the frame's 50px.
-      expect(h.controller.currentView().y).toBe(246);
+      // Safe area y 80..520: its centre is 300, the frame's 50px.
+      expect(h.controller.currentView().y).toBe(250);
     } finally { h.controller.dispose(); }
   });
 
@@ -1025,7 +1025,7 @@ describe("Fit and frame jumps inside FIT_INSET", () => {
       h.layout({ frames: tall(2000) });
       h.controller.selectFrame(0, "tall");
       h.layout({ frames: tall(2000) });
-      expect(h.controller.currentView().y).toBe(56);
+      expect(h.controller.currentView().y).toBe(80);
     } finally { h.controller.dispose(); }
   });
 });

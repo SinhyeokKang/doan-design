@@ -32,7 +32,8 @@ describe("CanvasAgent", () => {
     expect(html.match(/role="status"/g)).toHaveLength(1);
     const stop = tag(html, 'class="doan-button doan-agent-action"');
     expect(stop).toMatch(/^<button/);
-    expect(stop).toContain('data-ui-size="sm"');
+    // The default 40px control since dogfooding found the notice small.
+    expect(stop).not.toContain('data-ui-size');
     expect(stop).not.toContain("disabled");
     // The composer's Stop glyph, a filled square, leads the word.
     const glyph = html.match(/<button[^>]*doan-agent-action[^>]*>(<svg[^>]*>).*?<\/svg>Stop<\/button>/)?.[1] ?? "";
