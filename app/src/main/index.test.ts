@@ -60,13 +60,14 @@ const mocks = await vi.hoisted(async () => {
       store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
     flow: { add: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
-    electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn() },
+    electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn(), trashItem: vi.fn() },
     // AppKit notifications by name, as main last subscribed to them.
     notifications: new Map<string, () => void>(),
     startShell: vi.fn(),
     cliCommand: vi.fn(() => "/bundled/doan"),
     runConfig: vi.fn(),
     runDesignSkill: vi.fn(),
+    runExport: vi.fn(),
     runtime: { socket: "/tmp/doan-x/app.sock", token: "t", file: "/tmp/doan-index-test/runtime.json", disposeSync: vi.fn() },
     startRuntime: vi.fn(),
     sessionOn: vi.fn(),
@@ -75,7 +76,7 @@ const mocks = await vi.hoisted(async () => {
     mkdir: vi.fn(),
     readCompletion: vi.fn(), clipboard: { writeText: vi.fn() }, cursor: vi.fn(() => ({ x: 0, y: 0 })),
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
-    dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
+    dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn(), showSaveDialog: vi.fn() },
     uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
     // Spied around the real canvas-seen store, so its IPC checks stay real.
     canvasSeenFlushSync: vi.fn(),
@@ -116,7 +117,7 @@ vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
 vi.mock("./onboarding/completion", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/completion")>(), readCompletion: mocks.readCompletion }));
 vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: mocks.probeShell }));
 vi.mock("./agentSetup/runner", () => ({ runAgentSetup: mocks.runAgentSetup, osascriptAdmin: mocks.osascriptAdmin }));
-vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill }));
+vi.mock("./cli", () => ({ cliCommand: mocks.cliCommand, runConfig: mocks.runConfig, readFolder: mocks.readFolder, runDesignSkill: mocks.runDesignSkill, runExport: mocks.runExport }));
 vi.mock("./shell", () => ({ startShell: mocks.startShell }));
 vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
@@ -1300,6 +1301,54 @@ test("home path is available only to the application main frame", async () => {
   expect(await invoke("app:home", window().webContents, null)).toBe(process.env.HOME ?? "/tmp/doan-index-test");
   expect(await invoke("app:home", {}, null)).toBeNull();
   expect(await invoke("app:home", window().webContents, {})).toBeNull();
+});
+
+// canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.
+describe("canvas trash and export", () => {
+  const row = { path: ".doan/canvases/a.html", id: "a", url: "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html" };
+  const listed = { path: "/repo", kind: "list", servedRev: 1, canvases: [row] };
+  beforeEach(() => mocks.shell.entries.mockReturnValue([listed]));
+  const request = { root: "/repo", path: row.path };
+
+  test.each(["canvas:trashPlan", "canvas:trash"])("%s takes only the main window's frame and refuses rows main does not list", async channel => {
+    const contents = window().webContents;
+    expect(await invoke(channel, contents, {}, request)).toEqual({ kind: "refused", reason: "notListed" });
+    expect(await invoke(channel, {}, null, request)).toEqual({ kind: "refused", reason: "notListed" });
+    for (const bad of [{ root: "/other", path: row.path }, { root: "/repo", path: ".doan/canvases/b.html" }, null]) {
+      expect(await invoke(channel, contents, null, bad)).toEqual({ kind: "refused", reason: "notListed" });
+    }
+    expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
+  });
+
+  test("canvas:export takes only the main window's frame and refuses rows main does not list, before any panel", async () => {
+    const contents = window().webContents;
+    expect(await invoke("canvas:export", contents, {}, request)).toEqual({ kind: "refused", reason: "notListed" });
+    expect(await invoke("canvas:export", {}, null, request)).toEqual({ kind: "refused", reason: "notListed" });
+    expect(await invoke("canvas:export", contents, null, { root: "/other", path: row.path })).toEqual({ kind: "refused", reason: "notListed" });
+    expect(mocks.dialog.showSaveDialog).not.toHaveBeenCalled();
+    expect(mocks.runExport).not.toHaveBeenCalled();
+  });
+
+  test("canvas:export opens the save panel with the file name only and runs the bundled CLI on the chosen file", async () => {
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: false, filePath: "/Users/me/Desktop/a.html" });
+    mocks.runExport.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: JSON.stringify({ v: 1, ok: true, result: { external: ["https://cdn.example/x.css"] } }), stderr: "" });
+    const reply = await invoke("canvas:export", window().webContents, null, request);
+    expect(reply).toEqual({ kind: "exported", external: 1, reveal: expect.any(String) });
+    expect(mocks.dialog.showSaveDialog).toHaveBeenCalledExactlyOnceWith(window(), { defaultPath: "a.html", filters: [{ name: "HTML", extensions: ["html"] }] });
+    expect(mocks.runExport).toHaveBeenCalledExactlyOnceWith("/bundled/doan", "/repo", row.path, "/Users/me/Desktop/a.html");
+    // Show in Finder: only by the id, only from the main window.
+    await invoke("canvas:revealExport", window().webContents, null, "/Users/me/Desktop/a.html");
+    await invoke("canvas:revealExport", {}, null, (reply as { reveal: string }).reveal);
+    expect(mocks.electronShell.showItemInFolder).not.toHaveBeenCalled();
+    await invoke("canvas:revealExport", window().webContents, null, (reply as { reveal: string }).reveal);
+    expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith("/Users/me/Desktop/a.html");
+  });
+
+  test("a cancelled save panel runs no CLI", async () => {
+    mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
+    expect(await invoke("canvas:export", window().webContents, null, request)).toEqual({ kind: "cancelled" });
+    expect(mocks.runExport).not.toHaveBeenCalled();
+  });
 });
 
 describe("main-window setup and settings", () => {

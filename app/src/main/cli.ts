@@ -41,6 +41,17 @@ export function runDesignSkill(cli: string, id?: string, timeoutMs = CLI_TIMEOUT
     .catch((error: unknown) => ({ exitCode: null, timedOut: false, spawnError: error instanceof Error ? error.message : String(error), stdout: "", stderr: "" }));
 }
 
+// `doan export` reads every asset of a canvas and may write up to 50 MiB, well past the 10 s of the other calls.
+// Provisional: measure against a large canvas once the command exists (canvas-row-menu design '앱 Export 흐름').
+export const EXPORT_TIMEOUT_MS = 120_000;
+
+// `path` is a listed canvas row (`.doan/...`) and `output` the absolute file the save panel returned, so neither can
+// read as an option. `--force`: the save panel already asked before replacing a file.
+export function runExport(cli: string, root: string, path: string, output: string, timeoutMs = EXPORT_TIMEOUT_MS): Promise<CliRun> {
+  return runCli(cli, ["export", path, "-o", output, "--force", "--repo", root, "--json"], undefined, timeoutMs)
+    .catch((error: unknown) => ({ exitCode: null, timedOut: false, spawnError: error instanceof Error ? error.message : String(error), stdout: "", stderr: "" }));
+}
+
 // Checked before running, because a missing folder must show as "folder not
 // found" rather than as the CLI's `repo_not_found` ("not initialized").
 export async function readFolder(cli: string, path: string, timeoutMs = CLI_TIMEOUT_MS): Promise<FolderView> {

@@ -22,6 +22,8 @@ const mainOnly = [
   "attachments:fromPaths", "shell:openLink",
   // canvas-hand-tool: where the OS cursor is, for a canvas click's focus.
   "pointer:get",
+  // canvas-row-menu: Move to Trash and Export from the sidebar's canvas row menu.
+  "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
 ];
 const setupAndAuth = ["setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",

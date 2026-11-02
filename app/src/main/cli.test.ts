@@ -8,7 +8,7 @@ vi.mock("node:child_process", async importOriginal => {
   const real = await importOriginal<typeof import("node:child_process")>();
   return { ...real, spawn: vi.fn(real.spawn) };
 });
-import { cliCommand, readFolder, runConfig, runDesignSkill, runLs, runInit } from "./cli";
+import { cliCommand, EXPORT_TIMEOUT_MS, readFolder, runConfig, runDesignSkill, runExport, runLs, runInit } from "./cli";
 import { designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { configReply } from "./configBridge";
 import { folderState, initOutcome } from "./folderState";
@@ -199,5 +199,28 @@ describe("runDesignSkill", () => {
   test("settles timeout and spawn errors as app failures", async () => {
     expect(interpretList(await runDesignSkill(fakeCli("sleep 30"), undefined, 50))).toMatchObject({ ok: false, error: { code: "cli_error", reason: "timeout" } });
     expect(interpretGet(await runDesignSkill(join(tmp, "missing"), "clarify"), "clarify")).toMatchObject({ ok: false, error: { code: "cli_error", reason: "unavailable" } });
+  });
+});
+
+// canvas-row-menu: `doan export` with its own timeout; the CLI command lands with batch A2, so a fake stands in.
+describe("runExport", () => {
+  test("passes the listed path, the chosen file with --force, the root and --json, and the CLI cannot read stdin", async () => {
+    const out = join(dir(), "args");
+    const fake = fakeCli(`if IFS= read -r line; then exit 97; fi; printf '[%s]\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"external":[]}}'`);
+    const run = await runExport(fake, "/repo", ".doan/canvases/a b.html", "/Users/me/Desktop/a b.html");
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["export", ".doan/canvases/a b.html", "-o", "/Users/me/Desktop/a b.html", "--force", "--repo", "/repo", "--json"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["[export]", "[.doan/canvases/a b.html]", "[-o]", "[/Users/me/Desktop/a b.html]", "[--force]", "[--repo]", "[/repo]", "[--json]"]);
+    expect(run).toMatchObject({ exitCode: 0, timedOut: false });
+  });
+
+  test("has a longer timeout than the other calls and is killed at it", async () => {
+    expect(EXPORT_TIMEOUT_MS).toBeGreaterThan(10_000);
+    const run = await runExport(fakeCli("sleep 30"), "/repo", ".doan/canvases/a.html", "/tmp/a.html", 100);
+    expect(run.timedOut).toBe(true);
+  });
+
+  test("a missing CLI or an argument spawn cannot pass settles as a spawn error, not a rejection", async () => {
+    expect((await runExport(join(tmp, "missing"), "/repo", ".doan/canvases/a.html", "/tmp/a.html")).spawnError).toMatch(/ENOENT/);
+    expect((await runExport(fakeCli("true"), "/repo", ".doan/canvases/a.html", "/tmp/a\u0000.html")).spawnError).toEqual(expect.any(String));
   });
 });

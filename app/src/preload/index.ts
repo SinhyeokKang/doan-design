@@ -28,11 +28,13 @@ import type { TestNotificationReply } from "../main/notifyService";
 import type { AboutRead } from "../main/about";
 import type { InspectResult } from "../main/inspect";
 import type { FolderEntry } from "../main/view";
+import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
+import type { ExportReply } from "../main/canvasExport";
 import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
 
-export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult };
+export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
 export type {
   AboutRead, ConfigChoice, ConfigKind, ConfigReply, NotificationTarget, Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply,
   SettingsPageTarget, SettingsSection, TestNotificationReply,
@@ -292,6 +294,14 @@ const api = {
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),
+  // canvas-row-menu: a listed canvas row by root and path; main checks it against its own list and the disk, and judges
+  // busy again. Ask the plan when the Move to Trash dialog opens (does a comment file go too?), then move on confirm.
+  planCanvasTrash: (root: string, path: string): Promise<TrashPlanReply> => ipcRenderer.invoke("canvas:trashPlan", { root, path }),
+  trashCanvas: (root: string, path: string): Promise<TrashReply> => ipcRenderer.invoke("canvas:trash", { root, path }),
+  // Opens the save panel and runs `doan export`; resolves once the file is written or the export failed or was cancelled.
+  exportCanvas: (root: string, path: string): Promise<ExportReply> => ipcRenderer.invoke("canvas:export", { root, path }),
+  // Show in Finder for an `exported` reply's `reveal` id.
+  revealExport: (reveal: string): Promise<void> => ipcRenderer.invoke("canvas:revealExport", reveal),
   // `pending` is followed by onThumbnailChanged for the same canvas; ask again then.
   // `visible` puts the canvas ahead of cards off screen.
   getThumbnail: (root: string, path: string, visible: boolean): Promise<ThumbnailReply> => ipcRenderer.invoke("thumbnails:get", { root, path, visible }),
