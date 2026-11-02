@@ -104,15 +104,15 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; sidebar?: UiState["sidebar"] }): UiState | null {
-  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, sidebar } = input;
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
+  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, sidebar, canvasTool } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(sidebar ? { sidebar } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
 }
 
 // The start's ui-state read under what the run wrote before it (buzz-project T1): a root the run set, cleared (New) or
@@ -167,6 +167,7 @@ export function App() {
   const viewport = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLDivElement>(null);
+  const dragLayer = useRef<HTMLDivElement>(null);
   const controller = useRef<CanvasController | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
   const [wizard, setWizard] = useState<string | null>(null);
@@ -321,11 +322,11 @@ export function App() {
   const [foldersSeen, setFoldersSeen] = useState(false);
   const [restoreTick, setRestoreTick] = useState(0);
   useEffect(() => {
-    if (!viewport.current || !board.current || !overlay.current) return;
+    if (!viewport.current || !board.current || !overlay.current || !dragLayer.current) return;
     const sendSelection = (selection: Selection | null) => {
       window.doan.setSelection(selection).catch((error: unknown) => console.error("selection:set failed", error));
     };
-    const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection, selector => window.doan.inspect(selector));
+    const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
     controller.current = instance;
     const stopFolders = window.doan.onFolders((next, focus) => {
       if (focus) {
@@ -429,6 +430,8 @@ export function App() {
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
       if (active && state?.sidebar && !sidebarTouched.current) setSidebarSaved(state.sidebar.width);
+      // The controller keeps a tool the person chose before this read.
+      if (active && state?.canvasTool) controller.current?.restoreTool(state.canvasTool);
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
     });
     return () => { active = false; };
@@ -478,10 +481,10 @@ export function App() {
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
   const savedScreen = screen === "addProjects" || screen === "settings" ? page.origin.screen : screen;
   const sidebarState = sidebarSaved === undefined ? undefined : { width: sidebarSaved };
-  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState });
-  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState };
+  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState, canvasTool: state.tool });
+  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState, canvasTool: state.tool };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, sidebarSaved]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, sidebarSaved, state.tool]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -1009,7 +1012,10 @@ export function App() {
   const canvasPageShown = screen === "workspace" && !!state.open && shownOverview === null;
   const menuSelection = canvasPageShown && state.selection !== null;
   const menuPicker = canvasPageShown && pickerReady;
-  const picking = state.tool === "pick";
+  const picking = state.picking;
+  // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
+  const toolPage = screen === "workspace" && shownOverview === null && !modal;
+  useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
   // Pick from canvas and Add to conversation (design §2 'Picker and Add to conversation'). The pick's start keeps
   // where focus was, so the end can tell whether focus still waits for the composer.
   // The pick's start: the composer field it will put the chip in, and whether focus may go back there.
@@ -1259,11 +1265,11 @@ export function App() {
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
     {sidebar(false)}
     {strip}
-    <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
+    <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work,
         onOpen: openRequest, onStopFailed: text => toast.show(text) }}
-      picking={picking} add={{ enabled: addReady, reason: canvasPageShown && !pickerReady ? pickerView.reason : null, onAdd: addSelection }} />
+      picking={picking} tool={state.tool} onTool={tool => controller.current?.setTool(tool)} add={{ enabled: addReady, reason: canvasPageShown && !pickerReady ? pickerView.reason : null, onAdd: addSelection }} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -1328,11 +1334,11 @@ function TopBar({ back, forward, previous, next, page, locked, addProjects, proj
 
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; onOpen(): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, add }: {
-  viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;
+function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, add }: {
+  viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
   zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
-  picking: boolean; add: AddTool;
+  picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; add: AddTool;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project…"
@@ -1370,11 +1376,13 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
     <section className="area" role="region" aria-label="Canvas" tabIndex={-1} ref={viewport} data-picking={picking ? "" : undefined}>
     <div className="board" ref={board} hidden />
     <div className="overlay" ref={overlay} />
+    {/* The controller shows it for Hand and a held Space (canvas-hand-tool design '방식'); React never changes it. */}
+    <div className="drag-layer" ref={dragLayer} hidden />
     {/* The agent notice comes first, the canvas notices stack under it (design §2 '겹침 순서', 'Esc와 포커스'). */}
     <CanvasAgent {...agent}>
       {/* The picking hint sits right under the agent notice (design §2 'Picker' accessibility). */}
       {picking && <div className="doan-agent doan-picking" role="status"><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
-        <span className="doan-kbd doan-picking-esc" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
+        <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
       {state.error && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
       {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
     </CanvasAgent>
@@ -1384,7 +1392,7 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
-    <div className="doan-canvas-bottom"><CanvasTools add={add} /></div>
+    <div className="doan-canvas-bottom"><CanvasTools tool={tool} onTool={onTool} add={add} /></div>
     </section>
   </div>;
 }

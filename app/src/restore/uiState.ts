@@ -57,6 +57,9 @@ export interface UiState {
   rightPanel?: { open: boolean; width?: number };
   // The shell sidebar's width, one per device. Missing is the default; the renderer clamps a kept width.
   sidebar?: { width: number };
+  // The canvas tool last chosen on this device (canvas-hand-tool design '기기 저장'). Only Hand is stored; a missing
+  // field is Select.
+  canvasTool?: "hand";
 }
 
 export const UI_STATE_MAX_BYTES = 64 * 1024;
@@ -120,6 +123,7 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   if (rightPanel !== undefined) state.rightPanel = rightPanel;
   const sidebarRaw = isRecord(value["sidebar"]) ? value["sidebar"]["width"] : undefined;
   if (typeof sidebarRaw === "number" && Number.isFinite(sidebarRaw) && sidebarRaw > 0 && sidebarRaw <= RIGHT_PANEL_MAX_SAVED_WIDTH) state.sidebar = { width: sidebarRaw };
+  if (value["canvasTool"] === "hand") state.canvasTool = "hand";
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
   // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
   // Settings > Connections was removed; a stored one opens About.

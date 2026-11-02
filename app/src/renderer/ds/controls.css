@@ -241,6 +241,26 @@
   letter-spacing: var(--type-body-sm-letter-spacing);
   overflow-wrap: anywhere;
 }
+/* On a dark material (the picking hint, a tooltip): a fill of the parent's ink at 16 %, the fill the agent notice's Stop
+   uses there, and the parent's ink for the key, no ring. sm is the in-button key's size, so a tooltip stays 24 high. */
+.doan-kbd[data-ui-variant="on-prominent"] {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  color: inherit;
+  box-shadow: none;
+}
+.doan-kbd[data-ui-size="sm"] {
+  padding: 0 var(--space-1h);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line-height);
+  letter-spacing: var(--type-caption-letter-spacing);
+}
+/* A tooltip that names a key: the label, then the key, on one line, 8 apart. */
+.doan-tooltip.has-key {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
 /* A chip hugs its line, so its inset is tighter than a control's. */
 .doan-chip {
   display: inline-flex;

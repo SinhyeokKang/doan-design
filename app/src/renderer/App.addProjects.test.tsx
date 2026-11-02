@@ -43,7 +43,7 @@ vi.mock("./CanvasController", async original => ({
   CanvasController: class {
     constructor() {
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "showOverview", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "showOverview", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate"]) self[name] = vi.fn();
       // The guarded moves report arrival at once, as when no draft guard is up.
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.destination = vi.fn((root: string) => ({ root }));
@@ -97,7 +97,7 @@ function render(): ReactNode {
     tree = App();
     // React would attach the canvas pane's DOM nodes before the controller's effect.
     const pane = all(tree).find(element => "viewport" in (element.props as object))?.props as Record<string, { current: unknown }> | undefined;
-    for (const ref of [pane?.viewport, pane?.board, pane?.overlay]) if (ref && !ref.current) ref.current = {};
+    for (const ref of [pane?.viewport, pane?.board, pane?.overlay, pane?.dragLayer]) if (ref && !ref.current) ref.current = {};
     for (const run of hooks.pending) run();
     if (!hooks.dirty) return tree;
   }

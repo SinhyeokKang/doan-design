@@ -460,6 +460,34 @@ test("validates Alt state messages separately from Escape", () => {
   }
 });
 
+// canvas-hand-tool design '키' 'iframe 경로': Space down/up and V/H forwarded from a focused canvas.
+describe("parseCanvasMessage: hand tool keys", () => {
+  test("accepts Space down and up", () => {
+    for (const down of [true, false]) {
+      const message = { type: "key", key: "Space", down, href: HREF, seq: 3, viewport: 150 };
+      expect(parseCanvasMessage({ ...message, extra: 1 })).toEqual(message);
+    }
+  });
+
+  test("accepts V and H", () => {
+    for (const key of ["V", "H"]) {
+      const message = { type: "key", key, href: HREF, seq: 3, viewport: 150 };
+      expect(parseCanvasMessage({ ...message, down: true })).toEqual(message);
+    }
+  });
+
+  test("rejects Space without a boolean down, other letters and a lowercase or code name", () => {
+    for (const down of [undefined, null, 1, "true"]) expect(parseCanvasMessage({ type: "key", key: "Space", down, href: HREF, seq: 3, viewport: 150 })).toBeNull();
+    for (const key of ["v", "h", "KeyV", "KeyH", " ", "B"]) expect(parseCanvasMessage({ type: "key", key, href: HREF, seq: 3, viewport: 150 })).toBeNull();
+  });
+
+  test("still needs href, seq and viewport", () => {
+    expect(parseCanvasMessage({ type: "key", key: "Space", down: true, seq: 3, viewport: 150 })).toBeNull();
+    expect(parseCanvasMessage({ type: "key", key: "V", href: HREF, viewport: 150 })).toBeNull();
+    expect(parseCanvasMessage({ type: "key", key: "H", href: HREF, seq: 3 })).toBeNull();
+  });
+});
+
 // The draft guard's transition request went with the app's comment drafts.
 test("drops a transition-intent message", () => {
   expect(parseCanvasMessage({ type: "transition-intent", document: "d1", href: "http://x/a.html", viewport: 150, intent: 1, kind: "selection" })).toBeNull();

@@ -1,4 +1,4 @@
-import { forwardRef, Fragment, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { forwardRef, Fragment, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -171,12 +171,20 @@ export function tabKey(keys: readonly string[], current: string, key: string): s
 }
 
 type PresetView = ReturnType<typeof presetListView>;
-interface PresetBodyOptions { listId: string; highlight: number; onChoose(id: string): void; onRetry(): void; onTab?(key: string): void }
+interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string): void; onRetry(): void; onTab?(key: string): void }
+// Once focus is on a row of the list (arrow keys), the pointer carries it along as in the frame list. With focus elsewhere
+// (the popover opens in the search box) a row only fills on hover (ds/surfaces.css), so typing and Space keep their target.
+// focusVisible: false keeps a pointer-moved focus from drawing the keyboard ring.
+function pointerFocus(event: PointerEvent<HTMLElement>) {
+  const row = event.currentTarget;
+  const active = row.ownerDocument.activeElement;
+  if (active !== row && row.closest('[role="listbox"]')?.contains(active)) row.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
+}
 function PresetOption({ row, index, slash, options }: { row: PresetRow; index: number; slash: boolean; options: PresetBodyOptions & { rows: number } }) {
   const focusRow = (at: number) => document.getElementById(`${options.listId}-p-${at}`)?.focus();
   return <div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
     tabIndex={slash ? undefined : -1} title={row.tooltip} data-highlighted={slash && index === options.highlight ? "" : undefined}
-    onMouseDown={slash ? event => event.preventDefault() : undefined} onClick={() => options.onChoose(row.id)}
+    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={slash ? () => options.onHighlight?.(index) : pointerFocus} onClick={() => options.onChoose(row.id)}
     onKeyDown={slash ? undefined : event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
       else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id); }
@@ -185,7 +193,7 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
     <span className="preset-text"><span className="preset-title">{row.title}</span>{row.description && <span className="preset-desc">{row.description}</span>}</span>
   </div>;
 }
-function presetBody(view: PresetView, slash: boolean, options: PresetBodyOptions): ReactNode {
+export function presetBody(view: PresetView, slash: boolean, options: PresetBodyOptions): ReactNode {
   if (view.kind === "loading") return <div className="popover-state" role="status"><span className="doan-spinner" aria-hidden="true" />{view.text}</div>;
   if (view.kind === "empty") return <div className="popover-state" role="status">{view.text}</div>;
   // The popover is 90% glass over Home's gradient, not plain opaque white, so its notices take the panel surface.
@@ -239,10 +247,11 @@ export function PresetsButton(props: {
 }
 
 // The `/` list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover.
-export function SlashPresets(props: { view: PresetView; query: string; listId: string; highlight: number; onChoose(id: string): void; onRetry(): void }) {
+// The pointer moves the one highlight the arrow keys move, as in a Radix menu.
+export function SlashPresets(props: { view: PresetView; query: string; listId: string; highlight: number; onHighlight(index: number): void; onChoose(id: string): void; onRetry(): void }) {
   return <div className="doan-floating preset-popover slash-popover" role="presentation">
     <SearchField value={props.query} slash listId={props.listId} />
-    {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onChoose: props.onChoose, onRetry: props.onRetry })}
+    {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onHighlight: props.onHighlight, onChoose: props.onChoose, onRetry: props.onRetry })}
   </div>;
 }
 

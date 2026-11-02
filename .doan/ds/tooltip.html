@@ -16,6 +16,11 @@
 <h2>Short and long</h2>
 <div class="dsc-row"><div class="dsc-cell"><div class="doan-tooltip" role="tooltip">Fit to width</div><span class="dsc-label">short label</span></div><div class="dsc-cell"><div class="doan-tooltip" role="tooltip">~/code/doan-design/.doan/canvases/a-very-long-canvas-name-that-wraps-inside-the-cap.html</div><span class="dsc-label">long path</span></div></div>
 </section>
+<section class="dsc-frame" data-doan-frame="tooltip-keys" data-doan-title="With a key" data-doan-implements="app/src/renderer/CanvasTools.tsx">
+<h2>With a key</h2>
+<p>A tool's tooltip names its key after the label, on one line, 8px apart (<code>.doan-tooltip.has-key</code>). The key is the shared <code>doan-kbd</code> variant for a dark material, <code>data-ui-variant="on-prominent"</code>: a fill of the tooltip's ink at 16% and its ink for the letter, no ring. Its <code>sm</code> size (caption type, 16 high) keeps the tooltip 24 high; the default size (28 high) is the canvas picking hint's Esc.</p>
+<div class="dsc-row"><div class="dsc-cell"><div class="doan-tooltip has-key" role="tooltip">Select<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">V</span></div><span class="dsc-label">Select · V</span></div><div class="dsc-cell"><div class="doan-tooltip has-key" role="tooltip">Hand<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">H</span></div><span class="dsc-label">Hand · H</span></div></div>
+</section>
 </main>
 </body>
 </html>

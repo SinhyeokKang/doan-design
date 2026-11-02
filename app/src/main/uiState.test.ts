@@ -285,6 +285,36 @@ describe("rightPanel", () => {
   });
 });
 
+// canvas-hand-tool design '기기 저장': only Hand is stored; a missing field is Select.
+describe("canvasTool", () => {
+  test("keeps canvasTool hand through save and read", async () => {
+    const path = file();
+    const store = createUiStateStore(path, saved);
+    expect(store.save({ ...workspace(".doan/canvases/a.html"), canvasTool: "hand" })).toBe(true);
+    store.flushSync();
+    expect(onDisk(path).canvasTool).toBe("hand");
+    expect((await createUiStateStore(path, saved).read())?.canvasTool).toBe("hand");
+  });
+
+  test("drops any other canvasTool value and keeps the rest", async () => {
+    for (const canvasTool of ["select", "pick", "Hand", true, 1, null, { tool: "hand" }]) {
+      const path = file();
+      const store = createUiStateStore(path, saved);
+      expect(store.save({ ...workspace(".doan/canvases/a.html"), canvasTool })).toBe(true);
+      store.flushSync();
+      expect(onDisk(path)).toEqual(workspace(".doan/canvases/a.html"));
+    }
+  });
+
+  test("an older file without canvasTool still reads, without the field", async () => {
+    const path = file();
+    writeFileSync(path, JSON.stringify(workspace(".doan/canvases/a.html")));
+    const state = await createUiStateStore(path, saved).read();
+    expect(state).toMatchObject({ screen: "workspace", root: "/repo", canvas: ".doan/canvases/a.html" });
+    expect(state).not.toHaveProperty("canvasTool");
+  });
+});
+
 test("a fully populated state is saved and read back unchanged, and reparses to itself", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const path = file();
@@ -302,6 +332,7 @@ test("a fully populated state is saved and read back unchanged, and reparses to 
     settingsSection: "notifications",
     conversationByRoot: { "/repo": "0123abcd-4567-89ab-cdef-0123456789ab" },
     rightPanel: { open: false, width: 420 },
+    canvasTool: "hand",
   };
   const store = createUiStateStore(path, saved);
   expect(store.save(full)).toBe(true);

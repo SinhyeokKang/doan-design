@@ -213,3 +213,25 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain(".doan-menu::-webkit-scrollbar-track { margin-block: var(--radius-container); }");
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin-block: var(--radius-row); }');
 });
+
+// A listbox row is not a Radix item, so it takes the menu row's fill from focus, which the pointer carries once focus is in the
+// list (the frame list does the same); with focus elsewhere, such as the popover's search box, it fills on hover alone.
+// The `/` list keeps its rows unfocusable and moves its one highlight instead.
+test("a focusable option row fills like a highlighted menu row while focused, or hovered when the list has no focus", () => {
+  const css = read("./surfaces.css");
+  expect(css).toContain('.doan-menu-item[role="option"][tabindex]:focus,\n[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }');
+  expect(read("../styles.css")).not.toContain(".doan-frame-row:focus");
+});
+
+// The sidebar is transparent over the window's native vibrancy, which a web backdrop-filter cannot sample: under the
+// shared glass the rows below stayed crisp at the 10% the fill lets through, so the sidebar's project menu reads as
+// having no blur. It takes the opaque popover fill; every other dropdown keeps the shared glass.
+test("the sidebar project menu is opaque while every other dropdown keeps the glass", () => {
+  const styles = read("../styles.css");
+  expect(rule(styles, ".shell-side-menu.doan-floating")).toBe("background: var(--surface-popover); backdrop-filter: none;");
+  const sidebar = read("../ShellSidebar.tsx");
+  expect(sidebar).toContain('className="menu doan-floating doan-menu shell-project-menu shell-side-menu"');
+  // The Home and Overview worktree menus open over the opaque panel, where the glass works.
+  for (const file of ["../HomeComposerView.tsx", "../ProjectOverview.tsx"]) expect(read(file)).not.toContain("shell-side-menu");
+  expect(read("./surfaces.css")).toContain(".doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }");
+});

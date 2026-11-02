@@ -15,9 +15,15 @@ import { boardRectToScreen, boardToScreen, elementView, FIRST_LAYOUT_TIMEOUT_MS,
 import { scaleFactor } from "./zoomControl";
 import { currentFrame } from "./currentFrame";
 import { pointAnchor, resolveChipTarget, targetAnchor } from "./canvasPicker";
+import { escapeStep, toolShortcut, type CanvasTool, type ToolShortcut } from "./canvasTool";
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
+// A cursor reading that comes later than this may no longer be where the click was.
+const CLICK_CURSOR_MS = 500;
+// Focus a pointer press gives the canvas area. Without focusVisible: false the Canvas region draws its keyboard ring
+// after any key use: the app never sees a click that lands in the canvas's iframe, so Chromium counts it as keyboard.
+const CLICK_FOCUS: FocusOptions = { preventScroll: true, focusVisible: false };
 
 export interface CanvasState {
   hasFrame: boolean;
@@ -45,8 +51,10 @@ export interface CanvasState {
   // other changes, and whenever the view reaches or leaves a zoom limit.
   scale: number;
   activity: ActivityEvent[];
-  // `pick` while the canvas waits for one click to name a chip's target (buzz-canvas-conversation design §2 'Picker').
-  tool: "select" | "pick";
+  // The tool a person chose (canvas-hand-tool spec 결정 1); a pick runs ahead of it and leaves it as it was.
+  tool: CanvasTool;
+  // While the canvas waits for one click to name a chip's target (buzz-canvas-conversation design §2 'Picker').
+  picking: boolean;
 }
 
 // How a pick ended. `frames` is the layout's frame list the anchor was taken from, for the chip's name.
@@ -62,7 +70,7 @@ const LOCATE_ID = "locate";
 export type InspectorView = { status: "loading" } | { status: "ready"; rows: InspectRow[] } | { status: "failed"; reason: string };
 
 export function initialCanvasState(): CanvasState {
-  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select" };
+  return { hasFrame: false, open: null, shown: null, layout: null, selection: null, currentFrame: null, notice: "", inspector: null, status: "empty", reanchoring: false, reloading: false, message: "Pick a canvas from the list", error: "", unlisted: false, zoom: 100, scale: 1, activity: [], tool: "select", picking: false };
 }
 
 // ARCH §13: a row has no `rev` until main sees its file change after the folder
@@ -134,7 +142,22 @@ export class CanvasController {
   private pickListener: ((result: PickResult) => void) | null = null;
   // A pick that ended in a flow which publishes later: told after that publish, so the listener sees the new state.
   private pickEnded: PickResult | null = null;
+  // The Frames drawer's last pick-frame command in this document, to tell its reply from a click.
+  private pickFrameCommand: { seq: number; id: string } | null = null;
   private locating: { anchor: Anchor; generation: number; request: number; settled: (result: LocateResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
+  // Hand tool (canvas-hand-tool design '방식', '도구 상태'). The controller lives as long as the app, so the tool
+  // outlives the Overview and empty states, which rebuild `state`. `toolChosen`: the person picked one, so a late
+  // saved tool does not replace it. A tool chosen during a drag waits for its end (`pendingTool`): lowering the
+  // layer first would drop the pointerup on the iframe, which selects.
+  private tool: CanvasTool = "select";
+  private toolChosen = false;
+  private pendingTool: CanvasTool | null = null;
+  private spaceHeld = false;
+  private drag: { pointerId: number; x: number; y: number } | null = null;
+  private layerShown = false;
+  private canvasPage = true;
+  // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
+  private clickTag = 0;
 
   // Raised by every move or selection change; a workspace open that waits for its folder's read goes ahead only
   // while it is still the latest. `valid` checks the destination against the current list right before applying.
@@ -233,24 +256,35 @@ export class CanvasController {
   }
 
   constructor(
-    private viewport: Pick<HTMLElement, "clientWidth" | "clientHeight" | "addEventListener" | "removeEventListener" | "getBoundingClientRect">,
+    private viewport: Pick<HTMLElement, "clientWidth" | "clientHeight" | "addEventListener" | "removeEventListener" | "getBoundingClientRect" | "focus">,
     private board: Pick<HTMLElement, "hidden" | "prepend"> & { style: Pick<CSSStyleDeclaration, "transform" | "visibility"> },
     private overlay: Pick<HTMLElement, "append">,
     private changed: (state: CanvasState) => void,
     private sendSelection: (selection: Selection | null) => void,
     private inspect: (selector: string) => Promise<InspectResult>,
+    // The drag layer App renders right after the overlay: over the board and the iframe, under the canvas chrome.
+    private layer: Pick<HTMLElement, "hidden" | "dataset" | "addEventListener" | "removeEventListener" | "setPointerCapture" | "releasePointerCapture" | "hasPointerCapture">,
+    // Main's reading of the OS cursor in the window's content coordinates, null when it cannot tell.
+    private pointer: () => Promise<{ x: number; y: number } | null>,
   ) {
     if (typeof ResizeObserver !== "undefined" && "nodeType" in viewport) {
       this.viewResize = new ResizeObserver(() => this.applyView());
-      this.viewResize.observe(viewport as Element);
+      this.viewResize.observe(viewport as unknown as Element);
     }
     window.addEventListener("message", this.receive);
     window.addEventListener("wheel", this.preventPageZoom, { passive: false });
     window.addEventListener("keydown", this.keydown);
     window.addEventListener("keyup", this.keyup);
     window.addEventListener("pointermove", this.pointerOnApp, { capture: true });
+    window.addEventListener("blur", this.appBlur);
     viewport.addEventListener("click", this.clickOnMargin);
     viewport.addEventListener("wheel", this.wheelOnMargin, { passive: false });
+    layer.hidden = true;
+    layer.addEventListener("pointerdown", this.layerDown);
+    layer.addEventListener("pointermove", this.layerMove);
+    layer.addEventListener("pointerup", this.layerUp);
+    layer.addEventListener("pointercancel", this.layerUp);
+    layer.addEventListener("lostpointercapture", this.layerUp);
   }
 
   dispose(): void {
@@ -262,12 +296,21 @@ export class CanvasController {
     window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("keyup", this.keyup);
     window.removeEventListener("pointermove", this.pointerOnApp, { capture: true });
+    window.removeEventListener("blur", this.appBlur);
     this.viewport.removeEventListener("click", this.clickOnMargin);
     this.viewport.removeEventListener("wheel", this.wheelOnMargin);
+    this.layer.removeEventListener("pointerdown", this.layerDown);
+    this.layer.removeEventListener("pointermove", this.layerMove);
+    this.layer.removeEventListener("pointerup", this.layerUp);
+    this.layer.removeEventListener("pointercancel", this.layerUp);
+    this.layer.removeEventListener("lostpointercapture", this.layerUp);
     this.dropFrame();
   }
 
   private publish(): void {
+    // First: a board that went away ends a drag, and the tool chosen during it applies now.
+    this.syncLayer();
+    this.state.tool = this.tool;
     this.state.hasFrame = this.frame !== null;
     this.state.reanchoring = this.reanchor !== null;
     this.state.reloading = this.loading && this.state.status === null;
@@ -395,8 +438,37 @@ export class CanvasController {
   setWorkspaceActive(active: boolean): void {
     this.workspaceActive = active;
     if (!active) this.cancelWorkspaceOpen();
+    if (!active) this.releaseInput();
     // Leaving the canvas page for another screen cancels the pick.
-    if (!active && this.state.tool === "pick") { this.endPick({ kind: "cancelled" }); this.publish(); }
+    if (!active && this.state.picking) { this.endPick({ kind: "cancelled" }); this.publish(); }
+  }
+
+  // The canvas page is on screen: not Home, the Overview or a modal. V, H and Space act only there.
+  setCanvasPage(shown: boolean): void {
+    this.canvasPage = shown;
+    if (!shown) this.releaseInput();
+  }
+
+  private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
+
+  // The toolbar's Select and Hand. A pick runs ahead of the tool, so they change nothing meanwhile, like V and H.
+  setTool(tool: CanvasTool): void {
+    if (this.state.picking) return;
+    this.toolChosen = true;
+    this.applyTool(tool);
+  }
+
+  // The tool read from ui-state at launch; a tool the person chose before the read stays.
+  restoreTool(tool: CanvasTool): void {
+    if (!this.toolChosen) this.applyTool(tool);
+  }
+
+  private applyTool(tool: CanvasTool): void {
+    if (this.drag !== null) { this.pendingTool = tool; return; }
+    this.pendingTool = null;
+    if (tool === this.tool) return;
+    this.tool = tool;
+    this.publish();
   }
 
   destination(root: string): { root: string; canvas?: string } {
@@ -492,6 +564,9 @@ export class CanvasController {
 
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
+    // The document under a drag or a held Space goes away; neither carries over to the next one.
+    this.stopDrag();
+    this.spaceHeld = false;
     this.clearJump();
     // A reload of the same row before its first layout still owes the picked frame.
     if (fresh) this.pendingFrame = null;
@@ -541,6 +616,7 @@ export class CanvasController {
     this.lastHref = null;
     this.jumpTo = null;
     this.seq = 0;
+    this.pickFrameCommand = null;
     this.hoverSeq = 0;
     this.hoverRect = null;
     this.drawMarks();
@@ -564,6 +640,8 @@ export class CanvasController {
   }
 
   private dropFrame(): void {
+    this.stopDrag();
+    this.spaceHeld = false;
     this.endPick({ kind: "cancelled" });
     this.pickDocument = null;
     this.clearJump();
@@ -627,10 +705,13 @@ export class CanvasController {
     if (verdict === "drop") return;
     if (message.type === "key") {
       // An Escape the canvas sent before its pick-start arrived still meant the pick.
-      if (message.key === "Escape" && this.state.tool === "pick") this.cancelPick();
-      else if (message.key === "Escape") this.clearOnEscape();
+      if (message.key === "Escape") this.escape(false);
+      // Space, V and H come only from a canvas focused by an ⌥-click. A Space down is believed only while the iframe
+      // has focus, so a canvas cannot raise the layer over a person's clicks by itself; its release always counts.
+      else if (message.key === "Space") this.shortcut({ kind: "space", down: message.down }, !this.onCanvasPage() || document.activeElement !== this.frame);
+      else if (message.key === "V" || message.key === "H") this.shortcut({ kind: "tool", tool: message.key === "V" ? "select" : "hand" }, !this.onCanvasPage());
       // Unlike Escape, an old modifier snapshot must not override a newer press.
-      else if (message.seq >= this.hoverSeq) {
+      else if (message.key === "Alt" && message.seq >= this.hoverSeq) {
         this.hoverSeq = message.seq;
         this.altHeld = message.alt;
         this.drawMarks();
@@ -638,6 +719,7 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
+    if (!this.commandReply(message)) this.focusOnClick();
     this.seq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
@@ -650,6 +732,16 @@ export class CanvasController {
     this.drawMarks();
     this.requestRows(view);
     this.publish();
+  }
+
+  // A click takes a seq at least the renderer's: it can win the race with a command still on its way and take that
+  // command's seq. A select-anchor reply names its command; a pick-frame reply has no name, so it is the frame the
+  // drawer asked for at that command's seq. The canvas never answers a clear.
+  private commandReply(message: Exclude<SelectionMessage, { type: "hover" | "key" }>): boolean {
+    if (message.type === "clear") return false;
+    if (message.answer !== undefined) return true;
+    const asked = this.pickFrameCommand;
+    return asked !== null && message.seq === asked.seq && message.target !== null && message.target.element === undefined && message.target.frame?.id === asked.id;
   }
 
   // Every select (click, Frames list, ancestor path, the anchor found again
@@ -736,8 +828,8 @@ export class CanvasController {
   // false: no canvas is shown. A reload in progress keeps the pick for the new document's first layout.
   pick(): boolean {
     if (this.frame === null || this.state.open === null || this.state.status !== null || this.state.unlisted) return false;
-    if (this.state.tool === "pick") return true;
-    this.state.tool = "pick";
+    if (this.state.picking) return true;
+    this.state.picking = true;
     this.armPick();
     this.syncFrameInput();
     this.publish();
@@ -745,7 +837,7 @@ export class CanvasController {
   }
 
   cancelPick(): void {
-    if (this.state.tool !== "pick") return;
+    if (!this.state.picking) return;
     this.endPick({ kind: "cancelled" });
     this.publish();
   }
@@ -772,11 +864,11 @@ export class CanvasController {
   // The canvas takes pointer input unless a pick waits for the current document to acknowledge its start. Pans and
   // zooms then land on the board's margin handlers, so they keep working.
   private syncFrameInput(): void {
-    if (this.frame) this.frame.style.pointerEvents = this.state.tool === "pick" && !this.pickAcked ? "none" : "";
+    if (this.frame) this.frame.style.pointerEvents = this.state.picking && !this.pickAcked ? "none" : "";
   }
 
   private receivePickStarted(message: PickStartedMessage): void {
-    if (this.state.tool !== "pick" || message.pick !== this.activePick || message.document !== this.pickDocument ||
+    if (!this.state.picking || message.pick !== this.activePick || message.document !== this.pickDocument ||
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     this.pickAcked = true;
     this.syncFrameInput();
@@ -784,8 +876,8 @@ export class CanvasController {
 
   // Does not publish: the listener hears the result after the caller's publish.
   private endPick(result: PickResult): void {
-    if (this.state.tool !== "pick") return;
-    this.state.tool = "select";
+    if (!this.state.picking) return;
+    this.state.picking = false;
     if (this.activePick !== null && this.pickDocument !== null) {
       this.pickSeq += 1;
       this.post({ type: "pick-cancel", document: this.pickDocument, seq: this.pickSeq });
@@ -799,7 +891,7 @@ export class CanvasController {
   // A reply counts only for the pick-start in force in the current document: one after Esc, a toggle, leaving the
   // canvas or a newer pick names another seq, or none, and one from a replaced document another token.
   private receivePicked(message: PickedMessage): void {
-    if (this.state.tool !== "pick" || this.activePick === null || message.pick !== this.activePick || message.document !== this.pickDocument ||
+    if (!this.state.picking || this.activePick === null || message.pick !== this.activePick || message.document !== this.pickDocument ||
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     if ("cancelled" in message) { this.cancelPick(); return; }
     // The picker's boundary: only frames and what is in them can be chips. A forged or stray reply for anything
@@ -829,20 +921,62 @@ export class CanvasController {
       this.drawMarks();
       return;
     }
+    const shortcut = toolShortcut(event, { canvasPage: this.canvasPage });
+    if (shortcut !== null) { if (this.shortcut(shortcut, false)) event.preventDefault(); return; }
+    // A held Space's repeats keep its default (scrolling, pressing) off too.
+    if (event.code === "Space" && event.repeat && this.spaceHeld) { event.preventDefault(); return; }
     if (event.key !== "Escape" || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return;
     // Esc while picking cancels only the pick, wherever focus is: the composer, the canvas or the panel. Menus and
     // the `/` list handle their Esc first and prevent it (design §2 'Esc and cancel').
-    if (this.state.tool === "pick") { event.preventDefault(); this.cancelPick(); return; }
-    if (editableTarget(event.target)) return;
-    this.clearOnEscape();
+    const step = this.escape(editableTarget(event.target));
+    if (step === "cancelPick" || step === "selectTool") event.preventDefault();
   };
 
+  // Esc's next step (canvas-hand-tool design '키' 'Esc'); `editable`: it came from a text field. Returns the step.
+  private escape(editable: boolean): ReturnType<typeof escapeStep> {
+    const step = escapeStep({ picking: this.state.picking, hand: this.canvasPage && (this.pendingTool ?? this.tool) === "hand", editable });
+    if (step === "cancelPick") this.cancelPick();
+    else if (step === "selectTool") { this.toolChosen = true; this.applyTool("select"); }
+    else if (step === "clearSelection") this.clearOnEscape();
+    return step;
+  }
+
+  // V, H and Space from the app or a focused canvas; `ignored`: the source does not count. A pick runs ahead of the
+  // tool, so it takes neither. Returns whether the key was the canvas's.
+  private shortcut(shortcut: ToolShortcut, ignored: boolean): boolean {
+    if (shortcut.kind === "space" && !shortcut.down) {
+      const held = this.spaceHeld;
+      this.spaceHeld = false;
+      this.syncLayer();
+      return held;
+    }
+    if (ignored || this.state.picking) return false;
+    if (shortcut.kind === "tool") { this.toolChosen = true; this.applyTool(shortcut.tool); return true; }
+    // Without a drawn board Space does nothing, and a Space held from then does not pan the board that comes later.
+    if (!this.boardDrawn()) return false;
+    this.spaceHeld = true;
+    this.syncLayer();
+    return true;
+  }
+
   private keyup = (event: KeyboardEvent): void => {
+    const shortcut = toolShortcut(event, { canvasPage: this.canvasPage });
+    if (shortcut !== null) { if (this.shortcut(shortcut, false)) event.preventDefault(); return; }
     if (event.key !== "Alt") return;
     this.altHeld = false;
     this.sendHoverCommand({ type: "hover-alt", alt: false });
     this.drawMarks();
   };
+
+  // The window's blur also fires when focus moves into the canvas iframe; only the app losing focus releases Space.
+  private appBlur = (): void => {
+    if (!document.hasFocus()) this.releaseInput();
+  };
+
+  private releaseInput(): void {
+    this.spaceHeld = false;
+    this.finishDrag();
+  }
 
   private pointerOnApp = (event: PointerEvent): void => {
     this.altHeld = event.altKey;
@@ -858,8 +992,94 @@ export class CanvasController {
     if (!Object.is(event.target, this.viewport) && !Object.is(event.target, this.board)) return;
     if (event.button !== 0 || event.ctrlKey || event.altKey) return;
     // The board margin is outside every frame: picking goes on and the selection stays.
-    if (this.state.tool === "pick") return;
+    if (this.state.picking) return;
+    this.viewport.focus(CLICK_FOCUS);
     this.clearOnEscape();
+  };
+
+  // A click on the canvas sends the keys after it there, not to the composer. Never during a pick: its chip goes in at
+  // the composer's caret. The click reaches the app only as the canvas's message, which a canvas can send without one,
+  // and the app gets no pointer event while the pointer is over the out-of-process iframe (it enters straight from the
+  // composer or the tools row). So main reads the OS cursor, and focus moves only when it is over the canvas area,
+  // read soon after this click and before anything else took focus.
+  private focusOnClick(): void {
+    if (this.state.picking) return;
+    const tag = ++this.clickTag;
+    const asked = Date.now();
+    const focused = document.activeElement;
+    this.pointer().then(point => {
+      if (point === null || tag !== this.clickTag || this.state.picking || document.activeElement !== focused || Date.now() - asked > CLICK_CURSOR_MS) return;
+      const area = this.viewport.getBoundingClientRect();
+      if (point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom) this.viewport.focus(CLICK_FOCUS);
+    }, (error: unknown) => { console.error("pointer:get failed", error); });
+  }
+
+  // The layer shows while Hand or a held Space can pan a drawn board, and through a drag in progress.
+  private boardDrawn(): boolean {
+    return !this.state.picking && this.frame !== null && this.state.status === null && !this.state.unlisted;
+  }
+
+  private syncLayer(): void {
+    const board = this.boardDrawn();
+    // A drag and a held Space end with the board they were on; the tool stays.
+    if (!board) { this.stopDrag(); this.spaceHeld = false; }
+    const show = board && (this.tool === "hand" || this.spaceHeld || this.drag !== null);
+    if (show && !this.layerShown) {
+      // The iframe gets no pointermove under the layer, and an OOPIF's pointerout cannot be trusted (POSTMORTEM 2026-10-23).
+      this.hoverRect = null;
+      this.sendHoverCommand({ type: "hover-leave" });
+    }
+    this.layerShown = show;
+    this.layer.hidden = !show;
+    if (this.drag !== null) this.layer.dataset.grabbing = "";
+    else delete this.layer.dataset.grabbing;
+    this.drawMarks();
+  }
+
+  // Does not publish or redraw: callers do, once the tool chosen during the drag is in.
+  private stopDrag(): void {
+    const drag = this.drag;
+    if (drag === null) return;
+    this.drag = null;
+    if (this.layer.hasPointerCapture(drag.pointerId)) this.layer.releasePointerCapture(drag.pointerId);
+    if (this.pendingTool !== null) { this.tool = this.pendingTool; this.pendingTool = null; }
+  }
+
+  private finishDrag(): void {
+    const before = this.tool;
+    this.stopDrag();
+    if (this.tool !== before) this.publish();
+    else this.syncLayer();
+  }
+
+  // Only the primary button drags, with any modifier. The layer never takes focus; a drag in Hand moves it to the
+  // canvas area as a click there would, while a held Space already has it where Space came from.
+  private layerDown = (event: PointerEvent): void => {
+    event.preventDefault();
+    if (event.button !== 0 || this.drag !== null) return;
+    if (!this.spaceHeld) this.viewport.focus(CLICK_FOCUS);
+    // Keeps the drag when the pointer leaves the window.
+    this.layer.setPointerCapture(event.pointerId);
+    this.drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    this.syncLayer();
+  };
+
+  // Each move's own travel, not the start plus the total: a zoom during the drag stays. The board's transform holds
+  // the scale, so screen px move it 1:1.
+  private layerMove = (event: PointerEvent): void => {
+    const drag = this.drag;
+    if (drag === null || event.pointerId !== drag.pointerId) return;
+    const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+    drag.x = event.clientX;
+    drag.y = event.clientY;
+    if (dx === 0 && dy === 0) return;
+    this.view = panBy(this.view, dx, dy);
+    this.applyView();
+  };
+
+  private layerUp = (event: PointerEvent): void => {
+    if (this.drag === null || event.pointerId !== this.drag.pointerId) return;
+    this.finishDrag();
   };
 
   private onLayout(message: LayoutMessage): void {
@@ -870,12 +1090,16 @@ export class CanvasController {
     if (message.document !== undefined && message.document !== this.pickDocument) {
       this.pickDocument = message.document;
       this.resetPickChannel();
+      // A held Space and a drag end with the board they were on, also when the canvas replaces its own document
+      // (its location.reload()), which keeps the iframe; the tool stays. Not on the anchor document's change: the
+      // iframe's load event forgets that one while the document stays.
+      if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
     }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;
     const beforeSelection = this.state.selection;
     const previousActivity = this.state.activity;
-    const previousTool = this.state.tool;
+    const previousPicking = this.state.picking;
     const newDocument = this.lastHref !== null && !sameDocument(this.lastHref, message.href);
     // Against the height before this layout resizes the iframe, as layoutHeight does.
     const selected = selectedFromLayout({ ...this.expectation(), href: message.href }, message);
@@ -895,6 +1119,7 @@ export class CanvasController {
       this.clearJump();
       this.jumpTo = null;
       this.seq = 0;
+      this.pickFrameCommand = null;
       this.hoverSeq = 0;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
@@ -914,7 +1139,7 @@ export class CanvasController {
     const linked = this.markShown(message.href);
     if (linked && this.state.open) this.linkedCanvas?.(this.state.open.folder);
     if (this.state.unlisted) this.endPick({ kind: "cancelled" });
-    else if (this.state.tool === "pick" && this.activePick === null) this.armPick();
+    else if (this.state.picking && this.activePick === null) this.armPick();
     if ((first || linked) && this.state.open && !this.state.unlisted && (linked || this.loadKind !== "moved")) {
       const at = new Date();
       this.recordDocument({ ...activityKey(this.state.open.folder, this.state.open.row), at, kind: linked ? "opened" : this.loadKind });
@@ -940,7 +1165,7 @@ export class CanvasController {
       else { this.selectedRect = selected; this.drawMarks(); }
     }
     this.state.currentFrame = this.state.unlisted ? null : currentFrame(message.frames, this.view, this.viewportSize());
-    if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection || previousTool !== this.state.tool) this.publish();
+    if (first || previousCurrent !== this.state.currentFrame || documentChanged || before !== this.layoutDisplayKey() || previousActivity !== this.state.activity || beforeSelection !== this.state.selection || previousPicking !== this.state.picking) this.publish();
   }
 
   private markShown(href: string): boolean {
@@ -978,6 +1203,7 @@ export class CanvasController {
       if (at < 0) return;
       this.jump(at);
       this.sendCommand({ type: "pick-frame", index: at, id });
+      this.pickFrameCommand = { seq: this.seq, id };
     }, () => resolve() >= 0);
   }
 
@@ -1082,7 +1308,7 @@ export class CanvasController {
   // scale, while the size label (a child of the selection mark, centered
   // under it by CSS) reads canvas px.
   private drawMarks(): void {
-    const hover = this.markHidden || this.altHeld ? null : this.hoverRect;
+    const hover = this.markHidden || this.altHeld || this.layerShown ? null : this.hoverRect;
     const selected = this.markHidden ? null : this.selectedRect;
     if (this.marks === null) {
       if (hover === null && selected === null) return;
