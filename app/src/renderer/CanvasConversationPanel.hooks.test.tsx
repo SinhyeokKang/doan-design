@@ -90,3 +90,75 @@ test("a chosen terminal session becomes a new conversation while it works, and s
   render(panel([]));
   expect(mode()).toBe("resume");
 });
+
+// The ResumeChoice element the panel renders, found in its element tree (nothing below it renders here).
+function resumeChoice(node: ReactNode): { offer: string; held: boolean } | null {
+  if (Array.isArray(node)) { for (const child of node) { const found = resumeChoice(child); if (found) return found; } return null; }
+  if (!node || typeof node !== "object" || !("props" in node)) return null;
+  const element = node as { type: unknown; props: { children?: ReactNode; offer?: string; held?: boolean } };
+  if (typeof element.type === "function" && element.type.name === "ResumeChoice") return { offer: element.props.offer!, held: element.props.held! };
+  return resumeChoice(element.props.children);
+}
+
+// RD1: on the first entry the linked Claude session works in a terminal, so its process holds it (session_in_use) and
+// the choice waits. The target is read again when the work list changes and when the window comes back, since nothing
+// tells the run when that process exits; the choice returns once the session can run.
+test("a Claude session a terminal process holds waits on first entry and returns once it can run", async () => {
+  const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
+  (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;
+  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const support = Object.assign(new DockedSupport(() => {}), { readPresets: vi.fn(), readModels: vi.fn() });
+  const panel = (work: readonly WorkItem[]) => () => CanvasConversation({
+    run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work,
+  });
+  const working: readonly WorkItem[] = [{ session: "s1", provider: "claude", root: ROOT, path: CANVAS.path }], none: readonly WorkItem[] = [];
+  expect(resumeChoice(render(panel(working)))).toEqual({ offer: "claude", held: true });
+  // The turn ends but the terminal's claude still runs: the session is still held, and not offered.
+  render(panel(none));
+  await flush();
+  expect(target).toHaveBeenCalledTimes(2);
+  expect(resumeChoice(render(panel(none)))).toBeNull();
+  // The person quits claude and comes back to the window.
+  target.mockResolvedValue({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
+  run.focusChanged();
+  await flush();
+  expect(target).toHaveBeenCalledTimes(3);
+  expect(resumeChoice(render(panel(none)))).toEqual({ offer: "claude", held: false });
+  // A runnable target is not asked again on later changes.
+  run.focusChanged(); render(panel(working)); render(panel(none));
+  await flush();
+  expect(target).toHaveBeenCalledTimes(3);
+});
+
+// RD1: the work ending with the process gone (the read after the change answers) brings the choice back at once.
+test("a held Claude session returns when its work ends and the process is free", async () => {
+  const target = vi.fn(async () => ({ available: false, reason: "session_in_use", runtime: "claude", session: "s1" }) as unknown);
+  (window as unknown as { doan: { conversationResumeTarget: unknown } }).doan.conversationResumeTarget = target;
+  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const support = Object.assign(new DockedSupport(() => {}), { readPresets: vi.fn(), readModels: vi.fn() });
+  const panel = (work: readonly WorkItem[]) => () => CanvasConversation({
+    run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work,
+  });
+  expect(resumeChoice(render(panel([{ session: "s1", provider: "claude", root: "/w/other", path: ".doan/canvases/x.html" }])))).toEqual({ offer: "claude", held: true });
+  target.mockResolvedValue({ available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00", session: "s1" });
+  render(panel([]));
+  await flush();
+  expect(resumeChoice(render(panel([])))).toEqual({ offer: "claude", held: false });
+  // The new conversation the hold set stays the mode until the person picks the session.
+  const view = run.view();
+  expect(view?.kind === "new" ? view.start.mode : null).toBe("new");
+});

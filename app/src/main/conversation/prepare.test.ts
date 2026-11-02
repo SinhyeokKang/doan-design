@@ -7,6 +7,7 @@ vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: m
 import { BUNDLED_CLAUDE_SDK, createPrepare, routePrepare } from "./prepare";
 import { CLAUDE_REGISTRY_FLOOR, CODEX_ROLLOUT_FLOOR, MINIMUM_VERSIONS, storedVersionAtLeast } from "./sessions";
 import { conversationHandler } from "./ipc";
+import { processStart } from "./io";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
 const paths: string[] = []; afterEach(() => { vi.clearAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
@@ -52,6 +53,25 @@ it("refuses a Codex resume preview with a record but no verifiable stored sessio
   const service = new ConversationService(new ConversationStore(root), routed, vi.fn(), () => {});
   const handler = conversationHandler(service, routed, () => [{ path: root, kind: "list", canvases: [canvas] }]);
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
+});
+
+// terminal-agent-activity RD1: a live Claude process on the linked session refuses the run, but the resume target
+// still names the session, so the panel can show its choice as waiting. Start keeps the bare refusal.
+it("names a linked Claude session that a live terminal process holds, and still refuses to run it", async () => {
+  const root = temp(); const config = join(root, "profile"); mkdirSync(join(config, "sessions"), { recursive: true }); writeFileSync(join(root, "claude"), "fake", { mode: 0o700 });
+  mocks.probe.mockResolvedValue({ ok: true, path: root, claudeConfigDir: config }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "2.1.312 (Claude Code)" });
+  const canvas = { id: "a", path: ".doan/canvases/a.html" }, sessionId = "5f0c2a9e-claude-session";
+  writeFileSync(join(root, "sessions.jsonl"), JSON.stringify({ v: 1, at: "2026-11-01T00:00:00.000Z", root, canvas, hash: "sha256:" + "a".repeat(64), runtime: "claude", sessionId, configDir: config, cwd: root }) + "\n");
+  // This test process stands for the terminal's claude: its registry record names the session and its real start time.
+  writeFileSync(join(config, "sessions", `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId, procStart: await processStart(process.pid), cwd: root, version: "2.1.312", kind: "interactive" }));
+  const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root });
+  const refused = await prepare({ root, mode: "resume", canvas, text: "", anchors: [] }).then(() => null, (error: unknown) => error);
+  expect(refused).toBeInstanceOf(Error); expect(refused).toMatchObject({ message: "session_in_use", runtime: "claude", sessionId });
+  const routed = routePrepare(prepare, () => Promise.reject(new Error("not_logged_in")));
+  const service = new ConversationService(new ConversationStore(root), routed, vi.fn(), () => {});
+  const handler = conversationHandler(service, routed, () => [{ path: root, kind: "list", canvases: [canvas] }]);
+  expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_in_use", runtime: "claude", session: sessionId });
+  expect(await handler(true, "start", { root, canvas, mode: "resume", text: "hello" })).toEqual({ error: "session_in_use" });
 });
 
 it.each(["valid", "valid-0.163.0", "valid-0.170.0", "wrong-id", "wrong-cwd", "wrong-version", "version-prefixed", "version-trailing", "version-number", "version-null", "version-missing", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {

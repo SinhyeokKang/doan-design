@@ -94,6 +94,22 @@ test("a terminal session still working holds its choice with the reason; the com
   expect(out).toContain('aria-placeholder="Ask, / for presets"');
 });
 
+// RD1: a Claude session that a live terminal process holds cannot run now (session_in_use), yet main still names it,
+// so while it works its choice shows waiting with the reason. Not working, it is not offered.
+test("a Claude session a terminal process holds shows its choice waiting while it works", async () => {
+  resume = { available: false, reason: "session_in_use", runtime: "claude", session: "s1" };
+  const work = [{ session: "s1", provider: "claude" as const, root: ROOT, path: CANVAS.path }];
+  const out = await panel([], () => {}, { work });
+  const card = out.match(/<label class="doan-panel ob-choice"[^>]*data-disabled=""[^>]*>.*?<\/label>/)?.[0] ?? "";
+  expect(card).toContain("<strong>Continue the Claude Code session from your terminal</strong>");
+  expect(card).toMatch(/<small id="[^"]+">Still working in your terminal\. You can continue it when it finishes\.<\/small>/);
+  expect(card.match(/<input [^>]*>/)?.[0]).toContain('disabled=""');
+  expect(out).toMatch(/<input type="radio" name="canvas-resume" checked=""\/><span class="ob-radio" aria-hidden="true"><\/span><span class="ob-choice-text"><strong>Start a new conversation<\/strong>/);
+  expect(out).toContain('aria-placeholder="Ask, / for presets"');
+  const idle = await panel([], () => {}, { work: [] });
+  expect(idle).not.toContain('aria-label="How to continue"');
+});
+
 test("another session, or an anonymous one, working in a terminal leaves the choice as it is", async () => {
   resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" };
   const work = [{ session: "s2", provider: "codex" as const, root: ROOT, path: CANVAS.path }, { session: null, provider: null, root: ROOT, path: CANVAS.path }];
