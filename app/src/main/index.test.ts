@@ -1841,6 +1841,27 @@ test("deep links wait for restoration readiness and only navigate or refuse in t
   expect(mocks.uiState.save).not.toHaveBeenCalled();
 });
 
+test("unchanged work does not publish during startup or folder refreshes", () => {
+  const publications = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "work:changed");
+  expect(publications()).toHaveLength(0);
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no folder listener");
+  const state = mocks.startRuntime.mock.calls[0]?.[1];
+  if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+  const entries = [{ path: "/repo", kind: "list", canvases: [] }];
+  changed(entries);
+  changed(entries);
+  expect(publications()).toHaveLength(0);
+  state.work({ v: 3, token: "t", root: "/repo", action: "start", path: ".doan/canvases/new.html" });
+  expect(publications()).toHaveLength(1);
+  changed(entries);
+  state.work({ v: 3, token: "t", root: "/repo", action: "start", path: ".doan/canvases/new.html" });
+  expect(publications()).toHaveLength(1);
+  changed([]);
+  changed([]);
+  expect(publications()).toHaveLength(2);
+});
+
 test("main exposes work only to its main frame and clears it on root removal", () => {
   const state = mocks.startRuntime.mock.calls[0]?.[1];
   if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");

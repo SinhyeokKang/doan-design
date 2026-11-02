@@ -65,3 +65,10 @@ test("the per-session path cap counts root and path pairs across roots", () => {
   expect(workItems(state)).toHaveLength(MAX_WORK_PATHS);
   expect(workItems(state).every(item => item.root === root)).toBe(true);
 });
+
+test("retaining unchanged roots and paths preserves state identity", () => {
+  const state = applyWork(empty(), start(), 0);
+  expect(retainWorkRoots(state, [...state.roots])).toBe(state);
+  const idle = empty();
+  expect(retainWorkRoots(idle, [...idle.roots])).toBe(idle);
+});
