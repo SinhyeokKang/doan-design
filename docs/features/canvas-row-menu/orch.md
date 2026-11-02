@@ -16,17 +16,22 @@
 - 실제 Safari 확인과 Put Back은 임시 파일로만 하며 묻지 않는다. — 체인 시작 점검.
 - 작업자와 리뷰는 모두 Claude다. Codex 주간 한도는 91%를 썼다(2026-11-04 15:35 KST 초기화, 링크 4 eval rollout 기록). 대시보드의 Codex 18%는 30일 창이다. `/agent-eval`은 Claude 쪽을 먼저 돌리고 Codex 쪽을 따로 돌린다. Codex가 한도로 못 돌면 기록하고 Claude 쪽이 pass이면 병합한다. — 링크 5 브리프.
 - viewer는 Geist를 넣지 않는다(B 차이 2). shell 크롬의 글꼴은 토큰에 이미 적힌 시스템 글꼴 스택으로 떨어진다. 넣으면 결과마다 base64로 약 93 KB가 늘고, design·초안은 글꼴 포함을 요구하지 않는다. `/design-sync`에서 글꼴 차이는 문서화된 차이로 적는다. — 지휘자 재량.
+- 리뷰 전 통합: A1·B·C1은 리뷰가 도는 동안 feat에 먼저 cherry-pick했다(3c54f122..bab0b631). A2·C2가 그 위에서 바로 시작하기 위해서다. 리뷰 수정은 새 커밋으로 원 작업자가 내고, 지휘자가 feat에 더한 뒤 A2·C2에 rebase를 보낸다. — 지휘자 재량.
+- CLI 오류 메시지 형식(C1 제안): `export_refused`는 막힌 참조를 한 줄에 하나씩 `- <href>: <reason>`, `export_too_large`는 큰 자산을 큰 순서로 `- <repo 상대 경로>: <크기>`로 쓴다. 앱 `interpretExport`가 이 형식을 읽고, A2가 CLI 테스트로 고정한다. — 지휘자 재량.
+- Show in Finder는 넷째 채널 `canvas:revealExport`가 main이 방금 쓴 파일의 id만 받는다(C1). `canvas:trashPlan`에 `kind: "ready"`, `canvas:trash` `comments`에 `"none"`과 실패 시 `file`을 더했다. — 지휘자 재량, C1 handoff.
+- 데스크톱이 잠겨 있다(`CGSSessionScreenIsLocked` true). T5의 실제 Safari 확인은 할 수 없으므로, A2는 headless Chromium과 Playwright WebKit(대리 확인, Safari로 적지 않는다)으로 구조를 먼저 보고, 실제 Safari는 T13(e)로 미룬다. WebKit 브라우저 바이너리는 `~/Library/Caches/ms-playwright`에만 내려받고 패키지는 바꾸지 않는다. — 지휘자 재량.
+- `runExport` 타임아웃(`EXPORT_TIMEOUT_MS` 120초)은 잠정값이다. A2가 50 MiB 근처 export 시간을 재고, 그 값으로 고친다. — 지휘자 재량.
 - 사용량(링크 5 시작): Claude 7일 80%(2026-11-04 13:59 KST 초기화). Opus는 판단이 무거운 배치(A1, C1, C2)에만 쓴다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
-| A1 | T1·T2·T3 | 새 `cli/internal/export/*.go`(+테스트, `viewer/` 제외), `cli/internal/canvas/css.go`(위치를 내는 lexer와 `rewriteCSS`만)+테스트 | 없음 | Claude Opus high: serving scope가 곧 보안 경계이고, 링크·`..`·scope 밖 판정과 CSS lexer 다시 쓰기가 틀리면 repo 파일이 새어 나간다 | go test, go vet | 대기 |
-| B | T4 | 새 `cli/internal/export/viewer/*`, 새 `app/src/main/exportViewer.test.ts` | 없음(MIME 표 비교 테스트는 A1의 MIME 표 커밋 뒤) | Claude Sonnet high: 앱 함수를 그대로 옮기는 golden과 viewer 상태가 정해져 있다. 높이 규칙의 함정이 많아 high | app test·typecheck | 대기 |
-| C1 | T6·T9 | 새 `app/src/main/canvasTrash.ts`+테스트, `app/src/main/cli.ts`(`runExport`), `app/src/main/index.ts`, preload, `senderAllowed.ts`, 새 `app/src/renderer/canvasRowMenu.ts`+테스트, `app/src/renderer/canvasView.ts`+테스트. C1 질문으로 더함: `conversation/service.ts`(project evidence 읽기 전용 accessor, root 일치만), `CanvasController.ts`(휴지통 표시 저장소, `applyEntries`의 정리, `canvasTrashed` 콜백만) | 없음 | Claude Opus high: renderer가 보낸 경로를 믿지 않는 경계, 확인과 사용 사이의 경로 교체, main의 작업 중 판정 근거가 얽혀 있다 | app test·typecheck·build | 대기 |
-| A2 | T5·T7·T8 | `cli/internal/export/assemble*.go`, `cli/internal/cli/export.go`·`run.go`·`args.go`·`envelope.go`·help usage+테스트, `cli/internal/cli/skill.md`·`skill_test.go` | A1·B 통합 | Claude Sonnet high: 조립과 명령은 design이 순서·오류 코드까지 정했다. `srcdoc` escape는 리뷰를 Opus로 한다 | go test, go vet, Safari 스크린샷 | 대기 |
-| C2 | T10 | `ShellSidebar.tsx`+테스트, `App.tsx`+테스트, 새 대화상자 컴포넌트+테스트, `styles.css` | C1 통합 | Claude Opus high: 메뉴·대화상자·포커스 복귀·삭제 뒤 화면이 여러 POSTMORTEM 함정과 겹친다 | app test·typecheck·build, verify | 대기 |
+| A1 | T1·T2·T3 | 새 `cli/internal/export/*.go`(+테스트, `viewer/` 제외), `cli/internal/canvas/css.go`(위치를 내는 lexer와 `rewriteCSS`만)+테스트 | 없음 | Claude Opus high: serving scope가 곧 보안 경계이고, 링크·`..`·scope 밖 판정과 CSS lexer 다시 쓰기가 틀리면 repo 파일이 새어 나간다 | go test, go vet | 구현 완료(d9a5b4db·c4ed0acb·c7e16fbb·5c67b19d → feat eeb085f2·3c54f122·a082ab52·90771966). RA1 리뷰 중 |
+| B | T4 | 새 `cli/internal/export/viewer/*`, 새 `app/src/main/exportViewer.test.ts` | 없음(MIME 표 비교 테스트는 A1의 MIME 표 커밋 뒤) | Claude Sonnet high: 앱 함수를 그대로 옮기는 golden과 viewer 상태가 정해져 있다. 높이 규칙의 함정이 많아 high | app test·typecheck | 구현 완료(f54a81f8 → feat a3bc4c38). Geist 미포함, layout `total` 추가. RB 리뷰 중 |
+| C1 | T6·T9 | 새 `app/src/main/canvasTrash.ts`+테스트, `app/src/main/cli.ts`(`runExport`), `app/src/main/index.ts`, preload, `senderAllowed.ts`, 새 `app/src/renderer/canvasRowMenu.ts`+테스트, `app/src/renderer/canvasView.ts`+테스트. C1 질문으로 더함: `conversation/service.ts`(project evidence 읽기 전용 accessor, root 일치만), `CanvasController.ts`(휴지통 표시 저장소, `applyEntries`의 정리, `canvasTrashed` 콜백만) | 없음 | Claude Opus high: renderer가 보낸 경로를 믿지 않는 경계, 확인과 사용 사이의 경로 교체, main의 작업 중 판정 근거가 얽혀 있다 | app test·typecheck·build | 구현 완료(e7231653·922ff308 → feat 247f449c·bab0b631). 새 파일 `canvasExport.ts`. RC1 리뷰 중 |
+| A2 | T5·T7·T8 | `cli/internal/export/assemble*.go`, `cli/internal/cli/export.go`·`run.go`·`args.go`·`envelope.go`·help usage+테스트, `cli/internal/cli/skill.md`·`skill_test.go` | A1·B 통합 | Claude Sonnet high: 조립과 명령은 design이 순서·오류 코드까지 정했다. `srcdoc` escape는 리뷰를 Opus로 한다 | go test, go vet, Safari 스크린샷 | 진행 중(dispatch ctx_5675c513bc0d) |
+| C2 | T10 | `ShellSidebar.tsx`+테스트, `App.tsx`+테스트, 새 대화상자 컴포넌트+테스트, `styles.css` | C1 통합 | Claude Opus high: 메뉴·대화상자·포커스 복귀·삭제 뒤 화면이 여러 POSTMORTEM 함정과 겹친다 | app test·typecheck·build, verify | 진행 중(dispatch ctx_8ce037295bf2) |
 | D | T11 | `eval/`(X1), `docs/USABILITY-EVAL.md` | A2 통합 | Claude Sonnet high: 시나리오 선례가 많다 | eval unit, self-test, `/agent-eval` | 대기 |
 | E | T12·T13 | `.scratch/design-sync/`, `.scratch/runtime-test/`, `docs/DESIGN.md`, `/design-sync` 고침은 C2 파일에 한정 | 모든 구현 배치 통합 | Claude Sonnet high: 측정·probe 선례가 있다. 실제 Safari와 휴지통은 임시 파일만 | probe exit 0, real-state, DESIGN 갱신 | 대기 |
 | 지휘자 | Z1 | 통합 브랜치, `docs/` 승격 | 모든 배치 | — | `/verify --eval` | 대기 |
