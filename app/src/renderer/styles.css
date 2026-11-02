@@ -738,13 +738,12 @@ body:has(.shell-top) { background: transparent; }
 /* Home's agent picker: the link to Settings at the bottom of the menu. */
 .settings-menu-link { display: flex; gap: var(--space-2); align-items: center; }
 .settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
-/* buzz-settings U4/U5: the header's action slot (Check Again, Copy details), the category bodies and the Project
-   Settings dialog, from the same draft. An empty slot takes no room beside the lead. */
-:is(.settings-page, .settings-dialog) code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+/* buzz-settings U4: the header's action slot (Check Again, Copy details) and the category bodies, from the same
+   draft. An empty slot takes no room beside the lead. */
+.settings-page code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
 .settings-header-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
 .settings-header-actions:empty { display: none; }
 .settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
-.settings-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 /* About's agent setup notice in the doan command row: the agents a line affects read in medium weight; its code chips
    go white, since the page's inset chip vanishes on the notice's inset fill (one class above the page's chip rule, so
    the order of the two rules does not decide it). The PATH line stands alone so it can be selected and copied whole. */
@@ -756,19 +755,11 @@ body:has(.shell-top) { background: transparent; }
 /* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
 .doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
 .doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
-.settings-recovery { margin-top: 0; }
 .settings-saved { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-success); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .settings-saved.pending { color: var(--text-metadata); }
 .settings-saved svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* A confirmation over the page is rendered inside the panel and would take its body-sm tracking; the Project Settings
-   dialog opens over any screen and would take the app body's 13px and tabular numerals. Both read like the page. */
+/* A confirmation over a page (Fix…, Share) is rendered inside the panel and would take its body-sm tracking. */
 .settings-panel .doan-dialog { letter-spacing: normal; }
-.settings-dialog { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
-.settings-dialog .doan-dialog-title { display: flex; align-items: center; gap: var(--space-2); }
-.settings-dialog-branch { color: var(--text-metadata); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-regular); }
-.settings-serve { display: grid; list-style: none; border: 1px solid var(--border-standard); border-radius: var(--radius-row); overflow: hidden; }
-.settings-serve li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
-.settings-serve li + li { border-top: 1px solid var(--border-standard); }
 /* Project Settings page (project-settings design '화면'; draft frames alt-2-page and its states). It reuses the Settings
    column and rows; these rules add only the header's thumbnail and branch, the token row, the one notice that replaces
    the sections of a problem worktree, and the lines under it. The sections' own gaps come from .settings-sections. */
@@ -791,7 +782,6 @@ body:has(.shell-top) { background: transparent; }
 .project-settings-msg { padding: var(--space-2) 0 var(--space-1); }
 .settings-page > .doan-notice + .project-settings-msg { padding-inline: calc(var(--space-4) + 1px); }
 .project-settings-details { padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; }
-.settings-serve code { background: transparent; padding: 0; }
 /* buzz-conversation: the conversation thread (.doan/canvases/buzz-conversation.html, frames thread-*). Scoped to the
    thread so its short names (.activity, .marker, .md) never reach other screens. buzz-project places it. */
 .conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }

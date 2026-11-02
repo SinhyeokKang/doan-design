@@ -54,6 +54,14 @@ it("routes explicit worktree selection and removes every currently registered pr
   expect(props.worktree).toHaveBeenCalledWith("/b");
   expect(props.remove).toHaveBeenCalledWith(["/a", "/b"]);
 });
+// project-settings design '들어가기': the menu's Project Settings opens the page for the worktree the menu shows.
+it("Project Settings asks App for the page of the worktree the menu shows", () => {
+  const { props, menuItems } = fixture();
+  const item = menuItems[4]!;
+  expect([item.children].flat()).toContain("Project Settings");
+  if (typeof item.onSelect === "function") item.onSelect();
+  expect(props.projectSettings).toHaveBeenCalledWith("/a");
+});
 it("rejects menu actions after the project disappears", () => {
   const { props, menuItems } = fixture();
   const live = hooks.refs.find(ref => ref.current === props);
@@ -207,8 +215,9 @@ it("keeps the focused row on the same canvas when an mtime change reorders the l
 });
 
 // buzz-add-projects design '잠금': while the Add Projects page selects or clones, the moves are shown as unavailable
-// (aria-disabled keeps them in the focus order); App ignores their activation.
-it("marks Search, project and canvas rows, Overview and worktree items aria-disabled while the page is locked", () => {
+// (aria-disabled keeps them in the focus order); App ignores their activation. Project Settings opens a page now, so it
+// is a move too (project-settings design '이동과 잠금').
+it("marks Search, project and canvas rows, Overview, Project Settings and worktree items aria-disabled while the page is locked", () => {
   const { props } = fixture();
   hooks.cursor = 0;
   const rendered = elements(ShellSidebar({ ...props, locked: true }));
@@ -216,8 +225,10 @@ it("marks Search, project and canvas rows, Overview and worktree items aria-disa
   for (const row of rendered.filter(item => item.role === "treeitem")) expect(row["aria-disabled"]).toBe(true);
   const menu = rendered.filter(item => typeof item.onSelect === "function");
   expect(menu.filter(item => String(item.className).includes("shell-worktree")).map(item => item["aria-disabled"])).toEqual([true, true]);
-  // Overview, then Show in Finder and Project Settings, which stay allowed.
-  expect(menu.slice(2, 5).map(item => item["aria-disabled"])).toEqual([true, undefined, undefined]);
+  // Overview, then Show in Finder, which stays allowed, and Project Settings.
+  expect(menu.slice(2, 5).map(item => item["aria-disabled"])).toEqual([true, undefined, true]);
+  // Remove from Doan stays allowed (design '잠금').
+  expect(menu.at(-1)?.["aria-disabled"]).toBeUndefined();
   hooks.cursor = 0;
   const open = elements(ShellSidebar(props));
   expect(open.filter(item => item["aria-disabled"] !== undefined && item["aria-disabled"] !== false)).toEqual([]);

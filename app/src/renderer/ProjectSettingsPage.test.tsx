@@ -327,7 +327,10 @@ test("Add File or Folder asks first over the page: the title names the path, Can
   click("Add File or Folder"); await flush(); render();
   expect(doan.chooseConfigPath).toHaveBeenCalledWith(ROOT, "serve");
   const dialog = confirmation()!;
-  expect(dialog.props).toMatchObject({ title: "Share design/brand with canvases?", verb: "Share" });
+  // The title shows the path as code, as the draft does; the dialog's accessible name is the plain sentence.
+  expect(dialog.props).toMatchObject({ label: "Share design/brand with canvases?", verb: "Share" });
+  expect(words(dialog.props.title)).toBe("Share design/brand with canvases?");
+  expect(all(dialog.props.title as ReactNode).some(element => element.type === "code" && element.props.children === "design/brand")).toBe(true);
   expect(words(dialog.props.description)).toBe("Canvases in this worktree will be able to read design/brand.");
   expect(doan.writeConfig).not.toHaveBeenCalled();
   (dialog.props.answer as (allow: boolean) => void)(false); render();

@@ -1,18 +1,11 @@
 import { expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
 import type { AddPageOrigin } from "./addProjectsNav";
-import { canCloseProjectSettings, closedFocus, followProjectSettings, followProjectSettingsPage, problemActionCloses, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, writeErrorMessage, type ProjectSettingsPageView, type ReadState } from "./projectSettingsRules";
+import { followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, writeErrorMessage, type ProjectSettingsPageView, type ReadState } from "./projectSettingsRules";
 
 const list = (path: string): FolderEntry => ({ path, kind: "list", canvases: [], servedRev: 1 });
 const entry = (path: string, kind: "loading" | "uninitialized" | "notFound"): FolderEntry => ({ path, kind });
 const settings = { root: "/w/a", view: "settings" } as const;
-
-test("Escape and Done close the dialog only while nothing is being picked, confirmed or written", () => {
-  expect(canCloseProjectSettings({ picking: false, confirming: false, writing: false })).toBe(true);
-  expect(canCloseProjectSettings({ picking: true, confirming: false, writing: false })).toBe(false);
-  expect(canCloseProjectSettings({ picking: false, confirming: true, writing: false })).toBe(false);
-  expect(canCloseProjectSettings({ picking: false, confirming: false, writing: true })).toBe(false);
-});
 
 test("a healthy worktree shows its settings, a problem one its problem, and a loading one keeps what is shown", () => {
   expect(projectSettingsView(list("/w/a"))).toBe("settings");
@@ -23,80 +16,48 @@ test("a healthy worktree shows its settings, a problem one its problem, and a lo
   expect(projectSettingsView(entry("/w/a", "loading"))).toBeNull();
 });
 
-test("rule 1: a worktree that leaves the list closes the dialog", () => {
-  expect(followProjectSettings(settings, [list("/w/b")])).toEqual({ kind: "close" });
-  expect(followProjectSettings({ root: "/w/a", view: "problem" }, [])).toEqual({ kind: "close" });
-});
-
-test("rule 1: focus goes back to the project menu button, else its row, else Search", () => {
-  expect(closedFocus({ menuButton: true, row: true })).toBe("menuButton");
-  expect(closedFocus({ menuButton: false, row: true })).toBe("row");
-  expect(closedFocus({ menuButton: false, row: false })).toBe("search");
-});
-
-test("rule 2: a healthy worktree that turns into a problem switches the same dialog to the problem view", () => {
-  expect(followProjectSettings(settings, [entry("/w/a", "notFound")])).toEqual({ kind: "show", root: "/w/a", view: "problem", reread: false });
-  // Back to healthy (Retry) reads the settings again.
-  expect(followProjectSettings({ root: "/w/a", view: "problem" }, [list("/w/a")])).toEqual({ kind: "show", root: "/w/a", view: "settings", reread: true });
-  expect(followProjectSettings(settings, [list("/w/a")])).toEqual({ kind: "stay" });
-  expect(followProjectSettings(settings, [entry("/w/a", "loading")])).toEqual({ kind: "stay" });
-});
-
-test("rule 3: Locate… follows the reroot to the new root and reads it", () => {
-  const problem = { root: "/w/a", view: "problem" } as const;
-  expect(followProjectSettings(problem, [list("/w/moved")], { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "show", root: "/w/moved", view: "settings", reread: true });
-  expect(followProjectSettings(problem, [entry("/w/moved", "loading")], { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "show", root: "/w/moved", view: "problem", reread: true });
-  // Another root's reroot is not this dialog's.
-  expect(followProjectSettings(problem, [list("/w/c")], { from: "/w/b", root: "/w/c" })).toEqual({ kind: "close" });
-});
-
-test("rule 4: only Set Up… closes the dialog among the problem actions, so its own dialog never stacks on this one", () => {
-  expect(problemActionCloses("setUp")).toBe(true);
-  for (const action of ["locate", "remove", "reveal", "retry", "details"] as const) expect(problemActionCloses(action)).toBe(false);
-});
-
 // ── The page (project-settings design '순수 함수로 뺄 부분' 3–7) ────────────────────────────────────────────────────
 
 const home: AddPageOrigin = { screen: "home" };
 const wsA: AddPageOrigin = { screen: "workspace", root: "/w/a" };
 
 test("page follow: a worktree that leaves the list leaves the page", () => {
-  expect(followProjectSettingsPage(settings, [list("/w/b")], home)).toEqual({ kind: "leave" });
-  expect(followProjectSettingsPage({ root: "/w/a", view: "problem" }, [], wsA)).toEqual({ kind: "leave" });
+  expect(followProjectSettings(settings, [list("/w/b")], home)).toEqual({ kind: "leave" });
+  expect(followProjectSettings({ root: "/w/a", view: "problem" }, [], wsA)).toEqual({ kind: "leave" });
   // A reroot whose new root is not listed leaves too.
-  expect(followProjectSettingsPage(settings, [list("/w/b")], home, { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "leave" });
+  expect(followProjectSettings(settings, [list("/w/b")], home, { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "leave" });
 });
 
 test("page follow: a healthy worktree that turns into a problem switches the view and cancels an open confirmation", () => {
-  expect(followProjectSettingsPage(settings, [entry("/w/a", "notFound")], home)).toEqual({ kind: "show", root: "/w/a", view: "problem", reread: false, cancelConfirm: true, origin: home });
-  expect(followProjectSettingsPage(settings, [{ path: "/w/a", kind: "error", message: "bad" }], home)).toMatchObject({ view: "problem", cancelConfirm: true });
+  expect(followProjectSettings(settings, [entry("/w/a", "notFound")], home)).toEqual({ kind: "show", root: "/w/a", view: "problem", reread: false, cancelConfirm: true, origin: home });
+  expect(followProjectSettings(settings, [{ path: "/w/a", kind: "error", message: "bad" }], home)).toMatchObject({ view: "problem", cancelConfirm: true });
 });
 
 test("page follow: back to healthy reads again and has no confirmation to cancel", () => {
-  expect(followProjectSettingsPage({ root: "/w/a", view: "problem" }, [list("/w/a")], home)).toEqual({ kind: "show", root: "/w/a", view: "settings", reread: true, cancelConfirm: false, origin: home });
+  expect(followProjectSettings({ root: "/w/a", view: "problem" }, [list("/w/a")], home)).toEqual({ kind: "show", root: "/w/a", view: "settings", reread: true, cancelConfirm: false, origin: home });
 });
 
 test("page follow: an unchanged state and a loading one stay", () => {
-  expect(followProjectSettingsPage(settings, [list("/w/a")], home)).toEqual({ kind: "stay" });
-  expect(followProjectSettingsPage(settings, [entry("/w/a", "loading")], home)).toEqual({ kind: "stay" });
-  expect(followProjectSettingsPage({ root: "/w/a", view: "problem" }, [entry("/w/a", "loading")], home)).toEqual({ kind: "stay" });
+  expect(followProjectSettings(settings, [list("/w/a")], home)).toEqual({ kind: "stay" });
+  expect(followProjectSettings(settings, [entry("/w/a", "loading")], home)).toEqual({ kind: "stay" });
+  expect(followProjectSettings({ root: "/w/a", view: "problem" }, [entry("/w/a", "loading")], home)).toEqual({ kind: "stay" });
 });
 
 test("page follow: Locate or Set Up reroots the page, reads the new root and cancels an open confirmation", () => {
   const problem = { root: "/w/a", view: "problem" } as const;
-  expect(followProjectSettingsPage(problem, [list("/w/moved")], home, { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "show", root: "/w/moved", view: "settings", reread: true, cancelConfirm: true, origin: home });
+  expect(followProjectSettings(problem, [list("/w/moved")], home, { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "show", root: "/w/moved", view: "settings", reread: true, cancelConfirm: true, origin: home });
   // A new root still loading keeps the shown view and reads once it is a list (the next follow).
-  expect(followProjectSettingsPage(problem, [entry("/w/moved", "loading")], home, { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "show", root: "/w/moved", view: "problem", reread: false, cancelConfirm: true, origin: home });
+  expect(followProjectSettings(problem, [entry("/w/moved", "loading")], home, { from: "/w/a", root: "/w/moved" })).toEqual({ kind: "show", root: "/w/moved", view: "problem", reread: false, cancelConfirm: true, origin: home });
   // Another root's reroot is not this page's: its worktree is still listed.
-  expect(followProjectSettingsPage(settings, [list("/w/a"), list("/w/c")], home, { from: "/w/b", root: "/w/c" })).toEqual({ kind: "stay" });
+  expect(followProjectSettings(settings, [list("/w/a"), list("/w/c")], home, { from: "/w/b", root: "/w/c" })).toEqual({ kind: "stay" });
 });
 
 test("page follow: a reroot moves an origin workspace on the old root to the new root, and only that origin", () => {
   const problem = { root: "/w/a", view: "problem" } as const;
   const focus = { from: "/w/a", root: "/w/moved" };
-  expect(followProjectSettingsPage(problem, [list("/w/moved")], wsA, focus)).toMatchObject({ origin: { screen: "workspace", root: "/w/moved" } });
-  expect(followProjectSettingsPage(problem, [list("/w/moved")], { screen: "workspace", root: "/w/other" }, focus)).toMatchObject({ origin: { screen: "workspace", root: "/w/other" } });
-  expect(followProjectSettingsPage(problem, [list("/w/moved")], home, focus)).toMatchObject({ origin: home });
+  expect(followProjectSettings(problem, [list("/w/moved")], wsA, focus)).toMatchObject({ origin: { screen: "workspace", root: "/w/moved" } });
+  expect(followProjectSettings(problem, [list("/w/moved")], { screen: "workspace", root: "/w/other" }, focus)).toMatchObject({ origin: { screen: "workspace", root: "/w/other" } });
+  expect(followProjectSettings(problem, [list("/w/moved")], home, focus)).toMatchObject({ origin: home });
 });
 
 test("page lock: a picker, a confirmation or a write holds the page", () => {
@@ -104,9 +65,6 @@ test("page lock: a picker, a confirmation or a write holds the page", () => {
   expect(projectSettingsLocked({ picking: true, confirming: false, writing: false })).toBe(true);
   expect(projectSettingsLocked({ picking: false, confirming: true, writing: false })).toBe(true);
   expect(projectSettingsLocked({ picking: false, confirming: false, writing: true })).toBe(true);
-  // Exactly the inverse of what the dialog allowed to close.
-  for (const picking of [false, true]) for (const confirming of [false, true]) for (const writing of [false, true])
-    expect(projectSettingsLocked({ picking, confirming, writing })).toBe(!canCloseProjectSettings({ picking, confirming, writing }));
 });
 
 // One row per state tile of the draft ('alt-2-page', 'alt-2-states', 'alt-2-page-problem', 'alt-2-states-problem').

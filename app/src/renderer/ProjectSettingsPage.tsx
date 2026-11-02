@@ -9,7 +9,7 @@ import { AlertIcon } from "./AlertIcon";
 import { cardRow, groupProjects, type RowAction } from "./homeCards";
 import { displayPath } from "./projectDisplay";
 import {
-  followProjectSettingsPage, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, writeErrorMessage,
+  followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, writeErrorMessage,
   type PageAction, type ProjectSettingsView, type ReadState,
 } from "./projectSettingsRules";
 import { SettingsDialog } from "./SettingsDialog";
@@ -108,7 +108,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   useEffect(() => {
     const focus = reroot && reroot.seq !== seenReroot.current ? reroot : undefined;
     if (reroot) seenReroot.current = reroot.seq;
-    const next = followProjectSettingsPage(view, entries, origin, focus);
+    const next = followProjectSettings(view, entries, origin, focus);
     if (next.kind === "stay") return;
     if (next.kind === "leave") {
       // An open confirmation is cancelled by the page going; a picker's answer is dropped with the session.
@@ -292,7 +292,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
           </>}
           {removeSection}
         </div>}
-        {choice && <SettingsDialog title={`Share ${choice.path} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code>{choice.path}</code>.</>}
+        {choice && <SettingsDialog title={<>Share <code>{choice.path}</code> with canvases?</>} label={`Share ${choice.path} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code>{choice.path}</code>.</>}
           answer={allow => { const selected = choice; setChoice(null); if (allow) void write({ root, op: "addServe", choiceId: selected.choiceId }, "serve"); }} />}
       </div>
     </main>
