@@ -68,6 +68,24 @@ Doan 연결 대화는 Doan 전용 profile에서 돈다(ARCHITECTURE §7 'Agent a
   - 경고 표시: Full access 트리거는 모드명, 경고 아이콘, `text-warning`·`affordance-warning`을 쓴다(DESIGN에 측정값을 남긴다).
 - **CLI·skills·`doan check`**: 바뀌지 않는다.
 
+## 초안 요청 (`/design-draft`)
+
+- 캔버스: `.doan/canvases/permission-mode.html`, id `permission-mode`.
+- frame: `home-toolrow`(Home 도구 줄 닫힘·Full access), `picker-menu`(열린 메뉴와 항목 설명), `docked-tray`(Overview·캔버스 패널 tray, 폭 단계), `docked-fixed`(터미널 세션 고정 트리거), `plan-approved`(Plan 승인 뒤 피커 전환), `settings-row`(New conversations의 Permission 행).
+- Home·Settings·대화 패널의 기존 부분은 코드대로 복사한다.
+
+## 폭이 모자랄 때 (DockedComposer tray)
+
+- Home 도구 줄은 `min(680px, 100%)`이고 최소 창 960px에서도 넉넉하다. 그래서 단계가 없다.
+- DockedComposer tray는 패널 최소 320px에서 Pick·모델·Effort·Permission이 다 들어가지 않는다. tray 폭(container query)에 따라 순서대로 줄인다.
+  1. Permission 라벨을 숨기고 아이콘만 보인다.
+  2. 그래도 모자라면 Effort도 아이콘만 보인다.
+  3. 마지막으로 모델 라벨을 말줄임한다. Pick, 로고, chevron은 줄이지 않는다.
+- tray가 두 줄로 줄바꿈되지 않는다. 높이는 그대로다.
+- 모드마다 아이콘이 달라서, 아이콘만 남아도 모드를 구분할 수 있다. Full access는 경고 아이콘과 경고색을 유지한다.
+- 숨은 라벨은 tooltip과 aria-label에 남는다.
+- 단계 경계 폭은 초안이 정하고, `/design-sync`에서 측정한다.
+
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
 - `permissionOptions(provider, acpModes?)`: 피커에 보일 공통 모드 목록. Claude·Codex는 4개, ACP는 대응되는 것만, 없으면 빈 목록(피커 숨김).
