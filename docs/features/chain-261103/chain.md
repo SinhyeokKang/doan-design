@@ -57,7 +57,7 @@
 |---|---|---|---|---|
 | 1 canvas-hand-tool | Claude Code 세션 ceb45427, worktree `canvas-hand-tool-orch` | 2026-11-03 | PR #75, 병합 a6d35fd2 | 완료 |
 | 2 project-settings | Claude Code 세션 06b8fea0, worktree `project-settings-orch` | 2026-11-03 | PR #76, 병합 02952e32 | 완료 |
-| 3 canvas-open-offer | Claude Code 세션 c935fb51, worktree `canvas-open-offer-orch` | 2026-11-03 | | 진행 중 |
+| 3 canvas-open-offer | Claude Code 세션 c935fb51, worktree `canvas-open-offer-orch` | 2026-11-03 | PR #77, 병합 3b6f9ed2 | 완료 |
 | 4 agent-reply-chips | | | | 대기 |
 | 5 canvas-row-menu | | | | 대기 |
 | 6 setup-via-onboarding | | | | 대기 |
@@ -100,3 +100,17 @@
     - main `shell.replace()`가 Locate의 reroot focus를 보낸다. App은 워크스페이스에서 연 Locate만 `loadedRoot`를 옮긴다(POSTMORTEM 2026-11-03).
     - `doan check --repo .`에 이 링크와 무관한 기존 오류가 하나 있다: `select-inspect.html`의 `data-doan-implements`가 없는 `app/src/renderer/Sidebar.tsx`를 가리킨다.
     - 사용량(링크 2 끝): Claude 7일 78%(2026-11-04 13:59 KST 초기화), Codex 대시보드 18%.
+- 2026-11-03 링크 3 완료(세션 c935fb51): PR #77을 main에 병합했다(3b6f9ed2). 통합 HEAD에서 `/verify --eval` PASS(앱 테스트 5922, eval 233, self-test 포함).
+  - 배치: A(T1·T2·T4 Go, Claude Sonnet high, 수정 1회), B(T3·T5 앱, Claude Opus high, 수정 1회), C(T7–T9 설정·가이드·eval, Claude Sonnet high, 수정 1회), D(T6 `/runtime-test`·T10 `/agent-eval`, Claude Sonnet high, 2회차 1번). 리뷰는 Claude 서브에이전트(RA·RC Sonnet, RB Opus)로 했다. T11 문서 승격은 Sonnet 서브에이전트 초안을 지휘자가 검토해 커밋했다. Codex 작업자는 쓰지 않았다.
+  - 확인하지 못한 것: 데스크톱이 잠겨 "다른 앱 창 뒤에 있는 Doan이 앞으로 옴"은 deferred다. Settings·Add Projects 잠금의 `busy`는 단위 테스트로만 확인했다. 꺼진 앱을 `doan open`이 여는 bootstrap은 단위 테스트로만 확인했고 BACKLOG 'Not verified in the real app'에 적었다. `/agent-eval`은 거절 보고(spec 완료 조건 5)를 재지 못한다(가짜 앱이 `busy`·`not_ready`를 답하지 않는다). USABILITY-EVAL에 미측정으로 적었다.
+  - 사용자 확인이 필요한 것(아침 보고): 링크도 잠긴 페이지와 first run을 다이얼로그 닫기보다 먼저 본다. 이동하지 않는 결과는 같고, 어차피 거절될 이동 때문에 wizard 안의 다이얼로그를 닫지 않게 됐다(ARCHITECTURE §7 'Deep links'). W3b rubric에 "보고 뒤 마지막 줄에 따로 있는 제안은 묻힌 것이 아니다"를 그 자리에서 더했다(U-022). `/agent-eval` 첫 실행에서 runner가 또 `keychain:provider-items` 해시 변화만으로 exit 1을 냈다(사용자의 실제 Doan 앱이 떠 있었다). 재실행 두 번에서는 바뀌지 않았다.
+  - 다음 링크가 알아야 할 것:
+    - 규칙 J가 바뀌었다. 에이전트는 `doan://` 링크를 최종 답에 넣지 않고, 고친 캔버스를 열어 줄지 한 줄로 묻고, 사람이 원하면 `doan open`을 실행한다. `doan work done`은 여전히 `links`를 돌려주지만 사람이 달라고 할 때만 준다. 링크 4 T5의 "규칙 J의 링크는 최종 답의 캔버스 목록으로 그대로 둔다"와 spec의 J 전제(spec 17·22·54행 근처)는 이 결과에 맞게 intake에서 고친다.
+    - `prompt.ts`의 턴 프롬프트 끝에 `OPEN_GUIDANCE` 한 줄이 있다(앱 대화에서는 열어 줄지 묻지 않고, 이 줄이 가이드의 제안 규칙보다 우선한다). 링크 4가 넣는 링크 줄은 이 줄과 함께 둔다.
+    - R8은 이미 R8b가 됐고, W3는 W3b, 새 W4가 있다. 링크 4는 턴 프롬프트를 다시 바꾸므로 R8b를 R8c로 바꾼다(시작 점검의 "겹치지 않는 id").
+    - 앱에 `doan open` 판정이 생겼다: main `resolveOpenTarget`(`deepLinks.ts`), renderer `decideOpen`(`app/src/renderer/openDecision.ts`, 잠긴 페이지 → first run → 다이얼로그 닫기 → 목록 재확인). 칩의 이동도 이 helper와 거절 처리를 쓸 수 있다(canvas-open-offer design '다른 feature와의 관계').
+    - 가이드 출력 예산이 빠듯하다: `doan skill --json` 21,298 B + note 168 B로 한도 21,600 B까지 약 134 B 남았다. 링크 5·6이 가이드를 고칠 때 줄이는 쪽으로 쓴다.
+    - Claude Code 허용 규칙이 셋이 됐다(`Bash(doan open *)`). About 안내도 셋을 든다.
+    - Orca가 작업자 worktree를 지우면서 브랜치를 지우고, 다음 작업자가 같은 이름(`…-2`)을 다시 쓴 일이 있었다. 구현 브랜치는 배치 글자를 붙인 이름으로 다시 만들어 두는 편이 안전하다.
+    - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, runtime-test, agent-eval 세 라운드, 최종 verify 로그)는 main checkout의 `.scratch/chain-261103/link3-evidence/`로 옮겼다.
+    - 사용량(링크 3 끝): Claude 7일 79%(2026-11-04 13:59 KST 초기화). **Codex 주간 한도는 91%를 썼다(9% 남음, 2026-11-04 15:35 KST 초기화, `/agent-eval`의 Codex rollout 기록 기준).** 체인 규칙대로 링크 4부터 Codex 작업자를 쓰지 않고 Claude Sonnet으로 리뷰한다. 링크 4의 `/agent-eval`(R9·R8c)도 실제 Codex를 쓰므로, 남은 양으로 모자라면 Codex 쪽 실행만 초기화 뒤로 미루고 그 사실을 기록한다.
