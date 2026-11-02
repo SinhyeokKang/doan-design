@@ -1,5 +1,5 @@
 import type { WorkItem } from "../main/workState";
-import type { OpenLinkResult } from "../main/deepLinks";
+import type { OpenAnswer, OpenAsk, OpenLinkResult } from "../main/deepLinks";
 import type { AuthCheckReply, AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { ShellActivity } from "../main/shellActivity";
@@ -77,6 +77,13 @@ const api = {
   },
   // Call only after subscribing, the launch restore is done, and the first folders snapshot arrived.
   openLinksReady: (): Promise<void> => ipcRenderer.invoke("deep-link:ready"),
+  // `doan open` requests, which main sends only once links are ready; answer each by its id with answerOpenRequest.
+  onOpenRequest(listener: (request: OpenAsk) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, request: OpenAsk) => listener(request);
+    ipcRenderer.on("doan-open:request", receive);
+    return () => ipcRenderer.removeListener("doan-open:request", receive);
+  },
+  answerOpenRequest: (answer: OpenAnswer): Promise<void> => ipcRenderer.invoke("doan-open:answer", answer),
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason; runtime?: Runtime; session?: string } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
   conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
   // newDesign takes `text`. model and effort only from the list listConversationModels

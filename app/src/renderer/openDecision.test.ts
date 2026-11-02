@@ -5,15 +5,17 @@ import { decideOpen, type OpenPage } from "./openDecision";
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html";
 const row = { path: A, url: "u-a" };
 const listed: FolderEntry[] = [{ path: "/w/a", kind: "list", servedRev: 0, canvases: [row] }];
-const page = (patch: Partial<OpenPage> = {}): OpenPage => ({ locked: false, firstRun: false, dismissDialogs: () => true, entries: () => listed, ...patch });
+const page = (patch: Partial<OpenPage> = {}): OpenPage => ({ locked: null, firstRun: false, dismissDialogs: () => true, entries: () => listed, ...patch });
 
 test("a listed canvas on a free page opens its row", () => {
   expect(decideOpen({ root: "/w/a", canvas: A }, page())).toEqual({ kind: "opened", row });
 });
 
-test("a locked page refuses before any dialog is touched", () => {
+test("a locked page refuses with its name before any dialog is touched", () => {
   const dismissDialogs = vi.fn(() => true);
-  expect(decideOpen({ root: "/w/a", canvas: A }, page({ locked: true, firstRun: true, dismissDialogs }))).toEqual({ kind: "busy", reason: "locked" });
+  for (const locked of ["add_projects", "settings", "project_settings"] as const) {
+    expect(decideOpen({ root: "/w/a", canvas: A }, page({ locked, firstRun: true, dismissDialogs }))).toEqual({ kind: "busy", reason: locked });
+  }
   expect(dismissDialogs).not.toHaveBeenCalled();
 });
 
