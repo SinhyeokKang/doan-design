@@ -168,7 +168,7 @@ export function ShellSidebar(props: Props) {
     const { section, select } = props.settings;
     return <aside className="side shell-side" ref={host} aria-label="Settings">
       <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
-      <div className="shell-projects">
+      <div className="shell-projects doan-scroll">
         <h2 className="shell-projects-heading">Settings</h2>
         <nav className="shell-settings-nav" aria-label="Settings">{SETTINGS_SECTIONS.map(item => {
           const Icon = SECTION_ICONS[item.id], current = item.id === section;
@@ -180,7 +180,7 @@ export function ShellSidebar(props: Props) {
   return <aside className="side shell-side" ref={host} aria-label="Projects">
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <button type="button" className="shell-home-row row" aria-current={props.home ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
-    <div className="shell-projects">
+    <div className="shell-projects doan-scroll">
       <h2 className="shell-projects-heading">Projects</h2>
       <div role="tree" aria-label="Projects and canvases">
       {cards.map((card, index) => {
