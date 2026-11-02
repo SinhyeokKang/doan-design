@@ -2,7 +2,7 @@ import { expect, test } from "vitest";
 import { applyWork, expireWork, retainWorkRoots, workItems, MAX_WORK_SESSIONS, MAX_WORK_PATHS, WORK_EXPIRY_MS, type WorkState } from "./workState";
 import type { WorkRequest } from "../formats/types";
 const root = "/repo", path = ".doan/canvases/new.html";
-const start = (extra: Partial<WorkRequest> = {}): WorkRequest => ({ v: 3, token: "t", root, action: "start", path, ...extra });
+const start = (extra: Partial<{ root: string; path: string; session: string; provider: "claude" | "codex" }> = {}): WorkRequest => ({ v: 3, token: "t", root, action: "start", path, ...extra });
 const empty = (): WorkState => ({ roots: [root, "/other"], sessions: [] });
 test("starts form a set, repeat starts renew it, and done empties only that session", () => {
   let state = applyWork(empty(), start({ session: "one", provider: "codex" }), 1);
@@ -45,4 +45,23 @@ test("session and path caps drop excess starts while allowing renewal and done",
   expect(workItems(state).filter(item => item.session === "s0")).toHaveLength(128);
   state = applyWork(state, start({ session: "s0", provider: "codex" }), 300);
   expect(workItems(expireWork(state, 400, () => 0, 101))).toHaveLength(128);
+});
+
+test("an identified session spans roots, shares expiry, and done clears the whole set", () => {
+  const identity = { session: "one", provider: "codex" } as const;
+  let state = applyWork(empty(), start(identity), 0);
+  state = applyWork(state, start({ ...identity, root: "/other" }), 10);
+  expect(state.sessions).toHaveLength(1);
+  expect(workItems(expireWork(state, 100, (r) => r === root ? 50 : 0, 100))).toHaveLength(2);
+  expect(workItems(retainWorkRoots(state, ["/other"]))).toEqual([{ root: "/other", path, ...identity }]);
+  state = applyWork(state, { v: 3, token: "t", action: "done", root, ...identity }, 20);
+  expect(workItems(state)).toEqual([]);
+});
+test("the per-session path cap counts root and path pairs across roots", () => {
+  const identity = { session: "one", provider: "codex" } as const;
+  let state = empty();
+  for (let i = 0; i < MAX_WORK_PATHS; i++) state = applyWork(state, start({ ...identity, path: `.doan/canvases/${i}.html` }), 0);
+  state = applyWork(state, start({ ...identity, root: "/other" }), 1);
+  expect(workItems(state)).toHaveLength(MAX_WORK_PATHS);
+  expect(workItems(state).every(item => item.root === root)).toBe(true);
 });
