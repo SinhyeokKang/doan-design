@@ -1,6 +1,6 @@
 # project-settings — tasks
 
-- **선행 조건**: 시안 `buzz-project-settings`를 2026-11-03 결정에 맞게 고치고 사용자가 앱에서 확인한다. main에서 `/design-draft`로 하고 `/tdd`보다 먼저 한다. 고칠 내용은 다음과 같다.
+- **선행 조건**: 시안 `buzz-project-settings`를 2026-11-03 결정에 맞게 고치고 사용자가 앱에서 확인한다. main에서 `/design-draft`로 하고 `/tdd`보다 먼저 한다. 61d515e8에서 고쳤고, 사용자가 2026-11-03 chain-261103 시작 점검에서 확정했다. `/design-sync`는 이 리비전을 기준으로 한다. 고친 내용은 다음과 같다.
   - Back 활성
   - Not set up·CLI error 타일의 Show in Finder
   - 말줄임표 없는 라벨
