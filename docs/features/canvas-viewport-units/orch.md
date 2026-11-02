@@ -10,6 +10,7 @@
 - D1 (지휘자 판단 — tasks Z1): `buzz-project-settings`의 dvh 값은 900px 창 기준으로 계산한 px로 바꾼다. 화면 모양을 유지하는 최소 수정만 하고 다른 내용은 건드리지 않는다.
 - D2 (지휘자 판단 — design 'skills'): T3의 가이드 줄은 Go 배치(A)가, `loadingdone` 주입은 TS 배치(B)가 맡는다. 파일이 겹치지 않는다.
 - D3 (지휘자 판단 — AGENTS 'Workflow'): T6 `/verify --eval`과 Z1의 문서 승격(ARCHITECTURE·BACKLOG, 디렉터리 삭제)은 지휘자가 통합 HEAD에서 한다. 캔버스 수정은 배치 C가 한다.
+- D5 (사용자 결정, 배치 A 결과에서): `viewport_height_unit`은 캔버스 파일의 `<style>`·`style` 속성만 본다. 링크한 공유 스타일시트(앱 `ds/surfaces.css`의 `100dvh` 등)는 에이전트가 고칠 수 없는 제품 CSS라 경고하지 않는다. 가이드에 "링크한 CSS의 viewport 높이 단위는 캔버스에서 px로 덮어쓴다"를 더하고, `buzz-project-settings`의 `.doan-dialog[open]{max-height:none}`은 남긴다. spec·design·tasks에 반영했다.
 - D4 (지휘자 판단 — tasks T5): agent-eval은 `W1,W2`만 돌리고 새 시나리오는 두지 않는다.
 
 ## 배치

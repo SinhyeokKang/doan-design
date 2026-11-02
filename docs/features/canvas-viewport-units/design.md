@@ -13,9 +13,9 @@
   - 단위는 ASCII 대소문자를 가리지 않는다. 숫자 형식은 CSS dimension 토큰을 따른다(`.5vh`, `-10vh`, `1e2vh`).
   - 주석·문자열·`url()`·at-rule prelude는 스캐너가 이미 건너뛴다. 식별자(`--foo-vh`, `.vh-wrap`)는 dimension 토큰이 아니다.
   - 사용자 정의 속성 값(`--h: 100vh`)도 선언 값이므로 경고한다. 그 변수를 높이에 쓰면 같은 순환이 생긴다.
-- **보고**: `check.go`의 `scan` 안 `output`에 `viewport_height_unit`을 더한다. severity는 warning이고 `Value`에 토큰을 싣는다. 공유 스타일시트에서는 `hardcoded_color`처럼 파일·코드·값마다 한 번만 보고하고 `Canvas`를 비운다. `tokenCss` 파일 예외는 두지 않는다. 그 파일에 viewport 높이 단위가 있으면 그 파일을 링크한 모든 캔버스의 높이가 순환한다.
+- **보고**: `check.go`의 `scan` 안 `output`에 `viewport_height_unit`을 더한다. severity는 warning이고 `Value`에 토큰을 싣는다. 캔버스 파일의 스캔(`c.Styles`)에서만 보고하고, 캔버스가 닿는 공유 스타일시트(`Reach`)에서는 보고하지 않는다. 공유 스타일시트는 앱의 제품 CSS일 수 있어 에이전트가 고칠 수 없고, 경고가 고칠 방법 없이 계속 남는다(이 repo의 `app/src/renderer/ds/surfaces.css`가 다이얼로그에 `100dvh`를 쓰고 캔버스 약 10개가 링크한다).
 - **메시지**: `Viewport height unit "<value>" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead.`
-- **가이드**: `cli/internal/cli/skill.md`의 캔버스 규약에 한 줄을 더한다. "Do not use viewport height units (vh, dvh, svh, lvh, vb) in a canvas: in the app they resolve against the whole board. Write pixel values, also when copying app CSS that uses them; `doan check` warns with `viewport_height_unit`."
+- **가이드**: `cli/internal/cli/skill.md`의 캔버스 규약에 한 줄을 더한다. "Do not use viewport height units (vh, dvh, svh, lvh, vb) in a canvas: in the app they resolve against the whole board. Write pixel values, also when copying app CSS that uses them; `doan check` warns with `viewport_height_unit`. When a linked stylesheet uses them on something the canvas shows (an open dialog's `max-height`, say), override that property in the canvas with a pixel value."
 
 ## 폰트 적용 뒤 높이
 
@@ -47,7 +47,7 @@
 - **CLI(Go)**: `cli/internal/canvas/css.go`(스캔), `cli/internal/check/check.go`(규칙), `cli/internal/cli/skill.md`(가이드).
 - **app main**: `canvasScript.ts`의 `nextHeight`·`HeightState`, 주입 스크립트의 `loadingdone` 처리. `nextHeight` 위 주석(`min-height: 100vh` 설명)에 폰트 예외를 더한다.
 - **서버·썸네일·인스펙터**: 바뀌지 않는다.
-- **캔버스**: `buzz-project-settings`의 dvh 값을 px로 바꾸고 두 우회를 지운다(tasks Z1). 이 캔버스는 buzz-restyle C13의 초안이다. 같은 모양을 유지하는 최소 수정만 한다.
+- **캔버스**: `buzz-project-settings`의 캔버스 안 dvh 값을 px로 바꾸고 폰트 게이트를 지운다(tasks Z1). 링크한 `surfaces.css`를 덮어쓰는 `.doan-dialog[open]{max-height:none}`은 남긴다. 이 캔버스는 buzz-restyle C13의 초안이다. 같은 모양을 유지하는 최소 수정만 한다.
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
