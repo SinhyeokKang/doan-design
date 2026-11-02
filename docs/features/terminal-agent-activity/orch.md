@@ -1,0 +1,40 @@
+# terminal-agent-activity — orch
+
+- 계획: [spec](./spec.md) · [design](./design.md) · [tasks](./tasks.md)
+- 시작 hash: `20ea2c45` (main, PR #71 merge 포함)
+- 통합 브랜치: `feat/terminal-agent-activity`
+- 지휘: Claude Code (Opus). 모델 교차: 사용자가 이 세션에서 Codex를 허가했다. 구현은 Claude가 맡고, 독립 리뷰는 Codex `gpt-6-astra` medium, 절차가 많은 배치는 Codex `gpt-6.1-sol`이 맡는다. Codex를 쓴 곳은 배치 표의 모델 칸에 적는다.
+
+## 결정 로그
+
+- 권한(사용자, 인계 문서): PR을 main에 병합하는 것은 이 run에서 미리 허가되지 않았다. 병합 전에 사용자에게 묻는다.
+- 선행 조건 충족: canvas-viewport-units 배치 G가 main에 있다(PR #71, merge `20ea2c45`). `canvasNotice.ts`, `canvasSeen.ts`, `Slot` 합성, `projectSlot`이 main에 있다.
+- 사용자 승인(문서 작성 때): `doan work done [<canvas path>…]`의 경로는 `links`를 만드는 데만 쓴다. Go `canvasLink(root, path)`에는 frame 인자가 없고, 에이전트가 `&frame=`을 붙인다.
+- O1 (지휘자 판단 — tasks 'P'의 이유): "P1·P2는 `/tdd` 전에 끝낸다"는 문구와 초안이 UI 테스트에 들어가기 때문이다. 그래서 문구와 초안이 필요 없는 배치(S, A, B, C)는 P와 병렬로 시작한다. 문구를 쓰는 UI 배치 D는 사용자가 초안을 확인한 뒤 시작한다. C가 About에 더하는 결과 줄 문구는 C가 clarify 프리셋으로 정한다.
+- O2 (지휘자 판단 — 파일 겹침): `app/src/main/index.ts`·`app/src/preload/index.ts`는 B만, `app/src/renderer/App.tsx`는 D만 고친다. 그래서 deep link(T8b)를 main 쪽(B)과 renderer 쪽(D)으로 나눈다. `parseOpenLink`·링크 대기(T4c TS)는 main에서 쓰므로 B가 맡는다.
+- O3 (지휘자 판단 — 스키마 공유): 스키마·fixture·두 검증기(T1)와 open-link fixture(T1b)는 A·B가 함께 읽으므로 작은 배치 S로 먼저 끝내 통합한 뒤 A·B를 시작한다.
+- O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
+
+## 배치
+
+| 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
+|---|---|---|---|---|---|---|
+| P | P1 문구, P2 `/design-draft` | `docs/features/terminal-agent-activity/design.md` '표시'·'Deep link' 문구, `.doan/canvases/` 새 초안 파일 | 없음 | Claude Opus medium — 문구와 초안 상태 판단, 기존 초안 규약을 지켜야 한다 | `doan check --repo .`, `doan ls --repo .`, 지휘자 초안 리뷰, 사용자 확인 | 대기 |
+| S | T1, T1b | `schema/app-socket.v3.schema.json`, `schema/fixtures/app-socket-v3/`, `schema/fixtures/open-link/cases.json`, `schema/embed.go`(필요하면), `app/src/formats/validate.ts`·테스트, `cli/internal/formats/validate.go`·테스트 | 없음 | Claude Sonnet medium — v2를 따라 하는 기계적인 형식 추가 | `go test ./...`, `npm --prefix app test` | 대기 |
+| C | T4b, T7 | `app/src/main/agentSetup/`, About의 agent setup 결과 표시(필요한 곳만), 테스트 | 없음 | Claude Opus high — 사용자의 `~/.claude/settings.json`을 고치므로 틀리면 사용자 설정을 잃는다. 규칙 문자열을 문서로 확인해야 한다 | `npm --prefix app test`, typecheck | 대기 |
+| A | T2, T4c Go `canvasLink`, T5, T9 | `cli/internal/cli/work.go`(+새 Go 파일)·테스트, `cli/internal/cli/skill.md`·`skill_test.go`, CLI 명령 등록 파일 | S | Claude Opus medium — 경로 판정(심볼릭 링크)과 오류 대응 표, 가이드 문구가 agent-eval 결과를 정한다 | `go test ./...`, `go vet ./...` | 대기 |
+| B | T3, T4c TS `parseOpenLink`·링크 대기, T6, T8b main 쪽(`build.protocols`, `open-url`, 대기, 등록된 root·목록 확인, renderer로 보내기) | `app/src/main/` 새 활동 상태·deep link 모듈, `runtime.ts`, `index.ts`, `conversation/environment.ts`, `agentAuth/environment.ts`, `app/src/preload/index.ts`, `app/package.json` `build`, 테스트 | S | Claude Opus high — socket 인증 순서, 만료 타이머, 보안 경계(링크는 이동만)가 있다 | `npm --prefix app test`, typecheck, `npm --prefix app run package` 뒤 `Info.plist` `CFBundleURLTypes` | 대기 |
+| D | T4, T8, T8b renderer 쪽(링크 이동, 프레임 이동, 거절 안내) | `app/src/renderer/`(`App.tsx`, `ShellSidebar.tsx`, `homeConversations.ts`, `conversationList.ts`, `agentIndicator.ts`, `CanvasAgent.tsx`, `CanvasConversationPanel.tsx` 등)·테스트, `styles.css` 해당 부분 | B, P(사용자 확인) | Claude Opus high — 표시 우선순위 합성과 worktree 함정(POSTMORTEM 2026-11-01) | `npm --prefix app test`, typecheck | 대기 |
+| F | T10 `/agent-eval` | `eval/`(fake 앱 v3, `CheckContext.work()`, 새 시나리오·fixture·rubric), `docs/USABILITY-EVAL.md` | A, S | Codex gpt-6.1-sol high — 판단보다 절차(구현, self-test, 패키지, 실제 라운드)가 많다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS, 실제 라운드에서 Claude·Codex 통과 | 대기 |
+| G | T11 `/design-sync`, T12 `/runtime-test` | `docs/DESIGN.md`, 측정으로 생긴 UI 수정(소유 배치 D로 돌려보냄), `.scratch/` | B, C, D 통합 | Claude Opus medium — 실제 앱 격리 probe와 측정 판단 | 측정값·스크린샷·상태 로그 | 대기 |
+| R* | 배치별 리뷰(RS, RC, RA, RB, RD, RF) | 보고만 | 각 배치 | Codex gpt-6-astra medium — 교차 모델 독립 리뷰 | `/code-review` 보고 | 대기 |
+| 지휘자 | P 초안 리뷰, T13, Z1 문서 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `README.md`, 이 디렉터리 삭제 | 전부 | — | `verify.mjs --eval` 통과, `/doc-check` | 대기 |
+
+## 겹침과 순서
+
+- 1파: P, S, C를 병렬로 시작한다. 셋은 파일이 겹치지 않는다(P는 문서·초안, S는 스키마·검증기, C는 agentSetup).
+- 2파: S를 통합한 뒤 A(Go)와 B(app main)를 병렬로 시작한다. 파일이 겹치지 않는다.
+- 3파: B 통합과 사용자의 초안 확인 뒤 D를 시작한다. A 통합 뒤 F를 시작한다.
+- 4파: B·C·D 통합 뒤 G가 GUI probe를 돈다. F의 실제 라운드는 GUI를 쓰지 않으므로 G와 겹쳐도 된다.
+- F 라운드에서 가이드를 고쳐야 하면 A가 고친다(`skill.md`는 A 소유).
+- tasks 항목 대응: P1·P2→P, T1·T1b→S, T2→A, T3→B, T4→D, T4b→C, T4c→A(Go)+B(TS), T5→A, T6→B, T7→C, T8→D, T8b→B(main)+D(renderer), T9→A, T10→F, T11·T12→G, T13·Z1→지휘자.
