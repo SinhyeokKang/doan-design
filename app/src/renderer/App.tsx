@@ -516,10 +516,13 @@ export function App() {
     if (conversationId) live.current.openCanvasConversation(root, row, conversationId, trigger);
     else live.current.openShellCanvas(root, row);
   }
+  // The conversation slots with the terminal sessions' spinners over them, as the sidebar shows them.
+  const shownSlots = () => withTerminalSlots(homeRun.current.slots(), work, entriesRef.current);
   // A sidebar canvas row: its slot decides whether the panel unfolds (design §2 'Opening the panel'). A row that needs an
   // answer or has an unseen ending shows the canvas's current conversation; working or no mark keeps the panel as is.
+  // The slot is the one the row shows, so a terminal spinner over an unseen ending keeps the panel.
   function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number) {
-    const slot = homeRun.current.slots().get(canvasSlotKey(root, row.path)) ?? null;
+    const slot = shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
     const open = panelOpenFor({ kind: "sidebarRow" }, slot?.kind ?? null);
     const list = homeRun.current.listState(root);
     const target = { path: row.path, ...(row.id ? { id: row.id } : {}) };
@@ -590,9 +593,17 @@ export function App() {
         setShellProjects(previous => { const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }; return { ...previous, [key]: { ...memory, expanded: !memory.expanded } }; });
       return;
     }
+    const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);
+    // A terminal slot stands for the canvas its session works on: the row opens it before its own move, which would
+    // re-enter the loaded project's last canvas or fold an expanded project (terminal-agent-activity design '표시').
+    if (notice && shownSlots().get(canvasSlotKey(notice.root, notice.path))?.source === "terminal") {
+      if (!loaded) { cancelRestore(); controller.current?.cancelWorkspaceOpen(); }
+      openNotice(notice, loaded ? undefined : () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } })));
+      return;
+    }
     // Home and the Add Projects page show the sidebar without a current project; its row goes back to the loaded
     // workspace (design §3).
-    if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) {
+    if (loaded) {
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
       else if (notice) openNotice(notice);
