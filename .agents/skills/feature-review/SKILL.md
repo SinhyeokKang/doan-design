@@ -9,7 +9,7 @@ Reviewer agents for four perspectives each look separately at `spec.md`, `design
 
 - `/feature-review <slug>` — all four perspectives.
 - `/feature-review <slug> <role...>` — only the named perspectives. Keywords: `product`, `tech`, `qa`, `uxui`.
-- `/feature-review` — the most recently edited feature slug under `docs/features/` (not an `audit-*` or `ux-audit-*` report directory), all four perspectives.
+- `/feature-review` — the most recently edited feature slug under `docs/features/` (not an `audit-*` or `ux-audit-*` report directory or a `chain-*` chain directory), all four perspectives.
 
 ## Perspectives
 
