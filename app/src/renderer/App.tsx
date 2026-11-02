@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
 import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectsTab, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
@@ -936,11 +937,18 @@ export function App() {
   }
   // A doan:// link (terminal-agent-activity design 'Deep link'): Quick Open's move. A frame moves the view as Quick Open's
   // frame does, without selection; a frame not in the canvas leaves the canvas only, with no toast. A refused link
-  // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move. Like a
-  // notification's click, a link landing on a locked page or an open dialog goes nowhere.
+  // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move. A link
+  // landing on a locked page goes nowhere. A link only ever comes from a person's click, so an open dialog is dismissed
+  // first through its own cancel event, the path Escape and Cancel take; one that refuses (it is busy) keeps the link.
   function openLink(result: OpenLinkResult) {
     if (result.kind !== "navigate") { live.current.toast.show(openLinkRefusal(result)); return; }
-    if (locked() || live.current.modal) return;
+    if (locked()) return;
+    const dialog = topDialog();
+    if (dialog) {
+      // Synchronous, so the dialog's close has rendered before the check below.
+      flushSync(() => { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); });
+      if (topDialog()) return;
+    }
     cancelRestore();
     const target = entriesRef.current.find(entry => entry.path === result.root);
     const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.canvas) : undefined;
@@ -1283,6 +1291,12 @@ export function App() {
       else restoreFocus.current = true;
     }} />}
   </TooltipProvider>;
+}
+
+// The dialog on top, the one Escape would answer.
+function topDialog(): HTMLDialogElement | null {
+  const open = document.querySelectorAll<HTMLDialogElement>("dialog[open]");
+  return open[open.length - 1] ?? null;
 }
 
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
