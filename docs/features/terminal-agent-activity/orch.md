@@ -19,6 +19,8 @@
 - D1 (사용자 결정, 초안 확인 중): 터미널 notice는 앱 대화와 같은 "Agent is working"을 쓰고 Stop만 보이지 않는다. 문구가 바뀌는 전환은 없다. P 수정 라운드 1이 design.md와 초안을 고친다.
 - D2 (사용자 결정, 초안 확인 중): 캔버스 선택 힌트(`.doan-agent.doan-picking`, 지금 36px)도 agent notice와 같은 40px(`--size-control`) 높이로 맞춘다. 초안은 P 수정 라운드 2, 앱은 D가 맡고, G의 `/design-sync`가 잰다.
 - D3 (사용자 결정): 초안의 나머지(사이드바 접근 이름, 비활성 이유 줄과 그 자리, 거절 토스트 셋, 비활성 카드 색)를 확정했다. P 수정 라운드 2를 지휘자가 확인하면 초안 확정이다.
+- O8 (지휘자 판단 — design '명령' "이 세션의 집합을 모두 비운다", B의 질문): 식별된 세션은 root와 상관없이 `provider:id` 하나의 집합이다. 어느 root에서 온 `done`이든 모든 root의 경로를 비운다. 익명 세션은 root마다 하나이고 그 root만 비운다. 만료는 세션 단위(마지막 `start`와 집합 안 경로의 파일 변경 중 늦은 것)이고, 세션 상한은 식별 세션과 root별 익명 세션을 함께 센다. 경로 상한은 (root, path) 쌍을 센다.
+- D4 (사용자 결정, 오케스트레이션 중 추가 요청): 추천 프롬프트 버튼 크기를 다시 작은 크기(`data-ui-size="sm"`)로 되돌린다. 문구는 지금 것을 유지한다. 배치 H가 앱·초안 4개·DESIGN.md를 고친다. D는 H 통합 뒤 `CanvasConversationPanel.tsx`를 고친다.
 - O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
 
 ## 배치
@@ -33,6 +35,7 @@
 | D | T4, T8, T8b renderer 쪽(링크 이동, 프레임 이동, 거절 안내) | `app/src/renderer/`(`App.tsx`, `ShellSidebar.tsx`, `homeConversations.ts`, `conversationList.ts`, `agentIndicator.ts`, `CanvasAgent.tsx`, `CanvasConversationPanel.tsx` 등)·테스트, `styles.css` 해당 부분 | B, P(사용자 확인) | Claude Opus high — 표시 우선순위 합성과 worktree 함정(POSTMORTEM 2026-11-01) | `npm --prefix app test`, typecheck | 대기 |
 | F | T10 `/agent-eval` | `eval/`(fake 앱 v3, `CheckContext.work()`, 새 시나리오·fixture·rubric), `docs/USABILITY-EVAL.md` | A, S | Codex gpt-6.1-sol high — 판단보다 절차(구현, self-test, 패키지, 실제 라운드)가 많다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS, 실제 라운드에서 Claude·Codex 통과 | 대기 |
 | G | T11 `/design-sync`, T12 `/runtime-test` | `docs/DESIGN.md`, 측정으로 생긴 UI 수정(소유 배치 D로 돌려보냄), `.scratch/` | B, C, D 통합 | Claude Opus medium — 실제 앱 격리 probe와 측정 판단 | 측정값·스크린샷·상태 로그 | 대기 |
+| H | D4 추천 프롬프트 작은 크기로 되돌리기 | `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`의 `.suggestion`, 관련 테스트, 초안 4개(buzz-home·buzz-project·buzz-canvas-conversation·doan-mascot), `docs/DESIGN.md` 해당 행 | 없음 | Claude Sonnet medium — 속성 하나를 되돌리는 기계적인 수정 | `npm --prefix app test`, typecheck, `doan check --repo .` | 진행 중 |
 | R* | 배치별 리뷰(RS, RC, RA, RB, RD, RF) | 보고만 | 각 배치 | 교차 모델 독립 리뷰: Claude가 구현한 배치(P·S·C·D)는 Codex gpt-6-astra medium, Codex가 구현한 배치(A·B·F)는 Claude Sonnet high | `/code-review` 보고 | 대기 |
 | 지휘자 | P 초안 리뷰, T13, Z1 문서 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `README.md`, 이 디렉터리 삭제 | 전부 | — | `verify.mjs --eval` 통과, `/doc-check` | 대기 |
 
