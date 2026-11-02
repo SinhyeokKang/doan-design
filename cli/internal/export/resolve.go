@@ -25,6 +25,8 @@ const (
 	ReasonUseID        = "fragment not in the SVG file"
 	ReasonUseCollision = "SVG file id already in the canvas"
 	ReasonUseType      = "use target is not an SVG file"
+	// A <style> in a copied SVG file would apply to the whole canvas.
+	ReasonUseStyle = "SVG file has a style element"
 )
 
 type assetState int

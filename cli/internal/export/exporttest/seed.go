@@ -40,7 +40,7 @@ var (
 	HeroPNG   = []byte("\x89PNG\r\n\x1a\nhero-image")
 	LogoPNG   = []byte("\x89PNG\r\n\x1a\nlogo-image")
 	BrandFont = []byte("wOF2brand-font\x00\x01")
-	SpriteSVG = `<svg xmlns="http://www.w3.org/2000/svg"><style>.s{fill:#000}</style><symbol id="icon"><path d="M0 0h10v10z"/></symbol></svg>`
+	SpriteSVG = `<svg xmlns="http://www.w3.org/2000/svg"><symbol id="icon"><path d="M0 0h10v10z" style="fill:#000"/></symbol></svg>`
 	DotSVG    = `<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><circle cx="2" cy="2" r="2" fill="#3366ff"/></svg>`
 	AppJS     = "document.body.dataset.ready = \"100% #1\";\n"
 )

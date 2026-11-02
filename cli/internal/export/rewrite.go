@@ -208,14 +208,21 @@ func rewriteHTML(src []byte, url func(kind refKind, href string) (string, bool),
 // rewriteHTMLBody is rewriteHTML that also returns the output offset of the
 // first </body> outside <template>, or -1 when there is none.
 func rewriteHTMLBody(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string) ([]byte, int) {
-	z := html.NewTokenizer(bytes.NewReader(src))
+	return rewriteMarkup(src, url, css, false)
+}
+
+// rewriteMarkup is rewriteHTMLBody for an HTML document, or with foreign set
+// for SVG markup placed inside an <svg> element, where the parser starts no
+// raw text (<title>, <script>, <style> hold elements) and reads CDATA.
+func rewriteMarkup(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string, foreign bool) ([]byte, int) {
+	z := newTokenizer(src, foreign)
 	bodyEnd := -1
 	var out bytes.Buffer
 	out.Grow(len(src))
 	template := 0
 	style := false
 	for {
-		tt := z.Next()
+		tt := nextToken(z, foreign)
 		// Token() lowercases and unescapes inside the buffer Raw() shares.
 		raw := append([]byte(nil), z.Raw()...)
 		inStyle := style
@@ -246,7 +253,7 @@ func rewriteHTMLBody(src []byte, url func(kind refKind, href string) (string, bo
 				continue
 			}
 			// The parser ignores the self-closing flag: <style/> starts raw text too.
-			style = tok.Data == "style"
+			style = tok.Data == "style" && !foreign
 			if tag, ok := rewriteTag(tok, url, css); ok {
 				out.WriteString(tag)
 			} else {
@@ -314,4 +321,18 @@ func rewriteTag(tok html.Token, url func(refKind, string) (string, bool), css fu
 	}
 	b.WriteByte('>')
 	return b.String(), true
+}
+
+func newTokenizer(src []byte, foreign bool) *html.Tokenizer {
+	z := html.NewTokenizer(bytes.NewReader(src))
+	z.AllowCDATA(foreign)
+	return z
+}
+
+func nextToken(z *html.Tokenizer, foreign bool) html.TokenType {
+	tt := z.Next()
+	if foreign && (tt == html.StartTagToken || tt == html.SelfClosingTagToken) {
+		z.NextIsNotRawText()
+	}
+	return tt
 }
