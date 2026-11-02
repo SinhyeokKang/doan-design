@@ -199,6 +199,6 @@ test("portalled floating surfaces stack above the Overview", () => {
   const layer = rule(surfaces, "[data-radix-popper-content-wrapper] > .doan-floating");
   expect(layer).not.toBeNull();
   const z = (text: string | null) => Number(/z-index:\s*(\d+)/.exec(text ?? "")?.[1] ?? NaN);
-  const overview = /\.ov \{[^}]*\}/.exec(read("../styles.css"))![0];
+  const overview = /^\.ov \{[^}]*\}/m.exec(read("../styles.css"))![0];
   expect(z(layer)).toBeGreaterThan(z(overview));
 });
