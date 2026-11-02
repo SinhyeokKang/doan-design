@@ -46,18 +46,29 @@ test("the / list highlights the row under the pointer", () => {
   expect(highlighted).toEqual([1]);
 });
 
-test("a popover preset row takes focus from the pointer", () => {
+// The popover opens with focus in its search box. Moving the pointer over rows must not take that focus (typed letters and
+// Space would go to a row); only once focus is on a row does the pointer carry it, like the frame list.
+test("a popover preset row takes focus from the pointer only when focus is already in the list", () => {
   const row = (id: string) => ({ id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
   const view = { kind: "list" as const, tabs: [], summary: "2 presets", sections: [{ title: null, rows: [row("a"), row("b")] }] };
   const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {} }) as ReactElement<Record<string, unknown>>;
   const rows = optionRows(list.props.children as ReactNode);
   const second = (rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props);
+  const move = second.props.onPointerMove as (event: unknown) => void;
+  const search = {}, first = {};
   const focused: unknown[] = [];
-  const node = { ownerDocument: { activeElement: null }, focus: (options: unknown) => focused.push(options) };
-  (second.props.onPointerMove as (event: unknown) => void)({ currentTarget: node });
-  expect(focused).toEqual([{ preventScroll: true }]);
-  // Already focused, as after the arrow keys: nothing to do.
-  node.ownerDocument.activeElement = node as never;
-  (second.props.onPointerMove as (event: unknown) => void)({ currentTarget: node });
+  const listbox = { contains: (node: unknown) => node === first || node === node2 };
+  const node2 = { ownerDocument: { activeElement: search as unknown }, closest: (selector: string) => selector === '[role="listbox"]' ? listbox : null, focus: (options: unknown) => focused.push(options) };
+
+  // Focus in the search box: no focus() call.
+  move({ currentTarget: node2 });
+  expect(focused).toEqual([]);
+  // Focus on another row of the list (after ArrowDown): the pointer carries it, without the keyboard ring.
+  node2.ownerDocument.activeElement = first;
+  move({ currentTarget: node2 });
+  expect(focused).toEqual([{ preventScroll: true, focusVisible: false }]);
+  // Already on this row: nothing to do.
+  node2.ownerDocument.activeElement = node2;
+  move({ currentTarget: node2 });
   expect(focused).toHaveLength(1);
 });

@@ -1,4 +1,4 @@
-import { forwardRef, Fragment, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { forwardRef, Fragment, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -172,11 +172,19 @@ export function tabKey(keys: readonly string[], current: string, key: string): s
 
 type PresetView = ReturnType<typeof presetListView>;
 interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string): void; onRetry(): void; onTab?(key: string): void }
+// Once focus is on a row of the list (arrow keys), the pointer carries it along as in the frame list. With focus elsewhere
+// (the popover opens in the search box) a row only fills on hover (ds/surfaces.css), so typing and Space keep their target.
+// focusVisible: false keeps a pointer-moved focus from drawing the keyboard ring.
+function pointerFocus(event: PointerEvent<HTMLElement>) {
+  const row = event.currentTarget;
+  const active = row.ownerDocument.activeElement;
+  if (active !== row && row.closest('[role="listbox"]')?.contains(active)) row.focus({ preventScroll: true, focusVisible: false } as FocusOptions);
+}
 function PresetOption({ row, index, slash, options }: { row: PresetRow; index: number; slash: boolean; options: PresetBodyOptions & { rows: number } }) {
   const focusRow = (at: number) => document.getElementById(`${options.listId}-p-${at}`)?.focus();
   return <div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
     tabIndex={slash ? undefined : -1} title={row.tooltip} data-highlighted={slash && index === options.highlight ? "" : undefined}
-    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={event => { if (slash) options.onHighlight?.(index); else if (event.currentTarget.ownerDocument.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }} onClick={() => options.onChoose(row.id)}
+    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={slash ? () => options.onHighlight?.(index) : pointerFocus} onClick={() => options.onChoose(row.id)}
     onKeyDown={slash ? undefined : event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
       else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id); }

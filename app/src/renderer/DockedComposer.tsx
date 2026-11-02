@@ -151,7 +151,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const refusal = held && (!held.draft || sameDraft(held.draft, draft)) ? held.refusal : null;
   const dismissed = dismissedKey === key;
   const highlight = highlightAt.key === key ? highlightAt.index : 0;
-  const setHighlight = (index: number) => setHighlightAt({ key, index });
+  const setHighlight = (index: number) => setHighlightAt(at => at.key === key && at.index === index ? at : { key, index });
   // Chips the host added (Attach, paste, drop) make a box as typing does (design §3.2); the drawn shape follows the
   // rule at once and the stored one catches up below.
   const text = plainText(draft.segments);
