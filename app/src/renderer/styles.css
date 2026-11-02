@@ -1067,8 +1067,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-canvas-top > * { pointer-events: auto; }
 .doan-canvas-top > .doan-agent { align-self: center; }
 /* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
-   primitive. The wording gives way first; the button keeps its size. */
-.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+   primitive. The wording gives way first; the button keeps its size. Every capsule in the column takes the app notice's
+   height (4 + 32 + 4): the picking hint ends in a key and the terminal notice has no button (terminal-agent-activity
+   user decision D2, draft terminal-notice). */
+.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--size-control); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
 .doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
    white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
