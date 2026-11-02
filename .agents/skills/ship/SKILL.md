@@ -25,8 +25,8 @@ Conducts one small, surgical change in the order **`/tdd` → commit → `/imple
 1. **`/tdd`** — gate: red confirmed (or a one-line reason it is a skip target). If unexpectedly green, stop.
 2. **Commit #0 `test:`** — tests and fixtures only. Committing in a red state is normal. Skip only when `/tdd` created no files.
 3. **`/implement`** — gate: all tests green + type check passes + 🔴/🟡 resolved. Collect the flags (format, docs, postmortem candidate).
-4. **Commit #1 `feat:`/`fix:`** — implementation only.
-5. **`/code-review`** — run the AGENTS-required `/runtime-test` first when `app/` changed; it must pass before review. Review itself has no gate. Pass findings to 6. If there is even one 🔴, 6 cannot be skipped. If 6 changes app code, repeat the affected runtime verification before accepting the revised review.
+4. **Commit #1** — implementation only, typed by the change (`feat:`, `fix:`, `refactor:`, `chore:`, `docs:`); the branch's `<type>` is this commit's type.
+5. **`/code-review`** — run the AGENTS-required `/runtime-test` first when app behavior changed; it must pass before review. Review itself has no gate. Pass findings to 6. If there is even one 🔴, 6 cannot be skipped. If 6 changes app code, repeat the affected runtime verification before accepting the revised review.
 6. **`/refactor`** — skip if there are 0 findings or only ⚪. Stop if a stop condition hits (expected value, format, CLI contract, conventions change). Do not move on with 🔴 remaining.
 7. **Commit #2 `refactor:`** — only if 6 changed code.
 8. **`/postmortem`** [gated] — only if commit #1 is `fix:` or there is a postmortem candidate. If it changed something, commit with `docs(postmortem):`.
