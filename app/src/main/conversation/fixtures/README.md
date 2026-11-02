@@ -54,6 +54,11 @@ are judged only by the new-session handshake shape at run time.
 `newDesign` entry carries the optional `model`, `effort` and `canvasesAtStart`
 fields; the version stays 2.
 
+`acp-cursor.json` and `acp-copilot.json` are ACP traffic recorded by the B3
+exploration probe on 2026-10-28 (each file's `source` field).
+`fake-acp-server.cjs` replays one of them for `acpRunner.test.ts`; its header
+lists the test-only `FAKE_ACP` modes.
+
 On 2026-10-29 (buzz-home) `fake-acp-server.cjs` gained `FAKE_ACP_MODELS`, a
 `models` member for session/new and session/load in the shape the P1 PoC
 recorded (`{currentModelId, availableModels: [{modelId, name}]}`), an answer to
