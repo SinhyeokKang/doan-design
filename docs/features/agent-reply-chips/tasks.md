@@ -2,7 +2,7 @@
 
 ## D. 드래프트
 
-- [ ] D1. `/design-draft`: 에이전트 답의 인라인 칩(Markdown 문단·목록·표 안), ` · <캔버스 이름>`이 붙은 칩, 답 블록 아래의 "No longer in the canvas", 비활성 칩, 평문으로 남은 형식 오류 링크를 새 draft `.doan/canvases/agent-reply-chips.html`에 그린다(프레임과 문구는 design.md '초안 요청'). 토스트 문구(`"missing"`·`"duplicate"`)는 clarify preset을 읽고 정한다.
+- [x] D1. `/design-draft`: 에이전트 답의 인라인 칩(Markdown 문단·목록·표 안), ` · <캔버스 이름>`이 붙은 칩, 답 블록 아래의 "No longer in the canvas", 비활성 칩, 평문으로 남은 형식 오류 링크를 새 draft `.doan/canvases/agent-reply-chips.html`에 그린다(프레임과 문구는 design.md '초안 요청'). 토스트 문구(`"missing"`·`"duplicate"`)는 clarify preset을 읽고 정한다. 사용자가 2026-11-03 chain-261103 시작 점검에서 확정했다(캔버스 이름은 잘리지 않음, 레이아웃이 없을 때 목록 행의 프레임 제목, 칩 전용 목록 읽는 중 문구).
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .` 통과, 사용자가 앱에서 draft를 확인한다.
 
 ## T. 순수 함수와 locate 기반 (`/tdd` → `/implement`)
@@ -19,9 +19,9 @@
 ## S. 렌더링과 이동
 
 - [ ] T3. `ConversationThread.tsx`: `replyUrlTransform`, `a` 컴포넌트, `ReplyChip`(SentChip 모양과 not-found 안내 재사용), `Actions` context 확장.
-  - 검증: `npm --prefix app test` green. `ConversationThread.test.tsx`와 `ConversationThread.locate.test.tsx`에 케이스: 칩·평문·https; 코드 스팬·코드 블록 안 링크는 칩이 아니다; `<doan:…>` autolink; 한글·공백 id(퍼센트 인코딩)가 칩이 된다; `doan:` href의 `<a>`가 없다; `doan://open` 링크는 평문; 같은 캔버스 칩 이름은 열린 캔버스 프레임 제목, 다른 캔버스 칩은 목록 행의 제목과 ` · <캔버스 이름>`(열린 캔버스에 같은 frame id가 있어도 빌리지 않는다); 접근성 이름 두 가지; 같은 캔버스 칩만 `locateDisabled`를 따른다; 같은 캔버스 missing 안내가 답 블록 아래에 뜬다; 링크 텍스트가 이름에 쓰이지 않는다.
+  - 검증: `npm --prefix app test` green. `ConversationThread.test.tsx`와 `ConversationThread.locate.test.tsx`에 케이스: 칩·평문·https; 코드 스팬·코드 블록 안 링크는 칩이 아니다; `<doan:…>` autolink; 한글·공백 id(퍼센트 인코딩)가 칩이 된다; `doan:` href의 `<a>`가 없다; `doan://open` 링크는 평문; 같은 캔버스 칩 이름은 열린 캔버스 프레임 제목, 다른 캔버스 칩은 목록 행의 제목과 ` · <캔버스 이름>`(열린 캔버스에 같은 frame id가 있어도 빌리지 않는다), 이름과 캔버스 이름은 따로 그려 이름만 말줄임된다; 열린 캔버스에 레이아웃이 없으면 같은 캔버스 칩 이름은 목록 행의 프레임 제목이다; 접근성 이름 두 가지; 같은 캔버스 칩만 `locateDisabled`를 따른다; 같은 캔버스 missing 안내가 답 블록 아래에 뜬다; 링크 텍스트가 이름에 쓰이지 않는다.
 - [ ] T4. `CanvasController.ts`·`App.tsx`·`CanvasConversationPanel.tsx`·`ProjectOverview.tsx`: `openCanvas`의 `{ frame } | { element }` 대상과 `pendingLocate`, `onReplyChip` 연결(Quick Open `pick` 경로), 토스트.
-  - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과. 케이스: 다른 캔버스를 열면 방문 기록이 하나 늘고 같은 캔버스 locate는 늘지 않는다(Back/Forward); 요소 대상은 첫 레이아웃 뒤 locate된다; 대상이 없으면 토스트 없이 캔버스만 열린다; 로드 실패는 `unavailableCanvasMessage`; B를 여는 중 C 칩을 누르면 B의 대기 locate를 버린다; 이동 중 대화를 바꾸면 대기 locate를 버린다; 두 root가 같은 캔버스 id를 가질 때 다른 root의 대기 locate를 쓰지 않는다; Overview에서 연다; locked 페이지에서는 아무것도 하지 않는다; missing·duplicate·unavailable은 토스트 한 번. 구현 뒤 POSTMORTEM 2026-10-27 'Shell navigation shortcuts…' 항목의 `rg`를 돌린다.
+  - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과. 케이스: 다른 캔버스를 열면 방문 기록이 하나 늘고 같은 캔버스 locate는 늘지 않는다(Back/Forward); 요소 대상은 첫 레이아웃 뒤 locate된다; 대상이 없으면 토스트 없이 캔버스만 열린다; 로드 실패는 `unavailableCanvasMessage`; B를 여는 중 C 칩을 누르면 B의 대기 locate를 버린다; 이동 중 대화를 바꾸면 대기 locate를 버린다; 두 root가 같은 캔버스 id를 가질 때 다른 root의 대기 locate를 쓰지 않는다; Overview에서 연다; locked 페이지에서는 아무것도 하지 않는다; missing·duplicate·unavailable은 토스트 한 번, 목록을 읽는 중인 칩은 "Project is still being read. Try again shortly."(Quick Open 문구는 그대로). 구현 뒤 POSTMORTEM 2026-10-27 'Shell navigation shortcuts…' 항목의 `rg`를 돌린다.
 
 ── commit: `feat(thread): agent replies draw anchor chips` ──
 

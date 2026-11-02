@@ -25,8 +25,8 @@
 - `COMPONENTS.a`: href가 `doan:`이면 `parseReplyAnchor(href)`로 읽는다. 결과가 있으면 `ReplyChip`, 없으면 자식(링크 글자)만 평문으로 그린다. `doan:` href를 가진 `<a>`는 렌더하지 않는다. `https:`는 지금의 `Link` 그대로다. 코드 스팬·코드 블록은 Markdown이 링크로 읽지 않으므로 칩이 되지 않는다.
 - `COMPONENTS`는 모듈 상수이고 `MarkdownText`는 memo된다. 그래서 콜백, 열린 캔버스, 캔버스 목록, 비활성 여부는 기존 `Actions` context를 넓혀 전달한다.
 - `ReplyChip`은 `SentChip`의 모양과 locate 안내를 재사용한다.
-  - 이름: `chipLabel`에 그 칩이 가리키는 캔버스의 프레임 목록을 넘긴다. 같은 캔버스가 열려 보이면 열린 캔버스의 프레임(`state.layout.frames`), 아니면 같은 root 목록 행의 `CanvasRow.frames`(`app/src/main/view.ts`)를 쓴다. 행을 찾지 못하면 빈 목록을 넘겨 id를 보인다.
-  - 열린 캔버스가 아닌 칩은 보이는 이름 뒤에 ` · <canvasLabel(row)>`를 붙인다(행이 없으면 캔버스 id). 접근성 이름은 `Open <canvas> and show <label>`, 같은 캔버스 칩은 지금처럼 `Show <label> on canvas`다.
+  - 이름: `chipLabel`에 그 칩이 가리키는 캔버스의 프레임 목록을 넘긴다. 같은 캔버스가 열려 보이면 열린 캔버스의 프레임(`state.layout.frames`), 아니면 같은 root 목록 행의 `CanvasRow.frames`(`app/src/main/view.ts`)를 쓴다. 열린 캔버스에 레이아웃이 없으면(로드 중·로드 실패 등) 같은 캔버스 칩도 목록 행의 프레임을 쓴다. 그래서 비활성 칩도 `editor`가 아니라 `Editor`로 보인다(사용자 결정, 2026-11-03 chain-261103 시작 점검). 행을 찾지 못하면 빈 목록을 넘겨 id를 보인다.
+  - 열린 캔버스가 아닌 칩은 보이는 이름 뒤에 ` · <canvasLabel(row)>`를 붙인다(행이 없으면 캔버스 id). 이름과 캔버스 이름은 따로 그린다. 칩이 180px를 넘으면 앞의 이름만 말줄임되고 ` · <캔버스 이름>`은 잘리지 않는다(사용자 결정, 2026-11-03 chain-261103 시작 점검). 접근성 이름은 `Open <canvas> and show <label>`, 같은 캔버스 칩은 지금처럼 `Show <label> on canvas`다.
   - 비활성: 같은 캔버스 칩만 사람 칩의 `locateDisabled`를 따른다. 다른 캔버스 칩은 늘 누를 수 있다.
   - "No longer in the canvas"는 같은 캔버스에서만 뜨고, 그 에이전트 답 블록 바로 아래에 `role=status`와 `aria-describedby`로 놓인다(사람 메시지는 말풍선 아래). 시간 규칙은 `useLocateNote`와 같다.
   - 키보드: `button`이므로 Enter·Space와 DESIGN 'Focus'의 포커스 링을 그대로 쓴다. Cmd-click은 일반 클릭과 같다.
@@ -45,7 +45,7 @@
 - 스레드 콜백 `onLocate(anchor)`(캔버스 패널만)를 `onReplyChip(link)`로 넓히고, App이 결과에 따라 처리한다.
   - `"locate"`: 지금의 `locateChip`. 요소는 `{ id, doanId }`만 보내고 selector는 보내지 않는다(T0).
   - `{ open }`: Quick Open의 `pick`과 deep link 처리가 쓰는 경로 하나로 연다(`App.tsx` `pick`: `locked()`, `cancelRestore()`, `controller.openCanvas(root, row, target, { unavailable, opened: () => completeNavigation(root) })`). 이 경로가 방문 기록과 마지막 캔버스 저장을 처리한다. 프레임은 `selectFrame`이 아닌 이동만 쓴다. 대상을 찾지 못하면 deep link처럼 아무것도 띄우지 않는다.
-  - `"missing"`·`"duplicate"`·`"unavailable"`: 이동하지 않고 토스트를 한 번 띄운다. `"unavailable"`은 기존 `unavailableCanvasMessage`(`quickOpen.ts`)를 쓴다. `"missing"`과 `"duplicate"`는 deep link의 `Couldn’t open …` + 이유 형식을 따르고, `"duplicate"`는 `doan check`를 안내한다. 문구는 D1에서 clarify preset을 읽고 정했다(아래 '초안 요청'). 사용자가 초안을 확정하기 전까지는 바뀔 수 있다.
+  - `"missing"`·`"duplicate"`·`"unavailable"`: 이동하지 않고 토스트를 한 번 띄운다. `"unavailable"`은 기존 `unavailableCanvasMessage`(`quickOpen.ts`)를 쓴다. 다만 목록을 읽는 중일 때 칩은 "Project is still being read. Try again shortly."를 쓴다. 칩에는 다시 누를 Open이 없기 때문이다. Quick Open은 지금 문구("Try Open again shortly.")를 그대로 쓴다(사용자 결정, 2026-11-03 chain-261103 시작 점검). `"missing"`과 `"duplicate"`는 deep link의 `Couldn’t open …` + 이유 형식을 따르고, `"duplicate"`는 `doan check`를 안내한다. 문구는 D1에서 clarify preset을 읽고 정했다(아래 '초안 요청').
 - `CanvasController.openCanvas`는 지금 프레임 id만 받는다. 이를 `{ frame } | { element }` 대상으로 넓힌다. 요소는 `pendingFrame`과 같은 수명 주기의 `pendingLocate`로 첫 레이아웃 뒤에 locate한다. fresh load, 너비 없음, drop에서 지우고, 첫 레이아웃 전에 다른 곳으로 이동하면 버린다. 칩을 연달아 누르면 마지막 요청만 남는다.
 - Overview(`ProjectOverview.tsx`)의 스레드도 같은 콜백을 받는다. 사람 메시지의 칩은 이번 범위가 아니다(Overview에서는 지금처럼 누를 수 없는 칩이다).
 
@@ -54,17 +54,18 @@
 - 경로·id: `.doan/canvases/agent-reply-chips.html`, `agent-reply-chips`. 새 파일이고 `buzz-canvas-conversation.html`·`buzz-project.html`은 고치지 않는다.
 - 프레임:
   - `panel-chips`: 캔버스 패널, Drafts가 열려 보인다. 답의 문단·목록·표 안 칩과, 그 위 사람 메시지의 칩.
-  - `panel-other-canvas`: 다른 캔버스(Checkout) 칩의 ` · Checkout`과 접근성 이름, 180px에서 말줄임되는 긴 이름.
+  - `panel-other-canvas`: 다른 캔버스(Checkout) 칩의 ` · Checkout`과 접근성 이름, 긴 이름은 앞의 이름만 말줄임되고 ` · Checkout`은 남는다.
   - `panel-missing`: 같은 캔버스 칩의 대상이 없을 때 답 블록 아래의 "No longer in the canvas".
-  - `panel-disabled`: 캔버스 로드 실패. 같은 캔버스 칩은 `aria-disabled`이고, 다른 캔버스 칩은 누를 수 있다.
+  - `panel-disabled`: 캔버스 로드 실패. 같은 캔버스 칩은 `aria-disabled`이고 목록 행의 프레임 제목(`Editor`)으로 보인다. 다른 캔버스 칩은 누를 수 있다.
   - `panel-plain`: 형식 오류 `doan:` 링크와 규칙 J 링크는 평문, `https:` 링크는 링크, 코드 스팬은 코드다.
   - `overview-chips`: Overview의 프로젝트 대화. 모든 칩에 캔버스 이름이 붙는다.
-  - `toasts`: missing·duplicate 새 문구와 unavailable 두 가지(기존 문구).
+  - `toasts`: missing·duplicate 새 문구, 칩 전용 목록 읽는 중 문구(새 문구), 프로젝트 문제 문구(기존 문구).
 - 토스트 문구(clarify preset, deep link 거절 문구 `openLinkRefusal`와 중복 id 문구의 형식을 따른다). 캔버스는 링크의 id로, 프로젝트는 사이드바 이름으로 부른다:
   - `"missing"`: `Couldn’t open <canvas-id>. The canvas isn’t in <project>.`
   - `"duplicate"`: `Couldn’t open <canvas-id>. More than one canvas in <project> uses this ID. Run doan check in a terminal to find them.`
+  - `"unavailable"`(목록을 읽는 중, 칩 전용): `Project is still being read. Try again shortly.`(사용자 결정, 2026-11-03 chain-261103 시작 점검). 프로젝트에 문제가 있을 때는 Quick Open 문구를 그대로 쓴다.
 - 답 블록 아래 안내는 답과 6px(`--space-1h`) 떨어진다. 보낸 말풍선 아래 안내와 같은 간격이다.
-- 확정: 아직 안 했다. 사용자가 앱에서 초안을 확인한다.
+- 확정: 사용자가 2026-11-03 chain-261103 시작 점검에서 확정했다(위 세 결정 반영).
 
 ## 영향 받는 부분
 
