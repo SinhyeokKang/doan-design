@@ -13,7 +13,7 @@
 4. 공통 id와 순수 함수는 renderer가 값으로 가져와도 되는 모듈 하나에 둔다. 경로는 PM-A가 정하고 handoff에 적는다. 그 모듈은 `formats/validate.ts`·ajv·Node 모듈에 닿지 않는다(`rendererImports.test.ts`). — 컨덕터 판단, 근거 POSTMORTEM 'renderer CSP'.
 5. `/agent-eval`은 돌리지 않는다. 이 feature는 가이드, CLI 출력, `doan check` 규칙, skill stub을 바꾸지 않는다(design '영향 받는 부분'). — 컨덕터 판단, 근거 AGENTS 'Workflow'.
    - Doan에는 Claude만 로그인돼 있어서 다음과 같이 넓혔다(사용자). Claude는 Doan profile의 비밀이 아닌 파일을 `/tmp`로 복사하고, 키체인에서 현재 access token만 읽어 쓴다. refresh token은 쓰지 않고 키체인에도 쓰지 않는다. Codex·Cursor·Copilot은 임시 HOME에서 파일 저장 방식으로 새로 로그인하고, 사용자가 브라우저에서 승인한다. 끝나면 로그아웃하고 지운다. Antigravity 서버는 `/tmp`에 받는다. `~/.codex`는 쓰지 않는다(refresh token이 바뀌면 터미널 로그인이 깨진다).
-   - 로그인한 임시 HOME은 PM-P가 끝날 때 모두 로그아웃하고 지웠다. Copilot 1.0.105에는 logout 명령이 없어서, GitHub의 OAuth 승인(앱 client `Ov23ctDVkRmgkPke0Mmm`)은 GitHub Settings > Applications에서 사용자가 철회해야 남지 않는다.
+   - 로그인한 임시 HOME은 PM-P가 끝날 때 모두 로그아웃하고 지웠다. Copilot 1.0.105에는 logout 명령이 없어서, GitHub의 OAuth 승인(앱 client `Ov23ctDVkRmgkPke0Mmm`)은 사용자가 GitHub Settings > Applications에서 철회했다.
 6. P4에서 대응이 어긋나면(예: Codex가 Default로 되돌아가지 않음) PM-A를 시작하기 전에 사용자에게 묻는다.
    - Codex Default(사용자): 사용자가 정하지 않았으면 `config/read`는 null을 돌려주고, 실제 값은 프로젝트 trust에 따라 달라진다. 그래서 runner가 서버를 열 때 `thread/start {cwd, ephemeral:true}`를 한 번 보내고, 응답의 approvalPolicy·sandbox를 Default 턴에 명시해서 넘긴다. 이 요청은 rollout을 쓰지 않고 모델 요청도 하지 않는다(PM-P 확인). override는 다음 턴과 `thread/resume` 뒤에도 남고, null로는 되돌아가지 않는다(0.163.0).
 
