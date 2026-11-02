@@ -205,6 +205,10 @@ func Run(in Input) []Finding {
 				case "hardcoded_color":
 					f.Value = detail
 					f.Severity = "warning"
+				case "viewport_height_unit":
+					f.Value = detail
+					f.Severity = "warning"
+					f.Message = "Viewport height unit \"" + detail + "\" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead."
 				case "external_url":
 					f.URL = detail
 					f.Severity = "warning"
@@ -230,6 +234,9 @@ func Run(in Input) []Finding {
 						output("hardcoded_color", v)
 					}
 				}
+			}
+			for _, v := range s.ViewportHeights {
+				output("viewport_height_unit", v)
 			}
 			if shared {
 				for _, u := range append(append([]string(nil), s.URLs...), s.Imports...) {

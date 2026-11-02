@@ -1,6 +1,9 @@
 package canvas
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 type Mode int
 
@@ -17,6 +20,8 @@ type Scan struct {
 	Defs                  map[string]bool
 	Refs                  []Reference
 	Colors, Imports, URLs []string
+	// ViewportHeights holds raw dimension tokens (e.g. "100dvh") from declaration values.
+	ViewportHeights []string
 }
 type token struct {
 	kind       byte
@@ -132,6 +137,34 @@ func lex(s string) []token {
 	}
 	return out
 }
+
+var viewportHeightUnits = map[string]bool{"vh": true, "dvh": true, "svh": true, "lvh": true, "vb": true, "dvb": true, "svb": true, "lvb": true}
+
+// The lexer splits "1.5vh" into "1", ".", "5vh", so dimension tokens are matched on the raw text.
+var (
+	dimension = regexp.MustCompile(`^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?([a-zA-Z]+)$`)
+	intPart   = regexp.MustCompile(`^[+-]?\d*$`)
+)
+
+func viewportHeight(text string, ts []token, i int) (string, bool) {
+	t := ts[i]
+	if t.kind != 'i' || i < 1 || ts[i-1].kind == '#' && ts[i-1].end == t.start {
+		return "", false
+	}
+	start := t.start
+	if ts[i-1].kind == '.' && ts[i-1].end == t.start {
+		start = ts[i-1].start
+		if i >= 2 && ts[i-2].kind == 'i' && ts[i-2].end == start && intPart.MatchString(ts[i-2].text) {
+			start = ts[i-2].start
+		}
+	}
+	raw := text[start:t.end]
+	m := dimension.FindStringSubmatch(raw)
+	if m == nil || !viewportHeightUnits[lower(m[1])] {
+		return "", false
+	}
+	return raw, true
+}
 func custom(s string) bool { return strings.HasPrefix(s, "--") && len(s) > 2 }
 func ScanCSS(text string, mode Mode) Scan {
 	s := Scan{Defs: map[string]bool{}}
@@ -193,6 +226,9 @@ func (s *Scan) declaration(text string, ts []token) {
 			fallback := i+3 < len(ts) && ts[i+3].kind == ','
 			s.Refs = append(s.Refs, Reference{ts[i+2].text, fallback})
 		}
+		if raw, ok := viewportHeight(text, ts, i); ok {
+			s.ViewportHeights = append(s.ViewportHeights, raw)
+		}
 		if t.kind == '#' && i+1 < len(ts) && ts[i+1].start == t.end && ts[i+1].kind == 'i' {
 			v := ts[i+1].text
 			n := len(v)
@@ -234,6 +270,7 @@ func (s *Scan) merge(other Scan) {
 	}
 	s.Refs = append(s.Refs, other.Refs...)
 	s.Colors = append(s.Colors, other.Colors...)
+	s.ViewportHeights = append(s.ViewportHeights, other.ViewportHeights...)
 	s.Imports = append(s.Imports, other.Imports...)
 	s.URLs = append(s.URLs, other.URLs...)
 }
