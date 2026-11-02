@@ -5,7 +5,7 @@ description: Run doan's shared sequential verification command for a change or i
 
 # Shared verification
 
-Read [AGENTS.md](../../../AGENTS.md), especially Commands and worktree ownership rules. This is the common executable gate for `/verify`, `/ship`, and `/orchestrate`; individual focused tests during implementation remain useful.
+Read [AGENTS.md](../../../AGENTS.md), especially Commands and 'Commit conventions', and the worktree ownership gate in [/ship](../ship/SKILL.md) §0. This is the common executable gate for `/verify`, `/ship`, and `/orchestrate`; individual focused tests during implementation remain useful.
 
 ## Select the checks
 
