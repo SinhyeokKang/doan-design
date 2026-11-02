@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ShellSidebar } from "./ShellSidebar";
-import { commitVisit, emptyHistory, historyTarget, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
+import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectsTab, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -575,8 +575,10 @@ export function App() {
     // Home and the Add Projects page show the sidebar without a current project; its row goes back to the loaded
     // workspace (design §3).
     if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) {
-      if (currentScreen.current !== "workspace") enter(loadedRoot);
-      else if (shownOverviewRef.current === loadedRoot) askSlot(loadedRoot);
+      const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
+      if (move === "enter") enter(loadedRoot);
+      else if (move === "slot") askSlot(loadedRoot);
+      else showShellOverview(loadedRoot, undefined, () => askSlot(loadedRoot));
       return;
     }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
@@ -1126,10 +1128,10 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
-    home={home} slots={run.slots()} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
+    home={home} goHome={() => live.current.home()} slots={run.slots()} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
-    addProjects={openAddProjects} projects={() => leavePage({ kind: "projectsTab" })} settings={() => { if (!locked()) openSettings({}); }} />;
+    addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;
   // Settings > Agents lists models for the project Home would start with.
   const modelRoot = defaultProject(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])), {
     current: composerMemory.current.root ? { root: composerMemory.current.root, name: composerMemory.current.root } : null, loaded: loadedRoot, lastRoot: homeMemory?.lastRoot ?? null }).root;

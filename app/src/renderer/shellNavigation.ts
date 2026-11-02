@@ -46,3 +46,16 @@ export function reconcileProjects(saved: Record<string, ShellProject>, groups: r
     return [group.key, { roots: group.roots, expanded: previous.some(item => item.expanded), ...(selected?.selectedRoot ? { selectedRoot: selected.selectedRoot, ...(selected.selectedAt !== undefined ? { selectedAt: selected.selectedAt } : {}) } : {}), ...(groups.length ? { groups: Object.fromEntries(groups.map(id => [id, false])) as NonNullable<ShellProject["groups"]> } : {}) }];
   }));
 }
+
+// The loaded project's sidebar row (dogfooding #2, PRODUCT §5 item 3 'Project Overview' "the sidebar project row"):
+// elsewhere it re-enters the workspace; on a canvas it opens the Overview; on the Overview it opens the row's slot.
+export function loadedProjectRow(at: { screen: string; overviewShown: boolean }): "enter" | "overview" | "slot" {
+  if (at.screen !== "workspace") return "enter";
+  return at.overviewShown ? "slot" : "overview";
+}
+
+// The header's Projects tab leaves a page for where it came from, and from a workspace goes Home (dogfooding #2).
+export function projectsTab(screen: string): "leavePage" | "home" | "stay" {
+  if (screen === "addProjects" || screen === "settings") return "leavePage";
+  return screen === "workspace" ? "home" : "stay";
+}

@@ -79,7 +79,8 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {} };
   const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
   const home = renderToStaticMarkup(<Sidebar {...props} home slots={slots} highlight={["/b"]} />);
-  expect(home).not.toContain("aria-current");
+  // Only the Home row is current on Home (dogfooding #2); no project or canvas row is.
+  expect(home.replace(/<button type="button" class="shell-home-row row" aria-current="page">/, "")).not.toContain("aria-current");
   expect(home).toContain('<span>a</span><span class="row-slot working" role="img" aria-label="Claude Code is working"><span class="doan-spinner" aria-hidden="true"></span></span>');
   expect(home).toMatch(/class="shell-project-row row flash"[^>]*aria-label="beta"/);
   expect(home).toMatch(/<span class="shell-project-name">beta<\/span><span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg[^>]*lucide-hand/);
