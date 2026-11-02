@@ -30,8 +30,8 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·노력 (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | PM-P | P1–P4 | `.scratch/permission-mode/`, `docs/features/permission-mode/design.md`(대응표·PoC 칸·Default의 범위), `tasks.md` P 체크 | 없음 | Opus high (실계정·실제 상태를 다루고, 결과가 이후 설계를 정한다) | design.md에 "P1/P2/P3에서 확인" 표시가 남지 않는다. 실제 Doan 저장 파일이 바뀌지 않았다는 전후 비교 | 통합 (`216958a7` → `94edc615`) |
-| PM-A | T1·T2의 main 쪽, S1, S2 | `app/src/main/conversation/{runners,acpRunner,models,service,store,ipc,transport}.ts`와 테스트, `app/src/main/preferences.ts`와 테스트, `app/src/preload/`, 새 공통 모듈 | PM-P 통합 | Opus high (권한 전달, Codex 디스패처 규칙, 저장 형식 예외) | `npm --prefix app test`, `npm --prefix app run typecheck`, POSTMORTEM Codex dispatcher `rg` | 리뷰 수정 중 (dispatch `ctx_337842a80470`) |
-| PM-B | T1·T2의 renderer 쪽(`restore/uiState.ts`, 마지막 사용·Settings 규칙), U1, U2 | `app/src/renderer/`(ComposerParts·HomeComposerView·DockedComposer·ProjectOverview·CanvasConversationPanel·SettingsAgents·rememberChoice·App·homeComposer·styles.css와 테스트), `app/src/restore/`, `docs/DESIGN.md` 측정값 | PM-A 통합 | Opus medium (기존 피커 패턴을 따르는 UI. 폭 단계와 상태 동기화에 판단이 든다) | `npm --prefix app test`, typecheck, `/design-sync`, `/runtime-test`(8칸 표·스크린샷), `node .agents/skills/verify/scripts/verify.mjs` | 대기 |
+| PM-A | T1·T2의 main 쪽, S1, S2 | `app/src/main/conversation/{runners,acpRunner,models,service,store,ipc,transport}.ts`와 테스트, `app/src/main/preferences.ts`와 테스트, `app/src/preload/`, 새 공통 모듈 | PM-P 통합 | Opus high (권한 전달, Codex 디스패처 규칙, 저장 형식 예외) | `npm --prefix app test`, `npm --prefix app run typecheck`, POSTMORTEM Codex dispatcher `rg` | 통합 (`abca5afc`..`86462ede`, verify PASS) |
+| PM-B | T1·T2의 renderer 쪽(`restore/uiState.ts`, 마지막 사용·Settings 규칙), U1, U2 | `app/src/renderer/`(ComposerParts·HomeComposerView·DockedComposer·ProjectOverview·CanvasConversationPanel·SettingsAgents·rememberChoice·App·homeComposer·styles.css와 테스트), `app/src/restore/`, `docs/DESIGN.md` 측정값 | PM-A 통합 | Opus medium (기존 피커 패턴을 따르는 UI. 폭 단계와 상태 동기화에 판단이 든다) | `npm --prefix app test`, typecheck, `/design-sync`, `/runtime-test`(8칸 표·스크린샷), `node .agents/skills/verify/scripts/verify.mjs` | 진행 (worktree `pm-b-renderer`) |
 | 컨덕터 | Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/permission-mode/` 삭제 | PM-B 통합 | — | Z1 검증 grep | 대기 |
 
 - 리뷰: PM-A와 PM-B는 통합 전에 독립 리뷰 워커(`/code-review`, Opus high)를 거친다.
@@ -51,3 +51,5 @@ P1·P2·P3·P4 → PM-P. D1 → 완료. T1·T2 → PM-A(main)·PM-B(renderer). S
 
 - PM-P: handoff와 커밋 대조 통과(design.md·tasks.md만, 게이트 grep 결과 없음, agent-auth 해시 동일). cherry-pick `94edc615`. Cursor 편집 결과는 계정 한도 때문에 확인하지 못했다.
   - bypass를 폴더 settings가 막으면 실패 없이 Default로 시작한다. 따로 처리하지 않는다(사용자). spec 완료 조건에 예외로 적었다.
+- PM-A: RV-A(🔴 1, 🟡 2, ⚪ 4) → 수정 `23fcded6`. 통합 뒤 verify PASS(5124 tests). 남은 메모: ACP load 응답에 `modes`가 없으면 설정하지 않음(BACKLOG 후보), Claude bypass 턴 뒤 Default 턴은 U2에서 확인.
+- PM-B 결정: ACP 선택지가 Default 하나뿐이면 피커를 보이지 않는다. — 컨덕터 판단.
