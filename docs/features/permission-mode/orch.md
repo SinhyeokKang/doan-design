@@ -17,6 +17,9 @@
 6. P4에서 대응이 어긋나면(예: Codex가 Default로 되돌아가지 않음) PM-A를 시작하기 전에 사용자에게 묻는다.
    - Codex Default(사용자): 사용자가 정하지 않았으면 `config/read`는 null을 돌려주고, 실제 값은 프로젝트 trust에 따라 달라진다. 그래서 runner가 서버를 열 때 `thread/start {cwd, ephemeral:true}`를 한 번 보내고, 응답의 approvalPolicy·sandbox를 Default 턴에 명시해서 넘긴다. 이 요청은 rollout을 쓰지 않고 모델 요청도 하지 않는다(PM-P 확인). override는 다음 턴과 `thread/resume` 뒤에도 남고, null로는 되돌아가지 않는다(0.163.0).
 
+7. Codex Default를 읽는 `thread/start {ephemeral}`가 실패하거나 값이 빠지면, Codex 대화를 여는 것이 `session_unavailable`로 실패한다. 조용히 넘어가면 앞서 준 Full access override가 Default 턴에 남는다. — 컨덕터 판단(PM-A 질문).
+   - 같이 정한 것: `config/read`도 열 때 한 번 읽고, 실패하면 Accept edits는 기본 `workspaceWrite`(network 꺼짐)를 보낸다. Claude 저장 모드는 Plan으로 보낸 턴의 `system/status`만 따른다. `summary.ts`가 `permissionMode`를 싣는다(PM-A 소유에 더함). ACP models 응답에 `modes?`를 더한다.
+
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·노력 (이유) | 검증 게이트 | 상태 |
