@@ -1045,6 +1045,12 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    thread chip does; a target that is gone gets the metadata line under its message or composer. */
 .composer-input .anchor-chip { cursor: pointer; }
 .chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* A reply chip for another canvas (agent-reply-chips): only the label ellipsizes at the 180px chip; " · <canvas>" is
+   never cut. The suffix keeps its leading space (pre) and takes back the chip's gap, so it reads "Label · Canvas".
+   It must match `.anchor-chip span:not(.sr-only)`'s specificity and come after it, or that nowrap collapses the space. */
+.anchor-chip span.chip-canvas { flex: none; white-space: pre; margin-left: calc(-1 * var(--space-1)); }
+/* A reply chip's note under its reply block, 6 apart, as the note under a sent bubble. */
+.conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
 /* The composer's note sits under its chip, over the card, without entering the field's DOM. */
 .chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }

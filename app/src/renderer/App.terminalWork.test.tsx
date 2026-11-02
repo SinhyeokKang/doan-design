@@ -53,7 +53,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate", "dropPendingLocate"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -212,7 +212,7 @@ test("a link opens its canvas as Quick Open does and moves to its frame with no 
   await start();
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: B, frame: "pricing" } as never); render();
   const call = harness.controller!.openCanvas!.mock.lastCall!;
-  expect(call.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), "pricing"]);
+  expect(call.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), { frame: "pricing" }]);
   expect(call[3]).not.toHaveProperty("found");
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: A } as never); render();
   expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: A }), undefined]);
@@ -257,7 +257,7 @@ test("a link that lands while a dialog is open dismisses it as its Cancel would,
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: B, frame: "pricing" } as never); render();
   expect(dialog.events).toEqual([{ type: "cancel", cancelable: true }]);
   expect(all(tree).some(element => element.type === ProjectSetupDialog)).toBe(false);
-  expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), "pricing"]);
+  expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), { frame: "pricing" }]);
 });
 
 test("a dialog that does not close for its cancel (busy) keeps the link from moving", async () => {
@@ -279,7 +279,7 @@ const request = (id: string, canvas: string, frame?: string, expires = Date.now(
 test("an open request opens its canvas as a link does and answers opened with the frame result, with no toast or write", async () => {
   await start(); framed(); opens();
   request("1", A, "hero");
-  expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: A }), "hero"]);
+  expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: A }), { frame: "hero" }]);
   request("2", A, "gone");
   request("3", B);
   expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), undefined]);

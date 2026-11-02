@@ -36,6 +36,8 @@ import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelTrigger } from
 import { PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
+import { replyChipTarget } from "./replyChipTarget";
+import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
 import type { ScrollTo } from "./overviewRun";
 import { ConversationPanel } from "./ConversationPanel";
@@ -124,6 +126,15 @@ export function mergeConversationMemory(saved: Readonly<Record<string, string>> 
 
 // First run's project handoff puts focus in the Home composer, ahead of the focus held before the wizard (§4.9).
 export function wizardCloseFocus(root: string | null): "composer" | "previous" { return root ? "composer" : "previous"; }
+
+// A reply chip whose canvas cannot be opened (agent-reply-chips design '초안 요청', draft frame `toasts`). The canvas is
+// named by the link's id, since no row names it; the project by its sidebar name. A list still being read gets the
+// chip's own copy, which has no Open to try again; a project problem keeps Quick Open's.
+export function replyChipRefusal(target: "missing" | "duplicate" | "unavailable", canvas: string, project: string, entry: FolderEntry | undefined): string {
+  if (target === "missing") return `Couldn’t open ${canvas}. The canvas isn’t in ${project}.`;
+  if (target === "duplicate") return `Couldn’t open ${canvas}. More than one canvas in ${project} uses this ID. Run doan check in a terminal to find them.`;
+  return entry?.kind === "loading" ? "Project is still being read. Try again shortly." : unavailableCanvasMessage(entry, canvas);
+}
 
 export function validHistoryVisit(entries: readonly FolderEntry[], visit: Visit): boolean {
   const entry = entries.find(entry => entry.path === visit.root);
@@ -1010,7 +1021,7 @@ export function App() {
     if (!row) { unavailable(target); return; }
     const frameId = result.kind === "frame" ? result.frameId : undefined;
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
-    controller.current?.openCanvas(result.root, row, frameId, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
+    controller.current?.openCanvas(result.root, row, frameId === undefined ? undefined : { frame: frameId }, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
   }
   // A doan:// link (terminal-agent-activity design 'Deep link'): Quick Open's move. A frame moves the view as Quick Open's
   // frame does, without selection; a frame not in the canvas leaves the canvas only, with no toast. A refused link
@@ -1025,7 +1036,26 @@ export function App() {
     cancelRestore();
     const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas));
     if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return; }
-    controller.current?.openCanvas(result.root, decision.row, result.frame, { unavailable, opened: () => completeNavigation(result.root) });
+    controller.current?.openCanvas(result.root, decision.row, result.frame === undefined ? undefined : { frame: result.frame }, { unavailable, opened: () => completeNavigation(result.root) });
+  }
+  // A chip in an agent's reply (agent-reply-chips design 'Pressing'), from the canvas panel or the Overview of `root`.
+  // A chip into the canvas on screen locates there, as a sent chip does: no move, no visit. A chip into another canvas
+  // of the root moves as a link does (decideOpen, then Quick Open's path with its visit), to its frame without
+  // selecting it or to its element after the first layout; a target that is not there leaves the canvas only. A canvas
+  // that cannot be opened shows one toast. Settles with the locate's outcome, or null when it did not locate.
+  function replyChip(root: string, link: ReplyAnchor): Promise<LocateOutcome | null> {
+    const entry = entriesRef.current.find(entry => entry.path === root);
+    const onScreen = canvasOnScreenRef.current;
+    const target = replyChipTarget(link, { root, openCanvasId: onScreen?.root === root ? onScreen.id : null, entry });
+    if (target === "locate") return locateChip(link.kind === "frame" ? { frame: { id: link.id } } : { element: { doanId: link.id } });
+    if (typeof target === "string") { live.current.toast.show(replyChipRefusal(target, link.canvas, live.current.projectLabel(root), entry)); return Promise.resolve(null); }
+    const decision = decideOpen({ root, canvas: target.open.path }, openPage());
+    if (decision.kind === "busy") return Promise.resolve(null);
+    cancelRestore();
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, target.open.path));
+    if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return Promise.resolve(null); }
+    controller.current?.openCanvas(root, decision.row, link.kind === "frame" ? { frame: link.id } : { element: link.id }, { unavailable, opened: () => completeNavigation(root) });
+    return Promise.resolve(null);
   }
   // `doan open` moves as a link does, but answers main instead of showing a toast: a refusal changes nothing on screen,
   // and the agent tells the person why. The answer is sent once the move is decided, not when the canvas has loaded;
@@ -1042,7 +1072,7 @@ export function App() {
     if (expired()) return;
     cancelRestore();
     let opened = false;
-    controller.current?.openCanvas(request.root, decision.row, request.frame, { opened: () => { opened = true; completeNavigation(request.root); } });
+    controller.current?.openCanvas(request.root, decision.row, request.frame === undefined ? undefined : { frame: request.frame }, { opened: () => { opened = true; completeNavigation(request.root); } });
     if (!opened) { answer({ kind: "canvas_not_found" }); return; }
     answer({ kind: "opened", frame: request.frame === undefined ? "none" : decision.row.frames?.some(frame => frame.id === request.frame) ? "found" : "missing" });
   }
@@ -1072,6 +1102,11 @@ export function App() {
   const panelKey = panelCanvas ? JSON.stringify([panelCanvas.folder, panelCanvas.row.id ?? null, panelCanvas.canvas]) : null;
   const panelTarget = useMemo<CanvasTarget | null>(() => panelCanvas ? { root: panelCanvas.folder, canvas: panelCanvas.row.id ? { path: panelCanvas.canvas, id: panelCanvas.row.id } : { path: panelCanvas.canvas } } : null, [panelKey]);
   const panelTargetRef = useRef(panelTarget); panelTargetRef.current = panelTarget;
+  // The canvas a reply chip can locate in: the panel's, while the canvas page shows it, with its root, since worktrees
+  // share canvas ids (POSTMORTEM 2026-11-01). The Overview leaves the last canvas laid out but covers it, so it is not
+  // on screen then (agent-reply-chips design 'Pressing').
+  const canvasOnScreenRef = useRef<{ root: string; id: string } | null>(null);
+  canvasOnScreenRef.current = panelCanvas && !state.unlisted && panelCanvas.row.id ? { root: panelCanvas.folder, id: panelCanvas.row.id } : null;
   // Keyed by the canvas, not the target object: a render that reads the same canvas does not show it again.
   useLayoutEffect(() => { canvasRun.current!.show(panelTargetRef.current); }, [panelKey]);
   useEffect(() => { canvasRun.current!.panel(rightPanel.open && panelKey !== null); }, [rightPanel.open, panelKey]);
@@ -1195,6 +1230,7 @@ export function App() {
       return;
     }
     if (!panelTargetRef.current) return;
+    controller.current?.dropPendingLocate();
     canvasRun.current!.select(null);
     const open = panelOpenFor({ kind: "newConversation" }, null);
     if (open.open === true) revealPanel(open.focus);
@@ -1367,6 +1403,7 @@ export function App() {
       list={run.listState(overview.path)} seen={run.seenPending()} holder={run.running().get(overview.path) ?? null}
       prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "promotion" })}
+      onReplyChip={link => replyChip(overview.path, link)}
       onRetryList={() => run.retryList(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
@@ -1376,12 +1413,12 @@ export function App() {
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={Date.now()} seen={run.seenPending()}
-          title={panelTitle.title} current={panelTitle.current} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
+          title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
         {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked} onRemember={rememberPick}
-          frames={state.layout?.frames ?? []} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
-          onLocate={locateChip} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink}
+          frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
+          onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))} work={work} />}
       </ConversationPanel>}

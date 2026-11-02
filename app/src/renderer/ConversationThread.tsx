@@ -1,13 +1,17 @@
-import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { createContext, forwardRef, Fragment, memo, useContext, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Archive, ArrowDown, ArrowUpRight, ChevronDown, CircleStop, Copy, Eye, FileText, Frame, MapPin, Pencil, PencilSparkles, RotateCcw, SquareMousePointer, Terminal } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import { chipLabel, type FrameName } from "../main/conversation/messageText";
+import { parseReplyAnchor, type ReplyAnchor } from "../main/conversation/replyAnchor";
+import type { CanvasRow } from "../main/view";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
+import { canvasLabel } from "./canvasTree";
 import { formatSize, providerLogo } from "./homeComposer";
+import { replyUrlTransform } from "./replyUrlTransform";
 import { scrollFollow, type ActivityStep, type ThreadItem, type TurnEnd } from "./threadItems";
 
 // The conversation thread (buzz-conversation design §3.3, draft frames thread-*). The host reads the history, merges
@@ -41,8 +45,18 @@ export interface ConversationThreadProps {
   // with how the locate ended; only "missing" shows "No longer in the canvas".
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
   locateDisabled?: boolean;
-  // The open canvas's frames, which name a frame chip by its current title.
-  frames?: readonly FrameName[];
+  // The open canvas's frames, which name a frame chip by its current title; undefined while it has no layout.
+  frames?: readonly FrameName[] | undefined;
+  // Chips in the agent's replies (agent-reply-chips design 'Rendering'): `doan:` links that point into a canvas of the
+  // conversation's root. Pressing one asks the host; it settles with the locate's outcome when the chip pointed into
+  // the open canvas, so "missing" shows "No longer in the canvas" under the reply. Without it reply chips are drawn as
+  // plain chips.
+  onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
+  // The id of the canvas the thread belongs to (the canvas panel's), null in the Overview. A chip into it is named from
+  // `frames` while the canvas has a layout and follows `locateDisabled`; every other chip names its canvas.
+  openCanvasId?: string | null;
+  // The canvas rows of the conversation's root, which name another canvas's chips and that canvas.
+  canvasRows?: readonly CanvasRow[];
 }
 export interface ConversationThreadHandle { scrollToItem(key: string): void }
 
@@ -97,7 +111,14 @@ export function httpsUrl(href: string | undefined): string | null {
   try { const url = new URL(href); return url.protocol === "https:" ? url.href : null; } catch { return null; }
 }
 
-const Actions = createContext<{ openLink(url: string): void; copy(text: string): void }>({ openLink: () => {}, copy: () => {} });
+interface ThreadActions { openLink(url: string): void; copy(text: string): void; replyChip(link: ReplyAnchor): Promise<LocateOutcome | null> | null }
+const Actions = createContext<ThreadActions>({ openLink: () => {}, copy: () => {}, replyChip: () => null });
+// What names and enables a reply chip. A context of its own, apart from the stable Actions, so a change of the open
+// canvas, its frames or the list redraws the chips inside a memoized reply.
+interface ReplyCanvas { openCanvasId: string | null; frames: readonly FrameName[] | undefined; rows: readonly CanvasRow[]; disabled: boolean; pressable: boolean }
+const ReplyCanvasContext = createContext<ReplyCanvas>({ openCanvasId: null, frames: undefined, rows: [], disabled: false, pressable: false });
+// The reply's "No longer in the canvas" note: `shownFor` is the chip it is shown for (its id describes that chip).
+const ReplyNote = createContext<{ shownFor: string | null; show(key: string): void }>({ shownFor: null, show: () => {} });
 function textOf(node: unknown): string {
   if (!node || typeof node !== "object") return "";
   const n = node as { type?: string; value?: string; children?: unknown[] };
@@ -116,10 +137,50 @@ function Link({ href, children }: { href: string | undefined; children?: ReactNo
   if (!url) return <span>{children}</span>;
   return <a href={url} onClick={event => { event.preventDefault(); openLink(url); }}>{children}</a>;
 }
+const CHIP_ICONS = { frame: Frame, element: SquareMousePointer, point: MapPin } as const;
+
+// How a reply chip reads (agent-reply-chips design 'Rendering'). The link's text is agent output and never names the
+// chip. A chip into the open canvas takes that canvas's frame titles while it has a layout; any other chip, and that
+// one without a layout, takes the titles of the list row with the link's canvas id. Without exactly one such row the
+// chip shows the id itself and names its canvas by the link's id.
+export function replyChipView(link: ReplyAnchor, canvas: Pick<ReplyCanvas, "openCanvasId" | "frames" | "rows">): {
+  kind: "frame" | "element"; label: string; title: string; canvasName: string | null; ariaLabel: string; same: boolean } {
+  const same = canvas.openCanvasId !== null && canvas.openCanvasId === link.canvas;
+  const rows = canvas.rows.filter(row => row.id !== undefined && row.id === link.canvas);
+  const row = rows.length === 1 ? rows[0] : undefined;
+  const frames = same && canvas.frames !== undefined ? canvas.frames : row?.frames ?? [];
+  const view = chipLabel(link.kind === "frame" ? { frame: { id: link.id } } : { element: { doanId: link.id } }, frames);
+  const kind = view.kind === "frame" ? "frame" : "element";
+  if (same) return { kind, label: view.label, title: view.title, canvasName: null, ariaLabel: `Show ${view.label} on canvas`, same };
+  const canvasName = row ? canvasLabel(row) : link.canvas;
+  return { kind, label: view.label, title: view.title, canvasName, ariaLabel: `Open ${canvasName} and show ${view.label}`, same };
+}
+
+// A `doan:` link in a reply: a chip when it parses, else its text alone. No `doan:` href is ever put on an `<a>`.
+function ReplyLink({ href, children }: { href: string; children?: ReactNode }) {
+  const link = parseReplyAnchor(href);
+  return link ? <ReplyChip link={link} /> : <span>{children}</span>;
+}
+// The sent chip's look (SentChip). Only a chip into the open canvas follows locateDisabled and can show the note;
+// another canvas's chip opens that canvas and can always be pressed. Its canvas name is drawn apart, so only the
+// label ellipsizes at the chip's width.
+export function ReplyChip({ link }: { link: ReplyAnchor }) {
+  const canvas = useContext(ReplyCanvasContext), { replyChip } = useContext(Actions), note = useContext(ReplyNote);
+  const key = useId();
+  const view = replyChipView(link, canvas);
+  const Icon = CHIP_ICONS[view.kind];
+  const body = <><Icon aria-hidden="true" /><span>{view.label}</span>{view.canvasName !== null && <span className="chip-canvas">{` · ${view.canvasName}`}</span>}</>;
+  if (!canvas.pressable) return <span className="anchor-chip" data-kind={view.kind} title={view.title}>{body}</span>;
+  const disabled = view.same && canvas.disabled;
+  return <button type="button" className="anchor-chip" data-kind={view.kind} title={view.title} aria-label={view.ariaLabel} aria-disabled={disabled || undefined}
+    aria-describedby={view.same && note.shownFor === key ? `${key}-missing` : undefined}
+    onClick={() => { if (!disabled) void replyChip(link)?.then(outcome => { if (view.same && outcome === "missing") note.show(key); }); }}>{body}</button>;
+}
+
 // Agent output is untrusted (ARCHITECTURE §2's rule for comment bodies): no raw HTML (react-markdown escapes it; no
-// rehype-raw), no images (their alt text stays), https links only.
+// rehype-raw), no images (their alt text stays), https links only; a `doan:` link is a reply chip or text.
 const COMPONENTS: Components = {
-  a: ({ href, children }) => <Link href={href}>{children}</Link>,
+  a: ({ href, children }) => href?.startsWith("doan:") ? <ReplyLink href={href}>{children}</ReplyLink> : <Link href={href}>{children}</Link>,
   img: ({ alt }) => alt ? <span>{alt}</span> : null,
   pre: ({ node, children }) => <CodeBlock node={node}>{children}</CodeBlock>,
   table: ({ children }) => <div className="md-table"><table>{children}</table></div>,
@@ -140,7 +201,7 @@ function labelPrefix(prefix: string) {
   return () => visit;
 }
 const MarkdownText = memo(function MarkdownText({ text, prefix }: { text: string; prefix: string }) {
-  return <Markdown remarkPlugins={PLUGINS} rehypePlugins={[labelPrefix(prefix)]} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS}>{text}</Markdown>;
+  return <Markdown remarkPlugins={PLUGINS} rehypePlugins={[labelPrefix(prefix)]} remarkRehypeOptions={{ clobberPrefix: `${prefix}-` }} components={COMPONENTS} urlTransform={replyUrlTransform}>{text}</Markdown>;
 });
 function useFrameText(text: string, streaming: boolean): string {
   const [shown, setShown] = useState(text);
@@ -153,9 +214,17 @@ function useFrameText(text: string, streaming: boolean): string {
   useEffect(() => () => { if (frame.current !== null) cancelAnimationFrame(frame.current); }, []);
   return streaming ? shown : text;
 }
+// A reply, and under it the "No longer in the canvas" note of a reply chip (draft frame `panel-missing`).
 function AgentMessage({ text, streaming }: { text: string; streaming: boolean }) {
   const shown = useFrameText(text, streaming), prefix = useId();
-  return <div className="msg-agent md"><MarkdownText text={shown} prefix={prefix} />{streaming && <span className="caret" aria-hidden="true" />}</div>;
+  const [noted, show] = useLocateNote();
+  const [chip, setChip] = useState<string | null>(null);
+  const shownFor = noted ? chip : null;
+  const note = useMemo(() => ({ shownFor, show: (key: string) => { setChip(key); show(); } }), [shownFor]);
+  return <ReplyNote.Provider value={note}>
+    <div className="msg-agent md"><MarkdownText text={shown} prefix={prefix} />{streaming && <span className="caret" aria-hidden="true" />}</div>
+    {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
+  </ReplyNote.Provider>;
 }
 
 // Whether a permission answer reached main: a refusal and a rejected call both mean it did not.
@@ -168,7 +237,6 @@ export async function answerReached(send: () => Promise<void | { error: string }
   }
 }
 
-const CHIP_ICONS = { frame: Frame, element: SquareMousePointer, point: MapPin } as const;
 // A chip in a sent message. A marker without its anchor (a malformed history) keeps its {{n}} text.
 export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }: { marker: number; anchor: Anchor | undefined; frames: readonly FrameName[] | undefined; disabled: boolean;
   onLocate: ConversationThreadProps["onLocate"];
@@ -285,8 +353,9 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
   }), []);
 
   // The Markdown is memoized, so its links and Copy buttons read the latest callbacks through one stable context value.
-  const actions = useRef<{ openLink(url: string): void; copy(text: string): void }>({ openLink: () => {}, copy: () => {} });
+  const actions = useRef<ThreadActions>({ openLink: () => {}, copy: () => {}, replyChip: () => null });
   actions.current.openLink = url => props.onOpenLink(url);
+  actions.current.replyChip = link => props.onReplyChip?.(link) ?? null;
   actions.current.copy = text => {
     void props.onCopy(text).then(ok => {
       if (!ok) return;
@@ -295,7 +364,10 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
       copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
     }).catch(console.error);
   };
-  const context = useRef({ openLink: (url: string) => actions.current.openLink(url), copy: (text: string) => actions.current.copy(text) }).current;
+  const context = useRef<ThreadActions>({ openLink: url => actions.current.openLink(url), copy: text => actions.current.copy(text), replyChip: link => actions.current.replyChip(link) }).current;
+  const pressable = props.onReplyChip !== undefined, disabled = !!props.locateDisabled, openCanvasId = props.openCanvasId ?? null;
+  const replyCanvas = useMemo<ReplyCanvas>(() => ({ openCanvasId, frames: props.frames, rows: props.canvasRows ?? [], disabled, pressable }),
+    [openCanvasId, props.frames, props.canvasRows, disabled, pressable]);
 
   if (items === "error") return <div className="conversation-thread">
     <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span></span>
@@ -355,12 +427,12 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     }
   };
 
-  return <Actions.Provider value={context}><div className="conversation-thread">
+  return <Actions.Provider value={context}><ReplyCanvasContext.Provider value={replyCanvas}><div className="conversation-thread">
     <div className="thread-scroll" ref={scroller} onScroll={onScroll}>
       <div className="thread">{items.map(entry => <div key={entry.key} className="thread-item" data-item={entry.key}>{item(entry)}</div>)}</div>
     </div>
     {behind && <button type="button" className="doan-button jump-latest" data-ui-size="sm" data-ui-variant="panel" onClick={jump}><ArrowDown aria-hidden="true" />Jump to latest</button>}
     <div className="sr-only" role="status">{copied ? "Copied" : phaseText(items, provider)}</div>
-  </div></Actions.Provider>;
+  </div></ReplyCanvasContext.Provider></Actions.Provider>;
 };
 

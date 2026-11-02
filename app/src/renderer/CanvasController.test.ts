@@ -1113,7 +1113,7 @@ it("sends Select to the canvas at once and the selection to main only after its 
 it("opens a static frame by its first rendered id match without selecting it", () => {
   const h = selectionHarness();
   try {
-    h.controller.openCanvas("/repo", h.other, "dup");
+    h.controller.openCanvas("/repo", h.other, { frame: "dup" });
     h.layout({ href: h.other.url, frames: [
       { id: "different", x: 0, y: 0, width: 100, height: 100 },
       { id: "dup", x: 0, y: 1000, width: 100, height: 100 },
@@ -1130,7 +1130,7 @@ it.each(["dup", ""])("opens the clicked static index when its id is %j", id => {
   const h = selectionHarness();
   try {
     const found = vi.fn();
-    h.controller.openCanvas("/repo", h.other, id, { index: 1, found });
+    h.controller.openCanvas("/repo", h.other, { frame: id }, { index: 1, found });
     h.layout({ href: h.other.url, frames: [
       { id, x: 0, y: 0, width: 100, height: 100 },
       { id, x: 0, y: 1000, width: 100, height: 100 },
@@ -1144,12 +1144,12 @@ it("reports a missing rendered frame and falls back to the first id match after 
   const h = selectionHarness();
   try {
     const found = vi.fn();
-    h.controller.openCanvas("/repo", h.other, "hero", { index: 0, found });
+    h.controller.openCanvas("/repo", h.other, { frame: "hero" }, { index: 0, found });
     h.layout({ href: h.other.url });
     expect(h.state().currentFrame).toBe(1);
     expect(found).toHaveBeenCalledExactlyOnceWith(true);
     const missing = vi.fn();
-    h.controller.openCanvas("/repo", h.other, "absent", { found: missing });
+    h.controller.openCanvas("/repo", h.other, { frame: "absent" }, { found: missing });
     expect(missing).toHaveBeenCalledExactlyOnceWith(false);
   } finally { h.controller.dispose(); }
 });
@@ -1158,7 +1158,7 @@ it("keeps a picked frame through a live reload of the same canvas before its fir
   const h = selectionHarness();
   try {
     const found = vi.fn();
-    h.controller.openCanvas("/repo", h.other, "hero", { found });
+    h.controller.openCanvas("/repo", h.other, { frame: "hero" }, { found });
     h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [h.row, h.other] }]);
     expect(found).not.toHaveBeenCalled();
     h.layout({ href: h.other.url });
@@ -1166,7 +1166,7 @@ it("keeps a picked frame through a live reload of the same canvas before its fir
     expect(found).toHaveBeenCalledExactlyOnceWith(true);
     // A reload that loses the width still answers the pick.
     const missing = vi.fn();
-    h.controller.openCanvas("/repo", h.row, "hero", { found: missing });
+    h.controller.openCanvas("/repo", h.row, { frame: "hero" }, { found: missing });
     const { width: _width, ...noWidth } = h.row;
     h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 2, canvases: [noWidth, h.other] }]);
     expect(missing).toHaveBeenCalledExactlyOnceWith(false);
@@ -2406,6 +2406,133 @@ describe("chip locate", () => {
       h.layout({ document: "doc" });
       h.controller.command("reload");
       expect(h.controller.locate({ frame: { id: "hero" } }, vi.fn())).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+});
+
+// agent-reply-chips T4 (design 'Pressing'): a reply chip opens another canvas and moves to its element after the first
+// layout. The waiting element lives as Quick Open's waiting frame does and is tied to its root and canvas.
+describe("reply chip open", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  const queries = (h: ReturnType<typeof selectionHarness>) => h.frames.flatMap(frame => frame.contentWindow.postMessage.mock.calls.map(c => c[0]).filter(c => c.type === "anchors-query"));
+  const asked = (h: ReturnType<typeof selectionHarness>) => queries(h).flatMap(q => q.targets.map((t: { doanId?: string }) => t.doanId));
+  const answer = (h: ReturnType<typeof selectionHarness>, candidates: Record<string, unknown>, document: string) => {
+    const q = queries(h).at(-1);
+    h.receive({ type: "anchors", href: h.other.url, document, generation: q.generation, request: q.request, revision: 1, width: 600, selectionSeq: 0, selected: null,
+      results: [{ id: q.targets[0].id, candidates }], rects: [{ node: "n1", x: 40, y: 3000, width: 200, height: 100 }] });
+  };
+
+  it("locates an element after the opened canvas's first layout, by its doan id alone, without selecting it", () => {
+    const h = selectionHarness();
+    try {
+      h.select(1);
+      const opened = vi.fn();
+      h.controller.openCanvas("/repo", h.other, { element: "pay" }, { opened });
+      expect(opened).toHaveBeenCalledOnce();
+      expect(queries(h)).toEqual([]);
+      const before = h.controller.currentView();
+      h.layout({ href: h.other.url, document: "doc-b" });
+      expect(queries(h).at(-1).targets).toEqual([{ id: expect.any(String), doanId: "pay" }]);
+      answer(h, { doanId: ["n1"] }, "doc-b");
+      expect(h.controller.currentView()).not.toEqual(before);
+      expect(h.markOf("jump-highlight")?.hidden).toBe(false);
+      // Opening another canvas cleared the selection, as Quick Open does; the locate does not select.
+      expect(h.state().selection).toBeNull();
+      // Only the first layout takes it.
+      h.layout({ href: h.other.url, document: "doc-b" });
+      expect(queries(h)).toHaveLength(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("an element the canvas does not have leaves the canvas open and the view where the open put it", () => {
+    const h = selectionHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other, { element: "gone" });
+      h.layout({ href: h.other.url, document: "doc-b" });
+      const fitted = h.controller.currentView();
+      answer(h, { doanId: [] }, "doc-b");
+      expect(h.controller.currentView()).toEqual(fitted);
+      expect(h.state().open).toMatchObject({ folder: "/repo", canvas: h.other.path });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the last request wins: opening C while B waits drops B's element", () => {
+    const h = selectionHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other, { element: "b-el" });
+      h.controller.openCanvas("/repo", h.row, { element: "c-el" });
+      h.layout({ document: "doc-c" });
+      expect(asked(h)).toEqual(["c-el"]);
+      // A frame request after an element one replaces it too.
+      h.controller.openCanvas("/repo", h.other, { element: "b-el" });
+      h.controller.openCanvas("/repo", h.row, { frame: "hero" });
+      h.layout({ document: "doc-c2" });
+      expect(asked(h)).toEqual(["c-el"]);
+      expect(h.state().currentFrame).toBe(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a move before the first layout drops the waiting element: the Overview, another canvas with no target, a person's conversation choice", () => {
+    for (const leave of [
+      (h: ReturnType<typeof selectionHarness>) => h.controller.showOverview(),
+      (h: ReturnType<typeof selectionHarness>) => h.controller.openCanvas("/repo", h.row),
+      (h: ReturnType<typeof selectionHarness>) => h.controller.dropPendingLocate(),
+    ]) {
+      const h = selectionHarness();
+      try {
+        h.controller.openCanvas("/repo", h.other, { element: "pay" });
+        leave(h);
+        h.controller.openCanvas("/repo", h.other);
+        h.layout({ href: h.other.url, document: "doc-b" });
+        expect(asked(h)).toEqual([]);
+      } finally { h.controller.dispose(); vi.unstubAllGlobals(); }
+    }
+  });
+
+  it("a load that fails or a row without a width drops the waiting element", () => {
+    vi.useFakeTimers();
+    const h = selectionHarness();
+    try {
+      h.controller.openCanvas("/repo", h.other, { element: "pay" });
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      expect(h.state().status).toBe("failed");
+      h.layout({ href: h.other.url, document: "doc-b" });
+      expect(asked(h)).toEqual([]);
+      const { width: _width, ...noWidth } = h.row;
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 1, canvases: [noWidth, h.other] }]);
+      h.controller.openCanvas("/repo", noWidth, { element: "pay" });
+      expect(h.state().status).toBe("noWidth");
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 2, canvases: [h.row, h.other] }]);
+      h.layout({ document: "doc-a" });
+      expect(asked(h)).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  // POSTMORTEM 2026-11-01: worktrees share canvas ids and paths, so a root's waiting element never reaches another's.
+  it("two roots with the same canvas: another root's open drops the waiting element instead of locating in it", () => {
+    const h = selectionHarness();
+    try {
+      const twin = { ...h.other, url: "http://localhost/t/k/g/.doan/canvases/b.html" };
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] }, { path: "/twin", kind: "list", servedRev: 0, canvases: [twin] }]);
+      h.controller.openCanvas("/repo", h.other, { element: "pay" });
+      h.controller.openCanvas("/twin", twin);
+      h.layout({ href: twin.url, document: "doc-twin" });
+      expect(h.state().open).toMatchObject({ folder: "/twin", canvas: twin.path });
+      expect(asked(h)).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("on the canvas already shown, an element locates at once; while it still loads, after its first layout", () => {
+    const h = selectionHarness();
+    try {
+      h.layout({ document: "doc-a" });
+      h.controller.openCanvas("/repo", h.row, { element: "now" });
+      expect(asked(h)).toEqual(["now"]);
+      h.controller.openCanvas("/repo", h.other);
+      h.controller.openCanvas("/repo", h.other, { element: "later" });
+      expect(asked(h)).toEqual(["now"]);
+      h.layout({ href: h.other.url, document: "doc-b" });
+      expect(asked(h)).toEqual(["now", "later"]);
     } finally { h.controller.dispose(); }
   });
 });
