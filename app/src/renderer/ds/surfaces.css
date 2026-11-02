@@ -256,8 +256,8 @@ label.doan-preference-row-label { cursor: pointer; }
   .doan-preference-row-trailing:has(button:not([role="switch"])) { grid-column: 1 / -1; justify-content: flex-start; }
 }
 
-/* A thin native scrollbar: Radix ScrollArea is not used, so lists keep native scrolling. */
-.doan-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+/* A thin native scrollbar: Radix ScrollArea is not used, so lists keep native scrolling. Menus scroll the same way. */
+:is(.doan-scroll, .doan-menu) { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
 
 /* ── Motion ──────────────────────────────────────────────────────────────────
    Surfaces arrive with a short rise and fade and leave faster than they came. */

@@ -439,7 +439,8 @@ body:has(.shell-top) { background: transparent; }
 .shell-group-count { flex: none; font-variant-numeric: tabular-nums; }
 .shell-side .shell-group-head[aria-disabled="true"] :is(svg, .shell-group-count) { color: var(--text-disabled); }
 .shell-side .shell-group .shell-canvas-row { padding-left: calc(10px + var(--size-icon) + var(--space-2)); }
-.shell-group .shell-empty { padding-left: calc(34px + var(--size-icon) + var(--space-2)); }
+/* An empty group is a dashed box under its head, starting where its canvas rows' icons do. */
+.shell-group .shell-empty { margin: var(--space-half) 10px var(--space-2) 34px; padding: var(--space-2) var(--space-3); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; }
 .shell-group .shell-canvas-error { padding-left: calc(32px + var(--size-icon) + var(--space-2)); }
 .shell-project-menu { width: 204px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
 .shell-project-menu .doan-menu-item { display: flex; gap: 8px; align-items: center; }
@@ -520,14 +521,12 @@ body:has(.shell-top) { background: transparent; }
 /* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
 .composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 /* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
-   mode's own icon, so an icon-only trigger still names the mode. Full access adds the warning ink and fill; its name,
-   icon and aria-label carry it too, so colour is never the only signal. No coloured edge. */
+   mode's own icon, so an icon-only trigger still names the mode. Full access takes the danger ink on the trigger's own
+   fills; its name, icon and aria-label carry it too, so colour is never the only signal. No coloured edge or fill. */
 .composer-permission { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 .composer-permission svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* Hover, press and open keep the warning fill: the shared trigger's state fills (ds/controls.css) outrank a plain
-   selector, and an open Full access trigger showed the neutral pressed fill. */
-:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"],
-:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"]:is(:hover, :active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-warning); color: var(--text-warning); }
+/* Two classes: the tray's subtle ink (.composer-tray .doan-button) would otherwise win. */
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"] { color: var(--text-danger); }
 :is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
 .composer-send .doan-spinner { color: var(--text-on-accent); }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
@@ -563,7 +562,7 @@ body:has(.shell-top) { background: transparent; }
 .permission-popover { width: 280px; }
 .perm-item { display: flex; align-items: flex-start; gap: var(--space-2); padding-block: var(--space-1h); }
 .perm-item > svg:first-child { width: var(--size-icon); height: var(--size-icon); margin-top: var(--space-half); color: var(--text-subtle); }
-.doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-warning); }
+.doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-danger); }
 .perm-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .perm-item .check-slot { margin-top: var(--space-half); }
@@ -604,23 +603,22 @@ body:has(.shell-top) { background: transparent; }
 /* The docked composer (draft frame docked-composer): Home's card without its inset tray, a capsule that becomes a box.
    One grid holds both shapes so the field never moves in the DOM; only the areas change. */
 .docked { position: relative; }
-.docked .composer-card { position: relative; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
+.docked .composer-card { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
 .docked .composer-tools { display: contents; }
 .docked .composer-tools .grow { display: none; }
-.docked .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { grid-area: attach; }
 .docked .composer-presets { grid-area: presets; }
 .docked .composer-send { grid-area: send; }
 .docked .composer-chips { grid-area: chips; }
 .docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
-.docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
+.docked[data-shape="capsule"] .composer-card { grid-template-areas: "presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
 .docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
 /* A wrapped placeholder made the empty capsule taller than one with a typed character; one line keeps both the same,
    and the ellipsis shows the narrow panel cut the hint rather than ending it. */
 .docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field" "presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
 /* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
-.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
-.docked[data-shape="box"] .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { margin-left: calc(-1 * var(--space-1)); }
+.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips" "field field field" "presets . send"; }
+.docked[data-shape="box"] .composer-presets { margin-left: calc(-1 * var(--space-1)); }
 .docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
 .docked .composer-tray .doan-button { margin-left: 0; }
 .docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
@@ -925,7 +923,8 @@ body:has(.shell-top) { background: transparent; }
 .cv-text > small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
 .cv-text > small.err { color: var(--text-danger); }
 .cv-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: var(--space-half) 0; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
-.rp-empty { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* The same dashed box as the sidebar's empty groups, inset like the list's rows. */
+.rp-empty { margin: 0 var(--space-2) var(--space-2); padding: var(--space-4); border: 1px dashed var(--border-standard); border-radius: var(--radius-chip); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
 .rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
@@ -1028,17 +1027,18 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
 /* The composer's note sits under its chip, over the card, without entering the field's DOM. */
 .chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }
-/* Pick from canvas (design §2 'Picker'): the left end of the model row; the picking hint is the agent notice's capsule
-   with an outlined Esc key, and the board shows a crosshair (the canvas script sets the one over the canvas). */
-.docked .composer-tray .composer-pick { margin-right: auto; color: var(--text-subtle); }
+/* Attach, then Pick from canvas (design §2 'Picker'), at the left end of the model row; the pickers sit at the right
+   end. The picking hint is the agent notice's capsule with an outlined Esc key, and the board shows a crosshair (the
+   canvas script sets the one over the canvas). */
+.docked .composer-tray :is(.composer-attach, .composer-pick) { color: var(--text-subtle); }
+.docked .composer-tray .composer-agent { margin-left: auto; }
 .composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
-.docked .composer-tray .composer-pick[aria-disabled="true"] { color: var(--text-disabled); }
+.docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
 /* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
-   look here: without it the terminal session's Attach and an unavailable Add to conversation read as working buttons. */
-.docked .composer-tools > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
-:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
-@media (hover: hover) and (pointer: fine) { :is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
-:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
+   look: without it the terminal session's Attach and an unavailable Add to conversation read as working buttons. */
+:is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
+:is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
 .doan-picking-esc.doan-kbd { background: transparent; color: var(--text-on-prominent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-prominent) 45%, transparent); }
