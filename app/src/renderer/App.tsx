@@ -1284,7 +1284,7 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
-    home={home} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
+    home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;

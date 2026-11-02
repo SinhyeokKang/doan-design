@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
@@ -421,7 +422,10 @@ function projectSettingsFromWorkspace(entries: FolderEntry[] = [listed("/w/a"), 
   clearController();
 }
 
-test("Project Settings opens as a page from Home, a workspace or Add Projects: the Projects tab is current, the sidebar marks no row, the menu sees Settings", () => {
+// The Home row as the sidebar draws it: current only on Home (PRODUCT §5 item 3), not on a page showing Home's sidebar.
+const homeRowCurrent = (sidebar: ReactElement) => /class="shell-home-row row"[^>]*aria-current="page"/.test(renderToStaticMarkup(sidebar));
+
+test("Project Settings opens as a page from Home, a workspace or Add Projects: the Projects tab is current, the sidebar marks no row, not even Home, the menu sees Settings", () => {
   render();
   folders([listed("/w/a"), listed("/w/b")]);
   openProjectSettings("/w/a");
@@ -432,9 +436,10 @@ test("Project Settings opens as a page from Home, a workspace or Add Projects: t
   expect(bar.projects.props["aria-current"]).toBe("page");
   expect([bar.add.props["aria-current"], bar.settings.props["aria-current"]]).toEqual([undefined, undefined]);
   expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
-  // Home's sidebar: no current project or canvas, and no category list.
+  // Home's sidebar: no current project or canvas, no category list, and the Home row is not current either.
   expect(page.props.sidebar.props.home).toBe(true);
   expect(page.props.sidebar.props.settings).toBeUndefined();
+  expect(homeRowCurrent(page.props.sidebar)).toBe(false);
   expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
   // Nothing modal: the page is a screen, so the toast keeps running.
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
@@ -443,6 +448,7 @@ test("Project Settings opens as a page from Home, a workspace or Add Projects: t
   expect(projectPage()!.props.origin).toEqual({ screen: "workspace", root: "/w/a" });
   click(topBar(projectPage()!.props.header).add);
   expect(addPage()).toBeDefined();
+  expect(homeRowCurrent(find<Record<string, unknown>>(AddProjectsPage)[0]!.props.sidebar as ReactElement)).toBe(false);
   openProjectSettings("/w/b");
   expect(projectPage()!.props).toMatchObject({ root: "/w/b", origin: { screen: "workspace", root: "/w/a" } });
   // And back to Settings and Add Projects without changing it either.
@@ -750,4 +756,24 @@ test("the canvas area of a missing or not set up workspace points at Locate or S
     const status = all((pane.type as (props: unknown) => ReactNode)(pane.props)).find(element => element.props.className === "canvas-status")!;
     expect(text(status), entry.kind).toBe(sentence);
   }
+});
+
+// Fix round 1 (review RA2 ⚪3): what the sidebar does around the page, as Home does.
+test("entering the page leaves the sidebar's expansion as it was", () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  const before = JSON.stringify(sidebarOf().cards.map(card => [card.key, (find<{ projects: Record<string, { expanded: boolean }> }>(ShellSidebar)[0]!.props.projects[card.key])?.expanded ?? false]));
+  openProjectSettings("/w/b");
+  const after = JSON.stringify(sidebarOf().cards.map(card => [card.key, (find<{ projects: Record<string, { expanded: boolean }> }>(ShellSidebar)[0]!.props.projects[card.key])?.expanded ?? false]));
+  expect(projectPage()).toBeDefined();
+  expect(after).toBe(before);
+});
+
+test("another project's row opens its Overview from the page, as from Home, never its last canvas", async () => {
+  projectSettingsFromWorkspace();
+  const key = sidebarOf().cards.find(card => card.rows.some(row => row.path === "/w/b"))!.key;
+  sidebarOf().toggle(key); for (let i = 0; i < 5; i++) await Promise.resolve(); render();
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
+  expect(projectPage()).toBeUndefined();
 });
