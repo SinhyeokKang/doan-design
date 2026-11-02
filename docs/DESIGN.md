@@ -189,8 +189,7 @@ One canvas per token group, shared component and shared surface in `.doan/ds/`, 
 | `project-thumbnail` | Identity colours, sizes | `styles.css` (`.shell-thumbnail`) |
 | `error-details` | The Details disclosure, closed and open | `ErrorDetails.tsx` |
 | `doany` | Slots and focus (still image only) | `Doany.tsx`, `doany.css` |
-| `project-settings` | Loaded, saved, saving, reading, read error, folder problem | `ProjectSettingsDialog.tsx` |
-| `add-to-serve` | The confirmation before adding a serve path | `SettingsDialog.tsx` |
+| `add-to-serve` | The Share confirmation before a path is shared with canvases | `SettingsDialog.tsx` |
 | `remove-confirmation` | Stop and remove a project with a running conversation | `App.tsx` |
 | `project-setup` | No token, chosen, running, failed | `ProjectSetupDialog.tsx` |
 | `quick-open` | Browse, results, no match | `QuickOpenDialog.tsx` |
