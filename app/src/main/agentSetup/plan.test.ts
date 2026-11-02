@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTarget, codexRuleText, installEligibility, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
+import { CLAUDE_ALLOW_RULES, classifyTarget, codexRuleText, installEligibility, mergeClaudeAllow, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
 
 const HOME = "/Users/u";
 const SHARE = `${HOME}/.local/share/doan`;
@@ -171,4 +171,61 @@ describe("plan", () => {
     expect(steps[3]).toMatchObject({ item: { providers: ["claude", "codex", "cursor", "copilot"] } });
   });
 
+});
+
+describe("mergeClaudeAllow", () => {
+  const RULES = ["Bash(doan work start *)", "Bash(doan work done *)"];
+  const written = (text: string | null) => {
+    const result = mergeClaudeAllow(text);
+    if (result.kind !== "write") throw new Error(`expected a write, got ${JSON.stringify(result)}`);
+    return result.text;
+  };
+
+  it("allows exactly doan work start and doan work done, with arguments", () => {
+    expect(CLAUDE_ALLOW_RULES).toEqual(RULES);
+  });
+
+  it("creates the settings for a missing file", () => {
+    const text = written(null);
+    expect(JSON.parse(text)).toEqual({ permissions: { allow: RULES } });
+    expect(text).toBe(`${JSON.stringify({ permissions: { allow: RULES } }, null, 2)}\n`);
+  });
+
+  it("keeps every other key and allow entry, adding only the missing rules after them", () => {
+    const before = { model: "opus", env: { A: "1" }, permissions: { allow: ["Bash(npm run *)", RULES[1]], deny: ["Bash(rm *)"], defaultMode: "default" }, hooks: { Stop: [] } };
+    const after = JSON.parse(written(JSON.stringify(before)));
+    expect(after).toEqual({ ...before, permissions: { ...before.permissions, allow: ["Bash(npm run *)", RULES[1], RULES[0]] } });
+    expect(Object.keys(after)).toEqual(Object.keys(before));
+  });
+
+  it("adds allow to permissions, and permissions to the settings, when they are missing", () => {
+    expect(JSON.parse(written('{"permissions":{"deny":[]}}'))).toEqual({ permissions: { deny: [], allow: RULES } });
+    expect(JSON.parse(written('{"theme":"dark"}'))).toEqual({ theme: "dark", permissions: { allow: RULES } });
+  });
+
+  it("writes nothing when both rules are there, so a second run is the same", () => {
+    expect(mergeClaudeAllow(written('{"theme":"dark"}'))).toEqual({ kind: "keep" });
+    expect(mergeClaudeAllow(`{ "permissions": { "allow": [${RULES.map(rule => JSON.stringify(rule)).join(", ")}] } }`)).toEqual({ kind: "keep" });
+  });
+
+  it("does not count a broader rule as one of Doan's", () => {
+    expect(JSON.parse(written('{"permissions":{"allow":["Bash(doan *)"]}}')).permissions.allow).toEqual(["Bash(doan *)", ...RULES]);
+  });
+
+  it.each([
+    ["an empty file", "", "json"],
+    ["broken JSON", '{"permissions": {"allow": []},}', "json"],
+    ["JSON with comments", '// mine\n{"permissions": {}}', "json"],
+    ["a list", "[]", "object"],
+    ["null", "null", "object"],
+    ["a string", '"x"', "object"],
+    ["permissions as a list", '{"permissions": []}', "permissions"],
+    ["permissions as null", '{"permissions": null}', "permissions"],
+    ["permissions as a string", '{"permissions": "allow"}', "permissions"],
+    ["allow as a string", '{"permissions": {"allow": "Bash(doan *)"}}', "allow"],
+    ["allow as an object", '{"permissions": {"allow": {}}}', "allow"],
+    ["allow as null", '{"permissions": {"allow": null}}', "allow"],
+  ] as const)("refuses %s", (_name, text, problem) => {
+    expect(mergeClaudeAllow(text)).toEqual({ kind: "refuse", problem });
+  });
 });
