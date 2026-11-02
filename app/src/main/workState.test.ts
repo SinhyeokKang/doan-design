@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { applyWork, expireWork, retainWorkRoots, workItems, MAX_WORK_SESSIONS, MAX_WORK_PATHS, WORK_EXPIRY_MS, type WorkState } from "./workState";
+import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, MAX_WORK_SESSIONS, MAX_WORK_PATHS, WORK_EXPIRY_MS, type WorkState } from "./workState";
 import type { WorkRequest } from "../formats/types";
 const root = "/repo", path = ".doan/canvases/new.html";
 const start = (extra: Partial<{ root: string; path: string; session: string; provider: "claude" | "codex" }> = {}): WorkRequest => ({ v: 3, token: "t", root, action: "start", path, ...extra });
@@ -82,4 +82,14 @@ test("a capped start renews the existing session without adding its path", () =>
   expect(workItems(state).every(item => item.root === root)).toBe(true);
   expect(workItems(expireWork(state, 100, () => 0, 100))).toHaveLength(MAX_WORK_PATHS);
   expect(workItems(expireWork(state, 190, () => 0, 100))).toEqual([]);
+});
+
+test("the next deadline uses the earliest session expiry and an injectable limit", () => {
+  expect(nextWorkExpiry(empty(), () => 0, 100)).toBeUndefined();
+  let state = applyWork(empty(), start(), 10);
+  state = applyWork(state, start({ root: "/other" }), 20);
+  const changed = (r: string) => r === root ? 50 : 0;
+  expect(nextWorkExpiry(state, changed, 100)).toBe(120);
+  state = expireWork(state, 120, changed, 100);
+  expect(nextWorkExpiry(state, changed, 100)).toBe(150);
 });
