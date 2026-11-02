@@ -24,6 +24,7 @@ For `.doan/canvases/home.html`, use `../assets/logo.svg` for `.doan/assets/logo.
 8. Keep ids stable and unique: canvas ids across the repo, frame ids within a canvas, and element ids within a canvas. Frame and element ids are separate namespaces and must be non-empty.
 9. External resources are allowed; `doan check` reports them as warnings. The CLI makes no network requests.
 10. When token CSS is configured, direct hex and rgb colors produce warnings, including custom property declarations and `var()` fallbacks. Use the linked tokens.
+11. Do not use viewport height units (vh, dvh, svh, lvh, vb) in a canvas: in the app they resolve against the whole board. Write pixel values, also when copying app CSS that uses them; `doan check` warns with `viewport_height_unit`.
 
 ## Agent rules
 
