@@ -50,3 +50,6 @@
   - 지휘자 판단: 새 함수 `followProjectSettingsPage`는 A2가 다이얼로그용 옛 함수를 지운 뒤 `followProjectSettings`로 이름을 바꾼다(tasks T2의 이름).
   - 지휘자 판단: Share 확인 제목은 시안처럼 경로를 code로 보인다. A2가 `SettingsDialog`의 `title`을 `ReactNode`로 넓히고 접근 이름은 문자열로 따로 둔다. 근거: 사용자가 확정한 시안이 정본이다.
 - A2: Claude Opus high(task `task_f1928394248c`, dispatch `ctx_a190afc01d54`, worktree `project-settings-a2`)로 efc1e257 위에서 시작했다. RA1(A1 리뷰, Claude Sonnet 서브에이전트)은 병렬로 돌린다. A1 파일에 대한 지적은 A2가 끝난 뒤 RA2 지적과 함께 A2의 수정 회차로 보낸다(A1 작업자는 release했고 A2가 그 파일을 소유한다).
+- RA1(A1 리뷰, Claude Sonnet 서브에이전트): 🔴 0, 🟡 3. (1) 읽기 중 문제 상태가 되면 Retry가 계속 비활성으로 남는다. (2) `gone` 뒤 늦은 선택기 응답이 사라진 워크트리의 확인을 다시 연다. (3) 읽기 실패 문장이 두 번 보인다. A1의 handoff 차이 7개는 모두 허용 판정이다. 지적은 `.scratch/orch/review-RA1.md`에 두고 A2 수정 회차로 보낸다.
+  - 지휘자 판단: 시안의 `Saving (controls disabled)` 타일은 Remove from Doan도 비활성으로 그렸지만, design '잠금'은 쓰기 중에도 Remove from Doan을 쓸 수 있다고 정했다. design을 따르고, 시안 타일은 C가 design에 맞게 고친다(초안은 결정을 따른다).
+  - 지휘자 판단: Share 제목의 code 표시는 앞의 결정대로 시안을 따른다. 리뷰어는 시안을 고치자고 했지만, 사용자가 확정한 시안이 정본이고 `SettingsDialog` 변경이 작다.
