@@ -112,6 +112,7 @@ const workChanges = new Map<string, Map<string, number>>();
 let workTimer: ReturnType<typeof setInterval> | undefined;
 function updateWork(next: WorkState): void {
   if (next === workState) return;
+  const previous = workItems(workState);
   workState = next;
   const items = workItems(next);
   for (const [root, paths] of workChanges) {
@@ -124,7 +125,7 @@ function updateWork(next: WorkState): void {
   } else if (!items.length && workTimer !== undefined) {
     clearInterval(workTimer); workTimer = undefined;
   }
-  send("work:changed", items);
+  if (items.length !== previous.length || items.some((item, i) => item.root !== previous[i]?.root || item.path !== previous[i]?.path || item.session !== previous[i]?.session || item.provider !== previous[i]?.provider)) send("work:changed", items);
 }
 let linksRendererReady = false;
 const openLinks = openLinkQueue(url => {

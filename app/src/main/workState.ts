@@ -28,7 +28,12 @@ export function expireWork(state: WorkState, now: number, lastChange: (root: str
   return sessions.length === state.sessions.length ? state : { ...state, sessions };
 }
 export function retainWorkRoots(state: WorkState, roots: readonly string[]): WorkState {
-  return { roots, sessions: state.sessions.map(item => ({ ...item, paths: item.paths.filter(target => roots.includes(target.root)) })).filter(item => item.paths.length > 0) };
+  const sessions = state.sessions.map(item => {
+    const paths = item.paths.filter(target => roots.includes(target.root));
+    return paths.length === item.paths.length ? item : { ...item, paths };
+  }).filter(item => item.paths.length > 0);
+  if (roots.length === state.roots.length && roots.every((root, i) => root === state.roots[i]) && sessions.length === state.sessions.length && sessions.every((item, i) => item === state.sessions[i])) return state;
+  return { roots, sessions };
 }
 export function workItems(state: WorkState): WorkItem[] {
   return state.sessions.flatMap(item => item.paths.map(target => ({ ...target, session: item.session, provider: item.provider })));
