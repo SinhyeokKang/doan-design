@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Doany, Doan's mascot: the WebGL shell of the draft prototype .doan/assets/doany/motion/mascot.js
+// Doany, Doan's mascot: the WebGL shell of the V2 draft prototype .doan/assets/doany/v2/mascot.js
 // (MIT, Doan contributors). Context options, shaders, mesh, blend and texture parameters are the
-// draft's, unchanged (Doany.test.tsx compares the WebGL calls with the original's); motion lives in
-// doanyMotion.ts and the frame loop in doanyRig.ts.
+// draft's, unchanged (Doany.test.tsx compares the WebGL calls with the draft's, and doanyRender.test.ts
+// checks the shader's anchors against the shipped artwork); only the drawn pose is bounded (drawnPose).
+// Motion lives in doanyMotion.ts and the frame loop in doanyRig.ts.
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import type { Pose } from "./doanyMotion";
 import { createDoanyRig, type DoanyRig, type DoanyTarget } from "./doanyRig";
 
 export interface DoanyHandle { hop(): void; typing(): void }
@@ -18,16 +20,12 @@ const vertex = `
       vUV = aUV;
       vec2 p = aUV;
       if (layer > .5) {
-        p = p * .83 + vec2(.09, .01);
         vec2 h = p - vec2(.67,.30);
         float c = cos(hatTilt), s = sin(hatTilt);
         p = vec2(c*h.x-s*h.y,s*h.x+c*h.y) + vec2(.67,.30);
       }
       vec2 q = p - vec2(.5,.60);
-      float edge = smoothstep(.15,.49,length(q));
       if (layer < .5) {
-        float angle = atan(q.y,q.x);
-        q += normalize(q+vec2(.0001))*edge*(sin(angle*6.+time*2.3)*.005 + sin(angle*3.-time*5.)*energy*.012);
         q.x += look.x * .018 * (1.-abs(q.y));
       }
       q.x *= 1.+squash;
@@ -35,8 +33,8 @@ const vertex = `
       q.y += squash*.36;
       float c = cos(tilt), s = sin(tilt);
       q = vec2(c*q.x-s*q.y,s*q.x+c*q.y);
-      q += vec2(0.,.12-lift);
-      gl_Position = vec4(q.x*1.20,-q.y*1.20,0.,1.);
+      q += vec2(0.,.10-lift);
+      gl_Position = vec4(q.x*1.34,-q.y*1.34,0.,1.);
     }`;
 const fragment = `
     precision mediump float;
@@ -51,12 +49,26 @@ const fragment = `
     void main() {
       vec4 col = texture2D(skin,vUV);
       if (layer < .5) {
-        float mask = max(eye(vec2(.384,.554)), eye(vec2(.617,.554)));
-        float shine = exp(-pow((vUV.y-.527-look.y*.014)*42.,2.));
+        float mask = max(eye(vec2(.421,.550)), eye(vec2(.619,.550)));
+        float shine = exp(-pow((vUV.y-.523-look.y*.014)*42.,2.));
         col.rgb = mix(col.rgb,vec3(.025)+vec3(.085)*shine,mask);
       }
       gl_FragColor = col;
     }`;
+// The V2 draft leaves the beret no headroom: at the hop's apex with the pointer far left its top already
+// reaches the canvas edge, and quick presses swing it further out. So, unlike the draft, the app draws
+// the hop 10% lower and holds the beret's tilt to [-.30, +.15], which a single hop with the pointer
+// anywhere stays inside (about -.19 to +.13), so only a burst of presses meets it. Together they keep
+// at least 1.4 device px (Home's 228 px canvas; 1.75 in Welcome's 286) between the drawing and the
+// canvas edge for any press sequence, enough to survive antialiasing (doanyRender.test.ts). Bounding the
+// tilt alone could not: even level, the beret's top comes within 1 device px at the apex. The rest
+// frame has no lift or tilt, so it stays the draft's byte for byte; the motion state is untouched.
+export const BERET_TILT = [-.3, .15] as const;
+const LIFT_SCALE = .9;
+export function drawnPose(pose: Pose): Pose {
+  return { ...pose, lift: pose.lift * LIFT_SCALE, hatTilt: Math.min(BERET_TILT[1], Math.max(BERET_TILT[0], pose.hatTilt)) };
+}
+
 const UNIFORMS = ["time", "squash", "lift", "tilt", "hatTilt", "layer", "energy", "look", "eyeOpen", "skin"] as const;
 
 // Null without WebGL; throws when a shader does not compile or link, after releasing the context.
@@ -108,7 +120,7 @@ function surface(canvas: HTMLCanvasElement): { target: DoanyTarget; textures: Pr
     const target: DoanyTarget = {
       draw(pose) {
         gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.useProgram(program);
-        const { time, squash, lift, tilt, hatTilt, energy, eyeOpen } = pose;
+        const { time, squash, lift, tilt, hatTilt, energy, eyeOpen } = drawnPose(pose);
         for (const [key, value] of Object.entries({ time, squash, lift, tilt, hatTilt, energy, eyeOpen })) gl.uniform1f(locations[key as keyof typeof locations], value);
         gl.uniform2f(locations.look, pose.look[0], pose.look[1]);
         gl.uniform1i(locations.skin, 0);
@@ -171,7 +183,7 @@ export function mountDoany(host: HTMLButtonElement, still: HTMLImageElement, pla
       const resize = new ResizeObserver(() => rig.resize()); resize.observe(host);
       const visible = new IntersectionObserver(entries => rig.intersect(entries[0]!.isIntersecting)); visible.observe(host);
       const click = () => rig.hop();
-      const keydown = (event: KeyboardEvent) => { if (rig.key(event.key)) event.preventDefault(); };
+      const keydown = (event: KeyboardEvent) => { if (rig.key(event.key, event.repeat)) event.preventDefault(); };
       // The draft frame is the whole window, so the gaze follows the pointer anywhere in it.
       const move = (event: PointerEvent) => rig.pointer(event.clientX, event.clientY);
       const change = () => rig.reducedChange();

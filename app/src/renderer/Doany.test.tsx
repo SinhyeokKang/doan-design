@@ -3,19 +3,19 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { Doany, mountDoany } from "./Doany";
 
-// The WebGL calls of the original .doan/assets/doany/motion/mascot.js up to its first frame, from
-// .scratch/doan-mascot/golden.mjs (objects are creation ids, typed arrays are length and checksum).
+// The WebGL calls of the V2 draft .doan/assets/doany/v2/mascot.js up to its first frame, from
+// .scratch/doany-v2/golden-trace.mjs (objects are creation ids, typed arrays are length and checksum).
 const golden = JSON.parse(readFileSync(new URL("./doany.golden.json", import.meta.url), "utf8")) as { scenarios: { name: string; trace?: unknown[] }[] };
 const trace = golden.scenarios.find(item => item.name === "idle")!.trace!;
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-type Listener = (event: { key?: string; clientX?: number; clientY?: number; preventDefault(): void }) => void;
+type Listener = (event: { key?: string; repeat?: boolean; clientX?: number; clientY?: number; preventDefault(): void }) => void;
 function events(log: string[], name: string) {
   const listeners = new Map<string, Set<Listener>>();
   return {
     addEventListener(type: string, listener: Listener) { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type)!.add(listener); },
     removeEventListener(type: string, listener: Listener) { if (listeners.get(type)?.delete(listener)) log.push(`${name} off ${type}`); },
-    dispatch(type: string, event: { key?: string; clientX?: number; clientY?: number } = {}) {
+    dispatch(type: string, event: { key?: string; repeat?: boolean; clientX?: number; clientY?: number } = {}) {
       let prevented = false;
       for (const listener of [...listeners.get(type) ?? []]) listener({ ...event, preventDefault() { prevented = true; } });
       return prevented;
@@ -170,6 +170,15 @@ test("click, Enter and Space hop; Space and Enter prevent the default and other 
   expect([env.host.dispatch("keydown", { key: "Enter" }), env.host.dispatch("keydown", { key: " " }), env.host.dispatch("keydown", { key: "a" })]).toEqual([true, true, false]);
 });
 
+test("holding Enter or Space hops once: the key's repeats only prevent the default", async () => {
+  const env = environment();
+  env.mount();
+  await env.load(); env.frame(1000);
+  expect([env.host.dispatch("keydown", { key: "Enter", repeat: true }), env.host.dispatch("keydown", { key: " ", repeat: true })]).toEqual([true, true]);
+  env.frame(1020);
+  expect(env.host.dataset.state).toBe("idle");
+});
+
 test("a reduced-motion change draws the still pose; hidden or off-screen Doany stops drawing", async () => {
   const env = environment();
   env.mount();
@@ -210,7 +219,7 @@ test("the stylesheet is linked and keeps the draft's host rules with the shared 
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   expect(html).toContain('<link rel="stylesheet" href="./doany.css" />');
   const css = readFileSync(new URL("./doany.css", import.meta.url), "utf8");
-  expect(css).toContain(".doany img { padding: 20%; }");
+  expect(css).toContain(".doany img { padding: 16.5%; }");
   expect(css).toContain(".doany [hidden] { display: none; }");
   expect(css).toMatch(/\.doany:focus-visible \{ outline: 2px solid var\(--border-focus\); outline-offset: 2px; border-radius: var\(--radius-container\); \}/);
 });

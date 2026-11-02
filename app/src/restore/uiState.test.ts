@@ -210,6 +210,16 @@ test("drops home fields one by one and keeps the rest", () => {
   expect(parse({ screen: "home", home: { lastRoot: 1, lastProvider: null, models: [] } })).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
 });
 
+// permission-mode T2 (design '잘못된 값 읽기'): each provider's last mode; an id this build does not know reads as Default
+// for that entry only, and Default is the same as no entry.
+test("keeps each provider's last permission mode and reads an unknown one as Default", () => {
+  const state = { screen: "home", expanded: {}, lastByRoot: {}, home: { ...home, permissions: { claude: "bypass", codex: "plan", cursor: "acceptEdits" } } };
+  expect(parse(state)).toEqual(state);
+  const read = parse({ screen: "home", home: { ...home, permissions: { claude: "auto", codex: "default", cursor: 3, copilot: "plan", nobody: "plan" } } });
+  expect(read?.home).toEqual({ ...home, permissions: { copilot: "plan" } });
+  for (const bad of [null, [], "plan", 1]) expect(parse({ screen: "home", home: { ...home, permissions: bad } })?.home).toEqual(home);
+});
+
 test("home memory never keeps a removed root", () => {
   expect(parse({ screen: "home", home: { lastRoot: "/repo/a" } }, ["/repo/b"])).toEqual({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
 });

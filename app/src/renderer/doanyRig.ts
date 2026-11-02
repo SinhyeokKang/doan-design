@@ -29,8 +29,8 @@ export interface DoanyRig {
   intersect(isIntersecting: boolean): void;
   pointer(clientX: number, clientY: number): void;
   hop(): void;
-  // Returns whether the key hopped, so the caller prevents its default.
-  key(key: string): boolean;
+  // Returns whether the key is a hop key, so the caller prevents its default (repeats included).
+  key(key: string, repeat?: boolean): boolean;
   typing(): void;
   reducedChange(): void;
   dispose(): void;
@@ -70,9 +70,12 @@ export function createDoanyRig(deps: {
     intersect(isIntersecting) { visible = isIntersecting; },
     pointer(clientX, clientY) { pointer(state, clientX, clientY, view.rect()); },
     hop() { hop(state, deps.reduced()); },
-    key(key) {
+    key(key, repeat = false) {
       if (key !== "Enter" && key !== " ") return false;
-      hop(state, deps.reduced());
+      // A held key repeats keydown every 33 ms or so, and each hop kicks the beret spring again until it
+      // spins out of the canvas. One press is one hop; a repeat still prevents the default, or Enter
+      // would click the button and hop anyway.
+      if (!repeat) hop(state, deps.reduced());
       return true;
     },
     typing() { typing(state); },

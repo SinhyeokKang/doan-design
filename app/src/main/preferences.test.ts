@@ -30,6 +30,17 @@ describe("parsePreferences", () => {
     expect(parsePreferences(JSON.stringify({ v: 1 }))).toEqual({ preferences: DEFAULT_PREFERENCES, notice: null });
   });
 
+  test("reads a chosen permission mode, and a mode it cannot read as Default for that field only", () => {
+    const plan = { ...FULL, newConversation: { provider: "codex", model: "gpt-6", permissionMode: "plan" } };
+    expect(parsePreferences(JSON.stringify(plan))).toEqual({ preferences: plan, notice: null });
+    const modeOnly = { ...FULL, newConversation: { provider: "claude", permissionMode: "bypass" } };
+    expect(parsePreferences(JSON.stringify(modeOnly))).toEqual({ preferences: modeOnly, notice: null });
+    // A later build may add a mode: the rest of the file still applies.
+    for (const permissionMode of ["auto", "default", 3, null, ""]) {
+      expect(parsePreferences(JSON.stringify({ ...FULL, newConversation: { ...FULL.newConversation, permissionMode } })), String(permissionMode)).toEqual({ preferences: FULL, notice: null });
+    }
+  });
+
   test("a broken file is the defaults with the read notice", () => {
     for (const text of ["", "{", "null", "[]", "1", JSON.stringify({ notifications: FULL.notifications }), JSON.stringify({ v: 0 }), JSON.stringify({ v: "1" }), JSON.stringify({ v: 1.5 }),
       JSON.stringify({ ...FULL, notifications: { ...FULL.notifications, enabled: "yes" } }), JSON.stringify({ ...FULL, notifications: [] }),
@@ -54,6 +65,14 @@ describe("changing preferences", () => {
     const pick = parsePreferencesPatch({ newConversation: { provider: "codex", model: "gpt-6" } });
     expect(mergePreferences(FULL as never, pick!)).toEqual({ ...FULL, newConversation: { provider: "codex", model: "gpt-6" } });
     expect(mergePreferences(FULL as never, parsePreferencesPatch({ newConversation: null })!)).toEqual({ ...FULL, newConversation: null });
+  });
+
+  test("a patch takes a permission mode, with or without a model; Default is stored as no mode", () => {
+    expect(parsePreferencesPatch({ newConversation: { provider: "codex", model: "gpt-6", permissionMode: "acceptEdits" } })).toEqual({ newConversation: { provider: "codex", model: "gpt-6", permissionMode: "acceptEdits" } });
+    expect(parsePreferencesPatch({ newConversation: { provider: "claude", permissionMode: "plan" } })).toEqual({ newConversation: { provider: "claude", permissionMode: "plan" } });
+    expect(parsePreferencesPatch({ newConversation: { provider: "claude", permissionMode: "default" } })).toEqual({ newConversation: { provider: "claude" } });
+    // The renderer names only the common ids.
+    for (const permissionMode of ["auto", "bypassPermissions", "", 1, null]) expect(parsePreferencesPatch({ newConversation: { provider: "claude", permissionMode } }), String(permissionMode)).toBeNull();
   });
 
   test("refuses a patch that is not exactly one of the known shapes", () => {
@@ -114,6 +133,21 @@ describe("preferences store", () => {
     expect(await store.update({ notifications: { enabled: false } })).toEqual({ ok: false, reason: "newer", snapshot: { preferences: DEFAULT_PREFERENCES, notice: "newer" } });
     expect(readFileSync(file, "utf8")).toBe(newer);
     expect(names()).toEqual(["preferences.json"]);
+  });
+
+  test("a newer file refuses a permission mode change too", async () => {
+    const newer = JSON.stringify({ ...FULL, v: 2 });
+    writeFileSync(file, newer);
+    const store = createPreferencesStore(file, { now });
+    expect(await store.update({ newConversation: { provider: "claude", permissionMode: "bypass" } })).toEqual({ ok: false, reason: "newer", snapshot: { preferences: DEFAULT_PREFERENCES, notice: "newer" } });
+    expect(readFileSync(file, "utf8")).toBe(newer);
+  });
+
+  test("writes a chosen permission mode and reads it back", async () => {
+    const store = createPreferencesStore(file, { now });
+    await store.update({ newConversation: { provider: "antigravity", permissionMode: "acceptEdits" } });
+    expect(onDisk()).toEqual({ ...DEFAULT_PREFERENCES, newConversation: { provider: "antigravity", permissionMode: "acceptEdits" } });
+    expect(createPreferencesStore(file, { now }).current().newConversation).toEqual({ provider: "antigravity", permissionMode: "acceptEdits" });
   });
 
   test("an invalid change is refused and changes nothing", async () => {

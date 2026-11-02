@@ -5,7 +5,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import { textSegments } from "./anchorField";
-import { CanvasConversation, canvasConversationTitle, canvasScope, linkedAt, queuedText, type CanvasConversationProps } from "./CanvasConversationPanel";
+import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, canvasScope, linkedAt, queuedText, startNewConversation, type CanvasConversationProps } from "./CanvasConversationPanel";
 import { CanvasRun } from "./canvasRun";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { ConversationStore, type ListView } from "./conversationStore";
@@ -71,6 +71,17 @@ test("a canvas with a terminal session offers it first, with the time doan check
   expect(out).toContain("<strong>Start a new conversation</strong><small>Uses Doan’s sign-in and your Settings defaults</small>");
   expect(out).toContain('aria-label="Model: set by the terminal session (Codex)"');
   expect(out).toContain('aria-placeholder="Reply, / for presets"');
+});
+
+// permission-mode U1, RV-B ⚪6: a terminal session's mode is its own; the tray shows the fixed trigger, never the picker.
+test("a terminal session shows the fixed Permission trigger and no picker", async () => {
+  resume = { available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00" };
+  const support = () => Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] } });
+  const out = await panel([], () => {}, { support: support(), prefs: { permissions: { claude: "bypass" } } });
+  expect(out).toContain('aria-label="Permission: set by the terminal session"');
+  expect(out).not.toContain("data-mode=");
+  resume = { available: false, reason: "no_record" };
+  expect(await panel([], () => {}, { support: support(), prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="bypass"');
 });
 
 test("restoring an archived conversation waits while the current one works, with Open", async () => {
@@ -170,4 +181,25 @@ test("a promotion while the panel is open keeps New conversation with the notice
   expect(canvasConversationTitle(run, list).title).toBe("New conversation");
   expect(out).toContain("<span>A project conversation is now current on this canvas.</span>");
   expect(out).toContain('aria-label="Open the current conversation"');
+});
+
+// Dogfooding: New conversation as an icon button in the panel header, after the title menu (so left of Hide conversation).
+test("the panel header offers New conversation next to the title menu", () => {
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() }));
+  const html = renderToStaticMarkup(<TooltipProvider><CanvasConversationTitle run={run} list={[]} canvasName="checkout" now={0} seen={new Set()} title="Payment copy" current="c1" onPicked={() => {}} /></TooltipProvider>);
+  const title = html.indexOf("doan-conv-title"), button = html.indexOf('aria-label="New conversation"');
+  expect(title).toBeGreaterThanOrEqual(0);
+  expect(button).toBeGreaterThan(title);
+  expect(html).toMatch(/<button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"[^>]*><svg[^>]*lucide-square-pen/);
+});
+
+test("New conversation selects a new conversation and focuses the composer, or only focuses when already new", () => {
+  const select = vi.fn(), focus = vi.fn();
+  startNewConversation("c1", select, focus);
+  expect(select).toHaveBeenCalledWith(null);
+  expect(focus).toHaveBeenCalledTimes(1);
+  select.mockClear(); focus.mockClear();
+  startNewConversation(null, select, focus);
+  expect(select).not.toHaveBeenCalled();
+  expect(focus).toHaveBeenCalledTimes(1);
 });

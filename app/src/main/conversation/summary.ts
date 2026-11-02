@@ -1,11 +1,13 @@
 import { foldConversation } from "./state";
 import type { ConversationMetadata } from "./store";
 import type { Provider } from "../agentAuth/types";
+import type { PermissionModeId } from "./permissionMode";
 import type { Canvas, ConversationEvent } from "./types";
 // One row of a project's conversation list (conversation:list). The renderer imports this type only.
 export interface ConversationSummary {
   conversationId: string; canvas?: Canvas; title: string; state: "current" | "archived";
-  owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; fromHome: boolean;
+  // permissionMode: the conversation's chosen mode, absent for Default; it also changes after a Claude plan approval.
+  owner: "doan" | "legacy-external"; provider: Provider; model?: string; effort?: string; permissionMode?: PermissionModeId; fromHome: boolean;
   // waiting: an unanswered permission request. ended also covers a turn a restart folded as crashed.
   phase: "running" | "waiting" | "ended"; unseen: boolean; queued: number; lastActivityAt: string; preview: string;
   // main is still working on it, whatever the history says: preparing, running or waiting for an answer, a project turn
@@ -26,7 +28,7 @@ export function conversationSummary(m: ConversationMetadata, read: { ok: true; e
   const base = {
     conversationId: m.conversationId, ...(m.canvas ? { canvas: m.canvas } : {}), title: m.title, state: m.state,
     owner: m.owner.kind, provider: m.session.runtime, ...(m.model ? { model: m.model } : {}), ...(m.effort ? { effort: m.effort } : {}),
-    fromHome: m.fromHome === true, queued: live.queued, working: live.working,
+    ...(m.permissionMode ? { permissionMode: m.permissionMode } : {}), fromHome: m.fromHome === true, queued: live.queued, working: live.working,
   };
   if (!read.ok) return { ...base, phase: "ended", unseen: false, lastActivityAt: "", preview: "", readError: true };
   const events = read.events, folded = foldConversation(events, m.conversationId, !live.live);

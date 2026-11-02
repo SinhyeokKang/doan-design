@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { ModelCatalog, parseAcpModels, parseClaudeModels, parseCodexModels, type ModelOption } from "./models";
+import { ModelCatalog, parseAcpModels, parseAcpModes, parseClaudeModels, parseCodexModels, type ModelList, type ModelOption } from "./models";
 import type { Prepared } from "./service";
 import type { Provider } from "../agentAuth/types";
 
@@ -44,7 +44,7 @@ function catalog(over: Partial<Prepared> = {}) {
   const release = vi.fn(async () => {});
   const prepare = vi.fn(async (root: string, runtime: Provider): Promise<Prepared> => ({ runtime, configDir: "/p", cwd: root, command: "/x", env: {}, release, installed: "1.0.0",
     owner: { kind: "doan", provider: runtime, connectionId: connection, accountId: "a", workspaceId: null, profile: "p" }, ...over }));
-  const list = vi.fn(async (input: Prepared) => { await input.release?.(); return LIST; });
+  const list = vi.fn(async (input: Prepared): Promise<ModelList> => { await input.release?.(); return { models: LIST }; });
   return { models: new ModelCatalog(prepare, list), prepare, list, release, reconnect: () => { connection = "c2"; } };
 }
 it("lists once per folder, provider and connection, and once for concurrent reads", async () => {
@@ -97,10 +97,31 @@ it("keeps a Codex model's default effort only when it is one of its levels", () 
 });
 it("answers a model's default effort from the list delivered for that folder and provider", async () => {
   const c = catalog();
-  c.list.mockResolvedValue([{ id: "gpt", label: "GPT", default: true, efforts: ["low", "medium"], defaultEffort: "medium" }, { id: "plain", label: "Plain", default: false }]);
+  c.list.mockResolvedValue({ models: [{ id: "gpt", label: "GPT", default: true, efforts: ["low", "medium"], defaultEffort: "medium" }, { id: "plain", label: "Plain", default: false }] });
   expect(c.models.defaultEffort("/repo", "codex", "gpt")).toBeUndefined();
   await c.models.models("/repo", "codex");
   expect(c.models.defaultEffort("/repo", "codex", "gpt")).toBe("medium");
   expect(c.models.defaultEffort("/repo", "codex", "plain")).toBeUndefined();
   expect(c.models.defaultEffort("/other", "codex", "gpt")).toBeUndefined();
+});
+
+// permission-mode S2: ACP mode lists come from the same session/new reply as the models, with no extra request.
+const COPILOT = "https://agentclientprotocol.com/protocol/session-modes#";
+it("reads an ACP session/new mode list and whether Copilot offers allow_all", () => {
+  expect(parseAcpModes({ sessionId: "s", modes: { currentModeId: "agent", availableModes: [{ id: "agent", name: "Agent" }, { id: "plan", name: "Plan" }, { id: "ask", name: "Ask" }, { id: "" }, "x"] } }))
+    .toEqual({ available: ["agent", "plan", "ask"], allowAll: false });
+  expect(parseAcpModes({ modes: { currentModeId: `${COPILOT}agent`, availableModes: [{ id: `${COPILOT}agent` }, { id: `${COPILOT}plan` }] },
+    configOptions: [{ id: "mode", category: "mode", currentValue: `${COPILOT}agent` }, { id: "allow_all", category: "permissions", currentValue: "off", options: [{ value: "on" }, { value: "off" }] }] }))
+    .toEqual({ available: [`${COPILOT}agent`, `${COPILOT}plan`], allowAll: true });
+  // allow_all counts only when it can be both turned on and turned off.
+  expect(parseAcpModes({ modes: { availableModes: [{ id: "a" }] }, configOptions: [{ id: "allow_all", options: [{ value: "on" }] }] })).toEqual({ available: ["a"], allowAll: false });
+  for (const none of [{ sessionId: "s" }, { modes: {} }, { modes: { availableModes: [] } }, null]) expect(parseAcpModes(none)).toBeUndefined();
+});
+it("answers an ACP list's modes with its models, and none for a provider that listed none", async () => {
+  const c = catalog();
+  const modes = { available: ["agent", "plan"], allowAll: false };
+  c.list.mockResolvedValueOnce({ models: LIST, modes });
+  expect(await c.models.models("/repo", "cursor")).toEqual({ models: LIST, modes });
+  expect(await c.models.models("/repo", "cursor")).toEqual({ models: LIST, modes });
+  expect(await c.models.models("/repo", "claude")).toEqual({ models: LIST });
 });

@@ -374,6 +374,10 @@ test("buzz-conversation: list, seen marker, list changes, extended send, links a
   expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:markSeen", { conversationId: "c", seq: 4 });
   await api.sendConversation({ conversationId: "c", text: "x", model: "opus", effort: "high", attachments: [{ id: "a" }] });
   expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:send", { conversationId: "c", text: "x", model: "opus", effort: "high", attachments: [{ id: "a" }] });
+  await api.sendConversation({ conversationId: "c", text: "x", permissionMode: "plan" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:send", { conversationId: "c", text: "x", permissionMode: "plan" });
+  await api.setConversationPermissionMode({ conversationId: "c", permissionMode: "bypass" });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("conversation:setPermissionMode", { conversationId: "c", permissionMode: "bypass" });
   await api.openLink("https://example.com");
   expect(mocks.invoke).toHaveBeenLastCalledWith("shell:openLink", { url: "https://example.com" });
   await api.attachmentsFromPaths(["/Users/me/a.png"]);

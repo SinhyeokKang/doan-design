@@ -1,4 +1,5 @@
 import type { Provider } from "../main/agentAuth/types";
+import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationEvent } from "../main/conversation/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
@@ -36,6 +37,9 @@ export interface HomeRunHost {
   toast(message: string, action?: string, run?: () => void): void;
   // ui-state's Home memory after a send (design §8).
   sent(request: StartInput): void;
+  // A conversation main moved out of Plan (a Claude plan approval): its provider's last mode follows, as after a pick
+  // (permission-mode design '저장 규칙'). Any other change of a stored mode is a pick the composer already remembered.
+  followedMode?(provider: Provider, mode: PermissionModeId): void;
   changed(): void;
 }
 // opened: the new canvas this conversation's turn made was already opened or offered; one per conversation.
@@ -439,6 +443,11 @@ export class HomeRun {
     });
   }
   private applyList(root: string, n: number, list: readonly ConversationSummary[]): void {
+    const before = this.lists.get(root);
+    for (const c of list) {
+      const was = before?.find(item => item.conversationId === c.conversationId);
+      if (was?.permissionMode === "plan" && c.permissionMode !== "plan") this.host.followedMode?.(c.provider, c.permissionMode ?? "default");
+    }
     this.lists = new Map(this.lists).set(root, list);
     this.listErrors.delete(root);
     this.applied.set(root, n);

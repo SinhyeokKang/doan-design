@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ChevronDown, Info, Plus } from "lucide-react";
+import { ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
+import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
@@ -9,6 +10,7 @@ import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
@@ -32,6 +34,7 @@ import { scrollTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems } from "./threadItems";
 import type { ComposerChoice } from "./rememberChoice";
+import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
 // The canvas page's conversation panel body (buzz-canvas-conversation design §2 'Conversation panel', draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
@@ -95,13 +98,21 @@ export function linkedAt(at: string | undefined, now: number): string | null {
   return date.toDateString() === today.toDateString() ? clock : `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${clock}`;
 }
 
+// The header's New conversation button: the menu's item one click away, left of Hide conversation (dogfooding). On a new
+// conversation already it only focuses the composer.
+export function startNewConversation(current: string | null, select: (id: string | null) => void, focus: () => void): void {
+  if (current !== null) select(null);
+  focus();
+}
+
 export function CanvasConversationTitle({ run, list, canvasName, now, seen, title, current, onPicked }: {
   run: CanvasRun; list: ListView; canvasName: string; now: number; seen: ReadonlySet<string>; title: string; current: string | null; onPicked(): void;
 }) {
   const target = run.target();
   const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen) : [];
   const picked = useRef(false);
-  return <span className="ov-title-wrap doan-conv-title">
+  const startNew = () => startNewConversation(current, run.select.bind(run), onPicked);
+  return <><span className="ov-title-wrap doan-conv-title">
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild disabled={list === "loading"}><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
         <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
@@ -121,7 +132,9 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
         </DropdownMenu.RadioGroup>
       </DropdownMenu.Content></DropdownMenu.Portal>
     </DropdownMenu.Root>
-  </span>;
+  </span>
+  <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" onClick={startNew}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
+    <TooltipContent>New conversation</TooltipContent></Tooltip></>;
 }
 
 // The panel's title: the shown conversation's, or New conversation.
@@ -170,8 +183,23 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const option = modelOption(listState, model);
   const effort = fixed ? null : pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, preference);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort });
+  // The mode, as the model: a new conversation's from Home's rules, an existing one's its own stored mode. A terminal
+  // session takes none; its fixed trigger shows instead.
+  const stored = readPermissionMode(summary?.permissionMode);
+  const choices = chosen && !fixed ? permissionChoices(chosen, listState) : [];
+  const permission = fixed ? null : permissionPickerView(chosen, listState, mode.kind === "new"
+    ? defaultPermission(choices, pick.permissionMode, chosen ? props.prefs?.permissions?.[chosen] : undefined, preference)
+    : defaultPermission(choices, pick.permissionMode ?? support.started[key] ?? stored, undefined, null));
+  const permissionMode = permission?.mode;
+  // An existing conversation's send names the shown mode only once it is known: before the list names the
+  // conversation, Default would overwrite the mode it was started in.
+  const sentMode = mode.kind === "new" || summary || pick.permissionMode !== undefined ? permissionMode : undefined;
+  useEffect(() => { if (mode.kind === "existing" || mode.kind === "archived") support.settlePermission(key, summary ? stored : null); }, [key, stored, summary !== undefined, pick.permissionMode]);
   const choiceTouched = Object.keys(pick).length > 0;
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort }); }, [choiceTouched, chosen, model, effort]);
+  // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
+  // carry a mode (Full access included) the person chose for that conversation into new ones.
+  const rememberedMode = mode.kind === "new" || pick.permissionMode !== undefined ? permissionMode : undefined;
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed]);
 
@@ -272,18 +300,19 @@ export function CanvasConversation(props: CanvasConversationProps) {
       const start = mode.kind === "resume"
         ? { root, mode: "resume" as const, canvas: target.canvas, text: request.text, anchors: [...request.anchors] }
         : { root, mode: "new" as const, runtime, canvas: target.canvas, text: request.text, anchors: [...request.anchors],
-          ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
+          ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
       const reply = await window.doan.startConversation(start).catch(() => ({ error: "unknown" }));
       if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
-      if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null });
+      if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...(permissionMode ? { permissionMode } : {}) });
       support.clearPick(key);
+      if (mode.kind === "new" && permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: reply.conversationId, provider: runtime }), permissionMode);
       run.started(target, reply.conversationId, runtime, revision);
       return { ok: true };
     }
     const reply = await window.doan.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
-      ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+      ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
     run.sent(target, revision, sentUnder);
@@ -356,8 +385,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
-        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), model: value === "default" ? undefined : value })}
+        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined } : {}), model: value === "default" ? undefined : value })}
         onPickEffort={value => support.pick(key, { effort: value })}
+        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" || mode.kind === "archived" ? mode.conversationId : null, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}

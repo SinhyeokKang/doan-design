@@ -141,7 +141,7 @@ it("refreshes a moved stable canvas before preparation and send acceptance", asy
   await service.send(id, "continue", []);
   expect(h.prepare.mock.calls.at(-1)?.[0].canvas).toEqual(listed);
   expect(h.store.list()[0]?.canvas).toEqual(listed);
-  expect(h.runners[0]?.send).toHaveBeenLastCalledWith(expect.stringContaining(".doan/canvases/moved.html"), expect.any(String));
+  expect(h.runners[0]?.send).toHaveBeenLastCalledWith(expect.stringContaining(".doan/canvases/moved.html"), expect.any(String), undefined, { permissionMode: "default" });
 });
 
 it("resolves unique stable IDs and refuses missing, changed or ambiguous bindings", () => {
@@ -414,7 +414,7 @@ it.each(["quit", "stopRuns"] as const)("stops a model-list read on %s during its
   const reading = h.service.listModels(input, async (_input, gone, registerStop) => {
     exited = gone; registerStop(stop);
     await new Promise((_resolve, reject) => { stop.mockImplementation(async () => { reject(new Error("process_exited")); }); });
-    return [];
+    return { models: [] };
   });
   await vi.waitFor(() => expect(exited).toBeDefined());
   await (how === "quit" ? h.service.quit() : h.service.stopRuns("cursor"));
@@ -441,7 +441,7 @@ it("keeps a model-list read of another provider running on a sign-out", async ()
 it("keeps the lease of a model-list group that never disappears, even after its list came back", async () => {
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "copilot");
-  expect(await h.service.listModels(input, async (_input, _gone, registerStop) => { registerStop(async () => {}); return [{ id: "auto", label: "Auto", default: true }]; })).toHaveLength(1);
+  expect(await h.service.listModels(input, async (_input, _gone, registerStop) => { registerStop(async () => {}); return { models: [{ id: "auto", label: "Auto", default: true }] }; })).toEqual({ models: [{ id: "auto", label: "Auto", default: true }] });
   await new Promise(resolve => setTimeout(resolve, 50));
   expect(h.release).not.toHaveBeenCalled();
 });
@@ -449,7 +449,7 @@ it("stops a model-list process that spawns after its provider was stopped", asyn
   const h = listingFixture();
   const input = await h.service.prepareListing("/repo", "cursor");
   let spawn!: () => void; const stop = vi.fn(async () => {});
-  const reading = h.service.listModels(input, async (_input, _gone, registerStop) => { await new Promise<void>(resolve => { spawn = resolve; }); registerStop(stop); return []; });
+  const reading = h.service.listModels(input, async (_input, _gone, registerStop) => { await new Promise<void>(resolve => { spawn = resolve; }); registerStop(stop); return { models: [] }; });
   await vi.waitFor(() => expect(spawn).toBeDefined());
   await h.service.stopRuns("cursor");
   spawn(); await reading;
@@ -683,7 +683,7 @@ describe("send extras", () => {
     expect(atMessage).toEqual(["opus"]);
     expect(h.store.list()[0]).toMatchObject({ model: "opus", effort: "high" });
     expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ model: "opus", effort: "high" });
-    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "high" });
+    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "high", permissionMode: "default" });
   });
   it("drops the old effort when a model comes without one, and keeps the stored choice when nothing changed", async () => {
     const h = homeFixture(); const id = await finished(h);
@@ -740,16 +740,16 @@ describe("send extras", () => {
     h.service.receive(id, { type: "turn.done" }); h.passBindingWindow();
     await h.service.send(id, "again", [], { model: "gpt-6-sol", effort: "low" });
     expect(h.open).toHaveBeenCalledOnce();
-    expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toEqual({ model: "gpt-6-sol", effort: "low" });
+    expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toEqual({ model: "gpt-6-sol", effort: "low", permissionMode: "default" });
   });
   it("tells the runner the model's default effort for a turn whose choice has none, without storing it", async () => {
     const h = homeFixture(); const id = await finished(h);
     await h.service.send(id, "again", [], { model: "opus", defaultEffort: "medium" });
-    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "medium" });
+    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "medium", permissionMode: "default" });
     expect(h.store.list()[0]!.model).toBe("opus"); expect(h.store.list()[0]).not.toHaveProperty("effort");
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
     await h.service.send(id, "more", [], { model: "opus", effort: "high", defaultEffort: "medium" });
-    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "high" });
+    expect(vi.mocked(h.runners.at(-1)!.send).mock.calls[0]![3]).toEqual({ model: "opus", effort: "high", permissionMode: "default" });
   });
   it("saves the turn's canvas list as a project conversation's snapshot", async () => {
     const h = homeFixture([{ path: ".doan/canvases/a.html", id: "a" }]);
@@ -1341,4 +1341,145 @@ it.each(["new", "newDesign", "resume"] as const)("stores a one-line chip title w
   const id = (await h.service.start({ root: request.root, mode, ...(mode === "newDesign" ? {} : { canvas: request.canvas }), runtime: "codex", text, anchors })).conversationId;
   expect(h.store.list()[0]!.title).toBe(("Update Hero section " + "x".repeat(600)).slice(0, 512));
   expect(h.store.read(id)[0]).toMatchObject({ type: "user.message", text, anchors });
+});
+
+// permission-mode S1: the chosen mode is stored apart from the model, follows a Claude plan approval and reaches every turn.
+describe("permission mode", () => {
+  const canvas = { path: ".doan/canvases/a.html", id: "a" };
+  // A Claude canvas conversation whose first turn ended and whose process is gone.
+  async function started(h: ReturnType<typeof homeFixture>, extra: Partial<Parameters<ConversationService["start"]>[0]> = {}) {
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, ...extra })).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    return id;
+  }
+  const lastTurn = (h: ReturnType<typeof homeFixture>) => vi.mocked(h.runners.at(-1)!.send).mock.calls.at(-1)![3];
+  it("opens a start with its mode, stores it and carries it into the resume turn's choice", async () => {
+    const h = homeFixture();
+    const id = await started(h, { model: "sonnet", permissionMode: "plan" });
+    expect(h.open.mock.calls[0]![0]).toMatchObject({ model: "sonnet", permissionMode: "plan" });
+    expect(h.store.list()[0]).toMatchObject({ model: "sonnet", permissionMode: "plan" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "plan" });
+    await h.service.send(id, "again", []);
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ sessionId: "s1", model: "sonnet", permissionMode: "plan" });
+    expect(lastTurn(h)).toEqual({ model: "sonnet", permissionMode: "plan" });
+  });
+  it("stores a mode-only send's mode and keeps the model, and keeps the mode when only the model changes", async () => {
+    const h = homeFixture();
+    const id = await started(h, { model: "sonnet", effort: "low" });
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    await h.service.send(id, "again", [], { permissionMode: "bypass" });
+    expect(h.store.list()[0]).toMatchObject({ model: "sonnet", effort: "low", permissionMode: "bypass" });
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ model: "sonnet", effort: "low", permissionMode: "bypass" });
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls.at(-1)![2]();
+    await h.service.send(id, "more", [], { model: "opus" });
+    expect(h.store.list()[0]).toMatchObject({ model: "opus", permissionMode: "bypass" });
+  });
+  it("deletes the stored mode on a Default send and still names Default to the turn", async () => {
+    const h = homeFixture();
+    const id = await started(h, { permissionMode: "acceptEdits" });
+    await h.service.send(id, "again", [], { permissionMode: "default" });
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    expect(h.open.mock.calls.at(-1)![0]).not.toHaveProperty("permissionMode");
+    expect(lastTurn(h)).toEqual({ permissionMode: "default" });
+  });
+  it("names Default to a reused Codex server's turn, so an earlier override does not stay", async () => {
+    const h = homeFixture();
+    const codex = { ...h.owner, provider: "codex" as const };
+    h.prepare.mockImplementation(async (_request, stored) => ({ runtime: "codex", configDir: "/config", cwd: "/repo", command: "/fake", env: {}, owner: codex, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, runtime: "codex", permissionMode: "bypass" })).conversationId;
+    expect(h.open.mock.calls[0]![0]).toMatchObject({ permissionMode: "bypass" });
+    h.service.receive(id, { type: "turn.done" });
+    await h.service.send(id, "again", [], { permissionMode: "default" });
+    expect(h.open).toHaveBeenCalledOnce();
+    expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toEqual({ permissionMode: "default" });
+  });
+  // permission-mode spec decisions 7 and 8: a picker change without a send is stored at once, and a queue goes out in
+  // the mode stored when it is flushed, not the one its messages were queued under.
+  it("stores a picker change without a send, deletes the key for Default and announces only a change", async () => {
+    const h = homeFixture();
+    const id = await started(h, { model: "sonnet" });
+    h.changes.length = 0;
+    h.service.setPermissionMode(id, "plan");
+    expect(h.store.list()[0]).toMatchObject({ model: "sonnet", permissionMode: "plan" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "plan" });
+    expect(h.changes).toEqual(["/repo"]);
+    h.changes.length = 0; h.service.setPermissionMode(id, "plan");
+    expect(h.changes).toEqual([]);
+    h.service.setPermissionMode(id, "default");
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    expect(h.changes).toEqual(["/repo"]);
+    expect(() => h.service.setPermissionMode("missing", "plan")).toThrow("not_found");
+    // The next send without a mode opens in the stored one.
+    h.service.setPermissionMode(id, "acceptEdits");
+    await h.service.send(id, "again", []);
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ permissionMode: "acceptEdits" });
+  });
+  it("sends a queue in the mode stored when it is flushed", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "bypass" })).conversationId;
+    h.service.queue(id, { text: "one", anchors: [] });
+    // Changed while the turn runs: the running turn keeps bypass, the queue goes out in Plan.
+    h.service.setPermissionMode(id, "plan");
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ permissionMode: "plan" });
+    expect(lastTurn(h)).toEqual({ permissionMode: "plan" });
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
+  });
+  it("keeps a picker change made while a send was being prepared", async () => {
+    const h = homeFixture();
+    const id = await started(h);
+    let resume!: () => void;
+    const gate = new Promise<void>(resolve => { resume = resolve; });
+    const prepare = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementationOnce(async (request, stored) => { await gate; return prepare(request, stored); });
+    const sending = h.service.send(id, "again", [], { permissionMode: "acceptEdits" });
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(2));
+    h.service.setPermissionMode(id, "plan");
+    resume(); await sending;
+    // The turn runs in the mode it was sent with; the conversation keeps the later pick for the next one.
+    expect(lastTurn(h)).toEqual({ permissionMode: "acceptEdits" });
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
+  });
+  it("stores the mode Claude reports after a plan approval and announces the list change", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
+    const report = h.open.mock.calls[0]![0].planApproved!;
+    h.changes.length = 0;
+    report("acceptEdits");
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "acceptEdits" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "acceptEdits" });
+    expect(h.changes).toEqual(["/repo"]);
+  });
+  it("stores Default as no key after a plan approval, and the same mode again changes nothing", async () => {
+    const h = homeFixture();
+    await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" });
+    const report = h.open.mock.calls[0]![0].planApproved!;
+    report("default");
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    expect(h.service.list("/repo")[0]).not.toHaveProperty("permissionMode");
+    h.changes.length = 0; report("default");
+    expect(h.changes).toEqual([]);
+  });
+  // permission-mode spec decision 8, RV-B ⚪1: a mode the person picked during the Plan turn is theirs; the plan
+  // approval follows the SDK only while the conversation is still in Plan.
+  it("keeps a mode the person picked during the Plan turn when the plan is approved", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
+    const report = h.open.mock.calls[0]![0].planApproved!;
+    h.service.setPermissionMode(id, "acceptEdits");
+    h.changes.length = 0;
+    report("default");
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "acceptEdits" });
+    expect(h.changes).toEqual([]);
+  });
+  it("ignores a plan report from a turn that is no longer the conversation's current one", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
+    const stale = h.open.mock.calls[0]![0].planApproved!;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await h.service.send(id, "again", []);
+    stale("bypass");
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
+  });
 });

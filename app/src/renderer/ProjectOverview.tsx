@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
+import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas, ConversationEvent } from "../main/conversation/types";
@@ -33,6 +34,7 @@ import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems } from "./threadItems";
 import type { ComposerChoice } from "./rememberChoice";
+import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
 // The project Overview as the project conversation screen (buzz-project design §2.1, §2.2, §2.5): the header with the
 // project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
@@ -136,8 +138,22 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const option = modelOption(listState, model);
   const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, fixed);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort });
+  // The mode, as the model: a new conversation's from Home's rules, an existing one's its own stored mode.
+  const stored = readPermissionMode(summary?.permissionMode);
+  const choices = chosen ? permissionChoices(chosen, listState) : [];
+  const permission = permissionPickerView(chosen, listState, mode.kind === "new"
+    ? defaultPermission(choices, pick.permissionMode, chosen ? props.prefs?.permissions?.[chosen] : undefined, fixed)
+    : defaultPermission(choices, pick.permissionMode ?? support.started[key] ?? stored, undefined, null));
+  const permissionMode = permission?.mode;
+  // An existing conversation's send names the shown mode only once it is known: before the list names the
+  // conversation, Default would overwrite the mode it was started in.
+  const sentMode = mode.kind === "new" || summary || pick.permissionMode !== undefined ? permissionMode : undefined;
+  useEffect(() => { if (mode.kind !== "new") support.settlePermission(key, summary ? stored : null); }, [key, stored, summary !== undefined, pick.permissionMode]);
   const choiceTouched = Object.keys(pick).length > 0;
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort }); }, [choiceTouched, chosen, model, effort]);
+  // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
+  // carry a mode (Full access included) the person chose for that conversation into new ones.
+  const rememberedMode = mode.kind === "new" || pick.permissionMode !== undefined ? permissionMode : undefined;
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready]);
 
@@ -214,18 +230,22 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       if (!chosen) return { error: "no_agent" };
       const start: StartInput = {
         root, mode: "newDesign", runtime: chosen, text: request.text,
-        ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+        ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
       };
       const last: LastRequest = { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
-      if ("ok" in outcome && outcome.conversationId) { support.clearPick(key); run.started(root, outcome.conversationId, chosen, revision); }
+      if ("ok" in outcome && outcome.conversationId) {
+        support.clearPick(key);
+        if (permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: outcome.conversationId, provider: chosen }), permissionMode);
+        run.started(root, outcome.conversationId, chosen, revision);
+      }
       return "ok" in outcome ? { ok: true } : outcome;
     }
     const revision = run.revision(root);
     const reply = await props.onSendConversation(mode.provider, {
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
-      ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+      ...(changedModel && model ? { model, ...(effort ? { effort } : {}) } : {}), ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return reply;
     run.sent(root, mode.conversationId, revision);
@@ -348,8 +368,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
-        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), model: value === "default" ? undefined : value })}
+        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined } : {}), model: value === "default" ? undefined : value })}
         onPickEffort={value => support.pick(key, { effort: value })}
+        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}

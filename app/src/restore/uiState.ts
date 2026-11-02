@@ -2,6 +2,7 @@
 // main validates what the renderer saves, and the restore plan reads the result.
 
 import { validProvider, type Provider } from "../main/agentAuth/types";
+import { readPermissionMode, type PermissionModeId } from "../main/conversation/permissionMode";
 import { parseSettingsSection, type SettingsSection } from "../renderer/settingsSections";
 
 export interface UiView {
@@ -30,6 +31,9 @@ export interface HomeMemory {
   lastRoot?: string;
   lastProvider?: Provider;
   models?: Partial<Record<Provider, HomeModel>>;
+  // Each provider's last permission mode, apart from `models`: a mode is kept even when no model was read
+  // (permission-mode design '저장 규칙'). Default is no entry.
+  permissions?: Partial<Record<Provider, PermissionModeId>>;
 }
 
 export interface UiState {
@@ -149,6 +153,15 @@ function parseHome(value: Record<string, unknown>, saved: ReadonlySet<string>): 
       models.push([provider, nonEmpty(item["effort"]) ? { model: item["model"], effort: item["effort"] } : { model: item["model"] }]);
     }
     home.models = Object.fromEntries(models);
+  }
+  // A mode this build does not know (a later build's, or a damaged entry) reads as Default for that provider only.
+  if (isRecord(value["permissions"])) {
+    const permissions: [Provider, PermissionModeId][] = [];
+    for (const [provider, item] of Object.entries(value["permissions"])) {
+      const mode = readPermissionMode(item);
+      if (validProvider(provider) && mode !== "default") permissions.push([provider, mode]);
+    }
+    home.permissions = Object.fromEntries(permissions);
   }
   return home;
 }

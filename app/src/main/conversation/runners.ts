@@ -8,7 +8,8 @@ import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeV
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { parseClaudeModels, parseCodexModels } from "./models";
-import { claudePermissionSummary, endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
+import { claudePermissionSummary, claudeReportedMode, endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
+import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
@@ -53,6 +54,7 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
   const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
   let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", buffer = "", dead = false;
+  let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
   let protocolFailed = false;
   const dispatcher = new CodexDispatcher(write, emit, () => failProtocol());
@@ -90,12 +92,24 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     write({ method: "initialized" });
     if (list) {
       const models = parseCodexModels(await dispatcher.request("model/list", {}));
-      return { sessionId: "", models: async () => models, send: async () => { throw new Error("session_unavailable"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
+      return { sessionId: "", models: async () => ({ models }), send: async () => { throw new Error("session_unavailable"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
     }
     const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
     sessionId = result.thread.id;
     if (input.sessionId && sessionId !== input.sessionId) throw new Error("session_unavailable");
+    // Default is stated on every turn, since an override holds across turns and thread/resume (0.163.0, P2). Its values
+    // depend on config and project trust and config/read leaves them null when unset, so an ephemeral thread/start
+    // (no rollout, no model request) reads them. A failed or incomplete probe refuses the open: sending nothing would
+    // keep an earlier override (orch.md decision 6). A run on an external profile (a terminal session) takes no mode
+    // and states nothing, so an override its thread carries from the terminal stays.
+    if (input.owner) {
+      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
+      const read = codexDefaults(probe); if (!read) throw new Error("session_unavailable");
+      defaults = read;
+      // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
+      workspace = codexWorkspace(await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; }));
+    }
     if (dead) throw new Error("process_exited");
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
   return {
@@ -103,12 +117,12 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     async send(prompt, turnId, _attachments, choice) {
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       // The server was opened with the conversation's choice then; a send may have changed it since.
-      const turn = choice ?? input;
+      const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
       activeTurn = turnId; startingTurn = true;
       dispatcher.begin({ root: input.cwd, sessionId, turnId });
       let result: unknown;
       // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
-      try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}) }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+      try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
       if (dead) throw new Error("process_exited");
       if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
       activeTurn = result.turn.id; dispatcher.started(activeTurn);
@@ -144,6 +158,9 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
     abortController: controller, ...(input.sessionId ? { resume: input.sessionId } : { sessionId }),
     // A resume without them starts on the default model (P1), so every run passes the conversation's choice.
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
+    // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
+    // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
+    ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),
     spawnClaudeCodeProcess(options) {
       const child = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {
@@ -173,12 +190,18 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
   }
   return {
     sessionId,
-    models: async () => parseClaudeModels(await timeout(q.supportedModels())),
+    models: async () => ({ models: parseClaudeModels(await timeout(q.supportedModels())) }),
     async send(prompt) {
       if (finished) throw new Error("process_exited");
       const consume = (async () => {
         try {
-          for await (const raw of q) { const result = normalizeClaude(state, raw, input.cwd); state = result.state; for (const event of result.events) emit(event); }
+          for await (const raw of q) {
+            // Only a turn sent with Plan follows a reported switch (the plan's approval); a suggestion's setMode on another
+            // turn stays that process's.
+            const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
+            if (reported && reported !== "plan") input.planApproved?.(reported);
+            const result = normalizeClaude(state, raw, input.cwd); state = result.state; for (const event of result.events) emit(event);
+          }
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
         } catch (error) {
           // SDK exit errors can precede group disappearance; neither cleanup nor provider errors prove process death.

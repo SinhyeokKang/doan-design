@@ -2,13 +2,15 @@ import { randomBytes } from "node:crypto";
 import { readFileSync, renameSync } from "node:fs";
 import { unlink, writeFile } from "node:fs/promises";
 import { validProvider, type Provider } from "./agentAuth/types";
+import { permissionModeId, type PermissionModeId } from "./conversation/permissionMode";
 
 // `<userData>/preferences.json` (buzz-settings design '포맷 변경'). Only TS writes and reads it, so, like ui-state,
 // its tests are its schema.
 
 export interface NotificationPreferences { enabled: boolean; approval: boolean; finished: boolean; failed: boolean }
 // null is Last used: Home starts from the conversation sent last, as before this file existed.
-export interface NewConversationPreference { provider: Provider; model?: string; effort?: string }
+// permissionMode: Default is stored as no key.
+export interface NewConversationPreference { provider: Provider; model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default"> }
 export interface Preferences { v: 1; notifications: NotificationPreferences; newConversation: NewConversationPreference | null }
 // broken: unreadable, so defaults apply until a change moves it aside. newer: a later Doan wrote it; never touched.
 export type PreferencesNotice = "broken" | "newer" | null;
@@ -40,13 +42,18 @@ function notifications(value: unknown, base: NotificationPreferences, partial: b
   return read;
 }
 
-// undefined: not a valid choice. `exact` refuses unknown fields, as a renderer request must.
+const CHOICE_KEYS = ["provider", "model", "effort", "permissionMode"];
+// undefined: not a valid choice. `exact` refuses unknown fields and modes, as a renderer request must. Read from the
+// file, a mode this build cannot read is the one field that reads as Default rather than breaking the file: a later
+// build may add modes.
 function newConversation(value: unknown, exact: boolean): NewConversationPreference | null | undefined {
   if (value === null) return null;
   if (!record(value) || !validProvider(value.provider)) return undefined;
-  if (exact && Object.keys(value).some(key => key !== "provider" && key !== "model" && key !== "effort")) return undefined;
+  if (exact && Object.keys(value).some(key => !CHOICE_KEYS.includes(key))) return undefined;
   if ((value.model !== undefined && !id(value.model)) || (value.effort !== undefined && !id(value.effort))) return undefined;
-  return { provider: value.provider, ...(value.model === undefined ? {} : { model: value.model as string }), ...(value.effort === undefined ? {} : { effort: value.effort as string }) };
+  if (exact && value.permissionMode !== undefined && !permissionModeId(value.permissionMode)) return undefined;
+  const mode = permissionModeId(value.permissionMode) && value.permissionMode !== "default" ? value.permissionMode : undefined;
+  return { provider: value.provider, ...(value.model === undefined ? {} : { model: value.model as string }), ...(value.effort === undefined ? {} : { effort: value.effort as string }), ...(mode ? { permissionMode: mode } : {}) };
 }
 
 // null text: no file. Unknown fields are ignored and a known field left out takes its default; a known field with

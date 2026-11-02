@@ -466,11 +466,6 @@ body:has(.shell-top) { background: transparent; }
    own fill and check. */
 .doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
 .shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
-/* Home's own atmosphere (2026-10-29 user): a wide violet ellipse spreading from the composer's centre, smooth and
-   still; unlike Welcome's bottom glow it has no grain. The panel clips it at its corners. */
-.home-atmosphere { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent) 0%, color-mix(in srgb, var(--affordance-accent) 15%, transparent) 32%, color-mix(in srgb, var(--affordance-accent) 6%, transparent) 62%, transparent 100%); }
-@media (prefers-reduced-transparency: reduce) { .home-atmosphere { opacity: .6; } }
-@media (forced-colors: active) { .home-atmosphere { display: none; } }
 /* The top inset is set from the reference group by HomeComposer (stageInsets); this is its floor. */
 .home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); }
 .home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
@@ -482,6 +477,11 @@ body:has(.shell-top) { background: transparent; }
 .logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
 /* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
 .composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
+/* Home's atmosphere (dogfooding): a violet glow that follows the composer's rounded border instead of a panel-wide
+   ellipse; still, no grain. Box shadows keep the composer's radius, so the glow traces its outline. Forced colors drop
+   box shadows. */
+.home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 27%, transparent), 0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb, var(--affordance-accent) 7%, transparent); }
+@media (prefers-reduced-transparency: reduce) { .home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 15%, transparent); } }
 .composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
 /* A text field shows focus with its own border (DESIGN 'Focus'); the composer's is the quieter field-focus border with
    a slightly higher shadow (buzz-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
@@ -511,6 +511,16 @@ body:has(.shell-top) { background: transparent; }
 .composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 /* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
 .composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
+   mode's own icon, so an icon-only trigger still names the mode. Full access adds the warning ink and fill; its name,
+   icon and aria-label carry it too, so colour is never the only signal. No coloured edge. */
+.composer-permission { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-permission svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Hover, press and open keep the warning fill: the shared trigger's state fills (ds/controls.css) outrank a plain
+   selector, and an open Full access trigger showed the neutral pressed fill. */
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"],
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"]:is(:hover, :active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-warning); color: var(--text-warning); }
+:is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
 .composer-send .doan-spinner { color: var(--text-on-accent); }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
@@ -540,6 +550,15 @@ body:has(.shell-top) { background: transparent; }
 .slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
 .agent-popover { width: 300px; }
 .effort-popover { width: 200px; }
+/* One row per mode, its name over a one-line description, like the preset rows. 280 is the component constant: Effort's
+   200 is too narrow for the descriptions, and the shared menu cap is 320. */
+.permission-popover { width: 280px; }
+.perm-item { display: flex; align-items: flex-start; gap: var(--space-2); padding-block: var(--space-1h); }
+.perm-item > svg:first-child { width: var(--size-icon); height: var(--size-icon); margin-top: var(--space-half); color: var(--text-subtle); }
+.doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-warning); }
+.perm-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.perm-item .check-slot { margin-top: var(--space-half); }
 .project-popover { width: 320px; }
 .popover-search { position: relative; display: block; margin-bottom: var(--space-1); }
 .popover-search > svg { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-metadata); }
@@ -597,11 +616,23 @@ body:has(.shell-top) { background: transparent; }
 .docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
 .docked .composer-tray .doan-button { margin-left: 0; }
 .docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The docked tray when it is short of width (permission-mode draft frame docked-tray): it never wraps, and gives way in
+   order: below a 384px content width Permission shows its icon only, below 288 Effort does too, and the model label
+   ellipsizes last. Pick, logos and chevrons never shrink. The boundaries come from the draft's widest labels ("Plan
+   (read-only)", "Medium"); a hidden label stays in the tooltip and aria-label. */
+.docked .composer-tray { container-type: inline-size; }
+.composer-tray .doan-button .label { white-space: nowrap; }
+/* The shared .doan-button does not shrink; only the model trigger may, so the last step can ellipsize it. */
+.docked .composer-tray .composer-agent { flex-shrink: 1; min-width: 0; }
+.docked .composer-agent .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 383px) { .docked .composer-permission .label { display: none; } }
+@container (max-width: 287px) { .docked .composer-effort .label { display: none; } }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
-.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
-.queue-item > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--text-metadata); }
+/* Larger than a chip since dogfooding found queued messages hard to read: label type, a 16px icon, 40px tall. */
+.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+.queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .canvas-gone svg { flex: none; }
@@ -1038,7 +1069,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
    primitive. The wording gives way first; the button keeps its size. */
 .doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
-.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
    white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
 .doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }

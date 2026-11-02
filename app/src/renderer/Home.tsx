@@ -25,7 +25,6 @@ export function Home({ header, sidebar, ...composer }: HomeProps) {
     {header}
     {sidebar}
     <section className="home-panel" aria-label="Home">
-      <div className="home-atmosphere" aria-hidden="true" />
       <HeroComposer {...composer} greeting={greeting} />
     </section>
   </main>;

@@ -1,5 +1,6 @@
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { PROVIDERS, type AuthStatusDto, type Provider, type ReadinessCause } from "../main/agentAuth/types";
+import type { AcpModes, PermissionModeId } from "../main/conversation/permissionMode";
 import type { DesignPresetSummary, DesignSkillReply } from "../main/designSkills";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { canvasKind } from "../formats/canvasPath";
@@ -197,7 +198,7 @@ export function selectableProvider(status: AuthStatusDto): boolean {
 
 // The agent, model and effort fixed in Settings > Agents > New conversations; null is Last used (buzz-settings
 // design 'New conversations'). Home starts each new input from it; the person's picks override it until they send.
-export interface NewConversationDefault { provider: Provider; model?: string; effort?: string }
+export interface NewConversationDefault { provider: Provider; model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default"> }
 
 // The fixed preference speaks only for its own agent: a fallback agent keeps its own remembered model and effort.
 export function fixedPreference(preference: NewConversationDefault | null, provider: Provider): NewConversationDefault | null {
@@ -216,7 +217,8 @@ export function defaultProvider(auth: AuthSnapshot | null | undefined, last: Pro
 
 export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[] }
 // undefined: not read in this run. Lists are never hard-coded, so only a received list offers models.
-export type ModelsState = undefined | "loading" | { models: ModelOption[] } | { error: string };
+// modes: what an ACP server listed with its models (permission-mode); absent for Claude and Codex.
+export type ModelsState = undefined | "loading" | { models: ModelOption[]; modes?: AcpModes } | { error: string };
 
 function receivedModels(state: ModelsState): ModelOption[] | null {
   return state !== undefined && state !== "loading" && "models" in state && state.models.length > 0 ? state.models : null;

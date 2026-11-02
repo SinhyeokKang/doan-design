@@ -1,13 +1,17 @@
 import { object } from "./sessions";
 import type { Provider } from "../agentAuth/types";
 import type { Prepared } from "./service";
+import type { AcpModes } from "./permissionMode";
 
 // One model the provider listed for a folder. efforts: the levels that model takes, only from Claude and Codex
 // (Cursor and Antigravity put effort in the model ID, Copilot has none). defaultEffort: Codex's default level of that
 // model, which a send names when the choice has none: turn/start's effort holds for later turns too (0.164.0
 // TurnStartParams), so leaving it out would keep the previous turn's level on a reused server.
 export interface ModelOption { id: string; label: string; default: boolean; efforts?: string[]; defaultEffort?: string }
-export type ModelsReply = { models: ModelOption[] } | { error: string };
+// A provider's list for a folder. modes: the ACP server's mode list from the same session/new reply (none for Claude
+// and Codex, whose four modes are fixed, or for an ACP server that listed none).
+export interface ModelList { models: ModelOption[]; modes?: AcpModes }
+export type ModelsReply = ModelList | { error: string };
 const LIMIT = 256, TEXT = 512;
 function text(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= TEXT && !value.includes("\0"); }
 function levels(values: unknown[]): string[] | undefined {
@@ -42,6 +46,21 @@ export function parseAcpModels(result: unknown): ModelOption[] {
   return unique(models.availableModels.filter(object).filter(r => text(r.modelId)).map(r =>
     ({ id: String(r.modelId), label: text(r.name) ? r.name : String(r.modelId), default: r.modelId === models.currentModelId })));
 }
+// ACP session/new (or session/load) result: modes {currentModeId, availableModes [{id, name}]}, and Copilot's
+// configOptions entry {id: "allow_all", options [{value: "on"}, {value: "off"}]} (permission-mode P3).
+export function parseAcpModes(result: unknown): AcpModes | undefined {
+  const modes = object(result) && object(result.modes) ? result.modes : null;
+  if (!modes || !Array.isArray(modes.availableModes)) return undefined;
+  const available = [...new Set(modes.availableModes.filter(object).map(m => m.id).filter(text))].slice(0, LIMIT);
+  if (!available.length) return undefined;
+  const allowAll = acpOption(result, "allow_all");
+  const values = allowAll && Array.isArray(allowAll.options) ? allowAll.options.filter(object).map(o => o.value) : [];
+  return { available, allowAll: values.includes("on") && values.includes("off") };
+}
+// One configOptions entry of an ACP session reply by its id.
+export function acpOption(result: unknown, id: string): Record<string, unknown> | undefined {
+  return object(result) && Array.isArray(result.configOptions) ? result.configOptions.filter(object).find(o => o.id === id) : undefined;
+}
 
 const KNOWN = ["no_agent", "not_logged_in", "cli_missing", "cli_install_failed", "runtime_unsupported", "busy", "rate_limited", "process_exited", "session_unavailable", "session_in_use", "project_not_open", "credential_override"];
 function code(error: unknown): string {
@@ -51,9 +70,9 @@ function code(error: unknown): string {
 // Lists stay in memory until the provider's connection or installed version changes; listing never sends a prompt.
 // A start may only name a model (and effort) from the list this run last delivered for that folder and provider.
 export class ModelCatalog {
-  private cache = new Map<string, Promise<ModelOption[]>>();
+  private cache = new Map<string, Promise<ModelList>>();
   private received = new Map<string, ModelOption[]>();
-  constructor(private prepare: (root: string, runtime: Provider) => Promise<Prepared>, private list: (input: Prepared) => Promise<ModelOption[]>) {}
+  constructor(private prepare: (root: string, runtime: Provider) => Promise<Prepared>, private list: (input: Prepared) => Promise<ModelList>) {}
   async models(root: string, runtime: Provider): Promise<ModelsReply> {
     try {
       // The preparation reads the connection and installed version that key the cache, under the run's own lease.
@@ -65,9 +84,9 @@ export class ModelCatalog {
         pending = this.list(input); this.cache.set(key, pending);
         pending.catch(() => { if (this.cache.get(key) === pending) this.cache.delete(key); });
       }
-      const models = await pending;
+      const { models, modes } = await pending;
       this.received.set(JSON.stringify([root, runtime]), models);
-      return { models };
+      return { models, ...(modes ? { modes } : {}) };
     } catch (error) { return { error: code(error) }; }
   }
   // The default level of a model in the list this run delivered for that folder and provider, if the list names one.

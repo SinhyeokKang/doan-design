@@ -26,6 +26,12 @@ describe("conversationSummary", () => {
     expect(s).toMatchObject({ owner: "legacy-external", provider: "codex", canvas: { path: ".doan/canvases/a.html", id: "a" }, state: "archived", fromHome: false, phase: "ended" });
     expect(s).not.toHaveProperty("model");
   });
+  it("carries the conversation's chosen permission mode, and none for Default", () => {
+    const events = { ok: true as const, events: history(...started, { type: "turn.done" }) };
+    expect(conversationSummary({ ...doan, permissionMode: "plan" }, events, live)).toMatchObject({ permissionMode: "plan" });
+    expect(conversationSummary(doan, events, live)).not.toHaveProperty("permissionMode");
+    expect(conversationSummary({ ...doan, permissionMode: "bypass" }, { ok: false }, live)).toMatchObject({ permissionMode: "bypass", readError: true });
+  });
   it("reports running and waiting from the live fold", () => {
     expect(conversationSummary(doan, { ok: true, events: history(...started, { type: "activity", kind: "read", summary: "Read a.html" }) }, live).phase).toBe("running");
     expect(conversationSummary(doan, { ok: true, events: history(...started, permission) }, live).phase).toBe("waiting");

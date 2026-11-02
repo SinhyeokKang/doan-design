@@ -38,6 +38,7 @@ const { SettingsAgents } = await import("./SettingsAgents");
 const { AgentSignIn } = await import("./agentSignIn");
 const { NoticeView, StopDialog } = await import("./Onboarding");
 const { AlertIcon } = await import("./AlertIcon");
+const { PermissionMenuItems } = await import("./ComposerParts");
 
 const FACTS: ToolFacts = { cli: "found", version: "supported", tools: "ready" };
 const ACCOUNT: AccountIdentity = { id: "acct", workspace: "org", email: "ada@example.com" };
@@ -184,8 +185,8 @@ test("Agent, Model and Effort are menus (role=menu), never a listbox Select, and
   await settle();
   const triggers = all(tree).filter(element => element.type === DropdownMenu.Trigger);
   expect(triggers.map(trigger => (trigger.props.children as ReactElement<Record<string, unknown>>).props["aria-label"])).toEqual([
-    "Agent for new conversations: Claude Code", "Model for new conversations: Opus 5.5", "Effort for new conversations: High"]);
-  expect(all(tree).filter(element => element.type === DropdownMenu.Content)).toHaveLength(3);
+    "Agent for new conversations: Claude Code", "Model for new conversations: Opus 5.5", "Effort for new conversations: High", "Permission for new conversations: Default"]);
+  expect(all(tree).filter(element => element.type === DropdownMenu.Content)).toHaveLength(4);
   expect(all(tree).some(element => typeof element.type === "object" && element.type !== null && String((element.type as { displayName?: string }).displayName).startsWith("Select"))).toBe(false);
   const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
   (groups[0]!.props.onValueChange as (value: string) => void)("last");
@@ -194,6 +195,46 @@ test("Agent, Model and Effort are menus (role=menu), never a listbox Select, and
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "haiku" } });
   (groups[2]!.props.onValueChange as (value: string) => void)("low");
   expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low" } });
+});
+
+// permission-mode U1 (draft frame settings-row): Permission follows Effort, uses the composer's menu, and is saved
+// with the model and effort; a model or effort change keeps the saved mode.
+test("Permission is a menu after Effort and saves the mode with the saved model and effort", async () => {
+  await settle({ preferences: prefs({ provider: "claude", model: "opus", effort: "high", permissionMode: "bypass" }) });
+  await settle();
+  const trigger = labelled("Permission for new conversations")[0]!;
+  expect(trigger.props["aria-label"]).toBe("Permission for new conversations: Full access, no approval requests");
+  expect(trigger.props["data-mode"]).toBe("bypass");
+  expect(words(trigger.props.children)).toBe("Full access");
+  const menu = all(all(tree).filter(element => element.type === DropdownMenu.Content).at(-1)!).find(element => element.type === PermissionMenuItems)!;
+  expect(menu.props.view).toMatchObject({ title: "Permissions · Claude Code", mode: "bypass" });
+  expect((menu.props.view as { options: { description: string }[] }).options[0]!.description).toBe("Follows Doan’s Claude Code settings");
+  const groups = all(tree).filter(element => element.type === DropdownMenu.RadioGroup);
+  const pickMode = menu.props.onPick as (value: string) => void;
+  pickMode("plan");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "high", permissionMode: "plan" } });
+  pickMode("default");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "high" } });
+  (groups[1]!.props.onValueChange as (value: string) => void)("haiku");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "haiku", permissionMode: "bypass" } });
+  (groups[2]!.props.onValueChange as (value: string) => void)("low");
+  expect(props.save).toHaveBeenLastCalledWith({ newConversation: { provider: "claude", model: "opus", effort: "low", permissionMode: "bypass" } });
+});
+
+test("Last used hides Permission; a file from a newer Doan disables it with the others", async () => {
+  await settle({ preferences: prefs(null) });
+  expect(labelled("Permission for new conversations")).toHaveLength(0);
+  unmount();
+  await settle({ preferences: { ...prefs({ provider: "claude", permissionMode: "plan" }), notice: "newer" } });
+  await settle();
+  expect(labelled("Permission for new conversations")[0]?.props.disabled).toBe(true);
+});
+
+// A saved provider that cannot run keeps the row and its value; the Agent row carries the warning (draft settings-row).
+test("a saved provider that cannot run keeps its Permission value under the Agent warning", async () => {
+  await settle({ preferences: prefs({ provider: "codex", permissionMode: "acceptEdits" }) });
+  expect(words(all(tree).find(element => element.props.role === "status" && words(element.props.children).includes("so Home starts"))?.props.children)).toContain("Codex isn’t signed in");
+  expect(labelled("Permission for new conversations")[0]?.props["aria-label"]).toBe("Permission for new conversations: Accept edits");
 });
 
 test("leaving the page during a sign-in and coming back shows the waiting row with Cancel and Open again", async () => {

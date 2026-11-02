@@ -8,6 +8,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { DockedComposer, type DockedComposerProps } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import type { ModelPickerView } from "./homeComposer";
+import { permissionPickerView } from "./permissionPicker";
 
 // Static markup with mocked handlers (ARCHITECTURE §7 'Home tests without a DOM'). Real focus and IME across a shape
 // change are left to buzz-project's /runtime-test.
@@ -141,4 +142,24 @@ test("a draft at 32 places shows the limit line under the composer until a chip 
   expect(render({ pick: { ...pick, enabled: true, reason: null } }, { segments: chips(31) })).not.toContain(line);
   // Only the canvas panel's composer takes chips from the canvas.
   expect(render({}, { segments: chips(32) })).not.toContain(line);
+});
+
+// permission-mode spec decision 1 and draft frame `docked-tray`: the picker follows Effort in the tray; each label is a
+// `.label` the width steps hide, and the trigger keeps its tooltip and aria-label.
+test("the permission picker follows Effort in the tray, at xs, with its mode and a tooltip", () => {
+  const html = render({ permission: permissionPickerView("claude", undefined, "plan"), onPickPermission: () => {} });
+  expect(html).toMatch(/class="composer-permission doan-button" data-ui-size="xs" data-ui-variant="trigger" data-mode="plan" aria-label="Permission: Plan \(read-only\)"/);
+  expect(html).toContain('<span class="label">Plan (read-only)</span>');
+  expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
+  expect(html).toMatch(/class="composer-effort doan-button"[^>]*>.*?<span class="label">High<\/span>/);
+  expect(render({ permission: null, onPickPermission: () => {} })).not.toContain("composer-permission");
+});
+
+// spec decision 9, draft frame `docked-fixed`: a terminal session takes no mode; its trigger keeps its place.
+test("a terminal session shows a fixed Permission trigger after its fixed Effort", () => {
+  const html = render({ fixed: true, permission: permissionPickerView("claude", undefined, "bypass"), onPickPermission: () => {} });
+  expect(html).toMatch(/class="composer-permission doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true" aria-label="Permission: set by the terminal session"[^>]*><svg[^>]*lucide-shield[^-]/);
+  expect(html).toMatch(/aria-label="Permission: set by the terminal session"[^>]*>.*?<span class="label">Default<\/span>/);
+  expect(html).not.toContain('data-mode="bypass"');
+  expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
 });

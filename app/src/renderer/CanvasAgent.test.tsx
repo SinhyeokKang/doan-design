@@ -32,8 +32,8 @@ describe("CanvasAgent", () => {
     expect(html.match(/role="status"/g)).toHaveLength(1);
     const stop = tag(html, 'class="doan-button doan-agent-action"');
     expect(stop).toMatch(/^<button/);
-    // The default 40px control since dogfooding found the notice small.
-    expect(stop).not.toContain('data-ui-size');
+    // The notice's first size: a 32px action with body-sm wording (dogfooding found the 40px one too large).
+    expect(stop).toContain('data-ui-size="sm"');
     expect(stop).not.toContain("disabled");
     // The composer's Stop glyph, a filled square, leads the word.
     const glyph = html.match(/<button[^>]*doan-agent-action[^>]*>(<svg[^>]*>).*?<\/svg>Stop<\/button>/)?.[1] ?? "";
@@ -97,15 +97,15 @@ test("the glow is a 12px and a 36px accent band at 85% and 50%, pulsing between 
   expect(css).toContain("@keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }");
 });
 
-// Dogfooding: the tools and the agent notice were small and tight to the board's edges. Both grow (40px controls)
-// and sit 8px further in: the tools 20px above the bottom, the notice 28px under the top.
-test("the tools and the agent notice are larger and further from the board's edges", () => {
+// Dogfooding: the tools were small and tight to the board's edges, so they grew (40px controls) and both sit 8px further
+// in: the tools 20px above the bottom, the notice 28px under the top. The notice itself went back to its first size.
+test("the tools are larger and both overlays sit further from the board's edges", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.doan-canvas-bottom \{[^}]*bottom: var\(--space-5\);/);
   expect(css).toMatch(/\.doan-canvas-top \{[^}]*top: calc\(var\(--space-5\) \+ var\(--space-2\)\);/);
   const tools = readFileSync(new URL("./CanvasTools.tsx", import.meta.url), "utf8");
   expect(tools.match(/className="doan-icon-button doan-canvas-tool" data-ui-size="md"/g)).toHaveLength(2);
   const agent = readFileSync(new URL("./CanvasAgent.tsx", import.meta.url), "utf8");
-  expect(agent).not.toContain('doan-agent-action" data-ui-size="sm"');
-  expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-label-size\);/);
+  expect(agent.match(/doan-agent-action" data-ui-size="sm"/g)).toHaveLength(2);
+  expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-body-sm-size\);/);
 });

@@ -2,13 +2,16 @@ import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Check, ChevronDown, Gauge } from "lucide-react";
 import type { AuthStatusDto, Provider } from "../main/agentAuth/types";
+import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { NewConversationPreference, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
 import { agentsSettingsView, PROVIDER_NAMES, type AuthButton, type AuthCommand, type ProviderView } from "./agentAuthView";
 import type { AgentSignIn } from "./agentSignIn";
 import { AgentStepSession } from "./agentStep";
 import { AlertIcon } from "./AlertIcon";
+import { PermissionIconView, PermissionMenuItems } from "./ComposerParts";
 import { modelPickerView, providerLogo, selectableProvider, type ModelsState } from "./homeComposer";
 import { firstUsable, focusLost, NoticeView, PasteDialog, StopDialog } from "./Onboarding";
+import { permissionPickerView } from "./permissionPicker";
 import { preferencesNotice } from "./SettingsNotifications";
 
 export interface SettingsAgentsProps {
@@ -202,6 +205,10 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
   const effortModel = model?.kind === "model" ? model.id : listed.find(item => item.default)?.id ?? null;
   const effort = provider && effortModel ? modelPickerView(auth, { [provider]: listState }, { provider, model: effortModel, effort: pref?.effort ?? null }).effort : null;
   const status = auth?.providers.find(item => item.provider === provider);
+  // Permission (permission-mode U1): the composer's menu, saved with the model and effort; a saved mode this provider
+  // cannot offer reads as Default. An ACP provider offers its modes only once the project's list is read.
+  const permission = provider ? permissionPickerView(provider, listState, readPermissionMode(pref?.permissionMode)) : null;
+  const keepMode = pref?.permissionMode ? { permissionMode: pref.permissionMode } : {};
 
   const trigger = (label: string, aria: string, content: ReactNode, disabled: boolean, menu: ReactNode) => <DropdownMenu.Root>
     <DropdownMenu.Trigger asChild disabled={disabled}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" aria-label={`${aria}: ${label}`} disabled={disabled}>
@@ -234,7 +241,7 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
             : !loadFailed && <span className="doan-preference-row-description">Models listed for {project.name}.{listState !== "loading" && ` In a project without this model, Home uses ${name}’s default.`}</span>}</div>
         {project && listState === "loading" ? <div className="doan-preference-row-trailing"><span className="settings-loading" role="status"><span className="doan-spinner" aria-hidden="true" />Loading models</span></div>
           : !loadFailed && <div className="doan-preference-row-trailing">{trigger(modelLabel, "Model for new conversations", <span>{modelLabel}</span>, off || !project || !runnable,
-            <DropdownMenu.RadioGroup value={model?.kind === "model" ? model.id : DEFAULT} onValueChange={value => choose(value === DEFAULT ? { provider } : { provider, model: value })}>
+            <DropdownMenu.RadioGroup value={model?.kind === "model" ? model.id : DEFAULT} onValueChange={value => choose(value === DEFAULT ? { provider, ...keepMode } : { provider, model: value, ...keepMode })}>
               {models.map(item => item.kind === "model" ? radio(item.id, <span className="model-name">{item.label}</span>, item.selected) : radio(DEFAULT, <span className="model-name">Default</span>, item.selected))}
             </DropdownMenu.RadioGroup>)}</div>}
         {project && loadFailed && <div className="doan-preference-row-extra settings-msg-row"><p className="settings-msg error" role="alert"><AlertIcon /><span>Couldn’t load the models for {project.name}.</span></p>
@@ -243,10 +250,21 @@ function NewConversations({ auth, preferences, save, project }: Pick<SettingsAge
       {provider && effort && <div className="doan-preference-row">
         <div className="doan-preference-row-content"><span className="doan-preference-row-label">Effort</span></div>
         <div className="doan-preference-row-trailing">{trigger(effort.label, "Effort for new conversations", <><Gauge className="inline" aria-hidden="true" /><span>{effort.label}</span></>, off,
-          <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, ...(model?.kind === "model" ? { model: model.id } : {}), ...(value === DEFAULT ? {} : { effort: value }) })}>
+          <DropdownMenu.RadioGroup value={effort.options.find(item => item.selected)?.id ?? DEFAULT} onValueChange={value => choose({ provider, ...(model?.kind === "model" ? { model: model.id } : {}), ...(value === DEFAULT ? {} : { effort: value }), ...keepMode })}>
             {radio(DEFAULT, <span className="model-name">Default</span>, !effort.options.some(item => item.selected))}
             {effort.options.map(item => radio(item.id, <span className="model-name">{item.label}</span>, item.selected))}
           </DropdownMenu.RadioGroup>)}</div>
+      </div>}
+      {provider && permission && <div className="doan-preference-row">
+        <div className="doan-preference-row-content"><span className="doan-preference-row-label">Permission</span></div>
+        <div className="doan-preference-row-trailing"><DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild disabled={off}><button type="button" className="doan-button settings-select" data-ui-variant="trigger" data-ui-size="sm" data-mode={permission.mode}
+            aria-label={`Permission for new conversations: ${permission.trigger.ariaLabel.replace(/^Permission: /, "")}`} disabled={off}>
+            <PermissionIconView name={permission.trigger.icon} className="inline" /><span>{permission.trigger.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+          <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu permission-popover" data-ui-size="compact" aria-label="Permission for new conversations" side="bottom" align="end" sideOffset={4} collisionPadding={8}>
+            <PermissionMenuItems view={permission} onPick={value => choose({ provider, ...(pref?.model ? { model: pref.model } : {}), ...(pref?.effort ? { effort: pref.effort } : {}), ...(value === "default" ? {} : { permissionMode: value }) })} />
+          </DropdownMenu.Content></DropdownMenu.Portal>
+        </DropdownMenu.Root></div>
       </div>}
     </div>
     {failed && <div className="settings-msg-row settings-save-error"><p className="settings-msg error" role="alert"><AlertIcon /><span>{SAVE_FAILED}</span></p>

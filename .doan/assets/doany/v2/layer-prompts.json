@@ -1,0 +1,10 @@
+[
+  [
+    "body",
+    "Precise animation-layer extraction/edit of the provided 1254x1254 mascot. Output the PURPLE BODY ONLY on transparent background. Remove the two black eyes completely, seamlessly filling those small areas with the exact matching purple looped plush. Remove the black beret completely and reconstruct ONLY the small hidden top of the purple body under the beret as a natural smooth rounded shoulder. Preserve every other visible purple pixel's original look, color, lighting, shape and position as closely as possible. Crucial: SAME 1254x1254 square canvas, SAME body scale, SAME position and silhouette, do not center, crop, zoom or change the bean shape. No eyes, no face, no hat, no new features. This body will be composited with the original hat at its original coordinates. Actual transparent background."
+  ],
+  [
+    "hat",
+    "Precise animation-layer extraction of the supplied mascot. Keep ONLY the existing black beret, in EXACTLY its current position, size, angle, color, texture and lighting. Remove ALL purple body and both eyes to fully transparent. Crucial: same 1254x1254 square canvas; DO NOT center or enlarge the hat. Keep it at the top-right in the identical coordinates as the reference, lots of transparent space below and left. Do not redesign or regenerate a different hat. No body, no eyes, no shadows outside hat. Actual transparent background."
+  ]
+]
