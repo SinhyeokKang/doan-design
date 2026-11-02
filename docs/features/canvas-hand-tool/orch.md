@@ -23,7 +23,7 @@
 | B | T2 | `app/src/main/canvasScript.ts`, `app/src/main/canvasScript.test.ts` | 없음(메시지 모양은 결정 기록) | Codex gpt-6-astra medium: 파일 하나지만 편집 대상 판정과 blur 처리에 판단이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 a04a8711 |
 | RA | A 리뷰 | 읽기만 | A | Codex gpt-6-astra medium: 다른 모델 계열의 독립 리뷰 | `/code-review` 보고서 | 완료: 🔴 1, 🟡 1 → A 수정 1회차 |
 | RB | B 리뷰 | 읽기만 | B | Claude Sonnet medium: 작은 diff, 다른 계열 리뷰 | `/code-review` 보고서 | 완료: 🔴 0, 🟡 1(통합 확인으로 넘김) |
-| D | 사용자 요청 디자인 이슈 2개(아래 결정 기록) | `ComposerParts.tsx`, `ShellSidebar.tsx`·`HomeComposerView.tsx`의 드롭다운 클래스, `styles.css`, `ds/surfaces.css`와 테스트, `docs/DESIGN.md` 해당 행 | A 통합(styles.css 겹침) | Claude Sonnet high: 범위가 작지만 실제 앱 computed style 측정이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, typecheck, 실제 앱 측정 | 통합 1f9a462a..b424a6ca, 리뷰 중 |
+| D | 사용자 요청 디자인 이슈 2개(아래 결정 기록) | `ComposerParts.tsx`, `ShellSidebar.tsx`·`HomeComposerView.tsx`의 드롭다운 클래스, `styles.css`, `ds/surfaces.css`와 테스트, `docs/DESIGN.md` 해당 행 | A 통합(styles.css 겹침) | Claude Sonnet high: 범위가 작지만 실제 앱 computed style 측정이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, typecheck, 실제 앱 측정 | 통합 1f9a462a..b424a6ca + 수정 08a1357f..326de270 |
 | C | T4(`/runtime-test`, `/design-sync`) | `.scratch/`, `docs/DESIGN.md`의 측정값, design-sync가 고치는 앱 코드(그때 A와 겹치지 않게 지휘자가 순서를 잡는다) | A·B 통합 | Claude Opus high: 실제 앱 probe, 측정과 판단 | probe 완료 표식·exit 0, real-state 전후 같음, `measure.mjs` | 진행 중 |
 | 지휘자 | T5(리뷰 지적 분배), T6, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md` 설명 문장, 이 디렉터리 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 grep | 대기 |
 
@@ -57,3 +57,4 @@ T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
 - C: Claude Opus high(dispatch `ctx_062725a2717a`, worktree `canvas-hand-tool-c`)로 시작했다. 기준은 b424a6ca를 포함한 feat다.
 - D 리뷰(Claude Opus 서브에이전트): 🔴 1. 프리셋 팝오버에서 포인터가 행 위를 지나가면 검색창의 포커스를 빼앗아, 입력한 글자가 사라지고 Space가 프리셋을 고른다. ⚪ 5개 중 3개(중복된 `.doan-frame-row:focus`, DockedComposer의 불필요한 재렌더, DESIGN 문구)도 함께 고친다. 사이드바 메뉴를 불투명하게 한 것은 사용자 확인 항목으로 아침 보고에 넣는다. D에 수정 1회차를 보냈다(dispatch `ctx_2dbfc731ff57`).
   - 지휘자 판단: D 수정과 C가 `styles.css`·`DESIGN.md`를 함께 고칠 수 있다. 둘 다 짧고 서로 다른 줄(D는 floating material, C는 Tools row)이라 병렬로 두고, D에게 지정한 줄만 고치게 했다. 통합 때 충돌이 나면 지휘자가 직렬로 다시 적용한다.
+- D 수정 1회차(2971cb55·f5fa7499·6b4eb1aa → 08a1357f·71105c76·326de270 통합, 테스트 5617 통과, 실제 앱에서 검색창 입력이 유지됨). 리뷰어가 제안한 수정 그대로다. 포커스가 이미 목록 안에 있을 때만 포인터가 포커스를 옮기고, 그렇지 않으면 hover만으로 채운다. 지휘자가 diff를 직접 읽고 재리뷰 없이 받아들였다. D 작업자는 release했다(브랜치 끝 6b4eb1aa).
