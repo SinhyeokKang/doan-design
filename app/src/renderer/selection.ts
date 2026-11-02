@@ -9,6 +9,12 @@ export type SelectionView = Omit<SelectTarget, "rect">;
 
 export const SELECTION_LOST = "The selection is no longer in the canvas.";
 
+// The controller keeps the notice until the next selection; the app shows it as a toast when it appears (an event,
+// not a state: as a board notice it stayed indefinitely and competed with the agent notice at the top centre).
+export function noticeToast(previous: string, next: string): string | null {
+  return next && next !== previous ? next : null;
+}
+
 // What the renderer last asked of or heard from the canvas script: its
 // document, the iframe height (the script's innerHeight) and the seq.
 export interface Expectation {
