@@ -1,8 +1,9 @@
 import { forwardRef, Fragment, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
-import { ArrowUp, Check, ChevronDown, Compass, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
+import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { Anchor } from "../main/conversation/types";
 import { pickerAction, pickerFooter, providerShortStatus } from "./agentAuthView";
 import { AlertIcon } from "./AlertIcon";
@@ -15,6 +16,7 @@ import {
   attachmentChipView, dropTarget, groupIcon, isSubmitKey, modelPickerView, presetListView, providerLogo,
   type AttachmentDraft, type PresetListReply, type PresetRow, type PresetSummary,
 } from "./homeComposer";
+import type { PermissionIcon, PermissionPickerView } from "./permissionPicker";
 
 // The composer's shared primitives (buzz-conversation design §3.1): Home's HeroComposer assembles them today and the
 // docked composer will. Each draws the markup Home drew before the split, so Home's computed styles and DOM order stay.
@@ -255,7 +257,7 @@ export function AgentPicker(props: {
   const footer = pickerFooter(picker.groups.some(group => group.selectable));
   return <DropdownMenu.Root onOpenChange={open => { if (open) props.onOpen(); }}>
     <DropdownMenu.Trigger asChild><button type="button" className="composer-agent doan-button" data-ui-size={props.size ?? "sm"} data-ui-variant="trigger" aria-label={picker.trigger.ariaLabel} disabled={props.disabled}>
-      {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><span>{picker.trigger.label}</span></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
+      {picker.trigger.provider ? <><img className="logo" src={providerLogo(picker.trigger.provider)} alt="" /><span className="label">{picker.trigger.label}</span></> : <span className="muted">{picker.trigger.label}</span>}<ChevronDown className="chev" aria-hidden="true" />
     </button></DropdownMenu.Trigger>
     <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu agent-popover" aria-label="Agent and model" side="top" align="end" sideOffset={8} collisionPadding={8}>
       {picker.groups.map((group, index) => {
@@ -286,14 +288,51 @@ export function AgentPicker(props: {
 }
 
 // The effort picker, shown only when the chosen model has effort steps.
+// In the docked tray (xs) the label can hide at a narrow width (styles.css container steps), so the trigger keeps
+// its name in a tooltip there.
 export function EffortPicker({ view, effort, disabled, onPick, size = "sm" }: { view: NonNullable<Picker["effort"]>; effort: string | null; disabled: boolean; onPick(value: string): void; size?: "sm" | "xs" }) {
+  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span className="label">{view.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
   return <DropdownMenu.Root>
-    <DropdownMenu.Trigger asChild><button type="button" className="composer-effort doan-button" data-ui-size={size} data-ui-variant="trigger" aria-label={view.ariaLabel} disabled={disabled}><Gauge aria-hidden="true" /><span>{view.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
+    {size === "xs" ? <IconTip label={view.ariaLabel}>{trigger}</IconTip> : trigger}
     <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu effort-popover" data-ui-size="compact" aria-label={view.menuLabel} side="top" align="end" sideOffset={8} collisionPadding={8}>
       <DropdownMenu.Label className="doan-menu-head">{view.title}</DropdownMenu.Label>
       <DropdownMenu.RadioGroup value={effort ?? ""} onValueChange={onPick}>
         {view.options.map(item => <DropdownMenu.RadioItem key={item.id} value={item.id} className="doan-menu-item"><span className="model-name">{item.label}</span><span className="check-slot">{item.selected && <Check className="check" aria-hidden="true" />}</span></DropdownMenu.RadioItem>)}
       </DropdownMenu.RadioGroup>
+    </DropdownMenu.Content></DropdownMenu.Portal>
+  </DropdownMenu.Root>;
+}
+
+const PERMISSION_ICONS: Record<PermissionIcon, typeof Shield> = { shield: Shield, "file-pen-line": FilePenLine, eye: Eye, "shield-alert": ShieldAlert };
+export function PermissionIconView({ name }: { name: PermissionIcon }) {
+  const Icon = PERMISSION_ICONS[name];
+  return <Icon aria-hidden="true" />;
+}
+
+// The permission mode menu's rows (draft frame picker-menu): the mode's icon, its name over a one-line description,
+// and the check. Shared by the composer picker and Settings' Permission row.
+export function PermissionMenuItems({ view, onPick }: { view: PermissionPickerView; onPick(mode: PermissionModeId): void }) {
+  return <>
+    <DropdownMenu.Label className="doan-menu-head">{view.title}</DropdownMenu.Label>
+    <DropdownMenu.RadioGroup value={view.mode} onValueChange={value => onPick(value as PermissionModeId)}>
+      {view.options.map(item => <DropdownMenu.RadioItem key={item.id} value={item.id} className="doan-menu-item perm-item" data-mode={item.id}>
+        <PermissionIconView name={item.icon} /><span className="perm-copy"><span className="model-name">{item.label}</span><span className="sub">{item.description}</span></span>
+        <span className="check-slot">{item.selected && <Check className="check" aria-hidden="true" />}</span>
+      </DropdownMenu.RadioItem>)}
+    </DropdownMenu.RadioGroup>
+  </>;
+}
+
+// The permission mode picker (permission-mode spec decisions 1, 2, 5), after Effort. Full access keeps its name, its
+// warning icon and the warning ink and fill (data-mode); in the docked tray its label may hide, so the tooltip and
+// aria-label keep the name.
+export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view: PermissionPickerView; disabled: boolean; onPick(mode: PermissionModeId): void; size?: "sm" | "xs" }) {
+  const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-permission doan-button" data-ui-size={size} data-ui-variant="trigger" data-mode={view.mode} aria-label={view.trigger.ariaLabel} disabled={disabled}>
+    <PermissionIconView name={view.trigger.icon} /><span className="label">{view.trigger.label}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>;
+  return <DropdownMenu.Root>
+    {size === "xs" ? <IconTip label={view.trigger.ariaLabel}>{trigger}</IconTip> : trigger}
+    <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu permission-popover" data-ui-size="compact" aria-label={view.menuLabel} side="top" align="end" sideOffset={8} collisionPadding={8}>
+      <PermissionMenuItems view={view} onPick={onPick} />
     </DropdownMenu.Content></DropdownMenu.Portal>
   </DropdownMenu.Root>;
 }

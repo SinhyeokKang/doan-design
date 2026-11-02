@@ -65,8 +65,10 @@ import { SettingsPage, type SettingsArrival } from "./SettingsPage";
 import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, type SettingsSection, type SettingsTarget } from "./settingsSections";
 import { agentSignIn } from "./agentSignIn";
 import { notificationTarget, type NotificationTarget } from "../main/notifications";
+import type { Provider } from "../main/agentAuth/types";
+import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
-import { preferenceAfterPick, rememberChoice, type ComposerChoice } from "./rememberChoice";
+import { preferenceAfterPick, rememberChoice, rememberPermission, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
@@ -212,8 +214,12 @@ export function App() {
     goHome: () => live.current.home(),
     removeNow: paths => live.current.removeNow(paths),
     toast: (message, label, run) => live.current.toast.show(message, label, run),
-    sent: request => setHomeMemory(previous => ({ ...previous, lastRoot: request.root, lastProvider: request.runtime,
-      ...(request.model ? { models: { ...previous?.models, [request.runtime]: { model: request.model, ...(request.effort ? { effort: request.effort } : {}) } } } : {}) })),
+    sent: request => setHomeMemory(previous => {
+      const next = { ...previous, lastRoot: request.root, lastProvider: request.runtime,
+        ...(request.model ? { models: { ...previous?.models, [request.runtime]: { model: request.model, ...(request.effort ? { effort: request.effort } : {}) } } } : {}) };
+      return request.permissionMode ? rememberPermission(next, request.runtime, request.permissionMode) : next;
+    }),
+    followedMode: (provider, mode) => live.current.followMode(provider, mode),
     changed: () => { setRunTick(tick => tick + 1); overviewRun.current?.sync(); canvasRun.current?.sync(); },
   });
   // The Overview's main conversation and its composer's lists (buzz-project), for the run; the root it shows, as
@@ -623,8 +629,8 @@ export function App() {
 
   const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || projectSettings !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded, followMode };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -786,6 +792,13 @@ export function App() {
     const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, choice);
     if (next) void savePreferences({ newConversation: next });
   };
+  // A mode main moved a conversation to after a Claude plan approval: that provider's last mode and a fixed Settings
+  // default of the same provider follow it, but the last provider stays (permission-mode design '저장 규칙').
+  function followMode(provider: Provider, mode: PermissionModeId) {
+    setHomeMemory(previous => rememberPermission(previous, provider, mode));
+    const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, { provider, model: null, effort: null, permissionMode: mode });
+    if (next) void savePreferences({ newConversation: next });
+  }
   // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {

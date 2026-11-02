@@ -4,11 +4,12 @@ import { Check, ChevronDown, GitBranch, Plus } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { AttachmentResult } from "../main/attachments";
+import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import {
-  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PresetsButton, SendButton, SlashPresets, useComposerDrop,
+  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, useComposerDrop,
   type ComposerFieldHandle,
 } from "./ComposerParts";
 import { Doany, type DoanyHandle } from "./Doany";
@@ -27,6 +28,7 @@ import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
 import type { ComposerChoice } from "./rememberChoice";
+import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 import { stageInsets } from "./stageInsets";
 
 // Everything the composer keeps between Home visits for this run (design §4.1: a draft survives leaving Home, not a
@@ -37,6 +39,8 @@ export interface ComposerMemory {
   // picks last until the input is sent (buzz-settings design 'New conversations'); the project stays.
   root: string | null; provider: Provider | null;
   models: Partial<Record<Provider, string>>; efforts: Record<string, string>;
+  // Permission mode picks by provider (permission-mode), kept the same way as the model picks.
+  permissions: Partial<Record<Provider, PermissionModeId>>;
   // The Settings default this input started with: a change in Settings applies from the next new input
   // (buzz-settings design 'New conversations'). undefined: not taken yet.
   defaults?: NewConversationDefault | null;
@@ -58,7 +62,7 @@ export interface ComposerMemory {
   seen: { select: number; restore: number };
 }
 export function emptyComposer(): ComposerMemory {
-  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
+  return { text: "", preset: null, attachments: [], root: null, provider: null, models: {}, efforts: {}, permissions: {}, lists: {}, presets: undefined, auth: undefined, thumbnails: {}, lastKeys: {}, lastIds: {}, sending: null, generation: 0, notice: null, greeting: null, seen: { select: 0, restore: 0 } };
 }
 
 const mountsByMemory = new WeakMap<object, Set<() => void>>();
@@ -68,7 +72,7 @@ function viewers(memory: { current: ComposerMemory }): Set<() => void> {
   return mounts;
 }
 
-export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; attachments?: { id: string }[] }
+export interface StartInput { root: string; mode: "newDesign"; runtime: Provider; text: string; model?: string; effort?: string; permissionMode?: PermissionModeId; attachments?: { id: string }[] }
 // conversationId: the started conversation, for a host that shows it in place (the project Overview).
 export type StartOutcome = { ok: true; conversationId?: string } | { error: string; missing?: string[] };
 
@@ -234,8 +238,11 @@ export function HeroComposer(props: HeroComposerProps) {
   const pickedEffort = provider && model ? m.efforts[effortKey(provider, model)] : undefined;
   const effort = pickedEffort !== undefined ? defaultEffort(option, pickedEffort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, fixed);
   const picker = modelPickerView(auth, lists, { provider, model, effort });
-  const choiceTouched = m.provider !== undefined || explicitModel !== undefined || pickedEffort !== undefined;
-  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort }); }, [choiceTouched, provider, model, effort]);
+  const pickedPermission = provider ? m.permissions[provider] : undefined;
+  const permission = provider ? permissionPickerView(provider, listState, defaultPermission(permissionChoices(provider, listState), pickedPermission, props.prefs?.permissions?.[provider], fixed)) : null;
+  const permissionMode = permission?.mode;
+  const choiceTouched = m.provider !== undefined || explicitModel !== undefined || pickedEffort !== undefined || pickedPermission !== undefined;
+  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, provider, model, effort, permissionMode]);
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 
@@ -392,7 +399,7 @@ export function HeroComposer(props: HeroComposerProps) {
     doany.current?.hop();
     const request: StartInput = {
       root, mode: "newDesign", runtime: provider, text: composed,
-      ...(model ? { model } : {}), ...(model && effort ? { effort } : {}),
+      ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}),
       ...(attachments.length ? { attachments: attachments.flatMap(a => a.id ? [{ id: a.id }] : []) } : {}),
     };
     const last: LastRequest = { root, text, preset, attachments, provider, model, effort };
@@ -415,7 +422,7 @@ export function HeroComposer(props: HeroComposerProps) {
         const released = (current.lastIds[root] ?? []).filter(id => !usedIds.has(id));
         if (released.length) void window.doan.releaseAttachments(released).catch(console.error);
         // The next input starts from the defaults again: the fixed one, or with Last used the run App just recorded.
-        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, efforts: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
+        return { sending: null, thumbnails, lastKeys, lastIds, root, provider: null, models: {}, efforts: {}, permissions: {}, ...(same ? { text: "", preset: null, attachments: [] } : {}) };
       });
       return;
     }
@@ -523,6 +530,7 @@ export function HeroComposer(props: HeroComposerProps) {
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
             {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} />}
+            {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
             <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} />
           </ComposerTools>
         </ComposerCard>

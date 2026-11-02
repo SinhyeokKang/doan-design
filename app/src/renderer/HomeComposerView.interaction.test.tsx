@@ -593,3 +593,23 @@ test("while a start is pending, Send, the submit key and the notice's Retry neit
   expect(start).toHaveBeenCalledTimes(1);
   expect(doany.hop).toHaveBeenCalledTimes(1);
 });
+
+// permission-mode U1: the picker sits in Home's tool row, starts from the provider's last mode, is remembered on the
+// pick alone, and the send carries it; after a send the next input starts from the remembered mode again.
+test("the permission pick is remembered at once and sent with the start", async () => {
+  const onRemember = vi.fn();
+  const { box, start, render } = setup({ text: "One" }, { prefs: { lastProvider: "claude", permissions: { claude: "plan" } }, onRemember });
+  const trigger = find(render(), props => props.className === "composer-permission doan-button");
+  expect(trigger["aria-label"]).toBe("Permission: Plan (read-only)");
+  const picker = find(render(), props => typeof props.onValueChange === "function" && props.value === "plan");
+  (picker.onValueChange as (value: string) => void)("bypass");
+  const tree = render();
+  expect(find(tree, props => props.className === "composer-permission doan-button")["data-mode"]).toBe("bypass");
+  for (const effect of hooks.effects) effect();
+  expect(onRemember).toHaveBeenLastCalledWith({ provider: "claude", model: null, effort: null, permissionMode: "bypass" });
+  call(field(render()), "onKeyDown", key("Enter"));
+  await vi.waitFor(() => expect(start).toHaveBeenCalled());
+  expect(start.mock.calls[0]![0]).toMatchObject({ runtime: "claude", permissionMode: "bypass" });
+  await vi.waitFor(() => expect(box.current.sending).toBeNull());
+  expect(box.current.permissions).toEqual({});
+});

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject 
 import { DropdownMenu } from "radix-ui";
 import { ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
+import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
@@ -33,6 +34,7 @@ import { scrollTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems } from "./threadItems";
 import type { ComposerChoice } from "./rememberChoice";
+import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
 // The canvas page's conversation panel body (buzz-canvas-conversation design §2 'Conversation panel', draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
@@ -181,8 +183,20 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const option = modelOption(listState, model);
   const effort = fixed ? null : pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, preference);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort });
+  // The mode, as the model: a new conversation's from Home's rules, an existing one's its own stored mode. A terminal
+  // session takes none; its fixed trigger shows instead.
+  const stored = readPermissionMode(summary?.permissionMode);
+  const choices = chosen && !fixed ? permissionChoices(chosen, listState) : [];
+  const permission = fixed ? null : permissionPickerView(chosen, listState, mode.kind === "new"
+    ? defaultPermission(choices, pick.permissionMode, chosen ? props.prefs?.permissions?.[chosen] : undefined, preference)
+    : defaultPermission(choices, pick.permissionMode ?? stored, undefined, null));
+  const permissionMode = permission?.mode;
+  // An existing conversation's send names the shown mode only once it is known: before the list names the
+  // conversation, Default would overwrite the mode it was started in.
+  const sentMode = mode.kind === "new" || summary || pick.permissionMode !== undefined ? permissionMode : undefined;
+  useEffect(() => { if (mode.kind === "existing" || mode.kind === "archived") support.settlePermission(key, stored); }, [key, stored, pick.permissionMode]);
   const choiceTouched = Object.keys(pick).length > 0;
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort }); }, [choiceTouched, chosen, model, effort]);
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, chosen, model, effort, permissionMode]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed]);
 
@@ -283,18 +297,18 @@ export function CanvasConversation(props: CanvasConversationProps) {
       const start = mode.kind === "resume"
         ? { root, mode: "resume" as const, canvas: target.canvas, text: request.text, anchors: [...request.anchors] }
         : { root, mode: "new" as const, runtime, canvas: target.canvas, text: request.text, anchors: [...request.anchors],
-          ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
+          ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(permissionMode && permissionMode !== "default" ? { permissionMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
       const reply = await window.doan.startConversation(start).catch(() => ({ error: "unknown" }));
       if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
       // Home's and the Overview's starts are remembered by App's run host; this one starts here.
-      if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null });
+      if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null, ...(permissionMode ? { permissionMode } : {}) });
       support.clearPick(key);
       run.started(target, reply.conversationId, runtime, revision);
       return { ok: true };
     }
     const reply = await window.doan.sendConversation({
       conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors],
-      ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
+      ...(changedModel && model && !fixed ? { model, ...(effort ? { effort } : {}) } : {}), ...(sentMode ? { permissionMode: sentMode } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}),
     }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
     run.sent(target, revision, sentUnder);
@@ -369,6 +383,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
         onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), model: value === "default" ? undefined : value })}
         onPickEffort={value => support.pick(key, { effort: value })}
+        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "existing" || mode.kind === "archived" ? mode.conversationId : null, value)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}

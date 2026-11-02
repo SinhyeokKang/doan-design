@@ -511,6 +511,15 @@ body:has(.shell-top) { background: transparent; }
 .composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 /* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
 .composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
+   mode's own icon, so an icon-only trigger still names the mode. Full access adds the warning ink and fill; its name,
+   icon and aria-label carry it too, so colour is never the only signal. No coloured edge. */
+.composer-permission { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-permission svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Open (aria-expanded) keeps the warning fill rather than the trigger's pressed fill. */
+.doan-button.composer-permission[data-mode="bypass"], .composer-tray .doan-button.composer-permission[data-mode="bypass"], .composer-tray .doan-button.composer-permission[data-mode="bypass"][aria-expanded="true"],
+.doan-button.composer-permission[data-mode="bypass"][aria-expanded="true"], .settings-select[data-mode="bypass"], .settings-select[data-mode="bypass"][aria-expanded="true"] { background: var(--affordance-warning); color: var(--text-warning); }
+:is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
 .composer-send .doan-spinner { color: var(--text-on-accent); }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
 .composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
@@ -540,6 +549,15 @@ body:has(.shell-top) { background: transparent; }
 .slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
 .agent-popover { width: 300px; }
 .effort-popover { width: 200px; }
+/* One row per mode, its name over a one-line description, like the preset rows. 280 is the component constant: Effort's
+   200 is too narrow for the descriptions, and the shared menu cap is 320. */
+.permission-popover { width: 280px; }
+.perm-item { display: flex; align-items: flex-start; gap: var(--space-2); padding-block: var(--space-1h); }
+.perm-item > svg:first-child { width: var(--size-icon); height: var(--size-icon); margin-top: var(--space-half); color: var(--text-subtle); }
+.doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-warning); }
+.perm-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.perm-item .check-slot { margin-top: var(--space-half); }
 .project-popover { width: 320px; }
 .popover-search { position: relative; display: block; margin-bottom: var(--space-1); }
 .popover-search > svg { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-metadata); }
@@ -597,6 +615,17 @@ body:has(.shell-top) { background: transparent; }
 .docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
 .docked .composer-tray .doan-button { margin-left: 0; }
 .docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The docked tray when it is short of width (permission-mode draft frame docked-tray): it never wraps, and gives way in
+   order: below a 384px content width Permission shows its icon only, below 288 Effort does too, and the model label
+   ellipsizes last. Pick, logos and chevrons never shrink. The boundaries come from the draft's widest labels ("Plan
+   (read-only)", "Medium"); a hidden label stays in the tooltip and aria-label. */
+.docked .composer-tray { container-type: inline-size; }
+.composer-tray .doan-button .label { white-space: nowrap; }
+/* The shared .doan-button does not shrink; only the model trigger may, so the last step can ellipsize it. */
+.docked .composer-tray .composer-agent { flex-shrink: 1; min-width: 0; }
+.docked .composer-agent .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 383px) { .docked .composer-permission .label { display: none; } }
+@container (max-width: 287px) { .docked .composer-effort .label { display: none; } }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }

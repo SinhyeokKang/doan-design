@@ -833,3 +833,25 @@ test("a send's permission request toasts once away from its project, whether it 
     expect(toasts, label).toHaveLength(away ? 1 : 0);
   }
 });
+
+// permission-mode design '저장 규칙' 'Plan 승인 뒤 전환': main moves a conversation out of Plan after a Claude plan is
+// approved; the provider's last mode follows it, wherever the conversation is shown, by the same rule as a pick.
+test("a conversation that leaves Plan in main's list tells App the mode it moved to", async () => {
+  const h = harness();
+  h.host.followedMode = vi.fn();
+  lists({ [ROOT]: [summary({ permissionMode: "plan" })] });
+  h.run.listChanged(ROOT); await flush();
+  expect(h.host.followedMode).not.toHaveBeenCalled();
+  lists({ [ROOT]: [summary({ permissionMode: "acceptEdits" })] });
+  h.run.listChanged(ROOT); await flush();
+  expect(h.host.followedMode).toHaveBeenLastCalledWith("claude", "acceptEdits");
+  // Any other change is a pick the composer already remembered, and a first read reports nothing.
+  lists({ [ROOT]: [summary({ permissionMode: "bypass" })] });
+  h.run.listChanged(ROOT); await flush();
+  lists({ [ROOT]: [summary({ permissionMode: "plan" }), summary({ conversationId: "c2", permissionMode: "plan" })] });
+  h.run.listChanged(ROOT); await flush();
+  lists({ [ROOT]: [summary({}), summary({ conversationId: "c2", permissionMode: "plan" })] });
+  h.run.listChanged(ROOT); await flush();
+  expect(h.host.followedMode).toHaveBeenCalledTimes(2);
+  expect(h.host.followedMode).toHaveBeenLastCalledWith("claude", "default");
+});
