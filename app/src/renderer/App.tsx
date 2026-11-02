@@ -7,6 +7,11 @@ import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
+import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
+import type { ExportReply } from "../main/canvasExport";
+import { trashBlock } from "./canvasRowMenu";
+import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
+import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
@@ -148,6 +153,20 @@ export function App() {
   const [loadedRoot, setLoadedRoot] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string[]>([]);
   const [setup, setSetup] = useState<string | null>(null);
+  // canvas-row-menu: the canvas the Move to Trash dialog asks about and main's plan for it (null until main answers);
+  // `seq` drops a closed dialog's late plan. Set through `changeTrashing`, so a reply that lands before the next render
+  // sees the dialog as it is.
+  const [trashing, setTrashing] = useState<{ root: string; row: CanvasRow; plan: TrashPlanReply | null; seq: number } | null>(null);
+  const trashingRef = useRef(trashing);
+  const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
+  const trashSeq = useRef(0);
+  // The row (`root\npath`) whose menu button stays shown from the dialog's opening until focus is back on it: the button
+  // hides while its row has neither the pointer nor focus, and a hidden button cannot take focus.
+  const [trashHeld, setTrashHeld] = useState<string | null>(null);
+  // The canvases whose `doan export` runs (`root\npath`): from main's running event, sent once the save panel closed on
+  // a file, to the export's reply. The progress toast waits a second from that event.
+  const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
+  const exportTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   // The Add Projects page (buzz-add-projects design '화면과 이동'): where it returns to, the page's own report, and a
   // counter File > Add Project… raises to run its Choose folder. Mounted anew (`seq`) on each opening.
   const [page, setPage] = useState<{ origin: AddPageOrigin; seq: number; chooseSeq: number } & AddPageReport>({ origin: { screen: "home" }, seq: 0, chooseSeq: 0, locked: false, choose: true });
@@ -695,7 +714,7 @@ export function App() {
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null;
+  const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null;
   // A locked Project Settings page holds the Undo toast too: its Share confirmation makes the toast inert while the page
   // itself is not modal (project-settings design '영향 범위' 토스트, POSTMORTEM 2026-10-25 'Native hiding bypassed
   // renderer-only lifetime checks').
@@ -710,7 +729,15 @@ export function App() {
     focusAfterModal.current = false;
     const previous = beforeModal.current;
     focusCurrent(previous);
+    setTrashHeld(null);
   }, [modal, entries]);
+  // The row the Move to Trash dialog asks about left the list: the dialog closes. A folder still loading keeps it.
+  useEffect(() => {
+    if (!trashing) return;
+    const entry = entries.find(entry => entry.path === trashing.root);
+    if (entry?.kind === "loading" || (entry?.kind === "list" && entry.canvases.some(row => row.path === trashing.row.path))) return;
+    closeTrash();
+  }, [entries, trashing]);
   useLayoutEffect(() => {
     const lost = recoveryFocus.current;
     if (!lost || modal) return;
@@ -976,6 +1003,66 @@ export function App() {
       toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
     }
   }
+  // canvas-row-menu design 'Alert Dialog': the dialog asks main whether a comment file goes too before it can be
+  // confirmed. A busy plan keeps it open with its working line; any other refusal closes it with that refusal's toast.
+  // Closing returns focus to the row's menu button through `beforeModal`.
+  function openTrash(root: string, row: CanvasRow, button: HTMLElement | null) {
+    if (locked() || live.current.modal) return;
+    beforeModal.current = button;
+    const seq = ++trashSeq.current;
+    changeTrashing({ root, row, plan: null, seq });
+    setTrashHeld(`${root}\n${row.path}`);
+    const answered = (plan: TrashPlanReply) => {
+      const current = trashingRef.current;
+      if (current?.seq !== seq) return;
+      if (plan.kind === "refused" && plan.reason !== "busy") { closeTrash(); live.current.toast.show(trashToast(canvasStem(row.path), plan)); return; }
+      changeTrashing({ ...current, plan });
+    };
+    window.doan.planCanvasTrash(root, row.path).then(answered, () => answered({ kind: "refused", reason: "failed" }));
+  }
+  function closeTrash() { changeTrashing(null); modalClosed(); }
+  // Confirmed: the dialog closes at once and the reply's toast is the only one (design '삭제 뒤 화면'). The mark set
+  // before the request makes the open canvas's removal a trash, not a move to another canvas of the same id.
+  function confirmTrash() {
+    const current = trashingRef.current;
+    if (!current) return;
+    closeTrash();
+    const { root, row } = current, marks = controller.current?.trash, mark = marks?.begin(root, row.path);
+    const done = (reply: TrashReply) => {
+      if (mark) marks!.settle(mark, reply.kind === "trashed" ? "trashed" : "refused");
+      live.current.toast.show(trashToast(canvasStem(row.path), reply));
+    };
+    window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
+  }
+  // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
+  function trashWorking(root: string, row: CanvasRow) {
+    const list = homeRun.current.listState(root);
+    return trashBlock({ root, path: row.path, ...(row.id ? { id: row.id } : {}) }, Array.isArray(list) ? list : null, work, (at, canvas) => homeRun.current.drawing(at, canvas)) !== null;
+  }
+  // canvas-row-menu design '앱 Export 흐름': main shows the save panel, runs the CLI and answers once; the item stays
+  // unavailable from main's running event to the reply. A refusal of a second request leaves the first one's state.
+  function exportCanvas(root: string, row: CanvasRow) {
+    if (locked()) return;
+    const key = `${root}\n${row.path}`;
+    const done = (reply: ExportReply) => {
+      if (reply.kind !== "refused" || reply.reason !== "exporting") {
+        clearTimeout(exportTimers.current.get(key)); exportTimers.current.delete(key);
+        setExporting(previous => { if (!previous.has(key)) return previous; const next = new Set(previous); next.delete(key); return next; });
+      }
+      const result = exportToast(canvasStem(row.path), reply);
+      if (!result) return;
+      const reveal = result.reveal;
+      if (reveal) live.current.toast.show(result.text, "Show in Finder", () => { void window.doan.revealExport(reveal).catch(console.error); });
+      else live.current.toast.show(result.text);
+    };
+    window.doan.exportCanvas(root, row.path).then(done, () => done({ kind: "failed", reason: "failed" }));
+  }
+  useEffect(() => window.doan.onExportRunning(({ root, path }) => {
+    const key = `${root}\n${path}`;
+    setExporting(previous => new Set(previous).add(key));
+    clearTimeout(exportTimers.current.get(key));
+    exportTimers.current.set(key, setTimeout(() => { exportTimers.current.delete(key); live.current.toast.show(exportProgress(canvasStem(path))); }, 1000));
+  }), []);
   // notice: a caller that shows the action's own feedback itself (the Project Settings page, under its notice);
   // otherwise the toast.
   function action(name: RowAction, root: string, notice: (text: string) => void = text => toast.show(text)) {
@@ -1353,6 +1440,7 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
+    canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash, held: trashHeld }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
@@ -1430,6 +1518,7 @@ export function App() {
     <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
       <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
   </dialog>}
+  {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)}

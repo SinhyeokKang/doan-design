@@ -3,6 +3,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot } from "./canvasNotice";
+import type { CanvasMenu } from "./ShellSidebar";
+const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {}, held: null };
 const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], states: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -15,13 +17,18 @@ beforeEach(() => { hooks.refs = []; hooks.states = []; hooks.cursor = 0; });
 function elements(node: ReactNode): Record<string, unknown>[] {
   return Children.toArray(node).flatMap(child => isValidElement<{ children?: ReactNode; [key: string]: unknown }>(child) ? [child.props, ...elements(child.props.children)] : []);
 }
+// The project menu's items, which end with Remove from Doan; the canvas rows' own menus follow in the tree.
+function projectItems(rendered: Record<string, unknown>[]) {
+  const items = rendered.filter(item => typeof item.onSelect === "function");
+  return items.slice(0, items.findIndex(item => [item.children].flat().includes("Remove from Doan")) + 1);
+}
 function fixture(loaded: string | null = "/a") {
   const row = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn() };
+  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU };
   const rendered = elements(ShellSidebar(props));
   const project = rendered.find(item => item["data-key"] === "common")!;
-  const menuItems = rendered.filter(item => typeof item.onSelect === "function");
+  const menuItems = projectItems(rendered);
   return { props, project, menuItems, rendered };
 }
 function key(props: Record<string, unknown>, value: string, nested = false) {
@@ -223,7 +230,7 @@ it("marks Search, project and canvas rows, Overview, Project Settings and worktr
   const rendered = elements(ShellSidebar({ ...props, locked: true }));
   expect(rendered.find(item => item.className === "shell-search")?.["aria-disabled"]).toBe(true);
   for (const row of rendered.filter(item => item.role === "treeitem")) expect(row["aria-disabled"]).toBe(true);
-  const menu = rendered.filter(item => typeof item.onSelect === "function");
+  const menu = projectItems(rendered);
   expect(menu.filter(item => String(item.className).includes("shell-worktree")).map(item => item["aria-disabled"])).toEqual([true, true]);
   // Overview, then Show in Finder, which stays allowed, and Project Settings.
   expect(menu.slice(2, 5).map(item => item["aria-disabled"])).toEqual([true, undefined, true]);
@@ -343,7 +350,7 @@ it("passes the project row's canvas notice to toggle on click and Enter", () => 
   const row = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
   const notice = { kind: "canvas" as const, label: "a is new" };
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(),
+  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU,
     slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", notice], ["/a\n.doan/canvases/a.html", notice]]) };
   const project = elements(ShellSidebar(props)).find(item => item["data-key"] === "common")!;
   if (typeof project.onClick !== "function") throw new Error("Missing click handler");
@@ -364,11 +371,137 @@ it("passes the project row's terminal slot to toggle as the canvas to open", () 
   const row = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
   const terminal = { kind: "working" as const, label: "Codex is working in a terminal", source: "terminal" as const };
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(),
+  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU,
     slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", terminal]]) };
   hooks.cursor = 0;
   const project = elements(ShellSidebar(props)).find(item => item["data-key"] === "common")!;
   if (typeof project.onClick !== "function") throw new Error("Missing click handler");
   project.onClick();
   expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: row.path });
+});
+
+// canvas-row-menu design '행 버튼과 메뉴': every canvas row gets the project row's menu button and a menu of Export… and
+// Move to Trash.
+const CANVAS = ".doan/canvases/a.html", CANVAS_KEY = `/a\n${CANVAS}`;
+function canvasMenuFixture(menu: Partial<CanvasMenu> = {}, extra: Record<string, unknown> = {}, row: Record<string, unknown> = { path: CANVAS, url: "u" }) {
+  const canvasMenu = { blocked: vi.fn(() => false), exporting: vi.fn(() => false), exportCanvas: vi.fn(), trash: vi.fn(), held: null, ...menu };
+  const { props } = fixture();
+  props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: [row as never] };
+  const all = { ...props, canvas: undefined, canvasMenu, ...extra };
+  let rendered: Record<string, unknown>[] = [];
+  const render = () => { hooks.cursor = 0; rendered = elements(ShellSidebar(all)); return rendered; };
+  render();
+  const canvasRow = () => rendered.find(item => item["data-key"] === CANVAS_KEY)!;
+  const button = () => rendered.find(item => item["aria-label"] === "a menu")!;
+  const canvasRoot = () => rendered.filter(item => typeof item.onOpenChange === "function")[1]!;
+  const items = () => rendered.filter(item => typeof item.onSelect === "function").slice(-2);
+  const open = () => { (canvasRoot().onOpenChange as (open: boolean) => void)(true); render(); };
+  return { props: all, canvasMenu, render, canvasRow, button, canvasRoot, items, open, rendered: () => rendered };
+}
+const text = (item: Record<string, unknown>) => elements([item.children as ReactNode]).flatMap(child => [child.children].flat()).concat([item.children].flat()).filter(value => typeof value === "string");
+
+it("a canvas row's button is the project row's: named for the canvas, on the row's tab stop, and it never opens the canvas", () => {
+  const tree = canvasMenuFixture();
+  expect(tree.button()).toMatchObject({ className: "doan-icon-button shell-more", "aria-label": "a menu", tabIndex: -1 });
+  // Tab from the focused row reaches its button: the button shares the row's roving tab stop.
+  (tree.canvasRow().onFocus as () => void)(); tree.render();
+  expect(tree.canvasRow().tabIndex).toBe(0);
+  expect(tree.button().tabIndex).toBe(0);
+  const event = { stopPropagation: vi.fn() };
+  (tree.button().onClick as (event: unknown) => void)(event);
+  (tree.button().onKeyDown as (event: unknown) => void)(event);
+  expect(event.stopPropagation).toHaveBeenCalledTimes(2);
+  // A key from the button reaches the row's handler from a nested target, which leaves it alone.
+  key(tree.canvasRow(), "Enter", true);
+  key(tree.canvasRow(), "ArrowDown", true);
+  expect(tree.props.open).not.toHaveBeenCalled();
+  expect(tree.canvasRoot().open).toBe(false);
+});
+
+it("lists Export… then Move to Trash, each acting on the row as the list holds it now", () => {
+  const tree = canvasMenuFixture();
+  tree.open();
+  expect(tree.canvasRoot().open).toBe(true);
+  // Only one menu at a time: the project menu stays closed.
+  expect(tree.rendered().filter(item => typeof item.onOpenChange === "function")[0]!.open).toBe(false);
+  const [exportItem, trashItem] = tree.items();
+  expect(text(exportItem!)).toEqual(["Export…"]);
+  expect(text(trashItem!)).toEqual(["Move to Trash"]);
+  expect(exportItem!["aria-disabled"]).toBeUndefined();
+  (exportItem!.onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+  (trashItem!.onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+  expect(tree.canvasMenu.exportCanvas).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS }));
+  expect(tree.canvasMenu.trash).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS }), null);
+  const live = [...hooks.refs].reverse().find(ref => ref.current === tree.props)!;
+  live.current = { ...tree.props, cards: [] };
+  (exportItem!.onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+  (trashItem!.onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
+  expect(tree.canvasMenu.exportCanvas).toHaveBeenCalledOnce();
+  expect(tree.canvasMenu.trash).toHaveBeenCalledOnce();
+});
+
+it.each([
+  ["Move to Trash while an agent works on the canvas", { blocked: vi.fn(() => true) }, {}, 1, "An agent is working on this canvas."],
+  ["Export on a row ls could not read", {}, { error: { code: "bad", message: "Unreadable" } }, 0, "Can’t read this canvas."],
+  ["Export while that canvas's export runs", { exporting: vi.fn(() => true) }, {}, 0, "Exporting…"],
+] as const)("an unavailable item stays reachable by arrows and reads its reason: %s", (_name, menu, row, index, reason) => {
+  const tree = canvasMenuFixture(menu, {}, { path: CANVAS, url: "u", ...row });
+  tree.open();
+  const items = tree.items(), item = items[index]!, other = items[1 - index]!;
+  // aria-disabled, not Radix `disabled`: a disabled item leaves the arrow order and its reason is never heard.
+  expect(item).toMatchObject({ "aria-disabled": true, className: "doan-menu-item shell-menu-reasoned" });
+  expect(item.disabled).toBeUndefined();
+  const line = tree.rendered().find(element => element.id === item["aria-describedby"])!;
+  expect(line).toMatchObject({ className: "shell-menu-reason", children: reason });
+  expect(other["aria-disabled"]).toBeUndefined();
+  const event = { preventDefault: vi.fn() };
+  (item.onSelect as (event: unknown) => void)(event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(tree.canvasMenu.exportCanvas).not.toHaveBeenCalled();
+  expect(tree.canvasMenu.trash).not.toHaveBeenCalled();
+});
+
+it("keeps a locked row's button in the focus order as aria-disabled, and it opens nothing", () => {
+  const tree = canvasMenuFixture({}, { locked: true });
+  expect(tree.button()).toMatchObject({ "aria-disabled": true, tabIndex: -1 });
+  expect(tree.button().disabled).toBeUndefined();
+  tree.open();
+  expect(tree.canvasRoot().open).toBe(false);
+  // The project row's button stays usable: its menu works while locked.
+  expect(tree.rendered().find(item => item["aria-label"] === "demo menu")!["aria-disabled"]).toBeUndefined();
+});
+
+it("keeps the status spot and its name in the row while the button shows", () => {
+  const slots = new Map<string, SidebarSlot>([[CANVAS_KEY, { kind: "working", label: "Codex is working" }]]);
+  const tree = canvasMenuFixture({}, { slots });
+  tree.open();
+  // The spot is drawn by SlotMark (its name: ShellSidebar.test.tsx); the CSS hides it visually only.
+  expect(tree.rendered()).toContainEqual({ slot: { kind: "working", label: "Codex is working" } });
+});
+
+it("marks the row whose Move to Trash dialog holds its button", () => {
+  expect(canvasMenuFixture().canvasRow()["data-held"]).toBeUndefined();
+  expect(canvasMenuFixture({ held: CANVAS_KEY }).canvasRow()["data-held"]).toBe("");
+});
+
+it("on close, focus returns to the button unless a dialog the menu opened or another control holds it", () => {
+  vi.stubGlobal("HTMLElement", class {});
+  try {
+    const tree = canvasMenuFixture();
+    tree.open();
+    (tree.canvasRow().ref as (node: unknown) => void)({ contains: () => false });
+    const content = tree.rendered().find(item => typeof item.onCloseAutoFocus === "function" && String(item.className).includes("shell-canvas-menu"))!;
+    expect(content.className).toBe("menu doan-floating doan-menu shell-canvas-menu shell-side-menu");
+    const inMenu = Object.assign(new (globalThis.HTMLElement as unknown as new () => object)(), { closest: (selector: string) => selector.includes(".shell-canvas-menu") ? {} : null });
+    const close = (dialog: boolean) => {
+      vi.stubGlobal("document", { activeElement: inMenu, body: {}, querySelector: () => dialog ? {} : null });
+      const event = { preventDefault: vi.fn() };
+      (content.onCloseAutoFocus as (event: unknown) => void)(event);
+      return event.preventDefault;
+    };
+    // Escape: Radix's own return to the trigger.
+    expect(close(false)).not.toHaveBeenCalled();
+    // Move to Trash opened its dialog: App returns focus to the button once it closes.
+    expect(close(true)).toHaveBeenCalledOnce();
+  } finally { vi.unstubAllGlobals(); }
 });
