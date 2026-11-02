@@ -4,20 +4,20 @@
 
 ## P. PoC (`.scratch/permission-mode/`, 커밋하지 않는다. 관찰은 이 문서와 커밋 메시지에 남긴다)
 
-- [ ] P1. Claude: Doan profile과 임시 저장소에서 파일 편집 턴을 돌린다. SDK `permissionMode` 값은 `default`·`acceptEdits`·`plan`·`bypassPermissions`(+`allowDangerouslySkipPermissions`)다. 다음을 기록한다.
+- [x] P1. Claude: Doan profile과 임시 저장소에서 파일 편집 턴을 돌린다. SDK `permissionMode` 값은 `default`·`acceptEdits`·`plan`·`bypassPermissions`(+`allowDangerouslySkipPermissions`)다. 다음을 기록한다.
   - 각 모드에서 승인 요청이 뜨는지, 편집 결과
   - `ExitPlanMode`를 승인한 뒤 SDK가 다음 모드를 어떻게 알려 주는지
   - 폴더 settings가 bypass를 막을 때의 실패 형태와 대응할 `turn.failed` code
   - Default에서 적용되는 설정의 출처
   - 검증: design.md의 P1 칸(Plan 승인 뒤 전환, bypass 거부 code, Default의 범위)이 채워진다. 실행 command undecided — needs user confirmation (실제 Claude 계정과 모델 요청을 쓴다).
-- [ ] P2. Codex 0.163.0 app-server: 다음을 기록한다.
+- [x] P2. Codex 0.163.0 app-server: 다음을 기록한다.
   - Default 턴에 `config/read`로 읽은 approval·sandbox를 `turn/start`에 넘기면 사용자 설정으로 돌아가는지(`thread/resume` 뒤 포함)
   - `{type:"workspaceWrite"}`의 기본값이 사용자 network·writable_roots를 덮는지
   - Plan(`never`/`readOnly`)에서 편집 요청의 결과
   - 검증: design.md 모드 대응표의 Codex 열과 P2 칸이 채워진다. 실행 command undecided — needs user confirmation (실제 Codex 계정과 모델 요청을 쓴다).
-- [ ] P3. ACP: Cursor·Antigravity·Copilot의 `session/new` 응답 `modes`와 `configOptions`의 mode 항목, `session/set_mode`·`session/set_config_option` 동작을 기록한다. 공통 id 대응표를 design.md에 채운다.
+- [x] P3. ACP: Cursor·Antigravity·Copilot의 `session/new` 응답 `modes`와 `configOptions`의 mode 항목, `session/set_mode`·`session/set_config_option` 동작을 기록한다. 공통 id 대응표를 design.md에 채운다.
   - 검증: design.md에 ACP 대응표가 채워진다(대응이 없는 provider는 "없음"으로 적는다). 실행 command undecided — needs user confirmation (실제 계정을 쓴다).
-- [ ] P4. P1–P3 결과로 design.md의 모드 대응표와 'Default의 범위'를 확정한다. 대응이 어긋나면(예: Codex가 되돌릴 수 없음) 사용자에게 묻는다.
+- [x] P4. P1–P3 결과로 design.md의 모드 대응표와 'Default의 범위'를 확정한다. 대응이 어긋나면(예: Codex가 되돌릴 수 없음) 사용자에게 묻는다.
   - 검증: design.md에 "P1에서 확인", "P2에서 확인", "P3에서 확인" 같은 미확정 표시가 남지 않는다.
 
 ── commit: `docs(feature): permission-mode PoC results` ──
