@@ -513,6 +513,9 @@ export class CanvasController {
     }
     const next = document.createElement("iframe");
     next.setAttribute("sandbox", "allow-scripts");
+    // The draft's own controls are not the app's: Tab walking into them drew their focus rings and made Chromium
+    // scroll the canvas area to reveal them, carrying the floating tools out of view (dogfooding).
+    next.tabIndex = -1;
     next.title = row.path;
     next.addEventListener("load", () => this.frameLoaded(next));
     // Only the URL supplied by main may become src; a canvas message is not authority.
