@@ -55,3 +55,5 @@ T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
   - 체인 파일의 링크 5 메모를 이 결과에 맞춰 고쳤다(main d6907e56).
 - D 리뷰: Claude Opus 서브에이전트(D는 Sonnet이 했다).
 - C: Claude Opus high(dispatch `ctx_062725a2717a`, worktree `canvas-hand-tool-c`)로 시작했다. 기준은 b424a6ca를 포함한 feat다.
+- D 리뷰(Claude Opus 서브에이전트): 🔴 1. 프리셋 팝오버에서 포인터가 행 위를 지나가면 검색창의 포커스를 빼앗아, 입력한 글자가 사라지고 Space가 프리셋을 고른다. ⚪ 5개 중 3개(중복된 `.doan-frame-row:focus`, DockedComposer의 불필요한 재렌더, DESIGN 문구)도 함께 고친다. 사이드바 메뉴를 불투명하게 한 것은 사용자 확인 항목으로 아침 보고에 넣는다. D에 수정 1회차를 보냈다(dispatch `ctx_2dbfc731ff57`).
+  - 지휘자 판단: D 수정과 C가 `styles.css`·`DESIGN.md`를 함께 고칠 수 있다. 둘 다 짧고 서로 다른 줄(D는 floating material, C는 Tools row)이라 병렬로 두고, D에게 지정한 줄만 고치게 했다. 통합 때 충돌이 나면 지휘자가 직렬로 다시 적용한다.
