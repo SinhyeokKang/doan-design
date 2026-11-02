@@ -83,9 +83,7 @@ test("a new conversation offers Home's suggestions over the composer, also for a
 test("canvases but no conversations: a new conversation with suggestions naming the canvas", () => {
   const html = render([]);
   expect(html).toContain("Review the checkout canvas");
-  // One size step above the sm rows and notices around them (orch D8): the shared default button, quiet.
-  expect(html).toContain('class="suggestion doan-button" data-ui-variant="quiet"');
-  expect(html).not.toMatch(/class="suggestion doan-button" data-ui-size=/);
+  expect(html).toContain('class="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet"');
 });
 
 test("a promotion leaves the moved line with Open above the suggestions", () => {

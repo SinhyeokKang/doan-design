@@ -62,7 +62,7 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html).toContain('<div class="composer-tray"><span class="tray-branch">');
   expect(html).toContain('<span class="tray-path">/code/doan-design</span>');
   expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
-  expect(html.match(/class="suggestion doan-button" data-ui-variant="quiet"/g)).toHaveLength(3);
+  expect(html.match(/class="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet"/g)).toHaveLength(3);
   expect(html).toContain("<span>Review the buzz-onboarding canvas</span>");
   expect(html).not.toContain("composer-reason");
 });
@@ -139,7 +139,7 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   // The preset chip's x renders in the shared chip-remove metadata ink, as the confirmed draft does.
   expect(css).toContain(".chip-remove.doan-icon-button { color: var(--text-metadata); }");
   expect(css).not.toMatch(/\.preset-chip \.chip-remove[^{]*\{[^}]*color/);
-  // Send keeps the shared disabled fill while sending, as the draft renders it; suggestions keep the shared default-size padding.
+  // Send keeps the shared disabled fill while sending, as the draft renders it; suggestions keep the shared sm padding.
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
   expect(css).not.toMatch(/\.suggestion[^{]*\{[^}]*padding/);
 });
