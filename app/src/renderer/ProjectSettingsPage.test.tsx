@@ -446,6 +446,23 @@ test("Show in Finder and Remove from Doan are not locked, but every control that
 
 // The confirmation is a modal dialog, so the page behind it is inert already; the draft's confirmation tile draws the
 // page's controls enabled. The lock (nothing leaves the page) stays while it is open.
+// The controls behind the confirmation are drawn enabled, so only the modal dialog's inertness kept a press from
+// starting a pick or a write; the handlers refuse it themselves.
+test("a press that reaches a control behind an open Share confirmation starts no pick and no write", async () => {
+  await open();
+  click("Add File or Folder"); await flush(); render();
+  expect(confirmation()).toBeDefined();
+  doan.chooseConfigPath!.mockClear();
+  for (const label of ["Change", "Add File or Folder"]) { click(label); await flush(); render(); }
+  expect(doan.chooseConfigPath).not.toHaveBeenCalled();
+  for (const label of ["Clear", "Remove public/fonts from Shared with canvases"]) { click(label); await flush(); render(); }
+  expect(doan.writeConfig).not.toHaveBeenCalled();
+  // Answering the confirmation still writes.
+  (confirmation()!.props.answer as (allow: boolean) => void)(true); await flush(); render();
+  expect(doan.writeConfig).toHaveBeenCalledWith({ root: ROOT, op: "addServe", choiceId: "ch1" });
+  unmount();
+});
+
 test("the controls behind an open Share confirmation are drawn enabled, and the lock stays", async () => {
   await open();
   click("Add File or Folder"); await flush(); render();

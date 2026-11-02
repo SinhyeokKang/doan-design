@@ -152,7 +152,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     finally { if (live.current) setBusy(null); }
   }
   async function choose(kind: ConfigKind) {
-    if (busy || picking || reading) return;
+    // The confirmation counts: its controls are drawn enabled and only the modal dialog keeps a press from getting here.
+    if (busy || picking || reading || choice) return;
     rememberFocus(kind);
     const stale = generation.current;
     setPicking(true); setSaved(null); setError(null);
@@ -269,7 +270,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
                     <FileIcon aria-hidden="true" /><span className="project-settings-token-name">{config.tokenCss}</span><span className="project-settings-grow" />
                     {status("tokenCss")}
                     <button ref={tokenButton} type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" disabled={disabled} onClick={() => void choose("tokenCss")}>Change</button>
-                    <button type="button" className="doan-button" data-ui-variant="ghost" data-ui-size="sm" disabled={disabled} onClick={() => void write({ root, op: "clearTokenCss" }, "tokenCss")}>Clear</button>
+                    <button type="button" className="doan-button" data-ui-variant="ghost" data-ui-size="sm" disabled={disabled} onClick={() => { if (!choice) void write({ root, op: "clearTokenCss" }, "tokenCss"); }}>Clear</button>
                   </> : <>
                     <span className="project-settings-empty project-settings-grow">No token CSS. <code>doan check</code> won’t flag hardcoded colors.</span>
                     {status("tokenCss")}
@@ -289,7 +290,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
                   <div className="doan-preference-row-content"><span className="doan-preference-row-label project-settings-path"><FolderIcon aria-hidden="true" />{path}</span></div>
                   <div className="doan-preference-row-trailing"><button type="button" className="doan-button" data-ui-variant="ghost" data-ui-size="sm" aria-label={`Remove ${path} from Shared with canvases`}
                     ref={node => { if (node) removeButtons.current.set(path, node); else removeButtons.current.delete(path); }}
-                    disabled={disabled} onClick={() => void write({ root, op: "removeServe", path }, "serve", path)}>Remove</button></div>
+                    disabled={disabled} onClick={() => { if (!choice) void write({ root, op: "removeServe", path }, "serve", path); }}>Remove</button></div>
                 </div>)}
                 <div className="doan-preference-row">
                   <div className="doan-preference-row-content" />
