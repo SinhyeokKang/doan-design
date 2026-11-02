@@ -130,3 +130,4 @@
     - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, runtime-test, agent-eval 라운드, 최종 verify 로그, feature 문서 사본)를 main checkout의 `.scratch/chain-261103/link4-evidence/`로 옮겼다.
     - 사용량(링크 4 끝): Claude 7일 80%(2026-11-04 13:59 KST 초기화). Codex 주간 91%(이 링크의 `/agent-eval` Codex 실행 뒤에도 그대로, 2026-11-04 15:35 KST 초기화). 체인 규칙대로 링크 5도 Codex 작업자를 쓰지 않는다.
 - 2026-11-03 링크 4 지휘자: 링크 5 세션(e4ed3c1b)이 브리프로 시작해 시작을 push한 것(5b96de98)을 확인하고 물러났다. 링크 4 worktree는 깨끗하고 main에 모두 들어갔다(`git cherry`에 `+` 없음). 세션의 실행 checkout이라 지우지 않았고, 사용자가 세션을 닫은 뒤 지우면 된다. 브리프는 main checkout의 `.scratch/chain-261103/brief-link5.md`다.
+- 2026-11-03 사용자(링크 5 진행 중): 마지막 링크 6(setup-via-onboarding)은 Codex 작업자를 섞어 쓴다. 링크 1 지휘자가 남긴 'Codex 주간 한도가 10% 아래면 Codex를 쓰지 않는다' 규칙보다 이 지시가 앞선다. 주 구현은 Claude, Codex는 독립 리뷰와 일부 기계적 배치에 쓰고(상시 권한 'Codex 작업자'), 시작할 때와 배치를 나눌 때 Codex 주간 남은 양(rollout `rate_limits` window 10080분, 2026-11-04 15:35 KST 초기화)을 확인해 배치를 정한다. 한도로 Codex가 멈추면 그 배치만 Claude로 돌리고 orch.md에 적는다.
