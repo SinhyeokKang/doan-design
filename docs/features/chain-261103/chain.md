@@ -79,7 +79,7 @@
   - Keychain: 공용 프로필은 링크 1 worktree의 Electron이 만들었다. 프로필을 쓰는 probe에서 macOS 대화상자가 뜨면 누르지 않고 그 항목만 미룬다.
 - 2026-11-03 링크 1 완료(세션 ceb45427): PR #75를 main에 병합했다(a6d35fd2). 통합 HEAD에서 `/verify` PASS. 그 뒤 main의 chain.md 커밋 위로 rebase만 했다.
   - 배치: A(T1·T3, Claude Opus high, 수정 1회), B(T2, Codex gpt-6-astra medium), D(사용자 요청 디자인 이슈 2개, Claude Sonnet high, 수정 1회), C(T4 runtime-test·design-sync, Claude Opus high). 리뷰: RA는 Codex gpt-6-astra medium, 나머지는 Claude 서브에이전트(Sonnet·Opus). Codex는 B와 RA 두 번만 썼다.
-  - 확인하지 못한 것: 화면이 잠겨 native 입력 항목(OS 커서 grab·grabbing, 창 밖 native 드래그, native OOPIF 진입, 실제 IME, native ⌘H/⌘V)을 돌리지 못했다. CDP로 대신 확인했고, BACKLOG 'Not verified in the real app'에 적었다. probe는 링크 1 지휘자 worktree의 `.scratch/orch/evidence-c/runtime-test/canvas-hand-tool/native-probe.mjs`에 있다.
+  - 확인하지 못한 것: 화면이 잠겨 native 입력 항목(OS 커서 grab·grabbing, 창 밖 native 드래그, native OOPIF 진입, 실제 IME, native ⌘H/⌘V)을 돌리지 못했다. CDP로 대신 확인했고, BACKLOG 'Not verified in the real app'에 적었다. 링크 1의 증거(native probe 포함)는 main checkout의 `.scratch/chain-261103/link1-evidence/`로 옮겼다. native probe는 그 안의 `evidence-c/runtime-test/canvas-hand-tool/native-probe.mjs`다.
   - 사용자 확인이 필요한 것(아침 보고): 사이드바 프로젝트 메뉴를 블러 대신 불투명 채움으로 바꿨다(`.shell-side-menu`). 원인은 창의 네이티브 vibrancy 위에서 웹 `backdrop-filter`가 효과가 없는 것이다. 되돌리기는 규칙 하나다.
   - 다음 링크가 알아야 할 것:
     - 새 IPC `pointer:get`(main window main frame only)과 캔버스 클릭 포커스 규칙(ARCHITECTURE §3 Input). 시작 점검의 '포인터 위치 조건'은 main의 OS 커서로 판정한다. 부모 문서는 OOPIF로 바로 들어가는 포인터를 보지 못하기 때문이다.
@@ -88,3 +88,4 @@
     - `CanvasState.tool`은 `"select" | "hand"`로 바뀌었고 픽은 `picking: boolean`이다. App은 `setCanvasPage`로 캔버스 페이지 여부를 controller에 알린다(링크 4의 locate·`openCanvas`가 이 위에서 시작한다).
     - 공용 프로필 백업 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData.bak-hand`가 남아 있다. 마지막 링크가 프로필을 지울 때 함께 지운다.
     - 사용량(링크 1 끝): Claude 7일 76%(2026-11-04 13:59 KST 초기화), Codex 대시보드 18%(상태줄 주간 12% 남음).
+- 2026-11-03 링크 1 지휘자: 링크 2 세션이 브리프로 시작해 시작을 push한 것(7119e66e)을 확인하고 물러났다. 링크 1 worktree는 깨끗하고 main에 모두 들어갔다(`git cherry`에 `+` 없음). 세션의 실행 checkout이라 지우지 않았고, 사용자가 세션을 닫은 뒤 지우면 된다.
