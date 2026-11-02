@@ -74,15 +74,18 @@ test("a new conversation offers Home's suggestions over the composer, also for a
   expect(html).toMatch(/class="ov-title doan-button"[^>]*>.*<span>New conversation<\/span>/);
   expect(html).toContain('placeholder="Ask or describe what to design, / for presets"');
   expect(html).toContain('<div class="ov-suggestions" role="group" aria-label="Suggested prompts">');
-  expect(html).toContain("Gather design context");
-  expect(html).toContain("Shape a first screen");
+  expect(html).toContain("Get to know this project");
+  expect(html).toContain("Plan the first screen");
   expect(html).not.toContain("Document the design system");
   expect(html).not.toContain("Doany");
 });
 
 test("canvases but no conversations: a new conversation with suggestions naming the canvas", () => {
   const html = render([]);
-  expect(html).toContain("Critique the checkout canvas");
+  expect(html).toContain("Review the checkout canvas");
+  // One size step above the sm rows and notices around them (orch D8): the shared default button, quiet.
+  expect(html).toContain('class="suggestion doan-button" data-ui-variant="quiet"');
+  expect(html).not.toMatch(/class="suggestion doan-button" data-ui-size=/);
 });
 
 test("a promotion leaves the moved line with Open above the suggestions", () => {

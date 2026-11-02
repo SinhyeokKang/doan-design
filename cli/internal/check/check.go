@@ -205,6 +205,10 @@ func Run(in Input) []Finding {
 				case "hardcoded_color":
 					f.Value = detail
 					f.Severity = "warning"
+				case "viewport_height_unit":
+					f.Value = detail
+					f.Severity = "warning"
+					f.Message = "Viewport height unit \"" + detail + "\" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead."
 				case "external_url":
 					f.URL = detail
 					f.Severity = "warning"
@@ -229,6 +233,13 @@ func Run(in Input) []Finding {
 					for _, v := range s.Colors {
 						output("hardcoded_color", v)
 					}
+				}
+			}
+			// Linked stylesheets can be the app's product CSS, which an agent cannot fix, so only the
+			// canvas's own <style> and style attributes are reported.
+			if !shared {
+				for _, v := range s.ViewportHeights {
+					output("viewport_height_unit", v)
 				}
 			}
 			if shared {

@@ -4,44 +4,112 @@ import { ancestorPath, canScrollAxis, canvasScriptSource, clipHtml, clipText, do
 
 describe("nextHeight", () => {
   test("sends the first measurement as is", () => {
-    expect(nextHeight(null, 900, 150)).toEqual({ sent: 900, inner: 150, frozen: false });
+    expect(nextHeight(null, 900, 150, 0)).toEqual({ sent: 900, inner: 150, frozen: false, fonts: 0 });
   });
 
   test("follows a canvas that grows or shrinks without tracking the viewport", () => {
-    const first = nextHeight(null, 900, 150);
-    expect(nextHeight(first, 1200, 150)).toEqual({ sent: 1200, inner: 150, frozen: false });
-    expect(nextHeight(first, 900, 900)).toEqual({ sent: 900, inner: 900, frozen: false });
-    expect(nextHeight(first, 400, 150)).toEqual({ sent: 400, inner: 150, frozen: false });
+    const first = nextHeight(null, 900, 150, 0);
+    expect(nextHeight(first, 1200, 150, 0)).toEqual({ sent: 1200, inner: 150, frozen: false, fonts: 0 });
+    expect(nextHeight(first, 900, 900, 0)).toEqual({ sent: 900, inner: 900, frozen: false, fonts: 0 });
+    expect(nextHeight(first, 400, 150, 0)).toEqual({ sent: 400, inner: 150, frozen: false, fonts: 0 });
   });
 
   test("freezes when the document still outgrows the viewport right after our own resize", () => {
-    const first = nextHeight(null, 580, 150);
+    const first = nextHeight(null, 580, 150, 0);
     // The iframe became 580 tall and the document grew with it (min-height: 100vh + padding).
-    expect(nextHeight(first, 660, 580)).toEqual({ sent: 580, inner: 150, frozen: true });
+    expect(nextHeight(first, 660, 580, 0)).toEqual({ sent: 580, inner: 150, frozen: true, fonts: 0 });
   });
 
   test("treats a resize within 1px of the sent height as our own", () => {
-    const first = nextHeight(null, 580, 150);
-    expect(nextHeight(first, 700, 581).frozen).toBe(true);
-    expect(nextHeight(first, 700, 579).frozen).toBe(true);
-    expect(nextHeight(first, 700, 582).frozen).toBe(false);
+    const first = nextHeight(null, 580, 150, 0);
+    expect(nextHeight(first, 700, 581, 0).frozen).toBe(true);
+    expect(nextHeight(first, 700, 579, 0).frozen).toBe(true);
+    expect(nextHeight(first, 700, 582, 0).frozen).toBe(false);
   });
 
   test("does not freeze when the viewport did not change", () => {
-    const first = nextHeight(null, 580, 580);
-    expect(nextHeight(first, 900, 580)).toEqual({ sent: 900, inner: 580, frozen: false });
+    const first = nextHeight(null, 580, 580, 0);
+    expect(nextHeight(first, 900, 580, 0)).toEqual({ sent: 900, inner: 580, frozen: false, fonts: 0 });
   });
 
   test("does not freeze when the document fits the resized viewport", () => {
-    const first = nextHeight(null, 580, 150);
-    expect(nextHeight(first, 581, 580).frozen).toBe(false);
-    expect(nextHeight(first, 580, 580)).toEqual({ sent: 580, inner: 580, frozen: false });
+    const first = nextHeight(null, 580, 150, 0);
+    expect(nextHeight(first, 581, 580, 0).frozen).toBe(false);
+    expect(nextHeight(first, 580, 580, 0)).toEqual({ sent: 580, inner: 580, frozen: false, fonts: 0 });
   });
 
   test("stays frozen for the rest of the document", () => {
-    const frozen = nextHeight(nextHeight(null, 580, 150), 660, 580);
-    expect(nextHeight(frozen, 300, 580)).toEqual(frozen);
-    expect(nextHeight(frozen, 5000, 900)).toEqual(frozen);
+    const frozen = nextHeight(nextHeight(null, 580, 150, 0), 660, 580, 0);
+    expect(nextHeight(frozen, 300, 580, 0)).toEqual(frozen);
+    expect(nextHeight(frozen, 5000, 900, 0)).toEqual(frozen);
+  });
+});
+
+// `fonts` counts the document's `loadingdone` events. Each round measures the
+// document at the viewport we set from the previous round (measure → send →
+// resize → measure), as the canvas and renderer do.
+describe("nextHeight after web fonts load", () => {
+  type Round = { applied: boolean; fonts: number };
+  const run = (inner: number, rounds: Round[], measure: (inner: number, applied: boolean) => number) => {
+    let state: ReturnType<typeof nextHeight> | null = null;
+    const sent: number[] = [];
+    for (const round of rounds) {
+      state = nextHeight(state, measure(inner, round.applied), inner, round.fonts);
+      inner = state.sent;
+      sent.push(inner);
+    }
+    return { sent, frozen: state?.frozen };
+  };
+  const rounds = (applyAt: number, eventAt: number, count = 7) =>
+    Array.from({ length: count }, (_, n) => ({ applied: n >= applyAt, fonts: n >= eventAt ? 1 : 0 }));
+  // buzz-project-settings: 7,832 px in the fallback font, 7,932 px once Geist applies.
+  const swap = (_inner: number, applied: boolean) => (applied ? 7932 : 7832);
+
+  test("grows from the fallback height to the web font height when the event comes with it", () => {
+    for (const start of [150, 0]) {
+      expect(run(start, rounds(1, 1), swap)).toEqual({ sent: [7832, 7932, 7932, 7932, 7932, 7932, 7932], frozen: false });
+    }
+  });
+
+  test("unfreezes a height frozen by a measurement taken before the event", () => {
+    for (const start of [150, 0]) {
+      // Round 1 measures the web font right after our resize but before `loadingdone`.
+      expect(run(start, rounds(1, 2), swap)).toEqual({ sent: [7832, 7832, 7932, 7932, 7932, 7932, 7932], frozen: false });
+    }
+  });
+
+  test("grows a min-height: 100vh document once per event and freezes it again", () => {
+    // min-height: 100vh plus 80 px of padding always outgrows the viewport.
+    const chase = (inner: number) => inner + 80;
+    const twoEvents = Array.from({ length: 10 }, (_, n) => ({ applied: true, fonts: n >= 6 ? 2 : n >= 3 ? 1 : 0 }));
+    expect(run(150, twoEvents, chase)).toEqual({ sent: [230, 230, 230, 310, 310, 310, 390, 390, 390, 390], frozen: true });
+    expect(run(0, twoEvents, chase)).toEqual({ sent: [80, 80, 80, 160, 160, 160, 240, 240, 240, 240], frozen: true });
+  });
+
+  test("keeps growing while events continue and freezes after the last one", () => {
+    const chase = (inner: number) => inner + 80;
+    const burst = Array.from({ length: 8 }, (_, n) => ({ applied: true, fonts: Math.min(n, 4) }));
+    expect(run(150, burst, chase)).toEqual({ sent: [230, 310, 390, 470, 550, 550, 550, 550], frozen: true });
+  });
+
+  test("keeps today's behavior when the fonts loaded before injection", () => {
+    for (const start of [150, 0]) {
+      expect(run(start, rounds(0, Infinity), swap)).toEqual({ sent: [7932, 7932, 7932, 7932, 7932, 7932, 7932], frozen: false });
+    }
+    const chase = (inner: number) => inner + 80;
+    expect(run(150, rounds(0, Infinity), chase)).toEqual({ sent: [230, 230, 230, 230, 230, 230, 230], frozen: true });
+  });
+
+  test("settles absolutely positioned frames at their extent after the font applies", () => {
+    // The frames end at 405 px in the fallback font and at 425 px in the web font.
+    const absolute = (inner: number, applied: boolean) => {
+      const extent = applied ? 425 : 405;
+      return documentHeight(0, Math.max(inner, extent), inner, extent);
+    };
+    for (const start of [150, 0]) {
+      expect(run(start, rounds(1, 1), absolute)).toEqual({ sent: [405, 425, 425, 425, 425, 425, 425], frozen: false });
+      expect(run(start, rounds(1, 2), absolute)).toEqual({ sent: [405, 405, 425, 425, 425, 425, 425], frozen: false });
+    }
   });
 });
 
@@ -72,16 +140,16 @@ describe("documentHeight", () => {
 
   test("settles once the iframe is resized to the reported height", () => {
     for (const content of [2000, 2008]) {
-      const first = nextHeight(null, documentHeight(150, content, 150, 0), 150);
+      const first = nextHeight(null, documentHeight(150, content, 150, 0), 150, 0);
       expect(first.sent).toBe(content);
-      expect(nextHeight(first, documentHeight(content, content, content, 0), content)).toEqual({ sent: content, inner: content, frozen: false });
+      expect(nextHeight(first, documentHeight(content, content, content, 0), content, 0)).toEqual({ sent: content, inner: content, frozen: false, fonts: 0 });
     }
   });
 
   test("still freezes a 100% canvas whose content keeps outgrowing the viewport", () => {
     // html{height:100%} with body{min-height:100vh} and 8px margins: always 16px taller.
-    const first = nextHeight(null, documentHeight(150, 166, 150, 0), 150);
-    expect(nextHeight(first, documentHeight(166, 182, 166, 0), 166)).toEqual({ sent: 166, inner: 150, frozen: true });
+    const first = nextHeight(null, documentHeight(150, 166, 150, 0), 150, 0);
+    expect(nextHeight(first, documentHeight(166, 182, 166, 0), 166, 0)).toEqual({ sent: 166, inner: 150, frozen: true, fonts: 0 });
   });
 });
 
@@ -92,7 +160,7 @@ describe("documentHeight with only absolutely positioned frames", () => {
     let state: ReturnType<typeof nextHeight> | null = null;
     const sent: number[] = [];
     for (let n = 0; n < 6; n++) {
-      state = nextHeight(state, documentHeight(0, Math.max(inner, extent), inner, extent), inner);
+      state = nextHeight(state, documentHeight(0, Math.max(inner, extent), inner, extent), inner, 0);
       inner = state.sent;
       sent.push(inner);
     }
@@ -112,8 +180,8 @@ describe("documentHeight with only absolutely positioned frames", () => {
   });
 
   test("follows the frames when they move up", () => {
-    const first = nextHeight(null, documentHeight(0, 405, 405, 405), 405);
-    expect(nextHeight(first, documentHeight(0, 405, 405, 300), 405)).toEqual({ sent: 300, inner: 405, frozen: false });
+    const first = nextHeight(null, documentHeight(0, 405, 405, 405), 405, 0);
+    expect(nextHeight(first, documentHeight(0, 405, 405, 300), 405, 0)).toEqual({ sent: 300, inner: 405, frozen: false, fonts: 0 });
   });
 
   // html{height:100%} with body{height:100%;overflow:auto}: html cannot scroll,
@@ -191,7 +259,7 @@ describe("documentHeight with an absolute frame inside an inline wrapper", () =>
     const sent: number[] = [];
     for (let n = 0; n < 6; n++) {
       const bottom = frameBottom(405, "absolute", [{ position: "relative", overflowY: "hidden", display: "inline", bottom: 20 }]);
-      state = nextHeight(state, documentHeight(20, Math.max(inner, 405), inner, bottom), inner);
+      state = nextHeight(state, documentHeight(20, Math.max(inner, 405), inner, bottom), inner, 0);
       inner = state.sent;
       sent.push(inner);
     }
@@ -207,7 +275,7 @@ describe("documentHeight with a frame inside a box that scrolls it", () => {
     const sent: number[] = [];
     for (let n = 0; n < 6; n++) {
       const bottom = frameBottom(3000, "static", [{ position: "static", overflowY: "auto", display: "block", bottom: box }]);
-      state = nextHeight(state, documentHeight(box, Math.max(inner, box), inner, bottom), inner);
+      state = nextHeight(state, documentHeight(box, Math.max(inner, box), inner, bottom), inner, 0);
       inner = state.sent;
       sent.push(inner);
     }
@@ -439,6 +507,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
   const posted: unknown[] = [];
   const windowListeners = new Map<string, Listener[]>();
   const documentListeners = new Map<string, Listener[]>();
+  const fontListeners = new Map<string, Listener[]>();
   const frames: unknown[] = [];
   const add = (map: Map<string, Listener[]>) => (type: string, listener: Listener, listenerOptions?: unknown) => {
     map.set(type, [...(map.get(type) ?? []), listener]);
@@ -484,7 +553,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
       const found = selectors.get(selector);
       return found?.isConnected ? found : null;
     },
-    fonts: { ready: new Promise<void>(() => {}) },
+    fonts: { ready: new Promise<void>(() => {}), addEventListener: add(fontListeners) },
   };
   const context: Record<string, unknown> = {
     parent,
@@ -532,6 +601,7 @@ function fakeCanvas(options: { readyState?: string; height?: number; scrollHeigh
     assigned,
     listenerOptionsSeen,
     ready: () => fire(documentListeners, "DOMContentLoaded", {}),
+    fireFonts: (type: string) => fire(fontListeners, type, {}),
     fireWindow: (type: string, event: unknown) => fire(windowListeners, type, event),
     windowListeners,
     animationFrames,
@@ -586,6 +656,58 @@ describe("canvasScriptSource", () => {
     canvas.trigger("resize");
     canvas.runFrame();
     expect(canvas.posted.map((post) => (post as { message: { viewport: number } }).message.viewport)).toEqual([150, 2500]);
+  });
+
+  test("unfreezes the height once when web fonts finish loading", () => {
+    const canvas = fakeCanvas({ height: 7832 });
+    canvas.ready();
+    // Resized to the fallback height, the document measures in the web font before `loadingdone`.
+    canvas.context.innerHeight = 7832;
+    canvas.state.height = 7932;
+    canvas.html.scrollHeight = 7932;
+    canvas.trigger("ResizeObserver");
+    canvas.runFrame();
+    canvas.trigger("ResizeObserver");
+    canvas.runFrame();
+    canvas.fireFonts("loadingdone");
+    canvas.runFrame();
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7832, 7832, 7932]);
+  });
+
+  // An iframe outside the visible area gets no animation frames, and after a
+  // confirming layout the renderer pulls no more measures (POSTMORTEM 2026-10-26).
+  test("posts the web font height without an animation frame after a confirming layout", () => {
+    const canvas = fakeCanvas({ height: 7832 });
+    canvas.ready();
+    canvas.context.innerHeight = 7832;
+    canvas.fromParent({ type: "measure" });
+    canvas.state.height = 7932;
+    canvas.html.scrollHeight = 7932;
+    canvas.fireFonts("loadingdone");
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7832, 7932]);
+  });
+
+  test("counts a web font load between an early measure and DOMContentLoaded", () => {
+    const canvas = fakeCanvas({ height: 7832 });
+    // A measure pulled before DOMContentLoaded records the fallback height.
+    canvas.fromParent({ type: "measure" });
+    canvas.context.innerHeight = 7832;
+    canvas.state.height = 7932;
+    canvas.html.scrollHeight = 7932;
+    canvas.fireFonts("loadingdone");
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832]);
+    canvas.ready();
+    canvas.fromParent({ type: "measure" });
+    canvas.fromParent({ type: "measure" });
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7932, 7932, 7932]);
+  });
+
+  test("posts nothing for a web font load before DOMContentLoaded", () => {
+    const canvas = fakeCanvas({ height: 7932 });
+    canvas.fireFonts("loadingdone");
+    expect(canvas.posted).toEqual([]);
+    canvas.ready();
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7932]);
   });
 
   test("starts at once when injected after the document is parsed", () => {
@@ -1417,8 +1539,8 @@ describe("selection without a draft guard", () => {
 
 describe("nextHeight after a first measurement of 0", () => {
   test("does not freeze at 0 when the document has content once the iframe is 0 tall", () => {
-    const first = nextHeight(null, 0, 150);
-    expect(nextHeight(first, 2600, 0)).toEqual({ sent: 2600, inner: 0, frozen: false });
+    const first = nextHeight(null, 0, 150, 0);
+    expect(nextHeight(first, 2600, 0, 0)).toEqual({ sent: 2600, inner: 0, frozen: false, fonts: 0 });
   });
 });
 

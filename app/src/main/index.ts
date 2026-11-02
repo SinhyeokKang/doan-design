@@ -45,6 +45,7 @@ import { PROVIDERS } from "./agentAuth/types";
 import type { NotificationTarget } from "./notifications";
 import { conversationNames, createNotifyService } from "./notifyService";
 import { createPreferencesStore } from "./preferences";
+import { createCanvasSeenStore, type CanvasSeenStore } from "./canvasSeen";
 import { DESIGN_SKILL_CHANNELS, DESIGN_SKILL_REFUSED, designSkillGetRequest, interpretGet, interpretList } from "./designSkills";
 import { folderState } from "./folderState";
 import type { InspectResult } from "./inspect";
@@ -127,6 +128,7 @@ let quitScheduled = false;
 let cancelPendingHide = () => {};
 let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
+let canvasSeen: CanvasSeenStore | undefined;
 let thumbnails: Thumbnails | undefined;
 // The app always starts on Home (design 'Memory model').
 const HOME: MenuInputs = { screen: "home", modal: false, toast: false };
@@ -481,6 +483,9 @@ async function start(): Promise<void> {
   // folderStore writes beside folders.json but does not create the directory.
   await mkdir(userData, { recursive: true });
   const choices = new Map<string, { id: string; path: string; epoch: number }>();
+  // Only the window's copy of the list carries `unseen`; thumbnails and conversations read the shell's own entries.
+  const seenStore = createCanvasSeenStore(join(userData, "canvas-seen.json"));
+  canvasSeen = seenStore;
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     const refreshes = folderRefreshes(conversationLists, entries);
     conversationLists = refreshes.next;
@@ -491,7 +496,7 @@ async function start(): Promise<void> {
       if (!entries.some(entry => entry.path === root && entry.kind === "uninitialized")) choices.delete(root);
     }
     thumbnails?.entriesChanged(entries);
-    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", entries, focus);
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seenStore.apply(entries), focus);
   }, { response: record => documents.response(record) });
   shell = ready;
   // The capture window is made on the first capture and stays out of the
@@ -726,7 +731,14 @@ async function start(): Promise<void> {
   });
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
-  handle("folders:get", [], (event) => (fromWindow(event) ? ready.entries() : []));
+  handle("folders:get", [], (event) => (fromWindow(event) ? seenStore.apply(ready.entries()) : []));
+  handle("canvas:seen", false, (event, value: unknown) => {
+    if (!fromWindow(event)) return false;
+    const entries = ready.entries();
+    if (!seenStore.mark(entries, value)) return false;
+    send("folders", seenStore.apply(entries));
+    return true;
+  });
   const flow = createAddFlow({
     ls: async target => folderState(await runLs(cli, target)),
     saved: () => ready.entries().map((entry) => entry.path),
@@ -946,7 +958,7 @@ app.on("before-quit", (event) => {
     await agentAuth?.quit();
     // Each adder owns only its clones; stopping them removes their temporary directories.
     await Promise.all([onboarding?.quit(), addPage?.quit()]);
-    quitting = true; cancelPendingHide(); uiState?.flushSync(); thumbnails?.dispose();
+    quitting = true; cancelPendingHide(); uiState?.flushSync(); canvasSeen?.flushSync(); thumbnails?.dispose();
     app.quit();
   });
 });
@@ -956,6 +968,7 @@ app.on("activate", () => {
 
 app.on("will-quit", () => {
   uiState?.flushSync();
+  canvasSeen?.flushSync();
   runtime?.disposeSync();
   void shell?.dispose();
 });

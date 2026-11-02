@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, test, vi } from "vitest";
-import { projectSlot, ShellSidebar } from "./ShellSidebar";
+import { projectSlotEntry, ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
+import type { SidebarSlot as Slot } from "./canvasNotice";
+const projectSlot = (slots: ReadonlyMap<string, Slot>, roots: readonly string[], shown: readonly string[]) => projectSlotEntry(slots, roots, shown)?.slot;
 const row = { path: ".doan/canvases/folder/canvas.html", url: "u", frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
@@ -97,7 +99,7 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
 });
 
 // design-system-canvases design 'sidebar' (Q6–Q8): two groups under an expanded, listed project.
-function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, { kind: "permission" | "working" | "unseen"; label: string }>; entry?: FolderEntry } = {}) {
+function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, Slot>; entry?: FolderEntry } = {}) {
   const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
     search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
@@ -182,4 +184,24 @@ it("scrolls the project list and the Settings categories with the shared thin sc
   expect(render("/repo")).toContain('<div class="shell-projects doan-scroll">');
   const settings = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} settings={{ section: "agents", select: vi.fn() }} />);
   expect(settings).toContain('<div class="shell-projects doan-scroll">');
+});
+
+// canvas-viewport-units D9/D10: a canvas notice is the same violet dot, under every conversation state.
+test("a canvas notice is the unseen dot on its row, and on the project row while that row is off screen", () => {
+  const notice = { kind: "canvas" as const, label: "button changed since you last opened it" };
+  const slots = new Map([["/a\n.doan/ds/button.html", notice]]);
+  const open = groups(["ds/button", "canvases/checkout"], undefined, { slots });
+  expect(open).toContain('<span>button</span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i></i></span>');
+  expect(open).not.toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot/);
+  const closed = groups(["ds/button", "canvases/checkout"], { ds: false }, { slots });
+  expect(closed).toMatch(/<span class="shell-project-name">demo<\/span><span class="row-slot unseen" role="img" aria-label="button changed since you last opened it"><i><\/i><\/span>/);
+});
+
+test("on the project row a conversation slot beats a canvas notice; among notices the first listed wins, with its key", () => {
+  const first = { kind: "canvas" as const, label: "first" }, second = { kind: "canvas" as const, label: "second" };
+  const notices = new Map<string, Slot>([["/a\n.doan/canvases/x.html", first], ["/a\n.doan/canvases/y.html", second]]);
+  expect(projectSlotEntry(notices, ["/a"], [])).toEqual({ key: "/a\n.doan/canvases/x.html", slot: first });
+  expect(projectSlotEntry(notices, ["/a"], ["/a\n.doan/canvases/x.html"])).toEqual({ key: "/a\n.doan/canvases/y.html", slot: second });
+  const unseen = { kind: "unseen" as const, label: "u" };
+  expect(projectSlot(new Map([...notices, ["/a\n.doan/canvases/z.html", unseen]]), ["/a"], [])).toBe(unseen);
 });

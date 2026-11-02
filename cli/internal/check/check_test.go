@@ -74,6 +74,9 @@ func TestRules(t *testing.T) {
 			i.TokenCSS = TokenCSS{Configured: true, State: In, RealPath: "tokens.css"}
 			i.Canvases[0].Styles = canvas.ScanCSS(`a{--local:#fff}`, canvas.Stylesheet)
 		}},
+		{"viewport_height_unit", func(i *Input) {
+			i.Canvases[0].Styles = canvas.ScanCSS(`a{height:calc(100dvh - 8px)}`, canvas.Stylesheet)
+		}},
 		{"orphan_comment_file", func(i *Input) { i.CommentFiles = commentFiles("absent") }},
 	}
 	for _, tt := range tests {
@@ -92,7 +95,7 @@ func TestRules(t *testing.T) {
 				t.Fatalf("got %+v", Run(in))
 			}
 			severity := "error"
-			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "orphan_comment_file" {
+			if tt.code == "external_url" || tt.code == "hardcoded_color" || tt.code == "viewport_height_unit" || tt.code == "orphan_comment_file" {
 				severity = "warning"
 			}
 			for _, f := range fs {
@@ -349,6 +352,57 @@ func TestOrphanCommentFileMessage(t *testing.T) {
 	fs := codes(Run(in), "orphan_comment_file")
 	want := Finding{Severity: "warning", Code: "orphan_comment_file", Message: "No canvas uses this comment file's id. Restore the canvas id, or ask the user. Do not delete or rewrite the comment file.", Path: ".doan/comments/gone.jsonl", Canvas: "gone"}
 	if len(fs) != 1 || fs[0] != want {
+		t.Fatalf("%+v", fs)
+	}
+}
+
+func TestViewportHeightUnit(t *testing.T) {
+	in := base()
+	in.Canvases[0].Styles = canvas.ScanCSS(`a{height:100dvh;min-height:50dvh;max-height:100dvh}`, canvas.Stylesheet)
+	fs := codes(Run(in), "viewport_height_unit")
+	if len(fs) != 2 || fs[0].Value != "100dvh" || fs[0].Canvas != "one" || fs[0].Severity != "warning" || !strings.Contains(fs[0].Message, `Viewport height unit "100dvh" resolves against the whole board in the app, so the canvas height chases itself. Use a pixel value instead.`) {
+		t.Fatalf("%+v", fs)
+	}
+	// No tokenCss configured: the rule does not depend on it.
+	if in.TokenCSS.Configured {
+		t.Fatal("token css configured")
+	}
+}
+
+func TestViewportHeightUnitSkipsLinkedStylesheets(t *testing.T) {
+	in := base()
+	b := parse(".doan/canvases/b.html", `<meta name="doan:canvas" content="two"><meta name="doan:width" content="1">`, "")
+	in.Canvases = append(in.Canvases, b)
+	in.CSS["shared.css"] = canvas.ScanCSS(`a{height:100dvh}b{min-height:100vh}`, canvas.Stylesheet)
+	for _, c := range in.Canvases {
+		in.Reach[c.Path] = []CSSRef{{Href: "shared.css", RealPath: "shared.css", State: In, Direct: true}}
+	}
+	if fs := codes(Run(in), "viewport_height_unit"); len(fs) != 0 {
+		t.Fatalf("linked stylesheet warned: %+v", fs)
+	}
+	// The canvas's own <style> still warns while the linked stylesheet stays silent.
+	in.Canvases[0].Styles = canvas.ScanCSS(`a{height:100dvh}`, canvas.Stylesheet)
+	fs := codes(Run(in), "viewport_height_unit")
+	if len(fs) != 1 || fs[0].Path != in.Canvases[0].Path || fs[0].Canvas != "one" || fs[0].Value != "100dvh" {
+		t.Fatalf("%+v", fs)
+	}
+}
+
+func TestViewportHeightUnitSkipsTokenCSS(t *testing.T) {
+	in := base()
+	in.TokenCSS = TokenCSS{Configured: true, State: In, RealPath: "tokens.css"}
+	in.CSS["tokens.css"] = canvas.ScanCSS(`:root{--h:100vh}`, canvas.Stylesheet)
+	in.Reach[in.Canvases[0].Path] = []CSSRef{{Href: "tokens.css", RealPath: "tokens.css", State: In, Direct: true}}
+	if fs := codes(Run(in), "viewport_height_unit"); len(fs) != 0 {
+		t.Fatalf("%+v", fs)
+	}
+}
+
+func TestViewportHeightUnitKeepsRawToken(t *testing.T) {
+	in := base()
+	in.Canvases[0].Styles = canvas.ScanCSS(`a{a:+5vh;b:1e+2vh;c:100v\68}`, canvas.Stylesheet)
+	fs := codes(Run(in), "viewport_height_unit")
+	if len(fs) != 3 || fs[0].Value != "+5vh" || fs[1].Value != `100v\68` || fs[2].Value != "1e+2vh" || !strings.Contains(fs[2].Message, `"1e+2vh"`) {
 		t.Fatalf("%+v", fs)
 	}
 }

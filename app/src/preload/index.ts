@@ -279,6 +279,8 @@ const api = {
   },
   // `ui-state.json` as main validated it against the saved roots; null starts at home.
   readShellActivity: (request: { roots: string[] }): Promise<ShellActivity[] | null> => ipcRenderer.invoke("shell:activity", request),
+  // The canvas page shows an unseen canvas (canvas-viewport-units D9); main records its mtime and sends the list again.
+  markCanvasSeen: (request: { root: string; path: string; mtimeMs: number }): Promise<boolean> => ipcRenderer.invoke("canvas:seen", request),
   readUiState: (): Promise<UiState | null> => ipcRenderer.invoke("ui-state:get"),
   // Main validates again and writes the last value after 500 ms; false when refused.
   saveUiState: (state: UiState): Promise<boolean> => ipcRenderer.invoke("ui-state:save", state),

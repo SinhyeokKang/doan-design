@@ -163,3 +163,45 @@ func TestSVGTitleIsNotDocumentTitle(t *testing.T) {
 		t.Fatalf("title %q", c.Title)
 	}
 }
+
+func TestViewportHeights(t *testing.T) {
+	tests := []struct {
+		name, css string
+		mode      Mode
+		want      []string
+	}{
+		{name: "units", css: `a{a:100vh;b:100dvh;c:100svh;d:100lvh;e:100vb;f:100dvb;g:100svb;h:100lvb}`, want: []string{"100vh", "100dvh", "100svh", "100lvh", "100vb", "100dvb", "100svb", "100lvb"}},
+		{name: "case", css: `a{height:100VH;min-height:50DvH}`, want: []string{"100VH", "50DvH"}},
+		{name: "number forms", css: `a{a:.5vh;b:-10vh;c:1e2vh;d:1.5vh;e:-1.5vh;f:+5vh;g:1E-2vh;h:-.5vh}`, want: []string{".5vh", "-10vh", "1e2vh", "1.5vh", "-1.5vh", "+5vh", "1E-2vh", "-.5vh"}},
+		{name: "signs and exponents", css: `a{a:+.5vh;b:1e+2vh;c:1.5e+2vh;d:+5vh;e:-1e-2dvh}`, want: []string{"+.5vh", "1e+2vh", "1.5e+2vh", "+5vh", "-1e-2dvh"}},
+		{name: "exponent is not a unit", css: `a{a:1em;b:2ex;c:1e3vh}`, want: []string{"1e3vh"}},
+		{name: "escaped unit", css: `a{a:100v\68;b:100V\48 ;c:5\76 h}`, want: []string{`100v\68`, `100V\48`, `5\76 h`}},
+		{name: "escaped unit suffix", css: `a{a:100vh\78;b:100v\68x;c:100vh\\}`},
+		{name: "escaped identifier", css: `a{animation-name:\31 00vh;b:\31 00vh;c:x\31 00vh}`},
+		{name: "functions", css: `a{height:calc(100dvh - 128px);max-height:min(55dvh, 576px)}`, want: []string{"100dvh", "55dvh"}},
+		{name: "custom property", css: `a{--h:100vh;height:var(--h)}`, want: []string{"100vh"}},
+		{name: "declaration list", css: `height:100vh`, mode: Declarations, want: []string{"100vh"}},
+		{name: "nested block", css: `@media (min-width:1px){a{height:100vh}}`, want: []string{"100vh"}},
+		{name: "comment", css: `a{/* 55dvh */height:10px} /* b{height:100vh} */`},
+		{name: "string and url", css: `a{content:"100vh";background:url(100vh.png);b:url("55dvh")}`},
+		{name: "at-rule prelude", css: `@media (min-height: 50vh){a{color:red}} @container (min-height:50vh){a{color:red}}`},
+		{name: "identifiers", css: `.vh-wrap{--foo-vh:1px;color:red} a{animation:5vh-slide 1s;grid-area:vh}`},
+		{name: "other units", css: `a{a:100vmax;b:100vmin;c:100vw;d:100dvw;e:100cqh;f:100vhx;g:100%;h:100px;i:100}`},
+		{name: "hash is not a number", css: `a{color:#100vh}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ScanCSS(tt.css, tt.mode).ViewportHeights
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("got %#v want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestViewportHeightsFromStyleAttribute(t *testing.T) {
+	c := mustParse(t, "x", []byte(`<div style="height:100vh"></div><p style="color:red"></p>`))
+	if !reflect.DeepEqual(c.Styles.ViewportHeights, []string{"100vh"}) {
+		t.Fatalf("%#v", c.Styles.ViewportHeights)
+	}
+}

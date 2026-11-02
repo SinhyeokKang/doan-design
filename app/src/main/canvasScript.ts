@@ -10,6 +10,7 @@ export interface HeightState {
   sent: number;
   inner: number;
   frozen: boolean;
+  fonts: number;
 }
 
 // `min-height: 100vh` style canvases grow with the iframe we resize to fit
@@ -17,12 +18,17 @@ export interface HeightState {
 // a document that still outgrows the viewport is chasing it, so the last sent
 // height is kept until this document ends. Not after a sent 0: that was measured
 // before the iframe was laid out, and no document chases a 0 px viewport.
-export function nextHeight(prev: HeightState | null, measured: number, inner: number): HeightState {
-  if (prev === null) return { sent: measured, inner, frozen: false };
+// Except once per web font load (`fonts` counts `loadingdone`): a font that
+// applies between the first measurement and our resize also grows the document
+// right after it, which looks the same as chasing and would cut its bottom off.
+// A chasing document then grows once per load and freezes again after the last
+// one, so it ends only because a canvas loads finitely many fonts.
+export function nextHeight(prev: HeightState | null, measured: number, inner: number, fonts: number): HeightState {
+  if (prev === null || prev.fonts !== fonts) return { sent: measured, inner, frozen: false, fonts };
   if (prev.frozen) return prev;
   const ownResize = inner !== prev.inner && Math.abs(inner - prev.sent) <= 1;
-  if (ownResize && prev.sent > 0 && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true };
-  return { sent: measured, inner, frozen: false };
+  if (ownResize && prev.sent > 0 && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true, fonts };
+  return { sent: measured, inner, frozen: false, fonts };
 }
 
 // Not scrollHeight alone: it never drops below the viewport, so a canvas could
@@ -192,6 +198,8 @@ export function canvasScript(lib: CanvasLib): void {
 
   const post = (message: unknown) => parent.postMessage(message, "*");
   let height: HeightState | null = null;
+  let fontLoads = 0;
+  let started = false;
   const documentToken = `${Date.now()}-${Math.random()}`;
 
   const frames = () => {
@@ -492,7 +500,7 @@ export function canvasScript(lib: CanvasLib): void {
     const html = document.documentElement;
     const { list, truncated, bottom } = frames();
     const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
-    height = lib.nextHeight(height, measured, innerHeight);
+    height = lib.nextHeight(height, measured, innerHeight, fontLoads);
     // `viewport` lets the renderer drop a layout measured before its last
     // resize of the iframe reached this document.
     const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };
@@ -521,6 +529,7 @@ export function canvasScript(lib: CanvasLib): void {
   // The first layout and measure replies skip rAF: an iframe outside the
   // viewport gets no animation frames, so a batched reply would never come.
   const start = () => {
+    started = true;
     const resized = new ResizeObserver(schedule);
     resized.observe(document.documentElement);
     if (document.body) resized.observe(document.body);
@@ -536,6 +545,18 @@ export function canvasScript(lib: CanvasLib): void {
     });
     send();
   };
+
+  // Not `ready`: it may already be resolved here, which would count as a load
+  // before the first measurement and miss the first freeze of a chasing document.
+  // Registered before `measure` is answered, so a load after an early measure
+  // still counts. Sent without rAF: an off-screen iframe gets no animation
+  // frames, and after a confirming layout the renderer pulls no more measures.
+  document.fonts.addEventListener("loadingdone", () => {
+    fontLoads++;
+    if (!started) return;
+    anchors.schedule();
+    send();
+  });
 
   const optionalString = (value: unknown) => value === undefined || typeof value === "string";
   const command = (data: Record<string, unknown>) => {

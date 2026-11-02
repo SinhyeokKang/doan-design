@@ -2,6 +2,7 @@ import { Children, isValidElement, type ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
+import type { SidebarSlot } from "./canvasNotice";
 const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], states: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -161,7 +162,7 @@ it("preserves modifier shortcuts and ordinary navigation around typeahead", () =
   tree.press("Enter"); expect(tree.props.toggle).toHaveBeenCalledWith("Alpine");
 });
 
-it("uses natural filename order for both visible rows and keyboard navigation", () => {
+it("uses natural filename order as the tie-break for rows without an mtime, for both rows and keyboard navigation", () => {
   const { props } = fixture();
   const names = ["Zeta", "foo-bar", "foo", "page10", "page2"];
   props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `.doan/canvases/${name}.html`, url: name })) };
@@ -175,6 +176,34 @@ it("uses natural filename order for both visible rows and keyboard navigation", 
   key(rows[0]!, "ArrowDown");
   expect(targets[1]!.focus).toHaveBeenCalledOnce();
   expect((props.cards[0]!.rows[0] as Extract<FolderEntry, { kind: "list" }>).canvases.map(row => row.url)).toEqual(names);
+});
+
+it("keeps the focused row on the same canvas when an mtime change reorders the list, and typeahead walks the visible order", () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    const { props } = fixture();
+    const canvases = (mtimes: Record<string, number>) => Object.entries(mtimes).map(([name, mtimeMs]) => ({ path: `.doan/canvases/${name}.html`, url: name, mtimeMs }));
+    const render = (mtimes: Record<string, number>) => {
+      props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: canvases(mtimes) };
+      hooks.cursor = 0;
+      const rendered = elements(ShellSidebar(props));
+      const rows = rendered.filter(item => item["aria-level"] === 3);
+      const host = rendered.find(item => item["aria-label"] === "Projects")!.ref as { current: unknown };
+      const nodes = rows.map(item => ({ dataset: { key: item["data-key"] }, focus: vi.fn() }));
+      host.current = { querySelectorAll: () => nodes };
+      return { rows, nodes };
+    };
+    let view = render({ alpha: 3, beta: 2, apple: 1 });
+    expect(view.rows.map(item => item["aria-label"])).toEqual(["alpha", "beta", "apple"]);
+    key(view.rows[1]!, "ArrowUp"); // focus alpha
+    key(view.rows[0]!, "ArrowDown"); // focus beta
+    view = render({ alpha: 3, beta: 2, apple: 9 });
+    expect(view.rows.map(item => item["aria-label"])).toEqual(["apple", "alpha", "beta"]);
+    expect(view.rows.map(item => item.tabIndex)).toEqual([-1, -1, 0]);
+    key(view.rows[2]!, "a"); // typeahead from beta wraps to the first "a" in visible order
+    expect(view.nodes[0]!.focus).toHaveBeenCalledOnce();
+    expect(view.nodes[1]!.focus).not.toHaveBeenCalled();
+  } finally { now.mockRestore(); }
 });
 
 // buzz-add-projects design '잠금': while the Add Projects page selects or clones, the moves are shown as unavailable
@@ -296,4 +325,26 @@ it("still opens and closes groups while the page is locked, showing their heads 
   (head.onClick as (event: unknown) => void)({});
   tree.press("Canvases", "ArrowLeft");
   expect(tree.props.toggleGroup.mock.calls).toEqual([["common", "ds"], ["common", "canvases"]]);
+});
+// canvas-viewport-units D10: a project row whose slot is a canvas notice hands that canvas to its activation; any
+// other slot leaves the activation as it was.
+it("passes the project row's canvas notice to toggle on click and Enter", () => {
+  const row = { path: ".doan/canvases/a.html", url: "u" };
+  const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
+  const notice = { kind: "canvas" as const, label: "a is new" };
+  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: false } }, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(),
+    slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", notice], ["/a\n.doan/canvases/a.html", notice]]) };
+  const project = elements(ShellSidebar(props)).find(item => item["data-key"] === "common")!;
+  if (typeof project.onClick !== "function") throw new Error("Missing click handler");
+  project.onClick();
+  expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: row.path });
+  key(project, "Enter");
+  expect(props.toggle).toHaveBeenLastCalledWith("common", { root: "/b", path: row.path });
+  const working = { ...props, slots: new Map<string, SidebarSlot>([["/b\n.doan/canvases/a.html", { kind: "working" as const, label: "w" }], ["/a\n.doan/canvases/a.html", notice]]), toggle: vi.fn() };
+  hooks.cursor = 0;
+  const other = elements(ShellSidebar(working)).find(item => item["data-key"] === "common")!;
+  if (typeof other.onClick !== "function") throw new Error("Missing click handler");
+  other.onClick();
+  expect(working.toggle).toHaveBeenLastCalledWith("common");
+  expect(working.toggle.mock.lastCall).toHaveLength(1);
 });

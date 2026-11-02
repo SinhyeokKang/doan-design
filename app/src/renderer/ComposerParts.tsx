@@ -1,4 +1,4 @@
-import { forwardRef, Fragment, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
+import { forwardRef, Fragment, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -340,8 +340,12 @@ export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view
 // The Send slot. While a start is pending it keeps its place with a spinner. While a turn runs the docked composer puts
 // Stop or Queue in the same place (composerAction), so the slot never moves.
 const SLOT_LABELS: Record<ComposerAction, string> = { send: "Send", stop: "Stop", queue: "Queue" };
-export function SendButton({ enabled, sending, onSend, action = "send" }: { enabled: boolean; sending: boolean; onSend(): void; action?: ComposerAction }) {
+// `hint` is why Send is off when no line says so (no ready agent): a native title, since a disabled button gets no
+// Radix tooltip, and a description for assistive tech.
+export function SendButton({ enabled, sending, onSend, action = "send", hint }: { enabled: boolean; sending: boolean; onSend(): void; action?: ComposerAction; hint?: string | undefined }) {
   const label = SLOT_LABELS[action];
-  return <IconTip label={label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} onClick={onSend}>
-    {sending ? <span className="doan-spinner" aria-hidden="true" /> : action === "stop" ? <Square fill="currentColor" stroke="none" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}</button></IconTip>;
+  const hintId = useId();
+  return <IconTip label={label}><button type="button" className={`composer-send doan-icon-button${action === "stop" ? " composer-stop" : ""}${sending ? " sending" : ""}`} data-ui-variant="accent" aria-label={label} aria-busy={sending || undefined} disabled={!enabled} title={hint} aria-describedby={hint ? hintId : undefined} onClick={onSend}>
+    {sending ? <span className="doan-spinner" aria-hidden="true" /> : action === "stop" ? <Square fill="currentColor" stroke="none" aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}
+    {hint && <span id={hintId} className="sr-only">{hint}</span>}</button></IconTip>;
 }

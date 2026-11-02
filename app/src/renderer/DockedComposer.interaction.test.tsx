@@ -449,3 +449,19 @@ test("a queue refused as not_running goes out as a send of the same message", as
   expect(send).toHaveBeenCalledWith(expect.objectContaining({ text: "Also this" }));
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
+
+test("with no ready agent a new conversation shows no reason line; Send is disabled and carries the reason", () => {
+  const draftKeyNew = draftKey({ kind: "new", root: "/w" });
+  const { render } = setup({ mode: { kind: "new", root: "/w" }, provider: null }, [[draftKeyNew, draft("Draw it")]]);
+  expect(render().some(props => props.role === "status" && props.className === "composer-reason docked-reason")).toBe(false);
+  const send = button(render(), "Send");
+  expect(send.disabled).toBe(true);
+  expect(send.title).toBe("No agent is ready to run.");
+  expect(send["aria-describedby"]).toBeTruthy();
+});
+
+test("a chosen agent that cannot run still shows its line", () => {
+  const draftKeyNew = draftKey({ kind: "new", root: "/w" });
+  const { render } = setup({ mode: { kind: "new", root: "/w" }, provider: "claude", auth: { revision: 1, providers: [] } }, [[draftKeyNew, draft("Draw it")]]);
+  expect(has(render(), "Claude Code can’t run right now. Choose another agent.")).toBe(true);
+});

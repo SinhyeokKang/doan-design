@@ -110,7 +110,7 @@ describe("dockedAvailability", () => {
   });
   test("new-conversation mode uses Home's agent reasons", () => {
     const fresh = { kind: "new", root: "/r" } as const;
-    expect(dockedAvailability(input({ mode: fresh, provider: null })).reason).toEqual({ text: "No agent is ready to run." });
+    expect(dockedAvailability(input({ mode: fresh, provider: null })).reason).toEqual({ text: "No agent is ready to run.", noAgent: true });
     expect(dockedAvailability(input({ mode: fresh, auth: auth(status("claude", { expired: true, phase: "reauthRequired" })) })).reason)
       .toEqual({ text: "Claude Code can’t run right now. Choose another agent." });
   });

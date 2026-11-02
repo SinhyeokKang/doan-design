@@ -324,7 +324,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const reason = availability.reason;
   const notice = refusal?.kind === "notice" ? refusal : null;
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
-  const describedBy = reason ? reasonId : undefined;
+  const describedBy = reason && !reason.noAgent ? reasonId : undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
     {props.queued.length > 0 && <div className="queue" role="list" aria-label="Queued messages">{props.queued.map(item =>
       <div key={item.id} className="queue-item" role="listitem"><Clock aria-hidden="true" /><span className="queue-text">{item.text}</span>
@@ -343,7 +343,7 @@ export function DockedComposer(props: DockedComposerProps) {
           onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} />
         {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
-        <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} />
+        <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined} />
       </ComposerTools>
       {drop.cover}
     </ComposerCard>
@@ -367,7 +367,7 @@ export function DockedComposer(props: DockedComposerProps) {
         <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => { clearRefusal(key); props.onStartNew?.(); focus({ kind: "restored" }); }}>Start a new conversation</button></div>
       : <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>
         {notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => void send()}>Retry</button>}</div>)}
-    {reason && (reason.alert
+    {reason && !reason.noAgent && (reason.alert
       ? <div className="doan-notice error doan-panel composer-notice" role="alert" id={reasonId}><AlertIcon /><span className="grow-text">{reason.text}</span></div>
       : <div className="composer-reason docked-reason" role="status" id={reasonId}><span>{reason.text}</span>
         {reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation" onClick={() => props.onOpen(reason.open!)}>Open</button>}

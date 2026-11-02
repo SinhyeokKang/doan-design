@@ -1,6 +1,9 @@
 package canvas
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 type Mode int
 
@@ -17,6 +20,8 @@ type Scan struct {
 	Defs                  map[string]bool
 	Refs                  []Reference
 	Colors, Imports, URLs []string
+	// ViewportHeights holds raw dimension tokens (e.g. "100dvh") from declaration values.
+	ViewportHeights []string
 }
 type token struct {
 	kind       byte
@@ -132,6 +137,149 @@ func lex(s string) []token {
 	}
 	return out
 }
+
+var viewportHeightUnits = map[string]bool{"vh": true, "dvh": true, "svh": true, "lvh": true, "vb": true, "dvb": true, "svb": true, "lvb": true}
+
+// The lexer splits numbers and escaped identifiers into fragments ("1.5vh" is "1", ".", "5vh";
+// "100v\68" is "100v", "\", "68"), so dimensions are read from the raw text instead.
+func validEscape(s string, i int) bool {
+	return i+1 < len(s) && s[i] == '\\' && s[i+1] != '\n' && s[i+1] != '\r' && s[i+1] != '\f'
+}
+func identStart(s string, i int) bool {
+	if i >= len(s) {
+		return false
+	}
+	c := s[i]
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' || c >= 128 || validEscape(s, i)
+}
+func startsIdent(s string, i int) bool {
+	if i < len(s) && s[i] == '-' {
+		return i+1 < len(s) && (s[i+1] == '-' || identStart(s, i+1))
+	}
+	return identStart(s, i)
+}
+func hexDigit(c byte) bool {
+	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
+}
+
+// readIdent consumes an identifier from i and returns its end and its escape-decoded text.
+func readIdent(s string, i int) (int, string) {
+	var b strings.Builder
+	for i < len(s) {
+		switch {
+		case validEscape(s, i):
+			i++
+			if hexDigit(s[i]) {
+				n := 0
+				v := 0
+				for n < 6 && i < len(s) && hexDigit(s[i]) {
+					d := s[i]
+					switch {
+					case d >= 'a':
+						d = d - 'a' + 10
+					case d >= 'A':
+						d = d - 'A' + 10
+					default:
+						d -= '0'
+					}
+					v = v*16 + int(d)
+					i++
+					n++
+				}
+				if i < len(s) && asciiSpace(s[i]) {
+					i++
+				}
+				if v == 0 || v > 0x10FFFF || v >= 0xD800 && v <= 0xDFFF {
+					v = 0xFFFD
+				}
+				b.WriteRune(rune(v))
+			} else {
+				r, n := utf8.DecodeRuneInString(s[i:])
+				b.WriteRune(r)
+				i += n
+			}
+		case ident(s[i]):
+			b.WriteByte(s[i])
+			i++
+		default:
+			return i, b.String()
+		}
+	}
+	return i, b.String()
+}
+func digits(s string, i int) int {
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	return i
+}
+
+// numberEnd returns the end of a CSS number starting at i, or i when none starts there.
+func numberEnd(s string, i int) int {
+	j := i
+	if j < len(s) && (s[j] == '+' || s[j] == '-') {
+		j++
+	}
+	switch {
+	case digits(s, j) > j:
+		j = digits(s, j)
+		if j+1 < len(s) && s[j] == '.' && digits(s, j+1) > j+1 {
+			j = digits(s, j+1)
+		}
+	case j+1 < len(s) && s[j] == '.' && digits(s, j+1) > j+1:
+		j = digits(s, j+1)
+	default:
+		return i
+	}
+	k := j
+	if k < len(s) && (s[k] == 'e' || s[k] == 'E') {
+		k++
+		if k < len(s) && (s[k] == '+' || s[k] == '-') {
+			k++
+		}
+		if digits(s, k) > k {
+			j = digits(s, k)
+		}
+	}
+	return j
+}
+
+// viewportHeights walks the declaration value as CSS tokens and returns the raw text of every
+// dimension whose decoded unit is a viewport height unit.
+func viewportHeights(text string, ts []token) []string {
+	var out []string
+	pos := 0
+	for _, t := range ts {
+		if t.start < pos {
+			continue
+		}
+		if t.kind == 's' || t.kind == 'u' {
+			pos = t.end
+			continue
+		}
+		p := t.start
+		pos = t.end
+		if text[p] == '#' {
+			pos, _ = readIdent(text, p+1)
+			continue
+		}
+		if e := numberEnd(text, p); e > p {
+			pos = e
+			if startsIdent(text, e) {
+				end, unit := readIdent(text, e)
+				pos = end
+				if viewportHeightUnits[lower(unit)] {
+					out = append(out, strings.TrimRight(text[p:end], " \t\n\r\f"))
+				}
+			}
+			continue
+		}
+		if startsIdent(text, p) {
+			pos, _ = readIdent(text, p)
+		}
+	}
+	return out
+}
 func custom(s string) bool { return strings.HasPrefix(s, "--") && len(s) > 2 }
 func ScanCSS(text string, mode Mode) Scan {
 	s := Scan{Defs: map[string]bool{}}
@@ -184,6 +332,7 @@ func (s *Scan) declaration(text string, ts []token) {
 	if len(ts) < 2 || ts[0].kind != 'i' || ts[1].kind != ':' {
 		return
 	}
+	s.ViewportHeights = append(s.ViewportHeights, viewportHeights(text, ts[2:])...)
 	if custom(ts[0].text) {
 		s.Defs[ts[0].text] = true
 	}
@@ -234,6 +383,7 @@ func (s *Scan) merge(other Scan) {
 	}
 	s.Refs = append(s.Refs, other.Refs...)
 	s.Colors = append(s.Colors, other.Colors...)
+	s.ViewportHeights = append(s.ViewportHeights, other.ViewportHeights...)
 	s.Imports = append(s.Imports, other.Imports...)
 	s.URLs = append(s.URLs, other.URLs...)
 }
