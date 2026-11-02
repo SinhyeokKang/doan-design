@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-02 — A picked model was forgotten: one start path skipped the memory and a fixed default overrode it
+
+- **Area**: `app/src/renderer/App.tsx` (HomeRun `host.sent`, the only Last used writer), `CanvasConversationPanel.tsx` (its own `startConversation`), `homeComposer.ts` (`defaultModel`/`defaultEffort` prefer a fixed default), now `rememberChoice.ts`.
+- **Symptom**: in dogfooding, "model and effort are not remembered". A conversation started from a canvas panel never updated Last used, and with an agent saved in Settings > Agents 'New conversations' every new input started from that saved model, whatever was picked before.
+- **Root cause**: Last used was written as a side effect of one start path (HomeRun's `host.sent`), not of the choice itself; the canvas panel later gained its own start call and nothing tied it to the memory. Separately, the fixed default wins over the remembered model by design, so a remembered pick was invisible for anyone with a fixed default.
+- **Net**: no test covered "start from the canvas panel, then open a new input elsewhere". Found by the user, traced statically; the pure rules are pinned in `rememberChoice.test.ts`. Not verified in the real app: the isolated probe environment has no signed-in provider, so no model list to pick from.
+- **Prevention**: record a remembered choice where the choice is made (the composer's resolved provider, model and effort), not inside one caller's success path. Any new `startConversation` or `sendConversation` caller must pass through `onRemember`. Search: `rg -n "startConversation\(|onRemember" app/src/renderer --glob '!*.test.*'`.
+
 ### 2026-11-02 — Every Overview menu opened under the Overview itself
 
 - **Area**: `app/src/renderer/ds/surfaces.css` (`.doan-floating`), `app/src/renderer/styles.css` (`.ov`), every Radix `Portal` content on the Overview (`ProjectOverview.tsx` conversation and worktree menus, `ComposerParts.tsx` agent/model, effort and presets).
