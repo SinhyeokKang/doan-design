@@ -318,6 +318,15 @@ test("reads the right panel's open flag and width", () => {
   expect(parse({ screen: "home", rightPanel: { open: true, width: 347.5 } })?.rightPanel).toEqual({ open: true, width: 347.5 });
 });
 
+test("reads the sidebar's width; a malformed one is dropped", () => {
+  expect(parse({ screen: "home", sidebar: { width: 260 } })?.sidebar).toEqual({ width: 260 });
+  for (const sidebar of [null, {}, { width: "260" }, { width: -1 }, { width: Number.POSITIVE_INFINITY }, [260]]) {
+    const state = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, sidebar });
+    expect(state).not.toHaveProperty("sidebar");
+    expect(state?.root).toBe("/repo/a");
+  }
+});
+
 test("a file without rightPanel has none", () => {
   expect(parse({ screen: "home" })).not.toHaveProperty("rightPanel");
 });

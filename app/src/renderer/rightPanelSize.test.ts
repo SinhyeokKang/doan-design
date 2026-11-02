@@ -96,3 +96,14 @@ test("the double-click reset is the default width, even when a saved value exist
   expect(width(undefined, W1238)).toBe(347);
   expect(width(undefined, W1440)).toBe(403);
 });
+
+// The sidebar's handle sits on its end edge: → widens, ← narrows, Home moves the edge to the minimum and End to the maximum.
+test("nudgePanel on an end edge", () => {
+  const side = { min: 180, max: 360 };
+  expect(nudgePanel(220, "ArrowRight", side, "end")).toBe(236);
+  expect(nudgePanel(220, "ArrowLeft", side, "end")).toBe(204);
+  expect(nudgePanel(220, "Home", side, "end")).toBe(180);
+  expect(nudgePanel(220, "End", side, "end")).toBe(360);
+  expect(nudgePanel(352, "ArrowRight", side, "end")).toBe(360);
+  expect(nudgePanel(220, "Enter", side, "end")).toBeNull();
+});
