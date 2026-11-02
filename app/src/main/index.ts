@@ -621,6 +621,7 @@ async function start(): Promise<void> {
       const picked = await dialog.showSaveDialog(win, { defaultPath: name, filters: [{ name: "HTML", extensions: ["html"] }] });
       return picked.canceled || !picked.filePath ? null : picked.filePath;
     },
+    running: (root, path) => send("canvas:exportRunning", { root, path }),
     run: (root, path, output) => runExport(cli, root, path, output),
     reveal: path => electronShell.showItemInFolder(path),
   });

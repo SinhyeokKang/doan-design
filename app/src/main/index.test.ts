@@ -1344,6 +1344,11 @@ describe("canvas trash and export", () => {
     expect(reply).toEqual({ kind: "exported", external: 1, reveal: expect.any(String) });
     expect(mocks.dialog.showSaveDialog).toHaveBeenCalledExactlyOnceWith(window(), { defaultPath: "a.html", filters: [{ name: "HTML", extensions: ["html"] }] });
     expect(mocks.runExport).toHaveBeenCalledExactlyOnceWith("/bundled/doan", "/repo", row.path, "/Users/me/Desktop/a.html");
+    // canvas:exportRunning goes to the window with the listed root and path, after the panel and before the CLI.
+    const sends = window().webContents.send.mock.calls.map((call, i) => ({ call, at: window().webContents.send.mock.invocationCallOrder[i]! })).filter(({ call }) => call[0] === "canvas:exportRunning");
+    expect(sends.map(({ call }) => call)).toEqual([["canvas:exportRunning", { root: "/repo", path: row.path }]]);
+    expect(sends[0]!.at).toBeGreaterThan(mocks.dialog.showSaveDialog.mock.invocationCallOrder[0]!);
+    expect(sends[0]!.at).toBeLessThan(mocks.runExport.mock.invocationCallOrder[0]!);
     // Show in Finder: only by the id, only from the main window.
     await invoke("canvas:revealExport", window().webContents, null, "/Users/me/Desktop/a.html");
     await invoke("canvas:revealExport", {}, null, (reply as { reveal: string }).reveal);
@@ -1356,6 +1361,7 @@ describe("canvas trash and export", () => {
     mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
     expect(await invoke("canvas:export", window().webContents, null, request)).toEqual({ kind: "cancelled" });
     expect(mocks.runExport).not.toHaveBeenCalled();
+    expect(window().webContents.send.mock.calls.filter(([channel]) => channel === "canvas:exportRunning")).toEqual([]);
   });
 });
 

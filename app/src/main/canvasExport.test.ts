@@ -66,7 +66,8 @@ describe("createCanvasExport", () => {
     const choose = vi.fn(async (_name: string): Promise<string | null> => OUT);
     const run = vi.fn(async (_root: string, _path: string, _output: string): Promise<CliRun> => ok(result()));
     const reveal = vi.fn();
-    return { entries, choose, run, reveal, exporter: createCanvasExport({ entries, choose, run, reveal }) };
+    const running = vi.fn();
+    return { entries, choose, run, reveal, running, exporter: createCanvasExport({ entries, choose, running, run, reveal }) };
   }
 
   test("asks for a file named after the stem, runs the CLI with main's own root, row and chosen file", async () => {
@@ -75,6 +76,34 @@ describe("createCanvasExport", () => {
     expect(reply).toEqual({ kind: "exported", external: 0, reveal: expect.any(String) });
     expect(h.choose).toHaveBeenCalledExactlyOnceWith("b.html");
     expect(h.run).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/sub/b.html", OUT);
+  });
+
+  // POSTMORTEM 2026-11-03: the window's progress toast and disabled item start from this event.
+  test("tells the window the export is running with the listed root and path, after a chosen file and before the CLI", async () => {
+    const h = harness();
+    h.run.mockImplementationOnce(async () => {
+      expect(h.running).toHaveBeenCalledExactlyOnceWith("/repo", ".doan/canvases/sub/b.html");
+      return ok(result());
+    });
+    await h.exporter.export({ root: "/repo", path: ".doan/canvases/sub/b.html" });
+    expect(h.running.mock.invocationCallOrder[0]!).toBeGreaterThan(h.choose.mock.invocationCallOrder[0]!);
+    expect(h.running.mock.invocationCallOrder[0]!).toBeLessThan(h.run.mock.invocationCallOrder[0]!);
+  });
+
+  test("says nothing is running for a cancelled panel or a refused request", async () => {
+    const h = harness();
+    h.choose.mockResolvedValueOnce(null);
+    await h.exporter.export({ root: "/repo", path: ".doan/canvases/a.html" });
+    await h.exporter.export({ root: "/other", path: ".doan/canvases/a.html" });
+    let finish!: (run: CliRun) => void;
+    h.run.mockImplementationOnce(() => new Promise<CliRun>(resolve => { finish = resolve; }));
+    const first = h.exporter.export({ root: "/repo", path: ".doan/canvases/a.html" });
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    h.running.mockClear();
+    expect(await h.exporter.export({ root: "/repo", path: ".doan/canvases/a.html" })).toEqual({ kind: "refused", reason: "exporting" });
+    expect(h.running).not.toHaveBeenCalled();
+    finish(ok(result()));
+    await first;
   });
 
   test("a cancelled save panel runs nothing", async () => {

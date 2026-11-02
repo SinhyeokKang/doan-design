@@ -431,3 +431,14 @@ test("canvas trash and export use fixed channels and send only the row's root an
   await api.revealExport("id-1");
   expect(mocks.invoke).toHaveBeenLastCalledWith("canvas:revealExport", "id-1");
 });
+
+test("onExportRunning passes the running export's root and path and unsubscribes", () => {
+  const listener = vi.fn();
+  const stop = api.onExportRunning(listener);
+  emitter.emit("canvas:exportRunning", {}, { root: ROOT, path: ".doan/canvases/a.html" });
+  expect(listener).toHaveBeenCalledExactlyOnceWith({ root: ROOT, path: ".doan/canvases/a.html" });
+  stop();
+  emitter.emit("canvas:exportRunning", {}, { root: ROOT, path: ".doan/canvases/a.html" });
+  expect(listener).toHaveBeenCalledOnce();
+  expect(emitter.listenerCount("canvas:exportRunning")).toBe(0);
+});

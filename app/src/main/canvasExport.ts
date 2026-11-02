@@ -72,6 +72,9 @@ export interface CanvasExportDeps {
   entries(): readonly FolderEntry[];
   // The save panel with `name` as its default file name; null when the person cancelled.
   choose(name: string): Promise<string | null>;
+  // The person chose a file and the CLI is about to run: the window starts its progress toast and disables the item.
+  // Never sent for a cancelled panel or a refused request.
+  running(root: string, path: string): void;
   run(root: string, path: string, output: string): Promise<CliRun>;
   // Electron's shell.showItemInFolder.
   reveal(path: string): void;
@@ -103,6 +106,7 @@ export function createCanvasExport(deps: CanvasExportDeps): CanvasExport {
       try {
         const output = await deps.choose(exportName(target.path));
         if (output === null) return { kind: "cancelled" };
+        deps.running(target.root, target.path);
         const outcome = interpretExport(await deps.run(target.root, target.path, output), output);
         if (outcome.kind !== "exported") return outcome;
         const reveal = randomUUID();

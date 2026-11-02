@@ -300,6 +300,12 @@ const api = {
   trashCanvas: (root: string, path: string): Promise<TrashReply> => ipcRenderer.invoke("canvas:trash", { root, path }),
   // Opens the save panel and runs `doan export`; resolves once the file is written or the export failed or was cancelled.
   exportCanvas: (root: string, path: string): Promise<ExportReply> => ipcRenderer.invoke("canvas:export", { root, path }),
+  // An export of this listed row passed the save panel and its CLI run starts now; the reply follows when it ends.
+  onExportRunning(listener: (target: { root: string; path: string }) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, target: { root: string; path: string }) => listener(target);
+    ipcRenderer.on("canvas:exportRunning", receive);
+    return () => ipcRenderer.removeListener("canvas:exportRunning", receive);
+  },
   // Show in Finder for an `exported` reply's `reveal` id.
   revealExport: (reveal: string): Promise<void> => ipcRenderer.invoke("canvas:revealExport", reveal),
   // `pending` is followed by onThumbnailChanged for the same canvas; ask again then.
