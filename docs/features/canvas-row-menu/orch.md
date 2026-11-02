@@ -21,6 +21,8 @@
 - Show in Finder는 넷째 채널 `canvas:revealExport`가 main이 방금 쓴 파일의 id만 받는다(C1). `canvas:trashPlan`에 `kind: "ready"`, `canvas:trash` `comments`에 `"none"`과 실패 시 `file`을 더했다. — 지휘자 재량, C1 handoff.
 - 데스크톱이 잠겨 있다(`CGSSessionScreenIsLocked` true). T5의 실제 Safari 확인은 할 수 없으므로, A2는 headless Chromium과 Playwright WebKit(대리 확인, Safari로 적지 않는다)으로 구조를 먼저 보고, 실제 Safari는 T13(e)로 미룬다. WebKit 브라우저 바이너리는 `~/Library/Caches/ms-playwright`에만 내려받고 패키지는 바꾸지 않는다. — 지휘자 재량.
 - `runExport` 타임아웃(`EXPORT_TIMEOUT_MS` 120초)은 잠정값이다. A2가 50 MiB 근처 export 시간을 재고, 그 값으로 고친다. — 지휘자 재량.
+- Export 진행 표시(C2 질문 1): main이 저장 패널에서 경로를 받은 뒤 CLI를 부르기 전에 주 창으로 `canvas:exportRunning {root, path}`를 한 번 보낸다(C1 수정 회차). renderer는 이 이벤트부터 1초를 재 진행 토스트를 띄우고, 답이 올 때까지 메뉴의 Export를 비활성으로 둔다. 요청 시점부터 재면 패널이 열린 동안이나 취소한 뒤에도 토스트가 뜨기 때문이다. — 지휘자 재량.
+- `canvas:trashPlan` 거절(C2 질문 2): `busy`면 대화상자를 연 채 대화상자 안 작업 중 이유 줄을 보이고 확인 버튼을 `aria-disabled`로 둔다. `notListed`·`notFile`·`failed`와 IPC 실패면 대화상자를 닫고 같은 이유의 삭제 거절 토스트를 띄운다. — 지휘자 재량, design '문구'의 기존 문장.
 - 사용량(링크 5 시작): Claude 7일 80%(2026-11-04 13:59 KST 초기화). Opus는 판단이 무거운 배치(A1, C1, C2)에만 쓴다.
 
 ## 배치
