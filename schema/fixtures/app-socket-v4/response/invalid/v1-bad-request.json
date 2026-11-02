@@ -1,0 +1,1 @@
+{"v": 1, "ok": false, "error": {"code": "bad_request", "message": "The request is not an app-socket v1 request."}}
