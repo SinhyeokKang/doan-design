@@ -205,3 +205,11 @@ test("on the project row a conversation slot beats a canvas notice; among notice
   const unseen = { kind: "unseen" as const, label: "u" };
   expect(projectSlot(new Map<string, Slot>([...notices, ["/a\n.doan/canvases/z.html", unseen]]), ["/a"], [])).toBe(unseen);
 });
+
+// An empty group's line is a dashed box under its head; the project-level line (info.chip) stays plain text.
+test("an empty group's line is a dashed box", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*border: 1px dashed var\(--border-standard\);[^}]*border-radius: var\(--radius-chip\);/);
+  expect(css).not.toMatch(/(^|\n)\.shell-empty[^{]*\{[^}]*dashed/);
+});
