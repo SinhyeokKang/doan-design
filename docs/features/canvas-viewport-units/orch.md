@@ -7,6 +7,8 @@
 
 ## 결정 로그
 
+- 권한(사용자, 2026-11-02): 모든 배치가 통합되고 검증이 문제없으면 이 run의 PR을 main에 병합한다. 병합 뒤 원격 main으로 로컬 설치용 dmg를 하나 만든다.
+
 - D1 (지휘자 판단 — tasks Z1): `buzz-project-settings`의 dvh 값은 900px 창 기준으로 계산한 px로 바꾼다. 화면 모양을 유지하는 최소 수정만 하고 다른 내용은 건드리지 않는다.
 - D2 (지휘자 판단 — design 'skills'): T3의 가이드 줄은 Go 배치(A)가, `loadingdone` 주입은 TS 배치(B)가 맡는다. 파일이 겹치지 않는다.
 - D3 (지휘자 판단 — AGENTS 'Workflow'): T6 `/verify --eval`과 Z1의 문서 승격(ARCHITECTURE·BACKLOG, 디렉터리 삭제)은 지휘자가 통합 HEAD에서 한다. 캔버스 수정은 배치 C가 한다.
