@@ -40,6 +40,17 @@ function home(dir: string, models?: ModelOption[], canvases: { path: string }[] 
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
   return { handle, start, prepare, catalog, attachments, service };
 }
+// terminal-agent-activity: the renderer holds the terminal session choice while that session (provider:id) works in a
+// terminal, so the resume target names its session.
+it("names the terminal session in the resume target", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+  try {
+    const h = home(dir, undefined, [{ path: ".doan/canvases/a.html" }]);
+    h.prepare.mockResolvedValueOnce({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, sessionId: "019a-thread", lastCheckAt: "2026-11-01T14:02:00.000Z" });
+    expect(await h.handle(true, "resumeTarget", { root: "/repo", canvas: { path: ".doan/canvases/a.html" } }))
+      .toEqual({ available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00.000Z", session: "019a-thread" });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 const MODELS: ModelOption[] = [{ id: "sonnet", label: "Sonnet", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }];
 it("takes newDesign multi-line text as is and rejects subject requests", async () => {
   const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));

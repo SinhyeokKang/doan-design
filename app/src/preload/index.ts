@@ -1,3 +1,5 @@
+import type { WorkItem } from "../main/workState";
+import type { OpenLinkResult } from "../main/deepLinks";
 import type { AuthCheckReply, AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { ShellActivity } from "../main/shellActivity";
@@ -30,7 +32,7 @@ import type { ThumbnailReply, ThumbnailTarget } from "../main/thumbnails";
 import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
 
-export type { AddPageResponse, AddPageState };
+export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult };
 export type {
   AboutRead, ConfigChoice, ConfigKind, ConfigReply, NotificationTarget, Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply,
   SettingsPageTarget, SettingsSection, TestNotificationReply,
@@ -61,7 +63,21 @@ type SessionRequest<T> = T extends unknown ? Omit<T, "v" | "token" | "op"> : nev
 // The renderer gets these calls and nothing else: no ipcRenderer, no
 // channel names, no paths it did not receive from main.
 const api = {
-  conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string } | { available: false; reason: "no_record" | UnavailableReason } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
+  // Subscribe before getWork so a signal received during the read is not lost.
+  getWork: (): Promise<WorkItem[]> => ipcRenderer.invoke("work:get"),
+  onWorkChanged(listener: (items: WorkItem[]) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, items: WorkItem[]) => listener(items);
+    ipcRenderer.on("work:changed", receive);
+    return () => ipcRenderer.removeListener("work:changed", receive);
+  },
+  onOpenLink(listener: (result: OpenLinkResult) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, result: OpenLinkResult) => listener(result);
+    ipcRenderer.on("deep-link:open", receive);
+    return () => ipcRenderer.removeListener("deep-link:open", receive);
+  },
+  // Call only after subscribing, the launch restore is done, and the first folders snapshot arrived.
+  openLinksReady: (): Promise<void> => ipcRenderer.invoke("deep-link:ready"),
+  conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason; runtime?: Runtime; session?: string } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
   conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
   // newDesign takes `text`. model and effort only from the list listConversationModels
   // returned in this run for that root and runtime; permissionMode one of the common ids (resume takes none); attachments by the ids the attachment calls returned. A moved or

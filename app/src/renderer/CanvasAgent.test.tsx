@@ -13,7 +13,7 @@ const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   canvas, ...patch,
 });
 const markup = (list: readonly ConversationSummary[] | "loading" | "error" | undefined, over: Partial<Parameters<typeof CanvasAgent>[0]> = {}) =>
-  renderToStaticMarkup(<CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()} {...over} />);
+  renderToStaticMarkup(<CanvasAgent list={list} canvas={{ root: "/w/a", canvas }} running={true} work={[]} onOpen={vi.fn()} onStopFailed={vi.fn()} {...over} />);
 // Without an indicator the column stays, empty, for the canvas notices.
 const COLUMN = '<div class="doan-canvas-top"></div>';
 const tag = (html: string, pattern: string) => html.match(new RegExp(`<[a-z0-9]+[^>]*${pattern}[^>]*>`))?.[0] ?? "";
@@ -67,6 +67,24 @@ describe("CanvasAgent", () => {
     expect(markup("error")).toBe(COLUMN);
   });
 
+  // terminal-agent-activity (draft terminal-notice, user decision D1): a terminal session shows the glow, the dot field
+  // and the app notice's text with no button; the text is the status itself.
+  test("a terminal session: the glow and the notice with its moving dot and text, and no button", () => {
+    const work = [{ session: "s1", provider: "codex" as const, root: "/w/a", path: canvas.path }];
+    const html = markup([], { work });
+    expect(html).toMatch(/<div class="doan-agent-glow"[^>]*><canvas class="doan-agent-dots"><\/canvas><\/div>/);
+    expect(html).toContain('<div class="doan-agent doan-agent-terminal"><span class="doan-agent-dot" aria-hidden="true"></span><span class="doan-agent-text" role="status">Agent is working</span></div>');
+    expect(html).not.toContain("<button");
+    // Another worktree's session on the same path shows nothing here.
+    expect(markup([], { work: [{ ...work[0]!, root: "/w/b" }] })).toBe(COLUMN);
+  });
+
+  test("an app conversation on the canvas keeps its Stop over a terminal session", () => {
+    const html = markup([summary({})], { work: [{ session: null, provider: null, root: "/w/a", path: canvas.path }] });
+    expect(html).toContain('<div class="doan-agent">');
+    expect(html).toMatch(/>Stop<\/button>/);
+  });
+
   // buzz-canvas R6: the canvas notices stack in the same top-centre column, the agent notice first.
   test("the canvas notices App puts in the column lead with the alert icon, like every shared notice", () => {
     // App's CanvasPane is not rendered without a DOM; its markup is read from the source (DESIGN 'Notices': every
@@ -81,11 +99,11 @@ describe("CanvasAgent", () => {
 
   test("the canvas notices come after the agent notice in the column, and alone when no indicator shows", () => {
     const notice = <div className="doan-notice doan-panel" role="status">The selection is no longer in the canvas.</div>;
-    const html = renderToStaticMarkup(<CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
+    const html = renderToStaticMarkup(<CanvasAgent list={[summary({})]} canvas={{ root: "/w/a", canvas }} running={true} work={[]} onOpen={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
     expect(html.indexOf('class="doan-agent"')).toBeGreaterThan(-1);
     expect(html.indexOf('class="doan-agent"')).toBeLessThan(html.indexOf('class="doan-notice doan-panel"'));
     expect(html.match(/class="doan-canvas-top"/g)).toHaveLength(1);
-    const alone = renderToStaticMarkup(<CanvasAgent list={undefined} canvas={null} running={true} onOpen={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
+    const alone = renderToStaticMarkup(<CanvasAgent list={undefined} canvas={null} running={true} work={[]} onOpen={vi.fn()} onStopFailed={vi.fn()}>{notice}</CanvasAgent>);
     expect(alone).toBe(`<div class="doan-canvas-top">${renderToStaticMarkup(notice)}</div>`);
   });
 });
@@ -108,4 +126,12 @@ test("the tools are larger and both overlays sit further from the board's edges"
   const agent = readFileSync(new URL("./CanvasAgent.tsx", import.meta.url), "utf8");
   expect(agent.match(/doan-agent-action" data-ui-size="sm"/g)).toHaveLength(2);
   expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-body-sm-size\);/);
+});
+
+// terminal-agent-activity user decision D2 (draft terminal-notice): every capsule in the column, the button-less terminal
+// notice and the picking hint included, takes the app notice's 40px height; the terminal notice has an even inline inset.
+test("the agent notices and the picking hint are 40px tall; the terminal notice's inset is even", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.doan-agent \{[^}]*min-height: var\(--size-control\);/);
+  expect(css).toMatch(/\.doan-agent\.doan-agent-terminal \{[^}]*padding: var\(--space-1\) var\(--space-4\);/);
 });

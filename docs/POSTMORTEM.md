@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-02 — Evaluation unit checks inherited the real session-recording runtime
+
+- **Area**: `eval/scenarios/{regression,audit}.test.ts`, `H1`–`H5` and `R6b` scenario tests.
+- **Symptom**: a concurrent fake-agent self-test scored all 36 scenarios correctly but exited 1 when its real-state guard found the real Doan `sessions.jsonl` changed.
+- **Root cause** (most likely, not confirmed): the real-run workspace isolated `DOAN_RUNTIME`, but older scenario unit fixtures passed `process.env` to `createContext`. When launched inside an agent session, their real CLI `check` calls could record associations beside the default runtime. A temporary repository alone does not isolate device-local session state. Other worker and conductor sessions writing the same real `sessions.jsonl` during the run would change the same fingerprint, and the passing rerun was also sequential, so the run does not tell the two apart.
+- **Net**: the self-test real-state guard detected the change; existing scenario assertions passed because session recording is best effort and does not affect check output. A regression that observes the environment received by a context subprocess failed with the inherited runtime before the fixture environments were corrected; it pins the environment boundary, not a change to `sessions.jsonl`.
+- **Prevention**: every eval fixture that runs the CLI must set an absolute temporary `DOAN_RUNTIME`, including direct init/fixture commands. Search executed: `rg -n 'env: process.env|execFileSync\(cli' eval --glob '*.test.ts'`. Remaining direct `process.env` cases run shell lifecycle tests, Python-only parser checks, a nonexistent CLI, or Git-only material generation; none invokes the real Doan CLI.
+
 ### 2026-11-02 — The sidebar list scrolled with the classic scrollbar
 
 - **Area**: `app/src/renderer/ShellSidebar.tsx` (`.shell-projects`), `ds/surfaces.css` (`.doan-scroll`).

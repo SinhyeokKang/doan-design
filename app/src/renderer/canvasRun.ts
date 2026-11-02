@@ -93,7 +93,13 @@ export class CanvasRun {
     this.host.changed();
   }
   panel(open: boolean): void { this.panelOpen = open; this.checkSeen(); }
-  focusChanged(): void { this.checkSeen(); }
+  focusChanged(): void { this.checkSeen(); this.recheckResume(); }
+  // A terminal process holds the linked session (session_in_use): nothing says when it exits, so the target is read
+  // again when the terminal work list changes and when the window comes back.
+  recheckResume(): void {
+    const s = this.shownState();
+    if (s?.shown === null && s.resume && "available" in s.resume && !s.resume.available && s.resume.reason === "session_in_use") this.askResume(s);
+  }
 
   view(): CanvasView | null {
     const s = this.shownState();
@@ -269,7 +275,7 @@ export class CanvasRun {
     const { root, canvas } = s.target;
     void window.doan.conversationResumeTarget({ root, canvas }).catch(() => ({ error: "unknown" })).then(reply => {
       if (s.ask !== ask) return;
-      s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt } : { available: false, reason: reply.reason };
+      s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt, ...(reply.session ? { session: reply.session } : {}) } : { available: false, reason: reply.reason, ...(reply.runtime && reply.session ? { runtime: reply.runtime, session: reply.session } : {}) };
       this.host.changed();
     });
   }

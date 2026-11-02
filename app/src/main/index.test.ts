@@ -1817,3 +1817,138 @@ describe("agent setup on launch", () => {
     });
   });
 });
+
+test("deep links wait for restoration readiness and only navigate or refuse in the main window", async () => {
+  const contents = window().webContents;
+  const preventDefault = vi.fn();
+  const url = "doan://open?root=%2Frepo&canvas=.doan%2Fcanvases%2Fa.html&frame=hero";
+  const entries = [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }];
+  mocks.shell.entries.mockReturnValue(entries);
+  mocks.app.emit("open-url", { preventDefault }, "bad");
+  mocks.app.emit("open-url", { preventDefault }, url);
+  expect(contents.send.mock.calls.filter(([channel]) => channel === "deep-link:open")).toEqual([]);
+  await invoke("deep-link:ready", contents, {});
+  expect(contents.send.mock.calls.filter(([channel]) => channel === "deep-link:open")).toEqual([]);
+  await invoke("deep-link:ready", contents, null);
+  expect(contents.send).toHaveBeenCalledWith("deep-link:open", { kind: "navigate", root: "/repo", canvas: ".doan/canvases/a.html", frame: "hero" });
+  await invoke("deep-link:ready", contents, null);
+  expect(contents.send.mock.calls.filter(([channel]) => channel === "deep-link:open")).toHaveLength(1);
+  mocks.app.emit("open-url", { preventDefault }, "bad");
+  expect(contents.send).toHaveBeenCalledWith("deep-link:open", { kind: "malformed" });
+  expect(window().show).toHaveBeenCalledTimes(2);
+  expect(mocks.shell.open).not.toHaveBeenCalled();
+  expect(mocks.shell.store).not.toHaveBeenCalled();
+  expect(mocks.uiState.save).not.toHaveBeenCalled();
+});
+
+test("unchanged work does not publish during startup or folder refreshes", () => {
+  const publications = () => window().webContents.send.mock.calls.filter(([channel]) => channel === "work:changed");
+  expect(publications()).toHaveLength(0);
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no folder listener");
+  const state = mocks.startRuntime.mock.calls[0]?.[1];
+  if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+  const entries = [{ path: "/repo", kind: "list", canvases: [] }];
+  changed(entries);
+  changed(entries);
+  expect(publications()).toHaveLength(0);
+  state.work({ v: 3, token: "t", root: "/repo", action: "start", path: ".doan/canvases/new.html" });
+  expect(publications()).toHaveLength(1);
+  changed(entries);
+  state.work({ v: 3, token: "t", root: "/repo", action: "start", path: ".doan/canvases/new.html" });
+  expect(publications()).toHaveLength(1);
+  changed([]);
+  changed([]);
+  expect(publications()).toHaveLength(2);
+});
+
+test("main exposes work only to its main frame and clears it on root removal", () => {
+  const state = mocks.startRuntime.mock.calls[0]?.[1];
+  if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no folder listener");
+  mocks.shell.entries.mockReturnValue([{ path: "/repo", kind: "list" }]);
+  changed([{ path: "/repo", kind: "list", canvases: [] }]);
+  state.work({ v: 3, token: "t", root: "/repo", action: "start", path: ".doan/canvases/new.html" });
+  const expected = [{ root: "/repo", path: ".doan/canvases/new.html", session: null, provider: null }];
+  expect(invoke("work:get", window().webContents, null)).toEqual(expected);
+  expect(window().webContents.send).toHaveBeenCalledWith("work:changed", expected);
+  expect(invoke("work:get", {}, null)).toEqual([]);
+  expect(invoke("work:get", window().webContents, {})).toEqual([]);
+  changed([]);
+  expect(invoke("work:get", window().webContents, null)).toEqual([]);
+});
+
+test("a launch link remains pending until the first loading folder has been listed", async () => {
+  const contents = window().webContents;
+  const loading = [{ path: "/repo", kind: "loading" }];
+  mocks.shell.entries.mockReturnValue(loading);
+  mocks.app.emit("open-url", { preventDefault: vi.fn() }, "doan://open?root=%2Frepo&canvas=.doan%2Fcanvases%2Fa.html");
+  await invoke("deep-link:ready", contents, null);
+  expect(contents.send.mock.calls.some(([channel]) => channel === "deep-link:open")).toBe(false);
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no folder listener");
+  const entries = [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }];
+  mocks.shell.entries.mockReturnValue(entries);
+  changed(entries);
+  const calls = contents.send.mock.calls;
+  expect(calls.findIndex(([channel]) => channel === "folders")).toBeLessThan(calls.findIndex(([channel]) => channel === "deep-link:open"));
+  expect(contents.send).toHaveBeenCalledWith("deep-link:open", { kind: "navigate", root: "/repo", canvas: ".doan/canvases/a.html" });
+});
+
+test("folder revisions renew active work and the main timer expires it without polling", () => {
+  vi.useFakeTimers();
+  try {
+    const state = mocks.startRuntime.mock.calls[0]?.[1];
+    if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+    const changed = mocks.startShell.mock.calls[0]?.[2];
+    if (typeof changed !== "function") throw new Error("no folder listener");
+    const path = ".doan/canvases/a.html";
+    changed([{ path: "/repo", kind: "list", canvases: [{ path, rev: 1 }] }]);
+    state.work({ v: 3, token: "t", root: "/repo", action: "start", path });
+    vi.advanceTimersByTime(299_000);
+    changed([{ path: "/repo", kind: "list", canvases: [{ path, rev: 2 }] }]);
+    vi.advanceTimersByTime(299_000);
+    expect(invoke("work:get", window().webContents, null)).toHaveLength(1);
+    vi.advanceTimersByTime(1000);
+    expect(invoke("work:get", window().webContents, null)).toEqual([]);
+    expect(mocks.shell.rereadAll).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
+});
+
+test("work deadlines use one timeout and file changes stay within their root", () => {
+  vi.useFakeTimers();
+  const timeout = vi.spyOn(globalThis, "setTimeout");
+  const interval = vi.spyOn(globalThis, "setInterval");
+  try {
+    const state = mocks.startRuntime.mock.calls[0]?.[1];
+    if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+    const changed = mocks.startShell.mock.calls[0]?.[2];
+    if (typeof changed !== "function") throw new Error("no folder listener");
+    const path = ".doan/canvases/shared.html";
+    const entries = (rev: number) => [
+      { path: "/repo", kind: "list", canvases: [{ path, rev }] },
+      { path: "/other", kind: "list", canvases: [{ path, rev: 1 }] },
+    ];
+    changed(entries(1));
+    const baseline = vi.getTimerCount();
+    for (const root of ["/repo", "/other"]) state.work({ v: 3, token: "t", root, action: "start", path });
+    expect(interval).not.toHaveBeenCalled();
+    expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 300_000);
+    expect(vi.getTimerCount()).toBe(baseline + 1);
+    vi.advanceTimersByTime(200_000);
+    changed(entries(2));
+    expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 100_000);
+    expect(vi.getTimerCount()).toBe(baseline + 1);
+    vi.advanceTimersByTime(100_000);
+    expect(invoke("work:get", window().webContents, null)).toEqual([{ root: "/repo", path, session: null, provider: null }]);
+    expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 200_000);
+    vi.advanceTimersByTime(200_000);
+    expect(invoke("work:get", window().webContents, null)).toEqual([]);
+    expect(vi.getTimerCount()).toBe(baseline);
+    state.work({ v: 3, token: "t", root: "/repo", action: "start", path });
+    expect(vi.getTimerCount()).toBe(baseline + 1);
+    mocks.app.emit("will-quit");
+    expect(vi.getTimerCount()).toBe(baseline);
+  } finally { timeout.mockRestore(); interval.mockRestore(); vi.useRealTimers(); }
+});

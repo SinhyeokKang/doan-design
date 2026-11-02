@@ -136,10 +136,12 @@ code, kbd { font-family: var(--type-family); }
 .ob-overlay::backdrop { background: transparent; }
 .ob-overlay.ob-welcome { background: var(--surface-panel); }
 @media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
-/* An accent glow broken up by an alpha grain mask, never black specks on top; it does not move (2026-10-28 user).
-   Fixed, so it fills the window behind the chrome rather than only the scrolling scene; z-index -1 keeps it under
-   the in-flow text in the overlay's own stacking context. */
-.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 50% 125% at 50% 112%, var(--affordance-accent) 0%, color-mix(in srgb, var(--affordance-accent) 78%, transparent) 30%, color-mix(in srgb, var(--affordance-accent) 32%, transparent) 60%, transparent 100%); mask-image: url("/onboarding-grain.svg"); mask-size: 180px 180px; mask-repeat: repeat; opacity: .85; }
+/* Pigment horizon: broad accent, indigo and apricot colour along the lower edge, a blurred violet glow under it and a
+   static grain on top; nothing moves. Fixed, so it fills the window behind the chrome rather than only the scrolling
+   scene; z-index -1 keeps it under the in-flow text in the overlay's own stacking context. */
+.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: radial-gradient(ellipse 75% 65% at 50% 108%, var(--affordance-accent) 0%, transparent 72%), radial-gradient(ellipse 65% 45% at 5% 100%, color-mix(in srgb, var(--indigo-600) 75%, white), transparent 80%), radial-gradient(ellipse 60% 45% at 100% 100%, color-mix(in srgb, var(--orange-600) 65%, white), transparent 80%), var(--surface-panel); }
+.ob-atmosphere::before { content: ""; position: absolute; left: -10%; right: -10%; bottom: -70px; height: 150px; border-radius: 50%; background: var(--violet-5); filter: blur(44px); }
+.ob-atmosphere::after { content: ""; position: absolute; inset: 0; background: url("/onboarding-grain.svg"); opacity: .14; mix-blend-mode: multiply; }
 @media (forced-colors: active) { .ob-atmosphere { display: none; } }
 .ob-chrome { position: relative; flex: none; height: var(--size-chrome); display: flex; align-items: center; justify-content: center; -webkit-app-region: drag; }
 /* The AppShell mode capsule drawn with the shared buttons (draft), so it does not inherit .shell-modes button. */
@@ -235,6 +237,12 @@ code, kbd { font-family: var(--type-family); }
 /* The radio stays in the tab order for arrows and Space; the card shows its state and focus instead. */
 .ob-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .ob-choice:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* A disabled card (terminal-agent-activity draft resume-disabled): the title and radio dimmed, the reason line in the
+   subtle ink so it stays readable. */
+.ob-choice[data-disabled], .ob-choice[data-disabled] input { cursor: default; }
+.ob-choice[data-disabled] strong { color: var(--text-disabled); }
+.ob-choice[data-disabled] small { color: var(--text-subtle); }
+.ob-choice[data-disabled] .ob-radio { border-color: var(--border-standard); background: var(--surface-inset); }
 .ob-setup { margin-top: var(--space-4); padding: var(--space-6); }
 .ob-setup > p { margin: var(--space-3) 0; color: var(--text-subtle); }
 /* The sidebar thumbnail at card size: 28px in a 32px slot (draft component constants). */
@@ -1067,8 +1075,12 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-canvas-top > * { pointer-events: auto; }
 .doan-canvas-top > .doan-agent { align-self: center; }
 /* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
-   primitive. The wording gives way first; the button keeps its size. */
-.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+   primitive. The wording gives way first; the button keeps its size. Every capsule in the column takes the app notice's
+   height (4 + 32 + 4): the picking hint ends in a key and the terminal notice has no button (terminal-agent-activity
+   user decision D2, draft terminal-notice). */
+.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--size-control); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+/* A terminal session's notice has no button to end on: an even inline inset (draft terminal-notice). */
+.doan-agent.doan-agent-terminal { padding: var(--space-1) var(--space-4); }
 .doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
    white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */

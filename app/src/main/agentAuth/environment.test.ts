@@ -5,7 +5,7 @@ import type { Provider } from "./types";
 const inherited = {
   HOME: "/Users/ada", USER: "ada", LOGNAME: "ada", SHELL: "/bin/zsh", TMPDIR: "/tmp/ada", LANG: "ko_KR.UTF-8", LC_ALL: "ko_KR.UTF-8", TERM: "xterm",
   HTTPS_PROXY: "http://proxy:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/etc/ca.pem",
-  PATH: "/inherited/bin", DOAN_RUNTIME: "/inherited/runtime.json", XDG_CONFIG_HOME: "/Users/ada/.config",
+  DOAN_APP_CONVERSATION: "0", PATH: "/inherited/bin", DOAN_RUNTIME: "/inherited/runtime.json", XDG_CONFIG_HOME: "/Users/ada/.config",
   ANTHROPIC_API_KEY: "sk-ant-x", CLAUDE_CODE_OAUTH_TOKEN: "oauth-x", OPENAI_API_KEY: "sk-x", CURSOR_API_KEY: "cur-x", GEMINI_API_KEY: "gem-x",
   GH_TOKEN: "gho-x", GITHUB_TOKEN: "ghp-x", CLAUDE_CONFIG_DIR: "/Users/ada/.claude", CODEX_HOME: "/Users/ada/.codex",
   CLAUDE_CODE_SESSION_ID: "s", CODEX_THREAD_ID: "t", CODEX_SESSION_ID: "u", UNSET: undefined,
@@ -15,7 +15,7 @@ const inherited = {
 const dedicated = { SSH_AUTH_SOCK: "/tmp/ssh-agent.sock", GIT_CONFIG_GLOBAL: "/Users/ada/.gitconfig" };
 const input = (provider: Provider, over: Record<string, unknown> = {}) => ({ provider, inherited, path: "/verified/bin:/usr/bin", profileDir: "/data/profiles/" + provider, appRuntime: "/data/runtime.json", ...over });
 const kept = { USER: "ada", LOGNAME: "ada", SHELL: "/bin/zsh", TMPDIR: "/tmp/ada", LANG: "ko_KR.UTF-8", LC_ALL: "ko_KR.UTF-8", TERM: "xterm",
-  HTTPS_PROXY: "http://proxy:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/etc/ca.pem", PATH: "/verified/bin:/usr/bin", DOAN_RUNTIME: "/data/runtime.json" };
+  HTTPS_PROXY: "http://proxy:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/etc/ca.pem", PATH: "/verified/bin:/usr/bin", DOAN_RUNTIME: "/data/runtime.json", DOAN_APP_CONVERSATION: "1" };
 
 describe("provider child environment", () => {
   it("routes each provider to its dedicated profile and drops other credentials and session IDs", () => {
@@ -36,7 +36,7 @@ describe("provider child environment", () => {
     expect(inherited).not.toHaveProperty("AGENT_CLI_CREDENTIAL_STORE");
   });
   it("refuses extras that would replace the routed path, runtime or profile", () => {
-    for (const name of ["PATH", "DOAN_RUNTIME", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]) {
+    for (const name of ["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]) {
       expect(providerEnv(input("copilot", { extra: { [name]: "/elsewhere" } }))).toEqual({ ok: false, code: "reserved_extra" });
     }
     for (const extra of [{ "bad-name": "x" }, { lower: "x" }, { VALUE: "a\0b" }, { VALUE: 1 }]) {

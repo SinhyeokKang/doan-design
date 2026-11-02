@@ -198,3 +198,7 @@ export type OnboardingResponse =
   | { [K in OnboardingOperationKind]: { v: 2; ok: true; op: K; result: { operation: OnboardingOperation & { kind: K } } } }[OnboardingOperationKind]
   | { v: 2; ok: true; op: "cancel"; result: { operation: OnboardingOperation } }
   | { v: 2; ok: false; error: { code: OnboardingSocketErrorCode; message: string } };
+
+export type WorkRequest = { v: 3; token: string; root: string; session?: string; provider?: "claude" | "codex" } &
+  ({ action: "start"; path: string } | { action: "done"; path?: never });
+export type WorkResponse = { v: 3; ok: true } | { v: 3; ok: false; error: { code: "bad_request" | "bad_token" | "project_not_open"; message: string } };

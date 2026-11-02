@@ -14,15 +14,16 @@ import h3 from "./H3/checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "doan-audit-eval-"));
 const cli = join(root, "doan");
+const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
 function fixture(id: string) {
   const repo = mkdtempSync(join(root, `${id}-`));
   cpSync(join(import.meta.dirname, id, "seed"), repo, { recursive: true });
-  if (id === "W1") execFileSync(cli, ["init", "--repo", repo, "--token-css", join(repo, "styles/tokens.css")]);
+  if (id === "W1") execFileSync(cli, ["init", "--repo", repo, "--token-css", join(repo, "styles/tokens.css")], { env });
   for (const args of [["init", "-q"], ["add", "."], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   cpSync(join(import.meta.dirname, id, "fixtures/pass"), repo, { recursive: true });
-  return createContext({ repo, agent: "fixture", transcript: "", cli, env: process.env, seedCommit: "HEAD" });
+  return createContext({ repo, agent: "fixture", transcript: "", cli, env, seedCommit: "HEAD" });
 }
 const shell = (command: string) => toolCalls(JSON.stringify({ type: "assistant", message: { content: [{ type: "tool_use", name: "Bash", input: { command } }] } }));
 for (const [id, checks] of [["R2", r2]] as const) {

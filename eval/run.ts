@@ -4,10 +4,10 @@
 //   node eval/run.ts --self-test [--scenarios ...]
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { assertRealState, realState } from "../app/runtime/real-state.ts";
-import { agentCommand, cliProvenance, killRunning, runProcess, readAgentTranscript } from "./lib/agent.ts";
+import { agentCommand, agentEnvironment, cliProvenance, killRunning, runProcess, readAgentTranscript } from "./lib/agent.ts";
 import { parseArgs, type Agent, type Options } from "./lib/args.ts";
 import { createContext, judgeMaterial, sh } from "./lib/context.ts";
 import { buildJudgePrompt, checkList, finalResult, fixtureProblem, judgeCommand, judgeFor, parseJudgement, type Judgement } from "./lib/judge.ts";
@@ -41,7 +41,7 @@ async function judge(agent: Agent, prompt: string, dir: string): Promise<{ judge
   try {
     const outFile = join(dir, "judge-last-message.txt");
     const { cmd, args } = judgeCommand(judgeAgent, prompt, outFile);
-    const result = await runProcess({ cmd, args, cwd, env: process.env, timeoutSec: 600, stdoutPath: join(dir, "judge-stdout.log"), stderrPath: join(dir, "judge-stderr.log") });
+    const result = await runProcess({ cmd, args, cwd, env: agentEnvironment(process.env), timeoutSec: 600, stdoutPath: join(dir, "judge-stdout.log"), stderrPath: join(dir, "judge-stderr.log") });
     const raw = existsSync(outFile) ? readFileSync(outFile, "utf8") : readFileSync(join(dir, "judge-stdout.log"), "utf8");
     return { judgement: result.timedOut ? null : parseJudgement(raw), raw };
   } finally {
@@ -66,7 +66,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const startedAt = new Date().toISOString();
     const proc = await runProcess({ cmd, args, cwd: ws.cwd, env: ws.env, timeoutSec: scenario.timeoutSec, stdoutPath: join(dir, "stdout.log"), stderrPath: join(dir, "stderr.log") });
     const evidence = readAgentTranscript(agent, dir, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, appWrites: ws.appWrites });
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent, ...evidence, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, workLog: ws.workLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
     checks.push(cliProvenance(resolutionPath, scenario.shellCli ? setup.cli : null));
     if (existsSync(resolutionPath)) cpSync(resolutionPath, join(dir, "resolved-doan.txt"));
@@ -91,7 +91,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
     const record: RunRecord = { scenario: scenario.id, agent, n, dir: join(".scratch/agent-eval", setup.options.round, name), result: finalResult(checks, judgement), checks, judge: judgement, durationSec: proc.durationSec, exitCode: proc.code, timedOut: proc.timedOut };
     writeFileSync(join(dir, "meta.json"), JSON.stringify({
       scenario: scenario.id, shellCli: scenario.shellCli, agent, n, agentVersion: setup.meta.versions[agent], judge: setup.options.judge ? judgeFor(agent) : null, argv: [cmd, ...args],
-      // Where the agent reads the rest of its config from; everything else in the environment is inherited as is.
+      // Configuration is inherited; session identities are excluded by agentEnvironment.
       inheritedConfig: { HOME: process.env.HOME ?? null, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? null, CODEX_HOME: process.env.CODEX_HOME ?? null },
       guideSha256: setup.meta.guideSha256, cliVersion: setup.meta.cliVersion, cli: setup.cli, tempRepo: ws.repo, cwd: ws.cwd, startedAt,
       durationSec: proc.durationSec, exitCode: proc.code, signal: proc.signal, timedOut: proc.timedOut, result: record.result,
@@ -108,23 +108,32 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
 // file when there is one (`fixtures/<kind>.transcript.txt`), and runs the CLI
 // argument lists in `fixtures/<kind>.commands.json` against the fake app, with
 // `{{repo}}` replaced, so onboarding checks read a real request log.
-async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
+export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
   const name = `${scenario.id}-fixture-${kind}`;
   const dir = join(setup.out, name);
   mkdirSync(dir, { recursive: true });
   const ws = await prepareWorkspace({ scenario, agent: "fixture", cli: setup.cli, stub: setup.stub });
+  const env = { ...ws.env, CLAUDE_CODE_SESSION_ID: "eval-fixture-session" };
   const problems: string[] = [];
+  const runCommands = (file: string) => {
+    if (!existsSync(file)) return;
+    for (const [index, args] of (JSON.parse(readFileSync(file, "utf8")) as string[][]).entries()) {
+      const rendered = args.map(arg => renderPrompt(arg, ws.repo));
+      const result = sh(setup.cli, rendered, ws.repo, env);
+      // Fail fixtures intentionally exercise refusals; pass fixtures must execute successfully.
+      if (kind === "pass" && result.code !== 0)
+        problems.push(`${name}: ${basename(file)} command ${index + 1} (${rendered.join(" ")}) exit ${result.code}: ${(result.stderr || result.stdout).trim()}`);
+    }
+  };
   try {
     renderPrompt(scenario.promptTemplate, ws.repo);
+    runCommands(join(scenario.dir, "fixtures", `${kind}.before.commands.json`));
     cpSync(join(scenario.dir, "fixtures", kind), ws.repo, { recursive: true, force: true });
     const transcriptFile = join(scenario.dir, "fixtures", `${kind}.transcript.txt`);
     // `{{repo}}` as in the commands, so the transcript shows the paths that ran.
     const transcript = existsSync(transcriptFile) ? readFileSync(transcriptFile, "utf8").replace(/\{\{\s*repo\s*\}\}/g, ws.repo) : "";
-    const commandsFile = join(scenario.dir, "fixtures", `${kind}.commands.json`);
-    if (existsSync(commandsFile))
-      for (const args of JSON.parse(readFileSync(commandsFile, "utf8")) as string[][])
-        sh(setup.cli, args.map(arg => renderPrompt(arg, ws.repo)), ws.repo, ws.env);
-    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env: ws.env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, appWrites: ws.appWrites });
+    runCommands(join(scenario.dir, "fixtures", `${kind}.commands.json`));
+    const ctx = createContext({ repo: ws.repo, cwd: ws.cwd, agent: "fixture", transcript, cli: setup.cli, env, seedCommit: ws.seedCommit, onboardingLog: ws.onboardingLog, workLog: ws.workLog, appWrites: ws.appWrites });
     const checks = await runChecks(scenario, ctx);
     writeFileSync(join(dir, "checks.json"), JSON.stringify(checks, null, 2) + "\n");
     // A fixed fake judge still goes through prompt building and parsing.
@@ -238,13 +247,15 @@ async function main(): Promise<number> {
 }
 
 // Agents run in their own process groups, out of reach of the terminal's Ctrl-C.
-for (const signal of ["SIGINT", "SIGTERM"] as const)
-  process.on(signal, () => {
-    killRunning();
-    process.exit(130);
-  });
+if (import.meta.main) {
+  for (const signal of ["SIGINT", "SIGTERM"] as const)
+    process.on(signal, () => {
+      killRunning();
+      process.exit(130);
+    });
 
-main().then(code => { process.exitCode = code; }, error => {
-  console.error(`eval: ${(error as Error).message}`);
-  process.exitCode = 1;
-});
+  main().then(code => { process.exitCode = code; }, error => {
+    console.error(`eval: ${(error as Error).message}`);
+    process.exitCode = 1;
+  });
+}

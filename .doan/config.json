@@ -3,6 +3,7 @@
   "tokenCss": "app/src/renderer/tokens.css",
   "serve": [
     "app/src/renderer/ds",
-    "app/src/renderer/public/fonts/geist/Geist.woff2"
+    "app/src/renderer/public/fonts/geist/Geist.woff2",
+    "app/resources/icon.png"
   ]
 }

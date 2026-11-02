@@ -1,10 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
 import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectsTab, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { WorkItem } from "../main/workState";
+import type { OpenLinkResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
@@ -46,7 +49,7 @@ import { useThumbnails } from "./thumbnails";
 import { canvasConversationRows } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
-import { missingCanvasMessage, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
+import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
@@ -60,6 +63,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
+import { withTerminalSlots } from "./conversationList";
 import { seenMark, sidebarSlots } from "./canvasNotice";
 import { HomeRun } from "./homeRun";
 import { SettingsPage, type SettingsArrival } from "./SettingsPage";
@@ -513,10 +517,13 @@ export function App() {
     if (conversationId) live.current.openCanvasConversation(root, row, conversationId, trigger);
     else live.current.openShellCanvas(root, row);
   }
+  // The conversation slots with the terminal sessions' spinners over them, as the sidebar shows them.
+  const shownSlots = () => withTerminalSlots(homeRun.current.slots(), work, entriesRef.current);
   // A sidebar canvas row: its slot decides whether the panel unfolds (design §2 'Opening the panel'). A row that needs an
   // answer or has an unseen ending shows the canvas's current conversation; working or no mark keeps the panel as is.
+  // The slot is the one the row shows, so a terminal spinner over an unseen ending keeps the panel.
   function openSidebarCanvas(root: string, row: CanvasRow, cursor?: number) {
-    const slot = homeRun.current.slots().get(canvasSlotKey(root, row.path)) ?? null;
+    const slot = shownSlots().get(canvasSlotKey(root, row.path)) ?? null;
     const open = panelOpenFor({ kind: "sidebarRow" }, slot?.kind ?? null);
     const list = homeRun.current.listState(root);
     const target = { path: row.path, ...(row.id ? { id: row.id } : {}) };
@@ -587,9 +594,17 @@ export function App() {
         setShellProjects(previous => { const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }; return { ...previous, [key]: { ...memory, expanded: !memory.expanded } }; });
       return;
     }
+    const loaded = loadedRoot !== null && group.rows.some(row => row.path === loadedRoot);
+    // A terminal slot stands for the canvas its session works on: the row opens it before its own move, which would
+    // re-enter the loaded project's last canvas or fold an expanded project (terminal-agent-activity design '표시').
+    if (notice && shownSlots().get(canvasSlotKey(notice.root, notice.path))?.source === "terminal") {
+      if (!loaded) { cancelRestore(); controller.current?.cancelWorkspaceOpen(); }
+      openNotice(notice, loaded ? undefined : () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } })));
+      return;
+    }
     // Home and the Add Projects page show the sidebar without a current project; its row goes back to the loaded
     // workspace (design §3).
-    if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) {
+    if (loaded) {
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
       else if (notice) openNotice(notice);
@@ -639,8 +654,8 @@ export function App() {
 
   const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || projectSettings !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded, followMode };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded, followMode, openLink };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -781,6 +796,25 @@ export function App() {
   // Settings… (⌘,) from main, after it has shown a hidden window; a payload that is not a target is dropped.
   useEffect(() => window.doan.onOpenSettingsPage(value => { const target = parseSettingsTarget(value); if (target) live.current.openSettings(target); }), []);
   useEffect(() => window.doan.onNotificationClick(click => live.current.notificationClick(click)), []);
+  // doan:// links: subscribed on mount, while main holds them until App is ready (below).
+  useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
+  // Ready once the launch restore is applied (or cancelled) and the first folders are in, so a link's canvas opens over
+  // the restored screen (terminal-agent-activity design 'Deep link' '대기').
+  const linksReady = useRef(false);
+  useEffect(() => {
+    if (linksReady.current || restore !== "done" || !foldersSeen) return;
+    linksReady.current = true;
+    void window.doan.openLinksReady().catch(console.error);
+  }, [restore, foldersSeen]);
+  // The canvases terminal sessions work on (terminal-agent-activity 'Renderer IPC'): subscribed first, then read, and a
+  // change that lands before the read answers is newer than it.
+  const [work, setWork] = useState<readonly WorkItem[]>([]);
+  useEffect(() => {
+    let current = true, changed = false;
+    const stop = window.doan.onWorkChanged(items => { changed = true; setWork(items); });
+    void window.doan.getWork().then(items => { if (current && !changed) setWork(items); }).catch(console.error);
+    return () => { current = false; stop(); };
+  }, []);
   // The renderer's one sign-in controller tells a sign-in that ended away from Agents in the shared toast, and hears
   // when the window comes back to the front (design 'App 수준 로그인 컨트롤러').
   useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
@@ -900,6 +934,27 @@ export function App() {
     const frameId = result.kind === "frame" ? result.frameId : undefined;
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
     controller.current?.openCanvas(result.root, row, frameId, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
+  }
+  // A doan:// link (terminal-agent-activity design 'Deep link'): Quick Open's move. A frame moves the view as Quick Open's
+  // frame does, without selection; a frame not in the canvas leaves the canvas only, with no toast. A refused link
+  // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move. A link
+  // landing on a locked page goes nowhere. A link only ever comes from a person's click, so an open dialog is dismissed
+  // first through its own cancel event, the path Escape and Cancel take; one that refuses (it is busy) keeps the link.
+  function openLink(result: OpenLinkResult) {
+    if (result.kind !== "navigate") { live.current.toast.show(openLinkRefusal(result)); return; }
+    if (locked()) return;
+    const dialog = topDialog();
+    if (dialog) {
+      // Synchronous, so the dialog's close has rendered before the check below.
+      flushSync(() => { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); });
+      if (topDialog()) return;
+    }
+    cancelRestore();
+    const target = entriesRef.current.find(entry => entry.path === result.root);
+    const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.canvas) : undefined;
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas));
+    if (!row) { unavailable(target); return; }
+    controller.current?.openCanvas(result.root, row, result.frame, { unavailable, opened: () => completeNavigation(result.root) });
   }
   // An Overview that was open when its project turned into a problem stays, its thread readable and Send held; one
   // entered while the project is a problem shows the problem screen (buzz-project spec decision 12).
@@ -1156,7 +1211,7 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
-    home={home} goHome={() => live.current.home()} slots={sidebarSlots(run.slots(), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
+    home={home} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;
@@ -1190,7 +1245,7 @@ export function App() {
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
-      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null,
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work,
         onOpen: openRequest, onStopFailed: text => toast.show(text) }}
       picking={picking} add={{ enabled: addReady, reason: canvasPageShown && !pickerReady ? pickerView.reason : null, onAdd: addSelection }} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
@@ -1215,7 +1270,7 @@ export function App() {
           frames={state.layout?.frames ?? []} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
           onLocate={locateChip} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
-          onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))} />}
+          onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))} work={work} />}
       </ConversationPanel>}
   </main>
   {projectSettings && <ProjectSettingsDialog key={projectSettings.seq} root={projectSettings.root} projectKey={projectSettings.key} entries={entries} reroot={reroot} homeDirectory={homeDirectory}
@@ -1238,6 +1293,12 @@ export function App() {
   </TooltipProvider>;
 }
 
+// The dialog on top, the one Escape would answer.
+function topDialog(): HTMLDialogElement | null {
+  const open = document.querySelectorAll<HTMLDialogElement>("dialog[open]");
+  return open[open.length - 1] ?? null;
+}
+
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
 // the tabs and Back unavailable while App ignores them (buzz-add-projects and buzz-settings design '잠금').
 function TopBar({ back, forward, previous, next, page, locked, addProjects, projects, settings }: { back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void }) {
@@ -1249,7 +1310,7 @@ function TopBar({ back, forward, previous, next, page, locked, addProjects, proj
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; onOpen(): void; onStopFailed(text: string): void };
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; onOpen(): void; onStopFailed(text: string): void };
 
 function CanvasPane({ viewport, board, overlay, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, add }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>;

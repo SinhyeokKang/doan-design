@@ -2,10 +2,12 @@ package formats
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -50,6 +52,8 @@ func TestValidationFixtures(t *testing.T) {
 		{"app-socket/selection", ValidateSelection},
 		{"app-socket-v2/request", ValidateOnboardingRequest},
 		{"app-socket-v2/response", ValidateOnboardingResponse},
+		{"app-socket-v3/request", ValidateWorkRequest},
+		{"app-socket-v3/response", ValidateWorkResponse},
 	}
 	for _, group := range groups {
 		for _, validity := range []string{"valid", "invalid"} {
@@ -82,6 +86,34 @@ func TestSocketProtocolsStayApart(t *testing.T) {
 		for _, file := range fixtureFiles(t, "app-socket-v2/"+pair.kind, "valid") {
 			if pair.v1(readJSON(t, file)) == nil {
 				t.Errorf("v2 %s %s validates as v1", pair.kind, filepath.Base(file))
+			}
+		}
+	}
+}
+
+func TestWorkSocketStaysApart(t *testing.T) {
+	others := []struct {
+		kind, label, dir string
+		validate         func(any) error
+	}{
+		{"request", "v1", "app-socket/request", ValidateSocketRequest},
+		{"request", "v2", "app-socket-v2/request", ValidateOnboardingRequest},
+		{"response", "v1", "app-socket/response", ValidateSocketResponse},
+		{"response", "v2", "app-socket-v2/response", ValidateOnboardingResponse},
+	}
+	for _, other := range others {
+		v3 := ValidateWorkRequest
+		if other.kind == "response" {
+			v3 = ValidateWorkResponse
+		}
+		for _, file := range fixtureFiles(t, other.dir, "valid") {
+			if v3(readJSON(t, file)) == nil {
+				t.Errorf("%s %s %s validates as v3", other.label, other.kind, filepath.Base(file))
+			}
+		}
+		for _, file := range fixtureFiles(t, "app-socket-v3/"+other.kind, "valid") {
+			if other.validate(readJSON(t, file)) == nil {
+				t.Errorf("v3 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
 			}
 		}
 	}
@@ -174,5 +206,42 @@ func TestOnboardingCLIMapping(t *testing.T) {
 				t.Fatalf("envelope: %v", err)
 			}
 		})
+	}
+}
+
+// The builder side of the open-link encoding rule (see the file's description): every expected URL must equal the rule applied to its inputs.
+func TestOpenLinkCasesFollowEncodingRule(t *testing.T) {
+	var cases struct {
+		Build []struct {
+			Name     string  `json:"name"`
+			Root     string  `json:"root"`
+			Path     string  `json:"path"`
+			Frame    *string `json:"frame"`
+			Expected string  `json:"expected"`
+		} `json:"build"`
+		Refuse []struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"refuse"`
+	}
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "schema", "fixtures", "open-link", "cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases.Build) == 0 || len(cases.Refuse) == 0 {
+		t.Fatalf("want both kinds of case, got %d build and %d refuse", len(cases.Build), len(cases.Refuse))
+	}
+	encode := func(value string) string { return strings.ReplaceAll(url.QueryEscape(value), "+", "%20") }
+	for _, entry := range cases.Build {
+		got := "doan://open?root=" + encode(entry.Root) + "&canvas=" + encode(entry.Path)
+		if entry.Frame != nil {
+			got += "&frame=" + encode(*entry.Frame)
+		}
+		if got != entry.Expected {
+			t.Errorf("%s: rule gives %q, file has %q", entry.Name, got, entry.Expected)
+		}
 	}
 }

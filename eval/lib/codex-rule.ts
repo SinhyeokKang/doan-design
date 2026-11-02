@@ -12,4 +12,4 @@ registerHooks({
 
 // At the project layer, so no run writes the rule into the real HOME.
 export const CODEX_RULE = ".codex/rules/doan.rules";
-export const { codexRuleText } = await import("../../app/src/main/agentSetup/plan.ts");
+export const { codexRuleText, CLAUDE_ALLOW_RULES } = await import("../../app/src/main/agentSetup/plan.ts");

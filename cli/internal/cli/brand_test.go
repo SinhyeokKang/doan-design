@@ -30,7 +30,7 @@ type brandCandidate struct {
 var (
 	brandWord = regexp.MustCompile(`\b(?:doan|Doan)\b`)
 	// `doan` followed by a subcommand, a flag, a placeholder or a noun naming the command.
-	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|comment|comments|config|design-skill|help|init|ls|onboarding|skill|version|CLI|command|server)(?:[^\w-]|$))`)
+	brandCommandAfter = regexp.MustCompile(`^ (?:--?[a-z]|<|(?:active|check|comment|comments|config|design-skill|help|init|ls|onboarding|skill|version|work|CLI|command|server)(?:[^\w-]|$))`)
 	brandIdentBefore  = regexp.MustCompile(`(?:\w\.|[-@]|named )$`)
 	brandIdentAfter   = regexp.MustCompile(`^(?::|[-_]|\.\w)`)
 	brandAppAfter     = regexp.MustCompile(`^\.app\b`)

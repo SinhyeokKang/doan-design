@@ -1,5 +1,7 @@
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
+import type { FolderEntry } from "../main/view";
+import type { WorkItem } from "../main/workState";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { slotKey, type Slot } from "./homeConversations";
 
@@ -47,6 +49,32 @@ export function slotsFromList(lists: ConversationList, seen: ReadonlySet<string>
       if (!held || RANK[slot.kind] > RANK[held.kind]) slots.set(key, slot);
     }
   }
+  return slots;
+}
+
+export function terminalSlotLabel(provider: WorkItem["provider"]): string {
+  return provider ? `${PROVIDER_NAMES[provider]} is working in a terminal` : "An agent is working in a terminal";
+}
+
+// The conversation slots plus terminal sessions' working spinners (terminal-agent-activity design '표시'). A row is
+// root + path: worktrees share canvas paths (POSTMORTEM 2026-11-01). Only listed canvas rows show one, so a path not
+// listed yet shows once it appears. On its row an app conversation working or waiting wins, and a terminal session
+// beats an unseen ending. Terminal rows go in newest-changed first, so a project row standing for several opens the
+// most recently changed canvas (`projectSlotEntry`, canvas-viewport-units D10); app slots that win come before them.
+export function withTerminalSlots(conversations: ReadonlyMap<string, Slot>, work: readonly WorkItem[], entries: readonly FolderEntry[]): Map<string, Slot> {
+  const terminal = new Map<string, { slot: Slot; mtimeMs: number }>();
+  for (const item of work) {
+    const entry = entries.find(entry => entry.path === item.root);
+    const row = entry?.kind === "list" ? entry.canvases.find(row => row.path === item.path) : undefined;
+    const key = slotKey(item.root, item.path);
+    if (!row || terminal.has(key)) continue;
+    terminal.set(key, { slot: { kind: "working", label: terminalSlotLabel(item.provider), source: "terminal" }, mtimeMs: row.mtimeMs ?? 0 });
+  }
+  if (terminal.size === 0) return new Map(conversations);
+  const slots = new Map<string, Slot>();
+  for (const [key, slot] of conversations) if (RANK[slot.kind] >= RANK.working) slots.set(key, slot);
+  for (const [key, { slot }] of [...terminal].sort((a, b) => b[1].mtimeMs - a[1].mtimeMs)) if (!slots.has(key)) slots.set(key, slot);
+  for (const [key, slot] of conversations) if (!slots.has(key)) slots.set(key, slot);
   return slots;
 }
 

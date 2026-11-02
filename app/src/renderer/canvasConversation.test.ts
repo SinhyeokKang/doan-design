@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { WorkItem } from "../main/workState";
 import {
-  canvasConversationError, canvasConversationMenu, DRAWING_TEXT, DUPLICATE_CANVAS_TEXT, newConversationMode, pickCanvasConversation, PROMOTED_TEXT, shouldMarkSeen,
+  canvasConversationError, canvasConversationMenu, DRAWING_TEXT, DUPLICATE_CANVAS_TEXT, newConversationMode, pickCanvasConversation, PROMOTED_TEXT, resumeHeld, shouldMarkSeen,
 } from "./canvasConversation";
 import { dockedRefusal, type DockedMode } from "./dockedRules";
 import { startErrorView } from "./homeComposer";
@@ -221,5 +222,36 @@ describe("canvasConversationError", () => {
     const view = canvasConversationError(code, RESUME, "codex", "acme-web");
     expect(view).toEqual({ kind: "notice", text, retry: false, startNew: true });
     expect((view as { text: string }).text).not.toContain("Choose another agent");
+  });
+});
+
+// terminal-agent-activity design '표시' (canvas conversation panel): the terminal session choice waits while that
+// session (provider:id) is in the working list. Identified sessions span roots; an anonymous one matches nothing.
+describe("resumeHeld", () => {
+  const reply = { available: true as const, runtime: "codex" as const, session: "s1" };
+  const item = (patch: Partial<WorkItem>): WorkItem => ({ session: "s1", provider: "codex", root: "/w/a", path: ".doan/canvases/a.html", ...patch });
+  test("the session working in a terminal holds the choice, whatever root or canvas it works on", () => {
+    expect(resumeHeld(reply, [item({})])).toBe(true);
+    expect(resumeHeld(reply, [item({ root: "/w/other", path: ".doan/ds/b.html" })])).toBe(true);
+  });
+  test("another session, another provider or an anonymous session does not hold it", () => {
+    expect(resumeHeld(reply, [item({ session: "s2" }), item({ provider: "claude" }), item({ session: null, provider: null })])).toBe(false);
+  });
+  test("the choice comes back when the session leaves the list", () => {
+    expect(resumeHeld(reply, [])).toBe(false);
+  });
+  // RD1: main names a session a live terminal process holds (session_in_use), so it holds while it works.
+  test("a session a terminal process holds is held while it works, and only that refusal names one", () => {
+    const occupied = { available: false as const, reason: "session_in_use", runtime: "claude" as const, session: "s1" };
+    expect(resumeHeld(occupied, [item({ provider: "claude" })])).toBe(true);
+    expect(resumeHeld(occupied, [])).toBe(false);
+    expect(resumeHeld({ ...occupied, reason: "session_unavailable" }, [item({ provider: "claude" })])).toBe(false);
+  });
+  test("no answer yet, no terminal session, an error or an answer without a session never holds", () => {
+    const work = [item({})];
+    expect(resumeHeld(undefined, work)).toBe(false);
+    expect(resumeHeld({ available: false, reason: "no_record" }, work)).toBe(false);
+    expect(resumeHeld({ error: "project_not_open" }, work)).toBe(false);
+    expect(resumeHeld({ available: true, runtime: "codex" }, work)).toBe(false);
   });
 });

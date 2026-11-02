@@ -4,15 +4,15 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { codexRuleText } from "./plan";
+import { CLAUDE_ALLOW_RULES, codexRuleText } from "./plan";
 import { adminCommand, runAgentSetup, type AdminResult, type AgentSetupOptions } from "./runner";
 
 // The race test swaps one symlink call; everything else is the real file system.
 vi.mock("node:fs", async importOriginal => {
   const real = await importOriginal<typeof import("node:fs")>();
-  return { ...real, symlinkSync: vi.fn(real.symlinkSync), renameSync: vi.fn(real.renameSync), linkSync: vi.fn(real.linkSync) };
+  return { ...real, symlinkSync: vi.fn(real.symlinkSync), renameSync: vi.fn(real.renameSync), linkSync: vi.fn(real.linkSync), writeFileSync: vi.fn(real.writeFileSync) };
 });
-const { symlinkSync: realSymlink, renameSync: realRename, linkSync: realLink } = await vi.importActual<typeof import("node:fs")>("node:fs");
+const { symlinkSync: realSymlink, renameSync: realRename, linkSync: realLink, writeFileSync: realWrite } = await vi.importActual<typeof import("node:fs")>("node:fs");
 
 let temp: string, home: string, userData: string, systemBin: string, resources: string;
 const ALL = ["claude", "codex", "cursor", "antigravity", "copilot"];
@@ -57,6 +57,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.mocked(fs.symlinkSync).mockImplementation(realSymlink); vi.mocked(fs.renameSync).mockImplementation(realRename); vi.mocked(fs.linkSync).mockImplementation(realLink);
+  vi.mocked(fs.writeFileSync).mockImplementation(realWrite);
   for (const dir of [join(home, ".local/bin"), join(home, ".agents/skills")]) if (existsSync(dir)) chmodSync(dir, 0o755);
   rmSync(temp, { recursive: true, force: true });
 });
@@ -145,9 +146,10 @@ describe("runAgentSetup", () => {
     mkdirSync(join(home, ".claude"));
     const result = await runAgentSetup(options());
     expect(result.items).toEqual([{ target: "current", path: join(share(), "current"), providers: ALL, reason: "foreign", found: "folder" }]);
-    expect(actions(result)).toEqual({ current: "skip:foreign", skill: "skip:current", cli: "skip:current", "agents-skill": "skip:current", "claude-skill": "skip:current" });
+    expect(actions(result)).toEqual({ current: "skip:foreign", skill: "skip:current", cli: "skip:current", "agents-skill": "skip:current", "claude-skill": "skip:current", "claude-allow": "skip:current" });
     expect(existsSync(join(home, ".local/bin"))).toBe(false);
     expect(existsSync(join(home, ".claude/skills"))).toBe(false);
+    expect(existsSync(join(home, ".claude/settings.json"))).toBe(false);
   });
 
   it("records a read-only parent as a write failure and skips the links behind it", async () => {
@@ -232,6 +234,222 @@ describe("the Codex rule", () => {
     mkdirSync(join(home, ".codex"));
     const result = await runAgentSetup(options({ loginPath: "/usr/bin:/bin", runAdmin: async () => ({ kind: "cancelled" }) }));
     expect(actions(result)).toMatchObject({ "system-cli": "skip:admin-cancelled", "codex-rule": "create" });
+  });
+});
+
+describe("the Claude Code allow rule", () => {
+  const settings = () => join(home, ".claude/settings.json");
+  const created = `${JSON.stringify({ permissions: { allow: CLAUDE_ALLOW_RULES } }, null, 2)}\n`;
+  const allowOf = () => JSON.parse(readFileSync(settings(), "utf8")).permissions.allow;
+
+  it("is written only when ~/.claude exists, and kept on the next run", async () => {
+    expect(actions(await runAgentSetup(options()))["claude-allow"]).toBeUndefined();
+    expect(existsSync(join(home, ".claude"))).toBe(false);
+    mkdirSync(join(home, ".claude"));
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([]);
+    expect(actions(result)["claude-allow"]).toBe("create");
+    expect(readFileSync(settings(), "utf8")).toBe(created);
+    expect(lstatSync(settings()).mode & 0o777).toBe(0o644);
+    const before = tree(join(home, ".claude"));
+    expect(actions(await runAgentSetup(options()))["claude-allow"]).toBe("keep");
+    expect(tree(join(home, ".claude"))).toEqual(before);
+  });
+
+  it("merges into the person's settings, keeping their keys, rules and file mode, and leaves no temporary file", async () => {
+    mkdirSync(join(home, ".claude"));
+    const mine = { model: "opus", permissions: { allow: ["Bash(npm run *)"], deny: ["Bash(rm *)"] }, hooks: {} };
+    writeFileSync(settings(), JSON.stringify(mine), { mode: 0o600 });
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([]);
+    expect(actions(result)["claude-allow"]).toBe("replace");
+    expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ ...mine, permissions: { ...mine.permissions, allow: ["Bash(npm run *)", ...CLAUDE_ALLOW_RULES] } });
+    expect(lstatSync(settings()).mode & 0o777).toBe(0o600);
+    expect(readdirSync(join(home, ".claude")).sort()).toEqual(["settings.json", "skills"]);
+    expect(actions(await runAgentSetup(options()))["claude-allow"]).toBe("keep");
+  });
+
+  it.each([
+    ["broken JSON", '{"permissions": {"allow": [],}}', "json"],
+    ["a list", "[]", "object"],
+    ["permissions that isn't an object", '{"permissions": []}', "permissions"],
+    ["allow that isn't a list", '{"permissions": {"allow": "Bash(doan *)"}}', "allow"],
+  ] as const)("leaves settings with %s alone and names them", async (_name, text, problem) => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), text);
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem }]);
+    expect(readFileSync(settings(), "utf8")).toBe(text);
+  });
+
+  // RC2-2: a lossy UTF-8 read would turn FF into U+FFFD, parse, and write EF BF BD back. A BOM is kept and refused too.
+  it.each([
+    ["bytes that are not UTF-8", Buffer.concat([Buffer.from('{"note":"'), Buffer.from([0xff]), Buffer.from('","permissions":{"allow":[]}}')])],
+    ["a byte order mark", Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"permissions":{"allow":[]}}')])],
+  ] as const)("leaves settings with %s alone and names them as broken JSON", async (_name, bytes) => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), bytes);
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "json" }]);
+    expect(readFileSync(settings()).equals(bytes)).toBe(true);
+  });
+
+  // RC2-3: the scan that finds where to insert must not stop setup on a file JSON.parse accepts.
+  it("merges into deep but valid settings and finishes the run", async () => {
+    mkdirSync(join(home, ".claude"));
+    const deep = `{"unrelated":${"[".repeat(10000)}0${"]".repeat(10000)},"permissions":{"allow":[]}}`;
+    writeFileSync(settings(), deep);
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([]);
+    expect(actions(result)).toMatchObject({ current: "create", cli: "create", "claude-skill": "create", "claude-allow": "replace" });
+    expect(readFileSync(settings(), "utf8")).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)"]}}`);
+  });
+
+  it("never writes through a link, and says nothing once the file it links to has both rules, as nothing is left to add", async () => {
+    mkdirSync(join(home, ".claude")); mkdirSync(join(home, "dotfiles"));
+    const target = join(home, "dotfiles/settings.json");
+    writeFileSync(target, '{"theme":"dark"}'); symlinkSync(target, settings());
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "link" }]);
+    expect(readFileSync(target, "utf8")).toBe('{"theme":"dark"}');
+    expect(readlinkSync(settings())).toBe(target);
+    writeFileSync(target, JSON.stringify({ theme: "dark", permissions: { allow: CLAUDE_ALLOW_RULES } }));
+    const added = await runAgentSetup(options());
+    expect(added.items).toEqual([]);
+    expect(actions(added)["claude-allow"]).toBe("keep");
+  });
+
+  it("names a broken link as a link", async () => {
+    mkdirSync(join(home, ".claude")); symlinkSync(join(home, "gone.json"), settings());
+    expect((await runAgentSetup(options())).items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "link" }]);
+  });
+
+  it("does not read through a link to something that is not a file", async () => {
+    mkdirSync(join(home, ".claude")); execFileSync("/usr/bin/mkfifo", [join(home, "pipe")]);
+    symlinkSync(join(home, "pipe"), settings());
+    expect((await runAgentSetup(options())).items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "link" }]);
+  });
+
+  it("leaves a folder in its place alone", async () => {
+    mkdirSync(settings(), { recursive: true });
+    expect((await runAgentSetup(options())).items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "foreign", found: "folder" }]);
+  });
+
+  it("waits for Doan's doan on PATH, like the Codex rule", async () => {
+    mkdirSync(join(home, ".claude")); mkdirSync(join(home, ".local/bin"), { recursive: true });
+    writeFileSync(join(home, ".local/bin/doan"), "someone else's");
+    const result = await runAgentSetup(options());
+    expect(actions(result)).toMatchObject({ cli: "skip:foreign", "claude-allow": "skip:cli" });
+    expect(existsSync(settings())).toBe(false);
+  });
+
+  it("keeps a change Claude Code makes while Doan is merging, and decides again next run", async () => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), '{"theme":"dark"}');
+    vi.mocked(fs.writeFileSync).mockImplementation((path, data, options) => {
+      realWrite(path, data, options);
+      if (String(path).includes(".doan-")) realWrite(settings(), '{"theme":"light"}');
+    });
+    const result = await runAgentSetup(options());
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(result.items).toEqual([]);
+    expect(readFileSync(settings(), "utf8")).toBe('{"theme":"light"}');
+    expect(readdirSync(join(home, ".claude")).sort()).toEqual(["settings.json", "skills"]);
+    vi.mocked(fs.writeFileSync).mockImplementation(realWrite);
+    expect(actions(await runAgentSetup(options()))["claude-allow"]).toBe("replace");
+    expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ theme: "light", permissions: { allow: CLAUDE_ALLOW_RULES } });
+  });
+
+  // The review's timing: Claude Code saves after Doan's last look and before Doan publishes its merge.
+  const newer = '{"model":"sonnet","permissions":{"allow":[],"deny":["Bash(rm *)"]}}';
+  const leftovers = () => readdirSync(join(home, ".claude")).filter(name => name.startsWith(".doan-"));
+
+  it("keeps a save Claude Code makes in place after Doan's last look, and decides again next run", async () => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), '{"model":"opus","permissions":{"allow":[]}}');
+    let saved = false;
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (!saved && (from === settings() || to === settings())) { saved = true; realWrite(settings(), newer); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(saved).toBe(true);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(result.items).toEqual([]);
+    expect(readFileSync(settings(), "utf8")).toBe(newer);
+    expect(leftovers()).toEqual([]);
+    vi.mocked(fs.renameSync).mockImplementation(realRename);
+    expect(actions(await runAgentSetup(options()))["claude-allow"]).toBe("replace");
+    expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ model: "sonnet", permissions: { allow: CLAUDE_ALLOW_RULES, deny: ["Bash(rm *)"] } });
+  });
+
+  // RC2-2: the moved file is compared as bytes, so a save that only differs where UTF-8 cannot decode is not lost.
+  it("keeps a save after Doan's last look that a lossy UTF-8 read would see as unchanged", async () => {
+    mkdirSync(join(home, ".claude"));
+    const mine = Buffer.from('{"note":"\uFFFD","permissions":{"allow":[]}}');
+    const saved = Buffer.concat([Buffer.from('{"note":"'), Buffer.from([0xff]), Buffer.from('","permissions":{"allow":[]}}')]);
+    expect(saved.toString("utf8")).toBe(mine.toString("utf8"));
+    writeFileSync(settings(), mine);
+    let wrote = false;
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (!wrote && from === settings()) { wrote = true; realWrite(settings(), saved); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(wrote).toBe(true);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(readFileSync(settings()).equals(saved)).toBe(true);
+    expect(leftovers()).toEqual([]);
+  });
+
+  it("keeps a file Claude Code renames into place after Doan's last look, even with the same bytes", async () => {
+    const mine = '{"model":"opus"}';
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), mine);
+    let ino = -1;
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (ino < 0 && (from === settings() || to === settings())) {
+        const staged = join(home, ".claude/claude-save.tmp");
+        realWrite(staged, mine); realRename(staged, settings()); ino = lstatSync(settings()).ino;
+      }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(ino).toBeGreaterThan(0);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(lstatSync(settings()).ino).toBe(ino);
+    expect(readFileSync(settings(), "utf8")).toBe(mine);
+    expect(leftovers()).toEqual([]);
+  });
+
+  it("keeps a file Claude Code writes while Doan's merge is about to be published", async () => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), '{"model":"opus","permissions":{"allow":[]}}');
+    let saved = false;
+    vi.mocked(fs.linkSync).mockImplementation((from, to) => {
+      if (!saved && to === settings()) { saved = true; realWrite(settings(), newer); }
+      realLink(from, to);
+    });
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (!saved && to === settings()) { saved = true; realWrite(settings(), newer); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(saved).toBe(true);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(result.items).toEqual([]);
+    expect(readFileSync(settings(), "utf8")).toBe(newer);
+    expect(leftovers()).toEqual([]);
+  });
+
+  it("reports a read-only ~/.claude without touching the settings", async () => {
+    mkdirSync(join(home, ".claude/skills"), { recursive: true }); symlinkSync(`${share()}/skill`, join(home, ".claude/skills/doan"));
+    writeFileSync(settings(), "{}"); chmodSync(join(home, ".claude"), 0o555);
+    try {
+      const result = await runAgentSetup(options());
+      expect(result.items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "write-failed", cause: "permission", at: join(home, ".claude"), code: "EACCES" }]);
+      expect(readFileSync(settings(), "utf8")).toBe("{}");
+    } finally { chmodSync(join(home, ".claude"), 0o755); }
+  });
+
+  it("allows only the work commands, never all of doan", async () => {
+    mkdirSync(join(home, ".claude"));
+    await runAgentSetup(options());
+    expect(allowOf()).toEqual(["Bash(doan work start *)", "Bash(doan work done *)"]);
   });
 });
 

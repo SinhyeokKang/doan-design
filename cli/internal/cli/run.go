@@ -20,14 +20,16 @@ import (
 )
 
 type Context struct {
-	Session  *sessionRecording
-	Start    string
-	Home     string
-	Terminal bool
-	Prompt   func(string) (string, error)
-	Now      func() time.Time
-	Random   io.Reader
-	// RuntimePath and Dial reach the app (doan active); Run fills them so bodies never read the environment or open sockets.
+	WorkSession, WorkProvider string
+	AppConversation           bool
+	Session                   *sessionRecording
+	Start                     string
+	Home                      string
+	Terminal                  bool
+	Prompt                    func(string) (string, error)
+	Now                       func() time.Time
+	Random                    io.Reader
+	// RuntimePath and Dial reach the app; Run fills them so bodies never read the environment or open sockets.
 	RuntimePath string
 	Dial        func(socket string, deadline time.Time) (net.Conn, error)
 	// RuntimeExplicit, Executable, Launch and Sleep let only onboarding start open the app this CLI is bundled in.
@@ -65,6 +67,8 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   comment resolve <cmt_id>... --agent <name>
   check
   active
+  work start <canvas path>
+  work done [<canvas path>...]
   onboarding start
   onboarding status --session <id> [--operation <id>]
   onboarding check --session <id> --provider <id> --request <id> [--spend-copilot-request]
@@ -96,7 +100,7 @@ func repository(ctx Context, f Flags) (repo.Repository, *Error) {
 	return r, nil
 }
 
-// runtimePath is resolved only for active and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
+// runtimePath is resolved only for active, work and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
 // An e2e or dev app started with --user-data-dir writes runtime.json there, and this variable points the CLI at it.
 func runtimePath() (string, *Error) {
 	if p := os.Getenv("DOAN_RUNTIME"); p != "" {
@@ -225,6 +229,12 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					case "check":
 						ctx.Session = sessionFromEnvironment(ctx.Home)
 						o, failure = Check(ctx, f, pos[1:])
+					case "work":
+						ctx.WorkProvider, ctx.WorkSession = workSession(os.Getenv("CLAUDE_CODE_SESSION_ID"), os.Getenv("CODEX_THREAD_ID"), os.Getenv("CODEX_SESSION_ID"))
+						ctx.AppConversation = os.Getenv("DOAN_APP_CONVERSATION") == "1"
+						if ctx.RuntimePath, failure = runtimePath(); failure == nil || failure.Code == "internal_error" {
+							o, failure = Work(ctx, f, pos[1:])
+						}
 					case "active":
 						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
 							o, failure = Active(ctx, f, pos[1:])

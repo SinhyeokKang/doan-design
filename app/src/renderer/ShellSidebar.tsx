@@ -22,8 +22,8 @@ interface Props {
   unlisted?: boolean;
   homeDirectory: string | null;
   search(): void;
-  // `notice`: the canvas the project row's canvas notice stands for, which the activation opens (canvas-viewport-units
-  // D10); passed only when the row shows one.
+  // `notice`: the canvas the project row's canvas notice or terminal session stands for, which the activation opens
+  // (canvas-viewport-units D10, terminal-agent-activity); passed only when the row shows one.
   toggle(key: string, notice?: { root: string; path: string }): void;
   // Opens or closes a project's group; allowed while the page is locked, as project disclosure is.
   toggleGroup(key: string, group: GroupId): void;
@@ -62,9 +62,9 @@ export function projectSlotEntry(slots: ReadonlyMap<string, Slot>, roots: readon
   }
   return best;
 }
-// The canvas a project row's canvas notice stands for; a canvas notice's key is always `root\npath`.
+// The canvas a project row's canvas notice or terminal session stands for; both keys are always `root\npath`.
 function noticeTarget(entry: { key: string; slot: Slot } | undefined): { root: string; path: string } | undefined {
-  if (entry?.slot.kind !== "canvas") return undefined;
+  if (!entry || !(entry.slot.kind === "canvas" || entry.slot.source === "terminal")) return undefined;
   const [root, path] = entry.key.split("\n");
   return { root: root!, path: path! };
 }

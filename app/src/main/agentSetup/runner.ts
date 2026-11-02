@@ -1,13 +1,14 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
-import { swapLink, type SwapResult } from "./swap";
-import { classifyTarget, decide, installEligibility, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
+import { swapFile, swapLink, type SwapResult } from "./swap";
+import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
 // Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
-// Doan's own links, and never creates a provider folder.
+// Doan's own links and rule file plus its allow rules merged into ~/.claude/settings.json, and never creates a
+// provider folder.
 
 export type AdminResult = { kind: "ok" } | { kind: "cancelled" } | { kind: "failed"; message: string };
 export interface AgentSetupOptions {
@@ -28,8 +29,12 @@ export interface AgentSetupOptions {
 export interface AgentSetupResult { home: string; items: SetupItem[]; steps: Step[] }
 
 const CANCELLED_FILE = "agent-setup.json";
-// `parent` is the resolved folder's "dev:ino", so a replacement can tell the folder was swapped.
-interface Seen extends Observation { stamp: string; parent: string | null }
+// `parent` is the resolved folder's "dev:ino", so a replacement can tell the folder was swapped; `id` is the target's.
+// `bytes` is what `content` was decoded from, which a replacement compares the moved file against.
+interface Seen extends Observation { stamp: string; parent: string | null; id?: string; bytes?: Buffer }
+// Fatal, so bytes that are not UTF-8 are never read as U+FFFD and written back; a BOM stays in the text and fails JSON.parse.
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+function decode(bytes: Buffer): string | null { try { return UTF8.decode(bytes); } catch { return null; } }
 
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
 function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
@@ -71,13 +76,17 @@ function observe(target: PlannedTarget): Seen {
   if (blocked) return { kind: "missing", blockedParent: blocked, real: null, stamp: `blocked:${blocked}`, parent: null };
   const kind = kindOf(target.path), real = realTarget(target.path), parent = real === null ? null : folderId(dirname(real));
   if (typeof kind !== "string") return { kind: "missing", error: kind.error, real, stamp: `error:${kind.error}`, parent };
-  let value: string | null = null, content: string | null = null, stamp = `${real}:${kind}`;
+  let value: string | null = null, bytes: Buffer | undefined, stamp = `${real}:${kind}`, id: string | undefined;
   try {
     if (kind === "symlink") value = readlinkSync(target.path);
-    if (kind === "file" && target.file) content = readFileSync(target.path, "utf8");
-    if (kind !== "missing") { const s = lstatSync(target.path); stamp += `:${s.dev}:${s.ino}:${s.mtimeMs}:${s.ctimeMs}`; }
+    if (kind === "file" && target.file) bytes = readFileSync(target.path);
+    // Read through a link to the person's settings only to see whether they added the rules themselves.
+    // Only a regular file: reading a link to a FIFO would block launch.
+    if (kind === "symlink" && target.target === "claude-allow") { try { if (statSync(target.path).isFile()) bytes = readFileSync(target.path); } catch { bytes = undefined; } }
+    if (kind !== "missing") { const s = lstatSync(target.path); id = `${s.dev}:${s.ino}`; stamp += `:${id}:${s.mtimeMs}:${s.ctimeMs}`; }
   } catch (error) { return { kind: "missing", error: errorCode(error), real, stamp: `error:${errorCode(error)}`, parent }; }
-  return { kind, value, content, real, stamp: `${stamp}:${value}:${content}`, parent };
+  const content = bytes === undefined ? null : decode(bytes);
+  return { kind, value, content, real, stamp: `${stamp}:${value}:${bytes?.toString("hex")}`, parent, ...(id ? { id } : {}), ...(bytes ? { bytes } : {}), ...(bytes && content === null ? { undecodable: true } : {}) };
 }
 
 // Creates the folders below `root` one at a time, so a provider folder removed mid-run is never recreated.
@@ -112,6 +121,18 @@ function settled(target: PlannedTarget, home: string, result: SwapResult): Writt
   }
 }
 
+// Claude Code writes the same file, so Doan merges into what it read and publishes the result only in place of that
+// very file (swap.ts swapFile): a save Claude Code makes meanwhile is kept and the next launch merges into it.
+function mergeSettings(target: PlannedTarget, before: Seen, temporary: string, real: string, home: string): Written {
+  const merged = mergeClaudeAllow(before.content ?? null);
+  if (before.kind !== "file" || merged.kind !== "write" || before.id === undefined || before.bytes === undefined) return changed(target, home);
+  writeFileSync(temporary, merged.text, { flag: "wx" });
+  chmodSync(temporary, lstatSync(real).mode & 0o777);
+  if (observe(target).stamp !== before.stamp) return changed(target, home);
+  return settled(target, home, swapFile({ lstatSync, readFileSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
+    { path: real, staged: temporary, id: before.id, bytes: before.bytes, aside: asideName(real), parent: before.parent }));
+}
+
 function write(target: PlannedTarget, action: "create" | "replace", before: Seen, home: string): Written {
   const real = before.real;
   if (real === null || real === undefined) return { ok: false, item: writeFailure(target, before.error ?? "UNKNOWN") };
@@ -124,6 +145,8 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
       if (observe(target).stamp !== before.stamp) return changed(target, home);
       // link(2) publishes the staged regular file exclusively; never link a symlink (macOS follows it).
       linkSync(temporary, real);
+    } else if (target.target === "claude-allow") {
+      return mergeSettings(target, before, temporary, real, home);
     } else if (action === "create") {
       if (observe(target).stamp !== before.stamp) return changed(target, home);
       // symlink(2) fails on an existing name, so a competitor that wins the race is kept.

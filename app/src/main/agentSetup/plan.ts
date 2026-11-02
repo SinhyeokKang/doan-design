@@ -13,6 +13,8 @@ export type Ownership = "ours" | "legacy-ours" | "missing" | "foreign";
 export interface Observation {
   kind: "missing" | "file" | "directory" | "symlink" | "other";
   value?: string | null; content?: string | null; real?: string | null; blockedParent?: string | null; error?: string;
+  // The file's bytes are not UTF-8, so `content` is null rather than a lossy decode Doan could write back.
+  undecodable?: true;
 }
 // `want` is the link value, or the file content when `file`. `root` is the deepest folder the runner may not
 // create: provider folders are never created. `after` lists the targets this one goes through.
@@ -58,9 +60,103 @@ export function codexRuleText(): string {
   return '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n';
 }
 
+// Claude Code Bash rules (Claude Code docs 'Configure permissions', 'Wildcard patterns'): a trailing ` *` matches any
+// arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the two
+// work commands: an agent needs no prompt to report what it edits, but every other doan command still asks.
+export const CLAUDE_ALLOW_RULES: readonly string[] = ["Bash(doan work start *)", "Bash(doan work done *)"];
+export type ClaudeAllowMerge = { kind: "keep" } | { kind: "write"; text: string } | { kind: "refuse"; problem: "json" | "object" | "permissions" | "allow" };
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Offsets into JSON text that JSON.parse has already accepted, so the scan below assumes valid input. An entry is an
+// object member (`key` set, `at` is its key) or an array element; `end` is just past its value.
+interface Entry { key: string | undefined; at: number; end: number }
+function skipSpace(text: string, at: number): number {
+  while (at < text.length && " \t\n\r".includes(text.charAt(at))) at++;
+  return at;
+}
+function stringEnd(text: string, at: number): number {
+  let i = at + 1;
+  while (text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+  return i + 1;
+}
+// A container is skipped by counting brackets, not by recursing: JSON.parse accepts nesting deeper than the stack.
+function valueEnd(text: string, at: number): number {
+  if (text[at] === '"') return stringEnd(text, at);
+  if (text[at] === "{" || text[at] === "[") {
+    let depth = 0, i = at;
+    do {
+      if (text[i] === '"') { i = stringEnd(text, i); continue; }
+      if (text[i] === "{" || text[i] === "[") depth++;
+      else if (text[i] === "}" || text[i] === "]") depth--;
+      i++;
+    } while (depth > 0);
+    return i;
+  }
+  let i = at;
+  while (i < text.length && !",]} \t\n\r".includes(text.charAt(i))) i++;
+  return i;
+}
+// The entries of the object or array opening at `at`.
+function entries(text: string, at: number): Entry[] {
+  const object = text[at] === "{", list: Entry[] = [];
+  let i = skipSpace(text, at + 1);
+  while (text[i] !== (object ? "}" : "]")) {
+    const start = i;
+    let key: string | undefined;
+    if (object) { const keyEnd = stringEnd(text, i); key = JSON.parse(text.slice(i, keyEnd)) as string; i = skipSpace(text, skipSpace(text, keyEnd) + 1); }
+    const end = valueEnd(text, i);
+    list.push({ key, at: start, end });
+    i = skipSpace(text, end);
+    if (text[i] === ",") i = skipSpace(text, i + 1);
+  }
+  return list;
+}
+// Adds `values` as the last entries of the container opening at `open`, separated the way its last entry is.
+function append(text: string, open: number, values: string[]): string {
+  const list = entries(text, open), last = list.at(-1);
+  if (!last) return `${text.slice(0, open + 1)}${values.join(", ")}${text.slice(open + 1)}`;
+  const gap = text.slice(list.at(-2)?.end ?? open + 1, last.at);
+  const lead = gap.slice(gap.indexOf(",") + 1);
+  return `${text.slice(0, last.end)}${values.map(value => `,${lead}${value}`).join("")}${text.slice(last.end)}`;
+}
+// JSON.parse keeps the last of duplicate keys, so the value it read is the last member with that key.
+function memberValue(text: string, open: number, key: string): number | null {
+  const member = entries(text, open).filter(entry => entry.key === key).at(-1);
+  return member ? skipSpace(text, skipSpace(text, stringEnd(text, member.at)) + 1) : null;
+}
+
+// The person's ~/.claude/settings.json with Doan's rules added; null is a missing file. JSON.parse decides; the write
+// inserts only the missing rules into the original text, since a parse/stringify round trip would change big
+// integers, out-of-range numbers and duplicate keys elsewhere in the file.
+export function mergeClaudeAllow(text: string | null): ClaudeAllowMerge {
+  let settings: unknown = {};
+  if (text !== null) { try { settings = JSON.parse(text); } catch { return { kind: "refuse", problem: "json" }; } }
+  if (!isObject(settings)) return { kind: "refuse", problem: "object" };
+  // A key set to null is the person's value, not a missing one.
+  const permissions = settings.permissions === undefined ? {} : settings.permissions;
+  if (!isObject(permissions)) return { kind: "refuse", problem: "permissions" };
+  const allow = permissions.allow === undefined ? [] : permissions.allow;
+  if (!Array.isArray(allow)) return { kind: "refuse", problem: "allow" };
+  const missing = CLAUDE_ALLOW_RULES.filter(rule => !allow.includes(rule));
+  if (missing.length === 0) return { kind: "keep" };
+  if (text === null) return { kind: "write", text: `${JSON.stringify({ permissions: { allow: missing } }, null, 2)}\n` };
+  const rules = missing.map(rule => JSON.stringify(rule)), list = `[${rules.join(", ")}]`;
+  const root = skipSpace(text, 0), permissionsAt = memberValue(text, root, "permissions");
+  if (permissionsAt === null) return { kind: "write", text: append(text, root, [`"permissions": {"allow": ${list}}`]) };
+  const allowAt = memberValue(text, permissionsAt, "allow");
+  return { kind: "write", text: allowAt === null ? append(text, permissionsAt, [`"allow": ${list}`]) : append(text, allowAt, rules) };
+}
+
+const CREATED_CLAUDE_SETTINGS = (mergeClaudeAllow(null) as Extract<ClaudeAllowMerge, { kind: "write" }>).text;
+
 export function classifyTarget(target: SetupTarget, home: string, observation: Pick<Observation, "kind" | "value" | "content">): Ownership {
   const { kind, value } = observation;
   if (kind === "missing") return "missing";
+  // The person's settings: Doan only merges into a regular file there, never through a link.
+  if (target === "claude-allow") return kind === "file" ? "ours" : "foreign";
   // Ownership of the rule is its exact content; when the text changes, the old text joins this check.
   if (target === "codex-rule") return kind === "file" && observation.content === codexRuleText() ? "ours" : "foreign";
   if (kind !== "symlink" || value == null) return "foreign";
@@ -89,7 +185,21 @@ export function plannedTargets(home: string, resources: string, providerDirs: re
     ...(providerDirs.includes("gemini") ? [skillLink("gemini-skill", ".gemini", "config/skills", ["antigravity"])] : []),
     // The rule lets the `doan` an agent finds on PATH run unsandboxed, so it waits for Doan's links on that PATH.
     ...(providerDirs.includes("codex") ? [{ target: "codex-rule", path: `${home}/.codex/rules/doan.rules`, want: codexRuleText(), file: true, root: `${home}/.codex`, providers: ["codex"], after: ["current", "cli", "system-cli"] } satisfies PlannedTarget] : []),
+    // Allows the same PATH `doan` as the Codex rule. `want` is the file Doan creates when there is none.
+    ...(providerDirs.includes("claude") ? [{ target: "claude-allow", path: `${home}/.claude/settings.json`, want: CREATED_CLAUDE_SETTINGS, file: true, root: `${home}/.claude`, providers: ["claude"], after: ["current", "cli", "system-cli"] } satisfies PlannedTarget] : []),
   ];
+}
+
+// A regular file is merged into; a link is read through only to see whether the person already added the rules.
+function claudeSettingsStep(target: PlannedTarget, observation: Observation): Step {
+  const base = { target: target.target, path: target.path };
+  const item = (problem: Extract<SetupItem, { reason: "claude-settings" }>["problem"]): Step =>
+    ({ ...base, action: "skip", item: { target: target.target, path: target.path, providers: [...target.providers], reason: "claude-settings", problem } });
+  const merged = typeof observation.content === "string" ? mergeClaudeAllow(observation.content) : null;
+  if (observation.kind === "symlink") return merged?.kind === "keep" ? { ...base, action: "keep" } : item("link");
+  if (observation.undecodable) return item("json");
+  if (merged === null) return { ...base, action: "changed" };
+  return merged.kind === "keep" ? { ...base, action: "keep" } : merged.kind === "write" ? { ...base, action: "replace" } : item(merged.problem);
 }
 
 export function writeFailure(target: PlannedTarget, code: string, at = posix.dirname(target.path)): SetupItem {
@@ -108,7 +218,9 @@ export function decide(target: PlannedTarget, observation: Observation, home: st
   if (observation.error) return { ...base, action: "skip", item: writeFailure(target, observation.error) };
   const shared = observation.real == null ? undefined : [...outcomes].find(([, outcome]) => outcome.real === observation.real)?.[0];
   if (shared) return { ...base, action: "shared", with: shared };
-  switch (classifyTarget(target.target, home, observation)) {
+  const ownership = classifyTarget(target.target, home, observation);
+  if (target.target === "claude-allow" && (ownership === "ours" || observation.kind === "symlink")) return claudeSettingsStep(target, observation);
+  switch (ownership) {
     case "missing": return { ...base, action: "create" };
     case "foreign": {
       const found = observation.kind === "symlink" ? "link" : observation.kind === "directory" ? "folder" : "file";

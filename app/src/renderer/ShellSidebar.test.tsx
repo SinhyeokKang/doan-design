@@ -203,5 +203,5 @@ test("on the project row a conversation slot beats a canvas notice; among notice
   expect(projectSlotEntry(notices, ["/a"], [])).toEqual({ key: "/a\n.doan/canvases/x.html", slot: first });
   expect(projectSlotEntry(notices, ["/a"], ["/a\n.doan/canvases/x.html"])).toEqual({ key: "/a\n.doan/canvases/y.html", slot: second });
   const unseen = { kind: "unseen" as const, label: "u" };
-  expect(projectSlot(new Map([...notices, ["/a\n.doan/canvases/z.html", unseen]]), ["/a"], [])).toBe(unseen);
+  expect(projectSlot(new Map<string, Slot>([...notices, ["/a\n.doan/canvases/z.html", unseen]]), ["/a"], [])).toBe(unseen);
 });

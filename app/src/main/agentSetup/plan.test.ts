@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTarget, codexRuleText, installEligibility, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
+import { CLAUDE_ALLOW_RULES, classifyTarget, codexRuleText, installEligibility, mergeClaudeAllow, needsSystemLink, plan, plannedTargets, type Observation } from "./plan";
 
 const HOME = "/Users/u";
 const SHARE = `${HOME}/.local/share/doan`;
@@ -95,6 +95,7 @@ describe("plannedTargets", () => {
       ["claude-skill", `${HOME}/.claude/skills/doan`, `${SHARE}/skill`],
       ["gemini-skill", `${HOME}/.gemini/config/skills/doan`, `${SHARE}/skill`],
       ["codex-rule", `${HOME}/.codex/rules/doan.rules`, codexRuleText()],
+      ["claude-allow", `${HOME}/.claude/settings.json`, `${JSON.stringify({ permissions: { allow: CLAUDE_ALLOW_RULES } }, null, 2)}\n`],
     ]);
   });
 
@@ -111,7 +112,7 @@ describe("plannedTargets", () => {
 describe("plan", () => {
   const targets = plannedTargets(HOME, RESOURCES, ["claude", "gemini"], false);
   const settled = (overrides: Record<string, Observation> = {}): Record<string, Observation> =>
-    Object.fromEntries(targets.map(t => [t.target, overrides[t.target] ?? { ...link(t.want), real: t.path }]));
+    Object.fromEntries(targets.map(t => [t.target, overrides[t.target] ?? (t.file ? { kind: "file", content: t.want, real: t.path } : { ...link(t.want), real: t.path })]));
   const actions = (steps: ReturnType<typeof plan>) => steps.map(step => [step.target, step.action === "skip" ? ("on" in step ? `skip:${step.on}` : `skip:${step.item.reason}`) : step.action]);
 
   it("creates everything on a fresh HOME", () => {
@@ -125,7 +126,7 @@ describe("plan", () => {
 
   it("replaces only current after the app moves", () => {
     expect(actions(plan(targets, settled({ current: { ...link("/Users/u/Applications/Doan.app/Contents/Resources"), real: `${SHARE}/current` } }), HOME))).toEqual([
-      ["current", "replace"], ["skill", "keep"], ["cli", "keep"], ["agents-skill", "keep"], ["claude-skill", "keep"], ["gemini-skill", "keep"],
+      ["current", "replace"], ["skill", "keep"], ["cli", "keep"], ["agents-skill", "keep"], ["claude-skill", "keep"], ["gemini-skill", "keep"], ["claude-allow", "keep"],
     ]);
   });
 
@@ -139,20 +140,20 @@ describe("plan", () => {
   it("skips everything that goes through a foreign current and reports current only", () => {
     const steps = plan(targets, settled({ current: { kind: "directory", real: `${SHARE}/current` } }), HOME);
     expect(actions(steps)).toEqual([
-      ["current", "skip:foreign"], ["skill", "skip:current"], ["cli", "skip:current"], ["agents-skill", "skip:current"], ["claude-skill", "skip:current"], ["gemini-skill", "skip:current"],
+      ["current", "skip:foreign"], ["skill", "skip:current"], ["cli", "skip:current"], ["agents-skill", "skip:current"], ["claude-skill", "skip:current"], ["gemini-skill", "skip:current"], ["claude-allow", "skip:current"],
     ]);
     expect(steps[0]).toMatchObject({ item: { target: "current", path: `${SHARE}/current`, reason: "foreign", found: "folder", providers: ["claude", "codex", "cursor", "antigravity", "copilot"] } });
   });
 
   it("skips the skill links behind a foreign skill link, not the CLI", () => {
     expect(actions(plan(targets, settled({ skill: { kind: "file", real: `${SHARE}/skill` } }), HOME))).toEqual([
-      ["current", "keep"], ["skill", "skip:foreign"], ["cli", "keep"], ["agents-skill", "skip:skill"], ["claude-skill", "skip:skill"], ["gemini-skill", "skip:skill"],
+      ["current", "keep"], ["skill", "skip:foreign"], ["cli", "keep"], ["agents-skill", "skip:skill"], ["claude-skill", "skip:skill"], ["gemini-skill", "skip:skill"], ["claude-allow", "keep"],
     ]);
   });
 
   it("reports a blocked ancestor as a write failure", () => {
     const steps = plan(targets, settled({ "gemini-skill": { kind: "missing", blockedParent: `${HOME}/.gemini/config`, real: null } }), HOME);
-    expect(steps.at(-1)).toMatchObject({ action: "skip", item: { target: "gemini-skill", reason: "write-failed", cause: "blocked-parent", at: `${HOME}/.gemini/config` } });
+    expect(steps.find(step => step.target === "gemini-skill")).toMatchObject({ action: "skip", item: { target: "gemini-skill", reason: "write-failed", cause: "blocked-parent", at: `${HOME}/.gemini/config` } });
   });
 
   it("writes the Codex rule only when the doan on PATH is Doan's", () => {
@@ -171,4 +172,83 @@ describe("plan", () => {
     expect(steps[3]).toMatchObject({ item: { providers: ["claude", "codex", "cursor", "copilot"] } });
   });
 
+});
+
+describe("mergeClaudeAllow", () => {
+  const RULES = ["Bash(doan work start *)", "Bash(doan work done *)"];
+  const written = (text: string | null) => {
+    const result = mergeClaudeAllow(text);
+    if (result.kind !== "write") throw new Error(`expected a write, got ${JSON.stringify(result)}`);
+    return result.text;
+  };
+
+  it("allows exactly doan work start and doan work done, with arguments", () => {
+    expect(CLAUDE_ALLOW_RULES).toEqual(RULES);
+  });
+
+  it("creates the settings for a missing file", () => {
+    const text = written(null);
+    expect(JSON.parse(text)).toEqual({ permissions: { allow: RULES } });
+    expect(text).toBe(`${JSON.stringify({ permissions: { allow: RULES } }, null, 2)}\n`);
+  });
+
+  it("keeps every other key and allow entry, adding only the missing rules after them", () => {
+    const before = { model: "opus", env: { A: "1" }, permissions: { allow: ["Bash(npm run *)", RULES[1]], deny: ["Bash(rm *)"], defaultMode: "default" }, hooks: { Stop: [] } };
+    const after = JSON.parse(written(JSON.stringify(before)));
+    expect(after).toEqual({ ...before, permissions: { ...before.permissions, allow: ["Bash(npm run *)", RULES[1], RULES[0]] } });
+    expect(Object.keys(after)).toEqual(Object.keys(before));
+  });
+
+  it("adds allow to permissions, and permissions to the settings, when they are missing", () => {
+    expect(JSON.parse(written('{"permissions":{"deny":[]}}'))).toEqual({ permissions: { deny: [], allow: RULES } });
+    expect(JSON.parse(written('{"theme":"dark"}'))).toEqual({ theme: "dark", permissions: { allow: RULES } });
+  });
+
+  it("writes nothing when both rules are there, so a second run is the same", () => {
+    expect(mergeClaudeAllow(written('{"theme":"dark"}'))).toEqual({ kind: "keep" });
+    expect(mergeClaudeAllow(`{ "permissions": { "allow": [${RULES.map(rule => JSON.stringify(rule)).join(", ")}] } }`)).toEqual({ kind: "keep" });
+  });
+
+  it("leaves every other byte as it was, so numbers JSON.parse cannot hold keep their text", () => {
+    expect(written('{"customId":9007199254740993,"customLimit":1e400,"permissions":{"allow":[]}}'))
+      .toBe('{"customId":9007199254740993,"customLimit":1e400,"permissions":{"allow":["Bash(doan work start *)", "Bash(doan work done *)"]}}');
+    const pretty = '{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(npm run *)"\n    ]\n  }\n}\n';
+    expect(written(pretty)).toBe('{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(npm run *)",\n      "Bash(doan work start *)",\n      "Bash(doan work done *)"\n    ]\n  }\n}\n');
+    expect(written('{ "theme": "dark" }\n')).toBe('{ "theme": "dark", "permissions": {"allow": ["Bash(doan work start *)", "Bash(doan work done *)"]} }\n');
+    expect(written('{"permissions":{}}')).toBe('{"permissions":{"allow": ["Bash(doan work start *)", "Bash(doan work done *)"]}}');
+  });
+
+  it("keeps duplicate keys, adding the rules to the allow list Claude Code reads (the last one)", () => {
+    expect(written('{"permissions":{"allow":["a"]},"x":1,"x":2,"permissions":{"allow":[],"allow":["b"]}}'))
+      .toBe('{"permissions":{"allow":["a"]},"x":1,"x":2,"permissions":{"allow":[],"allow":["b","Bash(doan work start *)","Bash(doan work done *)"]}}');
+    expect(mergeClaudeAllow(`{"permissions":{"allow":${JSON.stringify(RULES)}},"permissions":{}}`)).toMatchObject({ kind: "write" });
+    expect(mergeClaudeAllow(`{"permissions":{},"permissions":{"allow":${JSON.stringify(RULES)}}}`)).toEqual({ kind: "keep" });
+  });
+
+  // RC2-3: JSON.parse accepts this, so the scan that finds where to insert must not run out of stack on it.
+  it("adds the rules to deep but valid JSON", () => {
+    const deep = `{"unrelated":${"[".repeat(10000)}0${"]".repeat(10000)},"permissions":{"allow":[]}}`;
+    expect(written(deep)).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)"]}}`);
+  });
+
+  it("does not count a broader rule as one of Doan's", () => {
+    expect(JSON.parse(written('{"permissions":{"allow":["Bash(doan *)"]}}')).permissions.allow).toEqual(["Bash(doan *)", ...RULES]);
+  });
+
+  it.each([
+    ["an empty file", "", "json"],
+    ["broken JSON", '{"permissions": {"allow": []},}', "json"],
+    ["JSON with comments", '// mine\n{"permissions": {}}', "json"],
+    ["a list", "[]", "object"],
+    ["null", "null", "object"],
+    ["a string", '"x"', "object"],
+    ["permissions as a list", '{"permissions": []}', "permissions"],
+    ["permissions as null", '{"permissions": null}', "permissions"],
+    ["permissions as a string", '{"permissions": "allow"}', "permissions"],
+    ["allow as a string", '{"permissions": {"allow": "Bash(doan *)"}}', "allow"],
+    ["allow as an object", '{"permissions": {"allow": {}}}', "allow"],
+    ["allow as null", '{"permissions": {"allow": null}}', "allow"],
+  ] as const)("refuses %s", (_name, text, problem) => {
+    expect(mergeClaudeAllow(text)).toEqual({ kind: "refuse", problem });
+  });
 });

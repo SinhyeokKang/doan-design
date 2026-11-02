@@ -75,7 +75,7 @@ describe("CanvasAgent Stop", () => {
   let reply: (value: unknown) => void;
   let interrupt: ReturnType<typeof vi.fn>;
   const onStopFailed = vi.fn();
-  const agent = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, onOpen: vi.fn(), onStopFailed });
+  const agent = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work: [], onOpen: vi.fn(), onStopFailed });
   beforeEach(() => {
     reset(); onStopFailed.mockClear();
     interrupt = vi.fn(() => new Promise(resolve => { reply = resolve; }));
@@ -128,9 +128,23 @@ describe("CanvasAgent Stop", () => {
     expect(label(tree)).toBe("Stop");
   });
 
+  // terminal-agent-activity design '표시': the app turn ends while a terminal session still works on the canvas.
+  test("after a Stop, the notice stays for a terminal session left on the canvas, without its button", async () => {
+    const work = [{ session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
+    const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work, onOpen: vi.fn(), onStopFailed });
+    let tree = render(withWork([summary({})]));
+    (button(tree)!.props.onClick as () => void)();
+    reply(undefined); await flush();
+    tree = render(withWork([summary({ phase: "ended" })]));
+    expect(all(tree).some(element => element.props.className === "doan-agent doan-agent-terminal")).toBe(true);
+    expect(button(tree)).toBeUndefined();
+    tree = render(agent([summary({ phase: "ended" })]));
+    expect(shown(tree)).toBe(false);
+  });
+
   test("a twin canvas in another project shows nothing from the first while its list is unread", () => {
     render(agent([summary({})]));
-    const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, running: true, onOpen: vi.fn(), onStopFailed }));
+    const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, running: true, work: [], onOpen: vi.fn(), onStopFailed }));
     expect(shown(tree)).toBe(false);
   });
 });

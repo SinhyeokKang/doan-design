@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
 import { ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
@@ -8,11 +8,12 @@ import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
 import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { FolderEntry } from "../main/view";
+import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
-import { canvasConversationError, canvasConversationMenu } from "./canvasConversation";
+import { canvasConversationError, canvasConversationMenu, resumeHeld } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
@@ -75,6 +76,8 @@ export interface CanvasConversationProps {
   onNotice(text: string): void;
   // The drawing project conversation's Open: its root's Overview shows it.
   onOpenProjectConversation(conversationId: string): void;
+  // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
+  work: readonly WorkItem[];
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
@@ -158,8 +161,14 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const thread = conversationId ? store.thread(conversationId) : null;
   const provider: Provider | null = conversationId ? summary?.provider ?? store.providerOf(conversationId) : null;
   const archived = view.kind === "conversation" && view.archived;
+  // The terminal session still works in a terminal: its choice waits and a new conversation is the mode. A chosen
+  // resume becomes new for good (the layout effect below), so it never comes back under a draft when the session ends.
+  const held = view.kind === "new" && resumeHeld(view.resume, props.work);
+  useLayoutEffect(() => { if (held) run.choose("new"); }, [held]);
+  const workKey = JSON.stringify(props.work);
+  useEffect(() => { run.recheckResume(); }, [workKey]);
   const mode: DockedMode = conversationId && provider ? { kind: archived ? "archived" : "existing", conversationId, provider }
-    : view.kind === "new" ? view.mode : { kind: "new", root, canvas: target.canvas };
+    : view.kind === "new" ? (held ? { kind: "new", root, canvas: target.canvas } : view.mode) : { kind: "new", root, canvas: target.canvas };
   const key = draftKey(mode);
   const draft = store.drafts.get(key) ?? EMPTY_DRAFT;
   const healthy = props.entry.kind === "list";
@@ -346,7 +355,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   const placeholder = draft.preset && draft.segments.length === 0 ? presetPlaceholder(draft.preset) : view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
   const notice = view.kind === "wait" ? null : view.notice;
-  const resume = newView?.start.offer ? newView : null;
+  // A held session a terminal process holds is not offered to run, but its choice shows, waiting.
+  const offer = newView?.start.offer ?? (held && newView?.resume && "runtime" in newView.resume ? newView.resume.runtime ?? null : null);
+  const resume = offer ? newView : null;
 
   return <div className="doan-conv-content">
     <div className={`cp-scroll${conversationId ? "" : " end"}`}>
@@ -368,9 +379,9 @@ export function CanvasConversation(props: CanvasConversationProps) {
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
-          {resume && <ResumeChoice offer={resume.start.offer!} reply={resume.resume} now={props.now} mode={resume.start.mode} onChoose={choice => { run.choose(choice); focusField(); }} />}
+          {resume && <ResumeChoice offer={offer!} reply={resume.resume} now={props.now} mode={held ? "new" : resume.start.mode} held={held} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
-            <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-variant="quiet" title={prompt.label}
+            <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
               onClick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
               <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>)}</div>}
         </>}
@@ -415,14 +426,18 @@ export function canvasScope(target: CanvasTarget): string {
   return draftKey({ kind: "new", root: target.root, canvas: target.canvas });
 }
 
-// The terminal session choice (draft panel-resume): the shared choice cards with their start radio.
-function ResumeChoice({ offer, reply, now, mode, onChoose }: { offer: Provider; reply: ResumeReply | undefined; now: number; mode: "resume" | "new"; onChoose(choice: "resume" | "new"): void }) {
+// The terminal session choice (draft panel-resume): the shared choice cards with their start radio. `held`: the session
+// still works in a terminal (terminal-agent-activity draft resume-disabled); its card is disabled and its line becomes
+// the reason, which describes the radio.
+function ResumeChoice({ offer, reply, now, mode, held, onChoose }: { offer: Provider; reply: ResumeReply | undefined; now: number; mode: "resume" | "new"; held: boolean; onChoose(choice: "resume" | "new"): void }) {
   const at = linkedAt(reply && "available" in reply && reply.available ? reply.lastCheckAt : undefined, now);
+  const reason = useId();
   // Enter picks the focused card, as ProjectChoice's do.
   const enter = (event: KeyboardEvent<HTMLInputElement>, choice: "resume" | "new") => { if (event.key === "Enter") { event.preventDefault(); onChoose(choice); } };
   return <div role="radiogroup" aria-label="How to continue" className="ob-choice-list cp-resume">
-    <label className="doan-panel ob-choice"><input type="radio" name="canvas-resume" checked={mode === "resume"} onChange={() => onChoose("resume")} onKeyDown={event => enter(event, "resume")} /><span className="ob-radio" aria-hidden="true" />
-      <span className="ob-choice-text"><strong>{`Continue the ${PROVIDER_NAMES[offer]} session from your terminal`}</strong>{at && <small>{`Linked by doan check at ${at}`}</small>}</span></label>
+    <label className="doan-panel ob-choice" data-disabled={held ? "" : undefined}><input type="radio" name="canvas-resume" checked={mode === "resume"} disabled={held} aria-describedby={held ? reason : undefined} onChange={() => onChoose("resume")} onKeyDown={event => enter(event, "resume")} /><span className="ob-radio" aria-hidden="true" />
+      <span className="ob-choice-text"><strong>{`Continue the ${PROVIDER_NAMES[offer]} session from your terminal`}</strong>
+        {held ? <small id={reason}>Still working in your terminal. You can continue it when it finishes.</small> : at && <small>{`Linked by doan check at ${at}`}</small>}</span></label>
     <label className="doan-panel ob-choice"><input type="radio" name="canvas-resume" checked={mode === "new"} onChange={() => onChoose("new")} onKeyDown={event => enter(event, "new")} /><span className="ob-radio" aria-hidden="true" />
       <span className="ob-choice-text"><strong>Start a new conversation</strong><small>Uses Doan’s sign-in and your Settings defaults</small></span></label>
   </div>;

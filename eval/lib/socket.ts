@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer, type Socket } from "node:net";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
+import { contentHash } from "./work.ts";
 
 // A stand-in for the app's side of `doan active`: runtime.v1 on disk and
 // app-socket.v1 on a unix socket, mirroring app/src/main/runtime.ts. The
@@ -77,6 +78,13 @@ const requestSchema = ajv.getSchema(`${V2}#/$defs/request`);
 const responseSchema = ajv.getSchema(`${V2}#/$defs/response`);
 export const validOnboardingRequest = (v: unknown): boolean => requestSchema(v);
 export const validOnboardingResponse = (v: unknown): boolean => responseSchema(v);
+
+ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/app-socket.v3.schema.json"), "utf8")));
+const V3 = "https://doan.design/schema/app-socket.v3.schema.json";
+const workRequestSchema = ajv.getSchema(`${V3}#/$defs/request`);
+const workResponseSchema = ajv.getSchema(`${V3}#/$defs/response`);
+export const validWorkRequest = (v: unknown): boolean => workRequestSchema(v);
+export const validWorkResponse = (v: unknown): boolean => workResponseSchema(v);
 
 // A scenario's scripted app state. The fake is deterministic (session `s_eval`,
 // `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead of time; real
@@ -332,7 +340,7 @@ export function initializeRepo(root: string, changes: string[], manifest: string
   writeFileSync(manifest, JSON.stringify(written) + "\n", { mode: 0o600 });
 }
 
-export interface FakeApp { runtimePath: string; onboardingLog: string; close(): Promise<void> }
+export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; close(): Promise<void> }
 interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null }
 
 // The manifest initializeRepo keeps beside the runtime file.
@@ -345,11 +353,38 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const socketPath = join(o.dir, "app.sock");
   const runtimePath = join(o.dir, "runtime.json");
   const onboardingLog = join(o.dir, "onboarding.jsonl");
+  const workLog = join(o.dir, "work.jsonl");
+  const paths = new Set<string>();
+  const snapshot = (path: string): string | null => {
+    const target = join(o.root, path);
+    try {
+      const rel = relative(realpathSync(o.root), realpathSync(target));
+      if (rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return null;
+      return contentHash(readFileSync(target));
+    } catch {
+      // Missing or unreadable content has no snapshot; it must not stop logging.
+      return null;
+    }
+  };
   const onboarding = o.onboarding ? onboardingApp(o.onboarding, o.root, changes => initializeRepo(o.root, changes, join(o.dir, APP_WRITES))) : null;
   // Without a script the fake is an older app: a v2 line gets the v1 bad_request.
   const reply = (line: string): Obj => {
     let parsed: unknown;
     try { parsed = JSON.parse(line); } catch { parsed = null; }
+    if (isObj(parsed) && parsed.v === 3) {
+      const fail = (code: string, message: string) => ({ v: 3, ok: false, error: { code, message } });
+      const response = !validWorkRequest(parsed) ? fail("bad_request", "The request is not an app-socket v3 request.")
+        : parsed.token !== token ? fail("bad_token", "The token does not match this app.")
+        : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.") : { v: 3, ok: true };
+      const hashes: Record<string, string | null> = {};
+      if (response.ok) {
+        if (typeof parsed.path === "string") paths.add(parsed.path);
+        for (const path of paths) hashes[path] = snapshot(path);
+      }
+      const { token: _token, ...request } = parsed;
+      appendFileSync(workLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
+      return response;
+    }
     if (!onboarding || !isObj(parsed) || parsed.v !== 2) return answer(line, token, o.root, o.selection);
     const response = onboarding.answer(line, token);
     // Checks read this log; the token stays out of it.
@@ -374,6 +409,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   return {
     runtimePath,
     onboardingLog,
+    workLog,
     close: () => new Promise(resolve => {
       for (const connection of connections) connection.destroy();
       server.close(() => resolve());
@@ -398,6 +434,7 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   return {
     runtimePath: join(o.dir, "runtime.json"),
     onboardingLog: join(o.dir, "onboarding.jsonl"),
+    workLog: join(o.dir, "work.jsonl"),
     // Bounded either way, so a stuck child cannot hold up the run's disposal.
     async close() {
       child.stdin.end();

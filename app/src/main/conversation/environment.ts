@@ -6,7 +6,7 @@ export function agentEnv(probe: AgentProbe, runtime: Runtime, appRuntime: string
   if (!absolutePath(appRuntime) || !absolutePath(directories.root) || !absolutePath(directories.cwd) ||
       !absolutePath(directories.configDir) || directories.configDir !== probe.configDir ||
       !insideRoot(directories.root, directories.cwd) || !probe.path || probe.path.includes("\0")) return null;
-  const env: Record<string, string | undefined> = { ...probe.env, PATH: probe.path, DOAN_RUNTIME: appRuntime };
+  const env: Record<string, string | undefined> = { ...probe.env, PATH: probe.path, DOAN_RUNTIME: appRuntime, DOAN_APP_CONVERSATION: "1" };
   delete env.CLAUDE_CODE_SESSION_ID;
   delete env.CODEX_THREAD_ID;
   delete env.CODEX_SESSION_ID;

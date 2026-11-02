@@ -15,7 +15,7 @@ A local stand-in until release packaging exists (BACKLOG 'Release packaging'): a
 2. **Setup** (AGENTS.md 'Commands'): in that worktree run `npm --prefix app ci`, then `node -e "require('electron')"` from `app/` once.
 3. **Package**: `npm --prefix app run package` → `app/dist/mac-arm64/Doan.app`.
 4. **Re-sign a copy.** The packaged app's ad-hoc seal is broken, so a downloaded copy reads as damaged. In a fresh staging directory: `ditto <worktree>/app/dist/mac-arm64/Doan.app <stage>/Doan.app`, then `codesign --force --deep --sign - --identifier design.doan.app <stage>/Doan.app`, then `codesign --verify --deep --strict <stage>/Doan.app` (must pass; stop and report if not).
-5. **Image.** `ln -s /Applications <stage>/Applications`, then `hdiutil create -volname Doan -srcfolder <stage> -format UDZO ~/Desktop/Doan-tester-<YYYY-MM-DD>-<sha>.dmg` (local date of the build). If that file exists, stop and ask instead of overwriting.
+5. **Image.** From `<worktree>/app`: `CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --arm64 --prepackaged <stage>/Doan.app -c.directories.output=<stage>/out`. This builds the installer layout from `build.dmg` in `app/package.json` (Pigment horizon background, Doan above the Applications link); `--prepackaged` skips signing, so the step 4 seal is kept. The first run downloads electron-builder's dmgbuild bundle. Then copy `<stage>/out/Doan-<version>-arm64.dmg` to `~/Desktop/Doan-tester-<YYYY-MM-DD>-<sha>.dmg` (local date of the build). If that file exists, stop and ask instead of overwriting.
 6. **Clean up.** Remove the staging directory and the temporary worktree (`git worktree remove`), after checking it has no changes worth keeping.
 
 ## Report (Korean)
