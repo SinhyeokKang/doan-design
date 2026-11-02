@@ -28,7 +28,7 @@
 - **Exception**: code, commit messages, and PR title/body are in English (see the language policy above).
 - For Korean phrasing, also follow [Korean writing rules](#korean-writing-rules) below.
 
-Enforcement has two layers: this section (shared by both runtimes), and the `UserPromptSubmit` hook in `.claude/settings.json`, which re-injects **a summary of this section** into the context every turn (so the start of the document does not fade in long sessions). **The hook is Claude Code only, so Codex sessions have only this section.**
+Enforcement has two layers: this section (shared by both runtimes), and the `UserPromptSubmit` hook in `.claude/settings.json`, which re-injects **a summary of this section** and of the decision-source rules into the context every turn (so the start of the document does not fade in long sessions). **The hook is Claude Code only, so Codex sessions have only this section.**
 
 ## Korean writing rules
 
@@ -113,7 +113,7 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 | Document | What | When to update |
 |---|---|---|
 | [README.md](./README.md) | Public introduction, in English — what Doan is, status, what works, build from source, background (the malmoi case), references. Decisions live in PRODUCT.md | When the product's status, capabilities or build steps change |
-| [docs/PRODUCT.md](./docs/PRODUCT.md) | **Source of truth for product judgment**, in English — problem · users · scope · loop · MVP · feature split, as the product is now | When a product decision is made: rewrite the affected text to the current rule |
+| [docs/PRODUCT.md](./docs/PRODUCT.md) | **Source of truth for product judgment**, in English — problem · users · scope · loop · MVP, as the product is now | When a product decision is made: rewrite the affected text to the current rule |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | **Source of truth for structure**, in English — conventions (the baseline for skills and `doan check`) · formats · rendering · CLI↔app · skills · stack · distribution · moving between machines | When a structure, format, or conventions decision is made. When a feature is done, promote its conclusions here |
 | `docs/features/<slug>/` | Feature documents (spec·design·tasks) from `/feature`, **in Korean**. Deleted once the conclusions are promoted. Also holds dated `/audit` and `/ux-audit` reports and `/orchestrate` chain files (`chain-YYMMDD/chain.md`) in their own directories; those are not subject to automatic feature-completion deletion | While a feature is in progress, or when an audit produces a report |
 | docs/BACKLOG.md | What is not settled or shown yet, in English: product questions without a decision, surfaces not verified in the real app, known defects | When one is found; remove it when a feature takes it up or a fix lands |
@@ -121,7 +121,7 @@ The source for development skills is `.agents/skills/<name>/SKILL.md` (pipeline 
 | docs/DESIGN.md | Measured values the app UI relies on, documented deviations from drafts, unverified surfaces, as the UI is now, in English | When `/design-sync` runs or a measured value changes |
 | docs/POSTMORTEM.md | Record of pitfalls from bugs and regressions (newest date first; preserve existing entry content), in English. `/postmortem` creates it on first write | When a regression is fixed |
 | docs/USABILITY-EVAL.md | How agents fare writing and reading Doan designs: the usability loop, the issue list and `/agent-eval` rounds, in English | When `/agent-eval` runs or an agent usability issue is found or fixed |
-| Documents to create later | `docs/OPERATIONS.md` (feature 9 `dist`) · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public). All in English | Create them when that time comes. Do not create empty shells ahead of time |
+| Documents to create later | `docs/OPERATIONS.md` (release packaging `dist`, BACKLOG.md 'Undecided') · `docs/CONTRIBUTING.md` · `docs/CODE_OF_CONDUCT.md` · `docs/SECURITY.md` (right before going public). All in English | Create them when that time comes. Do not create empty shells ahead of time |
 | [AGENTS.md](./AGENTS.md) | How we work (this file), in English — the shared source for both runtimes | When the way we work changes |
 
 ## Commit conventions
