@@ -466,11 +466,6 @@ body:has(.shell-top) { background: transparent; }
    own fill and check. */
 .doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
 .shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
-/* Home's own atmosphere (2026-10-29 user): a wide violet ellipse spreading from the composer's centre, smooth and
-   still; unlike Welcome's bottom glow it has no grain. The panel clips it at its corners. */
-.home-atmosphere { position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none; background: radial-gradient(ellipse 78% 64% at 50% 60%, color-mix(in srgb, var(--affordance-accent) 24%, transparent) 0%, color-mix(in srgb, var(--affordance-accent) 15%, transparent) 32%, color-mix(in srgb, var(--affordance-accent) 6%, transparent) 62%, transparent 100%); }
-@media (prefers-reduced-transparency: reduce) { .home-atmosphere { opacity: .6; } }
-@media (forced-colors: active) { .home-atmosphere { display: none; } }
 /* The top inset is set from the reference group by HomeComposer (stageInsets); this is its floor. */
 .home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); }
 .home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
@@ -482,6 +477,11 @@ body:has(.shell-top) { background: transparent; }
 .logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
 /* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
 .composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
+/* Home's atmosphere (dogfooding): a violet glow that follows the composer's rounded border instead of a panel-wide
+   ellipse; still, no grain. Box shadows keep the composer's radius, so the glow traces its outline. Forced colors drop
+   box shadows. */
+.home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-10) var(--space-1) color-mix(in srgb, var(--affordance-accent) 22%, transparent), 0 0 calc(var(--space-10) * 2.5) var(--space-4) color-mix(in srgb, var(--affordance-accent) 10%, transparent); }
+@media (prefers-reduced-transparency: reduce) { .home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-10) var(--space-1) color-mix(in srgb, var(--affordance-accent) 14%, transparent); } }
 .composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
 /* A text field shows focus with its own border (DESIGN 'Focus'); the composer's is the quieter field-focus border with
    a slightly higher shadow (buzz-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
