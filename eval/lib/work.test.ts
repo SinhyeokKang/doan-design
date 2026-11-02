@@ -68,3 +68,28 @@ test("fake app records arrival hashes, missing paths, auth failures and token-fr
     assert.ok(Number.isFinite(Date.parse(log[0].at)));
   } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("an unreadable snapshot records null and leaves the fake app serving work requests", async () => {
+  const dir = mkdtempSync("/tmp/doan-work-test-");
+  const root = join(dir, "repo");
+  mkdirSync(join(root, path), { recursive: true });
+  const app = await startFakeApp({ dir, root, selection: null });
+  try {
+    const runtime = JSON.parse(readFileSync(app.runtimePath, "utf8"));
+    const request = (action: string) => new Promise<unknown>((resolve, reject) => {
+      const socket = connect(runtime.socket);
+      let reply = "";
+      socket.on("error", reject).on("data", bytes => { reply += bytes; }).on("end", () => {
+        try { resolve(JSON.parse(reply)); } catch (error) { reject(error); }
+      });
+      socket.end(JSON.stringify({ v: 3, token: runtime.token, root, action, ...(action === "start" ? { path } : {}) }) + "\n");
+    });
+    assert.deepEqual(await request("start"), { v: 3, ok: true });
+    rmSync(join(root, path), { recursive: true });
+    writeFileSync(join(root, path), "readable again");
+    assert.deepEqual(await request("done"), { v: 3, ok: true });
+    const log: WorkExchange[] = readFileSync(app.workLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.equal(log[0].hashes[path], null);
+    assert.equal(log[1].hashes[path], hash("readable again"));
+  } finally { await app.close(); rmSync(dir, { recursive: true, force: true }); }
+});

@@ -108,7 +108,7 @@ async function realRun(setup: RoundSetup, scenario: LoadedScenario, agent: Agent
 // file when there is one (`fixtures/<kind>.transcript.txt`), and runs the CLI
 // argument lists in `fixtures/<kind>.commands.json` against the fake app, with
 // `{{repo}}` replaced, so onboarding checks read a real request log.
-async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
+export async function fixtureRun(setup: RoundSetup, scenario: LoadedScenario, kind: "pass" | "fail"): Promise<{ record: RunRecord; problems: string[] }> {
   const name = `${scenario.id}-fixture-${kind}`;
   const dir = join(setup.out, name);
   mkdirSync(dir, { recursive: true });
@@ -242,13 +242,15 @@ async function main(): Promise<number> {
 }
 
 // Agents run in their own process groups, out of reach of the terminal's Ctrl-C.
-for (const signal of ["SIGINT", "SIGTERM"] as const)
-  process.on(signal, () => {
-    killRunning();
-    process.exit(130);
-  });
+if (import.meta.main) {
+  for (const signal of ["SIGINT", "SIGTERM"] as const)
+    process.on(signal, () => {
+      killRunning();
+      process.exit(130);
+    });
 
-main().then(code => { process.exitCode = code; }, error => {
-  console.error(`eval: ${(error as Error).message}`);
-  process.exitCode = 1;
-});
+  main().then(code => { process.exitCode = code; }, error => {
+    console.error(`eval: ${(error as Error).message}`);
+    process.exitCode = 1;
+  });
+}

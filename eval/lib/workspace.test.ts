@@ -9,6 +9,8 @@ import { createContext, judgeMaterial, sh } from "./context.ts";
 import { loadScenario } from "./scenario.ts";
 import { keepOnboardingLog, prepareWorkspace } from "./workspace.ts";
 
+const { CLAUDE_ALLOW_RULES } = await import("../../app/src/main/agentSetup/plan.ts");
+
 const root = mkdtempSync(join(tmpdir(), "doan-workspace-"));
 const cli = join(root, "doan");
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
@@ -21,9 +23,31 @@ test("isolated Claude project settings allow work signals without changing the r
   const ws = await prepareWorkspace({ scenario: r6(), agent: "claude", cli, stub: "stub\n" });
   try {
     const settings = JSON.parse(readFileSync(join(ws.repo, ".claude/settings.json"), "utf8"));
-    assert.deepEqual(settings.permissions.allow, ["Bash(doan work start *)", "Bash(doan work done *)"]);
+    assert.deepEqual(settings.permissions.allow, CLAUDE_ALLOW_RULES);
     assert.equal(git(ws.repo, ["status", "--porcelain"]), "");
   } finally { await ws.dispose(); }
+});
+
+test("real agents and fixture commands never inherit the runner's session identity", async () => {
+  const keys = ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID"];
+  const saved = keys.map(key => process.env[key]);
+  try {
+    for (const key of keys) process.env[key] = `runner-${key}`;
+    for (const agent of ["claude", "codex", "fixture"] as const) {
+      const ws = await prepareWorkspace({ scenario: r6(), agent, cli, stub: "stub\n" });
+      try {
+        const child = sh(process.execPath, ["-e", `process.stdout.write(JSON.stringify(Object.fromEntries(${JSON.stringify(keys)}.map(key => [key, process.env[key] ?? null]))))`], ws.repo, ws.env);
+        assert.equal(child.code, 0, child.stderr);
+        assert.deepEqual(JSON.parse(child.stdout), Object.fromEntries(keys.map(key => [key, null])), agent);
+        assert.ok(ws.env.DOAN_RUNTIME?.startsWith(ws.base));
+      } finally { await ws.dispose(); }
+    }
+  } finally {
+    for (let i = 0; i < keys.length; i++) {
+      if (saved[i] === undefined) delete process.env[keys[i]];
+      else process.env[keys[i]] = saved[i];
+    }
+  }
 });
 
 test("work context and retained evidence read the fake app's v3 exchanges", async () => {
