@@ -280,8 +280,14 @@ test("from Home, a project row opens its Overview, the loaded project's and anot
   sidebar().goHome(); render();
   sidebar().toggle(key("/w/b")); await flush(); render();
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
-  // From the workspace now loaded on /w/b, /w/a's row keeps restoring its last canvas.
+  // From the workspace now loaded on /w/b, /w/a's row (folded) keeps restoring its last canvas.
+  expect(sidebar().projects[key("/w/a")]?.expanded).not.toBe(true);
   sidebar().toggle(key("/w/a")); await flush(); render();
   expect(harness.controller!.openWorkspace!.mock.lastCall?.[0]).toBe("/w/a");
   expect(harness.controller!.openWorkspace!.mock.lastCall?.[4]).not.toBe(true);
+  // An expanded project that is not loaded opens its Overview from Home instead of folding.
+  sidebar().goHome(); render();
+  expect(sidebar().projects[key("/w/b")]?.expanded).toBe(true);
+  sidebar().toggle(key("/w/b")); await flush(); render();
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
 });
