@@ -480,8 +480,8 @@ body:has(.shell-top) { background: transparent; }
 /* Home's atmosphere (dogfooding): a violet glow that follows the composer's rounded border instead of a panel-wide
    ellipse; still, no grain. Box shadows keep the composer's radius, so the glow traces its outline. Forced colors drop
    box shadows. */
-.home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-10) var(--space-1) color-mix(in srgb, var(--affordance-accent) 22%, transparent), 0 0 calc(var(--space-10) * 2.5) var(--space-4) color-mix(in srgb, var(--affordance-accent) 10%, transparent); }
-@media (prefers-reduced-transparency: reduce) { .home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-10) var(--space-1) color-mix(in srgb, var(--affordance-accent) 14%, transparent); } }
+.home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 27%, transparent), 0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb, var(--affordance-accent) 7%, transparent); }
+@media (prefers-reduced-transparency: reduce) { .home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 15%, transparent); } }
 .composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
 /* A text field shows focus with its own border (DESIGN 'Focus'); the composer's is the quieter field-focus border with
    a slightly higher shadow (buzz-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
