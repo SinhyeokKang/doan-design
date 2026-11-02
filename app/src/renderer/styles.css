@@ -136,10 +136,12 @@ code, kbd { font-family: var(--type-family); }
 .ob-overlay::backdrop { background: transparent; }
 .ob-overlay.ob-welcome { background: var(--surface-panel); }
 @media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
-/* An accent glow broken up by an alpha grain mask, never black specks on top; it does not move (2026-10-28 user).
-   Fixed, so it fills the window behind the chrome rather than only the scrolling scene; z-index -1 keeps it under
-   the in-flow text in the overlay's own stacking context. */
-.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 50% 125% at 50% 112%, var(--affordance-accent) 0%, color-mix(in srgb, var(--affordance-accent) 78%, transparent) 30%, color-mix(in srgb, var(--affordance-accent) 32%, transparent) 60%, transparent 100%); mask-image: url("/onboarding-grain.svg"); mask-size: 180px 180px; mask-repeat: repeat; opacity: .85; }
+/* Pigment horizon: broad accent, indigo and apricot colour along the lower edge, a blurred violet glow under it and a
+   static grain on top; nothing moves. Fixed, so it fills the window behind the chrome rather than only the scrolling
+   scene; z-index -1 keeps it under the in-flow text in the overlay's own stacking context. */
+.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: radial-gradient(ellipse 75% 65% at 50% 108%, var(--affordance-accent) 0%, transparent 72%), radial-gradient(ellipse 65% 45% at 5% 100%, color-mix(in srgb, var(--indigo-600) 75%, white), transparent 80%), radial-gradient(ellipse 60% 45% at 100% 100%, color-mix(in srgb, var(--orange-600) 65%, white), transparent 80%), var(--surface-panel); }
+.ob-atmosphere::before { content: ""; position: absolute; left: -10%; right: -10%; bottom: -70px; height: 150px; border-radius: 50%; background: var(--violet-5); filter: blur(44px); }
+.ob-atmosphere::after { content: ""; position: absolute; inset: 0; background: url("/onboarding-grain.svg"); opacity: .14; mix-blend-mode: multiply; }
 @media (forced-colors: active) { .ob-atmosphere { display: none; } }
 .ob-chrome { position: relative; flex: none; height: var(--size-chrome); display: flex; align-items: center; justify-content: center; -webkit-app-region: drag; }
 /* The AppShell mode capsule drawn with the shared buttons (draft), so it does not inherit .shell-modes button. */
