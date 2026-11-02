@@ -46,3 +46,7 @@
 - E 완료: ce785302를 4e3f96ef로 통합했다. 3e13d1ed에서 패키지를 빌드해 O1·O2·D12·D9를 두 에이전트로 돌렸다(Claude Code 2.1.316, Codex 0.166.0). 직전 라운드(`aai-setup-261101`) 대비 O1-claude만 judge 판정으로 fail이었고(자동 확인은 모두 통과, setup 파일을 initialize 전에 알리지 않음), 반복 2회는 모두 pass였다. 우연으로 보고 issue 행은 만들지 않았다. 나머지는 모두 pass 유지다. 규칙 7은 시나리오가 없어 측정하지 않았다.
   - 첫 실행에서 runner가 real-state 변화로 exit 1을 냈다. 바뀐 것은 `keychain:provider-items`의 해시 하나이고 파일·`runtime.json`·`sessions.jsonl`은 그대로였다. 그때 사용자의 실제 Doan 앱이 떠 있었다. 원인은 확인하지 못했고, 반복 실행에서는 바뀌지 않았다. 아침 보고에 넣는다.
 - 정리: B·E 작업자를 release하고 worktree를 Orca로 지웠다. 지우기 전에 둘 다 깨끗했고 `git cherry`에 `+`가 없었다. `.scratch`는 `.scratch/orch/evidence-b`·`evidence-e`로 복사했다. Orca가 지운 브랜치는 다시 만들었다: `SinhyeokKang/feat-project-settings-task`(2870548f), `SinhyeokKang/project-settings-task-e`(ce785302).
+- A1 완료: 45f9d4d1·29fc744f를 9f7fb933·efc1e257로 통합했다(작업자 보고: 테스트 5699 통과, typecheck·build 통과). 작업자는 release했고 worktree는 Orca로 지웠다(깨끗함, `git cherry`에 `+` 없음, `.scratch`는 `evidence-a1`로 복사, 브랜치 `SinhyeokKang/feat-project-settings-a1`은 29fc744f로 다시 만듦).
+  - 지휘자 판단: 새 함수 `followProjectSettingsPage`는 A2가 다이얼로그용 옛 함수를 지운 뒤 `followProjectSettings`로 이름을 바꾼다(tasks T2의 이름).
+  - 지휘자 판단: Share 확인 제목은 시안처럼 경로를 code로 보인다. A2가 `SettingsDialog`의 `title`을 `ReactNode`로 넓히고 접근 이름은 문자열로 따로 둔다. 근거: 사용자가 확정한 시안이 정본이다.
+- A2: Claude Opus high(task `task_f1928394248c`, dispatch `ctx_a190afc01d54`, worktree `project-settings-a2`)로 efc1e257 위에서 시작했다. RA1(A1 리뷰, Claude Sonnet 서브에이전트)은 병렬로 돌린다. A1 파일에 대한 지적은 A2가 끝난 뒤 RA2 지적과 함께 A2의 수정 회차로 보낸다(A1 작업자는 release했고 A2가 그 파일을 소유한다).
