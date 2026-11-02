@@ -733,6 +733,26 @@ describe("storing, removing and restoring", () => {
     expect(saved(foldersFile)).toEqual([a, c]);
   });
 
+  // The Project Settings page and a loaded workspace follow a located project only through this focus (POSTMORTEM
+  // 2026-10-25 'Locating a project kept the old root's selection'); without it the old root just vanishes from the list.
+  test("replace reports the move as a re-root focus, and only a real move", async () => {
+    const [a, b, moved] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
+    const file = join(dir(), "folders.json");
+    const changes = vi.fn();
+    const shell = await startShell(file, cli, changes); shells.push(shell);
+    await shell.store([a, b]);
+    changes.mockClear();
+    await shell.replace(a, a);
+    expect(changes).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
+    await shell.replace(a, moved);
+    expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: a, root: moved });
+    await shell.replace(moved, b);
+    expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: moved, root: b });
+    changes.mockClear();
+    await shell.replace("/not/stored", moved);
+    expect(changes).not.toHaveBeenCalled();
+  });
+
   test("rereadAll reads every folder again without a loading state", async () => {
     const counting = countingCli();
     const [a, b] = [writeRepo(dir()), writeRepo(dir())];
