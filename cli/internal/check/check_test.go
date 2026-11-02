@@ -369,26 +369,31 @@ func TestViewportHeightUnit(t *testing.T) {
 	}
 }
 
-func TestViewportHeightUnitSharedStylesheet(t *testing.T) {
+func TestViewportHeightUnitSkipsLinkedStylesheets(t *testing.T) {
 	in := base()
 	b := parse(".doan/canvases/b.html", `<meta name="doan:canvas" content="two"><meta name="doan:width" content="1">`, "")
 	in.Canvases = append(in.Canvases, b)
-	in.CSS["shared.css"] = canvas.ScanCSS(`a{height:100vh}b{min-height:100vh;max-height:50vh}`, canvas.Stylesheet)
+	in.CSS["shared.css"] = canvas.ScanCSS(`a{height:100dvh}b{min-height:100vh}`, canvas.Stylesheet)
 	for _, c := range in.Canvases {
 		in.Reach[c.Path] = []CSSRef{{Href: "shared.css", RealPath: "shared.css", State: In, Direct: true}}
 	}
+	if fs := codes(Run(in), "viewport_height_unit"); len(fs) != 0 {
+		t.Fatalf("linked stylesheet warned: %+v", fs)
+	}
+	// The canvas's own <style> still warns while the linked stylesheet stays silent.
+	in.Canvases[0].Styles = canvas.ScanCSS(`a{height:100dvh}`, canvas.Stylesheet)
 	fs := codes(Run(in), "viewport_height_unit")
-	if len(fs) != 2 || fs[0].Canvas != "" || fs[0].Path != "shared.css" || fs[0].Value != "100vh" || fs[1].Value != "50vh" {
+	if len(fs) != 1 || fs[0].Path != in.Canvases[0].Path || fs[0].Canvas != "one" || fs[0].Value != "100dvh" {
 		t.Fatalf("%+v", fs)
 	}
 }
 
-func TestViewportHeightUnitInTokenCSS(t *testing.T) {
+func TestViewportHeightUnitSkipsTokenCSS(t *testing.T) {
 	in := base()
 	in.TokenCSS = TokenCSS{Configured: true, State: In, RealPath: "tokens.css"}
 	in.CSS["tokens.css"] = canvas.ScanCSS(`:root{--h:100vh}`, canvas.Stylesheet)
 	in.Reach[in.Canvases[0].Path] = []CSSRef{{Href: "tokens.css", RealPath: "tokens.css", State: In, Direct: true}}
-	if fs := codes(Run(in), "viewport_height_unit"); len(fs) != 1 || fs[0].Path != "tokens.css" || fs[0].Canvas != "" {
+	if fs := codes(Run(in), "viewport_height_unit"); len(fs) != 0 {
 		t.Fatalf("%+v", fs)
 	}
 }

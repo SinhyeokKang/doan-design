@@ -235,8 +235,12 @@ func Run(in Input) []Finding {
 					}
 				}
 			}
-			for _, v := range s.ViewportHeights {
-				output("viewport_height_unit", v)
+			// Linked stylesheets can be the app's product CSS, which an agent cannot fix, so only the
+			// canvas's own <style> and style attributes are reported.
+			if !shared {
+				for _, v := range s.ViewportHeights {
+					output("viewport_height_unit", v)
+				}
 			}
 			if shared {
 				for _, u := range append(append([]string(nil), s.URLs...), s.Imports...) {
