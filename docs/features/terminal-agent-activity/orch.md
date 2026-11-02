@@ -27,6 +27,8 @@
 - O11 (지휘자 판단 — 리뷰 RA H2): `active.go` `readLine`의 64 KiB 상한 구멍은 이 feature 밖이다. Z1에서 BACKLOG 'known defects'에 적는다.
 - O12 (지휘자 판단 — 리뷰 RB ⚪1): 만료 타이머는 1초 `setInterval` 대신 가장 이른 만료 시각까지의 `setTimeout` 하나로 둔다(design '폴링하지 않는다'에 더 가깝고 비용이 없다). ⚪4(관대한 URL 철자)는 root·canvas를 글자 그대로 비교하므로 그대로 둔다.
 - O13 (지휘자 판단 — D의 질문): D가 `conversation/ipc.ts` resumeTarget 응답과 preload 타입에 세션 필드 하나를 더한다(별도 커밋).
+- D6 (사용자 결정, 리뷰 RC2-1): Claude settings 병합에서, 옆으로 옮기기 전에 열어 둔 파일 핸들로 확인과 게시 사이에 쓰는 경우의 손실은 남는 한계로 받아들인다. 경로로 새로 열어 쓰거나 rename으로 쓰는 저장은 보존한다. Z1에서 ARCHITECTURE에 적는다. 잘못된 UTF-8과 깊은 JSON은 쓰지 않고 About에 보인다(C 수정 라운드 2).
+- O14 (지휘자 판단): 머지 전 리뷰에서 잡은 결함은 POSTMORTEM에 올리지 않는다. F가 찾은 eval 런타임 격리 결함(main에 있던 것)만 Z1에서 올린다.
 - O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
 
 ## 배치
