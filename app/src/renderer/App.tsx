@@ -613,8 +613,8 @@ export function App() {
       openNotice(notice, loaded ? undefined : () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true } })));
       return;
     }
-    // Home and the Add Projects page show the sidebar without a current project; its row goes back to the loaded
-    // workspace (design §3).
+    // Home and the Add Projects page show the sidebar without a current project: from Home its row opens the Overview,
+    // from the page it goes back to the loaded workspace (design §3).
     if (loaded) {
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
@@ -625,7 +625,9 @@ export function App() {
     }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
-    if (memory.expanded) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
+    // From Home the row always opens the Overview, so an expanded project does not fold there.
+    const fromHome = currentScreen.current === "home";
+    if (memory.expanded && !fromHome) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
     if (notice) { openNotice(notice, () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? memory), expanded: true } }))); return; }
     const intent = navigationIntent.current, signature = groupSignature;
     const activity = await window.doan.readShellActivity({ roots: memory.roots }).catch(() => null);
@@ -634,11 +636,12 @@ export function App() {
     const root = selectProjectRoot(memory, activity ?? [], loadedRoot); if (!root) return;
     const selected = entriesRef.current.find(entry => entry.path === root);
     if (selected?.kind !== "list" && selected?.kind !== "loading") { setShellProjects(previous => ({ ...previous, [key]: { ...memory, selectedRoot: root, expanded: true } })); return; }
+    // From Home another project's row opens its Overview too, never its last canvas (user decision).
     controller.current?.openWorkspace(root, next => {
       setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
       askSlot(next);
       completeNavigation(next);
-    });
+    }, false, undefined, fromHome);
   };
   // The project row's slot stands for a project conversation with work left: its Overview opens on it.
   const askSlot = (root: string) => {

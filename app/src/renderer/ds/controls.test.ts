@@ -203,7 +203,13 @@ test("portalled floating surfaces stack above the Overview", () => {
   expect(z(layer)).toBeGreaterThan(z(overview));
 });
 
-// Dropdown menus scroll with the same thin quiet scrollbar as the app's scroll containers, not the platform default.
-test("menus share the thin scrollbar", () => {
-  expect(read("./surfaces.css")).toContain(":is(.doan-scroll, .doan-menu) { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }");
+// Dropdown menus scroll with the app's quiet thumb, and the track stays out of the rounded corners: Chromium turns
+// the ::-webkit-scrollbar parts off once scrollbar-width or scrollbar-color is set, so a menu must not take them.
+test("menus share the quiet scrollbar and keep its track inside their corners", () => {
+  const css = read("./surfaces.css");
+  expect(css).toContain(".doan-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }");
+  expect(css).not.toMatch(/doan-menu[^{]*\{[^}]*scrollbar-(width|color)/);
+  expect(css).toContain(".doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: var(--scrollbar-thumb-quiet); }");
+  expect(css).toContain(".doan-menu::-webkit-scrollbar-track { margin-block: var(--radius-container); }");
+  expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin-block: var(--radius-row); }');
 });

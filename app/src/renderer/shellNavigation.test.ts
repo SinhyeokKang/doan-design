@@ -76,10 +76,11 @@ describe("shell project persistence", () => {
 
 // Dogfooding #2: there was no visible way back to Home or to the Overview from a canvas.
 describe("ways back", () => {
-  it("the loaded project's row opens its Overview from a canvas, keeps the slot rule on the Overview, and re-enters from elsewhere", () => {
+  it("the loaded project's row opens its Overview from a canvas and from Home, keeps the slot rule on the Overview, and re-enters from a page", () => {
     expect(loadedProjectRow({ screen: "workspace", overviewShown: false })).toBe("overview");
     expect(loadedProjectRow({ screen: "workspace", overviewShown: true })).toBe("slot");
-    expect(loadedProjectRow({ screen: "home", overviewShown: false })).toBe("enter");
+    expect(loadedProjectRow({ screen: "home", overviewShown: false })).toBe("overview");
+    expect(loadedProjectRow({ screen: "addProjects", overviewShown: false })).toBe("enter");
     expect(loadedProjectRow({ screen: "settings", overviewShown: true })).toBe("enter");
   });
   it("the Projects tab leaves a page as before and goes Home from a workspace", () => {
