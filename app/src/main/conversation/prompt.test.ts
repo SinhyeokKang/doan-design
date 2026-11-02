@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { anchorTokens, turnPrompt, HOME_GUIDANCE, LIMITS, OPEN_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
+import { anchorTokens, turnPrompt, HOME_GUIDANCE, LIMITS, LINK_GUIDANCE, OPEN_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
 const anchor = { frame: { id: "main", title: "Main" }, element: { selector: "button", doanId: "save", text: "Save" } };
 it("accepts repeated references and preserves their positions", () => {
   expect(anchorTokens("Change {{2}} then {{1}} and {{2}}", [anchor, anchor])).toEqual([2, 1, 2]);
@@ -61,6 +61,18 @@ it("blocks the open offer outside the untrusted data, says it overrides the guid
   expect(OPEN_GUIDANCE).toContain("only when the user asks you to");
   expect(OPEN_GUIDANCE).toContain("overrides the Doan guide's rule");
   expect(OPEN_GUIDANCE).not.toContain("\n");
+});
+it("teaches the reply link form next to the open rule, outside the data, and says it is not an offer to open", () => {
+  const prompt = turnPrompt([anchor], "Open {{1}} please", { root: "/repo" })!;
+  const sections = prompt.split("\n\n");
+  expect(sections).toContain(LINK_GUIDANCE);
+  expect(sections.indexOf(LINK_GUIDANCE)).toBe(sections.indexOf(OPEN_GUIDANCE) + 1);
+  expect(JSON.stringify(JSON.parse(sections[1]!))).not.toContain("doan:");
+  expect(turnPrompt([], "hello", { root: "/other" }, { home: true })).toContain(LINK_GUIDANCE);
+  for (const text of ["[name](doan:<canvas-id>/frame/<frame-id>)", "[name](doan:<canvas-id>/element/<doan-id>)", "percent-encod"]) expect(LINK_GUIDANCE).toContain(text);
+  // The line must not read as the open offer or the doan:// link that OPEN_GUIDANCE and the guide's rule J rule out.
+  for (const text of ["not an offer to open", "`doan://`"]) expect(LINK_GUIDANCE).toContain(text);
+  expect(LINK_GUIDANCE).not.toContain("\n");
 });
 it("puts only the folder and canvas of the conversation in the prompt's context", () => {
   const metadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Secret title", state: "current",

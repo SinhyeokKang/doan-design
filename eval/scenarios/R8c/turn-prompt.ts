@@ -2,7 +2,7 @@ import { registerHooks } from "node:module";
 
 // prompt.ts is app code written for Vite: app/src imports omit the extension, a
 // package subpath (ajv/dist/2020) omits `.js`, and JSON schemas are imported without
-// an attribute. These rules let Node load it unchanged, so R8b's test compares
+// an attribute. These rules let Node load it unchanged, so R8c's test compares
 // prompt.md with the app's own turnPrompt instead of a copy of its text (as H6 does
 // with copyText).
 registerHooks({
