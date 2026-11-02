@@ -4,6 +4,7 @@
 
 > Pitfalls we hit, newest date first. Preserve existing entry content; insert new entries above older ones.
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
+> Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
 ### 2026-11-01 — A canvas of absolutely positioned frames resized its iframe between 0 and 405 px forever
 
