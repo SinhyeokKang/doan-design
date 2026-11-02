@@ -130,7 +130,7 @@ type PageProps = { section: string; arrival: { focus: { kind: string; provider?:
 const settings = () => find<PageProps>(SettingsPage)[0];
 const onSettings = () => settings() !== undefined;
 const addPage = () => find<{ header: ReactElement }>(AddProjectsPage)[0];
-const homeEl = () => find<{ header: ReactElement; openSettings(target: unknown): void; defaults: unknown }>(Home)[0];
+const homeEl = () => find<{ header: ReactElement; openSettings(target: unknown): void; defaults: unknown; select: { root: string; seq: number } | null }>(Home)[0];
 function topBar(header: ReactElement) {
   const bar = (header.type as (props: unknown) => ReactNode)(header.props);
   const buttons = all(bar).filter(element => element.type === "button");
@@ -619,6 +619,75 @@ test("Locate or Set Up moving the worktree keeps the page and its origin on the 
   expect(projectPage()).toBeUndefined();
   expect(homeEl()).toBeUndefined();
   expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+});
+
+// main reports a located project as a re-root focus (shell.replace), like Set Up. From Home, Add Projects or the Project
+// Settings page the Locate does not open the new root, so the loaded root must not follow it (the controller never
+// opened it); only the workspace Locate, which opens the new root itself, keeps working as before.
+const locating = () => { let finish: (value: unknown) => void = () => {}; doan.locateProject = vi.fn(() => new Promise(resolve => { finish = resolve; })); return (value: unknown) => finish(value); };
+const loadedOf = (sidebar: ReactElement) => (sidebar.props as { loaded?: unknown }).loaded;
+const settleLocate = async () => { await Promise.resolve(); await Promise.resolve(); render(); };
+
+test("Locate of the loaded root from Home does not move the loaded root to the located one", async () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  expect(loadedOf(find(ShellSidebar)[0]!)).toBe("/w/a");
+  find<{ goHome(): void }>(ShellSidebar)[0]!.props.goHome(); render();
+  expect(homeEl()).toBeDefined();
+  clearController();
+  const answer = locating();
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("locate", "/w/a"); render();
+  listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+  expect(loadedOf(find(ShellSidebar)[0]!)).not.toBe("/w/moved");
+  expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+});
+
+test("Locate of the loaded root from the Project Settings page does not move the loaded root, while the page follows", async () => {
+  projectSettingsFromWorkspace([listed("/w/a"), listed("/w/b")]);
+  expect(loadedOf(projectPage()!.props.sidebar)).toBe("/w/a");
+  const answer = locating();
+  projectPage()!.props.onAction("locate", "/w/a", vi.fn()); render();
+  listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+  expect(loadedOf(projectPage()!.props.sidebar)).not.toBe("/w/moved");
+  expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+});
+
+test("Locate from the workspace still opens the located root", async () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  clearController();
+  const answer = locating();
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("locate", "/w/a"); render();
+  listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+  expect(harness.controller!.openWorkspace).toHaveBeenCalledWith("/w/moved", expect.any(Function));
+});
+
+// Locate now produces re-roots too, and one is never consumed: a later in-place Set Up of a root equal to an old
+// re-root's `from` must not follow that old move.
+test("Set Up chooses the re-root made after it started, not an older one from the same root", () => {
+  render();
+  folders([{ path: "/w/a", kind: "uninitialized" }]);
+  listeners.folders!([listed("/w/old")] as never, { from: "/w/a", root: "/w/old" } as never); render();
+  folders([{ path: "/w/a", kind: "uninitialized" }, listed("/w/old")]);
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("setUp", "/w/a"); render();
+  expect(find(ProjectSetupDialog)).toHaveLength(1);
+  folders([listed("/w/a"), listed("/w/old")]);
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  expect(homeEl()!.props.select).toMatchObject({ root: "/w/a" });
+});
+
+test("Set Up chooses the root it was re-rooted to", () => {
+  render();
+  folders([{ path: "/w/a", kind: "uninitialized" }]);
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("setUp", "/w/a"); render();
+  listeners.folders!([listed("/w/up")] as never, { from: "/w/a", root: "/w/up" } as never); render();
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  expect(homeEl()!.props.select).toMatchObject({ root: "/w/up" });
 });
 
 // A fake focusable element for focusCurrent's checks (connected, in the page's shell, visible).

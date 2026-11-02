@@ -174,6 +174,10 @@ export function App() {
   const dragLayer = useRef<HTMLDivElement>(null);
   const controller = useRef<CanvasController | null>(null);
   const [reroot, setReroot] = useState<(FolderFocus & { seq: number }) | null>(null);
+  // `rerootSeq` counts the re-root focuses seen; Set Up keeps the count at its start so a re-root from before it is not
+  // taken for its own. `locateFrom` is the root a Locate is waiting on: main reports that move as a re-root focus too,
+  // but only the workspace Locate (which opens the new root itself) may move `loadedRoot` along with it.
+  const rerootSeq = useRef(0), setupSeq = useRef(0), locateFrom = useRef<string | null>(null);
   const [wizard, setWizard] = useState<string | null>(null);
   const beforeWizard = useRef<HTMLElement | null>(null);
   const restoreFocus = useRef(false);
@@ -336,8 +340,10 @@ export function App() {
     controller.current = instance;
     const stopFolders = window.doan.onFolders((next, focus) => {
       if (focus) {
-        setLoadedRoot(root => root === focus.from ? focus.root : root);
-        setReroot(previous => ({ ...focus, seq: (previous?.seq ?? 0) + 1 }));
+        const located = locateFrom.current === focus.from;
+        if (!located) setLoadedRoot(root => root === focus.from ? focus.root : root);
+        rerootSeq.current += 1;
+        setReroot({ ...focus, seq: rerootSeq.current });
       }
       const removed = entriesRef.current.filter(entry => !next.some(row => row.path === entry.path)).map(entry => entry.path);
       if (removed.length) {
@@ -704,7 +710,7 @@ export function App() {
   }, [entries, modal]);
   useEffect(() => {
     if (setup && !entries.some(entry => entry.path === setup && (entry.kind === "uninitialized" || entry.kind === "loading"))) {
-      const root = reroot?.from === setup ? reroot.root : setup;
+      const root = reroot?.from === setup && reroot.seq > setupSeq.current ? reroot.root : setup;
       choose(root);
       setSetup(null); modalClosed();
     }
@@ -962,18 +968,19 @@ export function App() {
     cancelRestore();
     if ((name === "retry" || name === "locate") && document.activeElement instanceof HTMLElement) recoveryFocus.current = { element: document.activeElement, root };
     if (name === "details") { const entry = entriesRef.current.find(entry => entry.path === root); if (entry?.kind === "error") notice(entry.message); }
-    else if (name === "setUp") { rememberFocus(); setSetup(root); }
+    else if (name === "setUp") { rememberFocus(); setupSeq.current = rerootSeq.current; setSetup(root); }
     else if (name === "remove") void remove([root]);
     else if (name === "showInFinder") void window.doan.revealProject(root).catch(console.error);
     else if (name === "retry") void window.doan.reopenFolder(root).catch(console.error);
     else if (name === "locate") {
       const workspace = loadedRoot === root && currentScreen.current === "workspace";
       if (workspace) setLocating({ from: root, root: null });
+      locateFrom.current = root;
       void window.doan.locateProject(root).then(result => {
         if (result.kind === "refused") notice(result.message);
         if (workspace && result.kind === "located") { setLoadedRoot(result.root); setLocating({ from: root, root: result.root }); }
         else if (workspace) setLocating(null);
-      }).catch(error => { if (workspace) setLocating(null); console.error(error); });
+      }).catch(error => { if (workspace) setLocating(null); console.error(error); }).finally(() => { if (locateFrom.current === root) locateFrom.current = null; });
     }
   }
   useEffect(() => window.doan.onMenuCommand(name => {
