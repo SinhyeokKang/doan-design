@@ -437,7 +437,7 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 
 ## Projects home
 
-> buzz-ds 이전. Owner on the mark: `buzz-home`, which has shipped without remeasuring these surfaces, so no child owns the mark now. Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal toast with Undo and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page).
+> buzz-ds 이전. Owner: `project-settings` (it remeasures these surfaces and removes the mark). Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal toast with Undo and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page).
 
 ### Measured contracts
 
