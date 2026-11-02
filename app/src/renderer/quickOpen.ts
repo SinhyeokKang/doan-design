@@ -1,3 +1,4 @@
+import type { OpenLinkResult } from "../main/deepLinks";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { canvasDir } from "../formats/canvasPath";
 import { canvasLabel, frameLabel } from "./canvasTree";
@@ -262,4 +263,12 @@ export function unavailableCanvasMessage(entry: FolderEntry | undefined, path: s
   if (entry?.kind === "list") return missingCanvasMessage(path);
   if (entry?.kind === "loading") return "Project is still being read. Try Open again shortly.";
   return "Project is unavailable. Fix it from its menu in the sidebar, then try again.";
+}
+
+// A doan:// link main refused (terminal-agent-activity design 'Deep link' '거절'): one toast without an action, since a
+// link only moves. `project` is the sidebar's project name, which main sends.
+export function openLinkRefusal(result: Exclude<OpenLinkResult, { kind: "navigate" }>): string {
+  if (result.kind === "malformed") return "Couldn’t open the link. It isn’t a Doan canvas link.";
+  if (result.kind === "unregistered-root") return "Couldn’t open the link. Its project isn’t in Doan. Add it from Add Projects, then open the link again.";
+  return `Couldn’t open the link. The canvas isn’t in ${result.project}.`;
 }

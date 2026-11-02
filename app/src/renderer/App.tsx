@@ -6,6 +6,7 @@ import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
+import type { OpenLinkResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
@@ -47,7 +48,7 @@ import { useThumbnails } from "./thumbnails";
 import { canvasConversationRows } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
-import { missingCanvasMessage, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
+import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
@@ -641,8 +642,8 @@ export function App() {
 
   const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || projectSettings !== null;
   useLayoutEffect(() => { toast.setModal(modal); }, [modal]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded, followMode };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded, followMode, openLink };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -783,6 +784,16 @@ export function App() {
   // Settings… (⌘,) from main, after it has shown a hidden window; a payload that is not a target is dropped.
   useEffect(() => window.doan.onOpenSettingsPage(value => { const target = parseSettingsTarget(value); if (target) live.current.openSettings(target); }), []);
   useEffect(() => window.doan.onNotificationClick(click => live.current.notificationClick(click)), []);
+  // doan:// links: subscribed on mount, while main holds them until App is ready (below).
+  useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
+  // Ready once the launch restore is applied (or cancelled) and the first folders are in, so a link's canvas opens over
+  // the restored screen (terminal-agent-activity design 'Deep link' '대기').
+  const linksReady = useRef(false);
+  useEffect(() => {
+    if (linksReady.current || restore !== "done" || !foldersSeen) return;
+    linksReady.current = true;
+    void window.doan.openLinksReady().catch(console.error);
+  }, [restore, foldersSeen]);
   // The canvases terminal sessions work on (terminal-agent-activity 'Renderer IPC'): subscribed first, then read, and a
   // change that lands before the read answers is newer than it.
   const [work, setWork] = useState<readonly WorkItem[]>([]);
@@ -911,6 +922,19 @@ export function App() {
     const frameId = result.kind === "frame" ? result.frameId : undefined;
     const found = (ok: boolean) => { if (!ok) live.current.toast.show("This frame is not in the rendered canvas"); };
     controller.current?.openCanvas(result.root, row, frameId, { unavailable, ...(result.kind === "frame" ? { found, index: result.frameIndex } : {}), opened: () => completeNavigation(result.root) });
+  }
+  // A doan:// link (terminal-agent-activity design 'Deep link'): Quick Open's move. A frame moves the view as Quick Open's
+  // frame does, without selection; a frame not in the canvas leaves the canvas only, with no toast. A refused link
+  // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move.
+  function openLink(result: OpenLinkResult) {
+    if (result.kind !== "navigate") { live.current.toast.show(openLinkRefusal(result)); return; }
+    if (locked()) return;
+    cancelRestore();
+    const target = entriesRef.current.find(entry => entry.path === result.root);
+    const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.canvas) : undefined;
+    const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas));
+    if (!row) { unavailable(target); return; }
+    controller.current?.openCanvas(result.root, row, result.frame, { unavailable, opened: () => completeNavigation(result.root) });
   }
   // An Overview that was open when its project turned into a problem stays, its thread readable and Send held; one
   // entered while the project is a problem shows the problem screen (buzz-project spec decision 12).
