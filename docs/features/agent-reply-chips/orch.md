@@ -20,8 +20,8 @@
 |---|---|---|---|---|---|---|
 | A1 | T0·T1·T2 | `app/src/main/conversation/types.ts`, `app/src/main/canvasScript.ts`+테스트, `CanvasController.ts`의 `locate`만, 새 `app/src/main/conversation/replyAnchor.ts`+테스트, renderer 새 파일(`replyUrlTransform`, `replyChipTarget`)+테스트 | 없음 | Claude Sonnet high: 순수 함수와 테스트 목록이 정해져 있다. 파싱은 신뢰하지 않는 입력이라 high | app test·typecheck, verify | 완료. 통합 0b79b965·af37638f·dd42d624. RA1 🔴 0, 수정 회차 없음(🟡 `EXTRA_ROOTS`와 🟢 root·토스트 조건은 A2로 넘김). 작업자 해제, worktree 삭제, 브랜치 `agent-reply-chips-a1`(539f947e)로 남김 |
 | B | T5·T6 | `app/src/main/conversation/prompt.ts`+테스트, `eval/`(R8b→R8c, 새 R9, `eval/lib` `finalAnswer`), `docs/USABILITY-EVAL.md` | T6은 A1의 T1 커밋 | Claude Sonnet high: 프롬프트 한 줄과 eval 시나리오. 선례(R8b, H4)가 있다 | app test, eval unit, self-test, `/agent-eval` | 진행(dispatch ctx_7a1af6eff60b, worktree `agent-reply-chips-b`) |
-| A2 | T3·T4 | `ConversationThread.tsx`+테스트, `CanvasController.ts`, `App.tsx`+테스트, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx` | A1 통합 | Claude Opus high: 이동·방문 기록·대기 locate 수명 주기·root 경계 판단이 많다 | app test·typecheck·build, verify | 구현 99b10201(verify PASS). RA2 🔴 0, 🟡 5. 수정 1회 진행(dispatch ctx_56451486c288, worktree `agent-reply-chips-a2`) |
-| C | T7 | `.scratch/runtime-test/agent-reply-chips/` | A2 통합 | Claude Sonnet high: probe 선례가 있다 | probe exit 0, 스크린샷, real-state | 대기 |
+| A2 | T3·T4 | `ConversationThread.tsx`+테스트, `CanvasController.ts`, `App.tsx`+테스트, `CanvasConversationPanel.tsx`, `ProjectOverview.tsx` | A1 통합 | Claude Opus high: 이동·방문 기록·대기 locate 수명 주기·root 경계 판단이 많다 | app test·typecheck·build, verify | 완료. 통합 9ca7f5e1·3a36f51f. RA2 🔴 0, 🟡 5를 수정 1회(b3c468bb, verify PASS)로 고쳤다. 재렌더 테스트는 의존성 없는 hooks 하네스다(지휘자 재량: DOM 테스트 의존성을 더하지 않는다). 작업자는 C 결과를 기다리며 남겨 둔다(dispatch ctx_56451486c288 retained) |
+| C | T7 | `.scratch/runtime-test/agent-reply-chips/` | A2 통합 | Claude Sonnet high: probe 선례가 있다 | probe exit 0, 스크린샷, real-state | 진행(dispatch ctx_556ed93953d5, worktree `agent-reply-chips-c`) |
 | 지휘자 | T8·Z1 | 통합 브랜치, `docs/` 승격 | 모든 배치 | — | `/verify --eval`, Z1 grep | 대기 |
 
 Orca run `run_09060a2df817`. 리뷰: RA1·RB는 Claude Sonnet 서브에이전트, RA2는 Claude Opus 서브에이전트(`/code-review`, 보고만).
