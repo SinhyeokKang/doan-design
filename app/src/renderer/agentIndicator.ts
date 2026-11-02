@@ -2,6 +2,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
+import type { WorkItem } from "../main/workState";
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { agentPresence, type AgentPresence } from "./agentPresence";
 import type { CanvasState } from "./CanvasController";
@@ -24,30 +25,37 @@ export function listForPresence(state: readonly ConversationSummary[] | "loading
   return Array.isArray(state) ? state : null;
 }
 
-export interface CanvasAgentState { root: string; presence: AgentPresence; provider: string }
+// presence null: only a terminal session works on the canvas (terminal-agent-activity), so there is nothing to Stop.
+export type CanvasAgentState = { root: string; presence: AgentPresence; provider: string } | { root: string; presence: null; terminal: true };
 
 // agentPresence with the provider's display name, which the Stop failure toast names. A failed read keeps the previous
 // presence, and with it the provider, only within the same project: a twin canvas in another worktree (same id or
-// path) must never show, or Stop, the first project's conversation (RBR5).
-export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null): CanvasAgentState | null {
+// path) must never show, or Stop, the first project's conversation (RBR5). Without an app conversation working or
+// waiting on it, a terminal session's `doan work` on the canvas (`work`, root + path) shows the terminal variant, so
+// the indicator stays when the app turn ends and the terminal session goes on.
+export function canvasAgent(list: readonly ConversationSummary[] | null, target: WorkingCanvas | null, previous: CanvasAgentState | null, work: readonly WorkItem[]): CanvasAgentState | null {
   if (!target) return null;
   const kept = previous?.root === target.root ? previous : null;
   const presence = agentPresence(list, target.canvas, kept?.presence ?? null);
-  if (!presence) return null;
-  const listed = list?.find(c => c.conversationId === presence.conversationId);
-  return { root: target.root, presence, provider: listed ? PROVIDER_NAMES[listed.provider] : kept?.provider ?? "" };
+  if (presence) {
+    const listed = list?.find(c => c.conversationId === presence.conversationId);
+    return { root: target.root, presence, provider: listed ? PROVIDER_NAMES[listed.provider] : kept?.presence ? kept.provider : "" };
+  }
+  return work.some(item => item.root === target.root && item.path === target.canvas.path) ? { root: target.root, presence: null, terminal: true } : null;
 }
 
 export interface AgentNoticeView {
   text: string;
   // The dot stops while the agent waits for an answer.
   steady: boolean;
-  action: { kind: "stop"; label: "Stop" | "Stopping…"; disabled: boolean } | { kind: "open"; label: "Open"; name: "Open the request" };
+  // null: a terminal session, which the app cannot stop.
+  action: { kind: "stop"; label: "Stop" | "Stopping…"; disabled: boolean } | { kind: "open"; label: "Open"; name: "Open the request" } | null;
 }
 
-// `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet.
-export function agentNoticeView(presence: AgentPresence | null, stopping: string | null): AgentNoticeView | null {
-  if (!presence) return null;
+// `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet. `terminal`: a terminal session
+// works on the canvas; it shows only without an app presence, with the same words and no button (user decision D1).
+export function agentNoticeView(presence: AgentPresence | null, stopping: string | null, terminal: boolean): AgentNoticeView | null {
+  if (!presence) return terminal ? { text: "Agent is working", steady: false, action: null } : null;
   // A fixed name, not the provider's (dogfooding): the panel beside the board already says which agent this is.
   if (presence.kind === "waiting") return { text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
   const held = stopping === presence.conversationId;

@@ -1071,6 +1071,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    height (4 + 32 + 4): the picking hint ends in a key and the terminal notice has no button (terminal-agent-activity
    user decision D2, draft terminal-notice). */
 .doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; min-height: var(--size-control); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+/* A terminal session's notice has no button to end on: an even inline inset (draft terminal-notice). */
+.doan-agent.doan-agent-terminal { padding: var(--space-1) var(--space-4); }
 .doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
    white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
