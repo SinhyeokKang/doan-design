@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ChevronDown, Info, Plus } from "lucide-react";
+import { ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
@@ -9,6 +9,7 @@ import { messageLine, type FrameName } from "../main/conversation/messageText";
 import type { FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { textSegments } from "./anchorField";
 import { canvasConversationError, canvasConversationMenu } from "./canvasConversation";
 import { sameCanvas } from "./canvasConversationRows";
@@ -95,13 +96,21 @@ export function linkedAt(at: string | undefined, now: number): string | null {
   return date.toDateString() === today.toDateString() ? clock : `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${clock}`;
 }
 
+// The header's New conversation button: the menu's item one click away, left of Hide conversation (dogfooding). On a new
+// conversation already it only focuses the composer.
+export function startNewConversation(current: string | null, select: (id: string | null) => void, focus: () => void): void {
+  if (current !== null) select(null);
+  focus();
+}
+
 export function CanvasConversationTitle({ run, list, canvasName, now, seen, title, current, onPicked }: {
   run: CanvasRun; list: ListView; canvasName: string; now: number; seen: ReadonlySet<string>; title: string; current: string | null; onPicked(): void;
 }) {
   const target = run.target();
   const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen) : [];
   const picked = useRef(false);
-  return <span className="ov-title-wrap doan-conv-title">
+  const startNew = () => startNewConversation(current, run.select.bind(run), onPicked);
+  return <><span className="ov-title-wrap doan-conv-title">
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild disabled={list === "loading"}><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
         <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
@@ -121,7 +130,9 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
         </DropdownMenu.RadioGroup>
       </DropdownMenu.Content></DropdownMenu.Portal>
     </DropdownMenu.Root>
-  </span>;
+  </span>
+  <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" onClick={startNew}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
+    <TooltipContent>New conversation</TooltipContent></Tooltip></>;
 }
 
 // The panel's title: the shown conversation's, or New conversation.
