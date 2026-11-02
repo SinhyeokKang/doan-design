@@ -55,7 +55,7 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 canvas-hand-tool | Claude Code 세션 ceb45427, worktree `canvas-hand-tool-orch` | 2026-11-03 | | 진행 중 |
+| 1 canvas-hand-tool | Claude Code 세션 ceb45427, worktree `canvas-hand-tool-orch` | 2026-11-03 | PR #75, 병합 a6d35fd2 | 완료 |
 | 2 project-settings | | | | 대기 |
 | 3 canvas-open-offer | | | | 대기 |
 | 4 agent-reply-chips | | | | 대기 |
@@ -77,3 +77,14 @@
   - 링크 5의 새 행 메뉴는 공용 드롭다운 프리미티브(Radix + `doan-floating doan-menu`)를 쓴다(사용자). 다만 링크 1 배치 D가 실제 앱에서 잰 결과, 모든 드롭다운이 이미 같은 글라스(0.9 흰색 + blur 8px)였고, 사이드바 열 위에서는 창의 네이티브 vibrancy 때문에 웹 `backdrop-filter`가 뒤를 흐리지 못했다. 그래서 사이드바에서 여는 메뉴는 불투명 채움 예외 `.shell-side-menu`(`styles.css`)를 붙인다. 링크 5의 행 메뉴도 사이드바에서 열리므로 이 클래스를 붙인다. 근거: 링크 1 orch.md 배치 D.
   - 사용량: Codex 주간 한도가 10% 아래로 내려가면 이후 링크는 Codex를 쓰지 않고 Claude Sonnet으로 리뷰한다. Claude 한도에 닿으면 그 링크 세션이 멈추며, 초기화(2026-11-04 13:59 KST) 뒤 사용자가 재개한다. Opus는 판단이 무거운 배치에만 쓴다.
   - Keychain: 공용 프로필은 링크 1 worktree의 Electron이 만들었다. 프로필을 쓰는 probe에서 macOS 대화상자가 뜨면 누르지 않고 그 항목만 미룬다.
+- 2026-11-03 링크 1 완료(세션 ceb45427): PR #75를 main에 병합했다(a6d35fd2). 통합 HEAD에서 `/verify` PASS. 그 뒤 main의 chain.md 커밋 위로 rebase만 했다.
+  - 배치: A(T1·T3, Claude Opus high, 수정 1회), B(T2, Codex gpt-6-astra medium), D(사용자 요청 디자인 이슈 2개, Claude Sonnet high, 수정 1회), C(T4 runtime-test·design-sync, Claude Opus high). 리뷰: RA는 Codex gpt-6-astra medium, 나머지는 Claude 서브에이전트(Sonnet·Opus). Codex는 B와 RA 두 번만 썼다.
+  - 확인하지 못한 것: 화면이 잠겨 native 입력 항목(OS 커서 grab·grabbing, 창 밖 native 드래그, native OOPIF 진입, 실제 IME, native ⌘H/⌘V)을 돌리지 못했다. CDP로 대신 확인했고, BACKLOG 'Not verified in the real app'에 적었다. probe는 링크 1 지휘자 worktree의 `.scratch/orch/evidence-c/runtime-test/canvas-hand-tool/native-probe.mjs`에 있다.
+  - 사용자 확인이 필요한 것(아침 보고): 사이드바 프로젝트 메뉴를 블러 대신 불투명 채움으로 바꿨다(`.shell-side-menu`). 원인은 창의 네이티브 vibrancy 위에서 웹 `backdrop-filter`가 효과가 없는 것이다. 되돌리기는 규칙 하나다.
+  - 다음 링크가 알아야 할 것:
+    - 새 IPC `pointer:get`(main window main frame only)과 캔버스 클릭 포커스 규칙(ARCHITECTURE §3 Input). 시작 점검의 '포인터 위치 조건'은 main의 OS 커서로 판정한다. 부모 문서는 OOPIF로 바로 들어가는 포인터를 보지 못하기 때문이다.
+    - `doan-kbd`의 공용 변형 `data-ui-variant="on-prominent"`와 `data-ui-size="sm"`, 키가 있는 툴팁 `.doan-tooltip.has-key`(`ds/controls.css`, DESIGN).
+    - 프리셋 팝오버 행: 포커스가 이미 목록 안에 있을 때만 포인터가 포커스를 옮긴다. 공용 규칙은 `ds/surfaces.css`의 listbox 행 `:focus`와 hover다.
+    - `CanvasState.tool`은 `"select" | "hand"`로 바뀌었고 픽은 `picking: boolean`이다. App은 `setCanvasPage`로 캔버스 페이지 여부를 controller에 알린다(링크 4의 locate·`openCanvas`가 이 위에서 시작한다).
+    - 공용 프로필 백업 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData.bak-hand`가 남아 있다. 마지막 링크가 프로필을 지울 때 함께 지운다.
+    - 사용량(링크 1 끝): Claude 7일 76%(2026-11-04 13:59 KST 초기화), Codex 대시보드 18%(상태줄 주간 12% 남음).
