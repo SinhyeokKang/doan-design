@@ -58,6 +58,8 @@
 ## 통합 기록
 
 - S 수정 라운드 1과 A를 합친 HEAD에서 `go test ./cli/...` 통과. `npm --prefix app test`는 `thumbnails.test.ts` "the walk limit counts empty directories" 1건이 전체 실행에서 실패하고 단독 재실행에서 통과했다(워커 여럿이 도는 부하 중). 최종 `/verify`에서 다시 본다.
+- B 수정 라운드 1, D, F를 통합한 HEAD `bc791e18`: typecheck 통과, `npm --prefix app test` 221 파일 5473개 통과, `node --test 'eval/**/*.test.ts'` 221개 통과.
+- F 실제 라운드 `taa-work-261102`: W3·W1 모두 Claude Code·Codex 통과(F 보고). 모든 실행에서 편집이 한 번뿐이라 편집 간격과 5분 만료 조정은 측정하지 못했다.
 
 ## 겹침과 순서
 
