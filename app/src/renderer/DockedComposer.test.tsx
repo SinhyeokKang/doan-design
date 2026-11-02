@@ -117,7 +117,7 @@ test("a chip makes the box and draws the chip row before the field", () => {
 // canvas picks; unavailable with aria-disabled (not disabled) so its reason shows as a tooltip.
 test("the canvas panel's composer draws Pick from canvas first in the model row", () => {
   const html = render({ pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
-  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"><svg[^]*?<\/button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"[^>]*><svg[^]*?<\/button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
   expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
   expect(render({ pick: { pressed: true, enabled: true, reason: null, onToggle: () => {} } })).toContain('aria-label="Pick from canvas" aria-pressed="true"');
   const off = render({ pick: { pressed: false, enabled: false, reason: "Pick from canvas isn’t available while the canvas can’t be shown.", onToggle: () => {} } });
@@ -139,7 +139,7 @@ test("the card holds no Attach; the tray starts with it at xs", () => {
   const card = html.slice(html.indexOf("composer-card"), html.indexOf("composer-tray"));
   expect(card).not.toContain("Attach files");
   expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"/);
-  expect(render({ turn: "sending" })).toMatch(/composer-attach" data-ui-size="xs" aria-label="Attach files" disabled=""/);
+  expect(render({ locked: true, unavailable: "This page isn’t in the list." })).toMatch(/composer-attach" data-ui-size="xs" aria-label="Attach files" disabled=""/);
 });
 
 test("docked CSS: no grid area for Attach in the card; the tray's Attach takes the quiet and disabled inks", () => {
