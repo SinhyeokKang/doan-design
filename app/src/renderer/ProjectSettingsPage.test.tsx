@@ -655,3 +655,58 @@ test("after Share, focus returns to Add File or Folder once the write has settle
   expect(add.focus).toHaveBeenCalledTimes(1);
   unmount();
 });
+
+// Fix round 1 (review RA1).
+test("a read in flight when the worktree turns into a config error leaves Retry usable", async () => {
+  let answer: (value: unknown) => void = () => {};
+  doan.readConfig!.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+  render(); await flush(); render();
+  expect(text()).toContain("Reading settings");
+  render({ entries: [configError()] }); render();
+  answer(CONFIG); await flush(); render();
+  expect(button("Retry").props.disabled).toBe(false);
+  unmount();
+});
+
+test("a picker answered after the worktree left the list opens no confirmation and keeps the page unlocked", async () => {
+  let pick: (value: unknown) => void = () => {};
+  doan.chooseConfigPath!.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
+  await open();
+  click("Add File or Folder"); render();
+  render({ entries: [] }); render();
+  expect(props.onGone).toHaveBeenCalledTimes(1);
+  pick({ kind: "selected", choiceId: "ch1", path: "design/brand" }); await flush(); render();
+  expect(confirmation()).toBeUndefined();
+  expect(onState().at(-1)).toBe(false);
+  unmount();
+});
+
+test("a read answered as unavailable says the sentence once, with no reason line", async () => {
+  doan.readConfig!.mockResolvedValue({ kind: "unavailable" });
+  await open();
+  expect(byClass("doan-notice")).toHaveLength(1);
+  expect(words(notice()!.props.children).split("Couldn’t read this worktree’s settings.")).toHaveLength(2);
+  expect(byClass("project-settings-notice-reason")).toHaveLength(0);
+  expect(hasButton("Retry")).toBe(true);
+  unmount();
+});
+
+test("settings left behind by a problem are not shown again while the healthy worktree is read anew", async () => {
+  await open();
+  render({ entries: [configError()] }); render();
+  doan.readConfig!.mockImplementationOnce(() => new Promise(() => {}));
+  render({ entries: [listed()] }); render();
+  expect(text()).toContain("Reading settings");
+  expect(text()).not.toContain("src/styles/tokens.css");
+  unmount();
+});
+
+test("the lock is released through the latest onState when the page goes", async () => {
+  doan.writeConfig!.mockImplementationOnce(() => new Promise(() => {}));
+  await open();
+  click("Clear"); render();
+  const latest = vi.fn();
+  render({ onState: latest });
+  unmount();
+  expect(latest).toHaveBeenCalledWith({ locked: false });
+});

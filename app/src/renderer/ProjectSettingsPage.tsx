@@ -77,7 +77,8 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
       const reply = await window.doan.readConfig(target);
       if (!live.current || request !== epoch.current) return;
       if (reply.kind === "config") setConfig(reply);
-      else { setConfig(null); setReadError(reply.kind === "error" ? reply.message : "Couldn’t read this worktree’s settings."); }
+      // A reply with no message of its own (unavailable) leaves the reason line empty: the notice already says it.
+      else { setConfig(null); setReadError(reply.kind === "error" ? reply.message : ""); }
     } catch (failure) { if (live.current && request === epoch.current) { setConfig(null); setReadError(failure instanceof Error ? failure.message : String(failure)); } }
     finally { if (live.current && request === epoch.current) setReading(false); }
   }
@@ -95,13 +96,15 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     focusTitle();
   });
 
-  // The lock goes to App while a picker, a confirmation or a write is open, and is released when the page goes.
+  // The lock goes to App while a picker, a confirmation or a write is open, and is released when the page goes, through
+  // the latest callback (the unmount cleanup is the first render's).
+  const report = useRef(onState); report.current = onState;
   useEffect(() => {
     if (reported.current === locked) return;
     reported.current = locked;
-    onState({ locked });
+    report.current({ locked });
   }, [locked]);
-  useEffect(() => () => { if (reported.current) { reported.current = false; onState({ locked: false }); } }, []);
+  useEffect(() => () => { if (reported.current) { reported.current = false; report.current({ locked: false }); } }, []);
 
   // After each folder list or reroot: the worktree gone leaves, a reroot moves the page, a new state switches the view.
   useEffect(() => {
@@ -110,15 +113,19 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     const next = followProjectSettings(view, entries, origin, focus);
     if (next.kind === "stay") return;
     if (next.kind === "leave") {
-      // An open confirmation is cancelled by the page going; a picker's answer is dropped with the session.
-      if (!gone.current) { gone.current = true; setChoice(null); onGone(); }
+      // An open confirmation is cancelled by the page going; a picker or read answering before App unmounts the page is
+      // for a worktree that is gone, so it opens nothing.
+      if (!gone.current) { gone.current = true; epoch.current++; generation.current++; setChoice(null); onGone(); }
       return;
     }
-    epoch.current++; generation.current++;
+    // The read in flight is dropped (its epoch is stale), so it can no longer end the reading state itself.
+    epoch.current++; generation.current++; setReading(false);
     const rerooted = next.root !== root;
     setView({ root: next.root, view: next.view });
     setDetails(false); setNotice(null);
     if (rerooted) { setConfig(null); setError(null); setSaved(null); }
+    // A problem shows no settings; ones kept from before would show again while the healthy worktree is read anew.
+    else if (next.view === "problem") setConfig(null);
     if (next.cancelConfirm) {
       if (choice || picking) focusTitle();
       setChoice(null);
