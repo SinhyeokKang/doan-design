@@ -14,12 +14,12 @@
 - 사람이 보내는 메시지는 앵커 칩(프레임·요소·점)을 담고, 캔버스 패널에서는 누르면 그 대상으로 이동해 강조한다(PRODUCT §5 item 6 'Locate').
 - 에이전트 답은 Markdown 텍스트로만 그려진다. `https:` 링크만 앵커가 되고 다른 링크는 글자로 남는다(ARCHITECTURE §7 'Agent replies render as Markdown…'). 그래서 에이전트가 "Editor 프레임의 Save 버튼을 바꿨다"고 써도 사람이 그 위치를 직접 찾아야 한다.
 - 대화 이벤트에는 에이전트 답의 앵커를 담는 자리가 없다. 다만 답이 Markdown 텍스트라서, 텍스트 안의 정해진 링크 표기로 앵커를 나타낼 수 있다.
-- 가이드의 규칙 J(`doan://open?root=…&canvas=…[&frame=…]`를 최종 답에 넣기)는 터미널에서도 쓰는 캔버스 목록용 링크다. root를 담아야 하고 요소를 가리킬 수 없다. 앱 스레드는 대화의 프로젝트를 이미 알므로 root 없는 별도 형식을 쓴다(ARCHITECTURE §7 'Deep links').
+- 가이드의 규칙 J는 에이전트가 고친 캔버스를 열어 줄지 한 줄로 묻고, 사람이 원하면 `doan open`을 실행하게 한다. 에이전트는 `doan://` 링크를 최종 답에 넣지 않는다. 앱 대화에서는 턴 프롬프트의 `OPEN_GUIDANCE` 줄이 그 제안도 막는다(ARCHITECTURE §7 'Input and prompt'). 그래서 앱 스레드의 답에는 캔버스 안의 위치를 가리키는 수단이 없다. `doan://open?root=…&canvas=…[&frame=…]` 링크는 root를 담아야 하고 요소를 가리킬 수 없으므로, 앱 스레드는 대화의 프로젝트를 이미 아는 root 없는 별도 형식을 쓴다(ARCHITECTURE §7 'Deep links').
 
 ## 결정 (대화와 리뷰에서 확정)
 
 1. 링크는 캔버스까지 가리킨다: `[이름](doan:<canvas-id>/frame/<frame-id>)`, `[이름](doan:<canvas-id>/element/<doan-id>)`. 캔버스가 열려 있지 않은 Overview의 프로젝트 대화에서도 칩이 어느 캔버스인지 안다. 요소 id는 캔버스 안에서 유일해야 하므로(ARCHITECTURE §1 Conventions 8, `doan check`의 `duplicate_doan_id`) 요소 링크에 프레임을 넣지 않는다.
-2. 링크 규칙은 앱 대화의 턴 프롬프트에만 넣는다. 가이드(`doan skill`)와 규칙 J는 바꾸지 않는다. 터미널 답에는 칩이 없고, 터미널에서 `doan:` 링크를 누르면 앱이 "Couldn’t open the link."를 띄우기 때문이다. J의 `doan://open` 링크는 앱 스레드에서도 지금처럼 평문으로 보인다.
+2. 링크 규칙은 앱 대화의 턴 프롬프트에만 넣는다. 가이드(`doan skill`)와 규칙 J는 바꾸지 않는다. 터미널 답에는 칩이 없고, 터미널에서 `doan:` 링크를 누르면 앱이 "Couldn’t open the link."를 띄우기 때문이다. 사람이 달라고 해서 답에 `doan://open` 링크가 들어와도 앱 스레드에서는 지금처럼 평문으로 보인다. `doan:` 칩 링크는 캔버스를 열어 주겠다는 제안이 아니라 답이 가리키는 위치이므로 `OPEN_GUIDANCE`와 부딪치지 않는다.
 3. 칩을 누르면:
    - **같은 캔버스**가 열려 보이면 사람 칩처럼 그 대상으로 이동해 강조한다. 선택과 `doan active`는 바뀌지 않는다(PRODUCT §5 item 6 "Picking and locating change neither the selection…").
    - **다른 캔버스이거나 Overview**이면 Quick Open과 deep link처럼 그 캔버스를 열고 대상으로 이동한다. 다른 캔버스를 열면 Quick Open처럼 선택이 지워진다(PRODUCT §5 item 3 Quick Open, item 4 Selection lifetime). 패널은 연 캔버스의 대화로 바뀌고 Overview는 닫힌다. Back으로 원래 화면에 돌아온다.
@@ -42,7 +42,7 @@
 - 프로젝트에 그 캔버스 id가 없거나, 두 캔버스가 같은 id를 쓰거나, 목록을 쓸 수 없으면 이동하지 않고 토스트가 한 번 뜬다.
 - 형식이 틀린 링크(`doan:x`, 빈 id, 규칙에 안 맞는 캔버스 id, 알 수 없는 종류, `point`, 200 UTF-16 단위를 넘는 id, 깨진 퍼센트 인코딩, `doan://open?…`)는 링크 글자만 평문으로 보인다. `https:` 링크는 지금처럼 동작한다. 코드 스팬·코드 블록 안의 링크는 칩이 되지 않는다.
 - 링크 안의 id는 신뢰하지 않는 데이터로 다룬다. 칩은 대화의 root에 속한 캔버스 목록과 열린 캔버스의 DOM 안에서만 대상을 찾고, id를 HTML·셀렉터 문자열로 끼워 넣지 않는다. 링크 텍스트는 칩 이름과 접근성 이름에 쓰지 않는다.
-- `/agent-eval` 새 시나리오에서 Claude Code와 Codex가 모두, 수정한 대상을 올바른 형식과 실제 id의 링크로 가리킨다. 실패하면 `--repeat 2`로 다시 확인한다.
+- `/agent-eval` 새 시나리오에서 Claude Code와 Codex가 모두, 수정한 대상을 올바른 형식과 실제 id의 링크로 가리킨다. 실패하면 `--repeat 2`로 다시 확인한다. 같은 답에서 캔버스를 열어 주겠다고 묻거나 `doan open`을 실행하지 않는다.
 
 ## 비목표
 
@@ -51,6 +51,6 @@
 - 에이전트 답의 칩을 composer로 옮기기(복사해 다시 보내기), 링크를 복사하는 컨텍스트 메뉴. 텍스트 선택으로 복사하면 칩 이름이 복사된다.
 - 대화 이벤트 형식에 앵커 필드를 더하기.
 - 다른 프로젝트(root)의 캔버스를 가리키는 링크. 링크는 그 대화의 프로젝트 안에서만 찾는다.
-- 규칙 J의 `doan://open` 링크를 스레드에서 칩이나 링크로 그리기. 지금처럼 평문이다.
+- `doan://open` 링크를 스레드에서 칩이나 링크로 그리기. 지금처럼 평문이다.
 - 가이드(`doan skill`)를 바꾸기. 터미널 세션은 이 형식을 배우지 않는다.
 - 다른 캔버스로 이동할 때 패널에 원래 대화를 남기기.

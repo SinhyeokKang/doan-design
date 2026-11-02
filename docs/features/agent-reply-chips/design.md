@@ -8,7 +8,7 @@
 ```
 
 `parseReplyAnchor(href)`가 읽는 규칙:
-- scheme은 소문자 `doan:`만 받는다. `DOAN:`과 `doan://…`(규칙 J의 deep link)은 형식 오류다.
+- scheme은 소문자 `doan:`만 받는다. `DOAN:`과 `doan://…`(deep link)은 형식 오류다.
 - 디코드하기 전에 원본 문자열을 `/`로 나눠 정확히 세 조각(캔버스 id, 종류, id)이어야 한다. id 안의 `/`는 `%2F`로만 쓸 수 있다.
 - 캔버스 id는 ARCHITECTURE §1 Conventions 2의 패턴(`^[a-z0-9]+(-[a-z0-9]+)*$`)을 따라야 한다. 이 정규식은 새 파일 안에 둔다(`restore/uiState.ts`의 것은 export되지 않고 다른 모듈을 끌어온다).
 - 종류는 `frame`과 `element`만 받는다. `point`와 그 밖의 값은 형식 오류다.
@@ -17,7 +17,7 @@
 - 결과는 `Anchor`가 아니라 `{ canvas: string; kind: "frame" | "element"; id: string }`이다. 링크에는 selector와 tag가 없다.
 - Markdown 링크 텍스트(`[Save]`)는 칩 이름과 접근성 이름에 쓰지 않는다(에이전트 출력은 신뢰하지 않는 데이터).
 
-공유 JSON fixture는 두지 않는다. Go는 이 형식을 만들거나 읽지 않는다. 앱의 턴 프롬프트가 형식을 가르치고, renderer와 eval은 같은 `parseReplyAnchor`를 import한다(eval의 앱 모듈 import 선례: R8 `turn-prompt.ts`, `eval/lib/codex-rule.ts`).
+공유 JSON fixture는 두지 않는다. Go는 이 형식을 만들거나 읽지 않는다. 앱의 턴 프롬프트가 형식을 가르치고, renderer와 eval은 같은 `parseReplyAnchor`를 import한다(eval의 앱 모듈 import 선례: R8b `turn-prompt.ts`, `eval/lib/codex-rule.ts`).
 
 ## 렌더링
 
@@ -44,7 +44,7 @@
   - id가 없는 행은 무시한다. 다른 worktree(root)의 같은 id는 보지 않는다.
 - 스레드 콜백 `onLocate(anchor)`(캔버스 패널만)를 `onReplyChip(link)`로 넓히고, App이 결과에 따라 처리한다.
   - `"locate"`: 지금의 `locateChip`. 요소는 `{ id, doanId }`만 보내고 selector는 보내지 않는다(T0).
-  - `{ open }`: Quick Open의 `pick`과 deep link 처리가 쓰는 경로 하나로 연다(`App.tsx` `pick`: `locked()`, `cancelRestore()`, `controller.openCanvas(root, row, target, { unavailable, opened: () => completeNavigation(root) })`). 이 경로가 방문 기록과 마지막 캔버스 저장을 처리한다. 프레임은 `selectFrame`이 아닌 이동만 쓴다. 대상을 찾지 못하면 deep link처럼 아무것도 띄우지 않는다.
+  - `{ open }`: deep link와 `doan open`이 쓰는 판정과 경로로 연다(`App.tsx` `openLink`: `decideOpen({ root, canvas: row.path }, openPage())`(`app/src/renderer/openDecision.ts`), `busy`면 아무것도 하지 않고, `canvas_not_found`면 `unavailableCanvasMessage` 토스트, 아니면 `cancelRestore()`와 `controller.openCanvas(root, decision.row, target, { unavailable, opened: () => completeNavigation(root) })`). 이 경로가 잠긴 페이지·first run·다이얼로그를 판정하고, 방문 기록과 마지막 캔버스 저장을 처리한다. main의 `resolveOpenTarget`(`deepLinks.ts`)은 root와 캔버스 경로로 찾으므로 쓰지 않는다. 칩은 캔버스 id로 찾고, 그 판정은 `replyChipTarget`이 renderer의 목록으로 한다. 프레임은 `selectFrame`이 아닌 이동만 쓴다. 대상을 찾지 못하면 deep link처럼 아무것도 띄우지 않는다.
   - `"missing"`·`"duplicate"`·`"unavailable"`: 이동하지 않고 토스트를 한 번 띄운다. `"unavailable"`은 기존 `unavailableCanvasMessage`(`quickOpen.ts`)를 쓴다. 다만 목록을 읽는 중일 때 칩은 "Project is still being read. Try again shortly."를 쓴다. 칩에는 다시 누를 Open이 없기 때문이다. Quick Open은 지금 문구("Try Open again shortly.")를 그대로 쓴다(사용자 결정, 2026-11-03 chain-261103 시작 점검). `"missing"`과 `"duplicate"`는 deep link의 `Couldn’t open …` + 이유 형식을 따르고, `"duplicate"`는 `doan check`를 안내한다. 문구는 D1에서 clarify preset을 읽고 정했다(아래 '초안 요청').
 - `CanvasController.openCanvas`는 지금 프레임 id만 받는다. 이를 `{ frame } | { element }` 대상으로 넓힌다. 요소는 `pendingFrame`과 같은 수명 주기의 `pendingLocate`로 첫 레이아웃 뒤에 locate한다. fresh load, 너비 없음, drop에서 지우고, 첫 레이아웃 전에 다른 곳으로 이동하면 버린다. 칩을 연달아 누르면 마지막 요청만 남는다.
 - Overview(`ProjectOverview.tsx`)의 스레드도 같은 콜백을 받는다. 사람 메시지의 칩은 이번 범위가 아니다(Overview에서는 지금처럼 누를 수 없는 칩이다).
@@ -71,7 +71,7 @@
 
 - **main(공유)**: `app/src/main/conversation/types.ts`(`Anchor.element.selector`를 선택 필드로), `app/src/main/canvasScript.ts`(doanId 후보를 selector 분기 밖에서 속성 비교로 계산), `app/src/main/conversation/` 아래 type import만 쓰는 새 파일의 `parseReplyAnchor`, `app/src/main/conversation/prompt.ts`(턴 프롬프트 한 줄).
 - **renderer**: `ConversationThread.tsx`(`replyUrlTransform`, `a` 컴포넌트, `ReplyChip`, `Actions` context), `CanvasController.ts`(`openCanvas` 대상, `pendingLocate`), `App.tsx`(`onReplyChip`, 토스트), `CanvasConversationPanel.tsx`·`ProjectOverview.tsx`(콜백 전달), `replyChipTarget`.
-- **eval**: 새 시나리오 R9. 턴 프롬프트가 바뀌므로 R8의 `prompt.md`도 바뀐다. ARCHITECTURE §14에 따라 R8을 R8b로 바꾼다.
+- **eval**: 새 시나리오 R9. 턴 프롬프트가 바뀌므로 R8b의 `prompt.md`도 바뀐다. ARCHITECTURE §14에 따라 R8b를 R8c로 바꾼다(canvas-open-offer가 R8을 R8b로 바꿨다).
 - **가이드(`cli/internal/cli/skill.md`)**: 바뀌지 않는다.
 - **형식**: 바뀌지 않는다.
 

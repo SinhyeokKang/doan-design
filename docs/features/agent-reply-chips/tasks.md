@@ -21,18 +21,18 @@
 - [ ] T3. `ConversationThread.tsx`: `replyUrlTransform`, `a` 컴포넌트, `ReplyChip`(SentChip 모양과 not-found 안내 재사용), `Actions` context 확장.
   - 검증: `npm --prefix app test` green. `ConversationThread.test.tsx`와 `ConversationThread.locate.test.tsx`에 케이스: 칩·평문·https; 코드 스팬·코드 블록 안 링크는 칩이 아니다; `<doan:…>` autolink; 한글·공백 id(퍼센트 인코딩)가 칩이 된다; `doan:` href의 `<a>`가 없다; `doan://open` 링크는 평문; 같은 캔버스 칩 이름은 열린 캔버스 프레임 제목, 다른 캔버스 칩은 목록 행의 제목과 ` · <캔버스 이름>`(열린 캔버스에 같은 frame id가 있어도 빌리지 않는다), 이름과 캔버스 이름은 따로 그려 이름만 말줄임된다; 열린 캔버스에 레이아웃이 없으면 같은 캔버스 칩 이름은 목록 행의 프레임 제목이다; 접근성 이름 두 가지; 같은 캔버스 칩만 `locateDisabled`를 따른다; 같은 캔버스 missing 안내가 답 블록 아래에 뜬다; 링크 텍스트가 이름에 쓰이지 않는다.
 - [ ] T4. `CanvasController.ts`·`App.tsx`·`CanvasConversationPanel.tsx`·`ProjectOverview.tsx`: `openCanvas`의 `{ frame } | { element }` 대상과 `pendingLocate`, `onReplyChip` 연결(Quick Open `pick` 경로), 토스트.
-  - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과. 케이스: 다른 캔버스를 열면 방문 기록이 하나 늘고 같은 캔버스 locate는 늘지 않는다(Back/Forward); 요소 대상은 첫 레이아웃 뒤 locate된다; 대상이 없으면 토스트 없이 캔버스만 열린다; 로드 실패는 `unavailableCanvasMessage`; B를 여는 중 C 칩을 누르면 B의 대기 locate를 버린다; 이동 중 대화를 바꾸면 대기 locate를 버린다; 두 root가 같은 캔버스 id를 가질 때 다른 root의 대기 locate를 쓰지 않는다; Overview에서 연다; locked 페이지에서는 아무것도 하지 않는다; missing·duplicate·unavailable은 토스트 한 번, 목록을 읽는 중인 칩은 "Project is still being read. Try again shortly."(Quick Open 문구는 그대로). 구현 뒤 POSTMORTEM 2026-10-27 'Shell navigation shortcuts…' 항목의 `rg`를 돌린다.
+  - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과. 다른 캔버스를 열면 방문 기록이 하나 늘고 같은 캔버스 locate는 늘지 않는다(Back/Forward); 요소 대상은 첫 레이아웃 뒤 locate된다; 대상이 없으면 토스트 없이 캔버스만 열린다; 로드 실패는 `unavailableCanvasMessage`; B를 여는 중 C 칩을 누르면 B의 대기 locate를 버린다; 이동 중 대화를 바꾸면 대기 locate를 버린다; 두 root가 같은 캔버스 id를 가질 때 다른 root의 대기 locate를 쓰지 않는다; Overview에서 연다; 다른 캔버스 칩은 `decideOpen`을 거쳐 locked 페이지·first run에서는 아무것도 하지 않는다; missing·duplicate·unavailable은 토스트 한 번, 목록을 읽는 중인 칩은 "Project is still being read. Try again shortly."(Quick Open 문구는 그대로). 구현 뒤 POSTMORTEM 2026-10-27 'Shell navigation shortcuts…' 항목의 `rg`를 돌린다.
 
 ── commit: `feat(thread): agent replies draw anchor chips` ──
 
 ## G. 턴 프롬프트와 eval
 
-- [ ] T5. `app/src/main/conversation/prompt.ts` 턴 프롬프트에 한 줄: 답에서 프레임·요소를 가리킬 때 `[name](doan:<canvas-id>/frame/<id>)`·`[name](doan:<canvas-id>/element/<doan-id>)`를 쓰고 id는 퍼센트 인코딩하며, 규칙 J의 링크는 최종 답의 캔버스 목록으로 그대로 둔다. ARCHITECTURE §14에 따라 R8을 R8b로 바꾼다(`prompt.md`를 새 `turnPrompt` 출력으로, R8 디렉터리는 지운다).
-  - 검증: `npm --prefix app test` green(prompt 테스트), `node --test 'eval/**/*.test.ts'` green(R8b `prompt.test.ts`), `go run ./cli/cmd/doan skill` 출력이 바뀌지 않았다(`git diff --exit-code cli/internal/cli/skill.md`).
-- [ ] T6. `/agent-eval` 시나리오 R9: 앱 대화처럼 `turnPrompt`로 만든 프롬프트(R8 방식)로 프레임 하나와 요소 하나를 고치게 하고, 최종 답에 두 대상을 맞는 형식과 실제 id의 링크로 썼는지 검사한다. 답 추출은 H4의 `finalAnswer`를 `eval/lib`로 옮겨 재사용하고 인라인 코드도 뺀다. `fixtures/{pass,fail}.transcript.txt`를 둔다.
-  - 검증: `node eval/run.ts --self-test --scenarios R9,R8b`가 `self-test PASS`, exit 0. 그다음 `npm --prefix app run package` 후 `node eval/run.ts --scenarios R9,R8b --agents claude,codex --round agent-reply-chips`에서 두 에이전트 모두 pass. 실패하면 `--repeat 2 --round agent-reply-chips-repeat`로 다시 본다. 실패가 프롬프트 문구 때문이면 T5를 고치고 같은 라운드 절차를 반복한다. 결과는 `docs/USABILITY-EVAL.md`에 기록한다.
+- [ ] T5. `app/src/main/conversation/prompt.ts` 턴 프롬프트에 한 줄: 답에서 프레임·요소를 가리킬 때 `[name](doan:<canvas-id>/frame/<id>)`·`[name](doan:<canvas-id>/element/<doan-id>)`를 쓰고 id는 퍼센트 인코딩한다. 이 줄은 `OPEN_GUIDANCE` 줄과 함께 두고, 이 링크가 캔버스를 열어 주겠다는 제안이나 `doan://` 링크가 아니라 답이 가리키는 위치임을 밝혀 `OPEN_GUIDANCE`와 부딪치지 않게 쓴다(canvas-open-offer가 바꾼 규칙 J: 에이전트는 `doan://` 링크를 최종 답에 넣지 않고, 앱 대화에서는 열어 줄지도 묻지 않는다). ARCHITECTURE §14에 따라 R8b를 R8c로 바꾼다(`prompt.md`를 새 `turnPrompt` 출력으로, R8b 디렉터리는 지운다). R8c rubric은 `doan:` 위치 링크를 허용하고, `doan://` 링크와 열어 주겠다는 제안은 R8b처럼 partial로 둔다.
+  - 검증: `npm --prefix app test` green(prompt 테스트), `node --test 'eval/**/*.test.ts'` green(R8c `prompt.test.ts`), `go run ./cli/cmd/doan skill` 출력이 바뀌지 않았다(`git diff --exit-code cli/internal/cli/skill.md`).
+- [ ] T6. `/agent-eval` 시나리오 R9: 앱 대화처럼 `turnPrompt`로 만든 프롬프트(R8c 방식)로 프레임 하나와 요소 하나를 고치게 하고, 최종 답에 두 대상을 맞는 형식과 실제 id의 링크로 썼는지 검사한다. 답 추출은 H4의 `finalAnswer`를 `eval/lib`로 옮겨 재사용하고 인라인 코드도 뺀다. `fixtures/{pass,fail}.transcript.txt`를 둔다.
+  - 검증: `node eval/run.ts --self-test --scenarios R9,R8c`가 `self-test PASS`, exit 0. 그다음 `npm --prefix app run package` 후 `node eval/run.ts --scenarios R9,R8c --agents claude,codex --round agent-reply-chips`에서 두 에이전트 모두 pass. 실패하면 `--repeat 2 --round agent-reply-chips-repeat`로 다시 본다. 실패가 프롬프트 문구 때문이면 T5를 고치고 같은 라운드 절차를 반복한다. 결과는 `docs/USABILITY-EVAL.md`에 기록한다.
 
-── commit: `feat(prompt): name canvas targets with doan links` / `test(eval): R9 reply anchor links, R8b` / `docs(usability-eval): agent-reply-chips round` ──
+── commit: `feat(prompt): name canvas targets with doan links` / `test(eval): R9 reply anchor links, R8c` / `docs(usability-eval): agent-reply-chips round` ──
 
 ## R. 확인
 
@@ -44,7 +44,7 @@
 
 - [ ] Z1. 현재 규칙으로 고친다:
   - PRODUCT §3 In scope 2(에이전트 답도 칩으로 가리킨다), §5 item 6(에이전트 답의 칩과 이동; "chips point only into the open canvas"와 "Locate is disabled while the canvas is not shown"을 사람 칩으로 한정).
-  - ARCHITECTURE §7 Markdown 링크 규칙(line ~429), §7 'Deep links'의 reply chip 문장, §7 'Input and prompt'(턴 프롬프트의 링크 줄), §3 'Picking and locate'(selector 없는 doanId locate), §14(R8b, R9, `finalAnswer` 위치).
+  - ARCHITECTURE §7 Markdown 링크 규칙(line ~429), §7 'Deep links'의 reply chip 문장, §7 'Input and prompt'(턴 프롬프트의 링크 줄), §3 'Picking and locate'(selector 없는 doanId locate), §14(R8c, R9, `finalAnswer` 위치).
   - DESIGN(칩이 스레드에 놓이는 모양, 안내 위치).
   - `docs/BACKLOG.md`의 해당 항목을 지운다. `docs/features/agent-reply-chips/`를 지운다.
   - 검증:
