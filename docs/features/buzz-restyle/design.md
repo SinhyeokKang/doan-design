@@ -114,7 +114,7 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 | Onboarding | buzz-onboarding에서 완료 |
 | Home | buzz-home에서 완료 |
 | Add Projects page | buzz-add-projects에서 완료 |
-| Projects home | 표시가 남아 있다. buzz-home이 다시 측정하지 않고 병합해 담당이 없다. Z1 전에 담당을 정한다(사용자 결정) |
+| Projects home | project-settings(2026-11-02 user). 제거 토스트·문제 워크스페이스 상태줄·config 오류 상세를 다시 측정하고 표시를 지운다 |
 | Project Overview | buzz-project에서 완료 |
 | Design navigation | 트리/LNB는 buzz-shell, Quick Open은 buzz-search에서 완료 |
 | Canvas area and right panel | buzz-canvas에서 완료 |
