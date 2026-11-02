@@ -25,6 +25,8 @@
    - 큐는 보낼 때의 값을 쓴다(사용자). 기존 대화에서 피커를 바꾸면 main에 바로 저장하는 IPC를 두고, 큐는 flush할 때의 저장값을 쓴다. spec 결정 7·8 그대로다.
    - Plan 승인 뒤 SDK가 `bypassPermissions`를 알리면 Default로 저장한다(사용자). Full access는 사람이 고를 때만 켜진다. design '모드 대응'의 해당 줄은 Z1에서 고친다.
 
+9. doany-v2(별도 feature, `docs/features/doany-v2/`)를 이 run의 PM-D 배치로 함께 진행한다(사용자). PR은 두 feature를 함께 담는다. 사용자가 V2 실행 초안을 확정했고, 단순화 SVG·favicon도 V2로 그 자리에서 교체한다(일괄 교체). PM-D는 PM-B와 병렬이고 파일이 겹치지 않는다. 앱 창을 띄우는 probe는 컨덕터에게 물어 한 번에 하나씩 돈다. doany-v2의 H(문서 승격·디렉터리 삭제)는 컨덕터가 Z1과 함께 한다.
+
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·노력 (이유) | 검증 게이트 | 상태 |
@@ -32,6 +34,7 @@
 | PM-P | P1–P4 | `.scratch/permission-mode/`, `docs/features/permission-mode/design.md`(대응표·PoC 칸·Default의 범위), `tasks.md` P 체크 | 없음 | Opus high (실계정·실제 상태를 다루고, 결과가 이후 설계를 정한다) | design.md에 "P1/P2/P3에서 확인" 표시가 남지 않는다. 실제 Doan 저장 파일이 바뀌지 않았다는 전후 비교 | 통합 (`216958a7` → `94edc615`) |
 | PM-A | T1·T2의 main 쪽, S1, S2 | `app/src/main/conversation/{runners,acpRunner,models,service,store,ipc,transport}.ts`와 테스트, `app/src/main/preferences.ts`와 테스트, `app/src/preload/`, 새 공통 모듈 | PM-P 통합 | Opus high (권한 전달, Codex 디스패처 규칙, 저장 형식 예외) | `npm --prefix app test`, `npm --prefix app run typecheck`, POSTMORTEM Codex dispatcher `rg` | 통합 (`abca5afc`..`86462ede`, verify PASS) |
 | PM-B | T1·T2의 renderer 쪽(`restore/uiState.ts`, 마지막 사용·Settings 규칙), U1, U2 | `app/src/renderer/`(ComposerParts·HomeComposerView·DockedComposer·ProjectOverview·CanvasConversationPanel·SettingsAgents·rememberChoice·App·homeComposer·styles.css와 테스트), `app/src/restore/`, `docs/DESIGN.md` 측정값 | PM-A 통합 | Opus medium (기존 피커 패턴을 따르는 UI. 폭 단계와 상태 동기화에 판단이 든다) | `npm --prefix app test`, typecheck, `/design-sync`, `/runtime-test`(8칸 표·스크린샷), `node .agents/skills/verify/scripts/verify.mjs` | 진행 (worktree `pm-b-renderer`) |
+| PM-D | doany-v2 C2–G | `Doany.tsx`·`doanyRig.ts`·`doanyMotion.ts`·`doany.css`·`doany.golden.json`과 테스트, Home·Onboarding 테스트의 Doany 참조, `public/doany/`, `app/resources/icon.png`, `.doan/assets/doany/simple/`, `.doan/ds/doany.html`, doany-v2 tasks 체크 | 없음(PM-B와 병렬) | Opus high (WebGL 렌더 좌표, 생명주기, 패키지 경로) | test, typecheck, build, `doan check`, `/design-sync`, `/runtime-test`, verify | 진행 (dispatch `ctx_9f7179fe4a47`, worktree `pm-d-doany`) |
 | 컨덕터 | Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/permission-mode/` 삭제 | PM-B 통합 | — | Z1 검증 grep | 대기 |
 
 - 리뷰: PM-A와 PM-B는 통합 전에 독립 리뷰 워커(`/code-review`, Opus high)를 거친다.
