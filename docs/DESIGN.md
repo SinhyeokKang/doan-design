@@ -664,6 +664,36 @@ Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-sta
 
 `DockedComposer.test.tsx` (an anchor chip makes the box), `DockedComposer.interaction.test.tsx` (a locked composer takes no preset, file or chip removal), `canvasPicker.test.ts`, `CanvasController.test.ts`, `ConversationThread.locate.test.tsx`, `CanvasConversationPanel.test.tsx`, `Onboarding.test.tsx` (choice card markup). Sizes, colours and geometry above are `.scratch/` probes only.
 
+## Permission mode picker
+
+Reference: `.doan/canvases/permission-mode.html` (6 frames). Measured by `/design-sync` in the packaged app with Claude and Codex signed in (`.scratch/runtime-test/permission-mode/`): the draft loads in a hidden window of the same Electron build and both sides are read with `getComputedStyle`; 17 properties plus text and box per pair, 736 property rows over Home default and Full access (closed, open, hover), the open menu, the Overview tray, its width steps and the Settings row.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Trigger | After Effort: Home's sm `trigger` (32 high, padding 6 / 8, gap 6, body-sm 14/20 400), the docked tray's xs; the mode's own 14 px Lucide icon (shield, file-pen-line, eye, shield-alert), the label, the 16 px chevron. aria-label "Permission: <label>", Full access "Permission: Full access, no approval requests" | Each mode has its own icon, so an icon-only trigger still names the mode. |
+| Full access | `--text-warning` (rgb(79,52,34)) on `--affordance-warning` (rgb(255,247,194)), chevron in `currentColor`; kept on hover, press and while open | The shared trigger's state fills outrank a plain selector; an open Full access trigger showed the neutral pressed fill until the rule matched those states. Never colour alone, no edge stripe. |
+| Menu | `doan-floating doan-menu`, 280 wide (component constant: Effort's 200 is too narrow for the descriptions, the shared cap is 320); head "Permissions · <provider>" caption 12/16 `--text-metadata`; one row per mode (44 high, gap 8): 16 px icon in `--text-subtle` (Full access `--text-warning`), the name 14/20 over a caption 12/16 `--text-metadata` description, the check slot | The preset rows' name-over-description. |
+| Docked width steps | The tray is an inline-size container and never wraps (32 high at every width). Below a 384 px content width Permission shows its icon only; below 288 Effort does too; the model label ellipsizes (it is the only trigger that shrinks). Hidden labels stay in the xs tooltip and aria-label | Measured at tray content widths 456, 376, 360, 359, 336, 288, 287, 264 and 216: no overflow. The canvas panel at its 320 minimum is at step 1. |
+| Settings row | Permission after Effort, 57 high like its siblings; the composer's menu rows; `data-mode="bypass"` takes the warning fill | |
+
+### Documented deviations from the draft
+
+- **Settings trigger icon.** 16 px, like the shipped Effort row's gauge; the draft draws 14 px from a `.settings-select svg` rule the app does not have (a shared primitive beats one screen).
+- **Long model labels.** The step boundaries come from the draft's labels ("Opus 5.5", "Medium"). With a longer model label (Claude's "Default (recommended)") the model label starts to ellipsize at a 288 px content width, before Effort hides at 287; the order holds for the draft's labels.
+- **Settings menu side.** The menu opens below the trigger as drawn when there is room; at the bottom of the window Radix flips it above.
+- Context, not deviations: the draft page's 14 px body against the app's 13 px, inherited by the menu container only (its rows match); the selected and highlighted row differ between the drawn and the measured state; fixture labels.
+
+### Not verified
+
+- Terminal session's fixed trigger (`docked-fixed`): no legacy external session was reachable in the probe; the markup is pinned by `DockedComposer.test.tsx`.
+- ACP providers' pickers (no ACP provider was signed in), dark mode and forced colours.
+
+### Regression pointers
+
+`permissionPicker.test.ts`, `ComposerParts.test.tsx`, `DockedComposer.test.tsx`, `ProjectOverview.test.tsx`, `SettingsAgents.test.tsx`, `HomeComposerView.interaction.test.tsx`, `rememberChoice.test.ts`, `homeRun.test.ts`, `dockedSupport.test.ts`, `app/src/restore/uiState.test.ts`. Sizes, colours and widths above are `.scratch/` probes only.
+
 ## Select and inspect
 
 > buzz-ds 이전 for the Inspector rows. Owner: `buzz-inspector` (it removes the mark). No screen shows the Inspector now (PRODUCT §5 item 4): the Inspector rows describe the retained `Inspector` in `RightPanel.tsx`, measured when it was the canvas page's right panel. The canvas overlay rows (hover and selection outline, dimensions) were remeasured with the canvas page; see 'Canvas area and right panel'.
