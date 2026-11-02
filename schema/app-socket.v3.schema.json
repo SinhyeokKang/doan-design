@@ -32,7 +32,19 @@
         },
         "session": {
           "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{1,128}$",
+          "minLength": 1,
+          "allOf": [
+            {
+              "not": {
+                "pattern": "^-"
+              }
+            },
+            {
+              "not": {
+                "pattern": "\u0000"
+              }
+            }
+          ],
           "$comment": "Session and provider are both present or both absent; absent means the anonymous session of the root."
         },
         "provider": {
