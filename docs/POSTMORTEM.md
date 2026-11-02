@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-02 — The selection-lost line never left the board
+
+- **Area**: `app/src/renderer/CanvasController.ts` (`clearSelection(true)` sets `state.notice`), `App.tsx` (where the notice was drawn), now `selection.ts` (`noticeToast`).
+- **Symptom**: in dogfooding, "The selection is no longer in the canvas." stayed at the top of the board indefinitely and stacked with the agent notice there.
+- **Root cause**: an event message lived in canvas state and was drawn as a state notice. The controller clears it only on the next selection, a rule that fits a value read by tests and `doan active` but not a message on screen; nothing timed it out.
+- **Net**: the controller tests pinned "the notice until the next selection" as the intended state, and no probe stayed on the canvas long enough after a loss to see it remain. Now the app shows it once as the shared toast when it appears; the probe removed a selected frame from the file and saw the toast with no board notice (`.scratch/runtime-test/dogfood-repro/run-lost.log`).
+- **Prevention**: a message that reports something that happened is a toast; a board notice is only for a condition that is still true (DESIGN 'Toast' and 'Notices'). Search: `rg -n "doan-notice" app/src/renderer/App.tsx` within the canvas column.
+
 ### 2026-11-02 — Tab walked into the draft, drew its focus rings and scrolled the floating tools away
 
 - **Area**: `app/src/renderer/CanvasController.ts` (board iframe creation), `app/src/renderer/styles.css` (`.doan-canvas-panel > .area`).
