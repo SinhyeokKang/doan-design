@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-02 — The sidebar list scrolled with the classic scrollbar
+
+- **Area**: `app/src/renderer/ShellSidebar.tsx` (`.shell-projects`), `ds/surfaces.css` (`.doan-scroll`).
+- **Symptom**: in dogfooding, the sidebar's scrollbar looked unlike the panels'. In the built app the project list scrolled with Chromium's classic 15px bar and grey track; the panels use the thin, quiet one on a transparent track.
+- **Root cause**: DESIGN 'Scrollbars' says every scroller takes `.doan-scroll`, but `.shell-projects` set `overflow: auto` on its own and never took the class; nothing checks that a scrolling container carries it.
+- **Net**: no probe had a sidebar long enough to scroll. Fixed by adding `.doan-scroll` to both sidebar views; the built app now measures `scrollbar-width: thin` with the quiet thumb and an 11px bar (`.scratch/runtime-test/dogfood-repro/run-scroll2.log`).
+- **Prevention**: an element that sets `overflow: auto` or `scroll` also takes `.doan-scroll` (or the same two declarations). Search: `rg -n "overflow(-y)?: auto" app/src/renderer/styles.css` and check each scroller's class.
+
 ### 2026-11-02 — The canvas conversation panel's head was 8px shorter than the canvas header
 
 - **Area**: `app/src/renderer/styles.css` (`.doan-conv-head`, `.right.ov-right .rp-head`), `ConversationPanel.tsx`.

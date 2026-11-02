@@ -175,3 +175,11 @@ it("puts a Home row above the projects, current only on Home", () => {
   const onHome = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} goHome={vi.fn()} />);
   expect(onHome).toMatch(/class="shell-home-row row"[^>]*aria-current="page"/);
 });
+
+// Dogfooding: the sidebar list scrolled with the classic 15px scrollbar and grey track while the panels use the thin,
+// quiet one. Both sidebar views take the shared `.doan-scroll`.
+it("scrolls the project list and the Settings categories with the shared thin scrollbar", () => {
+  expect(render("/repo")).toContain('<div class="shell-projects doan-scroll">');
+  const settings = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} settings={{ section: "agents", select: vi.fn() }} />);
+  expect(settings).toContain('<div class="shell-projects doan-scroll">');
+});
