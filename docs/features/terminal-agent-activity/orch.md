@@ -15,6 +15,7 @@
 - O3 (지휘자 판단 — 스키마 공유): 스키마·fixture·두 검증기(T1)와 open-link fixture(T1b)는 A·B가 함께 읽으므로 작은 배치 S로 먼저 끝내 통합한 뒤 A·B를 시작한다.
 - O5 (사용자 지시 "일부는 Codex로 구현 바꿔", 범위는 지휘자 판단): 아직 시작하지 않은 A(Go CLI)와 B(app main)를 Codex `gpt-6-astra` medium으로 구현한다. 이미 돌고 있는 P·S·C와 UI 판단이 큰 D, 실제 앱 probe인 G는 Claude로 둔다. Codex가 구현한 배치의 리뷰는 Claude Sonnet high가 맡아 교차 모델 리뷰를 유지한다.
 - O6 (지휘자 판단 — PRODUCT §5 item 0, C의 질문): `~/.claude/settings.json`이 심볼릭 링크이거나 일반 파일이 아니면 링크를 따라가지 않는다. 그대로 두고 About의 agent setup 결과에 보인다.
+- O7 (지휘자 판단 — B의 질문): B가 `app/src/main/senderAllowed.ts`(+테스트)도 맡는다(주 창 전용 채널). B→D 계약: `getWork()`·`onWorkChanged(listener)`(`WorkItem = {session, provider, root, path}`, 익명은 `session`·`provider`가 null), `onOpenLink(listener)`(`navigate {root, canvas, frame?}` | `malformed` | `unregistered-root` | `canvas-not-listed {project}`), `openLinksReady()`(renderer가 시작 복원과 첫 폴더 목록 뒤 부르고, 구독을 먼저 건다).
 - O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
 
 ## 배치
