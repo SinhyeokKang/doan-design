@@ -2,7 +2,7 @@
 
 ## D. 드래프트
 
-- [ ] D1. `/design-draft`: 에이전트 답의 인라인 칩(Markdown 문단·목록·표 안), ` · <캔버스 이름>`이 붙은 칩, 답 블록 아래의 "No longer in the canvas", 비활성 칩, 평문으로 남은 형식 오류 링크를 새 draft에 그린다. 토스트 문구(`"missing"`·`"duplicate"`)는 clarify preset을 읽고 정한다.
+- [ ] D1. `/design-draft`: 에이전트 답의 인라인 칩(Markdown 문단·목록·표 안), ` · <캔버스 이름>`이 붙은 칩, 답 블록 아래의 "No longer in the canvas", 비활성 칩, 평문으로 남은 형식 오류 링크를 새 draft `.doan/canvases/agent-reply-chips.html`에 그린다(프레임과 문구는 design.md '초안 요청'). 토스트 문구(`"missing"`·`"duplicate"`)는 clarify preset을 읽고 정한다.
   - 검증: `go run ./cli/cmd/doan check --repo .`와 `go run ./cli/cmd/doan ls --repo .` 통과, 사용자가 앱에서 draft를 확인한다.
 
 ## T. 순수 함수와 locate 기반 (`/tdd` → `/implement`)

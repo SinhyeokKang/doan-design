@@ -45,9 +45,26 @@
 - 스레드 콜백 `onLocate(anchor)`(캔버스 패널만)를 `onReplyChip(link)`로 넓히고, App이 결과에 따라 처리한다.
   - `"locate"`: 지금의 `locateChip`. 요소는 `{ id, doanId }`만 보내고 selector는 보내지 않는다(T0).
   - `{ open }`: Quick Open의 `pick`과 deep link 처리가 쓰는 경로 하나로 연다(`App.tsx` `pick`: `locked()`, `cancelRestore()`, `controller.openCanvas(root, row, target, { unavailable, opened: () => completeNavigation(root) })`). 이 경로가 방문 기록과 마지막 캔버스 저장을 처리한다. 프레임은 `selectFrame`이 아닌 이동만 쓴다. 대상을 찾지 못하면 deep link처럼 아무것도 띄우지 않는다.
-  - `"missing"`·`"duplicate"`·`"unavailable"`: 이동하지 않고 토스트를 한 번 띄운다. `"unavailable"`은 기존 `unavailableCanvasMessage`(`quickOpen.ts`)를 쓴다. `"missing"`과 `"duplicate"`는 deep link의 `Couldn’t open …` + 이유 형식을 따르고, `"duplicate"`는 `doan check`를 안내한다. 정확한 문구는 D1에서 clarify preset으로 정한다.
+  - `"missing"`·`"duplicate"`·`"unavailable"`: 이동하지 않고 토스트를 한 번 띄운다. `"unavailable"`은 기존 `unavailableCanvasMessage`(`quickOpen.ts`)를 쓴다. `"missing"`과 `"duplicate"`는 deep link의 `Couldn’t open …` + 이유 형식을 따르고, `"duplicate"`는 `doan check`를 안내한다. 문구는 D1에서 clarify preset을 읽고 정했다(아래 '초안 요청'). 사용자가 초안을 확정하기 전까지는 바뀔 수 있다.
 - `CanvasController.openCanvas`는 지금 프레임 id만 받는다. 이를 `{ frame } | { element }` 대상으로 넓힌다. 요소는 `pendingFrame`과 같은 수명 주기의 `pendingLocate`로 첫 레이아웃 뒤에 locate한다. fresh load, 너비 없음, drop에서 지우고, 첫 레이아웃 전에 다른 곳으로 이동하면 버린다. 칩을 연달아 누르면 마지막 요청만 남는다.
 - Overview(`ProjectOverview.tsx`)의 스레드도 같은 콜백을 받는다. 사람 메시지의 칩은 이번 범위가 아니다(Overview에서는 지금처럼 누를 수 없는 칩이다).
+
+## 초안 요청 (`/design-draft`)
+
+- 경로·id: `.doan/canvases/agent-reply-chips.html`, `agent-reply-chips`. 새 파일이고 `buzz-canvas-conversation.html`·`buzz-project.html`은 고치지 않는다.
+- 프레임:
+  - `panel-chips`: 캔버스 패널, Drafts가 열려 보인다. 답의 문단·목록·표 안 칩과, 그 위 사람 메시지의 칩.
+  - `panel-other-canvas`: 다른 캔버스(Checkout) 칩의 ` · Checkout`과 접근성 이름, 180px에서 말줄임되는 긴 이름.
+  - `panel-missing`: 같은 캔버스 칩의 대상이 없을 때 답 블록 아래의 "No longer in the canvas".
+  - `panel-disabled`: 캔버스 로드 실패. 같은 캔버스 칩은 `aria-disabled`이고, 다른 캔버스 칩은 누를 수 있다.
+  - `panel-plain`: 형식 오류 `doan:` 링크와 규칙 J 링크는 평문, `https:` 링크는 링크, 코드 스팬은 코드다.
+  - `overview-chips`: Overview의 프로젝트 대화. 모든 칩에 캔버스 이름이 붙는다.
+  - `toasts`: missing·duplicate 새 문구와 unavailable 두 가지(기존 문구).
+- 토스트 문구(clarify preset, deep link 거절 문구 `openLinkRefusal`와 중복 id 문구의 형식을 따른다). 캔버스는 링크의 id로, 프로젝트는 사이드바 이름으로 부른다:
+  - `"missing"`: `Couldn’t open <canvas-id>. The canvas isn’t in <project>.`
+  - `"duplicate"`: `Couldn’t open <canvas-id>. More than one canvas in <project> uses this ID. Run doan check in a terminal to find them.`
+- 답 블록 아래 안내는 답과 6px(`--space-1h`) 떨어진다. 보낸 말풍선 아래 안내와 같은 간격이다.
+- 확정: 아직 안 했다. 사용자가 앱에서 초안을 확인한다.
 
 ## 영향 받는 부분
 
