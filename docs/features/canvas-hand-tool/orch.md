@@ -19,7 +19,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T3 | `app/src/renderer/`(`selection.ts` 또는 새 규칙 파일, `canvasMessage.ts`, `CanvasController.ts`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, `ds/controls.css`, 각 테스트), `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`(+test), `.doan/ds/tooltip.html` | 없음 | Claude Opus high: 포인터 캡처·포커스·키 순서·ui-state 복원 경쟁이 얽혀 있고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중 |
+| A | T1, T3 | `app/src/renderer/`(`selection.ts` 또는 새 규칙 파일, `canvasMessage.ts`, `CanvasController.ts`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, `ds/controls.css`, 각 테스트), `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`(+test), `.doan/ds/tooltip.html` | 없음 | Claude Opus high: 포인터 캡처·포커스·키 순서·ui-state 복원 경쟁이 얽혀 있고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 49049539..0b4e2781, 리뷰 중 |
 | B | T2 | `app/src/main/canvasScript.ts`, `app/src/main/canvasScript.test.ts` | 없음(메시지 모양은 결정 기록) | Codex gpt-6-astra medium: 파일 하나지만 편집 대상 판정과 blur 처리에 판단이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 a04a8711 |
 | RA | A 리뷰 | 읽기만 | A | Codex gpt-6-astra medium: 다른 모델 계열의 독립 리뷰 | `/code-review` 보고서 | 대기 |
 | RB | B 리뷰 | 읽기만 | B | Claude Sonnet medium: 작은 diff, 다른 계열 리뷰 | `/code-review` 보고서 | 완료: 🔴 0, 🟡 1(통합 확인으로 넘김) |
@@ -41,3 +41,8 @@ T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
 - Codex 상태줄에 주간 한도가 12% 남았다고 나온다(대시보드의 18% 사용과 다르다). 리뷰 배치(RA)는 B가 끝난 뒤 남은 양을 보고 Codex 또는 Claude Sonnet으로 정한다.
 - B: Space keyup 정책을 물어 와서 지휘자가 답했다. keyup마다 Space-up을 보내고, 편집 대상 밖에서만 preventDefault한다. bd7a7baa를 a04a8711로 통합하고 작업자를 release했다.
 - RB(Claude Sonnet 서브에이전트, `/code-review`): 🔴 0. 🟡 하나는 Space를 누른 채 캔버스가 리로드되면 새 문서가 Space-up을 보내지 않는다는 것이다. 렌더러 쪽 정리(보드가 사라질 때, 창이 포커스를 잃을 때, `setWorkspaceActive(false)`)가 덮는지를 A 리뷰와 C probe에서 확인한다. ⚪: Shift+Space·Shift+V/H는 전달된다(design은 ⌘⌃⌥만 거른다). 렌더러 `toolShortcut`과 같은 규칙인지 A 리뷰에서 본다.
+- A 완료: 커밋 5개를 49049539..0b4e2781로 통합했다. 작업자 보고는 테스트 5605/5605와 typecheck 통과다. 수정 라운드에 다시 쓰려고 작업자를 retain했다.
+  - 지휘자 판단: Hand로 끌기 시작할 때(pointerdown) `.area`에 포커스를 준다(Space를 누르고 있으면 주지 않는다). spec 결정 5("캔버스를 클릭하면 포커스가 캔버스 영역으로")를 따른 것이다. design의 "레이어는 포커스를 가져가지 않는다"는 레이어 자신이 포커스 대상이 아니라는 뜻으로 읽는다. Z1에서 ARCHITECTURE에 적는다.
+  - 지휘자 판단: `terminal-agent-activity.html`·`buzz-project-settings.html` 초안에는 지운 `.doan-picking-esc.doan-kbd` 규칙의 사본이 남아 있다. 초안은 자기 CSS를 품은 그림이고 앱 코드가 아니어서 고치지 않는다.
+- RA: Codex gpt-6-astra medium(dispatch `ctx_9f5eb52eaca4`, worktree `canvas-hand-tool-ra`)으로 시작했다. 대시보드 기준 Codex 사용량은 18%다.
+- D: Claude Sonnet high(dispatch `ctx_7142167b7441`, worktree `canvas-hand-tool-d`)로 시작했다. RA가 `styles.css` 수정을 요구하면 D가 끝난 뒤 A에게 보낸다.
