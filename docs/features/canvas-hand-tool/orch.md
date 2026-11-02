@@ -20,9 +20,9 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | A | T1, T3 | `app/src/renderer/`(`selection.ts` 또는 새 규칙 파일, `canvasMessage.ts`, `CanvasController.ts`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, `ds/controls.css`, 각 테스트), `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`(+test), `.doan/ds/tooltip.html` | 없음 | Claude Opus high: 포인터 캡처·포커스·키 순서·ui-state 복원 경쟁이 얽혀 있고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중 |
-| B | T2 | `app/src/main/canvasScript.ts`, `app/src/main/canvasScript.test.ts` | 없음(메시지 모양은 결정 기록) | Codex gpt-6-astra medium: 파일 하나지만 편집 대상 판정과 blur 처리에 판단이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중 |
+| B | T2 | `app/src/main/canvasScript.ts`, `app/src/main/canvasScript.test.ts` | 없음(메시지 모양은 결정 기록) | Codex gpt-6-astra medium: 파일 하나지만 편집 대상 판정과 blur 처리에 판단이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 a04a8711 |
 | RA | A 리뷰 | 읽기만 | A | Codex gpt-6-astra medium: 다른 모델 계열의 독립 리뷰 | `/code-review` 보고서 | 대기 |
-| RB | B 리뷰 | 읽기만 | B | Claude Sonnet medium: 작은 diff, 다른 계열 리뷰 | `/code-review` 보고서 | 대기 |
+| RB | B 리뷰 | 읽기만 | B | Claude Sonnet medium: 작은 diff, 다른 계열 리뷰 | `/code-review` 보고서 | 완료: 🔴 0, 🟡 1(통합 확인으로 넘김) |
 | D | 사용자 요청 디자인 이슈 2개(아래 결정 기록) | `ComposerParts.tsx`, `ShellSidebar.tsx`·`HomeComposerView.tsx`의 드롭다운 클래스, `styles.css`, `ds/surfaces.css`와 테스트, `docs/DESIGN.md` 해당 행 | A 통합(styles.css 겹침) | Claude Sonnet high: 범위가 작지만 실제 앱 computed style 측정이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, typecheck, 실제 앱 측정 | 대기 |
 | C | T4(`/runtime-test`, `/design-sync`) | `.scratch/`, `docs/DESIGN.md`의 측정값, design-sync가 고치는 앱 코드(그때 A와 겹치지 않게 지휘자가 순서를 잡는다) | A·B 통합 | Claude Opus high: 실제 앱 probe, 측정과 판단 | probe 완료 표식·exit 0, real-state 전후 같음, `measure.mjs` | 대기 |
 | 지휘자 | T5(리뷰 지적 분배), T6, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md` 설명 문장, 이 디렉터리 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 grep | 대기 |
@@ -39,3 +39,5 @@ T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
 
 - 2026-11-03 Run `run_389c91f1f364`. A: task `task_0e0391c2f766`, dispatch `ctx_146d8b772309`, worktree `canvas-hand-tool-a`(브랜치 `SinhyeokKang/feat-canvas-hand-tool`), launch.effective claude opus high. B: task `task_71946233c4e3`, dispatch `ctx_32712096eee5`, worktree `canvas-hand-tool-b`(브랜치 `SinhyeokKang/feat-canvas-hand-tool-2`), launch.effective codex gpt-6-astra medium. 둘 다 d5891519에서 시작했다.
 - Codex 상태줄에 주간 한도가 12% 남았다고 나온다(대시보드의 18% 사용과 다르다). 리뷰 배치(RA)는 B가 끝난 뒤 남은 양을 보고 Codex 또는 Claude Sonnet으로 정한다.
+- B: Space keyup 정책을 물어 와서 지휘자가 답했다. keyup마다 Space-up을 보내고, 편집 대상 밖에서만 preventDefault한다. bd7a7baa를 a04a8711로 통합하고 작업자를 release했다.
+- RB(Claude Sonnet 서브에이전트, `/code-review`): 🔴 0. 🟡 하나는 Space를 누른 채 캔버스가 리로드되면 새 문서가 Space-up을 보내지 않는다는 것이다. 렌더러 쪽 정리(보드가 사라질 때, 창이 포커스를 잃을 때, `setWorkspaceActive(false)`)가 덮는지를 A 리뷰와 C probe에서 확인한다. ⚪: Shift+Space·Shift+V/H는 전달된다(design은 ⌘⌃⌥만 거른다). 렌더러 `toolShortcut`과 같은 규칙인지 A 리뷰에서 본다.
