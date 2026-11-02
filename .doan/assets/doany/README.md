@@ -72,7 +72,7 @@ Chromium loaded all three draft rigs  with
 WebGL error 0. Draft slots measured 114 / 142.5 / 420 px. Welcome's group
 center measured −72px at 780px and 900px frame heights; at 540px it kept 32px
 top access and scrolled (619px content in a 484px viewport). JavaScript syntax
-passed. Doan check reported no findings for this canvas/package; the repository
-still has seven unrelated missing implementation links in older canvases.
+passed. Doan check reported no findings for this canvas/package; at that time the repository
+had seven unrelated missing implementation links in older canvases.
 These draft-side checks predate the app integration; the app's own
 measurements are in `docs/DESIGN.md` (Home, Onboarding).

@@ -1,8 +1,8 @@
 # Doan mascot motion study
 
-Prototype only; not integrated into the application. Open
-`.doan/canvases/doan-mascot.html` in Doan. The desktop export's `index.html`
-embeds image and font data and can be opened offline.
+Draft study; the app's port is `app/src/renderer/Doany.tsx` (see `../README.md`).
+Open `.doan/canvases/doan-mascot.html` in Doan. A desktop export made during the
+study, not kept in the repository, embedded image and font data.
 
 `../motion/mascot.js` is original MIT-licensed JavaScript using browser WebGL directly.
 There is no Spine, paid runtime, CDN, npm dependency, or network API.
@@ -42,7 +42,7 @@ The enlarged study uses a 420px slot. Welcome reuses the same mascot above its w
 
 - JavaScript syntax check passed.
 - Isolated Doan check: one canvas, zero errors; 12 pre-existing color warnings
-  from the reused `mock.css`. Whole-repository check is blocked by seven stale
+  from the reused `mock.css`. Whole-repository check was then blocked by seven stale
   implementation links in other existing canvases.
 - Chromium browser: both rigs load, WebGL reports no error; input enables Send,
   Send starts the hop, blinking reaches a closed pose, the hat moves, pause
