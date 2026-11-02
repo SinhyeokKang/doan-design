@@ -50,7 +50,7 @@ vi.mock("./CanvasController", async original => ({
     constructor(_viewport: unknown, _board: unknown, _overlay: unknown, setState: (state: unknown) => void) {
       harness.setState = setState;
       const self = this as unknown as Record<string, ReturnType<typeof vi.fn>>;
-      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate", "settleFit"]) self[name] = vi.fn();
+      for (const name of ["dispose", "command", "updateEntries", "setWorkspaceActive", "setCanvasPage", "setTool", "restoreTool", "openCanvas", "cancelWorkspaceOpen", "remember", "selectPath", "onPicked", "pick", "cancelPick", "locate", "settleFit"]) self[name] = vi.fn();
       self.openWorkspace = vi.fn((root: string, done: (root: string) => void) => done(root));
       self.showOverview = vi.fn((done: () => void) => done());
       self.destination = vi.fn((root: string) => ({ root }));
@@ -108,7 +108,7 @@ function render(): ReactNode {
     hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = []; hooks.dirty = false;
     tree = App();
     const pane = all(tree).find(element => "viewport" in (element.props as object))?.props as Record<string, { current: unknown }> | undefined;
-    for (const ref of [pane?.viewport, pane?.board, pane?.overlay]) if (ref && !ref.current) ref.current = {};
+    for (const ref of [pane?.viewport, pane?.board, pane?.overlay, pane?.dragLayer]) if (ref && !ref.current) ref.current = {};
     for (const run of hooks.pending) run();
     if (!hooks.dirty) return tree;
   }
@@ -216,6 +216,61 @@ test("a read that fails still lets saves through, with the panel's own state", a
   expect(doan.saveUiState).not.toHaveBeenCalled();
   readUiState(null); await Promise.resolve(); await Promise.resolve(); render();
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", rightPanel: { open: true } });
+});
+
+// canvas-hand-tool design '기기 저장' and '시작 복원': the last canvas tool is saved with the rest of ui-state, only
+// after the startup read, and the read's tool goes to the controller, which keeps a tool the person chose before it.
+const publishTool = (tool: "select" | "hand") => { harness.setState!({ ...initialCanvasState(), tool }); render(); };
+const savedTool = () => doan.saveUiState!.mock.lastCall?.[0] as { canvasTool?: unknown; rightPanel?: unknown } | undefined;
+
+test("a saved Hand starts the controller in Hand", async () => {
+  await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, canvasTool: "hand" });
+  expect(harness.controller!.restoreTool).toHaveBeenCalledExactlyOnceWith("hand");
+});
+
+test("a read without a saved tool leaves the controller's tool alone", async () => {
+  await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {} });
+  expect(harness.controller!.restoreTool).not.toHaveBeenCalled();
+  expect(savedTool()).not.toHaveProperty("canvasTool");
+});
+
+test("no save is sent before the read, even after a tool change; the first save carries the chosen tool", async () => {
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  publishTool("hand");
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(savedTool()).toMatchObject({ canvasTool: "hand", rightPanel: { open: false, width: 400 } });
+});
+
+test("a tool chosen before the read keeps its value in the saves after it", async () => {
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  publishTool("hand");
+  publishTool("select");
+  // The controller kept the person's Select; the read's Hand reaches it but does not reach the save.
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, canvasTool: "hand" }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(harness.controller!.restoreTool).toHaveBeenCalledWith("hand");
+  expect(doan.saveUiState).toHaveBeenCalled();
+  expect(savedTool()).not.toHaveProperty("canvasTool");
+});
+
+test("switching to Hand or Select saves the merged state; Select saves no field", async () => {
+  await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  publishTool("hand");
+  expect(savedTool()).toMatchObject({ canvasTool: "hand", rightPanel: { open: false, width: 400 } });
+  publishTool("select");
+  expect(savedTool()).not.toHaveProperty("canvasTool");
+  expect(savedTool()?.rightPanel).toEqual({ open: false, width: 400 });
+});
+
+test("tells the controller whether the canvas page is the one shown", async () => {
+  await canvasPage();
+  expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(true);
+  render(); folders([listed("/w/a")]);
+  find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render();
+  expect(find(ProjectOverview)).toHaveLength(1);
+  expect(harness.controller!.setCanvasPage).toHaveBeenLastCalledWith(false);
 });
 
 // buzz-canvas R5 (design §2 '에이전트 작업 표시'): the agent notice's Open unfolds the panel and moves focus into it; a Stop

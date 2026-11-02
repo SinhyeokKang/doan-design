@@ -11,10 +11,10 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("updates the board synchronously without notifying React during pan", () => {
   vi.stubGlobal("window", new EventTarget());
-  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
+  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
   controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   expect(board.style.transform).toBe("translate(-10px, -20px) scale(1)");
   expect(changed).not.toHaveBeenCalled();
@@ -23,10 +23,10 @@ it("updates the board synchronously without notifying React during pan", () => {
 
 it("notifies React only when the rounded zoom percentage changes", () => {
   vi.stubGlobal("window", new EventTarget());
-  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
+  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
   const zoom = (dy: number) => controller.wheel({ dx: 0, dy, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   zoom(-0.1);
   expect(changed).not.toHaveBeenCalled();
@@ -58,9 +58,9 @@ describe("zoom to a scale", () => {
 
   it("does nothing without a rendered board", () => {
     vi.stubGlobal("window", new EventTarget());
-    const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
+    const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
-    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
     try {
       controller.zoomTo(2);
       expect(controller.currentView().scale).toBe(1);
@@ -94,10 +94,10 @@ function loadedController() {
   vi.stubGlobal("window", host);
   const frame = Object.assign(new EventTarget(), { contentWindow: { postMessage: vi.fn() }, style: {}, setAttribute: vi.fn(), remove: vi.fn(), replaceWith: vi.fn() });
   vi.stubGlobal("document", { createElement: () => frame });
-  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
+  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
   const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 600 };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
   controller.openCanvas("/repo", row);
@@ -122,6 +122,17 @@ it("does not notify React for repeated layouts or geometry-only changes", () => 
   } finally { controller.dispose(); }
 });
 
+// The drag layer App renders after the overlay (canvas-hand-tool design '방식').
+function fakeLayer() {
+  const captured = new Set<number>();
+  return Object.assign(new EventTarget(), {
+    hidden: false, dataset: {} as Record<string, string>, captured,
+    setPointerCapture: (id: number) => { captured.add(id); },
+    releasePointerCapture: (id: number) => { captured.delete(id); },
+    hasPointerCapture: (id: number) => captured.has(id),
+  });
+}
+
 interface FakeMark {
   className: string;
   hidden: boolean;
@@ -138,7 +149,10 @@ function selectionHarness() {
   vi.stubGlobal("window", host);
   const frames: (EventTarget & { contentWindow: { postMessage: ReturnType<typeof vi.fn> }; style: Record<string, string> })[] = [];
   const marks: FakeMark[] = [];
-  vi.stubGlobal("document", {
+  // What the hand tool reads: which element has focus, and whether the app window has it.
+  const doc = {
+    activeElement: null as unknown,
+    hasFocus: () => true,
     createElement: (tag: string) => {
       if (tag !== "iframe") {
         const mark: FakeMark = Object.assign(new EventTarget(), { className: "", hidden: false, textContent: "", style: {}, children: [] as FakeMark[], append: (...children: FakeMark[]) => mark.children.push(...children), setAttribute: vi.fn(), remove: vi.fn() });
@@ -149,8 +163,9 @@ function selectionHarness() {
       frames.push(frame);
       return frame;
     },
-  });
-  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
+  };
+  vi.stubGlobal("document", doc);
+  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const overlay = { append: vi.fn() };
   const changed = vi.fn();
@@ -158,7 +173,8 @@ function selectionHarness() {
   // Each inspect call waits until the test resolves it, so answers can arrive late.
   const inspections: { selector: string; resolve: (result: InspectResult) => void; reject: (error: unknown) => void }[] = [];
   const inspect = vi.fn((selector: string) => new Promise<InspectResult>((resolve, reject) => { inspections.push({ selector, resolve, reject }); }));
-  const controller = new CanvasController(viewport, board, overlay, changed, send, inspect);
+  const layer = fakeLayer();
+  const controller = new CanvasController(viewport, board, overlay, changed, send, inspect, layer);
   const row = { path: ".doan/canvases/a.html", id: "a", url: "http://localhost/t/k/f/.doan/canvases/a.html", width: 600 };
   const other = { ...row, path: ".doan/canvases/b.html", id: "b", url: "http://localhost/t/k/f/.doan/canvases/b.html" };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }]);
@@ -172,7 +188,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc };
 }
 
 describe("selection", () => {
@@ -1679,9 +1695,9 @@ describe("first Fit", () => {
     vi.stubGlobal("window", host);
     const frame = Object.assign(new EventTarget(), { contentWindow: { postMessage: vi.fn() }, style: {}, setAttribute: vi.fn(), remove: vi.fn(), replaceWith: vi.fn() });
     vi.stubGlobal("document", { createElement: () => frame });
-    const viewport = Object.assign(new EventTarget(), { clientWidth: width, clientHeight: 600, getBoundingClientRect: () => new DOMRect() });
+    const viewport = Object.assign(new EventTarget(), { clientWidth: width, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
-    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })));
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
     const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200 };
     const other = { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" };
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }, { path: "/other", kind: "list", servedRev: 0, canvases: [other] }]);
@@ -1779,14 +1795,14 @@ describe("picking", () => {
     return results;
   };
 
-  it("starts with the select tool, and pick publishes the pick tool and sends pick-start on its own seq", () => {
+  it("starts with the select tool, and pick publishes picking without changing the tool and sends pick-start on its own seq", () => {
     const h = harness();
     try {
-      expect(initialCanvasState().tool).toBe("select");
-      expect(h.state().tool).toBe("select");
+      expect(initialCanvasState()).toMatchObject({ tool: "select", picking: false });
+      expect(h.state()).toMatchObject({ tool: "select", picking: false });
       h.select(1);
       started(h);
-      expect(h.state().tool).toBe("pick");
+      expect(h.state().picking).toBe(true);
       expect(picks(h)).toEqual([{ type: "pick-start", document: "doc", seq: 1 }]);
       // A second pick while picking changes nothing.
       expect(h.controller.pick()).toBe(true);
@@ -1801,12 +1817,12 @@ describe("picking", () => {
       const selection = h.state().selection;
       h.send.mockClear();
       const results = started(h);
-      results.mockImplementation(() => expect(h.state().tool).toBe("select"));
+      results.mockImplementation(() => expect(h.state().picking).toBe(false));
       picked(h, { target: { ...h.target, tag: "button", element: { doanId: "pay", selector: '[data-doan-id="pay"]', html: "<button>" } } });
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "picked", anchor: { frame: { id: "hero" }, element: { doanId: "pay", selector: '[data-doan-id="pay"]', tag: "button" } },
         frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
       expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
-      expect(h.state()).toMatchObject({ tool: "select", selection });
+      expect(h.state()).toMatchObject({ picking: false, selection });
       expect(h.send).not.toHaveBeenCalled();
       expect(h.inspect).toHaveBeenCalledTimes(1);
       // A second reply for the same pick is dropped.
@@ -1831,10 +1847,10 @@ describe("picking", () => {
       const results = started(h);
       picked(h, { point: { x: 50, y: 50 } });
       expect(results).not.toHaveBeenCalled();
-      expect(h.state().tool).toBe("pick");
+      expect(h.state().picking).toBe(true);
       picked(h, { point: { x: 160, y: 260 } });
       expect(results).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: "picked", anchor: { frame: { id: "card" }, point: { frameId: "card", dx: 10, dy: 10 } } }));
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
     } finally { h.controller.dispose(); }
   });
 
@@ -1848,7 +1864,7 @@ describe("picking", () => {
       h.controller.cancelPick();
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
       expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
       picked(h, { target: h.target });
       expect(results).toHaveBeenCalledTimes(1);
       // A new pick takes a newer seq, and the earlier pick's late reply cannot complete it.
@@ -1870,7 +1886,7 @@ describe("picking", () => {
       const event = escape(h, { target: field });
       expect(event.defaultPrevented).toBe(true);
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
-      expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ picking: false, selection: expect.objectContaining({ tag: "span" }) });
       expect(posted(h).some(m => m.type === "clear")).toBe(false);
       // Back on the select tool, Esc clears the selection again.
       escape(h);
@@ -1887,7 +1903,7 @@ describe("picking", () => {
       h.host.dispatchEvent(handled);
       escape(h, { isComposing: true });
       escape(h, { keyCode: 229 });
-      expect(h.state().tool).toBe("pick");
+      expect(h.state().picking).toBe(true);
     } finally { h.controller.dispose(); }
   });
 
@@ -1900,7 +1916,7 @@ describe("picking", () => {
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
       started(h);
       h.receive({ type: "key", seq: 0, key: "Escape" });
-      expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ picking: false, selection: expect.objectContaining({ tag: "span" }) });
     } finally { h.controller.dispose(); }
   });
 
@@ -1910,7 +1926,7 @@ describe("picking", () => {
       h.select(1);
       started(h);
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0, ctrlKey: false, altKey: false }));
-      expect(h.state()).toMatchObject({ tool: "pick", selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ picking: true, selection: expect.objectContaining({ tag: "span" }) });
     } finally { h.controller.dispose(); }
   });
 
@@ -1938,7 +1954,7 @@ describe("picking", () => {
       const results = started(h);
       const old = h.current();
       h.controller.command("reload");
-      expect(h.state().tool).toBe("pick");
+      expect(h.state().picking).toBe(true);
       expect(picks(h)).toEqual([]);
       picked(h, { target: h.target }, old);
       expect(results).not.toHaveBeenCalled();
@@ -1955,7 +1971,7 @@ describe("picking", () => {
       const results = started(h);
       const moved = { ...h.row, path: ".doan/canvases/flows/a.html", url: "http://localhost/t/k/f/.doan/canvases/flows/a.html" };
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [moved, h.other] }]);
-      expect(h.state().tool).toBe("pick");
+      expect(h.state().picking).toBe(true);
       h.layout({ href: moved.url, document: "doc2" });
       expect(picks(h)).toEqual([{ type: "pick-start", document: "doc2", seq: 1 }]);
       picked(h, { target: h.target, href: moved.url, document: "doc2" });
@@ -1970,14 +1986,14 @@ describe("picking", () => {
       const results = started(h);
       h.controller.command("reload");
       vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
-      expect(h.state()).toMatchObject({ status: "failed", tool: "select" });
+      expect(h.state()).toMatchObject({ status: "failed", picking: false });
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
       h.controller.command("reload");
       h.layout({ document: "doc2" });
       expect(h.controller.pick()).toBe(true);
       h.controller.command("reload");
       h.layout({ href: "http://localhost/t/k/f/.doan/canvases/unlisted.html", document: "doc3" });
-      expect(h.state()).toMatchObject({ unlisted: true, tool: "select" });
+      expect(h.state()).toMatchObject({ unlisted: true, picking: false });
       expect(results).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
   });
@@ -1987,7 +2003,7 @@ describe("picking", () => {
     try {
       const results = started(h);
       h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [{ ...h.row, id: "z" }, h.other] }]);
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
     } finally { h.controller.dispose(); }
   });
@@ -1997,24 +2013,24 @@ describe("picking", () => {
     try {
       const results = started(h);
       h.controller.openCanvas("/repo", h.other);
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
       h.layout({ href: h.other.url, document: "b" });
       expect(h.controller.pick()).toBe(true);
       h.current().contentWindow.postMessage.mockClear();
       h.layout({ href: h.row.url, document: "linked" });
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
       // The linked page's script starts its pick seq again at 0: it gets no cancel, and the next pick starts at 1.
       expect(h.controller.pick()).toBe(true);
       expect(picks(h)).toEqual([{ type: "pick-start", document: "linked", seq: 1 }]);
       h.controller.cancelPick();
       expect(h.controller.pick()).toBe(true);
       h.controller.showOverview();
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
       h.controller.openCanvas("/repo", h.row);
       h.layout({ document: "again" });
       expect(h.controller.pick()).toBe(true);
       h.controller.setWorkspaceActive(false);
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
       expect(results).toHaveBeenCalledTimes(5);
       expect(results.mock.calls.every(([result]) => result.kind === "cancelled")).toBe(true);
     } finally { h.controller.dispose(); }
@@ -2029,7 +2045,7 @@ describe("picking", () => {
       expect(h.controller.pick()).toBe(false);
       h.controller.showOverview();
       expect(h.controller.pick()).toBe(false);
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
     } finally { h.controller.dispose(); }
   });
 
@@ -2053,7 +2069,7 @@ describe("picking", () => {
       const { frame: _frame, frameIndex: _index, ...loose } = h.target;
       picked(h, { target: loose });
       expect(results).not.toHaveBeenCalled();
-      expect(h.state().tool).toBe("pick");
+      expect(h.state().picking).toBe(true);
     } finally { h.controller.dispose(); }
   });
 
@@ -2067,7 +2083,7 @@ describe("picking", () => {
       expect(h.current().style.pointerEvents).toBe("none");
       // A click in between lands on the board instead of the canvas: picking goes on and nothing is selected.
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0, ctrlKey: false, altKey: false }));
-      expect(h.state()).toMatchObject({ tool: "pick", selection });
+      expect(h.state()).toMatchObject({ picking: true, selection });
       expect(h.send).not.toHaveBeenCalled();
       expect(posted(h).some(m => m.type === "clear" || m.type === "select-anchor")).toBe(false);
       // An acknowledgement for another pick or document does not open the canvas.
@@ -2091,7 +2107,7 @@ describe("picking", () => {
       // The acknowledgement that arrives late keeps nothing open or closed.
       acked(h);
       expect(h.current().style.pointerEvents).toBe("");
-      expect(h.state().tool).toBe("select");
+      expect(h.state().picking).toBe(false);
     } finally { h.controller.dispose(); }
   });
 
@@ -2118,7 +2134,7 @@ describe("picking", () => {
       // The canvas's own location.reload(): same iframe, same href, a new document token.
       h.layout({ document: "doc2" });
       expect(h.current()).toBe(frame);
-      expect(h.state().tool).toBe("pick");
+      expect(h.state().picking).toBe(true);
       expect(picks(h).at(-1)).toEqual({ type: "pick-start", document: "doc2", seq: 1 });
       expect(h.current().style.pointerEvents).toBe("none");
       picked(h, { target: h.target });
@@ -2375,4 +2391,451 @@ it("clips the canvas area instead of letting a focus scroll it", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toMatch(/\.doan-canvas-panel > \.area \{[^}]*overflow: clip;/);
+});
+
+// canvas-hand-tool T3: the Select and Hand tools, the drag layer, Space, V, H and Esc, canvas focus and hover.
+describe("hand tool", () => {
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+  type H = ReturnType<typeof selectionHarness>;
+  const keyEvent = (type: "keydown" | "keyup", code: string, over: Record<string, unknown> = {}) => {
+    const { target, ...rest } = over;
+    const key = code === "Space" ? " " : code === "Escape" ? "Escape" : code.slice(3).toLowerCase();
+    const event = Object.assign(new Event(type, { cancelable: true }), { code, key, ...rest });
+    // dispatchEvent sets `target` to the host; a key from a field or a control keeps it.
+    if (target !== undefined) Object.defineProperty(event, "target", { get: () => target });
+    return event;
+  };
+  const press = (h: H, code: string, over?: Record<string, unknown>) => { const event = keyEvent("keydown", code, over); h.host.dispatchEvent(event); return event; };
+  const release = (h: H, code: string, over?: Record<string, unknown>) => { const event = keyEvent("keyup", code, over); h.host.dispatchEvent(event); return event; };
+  const pointer = (h: H, type: string, over: Record<string, unknown> = {}) => {
+    const event = Object.assign(new Event(type, { cancelable: true }), { button: 0, pointerId: 1, clientX: 0, clientY: 0, ...over });
+    h.layer.dispatchEvent(event);
+    return event;
+  };
+  // Where the app last saw the pointer: its capture pointermove on the window.
+  const pointerOver = (h: H, target: unknown) => {
+    const event = new Event("pointermove");
+    Object.defineProperty(event, "target", { get: () => target });
+    h.host.dispatchEvent(event);
+  };
+  const shown = (h: H) => !h.layer.hidden;
+  const grabbing = (h: H) => "grabbing" in h.layer.dataset;
+  const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
+  const translate = (h: H) => /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(h.board.style.transform)!.slice(1).map(Number);
+  const canvasKey = (h: H, key: string, over: Record<string, unknown> = {}) => h.receive({ type: "key", key, seq: 0, ...over });
+  const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
+
+  it("starts in Select with no drag layer", () => {
+    const h = harness();
+    try {
+      expect(h.state().tool).toBe("select");
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("H raises the drag layer; V and Esc go back to Select", () => {
+    const h = harness();
+    try {
+      expect(press(h, "KeyH").defaultPrevented).toBe(true);
+      expect(h.state().tool).toBe("hand");
+      expect(shown(h)).toBe(true);
+      press(h, "KeyV");
+      expect(h.state().tool).toBe("select");
+      expect(shown(h)).toBe(false);
+      press(h, "KeyH");
+      press(h, "Escape");
+      expect(h.state().tool).toBe("select");
+      expect(shown(h)).toBe(false);
+      // Pressing the pressed tool again keeps it.
+      press(h, "KeyV");
+      expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the toolbar's Select and Hand set the tool", () => {
+    const h = harness();
+    try {
+      h.controller.setTool("hand");
+      expect(h.state().tool).toBe("hand");
+      expect(shown(h)).toBe(true);
+      h.controller.setTool("select");
+      expect(h.state().tool).toBe("select");
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Esc in Hand turns Hand off before it clears the selection", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      press(h, "KeyH");
+      press(h, "Escape");
+      expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "span" }) });
+      press(h, "Escape");
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Esc in a text field does not turn Hand off, and V and H there do nothing", () => {
+    const h = harness();
+    try {
+      const field = { tagName: "TEXTAREA", isContentEditable: false };
+      h.select(1);
+      press(h, "KeyH");
+      press(h, "Escape", { target: field });
+      expect(h.state()).toMatchObject({ tool: "hand", selection: expect.objectContaining({ tag: "span" }) });
+      expect(press(h, "KeyV", { target: field }).defaultPrevented).toBe(false);
+      expect(h.state().tool).toBe("hand");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("V and H do nothing off the canvas page or with a modifier", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH", { metaKey: true });
+      expect(h.state().tool).toBe("select");
+      h.controller.setCanvasPage(false);
+      press(h, "KeyH");
+      expect(h.state().tool).toBe("select");
+      h.controller.setCanvasPage(true);
+      press(h, "KeyH");
+      expect(h.state().tool).toBe("hand");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a pick hides the layer and keeps the tool; its end comes back to Hand", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      expect(h.controller.pick()).toBe(true);
+      expect(h.state()).toMatchObject({ tool: "hand", picking: true });
+      expect(shown(h)).toBe(false);
+      h.controller.cancelPick();
+      expect(h.state()).toMatchObject({ tool: "hand", picking: false });
+      expect(shown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("ignores V, H and Space while picking, from the app and from the canvas", () => {
+    const h = harness();
+    try {
+      h.controller.pick();
+      press(h, "KeyH");
+      canvasKey(h, "H");
+      expect(h.state().tool).toBe("select");
+      press(h, "Space");
+      expect(shown(h)).toBe(false);
+      h.controller.cancelPick();
+      press(h, "KeyH");
+      h.controller.pick();
+      press(h, "KeyV");
+      canvasKey(h, "V");
+      expect(h.state()).toMatchObject({ tool: "hand", picking: true });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("takes V, H and Esc forwarded by a focused canvas", () => {
+    const h = harness();
+    try {
+      canvasKey(h, "H");
+      expect(h.state().tool).toBe("hand");
+      canvasKey(h, "Escape");
+      expect(h.state().tool).toBe("select");
+      canvasKey(h, "H");
+      canvasKey(h, "V");
+      expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Space held in Select raises the layer at once and its release lowers it; Hand keeps the layer", () => {
+    const h = harness();
+    try {
+      expect(press(h, "Space").defaultPrevented).toBe(true);
+      expect(shown(h)).toBe(true);
+      expect(h.state().tool).toBe("select");
+      expect(release(h, "Space").defaultPrevented).toBe(true);
+      expect(shown(h)).toBe(false);
+      press(h, "KeyH");
+      press(h, "Space");
+      release(h, "Space");
+      expect(h.state().tool).toBe("hand");
+      expect(shown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Space on a focused control is the control's; its release there still lowers a held Space", () => {
+    const h = harness();
+    try {
+      const button = { tagName: "BUTTON", isContentEditable: false, getAttribute: () => null, hasAttribute: () => false };
+      const space = press(h, "Space", { target: button });
+      expect(space.defaultPrevented).toBe(false);
+      expect(shown(h)).toBe(false);
+      expect(release(h, "Space", { target: button }).defaultPrevented).toBe(false);
+      press(h, "Space");
+      release(h, "Space", { target: { tagName: "TEXTAREA", isContentEditable: false } });
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Space down from the canvas counts only while its iframe has focus; Space up always counts", () => {
+    const h = harness();
+    try {
+      canvasKey(h, "Space", { down: true });
+      expect(shown(h)).toBe(false);
+      h.doc.activeElement = h.current();
+      canvasKey(h, "Space", { down: true });
+      expect(shown(h)).toBe(true);
+      h.doc.activeElement = null;
+      canvasKey(h, "Space", { down: false });
+      expect(shown(h)).toBe(false);
+      // Pressed in the app, released in the canvas.
+      press(h, "Space");
+      canvasKey(h, "Space", { down: false });
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the app window losing focus releases Space; focus moving into the canvas does not", () => {
+    const h = harness();
+    try {
+      press(h, "Space");
+      h.host.dispatchEvent(new Event("blur"));
+      expect(shown(h)).toBe(true);
+      h.doc.hasFocus = () => false;
+      h.host.dispatchEvent(new Event("blur"));
+      expect(shown(h)).toBe(false);
+      h.doc.hasFocus = () => true;
+      press(h, "Space");
+      h.controller.setWorkspaceActive(false);
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("sends hover-leave and hides the hover when the layer appears, keeping the selection mark", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.receive({ type: "hover", seq: 0, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(false);
+      press(h, "Space");
+      expect(posted(h).at(-1)).toMatchObject({ type: "hover-leave" });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+      expect(h.markOf("selected")?.hidden).toBe(false);
+      // A hover the canvas sent before it lost the pointer is not drawn under the layer.
+      h.receive({ type: "hover", seq: 5, rect: { x: 0, y: 0, width: 4, height: 4 } });
+      expect(h.markOf("hover")?.hidden).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("keeps Hand across the Overview and an empty state", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      h.controller.showOverview();
+      expect(h.state().tool).toBe("hand");
+      expect(shown(h)).toBe(false);
+      h.controller.openCanvas("/repo", h.other);
+      expect(h.state().tool).toBe("hand");
+      h.layout({ href: h.other.url });
+      expect(shown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("has no layer while the board is not drawn: loading, failed, no width, unlisted", () => {
+    vi.useFakeTimers();
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      h.controller.openCanvas("/repo", h.other);
+      expect(h.state()).toMatchObject({ status: "loading", tool: "hand" });
+      expect(shown(h)).toBe(false);
+      press(h, "Space");
+      expect(shown(h)).toBe(false);
+      release(h, "Space");
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      expect(h.state()).toMatchObject({ status: "failed", tool: "hand" });
+      expect(shown(h)).toBe(false);
+      h.controller.command("reload");
+      h.layout({ href: h.other.url, document: "doc2" });
+      expect(shown(h)).toBe(true);
+      h.controller.command("reload");
+      h.layout({ href: "http://localhost/t/k/f/.doan/canvases/unlisted.html", document: "doc3" });
+      expect(h.state().unlisted).toBe(true);
+      expect(shown(h)).toBe(false);
+      const { width: _width, ...noWidth } = h.other;
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 2, canvases: [h.row, noWidth] }]);
+      expect(h.state()).toMatchObject({ status: "noWidth", tool: "hand" });
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a drag pans by each pointermove's increment, whatever the zoom, and does not select", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      h.controller.zoomTo(2);
+      const [x0, y0] = translate(h);
+      const down = pointer(h, "pointerdown", { clientX: 100, clientY: 100 });
+      expect(down.defaultPrevented).toBe(true);
+      expect(h.layer.captured.has(1)).toBe(true);
+      expect(grabbing(h)).toBe(true);
+      pointer(h, "pointermove", { clientX: 130, clientY: 90 });
+      expect(translate(h)).toEqual([x0! + 30, y0! - 10]);
+      // A zoom during the drag stays: the next move adds only its own travel.
+      h.controller.zoomTo(1);
+      const [x1, y1] = translate(h);
+      pointer(h, "pointermove", { clientX: 135, clientY: 95 });
+      expect(translate(h)).toEqual([x1! + 5, y1! + 5]);
+      pointer(h, "pointerup", { clientX: 135, clientY: 95 });
+      expect(grabbing(h)).toBe(false);
+      expect(h.layer.captured.has(1)).toBe(false);
+      pointer(h, "pointermove", { clientX: 200, clientY: 200 });
+      expect(translate(h)).toEqual([x1! + 5, y1! + 5]);
+      expect(posted(h).some(message => message.type === "select-anchor" || message.type === "clear")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("only the primary button drags; the others do nothing", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      const before = h.board.style.transform;
+      pointer(h, "pointerdown", { button: 2, clientX: 0, clientY: 0 });
+      pointer(h, "pointermove", { clientX: 50, clientY: 50 });
+      expect(h.board.style.transform).toBe(before);
+      expect(grabbing(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it.each(["pointercancel", "lostpointercapture"])("%s ends a drag and the grabbing cursor", (type) => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      expect(grabbing(h)).toBe(true);
+      pointer(h, type);
+      expect(grabbing(h)).toBe(false);
+      const before = h.board.style.transform;
+      pointer(h, "pointermove", { clientX: 60, clientY: 60 });
+      expect(h.board.style.transform).toBe(before);
+      expect(shown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a canvas switch ends a drag, and the board coming back does not resume it", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      expect(h.layer.captured.size).toBe(1);
+      h.controller.openCanvas("/repo", h.other);
+      expect(grabbing(h)).toBe(false);
+      expect(h.layer.captured.size).toBe(0);
+      h.layout({ href: h.other.url });
+      const before = h.board.style.transform;
+      pointer(h, "pointermove", { clientX: 60, clientY: 60 });
+      expect(h.board.style.transform).toBe(before);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Space released and V pressed during a drag apply after pointerup", () => {
+    const h = harness();
+    try {
+      press(h, "Space");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      release(h, "Space");
+      expect(shown(h)).toBe(true);
+      pointer(h, "pointermove", { clientX: 20, clientY: 10 });
+      expect(grabbing(h)).toBe(true);
+      pointer(h, "pointerup");
+      expect(shown(h)).toBe(false);
+      press(h, "KeyH");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      press(h, "KeyV");
+      expect(h.state().tool).toBe("hand");
+      expect(shown(h)).toBe(true);
+      pointer(h, "pointerup");
+      expect(h.state().tool).toBe("select");
+      expect(shown(h)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a drag in Hand moves focus to the canvas area; one with Space held leaves focus where it is", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      pointer(h, "pointerdown");
+      pointer(h, "pointerup");
+      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      h.viewport.focus.mockClear();
+      press(h, "KeyV");
+      press(h, "Space");
+      pointer(h, "pointerdown");
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a canvas click moves focus to the area, a margin click too, but not while picking", () => {
+    const h = harness();
+    try {
+      pointerOver(h, h.current());
+      h.select(1);
+      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      h.receive({ type: "clear", seq: 2 });
+      expect(h.viewport.focus).toHaveBeenCalledTimes(2);
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      expect(h.viewport.focus).toHaveBeenCalledTimes(3);
+      h.viewport.focus.mockClear();
+      h.controller.pick();
+      h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
+      h.select(3);
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a selection message does not move focus when the app last saw the pointer outside the canvas", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      pointerOver(h, { tagName: "TEXTAREA" });
+      h.select(2);
+      h.receive({ type: "clear", seq: 3 });
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      // A renderer command's answer is not a click, even with the pointer on the canvas.
+      pointerOver(h, h.viewport);
+      h.controller.selectFrame(1, "hero");
+      h.select(4);
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a saved tool applies until the person chooses one", () => {
+    const h = harness();
+    try {
+      h.controller.restoreTool("hand");
+      expect(h.state().tool).toBe("hand");
+      expect(shown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+    const chosen = harness();
+    try {
+      press(chosen, "KeyH");
+      press(chosen, "KeyV");
+      chosen.controller.restoreTool("hand");
+      expect(chosen.state().tool).toBe("select");
+    } finally { chosen.controller.dispose(); }
+  });
+});
+
+// canvas-hand-tool design '방식' and '어두운 바탕의 키 표시': the layer sits over the board and under the canvas
+// chrome, and the picking hint's Esc uses the shared key variant instead of its own rule.
+it("styles the drag layer between the board and the canvas chrome, and drops the picking hint's own key rule", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.drag-layer \{[^}]*position: absolute;[^}]*inset: 0;[^}]*z-index: 0;[^}]*cursor: grab;/);
+  expect(css).toMatch(/\.drag-layer\[data-grabbing\] \{[^}]*cursor: grabbing;/);
+  expect(css).not.toMatch(/\.doan-picking-esc/);
+  const controls = readFileSync(new URL("./ds/controls.css", import.meta.url), "utf8");
+  expect(controls).toMatch(/\.doan-kbd\[data-ui-variant="on-prominent"\] \{[^}]*background: color-mix\(in srgb, currentColor 16%, transparent\);[^}]*color: inherit;[^}]*box-shadow: none;/);
+  expect(controls).toMatch(/\.doan-kbd\[data-ui-size="sm"\] \{[^}]*padding: 0 var\(--space-1h\);[^}]*font-size: var\(--type-caption-size\);/);
 });
