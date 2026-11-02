@@ -1,0 +1,1142 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="terminal-agent-activity"><meta name="doan:width" content="2000"><title>terminal-agent-activity — terminal sessions on the canvas</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/mock.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button,input{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;border-radius:0}ul{list-style:none}}
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center;--radix-dropdown-menu-content-available-height:384px}
+/* ── app/src/renderer/styles.css as shipped (be79b22a), without its imports and @theme ── */
+
+/* shadcn names map onto neutral roles; violet never reaches them. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root { color-scheme: light; }
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+/* Keep Tailwind preflight's inherited 1.5 line height out of the shell. */
+body { background: var(--bg-app); color: var(--text-standard); font-family: var(--type-family); font-variant-numeric: tabular-nums; font-size: 13px; line-height: normal; }
+button { cursor: pointer; font: inherit; color: inherit; }
+button:disabled { color: var(--text-disabled); cursor: default; }
+button, [role="treeitem"] { outline: none; }
+button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+/* Rows sit inside scrolling lists, which would clip an outer ring, so theirs is drawn inward. */
+[role="treeitem"].row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+ol { list-style: none; }
+code, kbd { font-family: var(--type-family); }
+.app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: 40px minmax(0, 1fr); height: 100%; background: var(--bg-app); }
+.top { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--surface-panel); border-bottom: 1px solid var(--border-standard); -webkit-app-region: drag; }
+.top button { -webkit-app-region: no-drag; }
+.traffic-space { width: 52px; flex: none; }
+.spacer { flex: 1; }
+.meta { font: 11.5px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
+.side { background: var(--surface-panel); border-right: 1px solid var(--border-standard); }
+.right { background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
+.native-scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.native-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.native-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb-quiet); border-radius: 4px; }
+.sec { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 6px; }
+.sec .r { letter-spacing: 0; text-transform: none; }
+.sec .r { color: var(--text-metadata); }
+.row { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; font: 12.5px var(--type-family); color: var(--text-subtle); position: relative; white-space: nowrap; cursor: pointer; }
+.row .g { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.row .d { color: var(--text-metadata); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.row:hover { background: var(--surface-inset); }
+.glyph { color: var(--text-disabled); width: 12px; flex: none; text-align: center; }
+.cnt { font: 10.5px var(--type-family); color: var(--text-metadata); }
+.cnt.hot { color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.err { color: var(--text-danger); font: 10.5px var(--type-family); }
+.hint { padding: 2px 12px 6px 34px; font: 11.5px/1.5 var(--type-family); color: var(--text-metadata); overflow-wrap: anywhere; }
+.hint code { color: var(--text-subtle); background: var(--surface-inset); border-radius: 4px; padding: 0 4px; }
+.recovery .doan-button { margin: 4px 4px 0 0; }
+/* The board is the light grey inset surface, so a white canvas stays distinguishable when zoomed out and the agent's white dot field shows. */
+.area { position: relative; overflow: hidden; background: var(--surface-inset); }
+.board { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.board iframe { display: block; border: 0; }
+/* Keep the overlay's marks below canvas chrome. */
+.overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+/* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
+/* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
+.mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
+.mark.hover { border-style: dashed; }
+/* The same prominent capsule as the tooltip. */
+.dims { position: absolute; top: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--affordance-prominent); color: var(--text-on-prominent); box-shadow: var(--shadow-sm); font: var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); letter-spacing: var(--type-caption-letter-spacing); padding: var(--space-1) var(--space-2); border-radius: calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2); white-space: nowrap; }
+.canvas-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); pointer-events: none; }
+.canvas-status button { pointer-events: auto; }
+.canvas-status b { color: var(--text-standard); font-weight: var(--type-weight-medium); }
+.canvas-status > * { max-width: 260px; overflow-wrap: anywhere; }
+.canvas-status .doan-spinner { display: block; margin: 0 auto var(--space-2); }
+.canvas-notice { padding: 7px 12px; background: var(--surface-inset); color: var(--text-standard); font: 11px var(--type-family); }
+.phead { font: 600 12px var(--type-family); padding: 11px 14px 10px; border-bottom: 1px solid var(--border-standard); }
+.pempty { padding: 14px; font: 12.5px var(--type-family); color: var(--text-metadata); }
+.isec { padding: 10px 12px 12px; border-bottom: 1px solid var(--border-standard); }
+.ihead { font: 10.5px var(--type-family); letter-spacing: .1em; text-transform: uppercase; color: var(--text-metadata); margin-bottom: 8px; }
+.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 5px 8px; font: 11.5px var(--type-family); }
+.kv dt { color: var(--text-metadata); }
+.kv dd { overflow-wrap: anywhere; }
+.activity { border: 0; }
+.tl-row { display: flex; gap: 8px; padding: 3px 12px 3px 0; font: 11px var(--type-family); color: var(--text-metadata); }
+.tl-row time { color: var(--text-metadata); width: 54px; flex: none; }
+.tl-row b { font-weight: 400; color: var(--text-subtle); }
+.tl-row .from { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.truncate { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspect-head { padding: 12px; border-bottom: 1px solid var(--border-standard); display: flex; flex-direction: column; gap: 6px; }
+.inspect-head h3 { font-size: 12.5px; font-weight: var(--type-weight-semibold); }
+.selector { color: var(--text-subtle); font-size: 11.5px; }
+.head-kv { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 5px 8px; font-size: 11.5px; }
+.head-kv dt { color: var(--text-metadata); }
+.ancestors { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ancestors button { max-width: 100%; padding: 3px 5px; border-radius: 4px; font-size: 11px; color: var(--text-subtle); background: var(--surface-inset); }
+.ancestors button[aria-current="true"] { color: var(--text-standard); background: var(--surface-navigation-selected); }
+.ancestors span { color: var(--text-disabled); font-size: 11px; }
+.use-hint { color: var(--text-metadata); font-size: 11.5px; line-height: 1.5; }
+/* Not in the draft: main's reason when it could not read the values. */
+.inspect-failed { padding: 10px 12px; border-bottom: 1px solid var(--border-standard); color: var(--text-metadata); font-size: 11.5px; line-height: 1.5; }
+.inspect-row { margin-bottom: 7px; font-size: 11.5px; }
+.inspect-row:last-child { margin-bottom: 0; }
+.value-line { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 16px; }
+.prop { color: var(--text-metadata); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.value { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.value.default { color: var(--text-metadata); }
+.source-line { margin-left: 86px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+.token { max-width: 100%; font-size: 10.5px; color: var(--text-standard); background: var(--surface-inset); padding: 2px 5px; border-radius: 4px; }
+.state { color: var(--text-metadata); font-size: 10px; line-height: 1.5; }
+.state.hardcoded { color: var(--text-warning); }
+.swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-standard); flex: none; }
+/* Short attribute labels stay fully readable at the fixed panel width. */
+.doan-attributes .prop { overflow: visible; text-overflow: clip; }
+
+/* These buttons set a colour at the same specificity as button:disabled and come later, so they restate disabled. */
+.ancestors button:disabled { color: var(--text-disabled); }
+
+.right-stack { min-height: 0; display: flex; flex-direction: column; background: var(--surface-panel); border-left: 1px solid var(--border-standard); }
+.right-stack > .right { min-height: 100px; flex: 0 1 278px; border-left: 0; border-bottom: 1px solid var(--border-standard); }
+
+.right-stack > .right:only-child { flex: 1; border-bottom: 0; }
+
+/* Onboarding (.doan/canvases/buzz-onboarding.html). The first run covers the window as a modal dialog; its text is
+   set without the shell's tabular figures, which widened the stepper's "1" by 3px against the draft. The app
+   behind it is hidden, so on Agent and Project the window's native sidebar material shows through as it does
+   behind AppShell; Welcome is an opaque panel with its own atmosphere. */
+#root:has(> .ob-overlay[open]) > :not(.ob-overlay) { visibility: hidden; }
+.ob-overlay { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
+.ob-overlay::backdrop { background: transparent; }
+.ob-overlay.ob-welcome { background: var(--surface-panel); }
+@media (prefers-reduced-transparency: reduce) { .ob-overlay { background: var(--bg-app); } }
+/* An accent glow broken up by an alpha grain mask, never black specks on top; it does not move (2026-10-28 user).
+   Fixed, so it fills the window behind the chrome rather than only the scrolling scene; z-index -1 keeps it under
+   the in-flow text in the overlay's own stacking context. */
+.ob-atmosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(ellipse 50% 125% at 50% 112%, var(--affordance-accent) 0%, color-mix(in srgb, var(--affordance-accent) 78%, transparent) 30%, color-mix(in srgb, var(--affordance-accent) 32%, transparent) 60%, transparent 100%); mask-image: url("/onboarding-grain.svg"); mask-size: 180px 180px; mask-repeat: repeat; opacity: .85; }
+@media (forced-colors: active) { .ob-atmosphere { display: none; } }
+.ob-chrome { position: relative; flex: none; height: var(--size-chrome); display: flex; align-items: center; justify-content: center; -webkit-app-region: drag; }
+/* The AppShell mode capsule drawn with the shared buttons (draft), so it does not inherit .shell-modes button. */
+.ob-steps { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: var(--space-1); height: var(--size-control); padding: var(--space-1); border-radius: var(--radius-container); background: var(--affordance-backdrop-hover); backdrop-filter: blur(24px); -webkit-app-region: no-drag; }
+.ob-steps .doan-button { height: var(--size-control-sm); font-weight: var(--type-weight-regular); }
+.ob-steps .doan-button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); cursor: default; }
+@media (prefers-reduced-transparency: reduce) { .ob-steps { background: var(--surface-inset); backdrop-filter: none; } }
+@media (forced-colors: active) { .ob-steps { backdrop-filter: none; } }
+/* First run's steps scroll as one surface under the step capsule (and the Add Projects page as its white panel), so
+   the thin scroll bar (ds .doan-scroll) sits at the right edge, not beside the column. The column is at least the
+   surface's height, which keeps Welcome's vertical centring and puts a short step's footer at the bottom. */
+.ob-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.ob-scene { position: relative; flex: 1 0 auto; width: 100%; max-width: 560px; margin: 0 auto; padding: var(--space-10) var(--space-6) var(--space-12); display: flex; flex-direction: column; }
+/* The surface scrolls the scene as a whole; a panel with overflow hidden must not shrink and clip its last rows. */
+.ob-scene > * { flex-shrink: 0; }
+.ob-welcome .ob-scene { max-width: 640px; padding: 0 var(--space-6); align-items: center; }
+.ob-welcome-scene { display: contents; }
+/* Welcome's group (Doany, wordmark, introduction, Get started) is centred 72px above the centre of the area under the
+   chrome, at any height (doan-mascot design '배치', stageInsets). The spacer after it takes at most twice the lift; on a
+   short window it shrinks before the 32px insets are left and the surface scrolls, so no empty scroll remains. */
+.ob-welcome-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-8) 0; }
+.ob-welcome-main::after { content: ""; flex: 1 0 0; max-height: 144px; }
+.ob-wordmark { margin-bottom: var(--space-6); font-size: 104px; line-height: 1; font-weight: var(--type-weight-medium); letter-spacing: -8px; }
+.ob-welcome-main h1 { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-regular); text-align: center; outline: none; }
+.ob-welcome-action { margin-top: var(--space-10); text-align: center; }
+.ob-heading { margin-bottom: var(--space-8); text-align: center; }
+.ob-heading h2 { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.ob-heading p { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-list-notice { margin-bottom: var(--space-4); }
+/* Provider and project cards share one title/description style (design '승인된 디자인 기준'). */
+.ob-provider-list { padding: 0 var(--space-4); }
+.ob-provider { display: flex; flex-direction: column; justify-content: center; min-height: var(--size-row); padding: var(--space-4) 0; }
+.ob-provider + .ob-provider { border-top: 1px solid var(--border-standard); }
+.ob-provider-row { display: flex; align-items: center; gap: var(--space-3); }
+.ob-provider-mark { flex: none; width: 32px; display: grid; place-items: center; }
+.ob-provider-mark img { display: block; width: 24px; height: 24px; object-fit: contain; }
+.ob-provider-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.ob-provider-label strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-provider-label span, .ob-fine, .ob-page-help, .ob-button-note { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-provider-help { margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-provider > .doan-notice { margin-top: var(--space-3); }
+.ob-notice-title, .ob-notice-body { display: block; }
+.ob-notice-title { font-weight: var(--type-weight-medium); }
+/* Only under a title: a body alone is the first line, which the notice icon is centred on. */
+.ob-notice-title + .ob-notice-body { margin-top: var(--space-1); }
+.ob-state-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-4); }
+.ob-state-actions.submit-only { justify-content: flex-end; }
+.ob-page-help { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); margin-top: var(--space-3); color: var(--text-subtle); }
+.ob-fine { margin-top: var(--space-5); }
+.ob-footer { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: var(--space-8); }
+.ob-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ob-dialog-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.ob-field-error { margin-top: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-danger); }
+.ob-overlay .ob-card { width: auto; }
+/* Project step (draft frames project, project-local, repository-found, repository-clone, repository-error). */
+.ob-scene svg { width: var(--size-icon); height: var(--size-icon); }
+.ob-local-option { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); padding: var(--space-6); }
+.ob-local-option p { margin-top: var(--space-1); color: var(--text-subtle); }
+.ob-local-option strong, .ob-setup > strong { font-weight: var(--type-weight-medium); }
+.ob-folder-icon { width: var(--size-control); height: var(--size-control); display: grid; place-items: center; border-radius: var(--radius-chip); background: var(--surface-inset); }
+.ob-folder-icon svg { width: 20px; height: 20px; }
+.ob-divider { display: flex; align-items: center; gap: var(--space-3); margin: var(--space-6) 0; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.ob-divider::before, .ob-divider::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
+.ob-field-label { display: block; margin-bottom: var(--space-2); font-weight: var(--type-weight-medium); }
+.ob-spaced { margin-top: var(--space-6); }
+.ob-url-action { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
+.ob-recovery { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-3); width: 100%; margin-top: var(--space-4); }
+/* D29: mid-window the Agent/Project glass is about --affordance-subtle's own colour, so a subtle button standing on it
+   lost its fill. It takes the step capsule's fill on the same glass; panels, dialogs, the Welcome surface and the DS
+   hover, pressed and disabled fills are left alone. */
+.ob-overlay:not(.ob-welcome) .ob-scene .doan-button[data-ui-variant="subtle"]:not(:hover, :active, :disabled, .doan-panel *, .doan-dialog *) { background: var(--affordance-backdrop-hover); }
+.ob-scene > .doan-notice { margin-top: var(--space-4); }
+/* Inside the setup panel the notice follows the chosen card, where the rule above does not reach; it keeps the same
+   16px the panel uses between the card and its actions. */
+.ob-project-notice { margin-top: var(--space-4); }
+/* Choice cards (D23) take the chosen card's box, so a picked project reads the same before and after it is chosen. */
+.ob-chosen, .ob-choice { display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
+.ob-chosen { margin-top: var(--space-6); }
+.ob-chosen > div, .ob-destination-name, .ob-choice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.ob-chosen strong, .ob-destination-name strong, .ob-choice strong { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ob-path, .ob-choice small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-notice-detail { margin-top: var(--space-3); }
+.ob-small-action { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+.ob-destination { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--size-row); padding: var(--space-4); }
+.ob-projects { margin-bottom: var(--space-6); }
+.ob-choice-list { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
+.ob-choice { position: relative; align-items: flex-start; cursor: pointer; }
+/* The shared choice card's radio (buzz-canvas-conversation design §0): 16px, centred on the title's first line, so it
+   stays there when the title wraps; on, it takes the checkbox's fill and a 6px dot. */
+.ob-radio { display: grid; place-content: center; flex: none; width: var(--size-icon); height: var(--size-icon); margin-top: calc((var(--type-label-sm-line-height) - var(--size-icon)) / 2); border: 1px solid var(--border-prominent); border-radius: 50%; background: var(--surface-panel); }
+.ob-choice:has(input:checked) .ob-radio { border-color: var(--affordance-prominent); background: var(--affordance-prominent); }
+.ob-choice:has(input:checked) .ob-radio::before { content: ""; width: var(--space-1h); height: var(--space-1h); border-radius: 50%; background: var(--text-on-prominent); }
+/* The radio stays in the tab order for arrows and Space; the card shows its state and focus instead. */
+.ob-choice input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.ob-choice:has(input:focus-visible) { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.ob-setup { margin-top: var(--space-4); padding: var(--space-6); }
+.ob-setup > p { margin: var(--space-3) 0; color: var(--text-subtle); }
+/* The sidebar thumbnail at card size: 28px in a 32px slot (draft component constants). */
+.shell-thumbnail.onboarding-thumbnail { width: 28px; height: 28px; margin-inline: 2px; border-radius: 7px; font-size: 17px; line-height: 28px; }
+/* Shared settings-style group: a hairline container whose rows are split by hairlines. */
+.ob-card { width: 640px; padding: 0 var(--space-4); border: 1px solid var(--border-standard); border-radius: var(--radius-container); background: var(--surface-panel); }
+.ob-card > :first-child { border-top: 0; }
+.ob-card + .ob-card { margin-top: 14px; }
+.ob-label { font-size: var(--type-label-sm-size); font-weight: var(--type-weight-medium); line-height: var(--type-label-sm-line-height); color: var(--text-standard); }
+/* Inline code reads as a chip on the surface it sits on. */
+.ob-msg code, .ob-dialog code, .ob-field code, .ob-card code, .doan-dialog code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.ob-msg { grid-column: 2 / -1; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); overflow-wrap: anywhere; }
+/* An inline error or warning is one line led by an icon, so colour is not the only signal. */
+.ob-msg:is(.warn, .error), .pj-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-msg.warn { color: var(--text-warning); }
+.ob-msg.error, .pj-msg { color: var(--text-danger); }
+.ob-msg.ok { color: var(--text-success); }
+.ob-msg.ob-wide { grid-column: 1 / -1; }
+/* Status pill: a doan adjustment that keeps a row's state readable at a glance. */
+.ob-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 var(--space-2); border-radius: var(--radius-pill); background: var(--affordance-subtle); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); white-space: nowrap; }
+.ob-chip.ok { background: var(--affordance-success); color: var(--text-success); }
+.ob-chip.warn { background: var(--affordance-warning); color: var(--text-warning); }
+.ob-chip.err { background: var(--affordance-danger); color: var(--text-danger); }
+.ob-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; padding: var(--space-4) 0; border-top: 1px solid var(--border-standard); }
+/* Project names and paths share inline flow; Inspector values use flex. */
+.ob-field .value { display: block; gap: normal; align-items: normal; min-width: 0; color: var(--text-standard); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow-wrap: anywhere; }
+/* A token path stays on one line, its full text in title. */
+.ob-field .value.token-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-field .value .meta { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.ob-project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-field .value.none { color: var(--text-metadata); }
+.ob-field .ob-helper { grid-column: 2 / -1; }
+.ob-helper { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); overflow-wrap: anywhere; }
+.ob-changes { display: grid; gap: var(--space-1); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
+.ob-actions { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
+.ob-actions .ob-helper { flex: 1; }
+/* The replace confirmation and the project setup dialog share this dialog surface. */
+.ob-dialog p { color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.ob-dialog .ob-card { width: auto; }
+
+.wt-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; padding-left: 18px; margin-top: 3px; }
+
+.doan-menu-item .label { flex: none; }
+.menu[aria-label="Worktrees"] .label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Bottom-right on every screen, 16px from the window's edges; the canvas tools row sits at the board's bottom centre. */
+.toast { position: absolute; right: var(--space-4); bottom: var(--space-4); z-index: 6; }
+.toast .msg { min-width: 0; overflow-wrap: anywhere; }
+
+.back { flex: none; }
+.top .divider { width: 1px; height: 18px; background: var(--border-standard); flex: none; margin: 0 -4px; }
+.crumbs { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; min-width: 0; font: 12px var(--type-family); color: var(--text-metadata); white-space: nowrap; }
+.crumbs .repo { color: var(--text-subtle); min-width: 48px; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.crumbs .canvas { color: var(--text-standard); min-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+.branch { position: relative; flex: 0 1 auto; min-width: 72px; display: inline-flex; align-items: center; gap: 5px; max-width: 240px; font: 12px var(--type-family); color: var(--text-subtle); background: transparent; border: 1px solid var(--border-standard); border-radius: 6px; padding: 2px 6px 2px 7px; }
+.branch .caret { color: var(--text-metadata); font-size: 10px; }
+/* Disabled reads through the ink, so parts with their own colour follow it. */
+.branch:disabled :is(.caret, .glyph) { color: var(--text-disabled); }
+.branch[aria-expanded="true"] { background: var(--affordance-subtle-hover); border-color: var(--border-prominent); }
+.ws-status { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); font: 12px var(--type-family); color: var(--text-subtle); min-width: 0; }
+.ws-status .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.ws-status .text code { color: var(--text-subtle); background: var(--surface-panel); border-radius: 4px; padding: 0 4px; }
+
+.workspace { position: absolute; inset: 0; }
+
+.menu[role="menu"] { position: relative; outline: none; z-index: 20; }
+.workspace.with-status { grid-template-rows: 40px auto minmax(0, 1fr); }
+.ws-recovery { grid-column: 1 / -1; }
+.ws-status { flex-wrap: wrap; }
+.ws-status .wt-actions { padding: 0; margin: 0; gap: 10px; align-items: center; }
+.ws-detail { padding: 8px 12px 10px; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); }
+
+
+
+.side .row .tw { flex: none; width: 12px; text-align: center; color: var(--text-disabled); font-size: 10px; }
+.side .row .two { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.side .row .two > .g, .side .row .two > .d { flex: none; display: block; min-width: 0; max-width: none; overflow: hidden; text-overflow: ellipsis; }
+.side .row .two > .d { font-size: 11px; }
+/* Violet marks where the person is in the tree: the current row and, fainter, the hovered one. */
+.side .row:hover { background: var(--affordance-sidebar-hover); }
+.side .row[aria-current="location"] { color: var(--text-sidebar-selected); background: var(--surface-sidebar-selected); }
+.side .row[aria-current="location"] :is(.g, .glyph, .d, .tw) { color: var(--text-sidebar-selected); }
+.crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }
+.crumbs button.repo:hover { background: var(--surface-inset); color: var(--text-standard); }
+.mark.jump-highlight { border: 2px solid var(--border-focus); border-radius: 1px; box-shadow: 0 0 0 3px var(--affordance-backdrop-pressed); animation: frame-jump-fade 1.2s linear forwards; }
+@keyframes frame-jump-fade { 0%, 66.6667% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
+
+/* The Overview covers the canvas panel in the same cell; the panel stays laid out beneath it. */
+.workspace > .doan-canvas-panel, .workspace > .ov { grid-column: 2; grid-row: -2; }
+.ov { min-height: 0; overflow: auto; padding: 4px 24px 24px; position: relative; z-index: 1; background: var(--bg-app); }
+.thumb { aspect-ratio: 16 / 10; background: var(--surface-inset); border-bottom: 1px solid var(--border-standard); position: relative; overflow: hidden; display: grid; place-items: center; }
+.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+/* Quick Open (confirmed .doan/canvases/buzz-search.html). The surface is the shared dialog's search presentation in
+   ds/surfaces.css; these rules lay out its content. */
+/* Field: the shared input with the magnifier placed as in Home's preset search. */
+.qo-search { position: relative; display: block; }
+.qo-search > svg { position: absolute; left: var(--space-3); top: 50%; width: var(--size-icon); height: var(--size-icon); transform: translateY(-50%); color: var(--text-metadata); }
+.qo-search .doan-input { padding-left: calc(var(--space-3) + var(--size-icon) + var(--space-2)); }
+/* Filter tabs: Home's preset-group tabs, 8px under the field. */
+.qo-tabs.group-tabs.shell-modes { margin: var(--space-2) 0 0; }
+/* Results: a fixed height so the dialog keeps its size whatever the results, 55% of the window, at most 576px
+   (36rem) and at least 400px. Both give way to the room left under the field and tabs, so the dialog
+   itself never scrolls: 128px above, 16px below, the 40px field and tab capsule, their two 8px gaps, the dialog's
+   12px inset and 1px border on both sides. The box clips only the block axis: the list reaches 4px past it on each
+   side (its negative inline margin) and clipping that cut 4px off the list's scrollbar. */
+.qo-height { position: relative; overflow-x: visible; overflow-y: clip; margin-top: var(--space-2); }
+.qo-height::after { content: ""; position: absolute; inset: 0 0 auto; height: var(--space-2); background: linear-gradient(to bottom, var(--surface-panel), transparent); pointer-events: none; }
+.qo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  box-sizing: border-box;
+  /* viewport-height sizing of an unused dialog dropped: dvh resolves against the whole board */
+  /* viewport-height sizing of an unused dialog dropped: dvh resolves against the whole board */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-inline: calc(-1 * var(--space-1));
+  padding: var(--space-1) var(--space-1) var(--space-3);
+}
+.qo-group + .qo-group { margin-top: var(--space-6); }
+.qo-group-title { display: flex; align-items: center; gap: var(--space-2); min-height: calc(var(--space-6) + var(--space-1)); padding-inline: var(--space-3); color: var(--text-metadata); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-regular); white-space: nowrap; }
+.qo-group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Rows: the field's radius, concentric inside the 12px inset. The active row takes the selected fill, one step above
+   the row hover, because it is the only mark of what Enter opens. */
+.qo-item { display: flex; flex: none; align-items: center; gap: var(--space-row-gap); min-width: 0; min-height: 44px; padding: var(--space-3); border-radius: calc(var(--radius-panel) + var(--space-1) - var(--space-3)); corner-shape: squircle; color: var(--text-standard); cursor: pointer; user-select: none; }
+.qo-item[aria-selected="true"] { background: var(--affordance-selected); }
+.qo-icon { display: grid; align-items: center; justify-items: start; flex: none; width: var(--size-control-xs); height: var(--size-control-xs); }
+.qo-icon svg { width: 21px; height: 21px; }
+.qo-text { display: flex; flex-direction: column; flex: 1; min-width: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.qo-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
+.qo-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); }
+.qo-match { background: none; color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: var(--space-half); }
+/* An empty or waiting list: the message fills the fixed-height list and sits in its centre. */
+.qo-none { flex: 1; display: flex; align-items: center; justify-content: center; margin: 0; padding-inline: var(--space-control-inset); text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+
+/* The native sidebar material continues behind the shell; content stays opaque. */
+body:has(.shell-top) { background: transparent; }
+/* The right column's width: the Overview's 280px, or the canvas page's conversation panel, which App sets on the
+   workspace element (0 while folded). */
+:root { --doan-right-width: 280px; }
+.workspace.app-shell { grid-template-columns: 220px minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
+.workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
+.shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
+.shell-top .traffic-space { width: 88px; }
+.shell-history { display: flex; gap: 4px; }
+.shell-history .doan-icon-button { width: 32px; height: 32px; border-radius: 10px; }
+.shell-top svg { width: 16px; height: 16px; }
+.shell-modes { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; padding: 4px; gap: 4px; height: 40px; border-radius: 24px; background: var(--affordance-backdrop-hover); -webkit-app-region: no-drag; }
+.shell-modes button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 16px; border: 0; border-radius: 20px; background: transparent; color: var(--text-subtle); white-space: nowrap; font: 400 14px/20px var(--type-family); }
+.shell-modes button.current { background: var(--surface-panel); color: var(--text-standard); box-shadow: var(--shadow-panel); }
+.shell-modes button:hover { background: var(--affordance-backdrop-hover); }
+.shell-modes button.current:hover { background: var(--surface-panel); cursor: default; }
+.shell-side.side { min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 8px 8px 4px; border: 0; background: transparent; overflow: hidden; }
+.shell-search { display: flex; align-items: center; gap: 8px; width: 100%; height: 36px; flex: none; padding: 0 10px; border: 0; border-radius: var(--radius-control); background: var(--affordance-backdrop-hover); color: var(--text-subtle); font: 400 14px/20px var(--type-family); -webkit-app-region: no-drag; }
+.shell-search:hover { background: var(--affordance-backdrop-pressed); }
+.shell-search svg { width: 16px; height: 16px; }
+.shell-projects { overflow: auto; min-height: 0; padding-bottom: 8px; }
+.shell-projects-heading { margin: 0 0 4px; padding: 4px 10px; color: var(--text-metadata); font: 400 10px/16px var(--type-family); letter-spacing: .08em; }
+.shell-project + .shell-project { margin-top: 16px; }
+.shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px; border-radius: 8px; font: 400 14px/20px var(--type-family); cursor: pointer; }
+.shell-side .row:hover { background: var(--affordance-backdrop-hover); }
+.shell-side .row[aria-current="location"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
+.shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+/* A light tint with dark ink (buzz-onboarding approved draft), shared with onboarding project cards. */
+.hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
+.hue-orange { background: color-mix(in srgb, var(--identity-project-orange) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-orange) 65%, var(--text-standard)); }
+.hue-amber { background: color-mix(in srgb, var(--identity-project-amber) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-amber) 65%, var(--text-standard)); }
+.hue-emerald { background: color-mix(in srgb, var(--identity-project-emerald) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-emerald) 65%, var(--text-standard)); }
+.hue-teal { background: color-mix(in srgb, var(--identity-project-teal) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-teal) 65%, var(--text-standard)); }
+.hue-sky { background: color-mix(in srgb, var(--identity-project-sky) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-sky) 65%, var(--text-standard)); }
+.hue-indigo { background: color-mix(in srgb, var(--identity-project-indigo) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-indigo) 65%, var(--text-standard)); }
+.hue-fuchsia { background: color-mix(in srgb, var(--identity-project-fuchsia) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-fuchsia) 65%, var(--text-standard)); }
+.shell-branch { display: inline-flex; align-items: center; gap: 4px; max-width: 84px; flex-shrink: 1; }
+.shell-branch svg { width: 12px; height: 12px; flex: none; }
+.shell-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-more.doan-icon-button { width: 32px; height: 32px; flex: none; color: var(--text-subtle); }
+.shell-more svg, .shell-canvas-row svg { width: 16px; height: 16px; flex: none; }
+.shell-side .shell-canvas-row { padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); }
+.shell-canvas-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-problem { color: var(--text-metadata); font-size: 11px; white-space: nowrap; }
+.shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.shell-empty { padding: 6px 10px 10px 34px; line-height: 16px; }
+.shell-canvas-error pre { white-space: pre-wrap; }
+/* A group head is a tree row one level below the project (design-system-canvases draft): chevron where a row's icon
+   sits, label, count at the end. Rows and lines inside a group move in by the chevron and its gap, so a row's icon sits
+   under the group label. */
+.shell-side .shell-group-head { padding-inline: 10px; color: var(--text-subtle); font-weight: var(--type-weight-medium); letter-spacing: var(--type-body-sm-letter-spacing); }
+.shell-group-head svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-metadata); transition: transform var(--time-state) var(--ease-state); }
+.shell-group-head[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.shell-group-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.shell-group-count { flex: none; font-variant-numeric: tabular-nums; }
+.shell-side .shell-group-head[aria-disabled="true"] :is(svg, .shell-group-count) { color: var(--text-disabled); }
+.shell-side .shell-group .shell-canvas-row { padding-left: calc(10px + var(--size-icon) + var(--space-2)); }
+.shell-group .shell-empty { padding-left: calc(34px + var(--size-icon) + var(--space-2)); }
+.shell-group .shell-canvas-error { padding-left: calc(32px + var(--size-icon) + var(--space-2)); }
+.shell-project-menu { width: 204px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
+.shell-project-menu .doan-menu-item { display: flex; gap: 8px; align-items: center; }
+.shell-worktree[aria-current="true"] { background: var(--affordance-backdrop-pressed); }
+.shell-project-menu svg { width: 16px; height: 16px; flex: none; }
+.shell-project-menu .doan-menu-item > svg:first-child { color: var(--text-subtle); }
+.shell-worktree > span { min-width: 0; flex: 1; }
+.shell-worktree > span > span, .shell-worktree small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-worktree small { margin-top: 4px; color: var(--text-metadata); font-size: 11px; line-height: 14px; }
+.workspace > .doan-canvas-panel { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
+.workspace > .ov { margin-left: 8px; background: var(--surface-panel); border-radius: 24px 0 0 24px; }
+.workspace > .right-stack { border-radius: 0 24px 24px 0; overflow: hidden; }
+@media (prefers-reduced-transparency: reduce) {
+  body:has(.shell-top), .workspace.app-shell { background: var(--bg-app); }
+}
+
+
+/* buzz-home: Home is the workspace's shell with the conversation composer as its body (.doan/canvases/buzz-home.html,
+   confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
+.home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
+@media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
+.home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
+/* Add Projects page: the white panel is the scroll container and the 560px column grows with it (buzz-add-projects
+   draft round 3); the page scrolls whole, its footer included. The shared Project screen is sized for first run's
+   14/20 body text and plain numerals (.ob-overlay); without them it inherits the app body's 13px/normal. */
+.add-panel { display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
+/* The ways out of a locked Add Projects page are aria-disabled, not disabled, so they keep their place in the focus
+   order; they take the disabled ink and no hover (design '잠금', draft frames cloning and selecting). */
+.shell-modes button[aria-disabled="true"], .shell-search[aria-disabled="true"], .shell-side .row[aria-disabled="true"], .shell-side .row[aria-disabled="true"] :is(.shell-project-name, .shell-branch), .shell-top .shell-history .doan-icon-button[aria-disabled="true"], .doan-menu-item[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.shell-modes button[aria-disabled="true"]:not(.current):hover, .shell-search[aria-disabled="true"]:hover, .shell-side .row[aria-disabled="true"]:hover, .shell-top .shell-history .doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
+/* Radix still highlights an aria-disabled menu item under the pointer and keyboard; the selected worktree keeps its
+   own fill and check. */
+.doan-menu-item[aria-disabled="true"]:not([aria-current="true"]):is([data-highlighted], [data-state="open"]) { background: transparent; }
+.shell-project-menu .doan-menu-item[aria-disabled="true"] > svg:first-child, .shell-worktree[aria-disabled="true"] small { color: var(--text-disabled); }
+/* The top inset is set from the reference group by HomeComposer (stageInsets); this is its floor. */
+.home-stage { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: var(--space-8); }
+.home-greeting { font-size: var(--type-title-size); line-height: var(--type-title-line-height); letter-spacing: var(--type-title-letter-spacing); font-weight: var(--type-weight-medium); color: var(--text-standard); text-align: center; }
+.home-composer { position: relative; width: min(680px, 100%); margin-top: var(--space-10); }
+.home-project { gap: var(--space-2); margin: 0 0 var(--space-2) var(--space-2); font-weight: var(--type-weight-medium); }
+/* A 20px project mark keeps the shipped thumbnail ratio (16/4/10 in the sidebar). */
+:is(.home-project, .project-item) .shell-thumbnail { width: var(--size-icon-lg); height: var(--size-icon-lg); border-radius: 5px; font-size: 11px; line-height: var(--size-icon-lg); }
+.chev { width: var(--space-4); height: var(--space-4); color: var(--text-metadata); }
+.logo { width: var(--size-icon); height: var(--size-icon); object-fit: contain; flex: none; }
+/* Card inside a tray, after the Antigravity reference (user screenshot, 2026-10-29). */
+.composer { position: relative; border-radius: var(--radius-container); background: var(--surface-inset); box-shadow: var(--shadow-panel); }
+/* Home's atmosphere (dogfooding): a violet glow that follows the composer's rounded border instead of a panel-wide
+   ellipse; still, no grain. Box shadows keep the composer's radius, so the glow traces its outline. Forced colors drop
+   box shadows. */
+.home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 27%, transparent), 0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb, var(--affordance-accent) 7%, transparent); }
+@media (prefers-reduced-transparency: reduce) { .home-composer .composer { box-shadow: var(--shadow-panel), 0 0 var(--space-6) 2px color-mix(in srgb, var(--affordance-accent) 15%, transparent); } }
+.composer-card { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-xs), 0 0 0 1px var(--border-standard); }
+/* A text field shows focus with its own border (DESIGN 'Focus'); the composer's is the quieter field-focus border with
+   a slightly higher shadow (buzz-conversation, 2026-10-31 user). The border alone stays under 3:1, so the caret and the
+   shadow carry the focus with it. */
+.composer-card:focus-within { box-shadow: var(--shadow-sm), 0 0 0 1px var(--border-field-focus); }
+.composer-chips { display: flex; flex-wrap: wrap; gap: var(--space-1h); }
+/* Grows with the text up to eight lines, then scrolls inside the card (design §4.1). */
+.composer-input { display: block; width: 100%; min-height: calc(2 * var(--type-label-line-height)); max-height: calc(8 * var(--type-label-line-height)); padding: 0 var(--space-1) 0 0; border: 0; outline: none; position: relative; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: transparent; font-family: var(--type-family); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); color: var(--text-standard); scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+/* A contenteditable has no placeholder: ChipField marks an empty field and its aria-placeholder is drawn over it, inset
+   by the field's padding. */
+.composer-input[data-empty]::before { content: attr(aria-placeholder); position: absolute; inset-inline: 0 var(--space-1); color: var(--text-metadata); pointer-events: none; }
+/* Inline anchor chips (buzz-canvas-conversation design §0, confirmed draft; 180px and 6px are component constants with no
+   token). contenteditable=false keeps the caret before or after a chip, never inside. */
+.anchor-chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 180px; margin: 0 var(--space-half); padding: 0 var(--space-1h); border: 0; border-radius: 6px; background: var(--surface-accent-subtle); color: var(--text-accent-subtle); font: inherit; font-weight: var(--type-weight-medium); vertical-align: bottom; white-space: nowrap; }
+.anchor-chip svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; }
+.anchor-chip span:not(.sr-only) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-card.readonly .composer-input { color: var(--text-subtle); }
+.composer-count { align-self: flex-end; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+.composer-count.over { color: var(--text-danger); }
+.composer-tools { position: relative; display: flex; align-items: center; gap: var(--space-1); margin-left: calc(-1 * var(--space-1)); }
+.composer-tools .grow { flex: 1; }
+.composer-tools > .doan-icon-button:not(.composer-send) { color: var(--text-standard); }
+/* The standard ink above outranks the shared disabled ink, so Attach and Presets looked enabled while a send was pending. */
+.composer-tools > .doan-icon-button:not(.composer-send):disabled { color: var(--text-disabled); }
+.composer-agent { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-agent .muted { color: var(--text-metadata); }
+.composer-effort { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+/* The capsule's chevron steps down with its gauge, unlike the model trigger's. */
+.composer-effort svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The permission mode trigger (permission-mode draft frames home-toolrow, picker-menu): the Effort trigger with the
+   mode's own icon, so an icon-only trigger still names the mode. Full access adds the warning ink and fill; its name,
+   icon and aria-label carry it too, so colour is never the only signal. No coloured edge. */
+.composer-permission { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.composer-permission svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* Hover, press and open keep the warning fill: the shared trigger's state fills (ds/controls.css) outrank a plain
+   selector, and an open Full access trigger showed the neutral pressed fill. */
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"],
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"]:is(:hover, :active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-warning); color: var(--text-warning); }
+:is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
+.composer-send .doan-spinner { color: var(--text-on-accent); }
+.composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-tray .doan-button { margin-left: calc(-1 * var(--space-2)); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-regular); color: var(--text-subtle); }
+.composer-tray :is(.doan-button, .tray-branch) svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* One worktree: the branch is read-only text in the trigger's place (design §4.2). */
+.tray-branch { display: inline-flex; align-items: center; gap: var(--space-1h); }
+.tray-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-metadata); }
+/* Chips: neutral fill, like the shared .doan-chip, sized for a thumbnail. */
+.attach-chip, .preset-chip { display: inline-flex; align-items: center; gap: var(--space-2); max-width: 256px; min-width: 0; border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-standard); }
+.attach-chip { padding: var(--space-1); }
+.attach-chip .thumb { position: relative; width: var(--size-control-sm); height: var(--size-control-sm); flex: none; overflow: hidden; border-radius: calc(var(--radius-chip) - var(--space-1)); background: var(--surface-panel); }
+.attach-chip .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.file-icon { display: grid; place-items: center; width: var(--size-control-sm); height: var(--size-control-sm); flex: none; border-radius: calc(var(--radius-chip) - var(--space-1)); background: var(--surface-panel); color: var(--text-subtle); }
+.file-icon svg, .file-icon .doan-spinner { width: var(--size-icon); height: var(--size-icon); }
+.attach-text { display: flex; flex-direction: column; min-width: 0; }
+.attach-text b { font-weight: var(--type-weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-text small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+.attach-chip.problem :is(.file-icon, small) { color: var(--text-danger); }
+/* The remove button is the shared icon button xs; only its ink is set here. */
+.chip-remove.doan-icon-button { color: var(--text-metadata); }
+/* Accent marks the chosen preset only (2026-10-29 user); the preset button, tabs and suggestions stay neutral so Send keeps the strongest accent. */
+.preset-chip { height: var(--size-control); padding: 0 var(--space-1) 0 var(--space-3); font-weight: var(--type-weight-medium); background: var(--surface-accent-subtle); color: var(--text-accent-subtle); }
+.preset-chip > svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: currentColor; }
+/* Popovers: shared floating material and menu rows (ds/surfaces.css); the preset popover has search and tabs, so it is wider than a menu. */
+.preset-popover { width: 600px; max-width: calc(100vw - var(--space-4)); }
+/* The / list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover. */
+.slash-popover { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: var(--space-8); }
+.agent-popover { width: 300px; }
+.effort-popover { width: 200px; }
+/* One row per mode, its name over a one-line description, like the preset rows. 280 is the component constant: Effort's
+   200 is too narrow for the descriptions, and the shared menu cap is 320. */
+.permission-popover { width: 280px; }
+.perm-item { display: flex; align-items: flex-start; gap: var(--space-2); padding-block: var(--space-1h); }
+.perm-item > svg:first-child { width: var(--size-icon); height: var(--size-icon); margin-top: var(--space-half); color: var(--text-subtle); }
+.doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-warning); }
+.perm-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.perm-copy .sub { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.perm-item .check-slot { margin-top: var(--space-half); }
+.project-popover { width: 320px; }
+.popover-search { position: relative; display: block; margin-bottom: var(--space-1); }
+.popover-search > svg { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-metadata); }
+.popover-search .doan-input { width: 100%; padding-left: calc(var(--space-3) + var(--size-icon) + var(--space-2)); }
+.popover-list { max-height: 276px; overflow: auto; }
+/* Groups as one row of tabs in the header's mode capsule (round 1 revision): a backdrop capsule, the current tab raised white. */
+.group-tabs.shell-modes { position: static; transform: none; display: flex; width: max-content; max-width: 100%; margin: var(--space-1) var(--space-1) var(--space-2); }
+.group-tabs.shell-modes button { gap: var(--space-1h); padding: 0 var(--space-3); }
+.group-tabs.shell-modes svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.preset-item { gap: var(--space-3); }
+.preset-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.preset-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
+.preset-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+/* A portalled popover inherits the page's 13px body; its status line is body-sm like the menu rows around it. */
+.popover-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
+.popover-actions { display: flex; justify-content: flex-end; padding-top: var(--space-2); }
+.agent-group { padding: var(--space-1) 0; }
+.agent-head { display: flex; align-items: center; gap: var(--space-2); }
+.agent-note { display: inline-flex; align-items: center; gap: var(--space-1h); margin-left: auto; }
+:is(.model-item, .project-item, .effort-popover .doan-menu-item) { display: flex; align-items: center; gap: var(--space-2); }
+.model-name { flex: 1; min-width: 0; }
+.model-item .sub { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--type-caption-size); }
+.inline { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.check-slot { display: inline-flex; width: var(--size-icon); justify-content: center; }
+/* Lucide draws 24px unless sized; menu rows are 32px, so a bare icon would make them 40. The check keeps the shared
+   menu check's 12px width (ds/surfaces.css) and takes only the height. */
+.check-slot > svg { height: var(--size-icon); }
+:is(.popover-search, .project-popover .doan-menu-item) > svg { width: var(--size-icon); height: var(--size-icon); }
+.menu-note { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
+/* Drop target (2026-10-29 user): a white, translucent, blurred cover over the whole composer (card and tray) with a dashed accent outline; no text or icon. */
+.drop-target { position: absolute; inset: 0; z-index: 2; border-radius: inherit; background: color-mix(in srgb, var(--surface-panel) 55%, transparent); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); outline: 2px dashed var(--affordance-accent); outline-offset: -2px; }
+@media (prefers-reduced-transparency: reduce) { .drop-target { -webkit-backdrop-filter: none; backdrop-filter: none; background: color-mix(in srgb, var(--surface-panel) 85%, transparent); } }
+.composer-reason { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }
+.composer-notice { margin-top: var(--space-3); }
+/* The docked composer (draft frame docked-composer): Home's card without its inset tray, a capsule that becomes a box.
+   One grid holds both shapes so the field never moves in the DOM; only the areas change. */
+.docked { position: relative; }
+.docked .composer-card { position: relative; display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-1); }
+.docked .composer-tools { display: contents; }
+.docked .composer-tools .grow { display: none; }
+.docked .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { grid-area: attach; }
+.docked .composer-presets { grid-area: presets; }
+.docked .composer-send { grid-area: send; }
+.docked .composer-chips { grid-area: chips; }
+.docked .composer-input { grid-area: field; min-height: var(--type-label-line-height); }
+.docked[data-shape="capsule"] .composer-card { grid-template-areas: "attach presets field send"; padding: var(--space-2); border-radius: var(--radius-pill); }
+.docked[data-shape="capsule"] .composer-input { padding-inline: var(--space-2) var(--space-1); }
+/* A wrapped placeholder made the empty capsule taller than one with a typed character; one line keeps both the same,
+   and the ellipsis shows the narrow panel cut the hint rather than ending it. */
+.docked[data-shape="capsule"] .composer-input[data-empty]::before { inset-inline: var(--space-2) var(--space-1); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.docked[data-shape="box"] .composer-card { grid-template-areas: "field field field field" "attach presets . send"; row-gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--space-3) var(--space-4); }
+/* The chip row takes a grid row only when there are chips: an empty row would still add its gap above the field. */
+.docked[data-shape="box"] .composer-card:has(.composer-chips) { grid-template-areas: "chips chips chips chips" "field field field field" "attach presets . send"; }
+.docked[data-shape="box"] .composer-tools > .doan-icon-button:not(.composer-presets, .composer-send) { margin-left: calc(-1 * var(--space-1)); }
+.docked .composer-tray { justify-content: flex-end; gap: var(--space-1); min-height: var(--size-control-sm); padding: var(--space-1) var(--space-3) 0; }
+.docked .composer-tray .doan-button { margin-left: 0; }
+.docked .composer-tray .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* The docked tray when it is short of width (permission-mode draft frame docked-tray): it never wraps, and gives way in
+   order: below a 384px content width Permission shows its icon only, below 288 Effort does too, and the model label
+   ellipsizes last. Pick, logos and chevrons never shrink. The boundaries come from the draft's widest labels ("Plan
+   (read-only)", "Medium"); a hidden label stays in the tooltip and aria-label. */
+.docked .composer-tray { container-type: inline-size; }
+.composer-tray .doan-button .label { white-space: nowrap; }
+/* The shared .doan-button does not shrink; only the model trigger may, so the last step can ellipsize it. */
+.docked .composer-tray .composer-agent { flex-shrink: 1; min-width: 0; }
+.docked .composer-agent .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 383px) { .docked .composer-permission .label { display: none; } }
+@container (max-width: 287px) { .docked .composer-effort .label { display: none; } }
+.composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
+.queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
+/* Larger than a chip since dogfooding found queued messages hard to read: label type, a 16px icon, 40px tall. */
+.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+.queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
+.queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.canvas-gone svg { flex: none; }
+.grow-text { flex: 1; min-width: 0; }
+/* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
+.home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }
+/* Hidden while the draft is not empty but keeping its place, so the field above does not move (design '배치'). */
+.home-stage .home-suggestions[inert] { visibility: hidden; }
+.suggestion { max-width: 100%; gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.suggestion span { overflow: hidden; text-overflow: ellipsis; }
+/* The suggestion's group icon carries the accent; its sentence stays standard ink (2026-10-29 user). */
+.suggestion svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
+
+/* buzz-home: the temporary Home-conversation strip at the top of the workspace body (design §7), on the same white panel. */
+.workspace.with-strip { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
+.workspace.with-status.with-strip { grid-template-rows: var(--size-chrome) auto auto minmax(0, 1fr); }
+.workspace.with-strip > :is(.side, .right-stack) { grid-row: -3 / -1; }
+.workspace > .strip-slot { grid-column: 2; grid-row: -3; z-index: 2; margin-left: var(--space-2); padding: var(--space-3) var(--space-3) 0; background: var(--surface-panel); border-radius: var(--radius-container) 0 0 0; }
+.workspace.with-strip > :is(.doan-canvas-panel, .ov) { border-top-left-radius: 0; }
+.strip-agent { display: inline-grid; place-items: center; flex: none; }
+.strip-agent .logo, .strip-alert, .strip-ok { width: var(--size-icon); height: var(--size-icon); }
+.strip-text { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; flex: 1; }
+.strip-text b { font-weight: var(--type-weight-medium); }
+.strip-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.strip-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* buzz-home: the sidebar row's status slot (design §7.2), at the right of the row before its menu, and an added project's flash (§6). */
+.row-slot { display: inline-grid; place-items: center; width: var(--size-icon); height: var(--size-icon); flex: none; margin-left: auto; }
+.shell-project-row .row-slot { margin-left: 0; }
+.row-slot.permission { color: var(--affordance-accent); }
+.row-slot svg { width: var(--size-icon); height: var(--size-icon); }
+.row-slot .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.row-slot.unseen i { width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); }
+.shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
+
+/* buzz-settings: the Settings page (.doan/canvases/buzz-settings.html, confirmed 2026-10-30). The sidebar lists the four
+   categories with the canvas-row geometry; Home's white panel scrolls a 48rem reading
+   column. Its body text is 14/20 with plain numerals, like the Add Projects panel. */
+.shell-settings-nav { display: flex; flex-direction: column; gap: var(--space-half); }
+.shell-side .shell-settings-row { width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-settings-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-settings-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-current="page"] svg { color: var(--text-standard); }
+/* The Home row sits between Search and the projects (dogfooding #2) and reads as a Settings category row. */
+.shell-side .shell-home-row { flex: none; width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-home-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-home-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-home-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); }
+.shell-side .shell-home-row[aria-current="page"] svg { color: var(--text-standard); }
+.shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }
+.settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
+.settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }
+.settings-header, .settings-section-header { display: flex; align-items: start; gap: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-header { margin-bottom: var(--space-8); }
+.settings-section-header { margin-bottom: var(--space-3); }
+.settings-header-copy { flex: 1; min-width: 0; }
+.settings-title { font-size: var(--type-heading-size); line-height: var(--type-heading-line-height); letter-spacing: var(--type-heading-letter-spacing); font-weight: var(--type-weight-medium); outline: none; }
+.settings-lead, .settings-section-description { margin-top: var(--space-2); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+/* A section description sits as close to its title as a row's description to its label. */
+.settings-section-description { margin-top: var(--space-half); }
+.settings-section-title { font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); font-weight: var(--type-weight-medium); }
+.settings-sections { display: grid; gap: var(--space-section-gap); }
+/* A provider row leads with its mark; what belongs to a row but sits under it (a notice and its actions, a helper)
+   starts at the text column. */
+.doan-preference-row[data-has-icon] { grid-template-columns: auto minmax(0, 1fr) auto; }
+.doan-preference-row-icon { display: flex; align-items: center; justify-content: center; width: var(--size-icon-lg); height: var(--size-icon-lg); color: var(--text-subtle); }
+.doan-preference-row-icon > :is(svg, img) { width: 100%; height: 100%; object-fit: contain; }
+.doan-preference-row[data-disabled] .doan-preference-row-icon { color: var(--text-disabled); }
+.doan-preference-row-extra { grid-column: 1 / -1; margin-top: var(--space-3); }
+.doan-preference-row[data-has-icon] > .doan-preference-row-extra { grid-column: 2 / -1; }
+.doan-preference-row > .doan-preference-row-extra + .doan-preference-row-extra { margin-top: 0; }
+.doan-preference-row:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-row); }
+/* An arrival from Home's agent picker or a toast flashes the provider's row for 2.4 s, like an added project's sidebar
+   row (.shell-project-row.flash). */
+.doan-preference-row[data-flash] { margin-inline: calc(-1 * var(--space-2)); padding-inline: var(--space-2); border-radius: var(--radius-row); box-shadow: inset 0 0 0 2px var(--border-focus); }
+.settings-help { margin-top: var(--space-1); color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-select { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
+.settings-select .chev { color: var(--text-subtle); }
+.settings-notice { margin-bottom: var(--space-3); }
+.settings-msg { display: flex; align-items: flex-start; gap: var(--space-1h); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); overflow-wrap: anywhere; }
+.settings-msg.error { color: var(--text-danger); }
+.settings-msg.warn { color: var(--text-warning); }
+.settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.settings-save-error { margin-top: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
+.settings-loading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); }
+/* Home's agent picker: the link to Settings at the bottom of the menu. */
+.settings-menu-link { display: flex; gap: var(--space-2); align-items: center; }
+.settings-menu-link svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
+/* buzz-settings U4/U5: the header's action slot (Check Again, Copy details), the category bodies and the Project
+   Settings dialog, from the same draft. An empty slot takes no room beside the lead. */
+:is(.settings-page, .settings-dialog) code { color: var(--text-standard); background: var(--surface-inset); border-radius: var(--space-1); padding: 0 var(--space-1); }
+.settings-header-actions { display: flex; flex: none; flex-wrap: wrap; gap: var(--space-2); }
+.settings-header-actions:empty { display: none; }
+.settings-value { color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+.settings-inline-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* About's agent setup notice in the doan command row: the agents a line affects read in medium weight; its code chips
+   go white, since the page's inset chip vanishes on the notice's inset fill (one class above the page's chip rule, so
+   the order of the two rules does not decide it). The PATH line stands alone so it can be selected and copied whole. */
+.setup-notice-body { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.setup-notice-list { list-style: none; display: flex; flex-direction: column; gap: var(--space-1); }
+.setup-notice-agents { font-weight: var(--type-weight-medium); }
+.doan-notice.setup-notice code { background: var(--surface-panel); }
+.setup-notice-command { display: block; width: fit-content; margin-top: var(--space-1); }
+/* The permission hint under Desktop notifications: the shipped notice on a panel, its actions below as in onboarding. */
+.doan-settings-group > .doan-preference-row-extra { margin-top: 0; padding: var(--space-3) 0; }
+.doan-settings-group > .settings-permission { margin-top: 0; padding: 0 0 var(--space-3); border-top: 0; }
+.settings-recovery { margin-top: 0; }
+.settings-saved { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--text-success); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.settings-saved.pending { color: var(--text-metadata); }
+.settings-saved svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* A confirmation over the page is rendered inside the panel and would take its body-sm tracking; the Project Settings
+   dialog opens over any screen and would take the app body's 13px and tabular numerals. Both read like the page. */
+.settings-panel .doan-dialog { letter-spacing: normal; }
+.settings-dialog { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }
+.settings-dialog .doan-dialog-title { display: flex; align-items: center; gap: var(--space-2); }
+.settings-dialog-branch { color: var(--text-metadata); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-regular); }
+.settings-serve { display: grid; list-style: none; border: 1px solid var(--border-standard); border-radius: var(--radius-row); overflow: hidden; }
+.settings-serve li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.settings-serve li + li { border-top: 1px solid var(--border-standard); }
+.settings-serve code { background: transparent; padding: 0; }
+/* buzz-conversation: the conversation thread (.doan/canvases/buzz-conversation.html, frames thread-*). Scoped to the
+   thread so its short names (.activity, .marker, .md) never reach other screens. buzz-project places it. */
+.conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
+.conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-4); }
+.conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
+.conversation-thread .caret { display: inline-block; width: 1px; height: var(--type-label-line-height); margin: 0 1px -6px; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
+@keyframes thread-caret { 50% { opacity: 0; } }
+/* The person's message: a light accent bubble, plain text that keeps its line breaks (common decision 2). */
+.conversation-thread .msg-user { align-self: flex-end; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1h); max-width: 80%; min-width: 0; }
+.conversation-thread .bubble { padding: var(--space-2) var(--space-4); border-radius: var(--radius-row); background: var(--surface-accent-subtle); color: var(--text-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; user-select: text; }
+.conversation-thread .bubble-preset { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-accent-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); font-weight: var(--type-weight-medium); }
+.conversation-thread .bubble-preset svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
+/* A sent file has no remove button, so the chip keeps its own inline end padding. */
+.conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }
+.conversation-thread .msg-agent { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; user-select: text; }
+.conversation-thread .msg-agent p { font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); overflow-wrap: anywhere; }
+.conversation-thread .msg-agent .muted { color: var(--text-metadata); }
+/* Agent replies are Markdown: no raw HTML, no images, https links only; code is mono; quotes use an inset fill, never a start border. */
+.conversation-thread .md { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); }
+.conversation-thread .md :is(h1, h2) { font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line-height); letter-spacing: var(--type-body-lg-letter-spacing); font-weight: var(--type-weight-medium); margin-top: var(--space-2); }
+.conversation-thread .md :is(h3, h4, h5, h6) { font-size: inherit; font-weight: var(--type-weight-medium); margin-top: var(--space-1); }
+.conversation-thread .md strong { font-weight: var(--type-weight-semibold); }
+.conversation-thread .md a { color: var(--text-link); text-decoration: underline; text-underline-offset: var(--space-half); }
+.conversation-thread .md :is(ul, ol) { display: flex; flex-direction: column; gap: var(--space-1); padding-left: var(--space-6); }
+/* Preflight and the app's own ol rule drop list markers; agent replies keep them, since a number can carry meaning. */
+.conversation-thread .md ul { list-style: disc; }
+.conversation-thread .md ol { list-style: decimal; }
+.conversation-thread .md ul ul { list-style: circle; }
+/* A list right after its paragraph sits 8px under it instead of the 16px block gap. */
+.conversation-thread .md > p:has(+ :is(ul, ol)) { margin-bottom: calc(var(--space-2) - var(--space-4)); }
+.conversation-thread .md :is(ul, ol) :is(ul, ol) { margin-top: var(--space-1); }
+.conversation-thread .md code { font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); background: var(--surface-inset); border-radius: var(--space-1); padding: var(--space-half) var(--space-1); overflow-wrap: anywhere; }
+.conversation-thread .md-code { position: relative; border-radius: var(--radius-chip); background: var(--surface-inset); }
+.conversation-thread .md-code pre { overflow-x: auto; padding: var(--space-3) var(--space-12) var(--space-3) var(--space-4); font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); white-space: pre; scrollbar-width: thin; }
+.conversation-thread .md-code pre code { padding: 0; background: none; border-radius: 0; overflow-wrap: normal; }
+.conversation-thread .md-code .doan-icon-button { position: absolute; top: var(--space-1); right: var(--space-1); background: var(--surface-inset); color: var(--text-subtle); }
+/* Copy shows while the block is hovered or has focus inside; it is hidden by opacity only, so it stays focusable. */
+.conversation-thread .md-code:not(:hover, :focus-within) .doan-icon-button { opacity: 0; }
+/* Bordered table with a filled header row; the corner is the code block's 12px and cells keep 8/12 insets. */
+.conversation-thread .md-table { width: max-content; max-width: 100%; overflow-x: auto; scrollbar-width: thin; border-radius: var(--radius-chip); box-shadow: inset 0 0 0 1px var(--border-standard); }
+.conversation-thread .md table { border-collapse: separate; border-spacing: 0; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.conversation-thread .md :is(th, td) { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-standard); border-right: 1px solid var(--border-standard); text-align: left; vertical-align: top; white-space: nowrap; }
+.conversation-thread .md :is(th, td):last-child { border-right: 0; }
+.conversation-thread .md tbody tr:last-child td { border-bottom: 0; }
+.conversation-thread .md th { background: var(--affordance-subtle); font-weight: var(--type-weight-medium); }
+.conversation-thread .md blockquote { padding: var(--space-3) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); color: var(--text-subtle); }
+.conversation-thread .md hr { height: 1px; border: 0; background: var(--border-standard); }
+/* One folded line for a run of activities (2026-10-31 user). */
+.conversation-thread .activity { display: flex; flex-direction: column; gap: var(--space-1); }
+.conversation-thread .activity-head { display: inline-flex; align-items: center; gap: var(--space-2); align-self: flex-start; min-height: var(--size-control-sm); padding: 0 var(--space-2) 0 var(--space-3); margin-left: calc(-1 * var(--space-3)); border-radius: var(--radius-control); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); max-width: 100%; }
+.conversation-thread button.activity-head:hover { background: var(--affordance-backdrop-hover); }
+.conversation-thread .activity-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-thread .activity-head .chev { transform: rotate(-90deg); transition: transform 120ms; }
+.conversation-thread .activity-head[aria-expanded="true"] .chev { transform: none; }
+.conversation-thread .activity-head .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .activity-steps { display: flex; flex-direction: column; gap: var(--space-1h); padding-left: var(--space-6); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .activity-steps li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; list-style: none; }
+.conversation-thread .activity-steps li svg { width: var(--size-icon-sm); height: var(--size-icon-sm); flex: none; color: var(--text-subtle); }
+.conversation-thread .activity-steps .verb { flex: none; color: var(--text-subtle); }
+.conversation-thread .activity-steps .path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--type-family-mono); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .ask-answered { color: var(--text-subtle); }
+/* Thread notices put their actions on a row under the text, starting at the text's left edge (draft round 2). */
+.conversation-thread .thread-notice, .cp-scroll > .thread-notice { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-1h); row-gap: var(--space-3); }
+.conversation-thread .thread-notice > .strip-actions, .cp-scroll > .thread-notice > .strip-actions { grid-column: 2; flex-wrap: wrap; margin-block: 0; align-self: start; }
+/* The Stopped notice's glyph is a bare lucide icon (24px unless sized); AlertIcon and the agent mark size themselves. */
+.conversation-thread .thread-notice > svg, .cp-scroll > .thread-notice > svg { width: var(--size-icon); height: var(--size-icon); }
+/* The strip's one-line clip (overflow hidden) would cut glyphs that overhang a wrapped line. */
+.conversation-thread .thread-notice .strip-text span, .cp-scroll > .thread-notice .strip-text span { white-space: normal; overflow-wrap: anywhere; overflow: visible; text-overflow: clip; }
+.conversation-thread .marker { display: flex; align-items: center; gap: var(--space-3); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.conversation-thread .marker::before, .conversation-thread .marker::after { content: ""; flex: 1; height: 1px; background: var(--border-standard); }
+.conversation-thread .marker span { display: inline-flex; align-items: center; gap: var(--space-1h); min-width: 0; max-width: 80%; text-align: center; }
+.conversation-thread .marker svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
+.conversation-thread .marker .doan-button { color: var(--text-standard); }
+.conversation-thread .marker .doan-button:disabled { color: var(--text-disabled); }
+.conversation-thread .thread-loading { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 160px; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.conversation-thread .jump-latest { position: absolute; left: 50%; bottom: var(--space-3); transform: translateX(-50%); box-shadow: var(--shadow-sm); }
+@media (prefers-reduced-motion: reduce) {
+  .conversation-thread .caret { animation: none; }
+  .conversation-thread .activity-head .chev { transition: none; }
+}
+
+/* buzz-project: the Overview as the project conversation screen (.doan/canvases/buzz-project.html, confirmed 2026-10-31).
+   The main panel keeps the workspace's white .ov surface; the thread scrolls inside it to the panel's edge while its
+   column stays 720px wide, and the composer sits under it. No mascot, greeting or gradient: that is Home's. */
+.workspace > .ov.ov-main { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+/* The body's tabular figures widen every "1" (short times like "1d", "12m", thread text), which the shell keeps for its
+   counts; these surfaces read like the page. The two menus are portalled out of .ov-main, so they are named too. */
+.ov-main, .right.ov-right, .conv-menu, .wt-menu { font-variant-numeric: normal; }
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.ov-project { display: inline-flex; align-items: center; gap: var(--space-2); flex: none; padding-left: var(--space-2); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-project-name { font-weight: var(--type-weight-medium); }
+/* The branch chip as a worktree picker: the translucent chip with a chevron, opening the project menu's worktree rows. */
+.wt-chip { cursor: pointer; -webkit-app-region: no-drag; }
+.wt-chip .chev { width: var(--size-icon-sm); height: var(--size-icon-sm); margin-left: var(--space-half); }
+/* button.doan-chip's open fill (data-state="open", more specific) would otherwise replace the pressed fill. */
+.ov-project button.wt-chip[aria-expanded="true"] { background: var(--affordance-backdrop-pressed); }
+.shell-project-menu.wt-menu { width: 280px; }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+/* The title gives way first in a narrow window (design §2.1). */
+.ov-title-wrap { display: flex; min-width: 0; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-notice { margin: 0 var(--space-4) var(--space-2); }
+.ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.ov-scroll > .conversation-thread { flex: 1; }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) 0; }
+.ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
+.ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
+.ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
+/* New conversation: the moved line and the suggestions sit right above the composer, start-aligned. */
+/* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
+.doan-notice.moved { margin-bottom: var(--space-3); }
+.doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
+/* One line: a title is the whole first message (up to 512 characters), so only it gives way and "moved to <canvas>."
+   stays readable; the text keeps the full sentence for assistive tech and the tooltip. */
+.moved-text { display: flex; min-width: 0; white-space: nowrap; }
+.moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.ov-suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.ov-suggestions .suggestion span { white-space: nowrap; }
+/* The conversation dropdown: New, then the project conversations drawn like the right panel's rows, split by hairlines;
+   the shown one has the selected fill. It scrolls inside its height. */
+.conv-menu { width: 360px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
+.conv-new { display: flex; align-items: center; gap: var(--space-2); }
+.conv-new svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.conv-menu .doan-menu-item.current { background: var(--affordance-backdrop-pressed); }
+.conv-item { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-half); padding-block: var(--space-2); }
+.conv-list .conv-item + .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }
+.conv-list .conv-item:is(.current, [data-highlighted])::before, .conv-list .conv-item:is(.current, [data-highlighted]) + .conv-item::before { display: none; }
+.conv-item .t { font-weight: var(--type-weight-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* A conversation's first line, shared with the right panel's rows: logo, name, status mark, short time flush right. */
+.cv-head { display: flex; align-items: center; gap: var(--space-1h); min-width: 0; }
+.cv-head .logo { width: var(--size-icon-sm); height: var(--size-icon-sm); object-fit: contain; flex: none; }
+.cv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-head .row-slot { margin-left: 0; }
+.cv-when { flex: none; margin-left: auto; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); }
+/* The right panel on the Overview: its title; batch RL adds the canvas rows. */
+.right.ov-right .rp-head { display: flex; align-items: center; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); border-bottom: 0; font: var(--type-weight-medium) var(--type-label-sm-size) / var(--type-label-sm-line-height) var(--type-family); }
+.right.ov-right .rp-head:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.rp-list { list-style: none; margin: 0; padding: 0 var(--space-2) var(--space-2); }
+.cv-item { position: relative; }
+/* A hairline between rows, inset to the row's padding; it hides next to a hovered row so the fill reads as one shape. */
+.cv-item + .cv-item::before { content: ""; position: absolute; top: 0; left: var(--space-2); right: var(--space-2); height: 1px; background: var(--border-standard); }
+.cv-item:has(> .cv-row:not([aria-disabled="true"]):hover)::before, .cv-item:has(> .cv-row:not([aria-disabled="true"]):hover) + .cv-item::before { display: none; }
+/* Rows start at the top: the preview makes them taller than the thumbnail. */
+.cv-row { display: flex; align-items: flex-start; gap: var(--space-2); width: 100%; min-height: var(--size-row); padding: var(--space-3) var(--space-2); border-radius: var(--radius-row); text-align: start; }
+.cv-row:not([aria-disabled="true"]):hover { background: var(--affordance-backdrop-hover); }
+.cv-row:focus-visible { outline-offset: -2px; }
+.cv-row[aria-disabled="true"] { cursor: default; align-items: center; }
+.cv-thumb { position: relative; flex: none; width: 72px; height: var(--space-12); overflow: hidden; border-radius: var(--radius-toolbar-icon); box-shadow: inset 0 0 0 1px var(--border-standard); }
+/* Captures are 480px wide; the 72×48 cell shows their top. */
+.cv-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+/* Without a ready preview: the inset fill only, no glyph. */
+.cv-thumb.empty { background: var(--surface-inset); }
+.cv-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cv-text > b, .cv-text .cv-head b { font-weight: var(--type-weight-medium); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-text > small { font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-metadata); overflow-wrap: anywhere; }
+.cv-text > small.err { color: var(--text-danger); }
+.cv-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: var(--space-half) 0; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); overflow-wrap: anywhere; }
+.rp-empty { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.rp-empty p + p { margin-top: var(--space-2); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.rp-loading { padding: var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+.rp-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-2) var(--space-4); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+
+/* buzz-canvas: the canvas panel, an opaque white header above the board (.doan/canvases/buzz-canvas.html, confirmed
+   2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
+   controls under the Overview, which covers the same grid cell. */
+.workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; }
+/* clip, not hidden: a hidden box still scrolls to reveal a focused descendant, which moved the floating tools. */
+.doan-canvas-panel > .area { flex: 1; min-height: 0; overflow: clip; }
+.doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+/* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
+   sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
+.doan-canvas-head { flex: none; background: var(--surface-panel); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
+.doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The shared .chev size (16px), like the Overview title's chevron. */
+.doan-canvas-head .chev { flex: none; }
+.doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
+.doan-canvas-zoom { display: flex; align-items: center; gap: var(--space-half); }
+.doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.doan-canvas-head .doan-icon-button { color: var(--text-standard); }
+.doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
+/* The frame drawer's list opens under its trigger like the Overview's conversation menu. The viewed frame is marked by
+   "Viewing" only; the fill is for the pointer and keyboard focus, which move together as in a Radix menu. */
+.doan-frame-list { width: 320px; }
+.doan-frame-row { gap: var(--space-2); }
+.doan-frame-row:focus { background: var(--affordance-floating-hover); }
+.doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.doan-frame-note { margin: var(--space-1) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--border-standard); white-space: normal; }
+.doan-zoom-menu { width: 184px; }
+.doan-zoom-key { margin-left: auto; }
+/* The tools row floats at the board's bottom centre on the shared floating surface, like menus and toasts. */
+.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
+.doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
+/* The pressed tool keeps its fill under the pointer and while held: the shared hover (0,4,0) and active (0,5,0) fills
+   would otherwise replace it, and the default tool would look unpressed while its tooltip shows. Equal weight and later
+   in the cascade wins; a disabled tool still takes the shared disabled look. */
+.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+/* The conversation panel's open button closes the header row after a divider, only while the panel is folded. */
+.doan-canvas-head-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
+
+/* buzz-canvas: the canvas page's right column, the canvas conversation panel shell (.doan/canvases/buzz-canvas.html
+   'default', 'panel-collapsed', 'panel-resize'). Only folding and unfolding animate the column (data-panel-motion); a
+   drag must not, or the handle trails the pointer (malmoi DESIGN '접기'). */
+.workspace.app-shell[data-panel-motion] { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+.workspace > .doan-conv-column { position: relative; display: flex; min-width: 0; min-height: 0; }
+.workspace.with-strip > .doan-conv-column { grid-row: -3 / -1; }
+/* Folded, the column keeps its node (the open button's aria-controls) but leaves the page; while it folds it stays
+   visible until the column has closed. */
+.doan-conv-column[data-collapsed] { visibility: hidden; }
+.workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: visibility 0s linear var(--time-panel-enter); }
+.workspace[data-panel="collapsed"] > .doan-canvas-panel { border-top-right-radius: var(--radius-container); border-bottom-right-radius: var(--radius-container); }
+.workspace[data-panel="collapsed"] > .strip-slot { border-top-right-radius: var(--radius-container); }
+.right.doan-conv-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 0 var(--radius-container) var(--radius-container) 0; overflow: hidden; }
+.doan-conv-head { display: flex; align-items: center; min-height: var(--size-chrome); padding-right: var(--space-2); }
+.doan-conv-head .rp-head { flex: 1; min-width: 0; }
+.doan-conv-head .doan-icon-button { color: var(--text-standard); }
+.doan-conv-body { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.doan-conv-empty { max-width: 240px; margin: 0; text-align: center; color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
+/* buzz-canvas-conversation: the panel's content (.doan/canvases/buzz-canvas-conversation.html panel-*). The title is the
+   conversation menu with the close button at its end; the thread scrolls under it and the composer stays at the bottom. */
+.doan-conv-title { flex: 1; min-width: 0; padding: var(--space-2) 0 var(--space-2) var(--space-2); }
+.doan-conv-title .ov-title.doan-button { max-width: 100%; }
+.doan-conv-body:has(> .doan-conv-content) { padding: 0; align-items: stretch; justify-content: stretch; }
+.doan-conv-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.cp-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-2) var(--space-4) 0; }
+.cp-scroll:has(> .conversation-thread) { padding: 0; }
+.cp-scroll > .conversation-thread { flex: 1; min-height: 0; }
+/* A conversation still loading or that cannot be read has no thread-scroll to inset its row: the row takes the
+   thread's side insets and sits in the middle of the panel body instead of touching the panel edges at the top. */
+.cp-scroll > .conversation-thread:has(> :is(.thread-loading, .thread-notice)) { justify-content: center; padding: var(--space-2) var(--space-4) 0; }
+.cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) 0; }
+.doan-conv-panel .conversation-thread .thread { gap: var(--space-3); }
+.doan-conv-panel .msg-user { max-width: 92%; }
+.doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.cp-foot { flex: none; padding: var(--space-3); }
+.cp-resume { margin-top: auto; margin-bottom: var(--space-1); }
+/* A reason whose action label is long puts the action under the text, so the text keeps the row's width. */
+.docked-reason.reason-stack { flex-wrap: wrap; }
+.docked-reason.reason-stack > span { flex-basis: 100%; }
+/* A terminal session sets its own model and effort: the same triggers without chevrons, not interactive. */
+.composer-tray .doan-button.is-fixed { cursor: default; }
+/* News on the folded panel's open button: the sidebar slot's unseen dot (design §2 'News dot'). */
+.doan-icon-button[data-badge="true"] { position: relative; }
+.doan-icon-button[data-badge="true"]::after { content: ""; position: absolute; top: var(--space-1); right: var(--space-1); width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); box-shadow: 0 0 0 2px var(--surface-panel); }
+/* A sent message's chips show their target on the canvas; inside the accent bubble they take the panel surface. */
+.bubble .anchor-chip { background: var(--surface-panel); }
+button.anchor-chip { cursor: pointer; }
+button.anchor-chip[aria-disabled="true"] { cursor: default; }
+/* Chip locate (buzz-canvas-conversation design §2): a chip in the composer's field locates too, so it points as a
+   thread chip does; a target that is gone gets the metadata line under its message or composer. */
+.composer-input .anchor-chip { cursor: pointer; }
+.chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.mark.jump-highlight.jump-point { border-radius: 50%; }
+/* The composer's note sits under its chip, over the card, without entering the field's DOM. */
+.chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }
+/* Pick from canvas (design §2 'Picker'): the left end of the model row; the picking hint is the agent notice's capsule
+   with an outlined Esc key, and the board shows a crosshair (the canvas script sets the one over the canvas). */
+.docked .composer-tray .composer-pick { margin-right: auto; color: var(--text-subtle); }
+.composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
+.docked .composer-tray .composer-pick[aria-disabled="true"] { color: var(--text-disabled); }
+/* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
+   look here: without it the terminal session's Attach and an unavailable Add to conversation read as working buttons. */
+.docked .composer-tools > .doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); }
+:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) { :is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
+:is(.docked .composer-tools > .doan-icon-button, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
+/* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
+.doan-agent.doan-picking { padding-right: var(--space-2); }
+.doan-picking-esc.doan-kbd { background: transparent; color: var(--text-on-prominent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-prominent) 45%, transparent); }
+.area[data-picking] { cursor: crosshair; }
+/* A permission answer that did not reach the agent, under its request's choices. */
+.conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* The resize handle: an invisible 8px strip centred on the panel's 1px left border. The only visible part is a 4px bar
+   fading at both ends, shown on hover, while dragging and on keyboard focus (malmoi components/ui/resizable.tsx and its
+   DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */
+.doan-panel-handle { position: absolute; z-index: 4; top: 0; bottom: 0; left: calc(-1 * var(--space-1)); width: var(--space-2); background: transparent; touch-action: none; outline: none; cursor: col-resize; }
+.doan-panel-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--space-1); transform: translateX(-50%); background: linear-gradient(to bottom, transparent, var(--affordance-accent), transparent); opacity: 0; }
+.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 1; }
+.doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
+/* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
+.doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
+@media (prefers-reduced-motion: reduce) {
+  .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+}
+
+/* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html
+   'agent-working', 'agent-waiting'). Reference: ego lite's agent tab as the user described it (2026-11-01); its values are
+   compiled into a native view, and the one web token read is the task bar's #0009 (design §2). doan uses its accent for
+   the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
+   controls; nothing here takes pointer input. */
+.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 var(--space-3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 1.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
+.workspace[data-panel="collapsed"] .doan-agent-glow { border-radius: 0 0 var(--radius-container) var(--radius-container); }
+@keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+/* The dot field's colour: translucent white dots, read from this computed colour by the canvas. */
+.doan-agent-dots { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--text-on-prominent); }
+/* The agent notice and the canvas notices stack at the board's top centre, 28px under its top edge, the agent notice first. */
+.doan-canvas-top { position: absolute; z-index: 3; top: calc(var(--space-5) + var(--space-2)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
+/* The column sets the notices' width and pointer (a screen sets only margins on a shared notice), so a trackpad scroll
+   over one still reaches the board's pan and zoom; the agent notice keeps its own width, centred. */
+.doan-canvas-top > * { pointer-events: auto; }
+.doan-canvas-top > .doan-agent { align-self: center; }
+/* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
+   primitive. The wording gives way first; the button keeps its size. */
+.doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
+.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+/* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
+   white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
+.doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
+@media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
+.doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }
+.doan-agent .doan-button.doan-agent-action[aria-disabled="true"] { color: color-mix(in srgb, var(--text-on-prominent) 60%, transparent); cursor: default; }
+.doan-agent-action svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
+/* One accent dot that grows and shrinks, with a ring spreading from it in step; still while the agent waits. */
+.doan-agent-dot { position: relative; flex: none; width: var(--space-2); height: var(--space-2); border-radius: 50%; background: var(--affordance-accent); animation: doan-agent-breathe 2.4s var(--ease-state) infinite; }
+.doan-agent-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 0 color-mix(in srgb, var(--affordance-accent) 70%, transparent); animation: doan-agent-ring 2.4s var(--ease-settle) infinite; }
+.doan-agent-dot[data-steady], .doan-agent-dot[data-steady]::after { animation: none; }
+@keyframes doan-agent-breathe { 0%, 100% { transform: scale(.75); } 50% { transform: scale(1.25); } }
+@keyframes doan-agent-ring { to { box-shadow: 0 0 0 var(--space-2) transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .doan-agent-glow, .doan-agent-dot, .doan-agent-dot::after { animation: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .doan-agent { background: var(--affordance-prominent); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+
+/* ── terminal-agent-activity (proposal, not in code) ── */
+/* The terminal notice has no action button: an even inline padding, and the app notice's height (4 + 32 + 4). */
+.doan-agent.doan-agent-terminal{padding:var(--space-1) var(--space-4);min-height:var(--size-control)}
+/* A disabled choice card: the shipped card, dimmed title and radio, the reason in the metadata line's subtle colour. */
+.ob-choice[data-disabled]{cursor:default}
+.ob-choice[data-disabled] input{cursor:default}
+.ob-choice[data-disabled] strong{color:var(--text-disabled)}
+.ob-choice[data-disabled] small{color:var(--text-subtle)}
+.ob-choice[data-disabled] .ob-radio{border-color:var(--border-standard);background:var(--surface-inset)}
+
+/* ── Canvas-only layout (not app CSS) ── */
+html,body{width:auto;height:auto;overflow:visible}
+body{padding:var(--space-8);width:2000px;background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);-webkit-font-smoothing:antialiased}
+.intro{max-width:1500px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.specimen+.specimen{margin-top:var(--space-10)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1500px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.v-proposal{margin-left:var(--space-2);vertical-align:2px;font-weight:var(--type-weight-regular)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-5);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2)}
+figcaption{color:var(--text-metadata);max-width:600px}
+/* A board slice at the canvas page's width; the panel root's own sizing is replaced by a fixed stage. */
+.board-stage.doan-canvas-panel{position:relative;width:600px;height:320px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+.board-stage .area{position:absolute;inset:0}
+.board-stage .doan-agent-glow{border-radius:var(--radius-container);animation:none;opacity:1}
+.tile-mock{left:200px;top:88px}
+.shell-side{width:260px;padding:var(--space-2);border-radius:var(--radius-container);background:var(--bg-app);box-shadow:var(--shadow-panel)}
+.panel-stage{width:347px;height:320px;display:flex;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+.composer-stub{display:grid;place-items:center;min-height:var(--size-control-lg);border:1px dashed var(--border-standard);border-radius:var(--radius-row);color:var(--text-metadata)}
+/* ── Mock canvas (copied from buzz-canvas-conversation.html): colours from mock.css ── */
+.mk-board{position:absolute;inset:0;z-index:0}
+.mk-frame{position:absolute;width:200px}
+.mk-label{display:block;height:20px;color:var(--mock-ink-2);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+.mk-screen{position:relative;height:420px;border-radius:var(--space-2);background:var(--mock-bg);box-shadow:0 0 0 1px var(--mock-line);overflow:hidden;display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-4)}
+.mk-screen i{display:block;border-radius:var(--space-1);background:var(--mock-fill)}
+.mk-bar{height:var(--space-6);margin:calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-2);border-radius:0!important;background:var(--mock-line)!important}
+.mk-h{height:var(--space-5);width:70%;background:var(--mock-ink)!important}
+.mk-p{height:var(--space-2);width:90%}.mk-p.short{width:60%}
+.mk-field{height:36px;margin-top:var(--space-2);box-shadow:inset 0 0 0 1px var(--mock-line);background:var(--mock-bg)!important}
+.mk-btn{height:40px;margin-top:auto;background:var(--mock-brand)!important}
+.mk-dark .mk-screen{background:var(--mock-dark-bg);box-shadow:0 0 0 1px var(--mock-dark-fill)}
+/* Tailwind's sr-only, which the app gets from its preflight import. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+.tile>figcaption{width:0;min-width:100%}
+.toast-stage{position:relative;width:520px;height:120px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+
+</style></head><body><header class="intro"><h1>Terminal agent activity — draft</h1>
+<p>New frames for terminal-agent-activity (docs/features/terminal-agent-activity/design.md ‘표시’ and ‘Deep link’): what the app shows while an agent in a terminal runs <code>doan work start</code> … <code>doan work done</code> on a canvas, and the notice for a refused <code>doan://open</code> link. All four frames are new and none is in code yet; <code>/design-sync</code> compares <b>terminal-notice</b> (the button-less notice and its padding), <b>sidebar-slot</b> and <b>resume-disabled</b> (task T11). <b>deeplink-refusal</b> reuses the shipped toast unchanged.</p>
+<p>Drawn with the app’s own styles.css as of be79b22a (inlined without its imports and @theme), tokens.css and ds/index.css. Copied from shipped code: the agent notice and glow (CanvasAgent.tsx), the picking hint (App.tsx), the sidebar rows and row slot (ShellSidebar.tsx), the terminal session choice cards (CanvasConversationPanel.tsx ResumeChoice), the toast (ds/surfaces.css). New CSS is limited to the ‘terminal-agent-activity’ block: the notice’s padding and the disabled choice card. Copy is from design.md, settled with Doan’s clarify preset. Reference: ego lite’s agent task space, read from the ego-browser skill v2.2.0 (design.md ‘참고: ego lite’), informs only the start/finish signal, not these visuals.</p></header>
+<section class="specimen"><div class="caption"><span>01</span><h2>Agent indicator · terminal session <span class="doan-chip v-proposal" data-ui-variant="translucent">New, not in code</span></h2><p>A terminal session that ran <code>doan work start</code> on the open canvas shows the shipped glow and dot field with a notice that has no button: the text is the <code>role=status</code> itself. Without Stop, the pill keeps the app notice’s 40px height (<code>--size-control</code>) and takes an even 16px inline padding. When an app conversation on the same canvas is working or waiting, its notice wins; when its turn ends and the terminal session remains, the notice turns into this one. The dot field is a script in the app and is not drawn here; the glow is.</p></div><div class="tiles" data-doan-frame="terminal-notice" data-doan-title="Agent indicator · terminal session" data-doan-implements="app/src/renderer/CanvasAgent.tsx"><figure class="tile"><div class="board-stage doan-canvas-panel"><section class="area" role="region" aria-label="Canvas">
+<div class="mk-frame mk-light tile-mock"><span class="mk-label">Checkout</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+<div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-canvas-top"><div class="doan-agent doan-agent-terminal" data-doan-id="terminal-notice"><span class="doan-agent-dot" aria-hidden="true"></span><span class="doan-agent-text" role="status">Agent is working in a terminal</span></div></div></section></div><figcaption>Terminal session working on this canvas (new)</figcaption></figure><figure class="tile"><div class="board-stage doan-canvas-panel"><section class="area" role="region" aria-label="Canvas">
+<div class="mk-frame mk-light tile-mock"><span class="mk-label">Checkout</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+<div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-canvas-top"><div class="doan-agent"><span class="doan-agent-dot" aria-hidden="true"></span><span class="doan-agent-text" role="status">Agent is working</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div></section></div><figcaption>App conversation working, as shipped (for comparison; wins over the terminal notice)</figcaption></figure><figure class="tile"><div class="board-stage doan-canvas-panel"><section class="area" role="region" aria-label="Canvas">
+<div class="mk-frame mk-light tile-mock"><span class="mk-label">Checkout</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+<div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-canvas-top"><div class="doan-agent doan-agent-terminal" data-doan-id="terminal-notice-picking"><span class="doan-agent-dot" aria-hidden="true"></span><span class="doan-agent-text" role="status">Agent is working in a terminal</span></div><div class="doan-agent doan-picking" role="status"><span class="doan-agent-text">Click a frame or an element, or Shift-click a spot</span><span class="doan-kbd doan-picking-esc" aria-hidden="true">Esc</span><span class="sr-only">Press Escape to cancel</span></div></div></section></div><figcaption>Terminal notice with the picking hint stacked under it (new notice, shipped hint)</figcaption></figure></div></section>
+<section class="specimen"><div class="caption"><span>02</span><h2>Sidebar · terminal slot <span class="doan-chip v-proposal" data-ui-variant="translucent">New source, shipped spinner</span></h2><p>The row status spot shows the shipped working spinner for a terminal session too, on the canvas row, or on the project row while that canvas row is not on screen. Only the accessible name tells the source apart. A permission request beats it; an app conversation working on the same row wins with its own name. Clicking a terminal slot opens its canvas (the most recently changed one when there are several).</p></div><div class="tiles" data-doan-frame="sidebar-slot" data-doan-title="Sidebar · terminal slot" data-doan-implements="app/src/renderer/ShellSidebar.tsx"><figure class="tile"><aside class="side shell-side" aria-label="Projects" data-doan-id="side-canvas"><div class="shell-projects"><h2 class="shell-projects-heading">Projects</h2><div role="tree" aria-label="Projects and canvases"><div class="shell-project"><div class="shell-project-row row" role="treeitem" aria-label="acme-web" aria-level="1" aria-expanded="true" tabindex="-1"><span class="shell-thumbnail hue-rose" aria-hidden="true">A</span><span class="shell-project-name">acme-web</span><button class="doan-icon-button shell-more" aria-label="acme-web menu" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></div><div role="group"><div class="shell-group"><div class="shell-group-head row" role="treeitem" aria-label="Canvases" aria-level="2" aria-expanded="true" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><span class="shell-group-label">Canvases</span><span class="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">3</span></div><div role="group"><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="checkout"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>checkout</span><span class="row-slot working" role="img" aria-label="Codex is working in a terminal" data-doan-id="slot-canvas-codex"><span class="doan-spinner" aria-hidden="true"></span></span></div><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>settings</span></div><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="onboarding"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>onboarding</span></div></div></div></div></div></div></div></aside><figcaption>Canvas row · Codex · “Codex is working in a terminal”</figcaption></figure><figure class="tile"><aside class="side shell-side" aria-label="Projects" data-doan-id="side-project"><div class="shell-projects"><h2 class="shell-projects-heading">Projects</h2><div role="tree" aria-label="Projects and canvases"><div class="shell-project"><div class="shell-project-row row" role="treeitem" aria-label="acme-web" aria-level="1" aria-expanded="false" tabindex="-1" data-doan-id="project-row-folded"><span class="shell-thumbnail hue-rose" aria-hidden="true">A</span><span class="shell-project-name">acme-web</span><span class="row-slot working" role="img" aria-label="Claude Code is working in a terminal" data-doan-id="slot-project-claude"><span class="doan-spinner" aria-hidden="true"></span></span><button class="doan-icon-button shell-more" aria-label="acme-web menu" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></div></div><div class="shell-project"><div class="shell-project-row row" role="treeitem" aria-label="billing" aria-level="1" aria-expanded="false" tabindex="-1"><span class="shell-thumbnail hue-amber" aria-hidden="true">B</span><span class="shell-project-name">billing</span><button class="doan-icon-button shell-more" aria-label="billing menu" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></div></div></div></div></aside><figcaption>Project row, folded · Claude Code · “Claude Code is working in a terminal”</figcaption></figure><figure class="tile"><aside class="side shell-side" aria-label="Projects" data-doan-id="side-anon"><div class="shell-projects"><h2 class="shell-projects-heading">Projects</h2><div role="tree" aria-label="Projects and canvases"><div class="shell-project"><div class="shell-project-row row" role="treeitem" aria-label="acme-web" aria-level="1" aria-expanded="true" tabindex="-1"><span class="shell-thumbnail hue-rose" aria-hidden="true">A</span><span class="shell-project-name">acme-web</span><button class="doan-icon-button shell-more" aria-label="acme-web menu" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></div><div role="group"><div class="shell-group"><div class="shell-group-head row" role="treeitem" aria-label="Canvases" aria-level="2" aria-expanded="true" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><span class="shell-group-label">Canvases</span><span class="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">3</span></div><div role="group"><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="checkout"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>checkout</span><span class="row-slot working" role="img" aria-label="An agent is working in a terminal" data-doan-id="slot-canvas-anon"><span class="doan-spinner" aria-hidden="true"></span></span></div><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>settings</span></div><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="onboarding"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>onboarding</span></div></div></div></div></div></div></div></aside><figcaption>Canvas row · anonymous session · “An agent is working in a terminal”</figcaption></figure><figure class="tile"><aside class="side shell-side" aria-label="Projects" data-doan-id="side-permission"><div class="shell-projects"><h2 class="shell-projects-heading">Projects</h2><div role="tree" aria-label="Projects and canvases"><div class="shell-project"><div class="shell-project-row row" role="treeitem" aria-label="acme-web" aria-level="1" aria-expanded="true" tabindex="-1"><span class="shell-thumbnail hue-rose" aria-hidden="true">A</span><span class="shell-project-name">acme-web</span><button class="doan-icon-button shell-more" aria-label="acme-web menu" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></div><div role="group"><div class="shell-group"><div class="shell-group-head row" role="treeitem" aria-label="Canvases" aria-level="2" aria-expanded="true" tabindex="-1"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><span class="shell-group-label">Canvases</span><span class="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">3</span></div><div role="group"><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="checkout"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>checkout</span><span class="row-slot permission" role="img" aria-label="Codex needs your answer"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></span></div><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="settings"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>settings</span></div><div class="shell-canvas-row row" role="treeitem" aria-level="3" tabindex="-1" aria-label="onboarding"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>onboarding</span></div></div></div></div></div></div></div></aside><figcaption>Permission request on the same row wins (shipped)</figcaption></figure></div></section>
+<section class="specimen"><div class="caption"><span>03</span><h2>Canvas conversation · terminal session still working <span class="doan-chip v-proposal" data-ui-variant="translucent">New, not in code</span></h2><p>In the new conversation state, the terminal session choice is disabled while that session (<code>provider:id</code>) is in the working list. Its line under the title becomes the reason, tied to the radio by <code>aria-describedby</code>; Start a new conversation stays selectable and is selected when the terminal choice had been. When the session ends (<code>doan work done</code> or expiry) the choice returns with its “Linked by doan check” line. Only the choice cards are drawn; the composer below them is unchanged.</p></div><div class="tiles" data-doan-frame="resume-disabled" data-doan-title="Canvas conversation · terminal session still working" data-doan-implements="app/src/renderer/CanvasConversationPanel.tsx"><figure class="tile"><div class="panel-stage" data-doan-id="resume-disabled"><div class="doan-conv-content"><div class="cp-scroll end"><div role="radiogroup" aria-label="How to continue" class="ob-choice-list cp-resume"><label class="doan-panel ob-choice" data-disabled="" data-doan-id="resume-disabled-resume"><input type="radio" name="resume-disabled" disabled aria-describedby="resume-disabled-reason"><span class="ob-radio" aria-hidden="true"></span><span class="ob-choice-text"><strong>Continue the Codex session from your terminal</strong><small id="resume-disabled-reason" data-doan-id="resume-disabled-reason">Still working in your terminal. You can continue it when it finishes.</small></span></label><label class="doan-panel ob-choice"><input type="radio" name="resume-disabled" checked><span class="ob-radio" aria-hidden="true"></span><span class="ob-choice-text"><strong>Start a new conversation</strong><small>Uses Doan’s sign-in and your Settings defaults</small></span></label></div></div><div class="cp-foot"><div class="composer-stub">Composer as shipped (not drawn)</div></div></div></div><figcaption>Session still working in the terminal (new)</figcaption></figure><figure class="tile"><div class="panel-stage" data-doan-id="resume-shipped"><div class="doan-conv-content"><div class="cp-scroll end"><div role="radiogroup" aria-label="How to continue" class="ob-choice-list cp-resume"><label class="doan-panel ob-choice"><input type="radio" name="resume-shipped" checked><span class="ob-radio" aria-hidden="true"></span><span class="ob-choice-text"><strong>Continue the Codex session from your terminal</strong><small>Linked by doan check at 14:02</small></span></label><label class="doan-panel ob-choice"><input type="radio" name="resume-shipped"><span class="ob-radio" aria-hidden="true"></span><span class="ob-choice-text"><strong>Start a new conversation</strong><small>Uses Doan’s sign-in and your Settings defaults</small></span></label></div></div><div class="cp-foot"><div class="composer-stub">Composer as shipped (not drawn)</div></div></div></div><figcaption>Session finished, as shipped (for comparison)</figcaption></figure></div></section>
+<section class="specimen"><div class="caption"><span>04</span><h2>Deep link refused <span class="doan-chip v-proposal" data-ui-variant="translucent">New, not in code</span></h2><p>A <code>doan://open</code> link the app refuses shows the window and one toast at its lower right, without an action: a link only moves, so it offers nothing to do in place. The toast is the shipped one (as the removal toast). <code>acme-web</code> stands for the project’s sidebar name.</p></div><div class="tiles" data-doan-frame="deeplink-refusal" data-doan-title="Deep link refused"><figure class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="refusal-malformed"><span class="msg">Couldn’t open the link. It isn’t a Doan canvas link.</span></div></div><figcaption>Malformed link</figcaption></figure><figure class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="refusal-root"><span class="msg">Couldn’t open the link. Its project isn’t in Doan. Add it from Add Projects, then open the link again.</span></div></div><figcaption>Root not registered in Doan</figcaption></figure><figure class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="refusal-canvas"><span class="msg">Couldn’t open the link. The canvas isn’t in acme-web.</span></div></div><figcaption>Canvas not in the project’s list</figcaption></figure></div></section>
+</body></html>
