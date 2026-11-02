@@ -1,5 +1,10 @@
 # Doany assets
 
+The current mascot is V2, the selected Pebble: its artwork, motion prototype and
+flat logo are in `v2/` (see `v2/README.md`). `shape-study/` holds the shape
+explorations that led to it. Everything else in this directory is the V1
+six-lobed mascot, kept as a record; the sections below describe V1.
+
 Source artwork and motion prototype. The app ships copies of the still image and
 textures (`app/src/renderer/public/doany/`), a port of the motion
 (`app/src/renderer/doanyMotion.ts`, `doanyRig.ts`, `Doany.tsx`) and the icon

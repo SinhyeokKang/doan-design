@@ -37,6 +37,13 @@ Ready:
   coordinate space. They are visual reconstructions, not pixel-exact crops.
 - `mascot.js`: runnable V2 WebGL prototype, isolated with `data-mascot-v2` and
   `window.doanyV2Demo`; retains V1 timing, removes radial edge waves.
+- `simple/doany-accent.svg`: flat V2 favicon master; accent body (`#973BE1`,
+  `--violet-9` / `--affordance-accent` in renderer tokens), black beret and eyes,
+  transparent background, no gradients or texture. It traces `doany.png`: the
+  body, beret and eye areas were smoothed, reduced to about 35 outline points
+  per shape and joined with cubic curves (eyes as fitted ellipses). No generated
+  artwork.
+- `simple/favicon.ico`: 16, 32 and 48 px Chromium rasters of that SVG.
 - `source-prompt.txt`, `layer-prompts.json`: artwork provenance.
 - `LICENSE`: MIT license for motion code, not artwork.
 
