@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-02 — Tab walked into the draft, drew its focus rings and scrolled the floating tools away
+
+- **Area**: `app/src/renderer/CanvasController.ts` (board iframe creation), `app/src/renderer/styles.css` (`.doan-canvas-panel > .area`).
+- **Symptom**: in dogfooding, pressing Tab on a canvas page moved the floating tools and showed focus rings on the canvas. A real-app probe reproduced both: Tab focused the draft's own buttons and links inside the board iframe, and focusing one 1,600 px down scrolled `section.area` by 778 px, so the tools row moved from y 838 to y 60.
+- **Root cause**: the board iframe was in the Tab order, so the draft's controls — mock-ups, not the app's — took focus. `.area` was `overflow: hidden`, which hides scrollbars but still scrolls to reveal a focused descendant; the overlays positioned inside it scrolled with it. Pan and zoom are a transform, so nothing ever reset that scroll.
+- **Net**: no test or probe had pressed Tab on a canvas page; DESIGN already noted the same mechanism for dialogs with `autofocus` in design-system canvases. Fixed with `tabindex=-1` on the iframe and `overflow: clip` on the area; the probe shows Tab skipping the canvas and the tools staying at y 838 (`.scratch/runtime-test/dogfood-repro/run-tab-fixed.log`).
+- **Prevention**: a box that holds a transformed board and floating overlays clips; it never relies on `overflow: hidden`. A runtime probe of a canvas page presses Tab through it at least once with a focusable control below the fold. Search: `rg -n "overflow: hidden" app/src/renderer/styles.css` near positioned overlays.
+
 ### 2026-11-02 — The loaded project's row did nothing on a canvas, though PRODUCT said it opened the Overview
 
 - **Area**: `app/src/renderer/App.tsx` (`toggleProject`), now `shellNavigation.ts` (`loadedProjectRow`, `projectsTab`).
