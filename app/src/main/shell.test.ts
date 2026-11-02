@@ -746,7 +746,9 @@ describe("storing, removing and restoring", () => {
     expect(changes).not.toHaveBeenCalledWith(expect.anything(), expect.anything());
     await shell.replace(a, moved);
     expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: a, root: moved });
+    // Locate to a root already in the list drops the old row and still reports the move.
     await shell.replace(moved, b);
+    expect(shell.entries().map(entry => entry.path)).toEqual([b]);
     expect(changes).toHaveBeenLastCalledWith(expect.any(Array), { from: moved, root: b });
     changes.mockClear();
     await shell.replace("/not/stored", moved);
