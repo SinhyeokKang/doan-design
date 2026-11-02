@@ -17,6 +17,8 @@
 - D9 (사용자 결정, 오케스트레이션 중 추가 요청 — BACKLOG 'Marking canvases the person has not looked at'): 캔버스 행의 상태 자리에 '볼 것이 있다' 알림 dot을 띄운다. 대화 표시와 같은 맥락이고 같은 violet dot이다. 대상은 (1) 기존 대화 표시(권한 요청·작업 중·안 본 대화 끝), (2) 생겼지만 아직 안 본 캔버스, (3) 바뀌었지만 아직 안 본 캔버스다. '봤다'는 그 캔버스를 캔버스 페이지로 열었을 때이고, 열려 있는 동안의 변경도 본 것으로 친다. Overview 썸네일은 치지 않는다. 캔버스별 마지막으로 본 수정 시각을 기기별 앱 상태(userData)에 저장해 재시작 뒤에도 유지한다. 프로젝트를 처음 추가하거나 기능이 처음 들어간 뒤 처음 읽을 때 있던 캔버스는 본 것으로 친다. 배치 G가 맡는다.
 - D10 (지휘자 판단 — PRODUCT §5 item 1 row slot 규칙): 캔버스 알림 dot의 자리와 우선순위는 대화 표시 규칙을 따른다. 대화 표시(권한 요청 > 작업 중 > 안 본 끝)가 있으면 그것이 이기고, 캔버스 행이 화면 밖(접힌 그룹·접힌 프로젝트)이면 프로젝트 행에 뜬다. 프로젝트 행의 캔버스 알림을 누르면 그 캔버스를 연다(여럿이면 가장 최근에 바뀐 것).
 - D11 (지휘자 판단 — 리뷰 RA2 🟡): escape한 구두점이 든 식별자(`foo\"`)나 escape한 `url` 함수 이름(`u\72l(`) 뒤의 viewport 단위는 놓치거나 잘못 경고할 수 있다. 실제 캔버스에 거의 나오지 않는 입력이고 경고는 참고용이다. 공유 렉서를 다시 고치면 색상·토큰 검사가 깨질 위험이 커서 고치지 않고 알려진 한계로 둔다(Z1에서 ARCHITECTURE에 적는다).
+- D12 (사용자 결정, 오케스트레이션 중 추가 요청): 대화 입력창(Home, Overview, 캔버스 패널) 아래의 "No agent is ready to run." 줄을 없앤다. 에이전트 선택 영역이 이미 "No agent ready"로 보이기 때문이다. Send가 꺼진 이유는 Send의 툴팁과 접근성 설명으로 남긴다. 고른 에이전트가 실행할 수 없을 때의 "… can’t run right now. Choose another agent." 줄은 남긴다. PRODUCT §5 item 1의 "Send is disabled with a reason for … no ready agent"는 지휘자가 고친다. 배치 H가 맡는다.
+- D13 (지휘자 판단 — 리뷰 RG): G의 수정 라운드는 재리뷰 없이 통합했다. 첫 리뷰에 🔴이 없었고 수정은 단위 테스트로 고정됐으며, 배치 C가 실제 앱에서 다시 본다.
 - D4 (지휘자 판단 — tasks T5): agent-eval은 `W1,W2`만 돌리고 새 시나리오는 두지 않는다.
 
 ## 배치
@@ -32,7 +34,8 @@
 | E | D7 사이드바 최신 수정순 (통합 `2bb14947`, 리뷰 RE) | `app/src/renderer/ShellSidebar.tsx`·테스트, 비교 함수 파일 | 없음 | Claude Sonnet medium — 비교 함수 하나와 포커스 유지 테스트 | `npm --prefix app test`, typecheck | 통합됨 |
 | F | D8 추천 프롬프트 크기·문구 (통합 `90d3419a`·`803a4a66`, 리뷰 RF) | `homeComposer.ts`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`의 `.suggestion`, 관련 테스트, 초안 4개(buzz-home·buzz-project·buzz-canvas-conversation·doan-mascot) | 없음 | Claude Opus medium — UI 문구와 크기 판단, 여러 화면 | `npm --prefix app test`, typecheck, `doan check --repo .` | 통합됨 |
 | RE·RF | E·F 리뷰 | 보고만 | E, F | Codex gpt-6-astra medium — 교차 모델 리뷰 | `/code-review` 보고 | 대기 |
-| G | D9·D10 캔버스 알림 dot | 사이드바 row slot 계산·렌더, 본 상태 저장(main 상태 모듈), 캔버스 표시 시 본 처리, 테스트 | E | Claude Opus high — 상태 저장·재시작·첫 읽기 기준선 판단이 필요하고 틀리면 dot이 안 꺼지거나 전부 켜진다. 코딩 전 설계를 지휘자에게 ask로 받는다 | `npm --prefix app test`, typecheck | 대기 |
+| G | D9·D10 캔버스 알림 dot (통합 `d51a66b7`~`79e79c9b`, 리뷰 RG, 수정 1라운드) | 사이드바 row slot 계산·렌더, 본 상태 저장(main 상태 모듈), 캔버스 표시 시 본 처리, 테스트 | E | Claude Opus high — 상태 저장·재시작·첫 읽기 기준선 판단이 필요하고 틀리면 dot이 안 꺼지거나 전부 켜진다. 코딩 전 설계를 지휘자에게 ask로 받는다 | `npm --prefix app test`, typecheck | 통합됨 |
+| H | D12 입력창 no-agent 줄 제거 | `homeComposer.ts`, `HomeComposerView.tsx`, `DockedComposer.tsx` 등 Send reason을 그리는 곳과 테스트 | 없음 | Claude Sonnet medium — 조건 하나와 접근성 설명 이동 | `npm --prefix app test`, typecheck | 대기 |
 | 지휘자 | T6, Z1 문서 승격 | `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, 이 디렉터리 삭제 | C, D | — | `verify.mjs --eval` 통과 | 대기 |
 
 ## 겹침과 순서
