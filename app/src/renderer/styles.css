@@ -963,7 +963,6 @@ body:has(.shell-top) { background: transparent; }
    "Viewing" only; the fill is for the pointer and keyboard focus, which move together as in a Radix menu. */
 .doan-frame-list { width: 320px; }
 .doan-frame-row { gap: var(--space-2); }
-.doan-frame-row:focus { background: var(--affordance-floating-hover); }
 .doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
 .doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
