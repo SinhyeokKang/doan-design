@@ -269,7 +269,7 @@ export class CanvasRun {
     const { root, canvas } = s.target;
     void window.doan.conversationResumeTarget({ root, canvas }).catch(() => ({ error: "unknown" })).then(reply => {
       if (s.ask !== ask) return;
-      s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt } : { available: false, reason: reply.reason };
+      s.resume = "error" in reply ? { error: reply.error } : reply.available ? { available: true, runtime: reply.runtime, lastCheckAt: reply.lastCheckAt, ...(reply.session ? { session: reply.session } : {}) } : { available: false, reason: reply.reason };
       this.host.changed();
     });
   }

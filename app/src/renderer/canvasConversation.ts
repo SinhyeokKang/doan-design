@@ -1,6 +1,7 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas, Runtime } from "../main/conversation/types";
+import type { WorkItem } from "../main/workState";
 import type { SettingsAction } from "./agentAuthView";
 import { sameCanvas } from "./canvasConversationRows";
 import { dockedRefusal, type DockedBusy, type DockedMode } from "./dockedRules";
@@ -81,7 +82,15 @@ export function shouldMarkSeen(panelOpen: boolean, focused: boolean, shown: stri
   return seq.end !== null && seq.end > seq.seen;
 }
 
-export type ResumeTarget = { available: true; runtime: Runtime } | { available: false; reason: string } | { error: string };
+// `session`: the linked terminal session's id, which the terminal work list names too.
+export type ResumeTarget = { available: true; runtime: Runtime; session?: string } | { available: false; reason: string } | { error: string };
+
+// The terminal session choice waits while that session (provider:id) still works in a terminal, in any project
+// (terminal-agent-activity design '표시'). An anonymous session cannot be matched with the link, so it holds nothing.
+export function resumeHeld(target: ResumeTarget | undefined, work: readonly WorkItem[]): boolean {
+  if (!target || !("available" in target) || !target.available || !target.session) return false;
+  return work.some(item => item.session === target.session && item.provider === target.runtime);
+}
 export interface NewConversationView {
   mode: "resume" | "new";
   // The terminal session the person may continue, when there is one.
