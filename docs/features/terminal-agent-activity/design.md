@@ -86,6 +86,7 @@ v1(`active`)과 v2(onboarding 전용) 옆에 `work` 전용 v3를 따로 둔다. 
   - 합성 코드: `app/src/renderer/conversationList.ts` `slotsFromList`, `app/src/renderer/ShellSidebar.tsx` `projectSlot`, 배치 G의 캔버스 알림 합성.
   - 캔버스 행이나 프로젝트 행의 터미널 슬롯을 누르면 그 캔버스를 연다. 여럿이면 가장 최근에 바뀐 캔버스를 연다. 캔버스 알림 dot의 D10 규칙(`docs/features/canvas-viewport-units/orch.md`)과 같다.
 - **캔버스 페이지**: Agent indicator를 재사용한다. glow·dot field와 notice를 보이고 Stop은 두지 않는다. notice는 버튼이 없는 `role=status`이다. 버튼이 없으므로 notice 안쪽 여백을 따로 맞춘다(`/design-draft`에서 정하고 `/design-sync`에서 잰다).
+  - 같은 페이지의 선택 안내(picking hint, Esc 키가 붙은 캡슐)도 notice와 같은 높이 40px(`--size-control`)를 쓴다(사용자 결정). 지금은 36px이다. `/design-sync`에서 잰다.
   - 합성은 `app/src/renderer/agentIndicator.ts` `canvasAgent`에서 한다: 앱 대화가 같은 캔버스에서 작업 중이거나 답을 기다리면 앱 대화의 indicator가 이긴다. 터미널 변형에는 Stop이 없다.
   - 전환: 앱 대화의 turn이 끝났는데 같은 캔버스에 터미널 세션이 남아 있으면, indicator는 사라지지 않고 터미널 변형으로 바뀐다(Stop만 없어진다. 문구는 그대로다). 터미널 세션도 끝나면 사라진다.
   - 로딩 중·실패·폭 없음인 캔버스에서는 보이고, 목록에 없는 페이지와 프로젝트 문제에서는 보이지 않는다. PRODUCT §5 item 2 'Agent indicator' 규칙과 같다.
