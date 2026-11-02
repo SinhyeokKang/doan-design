@@ -11,12 +11,13 @@
 3. `canvas-open-offer` — [spec](../canvas-open-offer/spec.md)·[design](../canvas-open-offer/design.md)·[tasks](../canvas-open-offer/tasks.md). 이 파일을 쓸 때 `/feature-review`가 진행 중이었다(spec만 intake했다). 가이드 규칙 J, 턴 프롬프트(`prompt.ts`), 앱 소켓 v4, 에이전트 설정을 바꾼다. 링크 4도 `prompt.ts`에 규칙 J 링크를 언급하는 한 줄을 넣으므로, 규칙 J를 먼저 바꿔 링크 4가 새 규칙 위에서 그 줄을 쓰게 한다.
 4. `agent-reply-chips` — [spec](../agent-reply-chips/spec.md)·[design](../agent-reply-chips/design.md)·[tasks](../agent-reply-chips/tasks.md). `/feature-review`를 마쳤다. D1 초안은 아직 없다. 링크 1의 locate·`openCanvas`와 링크 3의 규칙 J 위에서 시작한다. intake에서 T5의 "규칙 J의 링크는 최종 답의 캔버스 목록으로 그대로 둔다"를 링크 3의 결과에 맞게 고친다.
 5. `canvas-row-menu` — [spec](../canvas-row-menu/spec.md)·[design](../canvas-row-menu/design.md)·[tasks](../canvas-row-menu/tasks.md). P1·P2(문구, 초안)를 마쳤다. 가장 크다(Go `doan export`, viewer, 휴지통 IPC, 사이드바). 앞 링크들이 고친 사이드바와 가이드 위에서 마지막으로 정리한다. design의 전제였던 terminal-agent-activity는 이미 main에 있다.
+6. `setup-via-onboarding` — [spec](../setup-via-onboarding/spec.md)·[design](../setup-via-onboarding/design.md)·[tasks](../setup-via-onboarding/tasks.md). 2026-11-03에 체인 작성 세션이 `/feature`로 만들고 링크로 더했다(사용자). `/feature-review`는 아직이다(시작 점검에서 확인). 가이드 'Onboarding'과 `doan init` 줄을 고치고 새 eval O3를 더한다. 링크 2·3·5가 고친 가이드와 출력 예산 위에서 마지막으로 정리한다. UI가 없어 초안이 없다.
 
 ## 시작 점검 (첫 지휘자, 2026-11-03 사용자)
 
-첫 지휘자는 링크 1을 시작하기 전에 체인의 모든 feature를 점검하고, 사용자에게 한 번에 승인을 받는다. 승인 뒤에는 링크마다 멈추지 않는다. 점검에서 끝낼 것:
+첫 지휘자는 링크 1을 시작하기 전에 체인의 모든 feature(링크 1–6)를 점검하고, 사용자에게 한 번에 승인을 받는다. 승인 뒤에는 링크마다 멈추지 않는다. 점검에서 끝낼 것:
 
-- 모든 feature의 `/feature-review`가 끝났는지 확인한다. 링크 3(canvas-open-offer)은 이 파일을 쓸 때 리뷰 중이었다.
+- 모든 feature의 `/feature-review`가 끝났는지 확인한다. 링크 3(canvas-open-offer)은 이 파일을 쓸 때 리뷰 중이었고(뒤에 465c5fa9로 마침), 링크 6(setup-via-onboarding)은 리뷰 전에 더해졌다.
 - 사람이 확인해야 하는 초안을 모두 확정한다: 링크 2의 `buzz-project-settings.html`(2026-11-03에 수정됨, feature 문서에 확정 기록 없음), 링크 4의 D1 새 초안(`/design-draft`로 그린다). 링크 1·5의 초안은 확정됐다.
 - 문서에 남은 열린 점을 사용자 결정으로 닫는다. 예: 링크 1 design '열린 점'(위조된 클릭 선택 메시지가 composer 포커스를 가져가는 문제의 대응).
 - 체인 전체에 필요한 provider 로그인을 만든다(아래 '로그인').
@@ -48,7 +49,7 @@
 ## 운영 메모
 
 - worker 대기 루프는 heartbeat·status를 조용히 ack하고 `worker_done`·`question`·`escalation`에만 깨운다. 작업자가 `worker_done` 없이 멈출 수 있으므로 idle 프롬프트나 working이 아닌 상태에서도 깨운다.
-- `/agent-eval`을 도는 링크(2·3·4·5)는 패키지 앱을 빌드한 뒤 돌린다. 실제 에이전트 상태를 건드린다.
+- `/agent-eval`을 도는 링크(2·3·4·5·6)는 패키지 앱을 빌드한 뒤 돌린다. 실제 에이전트 상태를 건드린다.
 
 ## 링크 상태
 
@@ -59,6 +60,7 @@
 | 3 canvas-open-offer | | | | 대기 |
 | 4 agent-reply-chips | | | | 대기 |
 | 5 canvas-row-menu | | | | 대기 |
+| 6 setup-via-onboarding | | | | 대기 |
 
 ## 인계 기록
 
