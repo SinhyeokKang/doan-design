@@ -1045,6 +1045,20 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    thread chip does; a target that is gone gets the metadata line under its message or composer. */
 .composer-input .anchor-chip { cursor: pointer; }
 .chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+/* A reply chip for another canvas (agent-reply-chips): at most 180px like every chip; inside it the label shrinks and
+   ellipsizes first and " · <canvas>" is never cut (draft frame panel-other-canvas, user decision). A grid does it:
+   the label's track has a 1em minimum (room for its ellipsis), so the chip's min-content is padding + icon + gap +
+   1em + suffix, and min-width wins over the 180px max-width only when that suffix does not fit, growing the chip
+   just enough. The suffix is capped at the reply block's width (100cqw of .msg-agent) less the chip's padding, icon,
+   one gap and the label's 1em (its own negative margin takes back the other gap), so a suffix wider than the line
+   ellipsizes inside the chip; overflow keeps any paint inside. The suffix keeps its leading space
+   (pre) and takes back the chip's gap, so it reads "Label · Canvas". These rules must come after
+   `.anchor-chip span:not(.sr-only)` (same specificity for the suffix), or that nowrap collapses the space. */
+.conversation-thread .msg-agent { container-type: inline-size; }
+.anchor-chip:has(> span.chip-canvas) { display: inline-grid; grid-template-columns: auto minmax(1em, max-content) max-content; min-width: min-content; overflow: hidden; }
+.anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }
+/* A reply chip's note under its reply block, 6 apart, as the note under a sent bubble. */
+.conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
 /* The composer's note sits under its chip, over the card, without entering the field's DOM. */
 .chip-note { position: absolute; z-index: 2; margin-top: var(--space-1); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: var(--shadow-sm); white-space: nowrap; pointer-events: none; }

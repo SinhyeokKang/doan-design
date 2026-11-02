@@ -81,6 +81,9 @@ function reloadKind(before: CanvasRow, after: CanvasRow): ActivityEvent["kind"] 
 
 // One target of an anchors query: a frame id, or an element's doan id and selector.
 export interface AnchorTarget { id: string; doanId?: string; selector?: string; frame?: string }
+// Where openCanvas moves once the canvas shows: a frame (Quick Open, a deep link, `doan open`, a reply chip) or an
+// element by its doan id (a reply chip).
+export type OpenTarget = { frame: string } | { element: string };
 
 // React owns the surrounding shell; only this controller owns the board's children.
 export class CanvasController {
@@ -103,6 +106,10 @@ export class CanvasController {
   // ends the wait without a refit.
   private firstFit: View | null = null;
   private pendingFrame: { id: string; index?: number; found?: (found: boolean) => void } | null = null;
+  // A reply chip's element, located after the first layout (agent-reply-chips design 'Pressing'). It lives as
+  // pendingFrame does and also carries the root and canvas it was asked for: worktrees share canvas ids and paths
+  // (POSTMORTEM 2026-11-01), so only that canvas's first layout takes it. A missing target ends silently.
+  private pendingLocate: { folder: string; path: string; doanId: string } | null = null;
   private jumpRect: CanvasRect | null = null;
   private jumpKind: "rect" | "point" = "rect";
   private jumpMark: HTMLElement | null = null;
@@ -220,7 +227,8 @@ export class CanvasController {
     if (this.loading || this.state.status !== null || this.state.unlisted) return false;
     const frame = anchor.frame?.id ?? anchor.point?.frameId;
     const target: AnchorTarget = anchor.element
-      ? { id: LOCATE_ID, ...(anchor.element.doanId === undefined ? {} : { doanId: anchor.element.doanId }), selector: anchor.element.selector }
+      ? { id: LOCATE_ID, ...(anchor.element.doanId === undefined ? {} : { doanId: anchor.element.doanId }),
+        ...(anchor.element.selector === undefined ? {} : { selector: anchor.element.selector }) }
       : { id: LOCATE_ID, ...(frame === undefined ? {} : { frame }) };
     const generation = this.requestAnchors([target]);
     if (generation === null) return false;
@@ -377,6 +385,8 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
+        // A reply chip's element still waiting for this canvas's first layout follows it, as the waiting frame does.
+        if (this.pendingLocate?.folder === open.folder && this.pendingLocate.path === open.canvas) this.pendingLocate = { ...this.pendingLocate, path: to };
         this.recordDocument({ ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas });
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");
@@ -523,17 +533,26 @@ export class CanvasController {
     });
   }
 
-  // `opened`: told once the canvas is the open one.
-  openCanvas(folder: string, row: CanvasRow, frameId?: string, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void }): void {
+  // `opened`: told once the canvas is the open one. A frame or element target replaces any earlier one still waiting
+  // for the first layout: the last request wins.
+  openCanvas(folder: string, row: CanvasRow, to?: OpenTarget, target?: { index?: number; found?: (found: boolean) => void; unavailable?: (entry: FolderEntry | undefined) => void; opened?: () => void }): void {
+    const frameId = to && "frame" in to ? to.frame : undefined;
+    const element = to && "element" in to ? to.element : undefined;
     if (this.state.open?.folder === folder && this.state.shown === row.path) {
       this.cancelWorkspaceOpen();
       target?.opened?.();
       if (frameId !== undefined) {
+        this.pendingLocate = null;
         const frames = this.state.layout?.frames ?? [];
         const index = target?.index !== undefined && frames[target.index]?.id === frameId ? target.index : frames.findIndex(frame => frame.id === frameId);
         if (index >= 0) this.jump(index);
         if (this.loading && !this.state.layout) this.pendingFrame = { id: frameId, ...target };
         else target?.found?.(index >= 0);
+      }
+      if (element !== undefined) {
+        this.pendingFrame = null;
+        this.pendingLocate = { folder, path: row.path, doanId: element };
+        if (!this.loading) this.locatePending();
       }
       return;
     }
@@ -542,15 +561,28 @@ export class CanvasController {
       return entry?.kind === "list" ? entry.canvases.find(candidate => candidate.path === row.path && candidate.id === row.id && candidate.url === row.url) : undefined;
     };
     this.transition(() => {
-      this.openCanvasNow(folder, current() ?? row);
+      const opening = current() ?? row;
+      this.openCanvasNow(folder, opening);
       this.pendingFrame = frameId === undefined ? null : { id: frameId, ...target };
-      if (this.pendingFrame && this.state.status === "noWidth") { this.pendingFrame.found?.(false); this.pendingFrame = null; }
+      this.pendingLocate = element === undefined ? null : { folder, path: opening.path, doanId: element };
+      if (this.state.status === "noWidth") { this.pendingFrame?.found?.(false); this.pendingFrame = null; this.pendingLocate = null; }
       target?.opened?.();
     }, () => {
       if (current() !== undefined) return true;
       target?.unavailable?.(this.entries.find(entry => entry.path === folder));
       return false;
     });
+  }
+
+  // A move the person made in the conversation panel before the opened canvas laid out (choosing another conversation,
+  // New, ⌘N) drops the reply chip's element still waiting there.
+  dropPendingLocate(): void { this.pendingLocate = null; }
+
+  private locatePending(): void {
+    const pending = this.pendingLocate, open = this.state.open;
+    this.pendingLocate = null;
+    if (pending === null || open?.folder !== pending.folder || open.canvas !== pending.path) return;
+    this.locate({ element: { doanId: pending.doanId } }, () => {});
   }
 
   private openCanvasNow(folder: string, row: CanvasRow): void {
@@ -568,8 +600,8 @@ export class CanvasController {
     this.stopDrag();
     this.spaceHeld = false;
     this.clearJump();
-    // A reload of the same row before its first layout still owes the picked frame.
-    if (fresh) this.pendingFrame = null;
+    // A reload of the same row before its first layout still owes the picked frame and element.
+    if (fresh) { this.pendingFrame = null; this.pendingLocate = null; }
     // A new document restarts the pick channel. Opening a canvas ends the pick (dropFrame below); a reload or a
     // same-ID move keeps it for the new document's first layout.
     this.pickDocument = null;
@@ -632,6 +664,7 @@ export class CanvasController {
       this.state.status = "failed";
       this.pendingFrame?.found?.(false);
       this.pendingFrame = null;
+      this.pendingLocate = null;
       this.applySelectionEffect({ kind: "loadFailed" });
       this.endPick({ kind: "cancelled" });
       this.publish();
@@ -646,6 +679,7 @@ export class CanvasController {
     this.pickDocument = null;
     this.clearJump();
     this.pendingFrame = null;
+    this.pendingLocate = null;
     this.state.currentFrame = null;
     this.resetAnchors();
     this.frame?.remove();
@@ -1160,6 +1194,7 @@ export class CanvasController {
       }
       this.jumpTo = null;
     }
+    if (first && this.pendingLocate !== null) this.locatePending();
     if (selected !== undefined && !newDocument && this.state.selection !== null && this.reanchor === null) {
       if (selected === null) this.applySelectionEffect({ kind: "anchorLost" });
       else { this.selectedRect = selected; this.drawMarks(); }

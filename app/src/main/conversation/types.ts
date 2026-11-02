@@ -17,7 +17,9 @@ export interface AvailabilityFacts extends DirectoryFacts {
 }
 export interface Anchor {
   frame?: { id: string; title?: string };
-  element?: { doanId?: string; selector: string; text?: string; tag?: string };
+  // selector is absent only on a reply chip (agent-reply-chips): it names the element by its doan id alone. A person's
+  // anchor always has one, and validAnchor rejects one without.
+  element?: { doanId?: string; selector?: string; text?: string; tag?: string };
   point?: { frameId?: string; dx: number; dy: number };
 }
 export type FailureCode = "runtime_unsupported" | "cli_missing" | "not_logged_in" | "session_unavailable" | "session_in_use" | "process_exited" | "rate_limited" | "unknown";

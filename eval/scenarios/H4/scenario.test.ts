@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { createContext } from "../../lib/context.ts";
 import h4 from "./checks.ts";
 import { buildJudgePrompt, finalResult } from "../../lib/judge.ts";
-import { finalAnswer } from "./answer.ts";
+import { finalAnswer } from "../../lib/answer.ts";
 import type { Checks } from "../../lib/types.ts";
 
 const root = mkdtempSync(join(tmpdir(), "ha-scenarios-"));

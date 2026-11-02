@@ -844,8 +844,9 @@ export function commentAnchors(documentToken: string, selected: () => { element:
     const selectors = new Map<string, string[] | null>();
     const results = query.targets.map(target => {
       const candidates: { doanId?: string[]; selector?: string[] | null; frame?: string[] } = {};
+      // Compared as an attribute value, never spliced into a selector: a reply chip's id is untrusted text.
+      if (target.doanId !== undefined) candidates.doanId = ids(attribute("data-doan-id", target.doanId));
       if (target.selector !== undefined) {
-        if (target.doanId !== undefined) candidates.doanId = ids(attribute("data-doan-id", target.doanId));
         if (!selectors.has(target.selector)) {
           try { selectors.set(target.selector, ids(document.querySelectorAll(target.selector))); }
           catch { selectors.set(target.selector, null); }

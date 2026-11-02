@@ -1,7 +1,7 @@
 import { commandWords } from "../../lib/transcript.ts";
 import type { Checks } from "../../lib/types.ts";
-// Reuses H4's final-answer extraction: Claude's result event, Codex stdout before its stderr banner.
-import { finalAnswer } from "../H4/answer.ts";
+// Final-answer extraction (eval/lib/answer.ts): Claude's result event, Codex stdout before its stderr banner.
+import { finalAnswer } from "../../lib/answer.ts";
 
 const WRITE_FLAGS = ["--token-css", "--clear-token-css", "--add-serve", "--remove-serve"];
 

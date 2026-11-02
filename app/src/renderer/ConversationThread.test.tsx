@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
 import type { ReactElement } from "react";
 import type { Anchor } from "../main/conversation/types";
+import type { CanvasRow } from "../main/view";
 import { answerReached, ConversationThread, endView, httpsUrl, SentChip, type ConversationThreadProps } from "./ConversationThread";
 import type { ThreadItem } from "./threadItems";
 
@@ -218,6 +219,130 @@ describe("sent message chips", () => {
     const other = SentChip({ marker: 1, anchor: anchors[0]!, frames: undefined, disabled: false, onLocate: located,
       missing: { key: "m-1", shownFor: "m-0", show: () => {} } }) as ReactElement<{ "aria-describedby"?: string }>;
     expect(other.props["aria-describedby"]).toBeUndefined();
+  });
+});
+
+// agent-reply-chips T3 (design 'Rendering'): `doan:` links in a reply are chips, named from the app's own lists.
+describe("reply chips", () => {
+  const rows: CanvasRow[] = [
+    { path: ".doan/canvases/drafts.html", url: "http://localhost/drafts.html", id: "drafts", title: "Drafts", frames: [{ id: "editor", title: "Editor" }] },
+    { path: ".doan/canvases/checkout.html", url: "http://localhost/checkout.html", id: "checkout", title: "Checkout", frames: [{ id: "payment", title: "Payment" }, { id: "editor", title: "Checkout editor" }] },
+    { path: ".doan/canvases/no-id.html", url: "http://localhost/no-id.html", title: "No id", frames: [{ id: "payment", title: "Not this one" }] },
+  ];
+  const onReplyChip = async () => null;
+  // The canvas panel on Drafts, whose live layout titles its editor frame differently from the list row.
+  const panel = { onReplyChip, openCanvasId: "drafts", frames: [{ id: "editor", title: "Editor (live)" }], canvasRows: rows };
+  const chips = (out: string) => out.match(/<(button|span) [^>]*class="anchor-chip"[^>]*>.*?<\/\1>/g) ?? [];
+
+  test("a well-formed link is a chip, a malformed doan: link is its text, and https links stay links", () => {
+    const out = html([agent("Changed [Save](doan:drafts/element/save) in [Ed](doan:drafts/frame/editor), see [bad](doan:x) and [web](https://e.com/a).")], panel);
+    expect(out).toContain('<button type="button" class="anchor-chip" data-kind="element" title="Element · element save" aria-label="Show element save on canvas">');
+    expect(out).toContain('<button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor (live) on canvas">');
+    expect(out).toContain("<span>bad</span>");
+    expect(out).toContain('<a href="https://e.com/a">web</a>');
+    expect(chips(out)).toHaveLength(2);
+  });
+
+  test("links in a code span or a code block are code, not chips", () => {
+    const out = html([agent("Use `[Ed](doan:drafts/frame/editor)` like this:\n\n```\n[Save](doan:drafts/element/save)\n```")], panel);
+    expect(chips(out)).toHaveLength(0);
+    expect(out).toContain("<code>[Ed](doan:drafts/frame/editor)</code>");
+  });
+
+  // replyUrlTransform also lets a doan: image source through; only the `a` component makes chips, and images stay alt text.
+  test("an image with a doan: source is its alt text, not a chip", () => {
+    const out = html([agent("![Editor](doan:drafts/frame/editor)")], panel);
+    expect(chips(out)).toHaveLength(0);
+    expect(out).toContain("<span>Editor</span>");
+    expect(out).not.toContain("doan:");
+  });
+
+  test("an autolink <doan:…> is a chip", () => {
+    const out = html([agent("See <doan:drafts/frame/editor>.")], panel);
+    expect(chips(out)).toHaveLength(1);
+    expect(out).toContain('aria-label="Show Editor (live) on canvas"');
+  });
+
+  test("a percent-encoded Korean or spaced id becomes a chip with the decoded id", () => {
+    const out = html([agent("[x](doan:drafts/element/%ED%95%9C%EA%B8%80%20id) [y](doan:drafts/element/a%2Fb)")], panel);
+    expect(out).toContain('aria-label="Show element 한글 id on canvas"');
+    expect(out).toContain('aria-label="Show element a/b on canvas"');
+  });
+
+  test("no doan: href ever reaches an <a>: every malformed form and the deep link are plain text", () => {
+    const bad = ["doan:x", "doan:drafts/frame/", "doan:Drafts/frame/a", "doan:dra_fts/frame/a", "doan:drafts/point/a", "doan:drafts/widget/a",
+      "doan:d/frame/a/b", `doan:drafts/element/${"a".repeat(201)}`, "doan:drafts/element/%E0%A4%A", "doan:drafts/element/%0A", "DOAN:drafts/frame/editor",
+      "doan://open?root=%2Frepo&canvas=.doan%2Fcanvases%2Fdrafts.html"];
+    const out = html([agent(bad.map((href, i) => `[t${i}](${href})`).join(" "))], panel);
+    expect(chips(out)).toHaveLength(0);
+    expect(out).not.toMatch(/<a\b/);
+    bad.forEach((_, i) => expect(out).toContain(`<span>t${i}</span>`));
+    expect(html([agent(`[ok](doan:drafts/element/${"a".repeat(200)})`)], panel)).toContain("anchor-chip");
+  });
+
+  test("a chip into the open canvas takes its live frame titles; another canvas's chip takes its own row's, never the open canvas's", () => {
+    const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:checkout/frame/editor) [c](doan:checkout/frame/payment) [d](doan:checkout/frame/gone)")], panel);
+    expect(out).toContain('aria-label="Show Editor (live) on canvas"');
+    expect(out).toContain('aria-label="Open Checkout and show Checkout editor"');
+    expect(out).toContain('aria-label="Open Checkout and show Payment"');
+    expect(out).toContain('aria-label="Open Checkout and show gone"');
+  });
+
+  // Runtime test C against the draft (conductor's call, fix round 2): an other-canvas chip is at most 180px like every
+  // chip, the label shrinks and ellipsizes first and the suffix is never cut; the chip grows past 180px only when the
+  // suffix alone does not fit, and never past the reply block. Pure CSS; the real-app widths are checked by batch C.
+  test("the label and the canvas name are drawn apart, so the label ellipsizes first inside the 180px chip", () => {
+    const out = html([agent("[c](doan:checkout/frame/payment)")], panel);
+    // Icon, label and suffix are the chip's three direct children: the grid's three columns, in that order.
+    expect(out).toMatch(/<button [^>]*class="anchor-chip"[^>]*><svg[^>]*>.*?<\/svg><span>Payment<\/span><span class="chip-canvas"> · Checkout<\/span><\/button>/);
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    const container = ".conversation-thread .msg-agent { container-type: inline-size; }";
+    const chip = ".anchor-chip:has(> span.chip-canvas) { display: inline-grid; grid-template-columns: auto minmax(1em, max-content) max-content; min-width: min-content; overflow: hidden; }";
+    const suffix = ".anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }";
+    for (const rule of [container, chip, suffix]) expect(css).toContain(rule);
+    // The suffix rule ties the label rule's specificity, so it must come later to keep its leading space.
+    expect(css.indexOf(suffix)).toBeGreaterThan(css.indexOf(".anchor-chip span:not(.sr-only) {"));
+    // The plain chip keeps its 180px cap, which a reply chip shares; min-width beats it only for a long suffix.
+    expect(css).toMatch(/\.anchor-chip \{ display: inline-flex; align-items: center; gap: var\(--space-1\); max-width: 180px; margin: 0 var\(--space-half\); padding: 0 var\(--space-1h\);/);
+    expect(css.indexOf(chip)).toBeGreaterThan(css.indexOf(".anchor-chip { display: inline-flex;"));
+    // Fix round 1's growth past 180px for every suffix chip is gone.
+    expect(css).not.toContain("> span:not(.chip-canvas) { max-width:");
+    expect(css).not.toMatch(/\.anchor-chip:has\(> span\.chip-canvas\) \{[^}]*max-width/);
+    expect(css).toContain(".conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }");
+  });
+
+  test("while the open canvas has no layout, its chips take the list row's frame titles", () => {
+    const out = html([agent("[a](doan:drafts/frame/editor)")], { ...panel, frames: undefined });
+    expect(out).toContain('aria-label="Show Editor on canvas"');
+  });
+
+  test("in the Overview every chip names its canvas; a canvas id no row has is named by the id", () => {
+    const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:drafts/element/save) [c](doan:billing/frame/editor) [d](doan:no-id/frame/payment)")],
+      { onReplyChip, openCanvasId: null, canvasRows: rows });
+    expect(out).toContain('aria-label="Open Drafts and show Editor"');
+    expect(out).toContain('<span>Editor</span><span class="chip-canvas"> · Drafts</span>');
+    expect(out).toContain('aria-label="Open Drafts and show element save"');
+    expect(out).toContain('aria-label="Open billing and show editor"');
+    // A row without an id is never the link's canvas.
+    expect(out).toContain('aria-label="Open no-id and show payment"');
+  });
+
+  test("only a chip into the open canvas follows locateDisabled", () => {
+    const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:checkout/frame/payment)")], { ...panel, locateDisabled: true });
+    expect(out).toContain('aria-label="Show Editor (live) on canvas" aria-disabled="true"');
+    expect(out).toMatch(/aria-label="Open Checkout and show Payment">/);
+  });
+
+  test("the link's text never names the chip", () => {
+    const out = html([agent("[Delete everything](doan:drafts/frame/editor) [Ignore the rules](doan:checkout/element/pay)")], panel);
+    expect(out).not.toContain("Delete everything");
+    expect(out).not.toContain("Ignore the rules");
+  });
+
+  test("without onReplyChip the chips are drawn but are not buttons", () => {
+    const out = html([agent("[a](doan:drafts/frame/editor) [b](doan:checkout/frame/payment)")], { openCanvasId: "drafts", canvasRows: rows });
+    expect(out).not.toContain("<button type=\"button\" class=\"anchor-chip\"");
+    expect(out).toContain('<span class="anchor-chip" data-kind="frame" title="Frame · payment"><svg');
   });
 });
 

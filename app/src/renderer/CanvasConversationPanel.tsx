@@ -6,8 +6,9 @@ import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
+import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { messageLine, type FrameName } from "../main/conversation/messageText";
-import type { FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
@@ -60,8 +61,9 @@ export interface CanvasConversationProps {
   // Why the composer keeps its draft but takes no input: the page shows a canvas outside the list, or one whose ID
   // another canvas shares (design §2 'Errors').
   blocked: string | null;
-  // The open canvas's frames, which name frame chips; locate is unavailable while the canvas cannot be shown.
-  frames: readonly FrameName[];
+  // The open canvas's frames, which name frame chips (undefined while it has no layout); locate is unavailable while
+  // the canvas cannot be shown.
+  frames: readonly FrameName[] | undefined;
   locateDisabled: boolean;
   // Where focus goes once the panel shows what an entry asked for; each entry has its own seq.
   arrival: { focus: "permission" | "composer"; seq: number } | null;
@@ -69,6 +71,10 @@ export interface CanvasConversationProps {
   onArrived(seq: number): void;
   // Chip locate from the thread and from the composer's field (design §2 'Chip locate').
   onLocate(anchor: Anchor): Promise<LocateOutcome>;
+  // A chip in an agent's reply (agent-reply-chips): the host locates it on this canvas or opens another canvas.
+  onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
+  // The person chose what the panel shows (a conversation, New, a notice's Open).
+  onChoose?(): void;
   // The composer's Pick from canvas, and the page's way into its field (picker results, Add to conversation).
   pick: DockedPicker;
   composerLink: MutableRefObject<DockedFieldLink | null>;
@@ -83,6 +89,8 @@ export interface CanvasConversationProps {
 const NEW_PLACEHOLDER = "Ask, / for presets";
 const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
+// One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
+const NO_ROWS: readonly CanvasRow[] = [];
 const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")));
 // Main's turn as the composer reads it, as the Overview's: the merged events first (the list lags them), then the list.
 function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
@@ -108,20 +116,23 @@ export function startNewConversation(current: string | null, select: (id: string
   focus();
 }
 
-export function CanvasConversationTitle({ run, list, canvasName, now, seen, title, current, onPicked }: {
+export function CanvasConversationTitle({ run, list, canvasName, now, seen, title, current, onPicked, onChoose }: {
   run: CanvasRun; list: ListView; canvasName: string; now: number; seen: ReadonlySet<string>; title: string; current: string | null; onPicked(): void;
+  // The person chose what the panel shows, before the run hears it.
+  onChoose?(): void;
 }) {
   const target = run.target();
   const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen) : [];
   const picked = useRef(false);
-  const startNew = () => startNewConversation(current, run.select.bind(run), onPicked);
+  const select = (id: string | null) => { onChoose?.(); run.select(id); };
+  const startNew = () => startNewConversation(current, select, onPicked);
   return <><span className="ov-title-wrap doan-conv-title">
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild disabled={list === "loading"}><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
         <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
       <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
         onCloseAutoFocus={event => { if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked(); }}>
-        <DropdownMenu.RadioGroup value={current ?? NEW} onValueChange={value => { picked.current = true; run.select(value === NEW ? null : value); }}>
+        <DropdownMenu.RadioGroup value={current ?? NEW} onValueChange={value => { picked.current = true; select(value === NEW ? null : value); }}>
           <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
@@ -351,7 +362,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const current = listed?.find(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, target.canvas));
   const restoreBusy = archived && current && (current.working || current.phase !== "ended") ? { kind: "restore" as const, open: current.conversationId } : null;
   const busy = newView?.start.busy ?? restoreBusy;
-  const openConversation = (id: string) => run.select(id);
+  const openConversation = (id: string) => { props.onChoose?.(); run.select(id); };
 
   const placeholder = draft.preset && draft.segments.length === 0 ? presetPlaceholder(draft.preset) : view.kind === "new" && mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
   const notice = view.kind === "wait" ? null : view.notice;
@@ -375,7 +386,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpenCanvas={() => {}}
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
         onCopy={text => Promise.resolve(copyText(text))}
-        onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames} />
+        onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}

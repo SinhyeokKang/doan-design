@@ -6,7 +6,7 @@ import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas, ConversationEvent } from "../main/conversation/types";
-import type { FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
@@ -14,7 +14,8 @@ import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
 import { GroupIcon } from "./ComposerParts";
 import { ConversationHead } from "./ConversationLine";
-import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle } from "./ConversationThread";
+import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
+import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { DockedComposer, type DockedOutcome, type DockedRequest } from "./DockedComposer";
@@ -66,6 +67,8 @@ export interface ProjectOverviewProps {
   onWorktree(root: string): void;
   // A promoted conversation's canvas, opened with that conversation in its panel.
   onOpenCanvas(canvas: Canvas, conversationId?: string): void;
+  // A chip in an agent's reply (agent-reply-chips): the host opens its canvas and moves to its target.
+  onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   onRetryList(): void;
   onStart(request: StartInput, last: LastRequest): Promise<StartOutcome>;
   // A send in an existing conversation, through HomeRun so the new canvas its turn makes opens (spec decision 6).
@@ -80,6 +83,8 @@ export interface ProjectOverviewProps {
 const NEW_PLACEHOLDER = "Ask or describe what to design, / for presets";
 const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
+// One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
+const NO_ROWS: readonly CanvasRow[] = [];
 
 // A worktree row in the branch chip's menu does what the sidebar's does (design §2.1): a listed or reading worktree
 // opens its Overview; a problem one turns the menu to its repair actions. Show in Finder and Project Settings are
@@ -350,7 +355,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onRetry={() => run.retryThread(conversationId)}
         onOpenCanvas={canvas => props.onOpenCanvas(canvas, conversationId)}
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
-        onCopy={text => Promise.resolve(copyText(text))} />
+        onCopy={text => Promise.resolve(copyText(text))}
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : waiting || conversationId ? <Waiting /> : <div className="ov-col ov-new">
           {moved && <div className="doan-notice moved" role="status"><ArrowUpRight className="doan-alert-icon" aria-hidden="true" /><span className="grow-text moved-text" title={`${moved.title} moved to ${movedCanvas}.`}>
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
