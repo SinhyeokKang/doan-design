@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-02 — The canvas conversation panel's head was 8px shorter than the canvas header
+
+- **Area**: `app/src/renderer/styles.css` (`.doan-conv-head`, `.right.ov-right .rp-head`), `ConversationPanel.tsx`.
+- **Symptom**: in dogfooding, the canvas page's two headers did not line up: canvas header 56, conversation panel head 48 (measured in the built app).
+- **Root cause**: the chrome height lived on `.rp-head`, the panel's default heading. A canvas panel with a conversation replaces that heading with the title menu, so the head fell back to the trigger's 32px plus its padding.
+- **Net**: DESIGN recorded the 48 as measured, so the mismatch was documented rather than caught. Fixed by giving `.doan-conv-head` the chrome height; the built app now measures 56 for the canvas header, the panel head and both Overview heads.
+- **Prevention**: put a row height on the container that always renders, not on a child a prop can replace. Search: `rg -n "min-height: var\(--size-chrome\)" app/src/renderer/styles.css`.
+
 ### 2026-11-02 — The selection-lost line never left the board
 
 - **Area**: `app/src/renderer/CanvasController.ts` (`clearSelection(true)` sets `state.notice`), `App.tsx` (where the notice was drawn), now `selection.ts` (`noticeToast`).
