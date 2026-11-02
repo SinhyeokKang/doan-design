@@ -32,6 +32,7 @@ import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems } from "./threadItems";
+import type { ComposerChoice } from "./rememberChoice";
 
 // The project Overview as the project conversation screen (buzz-project design §2.1, §2.2, §2.5): the header with the
 // project, its worktree chip and the conversation dropdown, the thread and the docked composer. OverviewRun decides
@@ -57,6 +58,8 @@ export interface ProjectOverviewProps {
   holder: { conversationId: string; waiting: boolean } | null;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
+  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  onRemember?(choice: ComposerChoice): void;
   now: number;
   onWorktree(root: string): void;
   // A promoted conversation's canvas, opened with that conversation in its panel.
@@ -133,6 +136,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const option = modelOption(listState, model);
   const effort = pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, fixed);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort });
+  const choiceTouched = Object.keys(pick).length > 0;
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort }); }, [choiceTouched, chosen, model, effort]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready]);
 
