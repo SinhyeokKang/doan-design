@@ -87,3 +87,10 @@ describe("CanvasAgent", () => {
     expect(alone).toBe(`<div class="doan-canvas-top">${renderToStaticMarkup(notice)}</div>`);
   });
 });
+
+// Dogfooding #4: the indicator was hard to notice; the edge band grows by half (8/24px → 12/36px) and reads stronger.
+test("the glow is a 12px and a 36px accent band at 85% and 50%, pulsing between .7 and 1", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain("box-shadow: inset 0 0 var(--space-3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 1.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent);");
+  expect(css).toContain("@keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }");
+});
