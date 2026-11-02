@@ -769,6 +769,28 @@ body:has(.shell-top) { background: transparent; }
 .settings-serve { display: grid; list-style: none; border: 1px solid var(--border-standard); border-radius: var(--radius-row); overflow: hidden; }
 .settings-serve li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .settings-serve li + li { border-top: 1px solid var(--border-standard); }
+/* Project Settings page (project-settings design '화면'; draft frames alt-2-page and its states). It reuses the Settings
+   column and rows; these rules add only the header's thumbnail and branch, the token row, the one notice that replaces
+   the sections of a problem worktree, and the lines under it. The sections' own gaps come from .settings-sections. */
+.project-settings-title { display: flex; align-items: center; gap: var(--space-3); }
+.project-settings-title .doan-chip { font-weight: var(--type-weight-regular); }
+.settings-title .project-settings-thumbnail.shell-thumbnail { width: var(--size-control-sm); height: var(--size-control-sm); border-radius: var(--space-2); font-size: var(--type-body-sm-size); line-height: var(--size-control-sm); }
+.project-settings-grow { flex: 1; min-width: 0; }
+.project-settings-token { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-control-lg); padding-block: var(--space-2); }
+.project-settings-token > svg, .project-settings-path svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-subtle); }
+.project-settings-token-name { flex: none; min-width: 0; max-width: 60%; overflow-wrap: anywhere; }
+.project-settings-empty { color: var(--text-subtle); }
+.project-settings-path { display: flex; align-items: center; gap: var(--space-2); }
+.project-settings-notice-actions { flex: none; display: flex; gap: var(--space-2); }
+.project-settings-notice-reason { display: block; margin-top: var(--space-1); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); overflow-wrap: anywhere; }
+.project-settings-loading { padding-inline: calc(var(--space-4) + 1px); }
+/* The lines under the notice (a refused recovery, the config error's detail) hang from it, closing most of the gap the
+   notice leaves before the sections; a write error under a row only needs its own vertical padding. */
+.settings-page > .doan-notice { margin-bottom: var(--space-section-gap); }
+.settings-page > .doan-notice + :is(.project-settings-msg, .project-settings-details) { margin: calc(-1 * var(--space-section-gap) + var(--space-3)) 0 var(--space-section-gap); }
+.project-settings-msg { padding: var(--space-2) 0 var(--space-1); }
+.settings-page > .doan-notice + .project-settings-msg { padding-inline: calc(var(--space-4) + 1px); }
+.project-settings-details { padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font: var(--type-caption-size)/var(--type-caption-line-height) var(--type-family); white-space: pre-wrap; overflow-wrap: anywhere; }
 .settings-serve code { background: transparent; padding: 0; }
 /* buzz-conversation: the conversation thread (.doan/canvases/buzz-conversation.html, frames thread-*). Scoped to the
    thread so its short names (.activity, .marker, .md) never reach other screens. buzz-project places it. */
