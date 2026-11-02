@@ -68,6 +68,11 @@ code, kbd { font-family: var(--type-family); }
 .board iframe { display: block; border: 0; }
 /* Keep the overlay's marks below canvas chrome. */
 .overlay { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+/* Hand and a held Space (canvas-hand-tool design '방식'): over the board, the iframe and the marks, under the agent glow
+   and the canvas chrome (z 1 and 3), so Stop, Open, Reload and the tools stay clickable. A child of the area, so its
+   wheel still pans the board. */
+.drag-layer { position: absolute; inset: 0; z-index: 0; cursor: grab; }
+.drag-layer[data-grabbing] { cursor: grabbing; }
 /* Overlay marks (select-inspect draft): screen px, so lines stay 1px at any scale. */
 /* Agents draw canvases in any colour, so the dark line carries a white outer line to stay visible. */
 .mark { position: absolute; border: 1px solid var(--border-focus); box-shadow: 0 0 0 1px var(--surface-panel); }
@@ -1043,7 +1048,6 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
-.doan-picking-esc.doan-kbd { background: transparent; color: var(--text-on-prominent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-on-prominent) 45%, transparent); }
 .area[data-picking] { cursor: crosshair; }
 /* A permission answer that did not reach the agent, under its request's choices. */
 .conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
