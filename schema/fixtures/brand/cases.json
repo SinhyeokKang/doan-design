@@ -5,6 +5,7 @@
     { "name": "command-subcommand", "text": "Run doan check in a terminal.", "expected": [{ "index": 4, "form": "doan", "kind": "command" }] },
     { "name": "command-plural-is-prose", "text": "doan checks again when you return.", "expected": [{ "index": 0, "form": "doan", "kind": "prose" }] },
     { "name": "command-comments", "text": "Ask your agent to run doan comments and fix the file.", "expected": [{ "index": 22, "form": "doan", "kind": "command" }] },
+    { "name": "command-work", "text": "Run doan work start before you edit.", "expected": [{ "index": 4, "form": "doan", "kind": "command" }] },
     { "name": "command-flag", "text": "doan --version", "expected": [{ "index": 0, "form": "doan", "kind": "command" }] },
     { "name": "command-placeholder", "text": "Usage: doan <command> [--repo <path>]", "expected": [{ "index": 7, "form": "doan", "kind": "command" }] },
     { "name": "command-cli-noun", "text": "Use the doan CLI.", "expected": [{ "index": 8, "form": "doan", "kind": "command" }] },
