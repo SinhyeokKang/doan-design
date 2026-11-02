@@ -28,11 +28,12 @@ describe("CanvasAgent", () => {
     expect(tag(html, 'class="doan-agent"')).toBeTruthy();
     expect(html).toMatch(/<span class="doan-agent-dot" aria-hidden="true"><\/span>/);
     // Only the wording is the live region: the button's name is not announced with it.
-    expect(html).toMatch(/<span class="doan-agent-text" role="status">Codex is working<\/span>/);
+    expect(html).toMatch(/<span class="doan-agent-text" role="status">Agent is working<\/span>/);
     expect(html.match(/role="status"/g)).toHaveLength(1);
     const stop = tag(html, 'class="doan-button doan-agent-action"');
     expect(stop).toMatch(/^<button/);
-    expect(stop).toContain('data-ui-size="sm"');
+    // The default 40px control since dogfooding found the notice small.
+    expect(stop).not.toContain('data-ui-size');
     expect(stop).not.toContain("disabled");
     // The composer's Stop glyph, a filled square, leads the word.
     const glyph = html.match(/<button[^>]*doan-agent-action[^>]*>(<svg[^>]*>).*?<\/svg>Stop<\/button>/)?.[1] ?? "";
@@ -43,7 +44,7 @@ describe("CanvasAgent", () => {
   test("waiting: a still dot, 'needs your answer' and Open named for the request; no Stop", () => {
     const html = markup([summary({ phase: "waiting" })]);
     expect(html).toContain('class="doan-agent-dot" data-steady=""');
-    expect(html).toContain("Codex needs your answer");
+    expect(html).toContain("Agent needs your answer");
     expect(tag(html, 'aria-label="Open the request"')).toMatch(/^<button/);
     // Open has no glyph.
     expect(html).toMatch(/aria-label="Open the request">Open<\/button>/);
@@ -94,4 +95,17 @@ test("the glow is a 12px and a 36px accent band at 85% and 50%, pulsing between 
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain("box-shadow: inset 0 0 var(--space-3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 1.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent);");
   expect(css).toContain("@keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }");
+});
+
+// Dogfooding: the tools and the agent notice were small and tight to the board's edges. Both grow (40px controls)
+// and sit 8px further in: the tools 20px above the bottom, the notice 28px under the top.
+test("the tools and the agent notice are larger and further from the board's edges", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.doan-canvas-bottom \{[^}]*bottom: var\(--space-5\);/);
+  expect(css).toMatch(/\.doan-canvas-top \{[^}]*top: calc\(var\(--space-5\) \+ var\(--space-2\)\);/);
+  const tools = readFileSync(new URL("./CanvasTools.tsx", import.meta.url), "utf8");
+  expect(tools.match(/className="doan-icon-button doan-canvas-tool" data-ui-size="md"/g)).toHaveLength(2);
+  const agent = readFileSync(new URL("./CanvasAgent.tsx", import.meta.url), "utf8");
+  expect(agent).not.toContain('doan-agent-action" data-ui-size="sm"');
+  expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-label-size\);/);
 });

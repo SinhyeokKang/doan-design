@@ -111,7 +111,7 @@ describe("agentNoticeView", () => {
     expect(agentNoticeView(null, null)).toBeNull();
   });
   test("working: the moving dot, the label and Stop", () => {
-    expect(agentNoticeView(working, null)).toEqual({ text: "Codex is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
+    expect(agentNoticeView(working, null)).toEqual({ text: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
   });
   test("after Stop: 'Stopping…', unavailable but still focusable", () => {
     expect(agentNoticeView(working, "c1")?.action).toEqual({ kind: "stop", label: "Stopping…", disabled: true });
@@ -120,7 +120,7 @@ describe("agentNoticeView", () => {
     expect(agentNoticeView(working, "c0")?.action).toEqual({ kind: "stop", label: "Stop", disabled: false });
   });
   test("waiting: a still dot and Open, named for the request; no Stop", () => {
-    expect(agentNoticeView(waiting, null)).toEqual({ text: "Codex needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
+    expect(agentNoticeView(waiting, null)).toEqual({ text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
     expect(agentNoticeView(waiting, "c1")?.action.kind).toBe("open");
   });
 });

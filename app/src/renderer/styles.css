@@ -922,7 +922,7 @@ body:has(.shell-top) { background: transparent; }
 .doan-zoom-menu { width: 184px; }
 .doan-zoom-key { margin-left: auto; }
 /* The tools row floats at the board's bottom centre on the shared floating surface, like menus and toasts. */
-.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-3); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
 .doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
 .doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
 /* The pressed tool keeps its fill under the pointer and while held: the shared hover (0,4,0) and active (0,5,0) fills
@@ -1028,8 +1028,8 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 @keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
 /* The dot field's colour: translucent white dots, read from this computed colour by the canvas. */
 .doan-agent-dots { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--text-on-prominent); }
-/* The agent notice and the canvas notices stack at the board's top centre, 20px under its top edge, the agent notice first. */
-.doan-canvas-top { position: absolute; z-index: 3; top: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
+/* The agent notice and the canvas notices stack at the board's top centre, 28px under its top edge, the agent notice first. */
+.doan-canvas-top { position: absolute; z-index: 3; top: calc(var(--space-5) + var(--space-2)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); width: min(420px, calc(100% - 2 * var(--space-3))); pointer-events: none; }
 /* The column sets the notices' width and pointer (a screen sets only margins on a shared notice), so a trackpad scroll
    over one still reaches the board's pan and zoom; the agent notice keeps its own width, centred. */
 .doan-canvas-top > * { pointer-events: auto; }
@@ -1037,7 +1037,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 /* The tooltip's near-black and text roles at 60% (ego's task bar), the floating blur, a pill. Canvas-local, not a shared
    primitive. The wording gives way first; the button keeps its size. */
 .doan-agent { display: flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--affordance-prominent) 60%, transparent); -webkit-backdrop-filter: blur(var(--blur-md)); backdrop-filter: blur(var(--blur-md)); box-shadow: var(--shadow-sm); color: var(--text-on-prominent); pointer-events: auto; }
-.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
+.doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
 /* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
    white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
 .doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
