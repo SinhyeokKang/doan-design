@@ -31,8 +31,9 @@
 
 ## T. 순수 함수 (`/tdd` → `/implement`)
 
-- [ ] T1. `permissionOptions`, `claudePermission`, `codexPermission`, `acpModeFor`, `permissionTrigger`, 마지막 사용·Settings 기본값 규칙.
+- [x] T1. `permissionOptions`, `claudePermission`, `codexPermission`, `acpModeFor`, `permissionTrigger`, 마지막 사용·Settings 기본값 규칙.
   - main 쪽 완료(PM-A): 공통 모듈 `app/src/main/conversation/permissionMode.ts`. `permissionTrigger`와 마지막 사용·Settings 규칙은 PM-B가 맡는다.
+  - renderer 쪽 완료(PM-B): `app/src/renderer/permissionPicker.ts`(`permissionTrigger`, 기본값 규칙), `rememberChoice.ts`(마지막 사용·Settings).
   - 검증: `npm --prefix app test` green. 테스트가 다음 경우를 덮는다.
     - 각 provider·모드 조합
     - Full access가 `allowDangerouslySkipPermissions`를 함께 낸다
@@ -40,8 +41,8 @@
     - ACP 대응 없음이면 빈 목록
     - 입력창에서 provider를 바꿨는데 고른 모드를 새 provider에서 고를 수 없으면 Default
     - 모델 없이 고른 모드도 마지막 사용·Settings에 반영된다
-- [ ] T2. 대화 metadata(`store.ts`), `preferences.ts`, `restore/uiState.ts`의 `permissionMode` 읽기·검증.
-  - main 쪽 완료(PM-A): `store.ts`, `preferences.ts`. `restore/uiState.ts`는 PM-B가 맡는다.
+- [x] T2. 대화 metadata(`store.ts`), `preferences.ts`, `restore/uiState.ts`의 `permissionMode` 읽기·검증.
+  - main 쪽 완료(PM-A): `store.ts`, `preferences.ts`. `restore/uiState.ts`는 PM-B가 맡았다(`HomeMemory.permissions`).
   - 검증: `npm --prefix app test` green. 테스트 파일은 `app/src/main/conversation/storeIndex.test.ts`·`storeRecovery.test.ts`, `app/src/main/preferences.test.ts`, `app/src/restore/uiState.test.ts`다(`app/src/main/uiState.test.ts`와 다르다). 다음 경우를 덮는다.
     - 알 수 없는 id는 그 필드만 Default로 읽는다. index 전체나 preferences 파일 전체를 깨지 않는다
     - `parsePreferencesPatch`가 `permissionMode`를 받는다
@@ -66,7 +67,7 @@
 
 ## U. UI
 
-- [ ] U1. `ComposerParts.tsx` `PermissionPicker`(터미널 세션 고정 트리거 포함), Home 도구 줄과 Overview·캔버스 패널 tray, Settings 행(Last used이면 숨김), 마지막 사용 쓰기, Plan 승인 뒤 피커 갱신.
+- [x] U1. `ComposerParts.tsx` `PermissionPicker`(터미널 세션 고정 트리거 포함), Home 도구 줄과 Overview·캔버스 패널 tray, Settings 행(Last used이면 숨김), 마지막 사용 쓰기, Plan 승인 뒤 피커 갱신.
   - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과. 테스트가 다음 경우를 덮는다.
     - Settings에 저장된 provider를 실행할 수 없을 때 Home 기본값과 Permission 행 경고
     - newer-Doan 파일이면 Permission 행도 저장을 막는다
@@ -78,6 +79,7 @@
   - Claude Plan 승인 뒤 피커가 바뀐다.
   - Full access 경고 표시와 터미널 세션 고정 트리거 스크린샷.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과, 8칸 표와 runtime-test 스크린샷. 실계정 모델 요청 command undecided — needs user confirmation.
+  - PM-B 결과: verify 통과, 8칸 표와 추가 행, 재시작 뒤 resume, Plan 승인 뒤 전환, Full access 경고 스크린샷은 확인했다(`.scratch/handoff-PM-B.md`). 터미널 세션 고정 트리거는 실제 앱에서 띄우지 못해 스크린샷이 없다(정적 마크업 테스트만). 그래서 체크하지 않는다.
 
 ── commit: `feat(composer): permission mode picker` ──
 
