@@ -21,7 +21,7 @@ func (refusingLoader) Load(url string) (any, error) {
 var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 	compiler := jsonschema.NewCompiler()
 	compiler.UseLoader(refusingLoader{})
-	files := []string{"comment-event.v1", "config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "sessions.v1"}
+	files := []string{"comment-event.v1", "config.v1", "cli-envelope.v1", "runtime.v1", "app-socket.v1", "app-socket.v2", "app-socket.v3", "sessions.v1"}
 	// Register every file before compiling any: app-socket $refs comment-event by its absolute $id.
 	for _, name := range files {
 		filename := name + ".schema.json"
@@ -48,6 +48,8 @@ var validators = sync.OnceValues(func() (map[string]*jsonschema.Schema, error) {
 		"selection":           schemaBase + "app-socket.v1.schema.json#/$defs/selection",
 		"onboarding-request":  schemaBase + "app-socket.v2.schema.json#/$defs/request",
 		"onboarding-response": schemaBase + "app-socket.v2.schema.json#/$defs/response",
+		"work-request":        schemaBase + "app-socket.v3.schema.json#/$defs/request",
+		"work-response":       schemaBase + "app-socket.v3.schema.json#/$defs/response",
 	}
 	compiled := make(map[string]*jsonschema.Schema, len(targets))
 	for name, url := range targets {
@@ -78,5 +80,8 @@ func ValidateSelection(value any) error      { return validate("selection", valu
 
 func ValidateOnboardingRequest(value any) error  { return validate("onboarding-request", value) }
 func ValidateOnboardingResponse(value any) error { return validate("onboarding-response", value) }
+
+func ValidateWorkRequest(value any) error  { return validate("work-request", value) }
+func ValidateWorkResponse(value any) error { return validate("work-response", value) }
 
 func ValidateSessionRecord(value any) error { return validate("sessions", value) }

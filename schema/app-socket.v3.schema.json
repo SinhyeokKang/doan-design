@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/app-socket.v3.schema.json",
+  "$comment": "Terminal-agent work signals on the app's local socket, beside app-socket.v1 (active) and v2 (onboarding), which are unchanged. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says only whether the signal was accepted; the CLI's delivered flag is a CLI-side result and is not part of this format.",
+  "$defs": {
+    "token": {
+      "type": "string",
+      "$comment": "Not pattern-checked so a wrong token reaches the app's bad_token answer instead of bad_request."
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/",
+      "$comment": "Absolute POSIX path; the app is macOS-only. Registration is checked by the app."
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 3
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "action": {
+          "enum": [
+            "start",
+            "done"
+          ]
+        },
+        "root": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$",
+          "$comment": "Session and provider are both present or both absent; absent means the anonymous session of the root."
+        },
+        "provider": {
+          "enum": [
+            "claude",
+            "codex"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\.doan/(canvases|ds)/[^/]+\\.html$",
+          "$comment": "Repo-relative, '/'-separated canvas path. Only start carries it; the app checks the pattern again."
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "action",
+        "root"
+      ],
+      "dependentRequired": {
+        "session": [
+          "provider"
+        ],
+        "provider": [
+          "session"
+        ]
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "action": {
+                "const": "start"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "path"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "path"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "errorCode": {
+      "enum": [
+        "bad_request",
+        "bad_token",
+        "project_not_open"
+      ]
+    },
+    "response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 3
+            },
+            "ok": {
+              "const": true
+            }
+          },
+          "required": [
+            "v",
+            "ok"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 3
+            },
+            "ok": {
+              "const": false
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/errorCode"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

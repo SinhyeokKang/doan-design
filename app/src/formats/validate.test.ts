@@ -12,6 +12,8 @@ import {
   validateSelection,
   validateSocketRequest,
   validateSocketResponse,
+  validateWorkRequest,
+  validateWorkResponse,
 } from "./validate";
 
 type Validate = (value: unknown) => boolean;
@@ -33,6 +35,8 @@ const groups: { name: string; validate: Validate }[] = [
   { name: "app-socket/selection", validate: validateSelection },
   { name: "app-socket-v2/request", validate: validateOnboardingRequest },
   { name: "app-socket-v2/response", validate: validateOnboardingResponse },
+  { name: "app-socket-v3/request", validate: validateWorkRequest },
+  { name: "app-socket-v3/response", validate: validateWorkResponse },
 ];
 
 for (const { name, validate } of groups) {
@@ -48,6 +52,24 @@ for (const { name, validate } of groups) {
     }
   });
 }
+
+describe("app-socket v3 stays apart from v1 and v2", () => {
+  const others: { kind: string; label: string; dir: string; validate: Validate }[] = [
+    { kind: "request", label: "v1", dir: "app-socket/request", validate: validateSocketRequest },
+    { kind: "request", label: "v2", dir: "app-socket-v2/request", validate: validateOnboardingRequest },
+    { kind: "response", label: "v1", dir: "app-socket/response", validate: validateSocketResponse },
+    { kind: "response", label: "v2", dir: "app-socket-v2/response", validate: validateOnboardingResponse },
+  ];
+  for (const { kind, label, dir, validate } of others) {
+    const v3 = kind === "request" ? validateWorkRequest : validateWorkResponse;
+    for (const file of fixtureFiles(dir, "valid")) {
+      test(`${label} ${kind} ${file} is not v3`, () => expect(v3(readJson(new URL(file, fixtureDirectory(dir, "valid"))))).toBe(false));
+    }
+    for (const file of fixtureFiles(`app-socket-v3/${kind}`, "valid")) {
+      test(`v3 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v3/${kind}`, "valid"))))).toBe(false));
+    }
+  }
+});
 
 describe("app-socket v1 and v2 stay apart", () => {
   const pairs: { kind: string; v1: Validate; v2: Validate }[] = [
