@@ -42,7 +42,8 @@ export function runDesignSkill(cli: string, id?: string, timeoutMs = CLI_TIMEOUT
 }
 
 // `doan export` reads every asset of a canvas and may write up to 50 MiB, well past the 10 s of the other calls.
-// Provisional: measure against a large canvas once the command exists (canvas-row-menu design '앱 Export 흐름').
+// Measured: the worst case found, 5,000 assets in one directory, took 15.7 s on the development machine; 120 s leaves
+// room for slower machines and disks.
 export const EXPORT_TIMEOUT_MS = 120_000;
 
 // `path` is a listed canvas row (`.doan/...`) and `output` the absolute file the save panel returned, so neither can

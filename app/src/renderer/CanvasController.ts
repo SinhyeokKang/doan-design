@@ -407,7 +407,6 @@ export class CanvasController {
         this.state.error = "";
         this.dropFrame();
         if (update.reason === "missing" || update.reason === "duplicateId") this.canvasRemoved?.({ folder: open.folder, row: open.row, duplicates: update.reason === "duplicateId" ? update.count : null });
-        if (update.reason === "trashed") this.canvasTrashed?.({ folder: open.folder, path: open.canvas, row: open.row });
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
           : update.reason === "notFound" ? `The project ${name} is missing. Use Locate above.`
@@ -432,8 +431,8 @@ export class CanvasController {
   // The open canvas left the folder's list (deleted or moved). `duplicates`:
   // how many rows now use its id, when that is why it was not followed.
   canvasRemoved: ((removed: { folder: string; row: CanvasRow; duplicates: number | null }) => void) | null = null;
-  // The open canvas left the list under a Move to Trash mark (`trash`); canvasRemoved is not called for it.
-  canvasTrashed: ((trashed: { folder: string; path: string; row: CanvasRow }) => void) | null = null;
+  // A `trashed` clear calls neither canvasRemoved nor canvasMoved: App shows the Overview from `open: null` alone and
+  // records no visit, as for a missing canvas (App.canvasTrash.test.tsx).
   // Move to Trash marks: begin before `canvas:trash` is sent, settle with its reply.
   readonly trash = new TrashMarks();
   // The open canvas was followed to `row`, the row of the list that decided it.

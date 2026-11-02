@@ -43,7 +43,9 @@ function listed(message: string): string[] {
   });
 }
 
-const insideDoan = (output: string) => posix.dirname(output).split("/").includes(".doan");
+// Case-insensitive, as the CLI's own check (`hasDoan`, cli/internal/export/target.go): on a case-insensitive
+// disk `.DOAN` is the same directory.
+const insideDoan = (output: string) => posix.dirname(output).split("/").some(segment => segment.toLowerCase() === ".doan");
 
 // One `doan export` run read as the renderer's outcome. `output` is the file main asked the CLI to write.
 export function interpretExport(run: CliRun, output: string): ExportOutcome {

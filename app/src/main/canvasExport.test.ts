@@ -46,6 +46,9 @@ describe("interpretExport", () => {
     expect(interpretExport(fail("usage_error", "-o must not be inside .doan"), "/repo/.doan/out/a.html")).toEqual({ kind: "failed", reason: "insideDoan" });
     expect(interpretExport(fail("usage_error", "-o must not be inside .doan"), "/repo/.doan/a.html")).toEqual({ kind: "failed", reason: "insideDoan" });
     expect(interpretExport(fail("usage_error", "no such directory"), "/Users/me/.doan.html")).toEqual({ kind: "failed", reason: "failed" });
+    // Any case, as the CLI compares it: on a case-insensitive disk `.DOAN` is the same directory.
+    for (const output of ["/repo/.DOAN/a.html", "/repo/.Doan/out/a.html"]) expect(interpretExport(fail("usage_error", "-o must not be inside .doan"), output)).toEqual({ kind: "failed", reason: "insideDoan" });
+    expect(interpretExport(fail("usage_error", "no such directory"), "/repo/.DOAN.d/a.html")).toEqual({ kind: "failed", reason: "failed" });
   });
 
   test("anything else is a plain failure: other codes, no CLI, a crash, a timeout, output that is not an envelope", () => {

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasMenu } from "./ShellSidebar";
-const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {}, held: null };
+const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 
 // buzz-settings U2: the Settings page frame and its sidebar categories, with hooks as plain state
 // (App.addProjects.test.tsx style) so the page's own effects and the sidebar's handlers run.

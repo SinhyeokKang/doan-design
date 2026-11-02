@@ -164,17 +164,15 @@ test("Move to Trash opens a modal confirmation that waits for main's plan; Cance
   expect(doan.planCanvasTrash).toHaveBeenCalledWith("/w/a", A);
   expect(dialog()!.view).toMatchObject({ title: "Move “a” to Trash?", confirmable: false });
   expect(dialog()!.view.body).not.toContain("comments");
-  // App's modal: the toast timer holds and the native menus see it; the row's button stays shown for focus to return.
+  // App's modal: the toast timer holds and the native menus see it.
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(true);
   expect(doan.setMenuState).toHaveBeenLastCalledWith(expect.objectContaining({ modal: true }));
-  expect(sidebar().canvasMenu.held).toBe(`/w/a\n${A}`);
   plan.resolve({ kind: "ready", comments: true }); await flush(); render();
   expect(dialog()!.view).toMatchObject({ confirmable: true });
   expect(dialog()!.view.body).toContain("and its comments");
   dialog()!.cancel(); render();
   expect(dialog()).toBeUndefined();
   expect(focused).toEqual(["a menu"]);
-  expect(sidebar().canvasMenu.held).toBeNull();
   expect(doan.trashCanvas).toBeUndefined();
   expect(harness.trash.begin).not.toHaveBeenCalled();
   expect(harness.toast.show).not.toHaveBeenCalled();

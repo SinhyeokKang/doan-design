@@ -1453,21 +1453,19 @@ describe("a canvas moved to the Trash", () => {
   function trashHarness() {
     const h = selectionHarness();
     const twin = { ...h.row, path: ".doan/canvases/twin.html", url: "http://localhost/t/k/f/.doan/canvases/twin.html" };
-    const removed = vi.fn(), followed = vi.fn(), trashed = vi.fn();
+    const removed = vi.fn(), followed = vi.fn();
     h.controller.canvasRemoved = removed;
     h.controller.canvasMoved = followed;
-    h.controller.canvasTrashed = trashed;
     const list = (...canvases: object[]) => [{ path: "/repo", kind: "list" as const, servedRev: 0, canvases }] as FolderEntry[];
-    return { ...h, twin, removed, followed, trashed, list };
+    return { ...h, twin, removed, followed, list };
   }
 
-  it("closes the open canvas and reports it trashed, not removed or moved, while another canvas shares its id", () => {
+  it("closes the open canvas as trashed, not removed or moved, while another canvas shares its id", () => {
     const h = trashHarness();
     try {
       h.controller.updateEntries(h.list(h.row, h.twin, h.other));
       h.controller.trash.begin("/repo", h.row.path);
       h.controller.updateEntries(h.list(h.twin, h.other));
-      expect(h.trashed).toHaveBeenCalledExactlyOnceWith({ folder: "/repo", path: h.row.path, row: h.row });
       expect(h.followed).not.toHaveBeenCalled();
       expect(h.removed).not.toHaveBeenCalled();
       expect(h.state()).toMatchObject({ open: null, selection: null });
@@ -1482,7 +1480,6 @@ describe("a canvas moved to the Trash", () => {
       h.controller.trash.begin("/repo", h.other.path);
       h.controller.updateEntries(h.list(h.row));
       expect(h.controller.trash.has("/repo", h.other.path)).toBe(false);
-      expect(h.trashed).not.toHaveBeenCalled();
       expect(h.state()).toMatchObject({ open: { canvas: h.row.path } });
     } finally { h.controller.dispose(); }
   });
@@ -1493,7 +1490,6 @@ describe("a canvas moved to the Trash", () => {
       h.controller.updateEntries(h.list(h.row, h.twin, h.other));
       h.controller.trash.settle(h.controller.trash.begin("/repo", h.row.path), "refused");
       h.controller.updateEntries(h.list(h.twin, h.other));
-      expect(h.trashed).not.toHaveBeenCalled();
       expect(h.followed).toHaveBeenCalledOnce();
     } finally { h.controller.dispose(); }
   });

@@ -433,17 +433,20 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-canvas-row { padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); }
 .shell-canvas-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* canvas-row-menu (draft row-button, user-confirmed): a canvas row shows its menu button only under the pointer, with
-   focus in the row, while its menu is open, or while its Move to Trash dialog holds it (`data-held`, so focus can go
-   back). Then the button takes the status spot's place flush at the row's end, and the spot is hidden visually only,
-   so the row keeps its accessible state. The 32px button keeps the 32px row height. */
-.shell-canvas-row:not(:hover, :focus-within, [data-held]):not(:has(> .shell-more[aria-expanded="true"])) > .shell-more { display: none; }
+   focus in the row, or while its menu is open. Then the button takes the status spot's place flush at the row's end,
+   and the spot is hidden visually only, so the row keeps its accessible state. The 32px button keeps the 32px row
+   height. The idle button is hidden visually only too, never display: none: Radix returns focus to it when its menu
+   closes, and App when the Move to Trash dialog does, and a display: none button drops that focus to <body>; once
+   focus lands on it, :focus-within shows it. */
+.shell-canvas-row:not(:hover, :focus-within):not(:has(> .shell-more[aria-expanded="true"])) > .shell-more { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .shell-canvas-row > .shell-more { margin-left: auto; }
-.shell-side .shell-canvas-row:is(:hover, :focus-within, [data-held], :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }
-.shell-canvas-row:is(:hover, :focus-within, [data-held], :has(> .shell-more[aria-expanded="true"])) > .row-slot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-/* Nothing in a canvas menu works while the page is locked, so its button takes the disabled ink (the project row's
-   button stays as it is: its menu still works). */
+.shell-side .shell-canvas-row:is(:hover, :focus-within, :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }
+.shell-canvas-row:is(:hover, :focus-within, :has(> .shell-more[aria-expanded="true"])) > .row-slot { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+/* Nothing in a canvas menu works while the page is locked, so its button takes the disabled ink and no hover or pressed
+   fill (the project row's button stays as it is: its menu still works). Heavier than the shared button's hover and
+   pressed rules (ds/controls.css), which would otherwise paint it. */
 .shell-more[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
-.shell-more[aria-disabled="true"]:hover { background: transparent; }
+.shell-side .shell-canvas-row.row > .shell-more.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 .shell-problem { color: var(--text-metadata); font-size: 11px; white-space: nowrap; }
 .shell-empty, .shell-canvas-error { padding: 4px 8px 4px 32px; color: var(--text-metadata); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .shell-empty { padding: 6px 10px 10px 34px; line-height: 16px; }

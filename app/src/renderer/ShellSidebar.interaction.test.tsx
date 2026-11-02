@@ -4,7 +4,7 @@ import { ShellSidebar } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot } from "./canvasNotice";
 import type { CanvasMenu } from "./ShellSidebar";
-const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {}, held: null };
+const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 const hooks = vi.hoisted(() => ({ refs: [] as { current: unknown }[], states: [] as unknown[], cursor: 0 }));
 vi.mock("react", async original => ({
   ...await original<typeof import("react")>(),
@@ -384,7 +384,7 @@ it("passes the project row's terminal slot to toggle as the canvas to open", () 
 // Move to Trash.
 const CANVAS = ".doan/canvases/a.html", CANVAS_KEY = `/a\n${CANVAS}`;
 function canvasMenuFixture(menu: Partial<CanvasMenu> = {}, extra: Record<string, unknown> = {}, row: Record<string, unknown> = { path: CANVAS, url: "u" }) {
-  const canvasMenu = { blocked: vi.fn(() => false), exporting: vi.fn(() => false), exportCanvas: vi.fn(), trash: vi.fn(), held: null, ...menu };
+  const canvasMenu = { blocked: vi.fn(() => false), exporting: vi.fn(() => false), exportCanvas: vi.fn(), trash: vi.fn(), ...menu };
   const { props } = fixture();
   props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: [row as never] };
   const all = { ...props, canvas: undefined, canvasMenu, ...extra };
@@ -428,6 +428,7 @@ it("lists Export… then Move to Trash, each acting on the row as the list holds
   expect(text(exportItem!)).toEqual(["Export…"]);
   expect(text(trashItem!)).toEqual(["Move to Trash"]);
   expect(exportItem!["aria-disabled"]).toBeUndefined();
+  expect(exportItem!["aria-label"]).toBeUndefined();
   (exportItem!.onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
   (trashItem!.onSelect as (event: unknown) => void)({ preventDefault: vi.fn() });
   expect(tree.canvasMenu.exportCanvas).toHaveBeenCalledWith("/a", expect.objectContaining({ path: CANVAS }));
@@ -450,6 +451,8 @@ it.each([
   const items = tree.items(), item = items[index]!, other = items[1 - index]!;
   // aria-disabled, not Radix `disabled`: a disabled item leaves the arrow order and its reason is never heard.
   expect(item).toMatchObject({ "aria-disabled": true, className: "doan-menu-item shell-menu-reasoned" });
+  // Its name is the label alone; the reason is read once, as its description (RC2 ⚪4).
+  expect(item["aria-label"]).toBe(index === 0 ? "Export…" : "Move to Trash");
   expect(item.disabled).toBeUndefined();
   const line = tree.rendered().find(element => element.id === item["aria-describedby"])!;
   expect(line).toMatchObject({ className: "shell-menu-reason", children: reason });
@@ -477,11 +480,6 @@ it("keeps the status spot and its name in the row while the button shows", () =>
   tree.open();
   // The spot is drawn by SlotMark (its name: ShellSidebar.test.tsx); the CSS hides it visually only.
   expect(tree.rendered()).toContainEqual({ slot: { kind: "working", label: "Codex is working" } });
-});
-
-it("marks the row whose Move to Trash dialog holds its button", () => {
-  expect(canvasMenuFixture().canvasRow()["data-held"]).toBeUndefined();
-  expect(canvasMenuFixture({ held: CANVAS_KEY }).canvasRow()["data-held"]).toBe("");
 });
 
 it("on close, focus returns to the button unless a dialog the menu opened or another control holds it", () => {

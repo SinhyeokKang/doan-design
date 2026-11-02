@@ -12,7 +12,7 @@ import { ShellSidebar } from "./ShellSidebar";
 import { groupProjects } from "./homeCards";
 import { TooltipProvider } from "./components/ui/tooltip";
 import type { CanvasMenu } from "./ShellSidebar";
-const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {}, held: null };
+const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 
 vi.mock("./components/ui/tooltip", async importOriginal => {
   const actual = await importOriginal<typeof import("./components/ui/tooltip")>();

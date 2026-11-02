@@ -160,9 +160,6 @@ export function App() {
   const trashingRef = useRef(trashing);
   const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
   const trashSeq = useRef(0);
-  // The row (`root\npath`) whose menu button stays shown from the dialog's opening until focus is back on it: the button
-  // hides while its row has neither the pointer nor focus, and a hidden button cannot take focus.
-  const [trashHeld, setTrashHeld] = useState<string | null>(null);
   // The canvases whose `doan export` runs (`root\npath`): from main's running event, sent once the save panel closed on
   // a file, to the export's reply. The progress toast waits a second from that event.
   const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
@@ -729,7 +726,6 @@ export function App() {
     focusAfterModal.current = false;
     const previous = beforeModal.current;
     focusCurrent(previous);
-    setTrashHeld(null);
   }, [modal, entries]);
   // The row the Move to Trash dialog asks about left the list: the dialog closes. A folder still loading keeps it.
   useEffect(() => {
@@ -1011,7 +1007,6 @@ export function App() {
     beforeModal.current = button;
     const seq = ++trashSeq.current;
     changeTrashing({ root, row, plan: null, seq });
-    setTrashHeld(`${root}\n${row.path}`);
     const answered = (plan: TrashPlanReply) => {
       const current = trashingRef.current;
       if (current?.seq !== seq) return;
@@ -1057,12 +1052,16 @@ export function App() {
     };
     window.doan.exportCanvas(root, row.path).then(done, () => done({ kind: "failed", reason: "failed" }));
   }
-  useEffect(() => window.doan.onExportRunning(({ root, path }) => {
-    const key = `${root}\n${path}`;
-    setExporting(previous => new Set(previous).add(key));
-    clearTimeout(exportTimers.current.get(key));
-    exportTimers.current.set(key, setTimeout(() => { exportTimers.current.delete(key); live.current.toast.show(exportProgress(canvasStem(path))); }, 1000));
-  }), []);
+  useEffect(() => {
+    const timers = exportTimers.current;
+    const stop = window.doan.onExportRunning(({ root, path }) => {
+      const key = `${root}\n${path}`;
+      setExporting(previous => new Set(previous).add(key));
+      clearTimeout(timers.get(key));
+      timers.set(key, setTimeout(() => { timers.delete(key); live.current.toast.show(exportProgress(canvasStem(path))); }, 1000));
+    });
+    return () => { stop(); for (const timer of timers.values()) clearTimeout(timer); timers.clear(); };
+  }, []);
   // notice: a caller that shows the action's own feedback itself (the Project Settings page, under its notice);
   // otherwise the toast.
   function action(name: RowAction, root: string, notice: (text: string) => void = text => toast.show(text)) {
@@ -1440,7 +1439,7 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
-    canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash, held: trashHeld }}
+    canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
