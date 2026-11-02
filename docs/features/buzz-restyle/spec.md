@@ -37,7 +37,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 8. 구현할 때는 **로컬 Buzz clone을 항상 참조**한다. 위치, 기준 커밋, 읽기 전용 규칙은 [design.md](./design.md)의 'Buzz clone 참조 규칙'을 따른다.
 9. **이름**: 새로 쓰는 디자인 시스템 클래스는 `doan-` 접두어를 쓴다(예: `doan-dialog`, `doan-shell-header`). 데이터 속성은 `data-doan-*`가 캔버스 컨벤션(ARCHITECTURE §1의 `data-doan-id` 등) 몫이라 `data-ui-*`를 쓴다.
 10. **여러 화면이 함께 쓰는 요소는 `buzz-ds`가 맡는다**: `ProjectSetupDialog`, `.ob-dialog`, `ErrorDetails`, `Toast`, 스피너. 화면 자식은 쓰기만 하고, 바꿔야 하면 사용자에게 확인한다(`FirstPrompt`는 buzz-project가, `ConnectionRows`는 이후 변경이 지웠다). 구현된 공통 변경(2026-10-27, buzz-shell): 칩 기본 글자 12px·상하 2px·좌우 6px, 읽기 전용 워크트리 칩의 translucent 변형, 프로젝트 이름 해시 8색 폴백. 추가 승인·구현(2026-10-28, buzz-onboarding): 공용 lg 버튼 48px, notice 12px/16px·흰 elevation·진한 텍스트/동색 아이콘·로딩 spinner, 온보딩과 ShellSidebar의 연한 썸네일 배경·진한 글자. 기존 프리미티브를 확장하며 별도 복제품을 만들지 않는다. 온보딩 버튼/입력창의 translucent 변형과 본문 전체 panel 래핑은 철회됐다. 추가 승인·구현(2026-10-30, buzz-search): 공용 `.doan-dialog`의 검색 변형 `data-ui-presentation="search"`(패딩 `--space-3`, 모서리 32px, `--surface-panel`, `corner-shape: squircle`, 열린 상태 `gap: 0`). 기존 사용처의 크기와 동작은 그대로다. `AddProjectsDialog`(`SetUpFolderConfirm` 포함)는 buzz-add-projects가 Add Projects 페이지로 대체하며 삭제했다(2026-10-30). 예외·구현(2026-10-31 user, buzz-conversation spec 결정 19): 화면 자식인 buzz-conversation이 공용 텍스트 버튼의 `xs` 크기 변형 `doan-button[data-ui-size="xs"]`(24px, caption, 안쪽 4/8, 아이콘 14px)를 `ds/controls.css`에 더했다. docked 입력창의 에이전트·effort 선택에 쓴다. 함께 구현한 것: 입력창 포커스 보더 `--border-field-focus`와 `--shadow-sm`(Home·docked 입력창 카드만, 다른 텍스트 필드는 그대로), 입력창 도구의 비활성 잉크 수정. 값은 DESIGN.md 'Shared variants'·'Focus'에 있다.
-11. **대조 방법**: 화면 자식은 `/design-draft`로 그 화면의 Buzz 스타일 초안을 **새 파일**로 먼저 그리고, 구현 뒤 `/design-sync`로 맞춘다. 기존 초안 12개는 이력으로 남기고 고치지 않는다. 단 `doan check`가 정의되지 않은 변수 오류를 내면 안 된다.
+11. **대조 방법**: 화면 자식은 `/design-draft`로 그 화면의 Buzz 스타일 초안을 **새 파일**로 먼저 그리고, 구현 뒤 `/design-sync`로 맞춘다. 기존 초안은 사용자가 지정한 것만 지우고, 남은 초안은 고치지 않는다(PRODUCT §5 'Dogfooding'). 지금까지 다시 그렸거나 없어진 화면의 초안 11개를 지웠고 `select-inspect.html`이 남아 있다. 단 `doan check`가 정의되지 않은 변수 오류를 내면 안 된다.
 12. **중간 상태**: 자식마다 main에 머지하고, 그동안 main은 반쯤 바뀐 화면(라이트 토큰 + 이전 배치)을 허용한다. 마지막 자식이 머지될 때까지 main에서 만든 빌드는 배포하지 않는다.
 13. **테마 소스**: main은 `nativeTheme.themeSource = "light"`로 고정한다. 네이티브 스크롤바·폼 컨트롤·메뉴와 캔버스 iframe의 `prefers-color-scheme`이 macOS 외형과 상관없이 light가 된다(2026-10-26 user, `buzz-ds`가 실현).
 14. **공통 결정을 바꿀 때**는 진행 전에 사용자에게 확인한다. 미구현 자식의 승인 사항은 해당 feature와 이 허브에 계획으로 기록하고, 구현 완료 시 PRODUCT·ARCHITECTURE·DESIGN 본문을 현재 상태로 고치고(대체되는 내용은 지우고, 근거는 커밋 메시지에 쓴다), 이 목록도 함께 고친다.
@@ -61,6 +61,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 | 10 | `buzz-conversation` | 대화 (공용) | 에이전트와의 실시간 대화 UI 중 캔버스에 묶이지 않은 공용 부분(기존 `buzz-comment` 자리, 2026-10-26 user. 2026-10-31 user가 캔버스 전용 부분을 12번으로 나눴다): 대화 스레드 프리미티브(메시지, 권한 요청, 진행·실패 상태, 새 대화 시작), 입력창 공용 프리미티브와 두 타입 — `hero`(Home: 항상 box, 프로젝트 선택·워크트리 트레이·히어로 배치)와 `docked`(Overview·캔버스 대화 패널: 비어 있으면 한 줄 capsule, 줄바꿈·첨부·프리셋 칩이 생기면 box, 텍스트와 칩이 모두 없을 때만 capsule로 돌아감, 에이전트·effort는 카드 아래 줄, 모양 전환에 textarea를 다시 마운트하지 않음). 대화 목록의 재시작 뒤 유지, 캔버스에 묶이지 않은 프로젝트 대화 여러 개, 캔버스별 보관 대화 다시 열기. 홈 대화의 임시 상태줄·LNB 상태 슬롯·프로젝트당 홈 대화 1개 규칙을 다시 정한다. 완료. 현재 규칙은 PRODUCT §3 항목 6·§5 항목 1 'Project conversations'가 정본이다. 기반은 [`agent-conversation`](../../PRODUCT.md#agent-conversation-foundation-contract) | agent-conversation, agent-auth, buzz-shell |
 | 11 | `doan-mascot` | Welcome·Home 마스코트 | 완료. Welcome과 Home에 마스코트 Doany를 넣고 두 화면의 묶음을 높이 기준 중앙에 두었다(Home −64, Welcome −72). 패키지 앱 아이콘을 Doany로 바꿨다. 초안은 `.doan/canvases/doan-mascot.html`이다. 현재 규칙은 PRODUCT §5 'Doany'와 DESIGN 'Home'·'Onboarding'이 정본이다 | (기록 없음) |
 | 12 | `buzz-canvas-conversation` | 캔버스 대화 | 완료. 현재 규칙은 PRODUCT §5 항목 2·6과 DESIGN 'Canvas conversation panel'이 정본이다. `buzz-conversation` 프리미티브를 캔버스 오른쪽 도킹 패널에 놓는다(2026-10-31 user). 도킹 패널은 대화 전용이고 탭 틀이 없다(2026-11-01 user, 아래 '캔버스 페이지 방향'). 패널의 틀(접기·폭 조절, 껍데기 헤더와 닫기, 열림·폭 기억)은 8번이 했고, 이 자식은 자동으로 여는 규칙만 남긴다(대화를 시작하거나 대화에 넣기를 누르면 열림). Overview의 스레드·`docked` 입력창·대화 제목 메뉴를 가능한 만큼 재사용한 캔버스당 현재 대화 하나인 대화 패널(보관한 대화는 대화 제목 메뉴에서 연다), 헤더 대화 드롭다운의 동작(이전 대화 목록, 전환. 모양은 8번의 초안 `conversation-menu` 프레임), 입력창 옆 요소 피커와 그 피커가 쓰는 선택 모드 표시, 인라인 앵커 칩, 도구모음의 대화에 넣기 도구, 응답 대기에서 답하기(Answer)와 실패한 턴의 알림·대화 상태 표시(캔버스에는 두지 않는다). 8번의 Open이 패널로 포커스를 옮기고, 이 자식이 그 권한 요청으로 스크롤해 첫 선택지에 포커스를 준다. Overview 오른쪽 행에서 들어온 캔버스는 그 현재 대화 패널로 열고, 본 것 규칙을 '대화 패널이 보일 때'로 바꾼다. 프로젝트 대화가 캔버스로 넘어오면 이 패널에서 이어 간다. 캔버스 페이지의 임시 상태줄을 대화 패널로 바꾼다. 앱의 코멘트 컴포넌트 삭제(Comments 패널, 코멘트 핀, Review bar·배너, Hand Off 다이얼로그. 이 화면들은 8번이 캔버스 페이지에서 이미 뺐고, FirstPrompt, Overview의 Feedback 패널, 캔버스 없는 코멘트의 앱 경로는 `buzz-project`가 지웠다). CLI·스킬·포맷·eval의 코멘트 제거는 별도 feature(2026-10-26 user) | buzz-conversation, buzz-canvas |
+| 13 | `project-settings` | 프로젝트 설정 | 미착수(2026-11-02 user). 사이드바 프로젝트 메뉴의 Project Settings 다이얼로그(Token CSS·Serve)를 새 시각 언어로 다시 만든다. `doan skill` 가이드가 이 화면을 안내하는 문구도 함께 고친다: 없는 'Settings › Projects' 안내(`skill_test.go`가 고정), onboarding의 `--repo`, `agents`의 `{revision, providers}` 구조, `init`의 `.gitattributes` 두 줄, CLI 링크가 Applications에서 열 때만 생긴다는 조건. 가이드를 바꾸므로 `/agent-eval`을 돌린다 | buzz-ds, buzz-settings |
 
 나눈 기준:
 - 사용자가 예로 든 `buzz-onboarding`, `buzz-home`, `buzz-search`처럼 화면 하나를 단위로 했다.
@@ -103,7 +104,7 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 
 ## 완료 조건
 
-- `buzz-ds`, 11개 화면 자식, `doan-mascot`이 모두 main에 들어가고 각자 디렉터리를 지웠다. 확인: 각 자식의 main 병합·승격·검증 근거와 디렉터리 삭제를 함께 대조한다. 디렉터리가 없다는 사실만으로 미착수 자식을 완료로 보지 않는다.
+- `buzz-ds`, 11개 화면 자식, `doan-mascot`, `project-settings`가 모두 main에 들어가고 각자 디렉터리를 지웠다. 확인: 각 자식의 main 병합·승격·검증 근거와 디렉터리 삭제를 함께 대조한다. 디렉터리가 없다는 사실만으로 미착수 자식을 완료로 보지 않는다.
 - 공통 결정이 PRODUCT·ARCHITECTURE·DESIGN 본문에 현재 상태로 적혔고, 대체된 내용은 본문에서 지워졌다.
   - 2026-10-22 테마 결정과 Sorcerer 레퍼런스: `buzz-ds`가 기록
   - 2026-10-25 공유 툴팁 패딩 12/6px: `buzz-ds`가 기록
@@ -118,6 +119,6 @@ doan 앱의 시각 언어를 Block의 Buzz(`block/buzz-app`, Apache-2.0)로 바�
 - Base UI 도입, Buzz 코드(CSS·TSX)의 복사, Buzz JS 훅.
 - Inter·JetBrains Mono 번들, 고정폭 역할. 예외(2026-10-31 user, buzz-conversation spec 결정 19, 구현): 대화 스레드의 에이전트 답 안 인라인 코드·코드 블록과 활동 경로만 시스템 mono 스택(`--type-family-mono`, 폰트 번들 없음)을 쓴다. 앱의 다른 인라인 코드는 sans 칩이다(DESIGN.md 'Type roles').
 - Buzz에만 있고 doan에 대응하는 화면이 없는 요소(glass 버튼, 아바타 모양, 커뮤니티 선택, 프로필, 페이지 탭, 생성 메뉴).
-- 기존 `.doan/canvases/` 초안 12개의 갱신.
+- 남겨 둔 기존 `.doan/canvases/` 초안의 갱신.
 - 캔버스 iframe 안의 렌더링.
 - 앱 아이콘.
