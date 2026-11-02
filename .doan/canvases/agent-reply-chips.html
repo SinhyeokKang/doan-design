@@ -1,0 +1,242 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="agent-reply-chips"><meta name="doan:width" content="1440"><title>agent-reply-chips — Anchor chips in agent replies</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset)}
+.intro{max-width:1100px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5)}
+.specimen+.specimen{margin-top:var(--space-10)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1100px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium);display:flex;align-items:center;gap:var(--space-2)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+/* The agent's Markdown that produced the reply drawn below; board only, not app UI. */
+.src{grid-column:2;margin-top:var(--space-2);padding:var(--space-3) var(--space-4);border-radius:var(--radius-chip);background:var(--surface-panel);color:var(--text-subtle);font-family:var(--type-family-mono);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);white-space:pre-wrap;overflow-wrap:anywhere}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2);justify-items:start}
+.tile-label{max-width:347px;color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A slice of the window: the panel at the default width (347 at 1238 × 780), cut under the thread. The docked composer
+   that sits under it is unchanged and not drawn. */
+.panel-tile{display:flex;width:347px;padding-bottom:var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+.panel-tile>.right{border-left:0;border-radius:var(--radius-container)}
+.ov-tile{display:flex;width:768px;padding-bottom:var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel);overflow:hidden}
+.ov-tile>.ov{flex:1;border-radius:var(--radius-container)}
+.area-tile{width:480px;height:360px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel)}
+.toast-stage{position:relative;width:520px;height:120px;border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-panel)}
+.sprite{position:absolute;width:0;height:0;overflow:hidden}
+
+/* ── Restated from app/src/renderer/styles.css as shipped (465c5fa9), which canvases cannot link ── */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.chev{width:var(--space-4);height:var(--space-4);color:var(--text-metadata)}
+.right{background:var(--surface-panel);border-left:1px solid var(--border-standard)}
+.right.doan-conv-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-radius:0 var(--radius-container) var(--radius-container) 0;overflow:hidden}
+.doan-conv-head{display:flex;align-items:center;min-height:var(--size-chrome);padding-right:var(--space-2)}
+.doan-conv-head .doan-icon-button{color:var(--text-standard)}
+.doan-conv-body{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:var(--space-4)}
+.doan-conv-title{flex:1;min-width:0;padding:var(--space-2) 0 var(--space-2) var(--space-2)}
+.doan-conv-title .ov-title.doan-button{max-width:100%}
+.doan-conv-body:has(>.doan-conv-content){padding:0;align-items:stretch;justify-content:stretch}
+.doan-conv-content{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.cp-scroll{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;padding:var(--space-2) var(--space-4) 0}
+.cp-scroll:has(>.conversation-thread){padding:0}
+.cp-scroll>.conversation-thread{flex:1;min-height:0}
+.doan-conv-panel .thread-scroll{padding:var(--space-2) var(--space-4) 0}
+.doan-conv-panel .conversation-thread .thread{gap:var(--space-3)}
+.doan-conv-panel .msg-user{max-width:92%}
+.doan-conv-panel :is(.md,.msg-agent p,.bubble){font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.ov-title-wrap{display:flex;min-width:0}
+.ov-title.doan-button{min-width:0;flex-shrink:1;gap:var(--space-1h);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.ov-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Overview */
+.ov{min-height:0;position:relative;background:var(--surface-panel)}
+.ov.ov-main{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.ov-main{font-variant-numeric:normal}
+.ov-head{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--size-chrome);padding:var(--space-2) var(--space-4)}
+.ov-project{display:inline-flex;align-items:center;gap:var(--space-2);flex:none;padding-left:var(--space-2);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.ov-project-name{font-weight:var(--type-weight-medium)}
+.ov-sep{flex:none;color:var(--text-metadata);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.ov-scroll{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end}
+.ov-scroll>.conversation-thread{flex:1}
+.ov-main .thread-scroll{padding:var(--space-2) var(--space-6) 0}
+.ov-main .conversation-thread .thread{max-width:720px;margin-inline:auto}
+/* Component constants as shipped: the 10px initial and the 12px branch glyph have no token. */
+.shell-thumbnail{display:flex;align-items:center;justify-content:center;flex:none;width:var(--size-icon);height:var(--size-icon);border-radius:var(--space-1);font-size:10px;font-weight:var(--type-weight-semibold);line-height:var(--size-icon)}
+.hue-indigo{background:color-mix(in srgb,var(--identity-project-indigo) 14%,var(--surface-panel));color:color-mix(in srgb,var(--identity-project-indigo) 65%,var(--text-standard))}
+.shell-branch{display:inline-flex;align-items:center;gap:var(--space-1);max-width:84px;flex-shrink:1}
+.shell-branch svg{width:12px;height:12px;flex:none}
+.shell-branch span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Thread */
+.conversation-thread{position:relative;display:flex;flex-direction:column;min-height:0;height:100%}
+.conversation-thread .thread-scroll{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb-quiet) transparent}
+.conversation-thread .thread{display:flex;flex-direction:column;gap:var(--space-4)}
+.conversation-thread .thread-item{display:flex;flex-direction:column;min-width:0}
+.conversation-thread .msg-user{align-self:flex-end;display:flex;flex-direction:column;align-items:flex-end;gap:var(--space-1h);max-width:80%;min-width:0}
+.conversation-thread .bubble{padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--surface-accent-subtle);color:var(--text-standard);font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;user-select:text}
+.conversation-thread .msg-agent{display:flex;flex-direction:column;gap:var(--space-2);min-width:0;user-select:text}
+.conversation-thread .msg-agent p{font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing);overflow-wrap:anywhere}
+.conversation-thread .md{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;font-size:var(--type-label-size);line-height:var(--type-label-line-height);letter-spacing:var(--type-label-letter-spacing)}
+.conversation-thread .md strong{font-weight:var(--type-weight-semibold)}
+.conversation-thread .md a{color:var(--text-link);text-decoration:underline;text-underline-offset:var(--space-half)}
+.conversation-thread .md :is(ul,ol){display:flex;flex-direction:column;gap:var(--space-1);padding-left:var(--space-6)}
+.conversation-thread .md ul{list-style:disc}
+.conversation-thread .md>p:has(+ :is(ul,ol)){margin-bottom:calc(var(--space-2) - var(--space-4))}
+.conversation-thread .md code{font-family:var(--type-family-mono);font-size:var(--type-body-sm-size);background:var(--surface-inset);border-radius:var(--space-1);padding:var(--space-half) var(--space-1);overflow-wrap:anywhere}
+.conversation-thread .md-table{width:max-content;max-width:100%;overflow-x:auto;scrollbar-width:thin;border-radius:var(--radius-chip);box-shadow:inset 0 0 0 1px var(--border-standard)}
+.conversation-thread .md table{border-collapse:separate;border-spacing:0;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.conversation-thread .md :is(th,td){padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-standard);border-right:1px solid var(--border-standard);text-align:left;vertical-align:top;white-space:nowrap}
+.conversation-thread .md :is(th,td):last-child{border-right:0}
+.conversation-thread .md tbody tr:last-child td{border-bottom:0}
+.conversation-thread .md th{background:var(--affordance-subtle);font-weight:var(--type-weight-medium)}
+/* Anchor chips: component constants as shipped and documented in docs/DESIGN.md 'Canvas conversation panel' (180, 6). */
+.anchor-chip{display:inline-flex;align-items:center;gap:var(--space-1);max-width:180px;margin:0 var(--space-half);padding:0 var(--space-1h);border:0;border-radius:6px;background:var(--surface-accent-subtle);color:var(--text-accent-subtle);font:inherit;font-weight:var(--type-weight-medium);vertical-align:bottom;white-space:nowrap}
+.anchor-chip svg{width:var(--size-icon-sm);height:var(--size-icon-sm);flex:none}
+.anchor-chip span:not(.sr-only){min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bubble .anchor-chip{background:var(--surface-panel)}
+button.anchor-chip{cursor:pointer}
+button.anchor-chip[aria-disabled="true"]{cursor:default}
+.chip-missing{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+/* Canvas area and its status (load failed). */
+.area{position:relative;overflow:hidden;background:var(--surface-inset)}
+.canvas-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:var(--space-4);text-align:center;color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);pointer-events:none}
+.canvas-status button{pointer-events:auto}
+.canvas-status b{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.canvas-status>*{max-width:260px;overflow-wrap:anywhere}
+/* Toast */
+.toast{position:absolute;right:var(--space-4);bottom:var(--space-4);z-index:6}
+.toast .msg{min-width:0;overflow-wrap:anywhere}
+
+/* ── New, not in code ── */
+/* "No longer in the canvas" under an agent reply: the reply block, then the note, 6 apart (the same gap as the note
+   under a sent bubble, .msg-user's gap). */
+.conversation-thread .thread-item>.msg-agent+.chip-missing{margin-top:var(--space-1h)}
+</style></head><body>
+<svg class="sprite" aria-hidden="true">
+<symbol id="i-frame" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="2" y1="6" y2="6"/><line x1="22" x2="2" y1="18" y2="18"/><line x1="6" x2="6" y1="2" y2="22"/><line x1="18" x2="18" y1="2" y2="22"/></g></symbol>
+<symbol id="i-element" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.034 12.681a.498.498 0 0 1 .647-.647l9 3.5a.5.5 0 0 1-.033.943l-3.444 1.068a1 1 0 0 0-.66.66l-1.067 3.443a.5.5 0 0 1-.943.033z"/><path d="M21 11V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/></g></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-new" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></g></symbol>
+<symbol id="i-hide" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m8 9 3 3-3 3"/></g></symbol>
+<symbol id="i-branch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></g></symbol>
+</svg>
+
+<header class="intro"><span class="doan-chip">agent-reply-chips · draft for review · 7 frames</span><h1>An agent’s reply points at frames and elements with the same chips a person sends.</h1>
+<p>Scope: <code>docs/features/agent-reply-chips/</code> (spec, design, tasks D1). A new file; <code>buzz-canvas-conversation.html</code> and <code>buzz-project.html</code> stay untouched. <code>/design-sync</code> compares every frame below. Every frame is new, not in code: today a reply’s <code>doan:</code> link renders as plain text.</p>
+<ul>
+<li>New, not in code: chips inside an agent reply (paragraph, list, table), the <code>· &lt;canvas name&gt;</code> suffix and its accessible name “Open &lt;canvas&gt; and show &lt;label&gt;”, “No longer in the canvas” under a reply block, and the two toasts “missing” and “duplicate”. The chip itself is the shipped <code>.anchor-chip</code> outside a bubble (accent-subtle fill), unchanged.</li>
+<li>Copied as shipped (465c5fa9): the canvas conversation panel head and thread (<code>ConversationPanel.tsx</code>, <code>CanvasConversationPanel.tsx</code>, <code>ConversationThread.tsx</code>), the Overview head and thread (<code>ProjectOverview.tsx</code>), the sent chip, the canvas status (<code>App.tsx</code>), the toast (<code>Toast.tsx</code>, <code>ds/surfaces.css</code>) and the two “unavailable” messages (<code>quickOpen.ts</code> <code>unavailableCanvasMessage</code>). Rules restated from <code>styles.css</code>; tokens and primitives linked from <code>app/src/renderer/</code>. Each tile is cut under the thread; the docked composer under it is unchanged and not drawn.</li>
+<li>Example project: <code>acme-web</code>. The canvas panel shows <code>drafts</code> (title “Drafts”, frames <code>editor</code> “Editor” and <code>preview</code> “Preview”, element <code>save</code>), the example in spec ‘완료 조건’. The other canvas is <code>checkout</code> (title “Checkout”, frames <code>payment</code> “Payment” and <code>shipping</code> “Shipping address and delivery options”, element <code>pay-button</code>).</li>
+<li>Toast wording follows the shipped deep-link refusals (“Couldn’t open the link. The canvas isn’t in acme-web.”, <code>openLinkRefusal</code>) and duplicate-ID texts (“Run doan check in a terminal…”, <code>canvasConversation.ts</code>, <code>canvasView.ts</code>), checked in code in this session; chosen with Doan’s <code>clarify</code> preset.</li>
+<li>References: none outside Doan. Icons are lucide <code>frame</code>, <code>square-mouse-pointer</code>, <code>square-pen</code>, <code>panel-right-close</code>, <code>chevron-down</code>, <code>git-branch</code> (lucide-react 1.61.0, read from <code>app/node_modules</code> in this session).</li>
+</ul></header>
+
+<section class="specimen"><div class="caption"><span>01</span><h2>Canvas panel · chips in a reply <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Drafts is open and shown. A reply’s <code>doan:drafts/…</code> links become chips like the person’s sent chips, inline in a paragraph, a list item and a table cell. A frame chip takes the open canvas’s frame title; an element chip reads <code>element &lt;id&gt;</code> because a link carries no tag. The link text (“the Save button”) is not used. Clicking moves to the target and highlights it; the selection and <code>doan active</code> stay. Names: “Show Editor on canvas”, “Show element save on canvas”.</p>
+<pre class="src">I tightened [Editor](doan:drafts/frame/editor) and renamed [the Save button](doan:drafts/element/save) to “Save draft”.
+
+- [Editor](doan:drafts/frame/editor): the gap between fields is now 12 px.
+- [Preview](doan:drafts/frame/preview) is unchanged.
+
+| Target | Change |
+|---|---|
+| [Save](doan:drafts/element/save) | Label “Save draft” |
+| [Editor](doan:drafts/frame/editor) | Gap 16 → 12 |</pre></div>
+<div class="tiles" data-doan-frame="panel-chips" data-doan-title="Canvas panel · chips in a reply" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Tighten the editor</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Tighten <button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas" data-doan-id="chips-sent-frame"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button> and rename <button type="button" class="anchor-chip" data-kind="element" title="Element · button save · in editor" aria-label="Show button save on canvas"><svg aria-hidden="true"><use href="#i-element"/></svg><span>button save</span></button></div></div></div>
+<div class="thread-item"><div class="msg-agent md" data-doan-id="chips-reply">
+<p>I tightened <button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas" data-doan-id="chips-p-frame"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button> and renamed <button type="button" class="anchor-chip" data-kind="element" title="Element · element save" aria-label="Show element save on canvas" data-doan-id="chips-p-element"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element save</span></button> to “Save draft”.</p>
+<ul><li><button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas" data-doan-id="chips-li-frame"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button>: the gap between fields is now 12 px.</li><li><button type="button" class="anchor-chip" data-kind="frame" title="Frame · preview" aria-label="Show Preview on canvas"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Preview</span></button> is unchanged.</li></ul>
+<div class="md-table"><table><thead><tr><th>Target</th><th>Change</th></tr></thead><tbody><tr><td><button type="button" class="anchor-chip" data-kind="element" title="Element · element save" aria-label="Show element save on canvas" data-doan-id="chips-td-element"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element save</span></button></td><td>Label “Save draft”</td></tr><tr><td><button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button></td><td>Gap 16 → 12</td></tr></tbody></table></div>
+</div></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">Drafts open · sent chips (panel fill in the bubble) above reply chips (accent fill) · paragraph, list, table</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>02</span><h2>Canvas panel · chips that open another canvas <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Drafts is open; the reply also points into Checkout. A chip for a canvas other than the open one ends with <code>· &lt;canvas name&gt;</code> and is named “Open Checkout and show Payment”. Its frame title comes from Checkout’s list row, never from the open canvas. Clicking opens Checkout as Quick Open does (the selection clears, Back returns to Drafts) and moves to the target; the panel then shows Checkout’s conversation. The whole name, suffix included, ellipsizes at the shipped 180 px chip; the full name stays in the accessible name.</p>
+<pre class="src">Done. [Pay](doan:checkout/element/pay-button) now reads “Place order”, and [Payment](doan:checkout/frame/payment) uses the same 12 px gap as [Editor](doan:drafts/frame/editor).
+
+- [Shipping](doan:checkout/frame/shipping) also changed.</pre></div>
+<div class="tiles" data-doan-frame="panel-other-canvas" data-doan-title="Canvas panel · chips that open another canvas" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Tighten the editor</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Use the same label and gap on checkout</div></div></div>
+<div class="thread-item"><div class="msg-agent md" data-doan-id="other-reply">
+<p>Done. <button type="button" class="anchor-chip" data-kind="element" title="Element · element pay-button" aria-label="Open Checkout and show element pay-button" data-doan-id="other-p-element"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element pay-button · Checkout</span></button> now reads “Place order”, and <button type="button" class="anchor-chip" data-kind="frame" title="Frame · payment" aria-label="Open Checkout and show Payment" data-doan-id="other-p-frame"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Payment · Checkout</span></button> uses the same 12 px gap as <button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas" data-doan-id="other-p-same"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button>.</p>
+<ul><li><button type="button" class="anchor-chip" data-kind="frame" title="Frame · shipping" aria-label="Open Checkout and show Shipping address and delivery options" data-doan-id="other-li-long"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Shipping address and delivery options · Checkout</span></button> also changed.</li></ul>
+</div></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">Drafts open · two Checkout chips with the suffix, one Drafts chip without · a long name ellipsized at 180 px</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>03</span><h2>Canvas panel · target no longer in the canvas <span class="doan-chip" data-ui-variant="translucent">New place, not in code</span></h2><p>The person clicked “element beta-badge”, a Drafts chip, and Drafts no longer has that element. “No longer in the canvas” shows right under the reply block (for a sent chip it shows under the bubble), with the same timing as a sent chip’s note: 4 s, or until the next pointer press, key or thread scroll. It is a <code>role=status</code> line, and the clicked chip points at it with <code>aria-describedby</code>. A chip that opened another canvas and found no target shows nothing; the canvas simply opens.</p>
+<pre class="src">I removed [the beta badge](doan:drafts/element/beta-badge) and moved its text into [Editor](doan:drafts/frame/editor).</pre></div>
+<div class="tiles" data-doan-frame="panel-missing" data-doan-title="Canvas panel · target no longer in the canvas" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Remove the beta badge</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Remove the beta badge</div></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I removed <button type="button" class="anchor-chip" data-kind="element" title="Element · element beta-badge" aria-label="Show element beta-badge on canvas" aria-describedby="missing-note" data-doan-id="missing-chip"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element beta-badge</span></button> and moved its text into <button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button>.</p></div><span class="chip-missing" id="missing-note" role="status" data-doan-id="missing-note">No longer in the canvas</span></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">Drafts open · the clicked element is gone · note under the reply block</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>04</span><h2>Canvas panel · while the canvas is not shown <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Drafts failed to load (the same holds while it loads, has no width, is off the list or its project has a problem). Chips for Drafts are disabled like sent chips: <code>aria-disabled</code>, the same look, the default cursor, still in the Tab order with their names. The Checkout chip stays enabled, because it opens another canvas. With no layout, a Drafts frame chip has no frame title to read and shows its id (“editor”).</p>
+<pre class="src">I tightened [Editor](doan:drafts/frame/editor), renamed [Save](doan:drafts/element/save), and matched [Payment](doan:checkout/frame/payment).</pre></div>
+<div class="tiles" data-doan-frame="panel-disabled" data-doan-title="Canvas panel · while the canvas is not shown" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><section class="area area-tile" aria-label="Canvas"><div class="canvas-status" role="status"><div><b>Couldn’t load the canvas</b><br>Run doan check in a terminal<br><br><button type="button" class="doan-button" data-ui-variant="panel" data-ui-size="sm">Reload</button></div></div></section><span class="tile-label">The canvas area next to the panel (shipped status)</span></div>
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Tighten the editor</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Tighten <button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas" aria-disabled="true"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button></div></div></div>
+<div class="thread-item"><div class="msg-agent md"><p>I tightened <button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show editor on canvas" aria-disabled="true" data-doan-id="disabled-frame"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>editor</span></button>, renamed <button type="button" class="anchor-chip" data-kind="element" title="Element · element save" aria-label="Show element save on canvas" aria-disabled="true" data-doan-id="disabled-element"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element save</span></button>, and matched <button type="button" class="anchor-chip" data-kind="frame" title="Frame · payment" aria-label="Open Checkout and show Payment" data-doan-id="disabled-other"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Payment · Checkout</span></button>.</p></div></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">Drafts chips aria-disabled (default cursor) · the Checkout chip enabled</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>05</span><h2>Canvas panel · links that are not chips <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>A <code>doan:</code> link that does not follow the format keeps only its link text, as plain text with no link style: a point (<code>point</code>), a canvas id with capitals, an empty id, and the guide’s rule J link (<code>doan://open?…</code>), which stays plain as today. An <code>https:</code> link is still a link. A link inside code is code. Only <code>Editor</code> is a chip.</p>
+<pre class="src">Changes are in [Editor](doan:drafts/frame/editor). I also looked at [Header](doan:drafts/point/header), [Footer](doan:Drafts/frame/footer) and [Sidebar](doan:drafts/frame/).
+
+Icons come from [Lucide](https://lucide.dev/icons/). The link form is `[name](doan:drafts/frame/editor)`.
+
+[Open Drafts](doan://open?root=%2FUsers%2Fme%2Facme-web&amp;canvas=.doan%2Fcanvases%2Fdrafts.html)</pre></div>
+<div class="tiles" data-doan-frame="panel-plain" data-doan-title="Canvas panel · links that are not chips" data-doan-implements="app/src/renderer/ConversationThread.tsx">
+<div class="tile"><div class="panel-tile"><aside class="right ov-right doan-conv-panel" role="region" aria-label="Conversation">
+<div class="doan-conv-head"><span class="ov-title-wrap doan-conv-title"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Tighten the editor</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span><button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"><svg aria-hidden="true"><use href="#i-new"/></svg></button><button type="button" class="doan-icon-button doan-panel-hide" aria-label="Hide conversation" aria-expanded="true"><svg aria-hidden="true"><use href="#i-hide"/></svg></button></div>
+<div class="doan-conv-body"><div class="doan-conv-content"><div class="cp-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-agent md" data-doan-id="plain-reply">
+<p>Changes are in <button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Show Editor on canvas"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor</span></button>. I also looked at <span data-doan-id="plain-point">Header</span>, <span data-doan-id="plain-caps">Footer</span> and <span data-doan-id="plain-empty">Sidebar</span>.</p>
+<p>Icons come from <a href="https://lucide.dev/icons/" data-doan-id="plain-https">Lucide</a>. The link form is <code data-doan-id="plain-code">[name](doan:drafts/frame/editor)</code>.</p>
+<p><span data-doan-id="plain-rule-j">Open Drafts</span></p>
+</div></div>
+</div></div></div></div></div></div></aside></div><span class="tile-label">Malformed doan: links and the rule J link as plain text · https link · code span</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>06</span><h2>Overview · chips in a project conversation <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>No canvas is shown on the Overview, so every chip carries its canvas name and opens that canvas, and none is disabled. Frame titles come from each canvas’s list row (Drafts’ “Editor”, Checkout’s “Payment”). Clicking closes the Overview, opens the canvas, moves to the target, and leaves one history entry for Back. The person’s own messages still take no chips here. Overview type is label 16/24 (the panel uses body-sm).</p>
+<pre class="src">Updated both canvases:
+
+- [Editor](doan:drafts/frame/editor): the gap between fields is now 12 px, and [Save](doan:drafts/element/save) reads “Save draft”.
+- [Payment](doan:checkout/frame/payment) uses the same gap.
+
+| Target | Change |
+|---|---|
+| [Save](doan:drafts/element/save) | Label “Save draft” |
+| [Pay](doan:checkout/element/pay-button) | Label “Place order” |</pre></div>
+<div class="tiles" data-doan-frame="overview-chips" data-doan-title="Overview · chips in a project conversation" data-doan-implements="app/src/renderer/ProjectOverview.tsx">
+<div class="tile"><div class="ov-tile"><section class="ov ov-main" role="region" aria-label="Overview">
+<header class="ov-head"><span class="ov-project"><span class="shell-thumbnail hue-indigo" aria-hidden="true">A</span><span class="ov-project-name">acme-web</span><span class="doan-chip shell-branch" data-ui-variant="translucent"><svg aria-hidden="true"><use href="#i-branch"/></svg><span>main</span></span></span><span class="ov-sep" aria-hidden="true">/</span><span class="ov-title-wrap"><button type="button" class="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="menu" aria-expanded="false"><span>Match the button labels</span><svg class="chev" aria-hidden="true"><use href="#i-chev"/></svg></button></span></header>
+<div class="ov-scroll"><div class="conversation-thread"><div class="thread-scroll"><div class="thread">
+<div class="thread-item"><div class="msg-user"><div class="bubble">Match the editor gap and the button labels across drafts and checkout</div></div></div>
+<div class="thread-item"><div class="msg-agent md" data-doan-id="ov-reply">
+<p>Updated both canvases:</p>
+<ul><li><button type="button" class="anchor-chip" data-kind="frame" title="Frame · editor" aria-label="Open Drafts and show Editor" data-doan-id="ov-li-frame"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Editor · Drafts</span></button>: the gap between fields is now 12 px, and <button type="button" class="anchor-chip" data-kind="element" title="Element · element save" aria-label="Open Drafts and show element save" data-doan-id="ov-li-element"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element save · Drafts</span></button> reads “Save draft”.</li><li><button type="button" class="anchor-chip" data-kind="frame" title="Frame · payment" aria-label="Open Checkout and show Payment"><svg aria-hidden="true"><use href="#i-frame"/></svg><span>Payment · Checkout</span></button> uses the same gap.</li></ul>
+<div class="md-table"><table><thead><tr><th>Target</th><th>Change</th></tr></thead><tbody><tr><td><button type="button" class="anchor-chip" data-kind="element" title="Element · element save" aria-label="Open Drafts and show element save" data-doan-id="ov-td-element"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element save · Drafts</span></button></td><td>Label “Save draft”</td></tr><tr><td><button type="button" class="anchor-chip" data-kind="element" title="Element · element pay-button" aria-label="Open Checkout and show element pay-button"><svg aria-hidden="true"><use href="#i-element"/></svg><span>element pay-button · Checkout</span></button></td><td>Label “Place order”</td></tr></tbody></table></div>
+</div></div>
+</div></div></div></div></section></div><span class="tile-label">Overview at 1238 × 780 (main column 768, thread 720) · every chip has its canvas name</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>07</span><h2>Toasts · a chip’s canvas can’t be opened <span class="doan-chip" data-ui-variant="translucent">Two new messages, not in code</span></h2><p>Nothing moves, and one shipped toast shows at the window’s lower right, without an action, as the deep-link refusals do. The canvas is named by the id in the link, since no list row names it; the project by its sidebar name. “Missing”: no canvas in the conversation’s project has that id. “Duplicate”: two or more canvases in it use the id. The two “unavailable” messages are Quick Open’s, copied as shipped.</p></div>
+<div class="tiles" data-doan-frame="toasts" data-doan-title="Toasts · a chip’s canvas can’t be opened" data-doan-implements="app/src/renderer/App.tsx">
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-missing"><span class="msg">Couldn’t open billing. The canvas isn’t in acme-web.</span></div></div><span class="tile-label">Missing (new)</span></div>
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-duplicate"><span class="msg">Couldn’t open drafts. More than one canvas in acme-web uses this ID. Run doan check in a terminal to find them.</span></div></div><span class="tile-label">Duplicate (new)</span></div>
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-loading"><span class="msg">Project is still being read. Try Open again shortly.</span></div></div><span class="tile-label">Unavailable · list still loading (shipped copy)</span></div>
+<div class="tile"><div class="toast-stage"><div class="toast doan-floating doan-toast" role="status" data-doan-id="toast-problem"><span class="msg">Project is unavailable. Fix it from its menu in the sidebar, then try again.</span></div></div><span class="tile-label">Unavailable · project problem (shipped copy)</span></div>
+</div></section>
+</body></html>
