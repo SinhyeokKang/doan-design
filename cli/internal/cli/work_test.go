@@ -191,7 +191,7 @@ func TestWorkRunValidationAndSuppression(t *testing.T) {
 	root := realPath(t, initialized(t))
 	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "missing"))
 	t.Setenv("DOAN_APP_CONVERSATION", "1")
-	for _, args := range [][]string{{"work"}, {"work", "other"}, {"work", "start"}, {"work", "start", ".doan/ds/a.html", ".doan/ds/b.html"}, {"work", "done", "bad.html"}} {
+	for _, args := range [][]string{{"work"}, {"work", "other"}, {"work", "start"}, {"work", "start", ".doan/ds/a.html", ".doan/ds/b.html"}, {"work", "start", "bad.html"}} {
 		failure(t, root, "usage_error", args...)
 	}
 	failure(t, t.TempDir(), "repo_not_found", "work", "done")
@@ -265,4 +265,103 @@ func TestWorkDoneWireAndLinks(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestWorkWithoutHome(t *testing.T) {
+	root := realPath(t, initialized(t))
+	t.Setenv("HOME", "")
+	t.Setenv("DOAN_RUNTIME", "")
+	for _, suppressed := range []string{"", "1"} {
+		t.Run("conversation="+suppressed, func(t *testing.T) {
+			t.Setenv("DOAN_APP_CONVERSATION", suppressed)
+			for _, action := range []string{"start", "done"} {
+				got := result(t, root, 0, "work", action, ".doan/canvases/a.html")
+				if got["delivered"] != false {
+					t.Fatal(got)
+				}
+			}
+		})
+	}
+}
+
+func TestWorkDoneSkipsBadPaths(t *testing.T) {
+	root := realPath(t, initialized(t))
+	for _, suppressed := range []bool{false, true} {
+		for _, paths := range [][]string{{"bad.html", "../outside.html"}, {"bad.html", ".doan/canvases/a.html", ".doan/assets/a.png"}} {
+			app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(`{"v":3,"ok":true}`)}
+			ctx := activeContext(t, root, app.dial(t))
+			ctx.AppConversation = suppressed
+			out, e := Work(ctx, Flags{Repo: root}, append([]string{"done"}, paths...))
+			assertWork(t, out, e, !suppressed)
+			got := out.Result.(map[string]any)
+			skipped := []string{paths[0], paths[len(paths)-1]}
+			links := []string{}
+			if len(paths) == 3 {
+				links = append(links, canvasLink(root, paths[1]))
+			}
+			if !reflect.DeepEqual(got["skipped"], skipped) || !reflect.DeepEqual(got["links"], links) {
+				t.Fatal(got)
+			}
+			if !suppressed {
+				req := <-app.requests
+				if req["action"] != "done" {
+					t.Fatal(req)
+				}
+			}
+		}
+	}
+}
+
+func TestWorkAcceptsSymlinkedRootAncestor(t *testing.T) {
+	parent := realPath(t, t.TempDir())
+	root := filepath.Join(parent, "repo")
+	putFile(t, root, ".doan/config.json", `{"v":1}`)
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(parent, alias); err != nil {
+		t.Fatal(err)
+	}
+	putFile(t, root, ".doan/canvases/existing.html", "canvas")
+	t.Setenv("DOAN_APP_CONVERSATION", "1")
+	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "missing"))
+	for _, name := range []string{"existing.html", "new.html"} {
+		path := ".doan/canvases/" + name
+		for _, action := range []string{"start", "done"} {
+			got := result(t, root, 0, "work", action, filepath.Join(alias, "repo", path))
+			if action == "done" && !reflect.DeepEqual(got["links"], []any{canvasLink(root, path)}) {
+				t.Fatal(got)
+			}
+		}
+	}
+}
+
+func TestWorkTargetDiskSpelling(t *testing.T) {
+	root := realPath(t, initialized(t))
+	putFile(t, root, ".doan/canvases/Home.html", "canvas")
+	if _, err := os.Stat(filepath.Join(root, ".doan/canvases/home.html")); err != nil {
+		t.Skip("case-sensitive filesystem")
+	}
+	putFile(t, root, ".doan/canvases/한.html", "canvas")
+	entries, err := os.ReadDir(filepath.Join(root, ".doan/canvases"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	korean := ""
+	for _, entry := range entries {
+		if entry.Name() != "Home.html" {
+			korean = entry.Name()
+		}
+	}
+	for input, want := range map[string]string{"home.html": "Home.html", "한.html": korean} {
+		got, err := workTarget(root, ".doan/canvases/"+input)
+		if err != nil || got != ".doan/canvases/"+want {
+			t.Fatalf("%q: %q %v", input, got, err)
+		}
+	}
+}
+
+func TestWorkRejectsDirectoryCaseVariants(t *testing.T) {
+	root := realPath(t, initialized(t))
+	t.Setenv("DOAN_APP_CONVERSATION", "1")
+	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "missing"))
+	failure(t, root, "usage_error", "work", "start", ".DOAN/Canvases/x.html")
 }

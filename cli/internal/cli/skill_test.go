@@ -197,3 +197,19 @@ func TestSkillGuideNamesDesignSystemDirectory(t *testing.T) {
 		}
 	}
 }
+
+func TestSkillGuideWorkLifecycle(t *testing.T) {
+	for _, required := range []string{
+		"I. Before the first edit to a canvas, run `doan work start <canvas path> --json`.",
+		"Run it again when several minutes pass between edits.",
+		"J. Before ending your reply — also when you stop to ask the human — run `doan work done <edited canvas paths> --json`",
+		"put the returned links in your final answer",
+		"`&frame=<percent-encoded frame id>`",
+		"`delivered:false` is not an error: do not report it or retry.",
+		"return `{delivered, links, skipped}`",
+	} {
+		if !strings.Contains(skillBody, required) {
+			t.Errorf("missing work guidance: %s", required)
+		}
+	}
+}
