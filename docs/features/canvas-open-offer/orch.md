@@ -42,3 +42,7 @@
   - A: task `task_d49957c7e72b`, dispatch `ctx_4182d3932f72`, worktree `canvas-open-offer-a`(브랜치 `SinhyeokKang/feat-canvas-open-offer`), launch.effective claude sonnet high.
   - B: task `task_a314f4d4fa44`, dispatch `ctx_d31531f856f6`, worktree `canvas-open-offer-b`(브랜치 `SinhyeokKang/feat-canvas-open-offer-2`), launch.effective claude opus high.
   - C: task `task_7766051f7a77`, dispatch `ctx_4d9116de62c1`, worktree `canvas-open-offer-c`(브랜치 `SinhyeokKang/feat-canvas-open-offer-3`), launch.effective claude sonnet high.
+- A의 T1 커밋 8fbcd5a1을 2fb04f86으로 먼저 통합하고 B·C에 rebase를 알렸다.
+- A 완료: 7a00b57a·6a260575를 602c9849·dfd6a832로 통합했다(작업자 보고: `verify.mjs` PASS, 마지막 한 줄 수정 뒤에는 `go test`·`go vet`만 다시 돌림. 통합 뒤 지휘자가 `go test ./cli/...`·`go vet ./...`을 다시 돌려 통과). 수정 회차에 쓰려고 작업자를 retain했다. C에 CLI가 들어왔다고 알렸다.
+  - handoff의 차이: `not_ready`는 v4 응답의 오류 코드로 두었다. `busy`의 이유는 별도 필드 없이 앱의 message로 넘긴다. `args.go`는 바뀌지 않았다(`--frame`은 `run.go`의 flag). 사람용 한 줄 출력은 새 `Outcome.Text`다. 판정은 RA 결과를 보고 적는다.
+- RA(A 리뷰, Claude Sonnet 서브에이전트)를 시작했다.
