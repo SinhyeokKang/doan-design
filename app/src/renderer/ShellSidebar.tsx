@@ -5,6 +5,7 @@ import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
 import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
+import { sortedCanvases } from "./canvasOrder";
 import { rowProblem, typeaheadNext } from "./canvasTree";
 import { ErrorDetails } from "./ErrorDetails";
 import { displayPath } from "./projectDisplay";
@@ -62,11 +63,6 @@ function SlotMark({ slot }: { slot: Slot | undefined }) {
   if (!slot) return null;
   return <span className={`row-slot ${slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
-const canvasOrder = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
-const sortedCanvases = (rows: CanvasRow[]) => [...rows].sort((a, b) => {
-  const name = (row: CanvasRow) => row.path.split("/").at(-1)!.replace(/\.html$/, "");
-  return canvasOrder.compare(name(a), name(b)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-});
 // Canvas paths start with `.doan/`, so a head's key never equals a canvas row's.
 const headKey = (root: string, group: GroupId) => `${root}\n#${group}`;
 const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };

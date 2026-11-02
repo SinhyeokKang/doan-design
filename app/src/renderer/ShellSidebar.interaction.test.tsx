@@ -161,7 +161,7 @@ it("preserves modifier shortcuts and ordinary navigation around typeahead", () =
   tree.press("Enter"); expect(tree.props.toggle).toHaveBeenCalledWith("Alpine");
 });
 
-it("uses natural filename order for both visible rows and keyboard navigation", () => {
+it("uses natural filename order as the tie-break for rows without an mtime, for both rows and keyboard navigation", () => {
   const { props } = fixture();
   const names = ["Zeta", "foo-bar", "foo", "page10", "page2"];
   props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: names.map(name => ({ path: `.doan/canvases/${name}.html`, url: name })) };
@@ -175,6 +175,34 @@ it("uses natural filename order for both visible rows and keyboard navigation", 
   key(rows[0]!, "ArrowDown");
   expect(targets[1]!.focus).toHaveBeenCalledOnce();
   expect((props.cards[0]!.rows[0] as Extract<FolderEntry, { kind: "list" }>).canvases.map(row => row.url)).toEqual(names);
+});
+
+it("keeps the focused row on the same canvas when an mtime change reorders the list, and typeahead walks the visible order", () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    const { props } = fixture();
+    const canvases = (mtimes: Record<string, number>) => Object.entries(mtimes).map(([name, mtimeMs]) => ({ path: `.doan/canvases/${name}.html`, url: name, mtimeMs }));
+    const render = (mtimes: Record<string, number>) => {
+      props.cards[0]!.rows[0] = { path: "/a", kind: "list", servedRev: 0, canvases: canvases(mtimes) };
+      hooks.cursor = 0;
+      const rendered = elements(ShellSidebar(props));
+      const rows = rendered.filter(item => item["aria-level"] === 3);
+      const host = rendered.find(item => item["aria-label"] === "Projects")!.ref as { current: unknown };
+      const nodes = rows.map(item => ({ dataset: { key: item["data-key"] }, focus: vi.fn() }));
+      host.current = { querySelectorAll: () => nodes };
+      return { rows, nodes };
+    };
+    let view = render({ alpha: 3, beta: 2, apple: 1 });
+    expect(view.rows.map(item => item["aria-label"])).toEqual(["alpha", "beta", "apple"]);
+    key(view.rows[1]!, "ArrowUp"); // focus alpha
+    key(view.rows[0]!, "ArrowDown"); // focus beta
+    view = render({ alpha: 3, beta: 2, apple: 9 });
+    expect(view.rows.map(item => item["aria-label"])).toEqual(["apple", "alpha", "beta"]);
+    expect(view.rows.map(item => item.tabIndex)).toEqual([-1, -1, 0]);
+    key(view.rows[2]!, "a"); // typeahead from beta wraps to the first "a" in visible order
+    expect(view.nodes[0]!.focus).toHaveBeenCalledOnce();
+    expect(view.nodes[1]!.focus).not.toHaveBeenCalled();
+  } finally { now.mockRestore(); }
 });
 
 // buzz-add-projects design '잠금': while the Add Projects page selects or clones, the moves are shown as unavailable
