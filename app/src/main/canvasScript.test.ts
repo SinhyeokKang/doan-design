@@ -652,6 +652,22 @@ describe("canvasScriptSource", () => {
     expect(canvas.posted.map((post) => (post as { message: { viewport: number } }).message.viewport)).toEqual([150, 2500]);
   });
 
+  test("unfreezes the height once when web fonts finish loading", () => {
+    const canvas = fakeCanvas({ height: 7832 });
+    canvas.ready();
+    // Resized to the fallback height, the document measures in the web font before `loadingdone`.
+    canvas.context.innerHeight = 7832;
+    canvas.state.height = 7932;
+    canvas.html.scrollHeight = 7932;
+    canvas.trigger("ResizeObserver");
+    canvas.runFrame();
+    canvas.trigger("ResizeObserver");
+    canvas.runFrame();
+    canvas.fireFonts("loadingdone");
+    canvas.runFrame();
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7832, 7832, 7932]);
+  });
+
   test("starts at once when injected after the document is parsed", () => {
     const canvas = fakeCanvas({ readyState: "interactive" });
     expect(canvas.posted).toHaveLength(1);

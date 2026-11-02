@@ -197,6 +197,7 @@ export function canvasScript(lib: CanvasLib): void {
 
   const post = (message: unknown) => parent.postMessage(message, "*");
   let height: HeightState | null = null;
+  let fontLoads = 0;
   const documentToken = `${Date.now()}-${Math.random()}`;
 
   const frames = () => {
@@ -497,7 +498,7 @@ export function canvasScript(lib: CanvasLib): void {
     const html = document.documentElement;
     const { list, truncated, bottom } = frames();
     const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
-    height = lib.nextHeight(height, measured, innerHeight, 0);
+    height = lib.nextHeight(height, measured, innerHeight, fontLoads);
     // `viewport` lets the renderer drop a layout measured before its last
     // resize of the iframe reached this document.
     const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };
@@ -538,6 +539,12 @@ export function canvasScript(lib: CanvasLib): void {
     void document.fonts.ready.then(() => {
       schedule();
       tryPending();
+    });
+    // Not `ready`: it may already be resolved here, which would count as a load
+    // before the first measurement and miss the first freeze of a chasing document.
+    document.fonts.addEventListener("loadingdone", () => {
+      fontLoads++;
+      schedule();
     });
     send();
   };
