@@ -24,7 +24,7 @@
   - Export: `row.error`가 있으면 비활성이고 이유 한 줄(예: 행 오류 문장과 같은 뜻)을 메뉴 안에 둔다. 같은 캔버스 Export가 진행 중이면 비활성.
   - Move to Trash: 아래 '작업 중 판정'이 참이면 비활성이고 이유 한 줄.
   - 비활성 방식: Radix `disabled`를 쓰지 않는다. `disabled` 항목은 화살표 이동에서 빠져 이유 줄을 키보드·VoiceOver 사용자가 듣지 못한다. `aria-disabled="true"`와 `onSelect`의 `preventDefault`로 포커스는 받되 동작하지 않게 하고, 이유 줄은 항목의 `aria-describedby`로 잇는다(DESIGN 'Locked Back': "`aria-disabled`, not `disabled`, so it keeps its place in the focus order").
-  - 문구 후보: "Export…"(저장 대화상자 입력이 이어진다), "Move to Trash"(확인만 이어진다; 기존 "Remove from Doan"처럼 줄임표 없음, `ShellSidebar.tsx` 78행). 확정은 P1.
+  - 문구: "Export…"(저장 대화상자 입력이 이어진다), "Move to Trash"(확인만 이어진다; 기존 "Remove from Doan"처럼 줄임표 없음, `ShellSidebar.tsx` 78행). 이유 줄은 아래 '문구'.
 - **포커스**: 메뉴를 닫을 때 포커스 복귀는 프로젝트 메뉴의 `onCloseAutoFocus` 규칙을 따른다(216~218행: 대화상자가 열렸거나 포커스가 이미 다른 곳에 있으면 복귀하지 않는다). 대화상자 판정은 클래스가 아니라 `[role="dialog"], dialog[open]`로 한다 — POSTMORTEM 2026-10-30 "Removing a shared dialog class silently disabled two focus guards": "identify a dialog by its rendered role (`dialog[role="alertdialog"]`), not a styling class".
 - **메뉴가 열린 행이 사라질 때**: 프로젝트 메뉴는 `useLayoutEffect`로 메뉴의 root가 없어지면 닫고 `fallback()`으로 포커스를 옮긴다(107~112행). 캔버스 메뉴는 그 행 key가 `rows`에서 없어지면 같은 방식으로 닫는다(다른 프로세스가 파일을 지운 경우). 메뉴가 열린 채 행이 잠기면(`props.locked`) 열림 상태도 닫는다 — POSTMORTEM 2026-11-01 "A frame drawer list closed by a disabled trigger reopened by itself"의 Prevention.
 - **키보드**: 화살표·Home/End·typeahead는 `keyboard()`가 `event.target !== event.currentTarget`이면 무시하므로(114행) 버튼에 포커스가 있을 때는 행 이동이 일어나지 않는다. 프로젝트 행과 같다. Shift+F10·ContextMenu 키는 이번 범위 밖이다.
@@ -85,12 +85,9 @@
 - 대화상자가 열린 동안 그 행이 `rows`에서 사라지면 대화상자를 닫는다. 열린 캔버스였다면 기존 '캔버스가 없어졌다' 토스트 하나로 끝난다. `trashBlock`은 대화상자에서도 live로 다시 계산한다. 참이 되면 Move to Trash 버튼을 `aria-disabled`로 바꾸고 이유 줄을 본문 아래에 보인다. main 재확인은 그대로 경계다.
 - 버튼 크기: DESIGN 'Dialogs'는 대화상자 동작을 기본 크기로 둔다. Remove 확인은 `sm`이라 DESIGN 'Open decisions' 'Remove confirmation actions'에서 미정이다. 이 대화상자는 DESIGN 'Dialogs' 규칙(기본 크기)을 따른다. 초안에서 확인한다.
 - 위험 동작 색: 앱에 destructive 변형이 없다(`ds/*.css`에 `danger` 없음). Remove 확인처럼 `prominent`를 쓴다. 새 변형을 만들지 않는다.
-- 문구 후보(P1에서 clarify 프리셋으로 확정):
-  - 제목: `Move “<stem>” to Trash?`
-  - 본문: `This removes <repo 상대 경로> from the repository[ along with its comments]. You can restore it from the Trash. Commit the change to share it with others.` — 추적하지 않는 캔버스에는 커밋할 변경이 없으므로, 마지막 문장이 그 경우에도 틀리지 않는지 P1에서 본다. "restore"는 휴지통에서 꺼내는 것을 뜻하고 Put Back을 약속하지 않는다(T13에서 확인). clarify의 "name the object and the consequence", "name the action in both the message and the button".
-  - 버튼: `Cancel`, `Move to Trash`.
+- 문구: 아래 '문구'(제목·본문·동작·이유 줄). "restore"는 휴지통에서 꺼내는 것을 뜻하고 Put Back을 약속하지 않는다(T13에서 확인). clarify의 "name the object and the consequence", "name the action in both the message and the button".
 - 진행 중: `trashItem`은 짧지만 비동기다. 확인을 누르면 대화상자를 닫고 결과를 토스트로 알린다(Remove 확인과 같은 흐름). 같은 행의 두 번째 요청은 main이 진행 중 집합으로 거절한다.
-- 토스트 후보: 성공 `Moved “<stem>” to Trash.`; 댓글만 실패 `Moved “<stem>” to Trash, but its comments couldn’t be moved (<.doan/comments/<id>.jsonl>).`; 거절 `Couldn’t move “<stem>” to Trash.` + 이유(작업 중이면 `An agent started working on it.`). 확정은 P1.
+- 토스트: 아래 '문구'(성공, 댓글만 실패, 거절 이유별).
 
 ## Export
 
@@ -175,9 +172,63 @@
 - main이 `dialog.showSaveDialog(win, {defaultPath: "<stem>.html", filters: [{name: "HTML", extensions: ["html"]}]})`를 연다. 폴더는 macOS 저장 패널이 기억하는 마지막 위치를 쓰고, 앱은 따로 기억하지 않는다. 취소하면 아무 일도 없다. macOS 저장 패널이 같은 이름 덮어쓰기를 묻는다. 확인된 경로에 `--force`를 붙여 CLI를 부른다(`cliCommand`가 고른 CLI, `doan export <path> -o <file> --force --repo <root> --json`).
 - 타임아웃: `runCli` 기본 10초(`app/src/main/cli.ts` 6행)는 50 MiB 조립에 짧으므로 `runExport`의 타임아웃은 따로 둔다(값은 구현 때 큰 fixture로 재고 정한다). CLI를 찾지 못하거나, envelope가 아닌 출력·비정상 종료·타임아웃이면 실패 토스트를 띄우고 진행 중 집합에서 뺀다.
 - 출력 경로에 `.doan` 디렉터리가 있으면 CLI가 `usage_error`로 거절하고, 앱은 그 메시지를 토스트로 보인다.
-- 진행 표시: 저장 패널이 닫힌 뒤 CLI가 도는 동안 메뉴 항목이 비활성이다. 1초가 넘으면 토스트 "Exporting “<stem>”…"를 띄운다. 공용 토스트는 하나이고 8초 뒤 사라지며(`toastState.ts` `TOAST_MS`) 다른 토스트가 대체할 수 있다. 그래서 진행 토스트가 사라졌어도 끝나면 결과 토스트가 반드시 뜬다. 진행·결과 토스트가 살아 있는 Undo 토스트(프로젝트 Remove)를 대체하는 것은 공용 토스트의 기존 규칙 그대로다. 확정은 P1·P2.
-- 결과 토스트: 성공 `Exported “<stem>”.` + Show in Finder(`shell.showItemInFolder`, main이 방금 쓴 경로만). `external`이 있으면 "Some images or fonts load from the internet." 같은 한 줄. 실패: CLI `error.message`의 첫 줄을 사람용 문장으로 바꿔 보인다. `export_refused`에는 막힌 참조 수와 첫 참조 하나를 넣고, 에이전트에게 고치게 하라고 말한다(예: `Couldn’t export “x”: 2 files it uses aren’t shown by Doan (../logo.png, …). Ask your agent to fix them.` 같은 뜻). 앱 사용자에게 CLI를 실행시키지 않는다. 토스트와 Show in Finder는 Tab으로 닿으면 타이머가 멈춘다(기존 규칙). 저장 위치는 사람이 이미 골랐으므로 Show in Finder는 편의 기능이다. 확정은 P1.
+- 진행 표시: 저장 패널이 닫힌 뒤 CLI가 도는 동안 메뉴 항목이 비활성이다. 1초가 넘으면 토스트 "Exporting “<stem>”…"를 띄운다. 공용 토스트는 하나이고 8초 뒤 사라지며(`toastState.ts` `TOAST_MS`) 다른 토스트가 대체할 수 있다. 그래서 진행 토스트가 사라졌어도 끝나면 결과 토스트가 반드시 뜬다. 진행·결과 토스트가 살아 있는 Undo 토스트(프로젝트 Remove)를 대체하는 것은 공용 토스트의 기존 규칙 그대로다. 문구는 아래 '문구'.
+- 결과 토스트: 성공 `Exported “<stem>”.` + Show in Finder(`shell.showItemInFolder`, main이 방금 쓴 경로만). `external`이 있으면 인터넷이 필요하다는 한 문장을 더한다. 실패: CLI 오류 코드별 사람용 문장을 보인다. `export_refused`에는 막힌 참조 수와 첫 참조 하나를 넣고, 에이전트에게 고치게 하라고 말한다. 앱 사용자에게 CLI를 실행시키지 않는다. 토스트와 Show in Finder는 Tab으로 닿으면 타이머가 멈춘다(기존 규칙). 저장 위치는 사람이 이미 골랐으므로 Show in Finder는 편의 기능이다. 문구는 아래 '문구'.
 - 동시성: main이 (root, path)별 진행 중 집합을 두고 같은 캔버스의 두 번째 요청은 거절한다.
+
+## 문구
+
+clarify 프리셋으로 정했다. `<stem>`은 사이드바 행 이름(파일 stem), `<path>`는 repo 상대 경로다. 따옴표는 앱의 기존 토스트처럼 둥근 따옴표(“ ”, ’)다.
+
+| 자리 | 문구 |
+|---|---|
+| 행 버튼 접근 이름 | `<stem> menu` |
+| 메뉴 항목 | `Export…`(아이콘 `Download`), `Move to Trash`(아이콘 `Trash2`) |
+| 이유 줄: 작업 중(Move to Trash) | `An agent is working on this canvas.` |
+| 이유 줄: 행 읽기 오류(Export) | `Can’t read this canvas.` |
+| 이유 줄: Export 진행 중(Export) | `Exporting…` |
+| 대화상자 제목 | `Move “<stem>” to Trash?` |
+| 대화상자 본문(댓글 없음) | `This removes <path> from the repository. You can restore it from the Trash. Doan doesn’t commit this change.` |
+| 대화상자 본문(댓글 있음) | `This removes <path> and its comments from the repository. You can restore them from the Trash. Doan doesn’t commit this change.` |
+| 대화상자 동작 | `Cancel`, `Move to Trash` |
+| 대화상자 안 작업 중 이유 줄 | `An agent started working on this canvas. Try again when it finishes.` |
+| 삭제 토스트: 성공 | `Moved “<stem>” to Trash.` |
+| 삭제 토스트: 댓글만 실패 | `Moved “<stem>” to Trash, but its comments couldn’t be moved. They stay at <comments path>.` |
+| 삭제 토스트: 거절 `busy` | `Couldn’t move “<stem>” to Trash. An agent started working on it.` |
+| 삭제 토스트: 거절 `notListed` | `Couldn’t move “<stem>” to Trash. It’s no longer in this project.` |
+| 삭제 토스트: 거절 `notFile` | `Couldn’t move “<stem>” to Trash. It isn’t a regular file.` |
+| 삭제 토스트: 거절 `failed` | `Couldn’t move “<stem>” to Trash. Try again, or move the file in Finder.` |
+| Export 토스트: 진행(1초 뒤) | `Exporting “<stem>”…` |
+| Export 토스트: 성공 | `Exported “<stem>”.` + 동작 `Show in Finder` |
+| Export 토스트: 성공 + 외부 URL | `Exported “<stem>”. Parts of it load from the internet.` + 동작 `Show in Finder` |
+| Export 토스트: `export_refused`(참조 1개) | `Couldn’t export “<stem>”. It uses a file Doan can’t include: <ref>. Ask your agent to fix it.` |
+| Export 토스트: `export_refused`(참조 n개) | `Couldn’t export “<stem>”. It uses <n> files Doan can’t include, starting with <ref>. Ask your agent to fix them.` |
+| Export 토스트: `export_refused`(참조 없는 이유: 파싱 실패, `doan:width` 없음) | `Couldn’t export “<stem>”. Doan can’t read this canvas. Ask your agent to run doan check.` |
+| Export 토스트: `export_too_large` | `Couldn’t export “<stem>”. The file would be over 50 MB. The largest file it uses is <path>.` |
+| Export 토스트: 출력 폴더가 `.doan` 안 | `Couldn’t export “<stem>”. Choose a folder outside .doan.` |
+| Export 토스트: 그 밖의 실패(CLI 없음, 비정상 종료, 타임아웃, 쓰기 실패) | `Couldn’t export “<stem>”. Try again.` |
+| viewer 탭 제목 | `<stem>` |
+| viewer 헤더 | 캔버스 이름 `<stem>`, `/`, frame drawer 버튼(`<n>. <frame>` 또는 `Frames`), 확대 컨트롤(`Zoom out`, `<p>%`, `Zoom in`) |
+| viewer 확대 메뉴 | `Fit`(⇧1), `100%`(⇧0), `50%`, `200%` |
+| viewer drawer: 프레임 0개 | `No frames`(비활성 버튼) |
+| viewer drawer: 1,000개 넘음 | `Showing the first 1,000 frames. <n> more aren’t listed.` |
+| viewer `<noscript>` | `This preview shows the top of the canvas. Open the file in a web browser to see all of it and its frames.` |
+
+- 작업 중 이유 줄은 메뉴(행이 좁다)에서 짧은 문장, 대화상자(열린 사이 바뀐 상태)에서 회복까지 말하는 문장이다.
+- 커밋 문장 `Doan doesn’t commit this change.`는 추적하지 않는 캔버스에서도 참이다. 되살리기 문장은 Put Back을 약속하지 않는다.
+- `export_refused`의 `<ref>`는 CLI 메시지의 첫 참조 href 그대로이고 절대 경로가 없다(design 'CLI 명령' 5).
+- 앱 사용자에게 CLI를 실행시키지 않는다. 고치는 일은 에이전트에게 맡기라고 말한다.
+
+## 초안 요청 (P2)
+
+- 캔버스 `.doan/canvases/canvas-row-menu.html`, id `canvas-row-menu`, 폭 2000.
+- 프레임 다섯 개(spec 결정 10, tasks P2의 (1)~(5)):
+  - `row-button` — 캔버스 행 버튼: 평소, hover, 행 키보드 포커스, 버튼 포커스, 메뉴 열림, 잠김, 스피너·권한·알림 dot 상태 자리와 함께, 읽기 오류 행, 하위 디렉터리 행. 비교용으로 '항상 보임'(프로젝트 행 규칙) 한 장. `data-doan-implements="app/src/renderer/ShellSidebar.tsx"`.
+  - `row-menu` — 메뉴: 기본, Move to Trash 비활성(작업 중), Export 비활성(행 오류), Export 비활성(진행 중). `ShellSidebar.tsx`.
+  - `trash-dialog` — Alert Dialog: 댓글 없음, 댓글 있음, 열린 사이 작업이 시작됨, 긴 이름·경로. 확인 뒤 삭제 토스트도 이 프레임에 둔다. `App.tsx`.
+  - `export-toast` — Export 토스트: 진행, 성공, 성공 + 외부 URL, 실패 종류별. `App.tsx`.
+  - `viewer-shell` — 내보낸 파일의 viewer: 기본(Fit), drawer 열림, 확대 메뉴 열림, 프레임 0개, 1,000개 넘음, JavaScript 없음. 구현 파일이 아직 없으므로 `data-doan-implements`를 두지 않는다.
+- 행 버튼 배치는 제안이다(위 '행 버튼과 메뉴'). 사용자가 앱에서 초안을 보고 확정한다.
 
 ## 순수 함수 (`/tdd` 대상)
 
