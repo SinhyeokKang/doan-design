@@ -1915,3 +1915,40 @@ test("folder revisions renew active work and the main timer expires it without p
     expect(mocks.shell.rereadAll).not.toHaveBeenCalled();
   } finally { vi.useRealTimers(); }
 });
+
+test("work deadlines use one timeout and file changes stay within their root", () => {
+  vi.useFakeTimers();
+  const timeout = vi.spyOn(globalThis, "setTimeout");
+  const interval = vi.spyOn(globalThis, "setInterval");
+  try {
+    const state = mocks.startRuntime.mock.calls[0]?.[1];
+    if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+    const changed = mocks.startShell.mock.calls[0]?.[2];
+    if (typeof changed !== "function") throw new Error("no folder listener");
+    const path = ".doan/canvases/shared.html";
+    const entries = (rev: number) => [
+      { path: "/repo", kind: "list", canvases: [{ path, rev }] },
+      { path: "/other", kind: "list", canvases: [{ path, rev: 1 }] },
+    ];
+    changed(entries(1));
+    const baseline = vi.getTimerCount();
+    for (const root of ["/repo", "/other"]) state.work({ v: 3, token: "t", root, action: "start", path });
+    expect(interval).not.toHaveBeenCalled();
+    expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 300_000);
+    expect(vi.getTimerCount()).toBe(baseline + 1);
+    vi.advanceTimersByTime(200_000);
+    changed(entries(2));
+    expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 100_000);
+    expect(vi.getTimerCount()).toBe(baseline + 1);
+    vi.advanceTimersByTime(100_000);
+    expect(invoke("work:get", window().webContents, null)).toEqual([{ root: "/repo", path, session: null, provider: null }]);
+    expect(timeout).toHaveBeenLastCalledWith(expect.any(Function), 200_000);
+    vi.advanceTimersByTime(200_000);
+    expect(invoke("work:get", window().webContents, null)).toEqual([]);
+    expect(vi.getTimerCount()).toBe(baseline);
+    state.work({ v: 3, token: "t", root: "/repo", action: "start", path });
+    expect(vi.getTimerCount()).toBe(baseline + 1);
+    mocks.app.emit("will-quit");
+    expect(vi.getTimerCount()).toBe(baseline);
+  } finally { timeout.mockRestore(); interval.mockRestore(); vi.useRealTimers(); }
+});
