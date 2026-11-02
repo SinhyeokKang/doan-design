@@ -45,7 +45,9 @@ func identByte(c byte) bool {
 }
 
 func cssEscape(s string) string {
-	return strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\a `, "\r", `\d `, "\f", `\c `).Replace(s)
+	// "<" is escaped so a value written into <style> text cannot
+	// close the element ("</style>") however it was spelled in the source.
+	return strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\a `, "\r", `\d `, "\f", `\c `, "<", `\3c `).Replace(s)
 }
 
 // srcsetSpans returns the URL spans of a srcset value, following the HTML
@@ -228,7 +230,8 @@ func rewriteHTML(src []byte, url func(kind refKind, href string) (string, bool),
 				out.Write(raw)
 				continue
 			}
-			style = tok.Data == "style" && tt == html.StartTagToken
+			// The parser ignores the self-closing flag: <style/> starts raw text too.
+			style = tok.Data == "style"
 			if tag, ok := rewriteTag(tok, url, css); ok {
 				out.WriteString(tag)
 			} else {

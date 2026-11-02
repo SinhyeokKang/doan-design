@@ -60,7 +60,7 @@ func TestDataURIContexts(t *testing.T) {
 	for _, body := range texts {
 		for _, mime := range []string{"text/css; charset=utf-8", "image/svg+xml", "image/png"} {
 			uri := dataURI(mime, body)
-			if strings.ContainsAny(uri, " \t\n\r\f\"\\") {
+			if strings.ContainsAny(uri, " \t\n\r\f\"\\<") {
 				t.Errorf("%s: unsafe byte in %q", mime, uri)
 			}
 			if len(body) > 0 && strings.HasSuffix(uri, ",") {

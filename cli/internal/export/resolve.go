@@ -88,24 +88,33 @@ var errNotRegular = errors.New("not a regular file")
 // after resolution fails instead of leading the read outside the scope (the
 // same purpose as the app server's O_NOFOLLOW_ANY).
 func ReadFile(root, rel string) ([]byte, error) {
+	data, _, err := readFile(root, rel, -1)
+	return data, err
+}
+
+var errOverLimit = errors.New("over the size limit")
+
+// readFile is ReadFile that, when max >= 0, returns errOverLimit with the
+// file's size instead of reading a file larger than max bytes.
+func readFile(root, rel string, max int64) ([]byte, int64, error) {
 	absolute, err := filepath.Abs(root)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	realRoot, err := filepath.EvalSymlinks(absolute)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	parts := strings.Split(rel, "/")
 	for _, part := range parts {
 		if part == "" || part == "." || part == ".." {
-			return nil, &os.PathError{Op: "open", Path: rel, Err: os.ErrInvalid}
+			return nil, 0, &os.PathError{Op: "open", Path: rel, Err: os.ErrInvalid}
 		}
 	}
 	dirs := append(strings.Split(strings.TrimPrefix(realRoot, "/"), "/"), parts[:len(parts)-1]...)
 	fd, err := unix.Open("/", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	for _, part := range dirs {
 		if part == "" {
@@ -114,7 +123,7 @@ func ReadFile(root, rel string) ([]byte, error) {
 		next, err := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		unix.Close(fd)
 		if err != nil {
-			return nil, &os.PathError{Op: "open", Path: rel, Err: err}
+			return nil, 0, &os.PathError{Op: "open", Path: rel, Err: err}
 		}
 		fd = next
 	}
@@ -122,20 +131,23 @@ func ReadFile(root, rel string) ([]byte, error) {
 	last, err := unix.Openat(fd, parts[len(parts)-1], unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 	unix.Close(fd)
 	if err != nil {
-		return nil, &os.PathError{Op: "open", Path: rel, Err: err}
+		return nil, 0, &os.PathError{Op: "open", Path: rel, Err: err}
 	}
 	file := os.NewFile(uintptr(last), path.Base(rel))
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if !info.Mode().IsRegular() {
-		return nil, &os.PathError{Op: "open", Path: rel, Err: errNotRegular}
+		return nil, 0, &os.PathError{Op: "open", Path: rel, Err: errNotRegular}
+	}
+	if max >= 0 && info.Size() > max {
+		return nil, info.Size(), errOverLimit
 	}
 	data := make([]byte, info.Size())
 	if _, err := io.ReadFull(file, data); err != nil {
-		return nil, &os.PathError{Op: "read", Path: rel, Err: err}
+		return nil, 0, &os.PathError{Op: "read", Path: rel, Err: err}
 	}
-	return data, nil
+	return data, info.Size(), nil
 }

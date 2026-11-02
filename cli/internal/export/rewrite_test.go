@@ -53,8 +53,8 @@ func TestRewriteCSS(t *testing.T) {
 }
 
 func TestRewriteCSSEscapesReplacement(t *testing.T) {
-	got := rewriteCSS("a{b:url(x)}", canvas.Stylesheet, func(string, refKind) (string, bool) { return "https://x/\"q\"\\\n", true })
-	if want := `a{b:url("https://x/\"q\"\\\a ")}`; got != want {
+	got := rewriteCSS("a{b:url(x)}", canvas.Stylesheet, func(string, refKind) (string, bool) { return "https://x/\"q\"\\\n</style>", true })
+	if want := `a{b:url("https://x/\"q\"\\\a \3c /style>")}`; got != want {
 		t.Errorf("got %s, want %s", got, want)
 	}
 }
@@ -184,5 +184,17 @@ func TestRewriteSrcsetKeepsAnEmptyDataURIWhole(t *testing.T) {
 	got := rewriteSrcset("a.png 1x, b.png 2x", func(u string) (string, bool) { return uri, u == "a.png" })
 	if want := uri + "# 1x, b.png 2x"; got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// <style/> is still a raw-text start tag for the parser.
+func TestRewriteHTMLSelfClosingStyle(t *testing.T) {
+	var seen []string
+	rewriteHTML([]byte(`<style/>.a{background:url(x.png)}</style>`), func(refKind, string) (string, bool) { return "", false }, func(text string, mode canvas.Mode) string {
+		seen = append(seen, text)
+		return text
+	})
+	if !reflect.DeepEqual(seen, []string{".a{background:url(x.png)}"}) {
+		t.Errorf("seen = %q", seen)
 	}
 }
