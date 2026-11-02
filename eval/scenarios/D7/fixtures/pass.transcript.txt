@@ -1,4 +1,0 @@
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"doan skill"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"doan design-skill harden --json"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"doan design-skill clarify --json"}}]}}
-{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"doan check --json"}}]}}

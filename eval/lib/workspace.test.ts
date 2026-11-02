@@ -13,8 +13,8 @@ const root = mkdtempSync(join(tmpdir(), "doan-workspace-"));
 const cli = join(root, "doan");
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
-// R6 has a seed with comments and no selection; only `worktree` differs between the cases.
-const r6 = () => loadScenario(join(import.meta.dirname, "../scenarios"), "R6");
+// R6b has a seed with comments and no selection; only `worktree` differs between the cases.
+const r6 = () => loadScenario(join(import.meta.dirname, "../scenarios"), "R6b");
 const git = (dir: string, args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
 
 test("without worktree the agent works in the instruction's root", async () => {

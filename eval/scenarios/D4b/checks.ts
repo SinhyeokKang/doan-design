@@ -1,5 +1,5 @@
 import type { Checks } from "../../lib/types.ts";
-import d4 from "../D4/checks.ts";
+import d4 from "./base.ts";
 import { otherDoanCheck, sourceReadCheck } from "../D1/presets.ts";
 
 // D4, with `go run`/`go build` of the doan command counted as another binary

@@ -1,1 +1,0 @@
-Initialize this repository for Doan with `doan init`; the token CSS is styles/tokens.css. Then get the project ready for design work: we want a design system reference that agents and reviewers can follow. Put the rules document at DESIGN.md in the repository root. If something needs my decision, mark it as open instead of waiting for me.

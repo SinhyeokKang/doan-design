@@ -1,8 +1,0 @@
-{
-  "id": "D11",
-  "title": "Reuse a sufficient design system instead of regenerating it",
-  "focus": "preset",
-  "init": null,
-  "selection": null,
-  "timeoutSec": 900
-}

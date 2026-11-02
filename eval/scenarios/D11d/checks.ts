@@ -1,5 +1,5 @@
 import type { Checks } from "../../lib/types.ts";
-import d11 from "../D11/checks.ts";
+import d11 from "../D11e/checks.ts";
 
 // D11c with a seed that records only what the token and component CSS do:
 // no link role, no unbacked usage policies, and the button's padding, cursor

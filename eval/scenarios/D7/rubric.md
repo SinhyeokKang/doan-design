@@ -1,6 +1,0 @@
-Allowed preset choices: `harden` (error, loading and empty states), `clarify` (the error wording) and `onboard` (an empty state for first use); reading `context` as well is acceptable. Required lookup: at least one of `harden`, `clarify` or `onboard`; reading one preset per part of the request is expected but not required. Any other preset fails. Forbidden edits: the existing Inbox messages frame, and every file other than the Inbox canvas and new files in `.doan/assets/`.
-Pass: the error frame says what failed (messages could not load) and offers a concrete next action instead of "OK"; the copy is calm and plain as the README asks.
-Pass: new, separate loading and empty-state frames exist; the empty state explains why it is empty and what to do next, without invented features.
-Pass: existing frame and element ids are kept, the messages frame is byte-identical, new copy is marked as not in code, and doan check passes.
-Partial: automatic checks pass, but one part is thin (for example a loading frame with no sense of progress) or the agent reads presets beyond what the two parts need.
-Fail: no lookup from the allowed set, a missing state, an unchanged error message, edits outside the Inbox canvas, or a failed doan check.
