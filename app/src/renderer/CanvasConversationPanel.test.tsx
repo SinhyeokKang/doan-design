@@ -51,7 +51,7 @@ async function panel(list: ListView, setup: (run: CanvasRun) => void = () => {},
   const props: CanvasConversationProps = {
     run, support: new DockedSupport(() => {}), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
     list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), ...patch,
+    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], ...patch,
   };
   return renderToStaticMarkup(<TooltipProvider>{<CanvasConversation {...props} /> as ReactElement}</TooltipProvider>);
 }
@@ -71,6 +71,32 @@ test("a canvas with a terminal session offers it first, with the time doan check
   expect(out).toContain("<strong>Start a new conversation</strong><small>Uses Doan’s sign-in and your Settings defaults</small>");
   expect(out).toContain('aria-label="Model: set by the terminal session (Codex)"');
   expect(out).toContain('aria-placeholder="Reply, / for presets"');
+});
+
+// terminal-agent-activity (draft resume-disabled): while the linked session works in a terminal, its choice is disabled
+// with the reason as its described line, and a new conversation is the mode, even over a resume chosen before.
+test("a terminal session still working holds its choice with the reason; the composer starts a new conversation", async () => {
+  resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" };
+  const work = [{ session: "s1", provider: "codex" as const, root: "/w/other", path: ".doan/canvases/x.html" }];
+  const out = await panel([], run => run.choose("resume"), { work });
+  const card = out.match(/<label class="doan-panel ob-choice"[^>]*data-disabled=""[^>]*>.*?<\/label>/)?.[0] ?? "";
+  expect(card).toContain("<strong>Continue the Codex session from your terminal</strong>");
+  const id = card.match(/<small id="([^"]+)">Still working in your terminal\. You can continue it when it finishes\.<\/small>/)?.[1];
+  expect(id).toBeTruthy();
+  expect(card).toMatch(new RegExp(`<input type="radio" name="canvas-resume" disabled="" aria-describedby="${id}"/>`));
+  expect(card).not.toContain("Linked by doan check");
+  expect(out).toMatch(/<input type="radio" name="canvas-resume" checked=""\/><span class="ob-radio" aria-hidden="true"><\/span><span class="ob-choice-text"><strong>Start a new conversation<\/strong>/);
+  expect(out).not.toContain("set by the terminal session");
+  expect(out).toContain('aria-placeholder="Ask, / for presets"');
+});
+
+test("another session, or an anonymous one, working in a terminal leaves the choice as it is", async () => {
+  resume = { available: true, runtime: "codex", lastCheckAt: "2026-11-01T14:02:00", session: "s1" };
+  const work = [{ session: "s2", provider: "codex" as const, root: ROOT, path: CANVAS.path }, { session: null, provider: null, root: ROOT, path: CANVAS.path }];
+  const out = await panel([], () => {}, { work });
+  expect(out).not.toContain("data-disabled");
+  expect(out).toContain("<small>Linked by doan check at 14:02</small>");
+  expect(out).toContain('aria-label="Model: set by the terminal session (Codex)"');
 });
 
 // permission-mode U1, RV-B ⚪6: a terminal session's mode is its own; the tray shows the fixed trigger, never the picker.

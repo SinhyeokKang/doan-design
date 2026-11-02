@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { WorkItem } from "../main/workState";
 import type { AgentPresence } from "./agentPresence";
 import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, stopFailedText, stopTurn, workingCanvas } from "./agentIndicator";
 
@@ -52,27 +53,27 @@ describe("listForPresence", () => {
 describe("canvasAgent", () => {
   const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
   test("carries the provider's display name for the Stop failure toast", () => {
-    expect(canvasAgent([summary({})], target, null)).toEqual({ root: "/w/a", presence: working, provider: "Codex" });
+    expect(canvasAgent([summary({})], target, null, [])).toEqual({ root: "/w/a", presence: working, provider: "Codex" });
   });
   test("a failed read keeps the previous presence and its provider", () => {
-    const previous = canvasAgent([summary({})], target, null);
-    expect(canvasAgent(null, target, previous)).toEqual(previous);
+    const previous = canvasAgent([summary({})], target, null, []);
+    expect(canvasAgent(null, target, previous, [])).toEqual(previous);
   });
   test("the turn's end clears it", () => {
-    const previous = canvasAgent([summary({})], target, null);
-    expect(canvasAgent([summary({ phase: "ended" })], target, previous)).toBeNull();
+    const previous = canvasAgent([summary({})], target, null, []);
+    expect(canvasAgent([summary({ phase: "ended" })], target, previous, [])).toBeNull();
   });
   test("another canvas's conversation shows nothing", () => {
-    expect(canvasAgent([summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], target, null)).toBeNull();
+    expect(canvasAgent([summary({ canvas: { path: ".doan/canvases/other.html", id: "other" } })], target, null, [])).toBeNull();
   });
   test("a project conversation shows nothing", () => {
     const { canvas: _c, ...project } = summary({});
-    expect(canvasAgent([project], target, null)).toBeNull();
+    expect(canvasAgent([project], target, null, [])).toBeNull();
   });
   test("no canvas (unlisted page, project problem) shows nothing even with a kept presence", () => {
-    const previous = canvasAgent([summary({})], target, null);
-    expect(canvasAgent([summary({})], null, previous)).toBeNull();
-    expect(canvasAgent(null, null, previous)).toBeNull();
+    const previous = canvasAgent([summary({})], target, null, []);
+    expect(canvasAgent([summary({})], null, previous, [])).toBeNull();
+    expect(canvasAgent(null, null, previous, [])).toBeNull();
   });
   // RBR5 🔴1: worktrees of one repository share canvas ids and paths, so a kept presence must not cross roots. Opening
   // B's twin canvas while B's list is still loading or failed must not offer A's Stop.
@@ -80,48 +81,104 @@ describe("canvasAgent", () => {
     const b = { root: "/w/b", canvas: target.canvas };
     for (const [name, state] of [["loading", "loading"], ["failed", "error"]] as const) {
       test(`A → B with B's list ${name}, matching ids: nothing from A`, () => {
-        const previous = canvasAgent([summary({})], target, null);
-        const after = canvasAgent(listForPresence(state), b, previous);
+        const previous = canvasAgent([summary({})], target, null, []);
+        const after = canvasAgent(listForPresence(state), b, previous, []);
         expect(after).toBeNull();
-        expect(agentNoticeView(after?.presence ?? null, null)).toBeNull();
+        expect(agentNoticeView(after?.presence ?? null, null, false)).toBeNull();
       });
       test(`A → B with B's list ${name}, id-less canvases at the same path: nothing from A`, () => {
         const bare = { path: row.path };
-        const previous = canvasAgent([summary({ canvas: bare })], { root: "/w/a", canvas: bare }, null);
-        expect(previous?.presence.conversationId).toBe("c1");
-        expect(canvasAgent(listForPresence(state), { root: "/w/b", canvas: bare }, previous)).toBeNull();
+        const previous = canvasAgent([summary({ canvas: bare })], { root: "/w/a", canvas: bare }, null, []);
+        expect(previous?.presence?.conversationId).toBe("c1");
+        expect(canvasAgent(listForPresence(state), { root: "/w/b", canvas: bare }, previous, [])).toBeNull();
       });
     }
     test("B's own read decides B; A's presence does not come back on returning to A with a failed read", () => {
-      const inA = canvasAgent([summary({})], target, null);
-      const inB = canvasAgent(listForPresence("error"), b, inA);
+      const inA = canvasAgent([summary({})], target, null, []);
+      const inB = canvasAgent(listForPresence("error"), b, inA, []);
       expect(inB).toBeNull();
-      expect(canvasAgent(listForPresence("error"), target, inB)).toBeNull();
+      expect(canvasAgent(listForPresence("error"), target, inB, [])).toBeNull();
     });
     test("within one project a moved canvas keeps its presence across a failed read (id match)", () => {
-      const previous = canvasAgent([summary({})], target, null);
+      const previous = canvasAgent([summary({})], target, null, []);
       const moved = { root: "/w/a", canvas: { path: ".doan/canvases/archive/billing.html", id: "billing" } };
-      expect(canvasAgent(null, moved, previous)?.presence.conversationId).toBe("c1");
+      expect(canvasAgent(null, moved, previous, [])?.presence?.conversationId).toBe("c1");
     });
+  });
+});
+
+// terminal-agent-activity design '표시' (canvas page): a terminal session's `doan work` on the open canvas shows the same
+// indicator without Stop; an app conversation on the canvas wins. Identity is root + path (POSTMORTEM 2026-11-01).
+describe("canvasAgent with terminal sessions", () => {
+  const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
+  const b = { root: "/w/b", canvas: target.canvas };
+  const work = (root: string, provider: WorkItem["provider"] = "claude"): WorkItem => ({ root, path: row.path, provider, session: provider ? "s1" : null });
+  const terminal = (root: string) => ({ root, presence: null, terminal: true });
+  test("a terminal session on the canvas shows the indicator: the app notice's text, no button", () => {
+    expect(canvasAgent([], target, null, [work("/w/a")])).toEqual(terminal("/w/a"));
+    expect(agentNoticeView(null, null, true)).toEqual({ text: "Agent is working", steady: false, action: null });
+  });
+  test("an anonymous session shows it too, and a failed or loading list does not hide it", () => {
+    expect(canvasAgent([], target, null, [work("/w/a", null)])).toEqual(terminal("/w/a"));
+    expect(canvasAgent(listForPresence("error"), target, null, [work("/w/a")])).toEqual(terminal("/w/a"));
+    expect(canvasAgent(listForPresence("loading"), target, null, [work("/w/a")])).toEqual(terminal("/w/a"));
+  });
+  test("an app conversation working or waiting on the same canvas wins, with its Stop or Open", () => {
+    expect(canvasAgent([summary({})], target, null, [work("/w/a")])).toEqual({ root: "/w/a", presence: working, provider: "Codex" });
+    expect(canvasAgent([summary({ phase: "waiting" })], target, null, [work("/w/a")])?.presence).toEqual(waiting);
+  });
+  test("when the app turn ends and the terminal session remains, the indicator stays and only Stop goes", () => {
+    const app = canvasAgent([summary({})], target, null, [work("/w/a")]);
+    const after = canvasAgent([summary({ phase: "ended", working: false })], target, app, [work("/w/a")]);
+    expect(after).toEqual(terminal("/w/a"));
+    const before = agentNoticeView(app!.presence, null, false), now = agentNoticeView(after!.presence, null, true);
+    expect(now?.text).toBe(before?.text);
+    expect(now?.action).toBeNull();
+  });
+  test("a failed read keeps the app conversation's presence over a terminal session", () => {
+    const app = canvasAgent([summary({})], target, null, [work("/w/a")]);
+    expect(canvasAgent(null, target, app, [work("/w/a")])).toEqual(app);
+  });
+  test("the terminal session's end clears it", () => {
+    const shown = canvasAgent([], target, null, [work("/w/a")]);
+    expect(canvasAgent([], target, shown, [])).toBeNull();
+  });
+  test("worktrees sharing the path: the session shows only in its own root, across switches back and forth", () => {
+    const items = [work("/w/a")];
+    const inA = canvasAgent([], target, null, items);
+    expect(inA).toEqual(terminal("/w/a"));
+    const inB = canvasAgent([], b, inA, items);
+    expect(inB).toBeNull();
+    expect(canvasAgent([], target, inB, items)).toEqual(terminal("/w/a"));
+    expect(canvasAgent([], b, null, [work("/w/b")])).toEqual(terminal("/w/b"));
+  });
+  test("A's app conversation, kept across B's failed read, never shows in B; B's own terminal session does", () => {
+    const inA = canvasAgent([summary({})], target, null, []);
+    expect(canvasAgent(listForPresence("error"), b, inA, [work("/w/a")])).toBeNull();
+    expect(canvasAgent(listForPresence("error"), b, inA, [work("/w/b")])).toEqual(terminal("/w/b"));
+  });
+  test("another canvas's session and no canvas show nothing", () => {
+    expect(canvasAgent([], target, null, [{ ...work("/w/a"), path: ".doan/canvases/other.html" }])).toBeNull();
+    expect(canvasAgent([], null, null, [work("/w/a")])).toBeNull();
   });
 });
 
 describe("agentNoticeView", () => {
   test("nothing to show without a presence", () => {
-    expect(agentNoticeView(null, null)).toBeNull();
+    expect(agentNoticeView(null, null, false)).toBeNull();
   });
   test("working: the moving dot, the label and Stop", () => {
-    expect(agentNoticeView(working, null)).toEqual({ text: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
+    expect(agentNoticeView(working, null, false)).toEqual({ text: "Agent is working", steady: false, action: { kind: "stop", label: "Stop", disabled: false } });
   });
   test("after Stop: 'Stopping…', unavailable but still focusable", () => {
-    expect(agentNoticeView(working, "c1")?.action).toEqual({ kind: "stop", label: "Stopping…", disabled: true });
+    expect(agentNoticeView(working, "c1", false)?.action).toEqual({ kind: "stop", label: "Stopping…", disabled: true });
   });
   test("a Stop pressed for another conversation does not hold this one", () => {
-    expect(agentNoticeView(working, "c0")?.action).toEqual({ kind: "stop", label: "Stop", disabled: false });
+    expect(agentNoticeView(working, "c0", false)?.action).toEqual({ kind: "stop", label: "Stop", disabled: false });
   });
   test("waiting: a still dot and Open, named for the request; no Stop", () => {
-    expect(agentNoticeView(waiting, null)).toEqual({ text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
-    expect(agentNoticeView(waiting, "c1")?.action.kind).toBe("open");
+    expect(agentNoticeView(waiting, null, false)).toEqual({ text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } });
+    expect(agentNoticeView(waiting, "c1", false)?.action?.kind).toBe("open");
   });
 });
 
