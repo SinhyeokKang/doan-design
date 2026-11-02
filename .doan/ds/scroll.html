@@ -13,7 +13,7 @@
 </head>
 <body>
 <main class="dsc">
-<header class="dsc-head"><h1>scroll</h1><p><code>.doan-scroll</code>: a thin native scrollbar (<code>--scrollbar-thumb-quiet</code> on a transparent track); <code>.doan-menu</code> scrolls the same way. Scroll containers keep native scrolling; Radix ScrollArea is not used. The box, its overflow and its rows are canvas content. With overlay scrollbars the thumb shows only while scrolling.</p></header>
+<header class="dsc-head"><h1>scroll</h1><p><code>.doan-scroll</code>: a thin native scrollbar (<code>--scrollbar-thumb-quiet</code> on a transparent track); <code>.doan-menu</code> uses the same quiet thumb through <code>::-webkit-scrollbar</code> parts, with its track inset by the menu's corner radius. Scroll containers keep native scrolling; Radix ScrollArea is not used. The box, its overflow and its rows are canvas content. With overlay scrollbars the thumb shows only while scrolling.</p></header>
 <section class="dsc-frame" data-doan-frame="scroll" data-doan-title="Thin scrollbar" data-doan-implements="app/src/renderer/ds/surfaces.css">
 <h2>Thin scrollbar</h2>
 <div class="box doan-scroll"><p>Row 1</p><p>Row 2</p><p>Row 3</p><p>Row 4</p><p>Row 5</p><p>Row 6</p><p>Row 7</p><p>Row 8</p><p>Row 9</p><p>Row 10</p><p>Row 11</p><p>Row 12</p><p>Row 13</p><p>Row 14</p></div>
