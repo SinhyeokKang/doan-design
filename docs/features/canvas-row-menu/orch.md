@@ -28,6 +28,7 @@
 - sprite의 자체 로컬 참조와 `<style>`(RA1-fix1 ⚪1): 자체 참조는 sprite 디렉터리 기준으로 같은 규칙을 거치거나 거절한다. sprite 안 `<style>`은 inline하면 캔버스 전체에 적용되므로 거절한다. — 지휘자 재량.
 - `EXPORT_TIMEOUT_MS`: A2 측정 최악 15.7 s(한 디렉터리 자산 5,000개)라 120 s를 그대로 둔다(약 7배 여유, 느린 기기 여유). 'Provisional' 주석만 측정 근거로 바꾼다(C2 수정 회차). — 지휘자 재량, RA2 권고.
 - `repo.Resolve` → `diskSpelling`이 참조마다 디렉터리 전체를 읽는 O(참조 × 항목) 비용과 24 MiB CSS의 1.4 GB RSS는 이번에 고치지 않고 BACKLOG에 적는다(Z1). 최악도 타임아웃 안이다. — 지휘자 재량.
+- 가이드 예산(A2 질문): `--json`과 출력 위치를 넣은 export 줄이 예산을 17 B 넘는다. `doan open` 줄의 "A bundled CLI starts a closed Doan once."를 지운다. 같은 사실은 Onboarding 1단계의 "Only `doan open` also opens the app"에 남고, `skill_test.go`는 그 문장을 고정한다. 링크 6이 그 Onboarding 문장을 고칠 때 이 사실을 지키도록 chain.md 인계에 적는다. — 지휘자 재량.
 - 사용량(링크 5 시작): Claude 7일 80%(2026-11-04 13:59 KST 초기화). Opus는 판단이 무거운 배치(A1, C1, C2)에만 쓴다.
 
 ## 배치
