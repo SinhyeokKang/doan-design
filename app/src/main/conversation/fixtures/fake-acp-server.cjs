@@ -5,11 +5,12 @@
 // with that protocol version, "no-session" answers session/new without a session ID, "exit-init" exits at initialize.
 // FAKE_ACP_MODELS (JSON) is the `models` member of the session/new and session/load results, in the shape the
 // buzz-home P1 PoC recorded; FAKE_ACP_LOG names a file that receives every client line; FAKE_ACP_NO_IMAGE answers
-// initialize with promptCapabilities.image false.
+// initialize with promptCapabilities.image false. FAKE_ACP_SESSION (JSON) adds members such as `modes` and
+// `configOptions` to the session/new and session/load results.
 const readline = require("node:readline");
 const fixture = require(process.argv[2]);
 const mode = process.env.FAKE_ACP ?? "";
-const models = process.env.FAKE_ACP_MODELS ? { models: JSON.parse(process.env.FAKE_ACP_MODELS) } : {};
+const models = { ...(process.env.FAKE_ACP_MODELS ? { models: JSON.parse(process.env.FAKE_ACP_MODELS) } : {}), ...(process.env.FAKE_ACP_SESSION ? JSON.parse(process.env.FAKE_ACP_SESSION) : {}) };
 const sessionId = fixture.turn[0].params.sessionId;
 const send = value => process.stdout.write(JSON.stringify(value) + "\n");
 let waiting = null, rejected = new Set(), promptId = null, step = 0;

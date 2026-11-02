@@ -35,7 +35,7 @@ function home(dir: string, models?: ModelOption[], canvases: { path: string }[] 
   const prepare = vi.fn<Prepare>(async request => ({ runtime: request.runtime ?? "claude", configDir: "/profile", cwd: "/repo", command: "/fake", env: {} }));
   const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
   const start = vi.spyOn(service, "start");
-  const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => models ?? []);
+  const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => ({ models: models ?? [] }));
   const attachments = { resolve: vi.fn(), markSent: vi.fn(), consume: vi.fn() };
   const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
   return { handle, start, prepare, catalog, attachments, service };
@@ -147,6 +147,15 @@ describe("validateSendExtras", () => {
     expect(check({ runtime: "claude" })).toEqual({ error: "bad_request" });
     expect(check({ provider: "codex", model: "sonnet" })).toEqual({ error: "bad_request" });
   });
+  it("accepts only the common permission mode ids, without a model list", () => {
+    for (const permissionMode of ["default", "acceptEdits", "plan", "bypass"]) expect(check({ permissionMode })).toEqual({ permissionMode, ids: [] });
+    expect(check({ model: "sonnet", permissionMode: "plan" })).toEqual({ model: "sonnet", permissionMode: "plan", ids: [] });
+    for (const permissionMode of ["bypassPermissions", "auto", "", 1, null, "Plan"]) expect(check({ permissionMode })).toEqual({ error: "bad_request" });
+  });
+  it("refuses a permission mode on a legacy external conversation", () => {
+    expect(check({ permissionMode: "plan" }, "legacy-external")).toEqual({ error: "bad_request" });
+    expect(check({ permissionMode: "default" }, "legacy-external")).toEqual({ error: "bad_request" });
+  });
   it("refuses any of the three on a legacy external conversation", () => {
     for (const extra of [{ model: "sonnet" }, { effort: "high" }, { attachments: [{ id: "a" }] }]) expect(check(extra, "legacy-external")).toEqual({ error: "bad_request" });
     expect(check({ text: "x" }, "legacy-external")).toEqual({ ids: [] });
@@ -161,7 +170,7 @@ describe("conversation list, seen marker and send extras", () => {
     const open = vi.fn(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
     const store = new ConversationStore(dir);
     const service = new ConversationService(store, prepare, open, () => {});
-    const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => list);
+    const catalog = new ModelCatalog((root, runtime) => prepare({ root, mode: "new", runtime, text: "", anchors: [] }), async () => ({ models: list }));
     const records = [{ name: "a.png", size: 3, kind: "image", path: "/Users/me/a.png" }];
     const attachments = { resolve: vi.fn((value: unknown[]) => value.some(v => (v as { id: string }).id === "gone") ? { ok: false, error: "attachment_missing", missing: ["gone"] } : { ok: true, records }), markSent: vi.fn(), consume: vi.fn() };
     const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }], { models: catalog, attachments: attachments as unknown as AttachmentStore });
@@ -218,6 +227,18 @@ describe("conversation list, seen marker and send extras", () => {
       expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder.at(-1)!);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
+  it("passes a send's permission mode, Default included, and refuses an unknown id", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = sendFixture(dir);
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "send", { conversationId: id, text: "y", permissionMode: "auto" })).toEqual({ error: "bad_request" });
+      expect(h.send).not.toHaveBeenCalled();
+      await h.handle(true, "send", { conversationId: id, text: "y", permissionMode: "bypass" });
+      await h.handle(true, "send", { conversationId: id, text: "y", permissionMode: "default" });
+      expect(h.send.mock.calls.map(call => call[3])).toEqual([{ permissionMode: "bypass" }, { permissionMode: "default" }]);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
   it("passes the model's default effort along when the send's model has no effort", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
@@ -240,7 +261,7 @@ describe("conversation list, seen marker and send extras", () => {
       const h = sendFixture(dir);
       h.store.save([{ conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
       await h.handle(true, "models", { root: "/repo", runtime: "claude" });
-      for (const extra of [{ model: "sonnet" }, { attachments: [{ id: "a" }] }]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", ...extra })).toEqual({ error: "bad_request" });
+      for (const extra of [{ model: "sonnet" }, { attachments: [{ id: "a" }] }, { permissionMode: "plan" }]) expect(await h.handle(true, "send", { conversationId: "legacy", text: "y", ...extra })).toEqual({ error: "bad_request" });
       h.send.mockRejectedValueOnce(new Error("project_busy"));
       expect(await h.handle(true, "send", { conversationId: "legacy", text: "y" })).toEqual({ error: "project_busy" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -268,7 +289,7 @@ describe("queue channels", () => {
     try {
       const h = queueFixture(dir);
       const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
-      for (const bad of [{ text: "" }, { text: "{{1}}" }, { text: "y", model: "sonnet" }, { text: "y", effort: "low" }, { text: "y", runtime: "claude" }, { text: "y", provider: "codex" }])
+      for (const bad of [{ text: "" }, { text: "{{1}}" }, { text: "y", model: "sonnet" }, { text: "y", effort: "low" }, { text: "y", runtime: "claude" }, { text: "y", provider: "codex" }, { text: "y", permissionMode: "auto" }])
         expect(await h.handle(true, "queue", { conversationId: id, ...bad })).toEqual({ error: "bad_request" });
       expect(await h.handle(true, "queue", { conversationId: id, text: "y", attachments: [{ id: "gone" }] })).toEqual({ error: "attachment_missing", missing: ["gone"] });
       expect(await h.handle(false, "queue", { conversationId: id, text: "y" })).toEqual({ error: "bad_request" });
@@ -283,6 +304,18 @@ describe("queue channels", () => {
       // Judged and with nothing left to wait for, the conversation is not working.
       h.service.receive(id, { type: "turn.done" }); h.service.refreshed("/repo", []);
       expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "not_running" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("queues a message with the picker's permission mode, and refuses one on a legacy external conversation", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const h = queueFixture(dir);
+      const queue = vi.spyOn(h.service, "queue");
+      const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y", permissionMode: "plan" })).toEqual({ itemId: expect.any(String) });
+      expect(queue.mock.calls[0]![1]).toEqual({ text: "y", anchors: [], permissionMode: "plan" });
+      h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
+      expect(await h.handle(true, "queue", { conversationId: "legacy", text: "y", permissionMode: "plan" })).toEqual({ error: "bad_request" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("hands a returned draft over once", async () => {
@@ -348,12 +381,15 @@ it("accepts validated extras for a new canvas conversation and refuses each extr
       expect(await h.handle(true, "start", { ...request, ...bad })).toEqual({ error: "bad_request" });
     h.attachments.resolve.mockReturnValueOnce({ ok: false, error: "attachment_missing", missing: ["a"] });
     expect(await h.handle(true, "start", { ...request, ...extras })).toEqual({ error: "attachment_missing", missing: ["a"] });
-    for (const extra of [{ model: "sonnet" }, { effort: "high" }, { attachments: [] }, extras])
+    for (const extra of [{ model: "sonnet" }, { effort: "high" }, { attachments: [] }, { permissionMode: "plan" }, extras])
       expect(await h.handle(true, "start", { ...request, mode: "resume", ...extra })).toEqual({ error: "bad_request" });
+    expect(await h.handle(true, "start", { ...request, permissionMode: "auto" })).toEqual({ error: "bad_request" });
     expect(h.start).not.toHaveBeenCalled();
     h.attachments.resolve.mockReturnValue({ ok: true, records });
     expect(await h.handle(true, "start", { ...request, ...extras })).toHaveProperty("conversationId");
     expect(h.start.mock.calls[0]![0]).toMatchObject({ mode: "new", canvas, model: "sonnet", effort: "high", attachments: records });
+    expect(await h.handle(true, "start", { ...request, permissionMode: "bypass" })).toHaveProperty("conversationId");
+    expect(h.start.mock.calls[1]![0]).toMatchObject({ mode: "new", permissionMode: "bypass" });
     expect(h.attachments.resolve).toHaveBeenCalledTimes(3);
     expect(h.attachments.markSent).toHaveBeenCalledWith(extras.attachments);
     expect(h.attachments.consume).toHaveBeenCalledWith(extras.attachments);

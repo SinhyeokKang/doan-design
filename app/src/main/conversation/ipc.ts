@@ -2,6 +2,7 @@ import { anchorTokens, LIMITS, validAnchor } from "./prompt";
 import { object } from "./sessions";
 import { validCanvas, validId } from "./store";
 import { validProvider, type Provider } from "../agentAuth/types";
+import { permissionModeId, type PermissionModeId } from "./permissionMode";
 import type { ConversationService, Prepare, QueueFiles, StartAttachments, StartRequest } from "./service";
 import type { ModelCatalog } from "./models";
 import type { AttachmentStore } from "../attachments";
@@ -19,15 +20,20 @@ function message(raw: Record<string, unknown>): { text: string; anchors: Anchor[
 }
 function choice(value: unknown): value is string { return typeof value === "string" && value.length > 0 && value.length <= 512 && !value.includes("\0"); }
 // ids: the attachment ids as sent, for the recheck, the sent marker and consume; attachments: their records now.
-export interface SendExtras { model?: string; effort?: string; ids: unknown[]; attachments?: AttachmentRecord[] }
-// The model, effort and attachments a start or send may carry. The provider is the conversation's and never changes;
-// a legacy external conversation runs on the person's own CLI profile, so it takes none of the three.
+export interface SendExtras { model?: string; effort?: string; permissionMode?: PermissionModeId; ids: unknown[]; attachments?: AttachmentRecord[] }
+// The model, effort, permission mode and attachments a start or send may carry. The provider is the conversation's and
+// never changes; a legacy external conversation runs on the person's own CLI profile, so it takes none of them. A mode
+// is one of the common ids, whatever the renderer offered (an unmapped ACP mode sets nothing in the runner).
 export function validateSendExtras(request: Record<string, unknown>, root: string, provider: Provider, owner: "doan" | "legacy-external", home: { models?: Pick<ModelCatalog, "accepts">; attachments?: Pick<AttachmentStore, "resolve"> }): SendExtras {
   if (request.runtime !== undefined || request.provider !== undefined) throw new Error("bad_request");
   const extras: SendExtras = { ids: [] };
   if (owner === "legacy-external") {
-    if (request.model !== undefined || request.effort !== undefined || request.attachments !== undefined) throw new Error("bad_request");
+    if (request.model !== undefined || request.effort !== undefined || request.permissionMode !== undefined || request.attachments !== undefined) throw new Error("bad_request");
     return extras;
+  }
+  if (request.permissionMode !== undefined) {
+    if (!permissionModeId(request.permissionMode)) throw new Error("bad_request");
+    extras.permissionMode = request.permissionMode;
   }
   if (request.model !== undefined || request.effort !== undefined) {
     // Only a model, and an effort of that model, from the list this run delivered for this folder and provider.
@@ -106,12 +112,13 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         if (raw.subject !== undefined) throw new Error("bad_request");
         if (mode === "newDesign" || mode === "new") {
           if (!request.runtime) throw new Error("no_agent");
-          const extras = validateSendExtras({ model: raw.model, effort: raw.effort, attachments: raw.attachments }, raw.root, request.runtime, "doan", home);
+          const extras = validateSendExtras({ model: raw.model, effort: raw.effort, permissionMode: raw.permissionMode, attachments: raw.attachments }, raw.root, request.runtime, "doan", home);
           if (extras.model !== undefined) request.model = extras.model;
           if (extras.effort !== undefined) request.effort = extras.effort;
+          if (extras.permissionMode !== undefined) request.permissionMode = extras.permissionMode;
           if (extras.attachments) request.attachments = extras.attachments;
           attachments = extras.ids;
-        } else if (raw.model !== undefined || raw.effort !== undefined || raw.attachments !== undefined) throw new Error("bad_request");
+        } else if (raw.model !== undefined || raw.effort !== undefined || raw.permissionMode !== undefined || raw.attachments !== undefined) throw new Error("bad_request");
         const store = home.attachments;
         const started = await service.start(request, store && attachments.length ? attachedHooks(store, attachments) : undefined);
         store?.consume(attachments);
@@ -128,13 +135,14 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           // The turn's model without an effort still names the model's default level (models.ts defaultEffort).
           const model = extras.model ?? target.model, effort = extras.model !== undefined ? extras.effort : target.effort;
           const defaultEffort = model !== undefined && effort === undefined ? home.models?.defaultEffort(target.root, target.provider, model) : undefined;
-          await service.send(raw.conversationId, input.text, input.anchors, { ...(extras.model !== undefined ? { model: extras.model } : {}), ...(extras.effort !== undefined ? { effort: extras.effort } : {}), ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) },
+          await service.send(raw.conversationId, input.text, input.anchors, { ...(extras.model !== undefined ? { model: extras.model } : {}), ...(extras.effort !== undefined ? { effort: extras.effort } : {}), ...(extras.permissionMode !== undefined ? { permissionMode: extras.permissionMode } : {}), ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) },
             store && extras.ids.length ? attachedHooks(store, extras.ids) : undefined);
           store?.consume(extras.ids);
           return undefined;
         }
         case "queue": {
-          // Text, anchors and attachments only: the turn the queue goes out in keeps the conversation's model and effort.
+          // Text, anchors, attachments and the picker's permission mode: the turn the queue goes out in keeps the
+          // conversation's model and effort, and takes its last message's mode.
           const input = message(raw); if (!input || raw.model !== undefined || raw.effort !== undefined) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
@@ -142,7 +150,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           // The marker that keeps a paste through a restart can fail; it is written before the item is accepted, so a refusal
           // leaves nothing queued and the files with the renderer. Nothing after the acceptance can fail.
           if (store && ids.length) store.markSent(extras.ids);
-          const queued = service.queue(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
+          const queued = service.queue(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}), ...(extras.permissionMode !== undefined ? { permissionMode: extras.permissionMode } : {}) });
           if (store && ids.length) store.consume(extras.ids);
           return queued;
         }

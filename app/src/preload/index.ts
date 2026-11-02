@@ -4,6 +4,7 @@ import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
 import type { ModelsReply } from "../main/conversation/models";
+import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { ReturnedDraft } from "../main/conversation/drafts";
 import type { AttachmentResult, RecheckResult } from "../main/attachments";
@@ -63,24 +64,27 @@ const api = {
   conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string } | { available: false; reason: "no_record" | UnavailableReason } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
   conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
   // newDesign takes `text`. model and effort only from the list listConversationModels
-  // returned in this run for that root and runtime; attachments by the ids the attachment calls returned. A moved or
+  // returned in this run for that root and runtime; permissionMode one of the common ids (resume takes none); attachments by the ids the attachment calls returned. A moved or
   // deleted attachment refuses the start with attachment_missing and its ids in `missing`.
   startConversation: (request: Omit<StartRequest, "anchors" | "attachments"> & { anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ conversationId: string } | ConversationError> => ipcRenderer.invoke("conversation:start", request),
   // model (with an optional effort of it) only when the person changed it, from listConversationModels of this run for
-  // the conversation's provider; attachments by ids as for a start. A legacy external conversation takes none of them,
+  // the conversation's provider; permissionMode, one of the common ids, whenever the picker names one, judged apart from
+  // the model ("default" clears the stored mode); attachments by ids as for a start. A legacy external conversation
+  // takes none of them,
   // and no request names a provider. project_busy: another conversation of this project without a canvas is working.
   // A send to an archived conversation restores it: busy while the canvas's current conversation works,
   // canvas_not_found when its canvas is gone or its ID is listed twice.
-  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
+  sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
   // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
-  // message after turn.done; text, anchors and attachments only (model and effort are bad_request). queue_limit: the
+  // message after turn.done; text, anchors, attachments and the picker's permissionMode only (model and effort are
+  // bad_request; the queue goes out with its last message's mode, or the stored one when none named a mode). queue_limit: the
   // queue and the conversation's returned draft together would pass one message (32,768 characters, 32 anchors, 10
   // attachments) or the drafts file's size. Removing an item or taking a draft that cannot be saved answers an error
   // and keeps it. main holds the
   // attachments from here on. A failed or stopped turn, a refused queued send or a restart hands the queue back as a
   // draft: the list row then has returnedDraft, and takeConversationDraft hands it over once (attachments as recorded
   // paths, for attachmentsFromPaths). Each change is announced with onConversationListChanged.
-  queueConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ itemId: string } | ConversationError> => ipcRenderer.invoke("conversation:queue", request),
+  queueConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; attachments?: { id: string }[]; permissionMode?: PermissionModeId }): Promise<{ itemId: string } | ConversationError> => ipcRenderer.invoke("conversation:queue", request),
   // stale: the item already went out, came back or was removed.
   removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
@@ -102,7 +106,8 @@ const api = {
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),
   // The models a provider offers in this folder, read without a model request and kept by main until the connection
-  // or installed version changes. An error carries a conversation start code.
+  // or installed version changes. An error carries a conversation start code. modes: an ACP server's mode list from the
+  // same read, for permissionOptions (permissionMode.ts); none for Claude and Codex.
   listConversationModels: (request: { root: string; runtime: Provider }): Promise<ModelsReply> => ipcRenderer.invoke("conversation:models", request),
   // Home attachments. Main checks each file (real path, regular file, image signature) and answers per item in order;
   // nothing is copied except a pasted image, which main re-encodes to PNG under userData. A thumbnail is PNG bytes.

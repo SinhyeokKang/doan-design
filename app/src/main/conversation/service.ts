@@ -11,11 +11,13 @@ import { clampSeen, conversationSummary, type ConversationSummary } from "./summ
 import { combineQueued } from "./queue";
 import { DraftStore, joined, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
-import type { ModelOption } from "./models";
+import type { ModelList } from "./models";
+import type { PermissionModeId } from "./permissionMode";
 import type { Anchor, AttachmentRecord, Canvas, ConversationEvent, EventPayload, Reservation } from "./types";
 // External (legacy) runs are claude or codex only; doan-account runs may use any app provider.
 // model and effort: a choice from the list this run delivered (ipc checks it). attachments: files main rechecked just now.
-export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; attachments?: AttachmentRecord[] }
+// permissionMode: one of the common ids (ipc checks it); Default is never stored.
+export interface StartRequest { root: string; mode: "resume" | "new" | "newDesign"; runtime?: Provider; canvas?: Canvas; text: string; anchors: Anchor[]; model?: string; effort?: string; permissionMode?: PermissionModeId; attachments?: AttachmentRecord[] }
 export interface Prepared {
   runtime: Provider; configDir: string; cwd: string; sessionId?: string; command: string; env: NodeJS.ProcessEnv; lastCheckAt?: string;
   // Doan-account runs only: arguments ahead of the runner's own, the account the run uses, the lease to release once the
@@ -30,19 +32,24 @@ export interface Prepared {
   // The conversation's chosen model and effort, applied by the runner on every send: a Claude resume and an ACP
   // session/load fall back to the default model otherwise.
   model?: string; effort?: string;
+  // The conversation's chosen permission mode for this run, absent for Default. planApproved: the mode Claude switched
+  // to once the person approved a plan on a turn sent with Plan, which becomes the conversation's stored mode.
+  permissionMode?: PermissionModeId; planApproved?: (mode: PermissionModeId) => void;
 }
 // attachments: the turn's files, which only Antigravity also receives as image blocks. models: the provider's list for
 // this folder, from a runner opened only to read it.
 // A start's attachments, checked again right before acceptance (recheck throws attachment_missing with the missing
 // ids) and marked sent just before the commit.
 export interface StartAttachments { recheck(): AttachmentRecord[]; sent(): void }
-// The model and effort of one send. Claude and ACP runs open a process per turn with them already; a reused Codex
-// server needs them on the turn itself.
-export interface TurnChoice { model?: string; effort?: string }
-// What a send may carry besides its text: a new choice (model given, effort optional) and rechecked attachments.
+// The model, effort and permission mode of one send. Claude and ACP runs open a process per turn with them already; a
+// reused Codex server needs them on the turn itself. A send names its mode always, Default included, since a Codex
+// override holds for later turns.
+export interface TurnChoice { model?: string; effort?: string; permissionMode?: PermissionModeId }
+// What a send may carry besides its text: a new choice (model given, effort optional), a new permission mode (judged
+// apart from the model, Default included) and rechecked attachments.
 // defaultEffort: the level the turn names when its choice has none (models.ts ModelOption); it is never stored.
 export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[]; defaultEffort?: string }
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelOption[]> }
+export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList> }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released when they come back in a draft, which carries their paths instead.
@@ -55,7 +62,7 @@ export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, 
 export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use?: "run" | "listing") => Promise<Prepared>;
 // Reads a model list through a provider process opened only for that, reporting its spawn and disappearance as
 // OpenRunner does; it never releases the lease itself.
-export type ReadModels = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<ModelOption[]>;
+export type ReadModels = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<ModelList>;
 function freeLease(input: Prepared | undefined): void {
   void input?.release?.().catch(error => console.error("doan: account lease release failed", error));
 }
@@ -89,8 +96,9 @@ export class ConversationService {
   private lastStop = new Map<Provider, number>();
   // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
   private waits = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
-  // The attachment ids of each queued message, for its send; they mean nothing after a restart, so they stay here.
-  private queuedIds = new Map<string, { owner: string; ids: string[] }>();
+  // The attachment ids and the picker's permission mode of each queued message, for its send; they mean nothing after a
+  // restart (the queue then comes back as a draft), so they stay here.
+  private queuedExtras = new Map<string, { owner: string; ids: string[]; permissionMode?: PermissionModeId }>();
   private evidence = new Map<string, Evidence>();
   // Sends waiting for their conversation's previous turn to be judged.
   // A Stop or a sign-out of its provider refuses such a send as busy, as it refuses one waiting for the previous process.
@@ -124,8 +132,9 @@ export class ConversationService {
     const id = randomUUID(); this.reserve(id);
     const live: Live = { turnId: randomUUID(), busy: true, accepted: false, terminal: false, events: [], failedPersistence: false, exited: false, since: this.stops, ...(project ? { project } : {}) }; this.live.set(id, live);
     let opening = false, input: Prepared | undefined;
+    const turnId = live.turnId;
     try {
-      input = { ...await this.prepare(request), ...choice(request) };
+      input = { ...await this.prepare(request), ...choice(request), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported) };
       if (input.owner) live.provider = input.owner.provider;
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
@@ -144,7 +153,7 @@ export class ConversationService {
       const fromHome = request.mode === "newDesign";
       // seenSeq 0: nothing of a new conversation has been seen, so its first end shows as unseen.
       const base = { conversationId: id, root: request.root, ...(request.canvas ? { canvas: request.canvas } : {}), title: messageLine(request.text, request.anchors), state: "current" as const,
-        ...choice(request), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
+        ...choice(request), ...mode(request.permissionMode), ...(fromHome ? { fromHome: true as const } : {}), ...(request.mode === "newDesign" ? { canvasesAtStart: this.snapshot(request.root) } : {}), seenSeq: 0 };
       const runtime = input.runtime;
       // Without an owner the run used an external profile, which exists only for the shared sessions' two runtimes.
       if (!input.owner && runtime !== "claude" && runtime !== "codex") throw new Error("session_unavailable");
@@ -208,12 +217,14 @@ export class ConversationService {
     live.busy = true; live.exited = false; live.terminal = false; live.accepted = false; delete live.closed; live.turnId = randomUUID(); live.since = this.stops; this.live.set(id, live);
     if (project) live.project = project; else delete live.project;
     this.changedOf(id);
-    const chosen = extras.model ? choice(extras) : choice(metadata);
+    // The mode is judged apart from the model: a send may change either alone.
+    const chosen = { ...extras.model ? choice(extras) : choice(metadata), ...mode(extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode) };
     const expected = restoring ? "archived" : "current";
     let reserved = false, opening = false, input: Prepared | undefined, leased = false;
     try {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, runtime === "codex" && !!live.runner); reserved = true;
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata), ...chosen };
+      const turnId = live.turnId;
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported) };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");
@@ -242,7 +253,7 @@ export class ConversationService {
       const projectTurn = project !== undefined && !metadata.canvas;
       const canvasesAtStart = projectTurn ? this.snapshot(metadata.root) : metadata.canvasesAtStart;
       const seenSeq = metadata.seenSeq ?? this.store.read(id).at(-1)?.seq ?? 0;
-      const { model: _model, effort: _effort, canvasesAtStart: _snapshot, ...rest } = metadata;
+      const { model: _model, effort: _effort, permissionMode: _mode, canvasesAtStart: _snapshot, ...rest } = metadata;
       const updated: ConversationMetadata = { ...rest, ...chosen, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
       const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) };
       attached?.sent();
@@ -256,7 +267,7 @@ export class ConversationService {
         for (const event of saved) this.deliver(event);
         this.changed(metadata.root);
       } else {
-        if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
+        if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || chosen.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
         this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       }
@@ -264,8 +275,8 @@ export class ConversationService {
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
-      const turnChoice: TurnChoice = { ...chosen, ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}) };
-      this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, Object.keys(turnChoice).length ? turnChoice : undefined);
+      const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}) };
+      this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
       if (reserved && !opening && !live.runner) this.reservations = releaseReservation(this.reservations, id, "not_spawned");
@@ -422,7 +433,7 @@ export class ConversationService {
   }
   // The lease is released when the read's process group is gone, or at once when nothing was spawned; a group that
   // never disappears keeps it.
-  async listModels(input: Prepared, read: ReadModels): Promise<ModelOption[]> {
+  async listModels(input: Prepared, read: ReadModels): Promise<ModelList> {
     const listing = this.listingOf.get(input); if (!listing) throw new Error("bad_request");
     if (this.quitting || this.stopped(listing)) { freeLease(input); throw new Error("busy"); }
     let spawned = false;
@@ -478,7 +489,8 @@ export class ConversationService {
   }
   // A message sent while its conversation works waits in main, in drafts.json, until the turn ends (design §2.6).
   // ids: the attachment ids main holds for it until it goes out. not_running: nothing is working to queue behind.
-  queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string } {
+  // permissionMode: the picker's mode when the message was queued; the queue goes out with its last message's.
+  queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[]; permissionMode?: PermissionModeId }): { itemId: string } {
     const m = this.metadata(id);
     if (this.quitting) throw new Error("busy");
     if (!this.working(id)) throw new Error("not_running");
@@ -488,7 +500,7 @@ export class ConversationService {
     // waiting for that judgement goes first, and the queue follows its turn.
     const live = this.live.get(id);
     if (live && !live.busy && !live.holding && !this.judging.has(id) && this.evidence.get(id)?.endedAt !== undefined) live.holding = {};
-    if (item.ids?.length) this.queuedIds.set(itemId, { owner: id, ids: item.ids });
+    if (item.ids?.length || item.permissionMode) this.queuedExtras.set(itemId, { owner: id, ids: item.ids ?? [], ...(item.permissionMode ? { permissionMode: item.permissionMode } : {}) });
     this.changed(m.root);
     return { itemId };
   }
@@ -574,7 +586,7 @@ export class ConversationService {
   }
   private forget(id: string, itemIds?: readonly string[]): string[] {
     const ids: string[] = [];
-    for (const [itemId, held] of [...this.queuedIds]) if (held.owner === id && (!itemIds || itemIds.includes(itemId))) { ids.push(...held.ids); this.queuedIds.delete(itemId); }
+    for (const [itemId, held] of [...this.queuedExtras]) if (held.owner === id && (!itemIds || itemIds.includes(itemId))) { ids.push(...held.ids); this.queuedExtras.delete(itemId); }
     return ids;
   }
   // The queue goes out as one message: combined, its attachments checked again and the send's own checks run. Its
@@ -584,7 +596,8 @@ export class ConversationService {
     // A sign-out of its provider from here on stops it as it stops a run (stopRuns): it comes back as interrupted.
     const hold = live.holding, provider = live.provider, since = this.stops;
     const items = this.drafts.markSending(id);
-    const ids = items.flatMap(item => this.queuedIds.get(item.itemId)?.ids ?? []);
+    const ids = items.flatMap(item => this.queuedExtras.get(item.itemId)?.ids ?? []);
+    const permissionMode = items.map(item => this.queuedExtras.get(item.itemId)?.permissionMode).filter(m => m !== undefined).at(-1);
     const combined = combineQueued(items);
     if (!items.length || !combined.ok) {
       if (items.length) this.giveBack(id, "attachment_limit");
@@ -598,7 +611,7 @@ export class ConversationService {
         const attached = ids.length && files ? files.reclaim(ids) : undefined;
         const m = this.metadata(id);
         const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
-        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) }, attached);
+        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}), ...(permissionMode ? { permissionMode } : {}) }, attached);
         const sent = items.map(item => item.itemId);
         this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
@@ -621,6 +634,19 @@ export class ConversationService {
     this.store.save(this.store.list().map(m => m.conversationId === metadata.conversationId ? refreshed : m));
     this.changed(metadata.root);
     return refreshed;
+  }
+  // The one mode Doan follows by itself: after the person approved a plan, the mode Claude reported becomes the
+  // conversation's, so its picker and its next turn show what now runs. Only the turn that ran the plan counts.
+  private planApproved(id: string, live: Live, turnId: string, reported: PermissionModeId): void {
+    if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted) return;
+    try {
+      const entries = this.store.list(), m = entries.find(e => e.conversationId === id); if (!m) return;
+      const next = mode(reported);
+      if (next.permissionMode === m.permissionMode) return;
+      const { permissionMode: _old, ...rest } = m;
+      this.store.save(entries.map(e => e === m ? { ...rest, ...next } as ConversationMetadata : e));
+      this.changed(m.root);
+    } catch (error) { console.error("doan: the permission mode after a plan approval could not be saved", error); }
   }
   private stopped(live: { provider?: Provider; since: number }): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
   // Only a turn accepted in this run can still be running; a live entry left by a refused send is not one, and a turn an
@@ -678,6 +704,10 @@ export class ConversationService {
 function reason(error: unknown): string { return error instanceof Error && /^[a-z_]{1,64}$/.test(error.message) ? error.message : "unknown"; }
 function choice(source: { model?: string; effort?: string }): { model?: string; effort?: string } {
   return { ...(source.model ? { model: source.model } : {}), ...(source.effort ? { effort: source.effort } : {}) };
+}
+// Default is stored, and opened, as no mode.
+function mode(value: PermissionModeId | undefined): { permissionMode?: Exclude<PermissionModeId, "default"> } {
+  return value && value !== "default" ? { permissionMode: value } : {};
 }
 
 export function resolveListedCanvas(canvas: Canvas, listed: readonly Canvas[]): Canvas {

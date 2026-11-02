@@ -1,6 +1,7 @@
 import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
+import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
 import type { EventPayload, FailureCode, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
 
 export function initialTransport(): TransportState {
@@ -84,6 +85,12 @@ function codexActivities(item: Record<string, unknown>, root: string): { events:
   if (item.type === "commandExecution") return { events: [activity("command", "", GENERIC_SUMMARY.command, root)], files: "" };
   const tool = text(item.tool), server = text(item.server);
   return { events: [activity("other", "", tool ? (server ? `${tool} (${server})` : tool) : GENERIC_SUMMARY.other, root)], files: "" };
+}
+// The mode a Claude status message reports ({type: "system", subtype: "status", permissionMode}, SDK 0.3.312), as a
+// common id; undefined for any other message. After a plan approval it names the mode the session now runs (P1).
+export function claudeReportedMode(raw: unknown): PermissionModeId | undefined {
+  if (!object(raw) || raw.type !== "system" || raw.subtype !== "status" || typeof raw.permissionMode !== "string") return undefined;
+  return claudeModeAfterPlan(raw.permissionMode);
 }
 export function normalizeClaude(state: TransportState, raw: unknown, root: string): TransportResult {
   if (state.terminal || !object(raw) || raw.parent_tool_use_id) return unchanged(state);

@@ -8,7 +8,8 @@ import { ACP_PROTOCOL_VERSION, AcpConnection, acpEnded, acpPermission, acpPrompt
 import { acpInitialize, acpSessionNew, type HandshakeVerdict } from "./handshake";
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
-import { parseAcpModels, type ModelOption } from "./models";
+import { acpOption, parseAcpModels, parseAcpModes, type ModelOption } from "./models";
+import { acpModeFor, type AcpModes } from "./permissionMode";
 import { imageType, MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared, Runner } from "./service";
 import type { AttachmentRecord, EventPayload } from "./types";
@@ -48,7 +49,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
     if (method !== "session/update" || !prompting || params.sessionId !== sessionId || !object(params.update)) return;
     apply(normalizeAcp(state, params.update, input.cwd));
   }, detail => { failure = detail; void group?.stop(); });
-  let sessionId = input.sessionId ?? "", models: ModelOption[] = [], images = false;
+  let sessionId = input.sessionId ?? "", models: ModelOption[] = [], modes: AcpModes | undefined, images = false;
   const decoder = new StringDecoder("utf8");
   child.stdout.on("data", (bytes: Buffer) => acp.receive(decoder.write(bytes)));
   // Antigravity asks for a browser sign-in when its stored token no longer works; a run never signs in.
@@ -93,12 +94,18 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
       const created = await acp.request("session/new", { cwd: input.cwd, mcpServers: [] }, OPEN_TIMEOUT_MS);
       judge(acpSessionNew(input.runtime, { result: created }));
       if (!object(created) || typeof created.sessionId !== "string" || !created.sessionId || created.sessionId.length > 512) throw new Error("session_unavailable");
-      sessionId = created.sessionId; models = parseAcpModels(created); current = created;
+      sessionId = created.sessionId; models = parseAcpModels(created); modes = parseAcpModes(created); current = created;
     }
     // session/load comes back on the default model (Antigravity, P1), so the choice is set again after every open,
     // unless the session already runs it: the setter is unverified for Copilot's only model.
     const running = object(current) && object(current.models) ? current.models.currentModelId : undefined;
     if (input.model && input.model !== running) await acp.request("session/set_config_option", { sessionId, configId: "model", value: input.model }, OPEN_TIMEOUT_MS);
+    // A session keeps its last mode (and Copilot its allow_all) across session/load, so the chosen mode is set after
+    // every open, Default included; a value the session already has is not set again. Nothing when the server listed
+    // no mode the mapping table names (permission-mode design 'ACP').
+    for (const setting of acpModeFor(input.runtime, input.permissionMode ?? "default", parseAcpModes(current))) {
+      if (setting.value !== acpCurrent(current, setting.configId)) await acp.request("session/set_config_option", { sessionId, configId: setting.configId, value: setting.value }, OPEN_TIMEOUT_MS);
+    }
   })();
   try { await opened; if (dead) throw new Error("process_exited"); }
   catch (error) {
@@ -116,7 +123,7 @@ export async function openAcp(input: Prepared, emit: (event: EventPayload) => vo
   };
   return {
     sessionId,
-    models: async () => models,
+    models: async () => ({ models, ...(modes ? { modes } : {}) }),
     async send(prompt, turnId, attachments = []) {
       if (dead || prompting || finished) throw new Error("process_exited");
       state = initialAcp(turnId); prompting = true;
@@ -154,6 +161,12 @@ async function imageBlock(attachment: AttachmentRecord): Promise<{ type: "image"
     const mimeType = imageType(bytes.subarray(0, 16));
     return mimeType ? [{ type: "image", mimeType, data: bytes.toString("base64") }] : [];
   } catch { return []; } finally { await file.close(); }
+}
+// The value a session reply says an option has now: the mode from modes.currentModeId, or from the configOptions entry.
+function acpCurrent(result: unknown, configId: "mode" | "allow_all"): unknown {
+  const listed = acpOption(result, configId)?.currentValue;
+  if (listed !== undefined || configId !== "mode") return listed;
+  return object(result) && object(result.modes) ? result.modes.currentModeId : undefined;
 }
 function transportCode(detail: string): string {
   if (/authentication required|not logged in|unauthorized|sign in/i.test(detail)) return "not_logged_in";

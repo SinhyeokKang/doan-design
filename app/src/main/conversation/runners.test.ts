@@ -14,7 +14,8 @@ const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 readline.createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line);
  if(r.method==='initialize') send({id:r.id,result:{}});
- if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'}}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='config/read') send({id:r.id,result:{config:{}}});
  if(r.method==='turn/start') {
    process.stdout.write(JSON.stringify({id:r.id,result:{turn:{id:'native-turn'}}})+'\\n'+JSON.stringify({method:'item/agentMessage/delta',params:{threadId:'session',turnId:'native-turn',itemId:'m',delta:'hello'}})+'\\n'+JSON.stringify({method:'turn/completed',params:{threadId:'session',turn:{id:'native-turn',status:'completed'}}})+'\\n');
  }
@@ -91,7 +92,8 @@ it("reports malformed accepted transport immediately instead of waiting for proc
 const readline=require('node:readline'); const send=v=>process.stdout.write(JSON.stringify(v)+'\\n');
 readline.createInterface({input:process.stdin}).on('line',line=>{const r=JSON.parse(line);
  if(r.method==='initialize')send({id:r.id,result:{}});
- if(r.method==='thread/start')send({id:r.id,result:{thread:{id:'s'}}});
+ if(r.method==='thread/start')send({id:r.id,result:{thread:{id:'s'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='config/read')send({id:r.id,result:{config:{}}});
  if(r.method==='turn/start'){send({id:r.id,result:{turn:{id:'t'}}});setTimeout(()=>process.stdout.write('not-json\\n'),10);}
 });
 `, { mode: 0o700 });
@@ -162,7 +164,8 @@ descendant.once('message',()=>{
  readline.createInterface({input:process.stdin}).on('line',line=>{
   const r=JSON.parse(line);
   if(r.method==='initialize') { if(mode==='startup') die(); else send({id:r.id,result:{}}); }
-  if(r.method==='thread/start' || r.method==='thread/resume') send({id:r.id,result:{thread:{id:'s'}}});
+  if(r.method==='thread/start' || r.method==='thread/resume') send({id:r.id,result:{thread:{id:'s'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+  if(r.method==='config/read') send({id:r.id,result:{config:{}}});
   if(r.method==='turn/start') {
    if(mode==='pending') { die(); return; }
    send({id:r.id,result:{turn:{id:'t'}}});
@@ -219,7 +222,8 @@ const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line);
  if(r.method==='initialize') send({id:r.id,result:{}});
- if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'}}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='config/read') send({id:r.id,result:{config:{}}});
 });
 `, { mode: 0o700 });
   const exited = vi.fn();
@@ -236,8 +240,9 @@ const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
 require('node:readline').createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line);
  if(r.method==='initialize') { if(mode==='silent') return; if(mode==='exit') process.exit(7); if(mode.startsWith('init-error:')) send({id:r.id,error:{code:-32600,message:mode.slice(11)}}); else send({id:r.id,result:mode==='init-null'?null:{}}); }
- if(r.method==='thread/start') send({id:r.id,result:mode==='no-thread'?{thread:{}}:{thread:{id:'session'}}});
+ if(r.method==='thread/start') send({id:r.id,result:mode==='no-thread'?{thread:{}}:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
  if(r.method==='thread/resume') send({id:r.id,result:{thread:{id:r.params.threadId}}});
+ if(r.method==='config/read') send({id:r.id,result:{config:{}}});
 });
 `, { mode: 0o700 });
   return { root, command };
@@ -316,7 +321,7 @@ it("lists Claude's models from the SDK without sending a prompt and reports the 
   const release = vi.fn();
   try {
     const models = await listModels({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root } }, release, () => {});
-    expect(models).toEqual([{ id: "default", label: "Default (recommended)", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }]);
+    expect(models).toEqual({ models: [{ id: "default", label: "Default (recommended)", default: true, efforts: ["low", "high"] }, { id: "haiku", label: "Haiku", default: false }] });
     await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
     expect(readFileSync(join(root, "seen"), "utf8")).not.toContain('"type":"user"');
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -345,7 +350,8 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  const r = JSON.parse(line);
  if(r.method==='initialize') send({id:r.id,result:{userAgent:'fake'}});
  if(r.method==='model/list') send({id:r.id,result:{data:[{id:'gpt-6-luna',displayName:'GPT-6-Luna',isDefault:true,hidden:false,supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'high'}]}],nextCursor:null}});
- if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'}}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='config/read') send({id:r.id,result:{config:{}}});
  if(r.method==='turn/start') { const id = 'native-' + (++turn); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
 });
 `, { mode: 0o700 });
@@ -355,7 +361,7 @@ it("lists Codex models with model/list and starts no thread", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-models-")), command = listingCodex(root);
   const release = vi.fn();
   try {
-    expect(await listModels({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, release, () => {})).toEqual([{ id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "high"] }]);
+    expect(await listModels({ command, runtime: "codex", cwd: root, configDir: root, env: process.env }, release, () => {})).toEqual({ models: [{ id: "gpt-6-luna", label: "GPT-6-Luna", default: true, efforts: ["low", "high"] }] });
     const methods = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => (JSON.parse(line) as { method?: string }).method);
     expect(methods).toEqual(["initialize", "initialized", "model/list"]);
     await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
@@ -383,4 +389,157 @@ it("lets a send change the Codex model and effort on the reused server for that 
     const turns = readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> }).filter(r => r.method === "turn/start");
     expect(turns.map(t => [t.params?.model, t.params?.effort])).toEqual([["gpt-6-luna", "high"], ["gpt-6-sol", undefined], ["gpt-6-luna", "low"]]);
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+// permission-mode S2: the chosen mode on every Claude run and every Codex turn.
+it("passes each mode to Claude, with the dangerous skip only for Full access and nothing for Default", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-mode-")), command = listingClaude(root);
+  try {
+    for (const permissionMode of [undefined, "default", "acceptEdits", "plan", "bypass"] as const) {
+      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, ...(permissionMode ? { permissionMode } : {}) }, () => {}, () => {}, () => {});
+      await runner.send("hello", "turn"); await runner.close();
+    }
+    const runs = readFileSync(join(root, "seen"), "utf8").split("\n").filter(line => line.startsWith("[")).map(line => JSON.parse(line) as string[]);
+    // The SDK writes the mode as --permission-mode=<mode> or as two arguments.
+    const mode = (argv: string[]) => { const at = argv.findIndex(arg => arg.startsWith("--permission-mode")); return at < 0 ? null : argv[at]!.includes("=") ? argv[at]!.split("=")[1] : argv[at + 1]; };
+    const flags = runs.map(argv => [mode(argv), argv.includes("--allow-dangerously-skip-permissions")]);
+    expect(flags).toEqual([[null, false], [null, false], ["acceptEdits", false], ["plan", false], ["bypassPermissions", true]]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 30000);
+// Answers initialize; a prompt reports a status message with FAKE_STATUS's permissionMode before its result.
+function statusClaude(root: string): string {
+  const command = join(root, "claude");
+  writeFileSync(command, `#!/usr/bin/env node
+const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+readline.createInterface({input:process.stdin}).on('line', line => {
+ const r = JSON.parse(line);
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
+ if(r.type==='user') {
+  send({type:'system',subtype:'status',status:null,permissionMode:process.env.FAKE_STATUS,uuid:'00000000-0000-4000-8000-000000000001',session_id:r.session_id});
+  send({type:'result',subtype:'success',is_error:false,result:'ok',session_id:r.session_id});
+  process.stdin.pause(); setTimeout(()=>process.exit(0),20);
+ }
+});
+`, { mode: 0o700 });
+  return command;
+}
+it("reports the mode Claude switched to after a plan approval, only on a turn sent with Plan", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-plan-")), command = statusClaude(root);
+  const run = async (permissionMode: "plan" | "default" | undefined, status: string) => {
+    const planApproved = vi.fn(), events: EventPayload[] = [];
+    const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_STATUS: status }, planApproved, ...(permissionMode ? { permissionMode } : {}) }, e => events.push(e), () => {}, () => {});
+    await runner.send("hello", "turn"); await runner.close();
+    expect(events).toContainEqual({ type: "turn.done" });
+    return planApproved.mock.calls.map(call => call[0]);
+  };
+  try {
+    expect(await run("plan", "default")).toEqual(["default"]);
+    expect(await run("plan", "bypassPermissions")).toEqual(["bypass"]);
+    expect(await run("plan", "auto")).toEqual(["default"]);
+    // Still planning is no switch; outside a Plan turn a mode switch (a suggestion's setMode) is never followed.
+    expect(await run("plan", "plan")).toEqual([]);
+    expect(await run("default", "acceptEdits")).toEqual([]);
+    expect(await run(undefined, "acceptEdits")).toEqual([]);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 40000);
+
+// A Codex app-server that records every line. FAKE_PROBE picks the ephemeral thread/start reply: "" the trusted
+// project's values, "error" an error, "bare" no values, "exit" a server exit; FAKE_CONFIG "error" fails config/read.
+function modeCodex(root: string): string {
+  const command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+const probe = process.env.FAKE_PROBE ?? '', config = process.env.FAKE_CONFIG ?? '';
+let turn = 0;
+readline.createInterface({input:process.stdin}).on('line', line => {
+ fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{userAgent:'fake'}});
+ if(r.method==='thread/start' && !r.params.ephemeral) send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'never',sandbox:{type:'dangerFullAccess'}}});
+ if(r.method==='thread/resume') send({id:r.id,result:{thread:{id:r.params.threadId},approvalPolicy:'never',sandbox:{type:'dangerFullAccess'}}});
+ if(r.method==='thread/start' && r.params.ephemeral) {
+  if(probe==='exit') process.exit(7);
+  if(probe==='error') send({id:r.id,error:{code:-32600,message:'ephemeral threads are not supported'}});
+  else send({id:r.id,result:probe==='bare'?{thread:{id:'probe'}}:{thread:{id:'probe'},approvalPolicy:'on-request',sandbox:{type:'workspaceWrite',writableRoots:[],networkAccess:false}}});
+ }
+ if(r.method==='config/read') send(config==='error'?{id:r.id,error:{code:-32601,message:'Method not found'}}:{id:r.id,result:{config:{approval_policy:null,sandbox_mode:null,sandbox_workspace_write:{network_access:true,writable_roots:['/extra'],exclude_slash_tmp:false}}}});
+ if(r.method==='turn/start') { const id = 'native-' + (++turn); send({id:r.id,result:{turn:{id}}}); send({method:'turn/completed',params:{threadId:'session',turn:{id,status:'completed'}}}); }
+});
+`, { mode: 0o700 });
+  return command;
+}
+const seenLines = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
+it("reads Codex's Default values once per server and states every turn's approval and sandbox, Default included", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-")), command = modeCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, permissionMode: "bypass" }, e => events.push(e), () => {}, () => {});
+  try {
+    const modes = [undefined, "acceptEdits", "default", "plan", "bypass"] as const;
+    for (const [i, permissionMode] of modes.entries()) {
+      await runner.send("x", `t${i}`, undefined, permissionMode ? { permissionMode } : undefined);
+      await vi.waitFor(() => expect(events.filter(e => e.type === "turn.done")).toHaveLength(i + 1));
+    }
+    const lines = seenLines(root);
+    expect(lines.filter(r => r.method && r.method !== "turn/start").map(r => [r.method, r.params])).toEqual([
+      ["initialize", expect.anything()], ["initialized", undefined], ["thread/start", { cwd: root }], ["thread/start", { cwd: root, ephemeral: true }], ["config/read", { cwd: root }]]);
+    const userDefault = { approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false } };
+    expect(lines.filter(r => r.method === "turn/start").map(r => ({ approvalPolicy: r.params?.approvalPolicy, sandboxPolicy: r.params?.sandboxPolicy }))).toEqual([
+      // No choice on the send: the mode the server was opened with.
+      { approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } },
+      { approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", networkAccess: true, writableRoots: ["/extra"] } },
+      // Back to Default after an override: the probe's values, stated.
+      userDefault,
+      { approvalPolicy: "never", sandboxPolicy: { type: "readOnly" } },
+      { approvalPolicy: "never", sandboxPolicy: { type: "dangerFullAccess" } },
+    ]);
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});
+it("probes after a Codex resume too, whose thread still carries the last override", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-resume-")), command = modeCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, sessionId: "session" }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    const lines = seenLines(root);
+    expect(lines.filter(r => r.method === "thread/resume" || r.method === "thread/start").map(r => r.params)).toEqual([{ threadId: "session" }, { cwd: root, ephemeral: true }]);
+    expect(lines.find(r => r.method === "turn/start")!.params).toMatchObject({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite", writableRoots: [], networkAccess: false } });
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});
+it("sends a bare workspaceWrite for Accept edits when config/read fails", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-config-")), command = modeCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_CONFIG: "error" }, permissionMode: "acceptEdits" }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    expect(seenLines(root).find(r => r.method === "turn/start")!.params).toMatchObject({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite" } });
+    expect(seenLines(root).find(r => r.method === "turn/start")!.params!.sandboxPolicy).toEqual({ type: "workspaceWrite" });
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+});
+// A failed or incomplete probe never falls back to sending nothing: an earlier override would stay (conductor decision).
+it.each([["an error reply", "error"], ["a reply without the values", "bare"]])("refuses to open a Codex server whose Default probe gets %s, without recording the version", async (_label, probe) => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-probe-")), command = modeCodex(root);
+  const incompatible = vi.fn(), compatible = vi.fn(), exited = vi.fn();
+  try {
+    await expect(openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_PROBE: probe }, incompatible, compatible }, () => {}, exited, () => {})).rejects.toThrow("session_unavailable");
+    expect(incompatible).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+it("releases a Codex conversation's reservation when its server dies during the Default probe", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-probe-death-")), command = modeCodex(root);
+  const store = new ConversationStore(root), exited = vi.fn(); let probe = "exit";
+  const service = new ConversationService(store,
+    async () => ({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_PROBE: probe }, sessionId: "session" }),
+    (input, emit, onExit, registerStop) => openRunner(input, emit, () => { exited(); onExit(); }, registerStop), () => {});
+  const request = { root, mode: "resume" as const, canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] };
+  try {
+    await expect(service.start(request)).rejects.toThrow("process_exited");
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+    expect(store.list()).toEqual([]);
+    probe = "";
+    const { conversationId } = await service.start(request);
+    await vi.waitFor(() => expect(store.read(conversationId)).toContainEqual(expect.objectContaining({ type: "turn.done" })));
+  } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
 });

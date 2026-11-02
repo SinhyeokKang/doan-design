@@ -11,9 +11,11 @@ import { MAX_IMAGE_BYTES } from "../attachments";
 import type { Prepared } from "./service";
 import type { EventPayload } from "./types";
 import cursor from "./fixtures/acp-cursor.json";
+import copilot from "./fixtures/acp-copilot.json";
 
 const SERVER = join(__dirname, "fixtures", "fake-acp-server.cjs");
 const SESSION = cursor.turn[0]!.params!.sessionId;
+const SESSION_OF = { copilot: copilot.turn[0]!.params!.sessionId };
 const CWD = realpathSync(mkdtempSync(join(tmpdir(), "doan-acp-")));
 function input(provider: "cursor" | "copilot", over: Partial<Prepared> = {}, mode = ""): Prepared {
   return { runtime: provider, command: process.execPath, args: [SERVER, join(__dirname, "fixtures", `acp-${provider}.json`)], cwd: CWD, configDir: "/profile",
@@ -228,7 +230,7 @@ function logFile(): string { return join(realpathSync(mkdtempSync(join(tmpdir(),
 it("lists an ACP provider's models from session/new without a prompt and reports the process gone", async () => {
   const log = logFile(), release = vi.fn();
   const models = await listModels(input("cursor", { env: { PATH: process.env.PATH ?? "", FAKE_ACP_MODELS: JSON.stringify(MODELS), FAKE_ACP_LOG: log } }), release, () => {});
-  expect(models).toEqual([{ id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash (High)", default: true }, { id: "gemini-3.8-flash-low", label: "Gemini 3.8 Flash (Low)", default: false }]);
+  expect(models).toEqual({ models: [{ id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash (High)", default: true }, { id: "gemini-3.8-flash-low", label: "Gemini 3.8 Flash (Low)", default: false }] });
   expect(logged(log).map(r => r.method)).toEqual(["initialize", "authenticate", "session/new"]);
   await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
 });
@@ -290,4 +292,45 @@ it.each(["quit", "stopRuns"] as const)("stops a real ACP model-list read hanging
   await (how === "quit" ? service.quit() : service.stopRuns("cursor"));
   expect(await reading).toBeInstanceOf(Error);
   await vi.waitFor(() => expect(release).toHaveBeenCalledOnce());
+});
+
+// permission-mode S2: the chosen mode set after every open by the mapping table, Default included.
+const COPILOT_MODE = "https://agentclientprotocol.com/protocol/session-modes#";
+const cursorModes = (current: string) => ({ modes: { currentModeId: current, availableModes: [{ id: "agent", name: "Agent" }, { id: "plan", name: "Plan" }, { id: "ask", name: "Ask" }] } });
+const copilotModes = (mode: string, allowAll: string) => ({
+  modes: { currentModeId: `${COPILOT_MODE}${mode}`, availableModes: ["agent", "plan", "autopilot"].map(id => ({ id: `${COPILOT_MODE}${id}`, name: id })) },
+  configOptions: [{ type: "select", id: "mode", category: "mode", currentValue: `${COPILOT_MODE}${mode}`, options: [] },
+    { type: "select", id: "allow_all", category: "permissions", currentValue: allowAll, options: [{ value: "on", name: "On" }, { value: "off", name: "Off" }] }],
+});
+async function modeRequests(provider: "cursor" | "copilot", session: object, over: Partial<Prepared>) {
+  const log = logFile();
+  const runner = await openAcp(input(provider, { env: { PATH: process.env.PATH ?? "", FAKE_ACP: "stop:end_turn", FAKE_ACP_LOG: log, FAKE_ACP_SESSION: JSON.stringify(session) }, ...over }), () => {}, () => {}, () => {});
+  await runner.send("hi", "turn");
+  return logged(log).filter(r => r.method === "session/set_config_option" || r.method === "session/prompt").map(r => r.method === "session/prompt" ? "prompt" : r.params);
+}
+it("sets a Cursor session's mode after session/new and session/load before the prompt, unless it already runs it", async () => {
+  expect(await modeRequests("cursor", cursorModes("agent"), { permissionMode: "plan" })).toEqual([{ sessionId: SESSION, configId: "mode", value: "plan" }, "prompt"]);
+  expect(await modeRequests("cursor", cursorModes("agent"), {})).toEqual(["prompt"]);
+  // A session keeps its last mode across session/load, so Default is set back explicitly.
+  expect(await modeRequests("cursor", cursorModes("plan"), { sessionId: SESSION })).toEqual([{ sessionId: SESSION, configId: "mode", value: "agent" }, "prompt"]);
+  expect(await modeRequests("cursor", cursorModes("plan"), { sessionId: SESSION, permissionMode: "plan" })).toEqual(["prompt"]);
+});
+it("sets Copilot's mode and allow_all together, and turns allow_all off again for Default", async () => {
+  expect(await modeRequests("copilot", copilotModes("agent", "off"), { permissionMode: "bypass" })).toEqual([{ sessionId: SESSION_OF.copilot, configId: "allow_all", value: "on" }, "prompt"]);
+  expect(await modeRequests("copilot", copilotModes("agent", "on"), { sessionId: SESSION_OF.copilot })).toEqual([{ sessionId: SESSION_OF.copilot, configId: "allow_all", value: "off" }, "prompt"]);
+  expect(await modeRequests("copilot", copilotModes("agent", "on"), { sessionId: SESSION_OF.copilot, permissionMode: "plan" })).toEqual([
+    { sessionId: SESSION_OF.copilot, configId: "mode", value: `${COPILOT_MODE}plan` }, { sessionId: SESSION_OF.copilot, configId: "allow_all", value: "off" }, "prompt"]);
+});
+it("sets no mode when the server lists none or the mapping table has no entry for the chosen one", async () => {
+  expect(await modeRequests("cursor", {}, { permissionMode: "plan" })).toEqual(["prompt"]);
+  expect(await modeRequests("cursor", cursorModes("agent"), { permissionMode: "acceptEdits" })).toEqual(["prompt"]);
+  expect(await modeRequests("cursor", cursorModes("agent"), { permissionMode: "bypass" })).toEqual(["prompt"]);
+  expect(await modeRequests("cursor", { modes: { currentModeId: "ask", availableModes: [{ id: "ask" }] } }, {})).toEqual(["prompt"]);
+});
+it("lists an ACP provider's modes with its models from the same session/new", async () => {
+  const log = logFile();
+  const env = { PATH: process.env.PATH ?? "", FAKE_ACP_MODELS: JSON.stringify(MODELS), FAKE_ACP_LOG: log, FAKE_ACP_SESSION: JSON.stringify(copilotModes("agent", "off")) };
+  const list = await listModels(input("copilot", { env }), () => {}, () => {});
+  expect(list.modes).toEqual({ available: ["agent", "plan", "autopilot"].map(id => `${COPILOT_MODE}${id}`), allowAll: true });
+  expect(logged(log).map(r => r.method)).toEqual(["initialize", "session/new"]);
 });

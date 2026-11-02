@@ -4,7 +4,7 @@ import claudeInterrupted from "./fixtures/claude-interrupted.json";
 import codex from "./fixtures/codex.json";
 import codexInterrupted from "./fixtures/codex-interrupted.json";
 import codexHome from "./fixtures/codex-home.json";
-import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError } from "./transport";
+import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
   let state: TransportState = { ...initialTransport(), stop };
@@ -199,4 +199,12 @@ it("forwards Codex additional-permission profiles without adding auto-review pol
   expect(permissionAnswer(request, "allow")?.response).toEqual({ id: 7, result: { permissions, scope: "turn" } });
   expect(permissionAnswer(request, "deny")?.response).toEqual({ id: 7, result: { permissions: {}, scope: "turn" } });
   expect(permissionAnswer(request, "always")?.response).toEqual({ id: 7, result: { permissions, scope: "session" } });
+});
+// permission-mode: Claude reports the mode it switched to after a plan approval in a status message (P1).
+it("reads the mode a Claude status message reports, and nothing from other messages", () => {
+  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "default" })).toBe("default");
+  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "bypassPermissions" })).toBe("bypass");
+  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "dontAsk" })).toBe("default");
+  for (const raw of [{ type: "system", subtype: "status", status: "compacting" }, { type: "system", subtype: "init", permissionMode: "plan" }, { type: "result", permissionMode: "plan" }, null, "status"])
+    expect(claudeReportedMode(raw)).toBeUndefined();
 });
