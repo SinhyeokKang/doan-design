@@ -222,6 +222,6 @@ test("CSS: the sidebar column is the resizable width and its handle sits in the 
   expect(css).toMatch(/\.workspace\.app-shell \{ grid-template-columns: var\(--doan-sidebar-width\) /);
   expect(css).toMatch(/\.home-shell \{[^}]*grid-template-columns: var\(--doan-sidebar-width\) minmax\(0, 1fr\);/);
   expect(css).toContain(":root { --doan-sidebar-width: 220px; }");
-  expect(css).toContain(".doan-panel-handle.doan-sidebar-handle { grid-column: 1; grid-row: 2 / -1; left: 100%; }");
+  expect(css).toContain(".doan-panel-handle.doan-sidebar-handle { grid-column: 1 / 2; grid-row: 2 / -1; left: 100%; }");
   expect(css).toContain('.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }');
 });
