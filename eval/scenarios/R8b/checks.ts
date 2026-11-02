@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { noOpen } from "../../lib/open.ts";
 import type { Check, Checks } from "../../lib/types.ts";
 
 const DIR = import.meta.dirname;
@@ -51,6 +52,8 @@ const checks: Checks = ctx => {
   const results: Check[] = [
     { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary)}` },
     { id: "only_canvas_changed", pass: changed.length === 1 && changed[0] === CANVAS, detail: `changed: ${changed.join(", ") || "(none)"}` },
+    // The turn prompt tells the agent this conversation is inside Doan, so it neither offers nor runs `doan open`.
+    noOpen(ctx),
   ];
   const final = ctx.read(CANVAS), seed = ctx.seed(CANVAS)!;
   const measured = final === null ? "the canvas is missing" : layouts(ctx, final, seed);

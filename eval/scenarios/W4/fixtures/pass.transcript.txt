@@ -1,0 +1,2 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "doan open .doan/canvases/profile.html --frame profile-form --json"}}]}}
+Changed the Save button to "Save profile" and opened the canvas in Doan at the Profile form frame.

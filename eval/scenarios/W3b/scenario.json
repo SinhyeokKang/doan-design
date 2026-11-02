@@ -1,6 +1,6 @@
 {
-  "id": "W3",
-  "title": "Edit a canvas with terminal work signals",
+  "id": "W3b",
+  "title": "Edit a canvas with terminal work signals and offer to open it",
   "focus": "write",
   "init": {
     "tokenCss": ".doan/assets/tokens.css"

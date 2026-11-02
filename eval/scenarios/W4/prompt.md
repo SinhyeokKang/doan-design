@@ -1,0 +1,1 @@
+In this repository, change the button labeled "Save" in `.doan/canvases/profile.html` to "Save profile". Keep the canvas, frame and element ids and the rest of the design unchanged. Make the canvas ready for review, then open it in Doan at the "Profile form" frame.

@@ -98,3 +98,9 @@ test("R8b badge_at_point_offset uses the frame origin and the padding tolerance"
   // In flow after the existing content.
   assert.deepEqual(failed(setup(swap("position: absolute; left: 360px; top: 290px;", ""))), ["badge_at_point_offset"]);
 });
+test("R8b no_doan_open fails when the agent ran doan open", () => {
+  const ctx = setup();
+  const ran = (commands: string[]) => checks({ ...ctx, calls: { commands, mcpTools: [] } }).find(c => c.id === "no_doan_open")?.pass;
+  assert.equal(ran([]), true);
+  assert.equal(ran(["doan open .doan/canvases/drafts.html --frame editor --json"]), false);
+});

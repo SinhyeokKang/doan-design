@@ -51,7 +51,7 @@ test("real agents and fixture commands never inherit the runner's session identi
 });
 
 test("work context and retained evidence read the fake app's v3 exchanges", async () => {
-  const scenario = loadScenario(join(import.meta.dirname, "../scenarios"), "W3");
+  const scenario = loadScenario(join(import.meta.dirname, "../scenarios"), "W3b");
   const ws = await prepareWorkspace({ scenario, agent: "fixture", cli, stub: "stub\n" });
   try {
     const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, workLog: ws.workLog });

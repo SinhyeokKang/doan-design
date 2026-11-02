@@ -13,6 +13,14 @@ export interface WorkExchange {
   hashes: Record<string, string | null>;
 }
 
+export interface OpenExchange {
+  request: { v: 4; root: string; path: string; frame?: string };
+  response: { v: 4; ok: true; opened: true; frame: "found" | "missing" | "none" } | { v: 4; ok: false; error: { code: string; message: string } };
+  at: string;
+  // SHA-256 of the requested canvas when the request arrived; empty for a refused request.
+  hashes: Record<string, string | null>;
+}
+
 export interface CheckContext {
   // Absolute path of the final repo (the pasted instruction's root).
   repo: string;
@@ -44,6 +52,8 @@ export interface CheckContext {
   onboarding(): { request: any; response: any }[];
   // App-socket v3 exchanges and SHA-256 snapshots at arrival; null means unavailable.
   work(): WorkExchange[];
+  // App-socket v4 exchanges (`doan open`) in order, token removed; empty when there were none.
+  open(): OpenExchange[];
   // Runs in the repo with the agent's environment and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
 }

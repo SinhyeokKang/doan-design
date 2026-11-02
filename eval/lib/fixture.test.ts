@@ -18,7 +18,7 @@ test("pass fixture command failures include both phases and exit codes; fail fix
       for (const phase of ["before.commands", "commands"])
         writeFileSync(join(base, "fixtures", `${kind}.${phase}.json`), JSON.stringify([[phase, "{{repo}}"]]));
     }
-    const scenario = { ...loadScenario(join(import.meta.dirname, "../scenarios"), "W3"), dir: base, init: null, selectionValue: null };
+    const scenario = { ...loadScenario(join(import.meta.dirname, "../scenarios"), "W3b"), dir: base, init: null, selectionValue: null };
     const setup = { options: parseArgs(["--self-test"], new Date()), cli, stub: "stub\n", out: join(base, "out"), meta: { date: "2026-11-02", versions: {}, guideSha256: "test", cliVersion: "test" } };
     const pass = await fixtureRun(setup, scenario, "pass");
     assert.equal(pass.record.result, "pass");
@@ -39,9 +39,9 @@ test("fixture commands use a fixed fake session rather than the runner's identit
     for (const dir of ["seed", "fixtures/pass", "out"]) mkdirSync(join(base, dir), { recursive: true });
     writeFileSync(join(base, "checks.ts"), 'export default () => [{ id: "fixture_test", pass: true, detail: "fixture test" }];\n');
     writeFileSync(join(base, "fixtures/pass.commands.json"), JSON.stringify([["session"]]));
-    const scenario = { ...loadScenario(join(import.meta.dirname, "../scenarios"), "W3"), dir: base, init: null, selectionValue: null };
+    const scenario = { ...loadScenario(join(import.meta.dirname, "../scenarios"), "W3b"), dir: base, init: null, selectionValue: null };
     const setup = { options: parseArgs(["--self-test"], new Date()), cli, stub: "stub\n", out: join(base, "out"), meta: { date: "2026-11-02", versions: {}, guideSha256: "test", cliVersion: "test" } };
     await fixtureRun(setup, scenario, "pass");
-    assert.equal(readFileSync(join(base, "out/W3-fixture-pass/repo/fixture-session.txt"), "utf8"), "eval-fixture-session||");
+    assert.equal(readFileSync(join(base, "out/W3b-fixture-pass/repo/fixture-session.txt"), "utf8"), "eval-fixture-session||");
   } finally { rmSync(base, { recursive: true, force: true }); }
 });

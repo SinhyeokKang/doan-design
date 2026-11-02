@@ -86,6 +86,13 @@ const workResponseSchema = ajv.getSchema(`${V3}#/$defs/response`);
 export const validWorkRequest = (v: unknown): boolean => workRequestSchema(v);
 export const validWorkResponse = (v: unknown): boolean => workResponseSchema(v);
 
+ajv.addSchema(JSON.parse(readFileSync(join(import.meta.dirname, "../../schema/app-socket.v4.schema.json"), "utf8")));
+const V4 = "https://doan.design/schema/app-socket.v4.schema.json";
+const openRequestSchema = ajv.getSchema(`${V4}#/$defs/request`);
+const openResponseSchema = ajv.getSchema(`${V4}#/$defs/response`);
+export const validOpenRequest = (v: unknown): boolean => openRequestSchema(v);
+export const validOpenResponse = (v: unknown): boolean => openResponseSchema(v);
+
 // A scenario's scripted app state. The fake is deterministic (session `s_eval`,
 // `op_<n>`, `insp_<n>`) so self-test fixtures can name ids ahead of time; real
 // agents still have to read them from replies.
@@ -340,7 +347,13 @@ export function initializeRepo(root: string, changes: string[], manifest: string
   writeFileSync(manifest, JSON.stringify(written) + "\n", { mode: 0o600 });
 }
 
-export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; close(): Promise<void> }
+// Whether the canvas draws a frame with this id. The app also lists frames a canvas script draws at runtime; the fake's
+// canvases declare theirs in markup.
+function hasFrame(root: string, path: string, frame: string): boolean {
+  try { return [...readFileSync(join(root, path), "utf8").matchAll(/\bdata-doan-frame="([^"]*)"/g)].some(match => match[1] === frame); } catch { return false; }
+}
+
+export interface FakeApp { runtimePath: string; onboardingLog: string; workLog: string; openLog: string; close(): Promise<void> }
 interface FakeAppOptions { dir: string; root: string; selection: Obj | null; onboarding?: OnboardingScript | null }
 
 // The manifest initializeRepo keeps beside the runtime file.
@@ -354,6 +367,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
   const runtimePath = join(o.dir, "runtime.json");
   const onboardingLog = join(o.dir, "onboarding.jsonl");
   const workLog = join(o.dir, "work.jsonl");
+  const openLog = join(o.dir, "open.jsonl");
   const paths = new Set<string>();
   const snapshot = (path: string): string | null => {
     const target = join(o.root, path);
@@ -385,6 +399,23 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
       appendFileSync(workLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
       return response;
     }
+    if (isObj(parsed) && parsed.v === 4) {
+      const fail = (code: string, message: string) => ({ v: 4, ok: false, error: { code, message } });
+      // The app's order: shape, token, project, then the canvas list. The list is the canvases on disk; the fake has
+      // no locked page, dialog or first run, so it never answers busy or not_ready.
+      const response = !validOpenRequest(parsed) ? fail("bad_request", "The request is not an app-socket v4 request.")
+        : parsed.token !== token ? fail("bad_token", "The token does not match this app.")
+        : parsed.root !== o.root ? fail("project_not_open", "The project is not open in Doan.")
+        : snapshot(parsed.path as string) === null ? fail("canvas_not_found", "The canvas is not in this project's list.")
+        : { v: 4, ok: true, opened: true, frame: parsed.frame === undefined ? "none" : hasFrame(o.root, parsed.path as string, parsed.frame as string) ? "found" : "missing" };
+      // The canvas's hash when the request arrived, so a check can tell an open that followed the edit from an earlier one.
+      const hashes: Record<string, string | null> = {};
+      if (response.ok && typeof parsed.path === "string") hashes[parsed.path] = snapshot(parsed.path);
+      if (!validOpenResponse(response)) throw new Error(`the eval fake app built an invalid v4 reply: ${JSON.stringify(response)}`);
+      const { token: _token, ...request } = parsed;
+      appendFileSync(openLog, JSON.stringify({ request, response, at: new Date().toISOString(), hashes }) + "\n", { mode: 0o600 });
+      return response;
+    }
     if (!onboarding || !isObj(parsed) || parsed.v !== 2) return answer(line, token, o.root, o.selection);
     const response = onboarding.answer(line, token);
     // Checks read this log; the token stays out of it.
@@ -410,6 +441,7 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     runtimePath,
     onboardingLog,
     workLog,
+    openLog,
     close: () => new Promise(resolve => {
       for (const connection of connections) connection.destroy();
       server.close(() => resolve());
@@ -435,6 +467,7 @@ export async function startFakeApp(o: FakeAppOptions): Promise<FakeApp> {
     runtimePath: join(o.dir, "runtime.json"),
     onboardingLog: join(o.dir, "onboarding.jsonl"),
     workLog: join(o.dir, "work.jsonl"),
+    openLog: join(o.dir, "open.jsonl"),
     // Bounded either way, so a stuck child cannot hold up the run's disposal.
     async close() {
       child.stdin.end();

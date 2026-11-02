@@ -70,6 +70,7 @@ export interface ContextOptions {
   seedCommit: string;
   onboardingLog?: string;
   workLog?: string;
+  openLog?: string;
   // The fake app's record of the files it wrote into `repo` (socket.ts initializeRepo).
   appWrites?: string;
 }
@@ -171,6 +172,10 @@ export function createContext(o: ContextOptions): CheckContext {
     work() {
       if (!o.workLog || !existsSync(o.workLog)) return [];
       return readFileSync(o.workLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+    },
+    open() {
+      if (!o.openLog || !existsSync(o.openLog)) return [];
+      return readFileSync(o.openLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     run: (cmd, args) => sh(cmd, args, o.repo, o.env),
   };

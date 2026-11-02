@@ -11,15 +11,26 @@ const seed = readFileSync(join(import.meta.dirname, "seed", path), "utf8");
 const final = readFileSync(join(import.meta.dirname, "fixtures/pass", path), "utf8");
 function labelPass(html: string) {
   const ctx = {
-    seed: () => seed, read: () => html, changedFiles: () => [path], work: () => [],
+    seed: () => seed, read: () => html, changedFiles: () => [path], work: () => [], open: () => [], calls: { commands: [], mcpTools: [] },
     doan: () => ({ code: 0, json: { result: { summary: { errors: 0 } } } }),
     run: (cmd: string, args: string[]) => sh(cmd, args, import.meta.dirname, process.env),
   } as unknown as CheckContext;
   return checks(ctx).find(c => c.id === "button_label_updated")?.pass;
 }
-test("W3 accepts a reformatted button and rejects unrelated label or id edits", () => {
+test("W3b accepts a reformatted button and rejects unrelated label or id edits", () => {
   assert.equal(labelPass(final.replace(">Save profile</button>", ">\n  Save profile\n</button>")), true);
   assert.equal(labelPass(seed), false);
   assert.equal(labelPass(final.replace('data-doan-id="heading"', 'data-doan-id="other"')), false);
   assert.equal(labelPass(final.replace("Profile settings</h1>", "Settings</h1>")), false);
+});
+
+test("W3b fails when the agent opened the canvas unasked, by command or at the app", () => {
+  const verdict = (commands: string[], open: unknown[]) => checks({
+    seed: () => seed, read: () => final, changedFiles: () => [path], work: () => [], open: () => open, calls: { commands, mcpTools: [] },
+    doan: () => ({ code: 0, json: { result: { summary: { errors: 0 } } } }),
+    run: (cmd: string, args: string[]) => sh(cmd, args, import.meta.dirname, process.env),
+  } as unknown as CheckContext).find(c => c.id === "no_doan_open")?.pass;
+  assert.equal(verdict([], []), true);
+  assert.equal(verdict(["doan open .doan/canvases/profile.html --json"], []), false);
+  assert.equal(verdict([], [{}]), false);
 });
