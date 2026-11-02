@@ -74,7 +74,7 @@ function parts(item: Skipped, tilde: (path: string) => string): Pick<NoticeLine,
       case "displaced": return { parts: [{ text: "Doan moved " }, path, { text: ", which it didn’t create, to " }, { code: tilde(item.at) }, { text: ` and couldn’t put it back. Move it back${REOPEN}` }] };
       case "other": return { parts: [{ text: "Doan couldn’t write " }, path, { text: ` (${item.code}). Check ` }, { code: tilde(item.at) }, { text: REOPEN }] };
     }
-    // A link stays the person's: they add the rules where it points, and the notice goes once both are there.
+    // A link stays the person's: they add the rules where it points, and the notice goes once every rule is there.
     case "claude-settings": return item.problem === "link"
       ? { parts: [path, { text: " is a link, so Doan left it alone. To let Claude Code run " }, { code: "doan work" }, { text: " and " }, { code: "doan open" }, { text: " without asking, add " }, { code: "Bash(doan work start *)" }, { text: ", " }, { code: "Bash(doan work done *)" }, { text: " and " }, { code: "Bash(doan open *)" }, { text: " to " }, { code: "permissions.allow" }, { text: " in the file it links to." }] }
       : { parts: [...settingsProblem(item.problem, path), { text: ", so Doan couldn’t add the rules that let Claude Code run " }, { code: "doan work" }, { text: " and " }, { code: "doan open" }, { text: ` without asking. Fix the file${REOPEN}` }] };

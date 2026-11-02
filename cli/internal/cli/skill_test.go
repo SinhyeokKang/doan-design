@@ -227,7 +227,7 @@ func TestSkillGuideOpenOffer(t *testing.T) {
 	for _, required := range []string{
 		"keep its links out of your answer, and give `links` only when the person asks for them",
 		"Unless you stop to ask something else, end the answer with one line, in its language, offering to open the edited canvas in Doan",
-		"the name Doan shows (its `doan ls` title, else the file name without `.html`); for a frame use its title",
+		"the name Doan shows (its `doan ls` title, else the file name without `.html`); a frame by its title (`--frame` takes its id)",
 		"With several canvases, name them all; if the person only says “open”, open the first and say the rest are in the sidebar",
 		"Never ask again about a canvas already opened or declined in this conversation",
 		"Run `doan open` only when the person asks, and report its result in one line",
@@ -243,6 +243,16 @@ func TestSkillGuideOpenOffer(t *testing.T) {
 	}
 }
 
+// The onboarding section says which commands open the app; `doan open` is the second one.
+func TestSkillGuideSaysOnlyOpenAlsoOpensTheApp(t *testing.T) {
+	if !strings.Contains(skillBody, "Only `doan open` also opens the app; `doan active` never does.") {
+		t.Error("the onboarding section does not say that doan open may also open the app")
+	}
+	if strings.Contains(skillBody, "Other commands, including `doan active`, never open the app.") {
+		t.Error("the guide still says no other command opens the app")
+	}
+}
+
 func TestSkillGuideOpenCommand(t *testing.T) {
 	var command string
 	for _, l := range strings.Split(skillBody, "\n") {
@@ -254,9 +264,9 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		"- `doan open <canvas path> [--frame <id>] --json`",
 		"`.doan/canvases/*.html` or `.doan/ds/*.html`",
 		"it only navigates",
-		"Returns `{opened, frame}` where `frame` is `found`, `missing` (the canvas has no such frame; say only the canvas opened) or `none`",
+		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
 		"A bundled CLI starts a closed Doan once",
-		"`canvas_not_found`",
+		"On failure: `canvas_not_found`",
 		"`project_not_open` (name the folder; they add it with Add Project…, then ask again)",
 		"`busy` (`message` says what blocks; they finish it, then ask again)",
 		"`app_launch_failed` (Doan did not open)",
