@@ -264,3 +264,24 @@ test("a dialog that does not close for its cancel (busy) keeps the link from mov
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
   expect(all(tree).some(element => element.type === ProjectSettingsDialog)).toBe(true);
 });
+
+// From Home a project row opens its Overview, never the last canvas (user decision): the loaded project's row and
+// another project's row alike. From a workspace another project's row still restores its last canvas.
+test("from Home, a project row opens its Overview, the loaded project's and another's", async () => {
+  await start();
+  folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
+  show(rows()[0]!);
+  const key = (root: string) => sidebar().cards.find(card => card.rows.some(row => row.path === root))!.key;
+  sidebar().goHome(); render();
+  const overviews = harness.controller!.showOverview!.mock.calls.length, canvases = harness.controller!.openCanvas!.mock.calls.length;
+  sidebar().toggle(key("/w/a")); render();
+  expect(harness.controller!.showOverview!.mock.calls.length).toBe(overviews + 1);
+  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(canvases);
+  sidebar().goHome(); render();
+  sidebar().toggle(key("/w/b")); await flush(); render();
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
+  // From the workspace now loaded on /w/b, /w/a's row keeps restoring its last canvas.
+  sidebar().toggle(key("/w/a")); await flush(); render();
+  expect(harness.controller!.openWorkspace!.mock.lastCall?.[0]).toBe("/w/a");
+  expect(harness.controller!.openWorkspace!.mock.lastCall?.[4]).not.toBe(true);
+});
