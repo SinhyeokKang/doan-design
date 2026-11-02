@@ -18,7 +18,7 @@
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`. 커밋 경계: V2 앱 적용·회귀 검증.
 - [x] F. `/design-sync`로 V2 초안과 앱을 비교하고 `/runtime-test`로 바뀐 동작을 짧게 확인한다. 임시 HOME/userData/SHELL/agent 설정/DOAN_RUNTIME을 사용한다. 정상·축소 창, 포인터·입력·클릭·Enter·Space·전송 및 거절, 정점 잘림, reduced motion, Welcome 뒤 숨김, 실패 fallback, StrictMode와 24회 Home 재방문을 포함한다.
   - 검증: `node .scratch/design-sync/doany-v2/measure.mjs`와 `npm --prefix app run package` 후 격리된 패키지 실행. 실제 장면·시간·프레임 증거를 남긴다. 전용 영구 e2e suite는 만들지 않는다.
-- [ ] G. `/code-review` 후 필요한 수정만 하고 `/verify`로 통합 확인한다. 버그를 고쳤으면 `/postmortem`을 기록한다.
+- [x] G. `/code-review` 후 필요한 수정만 하고 `/verify`로 통합 확인한다. 버그를 고쳤으면 `/postmortem`을 기록한다.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs`. CLI/가이드/check 변경이 없으므로 agent-eval은 범위에 넣지 않는다.
 - [ ] H. 완료 결론을 PRODUCT(선택 외형·동작)와 ARCHITECTURE(V2 모션 기준·좌표·fixture 재현 경로)에 영어로 승격한다. DESIGN에 실측·미검증 범위를 갱신하고 이 `docs/features/doany-v2/`를 삭제한다. V2 에셋 README와 캔버스의 인계 설명은 남기고, 삭제되는 기능 문서를 가리키는 참조를 현행 문서로 바꾼다.
   - 검증: `go run ./cli/cmd/doan check --repo . --json`, 관련 문서 링크와 측정 기록 대조. 커밋 경계: 문서별 커밋으로 현행 규칙 승격.
