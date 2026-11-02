@@ -15,11 +15,11 @@ Naming: product `Doan` · domain `doan.design` · CLI and identifiers `doan`
 3. The human talks to the agent in the canvas's conversation panel, putting frames, elements and spots of the canvas into the message as chips, or selects an element and asks their own agent outside Doan.
 4. The agent receives the chips as anchors (or reads the selection with `doan active`), edits the canvas and runs `doan check`. Comments already in `.doan/comments/` (append-only JSONL, shared through git) stay readable with `doan comments`, and the agent resolves the ones it applied.
 
-Canvases use the repo's real token CSS, and frames can point at the files that implement them (`data-doan-implements`). Doan does not draw, run a server, or run git commands on the agent's behalf.
+Canvases use the repo's real token CSS, and frames can point at the files that implement them (`data-doan-implements`). Doan does not draw, host anything, or commit, branch or pull on the agent's behalf.
 
 ## What works today
 
-- **App**: first-run sign-in to the agent connections (Claude Code, Codex, Cursor, Antigravity, GitHub Copilot; one account each) and project setup; a Home composer that starts a conversation with the signed-in agent; the project/canvas workspace with zoom, pan, frame jumps and Quick Open; element selection with a computed-style and token inspector; a conversation panel on each canvas that continues the canvas's conversations and puts frames, elements and spots into messages as chips.
+- **App**: first-run sign-in to the agent connections (Claude Code, Codex, Cursor, Antigravity, GitHub Copilot; one account each) and project setup; a Home composer that starts a conversation with the signed-in agent; the Add Projects page; the project Overview with its conversation thread and the canvas conversations list; the canvas workspace with zoom, pan, frame jumps and Quick Open; element selection; Settings (Agents, Notifications, About); a conversation panel on each canvas that continues the canvas's conversations and puts frames, elements and spots into messages as chips.
 - **CLI `doan`**: `init`, `config`, `ls`, `comments`, `comment resolve`, `check`, `active`, `onboarding`, `skill`, `design-skill`. Everything except `active` and `onboarding` works without the app.
 - **Skills**: opening Doan from Applications links its skill stub and the `doan` command for Claude Code, Codex, Cursor, GitHub Copilot and Antigravity, with no setup; the guide comes from `doan skill`, plus bundled design presets (adapted from Impeccable).
 
@@ -45,6 +45,8 @@ To run the CLI directly: `go run ./cli/cmd/doan <command> --repo <path> [--json]
 | [docs/BACKLOG.md](./docs/BACKLOG.md) | Open product questions, unverified surfaces, known defects |
 | [docs/DESIGN.md](./docs/DESIGN.md) | Measured values of the app UI |
 | [docs/DIRECTORY.md](./docs/DIRECTORY.md) | Directory layout |
+| [docs/USABILITY-EVAL.md](./docs/USABILITY-EVAL.md) | How agents fare writing and reading Doan designs: the usability loop, issues and eval rounds |
+| [docs/POSTMORTEM.md](./docs/POSTMORTEM.md) | Pitfalls recorded from bugs and regressions |
 | [AGENTS.md](./AGENTS.md) | How agents work in this repo |
 
 ## Background — friction from working with Claude Design
