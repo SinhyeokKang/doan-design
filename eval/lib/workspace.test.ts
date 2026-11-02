@@ -17,6 +17,15 @@ after(() => rmSync(root, { recursive: true, force: true }));
 const r6 = () => loadScenario(join(import.meta.dirname, "../scenarios"), "R6b");
 const git = (dir: string, args: string[]) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
 
+test("isolated Claude project settings allow work signals without changing the real config", async () => {
+  const ws = await prepareWorkspace({ scenario: r6(), agent: "claude", cli, stub: "stub\n" });
+  try {
+    const settings = JSON.parse(readFileSync(join(ws.repo, ".claude/settings.json"), "utf8"));
+    assert.deepEqual(settings.permissions.allow, ["Bash(doan work start *)", "Bash(doan work done *)"]);
+    assert.equal(git(ws.repo, ["status", "--porcelain"]), "");
+  } finally { await ws.dispose(); }
+});
+
 test("without worktree the agent works in the instruction's root", async () => {
   const ws = await prepareWorkspace({ scenario: r6(), agent: "fixture", cli, stub: "stub\n" });
   try {
