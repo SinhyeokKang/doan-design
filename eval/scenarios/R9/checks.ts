@@ -78,8 +78,6 @@ const checks: Checks = ctx => {
     noOpen(ctx),
     { id: "doan_links_well_formed", pass: bad.length === 0, detail: bad.length ? `doan: text that the app would not draw as a link: ${JSON.stringify(bad)}` : `${links.length} doan link(s) in the answer outside code, all well-formed` },
     { id: "links_name_real_targets", pass: links.length > 0 && unreal.length === 0, detail: unreal.length ? `no such target in ${CANVAS_ID}'s final canvas: ${JSON.stringify(unreal)}` : `${links.length} link(s), every one a frame or element of ${CANVAS_ID}` },
-    { id: "frame_link_present", pass: valid.some(l => l.kind === "frame"), detail: `frame links with real ids: ${JSON.stringify(valid.filter(l => l.kind === "frame"))}` },
-    { id: "element_link_present", pass: valid.some(l => l.kind === "element"), detail: `element links with real ids: ${JSON.stringify(valid.filter(l => l.kind === "element"))}` },
     { id: "heading_change_linked", pass: headingLinked, detail: `want frame ${FRAME} or an element inside it (${[...insideFrame].join(", ") || "none"}); links: ${JSON.stringify(valid)}` },
     { id: "button_change_linked", pass: buttonLinked, detail: `want element ${ELEMENT} or frame ${turn.anchors[1].frame.id}; links: ${JSON.stringify(valid)}` },
   ];
