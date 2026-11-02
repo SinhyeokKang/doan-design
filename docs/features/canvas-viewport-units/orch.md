@@ -13,7 +13,7 @@
 - D5 (사용자 결정, 배치 A 결과에서): `viewport_height_unit`은 캔버스 파일의 `<style>`·`style` 속성만 본다. 링크한 공유 스타일시트(앱 `ds/surfaces.css`의 `100dvh` 등)는 에이전트가 고칠 수 없는 제품 CSS라 경고하지 않는다. 가이드에 "링크한 CSS의 viewport 높이 단위는 캔버스에서 px로 덮어쓴다"를 더하고, `buzz-project-settings`의 `.doan-dialog[open]{max-height:none}`은 남긴다. spec·design·tasks에 반영했다.
 - D6 (지휘자 판단 — 사용자 관찰 "ds 캔버스가 스크롤에 가려진다"): 배치 C의 runtime-test에 ds 캔버스(dialog·quick-open·project-settings·button) 측정을 더한다. ds 캔버스는 모두 Geist `@font-face`가 든 `tokens.css`를 링크하므로 폰트 경로(B)로 고쳐지는지 본다. `.doan/ds/dialog.html`의 expanded 다이얼로그는 링크한 `surfaces.css`의 `height: calc(100dvh - …)`를 덮어쓰지 않아 순환이 남는다. 잘리면 C가 캔버스에서 px로 덮어쓴다(D5의 가이드 규칙).
 - D7 (사용자 결정, 오케스트레이션 중 추가 요청): 사이드바 캔버스는 마지막 수정 시각 내림차순으로 정렬한다. 두 그룹(Design system, Canvases) 모두다. 에이전트가 파일을 고치면 그 행이 바로 위로 옮겨지고, 키보드 포커스와 현재 캔버스는 같은 캔버스를 따라간다. mtime이 없거나 같으면 지금의 자연 정렬을 따른다. clone·pull 때 바뀐 mtime은 받아들인다(PRODUCT §3 Out of scope 6, Doan은 git 명령을 돌리지 않는다). 배치 E가 맡고, PRODUCT §5 item 1의 "natural order" 문장은 지휘자가 고친다.
-- D8 (사용자 결정, 오케스트레이션 중 추가 요청): 추천 프롬프트 버튼을 한 단계 키우고, 문구는 사람이 에이전트에게 보낼 요청 문장으로 바꾸되 길이는 적당히 짧게 한다. 문구는 clarify 프리셋을 따른다. 초안 캔버스의 추천 프롬프트도 함께 바꾼다(초안은 결정을 따른다). 배치 F가 맡는다.
+- D8 (사용자 결정, 오케스트레이션 중 추가 요청): 추천 프롬프트 버튼을 한 단계 키우고, 문구는 지금의 명령형을 유지하되 사람이 실제로 칠 법한 자연스러운 말로 다듬고 짧게 둔다(요청 문장형은 사용자가 철회했다). 문구는 clarify 프리셋을 따른다. 초안 캔버스의 추천 프롬프트도 함께 바꾼다(초안은 결정을 따른다). 배치 F가 맡는다.
 - D4 (지휘자 판단 — tasks T5): agent-eval은 `W1,W2`만 돌리고 새 시나리오는 두지 않는다.
 
 ## 배치
