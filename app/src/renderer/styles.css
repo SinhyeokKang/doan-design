@@ -550,8 +550,9 @@ body:has(.shell-top) { background: transparent; }
 .group-tabs.shell-modes button { gap: var(--space-1h); padding: 0 var(--space-3); }
 .group-tabs.shell-modes svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .preset-item { gap: var(--space-3); }
-.preset-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.preset-item .sub { flex: none; font-size: var(--type-caption-size); }
+.preset-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.preset-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--type-weight-medium); }
+.preset-desc { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-metadata); }
 /* A portalled popover inherits the page's 13px body; its status line is body-sm like the menu rows around it. */
 .popover-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); color: var(--text-subtle); }
 .popover-actions { display: flex; justify-content: flex-end; padding-top: var(--space-2); }

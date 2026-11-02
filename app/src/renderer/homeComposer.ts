@@ -383,7 +383,7 @@ export function searchPresets(presets: readonly PresetSummary[], query: string):
   return scored.sort((a, b) => b.score - a.score || a.i - b.i).map(s => s.preset);
 }
 
-export interface PresetRow { id: string; title: string; scope: string; tooltip: string; group: string | null }
+export interface PresetRow { id: string; title: string; description: string; scope: string; tooltip: string; group: string | null }
 export interface PresetTab { key: string; label: string; icon: string; selected: boolean }
 export type PresetListView =
   | { kind: "loading"; text: string }
@@ -409,7 +409,7 @@ export function presetListView(reply: PresetListReply | undefined, opts: { proje
     return { kind: "error", text: reason ? `Doan couldn’t read the design presets: ${reason}. You can still send without one.` : "Doan couldn’t read the design presets. You can still send without one.", retry: true };
   }
   const presets = reply.result.presets, query = opts.query.trim();
-  const row = (p: PresetSummary, withGroup: boolean): PresetRow => ({ id: p.id, title: p.title, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: withGroup ? groupLabel(p.group) : null });
+  const row = (p: PresetSummary, withGroup: boolean): PresetRow => ({ id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: withGroup ? groupLabel(p.group) : null });
   if (query) {
     const found = searchPresets(presets, query);
     if (found.length === 0) return { kind: "empty", text: `No presets match “${query}”.` };
