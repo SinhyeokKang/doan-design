@@ -385,6 +385,8 @@ export class CanvasController {
         this.state.shown = to;
         const remembered = this.workspaceMemory.get(open.folder);
         if (remembered?.path === open.canvas) remembered.path = to;
+        // A reply chip's element still waiting for this canvas's first layout follows it, as the waiting frame does.
+        if (this.pendingLocate?.folder === open.folder && this.pendingLocate.path === open.canvas) this.pendingLocate = { ...this.pendingLocate, path: to };
         this.recordDocument({ ...activityKey(open.folder, update.canvas), at, kind: "moved", from: open.canvas });
         // The same canvas reloaded at its new path: the view stays and the selection is asked for again.
         this.load(update.canvas, false, "moved");

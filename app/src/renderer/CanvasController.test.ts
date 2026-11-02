@@ -2509,6 +2509,8 @@ describe("reply chip open", () => {
   });
 
   // POSTMORTEM 2026-11-01: worktrees share canvas ids and paths, so a root's waiting element never reaches another's.
+  // Every change of root goes through a fresh load, which drops the wait, so this cannot fail on the root check in
+  // locatePending alone; that check guards a future path that changes the root without a fresh load.
   it("two roots with the same canvas: another root's open drops the waiting element instead of locating in it", () => {
     const h = selectionHarness();
     try {
@@ -2519,6 +2521,27 @@ describe("reply chip open", () => {
       h.layout({ href: twin.url, document: "doc-twin" });
       expect(h.state().open).toMatchObject({ folder: "/twin", canvas: twin.path });
       expect(asked(h)).toEqual([]);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Review RA2: the waiting element is tied to the canvas path, so a move of that canvas before its first layout has
+  // to carry it along, as the waiting frame is carried.
+  it("a canvas moved (same id) before its first layout still locates the waiting element, and keeps a waiting frame too", () => {
+    const h = selectionHarness();
+    try {
+      const moved = { ...h.other, path: ".doan/canvases/flows/b.html", url: "http://localhost/t/k/f/.doan/canvases/flows/b.html" };
+      h.controller.openCanvas("/repo", h.other, { element: "pay" });
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, moved] }]);
+      expect(h.state().open).toMatchObject({ folder: "/repo", canvas: moved.path });
+      h.layout({ href: moved.url, document: "doc-moved" });
+      expect(asked(h)).toEqual(["pay"]);
+      const found = vi.fn();
+      const back = { ...moved, path: h.other.path, url: h.other.url };
+      h.controller.openCanvas("/repo", h.row);
+      h.controller.openCanvas("/repo", moved, { frame: "hero" }, { found });
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, back] }]);
+      h.layout({ href: back.url, document: "doc-back" });
+      expect(found).toHaveBeenCalledExactlyOnceWith(true);
     } finally { h.controller.dispose(); }
   });
 

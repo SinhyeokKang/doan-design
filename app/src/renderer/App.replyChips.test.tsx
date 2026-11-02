@@ -68,6 +68,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { CanvasConversation, CanvasConversationTitle } = await import("./CanvasConversationPanel");
 const { unavailableCanvasMessage } = await import("./quickOpen");
+const { SettingsPage } = await import("./SettingsPage");
 const { initialCanvasState } = await import("./CanvasController");
 
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
@@ -210,12 +211,48 @@ test("a canvas that cannot load after the chip opened it says so as Quick Open d
   expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(unavailableCanvasMessage(listA(), C));
 });
 
+// Review RA2: the Overview covers the canvas it came from, so a chip into that canvas opens it again instead of
+// locating in a canvas nobody sees.
 test("the Overview's chips open their canvas, the one it last showed included", async () => {
-  await overview();
+  await onDrafts();
+  // The canvas page's way back to the Overview; the controller then publishes no open canvas.
+  find<{ overview(root: string): void }>(ShellSidebar)[0]!.props.overview("/w/a");
+  harness.setState!({ ...initialCanvasState() }); render();
+  await flushAll();
+  expect(harness.controller!.showOverview).toHaveBeenCalled();
+  expect(find(ProjectOverview)).toHaveLength(1);
   clearController();
   void overviewChip({ canvas: "drafts", kind: "frame", id: "editor" });
   expect(lastOpen().slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: D }), { frame: "editor" }]);
+  void overviewChip({ canvas: "drafts", kind: "element", id: "save" });
+  expect(lastOpen().slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: D }), { element: "save" }]);
   expect(harness.controller!.locate).not.toHaveBeenCalled();
+});
+
+test("a chip in the canvas panel whose canvas the project does not have shows one toast and moves nowhere", async () => {
+  await onDrafts();
+  const name = find<{ project: string }>(CanvasConversation)[0]!.props.project;
+  clearController();
+  await expect(panelChip({ canvas: "billing", kind: "element", id: "a" })).resolves.toBeNull();
+  expect(harness.toast.show).toHaveBeenCalledExactlyOnceWith(`Couldn’t open billing. The canvas isn’t in ${name}.`);
+  for (const method of ["openCanvas", "locate", "showOverview", "openWorkspace"]) expect(harness.controller![method], method).not.toHaveBeenCalled();
+});
+
+// The panel is not drawn on a page, so its handler is taken before the page opens: what a press that lands while the
+// page is locked would run. decideOpen reads the page at press time.
+test("on a locked page another canvas's chip moves nowhere and shows nothing", async () => {
+  await onDrafts();
+  const press = find<Chips>(CanvasConversation)[0]!.props.onReplyChip;
+  listeners.openSettingsPage!({} as never); render();
+  find<{ onState(report: { locked: boolean }): void }>(SettingsPage)[0]!.props.onState({ locked: true }); render();
+  clearController();
+  await expect(press({ canvas: "checkout", kind: "frame", id: "payment" })).resolves.toBeNull();
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(harness.toast.show).not.toHaveBeenCalled();
+  // Unlocked, the same press moves.
+  find<{ onState(report: { locked: boolean }): void }>(SettingsPage)[0]!.props.onState({ locked: false }); render();
+  void press({ canvas: "checkout", kind: "frame", id: "payment" });
+  expect(lastOpen().slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: C }), { frame: "payment" }]);
 });
 
 test("a chip's canvas the project does not have, or has twice, or whose list is not usable shows one toast and moves nowhere", async () => {

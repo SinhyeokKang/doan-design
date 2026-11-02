@@ -8,7 +8,7 @@ import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { messageLine, type FrameName } from "../main/conversation/messageText";
-import type { FolderEntry } from "../main/view";
+import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
@@ -89,6 +89,8 @@ export interface CanvasConversationProps {
 const NEW_PLACEHOLDER = "Ask, / for presets";
 const REPLY_PLACEHOLDER = "Reply, / for presets";
 const NEW = "";
+// One empty list for a project without one, so the thread's memoized chip data keeps its identity across renders.
+const NO_ROWS: readonly CanvasRow[] = [];
 const focusField = () => queueMicrotask(() => focusFieldEnd(document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")));
 // Main's turn as the composer reads it, as the Overview's: the merged events first (the list lags them), then the list.
 function turnOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): "idle" | "running" | "waiting" {
@@ -385,7 +387,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
         onOpenLink={url => void window.doan.openLink(url).catch(console.error)}
         onCopy={text => Promise.resolve(copyText(text))}
         onLocate={props.onLocate} locateDisabled={props.locateDisabled} frames={props.frames}
-        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : []} />
+        {...(props.onReplyChip ? { onReplyChip: props.onReplyChip } : {})} openCanvasId={target.canvas.id ?? null} canvasRows={props.entry.kind === "list" ? props.entry.canvases : NO_ROWS} />
         : view.kind === "wait" || conversationId ? <Waiting /> : <>
           {newView?.listError && <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Couldn’t read conversations</b><span>Try again. You can still start a new conversation.</span></span>
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}

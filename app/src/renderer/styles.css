@@ -1045,10 +1045,15 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    thread chip does; a target that is gone gets the metadata line under its message or composer. */
 .composer-input .anchor-chip { cursor: pointer; }
 .chip-missing { color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
-/* A reply chip for another canvas (agent-reply-chips): only the label ellipsizes at the 180px chip; " · <canvas>" is
-   never cut. The suffix keeps its leading space (pre) and takes back the chip's gap, so it reads "Label · Canvas".
-   It must match `.anchor-chip span:not(.sr-only)`'s specificity and come after it, or that nowrap collapses the space. */
-.anchor-chip span.chip-canvas { flex: none; white-space: pre; margin-left: calc(-1 * var(--space-1)); }
+/* A reply chip for another canvas (agent-reply-chips): the label keeps the 180px chip's room and ellipsizes there;
+   " · <canvas>" is added past it and is not cut, so the chip grows by what the suffix needs, up to the thread line.
+   On a line too narrow the label shrinks first; only a suffix wider than the line by itself ellipsizes, and nothing
+   paints outside the chip. The suffix keeps its leading space (pre) and takes back the chip's gap, so it reads
+   "Label · Canvas". These rules must come after `.anchor-chip span:not(.sr-only)` (same specificity for the suffix),
+   or that nowrap collapses the space. */
+.anchor-chip:has(> span.chip-canvas) { max-width: 100%; overflow: hidden; }
+.anchor-chip:has(> span.chip-canvas) > span:not(.chip-canvas) { max-width: calc(180px - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1)); }
+.anchor-chip span.chip-canvas { flex: none; white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100% - var(--size-icon-sm) - var(--space-1)); }
 /* A reply chip's note under its reply block, 6 apart, as the note under a sent bubble. */
 .conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }
 .mark.jump-highlight.jump-point { border-radius: 50%; }
