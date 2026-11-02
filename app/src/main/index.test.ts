@@ -1817,3 +1817,42 @@ describe("agent setup on launch", () => {
     });
   });
 });
+
+test("deep links wait for restoration readiness and only navigate or refuse in the main window", async () => {
+  const contents = window().webContents;
+  const preventDefault = vi.fn();
+  const url = "doan://open?root=%2Frepo&canvas=.doan%2Fcanvases%2Fa.html&frame=hero";
+  mocks.shell.entries.mockReturnValue([{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }]);
+  mocks.app.emit("open-url", { preventDefault }, "bad");
+  mocks.app.emit("open-url", { preventDefault }, url);
+  expect(contents.send.mock.calls.filter(([channel]) => channel === "deep-link:open")).toEqual([]);
+  await invoke("deep-link:ready", contents, {});
+  expect(contents.send.mock.calls.filter(([channel]) => channel === "deep-link:open")).toEqual([]);
+  await invoke("deep-link:ready", contents, null);
+  expect(contents.send).toHaveBeenCalledWith("deep-link:open", { kind: "navigate", root: "/repo", canvas: ".doan/canvases/a.html", frame: "hero" });
+  await invoke("deep-link:ready", contents, null);
+  expect(contents.send.mock.calls.filter(([channel]) => channel === "deep-link:open")).toHaveLength(1);
+  mocks.app.emit("open-url", { preventDefault }, "bad");
+  expect(contents.send).toHaveBeenCalledWith("deep-link:open", { kind: "malformed" });
+  expect(window().show).toHaveBeenCalledTimes(2);
+  expect(mocks.shell.open).not.toHaveBeenCalled();
+  expect(mocks.shell.store).not.toHaveBeenCalled();
+  expect(mocks.uiState.save).not.toHaveBeenCalled();
+});
+
+test("main exposes work only to its main frame and clears it on root removal", () => {
+  const state = mocks.startRuntime.mock.calls[0]?.[1];
+  if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no folder listener");
+  mocks.shell.entries.mockReturnValue([{ path: "/repo", kind: "list" }]);
+  changed([{ path: "/repo", kind: "list", canvases: [] }]);
+  state.work({ v: 3, token: "t", root: "/repo", action: "start", path: ".doan/canvases/new.html" });
+  const expected = [{ root: "/repo", path: ".doan/canvases/new.html", session: null, provider: null }];
+  expect(invoke("work:get", window().webContents, null)).toEqual(expected);
+  expect(window().webContents.send).toHaveBeenCalledWith("work:changed", expected);
+  expect(invoke("work:get", {}, null)).toEqual([]);
+  expect(invoke("work:get", window().webContents, {})).toEqual([]);
+  changed([]);
+  expect(invoke("work:get", window().webContents, null)).toEqual([]);
+});
