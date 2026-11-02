@@ -10,7 +10,7 @@ Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), [A
 ## Establish coverage
 
 - `/ux-audit` covers all implemented surfaces unless the user narrows it. Record HEAD, worktree status, and a screen/state inventory before comparing.
-- Include Home, project overview and Feedback, workspace/sidebar, the canvas page and its conversation panel (chips, picking, locate), inspector, Quick Open, Settings, onboarding and First prompt, shared dialogs, alerts, menus, and toasts where implemented. Follow current entry points rather than assuming this list is exhaustive.
+- Include Home (composer and project picker), Add Projects, project Overview, workspace/sidebar and its status slots, the canvas page and its conversation panel (chips, picking, locate), the conversation strip, Quick Open, Settings, first-run onboarding, shared dialogs, alerts, menus, and toasts where implemented. Follow current entry points rather than assuming this list is exhaustive.
 - Map shared concepts across surfaces: project identity and availability, agent connection/setup state, selection, loading/waiting, errors and recovery. Record which source determines each state and which component presents it.
 - Separate source inspection from live observation. Existing screenshots and measured tables retain their original date and scope; they do not prove the current app matches.
 
@@ -52,6 +52,6 @@ The lead writes the consolidated report in Korean to `docs/features/ux-audit-YYM
 
 Put missing observations and unchecked states first. For each finding include affected screens/states, reproduction or static trace, file:line and screenshot evidence where available, user impact, expected rule, and the smallest suggested correction. Rank broken primary tasks/recovery above misleading state/wording, then cosmetic inconsistencies. Include a screen/state coverage table labelled source-reviewed / runtime-observed / not checked.
 
-Report only: the lead may write the designated report under `docs/features/`; no UI/code/other docs fixes, token redesign, new feature decisions, commits, or push. Store reviewer notes and raw evidence under `.scratch/ux-audit/<run>/`. An audit report is not an approved feature plan and does not require placeholder spec/doan/tasks files. Route approved fixes through the normal implementation workflow; do not run an unrequested redesign.
+Report only: the lead may write the designated report under `docs/features/`; no UI/code/other docs fixes, token redesign, new feature decisions, commits, or push. Store reviewer notes and raw evidence under `.scratch/ux-audit/<run>/`. An audit report is not an approved feature plan and does not require placeholder spec/design/tasks files. Route approved fixes through the normal implementation workflow; do not run an unrequested redesign.
 
 Adapted from `~/code/malmoi/.claude/commands/ux-audit.md`, inspected on 2026-10-25: parallel perspective reviewers, comparison inventories and lead deduplication. doan groups the perspectives into four reviewers with an explicit coverage completion gate; its Electron surfaces, measured design evidence and isolation rules replace malmoi-specific screens.
