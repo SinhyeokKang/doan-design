@@ -73,14 +73,17 @@ export function openLinkQueue(deliver: (url: string) => void): { receive(url: st
 // decide itself at once, without holding the request: not ready yet (the launch restore or a project read is still
 // running; the CLI retries), and the shared root and list checks. A listed canvas is handed to the renderer with an id;
 // its answer, or the timeout, settles that request alone, so concurrent requests each get their own reply in the order
-// the renderer takes them. A late answer finds no request and is dropped, so nothing moves after the CLI was told busy.
+// the renderer takes them. Each request carries `expires`, the wall-clock time (ms) at which main stops waiting and tells
+// the CLI busy; the renderer touches nothing for a request past it (App.tsx openCanvasRequest), and main drops any late
+// answer, so the window does not come forward either. Both processes read the same system clock.
 // The window comes forward only for an opened canvas; a refusal changes nothing the person sees.
 export type OpenBlock = "add_projects" | "settings" | "project_settings" | "first_run" | "dialog";
-export interface OpenAsk { id: string; root: string; canvas: string; frame?: string }
+export interface OpenAsk { id: string; root: string; canvas: string; frame?: string; expires: number }
 export type OpenResult = { kind: "opened"; frame: OpenFrameResult } | { kind: "busy"; reason: OpenBlock } | { kind: "canvas_not_found" };
 export type OpenAnswer = { id: string } & OpenResult;
-// Inside the socket's 2 s connection deadline (runtime.ts LINE_WAIT_MS), leaving room for the line read and the reply.
-export const OPEN_ANSWER_TIMEOUT_MS = 1500;
+// Well inside the 2 s deadlines on both ends: the app's from connect (runtime.ts LINE_WAIT_MS) and the CLI's per attempt
+// from before its dial, so a late main event loop still leaves time for the line read and the reply.
+export const OPEN_ANSWER_TIMEOUT_MS = 1000;
 
 const BLOCKED: Record<OpenBlock, string> = {
   add_projects: "The Add Projects page in Doan is in the middle of a task. Finish or cancel it, then try again.",
@@ -114,11 +117,14 @@ export function openRequests(host: OpenRequestsHost, timeoutMs = OPEN_ANSWER_TIM
       if (target.kind === "canvas-not-listed") return Promise.resolve(openError("canvas_not_found", "The canvas is not in the project's canvas list in Doan."));
       const id = String(++next);
       return new Promise<OpenResponse>(resolve => {
+        // Taken before the timer is armed, so the renderer's cutoff is never later than main's.
+        const expires = Date.now() + timeoutMs;
+        let asked = true;
         const timer = setTimeout(() => settle(null), timeoutMs);
         function settle(answer: OpenAnswer | null) {
           clearTimeout(timer);
           pending.delete(id);
-          if (answer === null) { resolve(openError("busy", "Doan did not answer in time. Try again shortly.")); return; }
+          if (answer === null) { resolve(openError("busy", asked ? "Doan did not answer in time. Try again shortly." : "Doan has no window open. Open Doan, then try again.")); return; }
           if (answer.kind === "opened") {
             try { host.opened(); } catch (error) { console.error("doan: cannot bring the window forward", error); }
             resolve({ v: 4, ok: true, opened: true, frame: answer.frame });
@@ -126,8 +132,8 @@ export function openRequests(host: OpenRequestsHost, timeoutMs = OPEN_ANSWER_TIM
           else resolve(openError("canvas_not_found", "The canvas is not in the project's canvas list in Doan."));
         }
         pending.set(id, { frame: request.frame !== undefined, settle });
-        const asked = { id, root: target.root, canvas: target.canvas, ...(target.frame === undefined ? {} : { frame: target.frame }) };
-        if (!host.ask(asked)) settle(null);
+        const ask = { id, root: target.root, canvas: target.canvas, ...(target.frame === undefined ? {} : { frame: target.frame }), expires };
+        if (!host.ask(ask)) { asked = false; settle(null); }
       });
     },
     answer(value) {

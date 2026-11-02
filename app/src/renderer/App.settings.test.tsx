@@ -585,14 +585,14 @@ test("a doan open request on a locked page answers busy with that page and moves
   projectSettingsFromWorkspace();
   harness.controller!.openCanvas!.mockImplementation((...args: unknown[]) => { (args[3] as { opened?: () => void } | undefined)?.opened?.(); });
   lockPage();
-  listeners.openRequest!({ id: "1", root: "/w/b", canvas: rowA.path } as never); render();
+  listeners.openRequest!({ id: "1", root: "/w/b", canvas: rowA.path, expires: Date.now() + 1000 } as never); render();
   expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
   expect(projectPage()).toBeDefined();
   lockPage(false);
-  listeners.openRequest!({ id: "2", root: "/w/b", canvas: rowA.path } as never); render();
+  listeners.openRequest!({ id: "2", root: "/w/b", canvas: rowA.path, expires: Date.now() + 1000 } as never); render();
   expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 2)).toEqual(["/w/b", rowA]);
   expect(projectPage()).toBeUndefined();
-  expect(doan.answerOpenRequest!.mock.calls).toEqual([[{ id: "1", kind: "busy", reason: "project_settings" }], [{ id: "2", kind: "opened", frame: "none" }]]);
+  expect(doan.answerOpenRequest!.mock.calls).toStrictEqual([[{ id: "1", kind: "busy", reason: "project_settings" }], [{ id: "2", kind: "opened", frame: "none" }]]);
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 

@@ -93,12 +93,15 @@ test("a canvas not in the list, or a root no longer registered, is refused by ma
 });
 
 // POSTMORTEM 2026-11-03: the renderer test injects this event by hand, so main's own test pins every field it sends.
-test("a listed canvas is sent to the renderer with an id, its root, its canvas path and the frame only when asked", async () => {
+test("a listed canvas is sent to the renderer with an id, its root, its canvas path, the frame only when asked, and when main stops waiting", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(1_000_000);
   const { host: value, asked } = host();
   const requests = openRequests(value);
   const first = requests.open({ ...request, frame: "hero" }), second = requests.open(request);
-  expect(asked).toEqual([{ id: expect.any(String), root, canvas: path, frame: "hero" }, { id: expect.any(String), root, canvas: path }]);
-  expect(Object.keys(asked[1]!).sort()).toEqual(["canvas", "id", "root"]);
+  const expires = 1_000_000 + OPEN_ANSWER_TIMEOUT_MS;
+  expect(asked).toStrictEqual([{ id: expect.any(String), root, canvas: path, frame: "hero", expires }, { id: expect.any(String), root, canvas: path, expires }]);
+  expect(Object.keys(asked[1]!).sort()).toEqual(["canvas", "expires", "id", "root"]);
   expect(asked[0]!.id).not.toBe(asked[1]!.id);
   requests.answer({ id: asked[0]!.id, kind: "opened", frame: "found" });
   requests.answer({ id: asked[1]!.id, kind: "opened", frame: "none" });
@@ -148,7 +151,9 @@ test("concurrent requests each get their own answer, whatever order the renderer
   expect(value.opened).toHaveBeenCalledTimes(1);
 });
 
-test("the renderer timeout answers busy inside the socket deadline, and a late answer is dropped", async () => {
+test("the renderer timeout answers busy well inside the socket deadline, and a late answer is dropped", async () => {
+  // The CLI's per-attempt deadline is 2 s from before its dial, the app's 2 s from connect; 1 s leaves room for both.
+  expect(OPEN_ANSWER_TIMEOUT_MS).toBe(1000);
   expect(OPEN_ANSWER_TIMEOUT_MS).toBeLessThan(LINE_WAIT_MS);
   vi.useFakeTimers();
   const { host: value, asked } = host();
@@ -168,9 +173,9 @@ test("the renderer timeout answers busy inside the socket deadline, and a late a
   expect(await next).toEqual({ v: 4, ok: true, opened: true, frame: "none" });
 });
 
-test("with no window to ask, the request is busy at once", async () => {
+test("with no window to ask, the request is busy at once and says so", async () => {
   const { host: value } = host({ ask: vi.fn(() => false) });
-  expect(valid(await openRequests(value).open(request))).toMatchObject({ v: 4, ok: false, error: { code: "busy" } });
+  expect(valid(await openRequests(value).open(request))).toEqual({ v: 4, ok: false, error: { code: "busy", message: "Doan has no window open. Open Doan, then try again." } });
   expect(value.opened).not.toHaveBeenCalled();
 });
 

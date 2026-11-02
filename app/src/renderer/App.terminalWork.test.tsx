@@ -275,7 +275,7 @@ test("a dialog that does not close for its cancel (busy) keeps the link from mov
 // A refusal answers with its reason and shows nothing: no toast, no move. The frame result comes from the listed frames.
 const opens = () => harness.controller!.openCanvas!.mockImplementation((...args: unknown[]) => { (args[3] as { opened?: () => void } | undefined)?.opened?.(); });
 const framed = () => { listeners.folders!([{ path: "/w/a", kind: "list", servedRev: 0, canvases: [{ ...rows()[0]!, frames: [{ id: "hero" }] }, rows()[1]!] }] as never); render(); };
-const request = (id: string, canvas: string, frame?: string) => { listeners.openRequest!({ id, root: "/w/a", canvas, ...(frame === undefined ? {} : { frame }) } as never); render(); };
+const request = (id: string, canvas: string, frame?: string, expires = Date.now() + 1000) => { listeners.openRequest!({ id, root: "/w/a", canvas, ...(frame === undefined ? {} : { frame }), expires } as never); render(); };
 test("an open request opens its canvas as a link does and answers opened with the frame result, with no toast or write", async () => {
   await start(); framed(); opens();
   request("1", A, "hero");
@@ -283,7 +283,7 @@ test("an open request opens its canvas as a link does and answers opened with th
   request("2", A, "gone");
   request("3", B);
   expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), undefined]);
-  expect(doan.answerOpenRequest!.mock.calls).toEqual([[{ id: "1", kind: "opened", frame: "found" }], [{ id: "2", kind: "opened", frame: "missing" }], [{ id: "3", kind: "opened", frame: "none" }]]);
+  expect(doan.answerOpenRequest!.mock.calls).toStrictEqual([[{ id: "1", kind: "opened", frame: "found" }], [{ id: "2", kind: "opened", frame: "missing" }], [{ id: "3", kind: "opened", frame: "none" }]]);
   expect(harness.toast.show).not.toHaveBeenCalled();
   for (const write of ["setSelection", "savePreferences", "openSettings", "markCanvasSeen"]) expect(doan[write], write).not.toHaveBeenCalled();
 });
@@ -291,12 +291,12 @@ test("an open request opens its canvas as a link does and answers opened with th
 test("an open request for a canvas the renderer does not list, or one the controller does not open, answers canvas_not_found with no toast", async () => {
   await start();
   const before = harness.controller!.openCanvas!.mock.calls.length;
-  listeners.openRequest!({ id: "1", root: "/w/a", canvas: ".doan/canvases/gone.html" } as never); render();
-  listeners.openRequest!({ id: "2", root: "/w/z", canvas: A } as never); render();
+  listeners.openRequest!({ id: "1", root: "/w/a", canvas: ".doan/canvases/gone.html", expires: Date.now() + 1000 } as never); render();
+  listeners.openRequest!({ id: "2", root: "/w/z", canvas: A, expires: Date.now() + 1000 } as never); render();
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
   // The controller's own list lags too: it neither opened nor called back.
   request("3", A);
-  expect(doan.answerOpenRequest!.mock.calls).toEqual([[{ id: "1", kind: "canvas_not_found" }], [{ id: "2", kind: "canvas_not_found" }], [{ id: "3", kind: "canvas_not_found" }]]);
+  expect(doan.answerOpenRequest!.mock.calls).toStrictEqual([[{ id: "1", kind: "canvas_not_found" }], [{ id: "2", kind: "canvas_not_found" }], [{ id: "3", kind: "canvas_not_found" }]]);
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
@@ -312,8 +312,32 @@ test("an open request dismisses a dialog that agrees to close and opens; one tha
   request("2", B);
   expect(closing.events).toEqual([{ type: "cancel", cancelable: true }]);
   expect(all(tree).some(element => element.type === ProjectSetupDialog)).toBe(false);
-  expect(doan.answerOpenRequest!.mock.calls).toEqual([[{ id: "1", kind: "busy", reason: "dialog" }], [{ id: "2", kind: "opened", frame: "none" }]]);
+  expect(doan.answerOpenRequest!.mock.calls).toStrictEqual([[{ id: "1", kind: "busy", reason: "dialog" }], [{ id: "2", kind: "opened", frame: "none" }]]);
   expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+// Review RB 🟡1: once main told the CLI busy, the request is dead. The renderer touches nothing for it: no dialog closes
+// and nothing moves, and it does not answer (main dropped the id). Expiry is checked again before the move commits.
+test("an expired open request closes no dialog, moves nowhere and is not answered", async () => {
+  await start(); opens();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    vi.setSystemTime(5_000);
+    openSetUp();
+    const dialog = openDialog(true);
+    const before = harness.controller!.openCanvas!.mock.calls.length;
+    request("1", B, undefined, 5_000);
+    expect(dialog.events).toEqual([]);
+    expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
+    expect(doan.answerOpenRequest).not.toHaveBeenCalled();
+    // Expiring while the dialog closes: the dialog agreed to close, but the move does not follow.
+    const slow = openDialog(true), dispatch = slow.dispatchEvent.bind(slow);
+    slow.dispatchEvent = (event: Event) => { vi.setSystemTime(6_000); return dispatch(event); };
+    request("2", B, undefined, 5_500);
+    expect(slow.events).toEqual([{ type: "cancel", cancelable: true }]);
+    expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
+    expect(doan.answerOpenRequest).not.toHaveBeenCalled();
+  } finally { vi.useRealTimers(); }
 });
 
 test("during first run an open request answers busy and leaves every dialog alone", async () => {
@@ -324,7 +348,7 @@ test("during first run an open request answers busy and leaves every dialog alon
   request("1", A);
   expect(dialog.events).toEqual([]);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
-  expect(doan.answerOpenRequest).toHaveBeenLastCalledWith({ id: "1", kind: "busy", reason: "first_run" });
+  expect(doan.answerOpenRequest!.mock.lastCall).toStrictEqual([{ id: "1", kind: "busy", reason: "first_run" }]);
   // A link meets the same first run and moves nowhere, as when the wizard refused its cancel.
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: A } as never); render();
   expect(dialog.events).toEqual([]);

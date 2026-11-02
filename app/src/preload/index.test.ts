@@ -412,7 +412,7 @@ test("work and deep links expose dedicated events with independent cleanup", asy
 
 test("doan open requests arrive on their own event and are answered by id through one invoke", async () => {
   const requests = vi.fn(), stop = api.onOpenRequest(requests);
-  const request = { id: "1", root: "/repo", canvas: ".doan/canvases/a.html", frame: "hero" };
+  const request = { id: "1", root: "/repo", canvas: ".doan/canvases/a.html", frame: "hero", expires: 1000 };
   emitter.emit("doan-open:request", {}, request);
   expect(requests).toHaveBeenCalledWith(request);
   await api.answerOpenRequest({ id: "1", kind: "opened", frame: "found" });

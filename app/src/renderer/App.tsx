@@ -1031,10 +1031,15 @@ export function App() {
   // and the agent tells the person why. The answer is sent once the move is decided, not when the canvas has loaded;
   // the frame result comes from the canvas's listed frames, the ones the rendered canvas reports.
   function openCanvasRequest(request: OpenAsk) {
+    // Past `expires` main has already told the CLI busy and drops any answer: close no dialog and move nowhere.
+    // Checked again before the move, since closing a dialog runs its handlers first.
+    const expired = () => Date.now() >= request.expires;
+    if (expired()) return;
     const answer = (result: OpenResult) => void window.doan.answerOpenRequest({ id: request.id, ...result }).catch(console.error);
     const decision = decideOpen(request, openPage());
     if (decision.kind === "busy") { answer({ kind: "busy", reason: decision.reason }); return; }
     if (decision.kind === "canvas_not_found") { answer({ kind: "canvas_not_found" }); return; }
+    if (expired()) return;
     cancelRestore();
     let opened = false;
     controller.current?.openCanvas(request.root, decision.row, request.frame, { opened: () => { opened = true; completeNavigation(request.root); } });
