@@ -129,3 +129,4 @@
     - 운영: 대기 루프가 작업자의 `status` 메시지를 heartbeat처럼 넘겨 B가 약 45분 기다린 일이 있었다. 예시 `wait.sh`는 이제 `status`에도 깬다(증거 디렉터리). 지휘자 worktree에는 앱 의존성이 없으니 최종 verify 전에 `npm --prefix app ci`와 electron 내려받기를 먼저 한다. Orca가 작업자 브랜치 이름을 재사용해서(`…-2`, `…-3`), 구현 브랜치는 `agent-reply-chips-a1`·`-a2`·`-b`로 다시 만들어 남겼다.
     - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, runtime-test, agent-eval 라운드, 최종 verify 로그, feature 문서 사본)를 main checkout의 `.scratch/chain-261103/link4-evidence/`로 옮겼다.
     - 사용량(링크 4 끝): Claude 7일 80%(2026-11-04 13:59 KST 초기화). Codex 주간 91%(이 링크의 `/agent-eval` Codex 실행 뒤에도 그대로, 2026-11-04 15:35 KST 초기화). 체인 규칙대로 링크 5도 Codex 작업자를 쓰지 않는다.
+- 2026-11-03 링크 4 지휘자: 링크 5 세션(e4ed3c1b)이 브리프로 시작해 시작을 push한 것(5b96de98)을 확인하고 물러났다. 링크 4 worktree는 깨끗하고 main에 모두 들어갔다(`git cherry`에 `+` 없음). 세션의 실행 checkout이라 지우지 않았고, 사용자가 세션을 닫은 뒤 지우면 된다. 브리프는 main checkout의 `.scratch/chain-261103/brief-link5.md`다.
