@@ -146,8 +146,7 @@
 }
 .doan-dialog::backdrop { background: var(--bg-scrim); }
 /* Search presentation (Quick Open): the panel fill and a corner of the panel radius plus 4px, so the field and rows
-   inset by 12px meet it concentrically. Width, position, backdrop and motion stay the base dialog's, which match the
-   Buzz search palette. Two classes beat the narrow-window padding above. */
+   inset by 12px meet it concentrically. Width, position, backdrop and motion stay the base dialog's. Two classes beat the narrow-window padding above. */
 .doan-dialog[data-ui-presentation="search"] { padding: var(--space-3); border-radius: calc(var(--radius-panel) + var(--space-1)); background: var(--surface-panel); corner-shape: squircle; }
 .doan-dialog[data-ui-presentation="search"][open] { gap: 0; }
 /* Header: the title over an optional description. There is no Close button; Cancel and
@@ -201,8 +200,7 @@
 
 /* ── Settings group ──────────────────────────────────────────────────────────
    A bordered container of preference rows split by lines: a title column with an optional
-   description, and the row's controls trailing on the right (buzz-settings design, Buzz's
-   SettingsGroup and PreferenceRow in doan tokens). The group is the rows' query container,
+   description, and the row's controls trailing on the right. The group is the rows' query container,
    so a narrow group puts a button control under its title while a switch stays beside it. */
 .doan-settings-group {
   container-type: inline-size;

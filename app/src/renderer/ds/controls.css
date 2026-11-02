@@ -190,8 +190,7 @@
 .doan-checkbox:is(:disabled, [data-disabled]) { border-color: var(--affordance-disabled); background: var(--affordance-disabled); color: var(--text-disabled); cursor: not-allowed; }
 
 /* ── Switch ──────────────────────────────────────────────────────────────────
-   An on/off setting that applies at once (buzz-settings design, Buzz's switch in doan
-   tokens). It is a button[role="switch"] and aria-checked is its state, so markup holds
+   An on/off setting that applies at once. It is a button[role="switch"] and aria-checked is its state, so markup holds
    no extra state class; the thumb is the button's ::before. The 36 × 20 track and the 14px
    thumb are the switch's own sizes: the icon scale only happens to share 14px. */
 .doan-switch[role="switch"] {
