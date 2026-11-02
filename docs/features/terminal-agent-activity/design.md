@@ -106,6 +106,7 @@ v1(`active`)과 v2(onboarding 전용) 옆에 `work` 전용 v3를 따로 둔다. 
 - **받기(main)**: `app.on("open-url")`을 시작 초기, `ready` 전에 등록한다. Electron 45 `electron.d.ts`의 'open-url' 설명: `ready`에서 등록하면 앱을 띄운 URL을 놓친다. 앱이 켜져 있으면 macOS가 같은 인스턴스에 `open-url`을 보낸다(단일 인스턴스 잠금은 `app/src/main/index.ts`에 이미 있다).
 - **대기**: 시작 중에 온 링크는 가장 마지막 하나만 들고 있다가, 시작 복원(PRODUCT §5 item 1 'Launch restores …')과 첫 폴더 목록이 끝난 뒤 처리한다. 복원한 화면 위로 링크의 캔버스가 열린다. 창을 닫아 숨긴 상태면 창을 보인다.
 - **처리**: main이 `parseOpenLink`로 읽고, root가 등록된 root와 글자 그대로 같은지(ARCHITECTURE §4 'Selection ownership'과 같은 비교), canvas가 그 root 목록에 있는지 본다. 맞으면 주 창 renderer에 `{root, canvas, frame?}`을 보내고, renderer는 Quick Open과 같은 이동 경로로 캔버스를 연다. frame이 있으면 Quick Open의 프레임 이동처럼 뷰를 옮기고 강조만 하고 선택·패널·초안·`doan active`는 바꾸지 않는다. frame을 찾지 못하면 캔버스만 연다.
+- **대화상자**: 대화상자가 열려 있으면 취소(Escape)처럼 닫고 링크로 이동한다. 링크는 사람이 직접 누른 것이기 때문이다(사용자 결정).
 - **거절**: 형식 오류, 등록되지 않은 root, 목록에 없는 캔버스는 창을 보이고 짧은 안내만 띄운다. 문구(clarify 프리셋으로 정했다)는 모두 "Couldn’t open the link."로 시작하고(기존 "Couldn’t read conversations"·"Couldn’t stop …"과 같은 꼴) 이유를 한 문장 더한다:
   - 형식 오류: "Couldn’t open the link. It isn’t a Doan canvas link."
   - 등록되지 않은 root: "Couldn’t open the link. Its project isn’t in Doan. Add it from Add Projects, then open the link again." 링크는 프로젝트를 더하지 않으므로(아래 '이동만 한다') 사람이 할 다음 동작을 알린다.
