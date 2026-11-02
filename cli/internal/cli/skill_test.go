@@ -207,13 +207,64 @@ func TestSkillGuideWorkLifecycle(t *testing.T) {
 		"I. Before the first edit to a canvas, run `doan work start <canvas path> --json`.",
 		"Run it again when several minutes pass between edits.",
 		"J. Before ending your reply — also when you stop to ask the human — run `doan work done <edited canvas paths> --json`",
-		"put the returned links in your final answer",
-		"`&frame=<percent-encoded frame id>`",
 		"`delivered:false` is not an error: do not report it or retry.",
 		"return `{delivered, links, skipped}`",
 	} {
 		if !strings.Contains(skillBody, required) {
 			t.Errorf("missing work guidance: %s", required)
+		}
+	}
+}
+
+// Rule J offers to open the edited canvas instead of printing links (canvas-open-offer spec 5, 6, 11).
+func TestSkillGuideOpenOffer(t *testing.T) {
+	var rule string
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "J. ") {
+			rule = l
+		}
+	}
+	for _, required := range []string{
+		"keep its links out of your answer, and give `links` only when the person asks for them",
+		"Unless you stop to ask something else, end the answer with one line, in its language, offering to open the edited canvas in Doan",
+		"the name Doan shows (its `doan ls` title, else the file name without `.html`); for a frame use its title",
+		"With several canvases, name them all; if the person only says “open”, open the first and say the rest are in the sidebar",
+		"Never ask again about a canvas already opened or declined in this conversation",
+		"Run `doan open` only when the person asks, and report its result in one line",
+	} {
+		if !strings.Contains(rule, required) {
+			t.Errorf("rule J is missing: %s", required)
+		}
+	}
+	for _, gone := range []string{"put the returned links", "&frame=", "doan://"} {
+		if strings.Contains(skillBody, gone) {
+			t.Errorf("the guide still tells agents to print links: %s", gone)
+		}
+	}
+}
+
+func TestSkillGuideOpenCommand(t *testing.T) {
+	var command string
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "- `doan open ") {
+			command = l
+		}
+	}
+	for _, required := range []string{
+		"- `doan open <canvas path> [--frame <id>] --json`",
+		"`.doan/canvases/*.html` or `.doan/ds/*.html`",
+		"it only navigates",
+		"Returns `{opened, frame}` where `frame` is `found`, `missing` (the canvas has no such frame; say only the canvas opened) or `none`",
+		"A bundled CLI starts a closed Doan once",
+		"`canvas_not_found`",
+		"`project_not_open` (name the folder; they add it with Add Project…, then ask again)",
+		"`busy` (`message` says what blocks; they finish it, then ask again)",
+		"`app_launch_failed` (Doan did not open)",
+		"`app_not_running` (as for `doan active`)",
+		"`app_protocol_mismatch` (update Doan)",
+	} {
+		if !strings.Contains(command, required) {
+			t.Errorf("doan open guidance is missing: %s", required)
 		}
 	}
 }
