@@ -42,9 +42,9 @@
 
 ## 어두운 바탕의 키 표시 (`/design-draft`에서 사용자가 정함)
 
-- `doan-kbd`에 공용 변형 `data-ui-variant="on-prominent"`를 더한다. 배경은 투명하고, 글자는 부모의 잉크를 따르며, 윤곽선은 그 잉크의 45%다(`inset 0 0 0 1px`). 지금 픽 안내의 Esc(`styles.css` `.doan-picking-esc.doan-kbd`)와 계산값이 같다.
+- `doan-kbd`에 공용 변형 `data-ui-variant="on-prominent"`를 더한다. 면을 칠한다. 배경은 부모 잉크의 16%(`color-mix(in srgb, currentColor 16%, transparent)`)이고, 글자는 부모의 잉크를 따르며, 윤곽선은 없다. 16%는 같은 어두운 바탕에 있는 에이전트 알림 Stop 버튼의 채움과 같은 값이다.
 - 크기는 두 가지다. 기본은 지금 `doan-kbd`(본문 sm 글꼴, 여백 4/8, 높이 28)이고 픽 안내의 Esc가 쓴다. `data-ui-size="sm"`은 캡션 글꼴, 여백 0/6, 높이 16이고 툴팁이 쓴다. 툴팁 높이는 24 그대로다(4 + 16 + 4). 버튼 안 단축키(`.doan-button .doan-kbd`)와 같은 크기다.
-- 픽 안내의 Esc는 화면 전용 규칙 대신 이 변형을 쓴다. 그래서 `.doan-picking-esc.doan-kbd` 규칙은 없어진다. 계산값은 바뀌지 않는다.
+- 픽 안내의 Esc는 화면 전용 규칙 대신 이 변형을 쓴다. 그래서 `.doan-picking-esc.doan-kbd` 규칙은 없어지고, 픽 안내의 Esc는 지금의 윤곽선 모양에서 채운 모양으로 바뀐다. 크기는 그대로다.
 - 흐린 잉크(새 토큰)는 쓰지 않는다. 픽 안내는 60% 검정이라 밝은 보드 위에서 바탕이 약 #626262가 되고, 그 위 #b3b3b3 글자는 대비가 약 2.9:1이기 때문이다.
 - 툴팁에 키가 있으면 이름과 키를 한 줄에 놓고 간격은 8이다.
 - 공용 변형이므로 `.doan/ds/tooltip.html`에 키가 있는 툴팁을 더하고, `docs/DESIGN.md`의 `.doan-kbd` 설명(지금은 "only the canvas picking hint's Esc key")을 고친다(tasks T3·Z1).
