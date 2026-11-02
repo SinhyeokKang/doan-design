@@ -33,6 +33,7 @@
 - D7 (사용자 결정, 리뷰 RD): deep link는 사람이 직접 눌렀을 때만 열리므로, 대화상자가 열려 있으면 취소(Escape)처럼 닫고 링크로 이동한다. D 수정 라운드 1이 구현하고 Z1에서 PRODUCT 'Deep links'에 적는다.
 - D8 (사용자 결정, 오케스트레이션 중 추가 요청): 캔버스 행 메뉴(Export, Move to Trash)를 같은 PR에 넣는다. 별도 feature `canvas-row-menu`로 `/feature`부터 진행한다. 지휘자가 PRODUCT §3 Out of scope 5(git으로 공유)·1/7(앱은 캔버스 파일을 고치지 않음)을 짚은 뒤 사용자가 다시 요청했다. 정한 것: 삭제는 휴지통으로 옮기기(repo 작업 트리에서 사라지고 되돌릴 수 있음, 커밋하지 않음), 실제 파일이 지워진다는 Alert Dialog, 코멘트 파일도 함께 휴지통으로, 그 캔버스에서 에이전트가 작업 중이면 삭제를 막음, Export는 Go CLI `doan export` + 앱 메뉴(저장 대화상자), 자산을 담은 단일 HTML에 프레임 목록·배율만 있는 보기 shell.
 - D9 (사용자 결정, 오케스트레이션 중 추가 요청): 온보딩 Welcome 배경 'Pigment horizon'(라이트)과 설치 디스크 배경을 이 PR에 넣는다. 초안은 `.doan/canvases/onboarding-welcome-variants.html`(사용자의 Codex 세션이 그려 커밋 `8e528dde`). 앱에 다크 테마가 없으므로 Welcome 다크는 구현하지 않는다. DMG 배경은 한 장이라 Finder 이름(다크 모드에서 흰 글자)이 양쪽에서 읽히게 고친다. 설치 화면 문구는 앱과 같은 "A place for your next idea."로 맞춘다(지휘자 판단). WL(Welcome)·IN(설치 디스크)이 맡는다.
+- D10 (사용자 결정, 사용량 한도): Claude 주간 97%, Codex 주간 16% 남은 상태라 이 PR은 terminal-agent-activity, Welcome, 설치 디스크까지만 낸다. canvas-row-menu는 리뷰를 마친 기획 문서(`docs/features/canvas-row-menu/`)만 이 PR에 남기고, 문구·초안·구현은 한도 초기화 뒤 별도 PR로 이어 간다.
 - O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
 
 ## 배치
