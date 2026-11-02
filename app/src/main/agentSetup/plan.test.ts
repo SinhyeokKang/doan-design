@@ -209,6 +209,22 @@ describe("mergeClaudeAllow", () => {
     expect(mergeClaudeAllow(`{ "permissions": { "allow": [${RULES.map(rule => JSON.stringify(rule)).join(", ")}] } }`)).toEqual({ kind: "keep" });
   });
 
+  it("leaves every other byte as it was, so numbers JSON.parse cannot hold keep their text", () => {
+    expect(written('{"customId":9007199254740993,"customLimit":1e400,"permissions":{"allow":[]}}'))
+      .toBe('{"customId":9007199254740993,"customLimit":1e400,"permissions":{"allow":["Bash(doan work start *)", "Bash(doan work done *)"]}}');
+    const pretty = '{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(npm run *)"\n    ]\n  }\n}\n';
+    expect(written(pretty)).toBe('{\n  "model": "opus",\n  "permissions": {\n    "allow": [\n      "Bash(npm run *)",\n      "Bash(doan work start *)",\n      "Bash(doan work done *)"\n    ]\n  }\n}\n');
+    expect(written('{ "theme": "dark" }\n')).toBe('{ "theme": "dark", "permissions": {"allow": ["Bash(doan work start *)", "Bash(doan work done *)"]} }\n');
+    expect(written('{"permissions":{}}')).toBe('{"permissions":{"allow": ["Bash(doan work start *)", "Bash(doan work done *)"]}}');
+  });
+
+  it("keeps duplicate keys, adding the rules to the allow list Claude Code reads (the last one)", () => {
+    expect(written('{"permissions":{"allow":["a"]},"x":1,"x":2,"permissions":{"allow":[],"allow":["b"]}}'))
+      .toBe('{"permissions":{"allow":["a"]},"x":1,"x":2,"permissions":{"allow":[],"allow":["b","Bash(doan work start *)","Bash(doan work done *)"]}}');
+    expect(mergeClaudeAllow(`{"permissions":{"allow":${JSON.stringify(RULES)}},"permissions":{}}`)).toMatchObject({ kind: "write" });
+    expect(mergeClaudeAllow(`{"permissions":{},"permissions":{"allow":${JSON.stringify(RULES)}}}`)).toEqual({ kind: "keep" });
+  });
+
   it("does not count a broader rule as one of Doan's", () => {
     expect(JSON.parse(written('{"permissions":{"allow":["Bash(doan *)"]}}')).permissions.allow).toEqual(["Bash(doan *)", ...RULES]);
   });

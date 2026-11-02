@@ -281,7 +281,7 @@ describe("the Claude Code allow rule", () => {
     expect(readFileSync(settings(), "utf8")).toBe(text);
   });
 
-  it("never writes through a link, and stops naming it once the file it links to has the rules", async () => {
+  it("never writes through a link, and says nothing once the file it links to has both rules, as nothing is left to add", async () => {
     mkdirSync(join(home, ".claude")); mkdirSync(join(home, "dotfiles"));
     const target = join(home, "dotfiles/settings.json");
     writeFileSync(target, '{"theme":"dark"}'); symlinkSync(target, settings());
@@ -333,6 +333,66 @@ describe("the Claude Code allow rule", () => {
     vi.mocked(fs.writeFileSync).mockImplementation(realWrite);
     expect(actions(await runAgentSetup(options()))["claude-allow"]).toBe("replace");
     expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ theme: "light", permissions: { allow: CLAUDE_ALLOW_RULES } });
+  });
+
+  // The review's timing: Claude Code saves after Doan's last look and before Doan publishes its merge.
+  const newer = '{"model":"sonnet","permissions":{"allow":[],"deny":["Bash(rm *)"]}}';
+  const leftovers = () => readdirSync(join(home, ".claude")).filter(name => name.startsWith(".doan-"));
+
+  it("keeps a save Claude Code makes in place after Doan's last look, and decides again next run", async () => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), '{"model":"opus","permissions":{"allow":[]}}');
+    let saved = false;
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (!saved && (from === settings() || to === settings())) { saved = true; realWrite(settings(), newer); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(saved).toBe(true);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(result.items).toEqual([]);
+    expect(readFileSync(settings(), "utf8")).toBe(newer);
+    expect(leftovers()).toEqual([]);
+    vi.mocked(fs.renameSync).mockImplementation(realRename);
+    expect(actions(await runAgentSetup(options()))["claude-allow"]).toBe("replace");
+    expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ model: "sonnet", permissions: { allow: CLAUDE_ALLOW_RULES, deny: ["Bash(rm *)"] } });
+  });
+
+  it("keeps a file Claude Code renames into place after Doan's last look, even with the same bytes", async () => {
+    const mine = '{"model":"opus"}';
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), mine);
+    let ino = -1;
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (ino < 0 && (from === settings() || to === settings())) {
+        const staged = join(home, ".claude/claude-save.tmp");
+        realWrite(staged, mine); realRename(staged, settings()); ino = lstatSync(settings()).ino;
+      }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(ino).toBeGreaterThan(0);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(lstatSync(settings()).ino).toBe(ino);
+    expect(readFileSync(settings(), "utf8")).toBe(mine);
+    expect(leftovers()).toEqual([]);
+  });
+
+  it("keeps a file Claude Code writes while Doan's merge is about to be published", async () => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), '{"model":"opus","permissions":{"allow":[]}}');
+    let saved = false;
+    vi.mocked(fs.linkSync).mockImplementation((from, to) => {
+      if (!saved && to === settings()) { saved = true; realWrite(settings(), newer); }
+      realLink(from, to);
+    });
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (!saved && to === settings()) { saved = true; realWrite(settings(), newer); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(saved).toBe(true);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(result.items).toEqual([]);
+    expect(readFileSync(settings(), "utf8")).toBe(newer);
+    expect(leftovers()).toEqual([]);
   });
 
   it("reports a read-only ~/.claude without touching the settings", async () => {
