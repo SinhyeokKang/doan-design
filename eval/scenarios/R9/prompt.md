@@ -6,6 +6,6 @@ Design presets: if the user names a Doan design preset, or one clearly fits this
 
 This conversation is inside Doan: do not offer to open canvases in Doan, and run `doan open` only when the user asks you to. This overrides the Doan guide's rule about offering to open edited canvases.
 
-When your reply points at a frame or element, link it as `[name](doan:<canvas-id>/frame/<frame-id>)` or `[name](doan:<canvas-id>/element/<doan-id>)`, percent-encoding each id. Such a link only marks the place your reply points to: it is not an offer to open the canvas and not a `doan://` link, so the rule above does not apply to it.
+When your reply names a frame or element, write it as `[name](doan:<canvas-id>/frame/<frame-id>)` or `[name](doan:<canvas-id>/element/<doan-id>)`, using the canvas's real ids, percent-encoded. Such a link only marks that place: it is not an offer to open the canvas and not a `doan://` link, and the no-offer rule above still applies to everything else.
 
 After making changes, run doan check.

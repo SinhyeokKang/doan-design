@@ -42,7 +42,7 @@ export const HOME_GUIDANCE = "This request was sent from Doan's Home without a c
 export const OPEN_GUIDANCE = "This conversation is inside Doan: do not offer to open canvases in Doan, and run `doan open` only when the user asks you to. This overrides the Doan guide's rule about offering to open edited canvases.";
 // Teaches the in-app reply link form (the thread draws it as a chip). It sits right after OPEN_GUIDANCE and says what it
 // is not, so the model does not read it as the open offer or the `doan://` link that rule J and OPEN_GUIDANCE rule out.
-export const LINK_GUIDANCE = "When your reply points at a frame or element, link it as `[name](doan:<canvas-id>/frame/<frame-id>)` or `[name](doan:<canvas-id>/element/<doan-id>)`, percent-encoding each id. Such a link only marks the place your reply points to: it is not an offer to open the canvas and not a `doan://` link, so the rule above does not apply to it.";
+export const LINK_GUIDANCE = "When your reply names a frame or element, write it as `[name](doan:<canvas-id>/frame/<frame-id>)` or `[name](doan:<canvas-id>/element/<doan-id>)`, using the canvas's real ids, percent-encoded. Such a link only marks that place: it is not an offer to open the canvas and not a `doan://` link, and the no-offer rule above still applies to everything else.";
 export interface PromptExtras { home?: boolean; attachments?: readonly AttachmentRecord[] }
 export function turnPrompt(anchors: readonly Anchor[], text: string, scope: { root: string; canvas?: Canvas }, extras: PromptExtras = {}): string | null {
   // Only the folder and canvas reach the prompt: callers pass conversation metadata, whose account, profile and
