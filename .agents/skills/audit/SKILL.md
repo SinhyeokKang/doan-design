@@ -10,7 +10,7 @@ Read [AGENTS.md](../../../AGENTS.md), [PRODUCT.md](../../../docs/PRODUCT.md), an
 ## Scope and evidence
 
 - `/audit` covers the current codebase, not just changes since main. A named area narrows scope only when the user requests it.
-- Record the checkout, HEAD, worktree status, requested scope, and a coverage inventory before reviewing. Use `rg --files` to inventory CLI, app main/preload/renderer and shared modules (`app/src/{comments,formats,setup,firstPrompt,restore}`), shared schemas/fixtures, runtime tests, packaging, and eval tooling. Exclude generated output, dependencies, and `.scratch/` from the source inventory.
+- Record the checkout, HEAD, worktree status, requested scope, and a coverage inventory before reviewing. Use `rg --files` to inventory CLI, app main/preload/renderer and shared modules (`app/src/{brand,comments,formats,restore}`), shared schemas/fixtures, runtime tests, packaging, and eval tooling. Exclude generated output, dependencies, and `.scratch/` from the source inventory.
 - Read all entries in `docs/POSTMORTEM.md` when present. Map each applicable prevention rule to current call sites and regression coverage; searching for the old function name alone is insufficient.
 - For each finding, trace a concrete trigger through callers and consumers. Cite file:line evidence and the violated decision or contract. Distinguish a confirmed defect, a suspected risk requiring execution, and an undecided product question.
 
@@ -51,6 +51,6 @@ Each finding includes trigger, impact, source evidence, expected behavior and it
 
 ## Limits
 
-Report only: the lead may write the designated report under `docs/features/`; no source or other documentation fixes, commits, push, package installation, or automatic test runs. An audit report is not an approved feature plan and does not require placeholder spec/doan/tasks files. Static inspection cannot certify runtime behavior. Route executable verification to [/verify](../verify/SKILL.md), changed-code review to [/code-review](../code-review/SKILL.md), and agreed fixes through the repository's implementation workflow. Preserve decision conflicts for the user without silently rewriting the decision.
+Report only: the lead may write the designated report under `docs/features/`; no source or other documentation fixes, commits, push, package installation, or automatic test runs. An audit report is not an approved feature plan and does not require placeholder spec/design/tasks files. Static inspection cannot certify runtime behavior. Route executable verification to [/verify](../verify/SKILL.md), changed-code review to [/code-review](../code-review/SKILL.md), and agreed fixes through the repository's implementation workflow. Preserve decision conflicts for the user without silently rewriting the decision.
 
 Adapted from `~/code/malmoi/.claude/commands/audit.md`, inspected on 2026-10-25: specialist parallel review, lead integration, and postmortem recurrence checks. doan uses four relevant perspectives and an explicit coverage completion gate; malmoi's stack-specific checks and mandatory second-tier delegation were not carried over.
