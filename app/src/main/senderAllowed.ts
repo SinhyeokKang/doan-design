@@ -1,7 +1,7 @@
 export type WindowKind = "main";
 
 const mainOnly = new Set([
-  "app:home", "work:get", "deep-link:ready",
+  "app:home", "work:get", "deep-link:ready", "doan-open:answer",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:restore", "folders:forget-removal", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",

@@ -61,7 +61,7 @@ import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbn
 import { createWindowCapturer } from "./thumbnailWindow";
 import { createUiStateStore, type UiStateStore } from "./uiState";
 import { linkTarget } from "./openLink";
-import { openLinkQueue, resolveOpenLink } from "./deepLinks";
+import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
 import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, type WorkState } from "./workState";
 
 // Must run before `ready`: userData is derived from the name, which makes it
@@ -142,9 +142,27 @@ const openLinks = openLinkQueue(url => {
   showWindow(win);
   send("deep-link:open", resolveOpenLink(url, shell?.entries() ?? []));
 });
-function readyOpenLinks(): void {
-  if (linksRendererReady && shell && shell.entries().every(entry => entry.kind !== "loading")) openLinks.ready();
+function openLinksReady(): boolean {
+  return linksRendererReady && shell !== undefined && shell.entries().every(entry => entry.kind !== "loading");
 }
+function readyOpenLinks(): void {
+  if (openLinksReady()) openLinks.ready();
+}
+// `doan open` (canvas-open-offer): not queued like a link; each request is answered on its own (deepLinks.ts).
+const openCanvasRequests = openRequests({
+  ready: openLinksReady,
+  entries: () => shell?.entries() ?? [],
+  ask(request) {
+    if (!win || win.isDestroyed() || win.webContents.isDestroyed()) return false;
+    win.webContents.send("doan-open:request", request);
+    return true;
+  },
+  opened() {
+    if (!win || win.isDestroyed()) return;
+    if (appHidden) app.show();
+    showWindow(win);
+  },
+});
 // Electron 45 delivers a launch URL before ready; restoring the renderer must finish before it is consumed.
 app.on("open-url", (event, url) => { event.preventDefault(); openLinks.receive(url); });
 let conversations: ConversationService | undefined;
@@ -561,6 +579,7 @@ async function start(): Promise<void> {
     linksRendererReady = true;
     readyOpenLinks();
   });
+  handle("doan-open:answer", undefined, (_event, value: unknown) => { openCanvasRequests.answer(value); });
   // The capture window is made on the first capture and stays out of the
   // app window's lifecycle: `win` alone is shown, closed and trusted for IPC.
   const thumbs = createThumbnails({
@@ -588,6 +607,7 @@ async function start(): Promise<void> {
   runtime = await startRuntime(userData, {
     isOpen, selection: () => selection,
     work(request) { updateWork(applyWork(workState, request, Date.now())); },
+    open: request => openCanvasRequests.open(request),
     async onboarding(request) {
       const service = await onboardingStarted;
       // start brings the app forward, hidden window included, and keeps the session and its input (design '설치 직후 진입').

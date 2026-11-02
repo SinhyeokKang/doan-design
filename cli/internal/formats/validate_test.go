@@ -54,6 +54,8 @@ func TestValidationFixtures(t *testing.T) {
 		{"app-socket-v2/response", ValidateOnboardingResponse},
 		{"app-socket-v3/request", ValidateWorkRequest},
 		{"app-socket-v3/response", ValidateWorkResponse},
+		{"app-socket-v4/request", ValidateOpenRequest},
+		{"app-socket-v4/response", ValidateOpenResponse},
 	}
 	for _, group := range groups {
 		for _, validity := range []string{"valid", "invalid"} {
@@ -114,6 +116,36 @@ func TestWorkSocketStaysApart(t *testing.T) {
 		for _, file := range fixtureFiles(t, "app-socket-v3/"+other.kind, "valid") {
 			if other.validate(readJSON(t, file)) == nil {
 				t.Errorf("v3 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
+			}
+		}
+	}
+}
+
+func TestOpenSocketStaysApart(t *testing.T) {
+	others := []struct {
+		kind, label, dir string
+		validate         func(any) error
+	}{
+		{"request", "v1", "app-socket/request", ValidateSocketRequest},
+		{"request", "v2", "app-socket-v2/request", ValidateOnboardingRequest},
+		{"request", "v3", "app-socket-v3/request", ValidateWorkRequest},
+		{"response", "v1", "app-socket/response", ValidateSocketResponse},
+		{"response", "v2", "app-socket-v2/response", ValidateOnboardingResponse},
+		{"response", "v3", "app-socket-v3/response", ValidateWorkResponse},
+	}
+	for _, other := range others {
+		v4 := ValidateOpenRequest
+		if other.kind == "response" {
+			v4 = ValidateOpenResponse
+		}
+		for _, file := range fixtureFiles(t, other.dir, "valid") {
+			if v4(readJSON(t, file)) == nil {
+				t.Errorf("%s %s %s validates as v4", other.label, other.kind, filepath.Base(file))
+			}
+		}
+		for _, file := range fixtureFiles(t, "app-socket-v4/"+other.kind, "valid") {
+			if other.validate(readJSON(t, file)) == nil {
+				t.Errorf("v4 %s %s validates as %s", other.kind, filepath.Base(file), other.label)
 			}
 		}
 	}

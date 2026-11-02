@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://doan.design/schema/app-socket.v4.schema.json",
+  "$comment": "Open-canvas requests on the app's local socket, beside app-socket.v1 (active), v2 (onboarding) and v3 (work), which are unchanged. The reader dispatches on numeric v before validating. Use the $defs; the root constrains nothing. The reply says what the app's renderer decided, not what the CLI prints: the CLI builds its own messages and next steps from the code.",
+  "$defs": {
+    "token": {
+      "type": "string",
+      "$comment": "Not pattern-checked so a wrong token reaches the app's bad_token answer instead of bad_request."
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/",
+      "$comment": "Absolute POSIX path; the app is macOS-only. Registration is checked by the app."
+    },
+    "frameId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\x00-\\x1f\\x7f]+$",
+      "$comment": "Same bounds as a deep link's frame: non-empty, no control characters. The length is the canvas message limit for frame ids (ARCHITECTURE section 3)."
+    },
+    "request": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 4
+        },
+        "token": {
+          "$ref": "#/$defs/token"
+        },
+        "root": {
+          "$ref": "#/$defs/absolutePath"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\.doan/(canvases|ds)/[^/]+\\.html$",
+          "$comment": "Repo-relative, '/'-separated canvas path; the app checks the pattern again and then the canvas list."
+        },
+        "frame": {
+          "$ref": "#/$defs/frameId",
+          "$comment": "Absent means open the canvas only."
+        }
+      },
+      "required": [
+        "v",
+        "token",
+        "root",
+        "path"
+      ],
+      "additionalProperties": false
+    },
+    "errorCode": {
+      "enum": [
+        "bad_request",
+        "bad_token",
+        "project_not_open",
+        "canvas_not_found",
+        "busy",
+        "not_ready"
+      ],
+      "$comment": "not_ready is the one retryable answer: the app has not finished launch restore or the target project is still loading, and it does not hold the request. busy names what blocks (locked page, dialog that refuses to close, first run) in the message."
+    },
+    "response": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 4
+            },
+            "ok": {
+              "const": true
+            },
+            "opened": {
+              "const": true
+            },
+            "frame": {
+              "enum": [
+                "found",
+                "missing",
+                "none"
+              ],
+              "$comment": "found: the frame was highlighted. missing: a frame was asked for but the canvas has none by that id, so only the canvas opened. none: no frame was asked for."
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "opened",
+            "frame"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "v": {
+              "const": 4
+            },
+            "ok": {
+              "const": false
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/errorCode"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "v",
+            "ok",
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

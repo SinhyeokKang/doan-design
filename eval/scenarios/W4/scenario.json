@@ -1,0 +1,9 @@
+{
+  "id": "W4",
+  "title": "Edit a canvas, then open it in Doan when the person asks",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": "selection.json"
+}

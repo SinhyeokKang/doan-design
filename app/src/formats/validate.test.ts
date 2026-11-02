@@ -7,6 +7,8 @@ import {
   validateEnvelope,
   validateOnboardingRequest,
   validateOnboardingResponse,
+  validateOpenRequest,
+  validateOpenResponse,
   validateRuntimeFile,
   validateSessionRecord,
   validateSelection,
@@ -37,6 +39,8 @@ const groups: { name: string; validate: Validate }[] = [
   { name: "app-socket-v2/response", validate: validateOnboardingResponse },
   { name: "app-socket-v3/request", validate: validateWorkRequest },
   { name: "app-socket-v3/response", validate: validateWorkResponse },
+  { name: "app-socket-v4/request", validate: validateOpenRequest },
+  { name: "app-socket-v4/response", validate: validateOpenResponse },
 ];
 
 for (const { name, validate } of groups) {
@@ -67,6 +71,26 @@ describe("app-socket v3 stays apart from v1 and v2", () => {
     }
     for (const file of fixtureFiles(`app-socket-v3/${kind}`, "valid")) {
       test(`v3 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v3/${kind}`, "valid"))))).toBe(false));
+    }
+  }
+});
+
+describe("app-socket v4 stays apart from v1, v2 and v3", () => {
+  const others: { kind: string; label: string; dir: string; validate: Validate }[] = [
+    { kind: "request", label: "v1", dir: "app-socket/request", validate: validateSocketRequest },
+    { kind: "request", label: "v2", dir: "app-socket-v2/request", validate: validateOnboardingRequest },
+    { kind: "request", label: "v3", dir: "app-socket-v3/request", validate: validateWorkRequest },
+    { kind: "response", label: "v1", dir: "app-socket/response", validate: validateSocketResponse },
+    { kind: "response", label: "v2", dir: "app-socket-v2/response", validate: validateOnboardingResponse },
+    { kind: "response", label: "v3", dir: "app-socket-v3/response", validate: validateWorkResponse },
+  ];
+  for (const { kind, label, dir, validate } of others) {
+    const v4 = kind === "request" ? validateOpenRequest : validateOpenResponse;
+    for (const file of fixtureFiles(dir, "valid")) {
+      test(`${label} ${kind} ${file} is not v4`, () => expect(v4(readJson(new URL(file, fixtureDirectory(dir, "valid"))))).toBe(false));
+    }
+    for (const file of fixtureFiles(`app-socket-v4/${kind}`, "valid")) {
+      test(`v4 ${kind} ${file} is not ${label}`, () => expect(validate(readJson(new URL(file, fixtureDirectory(`app-socket-v4/${kind}`, "valid"))))).toBe(false));
     }
   }
 });

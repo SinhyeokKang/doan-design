@@ -56,11 +56,11 @@ describe("aboutNotice", () => {
   });
 
   it.each([
-    ["link", "Claude Code — `~/.claude/settings.json` is a link, so Doan left it alone. To let Claude Code run `doan work` without asking, add `Bash(doan work start *)` and `Bash(doan work done *)` to `permissions.allow` in the file it links to."],
-    ["json", "Claude Code — `~/.claude/settings.json` isn’t valid JSON, so Doan couldn’t add the rules that let Claude Code run `doan work` without asking. Fix the file, then reopen Doan."],
-    ["object", "Claude Code — `~/.claude/settings.json` isn’t a JSON object, so Doan couldn’t add the rules that let Claude Code run `doan work` without asking. Fix the file, then reopen Doan."],
-    ["permissions", "Claude Code — `permissions` in `~/.claude/settings.json` isn’t an object, so Doan couldn’t add the rules that let Claude Code run `doan work` without asking. Fix the file, then reopen Doan."],
-    ["allow", "Claude Code — `permissions.allow` in `~/.claude/settings.json` isn’t a list, so Doan couldn’t add the rules that let Claude Code run `doan work` without asking. Fix the file, then reopen Doan."],
+    ["link", "Claude Code — `~/.claude/settings.json` is a link, so Doan left it alone. To let Claude Code run `doan work` and `doan open` without asking, add `Bash(doan work start *)`, `Bash(doan work done *)` and `Bash(doan open *)` to `permissions.allow` in the file it links to."],
+    ["json", "Claude Code — `~/.claude/settings.json` isn’t valid JSON, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
+    ["object", "Claude Code — `~/.claude/settings.json` isn’t a JSON object, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
+    ["permissions", "Claude Code — `permissions` in `~/.claude/settings.json` isn’t an object, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
+    ["allow", "Claude Code — `permissions.allow` in `~/.claude/settings.json` isn’t a list, so Doan couldn’t add the rules that let Claude Code run `doan work` and `doan open` without asking. Fix the file, then reopen Doan."],
   ] as const)("says why the Claude Code settings were left alone (%s)", (problem, line) => {
     expect(lines(aboutNotice([{ target: "claude-allow", path: `${HOME}/.claude/settings.json`, providers: ["claude"], reason: "claude-settings", problem }], HOME))).toEqual([line]);
   });

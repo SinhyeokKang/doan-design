@@ -300,10 +300,10 @@ describe("the Claude Code allow rule", () => {
     const result = await runAgentSetup(options());
     expect(result.items).toEqual([]);
     expect(actions(result)).toMatchObject({ current: "create", cli: "create", "claude-skill": "create", "claude-allow": "replace" });
-    expect(readFileSync(settings(), "utf8")).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)"]}}`);
+    expect(readFileSync(settings(), "utf8")).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"]}}`);
   });
 
-  it("never writes through a link, and says nothing once the file it links to has both rules, as nothing is left to add", async () => {
+  it("never writes through a link, and says nothing once the file it links to has every rule, as nothing is left to add", async () => {
     mkdirSync(join(home, ".claude")); mkdirSync(join(home, "dotfiles"));
     const target = join(home, "dotfiles/settings.json");
     writeFileSync(target, '{"theme":"dark"}'); symlinkSync(target, settings());
@@ -446,10 +446,10 @@ describe("the Claude Code allow rule", () => {
     } finally { chmodSync(join(home, ".claude"), 0o755); }
   });
 
-  it("allows only the work commands, never all of doan", async () => {
+  it("allows only the work commands and open, never all of doan", async () => {
     mkdirSync(join(home, ".claude"));
     await runAgentSetup(options());
-    expect(allowOf()).toEqual(["Bash(doan work start *)", "Bash(doan work done *)"]);
+    expect(allowOf()).toEqual(["Bash(doan work start *)", "Bash(doan work done *)", "Bash(doan open *)"]);
   });
 });
 

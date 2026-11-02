@@ -1,0 +1,19 @@
+[
+  [
+    "work",
+    "done",
+    ".doan/canvases/profile.html",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ],
+  [
+    "open",
+    ".doan/canvases/profile.html",
+    "--frame",
+    "profile-form",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

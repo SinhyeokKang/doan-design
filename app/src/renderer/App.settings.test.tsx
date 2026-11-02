@@ -93,7 +93,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), openLinksReady: vi.fn(async () => {}),
+    onWorkChanged: on("work"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -579,6 +579,21 @@ test("a doan:// link leaves an unlocked page for its canvas and is dropped on a 
   (call[3] as { opened(): void }).opened(); render();
   expect(projectPage()).toBeUndefined();
   expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+});
+
+test("a doan open request on a locked page answers busy with that page and moves nowhere, and opens once unlocked", () => {
+  projectSettingsFromWorkspace();
+  harness.controller!.openCanvas!.mockImplementation((...args: unknown[]) => { (args[3] as { opened?: () => void } | undefined)?.opened?.(); });
+  lockPage();
+  listeners.openRequest!({ id: "1", root: "/w/b", canvas: rowA.path, expires: Date.now() + 1000 } as never); render();
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(projectPage()).toBeDefined();
+  lockPage(false);
+  listeners.openRequest!({ id: "2", root: "/w/b", canvas: rowA.path, expires: Date.now() + 1000 } as never); render();
+  expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 2)).toEqual(["/w/b", rowA]);
+  expect(projectPage()).toBeUndefined();
+  expect(doan.answerOpenRequest!.mock.calls).toStrictEqual([[{ id: "1", kind: "busy", reason: "project_settings" }], [{ id: "2", kind: "opened", frame: "none" }]]);
+  expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
 test("while Add Projects is locked the sidebar shows Project Settings unavailable and it opens nothing", () => {

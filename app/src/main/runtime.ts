@@ -4,14 +4,14 @@ import { chmod, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
-import { validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
+import type { OpenRequest, OpenResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
+import { validateOpenRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
 // and the selection, and owns the app lifecycle around this.
 
 const LINE_LIMIT = 64 * 1024;
-const LINE_WAIT_MS = 2000;
+export const LINE_WAIT_MS = 2000;
 
 export interface ActiveState {
   isOpen(root: string): boolean;
@@ -22,6 +22,9 @@ export interface RuntimeState extends ActiveState {
   // Called only with a schema-valid v2 request whose token matched. It must answer quickly: long work answers with
   // an operation id, since the connection is cut at the 2 s deadline.
   onboarding(request: OnboardingRequest): Promise<OnboardingResponse>;
+  // Called only with a schema-valid v4 request whose token matched and whose root is registered. It must answer
+  // inside the 2 s deadline (deepLinks.ts OPEN_ANSWER_TIMEOUT_MS).
+  open(request: OpenRequest): Promise<OpenResponse>;
 }
 
 export interface Runtime {
@@ -80,14 +83,26 @@ function onboardingError(code: "bad_request" | "bad_token", message: string): On
   return { v: 2, ok: false, error: { code, message } };
 }
 
+function openError(code: "bad_request" | "bad_token" | "project_not_open", message: string): OpenResponse {
+  return { v: 4, ok: false, error: { code, message } };
+}
+
 function workError(code: "bad_request" | "bad_token" | "project_not_open", message: string): WorkResponse {
   return { v: 3, ok: false, error: { code, message } };
 }
 
 // Unknown versions keep the v1 refusal. No version exposes state before its token matched.
-export async function answerLine(line: string, token: string, state: RuntimeState): Promise<SocketResponse | OnboardingResponse | WorkResponse> {
+type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse;
+export async function answerLine(line: string, token: string, state: RuntimeState): Promise<Answer> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { value = null; }
+  if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 4) {
+    if (!validateOpenRequest(value)) return openError("bad_request", "The request is not an app-socket v4 request.");
+    if (!tokenMatches(value.token, token)) return openError("bad_token", "The token does not match this app.");
+    if (!state.isOpen(value.root)) return openError("project_not_open", "The project is not open in Doan.");
+    try { return await state.open(value); }
+    catch (error) { console.error("doan: open request failed", error); return openError("bad_request", "Doan could not handle this request."); }
+  }
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 3) {
     if (!validateWorkRequest(value)) return workError("bad_request", "The request is not an app-socket v3 request.");
     if (!tokenMatches(value.token, token)) return workError("bad_token", "The token does not match this app.");
@@ -114,7 +129,7 @@ function serve(connection: Socket, token: string, state: RuntimeState): void {
   let done = false;
   const deadline = setTimeout(() => connection.destroy(), LINE_WAIT_MS);
   // A v2 answer may arrive after the deadline destroyed the connection; the work it started goes on regardless.
-  const reply = (response: SocketResponse | OnboardingResponse | WorkResponse) => {
+  const reply = (response: Answer) => {
     done = true;
     if (!connection.destroyed) connection.end(`${JSON.stringify(response)}\n`);
   };

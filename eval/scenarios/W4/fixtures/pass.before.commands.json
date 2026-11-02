@@ -1,0 +1,10 @@
+[
+  [
+    "work",
+    "start",
+    ".doan/canvases/profile.html",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]
