@@ -150,7 +150,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const sentMode = mode.kind === "new" || summary || pick.permissionMode !== undefined ? permissionMode : undefined;
   useEffect(() => { if (mode.kind !== "new") support.settlePermission(key, stored); }, [key, stored, pick.permissionMode]);
   const choiceTouched = Object.keys(pick).length > 0;
-  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(permissionMode ? { permissionMode } : {}) }); }, [choiceTouched, chosen, model, effort, permissionMode]);
+  // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
+  // carry a mode (Full access included) the person chose for that conversation into new ones.
+  const rememberedMode = mode.kind === "new" || pick.permissionMode !== undefined ? permissionMode : undefined;
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort, ...(rememberedMode ? { permissionMode: rememberedMode } : {}) }); }, [choiceTouched, chosen, model, effort, rememberedMode]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready) support.readModels(root, chosen); }, [root, healthy, chosen, ready]);
 
