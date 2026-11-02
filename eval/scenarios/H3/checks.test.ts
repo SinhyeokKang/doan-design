@@ -9,6 +9,7 @@ import checks from "./checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "doan-H3-checks-"));
 const cli = join(root, "doan");
+const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
 function setup(pass = false, transcript = "") {
@@ -16,7 +17,7 @@ function setup(pass = false, transcript = "") {
   cpSync(join(import.meta.dirname, "seed"), repo, { recursive: true });
   for (const args of [["init", "-q"], ["add", "."], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   if (pass) cpSync(join(import.meta.dirname, "fixtures/pass"), repo, { recursive: true });
-  return createContext({ repo, agent: "fixture", transcript, cli, env: process.env, seedCommit: "HEAD" });
+  return createContext({ repo, agent: "fixture", transcript, cli, env, seedCommit: "HEAD" });
 }
 const failures = (ctx: ReturnType<typeof setup>) => checks(ctx).filter(c => !c.pass).map(c => c.id);
 

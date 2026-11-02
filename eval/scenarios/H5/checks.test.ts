@@ -9,15 +9,16 @@ import checks from "./checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "doan-H5-checks-"));
 const cli = join(root, "doan");
+const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
 function setup(kind: "seed" | "pass" | "fail" = "pass", transcript = "") {
   const repo = mkdtempSync(join(root, "repo-"));
   cpSync(join(import.meta.dirname, "seed"), repo, { recursive: true });
-  execFileSync(cli, ["init", "--repo", repo, "--token-css", join(repo, "styles/tokens.css")]);
+  execFileSync(cli, ["init", "--repo", repo, "--token-css", join(repo, "styles/tokens.css")], { env });
   for (const args of [["init", "-q"], ["add", "-A", "-f"], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   if (kind !== "seed") cpSync(join(import.meta.dirname, "fixtures", kind), repo, { recursive: true });
-  return createContext({ repo, agent: "fixture", transcript, cli, env: process.env, seedCommit: "HEAD" });
+  return createContext({ repo, agent: "fixture", transcript, cli, env, seedCommit: "HEAD" });
 }
 const failures = (ctx: ReturnType<typeof setup>) => checks(ctx).filter(c => !c.pass).map(c => c.id);
 const codex = (command: string) => `exec\n/bin/zsh -lc '${command}' in /tmp/repo succeeded in 20ms:\n`;

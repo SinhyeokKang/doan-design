@@ -14,15 +14,16 @@ import w1 from "./W1/checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "scenario-regression-"));
 const cli = join(root, "doan");
+const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
 function fixture(id: string, transcript = "") {
   const repo = mkdtempSync(join(root, `${id}-`));
   cpSync(join(import.meta.dirname, id, "seed"), repo, { recursive: true });
-  if (id === "W1") execFileSync(cli, ["init", "--repo", repo, "--token-css", join(repo, "styles/tokens.css")]);
+  if (id === "W1") execFileSync(cli, ["init", "--repo", repo, "--token-css", join(repo, "styles/tokens.css")], { env });
   for (const args of [["init", "-q"], ["add", "."], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   cpSync(join(import.meta.dirname, id, "fixtures/pass"), repo, { recursive: true });
-  return createContext({ repo, agent: "fixture", transcript, cli, env: process.env, seedCommit: "HEAD" });
+  return createContext({ repo, agent: "fixture", transcript, cli, env, seedCommit: "HEAD" });
 }
 test("scenario subprocesses use their temporary runtime instead of the inherited app runtime", () => {
   const ctx = fixture("R1");

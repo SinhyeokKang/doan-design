@@ -11,6 +11,7 @@ import type { Checks } from "../../lib/types.ts";
 
 const root = mkdtempSync(join(tmpdir(), "ha-scenarios-"));
 const cli = join(root, "doan");
+const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
 function fixture(id: "H1", kind: "seed" | "pass" | "fail" = "pass", transcript?: string) {
@@ -19,7 +20,7 @@ function fixture(id: "H1", kind: "seed" | "pass" | "fail" = "pass", transcript?:
   for (const args of [["init", "-q"], ["add", "-A", "-f"], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   if (kind !== "seed") cpSync(join(dir, "fixtures", kind), repo, { recursive: true });
   if (transcript === undefined) transcript = "";
-  return createContext({ repo, agent: "fixture", transcript, cli, env: process.env, seedCommit: "HEAD" });
+  return createContext({ repo, agent: "fixture", transcript, cli, env, seedCommit: "HEAD" });
 }
 function all(checks: Checks, ctx: ReturnType<typeof fixture>) { assert.deepEqual(checks(ctx).filter(c => !c.pass), []); }
 function fails(checks: Checks, ctx: ReturnType<typeof fixture>, id?: string) {

@@ -10,6 +10,7 @@ import checks from "./checks.ts";
 
 const root = mkdtempSync(join(tmpdir(), "doan-r6b-"));
 const cli = join(root, "doan");
+const env = { ...process.env, DOAN_RUNTIME: join(root, "runtime.json") };
 before(() => execFileSync("go", ["build", "-o", cli, "./cli/cmd/doan"]));
 after(() => rmSync(root, { recursive: true, force: true }));
 function fixture(kind?: "pass" | "fail") {
@@ -17,7 +18,7 @@ function fixture(kind?: "pass" | "fail") {
   cpSync(join(import.meta.dirname, "seed"), repo, { recursive: true });
   for (const args of [["init", "-q"], ["add", "."], ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "seed"]]) execFileSync("git", args, { cwd: repo });
   if (kind) cpSync(join(import.meta.dirname, "fixtures", kind), repo, { recursive: true });
-  return createContext({ repo, agent: "fixture", transcript: "", cli, env: process.env, seedCommit: "HEAD" });
+  return createContext({ repo, agent: "fixture", transcript: "", cli, env, seedCommit: "HEAD" });
 }
 function label(ctx: ReturnType<typeof fixture>, html: string) {
   writeFileSync(join(ctx.repo, ".doan/canvases/profile.html"), ctx.read(".doan/canvases/profile.html")!.replace(/<button data-doan-id="save">[^<]*<\/button>/, `<button data-doan-id="save">${html}</button>`));
