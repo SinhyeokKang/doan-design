@@ -7,7 +7,8 @@ import { swapLink, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
 // Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
-// Doan's own links, and never creates a provider folder.
+// Doan's own links and rule file plus its allow rules merged into ~/.claude/settings.json, and never creates a
+// provider folder.
 
 export type AdminResult = { kind: "ok" } | { kind: "cancelled" } | { kind: "failed"; message: string };
 export interface AgentSetupOptions {
