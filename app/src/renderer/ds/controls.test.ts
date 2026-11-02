@@ -140,7 +140,6 @@ test("menu rows are 32px from the primitive: 6px block insets around the 20px li
   expect(read("../styles.css")).not.toMatch(/\.shell-project-menu \.doan-menu-item[^{]*\{[^}]*padding-block/);
 });
 
-// buzz-settings design 'Buzz 레퍼런스' (buzz-app c40dfdf4 components.css .buzz-switch*, settings-group.css), in doan tokens.
 test("the switch is a 36 × 20 button[role=switch] with a 14px thumb as its own constants, prominent when on", () => {
   const css = read("./controls.css");
   const track = rule(css, '.doan-switch[role="switch"]');

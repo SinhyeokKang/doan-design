@@ -337,7 +337,7 @@ code, kbd { font-family: var(--type-family); }
 /* Filter tabs: Home's preset-group tabs, 8px under the field. */
 .qo-tabs.group-tabs.shell-modes { margin: var(--space-2) 0 0; }
 /* Results: a fixed height so the dialog keeps its size whatever the results, 55% of the window, at most 576px
-   (Buzz's stable 36rem) and at least 400px. Both give way to the room left under the field and tabs, so the dialog
+   (36rem) and at least 400px. Both give way to the room left under the field and tabs, so the dialog
    itself never scrolls: 128px above, 16px below, the 40px field and tab capsule, their two 8px gaps, the dialog's
    12px inset and 1px border on both sides. The box clips only the block axis: the list reaches 4px past it on each
    side (its negative inline margin) and clipping that cut 4px off the list's scrollbar. */
@@ -359,7 +359,7 @@ code, kbd { font-family: var(--type-family); }
 .qo-group-title { display: flex; align-items: center; gap: var(--space-2); min-height: calc(var(--space-6) + var(--space-1)); padding-inline: var(--space-3); color: var(--text-metadata); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-weight: var(--type-weight-regular); white-space: nowrap; }
 .qo-group-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* Rows: the field's radius, concentric inside the 12px inset. The active row takes the selected fill, one step above
-   Buzz's row hover, because it is the only mark of what Enter opens. */
+   the row hover, because it is the only mark of what Enter opens. */
 .qo-item { display: flex; flex: none; align-items: center; gap: var(--space-row-gap); min-width: 0; min-height: 44px; padding: var(--space-3); border-radius: calc(var(--radius-panel) + var(--space-1) - var(--space-3)); corner-shape: squircle; color: var(--text-standard); cursor: pointer; user-select: none; }
 .qo-item[aria-selected="true"] { background: var(--affordance-selected); }
 .qo-icon { display: grid; align-items: center; justify-items: start; flex: none; width: var(--size-control-xs); height: var(--size-control-xs); }
@@ -637,8 +637,8 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-project-row.flash { box-shadow: inset 0 0 0 2px var(--border-focus); }
 
 /* buzz-settings: the Settings page (.doan/canvases/buzz-settings.html, confirmed 2026-10-30). The sidebar lists the four
-   categories with the canvas-row geometry; Home's white panel scrolls a 48rem reading column (Buzz Settings.module.css
-   .detail). Its body text is 14/20 with plain numerals, like the Add Projects panel. */
+   categories with the canvas-row geometry; Home's white panel scrolls a 48rem reading
+   column. Its body text is 14/20 with plain numerals, like the Add Projects panel. */
 .shell-settings-nav { display: flex; flex-direction: column; gap: var(--space-half); }
 .shell-side .shell-settings-row { width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
 .shell-side .shell-settings-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
@@ -746,7 +746,7 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .md ul { list-style: disc; }
 .conversation-thread .md ol { list-style: decimal; }
 .conversation-thread .md ul ul { list-style: circle; }
-/* A list right after its paragraph sits 8px under it instead of the 16px block gap (Buzz Messages.module.css). */
+/* A list right after its paragraph sits 8px under it instead of the 16px block gap. */
 .conversation-thread .md > p:has(+ :is(ul, ol)) { margin-bottom: calc(var(--space-2) - var(--space-4)); }
 .conversation-thread .md :is(ul, ol) :is(ul, ol) { margin-top: var(--space-1); }
 .conversation-thread .md code { font-family: var(--type-family-mono); font-size: var(--type-body-sm-size); background: var(--surface-inset); border-radius: var(--space-1); padding: var(--space-half) var(--space-1); overflow-wrap: anywhere; }
