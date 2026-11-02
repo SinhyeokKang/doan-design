@@ -165,3 +165,12 @@ test("a slot in a closed group shows on the project row; open, it stays on its o
   // A group head never carries a slot.
   for (const head of heads(closed)) expect(head).not.toContain("row-slot");
 });
+
+// Dogfooding #2: a Home row above the projects, current on Home.
+it("puts a Home row above the projects, current only on Home", () => {
+  const html = render("/repo");
+  expect(html).toMatch(/<button[^>]*class="shell-home-row row"[^>]*>.*Home<\/span><\/button>.*shell-projects-heading/s);
+  expect(html).not.toMatch(/class="shell-home-row row"[^>]*aria-current/);
+  const onHome = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} goHome={vi.fn()} />);
+  expect(onHome).toMatch(/class="shell-home-row row"[^>]*aria-current="page"/);
+});
