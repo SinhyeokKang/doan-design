@@ -28,7 +28,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | P | P1 문구, P2 `/design-draft` | `docs/features/terminal-agent-activity/design.md` '표시'·'Deep link' 문구, `.doan/canvases/` 새 초안 파일 | 없음 | Claude Opus medium — 문구와 초안 상태 판단, 기존 초안 규약을 지켜야 한다 | `doan check --repo .`, `doan ls --repo .`, 지휘자 초안 리뷰, 사용자 확인 | 통합됨 `8785f4d2`·`3e7d377d`, 수정 2라운드(`f361fbed`·`cac32215`, `9db60907` 외), 지휘자 리뷰 통과, 사용자 확정(D1~D3) |
-| S | T1, T1b | `schema/app-socket.v3.schema.json`, `schema/fixtures/app-socket-v3/`, `schema/fixtures/open-link/cases.json`, `schema/embed.go`(필요하면), `app/src/formats/validate.ts`·테스트, `cli/internal/formats/validate.go`·테스트 | 없음 | Claude Sonnet medium — v2를 따라 하는 기계적인 형식 추가 | `go test ./...`, `npm --prefix app test` | 대기 |
+| S | T1, T1b | `schema/app-socket.v3.schema.json`, `schema/fixtures/app-socket-v3/`, `schema/fixtures/open-link/cases.json`, `schema/embed.go`(필요하면), `app/src/formats/validate.ts`·테스트, `cli/internal/formats/validate.go`·테스트 | 없음 | Claude Sonnet medium — v2를 따라 하는 기계적인 형식 추가 | `go test ./...`, `npm --prefix app test` | 통합됨 `5175a113`·`bbbbf5f8`, 리뷰 RS(🟡1) → 수정 라운드 1 통합 `6df7027e` |
 | C | T4b, T7 | `app/src/main/agentSetup/`, About의 agent setup 결과 표시(필요한 곳만), 테스트 | 없음 | Claude Opus high — 사용자의 `~/.claude/settings.json`을 고치므로 틀리면 사용자 설정을 잃는다. 규칙 문자열을 문서로 확인해야 한다 | `npm --prefix app test`, typecheck | 대기 |
 | A | T2, T4c Go `canvasLink`, T5, T9 | `cli/internal/cli/work.go`(+새 Go 파일)·테스트, `cli/internal/cli/skill.md`·`skill_test.go`, CLI 명령 등록 파일 | S | Codex gpt-6-astra medium (O5) — 경로 판정(심볼릭 링크)과 오류 대응 표, 가이드 문구가 agent-eval 결과를 정한다 | `go test ./...`, `go vet ./...` | 통합됨 `f2cd335e`~`c86f62fb`(brand 커밋 중복 제외), 리뷰 RA(Claude Sonnet high) 진행 |
 | B | T3, T4c TS `parseOpenLink`·링크 대기, T6, T8b main 쪽(`build.protocols`, `open-url`, 대기, 등록된 root·목록 확인, renderer로 보내기) | `app/src/main/` 새 활동 상태·deep link 모듈, `runtime.ts`, `index.ts`, `conversation/environment.ts`, `agentAuth/environment.ts`, `app/src/preload/index.ts`, `app/package.json` `build`, 테스트 | S | Codex gpt-6-astra medium (O5) — socket 인증 순서, 만료 타이머, 보안 경계(링크는 이동만)가 있다 | `npm --prefix app test`, typecheck, `npm --prefix app run package` 뒤 `Info.plist` `CFBundleURLTypes` | 대기 |
@@ -46,6 +46,10 @@
 - `doan check --repo .`: 오류 1·경고 12로 main과 같다(오류는 기존 `select-inspect.html`). `doan ls`: 프레임 4개.
 - 수정 라운드 2 뒤 실제 앱에서 잰 높이: 터미널 notice 40(padding 4/16), 앱 notice 40(4/4/4/16), 선택 힌트 40(4/8/4/16).
 - 확인하지 못한 것: 다크 테마 렌더링.
+
+## 통합 기록
+
+- S 수정 라운드 1과 A를 합친 HEAD에서 `go test ./cli/...` 통과. `npm --prefix app test`는 `thumbnails.test.ts` "the walk limit counts empty directories" 1건이 전체 실행에서 실패하고 단독 재실행에서 통과했다(워커 여럿이 도는 부하 중). 최종 `/verify`에서 다시 본다.
 
 ## 겹침과 순서
 
