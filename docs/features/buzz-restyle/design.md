@@ -4,7 +4,7 @@
 
 ## AppShell 승인에 따른 공통 계약 갱신 (2026-10-27)
 
-사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [승격된 구조 계약](../../ARCHITECTURE.md#7-app-stack-electron--typescript)가 우선한다. Shell 구현·검증 결과는 [DESIGN.md](../../DESIGN.md)의 2026-10-27 완료 기록을 따른다.
+사용자 승인과 feature-review 일괄 반영에 따라 아래의 이전 조사 수치 중 충돌하는 부분은 이 절과 [승격된 구조 계약](../../ARCHITECTURE.md#7-app-stack-electron--typescript)가 우선한다. Shell 구현·검증 결과는 [DESIGN 'App shell'](../../DESIGN.md#app-shell)을 따른다.
 
 - Shell/LNB는 투명·블러, 본문만 흰 Panel이다. LNB의 별도 Panel·점 격자·violet 선택은 사용하지 않는다.
 - LNB 프로젝트→캔버스 IA와 프로젝트 메뉴·워크트리 선택은 buzz-shell이 맡는다. buzz-project는 Overview 본문, buzz-home은 프로젝트 선택 전 본문, buzz-conversation은 대화 공용 UI, buzz-canvas-conversation은 대화 전용 도킹 패널의 표시 정책과 캔버스 대화를 맡는다. 인스펙터는 buzz-inspector의 플로팅 패널이다(spec '캔버스 페이지 방향').
@@ -19,12 +19,12 @@ buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.do
 
 - Welcome → Agent → Project → Home. 한 공급자 ready와 한 프로젝트가 필수다. 단순 Close/Escape로 완료하거나 홈을 우회하는 과거 위저드 동작은 유지하지 않는다. 미완료 앱 재시작은 Welcome이며 저장된 연결/등록 프로젝트는 유지한다.
 - GitHub URL은 등록 로컬 리포/사용자 선택 폴더를 재사용하고 없으면 기존 Git/gh 인증으로 clone한다. 자체 GitHub OAuth·토큰 저장·저장소 목록은 없다.
-- 앱 설치만 한 사용자도 자기 에이전트에게 setup을 맡길 수 있도록 고정 CLI/MCP 인터페이스를 제공한다. 번들 CLI가 앱을 열고 같은 main 서비스·상태·완료 조건을 사용한다. 실제 계정 승인은 시스템 브라우저에서 사람이 한다.
+- 앱 설치만 한 사용자도 자기 에이전트에게 setup을 맡길 수 있도록 고정 CLI 인터페이스(`doan onboarding …`)를 제공한다. 번들 CLI가 앱을 열고 같은 main 서비스·상태·완료 조건을 사용한다. 실제 계정 승인은 시스템 브라우저에서 사람이 한다.
 - Welcome만 accent 타원 그라디언트/alpha grain이다. 나머지는 AppShell 반투명 배경과 공통 프리미티브를 사용한다. lg 버튼 48px, notice 12px/16px·흰 elevation·동색 아이콘·spinner, Back arrow, 말줄임표 없는 문구를 승인했다.
-- 프로젝트 썸네일의 이름 해시·8색 규칙은 유지하며 연한 배경·진한 글자를 온보딩과 ShellSidebar에 공통 적용하도록 승인했다. 현재 ShellSidebar의 흰 글자/진한 배경은 아직 바뀌지 않았다.
+- 프로젝트 썸네일의 이름 해시·8색 규칙은 유지하며 연한 배경·진한 글자를 온보딩과 ShellSidebar에 공통 적용하도록 승인했다. 온보딩과 ShellSidebar 모두 연한 배경·진한 글자를 쓴다(DESIGN 'Onboarding').
 - 홈의 단일 대화 입력창·프로젝트 선택은 buzz-home 소유다. OAuth/보관은 별도 agent-auth, Canvas 대화 UI는 buzz-canvas-conversation이 맡는다. 새 온보딩의 FirstPrompt/Send 단계는 없다.
 
-위 값은 자식의 **승인된 계획**이며 이미 구현된 공용 DS 값으로 보고하지 않는다. 세부 크기·상태·CLI/MCP 계약을 부모에 다시 복제하지 않는다.
+위 값은 구현됐고 정본은 DESIGN이다. 세부 크기·상태·CLI 계약을 부모에 다시 복제하지 않는다.
 
 ## 레퍼런스
 
@@ -53,7 +53,7 @@ buzz-onboarding은 2026-10-29 구현·병합됐다. 출하 화면은 루트 `.do
 
 ## CSS를 싣는 방법 (모든 자식 공통)
 
-- 디자인 시스템 CSS는 `app/src/renderer/ds/`에 평범한 CSS로 쓴다(`@apply`·`@utility`를 쓰지 않아 Tailwind 루트가 필요 없다). 진입 스타일시트(`styles.css`, `settings.css`)가 CSS `@import`로 싣는다(지금 `@import "./tokens.css"`와 같은 방식).
+- 디자인 시스템 CSS는 `app/src/renderer/ds/`에 평범한 CSS로 쓴다(`@apply`·`@utility`를 쓰지 않아 Tailwind 루트가 필요 없다). 진입 스타일시트(`styles.css`)가 CSS `@import`로 싣는다(지금 `@import "./tokens.css"`와 같은 방식).
 - 금지는 JS에서 CSS를 import하는 것이다(POSTMORTEM 2026-10-25, 개발 렌더러에서 CSP에 막힘). 진입 스타일시트는 지금처럼 HTML `<link>`로 싣는다.
 - 새 규칙으로 대체한 기존 규칙은 지운다. 같은 대상을 겨누는 옛 규칙이 남으면 새 규칙을 조용히 이긴다.
 
@@ -85,7 +85,7 @@ Buzz 문서에 있지만 doan 동작을 바꾸므로 가져오지 않는다.
 
 - 타이틀바 클릭으로 다이얼로그 닫기, 4px 드래그 임계값(shell-design.md:186-194)
 - 타이틀바 더블클릭이 시스템 설정을 따르는 동작
-- Settings를 작업 공간 위 모달로 여는 구성(shell-design.md:14, 73). doan Settings는 모달이 아니라 AppShell 페이지가 된다(2026-10-30 user, `buzz-settings` 계획. 그 전까지는 별도 창)
+- Settings를 작업 공간 위 모달로 여는 구성(shell-design.md:14, 73). doan Settings는 모달이 아니라 AppShell 페이지다(buzz-settings)
 - 키보드 모달리티 속성(`data-keyboard-navigation`)과 그 훅
 - hover로만 드러나는 행 액션(DESIGN.md:873)
 - 헤더 캡슐 탭의 화살표 키 이동
@@ -108,21 +108,21 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 
 "buzz-ds 이전" 표시는 아래 담당 자식이 지운다. 한 절을 두 자식이 나누면 나중 자식이 지운다.
 
-| DESIGN.md 절 | 담당 |
+| DESIGN.md 절 | 담당·상태 |
 |---|---|
-| App shell — initial app-ui implementation (2026-10-22) | buzz-shell |
-| Canvas area and right panel | buzz-canvas에서 완료(측정값을 바꾸고 "buzz-ds 이전" 표시 삭제) |
-| Select and inspect (2026-10-23) | 캔버스 오버레이 부분은 buzz-canvas에서 완료, 인스펙터 부분과 표시 삭제는 buzz-inspector |
-| Comments (2026-10-23) + comments-readability update | buzz-canvas-conversation에서 완료(앱 코멘트 화면을 지우며 절 삭제) |
-| Onboarding (2026-10-24) + app-setup update | buzz-onboarding |
-| Projects home (2026-10-25) + Cfix review round | buzz-home |
-| Design navigation (2026-10-25) + Final review follow-up | 트리/LNB는 buzz-shell에서 완료, Overview 본문과 표시 삭제는 buzz-project에서 완료(새 'Project Overview' 절), Quick Open buzz-search |
-| Settings and Home setup (2026-10-25) | Settings buzz-settings, Home 설정 부분 buzz-home, 표시 삭제 buzz-settings |
-| UX audit recovery update (2026-10-25) | buzz-ds (툴팁·포커스 등 공용 수정) |
-| Revision continuity (2026-10-26) | buzz-canvas-conversation에서 완료(절 삭제) |
-| Comments Review (2026-10-26) | buzz-canvas-conversation에서 완료(절 삭제) |
-| Hand off dialog (2026-10-26) | buzz-canvas-conversation에서 완료(절 삭제) |
-| Feedback panel (2026-10-26) | buzz-project에서 완료(절 삭제, ID 변경 알림 행은 Comments 절로 옮김) |
+| App shell | buzz-shell에서 완료 |
+| Onboarding | buzz-onboarding에서 완료 |
+| Home | buzz-home에서 완료 |
+| Add Projects page | buzz-add-projects에서 완료 |
+| Projects home | 표시가 남아 있다. buzz-home이 다시 측정하지 않고 병합해 담당이 없다. Z1 전에 담당을 정한다(사용자 결정) |
+| Project Overview | buzz-project에서 완료 |
+| Design navigation | 트리/LNB는 buzz-shell, Quick Open은 buzz-search에서 완료 |
+| Canvas area and right panel | buzz-canvas에서 완료 |
+| Canvas conversation panel | buzz-canvas-conversation에서 완료 |
+| Select and inspect | 캔버스 오버레이 부분은 buzz-canvas에서 완료. 인스펙터 부분과 표시 삭제는 buzz-inspector |
+| Settings | buzz-settings에서 완료 |
+
+지운 절: Comments·Revision continuity·Comments Review·Hand off dialog(buzz-canvas-conversation), Feedback panel(buzz-project).
 
 ## 자식 feature 조사 메모
 
@@ -132,11 +132,12 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 
 - AppShell: 구현·main 병합 완료(PR #30, `c625057`). 과거 헤더 배치·Home 포함 여부 질문과 점 격자/불투명 LNB 제안은 다시 적용하지 않는다. [DESIGN의 최종 완료 기록](../../DESIGN.md#app-shell)을 따른다.
 - 온보딩: Buzz 원본 `OnboardingScreen.tsx`·`IdentitySetup.module.css` 확인 근거와 채택/조정 내용은 buzz-onboarding이 [DESIGN](../../DESIGN.md)에 남겼다. 기존 네 단계·Close/Escape 유지 제안은 새 필수 설정 흐름이 대체한다.
-- 캔버스 영역: buzz-canvas가 보드를 캔버스 패널(흰 헤더 + 회색 보드) 안에 두기로 정했고, 무채색 선택·hover 표시를 어두운·밝은·violet 픽스처에서 확인했으며, iframe `color-scheme`을 따로 확인했다. 결과는 [DESIGN 'Canvas area and right panel'](../../DESIGN.md)에 있다. 요소 피커의 선택 모드 표시는 buzz-canvas-conversation 몫이다.
+- 도니(Doany): doan-mascot이 구현·병합했다. 결과는 PRODUCT §5 'Doany'와 [DESIGN 'Home'·'Onboarding'](../../DESIGN.md)에 있다.
+- 캔버스 영역: buzz-canvas가 보드를 캔버스 패널(흰 헤더 + 회색 보드) 안에 두기로 정했고, 무채색 선택·hover 표시를 어두운·밝은·violet 픽스처에서 확인했으며, iframe `color-scheme`을 따로 확인했다. 결과는 [DESIGN 'Canvas area and right panel'](../../DESIGN.md)에 있다. 요소 피커의 선택 모드 표시는 buzz-canvas-conversation이 구현했다.
 
 ## 금지 표현 (모든 자식 공통, 2026-10-26 user)
 
-- 왼쪽(시작 쪽) 테두리에 색을 칠하거나 두껍게 그어 메시지·안내·카드·행을 강조하지 않는다. 오류는 아이콘과 `text-danger` 글자 또는 상태 블록으로, 기본 안내는 `surface-inset` 채움이다. 승인된 온보딩 예외는 흰 elevation notice·진한 텍스트와 동색 아이콘이며 기존 프리미티브를 재사용한다(2026-10-28, 아직 구현 전). 패널 사이 1px 무채색 구분선은 해당하지 않는다.
+- 왼쪽(시작 쪽) 테두리에 색을 칠하거나 두껍게 그어 메시지·안내·카드·행을 강조하지 않는다. 오류는 아이콘과 `text-danger` 글자 또는 상태 블록으로, 기본 안내는 `surface-inset` 채움이다. 승인된 온보딩 예외는 흰 elevation notice·진한 텍스트와 동색 아이콘이며 기존 프리미티브를 재사용한다(2026-10-28, 구현, DESIGN 'Notices'). 패널 사이 1px 무채색 구분선은 해당하지 않는다.
 
 ## 공통 함정 (POSTMORTEM)
 
@@ -144,15 +145,3 @@ Electron의 `-webkit-app-region`은 DOM 쌓임 순서와 따로 hit-test된다. 
 - **projects-home checklist** (`overflow: hidden` + `max-height`): 정적 초안의 overflow를 그대로 복사해 네이티브 스크롤을 덮었다. Buzz를 보고 CSS를 쓸 때도 bounded 목록은 넘칠 만큼의 데이터와 실제 입력으로 스크롤 도달을 확인한다.
 - **2026-10-24 — 모달 뒤 포커스**: 다이얼로그 마크업을 감싸는 래퍼를 바꿀 때 `showModal`·포커스 복귀 순서를 건드리지 않는다.
 - **cascade layer**: 대체한 doan 규칙이 layer 밖에 남아 있으면 Buzz 규칙을 조용히 이긴다('CSS를 싣는 방법').
-
-## 도니 시안 구현 인계
-
-도니를 구현하는 워커는 [buzz-mascot 시안](../../../.doan/canvases/doan-mascot.html)과
-[에셋·레이아웃 인계](../../../.doan/assets/doany/README.md)를 함께 읽는다. 아직 앱에는 적용하지 않았다.
-단순히 기존 화면 위에 마스코트를 추가하는 변경이 아니라, 본문 배치도 바꾼다.
-
-- 홈: ContentShell 본문 가용 높이 기준으로 도니·인사·입력창·추천 묶음을 중앙 정렬한 뒤 위로 64px 보정한다. 실제 도니는 약 64px, 모션 영역은 114px이다.
-- Welcome: 창 크롬을 제외한 가용 높이 기준으로 도니·Doan·소개·Get started 묶음을 중앙 정렬한 뒤 위로 72px 보정한다. 실제 도니는 약 80px, 모션 영역은 142.5px이다. 버튼은 묶음 안에 둔다.
-- 기존 152px 상단 여백이나 고정 `margin-top`으로 배치하지 않는다. 먼저 높이 기준 중앙 정렬을 하고 음수 보정을 적용한다. 도니는 일반 흐름에서 공간을 차지한다.
-- 시안은 `min-height: 100%`, 세로 flex 중앙 정렬, 위 32px·아래 `32px + 보정량 × 2` padding으로 구현한다. 홈 아래 padding은 160px, Welcome은 176px이다. 낮은 창에서는 위를 자르지 않고 스크롤한다.
-- 검증: 여러 본문 높이에서 묶음 중심과 보정량을 측정하고, 낮은 창에서 전체 콘텐츠·CTA 접근과 점프 시 베레모 잘림을 확인한다. 앱 구현 뒤 PRODUCT·ARCHITECTURE·DESIGN에 실제 결과를 반영한다.
