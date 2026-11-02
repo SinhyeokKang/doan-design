@@ -531,7 +531,7 @@ export function HeroComposer(props: HeroComposerProps) {
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />
             {picker.effort && provider && model && <EffortPicker view={picker.effort} effort={effort} disabled={sending} onPick={value => edit({ efforts: { ...memory.current.efforts, [effortKey(provider, model)]: value } })} />}
             {permission && provider && <PermissionPicker view={permission} disabled={sending} onPick={mode => edit({ permissions: { ...memory.current.permissions, [provider]: mode } })} />}
-            <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} />
+            <SendButton enabled={availability.enabled} sending={sending} onSend={() => void send()} hint={reason?.kind === "noAgent" ? reason.text : undefined} />
           </ComposerTools>
         </ComposerCard>
         {hasProjects && entry && <div className="composer-tray">
@@ -559,7 +559,7 @@ export function HeroComposer(props: HeroComposerProps) {
         return <Tooltip key={prompt.label}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{prompt.label}</TooltipContent></Tooltip>;
       })}</div>}
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}
-      {!notice && reason && (reason.kind === "attachmentMissing"
+      {!notice && reason && reason.kind !== "noAgent" && (reason.kind === "attachmentMissing"
         ? <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{reason.text}</span></div>
         : <div className="composer-reason" role="status"><span>{reason.text}</span>{reason.kind === "running" && reason.open && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" aria-label="Open the running conversation" onClick={() => props.openConversation(reason.open)}>Open</button>}</div>)}
       <div className="sr-only" role="status">{announcement}</div>

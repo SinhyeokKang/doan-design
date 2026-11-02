@@ -79,7 +79,9 @@ test("with no project the picker is Add Projects…, the tray and suggestions ar
 test("with no ready agent the picker says so, Send is disabled and no suggestion shows", () => {
   const html = render([project("/code/doan-design")], { text: "Draw a pricing page.", auth: { revision: 1, providers: [] } });
   expect(html).toContain('<span class="muted">No agent ready</span>');
-  expect(html).toContain('<div class="composer-reason" role="status"><span>No agent is ready to run.</span></div>');
+  expect(html).not.toContain("composer-reason");
+  expect(html).toMatch(/<button[^>]*aria-label="Send" disabled="" title="No agent is ready to run\."/);
+  expect(html).toContain("No agent is ready to run.</span>");
   expect(html).not.toContain("home-suggestions");
 });
 

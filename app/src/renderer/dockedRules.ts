@@ -43,7 +43,7 @@ export function draftKey(mode: DockedMode): string {
 // this archived one waits to be restored (restore busy). `open` is that conversation when the host knows it.
 export type DockedBusy = { kind: "project"; waiting: boolean; open: string | null } | { kind: "restore"; open: string | null };
 // alert: a moved or deleted file, shown as an error notice as on Home; the other reasons are a quiet line.
-export interface DockedReason { text: string; open?: string; action?: SettingsAction; alert?: true }
+export interface DockedReason { text: string; open?: string; action?: SettingsAction; alert?: true; noAgent?: true }
 
 export interface DockedInput {
   mode: DockedMode; project: string; auth: AuthSnapshot | null | undefined;
@@ -71,7 +71,7 @@ export function dockedAvailability(input: DockedInput): { enabled: boolean; reas
   if (input.unavailable) return off({ text: input.unavailable });
   // A terminal session runs on the terminal's own sign-in, so Doan's accounts do not decide whether it can be sent to.
   const agent = mode.kind === "new" ? agentProblem(input.auth, input.provider) : mode.kind === "resume" || input.external ? null : providerProblem(input.auth, mode.provider);
-  if (agent) return off({ text: agent.text, ...("action" in agent && agent.action ? { action: agent.action } : {}) });
+  if (agent) return off({ text: agent.text, ...("kind" in agent && agent.kind === "noAgent" ? { noAgent: true as const } : {}), ...("action" in agent && agent.action ? { action: agent.action } : {}) });
   const waiting = input.turn === "waiting" ? { text: "Answer or stop the request above." } : null;
   if (!hasContent(draft.segments) && !draft.preset && draft.attachments.length === 0) return off(waiting);
   // A running turn takes the message into its queue, so the limits on starting a turn do not apply yet.
