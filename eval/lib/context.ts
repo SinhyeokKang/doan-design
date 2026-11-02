@@ -69,6 +69,7 @@ export interface ContextOptions {
   env: NodeJS.ProcessEnv;
   seedCommit: string;
   onboardingLog?: string;
+  workLog?: string;
   // The fake app's record of the files it wrote into `repo` (socket.ts initializeRepo).
   appWrites?: string;
 }
@@ -166,6 +167,10 @@ export function createContext(o: ContextOptions): CheckContext {
     onboarding() {
       if (!o.onboardingLog || !existsSync(o.onboardingLog)) return [];
       return readFileSync(o.onboardingLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
+    },
+    work() {
+      if (!o.workLog || !existsSync(o.workLog)) return [];
+      return readFileSync(o.workLog, "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line));
     },
     run: (cmd, args) => sh(cmd, args, o.repo, o.env),
   };

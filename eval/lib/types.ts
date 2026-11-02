@@ -6,6 +6,13 @@ import type { ToolCalls } from "./transcript.ts";
 
 export type Check = { id: string; pass: boolean; detail: string };
 
+export interface WorkExchange {
+  request: { v: 3; action: "start" | "done"; root: string; path?: string; session?: string; provider?: "claude" | "codex" };
+  response: { v: 3; ok: boolean; error?: { code: string; message: string } };
+  at: string;
+  hashes: Record<string, string | null>;
+}
+
 export interface CheckContext {
   // Absolute path of the final repo (the pasted instruction's root).
   repo: string;
@@ -35,6 +42,8 @@ export interface CheckContext {
   // The fake app's app-socket v2 exchanges in order, token removed: `request` is
   // the parsed request, `response` the reply. Empty when there were none.
   onboarding(): { request: any; response: any }[];
+  // App-socket v3 exchanges and SHA-256 snapshots at arrival; null means missing.
+  work(): WorkExchange[];
   // Runs in the repo with the agent's environment and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };
 }

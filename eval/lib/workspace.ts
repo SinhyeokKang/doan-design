@@ -20,6 +20,7 @@ export interface Workspace {
   app: FakeApp | null;
   // The fake app's app-socket v2 exchanges (eval/lib/socket.ts); absent until the first one.
   onboardingLog: string;
+  workLog: string;
   // Files the fake app wrote into `repo` with their content; absent until it writes one.
   appWrites: string;
   dispose(): Promise<void>;
@@ -73,6 +74,8 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     // agent setup arranges for users; the app socket is outside that sandbox.
     mkdirSync(join(repo, ".codex/rules"), { recursive: true });
     writeFileSync(join(repo, CODEX_RULE), codexRuleText());
+    // Project settings keep the terminal-work permissions inside this disposable run.
+    writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ permissions: { allow: ["Bash(doan work start *)", "Bash(doan work done *)"] } }, null, 2) + "\n");
     // -f: a seed .gitignore or the user's global excludes must not keep seed files out of the baseline.
     git(["add", "-A", "-f"]);
     git(["commit", "-q", "--no-verify", "-m", "seed"]);
@@ -89,7 +92,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       ? await startFakeApp({ dir: join(base, "rt"), root: repo, selection: o.scenario.selectionValue ? { root: repo, ...o.scenario.selectionValue } : null, onboarding: o.scenario.onboardingValue })
       : null;
     return {
-      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"), appWrites: join(base, "rt", APP_WRITES),
+      base, repo, cwd, env, seedCommit, app, onboardingLog: join(base, "rt/onboarding.jsonl"), workLog: join(base, "rt/work.jsonl"), appWrites: join(base, "rt", APP_WRITES),
       async dispose() {
         await app?.close();
         rmSync(base, { recursive: true, force: true });
@@ -103,8 +106,9 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
 
 // dispose deletes rt/, and the log is what onboarding checks were scored on.
 // It holds no token (eval/lib/socket.ts strips it).
-export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog">, dir: string): void {
+export function keepOnboardingLog(ws: Pick<Workspace, "onboardingLog"> & Partial<Pick<Workspace, "workLog">>, dir: string): void {
   if (existsSync(ws.onboardingLog)) cpSync(ws.onboardingLog, join(dir, "onboarding.jsonl"));
+  if (ws.workLog && existsSync(ws.workLog)) cpSync(ws.workLog, join(dir, "work.jsonl"));
 }
 
 export function copyRepo(repo: string, dest: string): void {

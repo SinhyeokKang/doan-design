@@ -1,0 +1,9 @@
+{
+  "id": "W3",
+  "title": "Edit a canvas with terminal work signals",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": "selection.json"
+}

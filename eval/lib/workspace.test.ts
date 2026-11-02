@@ -26,6 +26,22 @@ test("isolated Claude project settings allow work signals without changing the r
   } finally { await ws.dispose(); }
 });
 
+test("work context and retained evidence read the fake app's v3 exchanges", async () => {
+  const scenario = loadScenario(join(import.meta.dirname, "../scenarios"), "W3");
+  const ws = await prepareWorkspace({ scenario, agent: "fixture", cli, stub: "stub\n" });
+  try {
+    const ctx = createContext({ repo: ws.repo, agent: "fixture", transcript: "", cli, env: ws.env, seedCommit: ws.seedCommit, workLog: ws.workLog });
+    assert.deepEqual(ctx.work(), []);
+    const started = ctx.doan(["work", "start", ".doan/canvases/profile.html"]);
+    assert.equal(started.json.result.delivered, true);
+    assert.equal(ctx.work().length, 1);
+    assert.equal(ctx.work()[0].request.path, ".doan/canvases/profile.html");
+    const out = mkdtempSync(join(root, "run-"));
+    keepOnboardingLog(ws, out);
+    assert.equal(readFileSync(join(out, "work.jsonl"), "utf8"), readFileSync(ws.workLog, "utf8"));
+  } finally { await ws.dispose(); }
+});
+
 test("without worktree the agent works in the instruction's root", async () => {
   const ws = await prepareWorkspace({ scenario: r6(), agent: "fixture", cli, stub: "stub\n" });
   try {
