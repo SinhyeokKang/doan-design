@@ -13,9 +13,9 @@
 ## 명령
 
 - `doan work start <canvas path> [--repo <path>] [--json]`: 경로는 repo 안의 `.doan/canvases/*.html` 또는 `.doan/ds/*.html`이어야 한다(아직 없어도 된다). 그 밖이면 `usage_error`.
-- `doan work done [<canvas path>…] [--repo <path>] [--json]`: 이 세션의 집합을 모두 비운다. 경로 인자는 링크를 만드는 데만 쓰고 `start`와 같이 `workTarget`으로 판정한다(틀리면 `usage_error`). CLI는 상태를 두지 않고 앱의 집합은 앱이 꺼져 있으면 알 수 없으므로, 링크를 만들 경로는 에이전트가 넘긴다. 경로가 없으면 `links`는 빈 목록이다.
+- `doan work done [<canvas path>…] [--repo <path>] [--json]`: 이 세션의 집합을 모두 비운다. 경로 인자는 링크를 만드는 데만 쓰고 `start`와 같이 `workTarget`으로 판정한다. `done`은 정리 신호라 경로가 틀려도 막지 않는다: 틀린 경로는 `links`에서 빼고 결과의 `skipped`에 그 인자를 그대로 적고, 신호는 보내고 exit 0으로 끝난다(사용자 결정). `start`의 경로가 틀리면 지금처럼 `usage_error`다. CLI는 상태를 두지 않고 앱의 집합은 앱이 꺼져 있으면 알 수 없으므로, 링크를 만들 경로는 에이전트가 넘긴다. 경로가 없으면 `links`는 빈 목록이다.
 - root는 `active`처럼 `repository()`(`cli/internal/cli/run.go`)로 찾는다. `.doan/config.json`이 없는 디렉터리에서는 다른 명령과 같이 `repo_not_found`, 깨진 config는 `invalid_config`로 exit 2다.
-- 결과는 `start`가 `{delivered: boolean}`, `done`이 `{delivered: boolean, links: string[]}`이다. `links`는 CLI가 root와 경로로 만들고(`canvasLink`), `delivered`와 상관없이 돌려준다. 이 모양은 ARCHITECTURE §12에만 적고 스키마에는 두지 않는다(§11: 명령 `result`에는 스키마가 없다).
+- 결과는 `start`가 `{delivered: boolean}`, `done`이 `{delivered: boolean, links: string[], skipped: string[]}`이다. `links`는 CLI가 root와 경로로 만들고(`canvasLink`), `delivered`와 상관없이 돌려준다. 이 모양은 ARCHITECTURE §12에만 적고 스키마에는 두지 않는다(§11: 명령 `result`에는 스키마가 없다).
 - 명령은 앱을 띄우지 않는다. `onboarding start`의 bootstrap을 쓰지 않는다.
 - `doan check`와 다른 명령은 socket을 쓰지 않는다. ARCHITECTURE §4의 "every other command is file-backed"는 `work`를 더한 채 그대로다.
 
