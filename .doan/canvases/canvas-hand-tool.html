@@ -43,10 +43,11 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 .doan-agent-dot{position:relative;flex:none;width:var(--space-2);height:var(--space-2);border-radius:50%;background:var(--affordance-accent)}
 
 /* ── New, not in code ── */
-/* The shared key hint on a dark material (ds/controls.css): transparent, the parent's ink, a ring of that ink at 45 %.
-   The default size is the picking hint's Esc as shipped (28 high); sm is the in-button key's size (caption, 0 / 6,
-   16 high), so a tooltip stays 24 high. Replaces the screen-only .doan-picking-esc.doan-kbd rule with equal values. */
-.doan-kbd[data-ui-variant="on-prominent"]{background:transparent;color:inherit;box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 45%,transparent)}
+/* The shared key hint on a dark material (ds/controls.css): a fill of the parent's ink at 16 %, the same fill as the
+   agent notice's Stop on this material, and the parent's ink for the key; no ring. The default size is the picking
+   hint's Esc (28 high); sm is the in-button key's size (caption, 0 / 6, 16 high), so a tooltip stays 24 high. Replaces
+   the screen-only outlined .doan-picking-esc.doan-kbd rule. */
+.doan-kbd[data-ui-variant="on-prominent"]{background:color-mix(in srgb,currentColor 16%,transparent);color:inherit;box-shadow:none}
 .doan-kbd[data-ui-size="sm"]{padding:0 var(--space-1h);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
 /* A tooltip that names a key: the label, then the key, one line, 8 apart. */
 .doan-tooltip.has-key{display:flex;align-items:center;gap:var(--space-2);white-space:nowrap}
@@ -102,7 +103,7 @@ body{padding:var(--space-8);background:var(--surface-inset)}
 </div></div></div><span class="tile-label">Hand pressed · tooltip on Hand</span></div>
 </div></section>
 
-<section class="specimen"><div class="caption"><span>03</span><h2>Key hint on a dark material <span class="doan-chip" data-ui-variant="translucent">New variant, not in code</span></h2><p>One shared variant, <code>doan-kbd[data-ui-variant="on-prominent"]</code>: transparent, the parent's ink, a 1px ring of that ink at 45 %. The default size is the picking hint's Esc, unchanged from today (28 high). <code>data-ui-size="sm"</code> is the in-button key's size (caption, 0 / 6, 16 high), so a tooltip stays 24 high. The picking hint's screen-only <code>.doan-picking-esc</code> rule goes away with no change in computed values.</p></div>
+<section class="specimen"><div class="caption"><span>03</span><h2>Key hint on a dark material <span class="doan-chip" data-ui-variant="translucent">New variant, not in code</span></h2><p>One shared variant, <code>doan-kbd[data-ui-variant="on-prominent"]</code>: a fill of the parent's ink at 16 % (the agent notice's Stop uses the same fill on this material) and the parent's ink for the key, no ring. The default size is the picking hint's Esc (28 high, as today). <code>data-ui-size="sm"</code> is the in-button key's size (caption, 0 / 6, 16 high), so a tooltip stays 24 high. The picking hint's screen-only <code>.doan-picking-esc</code> rule, today an outlined key, goes away; the Esc key changes from outlined to filled.</p></div>
 <div class="tiles" data-doan-frame="kbd-on-prominent" data-doan-title="Key hint · picking hint and tooltips" data-doan-implements="app/src/renderer/App.tsx">
 <div class="tile"><div class="on-dark"><div class="doan-agent doan-picking" role="status" data-doan-id="picking-hint"><span class="doan-agent-text">Click a frame or an element, or Shift-click a spot</span><span class="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true" data-doan-id="kbd-esc">Esc</span></div></div><span class="tile-label">Default size · picking hint (Esc, 28 high, hint 40 high)</span></div>
 <div class="tile"><div class="on-dark" style="width:240px;gap:var(--space-4)"><div class="doan-tooltip has-key" role="tooltip">Select<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm" data-doan-id="kbd-v">V</span></div><div class="doan-tooltip has-key" role="tooltip">Hand<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm" data-doan-id="kbd-h">H</span></div></div><span class="tile-label">sm · tooltips (key 16 high, tooltip 24 high)</span></div>
