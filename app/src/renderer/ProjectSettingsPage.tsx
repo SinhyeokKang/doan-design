@@ -167,11 +167,14 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
     } catch (failure) { if (live.current && stale === generation.current) setError({ section: kind, message: failure instanceof Error ? failure.message : String(failure) }); }
     finally { if (live.current) setPicking(false); }
   }
-  const disabled = !!busy || picking || reading || !!choice;
-  // Once the controls re-enable, focus returns (projectSettingsFocusAfter) unless a confirmation owns the modal layer or
-  // the user moved it on purpose.
+  // The controls behind an open confirmation stay drawn enabled (the draft's confirmation tile): the modal dialog already
+  // makes the page inert, and the lock is `locked`, not this.
+  const disabled = !!busy || picking || reading;
+  const waiting = disabled || !!choice;
+  // Once nothing is pending, focus returns (projectSettingsFocusAfter) unless a confirmation owns the modal layer or
+  // the user moved it on purpose. The confirmation counts as pending, so focus returns when it closes, not before.
   useEffect(() => {
-    if (disabled || !returnFocus.current) return;
+    if (waiting || !returnFocus.current) return;
     const frame = requestAnimationFrame(() => {
       const origin = returnFocus.current; returnFocus.current = null;
       if (!origin || !live.current || document.querySelector('dialog[role="alertdialog"][open]') || (document.activeElement !== document.body && document.activeElement !== origin.button && document.activeElement !== null)) return;
@@ -182,7 +185,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
       (target.kind === "pressed" ? origin.button : target.kind === "tokenPrimary" ? tokenButton.current : target.kind === "sharedRemove" ? removeButtons.current.get(target.path) ?? addButton.current : addButton.current)?.focus();
     });
     return () => cancelAnimationFrame(frame);
-  }, [disabled]);
+  }, [waiting]);
 
   // A list with neither settings nor a failure has not been read yet, whether or not the read has started.
   const readState: ReadState = readError !== null ? { kind: "failed", message: readError } : config ? { kind: "ready" } : { kind: "reading" };

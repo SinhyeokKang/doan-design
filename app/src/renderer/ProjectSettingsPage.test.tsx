@@ -433,11 +433,25 @@ test("leaving the page while locked releases the lock", async () => {
   expect(onState()).toEqual([true, false]);
 });
 
-test("Show in Finder and Remove from Doan are not locked, but every control that writes is", async () => {
+test("Show in Finder and Remove from Doan are not locked, but every control that writes is while a pick runs", async () => {
+  let pick: (value: unknown) => void = () => {};
+  doan.chooseConfigPath!.mockImplementationOnce(() => new Promise(resolve => { pick = resolve; }));
   await open();
-  click("Add File or Folder"); await flush(); render();
+  click("Add File or Folder"); render();
   for (const label of ["Change", "Clear", "Add File or Folder", "Remove public/fonts from Shared with canvases"]) expect(button(label).props.disabled, label).toBe(true);
   for (const label of ["Show in Finder", "Remove from Doan"]) expect(button(label).props.disabled, label).toBeFalsy();
+  pick({ kind: "cancelled" }); await flush(); render();
+  unmount();
+});
+
+// The confirmation is a modal dialog, so the page behind it is inert already; the draft's confirmation tile draws the
+// page's controls enabled. The lock (nothing leaves the page) stays while it is open.
+test("the controls behind an open Share confirmation are drawn enabled, and the lock stays", async () => {
+  await open();
+  click("Add File or Folder"); await flush(); render();
+  expect(confirmation()).toBeDefined();
+  expect(onState()).toEqual([true]);
+  for (const label of ["Change", "Clear", "Add File or Folder", "Remove public/fonts from Shared with canvases", "Show in Finder", "Remove from Doan"]) expect(button(label).props.disabled, label).toBeFalsy();
   unmount();
 });
 
