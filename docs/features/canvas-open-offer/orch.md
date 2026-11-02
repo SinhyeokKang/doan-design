@@ -52,3 +52,6 @@
   - 지휘자 판단(차이 4): 준비 판정은 `openLinksReady()`(모든 루트) 그대로 둔다. spec 완료 조건 3의 "첫 프로젝트 읽기"를 포함하고, CLI가 15초 안에서 다시 시도한다.
   - 시간: 앱 renderer timeout 1500 ms, 앱 소켓 `LINE_WAIT_MS` 2000 ms, CLI 시도마다 2 s(`activeTimeout`). RB가 경계를 확인한다.
   - index.ts의 Electron 연결(요청 전송, 답 handler, 숨긴 앱 앞으로)은 단위 테스트가 없다. T6 probe가 맡는다.
+- RA(A 리뷰, Claude Sonnet 서브에이전트): 🔴 0, 🟡 1, ⚪ 4. 🟡는 `not_ready`를 받은 뒤 다음 시도가 느리면(앱은 떠 있음) cap까지 다시 시도하지 않고 바로 `app_not_running`으로 끝나는 것이다(design 표는 `busy`). handoff 차이는 모두 수락했다. `onboarding start` 동작은 그대로임을 추적으로 확인했다. 보고서: `.scratch/orch/review-RA.md`.
+  - 지휘자 판단: 🟡와 ⚪ 1(앱의 frame 결과가 요청과 맞지 않으면 `internal_error`), ⚪ 2(디렉터리 symlink 행)를 A 수정 회차로 보낸다. ⚪ 3은 B의 busy 문구가 고정 문자열이라 그대로 두고, ⚪ 4는 해가 없어 그대로 둔다.
+- A 수정 회차 1: task `task_4baf04928122`, dispatch `ctx_4c2e230bd977`, 같은 터미널과 worktree. 시작을 확인했다.
