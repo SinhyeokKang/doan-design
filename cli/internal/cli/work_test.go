@@ -1,0 +1,210 @@
+package cli
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"net"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestWorkTarget(t *testing.T) {
+	root := realPath(t, initialized(t))
+	putFile(t, root, ".doan/canvases/existing.html", "canvas")
+	for _, path := range []string{".doan/canvases/existing.html", ".doan/ds/new.html", ".doan/canvases/new.html"} {
+		for _, input := range []string{path, filepath.Join(root, path)} {
+			got, err := workTarget(root, input)
+			if err != nil || got != path {
+				t.Fatalf("%q: %q %v", input, got, err)
+			}
+		}
+	}
+	for _, path := range []string{"", "../a.html", "/tmp/a.html", ".doan/assets/a.html", ".doan/canvases/a.txt", ".doan/canvases/nested/a.html", ".doan/canvases/dir.html"} {
+		if path == ".doan/canvases/dir.html" {
+			if err := os.Mkdir(filepath.Join(root, path), 0755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got, err := workTarget(root, path); err == nil {
+			t.Fatalf("accepted %q as %q", path, got)
+		}
+	}
+	for _, target := range []string{t.TempDir(), filepath.Join(t.TempDir(), "missing"), filepath.Join(root, "src")} {
+		t.Run(target, func(t *testing.T) {
+			r := realPath(t, initialized(t))
+			if err := os.Symlink(target, filepath.Join(r, ".doan/ds")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := workTarget(r, ".doan/ds/new.html"); err == nil {
+				t.Fatal("accepted linked directory outside canvas scope")
+			}
+		})
+	}
+	outside := filepath.Join(t.TempDir(), "a.html")
+	putFile(t, filepath.Dir(outside), "a.html", "outside")
+	if err := os.Symlink(outside, filepath.Join(root, ".doan/canvases/link.html")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workTarget(root, ".doan/canvases/link.html"); err == nil {
+		t.Fatal("accepted outside file")
+	}
+}
+
+func TestWorkSession(t *testing.T) {
+	for _, tt := range []struct{ claude, thread, legacy, provider, id string }{
+		{"c", "", "", "claude", "c"}, {"", "t", "", "codex", "t"}, {"", "", "l", "codex", "l"}, {"", "t", "t", "codex", "t"},
+		{}, {"c", "t", "", "", ""}, {"c", "", "l", "", ""}, {"", "t", "l", "", ""}, {"-bad", "", "", "", ""}, {"a\x00b", "", "", "", ""}, {"a b", "", "", "", ""}, {strings.Repeat("a", 129), "", "", "", ""},
+	} {
+		p, id := workSession(tt.claude, tt.thread, tt.legacy)
+		if p != tt.provider || id != tt.id {
+			t.Fatalf("%+v: %q %q", tt, p, id)
+		}
+	}
+}
+
+func TestCanvasLinkFixtures(t *testing.T) {
+	var fixtures struct {
+		Build []struct{ Name, Root, Path, Frame, Expected string }
+	}
+	data, err := os.ReadFile("../../../schema/fixtures/open-link/cases.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(data, &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixtures.Build) == 0 {
+		t.Fatal("no fixtures")
+	}
+	for _, tt := range fixtures.Build {
+		t.Run(tt.Name, func(t *testing.T) {
+			want := strings.Split(tt.Expected, "&frame=")[0]
+			if got := canvasLink(tt.Root, tt.Path); got != want {
+				t.Fatalf("%s != %s", got, want)
+			}
+		})
+	}
+}
+
+func TestReadWorkResponse(t *testing.T) {
+	for _, tt := range []struct {
+		line string
+		want bool
+	}{
+		{`{"v":3,"ok":true}`, true}, {`{"v":3.0,"ok":true}`, true},
+		{`{"v":1,"ok":false,"error":{"code":"bad_request","message":"old"}}`, false},
+		{`{"v":2,"ok":true}`, false}, {`{"v":3,"ok":true,"extra":1}`, false}, {`{"v":3,"ok":true} {}`, false}, {`null`, false}, {`broken`, false},
+	} {
+		if got := readWorkResponse([]byte(tt.line)); got != tt.want {
+			t.Fatalf("%s: %v", tt.line, got)
+		}
+	}
+	for _, code := range []string{"bad_request", "bad_token", "project_not_open"} {
+		if readWorkResponse([]byte(`{"v":3,"ok":false,"error":{"code":"` + code + `","message":"no"}}`)) {
+			t.Fatal(code)
+		}
+	}
+}
+
+func TestWorkSocketOutcomes(t *testing.T) {
+	root := realPath(t, initialized(t))
+	for _, tt := range []struct {
+		name, line string
+		want       bool
+	}{
+		{"success", `{"v":3,"ok":true}`, true}, {"old app", `{"v":1,"ok":false,"error":{"code":"bad_request","message":"old"}}`, false},
+		{"other version", `{"v":4,"ok":true}`, false}, {"malformed", "junk", false}, {"shape", `{"v":3,"ok":true,"result":{}}`, false},
+		{"bad_token", `{"v":3,"ok":false,"error":{"code":"bad_token","message":"no"}}`, false},
+		{"bad_request", `{"v":3,"ok":false,"error":{"code":"bad_request","message":"no"}}`, false},
+		{"project_not_open", `{"v":3,"ok":false,"error":{"code":"project_not_open","message":"no"}}`, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(tt.line)}
+			ctx := activeContext(t, root, app.dial(t))
+			ctx.WorkProvider = "codex"
+			ctx.WorkSession = "thread"
+			out, e := Work(ctx, Flags{Repo: root}, []string{"start", ".doan/canvases/new.html"})
+			assertWork(t, out, e, tt.want)
+			req := <-app.requests
+			want := map[string]any{"v": float64(3), "token": testToken, "root": root, "action": "start", "path": ".doan/canvases/new.html", "provider": "codex", "session": "thread"}
+			if !reflect.DeepEqual(req, want) {
+				t.Fatal(req)
+			}
+		})
+	}
+	for _, name := range []string{"missing", "directory", "invalid", "version", "dial", "permission", "timeout", "write", "closed", "truncated", "app conversation"} {
+		t.Run(name, func(t *testing.T) {
+			app := &fakeApp{requests: make(chan map[string]any, 1), respond: func(c net.Conn, _ []byte) { c.Close() }}
+			ctx := activeContext(t, root, app.dial(t))
+			switch name {
+			case "missing":
+				ctx.RuntimePath = filepath.Join(t.TempDir(), "missing")
+			case "directory":
+				ctx.RuntimePath = t.TempDir()
+			case "invalid":
+				putFile(t, filepath.Dir(ctx.RuntimePath), "runtime.json", "bad")
+			case "version":
+				putFile(t, filepath.Dir(ctx.RuntimePath), "runtime.json", `{"v":2}`)
+			case "dial", "permission":
+				ctx.Dial = func(string, time.Time) (net.Conn, error) { return nil, os.ErrPermission }
+			case "timeout":
+				app.respond = func(c net.Conn, _ []byte) { defer c.Close(); b := make([]byte, 1); c.Read(b) }
+			case "write":
+				ctx.Dial = func(string, time.Time) (net.Conn, error) { c, s := net.Pipe(); s.Close(); return c, nil }
+			case "truncated":
+				app.respond = func(c net.Conn, _ []byte) { defer c.Close(); c.Write([]byte(`{"v":3`)) }
+			case "app conversation":
+				ctx.AppConversation = true
+				ctx.Dial = func(string, time.Time) (net.Conn, error) { t.Error("dialed"); return nil, errors.New("unexpected") }
+			}
+			before := time.Now()
+			out, e := Work(ctx, Flags{Repo: root}, []string{"done", ".doan/canvases/new.html"})
+			assertWork(t, out, e, false)
+			if time.Since(before) > 3*time.Second {
+				t.Fatal("exceeded timeout")
+			}
+			if !reflect.DeepEqual(out.Result.(map[string]any)["links"], []string{canvasLink(root, ".doan/canvases/new.html")}) {
+				t.Fatal(out)
+			}
+		})
+	}
+}
+
+func assertWork(t *testing.T, out Outcome, e *Error, want bool) {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	if code := emit(out, e, true, &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatalf("exit %d %s %s", code, &stdout, &stderr)
+	}
+	if out.Result.(map[string]any)["delivered"] != want {
+		t.Fatal(out)
+	}
+}
+
+func TestWorkRunValidationAndSuppression(t *testing.T) {
+	root := realPath(t, initialized(t))
+	t.Setenv("DOAN_RUNTIME", filepath.Join(t.TempDir(), "missing"))
+	t.Setenv("DOAN_APP_CONVERSATION", "1")
+	for _, args := range [][]string{{"work"}, {"work", "other"}, {"work", "start"}, {"work", "start", ".doan/ds/a.html", ".doan/ds/b.html"}, {"work", "done", "bad.html"}} {
+		failure(t, root, "usage_error", args...)
+	}
+	failure(t, t.TempDir(), "repo_not_found", "work", "done")
+	broken := t.TempDir()
+	putFile(t, broken, ".doan/config.json", "broken")
+	failure(t, broken, "invalid_config", "work", "done")
+	got := result(t, root, 0, "work", "done")
+	if got["delivered"] != false || len(got["links"].([]any)) != 0 {
+		t.Fatal(got)
+	}
+	got = result(t, root, 0, "work", "start", ".doan/ds/a.html")
+	if got["delivered"] != false {
+		t.Fatal(got)
+	}
+	t.Setenv("DOAN_RUNTIME", "relative")
+	failure(t, root, "usage_error", "work", "done")
+}
