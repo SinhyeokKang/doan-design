@@ -122,6 +122,8 @@ const api = {
   },
   // An https link from an agent reply, opened in the system browser; false when main refused it.
   openLink: (url: string): Promise<boolean> => ipcRenderer.invoke("shell:openLink", { url }),
+  // The OS cursor in the window's content coordinates (CSS px), null when main cannot tell.
+  pointer: (): Promise<{ x: number; y: number } | null> => ipcRenderer.invoke("pointer:get"),
   interruptConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:interrupt", request),
   answerConversationPermission: (request: { conversationId: string; requestId: string; optionId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:answerPermission", request),
   readConversation: (request: { conversationId: string }): Promise<ReturnType<ConversationService["read"]> | ConversationError> => ipcRenderer.invoke("conversation:read", request),

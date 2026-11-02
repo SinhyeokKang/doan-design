@@ -19,6 +19,11 @@ import { escapeStep, toolShortcut, type CanvasTool, type ToolShortcut } from "./
 
 export const MEASURE_ANSWER_MS = 1000;
 const REMEASURE_MS = 50;
+// A cursor reading that comes later than this may no longer be where the click was.
+const CLICK_CURSOR_MS = 500;
+// Focus a pointer press gives the canvas area. Without focusVisible: false the Canvas region draws its keyboard ring
+// after any key use: the app never sees a click that lands in the canvas's iframe, so Chromium counts it as keyboard.
+const CLICK_FOCUS: FocusOptions = { preventScroll: true, focusVisible: false };
 
 export interface CanvasState {
   hasFrame: boolean;
@@ -151,9 +156,8 @@ export class CanvasController {
   private drag: { pointerId: number; x: number; y: number } | null = null;
   private layerShown = false;
   private canvasPage = true;
-  // Whether the app's last pointermove was over the canvas area (its margin, the board, the iframe or the layer). A
-  // click selection message moves focus only then, since the canvas can send one without a click.
-  private pointerOnCanvas = false;
+  // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
+  private clickTag = 0;
 
   // Raised by every move or selection change; a workspace open that waits for its folder's read goes ahead only
   // while it is still the latest. `valid` checks the destination against the current list right before applying.
@@ -260,6 +264,8 @@ export class CanvasController {
     private inspect: (selector: string) => Promise<InspectResult>,
     // The drag layer App renders right after the overlay: over the board and the iframe, under the canvas chrome.
     private layer: Pick<HTMLElement, "hidden" | "dataset" | "addEventListener" | "removeEventListener" | "setPointerCapture" | "releasePointerCapture" | "hasPointerCapture">,
+    // Main's reading of the OS cursor in the window's content coordinates, null when it cannot tell.
+    private pointer: () => Promise<{ x: number; y: number } | null>,
   ) {
     if (typeof ResizeObserver !== "undefined" && "nodeType" in viewport) {
       this.viewResize = new ResizeObserver(() => this.applyView());
@@ -713,7 +719,7 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
-    if (!this.commandReply(message)) this.focusCanvas();
+    if (!this.commandReply(message)) this.focusOnClick();
     this.seq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
@@ -973,8 +979,6 @@ export class CanvasController {
   }
 
   private pointerOnApp = (event: PointerEvent): void => {
-    const target: unknown = event.target;
-    this.pointerOnCanvas = target === this.viewport || target === this.board || target === this.layer || (target !== null && target === this.frame);
     this.altHeld = event.altKey;
     // OOPIFs do not reliably receive pointerout when the pointer enters the app.
     if (event.target !== this.frame && this.hoverRect !== null) {
@@ -989,14 +993,25 @@ export class CanvasController {
     if (event.button !== 0 || event.ctrlKey || event.altKey) return;
     // The board margin is outside every frame: picking goes on and the selection stays.
     if (this.state.picking) return;
-    this.focusCanvas();
+    this.viewport.focus(CLICK_FOCUS);
     this.clearOnEscape();
   };
 
   // A click on the canvas sends the keys after it there, not to the composer. Never during a pick: its chip goes in at
-  // the composer's caret. Never for a click the app did not see over the canvas.
-  private focusCanvas(): void {
-    if (!this.state.picking && this.pointerOnCanvas) this.viewport.focus({ preventScroll: true });
+  // the composer's caret. The click reaches the app only as the canvas's message, which a canvas can send without one,
+  // and the app gets no pointer event while the pointer is over the out-of-process iframe (it enters straight from the
+  // composer or the tools row). So main reads the OS cursor, and focus moves only when it is over the canvas area,
+  // read soon after this click and before anything else took focus.
+  private focusOnClick(): void {
+    if (this.state.picking) return;
+    const tag = ++this.clickTag;
+    const asked = Date.now();
+    const focused = document.activeElement;
+    this.pointer().then(point => {
+      if (point === null || tag !== this.clickTag || this.state.picking || document.activeElement !== focused || Date.now() - asked > CLICK_CURSOR_MS) return;
+      const area = this.viewport.getBoundingClientRect();
+      if (point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom) this.viewport.focus(CLICK_FOCUS);
+    }, () => {});
   }
 
   // The layer shows while Hand or a held Space can pan a drawn board, and through a drag in progress.
@@ -1042,7 +1057,7 @@ export class CanvasController {
   private layerDown = (event: PointerEvent): void => {
     event.preventDefault();
     if (event.button !== 0 || this.drag !== null) return;
-    if (!this.spaceHeld) this.viewport.focus({ preventScroll: true });
+    if (!this.spaceHeld) this.viewport.focus(CLICK_FOCUS);
     // Keeps the drag when the pointer leaves the window.
     this.layer.setPointerCapture(event.pointerId);
     this.drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
@@ -1070,6 +1085,9 @@ export class CanvasController {
   private onLayout(message: LayoutMessage): void {
     const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
+    // A held Space and a drag end with the board they were on, also when the canvas replaces its own document
+    // (its location.reload()), which keeps the iframe; the tool stays.
+    if (documentChanged && (this.spaceHeld || this.drag !== null)) { this.spaceHeld = false; this.finishDrag(); }
     // Another document, even at the same URL in the same iframe (the canvas's own location.reload()), ends the pick
     // channel of the one it replaced; the pick itself goes on below unless the page is another canvas.
     if (message.document !== undefined && message.document !== this.pickDocument) {

@@ -32,6 +32,12 @@ test("Open Project resolves the stored root main returns", async () => {
   expect(mocks.invoke).toHaveBeenCalledWith("folders:open");
 });
 
+test("asks main where the OS cursor is", async () => {
+  mocks.invoke.mockResolvedValueOnce({ x: 3, y: 4 });
+  expect(await api.pointer()).toEqual({ x: 3, y: 4 });
+  expect(mocks.invoke).toHaveBeenCalledWith("pointer:get");
+});
+
 test("exposes reopen through its dedicated IPC channel", async () => {
   await api.reopenFolder("/repo");
   expect(mocks.invoke).toHaveBeenCalledWith("folders:reopen", "/repo");

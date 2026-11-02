@@ -14,7 +14,7 @@ it("updates the board synchronously without notifying React during pan", () => {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
   controller.wheel({ dx: 10, dy: 20, ctrl: false, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   expect(board.style.transform).toBe("translate(-10px, -20px) scale(1)");
   expect(changed).not.toHaveBeenCalled();
@@ -26,7 +26,7 @@ it("notifies React only when the rounded zoom percentage changes", () => {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }) });
   const board = { style: { transform: "", visibility: "" }, hidden: false, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
   const zoom = (dy: number) => controller.wheel({ dx: 0, dy, ctrl: true, meta: false, deltaMode: 0 }, { x: 200, y: 100 });
   zoom(-0.1);
   expect(changed).not.toHaveBeenCalled();
@@ -60,7 +60,7 @@ describe("zoom to a scale", () => {
     vi.stubGlobal("window", new EventTarget());
     const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
-    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
     try {
       controller.zoomTo(2);
       expect(controller.currentView().scale).toBe(1);
@@ -97,7 +97,7 @@ function loadedController() {
   const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const changed = vi.fn();
-  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
+  const controller = new CanvasController(viewport, board, { append: vi.fn() }, changed, vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
   const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 600 };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row] }]);
   controller.openCanvas("/repo", row);
@@ -165,7 +165,7 @@ function selectionHarness() {
     },
   };
   vi.stubGlobal("document", doc);
-  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
+  const viewport = Object.assign(new EventTarget(), { clientWidth: 800, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => ({ left: 0, top: 0, right: 800, bottom: 600, x: 0, y: 0, width: 800, height: 600 }) as DOMRect });
   const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
   const overlay = { append: vi.fn() };
   const changed = vi.fn();
@@ -174,7 +174,10 @@ function selectionHarness() {
   const inspections: { selector: string; resolve: (result: InspectResult) => void; reject: (error: unknown) => void }[] = [];
   const inspect = vi.fn((selector: string) => new Promise<InspectResult>((resolve, reject) => { inspections.push({ selector, resolve, reject }); }));
   const layer = fakeLayer();
-  const controller = new CanvasController(viewport, board, overlay, changed, send, inspect, layer);
+  // Where main says the OS cursor is, in the window's content coordinates; the viewport spans 0,0 to 800,600.
+  const cursor = { at: { x: 400, y: 300 } as { x: number; y: number } | null };
+  const pointer = vi.fn(async () => cursor.at);
+  const controller = new CanvasController(viewport, board, overlay, changed, send, inspect, layer, pointer);
   const row = { path: ".doan/canvases/a.html", id: "a", url: "http://localhost/t/k/f/.doan/canvases/a.html", width: 600 };
   const other = { ...row, path: ".doan/canvases/b.html", id: "b", url: "http://localhost/t/k/f/.doan/canvases/b.html" };
   controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }]);
@@ -188,7 +191,7 @@ function selectionHarness() {
   const markOf = (kind: string) => marks.find((mark) => mark.className.split(" ").includes(kind));
   const state = () => changed.mock.lastCall?.[0];
   layout();
-  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc };
+  return { controller, changed, send, frames, current, receive, layout, select, key, markOf, state, row, other, target, overlay, host, viewport, inspect, inspections, board, layer, doc, cursor, pointer };
 }
 
 describe("selection", () => {
@@ -1697,7 +1700,7 @@ describe("first Fit", () => {
     vi.stubGlobal("document", { createElement: () => frame });
     const viewport = Object.assign(new EventTarget(), { clientWidth: width, clientHeight: 600, focus: vi.fn(), getBoundingClientRect: () => new DOMRect() });
     const board = { style: { transform: "", visibility: "" }, hidden: true, prepend: vi.fn() };
-    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer());
+    const controller = new CanvasController(viewport, board, { append: vi.fn() }, vi.fn(), vi.fn(), vi.fn(async () => ({ ok: true as const, rows: [] })), fakeLayer(), async () => null);
     const row = { path: ".doan/canvases/a.html", url: "http://localhost/a.html", width: 1200 };
     const other = { ...row, path: ".doan/canvases/b.html", url: "http://localhost/b.html" };
     controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 0, canvases: [row, other] }, { path: "/other", kind: "list", servedRev: 0, canvases: [other] }]);
@@ -2412,12 +2415,9 @@ describe("hand tool", () => {
     h.layer.dispatchEvent(event);
     return event;
   };
-  // Where the app last saw the pointer: its capture pointermove on the window.
-  const pointerOver = (h: H, target: unknown) => {
-    const event = new Event("pointermove");
-    Object.defineProperty(event, "target", { get: () => target });
-    h.host.dispatchEvent(event);
-  };
+  // A mouse click must not draw the Canvas region's keyboard focus ring, even after keys were used (the app does not
+  // see the click itself when it lands in the canvas's iframe, so Chromium would treat the focus as keyboard focus).
+  const CLICK_FOCUS = { preventScroll: true, focusVisible: false };
   const shown = (h: H) => !h.layer.hidden;
   const grabbing = (h: H) => "grabbing" in h.layer.dataset;
   const posted = (h: H) => h.current().contentWindow.postMessage.mock.calls.map(call => call[0] as Record<string, unknown>);
@@ -2768,7 +2768,7 @@ describe("hand tool", () => {
       press(h, "KeyH");
       pointer(h, "pointerdown");
       pointer(h, "pointerup");
-      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith(CLICK_FOCUS);
       h.viewport.focus.mockClear();
       press(h, "KeyV");
       press(h, "Space");
@@ -2777,57 +2777,123 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("a canvas click moves focus to the area, a margin click too, but not while picking", () => {
+  // A click in the canvas reaches the app only as the canvas's message, which a canvas can also send on its own, and
+  // the app sees no pointer event over the canvas's out-of-process iframe. Main reads the OS cursor instead.
+  const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
+
+  it("a canvas click moves focus to the area when main puts the cursor over it, a margin click too, but not while picking", async () => {
     const h = harness();
     try {
-      pointerOver(h, h.current());
       h.select(1);
-      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      await flush();
+      expect(h.pointer).toHaveBeenCalledTimes(1);
+      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith(CLICK_FOCUS);
       h.receive({ type: "clear", seq: 2 });
+      await flush();
       expect(h.viewport.focus).toHaveBeenCalledTimes(2);
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
       expect(h.viewport.focus).toHaveBeenCalledTimes(3);
+      expect(h.viewport.focus.mock.calls.every(call => JSON.stringify(call) === JSON.stringify([CLICK_FOCUS]))).toBe(true);
       h.viewport.focus.mockClear();
+      h.pointer.mockClear();
       h.controller.pick();
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0 }));
       h.select(3);
+      await flush();
+      expect(h.pointer).not.toHaveBeenCalled();
       expect(h.viewport.focus).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
   });
 
-  it("a selection message does not move focus when the app last saw the pointer outside the canvas", () => {
+  it("a selection message does not move focus when main puts the cursor outside the canvas area, nor for a command's reply", async () => {
     const h = harness();
     try {
-      h.select(1);
-      expect(h.viewport.focus).not.toHaveBeenCalled();
-      pointerOver(h, { tagName: "TEXTAREA" });
-      h.select(2);
-      h.receive({ type: "clear", seq: 3 });
-      expect(h.viewport.focus).not.toHaveBeenCalled();
-      // A renderer command's answer is not a click, even with the pointer on the canvas.
-      pointerOver(h, h.viewport);
-      h.controller.selectFrame(1, "hero");
-      h.select(4, { target: frameReply });
-      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
-      h.select(5, { answer: "select-anchor" });
+      let seq = 0;
+      for (const at of [{ x: 900, y: 300 }, { x: 400, y: -1 }, { x: 800, y: 300 }, null]) {
+        h.cursor.at = at;
+        h.select(++seq);
+        h.receive({ type: "clear", seq: ++seq });
+        await flush();
+      }
+      expect(h.pointer).toHaveBeenCalledTimes(8);
       expect(h.viewport.focus).not.toHaveBeenCalled();
     } finally { h.controller.dispose(); }
+    // A renderer command's answer is not a click, even with the cursor on the canvas: main is not even asked.
+    const h2 = harness();
+    try {
+      const h = h2;
+      h.controller.selectFrame(1, "hero");
+      h.select(1, { target: frameReply });
+      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      h.select(2, { answer: "select-anchor" });
+      await flush();
+      expect(h.state().selection?.element?.doanId).toBe("cta");
+      expect(h.pointer).not.toHaveBeenCalled();
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("does not move focus when main fails or answers late, when focus moved meanwhile, or when a pick or a newer click came first", async () => {
+    vi.useFakeTimers();
+    const h = harness();
+    try {
+      h.pointer.mockRejectedValueOnce(new Error("ipc"));
+      h.select(1);
+      await flush();
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      // Late: the cursor it reports is not where the click was any more.
+      let answer: (point: { x: number; y: number }) => void = () => {};
+      h.pointer.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+      h.select(2);
+      vi.advanceTimersByTime(1000);
+      answer({ x: 400, y: 300 });
+      await flush();
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      // Focus moved (the person clicked the composer) before main answered.
+      h.pointer.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+      h.select(3);
+      h.doc.activeElement = { tagName: "DIV" };
+      answer({ x: 400, y: 300 });
+      await flush();
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      // A pick started before main answered.
+      h.pointer.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+      h.select(4);
+      h.controller.pick();
+      answer({ x: 400, y: 300 });
+      await flush();
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      h.controller.cancelPick();
+      // Only the newest click's answer counts.
+      const answers: ((point: { x: number; y: number } | null) => void)[] = [];
+      h.pointer.mockImplementation(() => new Promise(resolve => { answers.push(resolve); }));
+      h.select(5);
+      h.select(6);
+      answers[0]!({ x: 400, y: 300 });
+      await flush();
+      expect(h.viewport.focus).not.toHaveBeenCalled();
+      answers[1]!({ x: 400, y: 300 });
+      await flush();
+      expect(h.viewport.focus).toHaveBeenCalledTimes(1);
+    } finally { h.controller.dispose(); vi.useRealTimers(); }
   });
 
   // Review RA 🟡1: a click can win the race with a command still on its way and take that command's seq.
-  it("a click at the seq of a command in flight still moves focus", () => {
+  it("a click at the seq of a command in flight still moves focus", async () => {
     const h = harness();
     try {
-      pointerOver(h, h.current());
       h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
       h.receive({ type: "clear", seq: 1 });
+      await flush();
       expect(h.viewport.focus).toHaveBeenCalledTimes(1);
       h.controller.selectFrame(1, "hero");
       h.select(2);
+      await flush();
       expect(h.viewport.focus).toHaveBeenCalledTimes(2);
       // The drawer's frame, answered at its own seq, is still the command's reply.
       h.controller.selectFrame(1, "hero");
       h.select(3, { target: frameReply });
+      await flush();
       expect(h.viewport.focus).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
   });
@@ -2853,6 +2919,28 @@ describe("hand tool", () => {
       h.layout({ document: "doc4" });
       expect(shown(h)).toBe(false);
       expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
+  // T4 runtime probe: the canvas's own location.reload() keeps the iframe and only sends a layout from a new document.
+  it("a held Space and a drag end when the canvas replaces its own document; the tool stays", () => {
+    const h = harness();
+    try {
+      press(h, "Space");
+      expect(shown(h)).toBe(true);
+      h.layout({ document: "doc2" });
+      expect(shown(h)).toBe(false);
+      press(h, "Space");
+      expect(shown(h)).toBe(true);
+      release(h, "Space");
+      press(h, "KeyH");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      expect(grabbing(h)).toBe(true);
+      h.layout({ document: "doc3" });
+      expect(grabbing(h)).toBe(false);
+      expect(h.layer.captured.size).toBe(0);
+      expect(h.state().tool).toBe("hand");
+      expect(shown(h)).toBe(true);
     } finally { h.controller.dispose(); }
   });
 

@@ -20,6 +20,8 @@ const mainOnly = [
   "attachments:choose", "attachments:add-paths", "attachments:add-pasted", "attachments:remove", "attachments:recheck", "attachments:release",
   // buzz-conversation: re-issued attachments from recorded paths, and https links from agent replies.
   "attachments:fromPaths", "shell:openLink",
+  // canvas-hand-tool: where the OS cursor is, for a canvas click's focus.
+  "pointer:get",
 ];
 const setupAndAuth = ["setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",

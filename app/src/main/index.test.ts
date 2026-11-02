@@ -13,7 +13,7 @@ const mocks = await vi.hoisted(async () => {
     destroyed = false;
     contentsDestroyed = false;
     webContents = Object.assign(new EventEmitter(), { id: ++Window.ids, send: vi.fn(), isDestroyed: () => this.contentsDestroyed, debugger: { name: "debugger" },
-      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(),
+      executeJavaScript: vi.fn(async (_script?: string): Promise<unknown> => ({ x: 0, y: 0, width: 800, height: 500 })), undo: vi.fn(), redo: vi.fn(), getZoomFactor: vi.fn(() => 1),
       capturePage: vi.fn(async () => ({ isEmpty: () => false, resize: () => ({ toPNG: () => Buffer.from("png") }) })) });
     show = vi.fn();
     hide = vi.fn();
@@ -24,6 +24,7 @@ const mocks = await vi.hoisted(async () => {
     close = vi.fn();
     destroy = vi.fn(() => { this.destroyed = true; });
     setContentSize = vi.fn();
+    getContentBounds = vi.fn(() => ({ x: 100, y: 40, width: 1280, height: 800 }));
     isDestroyed = () => this.destroyed;
     isFocused = vi.fn(() => false);
     isMinimized = vi.fn(() => false);
@@ -72,7 +73,7 @@ const mocks = await vi.hoisted(async () => {
     inspector: { inspect: vi.fn() },
     createInspector: vi.fn(),
     mkdir: vi.fn(),
-    readCompletion: vi.fn(), clipboard: { writeText: vi.fn() },
+    readCompletion: vi.fn(), clipboard: { writeText: vi.fn() }, cursor: vi.fn(() => ({ x: 0, y: 0 })),
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
     uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
@@ -91,7 +92,7 @@ const mocks = await vi.hoisted(async () => {
 });
 
 vi.mock("electron", () => ({
-  clipboard: mocks.clipboard, app: mocks.app, BrowserWindow: mocks.Window, shell: mocks.electronShell, Notification: mocks.Notification,
+  clipboard: mocks.clipboard, app: mocks.app, screen: { getCursorScreenPoint: mocks.cursor }, BrowserWindow: mocks.Window, shell: mocks.electronShell, Notification: mocks.Notification,
   dialog: mocks.dialog,
   ipcMain: { handle: (channel: string, handler: (...args: unknown[]) => unknown) => mocks.ipc.set(channel, handler) },
   Menu: { buildFromTemplate: mocks.menu, setApplicationMenu: vi.fn() },
@@ -1055,6 +1056,23 @@ describe("locate and reveal", () => {
     expect(mocks.electronShell.showItemInFolder).not.toHaveBeenCalled();
     await invoke("folders:reveal", contents, null, { path: APP });
     expect(mocks.electronShell.showItemInFolder).toHaveBeenCalledExactlyOnceWith(APP);
+  });
+});
+
+// canvas-hand-tool: a canvas click is the canvas's message, so the renderer asks where the OS cursor is.
+describe("pointer", () => {
+  test("answers the window's main frame with the OS cursor in content coordinates at the page zoom", async () => {
+    const contents = window().webContents;
+    mocks.cursor.mockReturnValue({ x: 400, y: 340 });
+    expect(await invoke("pointer:get", contents, null)).toEqual({ x: 300, y: 300 });
+    contents.getZoomFactor.mockReturnValueOnce(2);
+    expect(await invoke("pointer:get", contents, null)).toEqual({ x: 150, y: 150 });
+  });
+
+  test("answers null to a canvas frame or another sender", async () => {
+    mocks.cursor.mockClear();
+    for (const [sender, parent] of [[window().webContents, {}], [{}, null]]) expect(await invoke("pointer:get", sender, parent)).toBeNull();
+    expect(mocks.cursor).not.toHaveBeenCalled();
   });
 });
 

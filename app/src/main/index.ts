@@ -27,7 +27,7 @@ import { cloneEnv, locateGit } from "./onboarding/clone";
 import { readGitRemotes } from "./onboarding/gitConfig";
 import { canonicalFolder, cloneDestination, cloneProject, confirmProject, inspectPath, leftoverPresent, inspectUrl, selectProject, type ProjectDeps } from "./onboarding/projects";
 import { DocumentBindings } from "./comments/document";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, session, shell as electronShell, systemPreferences, webContents, webFrameMain, type BaseWindow, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from "electron";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants, readlinkSync, realpathSync, statSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -875,6 +875,13 @@ async function start(): Promise<void> {
     if (!fromWindow(event)) return null;
     const roots = parseActivityRoots(value, ready.entries().map(entry => entry.path));
     return roots === null ? null : readShellActivity(userData, conversationStore, roots);
+  });
+  // A canvas click reaches the renderer only as the canvas's own message, and the renderer gets no pointer events over
+  // the canvas's out-of-process iframe, so it asks where the OS cursor is before moving focus to the canvas.
+  handle("pointer:get", null, (event) => {
+    if (!fromWindow(event) || win === undefined) return null;
+    const cursor = screen.getCursorScreenPoint(), content = win.getContentBounds(), zoom = event.sender.getZoomFactor();
+    return { x: (cursor.x - content.x) / zoom, y: (cursor.y - content.y) / zoom };
   });
   handle("ui-state:get", null, (event) => (fromWindow(event) ? store.read() : null));
   handle("ui-state:save", false, (event, value: unknown) => fromWindow(event) && store.save(value));
