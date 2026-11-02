@@ -1054,8 +1054,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-panel-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--space-1); transform: translateX(-50%); background: linear-gradient(to bottom, transparent, var(--affordance-accent), transparent); opacity: 0; }
 .doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }
 /* The sidebar's handle: a sibling of the sidebar in each shell grid, so the sidebar's overflow does not clip it. Its
-   containing block is the sidebar's column below the header; it fills the 8px gutter after it. */
-.doan-panel-handle.doan-sidebar-handle { grid-column: 1; grid-row: 2 / -1; left: 100%; }
+   containing block is the sidebar's column below the header; it fills the 8px gutter after it. Both lines are named:
+   an absolutely positioned item's auto end line is the grid's padding edge, not the next line. */
+.doan-panel-handle.doan-sidebar-handle { grid-column: 1 / 2; grid-row: 2 / -1; left: 100%; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
 /* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
