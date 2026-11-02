@@ -56,13 +56,18 @@ var onboardingFlags = map[string]string{
 // cancel reports its target and status reports operations as data.
 var operationOps = map[string]bool{"check": true, "sign_in": true, "project_inspect": true, "project_select": true, "project_clone": true, "complete": true}
 
-func onboardingFailure(code, message string) *Error {
-	// A sandbox can deny the socket even while the app is running.
-	unreachable := []string{
-		"Ask the user to open Doan, then run `doan onboarding start` again",
+// unreachableSteps is the recovery order when no app answers; a sandbox can deny the socket even while the app is running.
+// command is the retry command, already in backticks.
+func unreachableSteps(command string) []string {
+	return []string{
+		"Ask the user to open Doan, then run " + command + " again",
 		"If Doan is open, a sandbox may block this shell from its socket: run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions",
 		"If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About",
 	}
+}
+
+func onboardingFailure(code, message string) *Error {
+	unreachable := unreachableSteps("`doan onboarding start`")
 	steps := map[string][]string{
 		"app_not_running":       unreachable,
 		"app_launch_failed":     unreachable,
