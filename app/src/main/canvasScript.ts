@@ -693,9 +693,15 @@ export function canvasScript(lib: CanvasLib): void {
     );
   }
 
+  let spaceHeld = false;
+
   // A nested iframe has no script of ours; a click inside it only shows here
   // as focus moving into it.
   addEventListener("blur", () => {
+    if (spaceHeld) {
+      spaceHeld = false;
+      postSelection("key", { key: "Space", down: false });
+    }
     setTimeout(() => {
       const active = document.activeElement;
       if (active === null || !["iframe", "frame", "object", "embed"].includes(active.localName)) return;
@@ -734,9 +740,10 @@ export function canvasScript(lib: CanvasLib): void {
     { capture: true, passive: true },
   );
 
-  // Focus is in this canvas only after an ⌥-click into it; then Esc lands
+  // Focus is in this canvas only after an ⌥-click into it; then keys land
   // here instead of the app's keydown.
   const editable = (target: EventTarget | null) => isElement(target) && (["input", "textarea", "select"].includes(target.localName) || isEditable(target));
+  const toolKeyAllowed = (event: KeyboardEvent) => !event.isComposing && event.keyCode !== 229 && !event.metaKey && !event.ctrlKey && !event.altKey && !editable(event.target);
   addEventListener(
     "keydown",
     (event: KeyboardEvent) => {
@@ -744,6 +751,17 @@ export function canvasScript(lib: CanvasLib): void {
         alt = true;
         postSelection("key", { key: "Alt", alt, seq: hoverSeq });
         postHover();
+      }
+      if (toolKeyAllowed(event)) {
+        if (event.code === "Space") {
+          event.preventDefault();
+          if (!event.repeat) {
+            spaceHeld = true;
+            postSelection("key", { key: "Space", down: true });
+          }
+        } else if (!event.repeat && (event.code === "KeyV" || event.code === "KeyH")) {
+          postSelection("key", { key: event.code === "KeyV" ? "V" : "H" });
+        }
       }
       if (event.key !== "Escape" || event.isComposing || event.keyCode === 229) return;
       // Esc while picking cancels only the pick, wherever focus is in the canvas; the selection stays.
@@ -760,6 +778,12 @@ export function canvasScript(lib: CanvasLib): void {
   addEventListener(
     "keyup",
     (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        if (!editable(event.target) && (spaceHeld || toolKeyAllowed(event))) event.preventDefault();
+        // Focus and modifiers can change between the press and release.
+        spaceHeld = false;
+        postSelection("key", { key: "Space", down: false });
+      }
       if (event.key !== "Alt") return;
       alt = false;
       postSelection("key", { key: "Alt", alt, seq: hoverSeq });

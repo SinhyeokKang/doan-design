@@ -887,6 +887,10 @@ describe("canvasScriptSource", () => {
 });
 
 interface FakeEvent {
+  code?: string;
+  keyCode?: number;
+  repeat?: boolean;
+  metaKey?: boolean;
   isComposing?: boolean;
   type?: string;
   target: unknown;
@@ -1080,6 +1084,78 @@ describe("canvasScript selection input", () => {
       { type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" },
       { type: "key", href: HREF, seq: 0, viewport: 150, key: "Escape" },
     ]);
+  });
+
+  test("forwards Space down/up outside editable elements, ignores repeat", () => {
+    const { canvas, span, field } = heroCanvas();
+    for (const target of [span, canvas.body, field, node("textarea"), node("select"), node("div", {}, [], { isContentEditable: true })]) {
+      canvas.fireWindow("keydown", input({ target, code: "Space", key: " " }));
+      canvas.fireWindow("keydown", input({ target, code: "Space", key: " ", repeat: true }));
+      canvas.fireWindow("keyup", input({ target, code: "Space", key: " " }));
+    }
+    for (const ignored of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+      for (const type of ["keydown", "keyup"]) canvas.fireWindow(type, input({ target: span, code: "Space", ...ignored }));
+    }
+    expect(ofType(canvas, "key")).toEqual([true, false, true, false, ...Array<boolean>(9).fill(false)].map(down => ({
+      type: "key", href: HREF, seq: 0, viewport: 150, key: "Space", down,
+    })));
+  });
+
+  test("releases Space across editable targets, modifiers and composition without blocking editing", () => {
+    const { canvas, span, field } = heroCanvas();
+    for (const fields of [{ target: field }, { target: span, metaKey: true }, { target: span, ctrlKey: true }, { target: span, altKey: true }, { target: span, isComposing: true }, { target: span, keyCode: 229 }]) {
+      canvas.fireWindow("keydown", input({ target: span, code: "Space" }));
+      const event = input({ code: "Space", ...fields });
+      canvas.fireWindow("keyup", event);
+      expect(ofType(canvas, "key").at(-1)).toMatchObject({ key: "Space", down: false });
+      expect(event.prevented).toBe(fields.target !== field);
+    }
+  });
+
+  test("prevents Space scrolling the canvas", () => {
+    const { canvas, span, button, field } = heroCanvas();
+    for (const target of [span, canvas.body, button]) {
+      for (const fields of [{}, { repeat: true }]) {
+        for (const type of ["keydown", "keyup"]) {
+          const event = input({ target, code: "Space", ...fields });
+          canvas.fireWindow(type, event);
+          expect(event.prevented).toBe(true);
+        }
+      }
+    }
+    for (const fields of [{ target: field }, { target: span, metaKey: true }, { target: span, ctrlKey: true }, { target: span, altKey: true }, { target: span, isComposing: true }, { target: span, keyCode: 229 }]) {
+      const event = input({ code: "Space", ...fields });
+      canvas.fireWindow("keydown", event);
+      expect(event.prevented).toBe(false);
+    }
+  });
+
+  test("sends Space up on blur", () => {
+    const { canvas, span } = heroCanvas();
+    canvas.fireWindow("keydown", input({ target: span, code: "Space" }));
+    canvas.fireWindow("blur", {});
+    expect(ofType(canvas, "key")).toEqual([true, false].map(down => ({
+      type: "key", href: HREF, seq: 0, viewport: 150, key: "Space", down,
+    })));
+    canvas.fireWindow("blur", {});
+    expect(ofType(canvas, "key")).toHaveLength(2);
+  });
+
+  test("forwards V and H outside editable elements", () => {
+    const { canvas, span, field } = heroCanvas();
+    for (const { code, key } of [{ code: "KeyV", key: "ㅍ" }, { code: "KeyH", key: "ㅗ" }]) {
+      for (const target of [span, canvas.body, field, node("textarea"), node("select"), node("div", {}, [], { isContentEditable: true })]) {
+        canvas.fireWindow("keydown", input({ target, code, key }));
+        canvas.fireWindow("keyup", input({ target, code, key }));
+      }
+      for (const ignored of [{ repeat: true }, { metaKey: true }, { ctrlKey: true }, { altKey: true }, { isComposing: true }, { keyCode: 229 }]) {
+        canvas.fireWindow("keydown", input({ target: span, code, key, ...ignored }));
+      }
+    }
+    canvas.fireWindow("keydown", input({ target: span, code: "KeyX", key: "v" }));
+    expect(ofType(canvas, "key")).toEqual(["V", "V", "H", "H"].map(key => ({
+      type: "key", href: HREF, seq: 0, viewport: 150, key,
+    })));
   });
 
   test("selects an SVG element itself and keeps its tag case in the selector", () => {
