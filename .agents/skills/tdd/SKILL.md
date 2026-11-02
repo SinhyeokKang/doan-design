@@ -13,7 +13,7 @@ This is the step where tests come **first**. Create only test files (and the fix
 
 ## If it touches a format, start with the schema and fixtures
 
-ARCHITECTURE §11 'Shared formats': comment events, `.doan/config.json`, CLI response envelopes, `runtime.json` and the app socket messages have JSON Schema as their source, and the TS (app) and Go (CLI) tests read **the same fixtures**.
+ARCHITECTURE §11 'Shared formats': comment events, `.doan/config.json`, CLI response envelopes, `runtime.json`, the app socket messages and session associations (`sessions.v1`) have JSON Schema as their source, and the TS (app) and Go (CLI) tests read **the same fixtures**.
 
 - First write the schema change and the fixtures (ones that must pass and ones that must fail). Then make both the TS and Go tests read those fixtures. Writing only one side cannot catch the two implementations drifting apart.
 - Schemas and fixtures live in root `schema/` and `schema/fixtures/` (ARCHITECTURE §11 'Shared formats', Location). If a change needs a location §11 does not cover, stop and ask. Do not invent locations.
