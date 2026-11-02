@@ -12,6 +12,7 @@
 3. U2 실계정 확인은 PM-B가 격리된 패키지 앱에서 한다(사용자). 임시 HOME의 `Library/Keychains`를 실제 폴더에 연결하고, Claude·Codex로 로그인한다. 로그인 승인은 사용자가 브라우저에서 한다. 끝나면 만든 provider keyring 항목과 `<App> Safe Storage`를 지우고 확인한다(POSTMORTEM 'real sign-in').
 4. 공통 id와 순수 함수는 renderer가 값으로 가져와도 되는 모듈 하나에 둔다. 경로는 PM-A가 정하고 handoff에 적는다. 그 모듈은 `formats/validate.ts`·ajv·Node 모듈에 닿지 않는다(`rendererImports.test.ts`). — 컨덕터 판단, 근거 POSTMORTEM 'renderer CSP'.
 5. `/agent-eval`은 돌리지 않는다. 이 feature는 가이드, CLI 출력, `doan check` 규칙, skill stub을 바꾸지 않는다(design '영향 받는 부분'). — 컨덕터 판단, 근거 AGENTS 'Workflow'.
+   - Doan에는 Claude만 로그인돼 있어서 다음과 같이 넓혔다(사용자). Claude는 Doan profile의 비밀이 아닌 파일을 `/tmp`로 복사하고, 키체인에서 현재 access token만 읽어 쓴다. refresh token은 쓰지 않고 키체인에도 쓰지 않는다. Codex·Cursor·Copilot은 임시 HOME에서 파일 저장 방식으로 새로 로그인하고, 사용자가 브라우저에서 승인한다. 끝나면 로그아웃하고 지운다. Antigravity 서버는 `/tmp`에 받는다. `~/.codex`는 쓰지 않는다(refresh token이 바뀌면 터미널 로그인이 깨진다).
 6. P4에서 대응이 어긋나면(예: Codex가 Default로 되돌아가지 않음) PM-A를 시작하기 전에 사용자에게 묻는다.
 
 ## 배치
