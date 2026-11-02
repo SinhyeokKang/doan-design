@@ -32,6 +32,7 @@
 ## T. 순수 함수 (`/tdd` → `/implement`)
 
 - [ ] T1. `permissionOptions`, `claudePermission`, `codexPermission`, `acpModeFor`, `permissionTrigger`, 마지막 사용·Settings 기본값 규칙.
+  - main 쪽 완료(PM-A): 공통 모듈 `app/src/main/conversation/permissionMode.ts`. `permissionTrigger`와 마지막 사용·Settings 규칙은 PM-B가 맡는다.
   - 검증: `npm --prefix app test` green. 테스트가 다음 경우를 덮는다.
     - 각 provider·모드 조합
     - Full access가 `allowDangerouslySkipPermissions`를 함께 낸다
@@ -40,6 +41,7 @@
     - 입력창에서 provider를 바꿨는데 고른 모드를 새 provider에서 고를 수 없으면 Default
     - 모델 없이 고른 모드도 마지막 사용·Settings에 반영된다
 - [ ] T2. 대화 metadata(`store.ts`), `preferences.ts`, `restore/uiState.ts`의 `permissionMode` 읽기·검증.
+  - main 쪽 완료(PM-A): `store.ts`, `preferences.ts`. `restore/uiState.ts`는 PM-B가 맡는다.
   - 검증: `npm --prefix app test` green. 테스트 파일은 `app/src/main/conversation/storeIndex.test.ts`·`storeRecovery.test.ts`, `app/src/main/preferences.test.ts`, `app/src/restore/uiState.test.ts`다(`app/src/main/uiState.test.ts`와 다르다). 다음 경우를 덮는다.
     - 알 수 없는 id는 그 필드만 Default로 읽는다. index 전체나 preferences 파일 전체를 깨지 않는다
     - `parsePreferencesPatch`가 `permissionMode`를 받는다
@@ -50,11 +52,11 @@
 
 ## S. 셸 (main)
 
-- [ ] S1. `service.ts` `TurnChoice`·send extras·저장된 choice에 `permissionMode`(모델과 따로 판정). Plan 승인 뒤 저장 모드 전환. `ipc.ts`에서 공통 id로 검증.
+- [x] S1. `service.ts` `TurnChoice`·send extras·저장된 choice에 `permissionMode`(모델과 따로 판정). Plan 승인 뒤 저장 모드 전환. `ipc.ts`에서 공통 id로 검증.
   - 검증: `npm --prefix app test` green. 테스트 파일은 모두 `app/src/main/conversation/`에 있다.
     - `service.test.ts`: 저장된 `permissionMode`가 resume 턴의 choice로 이어진다. 모델 없는 send에서 바꾼 모드가 저장된다. `"default"` send가 metadata에서 키를 지운다. 큐 메시지가 보낼 때의 값을 쓴다.
     - `ipc.test.ts`: 알 수 없는 id를 거부한다. queue가 `permissionMode`를 받는다. legacy-external 대화의 `permissionMode`는 `bad_request`다.
-- [ ] S2. `runners.ts`: Claude `query()` 옵션, Codex `turn/start`(Default 턴은 `config/read` 값). `acpRunner.ts`: P3에 따라 `session/set_mode` 또는 `session/set_config_option`. `models.ts`: ACP mode 목록. POSTMORTEM의 Codex dispatcher 검색을 다시 돌린다.
+- [x] S2. `runners.ts`: Claude `query()` 옵션, Codex `turn/start`(Default 턴은 `config/read` 값). `acpRunner.ts`: P3에 따라 `session/set_mode` 또는 `session/set_config_option`. `models.ts`: ACP mode 목록. POSTMORTEM의 Codex dispatcher 검색을 다시 돌린다.
   - 검증: `npm --prefix app test` green. 테스트 파일은 모두 `app/src/main/conversation/`에 있다.
     - `runners.test.ts`: fake 서버가 받은 파라미터를 확인한다. override 뒤 Default로 돌아간 Codex 턴이 `config/read` 값을 보낸다. Full access Claude 턴에 `allowDangerouslySkipPermissions`가 실린다.
     - `acpRunner.test.ts`: `modes`가 없거나 대응이 없으면 mode를 설정하지 않는다.
