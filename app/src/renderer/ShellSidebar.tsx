@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
 import { Bell, Bot, Check, ChevronDown, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook } from "lucide-react";
 import type { CanvasRow } from "../main/view";
@@ -8,6 +8,8 @@ import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
 import { sortedCanvases } from "./canvasOrder";
 import { rowProblem, typeaheadNext } from "./canvasTree";
 import { ErrorDetails } from "./ErrorDetails";
+import { ResizeHandle } from "./ConversationPanel";
+import type { PanelBounds } from "./rightPanelSize";
 import { displayPath } from "./projectDisplay";
 import { slotKey } from "./homeConversations";
 import type { SidebarSlot as Slot } from "./canvasNotice";
@@ -15,6 +17,8 @@ import { SETTINGS_SECTIONS, type SettingsSection } from "./settingsSections";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 
 interface Props {
+  // The sidebar's width handle, drawn after the sidebar as a sibling in the shell grid (see .doan-sidebar-handle).
+  resize?: { width: number; bounds: PanelBounds; onResize(width: number | undefined): void; preview(width: number): void };
   cards: HomeCard[];
   projects: Record<string, ShellProject>;
   loaded: string | null;
@@ -173,9 +177,10 @@ export function ShellSidebar(props: Props) {
   const active = rows.some(row => row.key === focused) ? focused : rows[0]?.key;
   // Radix spreads props over the aria-disabled it derives from `disabled`, so Overview repeats its own disabled state.
   const locked = props.locked || undefined;
+  const withHandle = (aside: ReactElement) => props.resize ? <>{aside}<ResizeHandle edge="end" className="doan-sidebar-handle" label="Resize sidebar" {...props.resize} /></> : aside;
   if (props.settings) {
     const { section, select } = props.settings;
-    return <aside className="side shell-side" ref={host} aria-label="Settings">
+    return withHandle(<aside className="side shell-side" ref={host} aria-label="Settings">
       <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
       <div className="shell-projects doan-scroll">
         <h2 className="shell-projects-heading">Settings</h2>
@@ -184,9 +189,9 @@ export function ShellSidebar(props: Props) {
           return <button key={item.id} type="button" className="shell-settings-row row" aria-current={current ? "page" : undefined} aria-disabled={locked && !current ? true : undefined} onClick={() => select(item.id)}><Icon aria-hidden="true" /><span>{item.title}</span></button>;
         })}</nav>
       </div>
-    </aside>;
+    </aside>);
   }
-  return <aside className="side shell-side" ref={host} aria-label="Projects">
+  return withHandle(<aside className="side shell-side" ref={host} aria-label="Projects">
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <button type="button" className="shell-home-row row" aria-current={props.home ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
     <div className="shell-projects doan-scroll">
@@ -255,5 +260,5 @@ export function ShellSidebar(props: Props) {
       })}
       </div>
     </div>
-  </aside>;
+  </aside>);
 }

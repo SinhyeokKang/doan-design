@@ -30,9 +30,12 @@ export function panelWidth(saved: number | undefined, windowWidth: number, shell
   return Math.min(max, Math.max(min, saved));
 }
 
-// The handle sits on the panel's left edge, so ← moves the edge left and widens the panel. `null` for a key
-// the handle does not use, so the caller leaves it alone.
-export function nudgePanel(width: number, key: string, bounds: PanelBounds): number | null {
-  const next = key === "ArrowLeft" ? width + NUDGE : key === "ArrowRight" ? width - NUDGE : key === "Home" ? bounds.max : key === "End" ? bounds.min : null;
+// On the panel's start (left) edge ← moves the edge left and widens the panel; on the sidebar's end edge → widens.
+// Home and End move the edge to the window's start and end either way. `null` for a key the handle does not use,
+// so the caller leaves it alone.
+export function nudgePanel(width: number, key: string, bounds: PanelBounds, edge: "start" | "end" = "start"): number | null {
+  const widen = edge === "start" ? "ArrowLeft" : "ArrowRight", narrow = edge === "start" ? "ArrowRight" : "ArrowLeft";
+  const toStart = edge === "start" ? bounds.max : bounds.min, toEnd = edge === "start" ? bounds.min : bounds.max;
+  const next = key === widen ? width + NUDGE : key === narrow ? width - NUDGE : key === "Home" ? toStart : key === "End" ? toEnd : null;
   return next === null ? null : Math.min(bounds.max, Math.max(bounds.min, next));
 }

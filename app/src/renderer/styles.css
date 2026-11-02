@@ -384,7 +384,9 @@ body:has(.shell-top) { background: transparent; }
 /* The right column's width: the Overview's 280px, or the canvas page's conversation panel, which App sets on the
    workspace element (0 while folded). */
 :root { --doan-right-width: 280px; }
-.workspace.app-shell { grid-template-columns: 220px minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
+/* The sidebar's width: App sets the remembered one on the root element, so every shell follows it (sidebarSize.ts). */
+:root { --doan-sidebar-width: 220px; }
+.workspace.app-shell { grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr) var(--doan-right-width); grid-template-rows: var(--size-chrome) minmax(0, 1fr); gap: 0; padding: 0 8px 8px; background: transparent; }
 .workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 88px; }
@@ -460,7 +462,7 @@ body:has(.shell-top) { background: transparent; }
 
 /* buzz-home: Home is the workspace's shell with the conversation composer as its body (.doan/canvases/buzz-home.html,
    confirmed 2026-10-29). Shared buttons keep their own padding and fills; this only lays them out. */
-.home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
+.home-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--doan-sidebar-width) minmax(0, 1fr); grid-template-rows: var(--size-chrome) minmax(0, 1fr); padding: 0 var(--space-2) var(--space-2); background: transparent; overflow: hidden; }
 @media (prefers-reduced-transparency: reduce) { .home-shell { background: var(--bg-app); } }
 .home-panel { position: relative; margin-left: var(--space-2); min-width: 0; min-height: 0; overflow: auto; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); isolation: isolate; }
 /* Add Projects page: the white panel is the scroll container and the 560px column grows with it (buzz-add-projects
@@ -1050,7 +1052,10 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    DESIGN.md resizer table, malmoi 6dcdd575). The accent is the parent's common decision 2 exception. */
 .doan-panel-handle { position: absolute; z-index: 4; top: 0; bottom: 0; left: calc(-1 * var(--space-1)); width: var(--space-2); background: transparent; touch-action: none; outline: none; cursor: col-resize; }
 .doan-panel-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--space-1); transform: translateX(-50%); background: linear-gradient(to bottom, transparent, var(--affordance-accent), transparent); opacity: 0; }
-.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 1; }
+.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }
+/* The sidebar's handle: a sibling of the sidebar in each shell grid, so the sidebar's overflow does not clip it. Its
+   containing block is the sidebar's column below the header; it fills the 8px gutter after it. */
+.doan-panel-handle.doan-sidebar-handle { grid-column: 1; grid-row: 2 / -1; left: 100%; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
 /* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
