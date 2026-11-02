@@ -68,8 +68,57 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// The person's ~/.claude/settings.json with Doan's rules added; null is a missing file. Doan writes back what
-// JSON.parse read, re-indented, so it refuses anything it cannot read that way rather than guess.
+// Offsets into JSON text that JSON.parse has already accepted, so the scan below assumes valid input. An entry is an
+// object member (`key` set, `at` is its key) or an array element; `end` is just past its value.
+interface Entry { key: string | undefined; at: number; end: number }
+function skipSpace(text: string, at: number): number {
+  while (at < text.length && " \t\n\r".includes(text.charAt(at))) at++;
+  return at;
+}
+function stringEnd(text: string, at: number): number {
+  let i = at + 1;
+  while (text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
+  return i + 1;
+}
+function valueEnd(text: string, at: number): number {
+  if (text[at] === '"') return stringEnd(text, at);
+  if (text[at] === "{" || text[at] === "[") return entries(text, at).close + 1;
+  let i = at;
+  while (i < text.length && !",]} \t\n\r".includes(text.charAt(i))) i++;
+  return i;
+}
+// The entries of the object or array opening at `at`, and the offset of its closing bracket.
+function entries(text: string, at: number): { list: Entry[]; close: number } {
+  const object = text[at] === "{", list: Entry[] = [];
+  let i = skipSpace(text, at + 1);
+  while (text[i] !== (object ? "}" : "]")) {
+    const start = i;
+    let key: string | undefined;
+    if (object) { const keyEnd = stringEnd(text, i); key = JSON.parse(text.slice(i, keyEnd)) as string; i = skipSpace(text, skipSpace(text, keyEnd) + 1); }
+    const end = valueEnd(text, i);
+    list.push({ key, at: start, end });
+    i = skipSpace(text, end);
+    if (text[i] === ",") i = skipSpace(text, i + 1);
+  }
+  return { list, close: i };
+}
+// Adds `values` as the last entries of the container opening at `open`, separated the way its last entry is.
+function append(text: string, open: number, values: string[]): string {
+  const { list } = entries(text, open), last = list.at(-1);
+  if (!last) return `${text.slice(0, open + 1)}${values.join(", ")}${text.slice(open + 1)}`;
+  const gap = text.slice(list.at(-2)?.end ?? open + 1, last.at);
+  const lead = gap.slice(gap.indexOf(",") + 1);
+  return `${text.slice(0, last.end)}${values.map(value => `,${lead}${value}`).join("")}${text.slice(last.end)}`;
+}
+// JSON.parse keeps the last of duplicate keys, so the value it read is the last member with that key.
+function memberValue(text: string, open: number, key: string): number | null {
+  const member = entries(text, open).list.filter(entry => entry.key === key).at(-1);
+  return member ? skipSpace(text, skipSpace(text, stringEnd(text, member.at)) + 1) : null;
+}
+
+// The person's ~/.claude/settings.json with Doan's rules added; null is a missing file. JSON.parse decides; the write
+// inserts only the missing rules into the original text, since a parse/stringify round trip would change big
+// integers, out-of-range numbers and duplicate keys elsewhere in the file.
 export function mergeClaudeAllow(text: string | null): ClaudeAllowMerge {
   let settings: unknown = {};
   if (text !== null) { try { settings = JSON.parse(text); } catch { return { kind: "refuse", problem: "json" }; } }
@@ -81,8 +130,12 @@ export function mergeClaudeAllow(text: string | null): ClaudeAllowMerge {
   if (!Array.isArray(allow)) return { kind: "refuse", problem: "allow" };
   const missing = CLAUDE_ALLOW_RULES.filter(rule => !allow.includes(rule));
   if (missing.length === 0) return { kind: "keep" };
-  const merged = { ...settings, permissions: { ...permissions, allow: [...allow, ...missing] } };
-  return { kind: "write", text: `${JSON.stringify(merged, null, 2)}\n` };
+  if (text === null) return { kind: "write", text: `${JSON.stringify({ permissions: { allow: missing } }, null, 2)}\n` };
+  const rules = missing.map(rule => JSON.stringify(rule)), list = `[${rules.join(", ")}]`;
+  const root = skipSpace(text, 0), permissionsAt = memberValue(text, root, "permissions");
+  if (permissionsAt === null) return { kind: "write", text: append(text, root, [`"permissions": {"allow": ${list}}`]) };
+  const allowAt = memberValue(text, permissionsAt, "allow");
+  return { kind: "write", text: allowAt === null ? append(text, permissionsAt, [`"allow": ${list}`]) : append(text, allowAt, rules) };
 }
 
 const CREATED_CLAUDE_SETTINGS = (mergeClaudeAllow(null) as Extract<ClaudeAllowMerge, { kind: "write" }>).text;

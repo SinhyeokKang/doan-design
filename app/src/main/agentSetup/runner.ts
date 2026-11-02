@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
-import { swapLink, type SwapResult } from "./swap";
+import { swapFile, swapLink, type SwapResult } from "./swap";
 import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
 // Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
@@ -29,8 +29,8 @@ export interface AgentSetupOptions {
 export interface AgentSetupResult { home: string; items: SetupItem[]; steps: Step[] }
 
 const CANCELLED_FILE = "agent-setup.json";
-// `parent` is the resolved folder's "dev:ino", so a replacement can tell the folder was swapped.
-interface Seen extends Observation { stamp: string; parent: string | null }
+// `parent` is the resolved folder's "dev:ino", so a replacement can tell the folder was swapped; `id` is the target's.
+interface Seen extends Observation { stamp: string; parent: string | null; id?: string }
 
 function errorCode(error: unknown): string { return typeof error === "object" && error !== null && "code" in error ? String(error.code) : "UNKNOWN"; }
 function canonical(path: string): string | null { try { return realpathSync.native(path); } catch { return null; } }
@@ -72,16 +72,16 @@ function observe(target: PlannedTarget): Seen {
   if (blocked) return { kind: "missing", blockedParent: blocked, real: null, stamp: `blocked:${blocked}`, parent: null };
   const kind = kindOf(target.path), real = realTarget(target.path), parent = real === null ? null : folderId(dirname(real));
   if (typeof kind !== "string") return { kind: "missing", error: kind.error, real, stamp: `error:${kind.error}`, parent };
-  let value: string | null = null, content: string | null = null, stamp = `${real}:${kind}`;
+  let value: string | null = null, content: string | null = null, stamp = `${real}:${kind}`, id: string | undefined;
   try {
     if (kind === "symlink") value = readlinkSync(target.path);
     if (kind === "file" && target.file) content = readFileSync(target.path, "utf8");
     // Read through a link to the person's settings only to see whether they added the rules themselves.
     // Only a regular file: reading a link to a FIFO would block launch.
     if (kind === "symlink" && target.target === "claude-allow") { try { if (statSync(target.path).isFile()) content = readFileSync(target.path, "utf8"); } catch { content = null; } }
-    if (kind !== "missing") { const s = lstatSync(target.path); stamp += `:${s.dev}:${s.ino}:${s.mtimeMs}:${s.ctimeMs}`; }
+    if (kind !== "missing") { const s = lstatSync(target.path); id = `${s.dev}:${s.ino}`; stamp += `:${id}:${s.mtimeMs}:${s.ctimeMs}`; }
   } catch (error) { return { kind: "missing", error: errorCode(error), real, stamp: `error:${errorCode(error)}`, parent }; }
-  return { kind, value, content, real, stamp: `${stamp}:${value}:${content}`, parent };
+  return { kind, value, content, real, stamp: `${stamp}:${value}:${content}`, parent, ...(id ? { id } : {}) };
 }
 
 // Creates the folders below `root` one at a time, so a provider folder removed mid-run is never recreated.
@@ -116,17 +116,16 @@ function settled(target: PlannedTarget, home: string, result: SwapResult): Writt
   }
 }
 
-// Claude Code writes the same file, so Doan merges into what it read and renames the result over it only if the file
-// is still exactly that (swap.ts: re-read right before writing). rename(2) replaces whatever is at the name then, so a
-// write landing between that check and the rename is lost; as in swap.ts, that needs a process running as the person.
+// Claude Code writes the same file, so Doan merges into what it read and publishes the result only in place of that
+// very file (swap.ts swapFile): a save Claude Code makes meanwhile is kept and the next launch merges into it.
 function mergeSettings(target: PlannedTarget, before: Seen, temporary: string, real: string, home: string): Written {
   const merged = mergeClaudeAllow(before.content ?? null);
-  if (before.kind !== "file" || merged.kind !== "write") return changed(target, home);
+  if (before.kind !== "file" || merged.kind !== "write" || before.id === undefined || before.content == null) return changed(target, home);
   writeFileSync(temporary, merged.text, { flag: "wx" });
   chmodSync(temporary, lstatSync(real).mode & 0o777);
   if (observe(target).stamp !== before.stamp) return changed(target, home);
-  renameSync(temporary, real);
-  return { ok: true };
+  return settled(target, home, swapFile({ lstatSync, readFileSync, readlinkSync, renameSync, symlinkSync, linkSync, unlinkSync },
+    { path: real, staged: temporary, id: before.id, content: before.content, aside: asideName(real), parent: before.parent }));
 }
 
 function write(target: PlannedTarget, action: "create" | "replace", before: Seen, home: string): Written {
