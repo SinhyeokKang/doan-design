@@ -66,6 +66,16 @@
     "mac": {
       "icon": "resources/icon.png",
       "identity": null
+    },
+    "dmg": {
+      "title": "${productName}",
+      "background": "resources/installer-background.png",
+      "iconSize": 88,
+      "iconTextSize": 13,
+      "contents": [
+        { "x": 320, "y": 180, "type": "file" },
+        { "x": 320, "y": 380, "type": "link", "path": "/Applications" }
+      ]
     }
   }
 }
