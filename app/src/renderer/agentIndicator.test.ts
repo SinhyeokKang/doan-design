@@ -168,8 +168,9 @@ function recorder() {
 }
 
 describe("drawDotField", () => {
-  test("uses the doan values: 12px grid, radius 1.5→2, alpha 0.08→0.3, a 320px cursor sweeping 5 rows at 320px/s", () => {
-    expect(DOT_FIELD).toEqual({ gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.08, maxAlpha: 0.3, radius: 320, speed: 320, rows: 5 });
+  // Dogfooding #4: at 0.08→0.3 the white dots barely showed on the light board.
+  test("uses the doan values: 12px grid, radius 1.5→2, alpha 0.16→0.5, a 320px cursor sweeping 5 rows at 320px/s", () => {
+    expect(DOT_FIELD).toEqual({ gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 });
   });
   test("paints every dot outside the cursor's radius as one path, in one fill", () => {
     const { ctx, calls } = recorder();
@@ -178,7 +179,7 @@ describe("drawDotField", () => {
     const fills = calls.filter(call => call.startsWith("fill"));
     // Two near dots, each with its own alpha, and one fill for both far dots at the base alpha.
     expect(fills).toHaveLength(3);
-    expect(fills).toContain("fill@0.08");
+    expect(fills).toContain("fill@0.16");
     expect(calls.filter(call => call === "arc")).toHaveLength(4);
     expect(calls[0]).toBe("clear");
     expect(ctx.fillStyle).toBe("white");
@@ -186,7 +187,7 @@ describe("drawDotField", () => {
   test("without a cursor (reduced motion) every dot is far: one fill", () => {
     const { ctx, calls } = recorder();
     drawDotField(ctx, 100, 100, [{ x: 0, y: 0 }, { x: 12, y: 0 }], null, "white");
-    expect(calls.filter(call => call.startsWith("fill"))).toEqual(["fill@0.08"]);
+    expect(calls.filter(call => call.startsWith("fill"))).toEqual(["fill@0.16"]);
   });
 });
 

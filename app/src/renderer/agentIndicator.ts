@@ -74,8 +74,9 @@ export async function stopTurn(conversationId: string, provider: string, interru
 }
 
 // The dot field (design §2): malmoi's DotField (components/signin/dot-field.tsx, lib/signin/dot-field.ts at 6dcdd575)
-// with doan's values.
-export const DOT_FIELD = { gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.08, maxAlpha: 0.3, radius: 320, speed: 320, rows: 5 } as const;
+// with doan's values. The alphas are twice malmoi's base (dogfooding #4): white dots at 0.08 barely showed on the
+// light board.
+export const DOT_FIELD = { gap: 12, baseRadius: 1.5, maxRadius: 2, baseAlpha: 0.16, maxAlpha: 0.5, radius: 320, speed: 320, rows: 5 } as const;
 
 type DotContext = Pick<CanvasRenderingContext2D, "globalAlpha" | "fillStyle" | "clearRect" | "beginPath" | "moveTo" | "arc" | "fill">;
 
