@@ -56,7 +56,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 canvas-hand-tool | Claude Code 세션 ceb45427, worktree `canvas-hand-tool-orch` | 2026-11-03 | PR #75, 병합 a6d35fd2 | 완료 |
-| 2 project-settings | Claude Code 세션 06b8fea0, worktree `project-settings-orch` | 2026-11-03 | | 진행 중 |
+| 2 project-settings | Claude Code 세션 06b8fea0, worktree `project-settings-orch` | 2026-11-03 | PR #76, 병합 02952e32 | 완료 |
 | 3 canvas-open-offer | | | | 대기 |
 | 4 agent-reply-chips | | | | 대기 |
 | 5 canvas-row-menu | | | | 대기 |
@@ -89,3 +89,14 @@
     - 공용 프로필 백업 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData.bak-hand`가 남아 있다. 마지막 링크가 프로필을 지울 때 함께 지운다.
     - 사용량(링크 1 끝): Claude 7일 76%(2026-11-04 13:59 KST 초기화), Codex 대시보드 18%(상태줄 주간 12% 남음).
 - 2026-11-03 링크 1 지휘자: 링크 2 세션이 브리프로 시작해 시작을 push한 것(7119e66e)을 확인하고 물러났다. 링크 1 worktree는 깨끗하고 main에 모두 들어갔다(`git cherry`에 `+` 없음). 세션의 실행 checkout이라 지우지 않았고, 사용자가 세션을 닫은 뒤 지우면 된다.
+- 2026-11-03 링크 2 완료(세션 06b8fea0): PR #76을 main에 병합했다(02952e32). 통합 HEAD에서 `/verify` PASS(테스트 5715). 부모 buzz-restyle의 C13 체크, spec 표 13번, 'DESIGN.md 절과 담당'의 Projects home 행을 갱신했다.
+  - 배치: A1(T1–T3, Claude Sonnet high), B(T7 가이드, Claude Sonnet medium), E(T8 `/agent-eval`, Claude Sonnet medium), A2(T4–T5, Claude Opus high, 수정 1회), C(T6 `/runtime-test`·T9 `/design-sync`, Claude Sonnet high, 수정 1회). 리뷰는 Claude 서브에이전트(RA1·RC Sonnet, RA2 Opus)와 지휘자 직접 대조(B)로 했다. Codex 작업자는 쓰지 않았다. 링크 1 끝 상태줄의 주간 남은 양이 12%로 기준에 가까웠고, `/agent-eval`이 실제 Codex로 같은 한도를 썼다.
+  - 확인하지 못한 것: 데스크톱이 잠겨 네이티브 입력 항목(메뉴 클릭 자체, OS 폴더 시트)은 CDP와 `Menu.getApplicationMenu()`로 대신 확인했다. `/agent-eval` 첫 실행에서 runner의 real-state 검사가 `keychain:provider-items` 해시 변화를 잡아 exit 1을 냈다(파일·`runtime.json`·`sessions.jsonl`은 그대로, 그때 사용자의 실제 Doan 앱이 떠 있었다). 원인은 확인하지 못했고 반복 실행에서는 바뀌지 않았다.
+  - 사용자 확인이 필요한 것(아침 보고): 사용자가 확정한 시안과 구현이 달라 지휘자가 정한 것이 셋 있다. (1) 시안의 Saving 타일이 Remove from Doan을 비활성으로 그렸는데, design '잠금'을 따라 시안 타일을 활성으로 고쳤다. (2) Share 확인 뒤 컨트롤은 시안처럼 활성으로 그린다. (3) Share 확인의 경로는 저장 표기와 같은 상대 경로다. 시안 `alt-2-page` 계열의 사이드바(260px, Home 행 없음)는 셸의 옛 사본이라 DESIGN에 문서화된 차이로만 적었다. 사이드바 Home 행은 이제 Home에서만 current이고, Add Projects·Settings 페이지에서도 같다(PRODUCT §5 항목 3의 규칙에 맞춘 것).
+  - 다음 링크가 알아야 할 것:
+    - 가이드 `skill.md`가 바뀌었다(규칙 7의 승인 경로, Commands 서두의 `--repo`, onboarding `agents`의 `{revision, providers}`, `init`의 `.gitattributes`, CLI 링크 조건). 링크 3·5·6이 가이드를 고칠 때 이 위에서 시작한다. `skill_test.go`가 새 문구를 고정한다.
+    - 사이드바 프로젝트 메뉴의 Project Settings는 페이지를 연다(`openProjectSettings(root)`). `ShellSidebar`에 `homeCurrent` prop이 생겼다. 메뉴는 여전히 `.shell-side-menu`를 쓴다. 링크 5의 행 메뉴가 이 위에서 시작한다.
+    - 복구 라벨 표는 `homeCards.ts`의 `ROW_ACTION_LABELS` 하나다. 말줄임표가 없고 Remove는 "Remove from Doan"이다.
+    - main `shell.replace()`가 Locate의 reroot focus를 보낸다. App은 워크스페이스에서 연 Locate만 `loadedRoot`를 옮긴다(POSTMORTEM 2026-11-03).
+    - `doan check --repo .`에 이 링크와 무관한 기존 오류가 하나 있다: `select-inspect.html`의 `data-doan-implements`가 없는 `app/src/renderer/Sidebar.tsx`를 가리킨다.
+    - 사용량(링크 2 끝): Claude 7일 78%(2026-11-04 13:59 KST 초기화), Codex 대시보드 18%.
