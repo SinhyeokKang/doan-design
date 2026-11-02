@@ -10,6 +10,7 @@ export interface HeightState {
   sent: number;
   inner: number;
   frozen: boolean;
+  fonts: number;
 }
 
 // `min-height: 100vh` style canvases grow with the iframe we resize to fit
@@ -17,12 +18,16 @@ export interface HeightState {
 // a document that still outgrows the viewport is chasing it, so the last sent
 // height is kept until this document ends. Not after a sent 0: that was measured
 // before the iframe was laid out, and no document chases a 0 px viewport.
-export function nextHeight(prev: HeightState | null, measured: number, inner: number): HeightState {
-  if (prev === null) return { sent: measured, inner, frozen: false };
+// Except once per web font load (`fonts` counts `loadingdone`): a font that
+// applies between the first measurement and our resize also grows the document
+// right after it, which looks the same as chasing and would cut its bottom off.
+// A chasing document then grows once per load and freezes again, so it ends.
+export function nextHeight(prev: HeightState | null, measured: number, inner: number, fonts: number): HeightState {
+  if (prev === null || prev.fonts !== fonts) return { sent: measured, inner, frozen: false, fonts };
   if (prev.frozen) return prev;
   const ownResize = inner !== prev.inner && Math.abs(inner - prev.sent) <= 1;
-  if (ownResize && prev.sent > 0 && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true };
-  return { sent: measured, inner, frozen: false };
+  if (ownResize && prev.sent > 0 && measured > inner + 1) return { sent: prev.sent, inner: prev.inner, frozen: true, fonts };
+  return { sent: measured, inner, frozen: false, fonts };
 }
 
 // Not scrollHeight alone: it never drops below the viewport, so a canvas could
@@ -492,7 +497,7 @@ export function canvasScript(lib: CanvasLib): void {
     const html = document.documentElement;
     const { list, truncated, bottom } = frames();
     const measured = lib.documentHeight(Math.ceil(html.getBoundingClientRect().height), html.scrollHeight, innerHeight, bottom);
-    height = lib.nextHeight(height, measured, innerHeight);
+    height = lib.nextHeight(height, measured, innerHeight, 0);
     // `viewport` lets the renderer drop a layout measured before its last
     // resize of the iframe reached this document.
     const message: Record<string, unknown> = { type: "layout", document: documentToken, href: location.href, height: height.sent, viewport: innerHeight, frames: list, truncated };
