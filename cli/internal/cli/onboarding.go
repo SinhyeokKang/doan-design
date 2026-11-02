@@ -197,8 +197,12 @@ func bootstrap(ctx Context, fail func(code, message string) *Error, attempt func
 		return reply, nil
 	}
 	launched := false
+	// stillStarting is set once the app answered not_ready: it is running, so a later slow answer is a slow app.
+	var stillStarting *Error
 	deadline := ctx.Now().Add(bootstrapTimeout)
-	if failure.Code != "not_ready" {
+	if failure.Code == "not_ready" {
+		stillStarting = failure
+	} else {
 		// An explicit DOAN_RUNTIME names a specific app (dev, e2e, eval); opening the default one would answer for another.
 		if !launchable || ctx.RuntimeExplicit {
 			return reply, failure
@@ -218,19 +222,25 @@ func bootstrap(ctx Context, fail func(code, message string) *Error, attempt func
 		if next.After(deadline) {
 			next = deadline
 		}
-		reply, failure, _ = attempt(next)
+		reply, failure, launchable = attempt(next)
 		if failure == nil {
 			return reply, nil
 		}
+		if failure.Code == "not_ready" {
+			stillStarting = failure
+		}
 		// While a launched app starts, a missing runtime, a refused socket or a slow first answer all mean "not yet".
-		if failure.Code != "not_ready" && !(launched && failure.Code == "app_not_running") {
+		// An app that already said not_ready is running: only a vanished runtime or token (launchable) ends the wait.
+		notYet := failure.Code == "not_ready" ||
+			(failure.Code == "app_not_running" && (launched || (stillStarting != nil && !launchable)))
+		if !notYet {
 			return nil, failure
 		}
 		if !ctx.Now().Before(deadline) {
 			if launched {
 				return nil, fail("app_launch_failed", "Doan did not become ready within 15 seconds")
 			}
-			return nil, failure
+			return nil, stillStarting
 		}
 	}
 }

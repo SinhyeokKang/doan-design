@@ -100,6 +100,11 @@ func openReply(line []byte, target openTarget, secrets []string) (map[string]any
 		return nil, internal(errors.New("Doan sent a response that names its runtime token or file")), false
 	}
 	if obj["ok"] == true {
+		// The app answers none exactly when no frame was asked; any other fit would make the JSON result and the
+		// line a person reads disagree about what opened.
+		if (obj["frame"] == "none") != (target.frame == nil) {
+			return nil, internal(errors.New("Doan sent a frame result that does not fit the request")), false
+		}
 		return map[string]any{"opened": true, "frame": obj["frame"]}, nil, false
 	}
 	reply := obj["error"].(map[string]any)

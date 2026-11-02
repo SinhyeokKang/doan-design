@@ -126,9 +126,14 @@ func TestOpenReply(t *testing.T) {
 		exit      int
 		launch    bool
 		inMessage string
+		asked     bool // the request named a frame
 	}{
-		{name: "opened, frame found", line: string(replyFixture(t, "opened-found")), result: map[string]any{"opened": true, "frame": "found"}},
-		{name: "opened, frame missing", line: string(replyFixture(t, "opened-missing")), result: map[string]any{"opened": true, "frame": "missing"}},
+		{name: "opened, frame found", line: string(replyFixture(t, "opened-found")), result: map[string]any{"opened": true, "frame": "found"}, asked: true},
+		{name: "opened, frame missing", line: string(replyFixture(t, "opened-missing")), result: map[string]any{"opened": true, "frame": "missing"}, asked: true},
+		// The real app answers none exactly when no frame was asked (deepLinks.ts); a result that does not fit is refused.
+		{name: "found for no frame", line: string(replyFixture(t, "opened-found")), code: "internal_error", exit: 1},
+		{name: "missing for no frame", line: string(replyFixture(t, "opened-missing")), code: "internal_error", exit: 1},
+		{name: "none for a frame", line: string(replyFixture(t, "opened-none")), code: "internal_error", exit: 1, asked: true},
 		{name: "opened, no frame asked", line: string(replyFixture(t, "opened-none")), result: map[string]any{"opened": true, "frame": "none"}},
 		{name: "unregistered root", line: string(replyFixture(t, "error-project-not-open")), code: "project_not_open", exit: 3, inMessage: `"repo"`},
 		{name: "canvas not in the list", line: string(replyFixture(t, "error-canvas-not-found")), code: "canvas_not_found", exit: 2, inMessage: ".doan/canvases/home.html"},
@@ -150,6 +155,10 @@ func TestOpenReply(t *testing.T) {
 		{name: "token as a field", line: `{"v":4,"ok":true,"opened":true,"frame":"none","token":"` + testToken + `"}`, code: "internal_error", exit: 1},
 		{name: "runtime path as a field", line: `{"v":4,"ok":true,"opened":true,"frame":"none","runtime":"/Users/me/Library/Application Support/doan/runtime.json"}`, code: "internal_error", exit: 1},
 	} {
+		target := target
+		if tt.asked {
+			target.frame = frameArg("hero")
+		}
 		result, failure, launchable := openReply([]byte(tt.line), target, secrets)
 		if launchable != tt.launch {
 			t.Errorf("%s: launchable %v", tt.name, launchable)
@@ -268,14 +277,19 @@ func TestOpenSendsTheV4Request(t *testing.T) {
 	}
 }
 
-func TestOpenToleratesAFrameResultForNoFrame(t *testing.T) {
+// The JSON result and the line a person reads come from the same reply, so a frame result that does not fit
+// the request fails instead of letting them disagree.
+func TestOpenRefusesAFrameResultThatDoesNotFitTheRequest(t *testing.T) {
 	root := openProject(t)
-	for _, frame := range []string{"found", "missing"} {
+	for _, tt := range []struct {
+		reply  string
+		frames []string
+	}{{"found", nil}, {"missing", nil}, {"none", []string{"hero"}}} {
 		h := newLaunchHarness(t)
-		openedApp(t, h.dir, frame)
-		o, failure := h.open(root, []string{".doan/canvases/home.html"})
-		if failure != nil || o.Text != "Opened .doan/canvases/home.html in Doan" {
-			t.Errorf("%s: %q %v", frame, o.Text, failure)
+		openedApp(t, h.dir, tt.reply)
+		o, failure := h.open(root, []string{".doan/canvases/home.html"}, tt.frames...)
+		if failure == nil || failure.Code != "internal_error" || o.Result != nil || o.Text != "" {
+			t.Errorf("%s with %v: %v %v", tt.reply, tt.frames, o, failure)
 		}
 	}
 }
@@ -323,6 +337,20 @@ func TestOpenAsksNothingWhenTheInputIsWrong(t *testing.T) {
 		if len(app.received()) != 0 || len(h.launches) != 0 {
 			t.Errorf("%s asked the app: %v %v", tt.name, app.received(), h.launches)
 		}
+	}
+	// A canvases directory that is a link to src: the resolved path leaves the canvas directories (POSTMORTEM 2026-10-31).
+	linked := realPath(t, initialized(t))
+	putFile(t, linked, "src/page.html", "canvas")
+	if err := os.RemoveAll(filepath.Join(linked, ".doan/canvases")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(linked, "src"), filepath.Join(linked, ".doan/canvases")); err != nil {
+		t.Fatal(err)
+	}
+	h0 := newLaunchHarness(t)
+	app0 := openedApp(t, h0.dir, "none")
+	if _, failure := h0.open(linked, []string{".doan/canvases/page.html"}); failure == nil || failure.Code != "usage_error" || len(app0.received()) != 0 || len(h0.launches) != 0 {
+		t.Errorf("canvases directory linked to src: %v %v", failure, app0.received())
 	}
 	// A symlink that stays inside the root opens the canvas it points at.
 	if err := os.Symlink(filepath.Join(root, ".doan/canvases/home.html"), filepath.Join(root, ".doan/canvases/alias.html")); err != nil {
@@ -622,7 +650,13 @@ func TestRunOpenArguments(t *testing.T) {
 		{"unsupported flag", []string{".doan/canvases/home.html", "--canvas", "x"}, nil, 2},
 		{"onboarding flag", []string{".doan/canvases/home.html", "--session", "s"}, nil, 2},
 	} {
-		app := openedApp(t, shortTempDir(t), "none")
+		// Answers as the real app does: a frame result only when a frame was asked.
+		app := startOnboardingApp(t, shortTempDir(t), func(request map[string]any) string {
+			if request["frame"] == nil {
+				return `{"v":4,"ok":true,"opened":true,"frame":"none"}`
+			}
+			return `{"v":4,"ok":true,"opened":true,"frame":"found"}`
+		})
 		code, out, errout := runOpen(t, app.runtime, append(tt.args, "--repo", root, "--json")...)
 		if code != tt.code || errout != "" {
 			t.Errorf("%s: exit %d: %s %s", tt.name, code, out, errout)
@@ -715,5 +749,70 @@ func TestHelpListsOpen(t *testing.T) {
 	var out, errout bytes.Buffer
 	if code := Run([]string{"help"}, strings.NewReader(""), &out, &errout); code != 0 || !strings.Contains(out.String(), "  open <canvas path> [--frame <id>]\n") {
 		t.Fatal(code, out.String())
+	}
+}
+
+// fakeAttempt replays one scripted outcome per call, so bootstrap is judged on the clock alone.
+type scriptedAttempt struct {
+	steps []func() (map[string]any, *Error, bool)
+	calls int
+}
+
+func (a *scriptedAttempt) attempt(time.Time) (map[string]any, *Error, bool) {
+	step := a.steps[min(a.calls, len(a.steps)-1)]
+	a.calls++
+	return step()
+}
+
+func notReadyStep() (map[string]any, *Error, bool) {
+	return nil, &Error{Code: "not_ready", Message: "Doan is still starting"}, false
+}
+
+func slowStep() (map[string]any, *Error, bool) {
+	return nil, openFailure("app_not_running", "Doan did not answer"), false
+}
+
+func goneStep() (map[string]any, *Error, bool) {
+	return nil, openFailure("app_not_running", "Doan is not running"), true
+}
+
+func openedStep() (map[string]any, *Error, bool) {
+	return map[string]any{"opened": true, "frame": "none"}, nil, false
+}
+
+// After a not_ready the app is known to be running: a slow answer is the same "still opening", not a missing app.
+func TestBootstrapAfterNotReadyKeepsWaitingThroughSlowAnswers(t *testing.T) {
+	h := newLaunchHarness(t)
+	script := &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){notReadyStep, slowStep, slowStep, notReadyStep, openedStep}}
+	reply, failure := bootstrap(h.ctx, openFailure, script.attempt)
+	if failure != nil || reply["opened"] != true || script.calls != 5 || len(h.launches) != 0 {
+		t.Fatal(reply, failure, script.calls, h.launches)
+	}
+	// Never answering to the end is the app that is still opening, so the cap ends it as not_ready.
+	h = newLaunchHarness(t)
+	script = &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){notReadyStep, slowStep}}
+	_, failure = bootstrap(h.ctx, openFailure, script.attempt)
+	if failure == nil || failure.Code != "not_ready" || len(h.launches) != 0 || h.elapsed < 15*time.Second || h.elapsed > 16*time.Second {
+		t.Fatal(failure, h.launches, h.elapsed)
+	}
+}
+
+// A runtime that vanished (or a stale token) after a not_ready is a gone app, which is final.
+func TestBootstrapAfterNotReadyStopsWhenTheAppIsGone(t *testing.T) {
+	h := newLaunchHarness(t)
+	script := &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){notReadyStep, slowStep, goneStep}}
+	_, failure := bootstrap(h.ctx, openFailure, script.attempt)
+	if failure == nil || failure.Code != "app_not_running" || script.calls != 3 || len(h.launches) != 0 {
+		t.Fatal(failure, script.calls, h.launches)
+	}
+}
+
+// Without a not_ready first, a slow non-launchable answer is final, as `onboarding start` has always done.
+func TestBootstrapSlowFirstAnswerIsFinal(t *testing.T) {
+	h := newLaunchHarness(t)
+	script := &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){slowStep, openedStep}}
+	_, failure := bootstrap(h.ctx, openFailure, script.attempt)
+	if failure == nil || failure.Code != "app_not_running" || script.calls != 1 || len(h.launches) != 0 || h.elapsed != 0 {
+		t.Fatal(failure, script.calls, h.launches, h.elapsed)
 	}
 }

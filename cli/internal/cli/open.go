@@ -56,10 +56,6 @@ func callOpen(ctx Context, request map[string]any, target openTarget, deadline t
 
 // openText is the line a person sees without --json.
 func openText(path string, frame *string, found string) string {
-	// An app that reports a frame nobody asked for is still an opened canvas.
-	if frame == nil {
-		found = "none"
-	}
 	switch found {
 	case "found":
 		return "Opened " + path + " in Doan at frame " + *frame
