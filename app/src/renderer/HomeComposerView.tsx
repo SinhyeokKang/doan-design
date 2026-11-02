@@ -26,6 +26,7 @@ import { restoreRequest } from "./homeConversations";
 import { displayPath } from "./projectDisplay";
 import { projectHue, projectInitial } from "./shellNavigation";
 import type { SettingsTarget } from "./settingsSections";
+import type { ComposerChoice } from "./rememberChoice";
 import { stageInsets } from "./stageInsets";
 
 // Everything the composer keeps between Home visits for this run (design §4.1: a draft survives leaving Home, not a
@@ -93,6 +94,8 @@ export interface HeroComposerProps {
   defaults?: NewConversationDefault | null | undefined;
   // The agent picker's way into Settings > Agents (buzz-settings design '홈 공급자 선택기').
   openSettings(target: SettingsTarget): void;
+  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  onRemember?(choice: ComposerChoice): void;
 }
 
 // The group sits 64px above the panel's centre with at least --space-8 around it (doan-mascot design '배치').
@@ -231,6 +234,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const pickedEffort = provider && model ? m.efforts[effortKey(provider, model)] : undefined;
   const effort = pickedEffort !== undefined ? defaultEffort(option, pickedEffort) : defaultEffort(option, saved?.model === model ? saved.effort : undefined, fixed);
   const picker = modelPickerView(auth, lists, { provider, model, effort });
+  const choiceTouched = m.provider !== undefined || explicitModel !== undefined || pickedEffort !== undefined;
+  useEffect(() => { if (choiceTouched && provider) props.onRemember?.({ provider, model, effort }); }, [choiceTouched, provider, model, effort]);
   // The menu closes on select; the move waits for that, so the menu's own focus return comes first.
   const openSettings = (target: SettingsTarget) => queueMicrotask(() => props.openSettings(target));
 

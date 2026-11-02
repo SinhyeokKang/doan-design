@@ -65,6 +65,7 @@ import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, type Setting
 import { agentSignIn } from "./agentSignIn";
 import { notificationTarget, type NotificationTarget } from "../main/notifications";
 import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
+import { preferenceAfterPick, rememberChoice, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing, so a
 // new menu item can never run the Undo toast's action (R-M ⚪5).
@@ -777,6 +778,11 @@ export function App() {
     if (reply) setPreferences(reply.snapshot);
     return reply;
   };
+  const rememberPick = (choice: ComposerChoice) => {
+    setHomeMemory(previous => rememberChoice(previous, choice));
+    const next = preferenceAfterPick(preferences?.preferences.newConversation ?? null, choice);
+    if (next) void savePreferences({ newConversation: next });
+  };
   // Escape leaves a page unless a field or an IME composition holds it, or an overlay closes itself first.
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -1132,7 +1138,7 @@ export function App() {
   {screen === "home" && <Home header={topBar} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
     memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
-    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} />}
+    defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} />}
   {onSettings && <SettingsPage header={topBar} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} />}
   {onPage && <AddProjectsPage key={page.seq} header={topBar} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
@@ -1154,7 +1160,7 @@ export function App() {
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
       list={run.listState(overview.path)} seen={run.seenPending()} holder={run.running().get(overview.path) ?? null}
-      prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()}
+      prefs={homeMemory} defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} onRemember={rememberPick}
       onWorktree={root => { chipFocus.current = true; showShellOverview(root); }} onOpenCanvas={(canvas, conversationId) => openConversationCanvas(overview.path, canvas, conversationId, { kind: "promotion" })}
       onRetryList={() => run.retryList(overview.path)} onStart={(request, last) => run.start(request, last, { stay: true })}
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
@@ -1168,7 +1174,7 @@ export function App() {
           title={panelTitle.title} current={panelTitle.current} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
         {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
-          defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked}
+          defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames ?? []} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
           onLocate={locateChip} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}

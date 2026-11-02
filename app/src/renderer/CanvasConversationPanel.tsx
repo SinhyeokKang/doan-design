@@ -31,6 +31,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { scrollTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
 import { threadItems } from "./threadItems";
+import type { ComposerChoice } from "./rememberChoice";
 
 // The canvas page's conversation panel body (buzz-canvas-conversation design §2 'Conversation panel', draft frames
 // panel-*): the conversation menu in the panel's title row, the thread and the docked composer. CanvasRun decides which
@@ -49,6 +50,8 @@ export interface CanvasConversationProps {
   seen: ReadonlySet<string>;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
+  // A model or effort pick is remembered as Last used before any send (dogfooding #6).
+  onRemember?(choice: ComposerChoice): void;
   now: number;
   // Why the composer keeps its draft but takes no input: the page shows a canvas outside the list, or one whose ID
   // another canvas shares (design §2 'Errors').
@@ -167,6 +170,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
   const option = modelOption(listState, model);
   const effort = fixed ? null : pick.effort !== undefined ? defaultEffort(option, pick.effort) : defaultEffort(option, saved?.model === model ? saved?.effort : undefined, preference);
   const picker = modelPickerView(auth, lists, { provider: chosen, model, effort });
+  const choiceTouched = Object.keys(pick).length > 0;
+  useEffect(() => { if (choiceTouched && chosen) props.onRemember?.({ provider: chosen, model, effort }); }, [choiceTouched, chosen, model, effort]);
   const ready = chosen !== null && (auth?.providers ?? []).some(status => status.provider === chosen && status.account !== null && selectableProvider(status));
   useEffect(() => { if (healthy && chosen && ready && !fixed) support.readModels(root, chosen); }, [root, healthy, chosen, ready, fixed]);
 
@@ -270,6 +275,8 @@ export function CanvasConversation(props: CanvasConversationProps) {
           ...(model ? { model } : {}), ...(model && effort ? { effort } : {}), ...(request.attachments.length ? { attachments: request.attachments } : {}) };
       const reply = await window.doan.startConversation(start).catch(() => ({ error: "unknown" }));
       if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing } : {}) };
+      // Home's and the Overview's starts are remembered by App's run host; this one starts here.
+      if (mode.kind === "new") props.onRemember?.({ provider: runtime, model: model ?? null, effort: model ? effort : null });
       support.clearPick(key);
       run.started(target, reply.conversationId, runtime, revision);
       return { ok: true };
