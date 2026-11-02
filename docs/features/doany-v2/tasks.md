@@ -10,7 +10,7 @@
   - 검증: 같은 캔버스에서 원본·재구성·알파 경계를 보고, 격리 `DOAN_RUNTIME`으로 `go run ./cli/cmd/doan check --repo . --json` 실행. 레이어 합성·최대 홉 잘림 확인이 선행 PoC이다.
 - [x] C. 같은 캔버스 V2 구역의 실제 모션 초안을 사용자에게 확인받는다(초안 제작 완료). 사용자가 2026-11-02에 확정했다. 기존 시간 모델을 쓰되 여섯 갈래 변형을 없애고 새 레이어 좌표를 적용한다. 정지 스토리보드도 유지한다. 사용자에게 실제 V2 모션을 보여 확인받는다.
   - 검증: 호흡·깜빡임·시선·입력·반복 홉·reduced motion을 114/142.5px 슬롯에서 직접 확인하고 `go run ./cli/cmd/doan check --repo . --json` 실행. 커밋 경계: V2 모션 초안·좌표·출처.
-- [ ] C2. `simple/doany-accent.svg`와 `simple/favicon.ico`(16·32·48px)를 손으로 단순화한 V2 Pebble로 그 자리에서 교체한다(사용자: 일괄 교체). 색은 `--affordance-accent`(`#973BE1`) 단색, 검은 베레모와 눈, 투명 배경. 이 파일을 참조하는 초안과 README 설명도 V2에 맞춘다.
+- [ ] C2. 손으로 단순화한 V2 Pebble SVG와 16·32·48px favicon을 `.doan/assets/doany/v2/simple/`에 새로 만든다. `.doan`의 V1 파일(`simple/` 포함)은 그대로 남긴다(사용자). 앱 쪽은 V2로 일괄 교체한다. 색은 `--affordance-accent`(`#973BE1`) 단색, 검은 베레모와 눈, 투명 배경. 현행 마스코트를 보여 주는 DS 참조(`.doan/ds/doany.html`)와 README는 V2 파일을 가리키게 한다.
   - 검증: `go run ./cli/cmd/doan check --repo . --json`에 새 오류 없음. 결과 스크린샷을 handoff에 남긴다.
 - [ ] D. `/tdd`로 바뀌는 렌더 계약과 기존 모션·생명주기 회귀를 고정한다. 필요한 렌더 좌표 계산만 순수 함수로 분리한다. 변경 없는 시간 모델 테스트는 재사용한다.
   - 검증: `npm --prefix app test`에서 새 회귀가 구현 전 실패하는지 확인한다. 공유 스키마 단계는 변경이 없어 생략한다.
