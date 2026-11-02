@@ -191,3 +191,14 @@ test("in a narrow group a button control moves under the title; a switch stays b
   expect(rule(css, ".doan-settings-group")).toContain("container-type: inline-size;");
   expect(css).toMatch(/@container \(max-width: 24rem\) \{\s*\.doan-preference-row-trailing:has\(button:not\(\[role="switch"\]\)\) \{ grid-column: 1 \/ -1; justify-content: flex-start; \}/);
 });
+
+// runtime-test (dogfooding #3): Radix copies the content's z-index onto its fixed portal wrapper, and with none the
+// wrapper painted under `.ov { z-index: 1 }`, so every Overview menu (title, worktree, agent, effort, presets) opened unseen.
+test("portalled floating surfaces stack above the Overview", () => {
+  const surfaces = read("./surfaces.css");
+  const layer = rule(surfaces, "[data-radix-popper-content-wrapper] > .doan-floating");
+  expect(layer).not.toBeNull();
+  const z = (text: string | null) => Number(/z-index:\s*(\d+)/.exec(text ?? "")?.[1] ?? NaN);
+  const overview = /^\.ov \{[^}]*\}/m.exec(read("../styles.css"))![0];
+  expect(z(layer)).toBeGreaterThan(z(overview));
+});

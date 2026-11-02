@@ -25,6 +25,9 @@
   box-shadow: var(--shadow-panel);
   padding: var(--space-1);
 }
+/* Radix copies the content's z-index onto its fixed portal wrapper. Without one the wrapper paints under the
+   Overview (`.ov` is z-index 1 so it covers the canvas panel in the same cell), and its menus open unseen. */
+[data-radix-popper-content-wrapper] > .doan-floating { z-index: 50; }
 /* A short action list takes the compact corner and inset so it does not look heavier
    than the one or two rows it holds. */
 .doan-floating[data-ui-size="compact"] { border-radius: var(--radius-row); padding: var(--space-half); }
