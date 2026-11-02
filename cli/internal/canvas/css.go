@@ -387,3 +387,140 @@ func (s *Scan) merge(other Scan) {
 	s.Imports = append(s.Imports, other.Imports...)
 	s.URLs = append(s.URLs, other.URLs...)
 }
+
+// CSSRef is a reference ScanCSS reports (a url() token or the target of a
+// top-level @import), with the byte span of its token so it can be rewritten
+// in place. Value is fully escape-decoded, unlike ScanCSS's text.
+type CSSRef struct {
+	Value      string
+	Import     bool
+	Start, End int
+}
+
+// CSSRefs walks the same tokens and @import rule as ScanCSS, so export
+// rewrites exactly what check reaches.
+func CSSRefs(text string, mode Mode) []CSSRef {
+	ts := lex(text)
+	depth := 0
+	if mode == Declarations {
+		depth = 1
+	}
+	var out []CSSRef
+	target := -1
+	for i, t := range ts {
+		if depth == 0 && t.kind == '@' && i+2 < len(ts) && ts[i+1].start == t.end && lower(ts[i+1].text) == "import" && (ts[i+2].kind == 's' || ts[i+2].kind == 'u') {
+			target = i + 2
+		}
+		if t.kind == 'u' || i == target {
+			out = append(out, CSSRef{Value: refValue(text[t.start:t.end]), Import: i == target, Start: t.start, End: t.end})
+		}
+		if t.kind == '{' {
+			depth++
+		}
+		if t.kind == '}' && depth > 0 {
+			depth--
+		}
+	}
+	return out
+}
+
+// refValue decodes a string token or a url() token's raw text.
+func refValue(raw string) string {
+	if raw[0] == '"' || raw[0] == '\'' {
+		v, _ := decodeString(raw, 0)
+		return v
+	}
+	i := strings.IndexByte(raw, '(') + 1
+	for i < len(raw) && asciiSpace(raw[i]) {
+		i++
+	}
+	if i < len(raw) && (raw[i] == '"' || raw[i] == '\'') {
+		v, _ := decodeString(raw, i)
+		return v
+	}
+	end := len(raw)
+	if strings.HasSuffix(raw, ")") {
+		end--
+	}
+	var b strings.Builder
+	for j := i; j < end; {
+		if validEscape(raw, j) {
+			r, next := decodeEscape(raw, j+1)
+			b.WriteRune(r)
+			j = next
+			continue
+		}
+		b.WriteByte(raw[j])
+		j++
+	}
+	return trimASCII(b.String())
+}
+
+// decodeString reads the quoted string starting at i, per CSS Syntax §4.3.5.
+func decodeString(s string, i int) (string, int) {
+	q := s[i]
+	i++
+	var b strings.Builder
+	for i < len(s) {
+		c := s[i]
+		switch {
+		case c == q:
+			return b.String(), i + 1
+		case c == '\n' || c == '\r' || c == '\f':
+			return b.String(), i
+		case c == '\\':
+			if i+1 >= len(s) {
+				return b.String(), i + 1
+			}
+			if n := s[i+1]; n == '\n' || n == '\f' {
+				i += 2
+				continue
+			}
+			if s[i+1] == '\r' {
+				i += 2
+				if i < len(s) && s[i] == '\n' {
+					i++
+				}
+				continue
+			}
+			r, next := decodeEscape(s, i+1)
+			b.WriteRune(r)
+			i = next
+		default:
+			b.WriteByte(c)
+			i++
+		}
+	}
+	return b.String(), i
+}
+
+// decodeEscape decodes the escape whose body starts at i (after the backslash).
+func decodeEscape(s string, i int) (rune, int) {
+	if !hexDigit(s[i]) {
+		r, n := utf8.DecodeRuneInString(s[i:])
+		return r, i + n
+	}
+	v := 0
+	for n := 0; n < 6 && i < len(s) && hexDigit(s[i]); n++ {
+		d := s[i]
+		switch {
+		case d >= 'a':
+			d = d - 'a' + 10
+		case d >= 'A':
+			d = d - 'A' + 10
+		default:
+			d -= '0'
+		}
+		v = v*16 + int(d)
+		i++
+	}
+	if i+1 < len(s) && s[i] == '\r' && s[i+1] == '\n' {
+		i += 2
+	} else if i < len(s) && asciiSpace(s[i]) {
+		i++
+	}
+	if v == 0 || v > 0x10FFFF || v >= 0xD800 && v <= 0xDFFF {
+		v = 0xFFFD
+	}
+	return rune(v), i
+}

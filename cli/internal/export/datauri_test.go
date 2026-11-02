@@ -67,8 +67,12 @@ func TestDataURIContexts(t *testing.T) {
 				t.Errorf("%s: trailing comma in %q", mime, uri)
 			}
 			// srcset
-			set := rewriteSrcset(uri+" 2x, b.png 1x", func(u string) (string, bool) { return "", false })
-			if got := srcsetURLs(set); len(got) != 2 || got[0] != uri {
+			set := rewriteSrcset("x 2x, b.png 1x", func(u string) (string, bool) { return uri, u == "x" })
+			want := uri
+			if len(body) == 0 {
+				want += "#"
+			}
+			if got := srcsetURLs(set); len(got) != 2 || got[0] != want {
 				t.Errorf("%s: srcset URLs %q", mime, got)
 			}
 			// CSS url("…")

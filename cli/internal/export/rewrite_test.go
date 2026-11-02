@@ -178,3 +178,11 @@ func TestRewriteSrcset(t *testing.T) {
 		}
 	}
 }
+
+func TestRewriteSrcsetKeepsAnEmptyDataURIWhole(t *testing.T) {
+	uri := dataURI("image/png", nil)
+	got := rewriteSrcset("a.png 1x, b.png 2x", func(u string) (string, bool) { return uri, u == "a.png" })
+	if want := uri + "# 1x, b.png 2x"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

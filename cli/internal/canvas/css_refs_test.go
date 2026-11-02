@@ -33,7 +33,7 @@ func TestCSSRefsGivesDecodedValuesAndSpans(t *testing.T) {
 		{"L.png", false, `URL(L.png)`},
 	}
 	if !reflect.DeepEqual(have, want) {
-		t.Fatalf("CSSRefs =\n%q\nwant\n%q", have, want)
+		t.Fatalf("CSSRefs =\n%+v\nwant\n%+v", have, want)
 	}
 }
 
