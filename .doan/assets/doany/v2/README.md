@@ -83,8 +83,15 @@ at least 6/7 device pixels of top margin in 228/286 buffers (Home/Welcome).
 This sampled probe is not a proof for every possible input combination.
 Screenshots and probe evidence are local in `.scratch/doany-shape/`.
 
-Not verified: exact neutral pixel equivalence to the selected still, actual blink
-intervals by observation, injected texture-load failure, sustained frame rate,
-packaged paths, StrictMode/remount cleanup in the app. The app port must use its
-existing rig cleanup and tests rather than copying this preview shell verbatim.
-V1 frames and motion remain separately labeled in the same canvas.
+In the app (built, packaged and development builds; isolated probe, evidence local
+in `.scratch/runtime-test/doany-v2/`): the reduced-motion rest frame is
+byte-identical to this prototype's, the still image and the rest frame share
+their bounds within 1 device pixel, the packaged app loads all three images from
+`app.asar`, a texture-load failure and a lost context leave the still image, and
+24 Home visits under StrictMode print no WebGL context warning. In the app's
+sweep (re-hops while settling, pointer at the far left) the beret came within 1
+device pixel of the top in both 228 and 286 buffers, never past it.
+
+Not verified: exact neutral pixel equivalence of the generated layers to the
+selected still, sustained frame rate. V1 frames and motion remain separately
+labeled in the same canvas.

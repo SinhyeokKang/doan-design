@@ -16,7 +16,7 @@
   - 검증: `npm --prefix app test`에서 새 회귀가 구현 전 실패하는지 확인한다. 공유 스키마 단계는 변경이 없어 생략한다.
 - [x] E. `/implement`로 기존 Doany 렌더러에 V2 자산·좌표·변형을 적용한다. fallback·컨텍스트 손실·숨김·dispose 계약을 유지하고, V2 정지 원본으로 흰 배경 앱 아이콘을 만든다. DS 참조와 출처·fixture 생성 설명을 맞춘다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`. 커밋 경계: V2 앱 적용·회귀 검증.
-- [ ] F. `/design-sync`로 V2 초안과 앱을 비교하고 `/runtime-test`로 바뀐 동작을 짧게 확인한다. 임시 HOME/userData/SHELL/agent 설정/DOAN_RUNTIME을 사용한다. 정상·축소 창, 포인터·입력·클릭·Enter·Space·전송 및 거절, 정점 잘림, reduced motion, Welcome 뒤 숨김, 실패 fallback, StrictMode와 24회 Home 재방문을 포함한다.
+- [x] F. `/design-sync`로 V2 초안과 앱을 비교하고 `/runtime-test`로 바뀐 동작을 짧게 확인한다. 임시 HOME/userData/SHELL/agent 설정/DOAN_RUNTIME을 사용한다. 정상·축소 창, 포인터·입력·클릭·Enter·Space·전송 및 거절, 정점 잘림, reduced motion, Welcome 뒤 숨김, 실패 fallback, StrictMode와 24회 Home 재방문을 포함한다.
   - 검증: `node .scratch/design-sync/doany-v2/measure.mjs`와 `npm --prefix app run package` 후 격리된 패키지 실행. 실제 장면·시간·프레임 증거를 남긴다. 전용 영구 e2e suite는 만들지 않는다.
 - [ ] G. `/code-review` 후 필요한 수정만 하고 `/verify`로 통합 확인한다. 버그를 고쳤으면 `/postmortem`을 기록한다.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs`. CLI/가이드/check 변경이 없으므로 agent-eval은 범위에 넣지 않는다.
