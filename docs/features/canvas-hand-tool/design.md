@@ -38,6 +38,21 @@
 - 도구모음의 roving tabindex에서 `tabIndex=0`은 눌린 도구가 가진다(지금은 Select 고정).
 - 모양은 새 초안 `.doan/canvases/canvas-hand-tool.html`에서 정한다(tasks D1). 기존 `buzz-canvas.html`은 고치지 않는다.
 
+## 어두운 바탕의 키 표시 (`/design-draft`에서 사용자가 정함)
+
+- `doan-kbd`에 공용 변형 `data-ui-variant="on-prominent"`를 더한다. 배경은 투명하고, 글자는 부모의 잉크를 따르며, 윤곽선은 그 잉크의 45%다(`inset 0 0 0 1px`). 지금 픽 안내의 Esc(`styles.css` `.doan-picking-esc.doan-kbd`)와 계산값이 같다.
+- 크기는 두 가지다. 기본은 지금 `doan-kbd`(본문 sm 글꼴, 여백 4/8, 높이 28)이고 픽 안내의 Esc가 쓴다. `data-ui-size="sm"`은 캡션 글꼴, 여백 0/6, 높이 16이고 툴팁이 쓴다. 툴팁 높이는 24 그대로다(4 + 16 + 4). 버튼 안 단축키(`.doan-button .doan-kbd`)와 같은 크기다.
+- 픽 안내의 Esc는 화면 전용 규칙 대신 이 변형을 쓴다. 그래서 `.doan-picking-esc.doan-kbd` 규칙은 없어진다. 계산값은 바뀌지 않는다.
+- 흐린 잉크(새 토큰)는 쓰지 않는다. 픽 안내는 60% 검정이라 밝은 보드 위에서 바탕이 약 #626262가 되고, 그 위 #b3b3b3 글자는 대비가 약 2.9:1이기 때문이다.
+- 툴팁에 키가 있으면 이름과 키를 한 줄에 놓고 간격은 8이다.
+- 공용 변형이므로 `.doan/ds/tooltip.html`에 키가 있는 툴팁을 더하고, `docs/DESIGN.md`의 `.doan-kbd` 설명(지금은 "only the canvas picking hint's Esc key")을 고친다(tasks T3·Z1).
+
+## 초안 요청 (`/design-draft`)
+
+- 경로·id: `.doan/canvases/canvas-hand-tool.html`, `canvas-hand-tool`.
+- 프레임: `tools-select`(Select 눌림, 툴팁 "Select" V), `tools-hand`(Hand 눌림, 툴팁 "Hand" H), `kbd-on-prominent`(공용 키 변형: 픽 안내의 Esc 기본 크기와 툴팁의 V·H sm 크기), `board-hand`(Hand: 프레임 위 grab 커서, 선택 표시 유지, hover 없음, 에이전트 알림 Stop이 레이어 위), `board-space`(Select + Space로 끄는 중: grabbing 커서, Select 눌림), `board-failed`(Hand + 로드 실패: Hand 눌림, grab 커서 없음, Reload).
+- 커서는 정적 초안에서 보이지 않으므로 커서 모양을 그림으로 표시하고 설명용이라고 적는다.
+
 ## 영향 받는 부분
 
 - **renderer**: `CanvasTools.tsx`(Hand 버튼, `aria-pressed`, Select onClick, 툴팁, tabIndex, 위쪽 주석), `CanvasController.ts`(도구·pick 상태, 끌기 레이어, Space·V·H·Esc, 포커스, hover), `selection.ts` 또는 새 파일(`toolShortcut`, `escapeStep`), `canvasMessage.ts`(`key` 메시지에 Space down/up, V·H), `styles.css`(레이어와 커서), `App.tsx`(레이어 요소를 `.overlay` 뒤에 둔다).

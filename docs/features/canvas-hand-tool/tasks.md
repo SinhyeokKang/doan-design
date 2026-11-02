@@ -22,7 +22,7 @@
 - [ ] T2. `canvasScript.ts`: Space down/up과 V·H 전달(편집 대상 제외, repeat 무시), iframe 안 Space `preventDefault`, window blur 시 Space-up.
   - `canvasScript.test.ts`(기존 `fakeCanvas` 하네스, "forwards Esc outside editable elements only" 옆): "forwards Space down/up outside editable elements, ignores repeat", "prevents Space scrolling the canvas", "sends Space up on blur", "forwards V and H outside editable elements".
   - 검증: `npm --prefix app test` green.
-- [ ] T3. `CanvasController.ts` 도구(`select|hand`)·별도 pick 상태, 끌기 레이어, Space·V·H·Esc, 포커스, hover. `CanvasTools.tsx` Hand 버튼·툴팁·`aria-keyshortcuts`·tabIndex·위쪽 주석. `App.tsx` 레이어 요소 위치. `styles.css` 레이어 z-index와 커서.
+- [ ] T3. `CanvasController.ts` 도구(`select|hand`)·별도 pick 상태, 끌기 레이어, Space·V·H·Esc, 포커스, hover. `CanvasTools.tsx` Hand 버튼·툴팁·`aria-keyshortcuts`·tabIndex·위쪽 주석. `App.tsx` 레이어 요소 위치와 픽 안내 Esc의 공용 키 변형. `styles.css` 레이어 z-index와 커서, `.doan-picking-esc.doan-kbd` 규칙 삭제. `ds/controls.css`에 `doan-kbd[data-ui-variant="on-prominent"]`와 `data-ui-size="sm"`, 키가 있는 툴팁 배치. `.doan/ds/tooltip.html`에 키가 있는 툴팁을 더한다(design '어두운 바탕의 키 표시').
   - `CanvasController.test.ts`: H로 레이어가 생긴다; V·Esc로 Select가 된다; 입력창의 Esc는 Hand를 풀지 않는다; 픽을 시작하면 레이어가 없고 픽이 끝나면 Hand로 돌아온다; 픽 중 V·H 무시; 캔버스에서 온 Space down은 iframe에 포커스가 있을 때만 레이어를 띄운다; Space up은 항상 받는다; 레이어가 뜰 때 `hover-leave`를 보낸다; Overview·빈 상태를 거쳐도 Hand가 유지된다; 보드를 그리지 않는 상태(loading·failed·noWidth·unlisted)에서는 레이어가 없다; 끄는 중 캔버스 전환·`pointercancel`·`lostpointercapture`에서 끌기가 끝나고 grabbing이 풀린다; 끄는 중 Space up·V는 pointerup 뒤에 적용된다; 끌기는 pointermove 증분으로 `panBy`를 부른다; 캔버스 클릭 뒤 포커스가 `.area`로 가고 픽 중에는 가지 않는다.
   - `CanvasTools.test.tsx`: `aria-pressed`가 도구를 따른다(지금 Select 고정을 확인하는 테스트를 바꾼다); Select·Hand onClick; 눌린 도구가 `tabIndex=0`; 툴팁에 V·H.
   - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과.
@@ -51,7 +51,7 @@
 - [ ] Z1. 현재 규칙으로 고친다.
   - PRODUCT §5 item 2 'Toolbar'(도구·단축키·Space·Hand 클릭·캔버스 클릭 포커스), 'Notices and states'(Esc 순서), item 4(일반 클릭 선택, hover, 빈 곳 클릭 해제의 Hand 예외), item 6 픽("Pan and pinch still work", 픽 뒤 도구 복귀).
   - ARCHITECTURE §3 'Input'(끌기 레이어가 먼저 받음, Hand의 휠, 캔버스 클릭 포커스).
-  - DESIGN 'Tools row' 두 행(측정값, "Select, then Add to conversation", 툴팁).
+  - DESIGN 'Tools row' 두 행(측정값, "Select, then Add to conversation", 툴팁), 'Picking hint' 행의 Esc 설명, 공용 컴포넌트 목록의 `.doan-kbd` 설명("only the canvas picking hint's Esc key").
   - `docs/features/canvas-hand-tool/`을 지운다.
   - 검증:
     - `grep -nE "always pressed|always selects|then cancels a pick, and only then clears" docs/PRODUCT.md` 결과 없음.
