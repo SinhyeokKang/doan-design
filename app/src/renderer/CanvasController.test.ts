@@ -2363,3 +2363,16 @@ describe("chip locate", () => {
     } finally { h.controller.dispose(); }
   });
 });
+
+// Dogfooding: Tab walked into the draft's own controls, drew their focus rings and scrolled the canvas area so far
+// that the floating tools left the view. The board iframe is out of the Tab order and the area never scrolls.
+it("keeps the board iframe out of the Tab order", () => {
+  const { current } = selectionHarness();
+  expect((current() as unknown as { tabIndex?: number }).tabIndex).toBe(-1);
+  vi.unstubAllGlobals();
+});
+it("clips the canvas area instead of letting a focus scroll it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.doan-canvas-panel > \.area \{[^}]*overflow: clip;/);
+});

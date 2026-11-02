@@ -894,7 +894,8 @@ body:has(.shell-top) { background: transparent; }
    2026-11-01). The header does not cover the board: the board starts under it. Isolation keeps the board's floating
    controls under the Overview, which covers the same grid cell. */
 .workspace > .doan-canvas-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; isolation: isolate; }
-.doan-canvas-panel > .area { flex: 1; min-height: 0; }
+/* clip, not hidden: a hidden box still scrolls to reveal a focused descendant, which moved the floating tools. */
+.doan-canvas-panel > .area { flex: 1; min-height: 0; overflow: clip; }
 .doan-canvas-panel > .area:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 /* The Overview header box (.ov-head) reading canvas / frame: the canvas is the quieter parent (subtle, regular, its
    sidebar icon, up to 40%), the frame the current item; the frame name gives way first. */
