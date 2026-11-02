@@ -516,9 +516,10 @@ body:has(.shell-top) { background: transparent; }
    icon and aria-label carry it too, so colour is never the only signal. No coloured edge. */
 .composer-permission { gap: var(--space-1h); font-weight: var(--type-weight-regular); }
 .composer-permission svg:not(.chev) { width: var(--size-icon-sm); height: var(--size-icon-sm); }
-/* Open (aria-expanded) keeps the warning fill rather than the trigger's pressed fill. */
-.doan-button.composer-permission[data-mode="bypass"], .composer-tray .doan-button.composer-permission[data-mode="bypass"], .composer-tray .doan-button.composer-permission[data-mode="bypass"][aria-expanded="true"],
-.doan-button.composer-permission[data-mode="bypass"][aria-expanded="true"], .settings-select[data-mode="bypass"], .settings-select[data-mode="bypass"][aria-expanded="true"] { background: var(--affordance-warning); color: var(--text-warning); }
+/* Hover, press and open keep the warning fill: the shared trigger's state fills (ds/controls.css) outrank a plain
+   selector, and an open Full access trigger showed the neutral pressed fill. */
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"],
+:is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"]:is(:hover, :active, [aria-haspopup][aria-expanded="true"], [data-state="open"]):not(:disabled) { background: var(--affordance-warning); color: var(--text-warning); }
 :is(.composer-permission, .settings-select)[data-mode="bypass"] .chev { color: currentColor; }
 .composer-send .doan-spinner { color: var(--text-on-accent); }
 .composer-tray { position: relative; display: flex; align-items: center; gap: var(--space-3); min-height: var(--size-control); padding: var(--space-1) var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); color: var(--text-subtle); }

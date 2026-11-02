@@ -304,9 +304,9 @@ export function EffortPicker({ view, effort, disabled, onPick, size = "sm" }: { 
 }
 
 const PERMISSION_ICONS: Record<PermissionIcon, typeof Shield> = { shield: Shield, "file-pen-line": FilePenLine, eye: Eye, "shield-alert": ShieldAlert };
-export function PermissionIconView({ name }: { name: PermissionIcon }) {
+export function PermissionIconView({ name, className }: { name: PermissionIcon; className?: string }) {
   const Icon = PERMISSION_ICONS[name];
-  return <Icon aria-hidden="true" />;
+  return <Icon className={className} aria-hidden="true" />;
 }
 
 // The permission mode menu's rows (draft frame picker-menu): the mode's icon, its name over a one-line description,
