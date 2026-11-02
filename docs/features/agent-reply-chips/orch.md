@@ -10,6 +10,7 @@
 - R8b → R8c: canvas-open-offer가 이미 R8을 R8b로 바꿨으므로 겹치지 않는 id를 쓴다. R8c rubric은 `doan:` 위치 링크를 허용하고 `doan://` 링크와 열기 제안은 R8b처럼 partial이다. — 지휘자 재량, 체인 시작 점검.
 - 다른 캔버스 칩의 이동은 `openLink`와 같은 `decideOpen`(`openDecision.ts`) 경로를 쓴다. main `resolveOpenTarget`은 root와 경로로 찾으므로 쓰지 않는다. 칩의 판정은 캔버스 id로 `replyChipTarget`이 한다. — 지휘자 재량, canvas-open-offer design '다른 feature와의 관계'.
 - 작업자는 모두 Claude다. Codex 주간 한도가 9% 남아(91% 사용, 2026-11-04 15:35 KST 초기화) 체인 규칙대로 Codex 작업자를 쓰지 않는다. 리뷰는 Claude 서브에이전트로 한다. `/agent-eval`은 Claude 쪽을 먼저 돌리고 Codex 쪽을 따로 돌린다. Codex 쪽이 한도로 못 돌면 그 사실을 기록하고, Claude 쪽이 pass이면 병합한다(체인 진행을 막지 않기 위해서다). — 링크 4 브리프.
+- T4 '이동 중 대화를 바꾸면 대기 locate를 버린다'(A2 질문): 대기 locate는 (root, 캔버스 경로)와 함께 두고 모든 이동에서 버린다. 첫 레이아웃 전에 사람이 패널에서 대화를 직접 고르면(제목 메뉴·New·⌘N) 버린다. 칩으로 연 캔버스의 대화로 패널이 저절로 바뀌는 것은 버리지 않는다. — 지휘자 재량, tasks T4와 design '누를 때'.
 - `/design-sync`는 tasks에 없다. 칩은 기존 `SentChip` 모양을 재사용한다. 모양은 T7 `/runtime-test` 스크린샷으로 초안과 대조한다. — 지휘자 재량.
 
 ## 배치
