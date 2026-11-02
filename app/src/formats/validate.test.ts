@@ -121,3 +121,28 @@ describe("onboarding CLI mapping", () => {
     });
   }
 });
+
+describe("open-link cases", () => {
+  type Cases = {
+    build: { name: string; root: string; path: string; frame?: string; expected: string }[];
+    refuse: { name: string; url: string }[];
+  };
+  const cases = readJson(new URL("../../../schema/fixtures/open-link/cases.json", import.meta.url)) as Cases;
+
+  test("has build and refuse cases", () => {
+    expect(cases.build.length).toBeGreaterThan(0);
+    expect(cases.refuse.length).toBeGreaterThan(0);
+  });
+
+  // The reader side of the encoding rule in the file's description: URLSearchParams must decode each expected URL back to its input.
+  for (const entry of cases.build) {
+    test(`build ${entry.name} decodes to its input`, () => {
+      const url = new URL(entry.expected);
+      expect([url.protocol, url.host]).toEqual(["doan:", "open"]);
+      expect([...url.searchParams.keys()]).toEqual(entry.frame === undefined ? ["root", "canvas"] : ["root", "canvas", "frame"]);
+      expect(url.searchParams.get("root")).toBe(entry.root);
+      expect(url.searchParams.get("canvas")).toBe(entry.path);
+      expect(url.searchParams.get("frame") ?? undefined).toBe(entry.frame);
+    });
+  }
+});
