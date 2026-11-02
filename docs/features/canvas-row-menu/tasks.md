@@ -9,7 +9,7 @@
 
 ## P. 문구와 초안
 
-- [ ] P1. clarify 프리셋(`go run ./cli/cmd/doan design-skill clarify --json`)으로 다음 문구를 정하고, design.md의 후보를 결정으로 바꾼다.
+- [x] P1. clarify 프리셋(`go run ./cli/cmd/doan design-skill clarify --json`)으로 다음 문구를 정하고, design.md의 후보를 결정으로 바꾼다.
   - 메뉴 항목 두 개와 비활성 이유 줄(작업 중, 행 읽기 오류, Export 진행 중)
   - Alert Dialog의 제목·본문(댓글 있음·없음, 추적하지 않는 캔버스에서도 틀리지 않는 커밋 문장, Put Back을 약속하지 않는 되살리기 문장)·버튼, 대화상자 안 작업 중 이유 줄
   - 삭제 토스트 세 가지(성공, 댓글만 실패 + 남은 경로, 거절)
@@ -17,7 +17,7 @@
   - viewer shell 헤더, "No frames", 1,000개 뒤 남은 수, `<noscript>` 안내
   - harden 프리셋으로 긴 캔버스 이름, 행 오류, 작업 중, 동시 요청 상태가 빠지지 않았는지 본다.
   - 검증: design.md '행 버튼과 메뉴'·'Alert Dialog'·'앱 Export 흐름'·'viewer shell'에 확정 문구가 있다.
-- [ ] P2. `/design-draft`: 새 초안 `.doan/canvases/canvas-row-menu.html`에 다섯 가지를 그린다. 사용자가 앱에서 초안을 확인한다.
+- [x] P2. `/design-draft`: 새 초안 `.doan/canvases/canvas-row-menu.html`에 다섯 가지를 그린다. 사용자가 앱에서 초안을 확인한다.
   - (1) 캔버스 행 버튼: 평소·hover·키보드 포커스·메뉴 열림·잠김, 행 상태 자리(스피너·알림 dot)와 함께 있을 때. 제안은 hover·포커스·메뉴 열림 동안만 보이고 상태 자리를 대신하는 것이다. 프로젝트 행 버튼은 항상 보인다는 차이를 초안에 적는다.
   - (2) 메뉴: Export… / Move to Trash, 작업 중이라 비활성인 Move to Trash와 이유 줄, 행 오류로 비활성인 Export.
   - (3) Alert Dialog: compact, 기본 크기 동작 Cancel·Move to Trash, 댓글 있음·없음, 열린 사이 작업이 시작되어 막힌 상태.
