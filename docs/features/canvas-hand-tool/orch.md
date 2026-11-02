@@ -19,7 +19,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T3 | `app/src/renderer/`(`selection.ts` 또는 새 규칙 파일, `canvasMessage.ts`, `CanvasController.ts`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, `ds/controls.css`, 각 테스트), `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`(+test), `.doan/ds/tooltip.html` | 없음 | Claude Opus high: 포인터 캡처·포커스·키 순서·ui-state 복원 경쟁이 얽혀 있고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 49049539..0b4e2781, 리뷰 중 |
+| A | T1, T3 | `app/src/renderer/`(`selection.ts` 또는 새 규칙 파일, `canvasMessage.ts`, `CanvasController.ts`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, `ds/controls.css`, 각 테스트), `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`(+test), `.doan/ds/tooltip.html` | 없음 | Claude Opus high: 포인터 캡처·포커스·키 순서·ui-state 복원 경쟁이 얽혀 있고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 49049539..0b4e2781 + 수정 6373a1bb·bf1ca08a, 재리뷰 🔴 0 |
 | B | T2 | `app/src/main/canvasScript.ts`, `app/src/main/canvasScript.test.ts` | 없음(메시지 모양은 결정 기록) | Codex gpt-6-astra medium: 파일 하나지만 편집 대상 판정과 blur 처리에 판단이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 a04a8711 |
 | RA | A 리뷰 | 읽기만 | A | Codex gpt-6-astra medium: 다른 모델 계열의 독립 리뷰 | `/code-review` 보고서 | 완료: 🔴 1, 🟡 1 → A 수정 1회차 |
 | RB | B 리뷰 | 읽기만 | B | Claude Sonnet medium: 작은 diff, 다른 계열 리뷰 | `/code-review` 보고서 | 완료: 🔴 0, 🟡 1(통합 확인으로 넘김) |
@@ -48,3 +48,4 @@ T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
 - D: Claude Sonnet high(dispatch `ctx_7142167b7441`, worktree `canvas-hand-tool-d`)로 시작했다. RA가 `styles.css` 수정을 요구하면 D가 끝난 뒤 A에게 보낸다.
 - RA 완료(테스트 5610/5610, typecheck 통과): 🔴 Space 상태가 그것을 받은 문서·보드보다 오래 남는다. 리로드·전환·닫기 때 `spaceHeld`가 풀리지 않고, 보드가 없을 때 받은 Space-down이 로드 뒤 레이어를 띄운다. 🟡 렌더러의 대기 중 명령과 seq가 같은 클릭은 받아들여지지만 포커스를 옮기지 않는다. 사용자 결정 항목은 없다. A의 차이 #5·#6·#10은 유지한다(RA도 같은 판단). A에 수정 1회차를 보냈다(dispatch `ctx_e6707ea5ebc7`). RA 작업자는 release했다.
 - 통합 HEAD 첫 테스트 실행에서 1개가 실패했고 다시 돌리니 5610/5610 통과했다. 실패한 테스트 이름은 출력이 잘려 남지 않았다. 동시에 작업자들이 `npm ci`를 돌리던 부하에서 난 flaky로 보고, 최종 `/verify`에서 다시 본다.
+- A 수정 1회차(455df182·b6273089 → 6373a1bb·bf1ca08a 통합): 재리뷰(Claude Sonnet 서브에이전트) 결과 🔴 0, 🟡 0, ⚪ 3이다. 남은 한 가지는 대기 중인 pick-frame의 seq와 같은 순간에 그 프레임 루트를 클릭하면 응답으로 간주되어 포커스가 옮겨지지 않는 것이다. 지휘자 판단으로 받아들인다. 메시지 내용으로는 구별할 수 없고, 비용은 예전 동작(포커스 유지)뿐이다. A 작업자는 release했다(브랜치 끝 b6273089).
