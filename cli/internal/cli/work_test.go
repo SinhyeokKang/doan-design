@@ -199,7 +199,7 @@ func TestWorkRunValidationAndSuppression(t *testing.T) {
 	putFile(t, broken, ".doan/config.json", "broken")
 	failure(t, broken, "invalid_config", "work", "done")
 	got := result(t, root, 0, "work", "done")
-	if got["delivered"] != false || len(got["links"].([]any)) != 0 {
+	if got["delivered"] != false || len(got["links"].([]any)) != 0 || !reflect.DeepEqual(got["skipped"], []any{}) {
 		t.Fatal(got)
 	}
 	got = result(t, root, 0, "work", "start", ".doan/ds/a.html")

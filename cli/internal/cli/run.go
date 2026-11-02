@@ -232,7 +232,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 					case "work":
 						ctx.WorkProvider, ctx.WorkSession = workSession(os.Getenv("CLAUDE_CODE_SESSION_ID"), os.Getenv("CODEX_THREAD_ID"), os.Getenv("CODEX_SESSION_ID"))
 						ctx.AppConversation = os.Getenv("DOAN_APP_CONVERSATION") == "1"
-						if ctx.RuntimePath, failure = runtimePath(); failure == nil {
+						if ctx.RuntimePath, failure = runtimePath(); failure == nil || failure.Code == "internal_error" {
 							o, failure = Work(ctx, f, pos[1:])
 						}
 					case "active":

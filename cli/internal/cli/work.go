@@ -15,10 +15,15 @@ func Work(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		return Outcome{}, failure
 	}
 	paths := make([]string, 0, len(args)-1)
+	skipped := []string{}
 	for _, arg := range args[1:] {
 		path, err := workTarget(r.Root, arg)
 		if err != nil {
-			return Outcome{}, usageError(err.Error())
+			if action == "start" {
+				return Outcome{}, usageError(err.Error())
+			}
+			skipped = append(skipped, arg)
+			continue
 		}
 		paths = append(paths, path)
 	}
@@ -29,6 +34,7 @@ func Work(ctx Context, f Flags, args []string) (Outcome, *Error) {
 			links = append(links, canvasLink(r.Root, path))
 		}
 		result["links"] = links
+		result["skipped"] = skipped
 	}
 	if !ctx.AppConversation {
 		request := map[string]any{"v": 3, "action": action, "root": r.Root}

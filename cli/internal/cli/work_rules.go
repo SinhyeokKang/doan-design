@@ -22,6 +22,23 @@ func workTarget(root, path string) (string, error) {
 	candidate := path
 	if !filepath.IsAbs(candidate) {
 		candidate = filepath.Join(root, candidate)
+	} else {
+		// Canonicalize only the root alias here so canvas-directory spelling
+		// still passes the lexical check before any in-repo links are followed.
+		for ancestor := filepath.Dir(candidate); ; ancestor = filepath.Dir(ancestor) {
+			real, err := filepath.EvalSymlinks(ancestor)
+			if err == nil && real == root {
+				suffix, err := filepath.Rel(ancestor, candidate)
+				if err != nil {
+					return "", err
+				}
+				candidate = filepath.Join(root, suffix)
+				break
+			}
+			if filepath.Dir(ancestor) == ancestor {
+				break
+			}
+		}
 	}
 	relative, err := filepath.Rel(root, candidate)
 	if err != nil {
