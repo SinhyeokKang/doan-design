@@ -25,6 +25,8 @@
 - O9 (지휘자 판단 — 리뷰 RC-3): 심볼릭 링크 settings의 대상에 두 규칙이 이미 있으면 About에 아무것도 보이지 않는다. About 줄은 사람이 더할 것을 알리려는 것이라 빠진 것이 없으면 알릴 것도 없다.
 - O10 (지휘자 판단 — 리뷰 RA U2): 링크된 `.doan`·기본 디렉터리 아래 경로도 root 안이면 `work`가 받아들인다. 앱은 목록에 있는 경로만 표시하고 목록은 링크된 디렉터리를 빼므로 표시되지 않을 뿐 해가 없다.
 - O11 (지휘자 판단 — 리뷰 RA H2): `active.go` `readLine`의 64 KiB 상한 구멍은 이 feature 밖이다. Z1에서 BACKLOG 'known defects'에 적는다.
+- O12 (지휘자 판단 — 리뷰 RB ⚪1): 만료 타이머는 1초 `setInterval` 대신 가장 이른 만료 시각까지의 `setTimeout` 하나로 둔다(design '폴링하지 않는다'에 더 가깝고 비용이 없다). ⚪4(관대한 URL 철자)는 root·canvas를 글자 그대로 비교하므로 그대로 둔다.
+- O13 (지휘자 판단 — D의 질문): D가 `conversation/ipc.ts` resumeTarget 응답과 preload 타입에 세션 필드 하나를 더한다(별도 커밋).
 - O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
 
 ## 배치
