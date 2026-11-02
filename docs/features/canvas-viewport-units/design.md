@@ -33,6 +33,15 @@
 - CDP `Emulation.setDeviceMetricsOverride`로 iframe viewport를 속인다: 하위 프레임 단위로 적용할 수 있는지 확인되지 않았고, 레이아웃 크기와 보이는 크기가 갈라져 측정 루프가 더 복잡해진다.
 - iframe 높이를 고정하고 문서를 안에서 스크롤해 팬한다: 줌·팬·선택 좌표 전체를 다시 짜야 한다(ARCHITECTURE §3 'Zoom and pan are a transform outside the iframe').
 
+## 참고: Claude Design
+
+2026-11-02에 로컬 핸드오프 묶음(`~/Downloads/design_handoff_invite_modal/`의 `support.js`·`.dc.html`)과 malmoi `.scratch`의 `.dc.html` 4개를 확인했다.
+
+- 런타임(`support.js`)은 캔버스 문서 하나에서 동작한다. 아트보드마다 iframe을 두지 않고, 스타일 값을 바꿔 쓰지 않는다. 팬·줌은 문서 밖의 호스트가 맡는다(`postDesignMode`로 부모 창에 알린다).
+- 확인한 `.dc.html` 7개 모두 스타일 값에 viewport 높이 단위가 없다. 앱의 `min(80svh, 800, 100svh-96)` 모달도 px로 그렸다(`height: (b.height || 720) + "px"`). README는 "1440×900 → 720, 1280×720 → 576"처럼 창 크기별 px 값을 적는다. `80svh`는 노트 글자에만 있다.
+- 호스트(claude.ai)가 캔버스 iframe 높이를 어떻게 정하는지와, 에이전트에게 vh를 쓰지 말라고 안내하는지는 확인하지 못했다.
+- 이 feature의 방향(앱은 값을 바꾸지 않고, 에이전트가 px로 그린다)과 같다.
+
 ## 영향 받는 부분
 
 - **CLI(Go)**: `cli/internal/canvas/css.go`(스캔), `cli/internal/check/check.go`(규칙), `cli/internal/cli/skill.md`(가이드).
