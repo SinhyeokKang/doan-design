@@ -110,7 +110,7 @@ describe("agent environment", () => {
   const probe = { env: { HOME: "/home/test", PATH: "/bin", KEEP: "yes", CLAUDE_CODE_SESSION_ID: "old", CODEX_THREAD_ID: "old", CODEX_SESSION_ID: "old" }, path: "/tools:/bin", configDir: "/profile/.claude" };
   it("removes inherited identities and uses verified cwd, current profile and app runtime", () => {
     const result = agentEnv(probe, record.runtime, "/data/runtime.json", { root: "/repo", cwd: "/repo/sub", configDir: probe.configDir });
-    expect(result).toEqual({ cwd: "/repo/sub", env: { HOME: "/home/test", PATH: "/tools:/bin", KEEP: "yes", CLAUDE_CONFIG_DIR: probe.configDir, DOAN_RUNTIME: "/data/runtime.json" } });
+    expect(result).toEqual({ cwd: "/repo/sub", env: { HOME: "/home/test", PATH: "/tools:/bin", KEEP: "yes", CLAUDE_CONFIG_DIR: probe.configDir, DOAN_RUNTIME: "/data/runtime.json", DOAN_APP_CONVERSATION: "1" } });
     expect(probe.env.CODEX_THREAD_ID).toBe("old");
   });
   it.each(["relative", "/bad\0path", ""])('refuses invalid app runtime %j', path => {

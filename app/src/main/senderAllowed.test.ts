@@ -3,7 +3,7 @@ import { senderAllowed } from "./senderAllowed";
 import { AUTH_CHANNELS } from "./agentAuth/ipc";
 import { ONBOARDING_CHANNELS } from "./onboarding/service";
 const mainOnly = [
-  "app:home",
+  "app:home", "work:get", "deep-link:ready",
   "project:choose-token-css", "project:init",
   "folders:remove", "folders:restore", "folders:forget-removal", "folders:locate", "folders:reveal", "folders:open", "folders:reopen",
   "selection:set", "inspect:get", "thumbnails:get", "thumbnails:visible", "menu:state", "shell:activity", "ui-state:get", "ui-state:save",

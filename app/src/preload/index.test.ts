@@ -388,3 +388,18 @@ test("buzz-conversation: list, seen marker, list changes, extended send, links a
   stop(); emitter.emit("conversation:listChanged", {}, { root: "/other" });
   expect(changes).toEqual([{ root: "/repo" }]); expect(emitter.listenerCount("conversation:listChanged")).toBe(0);
 });
+
+test("work and deep links expose dedicated events with independent cleanup", async () => {
+  const work = vi.fn(), links = vi.fn();
+  const stopWork = api.onWorkChanged(work), stopLinks = api.onOpenLink(links);
+  await api.getWork(); await api.openLinksReady();
+  expect(mocks.invoke).toHaveBeenCalledWith("work:get");
+  expect(mocks.invoke).toHaveBeenCalledWith("deep-link:ready");
+  const items = [{ root: "/repo", path: ".doan/canvases/a.html", session: null, provider: null }];
+  emitter.emit("work:changed", {}, items);
+  emitter.emit("deep-link:open", {}, { kind: "malformed" });
+  expect(work).toHaveBeenCalledWith(items); expect(links).toHaveBeenCalledWith({ kind: "malformed" });
+  stopWork(); stopLinks();
+  expect(emitter.listenerCount("work:changed")).toBe(0);
+  expect(emitter.listenerCount("deep-link:open")).toBe(0);
+});
