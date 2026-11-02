@@ -16,15 +16,16 @@
 - D8 (사용자 결정, 오케스트레이션 중 추가 요청): 추천 프롬프트 버튼을 한 단계 키우고, 문구는 지금의 명령형을 유지하되 사람이 실제로 칠 법한 자연스러운 말로 다듬고 짧게 둔다(요청 문장형은 사용자가 철회했다). 문구는 clarify 프리셋을 따른다. 초안 캔버스의 추천 프롬프트도 함께 바꾼다(초안은 결정을 따른다). 배치 F가 맡는다.
 - D9 (사용자 결정, 오케스트레이션 중 추가 요청 — BACKLOG 'Marking canvases the person has not looked at'): 캔버스 행의 상태 자리에 '볼 것이 있다' 알림 dot을 띄운다. 대화 표시와 같은 맥락이고 같은 violet dot이다. 대상은 (1) 기존 대화 표시(권한 요청·작업 중·안 본 대화 끝), (2) 생겼지만 아직 안 본 캔버스, (3) 바뀌었지만 아직 안 본 캔버스다. '봤다'는 그 캔버스를 캔버스 페이지로 열었을 때이고, 열려 있는 동안의 변경도 본 것으로 친다. Overview 썸네일은 치지 않는다. 캔버스별 마지막으로 본 수정 시각을 기기별 앱 상태(userData)에 저장해 재시작 뒤에도 유지한다. 프로젝트를 처음 추가하거나 기능이 처음 들어간 뒤 처음 읽을 때 있던 캔버스는 본 것으로 친다. 배치 G가 맡는다.
 - D10 (지휘자 판단 — PRODUCT §5 item 1 row slot 규칙): 캔버스 알림 dot의 자리와 우선순위는 대화 표시 규칙을 따른다. 대화 표시(권한 요청 > 작업 중 > 안 본 끝)가 있으면 그것이 이기고, 캔버스 행이 화면 밖(접힌 그룹·접힌 프로젝트)이면 프로젝트 행에 뜬다. 프로젝트 행의 캔버스 알림을 누르면 그 캔버스를 연다(여럿이면 가장 최근에 바뀐 것).
+- D11 (지휘자 판단 — 리뷰 RA2 🟡): escape한 구두점이 든 식별자(`foo\"`)나 escape한 `url` 함수 이름(`u\72l(`) 뒤의 viewport 단위는 놓치거나 잘못 경고할 수 있다. 실제 캔버스에 거의 나오지 않는 입력이고 경고는 참고용이다. 공유 렉서를 다시 고치면 색상·토큰 검사가 깨질 위험이 커서 고치지 않고 알려진 한계로 둔다(Z1에서 ARCHITECTURE에 적는다).
 - D4 (지휘자 판단 — tasks T5): agent-eval은 `W1,W2`만 돌리고 새 시나리오는 두지 않는다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T3 중 가이드 줄 | `cli/internal/canvas/css.go`·테스트, `cli/internal/check/check.go`·테스트, `cli/internal/cli/skill.md`(+스킬 테스트) | 없음 | Claude Sonnet high — 기존 `hardcoded_color` 경로를 따르는 확장이지만 토크나이저 경계 케이스가 많다 | `go test ./...`, `go vet ./...`, `doan skill` 출력 확인 | 대기 |
+| A | T1, T3 중 가이드 줄 (통합 `98823bb1`~`ffde578f`, 리뷰 RA·RA2, 수정 1라운드) | `cli/internal/canvas/css.go`·테스트, `cli/internal/check/check.go`·테스트, `cli/internal/cli/skill.md`(+스킬 테스트) | 없음 | Claude Sonnet high — 기존 `hardcoded_color` 경로를 따르는 확장이지만 토크나이저 경계 케이스가 많다 | `go test ./...`, `go vet ./...`, `doan skill` 출력 확인 | 통합됨 |
 | B | T2, T3 중 `loadingdone` 주입 | `app/src/main/canvasScript.ts`·`canvasScript.test.ts` | 없음 | Claude Opus high — 높이 고정 루프는 POSTMORTEM 진동 이력이 있어 틀리면 보드가 잘리거나 흔들린다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| RA | A 리뷰 | 보고만 | A | Codex gpt-6-astra medium — 교차 모델 독립 리뷰 | `/code-review` 보고 | 대기 |
+| RA | A 리뷰 | 보고만 | A | Codex gpt-6-astra medium — 교차 모델 독립 리뷰 | `/code-review` 보고 | 완료: RA 🟡2(수정됨), RA2 🟡1(D11) |
 | RB | B 리뷰 | 보고만 | B | Codex gpt-6-astra medium — 교차 모델 독립 리뷰, 고정점 판단 | `/code-review` 보고 | 대기 |
 | C | Z1 중 캔버스 수정, T4 `/runtime-test`(+ds 캔버스 D6, 사이드바 순서 D7, 추천 프롬프트 크기 D8, 알림 dot D9) | `.doan/canvases/buzz-project-settings.html`, `.doan/ds/dialog.html`(D6), `.scratch/` 픽스처 | A, B, E, F, G 통합 | Claude Opus medium — 실제 앱 격리 probe에 판단이 필요하다 | runtime-test 측정값·스크린샷, `doan check --repo .`에 `viewport_height_unit` 없음 | 대기 |
 | D | T5 `/agent-eval` | `docs/USABILITY-EVAL.md` | A, B 통합 | Codex gpt-6.1-sol medium — 정해진 절차를 돌리는 작업 | `node eval/run.ts --self-test` PASS, W1·W2 라운드 기록 | 대기 |
