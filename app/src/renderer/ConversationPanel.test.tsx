@@ -1,7 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { CONVERSATION_PANEL_ID, ConversationPanel, dragPanel } from "./ConversationPanel";
+import { CONVERSATION_PANEL_ID, ConversationPanel, dragPanel, ResizeHandle } from "./ConversationPanel";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 // buzz-canvas design §0 'default', 'panel-collapsed', 'panel-resize', §2 '오른쪽 패널', §5 copy.
@@ -67,6 +67,26 @@ describe("dragPanel", () => {
   it("stops at the minimum instead of folding, and at the maximum", () => {
     expect(dragPanel(400, 900, 1200, bounds)).toBe(347);
     expect(dragPanel(400, 900, 0, bounds)).toBe(619);
+  });
+
+  // The sidebar's handle is on its end edge: moving it right widens.
+  it("on an end edge, widens as the edge moves right", () => {
+    const side = { min: 180, max: 360 };
+    expect(dragPanel(220, 228, 268, side, "end")).toBe(260);
+    expect(dragPanel(220, 228, 188, side, "end")).toBe(180);
+    expect(dragPanel(220, 228, 900, side, "end")).toBe(360);
+  });
+});
+
+// The sidebar reuses the panel's handle with its own label, on its end edge.
+describe("ResizeHandle", () => {
+  it("names what it resizes and reports the shown width and bounds", () => {
+    const html = renderToStaticMarkup(<ResizeHandle edge="end" className="doan-sidebar-handle" label="Resize sidebar" width={220} bounds={{ min: 180, max: 360 }} onResize={vi.fn()} preview={vi.fn()} />);
+    expect(html).toBe('<div class="doan-panel-handle doan-sidebar-handle" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" aria-valuenow="220" aria-valuemin="180" aria-valuemax="360" tabindex="0"></div>');
+  });
+
+  it("keeps the panel's label and class by default", () => {
+    expect(markup()).toContain('<div class="doan-panel-handle" role="separator" aria-orientation="vertical" aria-label="Resize conversation panel"');
   });
 });
 

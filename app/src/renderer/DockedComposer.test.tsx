@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -46,8 +47,9 @@ test("both shapes draw the same field at the same place; only data-shape differs
   const capsule = render({}, { text, shape: "capsule" }), box = render({}, { text, shape: "box" });
   expect(capsule).toContain('data-shape="capsule"');
   expect(box).toBe(capsule.replace('data-shape="capsule"', 'data-shape="box"'));
-  // DOM order: field, Attach, Presets, Send, then the model and effort under the card (design §3.1).
-  const order = ["composer-input", 'aria-label="Attach files"', 'aria-label="Design presets"', 'aria-label="Send"', "composer-agent", "composer-effort"].map(part => capsule.indexOf(part));
+  // DOM order: field, Presets, Send in the card, then Attach, the model and effort under it (Attach left the card for
+  // the tray, before the pickers).
+  const order = ["composer-input", 'aria-label="Design presets"', 'aria-label="Send"', 'aria-label="Attach files"', "composer-agent", "composer-effort"].map(part => capsule.indexOf(part));
   expect(order.every(at => at >= 0)).toBe(true);
   expect([...order].sort((a, b) => a - b)).toEqual(order);
 });
@@ -115,7 +117,7 @@ test("a chip makes the box and draws the chip row before the field", () => {
 // canvas picks; unavailable with aria-disabled (not disabled) so its reason shows as a tooltip.
 test("the canvas panel's composer draws Pick from canvas first in the model row", () => {
   const html = render({ pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
-  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"[^>]*><svg[^]*?<\/button><button type="button" class="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed="false"/);
   expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
   expect(render({ pick: { pressed: true, enabled: true, reason: null, onToggle: () => {} } })).toContain('aria-label="Pick from canvas" aria-pressed="true"');
   const off = render({ pick: { pressed: false, enabled: false, reason: "Pick from canvas isn’t available while the canvas can’t be shown.", onToggle: () => {} } });
@@ -124,10 +126,35 @@ test("the canvas panel's composer draws Pick from canvas first in the model row"
   expect(render()).not.toContain("composer-pick");
 });
 
-test("a terminal session's composer keeps Pick from canvas before its fixed triggers", () => {
+test("a terminal session's composer keeps Attach and Pick from canvas before its fixed triggers", () => {
   const html = render({ fixed: true, pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} } });
   expect(html.indexOf("composer-pick")).toBeGreaterThan(-1);
   expect(html.indexOf("composer-pick")).toBeLessThan(html.indexOf("composer-agent"));
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files" aria-disabled="true"/);
+});
+
+// Attach sits outside the card, first in the tray: the card keeps only Presets and Send around the field.
+test("the card holds no Attach; the tray starts with it at xs", () => {
+  const html = render();
+  const card = html.slice(html.indexOf("composer-card"), html.indexOf("composer-tray"));
+  expect(card).not.toContain("Attach files");
+  expect(html).toMatch(/<div class="composer-tray"><button type="button" class="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files"/);
+  expect(render({ locked: true, unavailable: "This page isn’t in the list." })).toMatch(/composer-attach" data-ui-size="xs" aria-label="Attach files" disabled=""/);
+});
+
+test("docked CSS: no grid area for Attach in the card; the tray's Attach takes the quiet and disabled inks", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).not.toMatch(/grid-template-areas: "[^"]*attach/);
+  expect(css).toMatch(/\.docked \.composer-tray :is\(\.composer-attach, \.composer-pick\) \{[^}]*color: var\(--text-subtle\)/);
+  expect(css).toMatch(/\.docked \.composer-tray :is\(\.composer-attach, \.composer-pick\):is\(:disabled, \[aria-disabled="true"\]\) \{ color: var\(--text-disabled\); \}/);
+});
+
+// Full access: the danger ink on the trigger's own fills, no warning capsule; the menu row's icon matches.
+test("permission CSS: Full access is danger ink with no warning fill", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(':is(.doan-button.composer-permission, .doan-button.settings-select)[data-mode="bypass"] { color: var(--text-danger); }');
+  expect(css).toContain('.doan-menu .perm-item[data-mode="bypass"] > svg:first-child { color: var(--text-danger); }');
+  expect(css).not.toMatch(/\[data-mode="bypass"\][^{]*\{[^}]*(--affordance-warning|--text-warning)/);
 });
 
 // design §2 'Chip field': a draft that points at 32 places shows the reason line under the composer, whatever was

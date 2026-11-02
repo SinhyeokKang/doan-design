@@ -205,3 +205,23 @@ test("on the project row a conversation slot beats a canvas notice; among notice
   const unseen = { kind: "unseen" as const, label: "u" };
   expect(projectSlot(new Map<string, Slot>([...notices, ["/a\n.doan/canvases/z.html", unseen]]), ["/a"], [])).toBe(unseen);
 });
+
+// An empty group's line is a dashed box under its head; the project-level line (info.chip) stays plain text.
+test("an empty group's line is a dashed box", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.shell-group \.shell-empty \{[^}]*border: 1px dashed var\(--border-standard\);[^}]*border-radius: var\(--radius-chip\);/);
+  expect(css).not.toMatch(/(^|\n)\.shell-empty[^{]*\{[^}]*dashed/);
+});
+
+// The sidebar column follows the resizable width; its handle is the panel's, laid in the gutter after the sidebar,
+// and the handle's bar shows at 70% (both handles).
+test("CSS: the sidebar column is the resizable width and its handle sits in the gutter", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.workspace\.app-shell \{ grid-template-columns: var\(--doan-sidebar-width\) /);
+  expect(css).toMatch(/\.home-shell \{[^}]*grid-template-columns: var\(--doan-sidebar-width\) minmax\(0, 1fr\);/);
+  expect(css).toContain(":root { --doan-sidebar-width: 220px; }");
+  expect(css).toContain(".doan-panel-handle.doan-sidebar-handle { grid-column: 1 / 2; grid-row: 2 / -1; left: 100%; }");
+  expect(css).toContain('.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }');
+});

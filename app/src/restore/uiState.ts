@@ -55,10 +55,12 @@ export interface UiState {
   // The canvas page's conversation panel (buzz-canvas design §2), one per device. A missing `width` is the
   // window-relative default, which only the renderer can compute.
   rightPanel?: { open: boolean; width?: number };
+  // The shell sidebar's width, one per device. Missing is the default; the renderer clamps a kept width.
+  sidebar?: { width: number };
 }
 
 export const UI_STATE_MAX_BYTES = 64 * 1024;
-// No window is wider; the renderer clamps a kept width to the window's own bounds.
+// No window is wider; the renderer clamps a kept width (the panel's or the sidebar's) to its own bounds.
 const RIGHT_PANEL_MAX_SAVED_WIDTH = 10_000;
 
 // The kebab canvas id rule `doan check` enforces (`cli/internal/check/check.go`).
@@ -116,6 +118,8 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   if (isRecord(value["conversationByRoot"])) state.conversationByRoot = entries(value["conversationByRoot"], saved, (item) => (typeof item === "string" && CONVERSATION_ID.test(item) ? item : undefined));
   const rightPanel = parseRightPanel(value["rightPanel"]);
   if (rightPanel !== undefined) state.rightPanel = rightPanel;
+  const sidebarRaw = isRecord(value["sidebar"]) ? value["sidebar"]["width"] : undefined;
+  if (typeof sidebarRaw === "number" && Number.isFinite(sidebarRaw) && sidebarRaw > 0 && sidebarRaw <= RIGHT_PANEL_MAX_SAVED_WIDTH) state.sidebar = { width: sidebarRaw };
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
   // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
   // Settings > Connections was removed; a stored one opens About.

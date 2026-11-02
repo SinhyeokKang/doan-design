@@ -158,8 +158,9 @@ export function ComposerTools({ children }: { children: ReactNode }) {
   return <div className="composer-tools">{children}</div>;
 }
 
-export function AttachButton({ disabled, onClick }: { disabled: boolean; onClick(): void }) {
-  return <IconTip label="Attach files"><button type="button" className="doan-icon-button" aria-label="Attach files" disabled={disabled} onClick={onClick}><Plus aria-hidden="true" /></button></IconTip>;
+// `tray`: the docked composer's Attach, outside the card and first in the tray, at the tray's xs size.
+export function AttachButton({ disabled, onClick, tray = false }: { disabled: boolean; onClick(): void; tray?: boolean }) {
+  return <IconTip label="Attach files"><button type="button" className={tray ? "doan-icon-button composer-attach" : "doan-icon-button"} data-ui-size={tray ? "xs" : undefined} aria-label="Attach files" disabled={disabled} onClick={onClick}><Plus aria-hidden="true" /></button></IconTip>;
 }
 
 // Group tabs are one Tab stop; ←/→ move between them (buzz-home design §4.4).
@@ -203,7 +204,7 @@ function presetBody(view: PresetView, slash: boolean, options: PresetBodyOptions
         requestAnimationFrame(() => list?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus());
       }}>
       <GroupIcon name={item.icon} />{item.label}</button>)}</div>}
-    <div className="popover-list" role="listbox" id={slash ? `${options.listId}-slash` : undefined} aria-label={view.summary ?? view.sections[0]?.title ?? "Design presets"}>
+    <div className="popover-list doan-scroll" role="listbox" id={slash ? `${options.listId}-slash` : undefined} aria-label={view.summary ?? view.sections[0]?.title ?? "Design presets"}>
       {view.sections.map(section => <Fragment key={section.title ?? "results"}>{section.title && !slash && <div className="doan-menu-head">{section.title}</div>}{section.rows.map(row => <PresetOption key={row.id} row={row} index={index++} slash={slash} options={{ ...options, rows }} />)}</Fragment>)}
     </div>
   </>;
@@ -324,7 +325,7 @@ export function PermissionMenuItems({ view, onPick }: { view: PermissionPickerVi
 }
 
 // The permission mode picker (permission-mode spec decisions 1, 2, 5), after Effort. Full access keeps its name, its
-// warning icon and the warning ink and fill (data-mode); in the docked tray its label may hide, so the tooltip and
+// warning icon and the danger ink (data-mode); in the docked tray its label may hide, so the tooltip and
 // aria-label keep the name.
 export function PermissionPicker({ view, disabled, onPick, size = "sm" }: { view: PermissionPickerView; disabled: boolean; onPick(mode: PermissionModeId): void; size?: "sm" | "xs" }) {
   const trigger = <DropdownMenu.Trigger asChild><button type="button" className="composer-permission doan-button" data-ui-size={size} data-ui-variant="trigger" data-mode={view.mode} aria-label={view.trigger.ariaLabel} disabled={disabled}>

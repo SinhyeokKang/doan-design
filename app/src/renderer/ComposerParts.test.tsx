@@ -10,6 +10,8 @@ test("a preset row is its title over its description", () => {
   const html = renderToStaticMarkup(<SlashPresets view={view} query="" listId="l" highlight={0} onChoose={() => {}} onRetry={() => {}} />);
   expect(html).toContain('<span class="preset-text"><span class="preset-title">Shape a feature</span><span class="preset-desc">Work out a feature&#x27;s purpose and flow.</span></span>');
   expect(html).not.toContain('class="sub"');
+  // The list scrolls with the app's thin scrollbar, like every other dropdown.
+  expect(html).toContain('<div class="popover-list doan-scroll" role="listbox"');
 });
 
 // permission-mode spec decision 5: Full access shows its name, a warning icon and the warning ink (data-mode), never

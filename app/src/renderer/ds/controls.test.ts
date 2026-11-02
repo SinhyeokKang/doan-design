@@ -202,3 +202,8 @@ test("portalled floating surfaces stack above the Overview", () => {
   const overview = /^\.ov \{[^}]*\}/m.exec(read("../styles.css"))![0];
   expect(z(layer)).toBeGreaterThan(z(overview));
 });
+
+// Dropdown menus scroll with the same thin quiet scrollbar as the app's scroll containers, not the platform default.
+test("menus share the thin scrollbar", () => {
+  expect(read("./surfaces.css")).toContain(":is(.doan-scroll, .doan-menu) { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }");
+});

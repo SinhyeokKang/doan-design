@@ -337,8 +337,6 @@ export function DockedComposer(props: DockedComposerProps) {
         combobox={slashOpen ? { listId: `${listId}-slash`, activeId: slashRows[highlight] ? `${listId}-s-${highlight}` : undefined } : null}
         onKey={keyDown} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
-        {props.fixed ? <FixedTip label="Files can’t be attached to a terminal session"><button type="button" className="doan-icon-button" aria-label="Attach files" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
-          : <AttachButton disabled={isSending || locked} onClick={props.onAttach} />}
         <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
           onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} />
         {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
@@ -348,6 +346,8 @@ export function DockedComposer(props: DockedComposerProps) {
       {drop.cover}
     </ComposerCard>
     <div className="composer-tray">
+      {props.fixed ? <FixedTip label="Files can’t be attached to a terminal session"><button type="button" className="doan-icon-button composer-attach" data-ui-size="xs" aria-label="Attach files" aria-disabled="true"><Plus aria-hidden="true" /></button></FixedTip>
+        : <AttachButton tray disabled={isSending || locked} onClick={props.onAttach} />}
       {props.pick && <PickButton pick={props.pick} />}
       {props.fixed && fixedProvider ? <>
         <FixedTip label="Set in your terminal"><button type="button" className="composer-agent doan-button is-fixed" data-ui-size="xs" data-ui-variant="trigger" aria-disabled="true"
@@ -378,7 +378,7 @@ export function DockedComposer(props: DockedComposerProps) {
   </div>;
 }
 
-// Pick from canvas, at the left end of the model row (design §2 'Picker'). aria-disabled, not disabled, so its reason
+// Pick from canvas, after Attach at the left end of the model row (design §2 'Picker'). aria-disabled, not disabled, so its reason
 // shows as a tooltip on hover and focus.
 function PickButton({ pick }: { pick: DockedPicker }) {
   const unavailable = !pick.enabled && !pick.pressed;

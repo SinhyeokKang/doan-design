@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, test } from "vitest";
@@ -109,6 +110,11 @@ describe("canvas conversation list", () => {
 
   test("no canvas conversations: the empty state", () => {
     expect(render([])).toBe('<div class="rp-empty"><p>No canvas conversations yet.</p><p>When a conversation draws or edits a canvas, the canvas shows here.</p></div>');
+  });
+
+  test("the empty state is a dashed box, as the sidebar's empty groups are", () => {
+    const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+    expect(css).toMatch(/\.rp-empty \{[^}]*border: 1px dashed var\(--border-standard\);[^}]*border-radius: var\(--radius-chip\);/);
   });
 
   test("loading shows nothing first, then the status line", () => {

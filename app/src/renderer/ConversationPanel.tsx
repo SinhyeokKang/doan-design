@@ -6,10 +6,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 // The id the open and close buttons point at with aria-controls.
 export const CONVERSATION_PANEL_ID = "doan-conversation-panel";
 
-// The handle sits on the panel's left edge: moving it left widens the panel. A drag stops at the bounds; it never
-// folds the panel (only the close button does).
-export function dragPanel(start: number, startX: number, x: number, bounds: PanelBounds): number {
-  return Math.min(bounds.max, Math.max(bounds.min, start + startX - x));
+// The handle sits on the panel's start (left) edge: moving it left widens the panel. On the sidebar's end edge moving
+// it right widens. A drag stops at the bounds; it never folds the panel (only the close button does).
+export function dragPanel(start: number, startX: number, x: number, bounds: PanelBounds, edge: "start" | "end" = "start"): number {
+  return Math.min(bounds.max, Math.max(bounds.min, start + (edge === "start" ? startX - x : x - startX)));
 }
 
 // The canvas page's right column (buzz-canvas design §2 '오른쪽 패널'): the canvas conversation panel shell, its title row
@@ -41,8 +41,12 @@ function IconTip({ label, children }: { label: string; children: ReactElement })
 
 // Written by hand, not react-resizable-panels (design §1): its state attribute, keyboard step, Home/End direction and
 // percentage units differ from the design, and it needs the shell grid rebuilt as its Group. The look follows malmoi
-// components/ui/resizable.tsx (malmoi 6dcdd575): a 4px bar shown only on hover, drag and keyboard focus.
-function ResizeHandle({ width, bounds, onResize, preview }: { width: number; bounds: PanelBounds; onResize(width: number | undefined): void; preview(width: number): void }) {
+// components/ui/resizable.tsx (malmoi 6dcdd575): a 4px bar shown only on hover, drag and keyboard focus. The sidebar
+// uses the same handle on its end edge.
+export function ResizeHandle({ width, bounds, onResize, preview, edge = "start", label = "Resize conversation panel", className }: {
+  width: number; bounds: PanelBounds; onResize(width: number | undefined): void; preview(width: number): void;
+  edge?: "start" | "end"; label?: string; className?: string;
+}) {
   const [hover, setHover] = useState(false);
   // The drag's start and the width it shows now; the width is committed once, when the drag ends.
   const [drag, setDrag] = useState<{ pointer: number; startX: number; start: number; now: number } | null>(null);
@@ -79,7 +83,7 @@ function ResizeHandle({ width, bounds, onResize, preview }: { width: number; bou
   const move = (event: PointerEvent<HTMLDivElement>) => {
     const current = dragRef.current;
     if (!current || event.pointerId !== current.pointer) return;
-    const now = dragPanel(current.start, current.startX, event.clientX, bounds);
+    const now = dragPanel(current.start, current.startX, event.clientX, bounds, edge);
     if (now === current.now) return;
     const next = { ...current, now };
     dragRef.current = next; setDrag(next);
@@ -87,7 +91,7 @@ function ResizeHandle({ width, bounds, onResize, preview }: { width: number; bou
   };
   const key = (event: KeyboardEvent<HTMLDivElement>) => {
     if (dragRef.current) return;
-    const next = nudgePanel(width, event.key, bounds);
+    const next = nudgePanel(width, event.key, bounds, edge);
     if (next === null) return;
     event.preventDefault();
     if (next !== width) onResize(next);
@@ -95,7 +99,7 @@ function ResizeHandle({ width, bounds, onResize, preview }: { width: number; bou
 
   const shown = drag?.now ?? width;
   return <>
-    <div ref={handle} className="doan-panel-handle" role="separator" aria-orientation="vertical" aria-label="Resize conversation panel"
+    <div ref={handle} className={className ? `doan-panel-handle ${className}` : "doan-panel-handle"} role="separator" aria-orientation="vertical" aria-label={label}
       aria-valuenow={shown} aria-valuemin={bounds.min} aria-valuemax={bounds.max} tabIndex={0}
       data-ui-state={drag ? "drag" : hover ? "hover" : undefined}
       onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}

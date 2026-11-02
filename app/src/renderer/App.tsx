@@ -40,6 +40,7 @@ import { distinctTargets } from "./anchorField";
 import type { ScrollTo } from "./overviewRun";
 import { ConversationPanel } from "./ConversationPanel";
 import { panelBounds, panelWidth } from "./rightPanelSize";
+import { SIDEBAR_BOUNDS, sidebarWidth } from "./sidebarSize";
 import { duplicateIdText } from "./canvasView";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Wizard } from "./Onboarding";
@@ -103,15 +104,15 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"] }): UiState | null {
-  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel } = input;
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; sidebar?: UiState["sidebar"] }): UiState | null {
+  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, sidebar } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(sidebar ? { sidebar } : {}) };
 }
 
 // The start's ui-state read under what the run wrote before it (buzz-project T1): a root the run set, cleared (New) or
@@ -244,6 +245,14 @@ export function App() {
   const rightPanelRef = useRef(rightPanel); rightPanelRef.current = rightPanel;
   const panelTouched = useRef(false);
   const changePanel = (change: (previous: NonNullable<UiState["rightPanel"]>) => NonNullable<UiState["rightPanel"]>) => { panelTouched.current = true; setRightPanelState(change); };
+  // The sidebar's width on this device (undefined: the default), the same way: a resize before the read wins. The
+  // shown width is a root variable, so every shell's grid follows it and a drag can preview it without a render.
+  const [sidebarSaved, setSidebarSaved] = useState<number | undefined>(undefined);
+  const sidebarTouched = useRef(false);
+  const shownSidebar = sidebarWidth(sidebarSaved);
+  // Optional: App's DOM-less tests stub a document without a root element.
+  const previewSidebar = (width: number) => document.documentElement?.style.setProperty("--doan-sidebar-width", `${width}px`);
+  useLayoutEffect(() => previewSidebar(shownSidebar), [shownSidebar]);
   // The window and the measured column holding the canvas and the panel (sidebar and margins excluded).
   const [panelSize, setPanelSize] = useState<{ window: number; shell: number } | null>(null);
   const shellRoot = useRef<HTMLElement>(null);
@@ -419,6 +428,7 @@ export function App() {
       if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
+      if (active && state?.sidebar && !sidebarTouched.current) setSidebarSaved(state.sidebar.width);
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
     });
     return () => { active = false; };
@@ -467,10 +477,11 @@ export function App() {
   };
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
   const savedScreen = screen === "addProjects" || screen === "settings" ? page.origin.screen : screen;
-  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel });
-  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel };
+  const sidebarState = sidebarSaved === undefined ? undefined : { width: sidebarSaved };
+  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState });
+  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, sidebarSaved]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -1118,7 +1129,8 @@ export function App() {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, []);
+  // The sidebar's width moves the canvas column's start, so a committed resize measures again.
+  }, [shownSidebar]);
   // Written here rather than in the style prop: a drag previews its width on the same property (previewPanel), and this
   // runs only when the committed width changes, so a render during the drag does not undo the preview.
   useLayoutEffect(() => {
@@ -1211,7 +1223,8 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
-    home={home} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
+    home={home} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
+    resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;

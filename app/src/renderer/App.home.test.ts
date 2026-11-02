@@ -56,4 +56,6 @@ test("every save carries the conversation panel's state", () => {
   const home = {};
   expect(savedUiState({ ...base, home, rightPanel: { open: false, width: 400 } })).toMatchObject({ rightPanel: { open: false, width: 400 } });
   expect(savedUiState({ ...base, home, rightPanel: { open: true } })?.rightPanel).toEqual({ open: true });
+  expect(savedUiState({ ...base, home, sidebar: { width: 260 } })?.sidebar).toEqual({ width: 260 });
+  expect(savedUiState({ ...base, home })).not.toHaveProperty("sidebar");
 });
