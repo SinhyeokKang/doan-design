@@ -358,6 +358,19 @@ test("a sidebar canvas row unfolds the panel only when its slot needs an answer 
   expect(conversation()?.arrival).toMatchObject({ focus: "composer" });
 });
 
+// RD3: the row shows the terminal spinner over the app's unseen ending (withTerminalSlots), so its click decides with
+// that working slot and keeps the panel as it was.
+test("a sidebar canvas row whose terminal spinner covers an unseen ending keeps a folded panel folded", async () => {
+  doan.listConversations!.mockResolvedValue([rowSummary({ fromHome: true, unseen: true })]);
+  await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
+  listeners.work!([{ session: "s1", provider: "codex", root: "/w/a", path: rowA.path }] as never); render();
+  const sidebar = find<{ open(root: string, row: CanvasRow): void; slots?: ReadonlyMap<string, { kind: string; source?: string }> }>(ShellSidebar)[0]!.props;
+  expect(sidebar.slots?.get(`/w/a\n${rowA.path}`)).toMatchObject({ kind: "working", source: "terminal" });
+  sidebar.open("/w/a", rowA); render();
+  expect(panel()?.open).toBe(false);
+  expect(conversation()?.arrival).toBeNull();
+});
+
 test("a sidebar canvas row without a mark keeps a folded panel folded", async () => {
   doan.listConversations!.mockResolvedValue([rowSummary({ fromHome: true })]);
   await openCanvas({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: false, width: 400 } });
