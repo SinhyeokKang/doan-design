@@ -630,7 +630,7 @@ export class CanvasController {
       if (message.key === "Escape" && this.state.tool === "pick") this.cancelPick();
       else if (message.key === "Escape") this.clearOnEscape();
       // Unlike Escape, an old modifier snapshot must not override a newer press.
-      else if (message.seq >= this.hoverSeq) {
+      else if (message.key === "Alt" && message.seq >= this.hoverSeq) {
         this.hoverSeq = message.seq;
         this.altHeld = message.alt;
         this.drawMarks();

@@ -94,8 +94,9 @@ export interface ClearMessage extends SelectionMessageBase {
   type: "clear";
 }
 
+// Space, V and H come from a canvas that has focus after an ⌥-click (canvas-hand-tool design '키' 'iframe 경로').
 export type KeyMessage = SelectionMessageBase & { type: "key" } & (
-  { key: "Escape" } | { key: "Alt"; alt: boolean }
+  { key: "Escape" } | { key: "Alt"; alt: boolean } | { key: "Space"; down: boolean } | { key: "V" | "H" }
 );
 
 export type SelectionMessage = HoverMessage | SelectMessage | ClearMessage | KeyMessage;
@@ -204,6 +205,8 @@ function parseSelectionMessage(data: Record<string, unknown>): SelectionMessage 
     case "clear": return { type, ...base };
     case "key":
       if (data.key === "Escape") return { type, ...base, key: "Escape" };
+      if (data.key === "V" || data.key === "H") return { type, ...base, key: data.key };
+      if (data.key === "Space") return typeof data.down === "boolean" ? { type, ...base, key: "Space", down: data.down } : null;
       return data.key === "Alt" && typeof data.alt === "boolean" ? { type, ...base, key: "Alt", alt: data.alt } : null;
     case "hover": {
       if (data.rect === null) return { type, ...base, rect: null };
