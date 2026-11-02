@@ -14,8 +14,12 @@ export interface CanvasSeenStore {
   // The entries with `unseen` set on each canvas that is new since its root's baseline or changed since last seen.
   // Records a baseline for a newly listed root and forgets removed roots, writing the file when either changed.
   apply(entries: readonly FolderEntry[]): FolderEntry[];
-  // `{root, path, mtimeMs}` from the renderer for a listed canvas the canvas page shows. True when the record moved.
+  // `{root, path, mtimeMs}` from the renderer for a listed canvas the canvas page shows; refused unless `mtimeMs` is
+  // that row's current one, so a mark from an earlier listing or any other value cannot record a revision never shown.
+  // True when the record moved.
   mark(entries: readonly FolderEntry[], value: unknown): boolean;
+  // Writes the record if an earlier write failed. Called at quit.
+  flushSync(): void;
 }
 
 type Seen = Map<string, Map<string, number>>;
@@ -39,21 +43,34 @@ function parse(text: string): { seen: Seen; newer: boolean } {
   return { seen, newer: false };
 }
 
-export function createCanvasSeenStore(file: string): CanvasSeenStore {
+// Synchronous temp-and-rename: the file is small and changes only on a new root, a removal or a canvas shown, and
+// a synchronous write cannot land after a later one.
+function writeAtomic(file: string, text: string): void {
+  const temp = `${file}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    writeFileSync(temp, text, { flag: "wx", mode: 0o600 });
+    renameSync(temp, file);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    throw error;
+  }
+}
+
+export function createCanvasSeenStore(file: string, write: (file: string, text: string) => void = writeAtomic): CanvasSeenStore {
   let seen: Seen = new Map(), newer = false;
   try { ({ seen, newer } = parse(readFileSync(file, "utf8"))); } catch { /* no file yet */ }
 
-  // Synchronous temp-and-rename: the file is small and changes only on a new root, a removal or a canvas shown, and
-  // a synchronous write cannot land after a later one or be lost at quit.
+  // A failed write leaves the record `dirty`: memory has moved ahead of the file, so the next apply or mark writes
+  // again even when nothing changed, and quit flushes it.
+  let dirty = false;
   const save = () => {
     if (newer) return;
     const roots = Object.fromEntries([...seen].map(([root, paths]) => [root, Object.fromEntries(paths)]));
-    const temp = `${file}.${randomBytes(6).toString("hex")}.tmp`;
     try {
-      writeFileSync(temp, `${JSON.stringify({ v: 1, roots })}\n`, { flag: "wx", mode: 0o600 });
-      renameSync(temp, file);
+      write(file, `${JSON.stringify({ v: 1, roots })}\n`);
+      dirty = false;
     } catch (error) {
-      rmSync(temp, { force: true });
+      dirty = true;
       console.error("doan: cannot save canvas-seen.json", error);
     }
   };
@@ -76,26 +93,30 @@ export function createCanvasSeenStore(file: string): CanvasSeenStore {
           ...entry,
           canvases: entry.canvases.map(row => {
             if (row.mtimeMs === undefined) return row;
+            // Equality, not order: a clock corrected backwards or a restored file can give a changed canvas an
+            // older mtime than the one seen.
             const last = paths.get(row.path);
-            return last === undefined ? { ...row, unseen: "new" } : row.mtimeMs > last ? { ...row, unseen: "changed" } : row;
+            return last === undefined ? { ...row, unseen: "new" } : row.mtimeMs !== last ? { ...row, unseen: "changed" } : row;
           }),
         };
       });
-      if (changed) save();
+      if (changed || dirty) save();
       return next;
     },
     mark(entries, value) {
       if (!record(value) || typeof value.root !== "string" || typeof value.path !== "string" || !time(value.mtimeMs)) return false;
       const { root, path, mtimeMs } = value;
       const entry = entries.find(item => item.path === root);
-      if (entry?.kind !== "list" || !entry.canvases.some(row => row.path === path)) return false;
+      if (entry?.kind !== "list" || !entry.canvases.some(row => row.path === path && row.mtimeMs === mtimeMs)) return false;
       const based = baseline(entry);
       const paths = seen.get(root)!;
-      const last = paths.get(path);
-      const moved = last === undefined || last < mtimeMs;
+      const moved = paths.get(path) !== mtimeMs;
       if (moved) paths.set(path, mtimeMs);
-      if (moved || based) save();
+      if (moved || based || dirty) save();
       return moved || based;
+    },
+    flushSync() {
+      if (dirty) save();
     },
   };
 }

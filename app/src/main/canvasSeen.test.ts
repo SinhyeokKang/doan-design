@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, describe, expect, test } from "vitest";
+import { afterAll, describe, expect, test, vi } from "vitest";
 import { createCanvasSeenStore } from "./canvasSeen";
 import type { CanvasRow, FolderEntry } from "./view";
 
@@ -33,12 +33,18 @@ describe("apply", () => {
     expect(entry?.kind === "list" && entry.canvases.map(row => row.unseen)).toEqual(["changed", "new"]);
   });
 
-  test("an older or equal mtime is seen, and a row without an mtime is never unseen", () => {
+  test("any other mtime is changed, even an older one after a clock rollback; the same one is seen", () => {
     const store = createCanvasSeenStore(file());
     store.apply([list("/r", [row(A, 10)])]);
-    expect(unseen(store.apply([list("/r", [row(A, 9)])]))).toEqual([]);
+    expect(unseen(store.apply([list("/r", [row(A, 10)])]))).toEqual([]);
+    const [entry] = store.apply([list("/r", [row(A, 9)])]);
+    expect(entry?.kind === "list" && entry.canvases.map(row => row.unseen)).toEqual(["changed"]);
+  });
+
+  test("a row without an mtime is never unseen and leaves the record alone", () => {
+    const store = createCanvasSeenStore(file());
+    store.apply([list("/r", [row(A, 10)])]);
     expect(unseen(store.apply([list("/r", [row(A), row(B)])]))).toEqual([]);
-    // The missing mtime left the record alone.
     expect(unseen(store.apply([list("/r", [row(A, 10)])]))).toEqual([]);
   });
 
@@ -75,16 +81,36 @@ describe("apply", () => {
 });
 
 describe("mark", () => {
-  test("records the shown mtime, never moving back", () => {
+  test("records the listed mtime, and marking it again does not move the record", () => {
     const store = createCanvasSeenStore(file());
     store.apply([list("/r", [row(A, 10)])]);
     const entries = [list("/r", [row(A, 12)])];
     expect(unseen(store.apply(entries))).toEqual(["/r:" + A]);
     expect(store.mark(entries, { root: "/r", path: A, mtimeMs: 12 })).toBe(true);
     expect(unseen(store.apply(entries))).toEqual([]);
-    expect(store.mark(entries, { root: "/r", path: A, mtimeMs: 11 })).toBe(false);
     expect(store.mark(entries, { root: "/r", path: A, mtimeMs: 12 })).toBe(false);
     expect(unseen(store.apply(entries))).toEqual([]);
+  });
+
+  test("records a listed mtime older than the one seen, so a rolled-back canvas can be cleared", () => {
+    const path = file();
+    const store = createCanvasSeenStore(path);
+    store.apply([list("/r", [row(A, 2000)])]);
+    const entries = [list("/r", [row(A, 1000)])];
+    expect(unseen(store.apply(entries))).toEqual(["/r:" + A]);
+    expect(store.mark(entries, { root: "/r", path: A, mtimeMs: 1000 })).toBe(true);
+    expect(unseen(store.apply(entries))).toEqual([]);
+    expect(unseen(createCanvasSeenStore(path).apply(entries))).toEqual([]);
+  });
+
+  test("refuses a mark whose mtime is not the listed row's: a stale mark after a newer listing, or any other value", () => {
+    const store = createCanvasSeenStore(file());
+    store.apply([list("/r", [row(A, 10)])]);
+    const entries = [list("/r", [row(A, 13)])];
+    expect(unseen(store.apply(entries))).toEqual(["/r:" + A]);
+    for (const mtimeMs of [12, 10, 14, 1e15]) expect(store.mark(entries, { root: "/r", path: A, mtimeMs })).toBe(false);
+    expect(unseen(store.apply(entries))).toEqual(["/r:" + A]);
+    expect(store.mark([list("/r", [row(A)])], { root: "/r", path: A, mtimeMs: 13 })).toBe(false);
   });
 
   test("a mark on a root with no record baselines it first, so the other canvases do not turn new", () => {
@@ -138,6 +164,43 @@ describe("persistence", () => {
     store.apply([list("/r", [row(A, 10)])]);
     store.mark([list("/r", [row(A, 11)])], { root: "/r", path: A, mtimeMs: 11 });
     expect(readFileSync(path, "utf8")).toBe(text);
+  });
+
+  test("a failed write is retried on the next apply or mark, and on a flush only while unsaved", () => {
+    const path = file();
+    let fail = true;
+    const write = vi.fn((target: string, text: string) => {
+      if (fail) throw new Error("disk full");
+      writeFileSync(target, text);
+    });
+    const store = createCanvasSeenStore(path, write);
+    store.apply([list("/r", [row(A, 10)])]);
+    expect(write).toHaveBeenCalledTimes(1);
+    fail = false;
+    store.apply([list("/r", [row(A, 10)])]);
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ v: 1, roots: { "/r": { [A]: 10 } } });
+    store.apply([list("/r", [row(A, 10)])]);
+    store.flushSync();
+    expect(write).toHaveBeenCalledTimes(2);
+
+    fail = true;
+    const entries = [list("/r", [row(A, 11)])];
+    expect(store.mark(entries, { root: "/r", path: A, mtimeMs: 11 })).toBe(true);
+    expect(write).toHaveBeenCalledTimes(3);
+    fail = false;
+    expect(store.mark(entries, { root: "/r", path: A, mtimeMs: 11 })).toBe(false);
+    expect(write).toHaveBeenCalledTimes(4);
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ v: 1, roots: { "/r": { [A]: 11 } } });
+
+    fail = true;
+    expect(store.mark([list("/r", [row(A, 12)])], { root: "/r", path: A, mtimeMs: 12 })).toBe(true);
+    fail = false;
+    store.flushSync();
+    expect(write).toHaveBeenCalledTimes(6);
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual({ v: 1, roots: { "/r": { [A]: 12 } } });
+    store.flushSync();
+    expect(write).toHaveBeenCalledTimes(6);
   });
 
   test("a failed write keeps the state in memory", () => {

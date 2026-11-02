@@ -76,6 +76,8 @@ const mocks = await vi.hoisted(async () => {
     menu: vi.fn<(template: MenuItemConstructorOptions[]) => unknown>(),
     dialog: { showOpenDialog: vi.fn(), showMessageBox: vi.fn() },
     uiState: { read: vi.fn(), save: vi.fn(), flushSync: vi.fn(), idle: vi.fn() },
+    // Spied around the real canvas-seen store, so its IPC checks stay real.
+    canvasSeenFlushSync: vi.fn(),
     createUiStateStore: vi.fn(),
     thumbnails: { get: vi.fn(), visible: vi.fn(), entriesChanged: vi.fn(), removed: vi.fn(), pause: vi.fn(), resume: vi.fn(), dispose: vi.fn() },
     createThumbnails: vi.fn(),
@@ -119,6 +121,13 @@ vi.mock("./runtime", () => ({ startRuntime: mocks.startRuntime }));
 vi.mock("./addProjects", async (importOriginal) => ({ ...await importOriginal<typeof import("./addProjects")>(), createAddFlow: mocks.createAddFlow }));
 vi.mock("./inspector", async (importOriginal) => ({ ...await importOriginal<typeof import("./inspector")>(), createInspector: mocks.createInspector }));
 vi.mock("./uiState", () => ({ createUiStateStore: mocks.createUiStateStore }));
+vi.mock("./canvasSeen", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./canvasSeen")>();
+  return { createCanvasSeenStore: (file: string) => {
+    const store = original.createCanvasSeenStore(file);
+    return { ...store, flushSync: () => { mocks.canvasSeenFlushSync(); store.flushSync(); } };
+  } };
+});
 vi.mock("./thumbnails", () => ({ createThumbnails: mocks.createThumbnails }));
 vi.mock("./onboarding/projects", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/projects")>(), ...mocks.projects }));
 const actualProjects = await vi.importActual<typeof import("./onboarding/projects")>("./onboarding/projects");
@@ -1077,6 +1086,7 @@ describe("ui state", () => {
   test("a pending save is flushed on quit", () => {
     mocks.app.emit("will-quit");
     expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
+    expect(mocks.canvasSeenFlushSync).toHaveBeenCalledOnce();
   });
 
   // Native teardown can fail before will-quit, so accepted state must already
@@ -1086,6 +1096,8 @@ describe("ui state", () => {
     await new Promise<void>(resolve => setImmediate(resolve));
     expect(mocks.uiState.flushSync).toHaveBeenCalledOnce();
     expect(mocks.uiState.flushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
+    expect(mocks.canvasSeenFlushSync).toHaveBeenCalledOnce();
+    expect(mocks.canvasSeenFlushSync.mock.invocationCallOrder[0]).toBeLessThan(mocks.thumbnails.dispose.mock.invocationCallOrder[0] ?? 0);
   });
 });
 
