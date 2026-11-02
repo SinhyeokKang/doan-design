@@ -358,7 +358,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
             <span className="moved-title">{moved.title}</span><span className="moved-rest">{` moved to ${movedCanvas}.`}</span></span>
             <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => props.onOpenCanvas(moved.canvas, moved.conversationId)}>Open</button></div>}
           {prompts.length > 0 && !started && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
-            <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
+            <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-variant="quiet" title={prompt.label}
               onClick={() => { run.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
               <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>)}</div>}
         </div>}

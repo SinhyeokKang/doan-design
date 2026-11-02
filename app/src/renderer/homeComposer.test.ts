@@ -378,14 +378,14 @@ test("suggested presets follow the project's canvases, skipping ids the CLI did 
 // Design Q5 and Q9: only .doan/canvases/ counts as screens, and only .doan/ds/ as a design system.
 test("design-system canvases alone leave the project without canvases, minus document", () => {
   expect(suggestedPresets(list("/r/p", [canvas(".doan/ds/color.html"), canvas(".doan/ds/button.html")]), PRESETS).map(p => p.id)).toEqual(["context", "shape"]);
-  expect(suggestedPrompts(list("/r/p", [canvas(".doan/ds/color.html")]), "p", PRESETS).map(p => p.label)).toEqual(["Gather design context", "Shape a first screen"]);
+  expect(suggestedPrompts(list("/r/p", [canvas(".doan/ds/color.html")]), "p", PRESETS).map(p => p.label)).toEqual(["Get to know this project", "Plan the first screen"]);
 });
 
 test("a legacy .doan/canvases/design-system.html counts as a screen", () => {
   expect(suggestedPresets(list("/r/p", [canvas(".doan/canvases/design-system.html"), canvas(".doan/canvases/home.html")]), PRESETS).map(p => p.id)).toEqual(["document", "critique", "polish"]);
   expect(suggestedPresets(list("/r/p", [canvas(".doan/canvases/tokens.html", { id: "design-system" })]), PRESETS).map(p => p.id)).toEqual(["document", "critique", "polish"]);
   const legacy = list("/r/p", [canvas(".doan/canvases/design-system.html", { mtimeMs: 2 })]);
-  expect(suggestedPrompts(legacy, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Critique the design-system canvas", "Polish the details of design-system"]);
+  expect(suggestedPrompts(legacy, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Review the design-system canvas", "Polish the design-system canvas"]);
 });
 
 test("suggested prompts name the target canvas by recency and fill a sentence with its path", () => {
@@ -396,22 +396,22 @@ test("suggested prompts name the target canvas by recency and fill a sentence wi
   ]);
   expect(suggestedPrompts(entry, "doan-design", PRESETS)).toEqual([
     { label: "Document the design system of doan-design", preset: preset("document"), text: "Document the design system of doan-design." },
-    { label: "Critique the buzz-onboarding canvas", preset: preset("critique"), text: "Critique the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html)." },
-    { label: "Polish the details of projects-home", preset: preset("polish"), text: "Polish the details of projects-home (.doan/canvases/projects-home.html)." },
+    { label: "Review the buzz-onboarding canvas", preset: preset("critique"), text: "Review the buzz-onboarding canvas (.doan/canvases/buzz-onboarding.html)." },
+    { label: "Polish the projects-home canvas", preset: preset("polish"), text: "Polish the projects-home canvas (.doan/canvases/projects-home.html)." },
   ]);
 });
 
 test("one canvas is both critiqued and polished; a design-system canvas drops the document prompt and is never a target; titles name canvases", () => {
   const one = list("/r/p", [canvas(".doan/canvases/home.html", { title: "Home screen" })]);
-  expect(suggestedPrompts(one, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Critique the Home screen canvas", "Polish the details of Home screen"]);
+  expect(suggestedPrompts(one, "p", PRESETS).map(p => p.label)).toEqual(["Document the design system of p", "Review the Home screen canvas", "Polish the Home screen canvas"]);
   const ds = list("/r/p", [canvas(".doan/ds/button.html", { mtimeMs: 3 }), canvas(".doan/canvases/home.html", { mtimeMs: 2 }), canvas(".doan/canvases/list.html", { mtimeMs: 1 })]);
-  expect(suggestedPrompts(ds, "p", PRESETS).map(p => p.label)).toEqual(["Critique the home canvas", "Polish the details of list"]);
+  expect(suggestedPrompts(ds, "p", PRESETS).map(p => p.label)).toEqual(["Review the home canvas", "Polish the list canvas"]);
 });
 
 test("a project without canvases gets the three starting prompts; missing presets are skipped", () => {
   expect(suggestedPrompts(list("/r/p"), "p", PRESETS)).toEqual([
-    { label: "Gather design context", preset: preset("context"), text: "Gather design context." },
-    { label: "Shape a first screen", preset: preset("shape"), text: "Shape a first screen." },
+    { label: "Get to know this project", preset: preset("context"), text: "Get to know this project." },
+    { label: "Plan the first screen", preset: preset("shape"), text: "Plan the first screen." },
     { label: "Document the design system", preset: preset("document"), text: "Document the design system." },
   ]);
   expect(suggestedPrompts(list("/r/p"), "p", PRESETS.filter(p => p.id !== "context")).map(p => p.preset.id)).toEqual(["shape", "document"]);

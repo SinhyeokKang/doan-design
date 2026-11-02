@@ -328,7 +328,8 @@ export function suggestedPresets(entry: FolderEntry | null, presets: readonly Pr
 
 export interface SuggestedPrompt { label: string; preset: PresetSummary; text: string }
 
-// The same rules as suggestedPresets, with the target canvas named so the agent does not ask which design is meant.
+// The same rules as suggestedPresets. Labels are short imperatives in the words a person would type; the composer
+// text adds the target canvas's path so the agent does not ask which design is meant.
 export function suggestedPrompts(entry: FolderEntry | null, project: string, presets: readonly PresetSummary[]): SuggestedPrompt[] {
   if (entry?.kind !== "list") return [];
   const plain = (label: string) => ({ label, text: `${label}.` });
@@ -336,15 +337,15 @@ export function suggestedPrompts(entry: FolderEntry | null, project: string, pre
   let wanted: Wanted[];
   const { screens, designSystem } = split(entry.canvases);
   if (screens.length === 0) {
-    wanted = [["context", plain("Gather design context")], ["shape", plain("Shape a first screen")], ...(designSystem ? [] : [["document", plain("Document the design system")] as Wanted])];
+    wanted = [["context", plain("Get to know this project")], ["shape", plain("Plan the first screen")], ...(designSystem ? [] : [["document", plain("Document the design system")] as Wanted])];
   } else {
     const recent = screens.map((row, i) => ({ row, i })).sort((a, b) => (b.row.mtimeMs ?? -Infinity) - (a.row.mtimeMs ?? -Infinity) || a.i - b.i).map(x => x.row);
     const first = recent[0]!, second = recent[1] ?? first;
     const named = (label: string, row: CanvasRow) => ({ label, text: `${label} (${row.path}).` });
     wanted = [
       ...(designSystem ? [] : [["document", plain(`Document the design system of ${project}`)] as Wanted]),
-      ["critique", named(`Critique the ${canvasLabel(first)} canvas`, first)],
-      ["polish", named(`Polish the details of ${canvasLabel(second)}`, second)],
+      ["critique", named(`Review the ${canvasLabel(first)} canvas`, first)],
+      ["polish", named(`Polish the ${canvasLabel(second)} canvas`, second)],
     ];
   }
   return wanted.flatMap(([id, prompt]) => {

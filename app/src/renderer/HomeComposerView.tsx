@@ -554,7 +554,7 @@ export function HeroComposer(props: HeroComposerProps) {
         </div>}
       </div>
       {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt => {
-        const button = <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" onClick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }}>
+        const button = <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-variant="quiet" onClick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }}>
           <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>;
         return <Tooltip key={prompt.label}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{prompt.label}</TooltipContent></Tooltip>;
       })}</div>}

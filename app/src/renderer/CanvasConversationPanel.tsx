@@ -370,7 +370,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
             <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={() => run.retryList()}>Retry</button></span></div>}
           {resume && <ResumeChoice offer={resume.start.offer!} reply={resume.resume} now={props.now} mode={resume.start.mode} onChoose={choice => { run.choose(choice); focusField(); }} />}
           {prompts.length > 0 && !started && !resume && <div className="ov-suggestions" role="group" aria-label="Suggested prompts">{prompts.map(prompt =>
-            <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" title={prompt.label}
+            <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-variant="quiet" title={prompt.label}
               onClick={() => { store.setDrafts(drafts => new Map(drafts).set(key, { ...(drafts.get(key) ?? EMPTY_DRAFT), preset: prompt.preset, segments: textSegments(prompt.text) })); focusField(); }}>
               <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>)}</div>}
         </>}
