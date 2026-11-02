@@ -73,7 +73,8 @@ describe("CanvasAgent", () => {
     const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
     const column = source.slice(source.indexOf("<CanvasAgent {...agent}>"), source.indexOf("</CanvasAgent>"));
     const notices = column.match(/<div className="doan-notice[^"]*"[^>]*>.*?<\/div>/g) ?? [];
-    expect(notices).toHaveLength(3);
+    // The selection-lost notice left the column for a toast (dogfooding); the error and unlisted notices stay.
+    expect(notices).toHaveLength(2);
     for (const notice of notices) expect(notice).toMatch(/^<div className="doan-notice doan-panel" role="status"><AlertIcon \/><span className="grow-text">.*<\/span><\/div>$/);
   });
 

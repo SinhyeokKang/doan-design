@@ -10,6 +10,7 @@ import { CanvasController, initialCanvasState, type CanvasState, type PickResult
 import { CanvasHeader } from "./CanvasHeader";
 import { CanvasTools, type AddTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
+import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
@@ -1132,6 +1133,13 @@ export function App() {
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;
+  // The selection-lost notice is an event: a toast once, not a line left on the board.
+  const shownNotice = useRef("");
+  useEffect(() => {
+    const message = noticeToast(shownNotice.current, state.notice);
+    shownNotice.current = state.notice;
+    if (message) toast.show(message);
+  }, [state.notice]);
   // Settings > Agents lists models for the project Home would start with.
   const modelRoot = defaultProject(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])), {
     current: composerMemory.current.root ? { root: composerMemory.current.root, name: composerMemory.current.root } : null, loaded: loadedRoot, lastRoot: homeMemory?.lastRoot ?? null }).root;
@@ -1265,7 +1273,6 @@ function CanvasPane({ viewport, board, overlay, state, entry, projectName, comma
         <span className="doan-kbd doan-picking-esc" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
       {state.error && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
       {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
-      {state.notice && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.notice}</span></div>}
     </CanvasAgent>
     {(state.status || problemMessage) && <div className="canvas-status" role="status">
       {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading…</p>
