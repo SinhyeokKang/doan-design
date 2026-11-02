@@ -1,8 +1,6 @@
 # canvas-row-menu — tasks
 
-착수 조건: 이 feature는 terminal-agent-activity와 같은 PR로 나가고, 그 배치들이 소유한 파일을 고친다. 그래서 다음 배치가 통합 브랜치에 통합된 뒤 그 파일에 손댄다(소유는 `docs/features/terminal-agent-activity/orch.md` '배치'):
-- A(`skill.md`): T8 전. B(`main/index.ts`·preload·`senderAllowed.ts`, work 목록 `workState.ts`): T9 전. D(`ShellSidebar.tsx`·`App.tsx`): T6의 renderer 부분과 T10 전. F(`eval/`·`USABILITY-EVAL.md`): T11 전. G(`DESIGN.md`·실제 앱 probe): T12·T13은 G와 순서를 정한다.
-- 두 feature의 Z1이 모두 PRODUCT §5 item 1과 ARCHITECTURE §7을 고치므로, 지휘자가 두 승격을 함께 하거나 순서를 정한다. terminal-agent-activity의 마지막 `verify.mjs --eval`은 이 feature를 통합한 뒤 돈다.
+착수 조건: design의 전제였던 terminal-agent-activity(work 목록 `app/src/main/workState.ts`, preload `getWork`·`onWorkChanged`, `doan work`)는 이미 main에 있다. 이 feature는 chain-261103 링크 5로, 링크 1–4가 고친 사이드바(`ShellSidebar.tsx`), 가이드(`skill.md`), `App.tsx` 위에서 시작한다.
 - P1·P2는 UI 테스트(V 단계)를 쓰기 전에 끝낸다. 문구가 필요 없는 S·T의 Go 쪽은 P와 함께 시작할 수 있다.
 
 명령은 AGENTS.md 'Commands'에 있는 것만 쓴다. `doan`은 `go run ./cli/cmd/doan`이다.
@@ -70,6 +68,7 @@
   - CLI 통합 테스트가 envelope를 검증하고 `result`를 깊게 비교한다. 결과 HTML과 `srcdoc`을 다시 스캔해, 남은 로컬 참조가 `links`에 있는 것과 CSS 안 없는 참조뿐인지 확인한다.
   - 검증: `go test ./...`, `go vet ./...`.
 - [ ] T8. 가이드 `cli/internal/cli/skill.md`: `doan export` 한 줄, 부르는 때(사용자가 요청할 때만), `.doan/` 안에 쓰지 않기, `external`·`links`가 있으면 사람에게 말하기. `skill_test.go`, brand 테스트(`schema/fixtures/brand/cases.json`)가 green.
+  - 출력 예산: `skill_test.go` `skillOutputBudget`(21,600 B)까지 링크 3 끝에 약 134 B가 남았다. 새 문장은 짧게 쓰고, 넘으면 이 feature가 더한 문장부터 줄인다. 다른 규칙 문장을 줄여야 하면 멈추고 지휘자에게 알린다. 예산을 올리지 않는다.
   - 검증: `go test ./...`.
 - [ ] T9. app main.
   - `canvas:trashPlan`·`canvas:trash`: 경로 확인 1~5단계, 작업 중 재확인(`trashBusy`), 진행 중 집합, 캔버스 → 댓글 순서, `.doan/comments` `readdir` 바이트 비교, `shell.trashItem`.
@@ -97,8 +96,8 @@
 
 ## W. 평가와 실제 앱 확인
 
-- [ ] T11. `/agent-eval`: 새 export 시나리오(design.md '`/agent-eval`', id는 기존과 겹치지 않게)와 fixture·rubric, fake 없이 패키지된 CLI로 실제 round. 삭제는 CLI가 없어 시나리오가 없다.
-  - 검증: `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios <새 id>`가 `self-test PASS`·exit 0, `npm --prefix app run package` 뒤 `node eval/run.ts --scenarios <새 id> --agents claude,codex`에서 둘 다 통과, 결과를 `docs/USABILITY-EVAL.md`에 적는다.
+- [ ] T11. `/agent-eval`: 새 export 시나리오 `X1`(design.md '`/agent-eval`'; 기존 id D·H·O·R·W 계열, R8c·R9·W3b·W4와 겹치지 않는다)와 fixture·rubric, fake 없이 패키지된 CLI로 실제 round. 삭제는 CLI가 없어 시나리오가 없다.
+  - 검증: `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios X1`가 `self-test PASS`·exit 0, `npm --prefix app run package` 뒤 `node eval/run.ts --scenarios X1 --agents claude,codex`에서 둘 다 통과, 결과를 `docs/USABILITY-EVAL.md`에 적는다.
 - [ ] T12. `/design-sync`: 캔버스 행 버튼·메뉴·Alert Dialog·토스트를 초안과 computed style로 비교하고, viewer shell은 `doan export`로 만든 결과 파일을 같은 Electron에서 열어 초안과 비교한다. 측정값을 `docs/DESIGN.md`에 적는다.
   - 검증: 측정 로그(`node .scratch/design-sync/<screen>/measure.mjs`), DESIGN.md 갱신.
 - [ ] T13. `/runtime-test`: 격리 앱(임시 HOME·userData·repo)에서 확인한다. 휴지통 probe는 임시 repo의 임시 파일만 옮긴다.
@@ -112,7 +111,7 @@
 
 ## Z. 승격과 정리
 
-- [ ] Z1. 문서 승격(영어, 현재 규칙으로). terminal-agent-activity Z1과 같은 문단을 고치므로 지휘자가 함께 한다(착수 조건).
+- [ ] Z1. 문서 승격(영어, 현재 규칙으로).
   - `docs/PRODUCT.md`:
     - §1·§2: repo 밖 사람에게 캔버스를 보이는 필요와, Doan 없이 결과 파일을 받는 사람.
     - §3 In scope: Export(1 Show 아래 또는 새 항목). Out of scope 5(export 파일은 사람이 보내는 공유 수단이고 서버·호스팅은 여전히 없다), 7(앱이 캔버스 파일에 하는 유일한 변경은 사람이 확인한 휴지통 옮기기다).

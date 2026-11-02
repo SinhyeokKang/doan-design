@@ -1,6 +1,6 @@
 # canvas-row-menu — spec
 
-출처: 사용자 요청(2026-11-02). 사이드바의 캔버스 행(Canvases·Design system 두 그룹 모두)에 프로젝트 행의 `shell-more`(`app/src/renderer/ShellSidebar.tsx`) 같은 아이콘 버튼을 두고, 그 메뉴에 **Export**와 **Move to Trash**를 둔다. terminal-agent-activity와 같은 PR로 나간다(이 run). 결정은 사용자와 지휘자가 했다(아래 '결정').
+출처: 사용자 요청(2026-11-02). 사이드바의 캔버스 행(Canvases·Design system 두 그룹 모두)에 프로젝트 행의 `shell-more`(`app/src/renderer/ShellSidebar.tsx`) 같은 아이콘 버튼을 두고, 그 메뉴에 **Export**와 **Move to Trash**를 둔다. chain-261103 링크 5로 나간다. 결정은 사용자와 지휘자가 했다(아래 '결정').
 
 ## 사용자
 

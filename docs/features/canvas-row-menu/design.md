@@ -1,6 +1,6 @@
 # canvas-row-menu — design
 
-결정의 출처는 [spec](./spec.md) '결정'이다. 이 문서는 그 결정을 지금 코드에 어떻게 얹는지 적는다. 같은 PR로 나가는 terminal-agent-activity의 work 목록(`app/src/main/workState.ts`, preload `getWork`·`onWorkChanged`)과 `doan work`(`cli/internal/cli/work.go`)가 이 브랜치에 있다는 전제로 쓴다.
+결정의 출처는 [spec](./spec.md) '결정'이다. 이 문서는 그 결정을 지금 코드에 어떻게 얹는지 적는다. terminal-agent-activity의 work 목록(`app/src/main/workState.ts`, preload `getWork`·`onWorkChanged`)과 `doan work`(`cli/internal/cli/work.go`)는 main에 있다. 행 번호는 이 문서를 쓴 때 기준이다. 링크 1–4(chain-261103)가 `ShellSidebar.tsx`·`App.tsx`·`skill.md`를 고쳤으므로, 구현할 때는 이름(함수·상태·클래스)으로 찾는다.
 
 ## 영향 받는 구성 요소
 
@@ -15,33 +15,38 @@
 
 ## 행 버튼과 메뉴 (`ShellSidebar.tsx`)
 
-- 지금 캔버스 행은 아이콘, 이름 `<span>`, `SlotMark` 순서다(`ShellSidebar.tsx` 249행). 프로젝트 행의 메뉴는 `DropdownMenu.Root` 하나를 `menu === card.key` 상태로 연다(214행). 캔버스 행도 같은 `menu` 상태를 쓰되 값을 `{kind: "project" | "canvas", key}`로 바꾼다(캔버스 key는 행 key `${root}\n${path}`). 한 번에 메뉴 하나만 열린다. **함정**: 107~112행 effect는 `menu`가 어떤 `card.key`와도 같지 않으면 `setMenu(null)`과 `fallback()`을 부르므로, 종류를 나누지 않으면 캔버스 메뉴가 열리자마자 닫히고 포커스가 프로젝트 행으로 튄다. effect는 `kind`별로 판정한다(캔버스는 그 key가 `rows`에 있는지). `fallback()`·`menuIndex`도 card 기준이라 캔버스 쪽은 아래 '메뉴가 열린 행이 사라질 때'를 따른다.
+- 지금 캔버스 행은 아이콘, 이름 `<span>`, `SlotMark` 순서다(`ShellSidebar.tsx`). 프로젝트 행의 메뉴는 `DropdownMenu.Root` 하나를 `menu === card.key` 상태로 연다(링크 2 뒤 메뉴의 Project Settings는 `openProjectSettings(root)`로 페이지를 연다). 캔버스 행도 같은 `menu` 상태를 쓰되 값을 `{kind: "project" | "canvas", key}`로 바꾼다(캔버스 key는 행 key `${root}\n${path}`). 한 번에 메뉴 하나만 열린다. **함정**: 메뉴를 닫는 `useLayoutEffect`는 `menu`가 어떤 `card.key`와도 같지 않거나 그 카드에 `menuRoot`가 없으면 `setMenu(null)`과 `fallback()`(포커스가 body나 `.shell-project-menu` 안일 때)을 부르므로, 종류를 나누지 않으면 캔버스 메뉴가 열리자마자 닫히고 포커스가 프로젝트 행으로 튄다. effect는 `kind`별로 판정한다(캔버스는 그 key가 `rows`에 있는지). `fallback()`·`menuIndex`도 card 기준이라 캔버스 쪽은 아래 '메뉴가 열린 행이 사라질 때'를 따른다.
 - 잠긴 동안 버튼은 `disabled`가 아니라 `aria-disabled`다(포커스 순서 유지, DESIGN 'Locked Back').
-- 버튼은 프로젝트 행 버튼과 같은 모양이다: `doan-icon-button shell-more`, `Ellipsis` 아이콘, `aria-label="<stem> menu"`, `tabIndex={active === key ? 0 : -1}`, click·keydown `stopPropagation`(215행). 그래서 Tab 순서와 roving tabindex 규칙(ARCHITECTURE §3 'Actions and focus')이 그대로다.
+- 버튼은 프로젝트 행 버튼과 같은 모양이다: `doan-icon-button shell-more`, `Ellipsis` 아이콘, `aria-label="<stem> menu"`, `tabIndex={active === key ? 0 : -1}`, click·keydown `stopPropagation`.
+- 메뉴 내용은 공용 드롭다운 프리미티브(Radix + `menu doan-floating doan-menu`)에 사이드바 불투명 채움 예외 `shell-side-menu`(`styles.css`)를 붙인다(링크 1 사용자 결정: 창의 네이티브 vibrancy 위에서는 웹 `backdrop-filter`가 뒤를 흐리지 못한다). 프로젝트 메뉴 전용 클래스 `shell-project-menu`는 붙이지 않는다(위 effect가 그 클래스로 포커스 복귀를 판정한다). 그래서 Tab 순서와 roving tabindex 규칙(ARCHITECTURE §3 'Actions and focus')이 그대로다.
 - 크기: 프로젝트 행 버튼은 32px(`styles.css` 422행 `.shell-more.doan-icon-button`)이고 행 높이도 32px이다(404행). 캔버스 행에서도 32px 정사각형이면 행 높이가 바뀌지 않는다. 행의 오른쪽 padding(10px, 424행)과 겹치는 부분은 초안에서 정한다.
 - **상태 자리와 버튼(사용자 확정)**: 프로젝트 행 버튼은 항상 보이지만, 캔버스 행 버튼은 행 hover, 행 안 키보드 포커스(`:focus-within`), 그 행의 메뉴가 열린 동안에만 보인다. 캔버스 행은 수가 많아 버튼이 항상 보이면 목록이 시끄럽고 상태 자리(`.row-slot`)와 겹치기 때문이다. 버튼이 보이는 동안 행의 끝 padding은 0이고(프로젝트 행처럼 버튼이 오른쪽 끝에 붙는다), 버튼이 상태 자리 위치를 대신한다. 상태 자리는 흐름에서 빠진 채 시각적으로만 숨는다(sr-only 방식: absolute, 1px, `clip-path: inset(50%)`). `display: none`·`visibility: hidden`이 아니므로 접근 이름은 남는다. 평소(버튼이 숨은 동안)에는 상태 표시가 지금처럼 보인다. 초안 `row-button` 프레임 그대로다.
 - **메뉴 항목**:
   - Export: `row.error`가 있으면 비활성이고 이유 한 줄(예: 행 오류 문장과 같은 뜻)을 메뉴 안에 둔다. 같은 캔버스 Export가 진행 중이면 비활성.
   - Move to Trash: 아래 '작업 중 판정'이 참이면 비활성이고 이유 한 줄.
   - 비활성 방식: Radix `disabled`를 쓰지 않는다. `disabled` 항목은 화살표 이동에서 빠져 이유 줄을 키보드·VoiceOver 사용자가 듣지 못한다. `aria-disabled="true"`와 `onSelect`의 `preventDefault`로 포커스는 받되 동작하지 않게 하고, 이유 줄은 항목의 `aria-describedby`로 잇는다(DESIGN 'Locked Back': "`aria-disabled`, not `disabled`, so it keeps its place in the focus order").
-  - 문구: "Export…"(저장 대화상자 입력이 이어진다), "Move to Trash"(확인만 이어진다; 기존 "Remove from Doan"처럼 줄임표 없음, `ShellSidebar.tsx` 78행). 이유 줄은 아래 '문구'.
-- **포커스**: 메뉴를 닫을 때 포커스 복귀는 프로젝트 메뉴의 `onCloseAutoFocus` 규칙을 따른다(216~218행: 대화상자가 열렸거나 포커스가 이미 다른 곳에 있으면 복귀하지 않는다). 대화상자 판정은 클래스가 아니라 `[role="dialog"], dialog[open]`로 한다 — POSTMORTEM 2026-10-30 "Removing a shared dialog class silently disabled two focus guards": "identify a dialog by its rendered role (`dialog[role="alertdialog"]`), not a styling class".
-- **메뉴가 열린 행이 사라질 때**: 프로젝트 메뉴는 `useLayoutEffect`로 메뉴의 root가 없어지면 닫고 `fallback()`으로 포커스를 옮긴다(107~112행). 캔버스 메뉴는 그 행 key가 `rows`에서 없어지면 같은 방식으로 닫는다(다른 프로세스가 파일을 지운 경우). 메뉴가 열린 채 행이 잠기면(`props.locked`) 열림 상태도 닫는다 — POSTMORTEM 2026-11-01 "A frame drawer list closed by a disabled trigger reopened by itself"의 Prevention.
-- **키보드**: 화살표·Home/End·typeahead는 `keyboard()`가 `event.target !== event.currentTarget`이면 무시하므로(114행) 버튼에 포커스가 있을 때는 행 이동이 일어나지 않는다. 프로젝트 행과 같다. Shift+F10·ContextMenu 키는 이번 범위 밖이다.
+  - 문구: "Export…"(저장 대화상자 입력이 이어진다), "Move to Trash"(확인만 이어진다; 기존 "Remove from Doan"처럼 줄임표 없음, `homeCards.ts` `ROW_ACTION_LABELS`). 이유 줄은 아래 '문구'.
+- **포커스**: 메뉴를 닫을 때 포커스 복귀는 프로젝트 메뉴의 `onCloseAutoFocus` 규칙을 따른다(대화상자가 열렸거나 포커스가 이미 다른 곳에 있으면 복귀하지 않는다). 대화상자 판정은 클래스가 아니라 `[role="dialog"], dialog[open]`로 한다 — POSTMORTEM 2026-10-30 "Removing a shared dialog class silently disabled two focus guards": "identify a dialog by its rendered role (`dialog[role="alertdialog"]`), not a styling class".
+- **메뉴가 열린 행이 사라질 때**: 프로젝트 메뉴는 `useLayoutEffect`로 메뉴의 root가 없어지면 닫고 `fallback()`으로 포커스를 옮긴다. 캔버스 메뉴는 그 행 key가 `rows`에서 없어지면 같은 방식으로 닫는다(다른 프로세스가 파일을 지운 경우). 메뉴가 열린 채 행이 잠기면(`props.locked`) 열림 상태도 닫는다 — POSTMORTEM 2026-11-01 "A frame drawer list closed by a disabled trigger reopened by itself"의 Prevention.
+- **키보드**: 화살표·Home/End·typeahead는 `keyboard()`가 `event.target !== event.currentTarget`이면 무시하므로버튼에 포커스가 있을 때는 행 이동이 일어나지 않는다. 프로젝트 행과 같다. Shift+F10·ContextMenu 키는 이번 범위 밖이다.
 - POSTMORTEM 2026-10-27 "Shell restyle lost navigation landmarks and inherited the wrong control sizing": "Verify actual border-box height, not only min-height". 버튼을 더한 뒤 캔버스 행의 실제 높이가 32px인지 `/design-sync`에서 잰다.
 - POSTMORTEM 2026-11-02 "The sidebar list scrolled with the classic scrollbar": 새 스크롤 컨테이너를 만들지 않는다. 메뉴는 Portal로 띄운다(프로젝트 메뉴와 같다).
+
+## 링크 3·4 경로와의 관계
+
+- `doan open`·칩의 이동(`decideOpen`, `App.tsx` `openLink`, 링크 4의 reply chip 경로)은 바꾸지 않는다. 휴지통으로 간 캔버스를 가리키는 링크·칩은 그 경로의 목록 재확인이 기존 토스트로 거절한다. `/runtime-test`에서 따로 재지 않는다.
 
 ## 작업 중 판정 (Move to Trash 비활성)
 
 순수 함수 `trashBlock(target, list, work, drawing) → null | reason`(새 파일 `app/src/renderer/canvasRowMenu.ts`). `target`은 `{root, path, id?}`.
 
 - 앱 대화: main의 대화 목록(`ConversationSummary[]`)에서 그 root의 대화 중 캔버스가 target과 같은 것(ID가 양쪽에 있으면 ID, 아니면 path — `canvasConversationRows.ts`와 `canvasRun.ts`의 매칭 규칙)이 작업 중이거나 답을 기다린다. 판정 기준은 Agent indicator가 쓰는 `agentPresence`(`app/src/renderer/agentPresence.ts`)와 같은 상태 집합을 쓴다.
-- project conversation이 그 캔버스를 그리는 중(`homeRun.drawing(root, canvas)`, `App.tsx` 288행): promotion 판정 전이라 그 대화가 이 캔버스에 묶일 수 있다.
+- project conversation이 그 캔버스를 그리는 중(`homeRun.drawing(root, canvas)`, `homeRun.ts`): promotion 판정 전이라 그 대화가 이 캔버스에 묶일 수 있다.
 - 터미널: work 목록(`WorkItem = {session, provider, root, path}`)에 같은 (root, path)가 있다.
 - worktree: root까지 같아야 한다. POSTMORTEM 2026-11-01 "The canvas agent indicator kept another worktree's conversation and its Stop": worktree는 canvas ID와 경로를 공유하므로 캔버스만 맞춰 보면 다른 worktree의 작업이 이 행을 막는다.
-- main도 같은 판정을 `canvas:trash` 처리 때 다시 한다. renderer 판정은 표시용, main 판정이 경계다. main에는 `homeRun.drawing`(renderer의 `extras.drew`, `homeRun.ts` 328행)이 없으므로 main이 가진 근거를 쓴다:
+- main도 같은 판정을 `canvas:trash` 처리 때 다시 한다. renderer 판정은 표시용, main 판정이 경계다. main에는 `homeRun.drawing`(renderer의 `extras.drew`, `homeRun.ts`)이 없으므로 main이 가진 근거를 쓴다:
   - 캔버스 대화: `service.list(root)`의 상태(작업 중·답 대기).
-  - project conversation: 같은 root의 project conversation이 실행 중(`projectBusy`)이거나 끝난 뒤 `BIND_GRACE_MS` 안이고, 그 promotion evidence의 `edits`·`changed`(`conversation/service.ts` 86행 `Evidence`)에 이 path가 있다.
+  - project conversation: 같은 root의 project conversation이 실행 중(`projectBusy`)이거나 끝난 뒤 `BIND_GRACE_MS` 안이고, 그 promotion evidence의 `edits`·`changed`(`conversation/service.ts` `Evidence`)에 이 path가 있다.
   - 터미널: `workState`의 work 목록.
   - 이 판정은 main 쪽 순수 함수 `trashBusy(target, conversations, evidence, work)`로 둔다.
 
@@ -75,13 +80,13 @@
 - 캔버스별 기기 로컬 상태(`activityKey`, `canvasKey`, `draftKey`, ARCHITECTURE §3 'Per-canvas device-local state')와 대화 패널 초안: 지우지 않는다. 휴지통에서 되살리면 같은 ID로 다시 붙는다(spec 결정 7과 같은 이유).
 - 캔버스 seen 기록(`canvasSeen.ts`): 지우지 않는다. ARCHITECTURE §7 'Seen canvases': "Paths are never pruned on a listing". 되살린 파일의 mtime이 같으면 본 것으로 남는다.
 - 썸네일: `thumbnails.ts` `collect`가 목록에 없는 key의 캐시를 지우고(247~257행), 목록에서 빠진 행은 Overview에 나오지 않는다. 바꿀 것 없다.
-- 사이드바 포커스: 대화상자를 닫으면(Cancel·Esc·확인 모두) 포커스는 그 행의 메뉴 버튼으로 돌아간다. 이 복귀는 App의 `modalClosed()` → `focusCurrent(beforeModal)`(`App.tsx` 660~666행)이 맡는다. renderer가 따로 포커스를 옮기지 않는다(두 곳이 서로 덮어쓰지 않게). 확인 뒤 행이 사라지면 기존 `ownedFocus` 복구(`ShellSidebar.tsx` 156~173행)가 같은 index의 행, 곧 다음 행으로 옮긴다. 기존 복구에 없는 분기(마지막 행이면 이전 행, 그룹이 비면 그룹 머리)만 그 복구에 더한다. `refused`면 행이 남으므로 포커스는 버튼에 그대로 있다. POSTMORTEM 2026-10-25 "Removing the remembered row removed a card from keyboard navigation": "derive roving focus from the current item set" — `active`는 지금처럼 현재 행 집합에서 계산되므로 남는다.
+- 사이드바 포커스: 대화상자를 닫으면(Cancel·Esc·확인 모두) 포커스는 그 행의 메뉴 버튼으로 돌아간다. 이 복귀는 App의 `modalClosed()`(`focusAfterModal`을 걸고, `modal`이 거짓이 되면 effect가 `focusCurrent(beforeModal)`을 부른다)가 맡는다. renderer가 따로 포커스를 옮기지 않는다(두 곳이 서로 덮어쓰지 않게). 확인 뒤 행이 사라지면 기존 `ownedFocus` 복구(`ShellSidebar.tsx`의 `ownedFocus` `useLayoutEffect`)가 같은 index의 행, 곧 다음 행으로 옮긴다. 기존 복구에 없는 분기(마지막 행이면 이전 행, 그룹이 비면 그룹 머리)만 그 복구에 더한다. `refused`면 행이 남으므로 포커스는 버튼에 그대로 있다. POSTMORTEM 2026-10-25 "Removing the remembered row removed a card from keyboard navigation": "derive roving focus from the current item set" — `active`는 지금처럼 현재 행 집합에서 계산되므로 남는다.
 - 대화: 손대지 않는다(spec 결정 7). 'canvas left the project' 규칙이 그대로 적용된다.
 
 ### Alert Dialog
 
-- first run Stop 대화상자(`Onboarding.tsx` 128행)와 `SettingsDialog.tsx` 10행의 모양을 쓴다: `<dialog className="doan-dialog" data-ui-size="compact" role="alertdialog">`, `aria-labelledby`·`aria-describedby`, `showModal()`, `onCancel`에서 `preventDefault` 뒤 취소 처리, 처음 포커스 Cancel(`autoFocus`). 흐름은 Remove 확인(`App.tsx` 1280~1284행, 이 대화상자는 `aria-label`만 있다)과 같다.
-- App의 `modal`(`App.tsx` 655행)에 이 대화상자를 넣는다. 그래야 토스트 타이머가 멈추고(`toast.setModal`), native `menu:state`의 modal 값과 `locked()`가 맞고, 닫힐 때 `modalClosed()`가 `beforeModal`로 포커스를 돌린다. Remove 확인과 같은 방식이다.
+- first run Stop 대화상자(`Onboarding.tsx` 128행)와 `SettingsDialog.tsx` 10행의 모양을 쓴다: `<dialog className="doan-dialog" data-ui-size="compact" role="alertdialog">`, `aria-labelledby`·`aria-describedby`, `showModal()`, `onCancel`에서 `preventDefault` 뒤 취소 처리, 처음 포커스 Cancel(`autoFocus`). 흐름은 Remove 확인(`App.tsx`의 `run.removing` 대화상자, `aria-label`만 있다)과 같다.
+- App의 `modal`(`wizard`·`setup`·`quickOpen`·`homeRun.current.removing`)에 이 대화상자를 넣는다. 그래야 토스트 타이머가 멈추고(`toast.setModal`), native `menu:state`의 modal 값과 `locked()`가 맞고, 닫힐 때 `modalClosed()`가 `beforeModal`로 포커스를 돌린다. Remove 확인과 같은 방식이다.
 - 대화상자가 열린 동안 그 행이 `rows`에서 사라지면 대화상자를 닫는다. 열린 캔버스였다면 기존 '캔버스가 없어졌다' 토스트 하나로 끝난다. `trashBlock`은 대화상자에서도 live로 다시 계산한다. 참이 되면 Move to Trash 버튼을 `aria-disabled`로 바꾸고 이유 줄을 본문 아래에 보인다. main 재확인은 그대로 경계다.
 - 버튼 크기: DESIGN 'Dialogs'는 대화상자 동작을 기본 크기로 둔다. Remove 확인은 `sm`이라 DESIGN 'Open decisions' 'Remove confirmation actions'에서 미정이다. 이 대화상자는 DESIGN 'Dialogs' 규칙(기본 크기)을 따른다. 초안에서 확인한다.
 - 위험 동작 색: 앱에 destructive 변형이 없다(`ds/*.css`에 `danger` 없음). Remove 확인처럼 `prominent`를 쓴다. 새 변형을 만들지 않는다.
@@ -267,7 +272,7 @@ main:
 ## 규약 영향
 
 - ARCHITECTURE §1 'Conventions'·'Agent rules'·`doan check` 규칙: 바뀌지 않는다. 새 check 규칙 없음.
-- 가이드(`skill.md`): 명령 목록에 `doan export` 한 줄과 "Run it only when the user asks to export or share a canvas as a file; never write the result inside .doan/." 같은 뜻의 문장. 결과에 `external`이 있으면 사용자에게 인터넷이 필요하다고, `links`가 있으면 그 링크는 결과 파일에서 동작하지 않는다고 말하라는 한 줄. 문구는 T 단계에서 정하고 `skill_test.go`가 고정한다.
+- 가이드(`skill.md`, 링크 2·3이 고친 위): 출력 예산(`skill_test.go` `skillOutputBudget` 21,600 B)까지 약 134 B 남았으므로 짧게 쓰고 예산을 올리지 않는다(tasks T8). 명령 목록에 `doan export` 한 줄과 "Run it only when the user asks to export or share a canvas as a file; never write the result inside .doan/." 같은 뜻의 문장. 결과에 `external`이 있으면 사용자에게 인터넷이 필요하다고, `links`가 있으면 그 링크는 결과 파일에서 동작하지 않는다고 말하라는 한 줄. 문구는 T 단계에서 정하고 `skill_test.go`가 고정한다.
 
 ## 결정 영향
 
@@ -287,7 +292,7 @@ main:
 ## `/agent-eval`
 
 - 가이드와 CLI가 바뀌므로 AGENTS.md 'Workflow'대로 `/agent-eval`을 돈다.
-- 가이드가 에이전트에게 export를 가르치므로 새 시나리오 하나(`X1`, id는 T11에서 기존 id와 겹치지 않게 정한다): seed repo의 캔버스 하나와 `.doan/assets/` 이미지, token CSS. 프롬프트 "이 캔버스를 데스크톱에 공유할 HTML 파일로 내보내 줘"에 해당하는 요청. 검사: `doan export` 호출(`ctx.calls`), 출력 파일이 repo 밖에 있고 repo 상대 참조가 남지 않음, repo 작업 트리에 변경 없음, 에이전트가 HTML을 손으로 합치지 않음.
+- 가이드가 에이전트에게 export를 가르치므로 새 시나리오 하나(`X1`; 기존 R8c·R9·W3b·W4 등과 겹치지 않는다): seed repo의 캔버스 하나와 `.doan/assets/` 이미지, token CSS. 프롬프트 "이 캔버스를 데스크톱에 공유할 HTML 파일로 내보내 줘"에 해당하는 요청. 검사: `doan export` 호출(`ctx.calls`), 출력 파일이 repo 밖에 있고 repo 상대 참조가 남지 않음, repo 작업 트리에 변경 없음, 에이전트가 HTML을 손으로 합치지 않음.
 - 삭제는 CLI·가이드가 바뀌지 않으므로 시나리오가 없다.
 - 기존 시나리오는 가이드 줄 하나가 더해질 뿐이라 기존 round와 비교만 한다(새 시나리오 round에서 같이 돈다).
 
