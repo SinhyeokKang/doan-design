@@ -51,6 +51,7 @@ import { canvasConversationRows } from "./canvasConversationRows";
 import type { CanvasList } from "./CanvasConversationList";
 import { QuickOpen } from "./QuickOpenDialog";
 import { missingCanvasMessage, openLinkRefusal, removedCanvasMessage, unavailableCanvasMessage, type SearchResult } from "./quickOpen";
+import { decideOpen, type OpenPage } from "./openDecision";
 import { restorePlan, RESTORE_LOADING_WAIT_MS } from "../restore/restorePlan";
 import { withoutRoots, type HomeMemory, type UiState, type ShellProject } from "../restore/uiState";
 import { emptyComposer } from "./HomeComposerView";
@@ -1016,19 +1017,20 @@ export function App() {
   // first through its own cancel event, the path Escape and Cancel take; one that refuses (it is busy) keeps the link.
   function openLink(result: OpenLinkResult) {
     if (result.kind !== "navigate") { live.current.toast.show(openLinkRefusal(result)); return; }
-    if (locked()) return;
-    const dialog = topDialog();
-    if (dialog) {
-      // Synchronous, so the dialog's close has rendered before the check below.
-      flushSync(() => { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); });
-      if (topDialog()) return;
-    }
+    const decision = decideOpen(result, openPage());
+    if (decision.kind === "busy") return;
     cancelRestore();
-    const target = entriesRef.current.find(entry => entry.path === result.root);
-    const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.canvas) : undefined;
     const unavailable = (entry: FolderEntry | undefined) => live.current.toast.show(unavailableCanvasMessage(entry, result.canvas));
-    if (!row) { unavailable(target); return; }
-    controller.current?.openCanvas(result.root, row, result.frame, { unavailable, opened: () => completeNavigation(result.root) });
+    if (decision.kind === "canvas_not_found") { unavailable(decision.entry); return; }
+    controller.current?.openCanvas(result.root, decision.row, result.frame, { unavailable, opened: () => completeNavigation(result.root) });
+  }
+  function openPage(): OpenPage {
+    return { locked: locked(), firstRun: wizard !== null, entries: () => entriesRef.current, dismissDialogs() {
+      const dialog = topDialog();
+      // Synchronous, so the dialog's close has rendered before the check below.
+      if (dialog) flushSync(() => { dialog.dispatchEvent(new Event("cancel", { cancelable: true })); });
+      return !topDialog();
+    } };
   }
   // An Overview that was open when its project turned into a problem stays, its thread readable and Send held; one
   // entered while the project is a problem shows the problem screen (buzz-project spec decision 12).

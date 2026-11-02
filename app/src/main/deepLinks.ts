@@ -25,18 +25,33 @@ interface LinkFolder {
   canvases?: readonly { path: string }[];
   git?: { common: string; main?: string };
 }
-export function resolveOpenLink(text: string, entries: readonly LinkFolder[]): OpenLinkResult {
-  const link = parseOpenLink(text);
-  if (!link) return { kind: "malformed" };
+// The checks a doan:// link and a `doan open` request share (ARCHITECTURE §7 'Deep links' 'Security boundary'): an
+// exactly registered root and a listed canvas. A root still loading is not a list refusal; the caller decides what a
+// read in progress means. `project` is the sidebar card name.
+export type OpenTarget = ({ kind: "listed" } & OpenLink) | { kind: "unregistered-root" } | { kind: "loading"; project: string } | { kind: "canvas-not-listed"; project: string };
+export function resolveOpenTarget(link: OpenLink, entries: readonly LinkFolder[]): OpenTarget {
   const entry = entries.find(entry => entry.path === link.root);
   if (!entry) return { kind: "unregistered-root" };
-  if (entry.kind === "list" && entry.canvases?.some(row => row.path === link.canvas)) return { kind: "navigate", ...link };
-  // Match the sidebar card name, including worktrees whose main root is not itself registered.
+  if (entry.kind === "list" && entry.canvases?.some(row => row.path === link.canvas)) return { kind: "listed", ...link };
+  return { kind: entry.kind === "loading" ? "loading" : "canvas-not-listed", project: projectName(entry, entries) };
+}
+// Match the sidebar card name, including worktrees whose main root is not itself registered.
+function projectName(entry: LinkFolder, entries: readonly LinkFolder[]): string {
   const key = (row: LinkFolder) => (row.kind === "list" ? row.git?.common : row.lastCommon) ?? row.path;
   const group = entries.filter(row => key(row) === key(entry));
   const main = group.find(row => row.kind === "list" && row.git?.main)?.git?.main;
   const path = main ?? group[0]!.path;
-  return { kind: "canvas-not-listed", project: path.split("/").filter(Boolean).at(-1) ?? path };
+  return path.split("/").filter(Boolean).at(-1) ?? path;
+}
+// A link reaches here only once no root is loading (index.ts readyOpenLinks); one that was re-read since is refused as
+// unlisted, as it always was.
+export function resolveOpenLink(text: string, entries: readonly LinkFolder[]): OpenLinkResult {
+  const link = parseOpenLink(text);
+  if (!link) return { kind: "malformed" };
+  const target = resolveOpenTarget(link, entries);
+  if (target.kind === "listed") return { ...target, kind: "navigate" };
+  if (target.kind === "loading") return { kind: "canvas-not-listed", project: target.project };
+  return target;
 }
 
 export function openLinkQueue(deliver: (url: string) => void): { receive(url: string): void; ready(): void } {
