@@ -98,7 +98,7 @@ const noOnboarding = async (): Promise<OnboardingResponse> => STARTED;
 
 async function start(selection: Selection | null = SELECTION, onboarding: (request: OnboardingRequest) => Promise<OnboardingResponse> = noOnboarding): Promise<Runtime> {
   userData = await mkdtemp(join(tmpdir(), "doan-runtime-test-"));
-  runtime = await startRuntime(userData, { isOpen: (root) => root === ROOT, selection: () => selection, onboarding });
+  runtime = await startRuntime(userData, { isOpen: (root) => root === ROOT, selection: () => selection, work: () => {}, onboarding });
   return runtime;
 }
 
@@ -173,7 +173,7 @@ test("startRuntime replaces an older 0644 runtime.json and a stale temp file", a
   // Explicit, so the starting mode does not depend on the umask.
   await chmod(file, 0o644);
   await chmod(temp, 0o644);
-  runtime = await startRuntime(userData, { isOpen: () => true, selection: () => null, onboarding: noOnboarding });
+  runtime = await startRuntime(userData, { isOpen: () => true, selection: () => null, work: () => {}, onboarding: noOnboarding });
   expect((await stat(file)).mode & 0o777).toBe(0o600);
   expect(JSON.parse(await readFile(file, "utf8"))).toEqual(runtimeFile(runtime.socket, runtime.token));
   expect(await readdir(userData)).toEqual(["runtime.json"]);
@@ -324,9 +324,9 @@ test("a v2 request outside the schema is refused before the token and the servic
   expect(onboarding).not.toHaveBeenCalled();
 });
 
-test("an older client version gets the v1 refusal it already understands", async () => {
+test("an unknown client version gets the v1 refusal it already understands", async () => {
   const { socket, token } = await start();
-  expect(await ask(socket, `${JSON.stringify({ v: 3, token, op: "start" })}\n`)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
+  expect(await ask(socket, `${JSON.stringify({ v: 4, token, op: "start" })}\n`)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
 });
 
 test("a failing onboarding service answers a generic v2 refusal without its message", async () => {
@@ -360,7 +360,7 @@ test("a v2 answer slower than the socket limit is cut off, not awaited", async (
 
 test("a request whose answer throws is refused at once rather than left to the deadline", async () => {
   userData = await mkdtemp(join(tmpdir(), "doan-runtime-test-"));
-  runtime = await startRuntime(userData, { isOpen: () => { throw new Error("broken"); }, selection: () => null, onboarding: noOnboarding });
+  runtime = await startRuntime(userData, { isOpen: () => { throw new Error("broken"); }, selection: () => null, work: () => {}, onboarding: noOnboarding });
   const { text, ms } = await exchange(runtime.socket, `${request(runtime.token)}\n`);
   expect(JSON.parse(text)).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
   expect(ms).toBeLessThan(1000);

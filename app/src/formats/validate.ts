@@ -7,7 +7,7 @@ import configSchema from "../../../schema/config.v1.schema.json";
 import envelopeSchema from "../../../schema/cli-envelope.v1.schema.json";
 import runtimeSchema from "../../../schema/runtime.v1.schema.json";
 import sessionsSchema from "../../../schema/sessions.v1.schema.json";
-import type { CommentEvent, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketRequest, SocketResponse } from "./types";
+import type { WorkRequest, WorkResponse, CommentEvent, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketRequest, SocketResponse } from "./types";
 
 const ajv = new Ajv2020();
 
@@ -33,7 +33,7 @@ export const validateSocketResponse = load<SocketResponse>(`${idOf(appSocketSche
 export const validateSelection = load<Selection>(`${idOf(appSocketSchema)}#/$defs/selection`);
 export const validateOnboardingRequest = load<OnboardingRequest>(`${idOf(appSocketV2Schema)}#/$defs/request`);
 export const validateOnboardingResponse = load<OnboardingResponse>(`${idOf(appSocketV2Schema)}#/$defs/response`);
-export const validateWorkRequest = load(`${idOf(appSocketV3Schema)}#/$defs/request`);
-export const validateWorkResponse = load(`${idOf(appSocketV3Schema)}#/$defs/response`);
+export const validateWorkRequest = load<WorkRequest>(`${idOf(appSocketV3Schema)}#/$defs/request`);
+export const validateWorkResponse = load<WorkResponse>(`${idOf(appSocketV3Schema)}#/$defs/response`);
 
 export const validateSessionRecord = load(idOf(sessionsSchema));

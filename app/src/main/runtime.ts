@@ -4,8 +4,8 @@ import { chmod, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
-import { validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
+import type { WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
+import { validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
 
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
 // and the selection, and owns the app lifecycle around this.
@@ -18,6 +18,7 @@ export interface ActiveState {
   selection(): Selection | null;
 }
 export interface RuntimeState extends ActiveState {
+  work(request: WorkRequest): void;
   // Called only with a schema-valid v2 request whose token matched. It must answer quickly: long work answers with
   // an operation id, since the connection is cut at the 2 s deadline.
   onboarding(request: OnboardingRequest): Promise<OnboardingResponse>;
@@ -79,11 +80,22 @@ function onboardingError(code: "bad_request" | "bad_token", message: string): On
   return { v: 2, ok: false, error: { code, message } };
 }
 
-// Dispatches on the numeric version first: v1 keeps its reader and its replies, including the bad_request an unknown
-// version gets. A v2 reply never carries state before the token matched.
-export async function answerLine(line: string, token: string, state: RuntimeState): Promise<SocketResponse | OnboardingResponse> {
+function workError(code: "bad_request" | "bad_token" | "project_not_open", message: string): WorkResponse {
+  return { v: 3, ok: false, error: { code, message } };
+}
+
+// Unknown versions keep the v1 refusal. No version exposes state before its token matched.
+export async function answerLine(line: string, token: string, state: RuntimeState): Promise<SocketResponse | OnboardingResponse | WorkResponse> {
   let value: unknown;
   try { value = JSON.parse(line); } catch { value = null; }
+  if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 3) {
+    if (!validateWorkRequest(value)) return workError("bad_request", "The request is not an app-socket v3 request.");
+    if (!tokenMatches(value.token, token)) return workError("bad_token", "The token does not match this app.");
+    if (!state.isOpen(value.root)) return workError("project_not_open", "The project is not open in Doan.");
+    if (value.action === "start" && !/^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
+    try { state.work(value); return { v: 3, ok: true }; }
+    catch (error) { console.error("doan: work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
+  }
   if (typeof value !== "object" || value === null || Array.isArray(value) || Reflect.get(value, "v") !== 2) return answerRequest(line, token, state);
   if (!validateOnboardingRequest(value)) return onboardingError("bad_request", "The request is not an app-socket v2 request.");
   if (!tokenMatches(value.token, token)) return onboardingError("bad_token", "The token does not match this app.");
@@ -102,7 +114,7 @@ function serve(connection: Socket, token: string, state: RuntimeState): void {
   let done = false;
   const deadline = setTimeout(() => connection.destroy(), LINE_WAIT_MS);
   // A v2 answer may arrive after the deadline destroyed the connection; the work it started goes on regardless.
-  const reply = (response: SocketResponse | OnboardingResponse) => {
+  const reply = (response: SocketResponse | OnboardingResponse | WorkResponse) => {
     done = true;
     if (!connection.destroyed) connection.end(`${JSON.stringify(response)}\n`);
   };
