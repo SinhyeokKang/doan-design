@@ -172,23 +172,23 @@ test("App subscribes to links first and says it is ready only after the restore 
 test("a link opens its canvas as Quick Open does and moves to its frame with no toast when the frame is missing", async () => {
   await start();
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: B, frame: "pricing" } as never); render();
-  const call = harness.controller!.openCanvas.mock.lastCall!;
+  const call = harness.controller!.openCanvas!.mock.lastCall!;
   expect(call.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), "pricing"]);
   expect(call[3]).not.toHaveProperty("found");
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: A } as never); render();
-  expect(harness.controller!.openCanvas.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: A }), undefined]);
+  expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: A }), undefined]);
   expect(harness.toast.show).not.toHaveBeenCalled();
   expect(doan.setSelection).not.toHaveBeenCalled();
 });
 
 test("a refused link shows one toast with its reason and no action, and moves nowhere", async () => {
   await start();
-  const before = harness.controller!.openCanvas.mock.calls.length;
+  const before = harness.controller!.openCanvas!.mock.calls.length;
   listeners.openLink!({ kind: "malformed" } as never); render();
   expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t open the link. It isn’t a Doan canvas link.");
   listeners.openLink!({ kind: "unregistered-root" } as never); render();
   expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t open the link. Its project isn’t in Doan. Add it from Add Projects, then open the link again.");
   listeners.openLink!({ kind: "canvas-not-listed", project: "acme-web" } as never); render();
   expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t open the link. The canvas isn’t in acme-web.");
-  expect(harness.controller!.openCanvas.mock.calls.length).toBe(before);
+  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
