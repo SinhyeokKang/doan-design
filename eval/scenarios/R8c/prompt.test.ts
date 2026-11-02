@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { turnPrompt } from "./turn-prompt.ts";
+import { turnPrompt } from "../../lib/turn-prompt.ts";
 
 // prompt.md is what the app sends for turn.json: turnPrompt's output with `{{repo}}`
 // as the root, which the runner fills in. It is checked in because the runner reads

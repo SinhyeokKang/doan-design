@@ -1,6 +1,6 @@
 import type { Checks } from "../../lib/types.ts";
 import { clean, inspect, text } from "./inspect.ts";
-import { finalAnswer } from "./answer.ts";
+import { finalAnswer } from "../../lib/answer.ts";
 
 const checks: Checks = ctx => {
   const path = ".doan/canvases/h4.html", log = ".doan/comments/settings-board.jsonl";

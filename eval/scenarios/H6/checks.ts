@@ -1,5 +1,5 @@
 import type { Checks } from "../../lib/types.ts";
-import { finalAnswer } from "../H4/answer.ts";
+import { finalAnswer } from "../../lib/answer.ts";
 import { clean, element, inspect, reviewState, text } from "../R1/inspect.ts";
 
 export const UPGRADE = "cmt_3f6b1c2e-8a4d-4c71-9e2f-0b5d7a9c1e01";

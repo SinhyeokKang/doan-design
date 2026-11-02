@@ -20,3 +20,11 @@ export function finalAnswer(transcript: string): string {
   // Never turn a JSON tool result (including a quoted guide) into answer evidence.
   return toolOutput ? "" : prose;
 }
+
+// Markdown that a reader sees as prose: fenced blocks and inline code spans removed, because a link inside code is
+// shown as text, not drawn as a link (R9 scores only links the app would draw).
+export function withoutCode(markdown: string): string {
+  return markdown
+    .replace(/^\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\s*\1\s*$/gm, "")
+    .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, "");
+}

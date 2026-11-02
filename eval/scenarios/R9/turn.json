@@ -1,0 +1,8 @@
+{
+  "text": "In {{1}}, change the heading to \"Billing details\". Rename {{2}} to \"Save changes\". Then tell me where you made each change.",
+  "anchors": [
+    { "frame": { "id": "billing-form", "title": "Billing" } },
+    { "frame": { "id": "profile-form", "title": "Profile" }, "element": { "doanId": "save-profile", "selector": "[data-doan-id=\"save-profile\"]", "text": "Save", "tag": "button" } }
+  ],
+  "canvas": { "path": ".doan/canvases/account.html", "id": "account" }
+}

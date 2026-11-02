@@ -1,0 +1,1 @@
+I changed the heading in [Billing](doan:account/frame/billing-form) to "Billing details" and renamed [Save](doan:account/element/save-profile) to "Save changes". doan check reports no errors.

@@ -1,0 +1,1 @@
+I changed the heading in the Billing frame to "Billing details" and renamed the Save button to "Save changes" ([Billing](doan://open?root={{repo}}&canvas=account&frame=billing-form), [Save](doan:account/element/save)). Want me to open the canvas in Doan?

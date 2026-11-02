@@ -1,5 +1,5 @@
 import type { Checks } from "../../lib/types.ts";
-import { finalAnswer } from "../H4/answer.ts";
+import { finalAnswer } from "../../lib/answer.ts";
 
 const checks: Checks = ctx => {
   const answer = finalAnswer(ctx.transcript);
