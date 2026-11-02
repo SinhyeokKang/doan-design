@@ -41,3 +41,5 @@
 ## 기록
 
 - 2026-11-03 Run `run_f6208075f892`. A1: task `task_106c3583acf7`, dispatch `ctx_cbbbc7bfc61b`, worktree `project-settings-a1`(브랜치 `SinhyeokKang/feat-project-settings-a1`), launch.effective claude sonnet high. B: task `task_e58f8c7d394e`, dispatch `ctx_cbbd464d3b06`, worktree `project-settings-b`(브랜치 `SinhyeokKang/feat-project-settings-task`), launch.effective claude sonnet medium. 둘 다 30ece8ae에서 시작했다.
+- B 완료: 2870548f를 3e13d1ed로 통합했다(`go test ./...`·`go vet ./...` 통과 보고). 리뷰는 지휘자가 했다. diff가 문서 다섯 곳뿐이라 서브에이전트 대신 다섯 사실을 코드와 직접 대조했다(`init.go:160`의 `.gitattributes` 두 줄, `onboarding_test.go:244`의 `--repo` 거부, `service.ts`의 `{revision, providers}`). 🔴 0. B 작업자는 release했다(브랜치 끝 2870548f).
+- E: Claude Sonnet medium(task `task_8b0074071b55`, dispatch `ctx_aa0ddf45a84e`, worktree `project-settings-e`)로 3e13d1ed 위에서 시작했다.
