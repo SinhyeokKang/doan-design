@@ -93,7 +93,7 @@ async function panel(patch: Partial<CanvasConversationProps> = {}) {
       run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme", entry: ENTRY,
       list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
       onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
-      onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), ...patch,
+      onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], ...patch,
     };
     effects.length = 0;
     renderToStaticMarkup(<TooltipProvider><CanvasConversation {...props} /></TooltipProvider>);

@@ -83,7 +83,11 @@ test("a terminal session still working holds its choice with the reason; the com
   expect(card).toContain("<strong>Continue the Codex session from your terminal</strong>");
   const id = card.match(/<small id="([^"]+)">Still working in your terminal\. You can continue it when it finishes\.<\/small>/)?.[1];
   expect(id).toBeTruthy();
-  expect(card).toMatch(new RegExp(`<input type="radio" name="canvas-resume" disabled="" aria-describedby="${id}"/>`));
+  const radio = card.match(/<input [^>]*>/)?.[0] ?? "";
+  expect(radio).toContain('name="canvas-resume"');
+  expect(radio).toContain('disabled=""');
+  expect(radio).toContain(`aria-describedby="${id}"`);
+  expect(radio).not.toContain("checked");
   expect(card).not.toContain("Linked by doan check");
   expect(out).toMatch(/<input type="radio" name="canvas-resume" checked=""\/><span class="ob-radio" aria-hidden="true"><\/span><span class="ob-choice-text"><strong>Start a new conversation<\/strong>/);
   expect(out).not.toContain("set by the terminal session");
@@ -173,7 +177,7 @@ test("New while the list loads holds Send after the session answers, until the l
   await flush();
   const draw = () => renderToStaticMarkup(<TooltipProvider>{<CanvasConversation run={run} support={support} target={{ root: ROOT, canvas: CANVAS }} canvasName="checkout" project="acme-web" entry={ENTRY}
     list={lists.get(ROOT)!} seen={new Set()} prefs={null} defaults={null} now={Date.parse("2026-11-01T15:00:00")} blocked={null} frames={[]} locateDisabled={false} arrival={null}
-    onArrived={vi.fn()} onLocate={vi.fn(async () => "shown" as const)} pick={PICK} composerLink={{ current: null }} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} /> as ReactElement}</TooltipProvider>);
+    onArrived={vi.fn()} onLocate={vi.fn(async () => "shown" as const)} pick={PICK} composerLink={{ current: null }} onSettings={vi.fn()} onNotice={vi.fn()} onOpenProjectConversation={vi.fn()} work={[]} /> as ReactElement}</TooltipProvider>);
   expect(run.view()).toMatchObject({ kind: "new" });
   expect(draw()).toMatch(/aria-label="Send"[^>]*disabled=""/);
   lists.set(ROOT, [summary("now", { phase: "running", working: true })]);
@@ -201,7 +205,7 @@ test("a promotion while the panel is open keeps New conversation with the notice
   const props: CanvasConversationProps = {
     run, support: new DockedSupport(() => {}), target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY,
     list, seen: new Set(), prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
-    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: PICK, composerLink: { current: null }, onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [],
   };
   const out = renderToStaticMarkup(<TooltipProvider><CanvasConversation {...props} /></TooltipProvider>);
   expect(canvasConversationTitle(run, list).title).toBe("New conversation");
