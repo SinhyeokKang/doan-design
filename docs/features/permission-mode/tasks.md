@@ -24,7 +24,7 @@
 
 ## D. 초안
 
-- [ ] D1. `/design-draft`: Home 도구 줄과 DockedComposer tray의 권한 모드 피커(닫힘, 열림과 항목 설명, Full access 경고 표시, 터미널 세션 고정 트리거, 320px 패널), Settings 'New conversations'의 Permission 행. 사용자가 앱에서 초안을 확인한다.
+- [x] D1. `/design-draft`: Home 도구 줄과 DockedComposer tray의 권한 모드 피커(닫힘, 열림과 항목 설명, Full access 경고 표시, 터미널 세션 고정 트리거, 320px 패널), Settings 'New conversations'의 Permission 행. 사용자가 앱에서 초안을 확인한다.
   - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`에 초안이 보인다, 사용자 확인.
 
 ── commit: `docs(design): permission-mode draft` ──

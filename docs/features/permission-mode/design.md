@@ -73,6 +73,7 @@ Doan 연결 대화는 Doan 전용 profile에서 돈다(ARCHITECTURE §7 'Agent a
 - 캔버스: `.doan/canvases/permission-mode.html`, id `permission-mode`.
 - frame: `home-toolrow`(Home 도구 줄 닫힘·Full access), `picker-menu`(열린 메뉴와 항목 설명), `docked-tray`(Overview·캔버스 패널 tray, 폭 단계), `docked-fixed`(터미널 세션 고정 트리거), `plan-approved`(Plan 승인 뒤 피커 전환), `settings-row`(New conversations의 Permission 행).
 - Home·Settings·대화 패널의 기존 부분은 코드대로 복사한다.
+- 사용자가 초안(`6e4be0f7`)을 확정했다. 메뉴 항목 설명 문구와 모드 아이콘(shield · file-pen-line · eye · shield-alert)도 초안대로 쓴다.
 
 ## 폭이 모자랄 때 (DockedComposer tray)
 
