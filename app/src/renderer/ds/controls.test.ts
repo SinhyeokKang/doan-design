@@ -220,3 +220,16 @@ test("a focusable option row fills like a highlighted menu row on hover", () => 
   const css = read("./surfaces.css");
   expect(rule(css, '.doan-menu-item[role="option"][tabindex]:hover')).toBe("background: var(--affordance-floating-hover);");
 });
+
+// The sidebar is transparent over the window's native vibrancy, which a web backdrop-filter cannot sample: under the
+// shared glass the rows below stayed crisp at the 10% the fill lets through, so the sidebar's project menu reads as
+// having no blur. It takes the opaque popover fill; every other dropdown keeps the shared glass.
+test("the sidebar project menu is opaque while every other dropdown keeps the glass", () => {
+  const styles = read("../styles.css");
+  expect(rule(styles, ".shell-side-menu.doan-floating")).toBe("background: var(--surface-popover); backdrop-filter: none;");
+  const sidebar = read("../ShellSidebar.tsx");
+  expect(sidebar).toContain('className="menu doan-floating doan-menu shell-project-menu shell-side-menu"');
+  // The Home and Overview worktree menus open over the opaque panel, where the glass works.
+  for (const file of ["../HomeComposerView.tsx", "../ProjectOverview.tsx"]) expect(read(file)).not.toContain("shell-side-menu");
+  expect(read("./surfaces.css")).toContain(".doan-floating { background: var(--surface-elevated-glass); backdrop-filter: blur(var(--blur-sm)); }");
+});
