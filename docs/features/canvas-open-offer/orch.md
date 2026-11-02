@@ -20,9 +20,9 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T2, T4 | `schema/app-socket.v4.schema.json`·`schema/fixtures/app-socket-v4/`·`schema/embed.go`, `cli/internal/formats/`, `app/src/formats/validate.ts`·`types.ts`·`validate.test.ts`, `cli/internal/cli/`의 `open.go`·`open_rules.go`·`open_test.go`·`onboarding.go`·`onboarding_test.go`·`run.go`·`run_test.go`·`args.go`·`args_test.go` | 없음 | Claude Sonnet high: 정해진 계약을 Go로 옮기는 일이 대부분이다. bootstrap 분리는 기존 테스트가 지키고, 판단이 무거운 지점은 리뷰에서 가른다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`(T1) | 대기 |
-| B | T3, T5 | `app/src/main/deepLinks.ts`와 테스트, `app/src/main/runtime.ts`·새 `runtime.open.test.ts`, `app/src/main/index.ts`, `app/src/preload/`, `app/src/renderer/App.tsx`와 새 renderer 판정 helper·각 테스트 | T3 없음. T5는 A의 T1 커밋 통합 뒤 | Claude Opus high: main↔renderer 요청-응답, 요청 id, timeout, 준비 판정이 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck | 대기 |
-| C | T7, T8, T9 | `app/src/main/agentSetup/`, `app/src/main/conversation/prompt.ts`와 테스트, `cli/internal/cli/skill.md`·`skill_test.go`, `eval/` | T7·T8 없음. T9의 W4 self-test는 A 통합 뒤 | Claude Sonnet high: 가이드 문구를 예산 안에서 쓰고 eval 시나리오를 만든다. 사실은 spec·design에 있다 | `go test ./...`, `npm --prefix app test`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 대기 |
+| A | T1, T2, T4 | `schema/app-socket.v4.schema.json`·`schema/fixtures/app-socket-v4/`·`schema/embed.go`, `cli/internal/formats/`, `app/src/formats/validate.ts`·`types.ts`·`validate.test.ts`, `cli/internal/cli/`의 `open.go`·`open_rules.go`·`open_test.go`·`onboarding.go`·`onboarding_test.go`·`run.go`·`run_test.go`·`args.go`·`args_test.go` | 없음 | Claude Sonnet high: 정해진 계약을 Go로 옮기는 일이 대부분이다. bootstrap 분리는 기존 테스트가 지키고, 판단이 무거운 지점은 리뷰에서 가른다 | `go test ./...`, `go vet ./...`, `npm --prefix app test`(T1) | 진행 |
+| B | T3, T5 | `app/src/main/deepLinks.ts`와 테스트, `app/src/main/runtime.ts`·새 `runtime.open.test.ts`, `app/src/main/index.ts`, `app/src/preload/`, `app/src/renderer/App.tsx`와 새 renderer 판정 helper·각 테스트 | T3 없음. T5는 A의 T1 커밋 통합 뒤 | Claude Opus high: main↔renderer 요청-응답, 요청 id, timeout, 준비 판정이 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck | 진행 |
+| C | T7, T8, T9 | `app/src/main/agentSetup/`, `app/src/main/conversation/prompt.ts`와 테스트, `cli/internal/cli/skill.md`·`skill_test.go`, `eval/` | T7·T8 없음. T9의 W4 self-test는 A 통합 뒤 | Claude Sonnet high: 가이드 문구를 예산 안에서 쓰고 eval 시나리오를 만든다. 사실은 spec·design에 있다 | `go test ./...`, `npm --prefix app test`, `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` | 진행 |
 | RA·RB·RC | 각 배치 리뷰 | 읽기만 | 각 배치 | Claude 서브에이전트: A·C는 Sonnet, B는 Opus | `/code-review` 보고서 | 대기 |
 | D | T6, T10 | `.scratch/`, `docs/USABILITY-EVAL.md`, eval 결과로 고칠 가이드 문구(그때 C는 끝나 있다) | A·B·C 통합 | Claude Sonnet high: 격리 probe와 정해진 eval 명령을 돌리고 기록한다 | probe 완료 표식·exit 0, real-state 전후 같음, eval 라운드 기록 | 대기 |
 | 지휘자 | T11 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `README.md`, 이 디렉터리 | D | — | `node .agents/skills/verify/scripts/verify.mjs --eval`, 디렉터리 없음 | 대기 |
@@ -37,3 +37,8 @@
 - D는 A·B·C 통합 뒤에 시작한다. 실제 앱 probe와 패키지 빌드는 D만 한다.
 
 ## 기록
+
+- 2026-11-03 Run `run_1457083b873f`. 셋 다 9cb17f46에서 시작했다.
+  - A: task `task_d49957c7e72b`, dispatch `ctx_4182d3932f72`, worktree `canvas-open-offer-a`(브랜치 `SinhyeokKang/feat-canvas-open-offer`), launch.effective claude sonnet high.
+  - B: task `task_a314f4d4fa44`, dispatch `ctx_d31531f856f6`, worktree `canvas-open-offer-b`(브랜치 `SinhyeokKang/feat-canvas-open-offer-2`), launch.effective claude opus high.
+  - C: task `task_7766051f7a77`, dispatch `ctx_4d9116de62c1`, worktree `canvas-open-offer-c`(브랜치 `SinhyeokKang/feat-canvas-open-offer-3`), launch.effective claude sonnet high.
