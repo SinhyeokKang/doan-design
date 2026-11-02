@@ -72,3 +72,14 @@ test("retaining unchanged roots and paths preserves state identity", () => {
   const idle = empty();
   expect(retainWorkRoots(idle, [...idle.roots])).toBe(idle);
 });
+
+test("a capped start renews the existing session without adding its path", () => {
+  const identity = { session: "one", provider: "codex" } as const;
+  let state = empty();
+  for (let i = 0; i < MAX_WORK_PATHS; i++) state = applyWork(state, start({ ...identity, path: `.doan/canvases/${i}.html` }), 0);
+  state = applyWork(state, start({ ...identity, root: "/other" }), 90);
+  expect(workItems(state)).toHaveLength(MAX_WORK_PATHS);
+  expect(workItems(state).every(item => item.root === root)).toBe(true);
+  expect(workItems(expireWork(state, 100, () => 0, 100))).toHaveLength(MAX_WORK_PATHS);
+  expect(workItems(expireWork(state, 190, () => 0, 100))).toEqual([]);
+});
