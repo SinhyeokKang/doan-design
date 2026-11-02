@@ -340,6 +340,22 @@ test("Add File or Folder asks first over the page: the title names the path, Can
   unmount();
 });
 
+test("the Share confirmation shows a picked path inside the worktree repo-relative and one outside absolute (main answers absolute paths)", async () => {
+  await open();
+  for (const [picked, shown] of [[`${ROOT}/design/brand`, "design/brand"], ["/Users/alex/code/design-kit", "/Users/alex/code/design-kit"]] as const) {
+    doan.chooseConfigPath!.mockResolvedValueOnce({ kind: "selected", choiceId: "ch1", path: picked });
+    click("Add File or Folder"); await flush(); render();
+    const dialog = confirmation()!;
+    expect(dialog.props.label).toBe(`Share ${shown} with canvases?`);
+    expect(words(dialog.props.title)).toBe(`Share ${shown} with canvases?`);
+    expect(all(dialog.props.title as ReactNode).some(element => element.type === "code" && element.props.children === shown)).toBe(true);
+    expect(words(dialog.props.description)).toBe(`Canvases in this worktree will be able to read ${shown}.`);
+    (dialog.props.answer as (allow: boolean) => void)(false); render();
+  }
+  expect(doan.writeConfig).not.toHaveBeenCalled();
+  unmount();
+});
+
 test("Share writes the path and Saved shows beside Add File or Folder, not in Token CSS", async () => {
   let finish: (value: unknown) => void = () => {};
   doan.writeConfig!.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));

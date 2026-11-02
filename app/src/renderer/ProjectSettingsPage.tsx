@@ -9,7 +9,7 @@ import { AlertIcon } from "./AlertIcon";
 import { cardRow, groupProjects, ROW_ACTION_LABELS as LABELS, type RowAction } from "./homeCards";
 import { displayPath } from "./projectDisplay";
 import {
-  followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, writeErrorMessage,
+  followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, sharedPathLabel, writeErrorMessage,
   type PageAction, type ProjectSettingsView, type ReadState,
 } from "./projectSettingsRules";
 import { SettingsDialog } from "./SettingsDialog";
@@ -216,6 +216,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
   const status = (section: ConfigKind) => busy === section ? <span className="settings-saved pending" role="status">Saving</span>
     : saved === section ? <span className="settings-saved" role="status"><Check aria-hidden="true" />Saved</span> : null;
   const message = (section: ConfigKind) => error?.section === section && <div className="doan-preference-row-extra settings-msg-row project-settings-msg"><p className="settings-msg error" role="alert"><AlertIcon /><span>{error.message}</span></p></div>;
+  const shared = choice && sharedPathLabel(root, choice.path);
   const removeSection = page?.removeSection && <section>
     <div className="settings-section-header"><div><h2 className="settings-section-title">Remove from Doan</h2></div></div>
     <div className="doan-settings-group" data-layout="rows"><div className="doan-preference-row">
@@ -298,7 +299,7 @@ export function ProjectSettingsPage({ header, sidebar, root: opened, entries, re
           </>}
           {removeSection}
         </div>}
-        {choice && <SettingsDialog title={<>Share <code>{choice.path}</code> with canvases?</>} label={`Share ${choice.path} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code>{choice.path}</code>.</>}
+        {choice && <SettingsDialog title={<>Share <code>{shared}</code> with canvases?</>} label={`Share ${shared} with canvases?`} verb="Share" description={<>Canvases in this worktree will be able to read <code>{shared}</code>.</>}
           answer={allow => { const selected = choice; setChoice(null); if (allow) void write({ root, op: "addServe", choiceId: selected.choiceId }, "serve"); }} />}
       </div>
     </main>

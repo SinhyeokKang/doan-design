@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 import type { FolderEntry } from "../main/view";
 import type { AddPageOrigin } from "./addProjectsNav";
-import { followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, writeErrorMessage, type ProjectSettingsPageView, type ReadState } from "./projectSettingsRules";
+import { followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, sharedPathLabel, writeErrorMessage, type ProjectSettingsPageView, type ReadState } from "./projectSettingsRules";
 
 const list = (path: string): FolderEntry => ({ path, kind: "list", canvases: [], servedRev: 1 });
 const entry = (path: string, kind: "loading" | "uninitialized" | "notFound"): FolderEntry => ({ path, kind });
@@ -140,4 +140,15 @@ test("focus after removing a shared path: the next path's Remove, else Add File 
   expect(projectSettingsFocusAfter({ section: "serve", pressedAlive: false, removed: { path: "a", before: ["a"], after: [] } })).toEqual({ kind: "sharedAdd" });
   // The write may have dropped the next path too: skip to one that remains.
   expect(projectSettingsFocusAfter({ section: "serve", pressedAlive: false, removed: { path: "a", before, after: ["c"] } })).toEqual({ kind: "sharedRemove", path: "c" });
+});
+
+// main's picker returns an absolute path, while the config stores a path inside the worktree repo-relative; the
+// confirmation names the path the way it will be stored. A path outside stays absolute: the config refuses it.
+test("the Share confirmation names a path inside the worktree repo-relative and one outside as picked", () => {
+  expect(sharedPathLabel("/w/a", "/w/a/design/brand")).toBe("design/brand");
+  expect(sharedPathLabel("/w/a", "/w/a/file.css")).toBe("file.css");
+  expect(sharedPathLabel("/w/a", "/w/ab/design")).toBe("/w/ab/design");
+  expect(sharedPathLabel("/w/a", "/w/design-kit")).toBe("/w/design-kit");
+  expect(sharedPathLabel("/w/a", "/w/a")).toBe("/w/a");
+  expect(sharedPathLabel("/w/a", "design/brand")).toBe("design/brand");
 });

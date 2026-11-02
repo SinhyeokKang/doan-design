@@ -101,6 +101,13 @@ export function writeErrorMessage(section: ConfigKind, reply: { kind: "error"; m
   return `${reply.message.replace(/\.?$/, ".")} ${guidance}`;
 }
 
+// The path a Share confirmation names. main's picker answers an absolute path, while the config stores one inside the
+// worktree repo-relative, so the confirmation shows it that way; a path outside stays as picked (the config refuses it,
+// and the failure says where to choose instead).
+export function sharedPathLabel(root: string, path: string): string {
+  return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+}
+
 export type FocusAfterWrite = { kind: "pressed" } | { kind: "tokenPrimary" } | { kind: "sharedAdd" } | { kind: "sharedRemove"; path: string };
 // Where focus goes once the page's controls re-enable (design '포커스'): the button that was pressed while it is still
 // there; else its section's main button: Change or Choose for Token CSS (Clear removes itself), Add File or Folder for
