@@ -65,3 +65,9 @@
   - (1) 실제 앱에서 Locate가 성공하면 페이지가 새 루트로 옮겨 가지 않고 origin으로 닫힌다. 원인은 main `shell.ts`의 `replace(from, to)`가 `onChange(entries())`만 보내고 `{from, root}` focus를 보내지 않는 것이다. 그래서 옛 루트가 목록에서 사라지고 `followProjectSettings`가 `leave`를 돌려준다. A2의 App 테스트는 focus를 직접 주입해서 이 결함을 잡지 못했다. 답: `replace`가 focus를 함께 보내게 고치고, C의 소유 범위에 `shell.ts`와 그 테스트를 더한다. 다른 FolderFocus 사용처가 바뀌지 않는지 확인한다. 근거: spec 완료 조건 5.
   - (2) Share 확인이 main이 돌려준 절대 경로를 보인다. 답: worktree 안 경로는 저장 표기와 같은 상대 경로로, 밖 경로는 절대 경로로 보인다(제목·본문·접근 이름). 근거: 시안과 design.
   - (3) 확인이 열린 동안 뒤 컨트롤을 비활성으로 그린다. 시안 타일은 활성이다. 답: 구현을 시안에 맞춘다. 확인은 `showModal`이라 뒤가 이미 inert이고, 비활성 표시는 사용자 결정이 아니라 구현 선택이었다.
+- C 완료: 커밋 5개를 9bdcab36..7eaf1e75로 통합했다. probe 49/49 통과(exit 0, 완료 표식, real-state 전후 같음), 측정 결함 0·미분류 0이다. 코드 수정 3건(Locate reroot, Share 상대 경로, 확인 중 컨트롤 활성)과 DESIGN 재작성이 들어 있다. 데스크톱이 잠겨 네이티브 입력 항목은 CDP로 대신 확인했다. 시안 `alt-2-page` 계열의 사이드바(260px, Home 행 없음)는 셸의 옛 사본이라 DESIGN에 문서화된 차이로 적었다. 아침 보고에 넣는다.
+- postmortem: Locate가 페이지를 닫던 결함을 기록했다(7a418ab1).
+- RC(C 코드 수정 리뷰, Claude Sonnet 서브에이전트): 🔴 0, 🟡 3. (1) Locate가 이제 focus를 보내서 Home·페이지에서 로드된 루트를 Locate하면 `loadedRoot`가 열린 적 없는 새 루트로 옮겨 간다. (2) 소비되지 않은 오래된 `reroot`가 나중의 Set Up 완료를 엉뚱한 루트로 보낼 수 있다. (3) 확인 뒤 컨트롤의 가드가 `showModal`의 inert에만 기댄다.
+  - 지휘자 판단: (1) 워크스페이스를 열지 않는 Locate는 `loadedRoot`를 옮기지 않는다. 바뀌기 전 동작을 지킨다. (2)·(3)은 이번 PR에서 고친다.
+  - 지휘자 판단: 은퇴한 다이얼로그를 그리는 `.doan/ds/project-settings.html`과 그 DESIGN 행은 지운다. 이 변경이 만든 고아다. `.doan/ds/add-to-serve.html`은 id를 유지한 채 지금의 Share 확인으로 고친다.
+- C 수정 1회차: retain한 C 작업자에게 보냈다(task `task_c85367fd1b27`, dispatch `ctx_d0a5a7200ad3`).
