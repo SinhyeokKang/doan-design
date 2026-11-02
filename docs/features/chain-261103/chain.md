@@ -56,7 +56,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 canvas-hand-tool | Claude Code 세션 ceb45427, worktree `canvas-hand-tool-orch` | 2026-11-03 | PR #75, 병합 a6d35fd2 | 완료 |
-| 2 project-settings | | | | 대기 |
+| 2 project-settings | Claude Code 세션 06b8fea0, worktree `project-settings-orch` | 2026-11-03 | | 진행 중 |
 | 3 canvas-open-offer | | | | 대기 |
 | 4 agent-reply-chips | | | | 대기 |
 | 5 canvas-row-menu | | | | 대기 |
