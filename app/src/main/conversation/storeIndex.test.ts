@@ -196,6 +196,22 @@ describe("home conversation fields in index v2", () => {
       expect(parseIndex(JSON.stringify(copy))).toEqual({ ok: false, code: "invalid" });
     }
   });
+  it("round-trips a chosen permission mode without changing the version", () => {
+    const f = seed(); const store = new ConversationStore(f.root);
+    const modes = (["acceptEdits", "plan", "bypass"] as const).map(permissionMode => ({ ...owned(`mode-${permissionMode.toLowerCase()}`), permissionMode }));
+    store.save([legacy("old"), ...modes]);
+    expect(JSON.parse(readFileSync(f.index, "utf8")).v).toBe(2);
+    expect(new ConversationStore(f.root).list()).toEqual([legacy("old"), ...modes]);
+  });
+  // A later build may add a mode: that one field reads as Default instead of making the whole index invalid.
+  it.each([["a later build's mode", "auto"], ["Default spelled out", "default"], ["a wrong type", 3], ["null", null], ["an empty id", ""]])("reads %s as Default for that entry only and keeps the index valid", (_label, permissionMode) => {
+    const copy = JSON.parse(fixture("index-v2-home.json")); copy.conversations[1].permissionMode = permissionMode;
+    const read = parseIndex(JSON.stringify(copy));
+    if (!read.ok) throw new Error(read.code);
+    const { permissionMode: _dropped, ...expected } = copy.conversations[1];
+    expect(read.entries[1]).toEqual(expected);
+    expect(read.entries[0]).toEqual(copy.conversations[0]);
+  });
   it("keeps a v3 index with the new fields as an unknown version and never overwrites it", () => {
     const future = JSON.stringify({ ...JSON.parse(fixture("index-v2-home.json")), v: 3 });
     expect(parseIndex(future)).toEqual({ ok: false, code: "unknown_version" });

@@ -184,6 +184,21 @@ describe("typed undo journal", () => {
     expect(logs(f)).toEqual(afterLogs); expect(readFileSync(f.index)).toEqual(afterIndex); expect(existsSync(f.journal)).toBe(false);
     expect(restarted.list()).toEqual(c.entries(f.entries));
   });
+  // A later build's mode on an entry must not block recovery: the index stays valid and only that field reads as Default.
+  it.each(["before", "after"] as const)("recovers a start over an index whose entry carries an unknown permission mode (crash %s the rename)", when => {
+    const f = changeFixture(), c = cases.start;
+    const raw = JSON.parse(readFileSync(f.index, "utf8")); raw.conversations[0].permissionMode = "auto"; writeFileSync(f.index, JSON.stringify(raw));
+    const beforeLogs = logs(f), beforeIndex = readFileSync(f.index);
+    const reread = new ConversationStore(f.root).list();
+    expect(reread).toEqual(f.entries);
+    f.store.acceptChange(c.change, c.entries(reread).map(m => m.conversationId === "new" ? { ...m, permissionMode: "plan" as const } : m), c.writes);
+    if (when === "before") writeFileSync(f.index, beforeIndex);
+    writeFileSync(f.journal, hooks.journal);
+    const restarted = new ConversationStore(f.root);
+    expect(existsSync(f.journal)).toBe(false);
+    if (when === "before") { expect(logs(f)).toEqual(beforeLogs); expect(restarted.list()).toEqual(f.entries); }
+    else expect(restarted.list()).toEqual(c.entries(f.entries).map(m => m.conversationId === "new" ? { ...m, permissionMode: "plan" } : m));
+  });
   it("reads an unversioned journal as a start", () => {
     const f = changeFixture(), c = cases.start, beforeLogs = logs(f), beforeIndex = readFileSync(f.index);
     f.store.acceptChange(c.change, c.entries(f.entries), c.writes);

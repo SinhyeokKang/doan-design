@@ -19,6 +19,8 @@ const EXTRA_ROOTS = [
   join(SRC, "renderer/ConversationThread.tsx"), join(SRC, "renderer/DockedComposer.tsx"),
   // buzz-canvas-conversation: the chip field and the picker, which import the shared limits.
   join(SRC, "renderer/anchorField.ts"), join(SRC, "renderer/canvasPicker.ts"),
+  // permission-mode: the common mode ids and rules the picker imports by value.
+  join(SRC, "main/conversation/permissionMode.ts"),
 ];
 
 function entries(): string[] {

@@ -6,6 +6,7 @@ import { canonicalDirectory, openRegular, readRegular, readDescriptor, CONVERSAT
 import { absolutePath, object, sameCanvas } from "./sessions";
 import { anchorTokens, validAnchor } from "./prompt";
 import { validAuthId, validOwner } from "../agentAuth/metadata";
+import { permissionModeId, type PermissionModeId } from "./permissionMode";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { Canvas, ConversationEvent, EventPayload, Runtime } from "./types";
 interface SessionBinding<R> { runtime: R; origin: "resumed" | "new" | "newDesign"; sessionId: string; configDir: string; cwd: string }
@@ -14,9 +15,10 @@ export type ExternalSession = SessionBinding<Runtime>;
 // turn was accepted, so a project conversation binds only to a canvas that appeared after that; fromHome marks a
 // newDesign started from Home, whose turns carry Home's fixed paragraph (entries without it never do). seenSeq is the
 // last seq the person has seen; an entry without it counts as seen, so an upgrade does not light up every conversation.
+// permissionMode is the conversation's chosen mode; Default is stored as no key.
 interface MetadataBase {
   conversationId: string; root: string; canvas?: Canvas; title: string; state: "current" | "archived";
-  model?: string; effort?: string; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
+  model?: string; effort?: string; permissionMode?: Exclude<PermissionModeId, "default">; canvasesAtStart?: Canvas[]; fromHome?: true; seenSeq?: number;
 }
 // Legacy-external conversations keep the shared two-runtime session; doan-owned ones run on an app provider.
 export type ConversationMetadata = MetadataBase & (
@@ -62,7 +64,16 @@ export function parseIndex(text: string): IndexRead {
   const version = raw.v;
   if (version !== 1 && version !== 2) return { ok: false, code: "unknown_version" };
   if (!Array.isArray(raw.conversations) || !validEntries(raw.conversations, version)) return { ok: false, code: "invalid" };
-  return { ok: true, entries: version === 1 ? raw.conversations.map(m => ({ ...m, owner: { kind: "legacy-external" } }) as ConversationMetadata) : raw.conversations };
+  const entries = raw.conversations.map(storedMode);
+  return { ok: true, entries: version === 1 ? entries.map(m => ({ ...m, owner: { kind: "legacy-external" } }) as ConversationMetadata) : entries };
+}
+// Unlike the other known fields, a permission mode this build cannot read (a later build's mode) reads as Default for
+// that entry alone instead of making the index invalid; Default is never wider than the person's own settings.
+function storedMode(m: ConversationMetadata): ConversationMetadata {
+  const stored: unknown = m.permissionMode;
+  if (!("permissionMode" in m) || (permissionModeId(stored) && stored !== "default")) return m;
+  const { permissionMode: _unknown, ...rest } = m;
+  return rest as ConversationMetadata;
 }
 function payload(value: Record<string, unknown>): value is Record<string, unknown> & EventPayload {
   switch (value.type) {
