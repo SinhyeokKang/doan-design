@@ -31,6 +31,7 @@
 - O14 (지휘자 판단): 머지 전 리뷰에서 잡은 결함은 POSTMORTEM에 올리지 않는다. F가 찾은 eval 런타임 격리 결함(main에 있던 것)만 Z1에서 올린다.
 - O15 (지휘자 판단 — 리뷰 RF 사용자 결정 항목 1·2): eval의 Claude 허용 규칙은 앱 상수를 import한 문서용 미러로 둔다. 러너가 `--allowedTools Bash`·`-p`라 권한 프롬프트는 eval에서 관측할 수 없고, 규칙 문자열은 C가 공식 문서로 확인했으며 G가 실제 병합을 본다. 5분 만료는 편집 간격 표본이 없어 그대로 두고 Z1에서 BACKLOG에 적는다.
 - D7 (사용자 결정, 리뷰 RD): deep link는 사람이 직접 눌렀을 때만 열리므로, 대화상자가 열려 있으면 취소(Escape)처럼 닫고 링크로 이동한다. D 수정 라운드 1이 구현하고 Z1에서 PRODUCT 'Deep links'에 적는다.
+- D8 (사용자 결정, 오케스트레이션 중 추가 요청): 캔버스 행 메뉴(Export, Move to Trash)를 같은 PR에 넣는다. 별도 feature `canvas-row-menu`로 `/feature`부터 진행한다. 지휘자가 PRODUCT §3 Out of scope 5(git으로 공유)·1/7(앱은 캔버스 파일을 고치지 않음)을 짚은 뒤 사용자가 다시 요청했다. 정한 것: 삭제는 휴지통으로 옮기기(repo 작업 트리에서 사라지고 되돌릴 수 있음, 커밋하지 않음), 실제 파일이 지워진다는 Alert Dialog, 코멘트 파일도 함께 휴지통으로, 그 캔버스에서 에이전트가 작업 중이면 삭제를 막음, Export는 Go CLI `doan export` + 앱 메뉴(저장 대화상자), 자산을 담은 단일 HTML에 프레임 목록·배율만 있는 보기 shell.
 - O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
 
 ## 배치
@@ -46,6 +47,7 @@
 | F | T10 `/agent-eval` | `eval/`(fake 앱 v3, `CheckContext.work()`, 새 시나리오·fixture·rubric), `docs/USABILITY-EVAL.md` | A, S | Codex gpt-6.1-sol high — 판단보다 절차(구현, self-test, 패키지, 실제 라운드)가 많다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test` PASS, 실제 라운드에서 Claude·Codex 통과 | 1단계(eval 코드) 진행, 실제 라운드는 RA 수정 뒤 지휘자 허가 |
 | G | T11 `/design-sync`, T12 `/runtime-test` | `docs/DESIGN.md`, 측정으로 생긴 UI 수정(소유 배치 D로 돌려보냄), `.scratch/` | B, C, D 통합 | Claude Opus medium — 실제 앱 격리 probe와 측정 판단 | 측정값·스크린샷·상태 로그 | 대기 |
 | H | D4 추천 프롬프트 작은 크기로 되돌리기 | `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`의 `.suggestion`, 관련 테스트, 초안 4개(buzz-home·buzz-project·buzz-canvas-conversation·doan-mascot), `docs/DESIGN.md` 해당 행 | 없음 | Claude Sonnet medium — 속성 하나를 되돌리는 기계적인 수정 | `npm --prefix app test`, typecheck, `doan check --repo .` | 진행 중 |
+| FM | `canvas-row-menu` `/feature` 문서 | `docs/features/canvas-row-menu/` | 없음 | Claude Opus high — 범위·보안(파일 삭제)·형식(내보내기) 판단 | 문서 커밋, 지휘자 확인, 사용자 결정 | 진행 중 |
 | R* | 배치별 리뷰(RS, RC, RA, RB, RD, RF) | 보고만 | 각 배치 | 교차 모델 독립 리뷰: Claude가 구현한 배치(P·S·C·D)는 Codex gpt-6-astra medium, Codex가 구현한 배치(A·B·F)는 Claude Sonnet high | `/code-review` 보고 | 대기 |
 | 지휘자 | P 초안 리뷰, T13, Z1 문서 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `README.md`, 이 디렉터리 삭제 | 전부 | — | `verify.mjs --eval` 통과, `/doc-check` | 대기 |
 
