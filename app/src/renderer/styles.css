@@ -1022,9 +1022,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    compiled into a native view, and the one web token read is the task bar's #0009 (design §2). doan uses its accent for
    the edge instead of ego's blue, the parent's common decision 2 exception. Above the overlay, under the board's floating
    controls; nothing here takes pointer input. */
-.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 var(--space-2) color-mix(in srgb, var(--affordance-accent) 70%, transparent), inset 0 0 var(--space-6) color-mix(in srgb, var(--affordance-accent) 35%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
+.doan-agent-glow { position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: 0 0 0 var(--radius-container); box-shadow: inset 0 0 var(--space-3) color-mix(in srgb, var(--affordance-accent) 85%, transparent), inset 0 0 calc(var(--space-6) * 1.5) color-mix(in srgb, var(--affordance-accent) 50%, transparent); animation: doan-agent-glow 8s var(--ease-state) infinite; }
 .workspace[data-panel="collapsed"] .doan-agent-glow { border-radius: 0 0 var(--radius-container) var(--radius-container); }
-@keyframes doan-agent-glow { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@keyframes doan-agent-glow { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
 /* The dot field's colour: translucent white dots, read from this computed colour by the canvas. */
 .doan-agent-dots { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--text-on-prominent); }
 /* The agent notice and the canvas notices stack at the board's top centre, 20px under its top edge, the agent notice first. */
