@@ -462,7 +462,7 @@ test("grouped presets show Suggested and the five tabs; a tab shows its group in
     { key: "content", label: "Content", icon: "text-align-start", selected: false },
     { key: "explore", label: "Explore", icon: "shapes", selected: false },
   ]);
-  expect(view.sections).toEqual([{ title: "Suggested for doan-design", rows: suggested.map(p => ({ id: p.id, title: p.title, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) }]);
+  expect(view.sections).toEqual([{ title: "Suggested for doan-design", rows: suggested.map(p => ({ id: p.id, title: p.title, description: p.description, scope: p.scope, tooltip: `${p.description} (/${p.id})`, group: null })) }]);
   const refine = presetListView(listed(), { project: "doan-design", suggested, query: "", tab: "refine" });
   if (refine.kind !== "list") throw new Error("list");
   expect(refine.sections).toHaveLength(1);
@@ -479,7 +479,7 @@ test("no suggestions hides the Suggested tab and opens Start; an unknown group k
 
 test("a query searches every group, drops the tabs and names each row's group", () => {
   const view = presetListView(listed(), { project: "p", suggested: [preset("critique")], query: "cri", tab: "refine" });
-  expect(view).toEqual({ kind: "list", tabs: [], sections: [{ title: null, rows: [{ id: "critique", title: "Critique the design", scope: "critique scope", tooltip: "About critique. (/critique)", group: "Review" }] }], summary: "1 preset matches cri" });
+  expect(view).toEqual({ kind: "list", tabs: [], sections: [{ title: null, rows: [{ id: "critique", title: "Critique the design", description: "About critique.", scope: "critique scope", tooltip: "About critique. (/critique)", group: "Review" }] }], summary: "1 preset matches cri" });
   const two = presetListView(listed(), { project: "p", suggested: [], query: "the", tab: null });
   if (two.kind !== "list") throw new Error("list");
   expect(two.summary).toBe(`${two.sections[0]!.rows.length} presets match the`);

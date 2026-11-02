@@ -178,7 +178,8 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
       else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id); }
     }}>
-    <span className="preset-title">{row.title}</span><span className="sub">{row.group ?? row.scope}</span>
+    {/* A card: the preset's name over its one-line description (dogfooding); the full text stays in the tooltip. */}
+    <span className="preset-text"><span className="preset-title">{row.title}</span>{row.description && <span className="preset-desc">{row.description}</span>}</span>
   </div>;
 }
 function presetBody(view: PresetView, slash: boolean, options: PresetBodyOptions): ReactNode {
