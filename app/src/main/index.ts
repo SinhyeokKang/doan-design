@@ -61,6 +61,8 @@ import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbn
 import { createWindowCapturer } from "./thumbnailWindow";
 import { createUiStateStore, type UiStateStore } from "./uiState";
 import { linkTarget } from "./openLink";
+import { openLinkQueue, resolveOpenLink } from "./deepLinks";
+import { applyWork, expireWork, retainWorkRoots, workItems, type WorkState } from "./workState";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -105,6 +107,37 @@ let win: BrowserWindow | undefined;
 let configBridge: ConfigBridge | undefined;
 let shell: Shell | undefined;
 let runtime: Runtime | undefined;
+let workState: WorkState = { roots: [], sessions: [] };
+const workChanges = new Map<string, Map<string, number>>();
+let workTimer: ReturnType<typeof setInterval> | undefined;
+function updateWork(next: WorkState): void {
+  if (next === workState) return;
+  workState = next;
+  const items = workItems(next);
+  for (const [root, paths] of workChanges) {
+    for (const path of paths.keys()) if (!items.some(item => item.root === root && item.path === path)) paths.delete(path);
+    if (paths.size === 0) workChanges.delete(root);
+  }
+  if (items.length && workTimer === undefined) {
+    workTimer = setInterval(() => updateWork(expireWork(workState, Date.now(), (root, path) => workChanges.get(root)?.get(path) ?? 0)), 1000);
+    workTimer.unref();
+  } else if (!items.length && workTimer !== undefined) {
+    clearInterval(workTimer); workTimer = undefined;
+  }
+  send("work:changed", items);
+}
+let linksRendererReady = false;
+const openLinks = openLinkQueue(url => {
+  if (!win || win.isDestroyed()) return;
+  if (appHidden) app.show();
+  showWindow(win);
+  send("deep-link:open", resolveOpenLink(url, shell?.entries() ?? []));
+});
+function readyOpenLinks(): void {
+  if (linksRendererReady && shell && shell.entries().every(entry => entry.kind !== "loading")) openLinks.ready();
+}
+// Electron 45 delivers a launch URL before ready; restoring the renderer must finish before it is consumed.
+app.on("open-url", (event, url) => { event.preventDefault(); openLinks.receive(url); });
 let conversations: ConversationService | undefined;
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
@@ -489,6 +522,17 @@ async function start(): Promise<void> {
   const ready = await startShell(join(userData, "folders.json"), cliCommand(process.env, app.isPackaged, process.resourcesPath), (entries, focus) => {
     const refreshes = folderRefreshes(conversationLists, entries);
     conversationLists = refreshes.next;
+    updateWork(retainWorkRoots(workState, entries.map(entry => entry.path)));
+    const activeWork = workItems(workState);
+    const changedAt = Date.now();
+    for (const { root, changed } of refreshes.calls) {
+      for (const path of changed) {
+        if (!activeWork.some(item => item.root === root && item.path === path)) continue;
+        let paths = workChanges.get(root);
+        if (!paths) { paths = new Map(); workChanges.set(root, paths); }
+        paths.set(path, changedAt);
+      }
+    }
     for (const { root, changed } of refreshes.calls) {
       try { conversations?.refreshed(root, changed); } catch (error) { console.error("doan: conversation promotion check failed", error); }
     }
@@ -497,8 +541,16 @@ async function start(): Promise<void> {
     }
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seenStore.apply(entries), focus);
+    readyOpenLinks();
   }, { response: record => documents.response(record) });
   shell = ready;
+  updateWork(retainWorkRoots(workState, ready.entries().map(entry => entry.path)));
+  handle("work:get", [], (_event, value: unknown) => value === undefined ? workItems(workState) : []);
+  handle("deep-link:ready", undefined, (_event, value: unknown) => {
+    if (value !== undefined) return;
+    linksRendererReady = true;
+    readyOpenLinks();
+  });
   // The capture window is made on the first capture and stays out of the
   // app window's lifecycle: `win` alone is shown, closed and trusted for IPC.
   const thumbs = createThumbnails({
@@ -525,6 +577,7 @@ async function start(): Promise<void> {
   // reports that the app is not running.
   runtime = await startRuntime(userData, {
     isOpen, selection: () => selection,
+    work(request) { updateWork(applyWork(workState, request, Date.now())); },
     async onboarding(request) {
       const service = await onboardingStarted;
       // start brings the app forward, hidden window included, and keeps the session and its input (design '설치 직후 진입').
@@ -967,6 +1020,7 @@ app.on("activate", () => {
 });
 
 app.on("will-quit", () => {
+  if (workTimer !== undefined) clearInterval(workTimer);
   uiState?.flushSync();
   canvasSeen?.flushSync();
   runtime?.disposeSync();

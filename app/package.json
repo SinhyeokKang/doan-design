@@ -42,6 +42,7 @@
   "version": "0.1.0",
   "productName": "Doan",
   "build": {
+    "protocols": [{ "name": "Doan canvas", "schemes": ["doan"] }],
     "appId": "design.doan.app",
     "productName": "Doan",
     "directories": {
