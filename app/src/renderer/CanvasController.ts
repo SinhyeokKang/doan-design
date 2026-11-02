@@ -220,7 +220,8 @@ export class CanvasController {
     if (this.loading || this.state.status !== null || this.state.unlisted) return false;
     const frame = anchor.frame?.id ?? anchor.point?.frameId;
     const target: AnchorTarget = anchor.element
-      ? { id: LOCATE_ID, ...(anchor.element.doanId === undefined ? {} : { doanId: anchor.element.doanId }), selector: anchor.element.selector }
+      ? { id: LOCATE_ID, ...(anchor.element.doanId === undefined ? {} : { doanId: anchor.element.doanId }),
+        ...(anchor.element.selector === undefined ? {} : { selector: anchor.element.selector }) }
       : { id: LOCATE_ID, ...(frame === undefined ? {} : { frame }) };
     const generation = this.requestAnchors([target]);
     if (generation === null) return false;

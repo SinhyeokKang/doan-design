@@ -2281,6 +2281,32 @@ describe("chip locate", () => {
     } finally { h.controller.dispose(); }
   });
 
+  it("an element with only a doan id asks without a selector and is found by that id", () => {
+    const h = loaded();
+    try {
+      const settled = vi.fn();
+      expect(h.controller.locate({ element: { doanId: "pay" } }, settled)).toBe(true);
+      expect(query(h).targets).toEqual([{ id: expect.any(String), doanId: "pay" }]);
+      expect(Object.keys(query(h).targets[0])).not.toContain("selector");
+      answer(h, { doanId: ["n1"] });
+      expect(settled).toHaveBeenCalledExactlyOnceWith("shown");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a doan id carried by two elements, or by none, is missing when there is no selector to fall back on", () => {
+    const h = loaded();
+    try {
+      const twice = vi.fn();
+      h.controller.locate({ element: { doanId: "pay" } }, twice);
+      answer(h, { doanId: ["n1", "n2"] }, [{ node: "n1", x: 0, y: 0, width: 1, height: 1 }, { node: "n2", x: 5, y: 5, width: 1, height: 1 }]);
+      expect(twice).toHaveBeenCalledExactlyOnceWith("missing");
+      const none = vi.fn();
+      h.controller.locate({ element: { doanId: "pay" } }, none);
+      answer(h, { doanId: [] });
+      expect(none).toHaveBeenCalledExactlyOnceWith("missing");
+    } finally { h.controller.dispose(); }
+  });
+
   it("a frame chip finds its frame by id and moves as picking the frame in the drawer does", () => {
     const h = loaded();
     try {

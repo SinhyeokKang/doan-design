@@ -1873,4 +1873,42 @@ describe("anchors-query reply", () => {
     canvas.fromParent({ type: "anchors-query", document: ofType(canvas, "layout")[0]?.document, generation: 1, request: 1, targets: [{ id: "f", frame: "hero" }] });
     expect(ofType(canvas, "anchors")).toEqual([expect.objectContaining({ generation: 1, request: 1, results: [{ id: "f", candidates: { frame: [expect.any(String)] } }] })]);
   });
+
+  // agent-reply-chips T0: a reply chip carries a doan id and no selector.
+  const ask = (canvas: ReturnType<typeof heroCanvas>["canvas"], targets: Record<string, unknown>[]) => {
+    canvas.context.innerWidth = 600;
+    canvas.fromParent({ type: "measure" });
+    canvas.fromParent({ type: "anchors-query", document: ofType(canvas, "layout")[0]?.document, generation: 1, request: 1, targets });
+    return (ofType(canvas, "anchors").at(-1) as { results: { id: string; candidates: Record<string, string[] | null> }[]; rects: unknown[] }).results;
+  };
+  test("finds an element by its doan id when the target has no selector", () => {
+    const { canvas } = heroCanvas();
+    const [result] = ask(canvas, [{ id: "e", doanId: "cta" }]);
+    expect(result?.candidates).toEqual({ doanId: [expect.any(String)] });
+  });
+  test("compares the data-doan-id value instead of building a selector from the id", () => {
+    const odd = node("i", { "data-doan-id": 'a"] , [x' });
+    const { canvas, main } = heroCanvas();
+    main.children.push(odd); odd.parentElement = main;
+    const [result] = ask(canvas, [{ id: "e", doanId: 'a"] , [x' }]);
+    expect(result?.candidates.doanId).toHaveLength(1);
+  });
+  test("returns both nodes of a duplicated doan id so the app reads it as missing", () => {
+    const twin = node("b", { "data-doan-id": "cta" });
+    const { canvas, main } = heroCanvas();
+    main.children.push(twin); twin.parentElement = main;
+    const [result] = ask(canvas, [{ id: "e", doanId: "cta" }]);
+    expect(result?.candidates.doanId).toHaveLength(2);
+  });
+  test("a doan id nothing carries has no candidates", () => {
+    const { canvas } = heroCanvas();
+    const [result] = ask(canvas, [{ id: "e", doanId: "gone" }]);
+    expect(result?.candidates).toEqual({ doanId: [] });
+  });
+  test("a person's chip still gets both doan id and selector candidates", () => {
+    const { canvas, button } = heroCanvas();
+    canvas.selectors.set("button", button);
+    const [result] = ask(canvas, [{ id: "e", doanId: "cta", selector: "button" }]);
+    expect(result?.candidates).toEqual({ doanId: [expect.any(String)], selector: [expect.any(String)] });
+  });
 });
