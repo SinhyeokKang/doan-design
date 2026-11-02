@@ -300,6 +300,12 @@ describe("the Claude Code allow rule", () => {
     expect((await runAgentSetup(options())).items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "link" }]);
   });
 
+  it("does not read through a link to something that is not a file", async () => {
+    mkdirSync(join(home, ".claude")); execFileSync("/usr/bin/mkfifo", [join(home, "pipe")]);
+    symlinkSync(join(home, "pipe"), settings());
+    expect((await runAgentSetup(options())).items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "link" }]);
+  });
+
   it("leaves a folder in its place alone", async () => {
     mkdirSync(settings(), { recursive: true });
     expect((await runAgentSetup(options())).items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "foreign", found: "folder" }]);

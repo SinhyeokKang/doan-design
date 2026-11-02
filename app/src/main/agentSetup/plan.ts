@@ -85,9 +85,13 @@ export function mergeClaudeAllow(text: string | null): ClaudeAllowMerge {
   return { kind: "write", text: `${JSON.stringify(merged, null, 2)}\n` };
 }
 
+const CREATED_CLAUDE_SETTINGS = (mergeClaudeAllow(null) as Extract<ClaudeAllowMerge, { kind: "write" }>).text;
+
 export function classifyTarget(target: SetupTarget, home: string, observation: Pick<Observation, "kind" | "value" | "content">): Ownership {
   const { kind, value } = observation;
   if (kind === "missing") return "missing";
+  // The person's settings: Doan only merges into a regular file there, never through a link.
+  if (target === "claude-allow") return kind === "file" ? "ours" : "foreign";
   // Ownership of the rule is its exact content; when the text changes, the old text joins this check.
   if (target === "codex-rule") return kind === "file" && observation.content === codexRuleText() ? "ours" : "foreign";
   if (kind !== "symlink" || value == null) return "foreign";
@@ -116,7 +120,20 @@ export function plannedTargets(home: string, resources: string, providerDirs: re
     ...(providerDirs.includes("gemini") ? [skillLink("gemini-skill", ".gemini", "config/skills", ["antigravity"])] : []),
     // The rule lets the `doan` an agent finds on PATH run unsandboxed, so it waits for Doan's links on that PATH.
     ...(providerDirs.includes("codex") ? [{ target: "codex-rule", path: `${home}/.codex/rules/doan.rules`, want: codexRuleText(), file: true, root: `${home}/.codex`, providers: ["codex"], after: ["current", "cli", "system-cli"] } satisfies PlannedTarget] : []),
+    // Allows the same PATH `doan` as the Codex rule. `want` is the file Doan creates when there is none.
+    ...(providerDirs.includes("claude") ? [{ target: "claude-allow", path: `${home}/.claude/settings.json`, want: CREATED_CLAUDE_SETTINGS, file: true, root: `${home}/.claude`, providers: ["claude"], after: ["current", "cli", "system-cli"] } satisfies PlannedTarget] : []),
   ];
+}
+
+// A regular file is merged into; a link is read through only to see whether the person already added the rules.
+function claudeSettingsStep(target: PlannedTarget, observation: Observation): Step {
+  const base = { target: target.target, path: target.path };
+  const item = (problem: Extract<SetupItem, { reason: "claude-settings" }>["problem"]): Step =>
+    ({ ...base, action: "skip", item: { target: target.target, path: target.path, providers: [...target.providers], reason: "claude-settings", problem } });
+  const merged = typeof observation.content === "string" ? mergeClaudeAllow(observation.content) : null;
+  if (observation.kind === "symlink") return merged?.kind === "keep" ? { ...base, action: "keep" } : item("link");
+  if (merged === null) return { ...base, action: "changed" };
+  return merged.kind === "keep" ? { ...base, action: "keep" } : merged.kind === "write" ? { ...base, action: "replace" } : item(merged.problem);
 }
 
 export function writeFailure(target: PlannedTarget, code: string, at = posix.dirname(target.path)): SetupItem {
@@ -135,7 +152,9 @@ export function decide(target: PlannedTarget, observation: Observation, home: st
   if (observation.error) return { ...base, action: "skip", item: writeFailure(target, observation.error) };
   const shared = observation.real == null ? undefined : [...outcomes].find(([, outcome]) => outcome.real === observation.real)?.[0];
   if (shared) return { ...base, action: "shared", with: shared };
-  switch (classifyTarget(target.target, home, observation)) {
+  const ownership = classifyTarget(target.target, home, observation);
+  if (target.target === "claude-allow" && (ownership === "ours" || observation.kind === "symlink")) return claudeSettingsStep(target, observation);
+  switch (ownership) {
     case "missing": return { ...base, action: "create" };
     case "foreign": {
       const found = observation.kind === "symlink" ? "link" : observation.kind === "directory" ? "folder" : "file";

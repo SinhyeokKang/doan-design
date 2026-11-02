@@ -6,7 +6,7 @@ import { PROVIDERS, type Provider } from "../agentAuth/types";
 
 export const PATH_LINE = 'export PATH="$HOME/.local/bin:$PATH"';
 
-export type SetupTarget = "current" | "skill" | "cli" | "system-cli" | "agents-skill" | "claude-skill" | "gemini-skill" | "codex-rule";
+export type SetupTarget = "current" | "skill" | "cli" | "system-cli" | "agents-skill" | "claude-skill" | "gemini-skill" | "codex-rule" | "claude-allow";
 export type Ineligible = "dev" | "outside-applications" | "translocated";
 // One skipped item. Later features may add reasons; consumers switch on `reason`.
 export type SetupItem =
@@ -15,7 +15,9 @@ export type SetupItem =
     // `at` is the folder to fix: the target's parent, or the ancestor that is not a folder.
     // displaced: something Doan didn't create was moved aside mid-replacement and could not go back; `at` is where it is.
     | { reason: "write-failed"; cause: "permission" | "blocked-parent" | "displaced" | "other"; at: string; code: string }
-    | { reason: "admin-cancelled"; rcFile: string | null }))
+    | { reason: "admin-cancelled"; rcFile: string | null }
+    // ~/.claude/settings.json is the person's: a link Doan never writes through, or content it cannot merge into.
+    | { reason: "claude-settings"; problem: "link" | "json" | "object" | "permissions" | "allow" }))
   | { target: "copy"; path: string; providers: Provider[]; reason: "not-eligible"; eligibility: Ineligible }
   // The run itself threw (main's catch), so nothing says which targets were set up; it must not read as success.
   | { target: "setup"; providers: Provider[]; reason: "crashed" };
@@ -25,8 +27,9 @@ export type NoticePart = { text: string } | { code: string };
 export interface NoticeLine { agents: string | null; parts: NoticePart[]; command?: string }
 export interface AboutNotice { tone: "warning" | "neutral"; title: string; lines: NoticeLine[] }
 
-// About's fixed order (design 'About 알림'): this copy, a run that crashed, CLI links, skill links, the Codex rule.
-const ORDER: (SetupItem["target"])[] = ["copy", "setup", "current", "cli", "system-cli", "skill", "agents-skill", "claude-skill", "gemini-skill", "codex-rule"];
+// About's fixed order (design 'About 알림'): this copy, a run that crashed, CLI links, skill links, the Codex rule,
+// the Claude Code allow rule.
+const ORDER: (SetupItem["target"])[] = ["copy", "setup", "current", "cli", "system-cli", "skill", "agents-skill", "claude-skill", "gemini-skill", "codex-rule", "claude-allow"];
 const REOPEN = ", then reopen Doan.";
 const NOT_ELIGIBLE: Record<Ineligible, string> = {
   "outside-applications": "It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it.",
@@ -39,6 +42,16 @@ export function rcFileFor(shell: string): string | null {
     case "zsh": return "~/.zshrc";
     case "bash": return "~/.bash_profile";
     default: return null;
+  }
+}
+
+// What is wrong with the settings, as the parts before ", so Doan …".
+function settingsProblem(problem: Exclude<Extract<SetupItem, { reason: "claude-settings" }>["problem"], "link">, path: NoticePart): NoticePart[] {
+  switch (problem) {
+    case "json": return [path, { text: " isn’t valid JSON" }];
+    case "object": return [path, { text: " isn’t a JSON object" }];
+    case "permissions": return [{ code: "permissions" }, { text: " in " }, path, { text: " isn’t an object" }];
+    case "allow": return [{ code: "permissions.allow" }, { text: " in " }, path, { text: " isn’t a list" }];
   }
 }
 
@@ -61,6 +74,10 @@ function parts(item: Skipped, tilde: (path: string) => string): Pick<NoticeLine,
       case "displaced": return { parts: [{ text: "Doan moved " }, path, { text: ", which it didn’t create, to " }, { code: tilde(item.at) }, { text: ` and couldn’t put it back. Move it back${REOPEN}` }] };
       case "other": return { parts: [{ text: "Doan couldn’t write " }, path, { text: ` (${item.code}). Check ` }, { code: tilde(item.at) }, { text: REOPEN }] };
     }
+    // A link stays the person's: they add the rules where it points, and the notice goes once both are there.
+    case "claude-settings": return item.problem === "link"
+      ? { parts: [path, { text: " is a link, so Doan left it alone. To let Claude Code run " }, { code: "doan work" }, { text: " without asking, add " }, { code: "Bash(doan work start *)" }, { text: " and " }, { code: "Bash(doan work done *)" }, { text: " to " }, { code: "permissions.allow" }, { text: " in the file it links to." }] }
+      : { parts: [...settingsProblem(item.problem, path), { text: ", so Doan couldn’t add the rules that let Claude Code run " }, { code: "doan work" }, { text: ` without asking. Fix the file${REOPEN}` }] };
     // The PATH line takes effect in a new terminal; Doan need not reopen. The lone `doan` part is the command, which
     // the draft shows as plain lowercase text (brand/appText.test.ts reads a bare `doan` literal as a code token).
     case "admin-cancelled": return {

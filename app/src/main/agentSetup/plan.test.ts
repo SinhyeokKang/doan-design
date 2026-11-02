@@ -95,6 +95,7 @@ describe("plannedTargets", () => {
       ["claude-skill", `${HOME}/.claude/skills/doan`, `${SHARE}/skill`],
       ["gemini-skill", `${HOME}/.gemini/config/skills/doan`, `${SHARE}/skill`],
       ["codex-rule", `${HOME}/.codex/rules/doan.rules`, codexRuleText()],
+      ["claude-allow", `${HOME}/.claude/settings.json`, `${JSON.stringify({ permissions: { allow: CLAUDE_ALLOW_RULES } }, null, 2)}\n`],
     ]);
   });
 
@@ -111,7 +112,7 @@ describe("plannedTargets", () => {
 describe("plan", () => {
   const targets = plannedTargets(HOME, RESOURCES, ["claude", "gemini"], false);
   const settled = (overrides: Record<string, Observation> = {}): Record<string, Observation> =>
-    Object.fromEntries(targets.map(t => [t.target, overrides[t.target] ?? { ...link(t.want), real: t.path }]));
+    Object.fromEntries(targets.map(t => [t.target, overrides[t.target] ?? (t.file ? { kind: "file", content: t.want, real: t.path } : { ...link(t.want), real: t.path })]));
   const actions = (steps: ReturnType<typeof plan>) => steps.map(step => [step.target, step.action === "skip" ? ("on" in step ? `skip:${step.on}` : `skip:${step.item.reason}`) : step.action]);
 
   it("creates everything on a fresh HOME", () => {
@@ -125,7 +126,7 @@ describe("plan", () => {
 
   it("replaces only current after the app moves", () => {
     expect(actions(plan(targets, settled({ current: { ...link("/Users/u/Applications/Doan.app/Contents/Resources"), real: `${SHARE}/current` } }), HOME))).toEqual([
-      ["current", "replace"], ["skill", "keep"], ["cli", "keep"], ["agents-skill", "keep"], ["claude-skill", "keep"], ["gemini-skill", "keep"],
+      ["current", "replace"], ["skill", "keep"], ["cli", "keep"], ["agents-skill", "keep"], ["claude-skill", "keep"], ["gemini-skill", "keep"], ["claude-allow", "keep"],
     ]);
   });
 
@@ -139,20 +140,20 @@ describe("plan", () => {
   it("skips everything that goes through a foreign current and reports current only", () => {
     const steps = plan(targets, settled({ current: { kind: "directory", real: `${SHARE}/current` } }), HOME);
     expect(actions(steps)).toEqual([
-      ["current", "skip:foreign"], ["skill", "skip:current"], ["cli", "skip:current"], ["agents-skill", "skip:current"], ["claude-skill", "skip:current"], ["gemini-skill", "skip:current"],
+      ["current", "skip:foreign"], ["skill", "skip:current"], ["cli", "skip:current"], ["agents-skill", "skip:current"], ["claude-skill", "skip:current"], ["gemini-skill", "skip:current"], ["claude-allow", "skip:current"],
     ]);
     expect(steps[0]).toMatchObject({ item: { target: "current", path: `${SHARE}/current`, reason: "foreign", found: "folder", providers: ["claude", "codex", "cursor", "antigravity", "copilot"] } });
   });
 
   it("skips the skill links behind a foreign skill link, not the CLI", () => {
     expect(actions(plan(targets, settled({ skill: { kind: "file", real: `${SHARE}/skill` } }), HOME))).toEqual([
-      ["current", "keep"], ["skill", "skip:foreign"], ["cli", "keep"], ["agents-skill", "skip:skill"], ["claude-skill", "skip:skill"], ["gemini-skill", "skip:skill"],
+      ["current", "keep"], ["skill", "skip:foreign"], ["cli", "keep"], ["agents-skill", "skip:skill"], ["claude-skill", "skip:skill"], ["gemini-skill", "skip:skill"], ["claude-allow", "keep"],
     ]);
   });
 
   it("reports a blocked ancestor as a write failure", () => {
     const steps = plan(targets, settled({ "gemini-skill": { kind: "missing", blockedParent: `${HOME}/.gemini/config`, real: null } }), HOME);
-    expect(steps.at(-1)).toMatchObject({ action: "skip", item: { target: "gemini-skill", reason: "write-failed", cause: "blocked-parent", at: `${HOME}/.gemini/config` } });
+    expect(steps.find(step => step.target === "gemini-skill")).toMatchObject({ action: "skip", item: { target: "gemini-skill", reason: "write-failed", cause: "blocked-parent", at: `${HOME}/.gemini/config` } });
   });
 
   it("writes the Codex rule only when the doan on PATH is Doan's", () => {

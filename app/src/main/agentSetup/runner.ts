@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, linkSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import { rcFileFor, type SetupItem, type SetupTarget } from "./notice";
 import { swapLink, type SwapResult } from "./swap";
-import { classifyTarget, decide, installEligibility, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
+import { classifyTarget, decide, installEligibility, mergeClaudeAllow, needsSystemLink, plannedTargets, record, writeFailure, type Observation, type Outcome, type PlannedTarget, type ProviderDir, type Step } from "./plan";
 
 // Agent setup's thin I/O shell (design '배치', '소유 판정'): reads each target right before deciding, writes only
 // Doan's own links, and never creates a provider folder.
@@ -75,6 +75,9 @@ function observe(target: PlannedTarget): Seen {
   try {
     if (kind === "symlink") value = readlinkSync(target.path);
     if (kind === "file" && target.file) content = readFileSync(target.path, "utf8");
+    // Read through a link to the person's settings only to see whether they added the rules themselves.
+    // Only a regular file: reading a link to a FIFO would block launch.
+    if (kind === "symlink" && target.target === "claude-allow") { try { if (statSync(target.path).isFile()) content = readFileSync(target.path, "utf8"); } catch { content = null; } }
     if (kind !== "missing") { const s = lstatSync(target.path); stamp += `:${s.dev}:${s.ino}:${s.mtimeMs}:${s.ctimeMs}`; }
   } catch (error) { return { kind: "missing", error: errorCode(error), real, stamp: `error:${errorCode(error)}`, parent }; }
   return { kind, value, content, real, stamp: `${stamp}:${value}:${content}`, parent };
@@ -112,6 +115,19 @@ function settled(target: PlannedTarget, home: string, result: SwapResult): Writt
   }
 }
 
+// Claude Code writes the same file, so Doan merges into what it read and renames the result over it only if the file
+// is still exactly that (swap.ts: re-read right before writing). rename(2) replaces whatever is at the name then, so a
+// write landing between that check and the rename is lost; as in swap.ts, that needs a process running as the person.
+function mergeSettings(target: PlannedTarget, before: Seen, temporary: string, real: string, home: string): Written {
+  const merged = mergeClaudeAllow(before.content ?? null);
+  if (before.kind !== "file" || merged.kind !== "write") return changed(target, home);
+  writeFileSync(temporary, merged.text, { flag: "wx" });
+  chmodSync(temporary, lstatSync(real).mode & 0o777);
+  if (observe(target).stamp !== before.stamp) return changed(target, home);
+  renameSync(temporary, real);
+  return { ok: true };
+}
+
 function write(target: PlannedTarget, action: "create" | "replace", before: Seen, home: string): Written {
   const real = before.real;
   if (real === null || real === undefined) return { ok: false, item: writeFailure(target, before.error ?? "UNKNOWN") };
@@ -124,6 +140,8 @@ function write(target: PlannedTarget, action: "create" | "replace", before: Seen
       if (observe(target).stamp !== before.stamp) return changed(target, home);
       // link(2) publishes the staged regular file exclusively; never link a symlink (macOS follows it).
       linkSync(temporary, real);
+    } else if (target.target === "claude-allow") {
+      return mergeSettings(target, before, temporary, real, home);
     } else if (action === "create") {
       if (observe(target).stamp !== before.stamp) return changed(target, home);
       // symlink(2) fails on an existing name, so a competitor that wins the race is kept.
