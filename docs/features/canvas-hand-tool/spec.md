@@ -1,37 +1,71 @@
 # canvas-hand-tool — spec
 
-출처: 실사용 테스트 이슈 "셀렉트 도구 꺼져있으면, 드래그로 캔버스 포지션 이동". 결정은 대화에서 사용자가 했다.
+출처: 실사용 테스트 이슈 "셀렉트 도구 꺼져있으면, 드래그로 캔버스 포지션 이동". 결정은 대화와 `/feature-review`에서 사용자가 했다.
 
 ## 사용자
 
 - **사람**: 마우스로 캔버스를 끌어서 옮긴다. 트랙패드가 없거나 휠로 옮기기 불편할 때 쓴다.
-- **에이전트**: 얻는 것이 없다. 선택·`doan active`의 규칙은 바뀌지 않는다.
+- **에이전트**: 얻는 것이 없다. Hand에서도 `doan active`는 마지막 선택을 돌려준다(PRODUCT §5 item 4).
 
 ## 문제
 
-- 캔버스는 휠·트랙패드 스크롤로만 이동한다(`viewport.ts` `wheelAction`, `CanvasController.ts` `wheel`). 끌어서 옮기는 경로가 없다.
+- 보드의 자유 이동은 휠·트랙패드 스크롤로만 된다(`viewport.ts` `wheelAction`, `CanvasController.ts` `wheel`). Fit·프레임 서랍·Quick Open·Locate는 정해진 위치로만 옮긴다. 끌어서 옮기는 경로가 없다.
 - 도구모음의 Select는 항상 눌려 있고 끌 수 없다(`CanvasTools.tsx`, PRODUCT §5 item 2 'Toolbar': "Select, always pressed"). iframe 안의 pointerdown은 주입 스크립트가 선택에 쓴다(`main/canvasScript.ts`).
+- 캔버스를 클릭해도 포커스는 composer에 남는다(주입 스크립트가 pointerdown에서 `preventDefault`한다). 그래서 캔버스를 보면서 누른 키가 composer에 입력된다.
 
-## 결정 (대화에서 확정)
+## 결정
 
-1. 도구모음에 Hand 도구를 더해 Select와 하나만 눌리는 도구로 만든다. 단축키는 Select V, Hand H다.
+1. 도구모음에 Hand 도구를 더해 Select와 하나만 눌리는 도구로 만든다. 단축키는 Select V, Hand H다. 이미 눌린 도구를 다시 눌러도 눌린 상태가 유지된다.
 2. Select 상태에서 Space를 누르고 있는 동안은 잠시 Hand처럼 끌어서 옮긴다. 놓으면 Select로 돌아간다(Figma 관례).
 3. Hand는 사람이 직접 Select로 바꿀 때(Select 버튼, V, Esc)까지 유지된다. 다른 캔버스로 가도 유지되고, 앱을 다시 켜면 Select다.
+4. 캔버스 픽은 도구보다 잠시 앞서는 상태다. 픽 중에는 Hand·Space 끌기가 없고 V·H는 무시된다. 픽이 끝나면 픽 전의 도구(Select 또는 Hand)로 돌아간다.
+5. 캔버스(프레임·여백)를 클릭하면 포커스가 캔버스 영역으로 간다. 그래서 그 뒤의 Space·V·H는 composer가 아니라 캔버스로 간다. 픽 중 클릭은 예외로 포커스를 옮기지 않는다(칩이 composer 커서 위치에 들어가야 한다). hover는 지금처럼 포커스를 가져가지 않는다.
+6. Hand는 보기만 옮기는 모드다. Hand에서는 다음이 달라진다.
+   - 캔버스 클릭은 선택하지 않는다. 빈 곳을 클릭해도 선택이 풀리지 않는다.
+   - hover 강조가 없다. 선택 표시는 그대로다.
+   - ⌥-click이 캔버스로 통과하지 않는다.
+   - 기본 버튼만 보드를 옮긴다(⌥·⇧·⌘를 누른 채로도). 우클릭·더블클릭은 아무 일도 하지 않는다.
+   - 초안 안의 스크롤 영역 위에서도 휠이 보드를 옮긴다(Select에서는 지금처럼 그 영역이 스크롤된다).
 
 ## 완료 조건
 
-- 도구모음에 Select·Hand·Add to conversation이 있다. Select와 Hand 중 하나만 눌려 있다.
-- Hand일 때 캔버스 어디서든(프레임 위 포함) 끌면 보드가 따라 움직이고, 클릭은 선택하지 않는다. 커서는 grab, 끄는 동안 grabbing이다.
-- Select일 때 Space를 누르고 끌면 보드가 움직이고, Space를 놓으면 선택 클릭이 다시 된다. 입력창·텍스트 필드에 포커스가 있을 때 Space는 글자를 입력할 뿐이다.
-- V·H 단축키는 입력창·텍스트 필드에 포커스가 있으면 동작하지 않는다.
-- Esc 순서: 열린 메뉴·팝오버 → `/` 목록 → 픽 취소 → Hand를 Select로 → 선택 해제.
-- 휠·트랙패드 이동과 확대·축소는 두 도구에서 그대로다.
-- Hand로 바꿔도 선택은 그대로다. 선택·`doan active`·Add to conversation은 Hand에서도 지금처럼 동작한다.
-- 캔버스 픽(Pick from canvas) 중에는 Hand와 Space 이동이 픽보다 앞서지 않는다. 픽은 지금처럼 끌어서 옮기기 없이 동작하고(PRODUCT §5 item 6 "Pan and pinch still work"는 휠·핀치), 픽을 시작하면 도구는 Select로 돌아간다.
+도구와 상태
+- 도구모음에 Select·Hand·Add to conversation이 있다. Select와 Hand 중 하나만 눌려 있다. 툴팁은 "Select" + V, "Hand" + H를 보인다.
+- Hand는 다른 캔버스로 가도 눌려 있고, 앱을 다시 켜면 Select다.
+- 보드를 그리지 않는 상태(로딩·로드 실패·noWidth·unlisted 페이지·프로젝트 문제)에서도 Hand 버튼은 눌린 상태로 쓸 수 있다. 이때는 끌기 레이어와 grab 커서가 없고 Space도 아무 일을 하지 않는다. 끄는 도중 보드가 사라지면(리로드·닫기) 끌기가 끝나고, 보드가 돌아와도 이어지지 않는다.
+- Hand로 연 캔버스에서는 눌린 Hand 버튼과 grab 커서가, 클릭이 선택하지 않는 이유를 보여준다.
+
+끌기
+- Hand일 때 캔버스 어디서든(프레임 위 포함) 끌면 보드가 포인터 이동량만큼 옮겨진다(배율과 무관). 클릭은 선택하지 않는다. 커서는 grab, 끄는 동안 grabbing이다.
+- 끄는 중 포인터가 창 밖으로 나가도 놓을 때까지 끌기가 이어진다.
+- Hand·Space 상태에서도 도구모음 버튼, 에이전트 알림의 Stop·Open, 캔버스 상태의 Reload를 누를 수 있다.
+
+Space
+- Select일 때 Space를 누르면 바로 grab 커서가 되고, 끌면 보드가 움직인다. Space를 누른 채 끌지 않고 클릭하면 선택하지 않는다. Space를 놓으면 선택 클릭이 다시 된다.
+- 끄는 도중 Space를 놓아도 마우스를 놓을 때까지 계속 옮기고, 그 뒤에 Select로 돌아간다. 끄는 도중의 V·Esc도 마우스를 놓은 뒤에 적용된다.
+- Hand일 때 Space는 아무 일을 하지 않고, 놓아도 Hand가 유지된다.
+- 창이 포커스를 잃거나 작업 공간을 떠나면 Space가 풀린다.
+
+키
+- V·H·Space는 키 위치(`event.code`)로 판정하므로 한글 입력 상태에서도 동작한다.
+- V·H·Space는 다음 경우에 무시된다: 입력창·텍스트 필드에 포커스가 있을 때, ⌘·⌃·⌥와 함께 눌렀을 때, 조합 중일 때, 메뉴·팝오버·사이드바 typeahead가 먼저 처리했을 때, 캔버스 페이지가 아닐 때(Home·Overview·모달). 이때 Space는 글자를 입력하거나 그 컨트롤의 일을 할 뿐이다.
+- 포커스가 버튼·링크·메뉴 항목 같은 대화형 컨트롤에 있으면 Space는 그 컨트롤을 누른다. 그 밖의 경우 Space는 이동에 쓰이고 컨트롤을 누르지 않는다.
+- ⌥-click 뒤 iframe에 포커스가 있어도 Space·V·H가 같은 규칙으로 동작하고, Space가 초안을 스크롤하지 않는다.
+- Esc 순서: 열린 메뉴·팝오버 → `/` 목록 → 픽 취소 → Hand를 Select로 → 선택 해제. 입력창에 포커스가 있으면 Esc는 Hand를 풀지 않는다(선택 해제와 같다).
+
+유지되는 것
+- 휠·트랙패드 이동과 확대·축소는 두 도구에서 된다(Hand에서 달라지는 점은 결정 6).
+- Hand로 바꿔도 선택은 그대로다. Hand에서는 캔버스 클릭만 선택하지 않는다. 프레임 서랍의 선택, Quick Open·딥 링크·칩 Locate의 이동, Add to conversation(⌘L), `doan active`는 지금처럼 동작한다.
+
+픽
+- 픽 중에는 Hand·Space 끌기가 없다.
+- 휠·핀치 이동은 픽 중에도 된다(PRODUCT §5 item 6 "Pan and pinch still work").
+- 픽이 끝나면(칩 추가·취소) 픽 전의 도구로 돌아간다. 픽 중 V·H는 무시된다.
 
 ## 비목표
 
-- 가운데 버튼 드래그, 빈 여백 드래그로 이동.
+- 가운데 버튼 드래그, Select에서 빈 여백 드래그로 이동.
 - 관성 스크롤.
 - Hand 상태의 기기 저장.
 - 끌어서 범위 선택(마키 선택).
+- Add to conversation 툴팁의 단축키 표시.
