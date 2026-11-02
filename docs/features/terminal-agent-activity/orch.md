@@ -21,7 +21,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
-| P | P1 문구, P2 `/design-draft` | `docs/features/terminal-agent-activity/design.md` '표시'·'Deep link' 문구, `.doan/canvases/` 새 초안 파일 | 없음 | Claude Opus medium — 문구와 초안 상태 판단, 기존 초안 규약을 지켜야 한다 | `doan check --repo .`, `doan ls --repo .`, 지휘자 초안 리뷰, 사용자 확인 | 대기 |
+| P | P1 문구, P2 `/design-draft` | `docs/features/terminal-agent-activity/design.md` '표시'·'Deep link' 문구, `.doan/canvases/` 새 초안 파일 | 없음 | Claude Opus medium — 문구와 초안 상태 판단, 기존 초안 규약을 지켜야 한다 | `doan check --repo .`, `doan ls --repo .`, 지휘자 초안 리뷰, 사용자 확인 | 통합됨 `8785f4d2`·`3e7d377d`, 지휘자 리뷰 통과, 사용자 확인 대기 |
 | S | T1, T1b | `schema/app-socket.v3.schema.json`, `schema/fixtures/app-socket-v3/`, `schema/fixtures/open-link/cases.json`, `schema/embed.go`(필요하면), `app/src/formats/validate.ts`·테스트, `cli/internal/formats/validate.go`·테스트 | 없음 | Claude Sonnet medium — v2를 따라 하는 기계적인 형식 추가 | `go test ./...`, `npm --prefix app test` | 대기 |
 | C | T4b, T7 | `app/src/main/agentSetup/`, About의 agent setup 결과 표시(필요한 곳만), 테스트 | 없음 | Claude Opus high — 사용자의 `~/.claude/settings.json`을 고치므로 틀리면 사용자 설정을 잃는다. 규칙 문자열을 문서로 확인해야 한다 | `npm --prefix app test`, typecheck | 대기 |
 | A | T2, T4c Go `canvasLink`, T5, T9 | `cli/internal/cli/work.go`(+새 Go 파일)·테스트, `cli/internal/cli/skill.md`·`skill_test.go`, CLI 명령 등록 파일 | S | Codex gpt-6-astra medium (O5) — 경로 판정(심볼릭 링크)과 오류 대응 표, 가이드 문구가 agent-eval 결과를 정한다 | `go test ./...`, `go vet ./...` | 대기 |
@@ -31,6 +31,13 @@
 | G | T11 `/design-sync`, T12 `/runtime-test` | `docs/DESIGN.md`, 측정으로 생긴 UI 수정(소유 배치 D로 돌려보냄), `.scratch/` | B, C, D 통합 | Claude Opus medium — 실제 앱 격리 probe와 측정 판단 | 측정값·스크린샷·상태 로그 | 대기 |
 | R* | 배치별 리뷰(RS, RC, RA, RB, RD, RF) | 보고만 | 각 배치 | 교차 모델 독립 리뷰: Claude가 구현한 배치(P·S·C·D)는 Codex gpt-6-astra medium, Codex가 구현한 배치(A·B·F)는 Claude Sonnet high | `/code-review` 보고 | 대기 |
 | 지휘자 | P 초안 리뷰, T13, Z1 문서 승격 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `README.md`, 이 디렉터리 삭제 | 전부 | — | `verify.mjs --eval` 통과, `/doc-check` | 대기 |
+
+## 초안 리뷰 (지휘자)
+
+- 격리된 dev 앱(임시 HOME·userData, taa-P HEAD의 `.doan`·`app/src/renderer` 사본)에서 `terminal-agent-activity` 캔버스를 열어 네 프레임을 봤다. 실제 상태는 바뀌지 않았다(real-state 확인 통과). 근거: `.scratch/orch/draft/board.png`, `z-1.png`~`z-4.png`.
+- spec·design의 상태 대응: 버튼 없는 notice(앱 대화 notice와 비교, 선택 힌트와 겹침), 사이드바 터미널 슬롯(캔버스 행 Codex, 접힌 프로젝트 행 Claude Code, 익명, 권한 요청이 이김), 비활성 'Terminal session'과 이유 줄(끝난 뒤 상태와 비교), deep link 거절 안내 세 가지. 빠진 상태는 없다. 같은 행에서 앱 대화가 이기는 경우와 앱 turn 뒤 전환은 shipped 모양이라 글로만 적었다.
+- `doan check --repo .`: 오류 1·경고 12로 main과 같다(오류는 기존 `select-inspect.html`). `doan ls`: 프레임 4개.
+- 확인하지 못한 것: 다크 테마 렌더링.
 
 ## 겹침과 순서
 
