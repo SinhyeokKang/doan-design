@@ -54,6 +54,7 @@
 - 경로·id: `.doan/canvases/canvas-hand-tool.html`, `canvas-hand-tool`.
 - 프레임: `tools-select`(Select 눌림, 툴팁 "Select" V), `tools-hand`(Hand 눌림, 툴팁 "Hand" H), `kbd-on-prominent`(공용 키 변형: 픽 안내의 Esc 기본 크기와 툴팁의 V·H sm 크기), `board-hand`(Hand: 프레임 위 grab 커서, 선택 표시 유지, hover 없음, 에이전트 알림 Stop이 레이어 위), `board-space`(Select + Space로 끄는 중: grabbing 커서, Select 눌림), `board-failed`(Hand + 로드 실패: Hand 눌림, grab 커서 없음, Reload).
 - 커서는 정적 초안에서 보이지 않으므로 커서 모양을 그림으로 표시하고 설명용이라고 적는다.
+- 확정: 사용자가 앱에서 초안을 확인하고 확정했다(2026-11-03, 리비전 ea58be23 기준: 면 채움 키 표시, 마지막 도구 기기 저장 반영). `/design-sync`는 이 초안을 기준으로 한다.
 
 ## 영향 받는 부분
 

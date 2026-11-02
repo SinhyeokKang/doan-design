@@ -4,7 +4,7 @@
 
 ## D. 초안
 
-- [ ] D1. `/design-draft`: 새 초안 `.doan/canvases/canvas-hand-tool.html`에 도구모음(Select·Hand·Add to conversation; Select 눌림과 Hand 눌림), Select·Hand 툴팁(단축키 V·H), grab·grabbing 커서 표시를 그린다. 기존 `buzz-canvas.html`은 고치지 않는다. 이미 main에 있는 화면이라 `/design-draft`의 'Not for'에 해당하지만, 이 기능에 한해 사용자가 예외로 정했다(`/feature-review`). 사용자가 앱에서 확인한다.
+- [x] D1. `/design-draft`: 새 초안 `.doan/canvases/canvas-hand-tool.html`에 도구모음(Select·Hand·Add to conversation; Select 눌림과 Hand 눌림), Select·Hand 툴팁(단축키 V·H), grab·grabbing 커서 표시를 그린다. 기존 `buzz-canvas.html`은 고치지 않는다. 이미 main에 있는 화면이라 `/design-draft`의 'Not for'에 해당하지만, 이 기능에 한해 사용자가 예외로 정했다(`/feature-review`). 사용자가 앱에서 확인한다.
   - 검증: `go run ./cli/cmd/doan check --repo .` 오류 없음, `go run ./cli/cmd/doan ls --repo .`에 새 캔버스가 보임, 사용자 확인.
 
 ## T. 순수 함수 (`/tdd` → `/implement`)
