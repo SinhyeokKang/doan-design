@@ -128,8 +128,12 @@ func TestSkillReportsUnservedCSSInFinalAnswer(t *testing.T) {
 		"do not change configuration",
 		"In your final answer, say the original file could not be linked as-is",
 		"serving its path needs the user's approval",
-		"Settings › Projects",
+		"Project Settings › Shared with canvases",
 		"doan config --add-serve",
+		"~/Applications` creates the CLI link",
+		"All commands except `onboarding` accept `--repo",
+		"`agents` is `{revision, providers}`",
+		"`.doan/** linguist-documentation`",
 		"If you use a workaround such as copying CSS into `.doan/assets/`, disclose it in the final answer",
 	} {
 		if !strings.Contains(skillBody, required) {
