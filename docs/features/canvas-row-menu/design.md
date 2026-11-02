@@ -19,7 +19,7 @@
 - 잠긴 동안 버튼은 `disabled`가 아니라 `aria-disabled`다(포커스 순서 유지, DESIGN 'Locked Back').
 - 버튼은 프로젝트 행 버튼과 같은 모양이다: `doan-icon-button shell-more`, `Ellipsis` 아이콘, `aria-label="<stem> menu"`, `tabIndex={active === key ? 0 : -1}`, click·keydown `stopPropagation`(215행). 그래서 Tab 순서와 roving tabindex 규칙(ARCHITECTURE §3 'Actions and focus')이 그대로다.
 - 크기: 프로젝트 행 버튼은 32px(`styles.css` 422행 `.shell-more.doan-icon-button`)이고 행 높이도 32px이다(404행). 캔버스 행에서도 32px 정사각형이면 행 높이가 바뀌지 않는다. 행의 오른쪽 padding(10px, 424행)과 겹치는 부분은 초안에서 정한다.
-- **상태 자리와 버튼(초안 제안, 사용자 확정)**: 지금 프로젝트 행 버튼은 항상 보인다(hover 규칙이 없다). 캔버스 행은 수가 많아 항상 보이면 목록이 시끄럽고 상태 자리(`.row-slot`, `margin-left: auto`, 669행)와 겹친다. 제안: 버튼은 행 hover, 행 안 키보드 포커스(`:focus-within`), 그 행의 메뉴가 열린 동안에만 보이고, 그동안 상태 자리 위치를 대신한다. 상태 자리는 시각적으로만 숨기고(`visibility: hidden`이 아니라 opacity 0, 접근 이름 유지) 행 상태 정보는 사라지지 않는다. 초안 P2가 이 제안과 프로젝트 행의 '항상 보임'의 차이를 적고, 사용자가 확정한다.
+- **상태 자리와 버튼(사용자 확정)**: 프로젝트 행 버튼은 항상 보이지만, 캔버스 행 버튼은 행 hover, 행 안 키보드 포커스(`:focus-within`), 그 행의 메뉴가 열린 동안에만 보인다. 캔버스 행은 수가 많아 버튼이 항상 보이면 목록이 시끄럽고 상태 자리(`.row-slot`)와 겹치기 때문이다. 버튼이 보이는 동안 행의 끝 padding은 0이고(프로젝트 행처럼 버튼이 오른쪽 끝에 붙는다), 버튼이 상태 자리 위치를 대신한다. 상태 자리는 흐름에서 빠진 채 시각적으로만 숨는다(sr-only 방식: absolute, 1px, `clip-path: inset(50%)`). `display: none`·`visibility: hidden`이 아니므로 접근 이름은 남는다. 평소(버튼이 숨은 동안)에는 상태 표시가 지금처럼 보인다. 초안 `row-button` 프레임 그대로다.
 - **메뉴 항목**:
   - Export: `row.error`가 있으면 비활성이고 이유 한 줄(예: 행 오류 문장과 같은 뜻)을 메뉴 안에 둔다. 같은 캔버스 Export가 진행 중이면 비활성.
   - Move to Trash: 아래 '작업 중 판정'이 참이면 비활성이고 이유 한 줄.
@@ -223,12 +223,12 @@ clarify 프리셋으로 정했다. `<stem>`은 사이드바 행 이름(파일 st
 
 - 캔버스 `.doan/canvases/canvas-row-menu.html`, id `canvas-row-menu`, 폭 2000.
 - 프레임 다섯 개(spec 결정 10, tasks P2의 (1)~(5)):
-  - `row-button` — 캔버스 행 버튼: 평소, hover, 행 키보드 포커스, 버튼 포커스, 메뉴 열림, 잠김, 스피너·권한·알림 dot 상태 자리와 함께, 읽기 오류 행, 하위 디렉터리 행. 비교용으로 '항상 보임'(프로젝트 행 규칙) 한 장. `data-doan-implements="app/src/renderer/ShellSidebar.tsx"`.
+  - `row-button` — 캔버스 행 버튼: 평소, hover, 행 키보드 포커스, 버튼 포커스, 메뉴 열림, 잠김, 스피너·권한·알림 dot 상태 자리와 함께, 읽기 오류 행, 하위 디렉터리 행. `data-doan-implements="app/src/renderer/ShellSidebar.tsx"`.
   - `row-menu` — 메뉴: 기본, Move to Trash 비활성(작업 중), Export 비활성(행 오류), Export 비활성(진행 중). `ShellSidebar.tsx`.
   - `trash-dialog` — Alert Dialog: 댓글 없음, 댓글 있음, 열린 사이 작업이 시작됨, 긴 이름·경로. 확인 뒤 삭제 토스트도 이 프레임에 둔다. `App.tsx`.
   - `export-toast` — Export 토스트: 진행, 성공, 성공 + 외부 URL, 실패 종류별. `App.tsx`.
   - `viewer-shell` — 내보낸 파일의 viewer: 기본(Fit), drawer 열림, 확대 메뉴 열림, 프레임 0개, 1,000개 넘음, JavaScript 없음. 구현 파일이 아직 없으므로 `data-doan-implements`를 두지 않는다.
-- 행 버튼 배치는 제안이다(위 '행 버튼과 메뉴'). 사용자가 앱에서 초안을 보고 확정한다.
+- 행 버튼 배치는 사용자가 확정했다(위 '행 버튼과 메뉴'). 초안의 나머지 제안(잠긴 버튼의 비활성 색, 메뉴 아이콘, JavaScript 없을 때 viewer 컨트롤 숨김)은 아직 확인 전이다.
 
 ## 순수 함수 (`/tdd` 대상)
 
