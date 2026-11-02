@@ -143,12 +143,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const choices = chosen ? permissionChoices(chosen, listState) : [];
   const permission = permissionPickerView(chosen, listState, mode.kind === "new"
     ? defaultPermission(choices, pick.permissionMode, chosen ? props.prefs?.permissions?.[chosen] : undefined, fixed)
-    : defaultPermission(choices, pick.permissionMode ?? stored, undefined, null));
+    : defaultPermission(choices, pick.permissionMode ?? support.started[key] ?? stored, undefined, null));
   const permissionMode = permission?.mode;
   // An existing conversation's send names the shown mode only once it is known: before the list names the
   // conversation, Default would overwrite the mode it was started in.
   const sentMode = mode.kind === "new" || summary || pick.permissionMode !== undefined ? permissionMode : undefined;
-  useEffect(() => { if (mode.kind !== "new") support.settlePermission(key, stored); }, [key, stored, pick.permissionMode]);
+  useEffect(() => { if (mode.kind !== "new") support.settlePermission(key, summary ? stored : null); }, [key, stored, summary !== undefined, pick.permissionMode]);
   const choiceTouched = Object.keys(pick).length > 0;
   // An existing conversation's stored mode is remembered only when it is picked here: a model pick alone must not
   // carry a mode (Full access included) the person chose for that conversation into new ones.
@@ -235,7 +235,11 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       const last: LastRequest = { root, text: plainText(draft.segments), preset: draft.preset, attachments: [...draft.attachments], provider: chosen, model, effort };
       const revision = run.revision(root);
       const outcome = await props.onStart(start, last);
-      if ("ok" in outcome && outcome.conversationId) { support.clearPick(key); run.started(root, outcome.conversationId, chosen, revision); }
+      if ("ok" in outcome && outcome.conversationId) {
+        support.clearPick(key);
+        if (permissionMode) support.startedIn(draftKey({ kind: "existing", conversationId: outcome.conversationId, provider: chosen }), permissionMode);
+        run.started(root, outcome.conversationId, chosen, revision);
+      }
       return "ok" in outcome ? { ok: true } : outcome;
     }
     const revision = run.revision(root);
@@ -364,9 +368,9 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         drafts={run.drafts} onDrafts={update => run.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
-        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), model: value === "default" ? undefined : value })}
+        onPickModel={(picked, value) => support.pick(key, { ...(mode.kind === "new" ? { provider: picked } : {}), ...(picked !== chosen ? { permissionMode: undefined } : {}), model: value === "default" ? undefined : value })}
         onPickEffort={value => support.pick(key, { effort: value })}
-        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value)}
+        permission={permission} onPickPermission={value => support.pickPermission(key, mode.kind === "new" ? null : mode.conversationId, value, summary ? stored : undefined)}
         onSettings={props.onSettings}
         presets={support.presets} suggested={suggestedPresets(props.entry, presets)}
         onPresetsOpen={() => { if (support.presets && !support.presets.ok) support.readPresets(); }} onPresetsRetry={() => support.readPresets()}

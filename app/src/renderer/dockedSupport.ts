@@ -8,8 +8,10 @@ import type { ModelsState, PresetListReply } from "./homeComposer";
 // picks per draft key. App owns one, so leaving and coming back does not read them again or lose a pick.
 
 // provider: a new conversation's agent; model and effort: what the person changed, sent only then. permissionMode: a
-// new conversation's pick; in an existing one, a pick main has not yet reported back in the conversation's summary.
-export interface DockedPick { provider?: Provider; model?: string; effort?: string; permissionMode?: PermissionModeId }
+// new conversation's pick for its provider (a provider switch drops it: modes are remembered per provider, spec
+// decision 4, and Full access never carries to another); in an existing one, a pick main has not yet reported back in
+// the conversation's summary, with permissionFrom, the stored mode it was picked over (when the summary was known).
+export interface DockedPick { provider?: Provider; model?: string; effort?: string; permissionMode?: PermissionModeId; permissionFrom?: PermissionModeId }
 
 export const modelsKey = (root: string, provider: Provider) => `${root}\n${provider}`;
 
@@ -18,6 +20,9 @@ export class DockedSupport {
   presets: PresetListReply | undefined = undefined;
   models: Record<string, ModelsState> = {};
   picks: Record<string, DockedPick> = {};
+  // The mode a conversation started here was started in, by its key, until its summary arrives: the list read lags
+  // the start, and the stored mode would read as Default meanwhile. Not the person's pick, so never sent or remembered.
+  started: Record<string, PermissionModeId> = {};
   // Object URLs of image chips by attachment key.
   thumbnails: Record<string, string> = {};
 
@@ -46,22 +51,33 @@ export class DockedSupport {
   // An undefined field drops that pick, back to the default.
   pick(key: string, patch: { [K in keyof DockedPick]?: DockedPick[K] | undefined }): void {
     const next = { ...this.picks[key], ...patch };
-    for (const field of ["provider", "model", "effort", "permissionMode"] as const) if (next[field] === undefined) delete next[field];
+    for (const field of ["provider", "model", "effort", "permissionMode", "permissionFrom"] as const) if (next[field] === undefined) delete next[field];
     this.picks = { ...this.picks, [key]: next as DockedPick };
     this.changed();
   }
   // An existing conversation's mode is stored by main at once (permission-mode spec decision 7, orch decision 8), so
   // a running turn's queue goes out in it. The pick shows until the conversation's summary reports it
-  // (settlePermission); a refused one is dropped, back to the stored mode.
-  pickPermission(key: string, conversationId: string | null, mode: PermissionModeId): void {
-    this.pick(key, { permissionMode: mode });
+  // (settlePermission), or until the stored mode moves off the one it was picked over (`from`): main changed it
+  // (a plan approval) and the list read may have skipped the pick. A refused one is dropped, back to the stored mode.
+  pickPermission(key: string, conversationId: string | null, mode: PermissionModeId, from?: PermissionModeId): void {
+    this.pick(key, { permissionMode: mode, permissionFrom: from });
     if (!conversationId) return;
     void window.doan.setConversationPermissionMode({ conversationId, permissionMode: mode }).catch(() => ({ error: "unknown" })).then(reply => {
-      if (reply && "error" in reply && this.picks[key]?.permissionMode === mode) this.pick(key, { permissionMode: undefined });
+      if (reply && "error" in reply && this.picks[key]?.permissionMode === mode) this.pick(key, { permissionMode: undefined, permissionFrom: undefined });
     });
   }
-  settlePermission(key: string, stored: PermissionModeId): void {
-    if (this.picks[key]?.permissionMode === stored) this.pick(key, { permissionMode: undefined });
+  startedIn(key: string, mode: PermissionModeId): void { this.started = { ...this.started, [key]: mode }; this.changed(); }
+  // stored: the conversation's summary's mode, null before the list names it.
+  settlePermission(key: string, stored: PermissionModeId | null): void {
+    if (stored === null) return;
+    if (key in this.started) {
+      const { [key]: _gone, ...rest } = this.started;
+      this.started = rest;
+      this.changed();
+    }
+    const pick = this.picks[key];
+    if (pick?.permissionMode === undefined) return;
+    if (pick.permissionMode === stored || (pick.permissionFrom !== undefined && pick.permissionFrom !== stored)) this.pick(key, { permissionMode: undefined, permissionFrom: undefined });
   }
   // A start sends the new conversation's picks; the next one starts from the defaults again, as Home's does.
   clearPick(key: string): void {

@@ -31,3 +31,29 @@ test("a refused pick goes back to the stored mode; a new conversation's pick cal
   expect(set).toHaveBeenCalledTimes(1);
   expect(support.picks["new:/r"]).toEqual({ permissionMode: "plan" });
 });
+
+// RV-B 🟡3: a pending pick remembers the stored mode it was made from. When main moves the stored mode off that value
+// (a plan approval the list read caught only at its end), the pick is dropped and the stored mode shows.
+test("a pending pick is dropped when the stored mode changes from the one it was made from", async () => {
+  vi.stubGlobal("window", { doan: { setConversationPermissionMode: vi.fn(async () => undefined) } });
+  const support = new DockedSupport(() => {});
+  support.pickPermission("conversation:c1", "c1", "acceptEdits", "plan");
+  await flush();
+  support.settlePermission("conversation:c1", "plan");
+  expect(support.picks["conversation:c1"]).toMatchObject({ permissionMode: "acceptEdits" });
+  support.settlePermission("conversation:c1", "default");
+  expect(support.picks["conversation:c1"]).toEqual({});
+});
+
+// RV-B 🟡2: a conversation started here shows the mode it was started in until its summary arrives; the summary then
+// speaks, whatever it says. It is no pick of the person's: it is not sent or remembered.
+test("a just-started conversation's mode shows until its summary arrives", () => {
+  const support = new DockedSupport(() => {});
+  support.startedIn("conversation:c1", "bypass");
+  expect(support.started["conversation:c1"]).toBe("bypass");
+  expect(support.picks["conversation:c1"]).toBeUndefined();
+  support.settlePermission("conversation:c1", null);
+  expect(support.started["conversation:c1"]).toBe("bypass");
+  support.settlePermission("conversation:c1", "default");
+  expect(support.started["conversation:c1"]).toBeUndefined();
+});

@@ -73,6 +73,17 @@ test("a canvas with a terminal session offers it first, with the time doan check
   expect(out).toContain('aria-placeholder="Reply, / for presets"');
 });
 
+// permission-mode U1, RV-B ⚪6: a terminal session's mode is its own; the tray shows the fixed trigger, never the picker.
+test("a terminal session shows the fixed Permission trigger and no picker", async () => {
+  resume = { available: true, runtime: "claude", lastCheckAt: "2026-11-01T14:02:00" };
+  const support = () => Object.assign(new DockedSupport(() => {}), { auth: { revision: 1, providers: [connected("claude")] } });
+  const out = await panel([], () => {}, { support: support(), prefs: { permissions: { claude: "bypass" } } });
+  expect(out).toContain('aria-label="Permission: set by the terminal session"');
+  expect(out).not.toContain("data-mode=");
+  resume = { available: false, reason: "no_record" };
+  expect(await panel([], () => {}, { support: support(), prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="bypass"');
+});
+
 test("restoring an archived conversation waits while the current one works, with Open", async () => {
   const out = await panel([summary("now", { phase: "running", working: true }), summary("old", { state: "archived" })], run => {
     run.select("old");
