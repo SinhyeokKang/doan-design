@@ -1011,7 +1011,7 @@ export class CanvasController {
       if (point === null || tag !== this.clickTag || this.state.picking || document.activeElement !== focused || Date.now() - asked > CLICK_CURSOR_MS) return;
       const area = this.viewport.getBoundingClientRect();
       if (point.x >= area.left && point.x < area.right && point.y >= area.top && point.y < area.bottom) this.viewport.focus(CLICK_FOCUS);
-    }, () => {});
+    }, (error: unknown) => { console.error("pointer:get failed", error); });
   }
 
   // The layer shows while Hand or a held Space can pan a drawn board, and through a drag in progress.
@@ -1085,14 +1085,15 @@ export class CanvasController {
   private onLayout(message: LayoutMessage): void {
     const documentChanged = message.document !== undefined && message.document !== this.anchorDocument;
     if (documentChanged) { this.resetAnchors(); this.anchorDocument = message.document ?? null; }
-    // A held Space and a drag end with the board they were on, also when the canvas replaces its own document
-    // (its location.reload()), which keeps the iframe; the tool stays.
-    if (documentChanged && (this.spaceHeld || this.drag !== null)) { this.spaceHeld = false; this.finishDrag(); }
     // Another document, even at the same URL in the same iframe (the canvas's own location.reload()), ends the pick
     // channel of the one it replaced; the pick itself goes on below unless the page is another canvas.
     if (message.document !== undefined && message.document !== this.pickDocument) {
       this.pickDocument = message.document;
       this.resetPickChannel();
+      // A held Space and a drag end with the board they were on, also when the canvas replaces its own document
+      // (its location.reload()), which keeps the iframe; the tool stays. Not on the anchor document's change: the
+      // iframe's load event forgets that one while the document stays.
+      if (this.spaceHeld || this.drag !== null) { this.spaceHeld = false; this.finishDrag(); }
     }
     const before = this.layoutDisplayKey();
     const previousCurrent = this.state.currentFrame;

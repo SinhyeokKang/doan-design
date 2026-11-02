@@ -2837,10 +2837,13 @@ describe("hand tool", () => {
     vi.useFakeTimers();
     const h = harness();
     try {
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
       h.pointer.mockRejectedValueOnce(new Error("ipc"));
       h.select(1);
       await flush();
       expect(h.viewport.focus).not.toHaveBeenCalled();
+      expect(logged).toHaveBeenCalledWith("pointer:get failed", expect.any(Error));
+      logged.mockRestore();
       // Late: the cursor it reports is not where the click was any more.
       let answer: (point: { x: number; y: number }) => void = () => {};
       h.pointer.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
@@ -2941,6 +2944,19 @@ describe("hand tool", () => {
       expect(h.layer.captured.size).toBe(0);
       expect(h.state().tool).toBe("hand");
       expect(shown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
+  // Review of the fix above: the iframe's load event forgets the anchor document, so only a new token counts.
+  it("a held Space and a drag survive the iframe's load event and a later layout from the same document", () => {
+    const h = harness();
+    try {
+      press(h, "Space");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      h.current().dispatchEvent(new Event("load"));
+      h.layout({ document: "doc" });
+      expect(shown(h)).toBe(true);
+      expect(grabbing(h)).toBe(true);
     } finally { h.controller.dispose(); }
   });
 
