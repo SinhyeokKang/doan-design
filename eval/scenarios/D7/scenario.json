@@ -1,8 +1,0 @@
-{
-  "id": "D7",
-  "title": "Handle a compound request that needs copy and state guidance",
-  "focus": "preset",
-  "init": null,
-  "selection": null,
-  "timeoutSec": 900
-}

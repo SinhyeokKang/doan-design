@@ -1,5 +1,5 @@
 import type { Checks } from "../../lib/types.ts";
-import d2 from "../D2/checks.ts";
+import d2 from "./base.ts";
 import { canvasParts } from "../D1/presets.ts";
 
 // D2 with the duplicate toggle worded unambiguously ("Email me when a client
