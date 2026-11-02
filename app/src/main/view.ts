@@ -19,6 +19,8 @@ export interface CanvasRow {
   // Bumped by the shell when this file changed without a served bump, so the
   // open canvas and its thumbnail reload for their own file only.
   rev?: number;
+  // Set by `canvasSeen.ts` when the canvas appeared or changed since the person last had it on the canvas page.
+  unseen?: "new" | "changed";
   // `doan ls` could not read the canvas file (project-feedback design §1).
   // The listing's comment counts and `commentsError` are not kept: nothing in
   // the app shows comments.

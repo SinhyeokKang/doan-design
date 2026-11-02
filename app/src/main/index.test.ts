@@ -1392,6 +1392,14 @@ test("shell activity refuses foreign windows, subframes, unknown roots, and spar
   expect(await invoke("shell:activity", contents, null, { roots: [] })).toEqual([]);
 });
 
+test("canvas seen refuses foreign windows, subframes, unregistered roots and bad values", async () => {
+  const contents = window().webContents;
+  expect(await invoke("canvas:seen", {}, null, { root: "/r", path: ".doan/canvases/a.html", mtimeMs: 1 })).toBe(false);
+  expect(await invoke("canvas:seen", contents, {}, { root: "/r", path: ".doan/canvases/a.html", mtimeMs: 1 })).toBe(false);
+  expect(await invoke("canvas:seen", contents, null, { root: "/not-registered", path: ".doan/canvases/a.html", mtimeMs: 1 })).toBe(false);
+  expect(await invoke("canvas:seen", contents, null, null)).toBe(false);
+});
+
 // buzz-add-projects: the page's own project instance, beside the onboarding session's (design 'main의 project 처리').
 describe("Add Projects page session", () => {
   const PAGE = ["add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel"];
