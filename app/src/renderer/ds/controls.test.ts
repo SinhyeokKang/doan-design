@@ -214,11 +214,11 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin-block: var(--radius-row); }');
 });
 
-// A listbox row is not a Radix item, so it takes the menu row's fill from the pointer itself. The `/` list keeps its rows
-// unfocusable and moves its one highlight instead, so only focusable options use :hover.
-test("a focusable option row fills like a highlighted menu row on hover", () => {
+// A listbox row is not a Radix item, so it takes the menu row's fill from focus, which the pointer moves (the frame list does
+// the same). The `/` list keeps its rows unfocusable and moves its one highlight instead.
+test("a focusable option row fills like a highlighted menu row while focused", () => {
   const css = read("./surfaces.css");
-  expect(rule(css, '.doan-menu-item[role="option"][tabindex]:hover')).toBe("background: var(--affordance-floating-hover);");
+  expect(rule(css, '.doan-menu-item[role="option"][tabindex]:focus')).toBe("background: var(--affordance-floating-hover);");
 });
 
 // The sidebar is transparent over the window's native vibrancy, which a web backdrop-filter cannot sample: under the

@@ -1,7 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test } from "vitest";
-import { PermissionPicker, SlashPresets } from "./ComposerParts";
+import { PermissionPicker, presetBody, SlashPresets } from "./ComposerParts";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { permissionPickerView } from "./permissionPicker";
 
@@ -24,8 +24,8 @@ test("the permission trigger shows the mode's icon and label; Full access warns"
   expect(html("bypass")).toContain('<span class="label">Full access</span>');
 });
 
-// The popover's rows are listbox options, not Radix items, so `data-highlighted` never reaches them by itself. The `/` list
-// moves its one highlight with the pointer, as a Radix menu does, so a hovered row and the keyboard row never both fill.
+// The popover's rows are listbox options, not Radix items, so `data-highlighted` never reaches them by itself. The pointer moves
+// the one highlight: in the `/` list through its highlight, in the popover through focus (the frame list does the same).
 function optionRows(node: ReactNode, found: ReactElement<Record<string, unknown>>[] = []): ReactElement<Record<string, unknown>>[] {
   if (Array.isArray(node)) node.forEach(child => optionRows(child, found));
   else if (isValidElement<Record<string, unknown>>(node)) {
@@ -44,4 +44,20 @@ test("the / list highlights the row under the pointer", () => {
   const second = (rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props);
   (second.props.onPointerMove as () => void)();
   expect(highlighted).toEqual([1]);
+});
+
+test("a popover preset row takes focus from the pointer", () => {
+  const row = (id: string) => ({ id, title: id, description: "", scope: "feature brief", tooltip: id, group: "Start" });
+  const view = { kind: "list" as const, tabs: [], summary: "2 presets", sections: [{ title: null, rows: [row("a"), row("b")] }] };
+  const list = presetBody(view, false, { listId: "l", highlight: 0, onChoose: () => {}, onRetry: () => {} }) as ReactElement<Record<string, unknown>>;
+  const rows = optionRows(list.props.children as ReactNode);
+  const second = (rows[1]!.type as (props: unknown) => ReactElement<Record<string, unknown>>)(rows[1]!.props);
+  const focused: unknown[] = [];
+  const node = { ownerDocument: { activeElement: null }, focus: (options: unknown) => focused.push(options) };
+  (second.props.onPointerMove as (event: unknown) => void)({ currentTarget: node });
+  expect(focused).toEqual([{ preventScroll: true }]);
+  // Already focused, as after the arrow keys: nothing to do.
+  node.ownerDocument.activeElement = node as never;
+  (second.props.onPointerMove as (event: unknown) => void)({ currentTarget: node });
+  expect(focused).toHaveLength(1);
 });

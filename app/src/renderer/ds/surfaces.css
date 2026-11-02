@@ -81,8 +81,9 @@
    open share one fill; a disabled row keeps its place but takes the disabled ink. Inside
    the scrolling list an outer ring would be clipped, so the keyboard ring is drawn inward. */
 .doan-menu-item:is([data-highlighted], [data-state="open"]) { background: var(--affordance-floating-hover); }
-/* A listbox row is not a Radix item, so nothing sets data-highlighted from the pointer; a focusable one fills on hover. */
-.doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }
+/* A listbox row is not a Radix item, so nothing sets data-highlighted. A focusable one takes focus from the pointer
+   (as the frame list does) and fills while focused, so one row at a time is filled whether the pointer or the arrow keys moved it. */
+.doan-menu-item[role="option"][tabindex]:focus { background: var(--affordance-floating-hover); }
 .doan-menu-item[data-disabled], .doan-menu-item[data-disabled] .sub { color: var(--text-disabled); }
 .doan-menu-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 

@@ -176,7 +176,7 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
   const focusRow = (at: number) => document.getElementById(`${options.listId}-p-${at}`)?.focus();
   return <div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
     tabIndex={slash ? undefined : -1} title={row.tooltip} data-highlighted={slash && index === options.highlight ? "" : undefined}
-    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={slash ? () => options.onHighlight?.(index) : undefined} onClick={() => options.onChoose(row.id)}
+    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={event => { if (slash) options.onHighlight?.(index); else if (event.currentTarget.ownerDocument.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); }} onClick={() => options.onChoose(row.id)}
     onKeyDown={slash ? undefined : event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
       else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id); }
@@ -185,7 +185,7 @@ function PresetOption({ row, index, slash, options }: { row: PresetRow; index: n
     <span className="preset-text"><span className="preset-title">{row.title}</span>{row.description && <span className="preset-desc">{row.description}</span>}</span>
   </div>;
 }
-function presetBody(view: PresetView, slash: boolean, options: PresetBodyOptions): ReactNode {
+export function presetBody(view: PresetView, slash: boolean, options: PresetBodyOptions): ReactNode {
   if (view.kind === "loading") return <div className="popover-state" role="status"><span className="doan-spinner" aria-hidden="true" />{view.text}</div>;
   if (view.kind === "empty") return <div className="popover-state" role="status">{view.text}</div>;
   // The popover is 90% glass over Home's gradient, not plain opaque white, so its notices take the panel surface.
