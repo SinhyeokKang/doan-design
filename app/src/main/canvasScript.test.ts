@@ -86,6 +86,12 @@ describe("nextHeight after web fonts load", () => {
     expect(run(0, twoEvents, chase)).toEqual({ sent: [80, 80, 80, 160, 160, 160, 240, 240, 240, 240], frozen: true });
   });
 
+  test("keeps growing while events continue and freezes after the last one", () => {
+    const chase = (inner: number) => inner + 80;
+    const burst = Array.from({ length: 8 }, (_, n) => ({ applied: true, fonts: Math.min(n, 4) }));
+    expect(run(150, burst, chase)).toEqual({ sent: [230, 310, 390, 470, 550, 550, 550, 550], frozen: true });
+  });
+
   test("keeps today's behavior when the fonts loaded before injection", () => {
     for (const start of [150, 0]) {
       expect(run(start, rounds(0, Infinity), swap)).toEqual({ sent: [7932, 7932, 7932, 7932, 7932, 7932, 7932], frozen: false });
@@ -666,6 +672,42 @@ describe("canvasScriptSource", () => {
     canvas.fireFonts("loadingdone");
     canvas.runFrame();
     expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7832, 7832, 7932]);
+  });
+
+  // An iframe outside the visible area gets no animation frames, and after a
+  // confirming layout the renderer pulls no more measures (POSTMORTEM 2026-10-26).
+  test("posts the web font height without an animation frame after a confirming layout", () => {
+    const canvas = fakeCanvas({ height: 7832 });
+    canvas.ready();
+    canvas.context.innerHeight = 7832;
+    canvas.fromParent({ type: "measure" });
+    canvas.state.height = 7932;
+    canvas.html.scrollHeight = 7932;
+    canvas.fireFonts("loadingdone");
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7832, 7932]);
+  });
+
+  test("counts a web font load between an early measure and DOMContentLoaded", () => {
+    const canvas = fakeCanvas({ height: 7832 });
+    // A measure pulled before DOMContentLoaded records the fallback height.
+    canvas.fromParent({ type: "measure" });
+    canvas.context.innerHeight = 7832;
+    canvas.state.height = 7932;
+    canvas.html.scrollHeight = 7932;
+    canvas.fireFonts("loadingdone");
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832]);
+    canvas.ready();
+    canvas.fromParent({ type: "measure" });
+    canvas.fromParent({ type: "measure" });
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7832, 7932, 7932, 7932]);
+  });
+
+  test("posts nothing for a web font load before DOMContentLoaded", () => {
+    const canvas = fakeCanvas({ height: 7932 });
+    canvas.fireFonts("loadingdone");
+    expect(canvas.posted).toEqual([]);
+    canvas.ready();
+    expect(ofType(canvas, "layout").map((message) => message.height)).toEqual([7932]);
   });
 
   test("starts at once when injected after the document is parsed", () => {

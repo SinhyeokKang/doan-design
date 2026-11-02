@@ -21,7 +21,8 @@ export interface HeightState {
 // Except once per web font load (`fonts` counts `loadingdone`): a font that
 // applies between the first measurement and our resize also grows the document
 // right after it, which looks the same as chasing and would cut its bottom off.
-// A chasing document then grows once per load and freezes again, so it ends.
+// A chasing document then grows once per load and freezes again after the last
+// one, so it ends only because a canvas loads finitely many fonts.
 export function nextHeight(prev: HeightState | null, measured: number, inner: number, fonts: number): HeightState {
   if (prev === null || prev.fonts !== fonts) return { sent: measured, inner, frozen: false, fonts };
   if (prev.frozen) return prev;
@@ -198,6 +199,7 @@ export function canvasScript(lib: CanvasLib): void {
   const post = (message: unknown) => parent.postMessage(message, "*");
   let height: HeightState | null = null;
   let fontLoads = 0;
+  let started = false;
   const documentToken = `${Date.now()}-${Math.random()}`;
 
   const frames = () => {
@@ -527,6 +529,7 @@ export function canvasScript(lib: CanvasLib): void {
   // The first layout and measure replies skip rAF: an iframe outside the
   // viewport gets no animation frames, so a batched reply would never come.
   const start = () => {
+    started = true;
     const resized = new ResizeObserver(schedule);
     resized.observe(document.documentElement);
     if (document.body) resized.observe(document.body);
@@ -540,14 +543,20 @@ export function canvasScript(lib: CanvasLib): void {
       schedule();
       tryPending();
     });
-    // Not `ready`: it may already be resolved here, which would count as a load
-    // before the first measurement and miss the first freeze of a chasing document.
-    document.fonts.addEventListener("loadingdone", () => {
-      fontLoads++;
-      schedule();
-    });
     send();
   };
+
+  // Not `ready`: it may already be resolved here, which would count as a load
+  // before the first measurement and miss the first freeze of a chasing document.
+  // Registered before `measure` is answered, so a load after an early measure
+  // still counts. Sent without rAF: an off-screen iframe gets no animation
+  // frames, and after a confirming layout the renderer pulls no more measures.
+  document.fonts.addEventListener("loadingdone", () => {
+    fontLoads++;
+    if (!started) return;
+    anchors.schedule();
+    send();
+  });
 
   const optionalString = (value: unknown) => value === undefined || typeof value === "string";
   const command = (data: Record<string, unknown>) => {
