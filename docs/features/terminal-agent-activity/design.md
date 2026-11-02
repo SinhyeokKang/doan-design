@@ -90,7 +90,10 @@ v1(`active`)과 v2(onboarding 전용) 옆에 `work` 전용 v3를 따로 둔다. 
   - 전환: 앱 대화의 turn이 끝났는데 같은 캔버스에 터미널 세션이 남아 있으면, indicator는 사라지지 않고 터미널 변형으로 바뀐다(notice 문구가 바뀌고 Stop이 없어진다). 터미널 세션도 끝나면 사라진다.
   - 로딩 중·실패·폭 없음인 캔버스에서는 보이고, 목록에 없는 페이지와 프로젝트 문제에서는 보이지 않는다. PRODUCT §5 item 2 'Agent indicator' 규칙과 같다.
 - **캔버스 대화 패널**: 새 대화 상태의 'Terminal session' 이어 가기 선택지는, 그 연결 기록의 세션(`provider:id`)이 작업 중 목록에 있으면 비활성이고 이유 한 줄을 보인다. 새 대화는 그대로 고를 수 있다. `done`이나 만료로 목록에서 빠지면 다시 고를 수 있다. 이미 이어 가기가 선택돼 있었다면 새 대화로 바꾼다. 익명 세션은 연결 기록과 맞출 수 없으므로 막지 않는다.
-- **문구**: notice, 슬롯 접근 이름, 비활성 이유는 `/design-draft` 전에 clarify 프리셋으로 정한다. 후보: notice "Agent working in a terminal", 슬롯 "Claude Code is working in a terminal" / 익명 "An agent is working in a terminal", 비활성 이유 "Still running in a terminal".
+- **문구**(clarify 프리셋으로 정했다):
+  - notice: "Agent is working in a terminal". 앱 대화의 notice "Agent is working"에 출처만 더한다. provider 이름을 넣지 않는 것도 같다.
+  - 슬롯 접근 이름: "Claude Code is working in a terminal", "Codex is working in a terminal", 익명 "An agent is working in a terminal". 앱 대화 슬롯 "`<provider>` is working"에 출처만 더한다.
+  - 비활성 이유: "Still working in your terminal. You can continue it when it finishes." 선택지 제목 "Continue the `<provider>` session from your terminal"과 같은 "your terminal"을 쓰고, 언제 다시 고를 수 있는지 알린다.
 
 ## Deep link
 
@@ -102,7 +105,10 @@ v1(`active`)과 v2(onboarding 전용) 옆에 `work` 전용 v3를 따로 둔다. 
 - **받기(main)**: `app.on("open-url")`을 시작 초기, `ready` 전에 등록한다. Electron 45 `electron.d.ts`의 'open-url' 설명: `ready`에서 등록하면 앱을 띄운 URL을 놓친다. 앱이 켜져 있으면 macOS가 같은 인스턴스에 `open-url`을 보낸다(단일 인스턴스 잠금은 `app/src/main/index.ts`에 이미 있다).
 - **대기**: 시작 중에 온 링크는 가장 마지막 하나만 들고 있다가, 시작 복원(PRODUCT §5 item 1 'Launch restores …')과 첫 폴더 목록이 끝난 뒤 처리한다. 복원한 화면 위로 링크의 캔버스가 열린다. 창을 닫아 숨긴 상태면 창을 보인다.
 - **처리**: main이 `parseOpenLink`로 읽고, root가 등록된 root와 글자 그대로 같은지(ARCHITECTURE §4 'Selection ownership'과 같은 비교), canvas가 그 root 목록에 있는지 본다. 맞으면 주 창 renderer에 `{root, canvas, frame?}`을 보내고, renderer는 Quick Open과 같은 이동 경로로 캔버스를 연다. frame이 있으면 Quick Open의 프레임 이동처럼 뷰를 옮기고 강조만 하고 선택·패널·초안·`doan active`는 바꾸지 않는다. frame을 찾지 못하면 캔버스만 연다.
-- **거절**: 형식 오류, 등록되지 않은 root, 목록에 없는 캔버스는 창을 보이고 짧은 안내만 띄운다. 안내 문구는 P1에서 clarify 프리셋으로 정한다.
+- **거절**: 형식 오류, 등록되지 않은 root, 목록에 없는 캔버스는 창을 보이고 짧은 안내만 띄운다. 문구(clarify 프리셋으로 정했다)는 모두 "Couldn’t open the link."로 시작하고(기존 "Couldn’t read conversations"·"Couldn’t stop …"과 같은 꼴) 이유를 한 문장 더한다:
+  - 형식 오류: "Couldn’t open the link. It isn’t a Doan canvas link."
+  - 등록되지 않은 root: "Couldn’t open the link. Its project isn’t in Doan. Add it from Add Projects, then open the link again." 링크는 프로젝트를 더하지 않으므로(아래 '이동만 한다') 사람이 할 다음 동작을 알린다.
+  - 목록에 없는 캔버스: "Couldn’t open the link. The canvas isn’t in `<project>`." `<project>`는 사이드바의 프로젝트 이름이다. 옮겨졌는지 지워졌는지는 앱이 알 수 없으므로 원인을 말하지 않는다.
 - **이동만 한다**: 링크는 쓰기, 보내기, 대화 시작, 프로젝트 추가, 설정 변경을 하지 않는다. 바뀌는 것은 일반 이동에 따라오는 기기 상태(마지막 화면, Back/Forward 기록, 배치 G의 캔버스 '봤다')뿐이다.
 
 ## Agent setup: Claude Code 허용 규칙
