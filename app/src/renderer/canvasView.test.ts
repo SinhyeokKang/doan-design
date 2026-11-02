@@ -239,6 +239,27 @@ describe("canvasViewUpdate: Move to Trash", () => {
     expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
   });
 
+  test("a newer request refused first leaves the older pending mark, so the trashed canvas is not followed", () => {
+    // Main refuses a second request for a row still being moved at once, so its reply overtakes the first one's.
+    const marks = new TrashMarks();
+    const first = marks.begin("/repo", ".doan/canvases/a.html");
+    const second = marks.begin("/repo", ".doan/canvases/a.html");
+    marks.settle(second, "refused");
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
+    marks.settle(first, "trashed");
+    expect(canvasViewUpdate(prev, gone, home, marks)).toEqual({ kind: "clear", reason: "trashed" });
+  });
+
+  test("a mark settled twice or a mark another store issued changes nothing", () => {
+    const marks = new TrashMarks();
+    const mark = marks.begin("/repo", ".doan/canvases/a.html");
+    marks.settle(mark, "refused");
+    marks.begin("/repo", ".doan/canvases/a.html");
+    marks.settle(mark, "refused");
+    marks.settle(new TrashMarks().begin("/repo", ".doan/canvases/a.html"), "refused");
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
+  });
+
   test("a refused reply for an older request leaves a newer mark for the same path", () => {
     const marks = new TrashMarks();
     const first = marks.begin("/repo", ".doan/canvases/a.html");

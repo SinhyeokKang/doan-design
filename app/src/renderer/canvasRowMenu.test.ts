@@ -23,6 +23,13 @@ describe("trashBlock", () => {
     expect(trashBlock(target, [summary({ phase: "waiting" })], [], none)).toBe("conversation");
   });
 
+  test("a conversation main still counts as working (preparing, a queue about to go out) blocks it, as main does", () => {
+    expect(trashBlock(target, [summary({ working: true })], [], none)).toBe("conversation");
+    expect(trashBlock(target, [summary({ working: true, readError: true })], [], none)).toBe("conversation");
+    expect(trashBlock(target, [summary({ working: true, state: "archived" })], [], none)).toBeNull();
+    expect(trashBlock(target, [summary({ working: true, canvas: { path: target.path, id: "other" } })], [], none)).toBeNull();
+  });
+
   test("an unseen ending or an archived conversation does not block it", () => {
     expect(trashBlock(target, [summary({ unseen: true })], [], none)).toBeNull();
     expect(trashBlock(target, [summary({ phase: "running", state: "archived" })], [], none)).toBeNull();

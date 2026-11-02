@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import type { BrowserWindowConstructorOptions, MenuItemConstructorOptions } from "electron";
 
@@ -52,6 +54,8 @@ const mocks = await vi.hoisted(async () => {
     // Conversation metadata the mocked store lists, and the service's event publisher main passed it.
     conversations: [] as unknown[],
     publishConversation: undefined as ((event: unknown) => void) | undefined,
+    // The conversation service main created, so a test can pin what main asks it.
+    conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
     createPreferencesStore: vi.fn(),
     app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
@@ -109,11 +113,15 @@ vi.mock("./conversation/drafts", async (importOriginal) => { const original = aw
 vi.mock("./conversation/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./conversation/service")>();
   return { ...actual, ConversationService: class extends actual.ConversationService {
-    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; }
+    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.conversationService = this; }
   } };
 });
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
-vi.mock("node:fs/promises", () => ({ mkdir: mocks.mkdir }));
+// Move to Trash checks the disk with the real calls (canvasTrash.ts); nothing else here reaches them.
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const real = await importOriginal<typeof import("node:fs/promises")>();
+  return { mkdir: mocks.mkdir, lstat: real.lstat, readdir: real.readdir, realpath: real.realpath };
+});
 vi.mock("./onboarding/completion", async (importOriginal) => ({ ...await importOriginal<typeof import("./onboarding/completion")>(), readCompletion: mocks.readCompletion }));
 vi.mock("./onboarding/machine", () => ({ runProcess: vi.fn(async () => ({ code: 1, stdout: "", stderr: "" })), probeShell: mocks.probeShell }));
 vi.mock("./agentSetup/runner", () => ({ runAgentSetup: mocks.runAgentSetup, osascriptAdmin: mocks.osascriptAdmin }));
@@ -1348,6 +1356,97 @@ describe("canvas trash and export", () => {
     mocks.dialog.showSaveDialog.mockResolvedValueOnce({ canceled: true, filePath: "" });
     expect(await invoke("canvas:export", window().webContents, null, request)).toEqual({ kind: "cancelled" });
     expect(mocks.runExport).not.toHaveBeenCalled();
+  });
+});
+
+// canvas-row-menu: main's own busy grounds and trashItem wiring, on a registered root that passes the disk checks
+// (POSTMORTEM 2026-11-01: the root is part of the identity; 2026-11-03: pin in main what the renderer relies on).
+describe("canvas trash on main's grounds", () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), "doan-index-trash-")));
+  afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+  let root = "", other = "", count = 0;
+  const path = ".doan/canvases/a.html";
+  const repo = () => {
+    const dir = join(tmp, `r${count++}`);
+    mkdirSync(join(dir, ".doan/canvases"), { recursive: true });
+    mkdirSync(join(dir, ".doan/comments"));
+    writeFileSync(join(dir, path), "<!doctype html>");
+    writeFileSync(join(dir, ".doan/comments/a.jsonl"), "{}\n");
+    return dir;
+  };
+  const row = { path, id: "a", url: "http://127.0.0.1:1/t/tok/k/.doan/canvases/a.html" };
+  const summary = (patch: object) => ({ conversationId: "c1", title: "t", state: "current", owner: "doan", provider: "claude", fromHome: false, phase: "ended",
+    unseen: false, queued: 0, working: false, lastActivityAt: "", preview: "", canvas: { path, id: "a" }, ...patch });
+  function service() {
+    const s = mocks.conversationService;
+    if (!s) throw new Error("no conversation service");
+    return { list: vi.spyOn(s, "list").mockReturnValue([]), evidence: vi.spyOn(s, "projectEvidence").mockReturnValue([]) };
+  }
+  function work() {
+    const state = mocks.startRuntime.mock.calls[0]?.[1];
+    if (typeof state !== "object" || state === null || !("work" in state) || typeof state.work !== "function") throw new Error("no work receiver");
+    return (at: string) => (state.work as (request: unknown) => void)({ v: 3, token: "t", root: at, action: "start", path });
+  }
+  beforeEach(() => {
+    root = repo(); other = repo();
+    const entries = [root, other].map(at => ({ path: at, kind: "list", servedRev: 1, canvases: [row] }));
+    mocks.shell.entries.mockReturnValue(entries);
+    const changed = mocks.startShell.mock.calls[0]?.[2];
+    if (typeof changed !== "function") throw new Error("no folder listener");
+    changed(entries);
+    mocks.electronShell.trashItem.mockResolvedValue(undefined);
+  });
+  const trash = () => invoke("canvas:trash", window().webContents, null, { root, path });
+
+  test("moves the listed canvas, then its comment file, asking main's grounds for exactly this root", async () => {
+    const asked = service();
+    expect(await invoke("canvas:trashPlan", window().webContents, null, { root, path })).toEqual({ kind: "ready", comments: true });
+    expect(await trash()).toEqual({ kind: "trashed", comments: "trashed" });
+    expect(asked.list.mock.calls.every(([at]) => at === root)).toBe(true);
+    expect(asked.evidence.mock.calls.every(([at]) => at === root)).toBe(true);
+    expect(asked.list).toHaveBeenCalled();
+    expect(asked.evidence).toHaveBeenCalled();
+    expect(mocks.electronShell.trashItem.mock.calls).toEqual([[join(root, path)], [join(root, ".doan/comments/a.jsonl")]]);
+  });
+
+  test.each([
+    ["a running conversation", { phase: "running" }],
+    ["a conversation waiting for an answer", { phase: "waiting" }],
+    ["a working conversation", { working: true }],
+  ])("refuses as busy for %s on this canvas, for the plan and the move", async (_name, patch) => {
+    service().list.mockImplementation(at => at === root ? [summary(patch)] : []);
+    expect(await invoke("canvas:trashPlan", window().webContents, null, { root, path })).toEqual({ kind: "refused", reason: "busy" });
+    expect(await trash()).toEqual({ kind: "refused", reason: "busy" });
+    expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
+  });
+
+  test("refuses as busy for an unjudged project turn of this root that edited the canvas", async () => {
+    service().evidence.mockImplementation(at => at === root ? [{ edits: [join(root, path)], changed: [] }] : []);
+    expect(await trash()).toEqual({ kind: "refused", reason: "busy" });
+    expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
+  });
+
+  test("refuses as busy for terminal work on this root and path", async () => {
+    service();
+    work()(root);
+    expect(await trash()).toEqual({ kind: "refused", reason: "busy" });
+    expect(mocks.electronShell.trashItem).not.toHaveBeenCalled();
+  });
+
+  test("another root's conversation, project turn or terminal work on the same path does not block this root", async () => {
+    const asked = service();
+    asked.list.mockImplementation(at => at === other ? [summary({ phase: "running" })] : []);
+    asked.evidence.mockImplementation(at => at === other ? [{ edits: [join(other, path)], changed: [path] }] : []);
+    work()(other);
+    expect(await trash()).toEqual({ kind: "trashed", comments: "trashed" });
+    expect(mocks.electronShell.trashItem).toHaveBeenNthCalledWith(1, join(root, path));
+  });
+
+  test("a failed canvas move refuses as failed and leaves the comment file alone", async () => {
+    service();
+    mocks.electronShell.trashItem.mockRejectedValueOnce(new Error("trash failed"));
+    expect(await trash()).toEqual({ kind: "refused", reason: "failed" });
+    expect(mocks.electronShell.trashItem).toHaveBeenCalledOnce();
   });
 });
 

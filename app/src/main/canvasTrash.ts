@@ -78,6 +78,8 @@ export function trashBusy(
   work: readonly WorkItem[],
 ): boolean {
   const canvas: Canvas = target.id ? { path: target.path, id: target.id } : { path: target.path };
+  // Running, waiting for an answer or `working` (preparing, a queue about to go out): the renderer's trashBlock reads the
+  // same set, so an enabled item is not refused as busy for a conversation state alone.
   if (conversations.some(c => c.state === "current" && c.canvas !== undefined && sameCanvas(c.canvas, canvas) && (c.working || c.phase !== "ended"))) return true;
   if (evidence.some(e => e.changed.includes(target.path) || e.edits.some(edit => insideRoot(target.root, edit) === target.path))) return true;
   return work.some(item => item.root === target.root && item.path === target.path);

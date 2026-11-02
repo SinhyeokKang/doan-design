@@ -31,19 +31,24 @@ export interface TrashMark { readonly folder: string; readonly path: string }
 // is sent, because the folder watcher can drop the row before the reply arrives; `refused` lifts it. Used once, like
 // the move event (ARCHITECTURE §3 'Moved canvas'): `sweep` drops a mark once its path is no longer listed.
 export class TrashMarks {
-  private marks = new Map<string, TrashMark>();
+  // Every unsettled or trashed mark per folder and path: a second request for the same row (refused by main while the
+  // first is still moving) must not lift the first request's mark when its refusal arrives first.
+  private marks = new Map<string, Set<TrashMark>>();
   private static key(folder: string, path: string): string { return `${folder}\n${path}`; }
 
   begin(folder: string, path: string): TrashMark {
-    const mark = { folder, path };
-    this.marks.set(TrashMarks.key(folder, path), mark);
+    const mark = { folder, path }, key = TrashMarks.key(folder, path);
+    const marks = this.marks.get(key) ?? new Set<TrashMark>();
+    marks.add(mark);
+    this.marks.set(key, marks);
     return mark;
   }
 
-  // A `trashed` reply keeps the mark until the list drops the path; a later begin for the same path owns its own mark.
+  // A `trashed` reply keeps the mark until the list drops the path; `refused` lifts only this request's own mark.
   settle(mark: TrashMark, reply: "trashed" | "refused"): void {
-    const key = TrashMarks.key(mark.folder, mark.path);
-    if (reply === "refused" && this.marks.get(key) === mark) this.marks.delete(key);
+    if (reply !== "refused") return;
+    const key = TrashMarks.key(mark.folder, mark.path), marks = this.marks.get(key);
+    if (marks?.delete(mark) && marks.size === 0) this.marks.delete(key);
   }
 
   has(folder: string, path: string): boolean {
@@ -53,9 +58,10 @@ export class TrashMarks {
   // After every folder update, once canvasViewUpdate has read the marks. A folder that is loading or failed keeps
   // them: its list is not known.
   sweep(entries: readonly FolderEntry[]): void {
-    for (const [key, mark] of this.marks) {
-      const entry = entries.find(candidate => candidate.path === mark.folder);
-      if (entry === undefined || (entry.kind === "list" && !entry.canvases.some(row => row.path === mark.path))) this.marks.delete(key);
+    for (const [key, marks] of this.marks) {
+      const { folder, path } = marks.values().next().value!;
+      const entry = entries.find(candidate => candidate.path === folder);
+      if (entry === undefined || (entry.kind === "list" && !entry.canvases.some(row => row.path === path))) this.marks.delete(key);
     }
   }
 }
