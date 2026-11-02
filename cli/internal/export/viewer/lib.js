@@ -340,3 +340,11 @@ function popupKey(popup, key, count) {
   if (next === null || count === 0) return { ...popup, focus: "none", prevent: false };
   return { ...popup, active: next, focus: "list", prevent: true };
 }
+
+// Focus moving into the canvas iframe (a click there never reaches the page as a pointerdown, and
+// Escape no longer reaches the panel) closes an open popup. Focus stays where the person put it:
+// pulling it back to the trigger would take it out of the canvas.
+function popupBlur(popup, canvasFocused) {
+  if (!popup.open || !canvasFocused) return popup;
+  return { open: false, active: -1, focus: "none", pick: -1, prevent: false };
+}

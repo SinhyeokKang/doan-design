@@ -125,6 +125,9 @@ const createPopup = ({ button, panel, items, onOpen, onPick }) => {
   document.addEventListener("pointerdown", (event) => {
     if (popup.open && !panel.contains(event.target) && !button.contains(event.target)) hide("none");
   });
+  window.addEventListener("blur", () => {
+    if (popupBlur(popup, document.activeElement === canvas).open !== popup.open) hide("none");
+  });
   return { hide, pick, isOpen: () => popup.open };
 };
 

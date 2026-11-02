@@ -27,7 +27,7 @@ const NAMES = [
   "FIRST_LAYOUT_TIMEOUT_MS", "INITIAL_HEIGHT", "MAX_HEIGHT", "REMEASURE_MS", "MAX_FRAMES", "MAX_STRING", "MAX_HREF",
   "nextHeight", "documentHeight", "frameBottom", "canScrollAxis", "clipText", "parseLayout", "parseWheel", "parseMessage", "acceptMessage",
   "fitScale", "fitWidth", "fitFrame", "zoomAt", "wheelAction", "geometry", "scrollFor", "viewFrom", "currentFrame", "layoutHeight",
-  "initialViewer", "viewerLayout", "viewerTimeout", "frameName", "drawerView", "ZOOM_ITEMS", "zoomView", "shortcutCommand", "popupOpen", "popupKey",
+  "initialViewer", "viewerLayout", "viewerTimeout", "frameName", "drawerView", "ZOOM_ITEMS", "zoomView", "shortcutCommand", "popupOpen", "popupKey", "popupBlur",
 ];
 type Lib = Record<string, any>;
 const load = (source: string): Lib => runInNewContext(`${source}\n({ ${NAMES.join(", ")} })`, {}) as Lib;
@@ -441,6 +441,21 @@ describe("popup lists", () => {
     expect(v.popupKey(popup, "End", 3).active).toBe(2);
   });
 
+  test("focus moving into the canvas closes an open popup and leaves focus there", () => {
+    const open = v.popupOpen(3, 1);
+    expect(v.popupBlur(open, true)).toEqual({ open: false, active: -1, focus: "none", pick: -1, prevent: false });
+    // Not to the trigger: that would pull focus back out of the canvas.
+    expect(v.popupBlur(open, true).focus).not.toBe("trigger");
+    // Focus leaving the window for somewhere else, or a popup that is already closed, changes nothing.
+    expect(v.popupBlur(open, false)).toBe(open);
+    const closed = v.popupKey(open, "Escape", 3);
+    expect(v.popupBlur(closed, true)).toBe(closed);
+  });
+
+  test("shell.js closes its popups on window blur through popupBlur, with focus left alone", () => {
+    expect(shellJs).toMatch(/window\.addEventListener\("blur", \(\) => \{\s*if \(popupBlur\(popup, document\.activeElement === canvas\)\.open !== popup\.open\) hide\("none"\);\s*\}\);/);
+  });
+
   test("Tab does not leave the open list; other keys are left alone", () => {
     const open = v.popupOpen(3, 1);
     expect(v.popupKey(open, "Tab", 3)).toMatchObject({ open: true, active: 1, prevent: true, focus: "none" });
@@ -477,6 +492,13 @@ describe("viewer files", () => {
       expect(source, name).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts)\b|\bimport\s*\(/);
       expect(source.replace(/<!--[\s\S]*?-->/, ""), name).not.toMatch(/https?:|@import|url\(/i);
     }
+  });
+
+  test("shell.js takes canvas messages only through acceptMessage with the iframe's window", () => {
+    expect(shellJs).toMatch(/window\.addEventListener\("message", \(event\) => \{\s*const message = acceptMessage\(event, canvas\.contentWindow\);\s*if \(message === null\) return;/);
+    // No second path that parses event data without the source and origin check.
+    expect(shellJs).not.toMatch(/\b(parseMessage|parseLayout|parseWheel)\(/);
+    expect(shellJs.match(/addEventListener\("message"/g)).toHaveLength(1);
   });
 
   test("page code writes text only with textContent: nothing from the canvas is parsed as HTML", () => {
