@@ -58,6 +58,33 @@ export function codexRuleText(): string {
   return '# Written by Doan so Codex runs `doan` outside its sandbox without asking. If you edit this file, Doan leaves it alone.\nprefix_rule(pattern=["doan"], decision="allow")\n';
 }
 
+// Claude Code Bash rules (Claude Code docs 'Configure permissions', 'Wildcard patterns'): a trailing ` *` matches any
+// arguments and the bare command, and `&&`, `;`, `|` split a command so each part needs its own rule. Only the two
+// work commands: an agent needs no prompt to report what it edits, but every other doan command still asks.
+export const CLAUDE_ALLOW_RULES: readonly string[] = ["Bash(doan work start *)", "Bash(doan work done *)"];
+export type ClaudeAllowMerge = { kind: "keep" } | { kind: "write"; text: string } | { kind: "refuse"; problem: "json" | "object" | "permissions" | "allow" };
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// The person's ~/.claude/settings.json with Doan's rules added; null is a missing file. Doan writes back what
+// JSON.parse read, re-indented, so it refuses anything it cannot read that way rather than guess.
+export function mergeClaudeAllow(text: string | null): ClaudeAllowMerge {
+  let settings: unknown = {};
+  if (text !== null) { try { settings = JSON.parse(text); } catch { return { kind: "refuse", problem: "json" }; } }
+  if (!isObject(settings)) return { kind: "refuse", problem: "object" };
+  // A key set to null is the person's value, not a missing one.
+  const permissions = settings.permissions === undefined ? {} : settings.permissions;
+  if (!isObject(permissions)) return { kind: "refuse", problem: "permissions" };
+  const allow = permissions.allow === undefined ? [] : permissions.allow;
+  if (!Array.isArray(allow)) return { kind: "refuse", problem: "allow" };
+  const missing = CLAUDE_ALLOW_RULES.filter(rule => !allow.includes(rule));
+  if (missing.length === 0) return { kind: "keep" };
+  const merged = { ...settings, permissions: { ...permissions, allow: [...allow, ...missing] } };
+  return { kind: "write", text: `${JSON.stringify(merged, null, 2)}\n` };
+}
+
 export function classifyTarget(target: SetupTarget, home: string, observation: Pick<Observation, "kind" | "value" | "content">): Ownership {
   const { kind, value } = observation;
   if (kind === "missing") return "missing";
