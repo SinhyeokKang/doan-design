@@ -20,7 +20,7 @@
 ## 폰트 적용 뒤 높이
 
 - `HeightState`에 `fonts: number`를 더하고 `nextHeight(prev, measured, inner, fonts)`로 바꾼다. `prev.fonts !== fonts`이면 고정 여부와 상관없이 측정값을 받아들이고(`frozen: false`) `fonts`를 갱신한다. 같으면 지금 규칙 그대로다.
-- 주입 스크립트는 `document.fonts.addEventListener("loadingdone", …)`에서 카운터를 올리고 `schedule()`을 직접 부른다. 측정이 이벤트보다 먼저 와서 이미 고정됐더라도, 이벤트 뒤의 측정이 고정을 푼다.
+- 주입 스크립트는 주입 직후(`measure` 메시지에 답하기 전)에 `document.fonts.addEventListener("loadingdone", …)`를 등록해 카운터를 올린다. 시작 뒤에는 이벤트마다 layout을 동기로 보낸다(rAF를 기다리지 않는다). 화면 밖 iframe은 animation frame을 받지 못하므로, 높이가 이미 확정된 보드도 폰트 적용 높이를 받는다. 시작 전에 온 이벤트는 세기만 하고, 시작할 때의 측정이 바뀐 카운터를 본다(리뷰 RB).
 - `document.fonts.ready`는 신호로 쓰지 않는다. 주입 시점에 이미 resolve되어 있으면 첫 측정 전에 신호가 켜져, 따라 커지는 문서의 첫 고정을 놓친다. 기존 `ready` 훅(`schedule`, `tryPending`)은 그대로 둔다.
 - **진동 범위**: viewport를 따라 커지는 문서는 `loadingdone` 한 번마다 한 번 더 커지고 다시 고정된다. 이벤트 수만큼만 커지므로 끝이 있다. `viewport_height_unit` 경고가 이런 문서를 드러낸다.
 - **보이는 상태**: 첫 그림은 대체 폰트 높이다. 폰트가 적용되면 보드가 아래로 한 번 자란다. 화면 위치와 배율은 바뀌지 않는다(Fit은 너비 기준, `viewport.ts`). 폰트가 실패하면(`loadingerror`) 대체 폰트 높이 그대로다.

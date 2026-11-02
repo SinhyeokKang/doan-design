@@ -24,13 +24,13 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | A | T1, T3 중 가이드 줄 (통합 `98823bb1`~`ffde578f`, 리뷰 RA·RA2, 수정 1라운드) | `cli/internal/canvas/css.go`·테스트, `cli/internal/check/check.go`·테스트, `cli/internal/cli/skill.md`(+스킬 테스트) | 없음 | Claude Sonnet high — 기존 `hardcoded_color` 경로를 따르는 확장이지만 토크나이저 경계 케이스가 많다 | `go test ./...`, `go vet ./...`, `doan skill` 출력 확인 | 통합됨 |
-| B | T2, T3 중 `loadingdone` 주입 | `app/src/main/canvasScript.ts`·`canvasScript.test.ts` | 없음 | Claude Opus high — 높이 고정 루프는 POSTMORTEM 진동 이력이 있어 틀리면 보드가 잘리거나 흔들린다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| B | T2, T3 중 `loadingdone` 주입 (통합 `bdbfb0cd`~`472cff27`, 리뷰 RB·RB3, 수정 1라운드) | `app/src/main/canvasScript.ts`·`canvasScript.test.ts` | 없음 | Claude Opus high — 높이 고정 루프는 POSTMORTEM 진동 이력이 있어 틀리면 보드가 잘리거나 흔들린다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합됨 |
 | RA | A 리뷰 | 보고만 | A | Codex gpt-6-astra medium — 교차 모델 독립 리뷰 | `/code-review` 보고 | 완료: RA 🟡2(수정됨), RA2 🟡1(D11) |
 | RB | B 리뷰 | 보고만 | B | Codex gpt-6-astra medium — 교차 모델 독립 리뷰, 고정점 판단 | `/code-review` 보고 | 대기 |
 | C | Z1 중 캔버스 수정, T4 `/runtime-test`(+ds 캔버스 D6, 사이드바 순서 D7, 추천 프롬프트 크기 D8, 알림 dot D9) | `.doan/canvases/buzz-project-settings.html`, `.doan/ds/dialog.html`(D6), `.scratch/` 픽스처 | A, B, E, F, G 통합 | Claude Opus medium — 실제 앱 격리 probe에 판단이 필요하다 | runtime-test 측정값·스크린샷, `doan check --repo .`에 `viewport_height_unit` 없음 | 대기 |
 | D | T5 `/agent-eval` | `docs/USABILITY-EVAL.md` | A, B 통합 | Codex gpt-6.1-sol medium — 정해진 절차를 돌리는 작업 | `node eval/run.ts --self-test` PASS, W1·W2 라운드 기록 | 대기 |
-| E | D7 사이드바 최신 수정순 | `app/src/renderer/ShellSidebar.tsx`·테스트, 비교 함수 파일 | 없음 | Claude Sonnet medium — 비교 함수 하나와 포커스 유지 테스트 | `npm --prefix app test`, typecheck | 대기 |
-| F | D8 추천 프롬프트 크기·문구 | `homeComposer.ts`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`의 `.suggestion`, 관련 테스트, 초안 4개(buzz-home·buzz-project·buzz-canvas-conversation·doan-mascot) | 없음 | Claude Opus medium — UI 문구와 크기 판단, 여러 화면 | `npm --prefix app test`, typecheck, `doan check --repo .` | 대기 |
+| E | D7 사이드바 최신 수정순 (통합 `2bb14947`, 리뷰 RE) | `app/src/renderer/ShellSidebar.tsx`·테스트, 비교 함수 파일 | 없음 | Claude Sonnet medium — 비교 함수 하나와 포커스 유지 테스트 | `npm --prefix app test`, typecheck | 통합됨 |
+| F | D8 추천 프롬프트 크기·문구 (통합 `90d3419a`·`803a4a66`, 리뷰 RF) | `homeComposer.ts`, `HomeComposerView.tsx`, `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, `styles.css`의 `.suggestion`, 관련 테스트, 초안 4개(buzz-home·buzz-project·buzz-canvas-conversation·doan-mascot) | 없음 | Claude Opus medium — UI 문구와 크기 판단, 여러 화면 | `npm --prefix app test`, typecheck, `doan check --repo .` | 통합됨 |
 | RE·RF | E·F 리뷰 | 보고만 | E, F | Codex gpt-6-astra medium — 교차 모델 리뷰 | `/code-review` 보고 | 대기 |
 | G | D9·D10 캔버스 알림 dot | 사이드바 row slot 계산·렌더, 본 상태 저장(main 상태 모듈), 캔버스 표시 시 본 처리, 테스트 | E | Claude Opus high — 상태 저장·재시작·첫 읽기 기준선 판단이 필요하고 틀리면 dot이 안 꺼지거나 전부 켜진다. 코딩 전 설계를 지휘자에게 ask로 받는다 | `npm --prefix app test`, typecheck | 대기 |
 | 지휘자 | T6, Z1 문서 승격 | `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, 이 디렉터리 삭제 | C, D | — | `verify.mjs --eval` 통과 | 대기 |
