@@ -13,6 +13,7 @@
   - `selection.test.ts`(또는 새 파일): `toolShortcut`이 KeyV·KeyH·Space를 `event.code`로 받는다(한글 입력에서 `key`가 "ㅍ"·"ㅗ"여도). ⌘·⌃·⌥, `isComposing`·229, `repeat`, `defaultPrevented`, 편집 대상, 캔버스 페이지 아님에서 무시한다. Space는 대화형 컨트롤(button·`a[href]`·menuitem·treeitem 등)에서 무시한다. Space keyup은 편집 대상에서도 푼다.
   - 같은 파일: `escapeStep` 순서가 픽 취소 → Hand를 Select로 → 선택 해제다. 편집 대상에서는 픽 취소만 한다.
   - `canvasMessage.test.ts`: Space down/up과 V·H를 받는다. 잘못된 값은 거른다.
+  - `app/src/main/uiState.test.ts`: `canvasTool: "hand"`는 남고 다른 값은 버려진다. 필드가 없는 예전 파일도 읽힌다.
   - 검증: `npm --prefix app test` green이고, 위 케이스 이름이 테스트 출력에 있다.
 
 ── commit: `feat(canvas): hand tool rules` (그 전에 `npm --prefix app run typecheck` 통과) ──
@@ -24,6 +25,7 @@
   - 검증: `npm --prefix app test` green.
 - [ ] T3. `CanvasController.ts` 도구(`select|hand`)·별도 pick 상태, 끌기 레이어, Space·V·H·Esc, 포커스, hover. `CanvasTools.tsx` Hand 버튼·툴팁·`aria-keyshortcuts`·tabIndex·위쪽 주석. `App.tsx` 레이어 요소 위치와 픽 안내 Esc의 공용 키 변형. `styles.css` 레이어 z-index와 커서, `.doan-picking-esc.doan-kbd` 규칙 삭제. `ds/controls.css`에 `doan-kbd[data-ui-variant="on-prominent"]`와 `data-ui-size="sm"`, 키가 있는 툴팁 배치. `.doan/ds/tooltip.html`에 키가 있는 툴팁을 더한다(design '어두운 바탕의 키 표시').
   - `CanvasController.test.ts`: H로 레이어가 생긴다; V·Esc로 Select가 된다; 입력창의 Esc는 Hand를 풀지 않는다; 픽을 시작하면 레이어가 없고 픽이 끝나면 Hand로 돌아온다; 픽 중 V·H 무시; 캔버스에서 온 Space down은 iframe에 포커스가 있을 때만 레이어를 띄운다; Space up은 항상 받는다; 레이어가 뜰 때 `hover-leave`를 보낸다; Overview·빈 상태를 거쳐도 Hand가 유지된다; 보드를 그리지 않는 상태(loading·failed·noWidth·unlisted)에서는 레이어가 없다; 끄는 중 캔버스 전환·`pointercancel`·`lostpointercapture`에서 끌기가 끝나고 grabbing이 풀린다; 끄는 중 Space up·V는 pointerup 뒤에 적용된다; 끌기는 pointermove 증분으로 `panBy`를 부른다; 캔버스 클릭 뒤 포커스가 `.area`로 가고 픽 중에는 가지 않는다.
+  - App 테스트(기존 ui-state 하네스, POSTMORTEM 2026-11-01의 방식): 저장된 Hand로 시작하면 Hand다; 읽기가 끝나기 전에는 저장을 보내지 않는다; 읽기 전에 V·H로 바꾸면 늦은 저장값이 덮지 않는다; Hand·Select로 바꾸면 합친 상태가 저장된다(Select는 필드 없음).
   - `CanvasTools.test.tsx`: `aria-pressed`가 도구를 따른다(지금 Select 고정을 확인하는 테스트를 바꾼다); Select·Hand onClick; 눌린 도구가 `tabIndex=0`; 툴팁에 V·H.
   - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과.
 
@@ -34,7 +36,7 @@
   - 선택: Hand에서 클릭·빈 곳 클릭·끌기 전후로 선택과 `doan active`가 같다.
   - 덮지 않음: Hand·Space 상태에서 도구모음 Select, 에이전트 알림 Stop·Open, 로드 실패의 Reload를 누를 수 있다.
   - 키: 입력창에서 Space·V·H 무시, 한글 입력에서 V·H 동작, ⌘H·⌘V가 도구를 바꾸지 않음, 포커스된 버튼에서 Space는 버튼을 누름. 캔버스 클릭 뒤 Space-drag가 composer에 공백을 넣지 않음.
-  - Esc 순서, 캔버스 전환 뒤 Hand 유지, 픽 시작 시 레이어 없음과 픽 끝난 뒤 Hand 복귀.
+  - Esc 순서, 캔버스 전환 뒤 Hand 유지, 앱을 다시 켠 뒤 Hand 유지와 Select로 바꾼 뒤 다시 켜면 Select, 픽 시작 시 레이어 없음과 픽 끝난 뒤 Hand 복귀.
   - POSTMORTEM: Hand 상태에서 Tab을 누르면 도구 행의 y가 그대로다(아래쪽에 포커스 가능한 컨트롤이 있는 초안에서). ⌥-click 뒤 iframe에서 Space를 누르고 앱에서 떼는 순서와 그 반대 순서. Space만 누르고 포인터를 움직이지 않았을 때 hover 표시가 사라지고 커서가 grab이 된다.
   - 휠·⌘-휠이 레이어 위에서도 된다.
   - design.md 'T4에서 확인할 가정' 네 개를 각각 통과·실패로 적는다.
@@ -49,7 +51,7 @@
 ## Z. 정리
 
 - [ ] Z1. 현재 규칙으로 고친다.
-  - PRODUCT §5 item 2 'Toolbar'(도구·단축키·Space·Hand 클릭·캔버스 클릭 포커스), 'Notices and states'(Esc 순서), item 4(일반 클릭 선택, hover, 빈 곳 클릭 해제의 Hand 예외), item 6 픽("Pan and pinch still work", 픽 뒤 도구 복귀).
+  - PRODUCT §5 item 1 시작 복원(마지막 캔버스 도구). PRODUCT §5 item 2 'Toolbar'(도구·단축키·Space·Hand 클릭·캔버스 클릭 포커스), 'Notices and states'(Esc 순서), item 4(일반 클릭 선택, hover, 빈 곳 클릭 해제의 Hand 예외), item 6 픽("Pan and pinch still work", 픽 뒤 도구 복귀).
   - ARCHITECTURE §3 'Input'(끌기 레이어가 먼저 받음, Hand의 휠, 캔버스 클릭 포커스).
   - DESIGN 'Tools row' 두 행(측정값, "Select, then Add to conversation", 툴팁), 'Picking hint' 행의 Esc 설명, 공용 컴포넌트 목록의 `.doan-kbd` 설명("only the canvas picking hint's Esc key").
   - `docs/features/canvas-hand-tool/`을 지운다.

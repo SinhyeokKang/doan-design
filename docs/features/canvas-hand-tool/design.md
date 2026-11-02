@@ -28,7 +28,9 @@
 
 ## 도구 상태
 
-- `CanvasController`는 앱 수명 동안 하나다(`App.tsx`에서 한 번 만든다). 그래서 Hand는 controller의 private 필드로 두고, Overview·빈 상태로 `state`를 다시 만들 때 `activity`처럼 넘겨서 유지한다. `state.tool`로 내보낸다. ui-state에 저장하지 않으므로 재시작하면 Select다.
+- `CanvasController`는 앱 수명 동안 하나다(`App.tsx`에서 한 번 만든다). 그래서 Hand는 controller의 private 필드로 두고, Overview·빈 상태로 `state`를 다시 만들 때 `activity`처럼 넘겨서 유지한다. `state.tool`로 내보낸다.
+- **기기 저장**: 마지막 도구를 ui-state(`<userData>/ui-state.json`, 모양은 `app/src/restore/uiState.ts`의 `UiState`)에 선택 필드 `canvasTool?: "hand"`로 저장한다. 필드가 없으면 Select다. Select는 저장하지 않는다(필드를 지운다). main의 검증(`app/src/main/uiState.ts`)은 `"hand"`가 아닌 값을 버리고, 그러면 Select로 시작한다.
+- **시작 복원**: 저장은 지금 ui-state 규칙을 그대로 따른다. 처음 읽기가 끝나기 전에는 저장을 보내지 않고, 끝난 뒤 읽은 값과 합친 상태를 한 번 저장한다(POSTMORTEM 2026-11-01). 읽기가 끝나면 controller의 도구를 저장값으로 정한다. 다만 그 전에 사람이 V·H·버튼으로 도구를 바꿨다면 늦은 저장값이 덮지 않는다(ARCHITECTURE 'Navigation recovery'와 같은 원칙).
 - `tool`은 지속 도구 `"select" | "hand"`와, 별도의 `pick` 상태로 나눈다. 지금은 `tool: "select" | "pick"` 하나의 유니언이다. 픽은 도구를 바꾸지 않고 잠시 앞선다. 픽이 끝나면 `tool`이 그대로 남아 있으므로 픽 전의 도구로 돌아간다.
 
 ## 도구모음
@@ -55,8 +57,8 @@
 
 ## 영향 받는 부분
 
-- **renderer**: `CanvasTools.tsx`(Hand 버튼, `aria-pressed`, Select onClick, 툴팁, tabIndex, 위쪽 주석), `CanvasController.ts`(도구·pick 상태, 끌기 레이어, Space·V·H·Esc, 포커스, hover), `selection.ts` 또는 새 파일(`toolShortcut`, `escapeStep`), `canvasMessage.ts`(`key` 메시지에 Space down/up, V·H), `styles.css`(레이어와 커서), `App.tsx`(레이어 요소를 `.overlay` 뒤에 둔다).
-- **main**: `canvasScript.ts`의 keydown/keyup 전달에 Space·V·H, Space `preventDefault`, blur 시 Space-up.
+- **renderer**: `CanvasTools.tsx`(Hand 버튼, `aria-pressed`, Select onClick, 툴팁, tabIndex, 위쪽 주석), `CanvasController.ts`(도구·pick 상태, 끌기 레이어, Space·V·H·Esc, 포커스, hover), `selection.ts` 또는 새 파일(`toolShortcut`, `escapeStep`), `canvasMessage.ts`(`key` 메시지에 Space down/up, V·H), `styles.css`(레이어와 커서), `App.tsx`(레이어 요소를 `.overlay` 뒤에 둔다, 도구 저장·복원), `app/src/restore/uiState.ts`(`canvasTool`).
+- **main**: `canvasScript.ts`의 keydown/keyup 전달에 Space·V·H, Space `preventDefault`, blur 시 Space-up. `uiState.ts`의 `canvasTool` 검증.
 - **CLI·skills·형식**: 바뀌지 않는다.
 
 ## 순수 함수 (`/tdd` 대상)
@@ -68,7 +70,8 @@
 
 ## 형식 변경
 
-- 공유 형식은 바뀌지 않는다. 캔버스 → 앱 `key` 메시지는 앱 내부 메시지이고(ARCHITECTURE §3 'Selection and inspector': 영속 스키마·소켓·CLI 계약에 없음), 검증 함수(`canvasMessage.ts`)와 그 테스트만 바뀐다.
+- 공유 형식은 바뀌지 않는다. ui-state는 기기 로컬 파일이고 TS만 읽으므로 JSON Schema·Go fixture 대상이 아니다. 선택 필드 하나를 더할 뿐이라 예전 파일도 그대로 읽힌다.
+- 캔버스 → 앱 `key` 메시지는 앱 내부 메시지이고(ARCHITECTURE §3 'Selection and inspector': 영속 스키마·소켓·CLI 계약에 없음), 검증 함수(`canvasMessage.ts`)와 그 테스트만 바뀐다.
 
 ## 규약 영향
 
@@ -78,6 +81,7 @@
 
 - PRODUCT §5 item 2 'Toolbar'("Select, always pressed … A click in the canvas always selects; Option-click passes through"): Select·Hand 중 하나가 눌려 있고 V·H로 바꾼다. Space로 잠시 옮긴다. Hand에서는 클릭이 선택하지 않고 ⌥-click도 통과하지 않는다. 캔버스 클릭은 포커스를 캔버스로 옮긴다(픽 제외).
 - PRODUCT §5 item 2 'Notices and states': Esc 순서에 Hand 단계를 더한다.
+- PRODUCT §5 item 1 시작 복원("Launch restores the last Home or workspace screen, canvas …, viewport and tree expansion"): 마지막 캔버스 도구를 더한다.
 - PRODUCT §5 item 4(선택): "selects … by an ordinary click; hover only highlights candidates"와 "Esc or empty-space clicks clear it"에 Hand 예외를 더한다.
 - PRODUCT §5 item 6 픽: "Pan and pinch still work"를 휠 이동과 핀치는 되고 Hand·Space 끌기는 없다고 고친다. 픽이 끝나면 픽 전 도구로 돌아간다.
 - ARCHITECTURE §3 'Input': "The injected script owns pointer events in the iframe"에 끌기 레이어가 있으면 레이어가 먼저 받는다고 더한다. plain wheel 규칙에 Hand에서는 휠이 항상 보드를 옮긴다고 더한다. 캔버스 클릭 포커스 규칙을 더한다.
