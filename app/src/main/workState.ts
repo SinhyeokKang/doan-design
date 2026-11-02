@@ -26,6 +26,10 @@ export function expireWork(state: WorkState, now: number, lastChange: (root: str
   const sessions = state.sessions.filter(item => now - Math.max(item.started, ...item.paths.map(target => lastChange(target.root, target.path))) < limit);
   return sessions.length === state.sessions.length ? state : { ...state, sessions };
 }
+export function nextWorkExpiry(state: WorkState, lastChange: (root: string, path: string) => number, limit = WORK_EXPIRY_MS): number | undefined {
+  if (!state.sessions.length) return undefined;
+  return Math.min(...state.sessions.map(item => Math.max(item.started, ...item.paths.map(target => lastChange(target.root, target.path))) + limit));
+}
 export function retainWorkRoots(state: WorkState, roots: readonly string[]): WorkState {
   const sessions = state.sessions.map(item => {
     const paths = item.paths.filter(target => roots.includes(target.root));

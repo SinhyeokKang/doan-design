@@ -62,7 +62,7 @@ import { createWindowCapturer } from "./thumbnailWindow";
 import { createUiStateStore, type UiStateStore } from "./uiState";
 import { linkTarget } from "./openLink";
 import { openLinkQueue, resolveOpenLink } from "./deepLinks";
-import { applyWork, expireWork, retainWorkRoots, workItems, type WorkState } from "./workState";
+import { applyWork, expireWork, nextWorkExpiry, retainWorkRoots, workItems, type WorkState } from "./workState";
 
 // Must run before `ready`: userData is derived from the name, which makes it
 // ~/Library/Application Support/doan/ (beside runtime.json, ARCHITECTURE §4).
@@ -109,7 +109,20 @@ let shell: Shell | undefined;
 let runtime: Runtime | undefined;
 let workState: WorkState = { roots: [], sessions: [] };
 const workChanges = new Map<string, Map<string, number>>();
-let workTimer: ReturnType<typeof setInterval> | undefined;
+let workTimer: ReturnType<typeof setTimeout> | undefined;
+const workLastChange = (root: string, path: string): number => workChanges.get(root)?.get(path) ?? 0;
+function armWorkTimer(): void {
+  if (workTimer !== undefined) clearTimeout(workTimer);
+  workTimer = undefined;
+  const deadline = nextWorkExpiry(workState, workLastChange);
+  if (deadline === undefined) return;
+  workTimer = setTimeout(() => {
+    workTimer = undefined;
+    updateWork(expireWork(workState, Date.now(), workLastChange));
+    if (workTimer === undefined) armWorkTimer();
+  }, Math.max(0, deadline - Date.now()));
+  workTimer.unref();
+}
 function updateWork(next: WorkState): void {
   if (next === workState) return;
   const previous = workItems(workState);
@@ -119,12 +132,7 @@ function updateWork(next: WorkState): void {
     for (const path of paths.keys()) if (!items.some(item => item.root === root && item.path === path)) paths.delete(path);
     if (paths.size === 0) workChanges.delete(root);
   }
-  if (items.length && workTimer === undefined) {
-    workTimer = setInterval(() => updateWork(expireWork(workState, Date.now(), (root, path) => workChanges.get(root)?.get(path) ?? 0)), 1000);
-    workTimer.unref();
-  } else if (!items.length && workTimer !== undefined) {
-    clearInterval(workTimer); workTimer = undefined;
-  }
+  armWorkTimer();
   if (items.length !== previous.length || items.some((item, i) => item.root !== previous[i]?.root || item.path !== previous[i]?.path || item.session !== previous[i]?.session || item.provider !== previous[i]?.provider)) send("work:changed", items);
 }
 let linksRendererReady = false;
@@ -534,6 +542,7 @@ async function start(): Promise<void> {
         paths.set(path, changedAt);
       }
     }
+    armWorkTimer();
     for (const { root, changed } of refreshes.calls) {
       try { conversations?.refreshed(root, changed); } catch (error) { console.error("doan: conversation promotion check failed", error); }
     }
@@ -1021,7 +1030,8 @@ app.on("activate", () => {
 });
 
 app.on("will-quit", () => {
-  if (workTimer !== undefined) clearInterval(workTimer);
+  if (workTimer !== undefined) clearTimeout(workTimer);
+  workTimer = undefined;
   uiState?.flushSync();
   canvasSeen?.flushSync();
   runtime?.disposeSync();
