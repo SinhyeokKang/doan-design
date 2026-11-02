@@ -55,3 +55,7 @@
   - 지휘자 판단: Share 제목의 code 표시는 앞의 결정대로 시안을 따른다. 리뷰어는 시안을 고치자고 했지만, 사용자가 확정한 시안이 정본이고 `SettingsDialog` 변경이 작다.
 - A2 완료: c7009681·b51706be를 eb4af6b5·34452faf로 통합했다(작업자 보고: 커밋마다 `verify.mjs` PASS, 마지막 테스트 5698, T5 grep 결과 없음). 수정 회차에 다시 쓰려고 작업자를 retain했다. handoff의 차이 7개 중 2번(사이드바 Home 행이 이 페이지에서도 `aria-current`를 가짐, Add Projects와 같음)은 RA2 판정을 보고 정한다. `senderAllowed.ts:24` 주석의 "dialog"는 수정 회차에 넣는다.
 - RA2: Claude Opus 서브에이전트로 시작했다.
+- RA2(A2 리뷰, Claude Opus 서브에이전트): 🔴 0, 🟡 1, ⚪ 3. 🟡는 이 페이지에서 사이드바 Home 행에 `aria-current="page"`가 붙는 것이다(spec 완료 조건 1, PRODUCT §5 항목 3 "current on Home" 위반). 이를 막아야 할 테스트는 `home` prop만 봐서 결함이 있어도 통과한다. ⚪는 `senderAllowed.ts` 주석, 다른 루트를 reroot할 때 origin이 따라가지 않음, 테스트로 고정하지 않은 동작 두 가지다. 차이 7개 중 2번만 받아들이지 않았다.
+  - 지휘자 판단: Home 행의 current는 Home 화면에서만 켠다. 같은 prop 수정으로 Add Projects·Settings 페이지의 같은 드리프트도 고친다. PRODUCT가 이미 정한 규칙이라 새 제품 결정이 아니다.
+  - 지휘자 판단: 다른 루트를 reroot할 때 origin이 따라가지 않는 틈은 design이 "옛 루트의 워크스페이스였다면"으로 범위를 정했고 Add Projects에도 있다. T10에서 BACKLOG 'Known defects'에 적는다.
+- A2 수정 1회차: RA1 🟡 3과 RA2 🟡 1·⚪ 3을 retain한 A2 작업자에게 보냈다(task `task_b14230b9d2b2`, dispatch `ctx_9bb9c753aadb`). 작업자가 브리프를 읽기 시작한 것을 확인했다.
