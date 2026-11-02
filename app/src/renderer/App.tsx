@@ -625,7 +625,9 @@ export function App() {
     }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
-    if (memory.expanded) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
+    // From Home the row always opens the Overview, so an expanded project does not fold there.
+    const fromHome = currentScreen.current === "home";
+    if (memory.expanded && !fromHome) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
     if (notice) { openNotice(notice, () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? memory), expanded: true } }))); return; }
     const intent = navigationIntent.current, signature = groupSignature;
     const activity = await window.doan.readShellActivity({ roots: memory.roots }).catch(() => null);
@@ -639,7 +641,7 @@ export function App() {
       setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
       askSlot(next);
       completeNavigation(next);
-    }, false, undefined, currentScreen.current === "home");
+    }, false, undefined, fromHome);
   };
   // The project row's slot stands for a project conversation with work left: its Overview opens on it.
   const askSlot = (root: string) => {
