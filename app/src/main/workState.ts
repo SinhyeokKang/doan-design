@@ -15,8 +15,7 @@ export function applyWork(state: WorkState, message: WorkRequest, now: number): 
   if (message.action === "done") return current ? { ...state, sessions: state.sessions.filter(item => !matches(item)) } : state;
   if (current) {
     const present = current.paths.some(target => target.root === message.root && target.path === message.path);
-    if (!present && current.paths.length >= MAX_WORK_PATHS) return state;
-    const next = { ...current, started: now, paths: present ? current.paths : [...current.paths, { root: message.root, path: message.path }] };
+    const next = { ...current, started: now, paths: present || current.paths.length >= MAX_WORK_PATHS ? current.paths : [...current.paths, { root: message.root, path: message.path }] };
     return { ...state, sessions: state.sessions.map(item => item === current ? next : item) };
   }
   if (state.sessions.length >= MAX_WORK_SESSIONS) return state;
