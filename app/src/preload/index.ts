@@ -77,7 +77,7 @@ const api = {
   },
   // Call only after subscribing, the launch restore is done, and the first folders snapshot arrived.
   openLinksReady: (): Promise<void> => ipcRenderer.invoke("deep-link:ready"),
-  conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string } | { available: false; reason: "no_record" | UnavailableReason } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
+  conversationResumeTarget: (request: { root: string; canvas: Canvas }): Promise<{ available: true; runtime: Runtime; lastCheckAt: string; session?: string } | { available: false; reason: "no_record" | UnavailableReason } | ConversationError> => ipcRenderer.invoke("conversation:resumeTarget", request),
   conversationForCanvas: (request: { root: string; canvas: Canvas }): Promise<ReturnType<ConversationService["forCanvas"]> | ConversationError> => ipcRenderer.invoke("conversation:forCanvas", request),
   // newDesign takes `text`. model and effort only from the list listConversationModels
   // returned in this run for that root and runtime; permissionMode one of the common ids (resume takes none); attachments by the ids the attachment calls returned. A moved or

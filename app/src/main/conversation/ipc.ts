@@ -100,7 +100,7 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         if (method === "forCanvas" && validCanvas(canvas)) return service.forCanvas(raw.root, canvas);
         const input = message(raw);
         if (method === "resumeTarget") {
-          try { const ready = await prepare({ root: raw.root, mode: "resume", ...(validCanvas(canvas) ? { canvas } : {}), text: "", anchors: [] }); return { available: true, runtime: ready.runtime, lastCheckAt: ready.lastCheckAt ?? "" }; }
+          try { const ready = await prepare({ root: raw.root, mode: "resume", ...(validCanvas(canvas) ? { canvas } : {}), text: "", anchors: [] }); return { available: true, runtime: ready.runtime, lastCheckAt: ready.lastCheckAt ?? "", ...(ready.sessionId ? { session: ready.sessionId } : {}) }; }
           catch (error) { const reason = error instanceof Error ? error.message : "session_unavailable"; return { available: false, reason: reason === "no_session" ? "no_record" : ["cli_missing", "outside_root", "session_unavailable", "session_in_use"].includes(reason) ? reason : "session_unavailable" }; }
         }
         if (!input || !["resume", "new", "newDesign"].includes(String(raw.mode))) throw new Error("bad_request");
