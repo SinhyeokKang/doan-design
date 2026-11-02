@@ -58,7 +58,7 @@
 | 1 canvas-hand-tool | Claude Code 세션 ceb45427, worktree `canvas-hand-tool-orch` | 2026-11-03 | PR #75, 병합 a6d35fd2 | 완료 |
 | 2 project-settings | Claude Code 세션 06b8fea0, worktree `project-settings-orch` | 2026-11-03 | PR #76, 병합 02952e32 | 완료 |
 | 3 canvas-open-offer | Claude Code 세션 c935fb51, worktree `canvas-open-offer-orch` | 2026-11-03 | PR #77, 병합 3b6f9ed2 | 완료 |
-| 4 agent-reply-chips | | | | 대기 |
+| 4 agent-reply-chips | Claude Code 세션 0344e3fb, worktree `agent-reply-chips-orch` | 2026-11-03 | | 진행 중 |
 | 5 canvas-row-menu | | | | 대기 |
 | 6 setup-via-onboarding | | | | 대기 |
 
