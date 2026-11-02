@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { expect, test } from "vitest";
+import { BERET_TILT, drawnPose } from "./Doany";
 import { advance, hop, initialState, pointer, pose, typing, type Pose } from "./doanyMotion";
 
 // Checks the shipped artwork (public/doany/) against the shader that draws it. The shader is read from
@@ -111,7 +112,7 @@ test("the vertex shader has no radial edge waves: the Pebble outline only squash
   expect(vertex).not.toMatch(/atan|angle|energy\*|time\*/);
 });
 
-test("through hops, repeated hops, typing and the pointer at either side, no visible texel leaves the canvas", () => {
+test("whatever the presses, the drawn beret and body keep at least 1.4 device px inside the canvas", () => {
   // The visible outline's convex hull. The map is affine except the body's gaze shift (under .002 here),
   // and the body stays well inside the canvas; the hull gave the same worst value as every outline texel.
   const outline = (name: string) => {
@@ -135,27 +136,42 @@ test("through hops, repeated hops, typing and the pointer at either side, no vis
     }, []).slice(0, -1);
     return [...half(points), ...half([...points].reverse())];
   };
-  const layers = [outline("body.png"), outline("hat.png")];
+  const [body, hat] = [outline("body.png"), outline("hat.png")];
+  // The rest frame is the draft's: nothing to bound without lift or tilt.
+  const rest: Pose = { time: 0, squash: 0, lift: 0, tilt: 0, hatTilt: 0, energy: 0, eyeOpen: 1, look: [0, 0], mode: "idle" };
+  expect(drawnPose(rest)).toEqual(rest);
+  // Presses only restart the body's hop curve, so its poses are those of single hops started at every
+  // phase of the breath and the gaze; what presses pile up is the beret spring. Each drawn pose is
+  // therefore also checked with the beret at both ends of its bound, which covers any press sequence,
+  // and the sequences below (re-hops while settling, presses every 80 or 33 ms) check the spring itself.
+  const sequences = [[0], [0, .1], [0, .2], [0, .3], [0, .45], [0, .8], Array.from({ length: 10 }, (_, i) => i * .08), Array.from({ length: 30 }, (_, i) => i * .033)];
+  const rect = { x: 0, y: 0, width: 114, height: 114 };
   let worst = 0, poses = 0;
-  // The beret's top comes within about a thousandth of the edge (a re-hop while settling, pointer at the
-  // left), so the sweep covers 60 and 120 Hz displays: the spring's state depends on the frame step.
-  for (const hz of [60, 120]) for (const side of [-1, 0, 1]) for (const start of [1, 2.6, 4.3]) for (const again of [0, .2, .45, .8]) for (const typed of [false, true]) {
-    const state = initialState();
-    let now = 1000;
-    const frame = () => { now += 1000 / hz; advance(state, now, true, () => .5); };
-    while (state.time < start) { if (side) pointer(state, side * 1e4, 57, { x: 0, y: 0, width: 114, height: 114 }); frame(); }
-    if (typed) typing(state);
-    hop(state, false);
-    const end = state.time + 1.6;
-    let repeated = !again;
-    while (state.time < end) {
-      if (!repeated && state.time - state.jumpAt >= again) { hop(state, false); repeated = true; }
-      frame();
-      const p = pose(state, false);
-      poses++;
-      for (const [layer, points] of layers.entries()) for (const point of points) for (const value of place(point, p, layer)) worst = Math.max(worst, Math.abs(value));
+  const check = (p: Pose, layer: number, points: number[][]) => {
+    for (const point of points) for (const value of place(point, p, layer)) worst = Math.max(worst, Math.abs(value));
+  };
+  for (const [n, presses] of sequences.entries()) for (const hz of [60, 120]) for (const side of [-1, -.5, 0, .5, 1]) for (const typed of [false, true]) {
+    // Every start at .1 s steps for the single hop (several beret spring periods and a whole breath);
+    // the slower press sequences sample every .3 s.
+    for (let start = .5; start < 6.5; start += n ? .3 : .1) {
+      const state = initialState();
+      let now = 1000;
+      const frame = () => { if (side) pointer(state, side * 1e4, 57, rect); now += 1000 / hz; advance(state, now, true, () => .5); };
+      while (state.time < start) frame();
+      if (typed) typing(state);
+      const first = state.time;
+      let next = 0;
+      while (state.time < first + presses.at(-1)! + 1.6) {
+        while (next < presses.length && state.time - first >= presses[next]!) { hop(state, false); next++; }
+        frame();
+        const p = drawnPose(pose(state, false));
+        poses++;
+        check(p, 0, body);
+        for (const hatTilt of [p.hatTilt, ...BERET_TILT]) check({ ...p, hatTilt }, 1, hat);
+      }
     }
   }
-  expect(poses).toBeGreaterThan(15000);
-  expect(worst).toBeLessThanOrEqual(1);
+  expect(poses).toBeGreaterThan(100000);
+  // Clip space is ±1 over Home's 228 device px canvas (114 per half); Welcome's 286 keeps 1.25 times as much.
+  expect((1 - worst) * 114).toBeGreaterThanOrEqual(1.4);
 });

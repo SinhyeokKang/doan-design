@@ -88,9 +88,16 @@ in `.scratch/runtime-test/doany-v2/`): the reduced-motion rest frame is
 byte-identical to this prototype's, the still image and the rest frame share
 their bounds within 1 device pixel, the packaged app loads all three images from
 `app.asar`, a texture-load failure and a lost context leave the still image, and
-24 Home visits under StrictMode print no WebGL context warning. In the app's
-sweep (re-hops while settling, pointer at the far left) the beret came within 1
-device pixel of the top in both 228 and 286 buffers, never past it.
+24 Home visits under StrictMode print no WebGL context warning.
+
+This prototype leaves the beret no top headroom at the hop's apex: with the
+pointer far left, a dense sweep of hops and re-hops puts it about 0.4 device
+pixels past the top of a 286 buffer, and quick repeated presses swing it further
+out. The app, not this prototype, bounds what it draws: the hop 10% lower, the
+beret's tilt held to [-.30, +.15], and a held Enter or Space hops once.
+`doanyRender.test.ts` checks that any press sequence then keeps at least 1.4
+device pixels between the drawing and the canvas edge (1.49 in Home's 228 buffer
+and 1.87 in Welcome's 286 at worst); the rest frame is unchanged.
 
 Not verified: exact neutral pixel equivalence of the generated layers to the
 selected still, sustained frame rate. V1 frames and motion remain separately

@@ -192,3 +192,12 @@ test("Enter and Space hop and ask for preventDefault; other keys do neither", as
   h.settle.resolve([]); await flush();
   expect([h.rig.key("Enter"), h.rig.key(" "), h.rig.key("a"), h.rig.key("Tab")]).toEqual([true, true, false, false]);
 });
+
+test("a held key's repeats ask for preventDefault but do not hop again", async () => {
+  const h = harness();
+  h.settle.resolve([]); await flush();
+  for (let now = 1000; now <= 1400; now += 20) h.frame(now);
+  expect([h.rig.key("Enter", true), h.rig.key(" ", true), h.rig.key("a", true)]).toEqual([true, true, false]);
+  h.frame(1420);
+  expect(h.take().draws.at(-1)!.mode).toBe("idle");
+});
