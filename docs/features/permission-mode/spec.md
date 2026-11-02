@@ -33,7 +33,7 @@
 - Claude 대화에서:
   - Accept edits로 보낸 턴은 파일 편집에 승인 요청을 띄우지 않는다.
   - Plan으로 보낸 턴은 사람이 승인 요청을 승인하지 않는 한 파일을 바꾸지 않는다. `ExitPlanMode`를 승인하면 피커가 SDK가 알려 준 모드로 바뀐다.
-  - Full access로 보낸 턴은 승인 요청을 띄우지 않는다.
+  - Full access로 보낸 턴은 승인 요청을 띄우지 않는다. 예외: 폴더 settings(`disableBypassPermissionsMode`)가 bypass를 막으면 SDK가 실패 없이 Default로 시작해 승인 요청을 띄운다. Doan은 따로 처리하지 않고, 피커는 Full access로 남는다.
   - Default는 사용자 설정 그대로다(지금과 같다).
 - Codex 대화에서도 같은 네 경우가 성립한다. Codex Plan 턴은 파일을 바꾸지 않고 승인 요청도 띄우지 않는다. 대화 중 모드를 바꾸면 다음 턴부터 적용되고, Default로 돌아가면 사용자 설정으로 돌아간다.
 - 고른 모드는 대화에 저장되어, 재시작 뒤 그 대화를 이어 갈 때도 유지된다.
