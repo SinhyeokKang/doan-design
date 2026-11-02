@@ -26,9 +26,8 @@ Use the SAME canvas, `../../../canvases/doan-mascot.html`:
 - `doany-v2-selected`: selected still, scale references and delivery status.
 - `doany-v2-motion-spec`: static motion storyboard, timings and runtime rules.
 
-Detailed implementation handoff: `../../../../docs/features/doany-v2/`
-(`spec.md`, `design.md`, `tasks.md`). When the feature is promoted, replace this
-link with the current PRODUCT, ARCHITECTURE and DESIGN references.
+Current rules: `docs/PRODUCT.md` §5 item 1 'Doany', `docs/ARCHITECTURE.md` §7
+'Doany' and `docs/DESIGN.md` (Home, 'Doany motion in the app').
 
 ## Asset inventory
 
