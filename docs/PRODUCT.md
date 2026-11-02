@@ -250,6 +250,7 @@ What the human does is **view + point + talk**; approval is deferred until after
 
 - Design drafts for the Doan app UI are kept as canvases in this repo's `.doan/canvases/` (ARCHITECTURE §1 Conventions), and viewed and discussed in the Doan app's canvas conversation panel. Whether the implementation matches the design draft is compared via computed style (`/design-sync`, `.agents/skills/design-sync/SKILL.md`).
 - App screens run the design draft → implementation → comparison loop.
+- A draft canvas that no screen uses any more is removed only when the user names it; until then it stays unchanged.
 - The app's design system lives separately in `.doan/ds/`, one canvas per token group, shared component or shared surface; its rules and canvas index are in [DESIGN.md](./DESIGN.md#design-system).
 
 ### Deferred
