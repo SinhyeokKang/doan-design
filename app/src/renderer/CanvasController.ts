@@ -556,8 +556,9 @@ export class CanvasController {
 
   // A new element ends the old document before resetting its measurement viewport.
   private load(row: CanvasRow, fresh: boolean, kind: ActivityEvent["kind"] = fresh ? "opened" : "reloaded"): void {
-    // The document under a drag goes away; the drag does not carry over to the next one.
+    // The document under a drag or a held Space goes away; neither carries over to the next one.
     this.stopDrag();
+    this.spaceHeld = false;
     this.clearJump();
     // A reload of the same row before its first layout still owes the picked frame.
     if (fresh) this.pendingFrame = null;
@@ -631,6 +632,7 @@ export class CanvasController {
 
   private dropFrame(): void {
     this.stopDrag();
+    this.spaceHeld = false;
     this.endPick({ kind: "cancelled" });
     this.pickDocument = null;
     this.clearJump();
@@ -933,6 +935,8 @@ export class CanvasController {
     }
     if (ignored || this.state.picking) return false;
     if (shortcut.kind === "tool") { this.toolChosen = true; this.applyTool(shortcut.tool); return true; }
+    // Without a drawn board Space does nothing, and a Space held from then does not pan the board that comes later.
+    if (!this.boardDrawn()) return false;
     this.spaceHeld = true;
     this.syncLayer();
     return true;
@@ -985,9 +989,14 @@ export class CanvasController {
   }
 
   // The layer shows while Hand or a held Space can pan a drawn board, and through a drag in progress.
+  private boardDrawn(): boolean {
+    return !this.state.picking && this.frame !== null && this.state.status === null && !this.state.unlisted;
+  }
+
   private syncLayer(): void {
-    const board = !this.state.picking && this.frame !== null && this.state.status === null && !this.state.unlisted;
-    if (!board) this.stopDrag();
+    const board = this.boardDrawn();
+    // A drag and a held Space end with the board they were on; the tool stays.
+    if (!board) { this.stopDrag(); this.spaceHeld = false; }
     const show = board && (this.tool === "hand" || this.spaceHeld || this.drag !== null);
     if (show && !this.layerShown) {
       // The iframe gets no pointermove under the layer, and an OOPIF's pointerout cannot be trusted (POSTMORTEM 2026-10-23).

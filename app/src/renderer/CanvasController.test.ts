@@ -2810,6 +2810,48 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
+  // Review RA 🔴1: a held Space belongs to the board that took it; the next document or board starts without it.
+  it("a held Space ends with its document: a reload, a canvas switch and a close", () => {
+    const h = harness();
+    try {
+      press(h, "Space");
+      expect(shown(h)).toBe(true);
+      h.controller.command("reload");
+      expect(shown(h)).toBe(false);
+      h.layout({ document: "doc2" });
+      expect(shown(h)).toBe(false);
+      press(h, "Space");
+      h.controller.openCanvas("/repo", h.other);
+      h.layout({ href: h.other.url, document: "doc3" });
+      expect(shown(h)).toBe(false);
+      press(h, "Space");
+      h.controller.updateEntries([{ path: "/repo", kind: "list", servedRev: 2, canvases: [h.row] }]);
+      expect(h.state().open).toBeNull();
+      h.controller.openCanvas("/repo", h.row);
+      h.layout({ document: "doc4" });
+      expect(shown(h)).toBe(false);
+      expect(h.state().tool).toBe("select");
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a Space pressed before the board is drawn does nothing once it loads, until Space is pressed again", () => {
+    const h = harness();
+    try {
+      h.controller.openCanvas("/repo", h.other);
+      expect(press(h, "Space").defaultPrevented).toBe(false);
+      h.layout({ href: h.other.url, document: "doc2" });
+      expect(shown(h)).toBe(false);
+      press(h, "Space");
+      expect(shown(h)).toBe(true);
+      // The persistent tool is not temporary state: Hand stays through a reload.
+      release(h, "Space");
+      press(h, "KeyH");
+      h.controller.command("reload");
+      h.layout({ href: h.other.url, document: "doc3" });
+      expect(shown(h)).toBe(true);
+    } finally { h.controller.dispose(); }
+  });
+
   it("a saved tool applies until the person chooses one", () => {
     const h = harness();
     try {
