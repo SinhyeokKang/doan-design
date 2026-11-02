@@ -1,6 +1,6 @@
-# Provider marks for onboarding
+# Provider marks
 
-Copied 2026-10-29 from the approved draft's `.doan/assets/provider-logos/` for the app's Agent step; the notes below are that directory's. Retrieved 2026-10-28 from official provider sites or repositories. These local assets were draft references; inclusion is not a claim of trademark ownership or endorsement. App packaging and brand-use requirements remain implementation work.
+Copied 2026-10-29 from the approved draft's `.doan/assets/provider-logos/` for the app's provider marks (first run's Agent step, Settings, Home and conversations); the notes below are that directory's. Retrieved 2026-10-28 from official provider sites or repositories. These local assets were draft references; inclusion is not a claim of trademark ownership or endorsement. App packaging and brand-use requirements remain implementation work.
 
 - `claude.png`: https://assets.claude.com/95a868946ac8a31e5ff832e2899f294aa368b836.png?w=64&h=64 — icon linked by claude.com.
 - `codex.png`: https://github.com/openai.png?size=64 — official OpenAI organization avatar, used as the OpenAI provider mark for Codex, not a distinct Codex product icon.
