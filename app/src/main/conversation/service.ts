@@ -642,9 +642,11 @@ export class ConversationService {
     return refreshed;
   }
   // The one mode Doan follows by itself: after the person approved a plan, the mode Claude reported becomes the
-  // conversation's, so its picker and its next turn show what now runs. Only the turn that ran the plan counts.
+  // conversation's, so its picker and its next turn show what now runs. Only the turn that ran the plan counts, and
+  // only while the conversation is still in Plan: a mode the person picked during the turn stays (spec decision 8).
   private planApproved(id: string, live: Live, turnId: string, reported: PermissionModeId): void {
     if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted) return;
+    if (this.store.list().find(e => e.conversationId === id)?.permissionMode !== "plan") return;
     try { this.storeMode(id, reported); } catch (error) { console.error("doan: the permission mode after a plan approval could not be saved", error); }
   }
   // Saved and announced only when it changes; Default as no key.

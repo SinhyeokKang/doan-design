@@ -1450,11 +1450,27 @@ describe("permission mode", () => {
     expect(h.store.list()[0]).toMatchObject({ permissionMode: "acceptEdits" });
     expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "acceptEdits" });
     expect(h.changes).toEqual(["/repo"]);
+  });
+  it("stores Default as no key after a plan approval, and the same mode again changes nothing", async () => {
+    const h = homeFixture();
+    await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" });
+    const report = h.open.mock.calls[0]![0].planApproved!;
     report("default");
     expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
     expect(h.service.list("/repo")[0]).not.toHaveProperty("permissionMode");
-    // The same mode again changes nothing.
     h.changes.length = 0; report("default");
+    expect(h.changes).toEqual([]);
+  });
+  // permission-mode spec decision 8, RV-B ⚪1: a mode the person picked during the Plan turn is theirs; the plan
+  // approval follows the SDK only while the conversation is still in Plan.
+  it("keeps a mode the person picked during the Plan turn when the plan is approved", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
+    const report = h.open.mock.calls[0]![0].planApproved!;
+    h.service.setPermissionMode(id, "acceptEdits");
+    h.changes.length = 0;
+    report("default");
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "acceptEdits" });
     expect(h.changes).toEqual([]);
   });
   it("ignores a plan report from a turn that is no longer the conversation's current one", async () => {
