@@ -137,6 +137,8 @@ export class CanvasController {
   private pickListener: ((result: PickResult) => void) | null = null;
   // A pick that ended in a flow which publishes later: told after that publish, so the listener sees the new state.
   private pickEnded: PickResult | null = null;
+  // The Frames drawer's last pick-frame command in this document, to tell its reply from a click.
+  private pickFrameCommand: { seq: number; id: string } | null = null;
   private locating: { anchor: Anchor; generation: number; request: number; settled: (result: LocateResult) => void; timer: ReturnType<typeof setTimeout> } | null = null;
   // Hand tool (canvas-hand-tool design '방식', '도구 상태'). The controller lives as long as the app, so the tool
   // outlives the Overview and empty states, which rebuild `state`. `toolChosen`: the person picked one, so a late
@@ -608,6 +610,7 @@ export class CanvasController {
     this.lastHref = null;
     this.jumpTo = null;
     this.seq = 0;
+    this.pickFrameCommand = null;
     this.hoverSeq = 0;
     this.hoverRect = null;
     this.drawMarks();
@@ -710,9 +713,7 @@ export class CanvasController {
       return;
     }
     if (message.type === "hover") { this.hoverSeq = message.seq; this.hoverRect = message.rect; this.drawMarks(); return; }
-    // The script raises seq for a person's click and answers the renderer's commands at their own seq.
-    const click = message.seq > this.seq && (message.type === "clear" || message.answer === undefined);
-    if (click) this.focusCanvas();
+    if (!this.commandReply(message)) this.focusCanvas();
     this.seq = message.seq;
     if (message.type === "clear") { this.clearSelection(false); this.publish(); return; }
     if (message.target === null) { this.applySelectionEffect({ kind: "anchorLost" }); this.publish(); return; }
@@ -725,6 +726,16 @@ export class CanvasController {
     this.drawMarks();
     this.requestRows(view);
     this.publish();
+  }
+
+  // A click takes a seq at least the renderer's: it can win the race with a command still on its way and take that
+  // command's seq. A select-anchor reply names its command; a pick-frame reply has no name, so it is the frame the
+  // drawer asked for at that command's seq. The canvas never answers a clear.
+  private commandReply(message: Exclude<SelectionMessage, { type: "hover" | "key" }>): boolean {
+    if (message.type === "clear") return false;
+    if (message.answer !== undefined) return true;
+    const asked = this.pickFrameCommand;
+    return asked !== null && message.seq === asked.seq && message.target !== null && message.target.element === undefined && message.target.frame?.id === asked.id;
   }
 
   // Every select (click, Frames list, ancestor path, the anchor found again
@@ -1089,6 +1100,7 @@ export class CanvasController {
       this.clearJump();
       this.jumpTo = null;
       this.seq = 0;
+      this.pickFrameCommand = null;
       this.hoverSeq = 0;
       this.hoverRect = null;
       this.applySelectionEffect({ kind: "otherCanvas" });
@@ -1172,6 +1184,7 @@ export class CanvasController {
       if (at < 0) return;
       this.jump(at);
       this.sendCommand({ type: "pick-frame", index: at, id });
+      this.pickFrameCommand = { seq: this.seq, id };
     }, () => resolve() >= 0);
   }
 

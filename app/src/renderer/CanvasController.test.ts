@@ -2424,6 +2424,8 @@ describe("hand tool", () => {
   const translate = (h: H) => /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(h.board.style.transform)!.slice(1).map(Number);
   const canvasKey = (h: H, key: string, over: Record<string, unknown> = {}) => h.receive({ type: "key", key, seq: 0, ...over });
   const harness = () => { const h = selectionHarness(); h.layout({ document: "doc" }); return h; };
+  // What the canvas answers to the Frames drawer's pick-frame: the frame itself, with no element.
+  const frameReply = { rect: { x: 0, y: 20, width: 10, height: 10 }, tag: "section", frame: { id: "hero" }, frameIndex: 1, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }] };
 
   it("starts in Select with no drag layer", () => {
     const h = harness();
@@ -2805,8 +2807,28 @@ describe("hand tool", () => {
       // A renderer command's answer is not a click, even with the pointer on the canvas.
       pointerOver(h, h.viewport);
       h.controller.selectFrame(1, "hero");
-      h.select(4);
+      h.select(4, { target: frameReply });
+      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      h.select(5, { answer: "select-anchor" });
       expect(h.viewport.focus).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  // Review RA 🟡1: a click can win the race with a command still on its way and take that command's seq.
+  it("a click at the seq of a command in flight still moves focus", () => {
+    const h = harness();
+    try {
+      pointerOver(h, h.current());
+      h.controller.selectPath({ label: "cta", selector: '[data-doan-id="cta"]', doanId: "cta" });
+      h.receive({ type: "clear", seq: 1 });
+      expect(h.viewport.focus).toHaveBeenCalledTimes(1);
+      h.controller.selectFrame(1, "hero");
+      h.select(2);
+      expect(h.viewport.focus).toHaveBeenCalledTimes(2);
+      // The drawer's frame, answered at its own seq, is still the command's reply.
+      h.controller.selectFrame(1, "hero");
+      h.select(3, { target: frameReply });
+      expect(h.viewport.focus).toHaveBeenCalledTimes(2);
     } finally { h.controller.dispose(); }
   });
 
