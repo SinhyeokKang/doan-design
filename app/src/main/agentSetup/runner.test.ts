@@ -281,6 +281,28 @@ describe("the Claude Code allow rule", () => {
     expect(readFileSync(settings(), "utf8")).toBe(text);
   });
 
+  // RC2-2: a lossy UTF-8 read would turn FF into U+FFFD, parse, and write EF BF BD back. A BOM is kept and refused too.
+  it.each([
+    ["bytes that are not UTF-8", Buffer.concat([Buffer.from('{"note":"'), Buffer.from([0xff]), Buffer.from('","permissions":{"allow":[]}}')])],
+    ["a byte order mark", Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"permissions":{"allow":[]}}')])],
+  ] as const)("leaves settings with %s alone and names them as broken JSON", async (_name, bytes) => {
+    mkdirSync(join(home, ".claude")); writeFileSync(settings(), bytes);
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([{ target: "claude-allow", path: settings(), providers: ["claude"], reason: "claude-settings", problem: "json" }]);
+    expect(readFileSync(settings()).equals(bytes)).toBe(true);
+  });
+
+  // RC2-3: the scan that finds where to insert must not stop setup on a file JSON.parse accepts.
+  it("merges into deep but valid settings and finishes the run", async () => {
+    mkdirSync(join(home, ".claude"));
+    const deep = `{"unrelated":${"[".repeat(10000)}0${"]".repeat(10000)},"permissions":{"allow":[]}}`;
+    writeFileSync(settings(), deep);
+    const result = await runAgentSetup(options());
+    expect(result.items).toEqual([]);
+    expect(actions(result)).toMatchObject({ current: "create", cli: "create", "claude-skill": "create", "claude-allow": "replace" });
+    expect(readFileSync(settings(), "utf8")).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)"]}}`);
+  });
+
   it("never writes through a link, and says nothing once the file it links to has both rules, as nothing is left to add", async () => {
     mkdirSync(join(home, ".claude")); mkdirSync(join(home, "dotfiles"));
     const target = join(home, "dotfiles/settings.json");
@@ -355,6 +377,25 @@ describe("the Claude Code allow rule", () => {
     vi.mocked(fs.renameSync).mockImplementation(realRename);
     expect(actions(await runAgentSetup(options()))["claude-allow"]).toBe("replace");
     expect(JSON.parse(readFileSync(settings(), "utf8"))).toEqual({ model: "sonnet", permissions: { allow: CLAUDE_ALLOW_RULES, deny: ["Bash(rm *)"] } });
+  });
+
+  // RC2-2: the moved file is compared as bytes, so a save that only differs where UTF-8 cannot decode is not lost.
+  it("keeps a save after Doan's last look that a lossy UTF-8 read would see as unchanged", async () => {
+    mkdirSync(join(home, ".claude"));
+    const mine = Buffer.from('{"note":"\uFFFD","permissions":{"allow":[]}}');
+    const saved = Buffer.concat([Buffer.from('{"note":"'), Buffer.from([0xff]), Buffer.from('","permissions":{"allow":[]}}')]);
+    expect(saved.toString("utf8")).toBe(mine.toString("utf8"));
+    writeFileSync(settings(), mine);
+    let wrote = false;
+    vi.mocked(fs.renameSync).mockImplementation((from, to) => {
+      if (!wrote && from === settings()) { wrote = true; realWrite(settings(), saved); }
+      realRename(from, to);
+    });
+    const result = await runAgentSetup(options());
+    expect(wrote).toBe(true);
+    expect(actions(result)["claude-allow"]).toBe("changed");
+    expect(readFileSync(settings()).equals(saved)).toBe(true);
+    expect(leftovers()).toEqual([]);
   });
 
   it("keeps a file Claude Code renames into place after Doan's last look, even with the same bytes", async () => {

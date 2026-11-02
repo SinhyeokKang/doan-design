@@ -225,6 +225,12 @@ describe("mergeClaudeAllow", () => {
     expect(mergeClaudeAllow(`{"permissions":{},"permissions":{"allow":${JSON.stringify(RULES)}}}`)).toEqual({ kind: "keep" });
   });
 
+  // RC2-3: JSON.parse accepts this, so the scan that finds where to insert must not run out of stack on it.
+  it("adds the rules to deep but valid JSON", () => {
+    const deep = `{"unrelated":${"[".repeat(10000)}0${"]".repeat(10000)},"permissions":{"allow":[]}}`;
+    expect(written(deep)).toBe(`${deep.slice(0, -3)}"Bash(doan work start *)", "Bash(doan work done *)"]}}`);
+  });
+
   it("does not count a broader rule as one of Doan's", () => {
     expect(JSON.parse(written('{"permissions":{"allow":["Bash(doan *)"]}}')).permissions.allow).toEqual(["Bash(doan *)", ...RULES]);
   });
