@@ -1393,23 +1393,53 @@ describe("permission mode", () => {
     expect(h.open).toHaveBeenCalledOnce();
     expect(vi.mocked(h.runners[0]!.send).mock.calls[1]![3]).toEqual({ permissionMode: "default" });
   });
-  it("sends a queue with the mode of its last queued message, and with the stored mode when none named one", async () => {
+  // permission-mode spec decisions 7 and 8: a picker change without a send is stored at once, and a queue goes out in
+  // the mode stored when it is flushed, not the one its messages were queued under.
+  it("stores a picker change without a send, deletes the key for Default and announces only a change", async () => {
     const h = homeFixture();
-    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "plan" })).conversationId;
-    h.service.queue(id, { text: "one", anchors: [], permissionMode: "acceptEdits" });
-    h.service.queue(id, { text: "two", anchors: [], permissionMode: "bypass" });
-    h.service.queue(id, { text: "three", anchors: [] });
+    const id = await started(h, { model: "sonnet" });
+    h.changes.length = 0;
+    h.service.setPermissionMode(id, "plan");
+    expect(h.store.list()[0]).toMatchObject({ model: "sonnet", permissionMode: "plan" });
+    expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "plan" });
+    expect(h.changes).toEqual(["/repo"]);
+    h.changes.length = 0; h.service.setPermissionMode(id, "plan");
+    expect(h.changes).toEqual([]);
+    h.service.setPermissionMode(id, "default");
+    expect(h.store.list()[0]).not.toHaveProperty("permissionMode");
+    expect(h.changes).toEqual(["/repo"]);
+    expect(() => h.service.setPermissionMode("missing", "plan")).toThrow("not_found");
+    // The next send without a mode opens in the stored one.
+    h.service.setPermissionMode(id, "acceptEdits");
+    await h.service.send(id, "again", []);
+    expect(h.open.mock.calls.at(-1)![0]).toMatchObject({ permissionMode: "acceptEdits" });
+  });
+  it("sends a queue in the mode stored when it is flushed", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start({ ...homeRequest, mode: "new", canvas, permissionMode: "bypass" })).conversationId;
+    h.service.queue(id, { text: "one", anchors: [] });
+    // Changed while the turn runs: the running turn keeps bypass, the queue goes out in Plan.
+    h.service.setPermissionMode(id, "plan");
     h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
     await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(h.store.list()[0]).toMatchObject({ permissionMode: "bypass" }));
-    expect(h.open.mock.calls[1]![0]).toMatchObject({ permissionMode: "bypass" });
-    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[1]![2]();
-    h.service.send(id, "x", []).catch(() => {});
-    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(3));
-    h.service.queue(id, { text: "four", anchors: [] });
-    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[2]![2]();
-    await vi.waitFor(() => expect(h.open).toHaveBeenCalledTimes(4));
-    expect(h.open.mock.calls[3]![0]).toMatchObject({ permissionMode: "bypass" });
+    expect(h.open.mock.calls[1]![0]).toMatchObject({ permissionMode: "plan" });
+    expect(lastTurn(h)).toEqual({ permissionMode: "plan" });
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
+  });
+  it("keeps a picker change made while a send was being prepared", async () => {
+    const h = homeFixture();
+    const id = await started(h);
+    let resume!: () => void;
+    const gate = new Promise<void>(resolve => { resume = resolve; });
+    const prepare = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementationOnce(async (request, stored) => { await gate; return prepare(request, stored); });
+    const sending = h.service.send(id, "again", [], { permissionMode: "acceptEdits" });
+    await vi.waitFor(() => expect(h.prepare).toHaveBeenCalledTimes(2));
+    h.service.setPermissionMode(id, "plan");
+    resume(); await sending;
+    // The turn runs in the mode it was sent with; the conversation keeps the later pick for the next one.
+    expect(lastTurn(h)).toEqual({ permissionMode: "acceptEdits" });
+    expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
   });
   it("stores the mode Claude reports after a plan approval and announces the list change", async () => {
     const h = homeFixture();

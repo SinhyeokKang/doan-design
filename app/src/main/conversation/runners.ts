@@ -159,7 +159,8 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
     // A resume without them starts on the default model (P1), so every run passes the conversation's choice.
     ...(input.model ? { model: input.model } : {}), ...(input.effort ? { effort: input.effort as EffortLevel } : {}),
     // Default passes nothing, so the Doan profile's and the project's settings decide, as before this option existed.
-    ...claudePermission(input.permissionMode ?? "default"),
+    // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does.
+    ...(input.owner ? claudePermission(input.permissionMode ?? "default") : {}),
     spawnClaudeCodeProcess(options) {
       const child = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {

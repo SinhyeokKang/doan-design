@@ -392,18 +392,22 @@ it("lets a send change the Codex model and effort on the reused server for that 
 });
 
 // permission-mode S2: the chosen mode on every Claude run and every Codex turn.
-it("passes each mode to Claude, with the dangerous skip only for Full access and nothing for Default", async () => {
+it("passes each mode to a doan-owned Claude run, with the dangerous skip only for Full access and nothing for Default", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-claude-mode-")), command = listingClaude(root);
+  const owner = { kind: "doan" as const, provider: "claude" as const, connectionId: "c1", accountId: "a1", workspaceId: "org-uuid-1", profile: "claude" };
   try {
     for (const permissionMode of [undefined, "default", "acceptEdits", "plan", "bypass"] as const) {
-      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, ...(permissionMode ? { permissionMode } : {}) }, () => {}, () => {}, () => {});
+      const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, owner, ...(permissionMode ? { permissionMode } : {}) }, () => {}, () => {}, () => {});
       await runner.send("hello", "turn"); await runner.close();
     }
+    // A terminal session's run (no doan owner) keeps the person's own profile settings, as Codex does (RV-A ⚪ 2).
+    const legacy = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root }, permissionMode: "bypass" }, () => {}, () => {}, () => {});
+    await legacy.send("hello", "turn"); await legacy.close();
     const runs = readFileSync(join(root, "seen"), "utf8").split("\n").filter(line => line.startsWith("[")).map(line => JSON.parse(line) as string[]);
     // The SDK writes the mode as --permission-mode=<mode> or as two arguments.
     const mode = (argv: string[]) => { const at = argv.findIndex(arg => arg.startsWith("--permission-mode")); return at < 0 ? null : argv[at]!.includes("=") ? argv[at]!.split("=")[1] : argv[at + 1]; };
     const flags = runs.map(argv => [mode(argv), argv.includes("--allow-dangerously-skip-permissions")]);
-    expect(flags).toEqual([[null, false], [null, false], ["acceptEdits", false], ["plan", false], ["bypassPermissions", true]]);
+    expect(flags).toEqual([[null, false], [null, false], ["acceptEdits", false], ["plan", false], ["bypassPermissions", true], [null, false]]);
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 30000);
 // Answers initialize; a prompt reports a status message with FAKE_STATUS's permissionMode before its result.
@@ -435,7 +439,7 @@ it("reports the mode Claude switched to after a plan approval, only on a turn se
   };
   try {
     expect(await run("plan", "default")).toEqual(["default"]);
-    expect(await run("plan", "bypassPermissions")).toEqual(["bypass"]);
+    expect(await run("plan", "bypassPermissions")).toEqual(["default"]);
     expect(await run("plan", "auto")).toEqual(["default"]);
     // Still planning is no switch; outside a Plan turn a mode switch (a suggestion's setMode) is never followed.
     expect(await run("plan", "plan")).toEqual([]);

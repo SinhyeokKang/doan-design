@@ -321,11 +321,17 @@ it("sets Copilot's mode and allow_all together, and turns allow_all off again fo
   expect(await modeRequests("copilot", copilotModes("agent", "on"), { sessionId: SESSION_OF.copilot, permissionMode: "plan" })).toEqual([
     { sessionId: SESSION_OF.copilot, configId: "mode", value: `${COPILOT_MODE}plan` }, { sessionId: SESSION_OF.copilot, configId: "allow_all", value: "off" }, "prompt"]);
 });
-it("sets no mode when the server lists none or the mapping table has no entry for the chosen one", async () => {
+it("sets no mode when the server lists none, or lists no mode the mapping table names", async () => {
   expect(await modeRequests("cursor", {}, { permissionMode: "plan" })).toEqual(["prompt"]);
-  expect(await modeRequests("cursor", cursorModes("agent"), { permissionMode: "acceptEdits" })).toEqual(["prompt"]);
-  expect(await modeRequests("cursor", cursorModes("agent"), { permissionMode: "bypass" })).toEqual(["prompt"]);
   expect(await modeRequests("cursor", { modes: { currentModeId: "ask", availableModes: [{ id: "ask" }] } }, {})).toEqual(["prompt"]);
+});
+// A loaded session keeps its last, possibly wider, mode, so a mode the provider cannot take falls back to Default
+// rather than leaving the session as it was (RV-A 🔴 1).
+it("sets Default when the chosen mode has no mapping for the provider", async () => {
+  expect(await modeRequests("copilot", copilotModes("agent", "on"), { sessionId: SESSION_OF.copilot, permissionMode: "acceptEdits" })).toEqual([{ sessionId: SESSION_OF.copilot, configId: "allow_all", value: "off" }, "prompt"]);
+  const antigravityModes = { modes: { currentModeId: "yolo", availableModes: ["default", "auto_edit", "yolo"].map(id => ({ id, name: id })) } };
+  expect(await modeRequests("copilot", antigravityModes, { runtime: "antigravity", sessionId: SESSION_OF.copilot, permissionMode: "plan" })).toEqual([{ sessionId: SESSION_OF.copilot, configId: "mode", value: "default" }, "prompt"]);
+  expect(await modeRequests("cursor", cursorModes("plan"), { sessionId: SESSION, permissionMode: "bypass" })).toEqual([{ sessionId: SESSION, configId: "mode", value: "agent" }, "prompt"]);
 });
 it("lists an ACP provider's modes with its models from the same session/new", async () => {
   const log = logFile();

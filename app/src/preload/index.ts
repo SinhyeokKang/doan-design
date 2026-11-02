@@ -76,15 +76,19 @@ const api = {
   // canvas_not_found when its canvas is gone or its ID is listed twice.
   sendConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; model?: string; effort?: string; permissionMode?: PermissionModeId; attachments?: { id: string }[] }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:send", request),
   // While the conversation works (not_running otherwise), a message waits in main and goes out with the others as one
-  // message after turn.done; text, anchors, attachments and the picker's permissionMode only (model and effort are
-  // bad_request; the queue goes out with its last message's mode, or the stored one when none named a mode). queue_limit: the
+  // message after turn.done; text, anchors and attachments only (model, effort and permissionMode are bad_request; the
+  // queue goes out in the mode stored when it is flushed, setConversationPermissionMode). queue_limit: the
   // queue and the conversation's returned draft together would pass one message (32,768 characters, 32 anchors, 10
   // attachments) or the drafts file's size. Removing an item or taking a draft that cannot be saved answers an error
   // and keeps it. main holds the
   // attachments from here on. A failed or stopped turn, a refused queued send or a restart hands the queue back as a
   // draft: the list row then has returnedDraft, and takeConversationDraft hands it over once (attachments as recorded
   // paths, for attachmentsFromPaths). Each change is announced with onConversationListChanged.
-  queueConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; attachments?: { id: string }[]; permissionMode?: PermissionModeId }): Promise<{ itemId: string } | ConversationError> => ipcRenderer.invoke("conversation:queue", request),
+  queueConversation: (request: { conversationId: string; text: string; anchors?: Anchor[]; attachments?: { id: string }[] }): Promise<{ itemId: string } | ConversationError> => ipcRenderer.invoke("conversation:queue", request),
+  // The picker changed on an existing conversation without a send: main stores it ("default" as none) and announces
+  // onConversationListChanged. A running turn keeps its mode; a queue goes out in the mode stored when it is flushed.
+  // bad_request for an unknown id or a legacy external conversation.
+  setConversationPermissionMode: (request: { conversationId: string; permissionMode: PermissionModeId }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:setPermissionMode", request),
   // stale: the item already went out, came back or was removed.
   removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),

@@ -7,7 +7,7 @@ import type { ConversationService, Prepare, QueueFiles, StartAttachments, StartR
 import type { ModelCatalog } from "./models";
 import type { AttachmentStore } from "../attachments";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen", "queue", "removeQueued", "takeDraft"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen", "queue", "removeQueued", "takeDraft", "setPermissionMode"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
 export interface ConversationError { error: string; missing?: string[] }
@@ -23,7 +23,7 @@ function choice(value: unknown): value is string { return typeof value === "stri
 export interface SendExtras { model?: string; effort?: string; permissionMode?: PermissionModeId; ids: unknown[]; attachments?: AttachmentRecord[] }
 // The model, effort, permission mode and attachments a start or send may carry. The provider is the conversation's and
 // never changes; a legacy external conversation runs on the person's own CLI profile, so it takes none of them. A mode
-// is one of the common ids, whatever the renderer offered (an unmapped ACP mode sets nothing in the runner).
+// is one of the common ids, whatever the renderer offered (the ACP runner sets Default for a mode the provider cannot take).
 export function validateSendExtras(request: Record<string, unknown>, root: string, provider: Provider, owner: "doan" | "legacy-external", home: { models?: Pick<ModelCatalog, "accepts">; attachments?: Pick<AttachmentStore, "resolve"> }): SendExtras {
   if (request.runtime !== undefined || request.provider !== undefined) throw new Error("bad_request");
   const extras: SendExtras = { ids: [] };
@@ -141,18 +141,23 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
           return undefined;
         }
         case "queue": {
-          // Text, anchors, attachments and the picker's permission mode: the turn the queue goes out in keeps the
-          // conversation's model and effort, and takes its last message's mode.
-          const input = message(raw); if (!input || raw.model !== undefined || raw.effort !== undefined) throw new Error("bad_request");
+          // Text, anchors and attachments only: the turn the queue goes out in keeps the conversation's model and effort,
+          // and takes the mode stored when it is flushed (setPermissionMode).
+          const input = message(raw); if (!input || raw.model !== undefined || raw.effort !== undefined || raw.permissionMode !== undefined) throw new Error("bad_request");
           const target = service.sendTarget(raw.conversationId);
           const extras = validateSendExtras(raw, target.root, target.provider, target.owner, home), store = home.attachments;
           const ids = extras.ids.map(item => (item as { id: string }).id);
           // The marker that keeps a paste through a restart can fail; it is written before the item is accepted, so a refusal
           // leaves nothing queued and the files with the renderer. Nothing after the acceptance can fail.
           if (store && ids.length) store.markSent(extras.ids);
-          const queued = service.queue(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}), ...(extras.permissionMode !== undefined ? { permissionMode: extras.permissionMode } : {}) });
+          const queued = service.queue(raw.conversationId, { ...input, ...(extras.attachments ? { attachments: extras.attachments } : {}), ...(ids.length ? { ids } : {}) });
           if (store && ids.length) store.consume(extras.ids);
           return queued;
+        }
+        case "setPermissionMode": {
+          // A terminal session runs on the person's own profile, so Doan stores no mode for it.
+          if (!permissionModeId(raw.permissionMode) || service.sendTarget(raw.conversationId).owner !== "doan") throw new Error("bad_request");
+          service.setPermissionMode(raw.conversationId, raw.permissionMode); return undefined;
         }
         case "removeQueued":
           if (typeof raw.itemId !== "string" || raw.itemId.length > 64) throw new Error("bad_request");

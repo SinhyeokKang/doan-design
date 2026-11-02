@@ -96,9 +96,9 @@ export class ConversationService {
   private lastStop = new Map<Provider, number>();
   // Sends waiting for the previous turn's process to exit; cancelled ones are refused once woken.
   private waits = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
-  // The attachment ids and the picker's permission mode of each queued message, for its send; they mean nothing after a
-  // restart (the queue then comes back as a draft), so they stay here.
-  private queuedExtras = new Map<string, { owner: string; ids: string[]; permissionMode?: PermissionModeId }>();
+  // The attachment ids of each queued message, for its send; they mean nothing after a restart (the queue then comes
+  // back as a draft), so they stay here.
+  private queuedExtras = new Map<string, { owner: string; ids: string[] }>();
   private evidence = new Map<string, Evidence>();
   // Sends waiting for their conversation's previous turn to be judged.
   // A Stop or a sign-out of its provider refuses such a send as busy, as it refuses one waiting for the previous process.
@@ -219,6 +219,7 @@ export class ConversationService {
     this.changedOf(id);
     // The mode is judged apart from the model: a send may change either alone.
     const chosen = { ...extras.model ? choice(extras) : choice(metadata), ...mode(extras.permissionMode !== undefined ? extras.permissionMode : metadata.permissionMode) };
+    const admittedMode = metadata.permissionMode;
     const expected = restoring ? "archived" : "current";
     let reserved = false, opening = false, input: Prepared | undefined, leased = false;
     try {
@@ -254,7 +255,9 @@ export class ConversationService {
       const canvasesAtStart = projectTurn ? this.snapshot(metadata.root) : metadata.canvasesAtStart;
       const seenSeq = metadata.seenSeq ?? this.store.read(id).at(-1)?.seq ?? 0;
       const { model: _model, effort: _effort, permissionMode: _mode, canvasesAtStart: _snapshot, ...rest } = metadata;
-      const updated: ConversationMetadata = { ...rest, ...chosen, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
+      // A picker change stored while this send was prepared is the later pick, so it stays for the next turn.
+      const stored = metadata.permissionMode !== admittedMode ? mode(metadata.permissionMode) : mode(chosen.permissionMode);
+      const updated: ConversationMetadata = { ...rest, ...choice(chosen), ...stored, ...(canvasesAtStart ? { canvasesAtStart } : {}), seenSeq };
       const message: EventPayload = { type: "user.message", text, anchors, ...(attachments.length ? { attachments } : {}) };
       attached?.sent();
       if (restoring) {
@@ -267,7 +270,7 @@ export class ConversationService {
         for (const event of saved) this.deliver(event);
         this.changed(metadata.root);
       } else {
-        if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || chosen.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
+        if (rebound || chosen.model !== metadata.model || chosen.effort !== metadata.effort || stored.permissionMode !== metadata.permissionMode || seenSeq !== metadata.seenSeq || JSON.stringify(canvasesAtStart) !== JSON.stringify(metadata.canvasesAtStart))
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
         this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       }
@@ -406,6 +409,10 @@ export class ConversationService {
     this.changed(m.root);
   }
   // What ipc needs to check a send's extras: the conversation's folder, its fixed provider and its owner kind.
+  // The picker changed without a send (permission-mode spec decision 7). A running turn keeps the mode it was sent
+  // with; the next send that names none and a queue flushed later use this one (decision 8). ipc refuses it for a
+  // legacy external conversation.
+  setPermissionMode(id: string, permissionMode: PermissionModeId): void { this.storeMode(id, permissionMode); }
   sendTarget(id: string): { root: string; provider: Provider; owner: ConversationOwner["kind"]; model?: string; effort?: string } {
     const m = this.metadata(id); return { root: m.root, provider: m.session.runtime, owner: m.owner.kind, ...choice(m) };
   }
@@ -489,8 +496,8 @@ export class ConversationService {
   }
   // A message sent while its conversation works waits in main, in drafts.json, until the turn ends (design §2.6).
   // ids: the attachment ids main holds for it until it goes out. not_running: nothing is working to queue behind.
-  // permissionMode: the picker's mode when the message was queued; the queue goes out with its last message's.
-  queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[]; permissionMode?: PermissionModeId }): { itemId: string } {
+  // The queue goes out in the mode stored when it is flushed (setPermissionMode), not one of its messages'.
+  queue(id: string, item: { text: string; anchors: Anchor[]; attachments?: AttachmentRecord[]; ids?: string[] }): { itemId: string } {
     const m = this.metadata(id);
     if (this.quitting) throw new Error("busy");
     if (!this.working(id)) throw new Error("not_running");
@@ -500,7 +507,7 @@ export class ConversationService {
     // waiting for that judgement goes first, and the queue follows its turn.
     const live = this.live.get(id);
     if (live && !live.busy && !live.holding && !this.judging.has(id) && this.evidence.get(id)?.endedAt !== undefined) live.holding = {};
-    if (item.ids?.length || item.permissionMode) this.queuedExtras.set(itemId, { owner: id, ids: item.ids ?? [], ...(item.permissionMode ? { permissionMode: item.permissionMode } : {}) });
+    if (item.ids?.length) this.queuedExtras.set(itemId, { owner: id, ids: item.ids });
     this.changed(m.root);
     return { itemId };
   }
@@ -597,7 +604,6 @@ export class ConversationService {
     const hold = live.holding, provider = live.provider, since = this.stops;
     const items = this.drafts.markSending(id);
     const ids = items.flatMap(item => this.queuedExtras.get(item.itemId)?.ids ?? []);
-    const permissionMode = items.map(item => this.queuedExtras.get(item.itemId)?.permissionMode).filter(m => m !== undefined).at(-1);
     const combined = combineQueued(items);
     if (!items.length || !combined.ok) {
       if (items.length) this.giveBack(id, "attachment_limit");
@@ -611,7 +617,7 @@ export class ConversationService {
         const attached = ids.length && files ? files.reclaim(ids) : undefined;
         const m = this.metadata(id);
         const defaultEffort = m.model && !m.effort ? this.queueOptions.defaultEffort?.(m.root, m.session.runtime, m.model) : undefined;
-        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}), ...(permissionMode ? { permissionMode } : {}) }, attached);
+        await this.submit(id, combined.text, combined.anchors, { ...(combined.attachments.length ? { attachments: combined.attachments } : {}), ...(defaultEffort ? { defaultEffort } : {}) }, attached);
         const sent = items.map(item => item.itemId);
         this.forget(id, sent); this.drafts.sent(id, sent);
         if (ids.length) files?.consume(ids);
@@ -639,14 +645,16 @@ export class ConversationService {
   // conversation's, so its picker and its next turn show what now runs. Only the turn that ran the plan counts.
   private planApproved(id: string, live: Live, turnId: string, reported: PermissionModeId): void {
     if (this.live.get(id) !== live || live.turnId !== turnId || !live.accepted) return;
-    try {
-      const entries = this.store.list(), m = entries.find(e => e.conversationId === id); if (!m) return;
-      const next = mode(reported);
-      if (next.permissionMode === m.permissionMode) return;
-      const { permissionMode: _old, ...rest } = m;
-      this.store.save(entries.map(e => e === m ? { ...rest, ...next } as ConversationMetadata : e));
-      this.changed(m.root);
-    } catch (error) { console.error("doan: the permission mode after a plan approval could not be saved", error); }
+    try { this.storeMode(id, reported); } catch (error) { console.error("doan: the permission mode after a plan approval could not be saved", error); }
+  }
+  // Saved and announced only when it changes; Default as no key.
+  private storeMode(id: string, value: PermissionModeId): void {
+    const entries = this.store.list(), m = entries.find(e => e.conversationId === id); if (!m) throw new Error("not_found");
+    const next = mode(value);
+    if (next.permissionMode === m.permissionMode) return;
+    const { permissionMode: _old, ...rest } = m;
+    this.store.save(entries.map(e => e === m ? { ...rest, ...next } as ConversationMetadata : e));
+    this.changed(m.root);
   }
   private stopped(live: { provider?: Provider; since: number }): boolean { return !!live.provider && (this.lastStop.get(live.provider) ?? 0) > live.since; }
   // Only a turn accepted in this run can still be running; a live entry left by a refused send is not one, and a turn an

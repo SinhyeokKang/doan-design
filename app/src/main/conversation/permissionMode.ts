@@ -54,12 +54,12 @@ export function claudePermission(mode: PermissionModeId): { permissionMode?: "ac
 }
 
 // The mode a Claude status message reports once a plan was approved; a mode with no common id (auto, dontAsk) reads
-// as Default.
+// as Default. So does bypassPermissions: Full access is only the person's pick, and following it would have Doan pass
+// allowDangerouslySkipPermissions on later turns that no one chose.
 export function claudeModeAfterPlan(sdkMode: unknown): PermissionModeId {
   switch (sdkMode) {
     case "acceptEdits": return "acceptEdits";
     case "plan": return "plan";
-    case "bypassPermissions": return "bypass";
     default: return "default";
   }
 }

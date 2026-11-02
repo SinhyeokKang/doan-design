@@ -203,7 +203,8 @@ it("forwards Codex additional-permission profiles without adding auto-review pol
 // permission-mode: Claude reports the mode it switched to after a plan approval in a status message (P1).
 it("reads the mode a Claude status message reports, and nothing from other messages", () => {
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "default" })).toBe("default");
-  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "bypassPermissions" })).toBe("bypass");
+  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "acceptEdits" })).toBe("acceptEdits");
+  expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "bypassPermissions" })).toBe("default");
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "dontAsk" })).toBe("default");
   for (const raw of [{ type: "system", subtype: "status", status: "compacting" }, { type: "system", subtype: "init", permissionMode: "plan" }, { type: "result", permissionMode: "plan" }, null, "status"])
     expect(claudeReportedMode(raw)).toBeUndefined();

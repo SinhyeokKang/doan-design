@@ -306,16 +306,26 @@ describe("queue channels", () => {
       expect(await h.handle(true, "queue", { conversationId: id, text: "y" })).toEqual({ error: "not_running" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
-  it("queues a message with the picker's permission mode, and refuses one on a legacy external conversation", async () => {
+  // A queue goes out in the mode stored when it is flushed, so a queued message carries none; a picker change goes
+  // through setPermissionMode instead (permission-mode spec decisions 7 and 8).
+  it("refuses a queued message's mode, and stores a picker change except on a legacy external conversation", async () => {
     const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
     try {
       const h = queueFixture(dir);
-      const queue = vi.spyOn(h.service, "queue");
+      expect(conversationMethods).toContain("setPermissionMode");
       const id = (await h.handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "claude", text: "x" }) as { conversationId: string }).conversationId;
-      expect(await h.handle(true, "queue", { conversationId: id, text: "y", permissionMode: "plan" })).toEqual({ itemId: expect.any(String) });
-      expect(queue.mock.calls[0]![1]).toEqual({ text: "y", anchors: [], permissionMode: "plan" });
+      expect(await h.handle(true, "queue", { conversationId: id, text: "y", permissionMode: "plan" })).toEqual({ error: "bad_request" });
+      for (const permissionMode of ["auto", "bypassPermissions", "", 1, null, undefined])
+        expect(await h.handle(true, "setPermissionMode", { conversationId: id, permissionMode })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "setPermissionMode", { conversationId: "missing", permissionMode: "plan" })).toEqual({ error: "not_found" });
+      expect(await h.handle(false, "setPermissionMode", { conversationId: id, permissionMode: "plan" })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "setPermissionMode", { conversationId: id, permissionMode: "plan" })).toBeUndefined();
+      expect(h.service.list("/repo")[0]).toMatchObject({ permissionMode: "plan" });
+      expect(await h.handle(true, "setPermissionMode", { conversationId: id, permissionMode: "default" })).toBeUndefined();
+      expect(h.service.list("/repo")[0]).not.toHaveProperty("permissionMode");
       h.store.save([...h.store.list(), { conversationId: "legacy", root: "/repo", canvas: { path: ".doan/canvases/a.html" }, title: "t", state: "current", owner: { kind: "legacy-external" }, session: { runtime: "codex", origin: "resumed", sessionId: "s", configDir: "/c", cwd: "/repo" } }]);
-      expect(await h.handle(true, "queue", { conversationId: "legacy", text: "y", permissionMode: "plan" })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "setPermissionMode", { conversationId: "legacy", permissionMode: "plan" })).toEqual({ error: "bad_request" });
+      expect(await h.handle(true, "setPermissionMode", { conversationId: "legacy", permissionMode: "default" })).toEqual({ error: "bad_request" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
   it("hands a returned draft over once", async () => {

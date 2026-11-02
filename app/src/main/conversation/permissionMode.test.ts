@@ -48,8 +48,8 @@ it("reads the mode Claude reports after a plan approval as a common id", () => {
   expect(claudeModeAfterPlan("default")).toBe("default");
   expect(claudeModeAfterPlan("acceptEdits")).toBe("acceptEdits");
   expect(claudeModeAfterPlan("plan")).toBe("plan");
-  expect(claudeModeAfterPlan("bypassPermissions")).toBe("bypass");
-  for (const other of ["auto", "dontAsk", "bypass", undefined, 3]) expect(claudeModeAfterPlan(other)).toBe("default");
+  // Full access is only ever the person's pick, so a reported bypass is not followed (RV-A 🟡 2).
+  for (const other of ["bypassPermissions", "auto", "dontAsk", "bypass", undefined, 3]) expect(claudeModeAfterPlan(other)).toBe("default");
 });
 
 it("maps each mode to Codex turn/start values, Default being the server's own as thread/start reported them", () => {
