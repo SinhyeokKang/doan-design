@@ -3,9 +3,9 @@ name: design-draft
 description: Use to draw a feature's UI draft canvas in this repo's .doan/canvases/ from its feature documents, following doan's canvas conventions, and to check it with the doan CLI. Writes only the draft canvas; does not touch app code or push.
 ---
 
-Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, viewed in the doan app, and `/design-sync` later compares the first implementation with them. This skill is the drawing half. Either runtime may draw (Claude Code drew app-ui, Codex draws select-inspect), and the other runtime implements from the files alone, so the draft must stand on its own: everything the implementer needs is in the canvas, the token CSS and the feature documents, not in a conversation.
+Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in this repo's `.doan/canvases/`, viewed in the doan app, and `/design-sync` later compares the first implementation with them. This skill is the drawing half. Either runtime may draw, and the other runtime may implement from the files alone, so the draft must stand on its own: everything the implementer needs is in the canvas, the token CSS and the feature documents, not in a conversation.
 
-**Language**: the canvas (UI copy, header, notes) is English — app UI copy is English (PRODUCT). The report to the user is in Korean.
+**Language**: the canvas (UI copy, header, notes) is English, as the app's UI copy is. The report to the user is in Korean.
 
 ## Usage
 
@@ -32,9 +32,9 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 Read the files themselves; do not work from someone's summary of them.
 
 - `docs/features/<slug>/spec.md` and `design.md` (the draft request, flows, copy, states).
-- `docs/PRODUCT.md` §5 'Dogfooding' and the app-ui rows of §7 (theme, copy, layout decisions); `docs/ARCHITECTURE.md` §1 'Conventions'.
+- `docs/PRODUCT.md` §5 'Dogfooding' and the §5 items for the screens the draft shows; `docs/ARCHITECTURE.md` §1 'Conventions'.
 - `docs/DESIGN.md` — the measured contract of screens already shipped.
-- Existing drafts in `.doan/canvases/` (shared classes, how "not in code" is marked), `app/src/renderer/tokens.css`, `.doan/assets/mock.css`.
+- Existing drafts in `.doan/canvases/` (shared classes, how "not in code" is marked), the design-system canvases in `.doan/ds/`, `app/src/renderer/tokens.css`, the shared primitives in `app/src/renderer/ds/` (`index.css`), `.doan/assets/mock.css`.
 - The renderer code for any shipped screen the draft shows (`app/src/renderer/`).
 - `go run ./cli/cmd/doan ls --json --repo .` and `go run ./cli/cmd/doan check --json --repo .` before you start, so new findings are yours.
 
@@ -50,7 +50,7 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
 - **Tokens first** (docs/DESIGN.md 'Adopted rules'): link `../../app/src/renderer/tokens.css` by a relative path and write every app value a token covers as that token — color, type roles (size, line height and tracking together), spacing, radius, control/icon size, shadow, motion. A literal is allowed only when no token has the value and the value is needed; list each one in the report as a component constant or a new token. A new token that follows the rules in docs/DESIGN.md 'Tokens first' may be added to `app/src/renderer/tokens.css` in the same change (the one exception to 'Do not edit app code' below: add tokens only, never change an existing token's value), and recorded in docs/DESIGN.md. Never pick an approximate token without asking the user. Before handing over, scan the draft's CSS for literals that have an exact token and replace them; a replacement must leave the computed value unchanged. Colors of example screens the human reviews inside the draft (the mock canvas on the board) come from `.doan/assets/mock.css`. No hex, `rgb(` or `oklch(` anywhere else. Follow the theme in DESIGN.md 'Design system' and the feature documents: light only, using the role variables in `tokens.css`, never the legacy aliases kept for old drafts.
 - **No coloured edge stripes**: never mark a message, notice, card or row with a coloured or thick left/start border. Errors use an icon plus danger text or a status block; notices use an inset fill. A 1px neutral divider between panes is fine.
-- **Shipped screens are copied, not redesigned** — except the screen a redesign child is redesigning, which is drawn as its feature documents ask. Any other screen already on main (top bar, sidebar, Canvas info panel) is drawn as the code and `docs/DESIGN.md` have it; put any change you would make into the report as a change request instead of drawing it.
+- **Shipped screens are copied, not redesigned** — except the screen a redesign child is redesigning, which is drawn as its feature documents ask. Any other screen already on main (header, sidebar, Home, Settings) is drawn as the code and `docs/DESIGN.md` have it; put any change you would make into the report as a change request instead of drawing it.
 - **Every requested state gets a frame or a labelled tile**, with the real English copy from the design document (no placeholder text). Long values, empty values and error states are drawn, not described.
 - **Mark what is not in code** (agent rule G) the way existing drafts do, and say in the header which frames are new.
 - **Header**: one intro block — scope, which frames `/design-sync` will compare, what is copied from shipped screens, and references with their source and whether they were checked or recalled from memory (AGENTS.md 'Leave evidence for references').
@@ -59,7 +59,7 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 
 ### 3. Check with the CLI
 
-- `go run ./cli/cmd/doan check --json --repo .` — no error-level finding. The only new warnings allowed are `hardcoded_color` in `.doan/assets/mock.css`.
+- `go run ./cli/cmd/doan check --json --repo .` — no new error-level finding compared with the run before you started, and none in this canvas. The only new warnings allowed are `hardcoded_color` in `.doan/assets/mock.css`.
 - `go run ./cli/cmd/doan ls --json --repo .` — the canvas is listed with the requested id and width, and its `frames` ids equal the requested list (no missing, no extra).
 
 ### 4. Hand over for review
@@ -71,11 +71,11 @@ go build -o <tmp>/doan ./cli/cmd/doan
 DOAN_CLI=<tmp>/doan npm --prefix app run dev -- -- --user-data-dir=<tmp>/userdata
 ```
 
-then add this repo with Add Project… on Home and open the canvas. Stop here and report. Feedback comes back through this conversation or the conductor, often pointing at frames and elements the user put into a message as chips in the canvas's conversation panel, then `/design-draft <slug> --revise`. Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
+then add this repo through the Add Projects page (File > Add Project…, ⌘O) and open the canvas. Stop here and report. Feedback comes back through this conversation or the conductor, often pointing at frames and elements the user put into a message as chips in the canvas's conversation panel, then `/design-draft <slug> --revise`. Loop until the user confirms; record the confirmation in the feature documents (`orch.md` decision log under `/orchestrate`, otherwise `design.md`).
 
 ### 5. Commit
 
-- Only the canvas, plus any new shared file under `.doan/canvases/` it needs: `docs(design): <slug> draft`. A revision is `docs(design): <slug> draft revision`.
+- Only the canvas, plus any new file under `.doan/assets/` it needs and any token added under 'Tokens first' with its `docs/DESIGN.md` line: `docs(design): <slug> draft`. A revision is `docs(design): <slug> draft revision`.
 - Trailer: a Codex session ends the message with `Co-Authored-By: Codex <noreply@openai.com>` (AGENTS.md 'Commit conventions'); a Claude Code session uses its own attribution.
 - Commit on whichever branch is checked out; do not switch or create a branch for the draft.
 - No push. The draft reaches main with that branch (`/ship` or `/orchestrate` pushes a feature branch).
