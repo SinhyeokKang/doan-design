@@ -334,7 +334,7 @@ test("a dropped item's disk path is read in the preload; one the page made itsel
   expect(mocks.invoke).not.toHaveBeenCalled();
 });
 
-// buzz-settings S2: the Settings page and the Project Settings dialog live in the main window.
+// buzz-settings S2: the Settings page and the Project Settings page live in the main window.
 test("settings page calls use fixed channels and pass their requests as data", async () => {
   const calls: [() => Promise<unknown>, unknown[]][] = [
     [() => api.readPreferences(), ["preferences:read"]],

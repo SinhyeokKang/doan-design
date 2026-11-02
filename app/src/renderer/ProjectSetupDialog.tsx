@@ -4,7 +4,7 @@ import { formView, initMessage, type ProjectForm } from "./onboardingView";
 import { AlertIcon } from "./AlertIcon";
 
 // One project setup form, used by the wizard's Project step and the sidebar's
-// Set Up… dialog. Main keeps the picked CSS file; the renderer holds only its ID.
+// Set Up dialog. Main keeps the picked CSS file; the renderer holds only its ID.
 export function useProjectSetup(root: string) {
   const [token, setToken] = useState<{ id: string; path: string } | null>(null);
   const [running, setRunning] = useState(false);

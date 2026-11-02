@@ -736,3 +736,18 @@ test("a worktree picked from the branch chip focuses the new Overview's chip, no
   expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/b");
   expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
 });
+
+// project-settings design '영향 범위' 복구 라벨: a problem workspace with no canvas open points at the status line's
+// recovery action above the canvas, by its label without the ellipsis.
+test("the canvas area of a missing or not set up workspace points at Locate or Set Up above", () => {
+  const text = (node: unknown): string => Array.isArray(node) ? node.map(text).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? text(node.props.children) : "";
+  for (const [entry, sentence] of [[{ path: "/w/a", kind: "notFound" }, "The project a is missing. Use Locate above."], [{ path: "/w/a", kind: "uninitialized" }, "The project a is not set up. Use Set Up above."]] as [FolderEntry, string][]) {
+    reset();
+    render();
+    folders([entry]);
+    sidebarOf().worktree("/w/a"); render();
+    const pane = all(tree).find(element => "viewport" in (element.props as object))!;
+    const status = all((pane.type as (props: unknown) => ReactNode)(pane.props)).find(element => element.props.className === "canvas-status")!;
+    expect(text(status), entry.kind).toBe(sentence);
+  }
+});

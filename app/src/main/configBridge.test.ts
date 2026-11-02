@@ -132,7 +132,7 @@ test("writes to one root run one after another", async () => {
   expect(run).toHaveBeenCalledTimes(2);
 });
 
-test("clear forgets choices and reads (the Project Settings dialog closed)", async () => {
+test("clear forgets choices and reads (the Project Settings page unmounted)", async () => {
   await bridge.read({ root: ROOT });
   const chosen = await bridge.choose({ root: ROOT, kind: "serve" });
   if (chosen.kind !== "selected") throw new Error("not selected");

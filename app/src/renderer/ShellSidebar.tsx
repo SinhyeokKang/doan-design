@@ -3,7 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { Bell, Bot, Check, ChevronDown, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
-import { cardRow, type HomeCard, type RowAction } from "./homeCards";
+import { cardRow, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
 import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
 import { sortedCanvases } from "./canvasOrder";
 import { rowProblem, typeaheadNext } from "./canvasTree";
@@ -80,7 +80,6 @@ function SlotMark({ slot }: { slot: Slot | undefined }) {
 }
 // Canvas paths start with `.doan/`, so a head's key never equals a canvas row's.
 const headKey = (root: string, group: GroupId) => `${root}\n#${group}`;
-const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ShellSidebar(props: Props) {
   const { cards, projects, loaded, canvas } = props;
   const descriptionPrefix = useId();

@@ -75,9 +75,9 @@ it("rejects menu actions after the project disappears", () => {
 });
 
 it.each([
-  [{ path: "/b", kind: "notFound" }, ["Locate…", "locate"]],
+  [{ path: "/b", kind: "notFound" }, ["Locate", "locate"]],
   [{ path: "/b", kind: "error", message: "bad config" }, ["Retry", "retry"], ["Details", "details"]],
-  [{ path: "/b", kind: "uninitialized" }, ["Set Up…", "setUp"]],
+  [{ path: "/b", kind: "uninitialized" }, ["Set Up", "setUp"]],
   [{ path: "/b", kind: "cliError", reason: "offline" }, ["Retry", "retry"]],
 ] as [FolderEntry, ...[string, string][]][]) ("targets repair actions without navigating from the current canvas: %j", (problem, ...actions) => {
   const { props } = fixture();

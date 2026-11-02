@@ -141,7 +141,7 @@ export function createConfigBridge(deps: ConfigBridgeDeps) {
       return unavailable;
     },
 
-    // A Project Settings dialog opened or closed, or the main renderer was replaced:
+    // A Project Settings page mounted or unmounted, or the main renderer was replaced:
     // the earlier session's choices and reads go with it.
     clear(): void {
       session++;

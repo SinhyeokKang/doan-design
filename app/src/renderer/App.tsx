@@ -1398,8 +1398,8 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project…"
-    : problem?.kind === "notFound" ? `The project ${projectName} is missing. Use Locate… to find it.`
-    : problem?.kind === "uninitialized" ? `The project ${projectName} is not set up. Use Set Up… on Home.`
+    : problem?.kind === "notFound" ? `The project ${projectName} is missing. Use Locate above.`
+    : problem?.kind === "uninitialized" ? `The project ${projectName} is not set up. Use Set Up above.`
     : problem?.kind === "error" ? "Could not read the project configuration. Use Details or Retry above."
     : problem?.kind === "cliError" ? "Could not read the project. Use Retry above." : null;
   const panel = useRef<HTMLDivElement>(null);

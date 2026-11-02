@@ -6,7 +6,7 @@ import type { FolderEntry } from "../main/view";
 import type { ConfigWrite } from "../preload";
 import type { AddPageOrigin } from "./addProjectsNav";
 import { AlertIcon } from "./AlertIcon";
-import { cardRow, groupProjects, type RowAction } from "./homeCards";
+import { cardRow, groupProjects, ROW_ACTION_LABELS as LABELS, type RowAction } from "./homeCards";
 import { displayPath } from "./projectDisplay";
 import {
   followProjectSettings, projectSettingsFocusAfter, projectSettingsLocked, projectSettingsPageView, projectSettingsView, writeErrorMessage,
@@ -18,7 +18,6 @@ import { projectHue, projectInitial } from "./shellNavigation";
 type Config = Extract<ConfigReply, { kind: "config" }>;
 type Recovery = Extract<RowAction, "setUp" | "locate" | "retry">;
 
-const LABELS: Record<PageAction, string> = { setUp: "Set Up", locate: "Locate", retry: "Retry", details: "Details" };
 
 // The Project Settings page edits one worktree's .doan/config.json in the white body, where Agents and Notifications
 // already live (project-settings design '화면'), and follows that worktree while it is open (projectSettingsRules).
