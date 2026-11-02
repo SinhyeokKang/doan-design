@@ -23,8 +23,8 @@
 | B | T2 | `app/src/main/canvasScript.ts`, `app/src/main/canvasScript.test.ts` | 없음(메시지 모양은 결정 기록) | Codex gpt-6-astra medium: 파일 하나지만 편집 대상 판정과 blur 처리에 판단이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 a04a8711 |
 | RA | A 리뷰 | 읽기만 | A | Codex gpt-6-astra medium: 다른 모델 계열의 독립 리뷰 | `/code-review` 보고서 | 완료: 🔴 1, 🟡 1 → A 수정 1회차 |
 | RB | B 리뷰 | 읽기만 | B | Claude Sonnet medium: 작은 diff, 다른 계열 리뷰 | `/code-review` 보고서 | 완료: 🔴 0, 🟡 1(통합 확인으로 넘김) |
-| D | 사용자 요청 디자인 이슈 2개(아래 결정 기록) | `ComposerParts.tsx`, `ShellSidebar.tsx`·`HomeComposerView.tsx`의 드롭다운 클래스, `styles.css`, `ds/surfaces.css`와 테스트, `docs/DESIGN.md` 해당 행 | A 통합(styles.css 겹침) | Claude Sonnet high: 범위가 작지만 실제 앱 computed style 측정이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, typecheck, 실제 앱 측정 | 대기 |
-| C | T4(`/runtime-test`, `/design-sync`) | `.scratch/`, `docs/DESIGN.md`의 측정값, design-sync가 고치는 앱 코드(그때 A와 겹치지 않게 지휘자가 순서를 잡는다) | A·B 통합 | Claude Opus high: 실제 앱 probe, 측정과 판단 | probe 완료 표식·exit 0, real-state 전후 같음, `measure.mjs` | 대기 |
+| D | 사용자 요청 디자인 이슈 2개(아래 결정 기록) | `ComposerParts.tsx`, `ShellSidebar.tsx`·`HomeComposerView.tsx`의 드롭다운 클래스, `styles.css`, `ds/surfaces.css`와 테스트, `docs/DESIGN.md` 해당 행 | A 통합(styles.css 겹침) | Claude Sonnet high: 범위가 작지만 실제 앱 computed style 측정이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, typecheck, 실제 앱 측정 | 통합 1f9a462a..b424a6ca, 리뷰 중 |
+| C | T4(`/runtime-test`, `/design-sync`) | `.scratch/`, `docs/DESIGN.md`의 측정값, design-sync가 고치는 앱 코드(그때 A와 겹치지 않게 지휘자가 순서를 잡는다) | A·B 통합 | Claude Opus high: 실제 앱 probe, 측정과 판단 | probe 완료 표식·exit 0, real-state 전후 같음, `measure.mjs` | 진행 중 |
 | 지휘자 | T5(리뷰 지적 분배), T6, Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/DESIGN.md` 설명 문장, 이 디렉터리 | C | — | `node .agents/skills/verify/scripts/verify.mjs`, Z1 grep | 대기 |
 
 T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
@@ -49,3 +49,9 @@ T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
 - RA 완료(테스트 5610/5610, typecheck 통과): 🔴 Space 상태가 그것을 받은 문서·보드보다 오래 남는다. 리로드·전환·닫기 때 `spaceHeld`가 풀리지 않고, 보드가 없을 때 받은 Space-down이 로드 뒤 레이어를 띄운다. 🟡 렌더러의 대기 중 명령과 seq가 같은 클릭은 받아들여지지만 포커스를 옮기지 않는다. 사용자 결정 항목은 없다. A의 차이 #5·#6·#10은 유지한다(RA도 같은 판단). A에 수정 1회차를 보냈다(dispatch `ctx_e6707ea5ebc7`). RA 작업자는 release했다.
 - 통합 HEAD 첫 테스트 실행에서 1개가 실패했고 다시 돌리니 5610/5610 통과했다. 실패한 테스트 이름은 출력이 잘려 남지 않았다. 동시에 작업자들이 `npm ci`를 돌리던 부하에서 난 flaky로 보고, 최종 `/verify`에서 다시 본다.
 - A 수정 1회차(455df182·b6273089 → 6373a1bb·bf1ca08a 통합): 재리뷰(Claude Sonnet 서브에이전트) 결과 🔴 0, 🟡 0, ⚪ 3이다. 남은 한 가지는 대기 중인 pick-frame의 seq와 같은 순간에 그 프레임 루트를 클릭하면 응답으로 간주되어 포커스가 옮겨지지 않는 것이다. 지휘자 판단으로 받아들인다. 메시지 내용으로는 구별할 수 없고, 비용은 예전 동작(포커스 유지)뿐이다. A 작업자는 release했다(브랜치 끝 b6273089).
+- D 완료(978853cd·a4464a50·a7f1de36 → 1f9a462a·bc0c945d·b424a6ca 통합, 테스트 5614 통과, 실제 앱 probe의 전후 real-state 같음). 작업자는 retain했다.
+  - 프리셋 hover: 팝오버 행은 포인터가 움직이면 그 행에 포커스를 주고, 공용 `:focus` 채움으로 칠한다(frame list와 같은 방식). `/` 목록은 포인터가 하나뿐인 강조를 옮긴다. 홈·캔버스 모두 전에는 채움이 없었고, 뒤에는 한 행만 채워진다.
+  - 블러: 드롭다운 13종을 실제 앱에서 쟀더니 모두 같은 글라스(rgba(255,255,255,0.9) + blur(8px))였다. 사이드바 프로젝트 메뉴도 프리미티브가 다르지 않았다. 블러가 안 보인 원인은 위치다. 창은 `vibrancy: "sidebar"`로 투명하게 비워 두었고, 그 위에서는 웹 `backdrop-filter`가 뒤를 흐리지 못한다. 그래서 사이드바에서 여는 메뉴만 불투명 `--surface-popover`에 블러 없음 예외(`.shell-side-menu`)를 둔다. 지휘자 판단으로 받아들이고 아침 보고에서 사용자에게 알린다. 되돌리기는 규칙 하나다.
+  - 체인 파일의 링크 5 메모를 이 결과에 맞춰 고쳤다(main d6907e56).
+- D 리뷰: Claude Opus 서브에이전트(D는 Sonnet이 했다).
+- C: Claude Opus high(dispatch `ctx_062725a2717a`, worktree `canvas-hand-tool-c`)로 시작했다. 기준은 b424a6ca를 포함한 feat다.
