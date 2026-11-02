@@ -51,7 +51,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   | `--size-control-xs` | 24px | `xs` icon button (a chip's remove button) |
   | `--affordance-panel-hover` | `var(--neutral-3)` (#e8e8e8) | Hover fill of the `panel` button variant, one step darker than the inset fill |
   | `--border-field-focus` | `--neutral-5` (#cccccc) | Composer card border while focused, with `--shadow-sm` (Home's composer; the docked composer shares the card) |
-  | `--type-family-mono` | `ui-monospace, "SF Mono", Menlo, monospace` | Inline code, code blocks and activity paths in the conversation thread (`ConversationThread`, not on a screen yet); everything else stays sans |
+  | `--type-family-mono` | `ui-monospace, "SF Mono", Menlo, monospace` | Inline code, code blocks and activity paths in the conversation thread (`ConversationThread`, on the Overview and the canvas conversation panel); everything else stays sans |
 
 - **Roles.** Code reads roles named by purpose (`surface-*`, `text-*`, `border-*`, `affordance-*`, `bg-*`), never palette steps. Text has three reading levels: `text-standard`, `text-subtle`, `text-metadata`; `text-disabled` is below the contrast targets on purpose. The primary button is the neutral prominent fill (black, white text). Status colours use the reference status roles (`text-danger`/`-warning`/`-success`, `affordance-danger`/`-warning`/`-success`, `border-danger`/`-warning`).
 - **Type roles.** Size, line height, tracking and weight travel together: caption 12/16, body-sm and body 14/20, label-sm 14/20 500, label 16/24 500, body-lg 20/28, heading 24 and title 32 at line height 1.1. Regular 400 is for reading and form labels, medium 500 for actions and structure. One sans stack; the only monospace use is `--type-family-mono` (system stack, no bundled font) for code and paths in the conversation thread, and other inline code stays a sans chip.
@@ -67,21 +67,21 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   - `doan-button` `quiet` (sm suggestion chip): `--affordance-backdrop-hover` fill with a `--blur-md` backdrop blur (`--affordance-subtle` without blur under reduced transparency); hover adds one inset `--affordance-backdrop-hover` layer, pressed or open one `--affordance-backdrop-pressed` layer. A disabled `quiet` button is transparent like a ghost.
   - `doan-button` `trigger` (a value that opens a menu): 8px inline padding, no fill at rest, `--affordance-backdrop-hover` on hover and while open, `--affordance-backdrop-pressed` on press.
   - `doan-button` `lg`: min-height `--size-control-lg` 48, padding `--space-3` `--space-8`, label 16/24; only Welcome uses it.
-  - `doan-button` `xs`: min-height `--size-control-xs` 24, padding `--space-1` `--space-2`, caption type, 14px icons; the docked composer's agent and effort pickers (not on a screen yet, so not measured).
+  - `doan-button` `xs`: min-height `--size-control-xs` 24, padding `--space-1` `--space-2`, caption type, 14px icons; the docked composer's agent and effort pickers (measured in Project Overview).
   - `doan-icon-button` size `xs`: 24px (`--size-control-xs`), pill corner, 14px icon; its ink comes from the screen (a chip × is `--text-metadata`).
   - `doan-icon-button` `accent` (Home Send): pill on `--affordance-accent` with `--text-on-accent`, hover and pressed on the accent hover/pressed roles; disabled takes the shared disabled fill, and `accent` is excluded from the ghost disabled transparent rule.
   - `.doan-dialog` with `data-ui-presentation="search"`: Quick Open (see Design navigation).
   - `doan-button` `panel` (`data-ui-variant="panel"`): the secondary button inside an inset notice, where `subtle` would lose its fill (both are `--neutral-2`). Rest `--surface-panel`, hover `--affordance-panel-hover`, pressed `--affordance-subtle-pressed`, disabled the shared filled disabled rule. On the inset fill the fill measures 1.09 (rest), 1.12 (hover) and 1.28 (pressed) to 1, the label 19.17, 15.64 and 13.71 to 1. Used by the conversation strip's Deny, Always allow, Edit on Home and Open.
   - `.doan-notice.doan-panel` (notice on a non-white backdrop, `ds/surfaces.css`): see Notices.
 - **Scrollbars.** Native and thin (`scrollbar-width: thin`, `scrollbar-thumb-quiet` on a transparent track) through `.doan-scroll`; Radix ScrollArea is forbidden.
-- **Style loading.** The main window loads shared rows and code styles through HTML links, which preserve cascade order under the strict CSP, in production and DEV, with no entry CSP warning.
+- **Style loading.** The main window's `index.html` links `fonts.css`, `styles.css` and `doany.css`; `styles.css` brings in `tokens.css` and `ds/index.css` (and through it `controls.css` and `surfaces.css`) with CSS `@import`, because importing CSS from JS is blocked by the dev CSP. Cascade order under the strict CSP in production and DEV, with no entry CSP warning, was last observed with an earlier stylesheet set and is not re-measured for this one.
 
 ### Doan adjustments
 
 - **Accent ramp.** Doan has its own violet ramp, not a reference family. Each step takes the per-step OKLCH lightness and chroma share (relative to step 9) of the reference's twelve-step light ramp whose step 9 carries white text, at hue 305, gamut-clamped by reducing chroma. Steps 1–12: `#fdfbfe`, `#fbf8fe`, `#f5f0fd`, `#efe7fa`, `#e9ddf9`, `#e2d2f7`, `#d6c1f0`, `#c7aee6`, `#973be1`, `#9033d9`, `#543871`, `#342743`; pair values: contrast and ink `#ffffff`, pressed `#8a2dd2`, link `#63019d`. White on `#973be1` is 5.21:1 (APCA Lc −80), and hover (`#9033d9`) and pressed (`#8a2dd2`) are darker than step 9, so white only gains contrast.
 - **Accent places.** Violet is read only by: the Welcome glow `.ob-atmosphere`; Home Send (`doan-icon-button` `accent`) and its spinner ink; the chosen preset chip (`.preset-chip`); the suggested prompts' group icons (`.suggestion svg`); the Home glow `.home-atmosphere`; the composer drop outline (`.drop-target`); the sidebar status slot (`.row-slot.permission`, `.row-slot.unseen i`); the person's thread bubble and its preset line (`.conversation-thread .bubble`, `.bubble-preset`); the conversation panel's resize bar (`.doan-panel-handle::after`); the canvas agent indicator (`.doan-agent-glow`, `.doan-agent-dot`); inline anchor chips (`.anchor-chip`); and the folded panel's Show conversation dot (`.doan-icon-button[data-badge="true"]::after`). The roles `surface-comment` (violet 4) and `text-comment` (violet 12) are defined but applied to no surface. Sidebar selection and hover use neutral backdrop roles. Every other use is neutral. `accentPlaces` pins the list (`violetAllowed` in `ds/checks.test.ts`).
 - **No coloured edge stripes.** No message, notice, card or row uses a coloured or thick start-side border (`edgeStripes` checks it). Errors take one of three forms, each with the lucide `CircleAlert` icon so colour is not the only signal:
-  - a panel-level failure is a status block (1px `border-standard`, `radius-container`, centred 20px icon, label-sm title, body-sm `text-subtle` description, centred actions, opened detail on `surface-inset`);
+  - a panel-level failure is a status block (1px `border-standard`, `radius-container`, centred 20px icon, label-sm title, body-sm `text-subtle` description, centred actions, opened detail on `surface-inset`); no screen shows one now;
   - an inline error is a 16px icon with one body-sm `text-danger` line (`text-warning` for warnings), which adds the icon to the reference's text-only field error;
   - a notice (see Notices).
 - **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for project and tool status (Home, Project Settings, About). It is a separate primitive from `.doan-chip`.
@@ -100,7 +100,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
 
 ### Shared components and surfaces
 
-Reference: the design-system canvases in `.doan/ds/`, one per component (see Design-system canvases).
+Reference: the design-system canvases in `.doan/ds/`, one per component (see Design-system canvases). The measured values and documented differences below were measured against the earlier single-file `buzz-ds.html` draft, since removed; the `.doan/ds/` canvases are not measured against the app.
 
 **Measured values.**
 
@@ -120,7 +120,7 @@ Reference: the design-system canvases in `.doan/ds/`, one per component (see Des
 
 Notice icon: the 16px icon (or spinner) is centred on the notice's 20px first line by a 2px block margin; measured in Settings > Agents, the Notifications permission hint and first run's Agent step, its centre is on the first line's centre and within 0.03px of the cap-height centre, in development and production. A notice body has a top margin only under a title (`Onboarding.test.tsx`).
 
-Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is not drawn pressed; a focused button chip shows the ring only; the worktree menu keeps the 320px menu cap (320px wide at window widths 960 and 1238, inside the viewport); form labels carry no label tracking; a failure status block spaces its actions and opened detail with its own 8px gap. Unpinned: the checkbox tick, the open-disclosure rule, and the worktree-menu cap.
+Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is not drawn pressed; a focused button chip shows the ring only; the worktree menus stay inside the 320px menu cap and the viewport (the sidebar project menu is 204px, see App shell; the Overview chip's worktree menu 280px, see Project Overview); form labels carry no label tracking. Unpinned: the checkbox tick, the open-disclosure rule, and the worktree-menu cap.
 
 **Documented differences.**
 
@@ -128,15 +128,14 @@ Further rules: an open disclosure (`aria-expanded` without `aria-haspopup`) is n
 - `.doan-kbd` and the `sm` text field set the body-sm tracking (−0.035px at 14px); the draft inherits the body tracking (−0.07px), or the button's (0.035px) for a hint inside a button. `.doan-kbd` also caps itself at the container width.
 - A chip hovers only when it is a button; the draft hovers a span chip.
 - `.doan-popover` defines the material and width only; the draft's heading and paragraph type inside its sample is not implemented.
-- The Add Projects checklist keeps `max-height: 50vh` instead of the draft's 248px, so a bounded list grows with the window and still scrolls natively.
 - Only the Project Setup token path is one ellipsised line (`.value.token-path`); other field values wrap, because the wizard's Project value puts a name and a path in one value and must not hide either. The draft draws every value on one line.
-- `.meta` stays `nowrap` in a dialog action row; a status block's action row keeps `align-items: center`.
+- `.meta` stays `nowrap` in a dialog action row.
 - `.doan-chip` uses the 12px/1.35/2px/6px values above instead of the inherited 13px top-bar or 14px draft sizing.
 - The subtle-button-on-inset-band pairing (Intended exceptions).
 
 **Context, not component.** Panel sizes (the panel is definition-only), the expanded dialog's height (the draft draws a 440px mock window), `min-height` of a draft `div` versus a native `<dialog>`, the scroll sample box, inherited type on text-less icon buttons and on the menu surface, Project Setup at 544px in the anatomy column versus 640px in the app, the toast at 298px in a narrow draft tile versus 384px, and every shared-element row whose width, card padding or `err` class comes from a real parent.
 
-**Not verified.** `canvas-marks` and `accent-places` are not design-sync frames by the draft's own description; their selector map is checked by `accentPlaces`, `contrastPairs` and `edgeStripes`. Lucide icon stroke weight at 16px was not compared with the draft's inline icons.
+**Not verified.** The canvas marks and the accent places have no design-sync frame; their selector map is checked by `accentPlaces`, `contrastPairs` and `edgeStripes`. Lucide icon stroke weight at 16px was not compared with the draft's inline icons.
 
 **Known console warning.** Production logs a pre-existing Radix inline-style CSP warning with exact hash `nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo=` when the worktree menu invokes react-remove-scroll-bar; DEV logs none. No CSP permission was broadened for it. The menu stays operable; scroll-lock behaviour under it is not verified.
 
@@ -158,12 +157,12 @@ What Adopted rules does not already say, read from `tokens.css` and `styles.css`
 - **Three colour layers** (`tokens.css`): the palette holds the only literal colours (neutral ramp, violet ramp, red/amber/green status hues, and the eight Tailwind 600 project identity colours, kept apart from the status hues); roles name a purpose; legacy names (`--bg`, `--accent`, `--text-2` and the like) alias roles so drafts drawn before this system resolve. No renderer code reads the legacy layer.
 - **Project identity.** A project thumbnail (`.shell-thumbnail`, `styles.css`) is the project's initial on one of the eight `--identity-project-*` roles chosen by `projectHue`: the fill is the colour 14% into `--surface-panel`, the letter the colour 65% into `--text-standard`. 16px in the sidebar and Quick Open, 20px in Home's project picker, 28px on first-run cards.
 - **Spacing.** `--space-n` is n × 4px, with `--space-half` (2px) and `--space-1h` (6px); named spacings (`--space-row-gap`, `--space-control-inset`, `--space-section-gap`, `--space-chip-inset`) alias steps.
-- **Shell layout** (`styles.css`): a 56px header (`--size-chrome`), a 220px sidebar, 8px gutters, and the screen's body on white: Home's `.home-panel` with `--radius-container` and `--shadow-panel`; the workspace's canvas area and 280px right panel joined into one body with 24px outer corners. The shell is transparent over the native sidebar material, `--bg-app` under reduced transparency.
+- **Shell layout** (`styles.css`): a 56px header (`--size-chrome`), a 220px sidebar, 8px gutters, and the screen's body on white: Home's `.home-panel` with `--radius-container` and `--shadow-panel`; the workspace's main area and its right column (280px on the Overview; the canvas page's resizable conversation panel, see 'Canvas area and right panel') joined into one body with 24px outer corners. The shell is transparent over the native sidebar material, `--bg-app` under reduced transparency.
 - **Depth.** Three shadows: `--shadow-panel` (panels and floating material; its hairline ring draws their edge), `--shadow-sm` (dialogs, tooltips), `--shadow-xs` (the switch thumb). Glass is `--surface-elevated-glass` with `--blur-sm` on floating material and `--blur-md` on the `quiet` button. Surfaces without a shadow are told apart by fill: shell `--bg-app`, panel `--surface-panel`, inset `--surface-inset`.
 
 ### Design-system canvases
 
-One canvas per token group, shared component and shared surface in `.doan/ds/`, each linking `tokens.css` and `ds/index.css` relative to itself. Canvas-only layout and the base the components rely on (the Geist `@font-face`, the border-box reset and button and SVG defaults from `fonts.css`, `styles.css` and Tailwind preflight, and stand-ins for the two custom properties Radix sets at run time) are restated once in `.doan/assets/ds-canvas.css`, because those files are outside the served scope. A canvas whose component is styled in `styles.css`, `doany.css` or a screen's rule restates only the rules it needs, with the same tokens, and says so; states the CSS reaches only under `:hover`, `:active` or `:focus-visible` are restated as `.is-hover`, `.is-active` and `.is-focus`. Dialogs are drawn in place rather than opened with `showModal()`. Values were read from source and the canvases were checked rendered in a browser, not measured against the app or for contrast ratios.
+One canvas per token group, shared component and shared surface in `.doan/ds/`, each linking `tokens.css` relative to itself, and every component and surface canvas also `ds/index.css`. Canvas-only layout and the base the components rely on (the Geist `@font-face`, the border-box reset and button and SVG defaults from `fonts.css`, `styles.css` and Tailwind preflight, and stand-ins for the two custom properties Radix sets at run time) are restated once in `.doan/assets/ds-canvas.css`, because those files are outside the served scope. A canvas whose component is styled in `styles.css`, `doany.css` or a screen's rule restates only the rules it needs, with the same tokens, and says so; states the CSS reaches only under `:hover`, `:active` or `:focus-visible` are restated as `.is-hover`, `.is-active` and `.is-focus`. Dialogs are drawn in place rather than opened with `showModal()`. Values were read from source and the canvases were checked rendered in a browser, not measured against the app or for contrast ratios.
 
 | Canvas | Shows | Source |
 |---|---|---|
@@ -196,7 +195,7 @@ One canvas per token group, shared component and shared surface in `.doan/ds/`, 
 | `quick-open` | Browse, results, no match | `QuickOpenDialog.tsx` |
 | `shell-layout` | Header, sidebar (projects, Settings), project menu, body panels | `App.tsx`, `ShellSidebar.tsx`, `Home.tsx` |
 
-The surface canvas is `shell-layout`. Not drawn, each seen on one screen only: the switch (Settings › Notifications), `.doan-kbd` outside a button (it appears only in the canvas toolbar's Fit button, drawn on `button`), the conversation strip and the first-run wizard. Not drawn because nothing renders them: `.doan-popover`, `.doan-textarea` and `.doan-checkbox` (no markup uses them since the app's comment screens left) and the tooltip provider, root and trigger (wrappers that draw nothing).
+The surface canvas is `shell-layout`. Not drawn, each seen on one screen only: the switch (Settings › Notifications), `.doan-kbd` outside a button (only the canvas picking hint's Esc key; no button carries a `.doan-kbd` now, though `button` draws one), the conversation strip and the first-run wizard. Not drawn because nothing renders them: `.doan-popover`, `.doan-textarea` and `.doan-checkbox` (no markup uses them since the app's comment screens left) and the tooltip provider, root and trigger (wrappers that draw nothing).
 
 ### Open decisions
 
@@ -204,7 +203,7 @@ Judgment calls nobody has confirmed, each shown on the canvas named.
 
 - **Character.** The system's one-line character, mood, descriptive colour names and elevation philosophy are not settled; the Overview records only what the code does.
 - **Sidebar violet roles** (`color`, `shell-layout`). `tokens.css` says violet marks the current sidebar row and its hover, and defines `--surface-sidebar-selected`, `--text-sidebar-selected` and `--affordance-sidebar-hover` for them; `styles.css` draws both with neutral backdrop roles (`.shell-side .row` overrides `.side .row`), as Accent places records. Whether those roles and the comment stay is undecided.
-- **Defined but unused** (`color`, `typography`, `spacing`, `blur`, `motion`, `icon-button`, `chip`, `dialog`). No app CSS or TSX reads `--border-warning`, `--surface-comment`, `--text-comment`, `--text-on-project`, `--texture-dots-size`, `--window-*` (drafts only), `--type-body-lg-*`, `--space-16`, `--space-panel-gap`, `--space-panel-inset`, `--blur-lg` or `--time-panel-enter`; no markup uses the icon button's `md` size or its `prominent` and `panel` fills, the chip's default fill or button chip, the dialog's `wide` and `expanded` sizes, or `.doan-popover`. Whether each is kept for later or removed is undecided.
+- **Defined but unused** (`color`, `spacing`, `blur`, `icon-button`, `chip`, `dialog`). No app CSS or TSX reads `--border-warning`, `--surface-comment`, `--text-comment`, `--text-on-project`, `--texture-dots-size`, `--window-*` (drafts only), `--space-16`, `--space-panel-gap`, `--space-panel-inset` or `--blur-lg`; no markup uses the icon button's `md` size or its `prominent` and `panel` fills, the chip's default fill, the dialog's `wide` and `expanded` sizes, or `.doan-popover`. Whether each is kept for later or removed is undecided.
 - **Literals equal to tokens** (`mode-tabs`, `shell-layout`). `.shell-modes` writes 24px, 20px, 16px, 40px and 32px, which equal `--radius-container`, `--radius-control`, `--size-icon`, `--size-control` and `--size-control-sm`, against Tokens first; the shell also uses values no token names (an 8px row corner, 220px sidebar, 36px Search, 10px heading type). Whether they move onto tokens or become named component constants is undecided.
 - **Remove confirmation actions** (`remove-confirmation`). Its Cancel and Stop and Remove are `sm`, where Dialogs puts actions at the default size, like first run's Stop and Paste dialogs. Whether it is an exception is undecided.
 
@@ -334,7 +333,7 @@ Window 1238 × 780 (the draft's), 960 × 600 for `home-narrow`.
 - **Status chips in menus.** The draft's project and worktree menus use `.ob-chip`, which the canvas does not style, so its chips render as plain gray text. The implementation uses the shipped status chip (Missing `warn`, Not set up neutral).
 - **Pickers while sending.** The implementation disables every picker and chip × while a start is pending (the draft leaves the project and worktree triggers enabled-looking): a changed target cannot apply to a start already sent.
 - **No projects.** Model lists are read per project root, so with no project the picker shows "Default" and no effort capsule (the draft shows "Opus 5.5 · High").
-- **Strip width.** The workspace's right panel takes 280 px, so the strip is 650 px wide (the draft omits the right panel: 930 px). The Overview shows no strip.
+- **Strip width.** The workspace's right panel takes 280 px, so the strip is 650 px wide (the draft omits the right panel: 930 px). The strip shows only on a problem workspace (a project that is missing, not set up or failing to read); the Overview and the canvas page show none.
 - **Menu placement.** Menus open from their own trigger (Radix, `align` start or end, 4 or 8 px offset). The draft places the agent and effort menus at one fixed spot 40 px inside the tool row's right edge, so the agent picker sits 85 px further left in the app (right edge at its trigger) while the effort menu is within 4 px; the project and worktree menus are within 8 px. The composer, card and tray positions match the draft at both window sizes.
 - **Trigger pressed.** A Radix menu trigger opens on pointerdown, so a pressed trigger shows the open fill (`--affordance-backdrop-hover`); the pressed fill applies only without a menu.
 - **Stage position (doan-mascot).** The draft centres the stage with `justify-content: center` and a fixed bottom padding of 160 (32 + 128), so at 780 its group top is 57.4 like the app's; elsewhere its offset is fixed and a short panel scrolls by 128 px of empty padding. The app sets a computed top inset and a 32 bottom padding instead (see 'Stage position').
@@ -408,7 +407,7 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 | Column | `.ob-scene.add-scene`, 560 wide, centred, padding 40/24/48, at least the panel's height; the footer (Cancel left, the step's action right) sits at the bottom and scrolls with the page. With 22 repositories the panel scrolls to the last card and Use this folder, 48px above the panel's bottom | POSTMORTEM 2026-10-25 'A static draft's overflow match hid an unusable checklist'. |
 | Card drop | Over 'Open a local folder': `.drop-target` absolutely over the card (`inset: 0`, z-index 2, the card's 24px radius), `--surface-panel` at 55% with an 8px blur, a 2px dashed `--affordance-accent` outline at −2px; a visually hidden `role="status"` "Drop to add this folder" | Home's composer drop target, reused. |
 | Drop notices | Under the card: the error notice on a panel ("Drop one folder at a time.", "Only folders can be added."), never focused | |
-| Lock ink | While selecting or cloning: header Add Projects and Projects tabs, Back, Search, sidebar rows and the project menu's Overview and worktree items take `--text-disabled` with the default cursor and no hover fill; the current tab keeps its white pill. Show in Finder, Project Settings, Remove from Doan, Settings and the row disclosure stay usable. A locked menu item under keyboard focus has no fill and keeps the 2px `--border-focus` focus outline | Design '잠금'. |
+| Lock ink | While selecting or cloning: header Add Projects and Projects tabs, Back, Search, sidebar rows and the project menu's Overview and worktree items take `--text-disabled` with the default cursor and no hover fill; the current tab keeps its white pill. Show in Finder, Project Settings, Remove from Doan, Settings and the row disclosure stay usable. A locked menu item under keyboard focus has no fill and keeps the 2px `--border-focus` focus outline | The page stays put while a select or clone writes. |
 | Cloning line | As in Onboarding | |
 | Development build | Panel, column, body text, card and drop target read the same under `electron-vite dev` as in the production build | POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing development styles'. |
 
@@ -487,7 +486,7 @@ Reference: `.doan/canvases/buzz-project.html` (nine frames: `overview-thread`, `
 
 ### Documented deviations from the draft
 
-- **Conversation menu width.** 360 px is the component constant (buzz-project design §0); the draft's own rule asks for 360 but the shared `.doan-menu` `max-width` caps its render at 320.
+- **Conversation menu width.** 360 px is the menu's component constant; the draft's own rule asks for 360 but the shared `.doan-menu` `max-width` caps its render at 320.
 - **Current worktree check.** The chip's worktree menu marks the current worktree with a check like the shipped sidebar project menu's rows (the draft fills it but draws no check).
 - **Moved line alignment.** The draft centres the moved line's icon and text on the Open button's row; the app keeps the shared notice's top alignment (screens set only outer margins on a notice, `ds/controls.test.ts`). The line never wraps, so both render the same 44 px row (measured).
 - **Notice actions.** The app's `.grow-text` (`flex: 1`) puts a notice's actions (moved line Open) at the row's end; the draft's text hugs its content.
@@ -566,7 +565,7 @@ Not verified: the Cmd+K keystroke through AppKit (probes use the Go > Quick Open
 
 ## Canvas area and right panel
 
-Reference: `.doan/canvases/buzz-canvas.html` (16 frames; `conversation-menu` is a reference frame for the canvas conversation panel's menu and was not compared). Measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600 against the draft read in the app's canvas iframe: 73 part pairs over 21 states (frames, and each tile of `states` and `agent-waiting`). States without a provider come from fixture projects in an isolated app (a real selection-lost notice, a real toast, a canvas busy for 20 s for Loading and the failed first layout, a missing project folder); the agent indicator comes from real Claude Code turns on the signed-in test profile, its canvas conversations started through the preload API (the app could not start one when this was measured). In the default state the development server and the production build matched every compared computed style within 0.5 px (one 0.28 px text-measurement margin), the production reading also holding a jump highlight left by the fixture.
+Reference: `.doan/canvases/buzz-canvas.html` (17 frames; `conversation-menu` is a reference frame for the canvas conversation panel's menu and was not compared). Measured by `/design-sync` in the built app at 1238 × 780 and 960 × 600 against the draft read in the app's canvas iframe: 73 part pairs over 21 states (frames, and each tile of `states` and `agent-waiting`). States without a provider come from fixture projects in an isolated app (a real selection-lost notice, a real toast, a canvas busy for 20 s for Loading and the failed first layout, a missing project folder); the agent indicator comes from real Claude Code turns on the signed-in test profile, its canvas conversations started through the preload API (the app could not start one when this was measured). In the default state the development server and the production build matched every compared computed style within 0.5 px (one 0.28 px text-measurement margin), the production reading also holding a jump highlight left by the fixture.
 
 ### Measured contracts
 
@@ -666,7 +665,7 @@ Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-sta
 
 ## Select and inspect
 
-> buzz-ds 이전 for the Inspector rows. Owner: `buzz-inspector` (it removes the mark). The canvas overlay rows (hover and selection outline, dimensions) were remeasured with the canvas page; see 'Canvas area and right panel'.
+> buzz-ds 이전 for the Inspector rows. Owner: `buzz-inspector` (it removes the mark). No screen shows the Inspector now (PRODUCT §5 item 4): the Inspector rows describe the retained `Inspector` in `RightPanel.tsx`, measured when it was the canvas page's right panel. The canvas overlay rows (hover and selection outline, dimensions) were remeasured with the canvas page; see 'Canvas area and right panel'.
 
 Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-selected`, `frame-selected`, `inspector-states`, `long-values`, `interactive-element`, `selection-lost`. The no-selection screen is excluded.
 
@@ -688,7 +687,7 @@ Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-select
 | Selection-lost / unlisted notice | See 'Canvas area and right panel', Canvas notices | Remeasured with the canvas page. |
 | Pending values | `Reading styles…` in the notice styling while the selected element's values are pending; old computed rows are absent | |
 
-- The live panel is 280px wide with one 1px left divider (279px of content); the draft specimen leaves 278px. Panel height follows the window (740px at 1238 × 780).
+- When it was on screen, the panel was 280px wide with one 1px left divider (279px of content); the draft specimen leaves 278px. Panel height follows the window (740px at 1238 × 780).
 - An explicit `margin: 0` is Hardcoded rather than Default and adds a 15px source line plus 3px top margin.
 - Copy and value rules: the Unknown title is “doan can't tell where this value comes from”; combined token names are listed in side order; Width/Height have no source line; colours are shown as hex; shadows show Chrome's computed serialization.
 - Not verified: native title-tooltip painting; loading/error appearance (no draft); focused appearance against a draft; accessibility beyond the element-selected inspector/ancestor controls. Four inherited children were not paired: `element-family`, `states-text`, `long-family` and `input-family` (`.state:not(.hardcoded)`).
