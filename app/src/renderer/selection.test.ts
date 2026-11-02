@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { HoverMessage, LayoutMessage, SelectMessage, SelectTarget } from "./canvasMessage";
 import type { Selection } from "../formats/types";
-import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, SELECTION_LOST, selectedFromLayout, selectionAfter, selectionIdentity, shouldGuardEscape, sizeLabel, type SelectionView } from "./selection";
+import { acceptSelectionMessage, anchorRequest, editableTarget, mainSelection, noticeToast, SELECTION_LOST, selectedFromLayout, selectionAfter, selectionIdentity, shouldGuardEscape, sizeLabel, type SelectionView } from "./selection";
 
 const HREF = "http://127.0.0.1:4000/t/tok/key/.doan/canvases/a.html";
 const rect = { x: 1, y: 2, width: 3, height: 4 };
@@ -221,4 +221,13 @@ describe("shouldGuardEscape", () => {
     expect(shouldGuardEscape(null, { doanId: "cta", selector: '[data-doan-id="cta"]' })).toBe(true);
     expect(shouldGuardEscape(null, {})).toBe(true);
   });
+});
+
+// Dogfooding: the selection-lost line stayed on the board until the next selection and competed with the agent
+// notice for the top centre. It is an event, so it goes to a toast once, when it appears.
+test("the selection-lost notice is shown as a toast once, when it appears", () => {
+  expect(noticeToast("", SELECTION_LOST)).toBe(SELECTION_LOST);
+  expect(noticeToast(SELECTION_LOST, SELECTION_LOST)).toBeNull();
+  expect(noticeToast(SELECTION_LOST, "")).toBeNull();
+  expect(noticeToast("", "")).toBeNull();
 });
