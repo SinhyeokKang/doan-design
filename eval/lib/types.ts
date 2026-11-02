@@ -42,7 +42,7 @@ export interface CheckContext {
   // The fake app's app-socket v2 exchanges in order, token removed: `request` is
   // the parsed request, `response` the reply. Empty when there were none.
   onboarding(): { request: any; response: any }[];
-  // App-socket v3 exchanges and SHA-256 snapshots at arrival; null means missing.
+  // App-socket v3 exchanges and SHA-256 snapshots at arrival; null means unavailable.
   work(): WorkExchange[];
   // Runs in the repo with the agent's environment and stdin from /dev/null.
   run(cmd: string, args: string[]): { code: number; stdout: string; stderr: string };

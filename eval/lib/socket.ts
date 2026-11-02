@@ -361,9 +361,9 @@ export async function serveFakeApp(o: FakeAppOptions): Promise<FakeApp> {
       const rel = relative(realpathSync(o.root), realpathSync(target));
       if (rel === ".." || rel.startsWith("../") || isAbsolute(rel)) return null;
       return contentHash(readFileSync(target));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-      throw error;
+    } catch {
+      // Missing or unreadable content has no snapshot; it must not stop logging.
+      return null;
     }
   };
   const onboarding = o.onboarding ? onboardingApp(o.onboarding, o.root, changes => initializeRepo(o.root, changes, join(o.dir, APP_WRITES))) : null;

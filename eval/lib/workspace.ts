@@ -1,7 +1,8 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import type { Agent } from "./args.ts";
-import { CODEX_RULE, codexRuleText } from "./codex-rule.ts";
+import { agentEnvironment } from "./agent.ts";
+import { CLAUDE_ALLOW_RULES, CODEX_RULE, codexRuleText } from "./codex-rule.ts";
 import { sh } from "./context.ts";
 import { assertOutsideCheckout } from "./isolate.ts";
 import type { LoadedScenario } from "./scenario.ts";
@@ -61,7 +62,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
       return filtered;
     });
     mkdirSync(join(base, "rt"), { mode: 0o700 });
-    const env = { ...process.env, PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json") };
+    const env = { ...agentEnvironment(process.env), PATH: [join(base, "bin"), ...path].join(delimiter), DOAN_RUNTIME: join(base, "rt/runtime.json") };
     const git = (args: string[]) => must(sh("git", [...GIT, "-C", repo, ...args], repo, env), `git ${args[0]}`);
     git(["init", "-q"]);
     if (o.scenario.init && !existsSync(join(repo, ".doan/config.json")))
@@ -75,7 +76,7 @@ export async function prepareWorkspace(o: { scenario: LoadedScenario; agent: Age
     mkdirSync(join(repo, ".codex/rules"), { recursive: true });
     writeFileSync(join(repo, CODEX_RULE), codexRuleText());
     // Project settings keep the terminal-work permissions inside this disposable run.
-    writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ permissions: { allow: ["Bash(doan work start *)", "Bash(doan work done *)"] } }, null, 2) + "\n");
+    writeFileSync(join(repo, ".claude/settings.json"), JSON.stringify({ permissions: { allow: CLAUDE_ALLOW_RULES } }, null, 2) + "\n");
     // -f: a seed .gitignore or the user's global excludes must not keep seed files out of the baseline.
     git(["add", "-A", "-f"]);
     git(["commit", "-q", "--no-verify", "-m", "seed"]);

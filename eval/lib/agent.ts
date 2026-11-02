@@ -6,6 +6,14 @@ import type { Agent } from "./args.ts";
 import type { Check } from "./types.ts";
 import { toolCalls, type ToolCalls } from "./transcript.ts";
 
+// A child agent establishes its own session; the runner's identity would make
+// cross-provider work signals ambiguous and leak into fixture evidence.
+export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const child = { ...env };
+  for (const key of ["CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CODEX_SESSION_ID"]) delete child[key];
+  return child;
+}
+
 export function agentCommand(agent: Agent, prompt: string): { cmd: string; args: string[] } {
   // Claude: --strict-mcp-config ignores every MCP server in the machine's config.
   // Codex: no equivalent, and `-c mcp_servers={}` merges instead of clearing, so only a doan
