@@ -101,12 +101,15 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     // Default is stated on every turn, since an override holds across turns and thread/resume (0.163.0, P2). Its values
     // depend on config and project trust and config/read leaves them null when unset, so an ephemeral thread/start
     // (no rollout, no model request) reads them. A failed or incomplete probe refuses the open: sending nothing would
-    // keep an earlier override (orch.md decision 6).
-    const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
-    const read = codexDefaults(probe); if (!read) throw new Error("session_unavailable");
-    defaults = read;
-    // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
-    workspace = codexWorkspace(await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; }));
+    // keep an earlier override (orch.md decision 6). A run on an external profile (a terminal session) takes no mode
+    // and states nothing, so an override its thread carries from the terminal stays.
+    if (input.owner) {
+      const probe = await dispatcher.request("thread/start", { cwd: input.cwd, ephemeral: true }).catch((error: unknown) => { if (error instanceof RpcError) throw new Error("session_unavailable"); throw error; });
+      const read = codexDefaults(probe); if (!read) throw new Error("session_unavailable");
+      defaults = read;
+      // Accept edits carries the configured network access and roots; without config/read it sends the narrower bare policy.
+      workspace = codexWorkspace(await dispatcher.request("config/read", { cwd: input.cwd }).catch((error: unknown) => { if (error instanceof RpcError) return null; throw error; }));
+    }
     if (dead) throw new Error("process_exited");
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
   return {
@@ -114,7 +117,7 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     async send(prompt, turnId, _attachments, choice) {
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       // The server was opened with the conversation's choice then; a send may have changed it since.
-      const turn = choice ?? input, permission = codexPermission(turn.permissionMode ?? "default", defaults!, workspace);
+      const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
       activeTurn = turnId; startingTurn = true;
       dispatcher.begin({ root: input.cwd, sessionId, turnId });
       let result: unknown;

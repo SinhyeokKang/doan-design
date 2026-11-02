@@ -444,6 +444,7 @@ it("reports the mode Claude switched to after a plan approval, only on a turn se
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 40000);
 
+const CODEX_OWNER = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
 // A Codex app-server that records every line. FAKE_PROBE picks the ephemeral thread/start reply: "" the trusted
 // project's values, "error" an error, "bare" no values, "exit" a server exit; FAKE_CONFIG "error" fails config/read.
 function modeCodex(root: string): string {
@@ -474,7 +475,7 @@ const seenLines = (root: string) => readFileSync(join(root, "seen"), "utf8").spl
 it("reads Codex's Default values once per server and states every turn's approval and sandbox, Default included", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-")), command = modeCodex(root);
   const events: EventPayload[] = [];
-  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, permissionMode: "bypass" }, e => events.push(e), () => {}, () => {});
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, permissionMode: "bypass" }, e => events.push(e), () => {}, () => {});
   try {
     const modes = [undefined, "acceptEdits", "default", "plan", "bypass"] as const;
     for (const [i, permissionMode] of modes.entries()) {
@@ -499,7 +500,7 @@ it("reads Codex's Default values once per server and states every turn's approva
 it("probes after a Codex resume too, whose thread still carries the last override", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-resume-")), command = modeCodex(root);
   const events: EventPayload[] = [];
-  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: process.env, sessionId: "session" }, e => events.push(e), () => {}, () => {});
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: process.env, sessionId: "session" }, e => events.push(e), () => {}, () => {});
   try {
     await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
     const lines = seenLines(root);
@@ -510,7 +511,7 @@ it("probes after a Codex resume too, whose thread still carries the last overrid
 it("sends a bare workspaceWrite for Accept edits when config/read fails", async () => {
   const root = mkdtempSync(join(tmpdir(), "doan-codex-mode-config-")), command = modeCodex(root);
   const events: EventPayload[] = [];
-  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_CONFIG: "error" }, permissionMode: "acceptEdits" }, e => events.push(e), () => {}, () => {});
+  const runner = await openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: { ...process.env, FAKE_CONFIG: "error" }, permissionMode: "acceptEdits" }, e => events.push(e), () => {}, () => {});
   try {
     await runner.send("x", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
     expect(seenLines(root).find(r => r.method === "turn/start")!.params).toMatchObject({ approvalPolicy: "on-request", sandboxPolicy: { type: "workspaceWrite" } });
@@ -522,7 +523,7 @@ it.each([["an error reply", "error"], ["a reply without the values", "bare"]])("
   const root = mkdtempSync(join(tmpdir(), "doan-codex-probe-")), command = modeCodex(root);
   const incompatible = vi.fn(), compatible = vi.fn(), exited = vi.fn();
   try {
-    await expect(openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_PROBE: probe }, incompatible, compatible }, () => {}, exited, () => {})).rejects.toThrow("session_unavailable");
+    await expect(openRunner({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: { ...process.env, FAKE_PROBE: probe }, incompatible, compatible }, () => {}, exited, () => {})).rejects.toThrow("session_unavailable");
     expect(incompatible).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -531,7 +532,7 @@ it("releases a Codex conversation's reservation when its server dies during the 
   const root = mkdtempSync(join(tmpdir(), "doan-codex-probe-death-")), command = modeCodex(root);
   const store = new ConversationStore(root), exited = vi.fn(); let probe = "exit";
   const service = new ConversationService(store,
-    async () => ({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_PROBE: probe }, sessionId: "session" }),
+    async () => ({ command, runtime: "codex", owner: CODEX_OWNER, cwd: root, configDir: root, env: { ...process.env, FAKE_PROBE: probe }, sessionId: "session" }),
     (input, emit, onExit, registerStop) => openRunner(input, emit, () => { exited(); onExit(); }, registerStop), () => {});
   const request = { root, mode: "resume" as const, canvas: { path: ".doan/canvases/a.html" }, text: "hello", anchors: [] };
   try {
@@ -542,4 +543,18 @@ it("releases a Codex conversation's reservation when its server dies during the 
     const { conversationId } = await service.start(request);
     await vi.waitFor(() => expect(store.read(conversationId)).toContainEqual(expect.objectContaining({ type: "turn.done" })));
   } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
+});
+// A terminal session runs on the person's own Codex profile and takes no mode: whatever override its thread carries
+// from the terminal stays, as before (spec non-goal).
+it("sends no probe and no approval or sandbox for a Codex run on an external profile", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-external-")), command = modeCodex(root);
+  const events: EventPayload[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_PROBE: "error" }, sessionId: "session" }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("x", "t1", undefined, { permissionMode: "default" }); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    const lines = seenLines(root);
+    expect(lines.map(r => r.method).filter(Boolean)).toEqual(["initialize", "initialized", "thread/resume", "turn/start"]);
+    expect(lines.find(r => r.method === "turn/start")!.params).not.toHaveProperty("approvalPolicy");
+    expect(lines.find(r => r.method === "turn/start")!.params).not.toHaveProperty("sandboxPolicy");
+  } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
