@@ -1,4 +1,4 @@
-// Electron main script for R8's checks: loads a canvas file in a hidden window of
+// Electron main script for R8b's checks: loads a canvas file in a hidden window of
 // the app's own Electron, so layout comes from the engine the app renders canvases
 // with, and prints the measurement as JSON on stdout. One file per launch: a second
 // window loading a file from another directory failed with ERR_FAILED (Electron 45).

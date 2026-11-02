@@ -76,8 +76,8 @@ function parts(item: Skipped, tilde: (path: string) => string): Pick<NoticeLine,
     }
     // A link stays the person's: they add the rules where it points, and the notice goes once both are there.
     case "claude-settings": return item.problem === "link"
-      ? { parts: [path, { text: " is a link, so Doan left it alone. To let Claude Code run " }, { code: "doan work" }, { text: " without asking, add " }, { code: "Bash(doan work start *)" }, { text: " and " }, { code: "Bash(doan work done *)" }, { text: " to " }, { code: "permissions.allow" }, { text: " in the file it links to." }] }
-      : { parts: [...settingsProblem(item.problem, path), { text: ", so Doan couldn’t add the rules that let Claude Code run " }, { code: "doan work" }, { text: ` without asking. Fix the file${REOPEN}` }] };
+      ? { parts: [path, { text: " is a link, so Doan left it alone. To let Claude Code run " }, { code: "doan work" }, { text: " and " }, { code: "doan open" }, { text: " without asking, add " }, { code: "Bash(doan work start *)" }, { text: ", " }, { code: "Bash(doan work done *)" }, { text: " and " }, { code: "Bash(doan open *)" }, { text: " to " }, { code: "permissions.allow" }, { text: " in the file it links to." }] }
+      : { parts: [...settingsProblem(item.problem, path), { text: ", so Doan couldn’t add the rules that let Claude Code run " }, { code: "doan work" }, { text: " and " }, { code: "doan open" }, { text: ` without asking. Fix the file${REOPEN}` }] };
     // The PATH line takes effect in a new terminal; Doan need not reopen. The lone `doan` part is the command, which
     // the draft shows as plain lowercase text (brand/appText.test.ts reads a bare `doan` literal as a code token).
     case "admin-cancelled": return {

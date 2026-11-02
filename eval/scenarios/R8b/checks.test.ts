@@ -34,25 +34,25 @@ const swap = (from: string, to: string) => (html: string) => {
 };
 const at = (left: number, top: number) => swap("left: 360px; top: 290px;", `left: ${left}px; top: ${top}px;`);
 
-test("R8 pass fixture passes every check", () => {
+test("R8b pass fixture passes every check", () => {
   assert.deepEqual(failed(setup()), []);
 });
-test("R8 fail fixture fails the stale selection and the offset", () => {
+test("R8b fail fixture fails the stale selection and the offset", () => {
   const ids = failed(setup(undefined, "fail"));
   for (const id of ["element_anchor_applied", "stale_selection_unchanged", "badge_at_point_offset"]) assert.ok(ids.includes(id), `${id} in ${ids}`);
 });
-test("R8 doan_check_clean fails on a duplicate frame id", () => {
+test("R8b doan_check_clean fails on a duplicate frame id", () => {
   assert.deepEqual(failed(setup(swap('<section data-doan-frame="preview"', '<section data-doan-frame="editor"'))).includes("doan_check_clean"), true);
 });
-test("R8 only_canvas_changed fails when another file changes", () => {
+test("R8b only_canvas_changed fails when another file changes", () => {
   const ctx = setup();
   writeFileSync(join(ctx.repo, "NOTES.md"), "Renamed Save.\n");
   assert.deepEqual(failed(ctx), ["only_canvas_changed"]);
 });
-test("R8 element_anchor_applied fails when the anchored button keeps its text", () => {
+test("R8b element_anchor_applied fails when the anchored button keeps its text", () => {
   assert.deepEqual(failed(setup(swap(">Save draft<", ">Save<"))), ["element_anchor_applied"]);
 });
-test("R8 element_anchor_applied reads the anchored label with its markup", () => {
+test("R8b element_anchor_applied reads the anchored label with its markup", () => {
   // The label wrapped in markup inside the button is the same label, and that markup is not an added element.
   assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Save draft</span><"))), []);
   assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Save</span> <span>draft</span><"))), []);
@@ -61,15 +61,15 @@ test("R8 element_anchor_applied reads the anchored label with its markup", () =>
   assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Draft saved</span><"))), ["element_anchor_applied"]);
   assert.deepEqual(failed(setup(swap(">Save draft<", "><span>Save</span><"))), ["element_anchor_applied"]);
 });
-test("R8 stale_selection_unchanged fails when the doan active selection is renamed", () => {
+test("R8b stale_selection_unchanged fails when the doan active selection is renamed", () => {
   assert.deepEqual(failed(setup(swap(">Publish<", ">Publish now<"))), ["stale_selection_unchanged", "other_identities_unchanged", "seed_structure_kept"]);
 });
-test("R8 other_identities_unchanged fails on a moved, renamed or dropped id", () => {
+test("R8b other_identities_unchanged fails on a moved, renamed or dropped id", () => {
   assert.ok(failed(setup(swap(' data-doan-id="share"', ' data-doan-id="share-link"'))).includes("other_identities_unchanged"));
   assert.ok(failed(setup(swap('<h1 data-doan-id="preview-title">', '<h2 data-doan-id="preview-title">'))).includes("other_identities_unchanged"));
   assert.ok(failed(setup(swap('      <button data-doan-id="save">Save draft</button>\n    </div>', '    </div>\n    <button data-doan-id="save">Save draft</button>'))).includes("other_identities_unchanged"));
 });
-test("R8 seed_structure_kept fails on reordered seed elements and allows added notes", () => {
+test("R8b seed_structure_kept fails on reordered seed elements and allows added notes", () => {
   const reorder = (html: string) => {
     const title = '    <h1 data-doan-id="editor-title">Quarterly update</h1>\n', body = '    <p data-doan-id="editor-body">Revenue grew in every region this quarter.</p>\n';
     return swap(title + body, body + title)(html);
@@ -81,12 +81,12 @@ test("R8 seed_structure_kept fails on reordered seed elements and allows added n
   const detail = checks(setup(swap("</body>", "  <p>Note</p>\n</body>"))).find(c => c.id === "seed_structure_kept")!.detail;
   assert.match(detail, /added besides the badge: \(outside frames\): \["p",null,"Note"\]/);
 });
-test("R8 badge_in_point_frame fails for a badge in the other frame or two badges", () => {
+test("R8b badge_in_point_frame fails for a badge in the other frame or two badges", () => {
   const moved = (html: string) => swap('    <span class="badge" data-doan-id="draft-badge">Draft</span>\n', "")(html).replace("    </div>\n", '    </div>\n    <span class="badge" data-doan-id="draft-badge">Draft</span>\n');
   assert.ok(failed(setup(moved)).includes("badge_in_point_frame"));
   assert.ok(failed(setup(swap('data-doan-id="draft-badge">Draft</span>', 'data-doan-id="draft-badge">Draft</span><span class="badge">Draft</span>'))).includes("badge_in_point_frame"));
 });
-test("R8 badge_at_point_offset uses the frame origin and the padding tolerance", () => {
+test("R8b badge_at_point_offset uses the frame origin and the padding tolerance", () => {
   // Measured from the frame's content box: off by the 16px padding, still at the spot.
   assert.deepEqual(failed(setup(at(376, 306))), []);
   // Centered on the point.

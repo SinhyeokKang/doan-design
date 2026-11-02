@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { anchorTokens, turnPrompt, HOME_GUIDANCE, LIMITS, PRESET_GUIDANCE } from "./prompt";
+import { anchorTokens, turnPrompt, HOME_GUIDANCE, LIMITS, OPEN_GUIDANCE, PRESET_GUIDANCE } from "./prompt";
 const anchor = { frame: { id: "main", title: "Main" }, element: { selector: "button", doanId: "save", text: "Save" } };
 it("accepts repeated references and preserves their positions", () => {
   expect(anchorTokens("Change {{2}} then {{1}} and {{2}}", [anchor, anchor])).toEqual([2, 1, 2]);
@@ -49,6 +49,18 @@ it("guides preset lookup through the bundled CLI only and lists no presets", () 
   expect(PRESET_GUIDANCE).not.toMatch(/MCP|Connections/);
   for (const preset of ["clarify", "context", "polish"]) expect(PRESET_GUIDANCE).not.toContain(preset);
   expect(PRESET_GUIDANCE).not.toContain("\n");
+});
+it("blocks the open offer outside the untrusted data, says it overrides the guide, and still lets a request to open work", () => {
+  const prompt = turnPrompt([anchor], "Open {{1}} please", { root: "/repo" })!;
+  const sections = prompt.split("\n\n");
+  expect(sections).toContain(OPEN_GUIDANCE);
+  expect(prompt.indexOf(OPEN_GUIDANCE)).toBeGreaterThan(prompt.indexOf(sections[1]!));
+  expect(JSON.stringify(JSON.parse(sections[1]!))).not.toContain(OPEN_GUIDANCE);
+  expect(turnPrompt([], "hello", { root: "/other" }, { home: true })).toContain(OPEN_GUIDANCE);
+  expect(OPEN_GUIDANCE).toContain("do not offer to open canvases");
+  expect(OPEN_GUIDANCE).toContain("only when the user asks you to");
+  expect(OPEN_GUIDANCE).toContain("overrides the Doan guide's rule");
+  expect(OPEN_GUIDANCE).not.toContain("\n");
 });
 it("puts only the folder and canvas of the conversation in the prompt's context", () => {
   const metadata = { conversationId: "c", root: "/repo", canvas: { path: ".doan/canvases/a.html", id: "a" }, title: "Secret title", state: "current",

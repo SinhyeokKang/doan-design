@@ -37,6 +37,9 @@ export const PRESET_GUIDANCE = "Design presets: if the user names a Doan design 
 // Home's fixed paragraph for a newDesign request sent without a canvas selection: Home leaves the workspace selection
 // and `doan active` as they were, so a preset's "find the target with doan active" rule would otherwise pick it up.
 export const HOME_GUIDANCE = "This request was sent from Doan's Home without a canvas selection. Do not take its target from doan active; if it needs a canvas, find it from the request or ask.";
+// This conversation already runs inside Doan, so the guide's rule to offer opening an edited canvas does not apply; the
+// line says it wins so the guide's later, more specific rule does not. A person's own request to open still works.
+export const OPEN_GUIDANCE = "This conversation is inside Doan: do not offer to open canvases in Doan, and run `doan open` only when the user asks you to. This overrides the Doan guide's rule about offering to open edited canvases.";
 export interface PromptExtras { home?: boolean; attachments?: readonly AttachmentRecord[] }
 export function turnPrompt(anchors: readonly Anchor[], text: string, scope: { root: string; canvas?: Canvas }, extras: PromptExtras = {}): string | null {
   // Only the folder and canvas reach the prompt: callers pass conversation metadata, whose account, profile and
@@ -61,6 +64,7 @@ export function turnPrompt(anchors: readonly Anchor[], text: string, scope: { ro
     JSON.stringify({ context, parts, ...(attachments.length ? { attachments } : {}) }),
     ...(extras.home ? [HOME_GUIDANCE] : []),
     PRESET_GUIDANCE,
+    OPEN_GUIDANCE,
     "After making changes, run doan check.",
   ].join("\n\n");
 }
