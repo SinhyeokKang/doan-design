@@ -171,12 +171,12 @@ export function tabKey(keys: readonly string[], current: string, key: string): s
 }
 
 type PresetView = ReturnType<typeof presetListView>;
-interface PresetBodyOptions { listId: string; highlight: number; onChoose(id: string): void; onRetry(): void; onTab?(key: string): void }
+interface PresetBodyOptions { listId: string; highlight: number; onHighlight?(index: number): void; onChoose(id: string): void; onRetry(): void; onTab?(key: string): void }
 function PresetOption({ row, index, slash, options }: { row: PresetRow; index: number; slash: boolean; options: PresetBodyOptions & { rows: number } }) {
   const focusRow = (at: number) => document.getElementById(`${options.listId}-p-${at}`)?.focus();
   return <div id={`${options.listId}-${slash ? "s" : "p"}-${index}`} className="doan-menu-item preset-item" role="option" aria-selected={slash ? index === options.highlight : false}
     tabIndex={slash ? undefined : -1} title={row.tooltip} data-highlighted={slash && index === options.highlight ? "" : undefined}
-    onMouseDown={slash ? event => event.preventDefault() : undefined} onClick={() => options.onChoose(row.id)}
+    onMouseDown={slash ? event => event.preventDefault() : undefined} onPointerMove={slash ? () => options.onHighlight?.(index) : undefined} onClick={() => options.onChoose(row.id)}
     onKeyDown={slash ? undefined : event => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); focusRow(Math.max(0, Math.min(options.rows - 1, index + (event.key === "ArrowDown" ? 1 : -1)))); }
       else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); options.onChoose(row.id); }
@@ -239,10 +239,11 @@ export function PresetsButton(props: {
 }
 
 // The `/` list keeps focus in the field, so it is drawn in place rather than as a focus-taking popover.
-export function SlashPresets(props: { view: PresetView; query: string; listId: string; highlight: number; onChoose(id: string): void; onRetry(): void }) {
+// The pointer moves the one highlight the arrow keys move, as in a Radix menu.
+export function SlashPresets(props: { view: PresetView; query: string; listId: string; highlight: number; onHighlight(index: number): void; onChoose(id: string): void; onRetry(): void }) {
   return <div className="doan-floating preset-popover slash-popover" role="presentation">
     <SearchField value={props.query} slash listId={props.listId} />
-    {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onChoose: props.onChoose, onRetry: props.onRetry })}
+    {presetBody(props.view, true, { listId: props.listId, highlight: props.highlight, onHighlight: props.onHighlight, onChoose: props.onChoose, onRetry: props.onRetry })}
   </div>;
 }
 

@@ -525,7 +525,7 @@ export function HeroComposer(props: HeroComposerProps) {
             <AttachButton disabled={sending} onClick={choose} />
             <PresetsButton reply={m.presets} project={project} suggested={suggested} listId={listId} disabled={sending}
               onOpen={() => { if (memory.current.presets && !memory.current.presets.ok) readPresets(); }} onChoose={id => choosePreset(id, false)} onRetry={readPresets} onPicked={focusEnd} />
-            {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
+            {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />

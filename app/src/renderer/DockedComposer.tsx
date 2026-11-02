@@ -339,7 +339,7 @@ export function DockedComposer(props: DockedComposerProps) {
       <ComposerTools>
         <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
           onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} />
-        {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
+        {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
         <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined} />
       </ComposerTools>

@@ -213,3 +213,10 @@ test("menus share the quiet scrollbar and keep its track inside their corners", 
   expect(css).toContain(".doan-menu::-webkit-scrollbar-track { margin-block: var(--radius-container); }");
   expect(css).toContain('.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin-block: var(--radius-row); }');
 });
+
+// A listbox row is not a Radix item, so it takes the menu row's fill from the pointer itself. The `/` list keeps its rows
+// unfocusable and moves its one highlight instead, so only focusable options use :hover.
+test("a focusable option row fills like a highlighted menu row on hover", () => {
+  const css = read("./surfaces.css");
+  expect(rule(css, '.doan-menu-item[role="option"][tabindex]:hover')).toBe("background: var(--affordance-floating-hover);");
+});
