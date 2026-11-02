@@ -6,7 +6,7 @@ import type { ViewCommand } from "../main/index";
 import type { InspectResult, InspectRow } from "../main/inspect";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import { acceptCanvasMessage, type CanvasRect, type LayoutMessage, type PathItem, type SelectionMessage } from "./canvasMessage";
-import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, type OpenCanvas } from "./canvasView";
+import { canvasAtHref, canvasViewUpdate, INITIAL_HEIGHT, layoutHeight, MAX_HEIGHT, sameDocument, TrashMarks, type OpenCanvas } from "./canvasView";
 import { projectNames } from "./projectRow";
 import { switchTarget } from "./switchTarget";
 import { activityKey, activityKind, pushActivity, type ActivityEvent } from "./activity";
@@ -364,8 +364,9 @@ export class CanvasController {
     const prev = this.entries;
     this.entries = next;
     const open = this.state.open;
-    if (open === null) return;
-    const update = canvasViewUpdate(prev, next, open);
+    if (open === null) { this.trash.sweep(next); return; }
+    const update = canvasViewUpdate(prev, next, open, this.trash);
+    this.trash.sweep(next);
     // Reads the flow-7 table for every folder update in one place. For reload
     // and clear, load() and dropFrame() apply the same effect again, so either
     // path alone keeps the rule (the clearing-row tests go red only without both).
@@ -406,6 +407,7 @@ export class CanvasController {
         this.state.error = "";
         this.dropFrame();
         if (update.reason === "missing" || update.reason === "duplicateId") this.canvasRemoved?.({ folder: open.folder, row: open.row, duplicates: update.reason === "duplicateId" ? update.count : null });
+        if (update.reason === "trashed") this.canvasTrashed?.({ folder: open.folder, path: open.canvas, row: open.row });
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
           : update.reason === "notFound" ? `The project ${name} is missing. Use Locate above.`
@@ -430,6 +432,10 @@ export class CanvasController {
   // The open canvas left the folder's list (deleted or moved). `duplicates`:
   // how many rows now use its id, when that is why it was not followed.
   canvasRemoved: ((removed: { folder: string; row: CanvasRow; duplicates: number | null }) => void) | null = null;
+  // The open canvas left the list under a Move to Trash mark (`trash`); canvasRemoved is not called for it.
+  canvasTrashed: ((trashed: { folder: string; path: string; row: CanvasRow }) => void) | null = null;
+  // Move to Trash marks: begin before `canvas:trash` is sent, settle with its reply.
+  readonly trash = new TrashMarks();
   // The open canvas was followed to `row`, the row of the list that decided it.
   canvasMoved: ((move: { folder: string; from: string; row: CanvasRow }) => void) | null = null;
   // Pans do not publish state, so persistence listens here.

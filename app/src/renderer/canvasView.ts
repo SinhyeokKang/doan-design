@@ -10,11 +10,13 @@ export interface OpenCanvas {
 
 // `idChanged`: the same path now holds another canvas id, which is another
 // canvas. `moved`: the open path left the list and exactly one row has its id.
+// `trashed`: the open path left the list while the person's Move to Trash for it
+// was pending or done (TrashMarks).
 export type CanvasViewUpdate =
   | { kind: "reload"; canvas: CanvasRow; idChanged?: boolean }
   | { kind: "moved"; canvas: CanvasRow; from: string }
   | { kind: "resize"; canvas: CanvasRow }
-  | { kind: "clear"; reason: "missing" | "closed" | "notFound" | "uninitialized" }
+  | { kind: "clear"; reason: "missing" | "closed" | "notFound" | "uninitialized" | "trashed" }
   | { kind: "clear"; reason: "duplicateId"; count: number }
   | { kind: "errorLine"; message: string }
   | { kind: "none" };
@@ -22,10 +24,46 @@ export type CanvasViewUpdate =
 // An empty id is no id: `doan ls` may list one, and it names nothing.
 const canvasId = (row: Pick<CanvasRow, "id">) => row.id || undefined;
 
+export interface TrashMark { readonly folder: string; readonly path: string }
+
+// Removals the person asked for with Move to Trash, by folder and path. A path that leaves the list under a mark was
+// trashed, not moved: another canvas sharing its id must not be opened in its place. Set right before `canvas:trash`
+// is sent, because the folder watcher can drop the row before the reply arrives; `refused` lifts it. Used once, like
+// the move event (ARCHITECTURE §3 'Moved canvas'): `sweep` drops a mark once its path is no longer listed.
+export class TrashMarks {
+  private marks = new Map<string, TrashMark>();
+  private static key(folder: string, path: string): string { return `${folder}\n${path}`; }
+
+  begin(folder: string, path: string): TrashMark {
+    const mark = { folder, path };
+    this.marks.set(TrashMarks.key(folder, path), mark);
+    return mark;
+  }
+
+  // A `trashed` reply keeps the mark until the list drops the path; a later begin for the same path owns its own mark.
+  settle(mark: TrashMark, reply: "trashed" | "refused"): void {
+    const key = TrashMarks.key(mark.folder, mark.path);
+    if (reply === "refused" && this.marks.get(key) === mark) this.marks.delete(key);
+  }
+
+  has(folder: string, path: string): boolean {
+    return this.marks.has(TrashMarks.key(folder, path));
+  }
+
+  // After every folder update, once canvasViewUpdate has read the marks. A folder that is loading or failed keeps
+  // them: its list is not known.
+  sweep(entries: readonly FolderEntry[]): void {
+    for (const [key, mark] of this.marks) {
+      const entry = entries.find(candidate => candidate.path === mark.folder);
+      if (entry === undefined || (entry.kind === "list" && !entry.canvases.some(row => row.path === mark.path))) this.marks.delete(key);
+    }
+  }
+}
+
 // What the open canvas needs after a folder list update. Only `reload`,
 // `moved`, `resize` and `clear` touch the iframe; an error keeps the last view.
 // The canvas id is read from `open.row`, the row the open document came from.
-export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly FolderEntry[], open: OpenCanvas & { row: Pick<CanvasRow, "id"> }): CanvasViewUpdate {
+export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly FolderEntry[], open: OpenCanvas & { row: Pick<CanvasRow, "id"> }, trash?: Pick<TrashMarks, "has">): CanvasViewUpdate {
   const entry = entries.find((candidate) => candidate.path === open.folder);
   if (entry === undefined) return { kind: "clear", reason: "closed" };
   switch (entry.kind) {
@@ -43,6 +81,7 @@ export function canvasViewUpdate(prev: readonly FolderEntry[], entries: readonly
       const id = canvasId(open.row);
       const canvas = entry.canvases.find((row) => row.path === open.canvas);
       if (canvas === undefined) {
+        if (trash?.has(open.folder, open.canvas)) return { kind: "clear", reason: "trashed" };
         const same = id === undefined ? [] : entry.canvases.filter((row) => canvasId(row) === id);
         if (same.length === 1 && same[0]) return { kind: "moved", canvas: same[0], from: open.canvas };
         return same.length > 1 ? { kind: "clear", reason: "duplicateId", count: same.length } : { kind: "clear", reason: "missing" };
