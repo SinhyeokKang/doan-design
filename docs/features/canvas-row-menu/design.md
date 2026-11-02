@@ -228,6 +228,7 @@ clarify 프리셋으로 정했다. `<stem>`은 사이드바 행 이름(파일 st
   - `trash-dialog` — Alert Dialog: 댓글 없음, 댓글 있음, 열린 사이 작업이 시작됨, 긴 이름·경로. 확인 뒤 삭제 토스트도 이 프레임에 둔다. `App.tsx`.
   - `export-toast` — Export 토스트: 진행, 성공, 성공 + 외부 URL, 실패 종류별. `App.tsx`.
   - `viewer-shell` — 내보낸 파일의 viewer: 기본(Fit), drawer 열림, 확대 메뉴 열림, 프레임 0개, 1,000개 넘음, JavaScript 없음. 구현 파일이 아직 없으므로 `data-doan-implements`를 두지 않는다.
+- 사용자가 앱에서 초안 전체를 확정했다. 구현과 `/design-sync`는 이 초안(`a775a74a`)을 기준으로 한다.
 - 초안에서 사용자가 확정한 것:
   - 행 버튼 배치(위 '행 버튼과 메뉴').
   - 잠긴 동안 캔버스 행 버튼은 비활성 색(`--text-disabled`, hover fill 없음)이다. 이미 출시된 프로젝트 행 버튼은 그대로 보통 색이다. 그 메뉴는 잠긴 동안에도 열리고 Project Settings가 동작하지만, 캔버스 행 버튼은 잠긴 동안 동작이 없기 때문이다.
