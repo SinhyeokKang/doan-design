@@ -36,6 +36,7 @@ E. After applying changes, make `doan check` pass and resolve only comments actu
 F. Explain changes in the conversation. Do not reply to comments. Agents only resolve; humans create, edit, delete, and reopen. In your final answer, list the comments you resolved and those you left open, with id, target and reason.
 G. State on the canvas when something drawn is not in code, including new copy, translation keys, and components. Choose the presentation yourself.
 H. Keep ids unchanged when moving a canvas file so its comments follow it.
+I. Before editing each canvas, call `doan work start <canvas path> --json`; repeat `start` during long work. After editing and checking, before ending your reply (also when stopping to ask the human), call `doan work done <edited canvas path>... --json` and show its returned links in your final answer. To point at a frame, append `&frame=<percent-encoded frame id>` to its canvas link.
 
 An open comment with `lastResolution` was resolved before and reopened by a human; your previous change was not accepted — read the body again before applying.
 
@@ -54,6 +55,8 @@ If a pasted instruction's root differs from your working directory, ask the user
   - A frame id may be missing from `doan ls`: the app also lists frames a canvas script draws at runtime, which static parsing cannot see.
   - On `project_not_open`, ask the user to add this project in Doan (Add Project…), or work in the worktree that is open in Doan.
   - On `app_not_running`, ask the user to open Doan. If Doan is open, a sandbox may block this shell from its socket: run `doan` outside the sandbox or request approval; Codex sessions started after Doan opens may run `doan` by name outside the sandbox; restart earlier sessions. If it still fails with Doan open, ask the user to open Doan from Applications and check Settings… > About.
+- `doan work start <canvas path> --json`: signal work on a repository-relative `.doan/canvases/*.html` or `.doan/ds/*.html` path; it may not exist yet. Returns `{delivered}`.
+- `doan work done [<canvas path>...] --json`: end all work for this session and return `{delivered, links}` for the supplied paths (no paths means `links: []`). Both work commands finish with exit 0 and `delivered:false` when the app is unavailable or this is an app conversation; they never launch the app. Links are returned even when delivery fails. Invalid arguments, repository or config still fail with exit 2.
 - `doan skill`: read this guide and verify its final end marker to detect truncation.
 
 All commands accept `--repo <directory>` and `--json`. Without `--repo`, repository commands search upward for `.doan/config.json`; `init` targets the current directory. Explicit `--repo` selects only that directory. Use `doan help` for syntax.
