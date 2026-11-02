@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -58,7 +59,7 @@ func TestWorkTarget(t *testing.T) {
 func TestWorkSession(t *testing.T) {
 	for _, tt := range []struct{ claude, thread, legacy, provider, id string }{
 		{"c", "", "", "claude", "c"}, {"", "t", "", "codex", "t"}, {"", "", "l", "codex", "l"}, {"", "t", "t", "codex", "t"},
-		{}, {"c", "t", "", "", ""}, {"c", "", "l", "", ""}, {"", "t", "l", "", ""}, {"-bad", "", "", "", ""}, {"a\x00b", "", "", "", ""}, {"a b", "", "", "", ""}, {strings.Repeat("a", 129), "", "", "", ""},
+		{}, {"c", "t", "", "", ""}, {"c", "", "l", "", ""}, {"", "t", "l", "", ""}, {"-bad", "", "", "", ""}, {"a\x00b", "", "", "", ""}, {"a b", "", "", "claude", "a b"}, {strings.Repeat("a", 129), "", "", "claude", strings.Repeat("a", 129)},
 	} {
 		p, id := workSession(tt.claude, tt.thread, tt.legacy)
 		if p != tt.provider || id != tt.id {
@@ -207,4 +208,61 @@ func TestWorkRunValidationAndSuppression(t *testing.T) {
 	}
 	t.Setenv("DOAN_RUNTIME", "relative")
 	failure(t, root, "usage_error", "work", "done")
+}
+
+func TestWorkRejectsLinkedDirectory(t *testing.T) {
+	root := realPath(t, initialized(t))
+	if err := os.Mkdir(filepath.Join(root, ".doan/canvases/directory.html"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("directory.html", filepath.Join(root, ".doan/canvases/link.html")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workTarget(root, ".doan/canvases/link.html"); err == nil {
+		t.Fatal("accepted directory through link")
+	}
+}
+
+func TestWorkResponseLineCap(t *testing.T) {
+	root := realPath(t, initialized(t))
+	success := `{"v":3,"ok":true}`
+	for _, length := range []int{maxResponseLine, maxResponseLine + 1} {
+		t.Run(strconv.Itoa(length), func(t *testing.T) {
+			app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(strings.Repeat(" ", length-len(success)-1) + success)}
+			out, e := Work(activeContext(t, root, app.dial(t)), Flags{Repo: root}, []string{"done"})
+			assertWork(t, out, e, length <= maxResponseLine)
+		})
+	}
+}
+
+func TestWorkDoneWireAndLinks(t *testing.T) {
+	root := realPath(t, initialized(t))
+	for _, paths := range [][]string{{}, {".doan/canvases/a.html", ".doan/ds/b.html"}} {
+		app := &fakeApp{requests: make(chan map[string]any, 1), respond: reply(`{"v":3,"ok":true}`)}
+		ctx := activeContext(t, root, app.dial(t))
+		now := time.Now()
+		ctx.Now = func() time.Time { return now }
+		dial := ctx.Dial
+		ctx.Dial = func(socket string, deadline time.Time) (net.Conn, error) {
+			if !deadline.Equal(now.Add(activeTimeout)) {
+				t.Error("wrong deadline")
+			}
+			return dial(socket, deadline)
+		}
+		out, e := Work(ctx, Flags{Repo: root}, append([]string{"done"}, paths...))
+		assertWork(t, out, e, true)
+		req := <-app.requests
+		if !reflect.DeepEqual(req, map[string]any{"v": float64(3), "token": testToken, "root": root, "action": "done"}) {
+			t.Fatal(req)
+		}
+		links := out.Result.(map[string]any)["links"].([]string)
+		if len(links) != len(paths) {
+			t.Fatal(links)
+		}
+		for i, path := range paths {
+			if links[i] != canvasLink(root, path) {
+				t.Fatal(links)
+			}
+		}
+	}
 }
