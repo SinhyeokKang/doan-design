@@ -14,7 +14,6 @@ import (
 )
 
 var workCanvasPath = regexp.MustCompile(`^\.doan/(canvases|ds)/[^/]+\.html$`)
-var workSessionID = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]{0,127}$`)
 
 func workTarget(root, path string) (string, error) {
 	if path == "" {
@@ -64,14 +63,12 @@ func workTarget(root, path string) (string, error) {
 	if state != repo.Inside {
 		return "", fmt.Errorf("canvas path cannot be resolved inside the repository: %s", path)
 	}
-	if len(missing) > 0 {
-		info, e := os.Stat(filepath.Join(root, resolved))
-		if e != nil {
-			return "", e
-		}
-		if !info.IsDir() {
-			return "", fmt.Errorf("canvas parent is not a directory: %s", path)
-		}
+	info, err := os.Stat(filepath.Join(root, resolved))
+	if err != nil {
+		return "", err
+	}
+	if (len(missing) > 0 && !info.IsDir()) || (len(missing) == 0 && !info.Mode().IsRegular()) {
+		return "", fmt.Errorf("expected a regular canvas file or directory parent: %s", path)
 	}
 	for i := len(missing) - 1; i >= 0; i-- {
 		resolved = filepath.Join(resolved, missing[i])
@@ -94,7 +91,7 @@ func workSession(claude, thread, legacy string) (provider, id string) {
 			id = legacy
 		}
 	}
-	if !workSessionID.MatchString(id) {
+	if id == "" || strings.HasPrefix(id, "-") || strings.ContainsRune(id, 0) {
 		return "", ""
 	}
 	return provider, id

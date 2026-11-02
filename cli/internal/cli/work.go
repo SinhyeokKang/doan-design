@@ -74,5 +74,5 @@ func sendWork(ctx Context, request map[string]any) bool {
 		return false
 	}
 	line, failure := readLine(conn)
-	return failure == nil && readWorkResponse(line)
+	return failure == nil && len(line) <= maxResponseLine && readWorkResponse(line)
 }
