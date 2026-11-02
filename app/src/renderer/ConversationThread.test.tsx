@@ -288,26 +288,26 @@ describe("reply chips", () => {
     expect(out).toContain('aria-label="Open Checkout and show gone"');
   });
 
-  // Review RA2 (conductor's call): a chip with a suffix grows past 180px by what the suffix needs, never past the line;
-  // the label keeps the plain chip's room and ellipsizes first; only a suffix wider than the line alone is cut, inside
-  // the chip. The look itself is checked in the real app (batch C).
-  test("the label and the canvas name are drawn apart, so the label ellipsizes first and the chip grows only up to the line", () => {
+  // Runtime test C against the draft (conductor's call, fix round 2): an other-canvas chip is at most 180px like every
+  // chip, the label shrinks and ellipsizes first and the suffix is never cut; the chip grows past 180px only when the
+  // suffix alone does not fit, and never past the reply block. Pure CSS; the real-app widths are checked by batch C.
+  test("the label and the canvas name are drawn apart, so the label ellipsizes first inside the 180px chip", () => {
     const out = html([agent("[c](doan:checkout/frame/payment)")], panel);
-    // Both are direct children of the chip, which the :has() and child rules below select.
+    // Icon, label and suffix are the chip's three direct children: the grid's three columns, in that order.
     expect(out).toMatch(/<button [^>]*class="anchor-chip"[^>]*><svg[^>]*>.*?<\/svg><span>Payment<\/span><span class="chip-canvas"> · Checkout<\/span><\/button>/);
     const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-    const chip = ".anchor-chip:has(> span.chip-canvas) { max-width: 100%; overflow: hidden; }";
-    const label = ".anchor-chip:has(> span.chip-canvas) > span:not(.chip-canvas) { max-width: calc(180px - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1)); }";
-    const suffix = ".anchor-chip span.chip-canvas { flex: none; white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100% - var(--size-icon-sm) - var(--space-1)); }";
-    for (const rule of [chip, label, suffix]) {
-      expect(css).toContain(rule);
-      // After the plain chip's 180px and the label's ellipsis rule: the suffix has the same specificity as the latter.
-      expect(css.indexOf(rule)).toBeGreaterThan(css.indexOf(".anchor-chip span:not(.sr-only) {"));
-      expect(css.indexOf(rule)).toBeGreaterThan(css.indexOf(".anchor-chip { display: inline-flex;"));
-    }
-    // The plain chip's padding, icon and gap are what the label's room subtracts from 180px.
+    const container = ".conversation-thread .msg-agent { container-type: inline-size; }";
+    const chip = ".anchor-chip:has(> span.chip-canvas) { display: inline-grid; grid-template-columns: auto minmax(1em, max-content) max-content; min-width: min-content; overflow: hidden; }";
+    const suffix = ".anchor-chip span.chip-canvas { white-space: pre; margin-left: calc(-1 * var(--space-1)); max-width: calc(100cqw - 2 * var(--space-1h) - var(--size-icon-sm) - var(--space-1) - 1em); }";
+    for (const rule of [container, chip, suffix]) expect(css).toContain(rule);
+    // The suffix rule ties the label rule's specificity, so it must come later to keep its leading space.
+    expect(css.indexOf(suffix)).toBeGreaterThan(css.indexOf(".anchor-chip span:not(.sr-only) {"));
+    // The plain chip keeps its 180px cap, which a reply chip shares; min-width beats it only for a long suffix.
     expect(css).toMatch(/\.anchor-chip \{ display: inline-flex; align-items: center; gap: var\(--space-1\); max-width: 180px; margin: 0 var\(--space-half\); padding: 0 var\(--space-1h\);/);
-    expect(css).toContain(".anchor-chip svg { width: var(--size-icon-sm);");
+    expect(css.indexOf(chip)).toBeGreaterThan(css.indexOf(".anchor-chip { display: inline-flex;"));
+    // Fix round 1's growth past 180px for every suffix chip is gone.
+    expect(css).not.toContain("> span:not(.chip-canvas) { max-width:");
+    expect(css).not.toMatch(/\.anchor-chip:has\(> span\.chip-canvas\) \{[^}]*max-width/);
     expect(css).toContain(".conversation-thread .thread-item > .msg-agent + .chip-missing { margin-top: var(--space-1h); }");
   });
 
