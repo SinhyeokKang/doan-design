@@ -60,7 +60,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
 - **States.** Pressed changes the fill only, never the position. Selection stays visible apart from hover. Disabled is a role (`text-disabled` on `affordance-disabled`), never `opacity`.
 - **Motion.** `time-fast` 120ms, `time-state` 150ms, `time-panel-enter` 180ms, `time-settle` 220ms; `ease-enter`, `ease-settle`, `ease-state`. A dialog rises 12px over 220ms as it opens and drops 4px over 120ms as it closes (`@starting-style`, `transition-behavior: allow-discrete` on `display` and `overlay`). A tooltip that waited for its delay settles in (fade, 2px rise, scale 0.97, 2px blur); one opened instantly from a neighbour does not animate. Under `prefers-reduced-motion: reduce` the fades stay and every movement, scale and blur goes.
 - **Floating material** (menus, popovers): 24px corner (16px compact), 4px list inset (2px compact), a transparent 1px border that still counts in the nested-corner arithmetic, `shadow-panel` drawing the visible edge (`CanvasText` border under forced colours). Glass (`surface-elevated-glass`, 90% white with an 8px blur) applies only under `prefers-reduced-transparency: no-preference`, outside forced colours, where `backdrop-filter` is supported; otherwise the surface is opaque. Menu rows are 32px with the derived 19px corner (13px compact). Menus are capped at 320px. A listbox row that is not a Radix item takes the menu row's `--affordance-floating-hover` while focused. Once focus is on a row of the list the pointer moves it onto the row under it (the preset popover's cards, as the frame list's rows do, without the keyboard ring); with focus elsewhere, such as the popover's search box, the row fills on hover alone and focus stays put. The `/` list keeps its rows unfocusable and moves its one highlight with the pointer instead. Over the sidebar column a web `backdrop-filter` has no effect (measured in Electron 45: glyphs under a blurred panel there stay crisp, and blur fully once the column has an opaque background); the column is transparent over the window's native vibrancy. The sidebar's project menu (`.shell-side-menu`) therefore takes the opaque `--surface-popover` and no blur; menus that open over the opaque panel keep the glass.
-- **Dialogs.** Four widths: compact 400px, standard 640px, wide 880px, expanded 1152px. Compact is centred; the others hang 128px from the top and may grow to 16px above the window edge. 32px padding (16px in a window 480px wide or less), 28px corner, opaque `surface-popover`, 16px between parts. The header is the title over an optional description; actions sit at the end of the row, Cancel first and the completing action last, at the default button size. One exception: Project Settings saves each value at once, so Done is its only action. There is no Close button; Cancel and Escape close every Doan dialog (Project Settings: Done and Escape, refused while a pick, confirmation or write runs). Unresolved: first run's Stop and Paste dialogs, which Settings > Agents reuses, use `sm` actions. The modal scrim is `bg-scrim` (black at `#00000060`).
+- **Dialogs.** Four widths: compact 400px, standard 640px, wide 880px, expanded 1152px. Compact is centred; the others hang 128px from the top and may grow to 16px above the window edge. 32px padding (16px in a window 480px wide or less), 28px corner, opaque `surface-popover`, 16px between parts. The header is the title over an optional description; actions sit at the end of the row, Cancel first and the completing action last, at the default button size. There is no Close button; Cancel and Escape close every Doan dialog. Unresolved: first run's Stop and Paste dialogs, which Settings > Agents reuses, use `sm` actions. The modal scrim is `bg-scrim` (black at `#00000060`).
 - **Tooltip.** A near-black capsule (`affordance-prominent`, `text-on-prominent`): caption type, 4/8px padding, corner half its one-line height (12px; 24px tall), no arrow, at most 384px wide with long paths wrapping. PathTip shares the padding.
 - **Toast.** Floating material, 384px wide, 12px inset; the message and its one action share a row, the action a `prominent` sm button on the right that stays vertically centred while only the message wraps. It sits at the window's bottom right, `--space-4` (16px) from both edges, on Home and over a workspace or canvas.
 - **Shared variants.** Screens add variants instead of overriding shared sizes or fills.
@@ -84,8 +84,8 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   - a panel-level failure is a status block (1px `border-standard`, `radius-container`, centred 20px icon, label-sm title, body-sm `text-subtle` description, centred actions, opened detail on `surface-inset`); no screen shows one now;
   - an inline error is a 16px icon with one body-sm `text-danger` line (`text-warning` for warnings), which adds the icon to the reference's text-only field error;
   - a notice (see Notices).
-- **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for project and tool status (Home, Project Settings, About). It is a separate primitive from `.doan-chip`.
-- **Shared dialog sizes.** The Add to serve? confirmation is compact and centred; Project Setup is standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
+- **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for project and tool status (the workspace status line, Home's project picker, About). It is a separate primitive from `.doan-chip`.
+- **Shared dialog sizes.** The Share confirmation (Project Settings page) is compact and centred; Project Setup is standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
 - **Toast without a type.** Success, error and undo toasts share the one neutral floating toast and differ only by their text; there is no type colour and no close button.
 - **Focus ring colour.** The ring is `border-focus` (`neutral-12`, black, 21:1 on white); the reference ring uses `text-standard`. Inset rings are −2px, matching the draft and the menu rows.
 - **Tooltip offset.** The shared tooltip defaults to `sideOffset` 4.
@@ -409,7 +409,7 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 | Column | `.ob-scene.add-scene`, 560 wide, centred, padding 40/24/48, at least the panel's height; the footer (Cancel left, the step's action right) sits at the bottom and scrolls with the page. With 22 repositories the panel scrolls to the last card and Use this folder, 48px above the panel's bottom | POSTMORTEM 2026-10-25 'A static draft's overflow match hid an unusable checklist'. |
 | Card drop | Over 'Open a local folder': `.drop-target` absolutely over the card (`inset: 0`, z-index 2, the card's 24px radius), `--surface-panel` at 55% with an 8px blur, a 2px dashed `--affordance-accent` outline at −2px; a visually hidden `role="status"` "Drop to add this folder" | Home's composer drop target, reused. |
 | Drop notices | Under the card: the error notice on a panel ("Drop one folder at a time.", "Only folders can be added."), never focused | |
-| Lock ink | While selecting or cloning: header Add Projects and Projects tabs, Back, Search, sidebar rows and the project menu's Overview and worktree items take `--text-disabled` with the default cursor and no hover fill; the current tab keeps its white pill. Show in Finder, Project Settings, Remove from Doan, Settings and the row disclosure stay usable. A locked menu item under keyboard focus has no fill and keeps the 2px `--border-focus` focus outline | The page stays put while a select or clone writes. |
+| Lock ink | While selecting or cloning: header tabs (the Settings tab measured `aria-disabled`, rgb(149,149,149), default cursor), Back, Search, sidebar rows and the project menu's Overview, worktree and Project Settings items take `--text-disabled` with the default cursor and no hover fill (the menu items are `aria-disabled`; choosing Project Settings opens nothing); the current tab keeps its white pill. Show in Finder, Remove from Doan and the row disclosure stay usable; the native menu's Settings…, Add Project… and Home are off. A locked menu item under keyboard focus has no fill and keeps the 2px `--border-focus` focus outline | The page stays put while a select or clone writes; Project Settings is a page move like Settings. |
 | Cloning line | As in Onboarding | |
 | Development build | Panel, column, body text, card and drop target read the same under `electron-vite dev` as in the production build | POSTMORTEM 2026-10-25 'Production CSS extraction concealed missing development styles'. |
 
@@ -439,28 +439,36 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 
 ## Projects home
 
-> buzz-ds 이전. Owner: `project-settings` (it remeasures these surfaces and removes the mark). Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal toast with Undo and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page).
+Reference: `.doan/canvases/buzz-project-settings.html`, the frames `workspace-status` (five strips: Missing, Not set up, Config error closed and open, CLI error) and `removal-toast`, measured by `/design-sync` in the built app at 1238 × 780 beside the draft read in the app's canvas iframe, with the Project Settings page (see Project Settings page). Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal toast with Undo and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page). Every strip was reached for real: a loaded workspace whose project then stopped listing (invalid `.doan/config.json`, `.doan/` removed, the folder removed, `doan ls` failing).
 
 ### Measured contracts
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Removal toast | The shared toast with Undo | |
-| Status line (`.ws-status`) | Padding 7px 12px; gap 10; nested path code measured separately; action gap 10 | Keeps recovery actions aligned with Go Home. |
-| Config error details | Expanded details sit below the action line in a separate `.ws-detail` surface: padding 8px 12px 10px, 1px bottom divider. Go Home stays vertically centred with the other actions. The nested action group centres its buttons so Show in Finder keeps its natural height (21px measured; 22px in a later isolated window with the then-current stylesheet) instead of stretching | Unpinned. |
+| Removal toast | The shared toast (`doan-floating doan-toast`): 384 × 58, message then Undo, 12px padding and gap, 24px corner on white at 90%, 16px from the window's right and bottom edges; message 14/20, Undo a prominent default-size button. Equal to the draft's | Drawn as shipped. |
+| Status line (`.ws-status`) | Padding 7px 12px; gap 10; 1px bottom divider (`--border-standard`) on `--surface-inset`; caption 12 type in `--text-subtle`; 47px high with the 32px buttons; the path in the message is a white code chip (4px corner, 0 / 4 padding) measured with it; actions in `.wt-actions` with a 10px gap, then Go Home (ghost) | Keeps recovery actions aligned with Go Home. |
+| Status pill (`.ob-chip`) | 20px, 0 / 8 padding, caption 12 / 16. Missing and CLI error: `warn` (rgb(255,247,194) with rgb(79,52,34) text); Config error: `err` (rgb(254,235,236), rgb(100,23,35)); Not set up: neutral (rgb(245,245,246), rgb(82,82,82)) | 'Status pill'. |
+| Strip actions | Missing: Locate, Remove from Doan; Not set up: Set Up, Remove from Doan; Config error: Show in Finder, Retry, Details ▸ (▾ open); CLI error: Retry, Remove from Doan; each strip ends with Go Home. All default-size buttons, 32px high (Show in Finder included) | |
+| Config error details | Expanded details sit below the status line in a separate `.ws-detail` surface: padding 8px 12px 10px, 1px bottom divider, the message an `.ob-msg` (14/20 danger ink, 16px icon, 6px gap). The nested action group centres its buttons | |
 
 ### Behaviour and copy
 
 - **`~/…` paths.** Recovery text and the worktree menu abbreviate paths under the HOME value supplied by main as `~/…`. Matching is boundary-aware; other roots remain absolute, and full-path tooltips keep the original path. Main prefers its process HOME, with Electron's home path as fallback, so isolated development runs do not use the machine user's home.
-- **Recovery copy and Locate.** Locate on a loaded workspace keeps that workspace visible while main replaces its root; the renderer waits for the located root's list before opening its canvas. The canvas recovery copy is “The project <name> is missing. Use Locate… to find it.” or “The project <name> is not set up. Use Set Up… on Home.”
-- **Problem rows.** Main's error strings stay plain text, including any paths, instead of the draft's embedded code chip. Details keeps the expanded/collapsed arrow (▸/▾). CLI error rows expose only Retry/Remove.
+- **Recovery copy and Locate.** Locate on a loaded workspace keeps that workspace visible while main replaces its root; the renderer waits for the located root's list before opening its canvas. The canvas recovery copy is "The project <name> is missing. Use Locate above." or "The project <name> is not set up. Use Set Up above."; the labels are Locate, Set Up and Remove from Doan, with no trailing ellipsis.
+- **Removal toast label.** The toast keeps its shipped label: `<name> (<branch>) removed. Files stay on disk.` for one worktree, `<name> and N worktrees removed. …` for a group (`removal.ts`); the draft draws "acme-web removed.". The toast is not redrawn.
+- **Problem rows.** Main's error strings stay plain text, including any paths, instead of the draft's embedded code chip. Details keeps the expanded/collapsed arrow (▸/▾). CLI error rows expose only Retry and Remove from Doan.
 - **Problem-entry data.** Error/loading entries keep `lastCommon` for grouping but not the last branch, so they show path + ◌, and the workspace hides its branch chip while its entry is not a successful list. No branch cache is added.
+
+### Documented differences from the draft
+
+- **Strip width and font.** The status line fills the workspace (1222px at this window; the draft's stage is 938px), so its flexible text and the end-aligned actions move by the 284px difference; its root and the detail wrapper inherit the app body's 13px / normal where the draft canvas body is 14 / 20 (every child sets its own size).
+- **Removal toast label.** See above; the text is the only differing value.
 
 ### Not verified and unpinned
 
-- Not verified: very long project/branch/canvas/selection values; minimum-window overflow; disabled problem entries in the worktree menu; long toast; absolute-time tooltip.
+- Not verified: very long project/branch/canvas/selection values; minimum-window overflow; disabled problem entries in the worktree menu; long toast; absolute-time tooltip; hover and focus of the strip's buttons.
 - Known note: Locate into a non-list root can keep the previous missing-project message in the canvas area while the status line shows the new root state.
-- Unpinned: the toast's timer pause and Undo, native menu Undo, and the Show in Finder alignment.
+- Unpinned: the toast's timer pause and Undo, native menu Undo, and the strip's measured values above.
 
 ## Project Overview
 
@@ -763,7 +771,7 @@ Reference: `.doan/canvases/select-inspect.html`, frames `hover`, `element-select
 
 ## Settings
 
-Reference: `.doan/canvases/buzz-settings.html`, the windows `agents`, `agents-signing-in`, `notifications`, `notifications-off`, `about`, `project-settings`, `project-problem` and `home-agent-picker`, plus the `states-project` Add to serve? confirmation. Measured by computed style beside the built app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/buzz-settings/measure.mjs`); the draft side is read with `ds/` and tokens as of the draft's commit, because the canvas links `ds/index.css` and the app's later rules would otherwise style the draft. Development and production builds give the same values for the panel, column, title, group, row, switch and notice (131 of 131).
+Reference: `.doan/canvases/buzz-settings.html`, the windows `agents`, `agents-signing-in`, `notifications`, `notifications-off`, `about` and `home-agent-picker`. Project Settings, drawn here as a dialog earlier, is its own page (see Project Settings page). Measured by computed style beside the built app in Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/buzz-settings/measure.mjs`); the draft side is read with `ds/` and tokens as of the draft's commit, because the canvas links `ds/index.css` and the app's later rules would otherwise style the draft. Development and production builds give the same values for the panel, column, title, group, row, switch and notice (131 of 131).
 
 Settings is a page of the main window, like Add Projects: the shell's header and sidebar around Home's white panel.
 
@@ -779,18 +787,18 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 | Sections | 32px apart; title label-sm 14 / 20 / 500 with the same 17px inset, 12px above its group; a section description caption 2px under its title | |
 | Group | 1px `--border-standard`, 24px corner, 16px side inset, rows split by its own hairlines | Shared `.doan-settings-group`. |
 | Row | Padding 12px 0; columns 1fr / auto with a 16px column gap and no row gap; label body-sm 14 / 20 `--text-standard`; description caption 12 / 16 `--text-subtle` 2px below; a provider row leads with a 20px logo; a disabled row (`data-disabled`) dims its label, description and icon to `--text-disabled` | Shared `.doan-preference-row`. |
-| Lines under a row | A notice, its actions or a helper start at the text column 12px below the row; a helper is caption `--text-subtle` 4px below; a line that belongs to the group (Project Settings recovery actions) is a row of its own, 12px block padding under a hairline; the notification permission hint hugs Desktop notifications (no hairline, 12px below it) | |
+| Lines under a row | A notice, its actions or a helper start at the text column 12px below the row; a helper is caption `--text-subtle` 4px below; a line that belongs to the group (a Project Settings write error) is a row of its own, 12px block padding under a hairline (45px with one 20px line); the notification permission hint hugs Desktop notifications (no hairline, 12px below it) | |
 | Switch | 36 × 20 track, 1px border, 2px padding, pill; off `--border-standard` on `--affordance-subtle-hover`; on `--affordance-prominent` border and fill (rgb(0,0,0)) with the 14px white thumb (`--shadow-xs`) moved 16px; disabled: transparent border, `--affordance-disabled` fill (rgb(232,232,232)), `--surface-panel` thumb, no shadow, default cursor, thumb kept where it was | Shared `.doan-switch`; 14px and 36px are the switch's own constants, not `--size-icon-sm`. |
 | Arrival | A provider row an arrival focuses carries a 2px inset `--border-focus` ring, −8px inline margin with 8px padding and a 16px corner for 2.4 s; the focused row group shows the 2px −2px focus outline | Like an added project's sidebar row. |
 | Controls | Row buttons `sm`; Settings' Check is `subtle` (first run's Retry stays `prominent`); Agent, Model and Effort are `sm` `trigger` menus (`role="menu"`) with a 6px gap, regular weight and a `--text-subtle` chevron | |
 | Lock ink | While Agents' `stop_required` confirmation owns the page: header tabs (the current Settings tab included), Back, Search and the other categories take `--text-disabled` with the default cursor, a locked category's icon included; the current category keeps its fill | The Add Projects page rule. |
-| Project Settings | Standard dialog, 640px, 128px from the top, 14 / 20 text with plain numerals; title the project name with the branch in `--text-metadata` body-sm; one settings group; Done is the only action (prominent, default size); serve list 1px border, row corner, items padding 4 / 4 / 4 / 12 | Values save at once, so there is nothing to cancel. |
-| Confirmations | Add to serve? is compact and centred with Cancel focused and default-size actions; text without the page's body-sm tracking | |
+| Project Settings | A page of this column, not a dialog: see 'Project Settings page' | Values save at once, so there is nothing to cancel. |
+| Confirmations | Share <path> with canvases? (Project Settings page) is compact (400px) and centred with Cancel focused and default-size actions; text without the page's body-sm tracking (`letter-spacing: normal`) | |
 
 ### Documented deviations from the draft
 
 - **Sideways clip.** The panel clips sideways (`overflow-x: hidden`) like the Add Projects panel; the draft leaves `auto`. Nothing in the column is wider than the panel (also at 960 × 600).
-- **Group query container.** `.doan-settings-group` is an inline-size container so that at 24rem a button control moves under its title (Buzz's narrow rule); the draft draws no narrow state. Groups measured 574–720px wide in every placement (page column at 1238 and 960 windows, Project Settings dialog), never collapsed.
+- **Group query container.** `.doan-settings-group` is an inline-size container so that at 24rem a button control moves under its title (Buzz's narrow rule); the draft draws no narrow state. The Project Settings page's groups measured 720px wide at 1238 × 780 and 668px at 960 × 600 (the Settings page column is the same 768px column minus its padding), never collapsed.
 - **Notice actions.** `.ob-state-actions` keeps first run's 16px top margin; the draft copied 12px. A row whose notice has a title is 4px taller than drawn.
 - **Body-only notice.** A notice body takes its 4px top margin only under a title, so a body alone ("Your Codex connection expired. Sign in again.") starts on the line its icon is centred on; the draft copied the old rule and draws the icon 4px above the text. The expired row therefore measures the draft's height.
 - **Codex's waiting copy.** codex login opens the default browser itself, so Doan no longer opens its link and the waiting notice says "A browser tab may already be open. Complete sign-in there, then return here.", as for Cursor and Copilot; the draft drew Claude's "Complete sign-in in your browser, then return here." The notice's text column is wider by the longer sentence.
@@ -801,8 +809,8 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 ### States not in the draft
 
 - The read-stage notice "Doan couldn’t read its saved settings, so defaults apply." and the newer-file notice above a category's groups (`.settings-notice`, 12px below); the save failure under New conversations (`.settings-save-error`, 12px above, 17px inset). Not measured against a draft.
-- About's "Checking…" rows, the sign-in toast, and the Project Settings recovery rows other than Missing (Config error with Retry, Show in Finder and Details, whose detail opens inside the dialog; CLI error with Retry). Seen in the real-app probe, not compared.
-- The `states-*` tiles are not windows and were not paired, except the Add to serve? confirmation.
+- About's "Checking…" rows and the sign-in toast. Seen in the real-app probe, not compared.
+- The `states-*` tiles are not windows and were not paired.
 
 ### Not verified and unresolved
 
@@ -833,3 +841,53 @@ Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`,
 ### Regression pointers
 
 `ds/controls.test.ts` (switch, group, row), `SettingsPage.test.tsx` (sidebar ink, dialog type, group-level line), `agentAuthView.test.ts` (Settings' Check), `rendererImports.test.ts` (the renderer never loads the ajv validators: a blank window under the CSP otherwise). Probes: `.scratch/design-sync/buzz-settings/measure.mjs`, `.scratch/runtime-test/buzz-settings/r2.mjs`.
+
+## Project Settings page
+
+Reference: `.doan/canvases/buzz-project-settings.html`, the frames `alt-2-page`, `alt-2-page-problem`, `alt-2-states` (nine tiles), `alt-2-states-problem` (six tiles), plus `workspace-status` and `removal-toast` (see Projects home). Measured by `/design-sync` in the built app at 1238 × 780 (`.scratch/design-sync/buzz-project-settings/measure.mjs`): 25 element trees (711 draft parts) paired by tag and position, because the draft's `v-*` and `v2-*` classes are draft-local. Every state was reached for real: settings with token CSS and two shared paths; Saving (a held `doan config`), Saved, a refused Token CSS pick and a refused Shared path; the Share confirmation; no token CSS and nothing shared; Reading settings (held `doan config`); Read failed (failing `doan config`); Missing and a refused Locate; Not set up; Config error with Details open; CLI error; Still reading (held `doan ls`). The header, sidebar and status line parts were paired by selector.
+
+The page is Settings' column (see Settings: panel, column, header, sections, group, row) around a project header, in the shell of Home and the workspace.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Header | `h1` 24 / 26.4 / 500 as a flex row with a 12px gap: a 32 × 32 thumbnail (8px corner, 14 / 600 initial, the sidebar's hue) and the project name, then the branch chip (`doan-chip`, 12 / 16, regular weight); the lead 12 / 16 `--text-subtle`, 8px below: the `~/…` path and, only once the settings are read, " · Stored in `.doan/config.json` in this worktree. Commit it so your team gets these settings." (the file name a white 4px-corner code chip). Show in Finder sits at the right, `sm` subtle, 32px high | The heading takes focus on arrival; Missing and Still reading hide Show in Finder. |
+| Token CSS | One group with a 48px row (8px block padding, 8px gap, no border of its own): a 16px file icon in `--text-subtle`, the path 14 / 20, a spacer, the Saving or Saved status, Change (subtle) and Clear (ghost). With no value: "No token CSS. `doan check` won’t flag hardcoded colors." in `--text-subtle` and Choose (subtle) | |
+| Shared with canvases | One group of 56px rows (12px block padding, hairlines between): a 16px folder icon in `--text-subtle` and the path, Remove (ghost, accessible name "Remove <path> from Shared with canvases"); a last 57px row (hairline above) with Add File or Folder (subtle) and the Saving or Saved status beside it | |
+| Saving and Saved | `.settings-saved`, `role="status"`, 12 / 16 with a 4px gap: Saving in rgb(95,95,95), Saved in rgb(25,59,45) with a 14px check. Saving disables Change, Clear, Remove and Add File or Folder, not Show in Finder or Remove from Doan | The status is on the row that was written. |
+| Write error | A row of its own under the Token CSS row or the Shared list (`.doan-preference-row-extra`): 12px block padding, 45px with one line; `p.settings-msg.error`, `role="alert"`, 14 / 20 in rgb(100,23,35) with a 16px icon (2px margins) and a 6px gap | 'Lines under a row'. |
+| Notice | Missing, Not set up, Config error, CLI error and Read failed show one `doan-notice` (warning for the first two, error for the rest) in place of the two sections: 12 / 16 padding, 16px corner, 6px gap, 32px above the next section; the sentence 14 / 20 and the recovery buttons at its end (`sm`: Locate, Set Up and Retry panel, Details ghost with `aria-expanded`). Read failed adds the reason on a second line, 12 / 16 `--text-subtle`, 4px below | |
+| Details and Locate feedback | Details: `pre.project-settings-details` under the notice on `--surface-inset`, 12 / 16 padding, 16px corner, 12 / 16 `--text-subtle`, wrapping, pulled up 20px under the notice and 32px above the next section. A refused Locate: `p.settings-msg.error` (`role="alert"`) in the same place, padding 8px 17px 4px | |
+| Reading | `p.settings-loading` 14 / 20 `--text-subtle`, 17px inline inset, 8px gap, a 16px spinner; no Remove from Doan section while Reading or Still reading | |
+| Remove from Doan | One group with a 56px row: "Doan stops listing <name> and its worktrees. Files and Git worktrees stay on disk." in caption `--text-subtle`, Remove from Doan (subtle, `sm`) at the end | The button removes the whole project group, as the sidebar menu does. |
+| Share confirmation | `SettingsDialog` (alertdialog), compact 400px, 32px padding, 28px corner, 16px gaps; "Share <path> with canvases?" with the path a code chip, repo-relative inside the worktree and as picked outside it; Cancel and Share (prominent) at default size | main answers an absolute path; the config stores a worktree path repo-relative. |
+| Lock | While a pick, confirmation or write runs, header tabs, Back, Search, the Home row, sidebar rows and the project menu's Overview, worktree and Project Settings items are `aria-disabled` and the page cannot be left (Add Projects 'Lock ink' for the ink); Show in Finder, Remove from Doan and the project disclosure stay usable; the native menu's Settings…, Add Project… and Home are off | Navigation is ignored, not queued. |
+| Sidebar and menu | No sidebar row is current, not even Home; the Projects tab is current. The native menu behind the page keeps New Conversation and Zoom / Reload Canvas off and Add Project…, Home and Settings… on | |
+
+### Documented differences from the draft
+
+- **Sidebar.** The page reuses the shipped Home sidebar: 220px wide where the draft draws 260 ('App shell'), with its Home row above the project tree (the draft's sidebar predates it), so the centred 768px column has 20px more margin on each side than drawn and the sidebar's project rows sit 44px lower.
+- **Numerals.** The white panel sets plain numerals ('Settings' Panel); the draft canvas inherits the body's tabular numerals.
+- **Page font.** Icon-only header buttons inherit the app body's 13px / normal where the draft canvas body is 14 / 20; no text is drawn there.
+- **Tiles.** The draft tiles' 816px stage gives 24px side margins to the column; the app's 994px panel centres it with 113px. Offsets inside the column are unaffected.
+- **Share confirmation.** A native modal `<dialog>` inside the page column (position fixed, margin auto), with no body-sm tracking ('Settings' Confirmations) and the shared dialog shadow; the tile draws a static specimen beside the page, with the stage's panel shadow and no accessible name.
+- **Controls behind the confirmation** are drawn enabled, as the tile draws them: the modal dialog makes the page inert, and the lock is separate. Picks and writes disable them.
+- **Border style.** Where a border width is 0 on both sides, `none` and `solid` count as equal (Evidence and verification policy).
+- **Content that is fixture or product text.** The first sentence of a refused Token CSS pick or Shared path is the CLI's own message ("Config path is outside the repository."); the guidance sentence equals the draft's. Read failed's reason, Config error's detail and a Locate refusal are the CLI's or main's text. Project names, paths and file names differ from the draft's illustrative ones.
+
+### Behaviour beyond the measured draft
+
+- **Locate follows the project.** Choosing a folder for a missing project moves the page to the new root and keeps the origin (main reports the move as a re-root focus). Set Up does the same.
+- **Origin.** Escape (probed in the real app), the Projects tab and Back (unit tests) return to the screen the page was opened from; a workspace origin is returned to as that workspace, and Remove from Doan from a page opened on Home returns to Home with an Undo toast.
+- **Held writes expire.** A write that waits on `doan config` ends with the CLI's 10 second timeout, which also ends the lock; a probe that needs the lock acts within that.
+
+### Not verified
+
+- Native menu clicks and OS focus (the desktop was locked, so native input was unavailable): the application menu's enabled state was read from Electron's `Menu`, not clicked.
+- Hover, pressed and keyboard-focus rings of the page's buttons; widths below 960px; very long paths, branches and error messages; dark mode and reduced transparency.
+- Roles and names were read from DOM attributes, not the accessibility tree.
+
+### Regression pointers
+
+`ProjectSettingsPage.test.tsx` (states, Saving / Saved placement, write errors, the confirmation's path and enabled controls, focus after writes, lock reports), `projectSettingsRules.test.ts` (page view table, `writeErrorMessage`, `sharedPathLabel`, `followProjectSettings`), `addProjectsNav.test.ts`, `App.settings.test.tsx` (entry, origin, lock, `gone`, reroot) and `ShellSidebar.interaction.test.tsx` (locked Project Settings item); `shell.test.ts` 'replace reports the move as a re-root focus'. Probes: `.scratch/runtime-test/project-settings/probe.mjs`, `.scratch/design-sync/buzz-project-settings/measure.mjs`. The measured values above are unpinned.
