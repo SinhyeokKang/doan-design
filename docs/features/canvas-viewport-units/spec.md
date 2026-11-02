@@ -13,6 +13,7 @@
 - 그 결과 첫 측정에서 높이가 굳어 아래 프레임이 잘리거나(`nextHeight`의 freeze), 작은 초기 높이(150px)에서 계산된 요소가 넘쳐 스크롤이 생긴다. ARCHITECTURE의 알려진 한계 "`calc(100vh + N)` canvases clip at first measurement"가 이 경우다.
 - `buzz-project-settings`는 앱의 `.doan-dialog`(`max-height: calc(100dvh - …)`)와 Project Settings 목록(`height: min(55dvh, …)`) CSS를 그대로 가져와 이 문제를 겪었다. 다른 세션이 캔버스에 `.doan-dialog[open]{max-height:none}`을 넣어 피했다(캔버스 1110행 주석). 앱 CSS를 가져오는 초안이라면 언제든 다시 생긴다.
 - 브라우저에는 iframe 안 viewport 단위의 기준을 바꾸는 API가 없다.
+- 두 번째 원인: 늦게 적용되는 웹폰트. 앱은 DOMContentLoaded 시점에 대체 폰트로 첫 높이를 재고(`buzz-project-settings`에서 7832px), 그 높이에 iframe을 맞춘다. 그 뒤 Geist가 적용되어 문서가 7932px가 된다. 그러면 `nextHeight`(`app/src/main/canvasScript.ts`)는 "앱이 크기를 바꾼 직후 문서가 더 커졌다"고 보고 `min-height: 100vh`류로 판단해 높이를 고정한다. 그래서 아래 약 100px이 잘린다. 다른 세션이 이 캔버스에 `html{display:none}` 폰트 게이트를 넣어 우회했다(첫 측정 0px는 고정하지 않는 규칙을 이용한다). 같은 `@font-face`를 쓰는 다른 캔버스에도 생길 수 있다.
 
 ## 결정 (대화에서 확정)
 
@@ -20,6 +21,8 @@
 2. 로컬 서버가 캔버스와 그 스타일시트를 내보낼 때 viewport 높이 단위를 고정 기준의 값으로 바꿔 쓴다.
 3. 기준은 캔버스가 `<meta name="doan:viewport-height" content="N">`로 정하고, 없으면 900px이다. `doan:width`처럼 캔버스 규약의 하나가 된다.
 4. 에이전트 가이드로도 막는다. 가이드는 "viewport 높이 단위는 앱에서 `doan:viewport-height`로 계산된다. 보드 높이를 따라가는 레이아웃(문서 높이를 viewport 높이로 정하기)은 쓰지 않는다"고 안내한다. 앱 수정이 T3에서 막히면 이 방어선을 넓힌다: 가이드는 viewport 높이 단위를 쓰지 말라고 하고, `doan check`가 캔버스 CSS의 viewport 높이 단위를 경고한다.
+
+5. 폰트 경로도 이 feature에서 고친다. viewport 단위를 바꿔 쓰면 문서가 viewport를 따라 커지는 경우가 없어지므로, `nextHeight`의 고정은 바꿔 쓰기가 닿지 않는 경우(스크립트, 서버 밖 스타일시트)를 위해서만 남는다. 폰트 적용(`document.fonts`의 로드 완료) 뒤에 늘어난 높이는 고정하지 않고 받아들인다.
 
 ## 완료 조건
 
@@ -30,6 +33,7 @@
 - Overview 썸네일(capture window)도 같은 기준으로 그린다.
 - 바꿔 쓰기가 캔버스 파일을 바꾸지 않는다. 디스크의 파일은 그대로다.
 - ARCHITECTURE의 알려진 한계에서 `calc(100vh + N)` 항목이 빠진다.
+- 폰트 응답을 400ms 늦춘 픽스처에서, 폰트 게이트 없이도 폰트 적용 뒤 높이(예: 7932px)까지 보드가 커진다. `buzz-project-settings`에서 폰트 게이트를 빼도 잘리지 않는다.
 
 ## 비목표
 

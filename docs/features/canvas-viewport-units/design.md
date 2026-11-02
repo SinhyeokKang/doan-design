@@ -11,6 +11,12 @@
    - 변수를 쓰는 이유: 하나의 스타일시트를 기준이 다른 여러 캔버스가 링크할 수 있어서, CSS 응답에서는 px로 바로 바꿀 수 없다.
    - 대체값(`var(--doan-vh, 1vh)`)은 두지 않는다. 대체값이 쓰이면 순환이 그대로 돌아온다. 변수가 없으면 계산이 무효가 되어 그 선언만 빠진다.
 
+## 폰트 적용 뒤 높이
+
+- `nextHeight(prev, measured, inner)`에 "이 측정 전에 폰트 로드가 끝났다"는 신호를 더한다. 주입 스크립트가 `document.fonts`의 `loadingdone` 이벤트(그리고 `document.fonts.ready`)를 받으면 다음 측정에서 고정 상태를 풀고 측정값을 그대로 보낸다.
+- 이유: 폰트 교체로 커진 높이는 viewport를 따라 커진 것이 아니다. viewport 단위를 바꿔 쓴 뒤에는 따라 커지는 문서가 거의 남지 않으므로, 풀었다가 다시 고정되는 진동 위험은 바꿔 쓰기가 닿지 않는 경우에만 남는다. 그 경우도 `nextHeight`가 다시 고정하므로 한 번 더 크기를 바꾸고 멈춘다. 고정점 테스트로 확인한다(POSTMORTEM 2026-11-01 '…resized its iframe between 0 and 405 px forever'의 예방 규칙).
+- 첫 측정을 폰트 로드 뒤로 미루는 방법(캔버스의 폰트 게이트를 앱이 대신 하기)은 버린다. 폰트가 느리거나 실패하면 보드가 늦게 뜨거나 3초 타임아웃이 필요하다.
+
 ## 대안과 버린 이유
 
 - iframe 안 스크립트로 `document.styleSheets`를 고친다: iframe은 opaque origin이라 링크된 스타일시트의 `cssRules`를 읽을 수 없다(ARCHITECTURE §3 CORS). 버린다.
