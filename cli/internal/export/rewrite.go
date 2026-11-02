@@ -168,7 +168,11 @@ func attrRef(tag, key string, get func(string) string) (refKind, attrForm) {
 		if url || key == "src" {
 			return kindAsset, formURL
 		}
-	case "use", "feimage":
+	case "use":
+		if url {
+			return kindUse, formURL
+		}
+	case "feimage":
 		if url {
 			return kindAsset, formURL
 		}
@@ -197,7 +201,15 @@ func attrRef(tag, key string, get func(string) string) (refKind, attrForm) {
 // used because it can rebuild misnested markup into a different tree.
 // <template> content is inert, as in `doan check`, and stays as written.
 func rewriteHTML(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string) []byte {
+	out, _ := rewriteHTMLBody(src, url, css)
+	return out
+}
+
+// rewriteHTMLBody is rewriteHTML that also returns the output offset of the
+// first </body> outside <template>, or -1 when there is none.
+func rewriteHTMLBody(src []byte, url func(kind refKind, href string) (string, bool), css func(text string, mode canvas.Mode) string) ([]byte, int) {
 	z := html.NewTokenizer(bytes.NewReader(src))
+	bodyEnd := -1
 	var out bytes.Buffer
 	out.Grow(len(src))
 	template := 0
@@ -211,7 +223,7 @@ func rewriteHTML(src []byte, url func(kind refKind, href string) (string, bool),
 		switch {
 		case tt == html.ErrorToken:
 			out.Write(raw)
-			return out.Bytes()
+			return out.Bytes(), bodyEnd
 		case template > 0:
 			tok := z.Token()
 			if tok.Data == "template" && tt == html.StartTagToken {
@@ -223,6 +235,9 @@ func rewriteHTML(src []byte, url func(kind refKind, href string) (string, bool),
 			out.Write(raw)
 		case tt == html.TextToken && inStyle:
 			out.WriteString(css(string(raw), canvas.Stylesheet))
+		case tt == html.EndTagToken && bodyEnd < 0 && bytes.EqualFold(bytes.TrimSpace(raw[2:len(raw)-1]), []byte("body")):
+			bodyEnd = out.Len()
+			out.Write(raw)
 		case tt == html.StartTagToken || tt == html.SelfClosingTagToken:
 			tok := z.Token()
 			if tok.Data == "template" {

@@ -135,7 +135,7 @@ func TestRewriteHTMLAttributes(t *testing.T) {
 		{kindAsset, "a.png"}, {kindAsset, "b.png"}, {kindAsset, "data:image/png;base64,AA"}, {kindAsset, "c.png"},
 		{kindAsset, "d.png"}, {kindAsset, "p.png"}, {kindAsset, "v.mp4"}, {kindAsset, "t.vtt"}, {kindAsset, "au.mp3"},
 		{kindAsset, "btn.png"},
-		{kindAsset, "sp.svg#i"}, {kindAsset, "im.png"}, {kindAsset, "fe.png"}, {kindLink, "svg-link.html"},
+		{kindUse, "sp.svg#i"}, {kindAsset, "im.png"}, {kindAsset, "fe.png"}, {kindLink, "svg-link.html"},
 		{kindFrame, "f.html"}, {kindFrame, "fr.html"}, {kindFrame, "o.html"}, {kindFrame, "e.html"},
 		{kindLink, "page.html"}, {kindLink, "ar.html"}, {kindLink, "go.html"},
 		{kindAsset, "after.png"},

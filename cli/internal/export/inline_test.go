@@ -163,8 +163,8 @@ func TestInlineFullCanvas(t *testing.T) {
 	if !strings.Contains(html, dataURI("image/png", exporttest.LogoPNG)+` 2x"`) {
 		t.Error("percent-escaped Hangul srcset candidate is not inlined")
 	}
-	if !strings.Contains(html, `<use href="`+dataURI("image/svg+xml", []byte(exporttest.SpriteSVG))+`#icon"/>`) {
-		t.Error("SVG <use> lost its sprite or fragment")
+	if !strings.Contains(html, `<use href="#icon"/>`) || !strings.Contains(html, "</section>\n"+spriteContainer+exporttest.SpriteSVG+"</svg></body>") {
+		t.Error("SVG <use> sprite is not inlined before </body>")
 	}
 	if !strings.Contains(html, `<script src="`+dataURI("text/javascript; charset=utf-8", []byte(exporttest.AppJS))+`" defer="">`) {
 		t.Error("local script is not inlined")

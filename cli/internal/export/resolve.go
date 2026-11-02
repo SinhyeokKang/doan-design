@@ -19,6 +19,12 @@ const (
 	ReasonNotServed = "not in the serving scope"
 	ReasonMissing   = "not found"
 	ReasonFrame     = "local document in a frame"
+	// SVG <use> targets are copied into the document, so they need an id
+	// that exists in an SVG file and is not already taken.
+	ReasonUseFragment  = "use without a fragment"
+	ReasonUseID        = "fragment not in the SVG file"
+	ReasonUseCollision = "SVG file id already in the canvas"
+	ReasonUseType      = "use target is not an SVG file"
 )
 
 type assetState int
