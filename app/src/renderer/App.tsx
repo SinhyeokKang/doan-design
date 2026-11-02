@@ -60,6 +60,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
+import { seenMark, sidebarSlots } from "./canvasNotice";
 import { HomeRun } from "./homeRun";
 import { SettingsPage, type SettingsArrival } from "./SettingsPage";
 import { parseSettingsTarget, settingsArrival, SettingsTargetQueue, type SettingsSection, type SettingsTarget } from "./settingsSections";
@@ -570,7 +571,14 @@ export function App() {
     if (visit.canvas && row) openShellCanvas(visit.root, row, cursor);
     else showShellOverview(visit.root, cursor);
   };
-  const toggleProject = async (key: string) => {
+  // A project row's canvas notice opens its canvas wherever a conversation slot would open the Overview (D10).
+  const openNotice = (notice: { root: string; path: string }, opened?: () => void) => {
+    const listed = entriesRef.current.find(entry => entry.path === notice.root);
+    const row = listed?.kind === "list" ? listed.canvases.find(row => row.path === notice.path) : undefined;
+    if (row) openShellCanvas(notice.root, row, undefined, opened);
+    else toast.show(unavailableCanvasMessage(listed, notice.path));
+  };
+  const toggleProject = async (key: string, notice?: { root: string; path: string }) => {
     const group = cards.find(card => card.key === key); if (!group) return;
     // A locked page keeps the disclosure; only the move to a workspace is ignored (design '잠금'). The loaded project's
     // row is always open, so activating it only ever navigates.
@@ -584,6 +592,7 @@ export function App() {
     if (loadedRoot && group.rows.some(row => row.path === loadedRoot)) {
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
+      else if (notice) openNotice(notice);
       else if (move === "slot") askSlot(loadedRoot);
       else showShellOverview(loadedRoot, undefined, () => askSlot(loadedRoot));
       return;
@@ -591,6 +600,7 @@ export function App() {
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
     if (memory.expanded) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
+    if (notice) { openNotice(notice, () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? memory), expanded: true } }))); return; }
     const intent = navigationIntent.current, signature = groupSignature;
     const activity = await window.doan.readShellActivity({ roots: memory.roots }).catch(() => null);
     const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
@@ -1128,6 +1138,10 @@ export function App() {
   }, [modal]);
   useEffect(() => { if (state.open) homeRun.current.canvasShown(state.open.folder, state.open.canvas); }, [state.open?.folder, state.open?.canvas]);
   useEffect(() => { homeRun.current.entriesChanged(); }, [entries]);
+  // The canvas page, not the Overview's thumbnails, makes a canvas seen; a change while it stays shown marks it again.
+  const shownCanvas = screen === "workspace" && overview === null && state.open && state.shown && !state.unlisted ? { root: state.open.folder, path: state.shown } : null;
+  const mark = seenMark(entries, { screen, overview: overview !== null, root: state.open?.folder ?? null, shown: state.shown, unlisted: Boolean(state.unlisted) });
+  useEffect(() => { if (mark) void window.doan.markCanvasSeen(mark).catch(() => {}); }, [mark?.root, mark?.path, mark?.mtimeMs]);
   useEffect(() => {
     if (screen !== "workspace" || !loadedRoot) return;
     homeRun.current.visit([slotKey(loadedRoot), ...(state.open?.folder === loadedRoot ? [slotKey(loadedRoot, state.open.canvas)] : [])]);
@@ -1140,9 +1154,9 @@ export function App() {
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, url: "" }) : null })}
     onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
-  const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={key => void toggleProject(key)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
-    home={home} goHome={() => live.current.home()} slots={run.slots()} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
+    home={home} goHome={() => live.current.home()} slots={sidebarSlots(run.slots(), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;

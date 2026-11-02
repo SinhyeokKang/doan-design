@@ -9,7 +9,8 @@ import { sortedCanvases } from "./canvasOrder";
 import { rowProblem, typeaheadNext } from "./canvasTree";
 import { ErrorDetails } from "./ErrorDetails";
 import { displayPath } from "./projectDisplay";
-import { slotKey, type Slot } from "./homeConversations";
+import { slotKey } from "./homeConversations";
+import type { SidebarSlot as Slot } from "./canvasNotice";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settingsSections";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 
@@ -21,7 +22,9 @@ interface Props {
   unlisted?: boolean;
   homeDirectory: string | null;
   search(): void;
-  toggle(key: string): void;
+  // `notice`: the canvas the project row's canvas notice stands for, which the activation opens (canvas-viewport-units
+  // D10); passed only when the row shows one.
+  toggle(key: string, notice?: { root: string; path: string }): void;
   // Opens or closes a project's group; allowed while the page is locked, as project disclosure is.
   toggleGroup(key: string, group: GroupId): void;
   worktree(root: string): void;
@@ -47,21 +50,28 @@ interface Props {
   settings?: { section: SettingsSection; select(section: SettingsSection): void };
 }
 const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, notifications: Bell, about: Info };
-const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1 };
+const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1, canvas: 0 };
 // A project row shows its roots' own slots, and a bound canvas's slot while that canvas row is not on screen, so a
-// permission request in a collapsed project is never hidden.
-export function projectSlot(slots: ReadonlyMap<string, Slot>, roots: readonly string[], shownCanvases: readonly string[]): Slot | undefined {
-  let best: Slot | undefined;
+// permission request in a collapsed project is never hidden. Among equals the first in `slots` wins.
+export function projectSlotEntry(slots: ReadonlyMap<string, Slot>, roots: readonly string[], shownCanvases: readonly string[]): { key: string; slot: Slot } | undefined {
+  let best: { key: string; slot: Slot } | undefined;
   for (const [key, slot] of slots) {
     const root = key.split("\n")[0]!;
     if (!roots.includes(root) || shownCanvases.includes(key)) continue;
-    if (!best || RANK[slot.kind] > RANK[best.kind]) best = slot;
+    if (!best || RANK[slot.kind] > RANK[best.slot.kind]) best = { key, slot };
   }
   return best;
 }
+// The canvas a project row's canvas notice stands for; a canvas notice's key is always `root\npath`.
+function noticeTarget(entry: { key: string; slot: Slot } | undefined): { root: string; path: string } | undefined {
+  if (entry?.slot.kind !== "canvas") return undefined;
+  const [root, path] = entry.key.split("\n");
+  return { root: root!, path: path! };
+}
 function SlotMark({ slot }: { slot: Slot | undefined }) {
   if (!slot) return null;
-  return <span className={`row-slot ${slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
+  // A canvas notice is the unseen dot itself (canvas-viewport-units D9); only its label differs.
+  return <span className={`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
 // Canvas paths start with `.doan/`, so a head's key never equals a canvas row's.
 const headKey = (root: string, group: GroupId) => `${root}\n#${group}`;
@@ -84,7 +94,7 @@ export function ShellSidebar(props: Props) {
   const live = useRef(props); live.current = props;
   const rows: { key: string; parent?: string; name: string; activate(): void; right(): void; left(): void }[] = [];
   // Each listed, expanded project's groups and visible rows, built once for both the keyboard order and the render.
-  const layouts = new Map<string, { groups: SidebarGroup[]; items: SidebarItem[] }>();
+  const layouts = new Map<string, { groups: SidebarGroup[]; items: SidebarItem[]; slot: { key: string; slot: Slot } | undefined }>();
   const focus = (key: string | undefined) => {
     if (!key) { search.current?.focus(); return; }
     setFocused(key);
@@ -122,8 +132,11 @@ export function ShellSidebar(props: Props) {
     const expanded = projectExpanded(project, loaded);
     const groups = expanded && entry?.kind === "list" ? sidebarGroups(sortedCanvases(entry.canvases), project.groups) : [];
     const items = visibleItems(groups);
-    layouts.set(card.key, { groups, items });
-    rows.push({ key: card.key, name: card.name, activate: () => props.toggle(card.key), right: () => expanded ? focus(groups[0] ? headKey(root!, groups[0].id) : card.key) : props.toggle(card.key), left: () => { if (expanded && !card.rows.some(row => row.path === loaded)) props.toggle(card.key); } });
+    const shown = items.flatMap(item => item.kind === "canvas" ? [slotKey(root!, item.row.path)] : []);
+    const slot = props.slots && projectSlotEntry(props.slots, card.rows.map(row => row.path), shown);
+    const notice = noticeTarget(slot);
+    layouts.set(card.key, { groups, items, slot });
+    rows.push({ key: card.key, name: card.name, activate: () => notice ? props.toggle(card.key, notice) : props.toggle(card.key), right: () => expanded ? focus(groups[0] ? headKey(root!, groups[0].id) : card.key) : props.toggle(card.key), left: () => { if (expanded && !card.rows.some(row => row.path === loaded)) props.toggle(card.key); } });
     for (const item of items) {
       const group = item.group, head = headKey(root!, group.id);
       if (item.kind === "head") {
@@ -184,20 +197,20 @@ export function ShellSidebar(props: Props) {
         const selected = (card.rows.some(row => row.path === loaded) ? loaded : card.rows.some(row => row.path === project.selectedRoot) ? project.selectedRoot : undefined) ?? card.rows[0]?.path;
         const entry = card.rows.find(row => row.path === selected) ?? card.rows[0]!;
         const expanded = projectExpanded(project, loaded), current = !props.home && card.rows.some(row => row.path === loaded);
-        const layout = layouts.get(card.key) ?? { groups: [], items: [] };
-        const shown = layout.items.flatMap(item => item.kind === "canvas" ? [slotKey(entry.path, item.row.path)] : []);
+        const layout = layouts.get(card.key) ?? { groups: [], items: [], slot: undefined };
+        const notice = noticeTarget(layout.slot);
         const info = cardRow(entry, loaded, null);
         const menuEntry = (menu === card.key && card.rows.find(row => row.path === repairRoot)) || entry;
         const menuInfo = cardRow(menuEntry, loaded, null);
         const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === menuEntry.path);
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
-          <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-disabled={locked} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => props.toggle(card.key)}>
+          <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-disabled={locked} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => notice ? props.toggle(card.key, notice) : props.toggle(card.key)}>
             <span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
             {info.chip && <span className="shell-problem">{info.chip}</span>}
-            <SlotMark slot={props.slots && projectSlot(props.slots, card.rows.map(row => row.path), shown)} />
+            <SlotMark slot={layout.slot?.slot} />
             <DropdownMenu.Root open={menu === card.key} onOpenChange={open => { setMenu(open ? card.key : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
               <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${card.name} menu`} tabIndex={active === card.key ? 0 : -1} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-project-menu" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
