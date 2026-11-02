@@ -1,0 +1,159 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="canvas-hand-tool"><meta name="doan:width" content="1600"><title>canvas-hand-tool — Hand tool, Space drag and the shared key hint</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><link rel="stylesheet" href="../assets/mock.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset)}
+.intro{max-width:1100px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5)}
+.specimen+.specimen{margin-top:var(--space-10)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:1100px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium);display:flex;align-items:center;gap:var(--space-2)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2);justify-items:start}
+.tile-label{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A plain stage the size of a slice of the board, so the tools row and its tooltip read at 1:1. */
+.stage{position:relative;width:320px;height:160px;border-radius:var(--radius-container);background:var(--surface-inset);box-shadow:var(--shadow-panel);overflow:clip}
+.stage .doan-canvas-bottom{bottom:var(--space-5)}
+.stage .doan-tooltip{position:absolute;left:50%;transform:translateX(-50%)}
+.on-dark{display:flex;align-items:center;justify-content:center;width:520px;height:120px;border-radius:var(--radius-container);background:var(--surface-inset);box-shadow:var(--shadow-panel)}
+
+/* ── Restated from app/src/renderer/styles.css as shipped (cce75bb6), which canvases cannot link ── */
+.area{position:relative;overflow:clip;background:var(--surface-inset);width:760px;height:460px;border-radius:var(--radius-container);box-shadow:var(--shadow-panel)}
+.overlay{position:absolute;inset:0;z-index:0;pointer-events:none}
+.mark{position:absolute;border:1px solid var(--border-focus);box-shadow:0 0 0 1px var(--surface-panel)}
+.dims{position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);background:var(--affordance-prominent);color:var(--text-on-prominent);box-shadow:var(--shadow-sm);font:var(--type-weight-regular) var(--type-caption-size)/var(--type-caption-line-height) var(--type-family);letter-spacing:var(--type-caption-letter-spacing);padding:var(--space-1) var(--space-2);border-radius:calc((var(--type-caption-line-height) + 2 * var(--space-1)) / 2);white-space:nowrap}
+.canvas-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:var(--space-4);text-align:center;color:var(--text-subtle);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);pointer-events:none}
+.canvas-status button{pointer-events:auto}
+.canvas-status b{color:var(--text-standard);font-weight:var(--type-weight-medium)}
+.canvas-status>*{max-width:260px;overflow-wrap:anywhere}
+.doan-canvas-bottom{position:absolute;z-index:3;bottom:var(--space-5);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--space-2)}
+.doan-canvas-tools{display:flex;align-items:center;gap:var(--space-half)}
+.doan-canvas-tools .doan-icon-button{color:var(--text-standard)}
+.doan-canvas-tools>.doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled){background:var(--affordance-backdrop-pressed)}
+.doan-agent-glow{position:absolute;inset:0;z-index:1;pointer-events:none;border-radius:var(--radius-container);box-shadow:inset 0 0 var(--space-3) color-mix(in srgb,var(--affordance-accent) 85%,transparent),inset 0 0 calc(var(--space-6) * 1.5) color-mix(in srgb,var(--affordance-accent) 50%,transparent)}
+.doan-canvas-top{position:absolute;z-index:3;top:calc(var(--space-5) + var(--space-2));left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2);width:min(420px,calc(100% - 2 * var(--space-3)));pointer-events:none}
+.doan-canvas-top>*{pointer-events:auto}
+.doan-canvas-top>.doan-agent{align-self:center}
+.doan-agent{display:flex;align-items:center;gap:var(--space-2);max-width:100%;min-width:0;min-height:var(--size-control);padding:var(--space-1) var(--space-1) var(--space-1) var(--space-4);border-radius:var(--radius-pill);background:color-mix(in srgb,var(--affordance-prominent) 60%,transparent);-webkit-backdrop-filter:blur(var(--blur-md));backdrop-filter:blur(var(--blur-md));box-shadow:var(--shadow-sm);color:var(--text-on-prominent);pointer-events:auto}
+.doan-agent.doan-picking{padding-right:var(--space-2)}
+.doan-agent-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);letter-spacing:var(--type-body-sm-letter-spacing)}
+.doan-agent .doan-button.doan-agent-action{flex:none;background:color-mix(in srgb,var(--text-on-prominent) 16%,transparent);color:var(--text-on-prominent)}
+.doan-agent-dot{position:relative;flex:none;width:var(--space-2);height:var(--space-2);border-radius:50%;background:var(--affordance-accent)}
+
+/* ── New, not in code ── */
+/* The shared key hint on a dark material (ds/controls.css): transparent, the parent's ink, a ring of that ink at 45 %.
+   The default size is the picking hint's Esc as shipped (28 high); sm is the in-button key's size (caption, 0 / 6,
+   16 high), so a tooltip stays 24 high. Replaces the screen-only .doan-picking-esc.doan-kbd rule with equal values. */
+.doan-kbd[data-ui-variant="on-prominent"]{background:transparent;color:inherit;box-shadow:inset 0 0 0 1px color-mix(in srgb,currentColor 45%,transparent)}
+.doan-kbd[data-ui-size="sm"]{padding:0 var(--space-1h);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A tooltip that names a key: the label, then the key, one line, 8 apart. */
+.doan-tooltip.has-key{display:flex;align-items:center;gap:var(--space-2);white-space:nowrap}
+/* The drag layer: transparent, above the board and the marks, under the glow, the notices, the status and the tools.
+   Outlined here only so the draft shows where it sits; the app draws nothing. */
+.drag-layer{position:absolute;inset:0;z-index:0;outline:1px dashed color-mix(in srgb,var(--affordance-accent) 60%,transparent);outline-offset:calc(-1 * var(--space-2))}
+.layer-tag{position:absolute;left:var(--space-4);bottom:var(--space-4);z-index:4}
+
+/* ── Illustration only: the OS cursor, which a static draft cannot show ── */
+.cursor-ill{position:absolute;z-index:5;width:var(--space-6);height:var(--space-6);color:var(--text-standard);pointer-events:none}
+.cursor-ill path{stroke:var(--surface-panel);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.cursor-ill path+path{stroke:currentColor;stroke-width:2}
+.cursor-tag{position:absolute;z-index:5}
+.drag-trail{position:absolute;z-index:4;height:0;border-top:1px dashed var(--text-metadata)}
+
+/* ── The board's example canvas (mock colours) ── */
+.board{position:absolute;left:120px;top:96px;width:520px}
+.mock-frame{background:var(--mock-bg);color:var(--mock-ink);border-radius:var(--radius-row);box-shadow:var(--shadow-panel);padding:var(--space-6);display:grid;gap:var(--space-4)}
+.mock-frame h3{font-size:var(--type-heading-size);line-height:var(--type-heading-line-height);font-weight:var(--type-weight-medium)}
+.mock-frame p{color:var(--mock-ink-2)}
+.mock-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3)}
+.mock-card{height:88px;border-radius:var(--radius-row);background:var(--mock-fill);border:1px solid var(--mock-line)}
+.mock-cta{justify-self:start;padding:var(--space-2) var(--space-4);border-radius:var(--radius-row);background:var(--mock-brand);color:var(--mock-brand-ink)}
+</style></head><body>
+<header class="intro"><span class="doan-chip">canvas-hand-tool · draft · 6 frames</span><h1>The Hand tool, Space drag, and one key hint for dark materials.</h1>
+<p>Scope: <code>docs/features/canvas-hand-tool/</code> (spec, design). The canvas page is on main; this draft is a new file drawn as a user-approved exception (feature review), and <code>buzz-canvas.html</code> stays untouched. <code>/design-sync</code> compares every frame below.</p>
+<ul>
+<li>New, not in code: the Hand tool and its pressed state, tooltips that name a key, the shared key variant <code>doan-kbd[data-ui-variant="on-prominent"]</code> with its <code>sm</code> size, the drag layer (outlined here only to show where it sits; the app draws nothing), and the grab and grabbing cursors.</li>
+<li>Copied as shipped (cce75bb6): the tools row, pressed fill, canvas status, agent notice and picking hint from <code>app/src/renderer/styles.css</code>, <code>CanvasTools.tsx</code>, <code>CanvasAgent.tsx</code> and <code>App.tsx</code>; tokens and primitives linked from <code>app/src/renderer/</code>.</li>
+<li>Cursors are drawn as illustrations with a label, because a static draft cannot show the OS cursor. They use lucide <code>hand</code> and <code>hand-grab</code> (lucide-react 1.61.0, checked in <code>app/node_modules</code>); the app sets CSS <code>grab</code> / <code>grabbing</code>.</li>
+<li>References: V for Select, H for Hand, Space to pan while held, and the grab cursors follow Figma's canvas conventions (recalled from memory, not checked in this session).</li>
+</ul></header>
+
+<section class="specimen"><div class="caption"><span>01</span><h2>Tools row · Select <span class="doan-chip" data-ui-variant="translucent">Hand new, not in code</span></h2><p>Select is pressed. Hand sits between Select and Add to conversation. The tooltip names the key; the button carries <code>aria-keyshortcuts="V"</code>. The pressed tool holds <code>tabIndex=0</code>.</p></div>
+<div class="tiles" data-doan-frame="tools-select" data-doan-title="Tools row · Select pressed" data-doan-implements="app/src/renderer/CanvasTools.tsx">
+<div class="tile"><div class="stage">
+<div class="doan-tooltip has-key" role="tooltip" style="bottom:calc(var(--space-5) + var(--size-control) + 2 * var(--space-1) + var(--space-half) + var(--space-1))" data-doan-id="tooltip-select">Select<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">V</span></div>
+<div class="doan-canvas-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0" data-doan-id="select-tool-select"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1" data-doan-id="select-tool-hand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Add to conversation" tabindex="-1" data-doan-id="select-tool-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg></button>
+</div></div></div><span class="tile-label">Select pressed · tooltip on Select</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>02</span><h2>Tools row · Hand <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Hand is pressed after H or a click on it, and stays pressed across canvases until Select, V or Esc. Pressing it again keeps it pressed. On a canvas opened in Hand, this pressed button and the grab cursor are what tell the person a click will not select.</p></div>
+<div class="tiles" data-doan-frame="tools-hand" data-doan-title="Tools row · Hand pressed" data-doan-implements="app/src/renderer/CanvasTools.tsx">
+<div class="tile"><div class="stage">
+<div class="doan-tooltip has-key" role="tooltip" style="bottom:calc(var(--space-5) + var(--size-control) + 2 * var(--space-1) + var(--space-half) + var(--space-1))" data-doan-id="tooltip-hand">Hand<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">H</span></div>
+<div class="doan-canvas-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" aria-keyshortcuts="V" tabindex="-1" data-doan-id="hand-tool-select"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Hand" aria-keyshortcuts="H" tabindex="0" data-doan-id="hand-tool-hand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Add to conversation" tabindex="-1" data-doan-id="hand-tool-add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg></button>
+</div></div></div><span class="tile-label">Hand pressed · tooltip on Hand</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>03</span><h2>Key hint on a dark material <span class="doan-chip" data-ui-variant="translucent">New variant, not in code</span></h2><p>One shared variant, <code>doan-kbd[data-ui-variant="on-prominent"]</code>: transparent, the parent's ink, a 1px ring of that ink at 45 %. The default size is the picking hint's Esc, unchanged from today (28 high). <code>data-ui-size="sm"</code> is the in-button key's size (caption, 0 / 6, 16 high), so a tooltip stays 24 high. The picking hint's screen-only <code>.doan-picking-esc</code> rule goes away with no change in computed values.</p></div>
+<div class="tiles" data-doan-frame="kbd-on-prominent" data-doan-title="Key hint · picking hint and tooltips" data-doan-implements="app/src/renderer/App.tsx">
+<div class="tile"><div class="on-dark"><div class="doan-agent doan-picking" role="status" data-doan-id="picking-hint"><span class="doan-agent-text">Click a frame or an element, or Shift-click a spot</span><span class="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true" data-doan-id="kbd-esc">Esc</span></div></div><span class="tile-label">Default size · picking hint (Esc, 28 high, hint 40 high)</span></div>
+<div class="tile"><div class="on-dark" style="width:240px;gap:var(--space-4)"><div class="doan-tooltip has-key" role="tooltip">Select<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm" data-doan-id="kbd-v">V</span></div><div class="doan-tooltip has-key" role="tooltip">Hand<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm" data-doan-id="kbd-h">H</span></div></div><span class="tile-label">sm · tooltips (key 16 high, tooltip 24 high)</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>04</span><h2>Board · Hand <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Hand while an agent works. The drag layer covers the board, so a drag anywhere — on a frame too — moves the board by the pointer's travel, and a click selects nothing. The selection mark stays; no hover mark is drawn. The agent notice with Stop, the canvas notices, the status and the tools row sit above the layer and stay clickable. Wheel and pinch keep working.</p></div>
+<div class="tiles" data-doan-frame="board-hand" data-doan-title="Board · Hand, agent working" data-doan-implements="app/src/renderer/App.tsx">
+<div class="tile"><section class="area" aria-label="Canvas">
+<div class="board"><div class="mock-frame"><h3>Weekly report</h3><p>Three numbers that moved this week, and one next step.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Open report</span></div></div>
+<div class="overlay"><div class="mark" style="left:144px;top:198px;width:149px;height:88px"><span class="dims">149.33 × 88</span></div></div>
+<div class="drag-layer" aria-hidden="true" data-doan-id="drag-layer"></div>
+<div class="doan-agent-glow" aria-hidden="true"></div>
+<div class="doan-canvas-top"><div class="doan-agent"><span class="doan-agent-dot" aria-hidden="true"></span><span class="doan-agent-text" role="status">Agent is working</span><button type="button" class="doan-button doan-agent-action" data-ui-size="sm"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>Stop</button></div></div>
+<div class="doan-canvas-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Hand" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Add to conversation" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg></button>
+</div></div>
+<svg class="cursor-ill" style="left:452px;top:226px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+<span class="doan-chip cursor-tag" data-ui-variant="translucent" style="left:482px;top:254px">cursor: grab (illustration)</span>
+<span class="doan-chip layer-tag" data-ui-variant="translucent">drag layer (outline for the draft only)</span>
+</section><span class="tile-label">Hand · grab over a frame · selection kept · Stop above the layer</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>05</span><h2>Board · Space drag in Select <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Select stays pressed while Space is held. Holding Space shows grab at once; dragging shows grabbing and moves the board by the pointer's travel. Releasing Space mid-drag keeps panning until the mouse is released, then Select clicks again. The dashed line shows the drag; it is not drawn by the app.</p></div>
+<div class="tiles" data-doan-frame="board-space" data-doan-title="Board · Space drag in Select" data-doan-implements="app/src/renderer/App.tsx">
+<div class="tile"><section class="area" aria-label="Canvas">
+<div class="board" style="left:80px;top:72px"><div class="mock-frame"><h3>Weekly report</h3><p>Three numbers that moved this week, and one next step.</p><div class="mock-cards"><div class="mock-card"></div><div class="mock-card"></div><div class="mock-card"></div></div><span class="mock-cta">Open report</span></div></div>
+<div class="overlay"></div>
+<div class="drag-layer" aria-hidden="true"></div>
+<div class="doan-canvas-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Add to conversation" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg></button>
+</div></div>
+<span class="drag-trail" style="left:428px;top:236px;width:72px;transform:rotate(-30deg);transform-origin:left"></span>
+<svg class="cursor-ill" style="left:404px;top:226px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/><path d="M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/></svg>
+<span class="doan-chip cursor-tag" data-ui-variant="translucent" style="left:434px;top:254px">cursor: grabbing, Space held (illustration)</span>
+</section><span class="tile-label">Select + Space · grabbing · Select stays pressed</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>06</span><h2>Board · Hand on a canvas that failed to load <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Hand stays pressed and usable while the board renders nothing (loading, failed, no width, unlisted page, project problem). There is no drag layer and no grab cursor; Space does nothing; Reload is clickable. A drag in progress ends when the board goes away and does not resume when it returns.</p></div>
+<div class="tiles" data-doan-frame="board-failed" data-doan-title="Board · Hand, load failed" data-doan-implements="app/src/renderer/App.tsx">
+<div class="tile"><section class="area" aria-label="Canvas">
+<div class="overlay"></div>
+<div class="canvas-status" role="status"><div><b>Couldn’t load the canvas</b><br>Run doan check in a terminal<br><br><button class="doan-button" data-ui-variant="panel" data-ui-size="sm" data-doan-id="reload">Reload</button></div></div>
+<div class="doan-canvas-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Hand" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Add to conversation" aria-disabled="true" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg></button>
+</div></div>
+</section><span class="tile-label">Hand pressed · status with Reload · no layer, default cursor</span></div>
+</div></section>
+</body></html>
