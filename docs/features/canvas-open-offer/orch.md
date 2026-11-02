@@ -71,3 +71,8 @@
 - T11 문서 승격: Claude Sonnet 서브에이전트가 초안을 쓰고 지휘자가 diff를 검토해 문서별로 커밋했다(aebaa175 PRODUCT, c5efad2e ARCHITECTURE, d8f77347 BACKLOG, 9f628b3b README). 지휘자가 고친 것: ARCHITECTURE 규칙 J에 "`--frame` takes its id"를 더했다.
   - 지휘자 판단: tasks T11은 규칙 J를 §6에 두었지만 규칙 목록은 §1 'Agent rules'에 있어 거기를 고쳤다. scheme 차단 사실(Orca 1.4.243, Claude 데스크톱 4.4212.0, Codex 앱 26.1027)은 PRODUCT §5 항목 3 'Deep links'에 이유로 남겼다. BACKLOG의 macOS Terminal 평문 링크 사실은 에이전트가 더는 링크를 출력하지 않아 지웠다.
   - `docs/USABILITY-EVAL.md`는 T10을 맡은 D가 쓴다. 이 디렉터리는 D 통합과 최종 `/verify` 뒤에 지운다.
+- D 완료: a5f352de를 a119ca0b로 통합했다.
+  - T6: 격리한 dev 앱을 세 번 띄워 42개 항목을 확인했다(exit 0, 완료 표식, real-state 전후 같음, 결함 없음). frame `found`·`missing`·`none`, 같은 캔버스, 목록에 없는 캔버스, 등록되지 않은 루트, Project Settings 잠금, 닫히는 다이얼로그와 거부하는 다이얼로그(합성), first run, 시작 중 `not_ready` 뒤 열림, 닫은 창·숨긴 앱·최소화한 창이 앞으로 옴, 만료된 요청(renderer를 2.2초 막으면 CLI는 1016 ms에 `busy`, 아무것도 움직이지 않음)을 확인했다. 응답 시간은 소켓 p90 10.7 ms였다.
+  - T6 미확인: 화면이 잠겨 "다른 앱 창 뒤에 있을 때 앞으로 옴"은 deferred다. Settings·Add Projects 잠금은 띄우지 못해 같은 `decideOpen` 경로의 단위 테스트로만 확인했다. bootstrap은 계획대로 단위 테스트로만 확인했다.
+  - T10: 라운드 `coo-offer-261103`(W3b·W4·R8b × Claude Code 2.1.316·Codex 0.166.0 × 3). 18회 모두 automatic check 통과, W4는 6/6 pass. Claude의 W3b 2회와 R8b 2회가 judge만의 partial이다. W3b는 U-022(제안이 마지막 줄에 따로 있는데 "긴 보고 뒤에 묻혔다"는 판정), R8b는 이 feature와 무관한 U-021(규칙 G) 재측정이다. runner가 `keychain:provider-items` 해시 변화로 exit 1을 냈고(사용자의 실제 Doan 앱이 떠 있었음), W4 재실행에서는 바뀌지 않았다.
+  - 지휘자 판단(U-022): W3b-claude-1의 최종 답은 보고 뒤 마지막 줄에 제안만 따로 두었다. 규칙 J가 요구하는 모양이므로 rubric의 "buries" 표현이 모호한 것이다. ARCHITECTURE §14의 "기존 의도를 밝히는 rubric 수정은 그 자리에서"에 따라 D가 W3b rubric을 고치고 W3b를 Claude로 3회 다시 돌린다(task `task_c9b644f2e706`, dispatch `ctx_a42a6f35f782`). U-021은 이 feature 범위 밖이라 열어 둔다.
