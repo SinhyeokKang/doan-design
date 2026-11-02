@@ -22,9 +22,19 @@ export function finalAnswer(transcript: string): string {
 }
 
 // Markdown that a reader sees as prose: fenced blocks and inline code spans removed, because a link inside code is
-// shown as text, not drawn as a link (R9 scores only links the app would draw).
+// shown as text, not drawn as a link (R9 scores only links the app would draw). A fence that is never closed runs to
+// the end of the text, and an inline code span never crosses a blank line (CommonMark), so a stray backtick in one
+// paragraph cannot swallow a link in the next.
 export function withoutCode(markdown: string): string {
-  return markdown
-    .replace(/^\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\s*\1\s*$/gm, "")
-    .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, "");
+  const kept: string[] = [];
+  let fence: { char: string; size: number } | null = null;
+  for (const line of markdown.split("\n")) {
+    const run = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence === null) {
+      if (run) { fence = { char: run[1]![0]!, size: run[1]!.length }; kept.push(""); } else kept.push(line);
+    } else if (run && run[1]![0] === fence.char && run[1]!.length >= fence.size && run[2]!.trim() === "") {
+      fence = null;
+    }
+  }
+  return kept.join("\n").split(/(\n[ \t]*\n)/).map((part, i) => i % 2 === 1 ? part : part.replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, "")).join("");
 }

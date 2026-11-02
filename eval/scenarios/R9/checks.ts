@@ -19,10 +19,32 @@ function drawn(text: string): string[] {
   const auto = [...text.matchAll(/<(doan:[^>\s]*)>/gi)].map(m => m[1]!);
   return [...inline, ...auto];
 }
-// The frame and element ids in the final canvas.
+// `doan:` strings meant as links that the app would not draw: a malformed destination (including `doan://open?…`) and a
+// bare `doan:<canvas>/<kind>/<id>` in running text. A link's visible text and prose such as "the doan: scheme" are not.
+function stray(text: string): string[] {
+  const destinations = drawn(text);
+  const bad = destinations.filter(d => parseReplyAnchor(d) === null);
+  const outsideText = text.replace(/\[[^\]]*\](?=\()/g, "");
+  const pool = [...destinations];
+  const bare = [...outsideText.matchAll(/doan:[^\s)>\]"'<]*/gi)].map(m => m[0]).filter(m => {
+    const at = pool.indexOf(m);
+    if (at >= 0) { pool.splice(at, 1); return false; }
+    return m.includes("/");
+  });
+  return [...bad, ...bare];
+}
+// The frame and element ids in the final canvas, and the element ids inside one frame (frames are siblings in the seed;
+// a frame's content runs to the next frame or the end of the body).
 function ids(html: string): { frames: Set<string>; elements: Set<string> } {
   const all = (attr: string) => new Set([...html.matchAll(new RegExp(`\\b${attr}="([^"]*)"`, "g"))].map(m => m[1]!));
   return { frames: all("data-doan-frame"), elements: all("data-doan-id") };
+}
+function inside(html: string, frame: string): Set<string> {
+  const start = html.indexOf(`data-doan-frame="${frame}"`);
+  if (start < 0) return new Set();
+  const rest = html.slice(start + 1);
+  const end = rest.search(/data-doan-frame="|<\/body>/);
+  return new Set([...(end < 0 ? rest : rest.slice(0, end)).matchAll(/\bdata-doan-id="([^"]*)"/g)].map(m => m[1]!));
 }
 // The text of the element with this doan id, tags inside it removed.
 function textOf(html: string, id: string): string | null {
@@ -35,27 +57,31 @@ const checks: Checks = ctx => {
   const changed = ctx.changedFiles();
   const html = ctx.read(CANVAS) ?? "";
   const answer = withoutCode(finalAnswer(ctx.transcript));
-  const destinations = drawn(answer);
-  const parsed = destinations.map(parseReplyAnchor);
-  const links = parsed.filter((link): link is ReplyAnchor => link !== null);
-  // Every `doan:` string in the answer must be a drawn, well-formed link; `doan://open?…` and bare text are not.
-  const mentioned = [...answer.matchAll(/doan:[^\s)>\]"'<]*/gi)].map(m => m[0]);
-  const pool = destinations.filter(d => parseReplyAnchor(d) !== null);
-  const stray = mentioned.filter(m => { const at = pool.indexOf(m); if (at < 0) return true; pool.splice(at, 1); return false; });
+  const links = drawn(answer).map(parseReplyAnchor).filter((link): link is ReplyAnchor => link !== null);
+  const bad = stray(answer);
   const known = ids(html);
-  const unreal = links.filter(l => l.canvas !== CANVAS_ID || !(l.kind === "frame" ? known.frames : known.elements).has(l.id));
+  const real = (l: ReplyAnchor) => l.canvas === CANVAS_ID && (l.kind === "frame" ? known.frames : known.elements).has(l.id);
+  const unreal = links.filter(l => !real(l));
+  const valid = links.filter(real);
   const heading = textOf(html, "billing-title"), button = textOf(html, ELEMENT);
-  const has = (kind: ReplyAnchor["kind"], id: string) => links.some(l => l.canvas === CANVAS_ID && l.kind === kind && l.id === id);
+  // Each edited place is pointed at by a link to the edited element or to the frame that contains it. The heading's
+  // frame is the anchored one (a real element inside it counts too); the button sits in the Profile frame.
+  const insideFrame = inside(html, FRAME);
+  const points = (frames: string[], elements: (id: string) => boolean) => valid.some(l => l.kind === "frame" ? frames.includes(l.id) : elements(l.id));
+  const headingLinked = points([FRAME], id => insideFrame.has(id));
+  const buttonLinked = points([turn.anchors[1].frame.id], id => id === ELEMENT);
   return [
     { id: "doan_check_clean", pass: check.code === 0 && check.json?.result?.summary?.errors === 0, detail: `exit ${check.code}, ${JSON.stringify(check.json?.result?.summary)}` },
     { id: "only_canvas_changed", pass: changed.length === 1 && changed[0] === CANVAS, detail: `changed: ${changed.join(", ") || "(none)"}` },
     { id: "edits_applied", pass: heading === "Billing details" && button === "Save changes", detail: `billing-title: ${JSON.stringify(heading)}, ${ELEMENT}: ${JSON.stringify(button)}` },
     // The turn prompt tells the agent this conversation is inside Doan, so it neither offers nor runs `doan open`.
     noOpen(ctx),
-    { id: "doan_links_well_formed", pass: stray.length === 0, detail: stray.length ? `doan: text that the app would not draw as a link: ${JSON.stringify(stray)}` : `${links.length} doan link(s) in the answer outside code, all well-formed` },
-    { id: "frame_link", pass: has("frame", FRAME), detail: `want frame ${FRAME} on ${CANVAS_ID}; links: ${JSON.stringify(links)}` },
-    { id: "element_link", pass: has("element", ELEMENT), detail: `want element ${ELEMENT} on ${CANVAS_ID}; links: ${JSON.stringify(links)}` },
-    { id: "links_name_real_targets", pass: links.length > 0 && unreal.length === 0, detail: unreal.length ? `no such target in the final canvas: ${JSON.stringify(unreal)}` : `${links.length} link(s), every one a frame or element of ${CANVAS_ID}` },
+    { id: "doan_links_well_formed", pass: bad.length === 0, detail: bad.length ? `doan: text that the app would not draw as a link: ${JSON.stringify(bad)}` : `${links.length} doan link(s) in the answer outside code, all well-formed` },
+    { id: "links_name_real_targets", pass: links.length > 0 && unreal.length === 0, detail: unreal.length ? `no such target in ${CANVAS_ID}'s final canvas: ${JSON.stringify(unreal)}` : `${links.length} link(s), every one a frame or element of ${CANVAS_ID}` },
+    { id: "frame_link_present", pass: valid.some(l => l.kind === "frame"), detail: `frame links with real ids: ${JSON.stringify(valid.filter(l => l.kind === "frame"))}` },
+    { id: "element_link_present", pass: valid.some(l => l.kind === "element"), detail: `element links with real ids: ${JSON.stringify(valid.filter(l => l.kind === "element"))}` },
+    { id: "heading_change_linked", pass: headingLinked, detail: `want frame ${FRAME} or an element inside it (${[...insideFrame].join(", ") || "none"}); links: ${JSON.stringify(valid)}` },
+    { id: "button_change_linked", pass: buttonLinked, detail: `want element ${ELEMENT} or frame ${turn.anchors[1].frame.id}; links: ${JSON.stringify(valid)}` },
   ];
 };
 export default checks;

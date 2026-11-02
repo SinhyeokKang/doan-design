@@ -39,3 +39,19 @@ test("withoutCode drops fenced blocks and inline code spans but keeps links and 
   assert.equal(withoutCode("~~~\n[x](doan:a/frame/f)\n~~~\nok"), "\nok");
   assert.equal(withoutCode("A lone ` tick and " + link), "A lone ` tick and " + link);
 });
+
+test("withoutCode keeps an inline code span inside its paragraph", () => {
+  const link = "[Save](doan:a/element/save)";
+  // A backtick left open in one paragraph does not swallow the link in the next.
+  assert.equal(withoutCode(`Run \`doan check\n\nThen ${link} and \`x\`.`), `Run \`doan check\n\nThen ${link} and .`);
+  assert.equal(withoutCode(`One \`a\nb\` two ${link}`), `One  two ${link}`);
+});
+
+test("withoutCode treats an unclosed fence as code to the end of the text", () => {
+  const link = "[Save](doan:a/element/save)";
+  assert.equal(withoutCode(`Intro ${link}\n\`\`\`md\n[x](doan:a/frame/f)\nstill code`), `Intro ${link}\n`);
+  // A shorter closing run, or a different fence character, does not close the block.
+  assert.equal(withoutCode("````\n[x](doan:a/frame/f)\n```\n[y](doan:a/frame/g)"), "");
+  assert.equal(withoutCode("```\n[x](doan:a/frame/f)\n~~~\n[y](doan:a/frame/g)"), "");
+  assert.equal(withoutCode("```\nx\n```\n" + link), "\n" + link);
+});

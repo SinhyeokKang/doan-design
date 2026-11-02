@@ -32,16 +32,20 @@ test("R9 pass fixture passes every check", () => {
 });
 test("R9 fail fixture fails the link checks and the doan:// link", () => {
   const ctx = setup(`See [Billing](doan://open?root=/r&canvas=account&frame=billing-form) and [Save](doan:account/element/save).`);
-  assert.deepEqual(checks(ctx).filter(c => !c.pass).map(c => c.id), ["doan_links_well_formed", "frame_link", "element_link", "links_name_real_targets"]);
+  assert.deepEqual(checks(ctx).filter(c => !c.pass).map(c => c.id), ["doan_links_well_formed", "links_name_real_targets", "frame_link_present", "element_link_present", "heading_change_linked", "button_change_linked"]);
 });
 test("R9 reads a Claude result event and the Codex stdout before its banner", () => {
   const answer = `Changed ${FRAME} and ${ELEMENT}.`;
   assert.deepEqual(checks(setup(JSON.stringify({ type: "result", result: answer }))).filter(c => !c.pass), []);
   assert.deepEqual(checks(setup(`${answer}\nOpenAI Codex v0.1\nbanner`)).filter(c => !c.pass), []);
 });
+const NONE = ["links_name_real_targets", "frame_link_present", "element_link_present", "heading_change_linked", "button_change_linked"];
 test("R9 links inside inline code or a code block are not links", () => {
-  assert.deepEqual(failed(`Changed \`${FRAME}\` and \`${ELEMENT}\`.`), ["frame_link", "element_link", "links_name_real_targets"]);
-  assert.deepEqual(failed(`Changed:\n\`\`\`\n${FRAME}\n${ELEMENT}\n\`\`\`\n`), ["frame_link", "element_link", "links_name_real_targets"]);
+  assert.deepEqual(failed(`Changed \`${FRAME}\` and \`${ELEMENT}\`.`), NONE);
+  assert.deepEqual(failed(`Changed:\n\`\`\`\n${FRAME}\n${ELEMENT}\n\`\`\`\n`), NONE);
+  assert.deepEqual(failed(`Changed:\n\`\`\`\n${FRAME}\n${ELEMENT}\n`), NONE);
+  // A backtick left open in one paragraph does not hide the links in the next.
+  assert.deepEqual(failed(`Ran \`doan check\n\nChanged ${FRAME} and ${ELEMENT}.`), []);
   // Code beside real links does not disturb them.
   assert.deepEqual(failed(`Ran \`doan check\`. Changed ${FRAME} and ${ELEMENT}; \`doan:x\` stays text.`), []);
 });
@@ -49,6 +53,12 @@ test("R9 doan_links_well_formed fails for any doan: text the app would not draw 
   for (const extra of ["[x](doan:x)", "[x](doan:Account/frame/billing-form)", "[x](doan:account/point/billing-form)", "[x](doan://open?root=/r&canvas=account)", "doan:account/frame/billing-form", "[x](DOAN:account/frame/billing-form)", "[x](doan:account/frame/a/b)"]) {
     assert.ok(failed(`${FRAME} ${ELEMENT} ${extra}`).includes("doan_links_well_formed"), extra);
   }
+});
+test("R9 doan_links_well_formed ignores a doan: string in a link's text or in prose", () => {
+  assert.deepEqual(failed(`[doan:account/frame/billing-form](doan:account/frame/billing-form) ${ELEMENT}`), []);
+  assert.deepEqual(failed(`${FRAME} ${ELEMENT} The doan: scheme names a place; doan:x is not a place.`), []);
+  // One drawn link does not excuse a second, bare copy of the same text.
+  assert.ok(failed(`${FRAME} ${ELEMENT} doan:account/frame/billing-form`).includes("doan_links_well_formed"));
 });
 test("R9 accepts autolinks, an angle-bracket destination and other real targets", () => {
   assert.deepEqual(failed(`<doan:account/frame/billing-form> and [Save](<doan:account/element/save-profile>)`), []);
@@ -60,10 +70,21 @@ test("R9 links_name_real_targets fails for another canvas, a guessed id or the w
   assert.deepEqual(failed(`${FRAME} ${ELEMENT} [x](doan:account/element/billing-form)`), ["links_name_real_targets"]);
   assert.deepEqual(failed(`${FRAME} ${ELEMENT} [x](doan:account/frame/save-profile)`), ["links_name_real_targets"]);
 });
-test("R9 frame_link and element_link need the anchored targets", () => {
-  assert.deepEqual(failed(`${FRAME} [Profile](doan:account/frame/profile-form)`), ["element_link"]);
-  assert.deepEqual(failed(`${ELEMENT} [Profile](doan:account/frame/profile-form)`), ["frame_link"]);
-  assert.deepEqual(failed("Changed the Billing heading and the Save button."), ["frame_link", "element_link", "links_name_real_targets"]);
+test("R9 needs a frame link and an element link with real ids", () => {
+  assert.deepEqual(failed("Changed the Billing heading and the Save button."), NONE);
+  assert.deepEqual(failed(`${FRAME} [Profile](doan:account/frame/profile-form)`), ["element_link_present"]);
+  assert.deepEqual(failed(`[Heading](doan:account/element/billing-title) ${ELEMENT}`), ["frame_link_present"]);
+  assert.deepEqual(failed(`${FRAME} [Profile](doan:account/frame/profile-form) ${ELEMENT}`), []);
+});
+test("R9 each edited place is linked by its element or its containing frame", () => {
+  // Heading: billing-form, or a real element inside it. Button: save-profile, or profile-form.
+  assert.deepEqual(failed(`[Heading](doan:account/element/billing-title) [Profile](doan:account/frame/profile-form)`), []);
+  assert.deepEqual(failed(`${FRAME} [Update](doan:account/element/update-card)`), ["button_change_linked"]);
+  assert.deepEqual(failed(`[Profile](doan:account/frame/profile-form) ${ELEMENT}`), ["heading_change_linked"]);
+  // A real element of the other frame does not stand for the heading.
+  assert.deepEqual(failed(`[Title](doan:account/element/profile-title) [Profile](doan:account/frame/profile-form)`), ["heading_change_linked"]);
+  // Extra links to real targets are fine.
+  assert.deepEqual(failed(`${FRAME} ${ELEMENT} [Note](doan:account/element/billing-note)`), []);
 });
 test("R9 percent-encoded ids are read decoded", () => {
   assert.deepEqual(failed(`[Billing](doan:account/frame/billing%2Dform) [Save](doan:account/element/save%2Dprofile)`), []);
