@@ -20,12 +20,17 @@
 7. Codex Default를 읽는 `thread/start {ephemeral}`가 실패하거나 값이 빠지면, Codex 대화를 여는 것이 `session_unavailable`로 실패한다. 조용히 넘어가면 앞서 준 Full access override가 Default 턴에 남는다. — 컨덕터 판단(PM-A 질문).
    - 같이 정한 것: `config/read`도 열 때 한 번 읽고, 실패하면 Accept edits는 기본 `workspaceWrite`(network 꺼짐)를 보낸다. Claude 저장 모드는 Plan으로 보낸 턴의 `system/status`만 따른다. `summary.ts`가 `permissionMode`를 싣는다(PM-A 소유에 더함). ACP models 응답에 `modes?`를 더한다.
 
+8. RV-A 리뷰 반영:
+   - ACP에서 대응이 없는 모드는 Default를 설정한다. 아무것도 설정하지 않으면 `session/load`가 되살린 이전 모드(Full access 포함)로 돈다. — 컨덕터 판단.
+   - 큐는 보낼 때의 값을 쓴다(사용자). 기존 대화에서 피커를 바꾸면 main에 바로 저장하는 IPC를 두고, 큐는 flush할 때의 저장값을 쓴다. spec 결정 7·8 그대로다.
+   - Plan 승인 뒤 SDK가 `bypassPermissions`를 알리면 Default로 저장한다(사용자). Full access는 사람이 고를 때만 켜진다. design '모드 대응'의 해당 줄은 Z1에서 고친다.
+
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·노력 (이유) | 검증 게이트 | 상태 |
 |---|---|---|---|---|---|---|
 | PM-P | P1–P4 | `.scratch/permission-mode/`, `docs/features/permission-mode/design.md`(대응표·PoC 칸·Default의 범위), `tasks.md` P 체크 | 없음 | Opus high (실계정·실제 상태를 다루고, 결과가 이후 설계를 정한다) | design.md에 "P1/P2/P3에서 확인" 표시가 남지 않는다. 실제 Doan 저장 파일이 바뀌지 않았다는 전후 비교 | 통합 (`216958a7` → `94edc615`) |
-| PM-A | T1·T2의 main 쪽, S1, S2 | `app/src/main/conversation/{runners,acpRunner,models,service,store,ipc,transport}.ts`와 테스트, `app/src/main/preferences.ts`와 테스트, `app/src/preload/`, 새 공통 모듈 | PM-P 통합 | Opus high (권한 전달, Codex 디스패처 규칙, 저장 형식 예외) | `npm --prefix app test`, `npm --prefix app run typecheck`, POSTMORTEM Codex dispatcher `rg` | 리뷰 중 (`790cae38`, 리뷰 dispatch `ctx_efcb99dea222`) |
+| PM-A | T1·T2의 main 쪽, S1, S2 | `app/src/main/conversation/{runners,acpRunner,models,service,store,ipc,transport}.ts`와 테스트, `app/src/main/preferences.ts`와 테스트, `app/src/preload/`, 새 공통 모듈 | PM-P 통합 | Opus high (권한 전달, Codex 디스패처 규칙, 저장 형식 예외) | `npm --prefix app test`, `npm --prefix app run typecheck`, POSTMORTEM Codex dispatcher `rg` | 리뷰 수정 중 (dispatch `ctx_337842a80470`) |
 | PM-B | T1·T2의 renderer 쪽(`restore/uiState.ts`, 마지막 사용·Settings 규칙), U1, U2 | `app/src/renderer/`(ComposerParts·HomeComposerView·DockedComposer·ProjectOverview·CanvasConversationPanel·SettingsAgents·rememberChoice·App·homeComposer·styles.css와 테스트), `app/src/restore/`, `docs/DESIGN.md` 측정값 | PM-A 통합 | Opus medium (기존 피커 패턴을 따르는 UI. 폭 단계와 상태 동기화에 판단이 든다) | `npm --prefix app test`, typecheck, `/design-sync`, `/runtime-test`(8칸 표·스크린샷), `node .agents/skills/verify/scripts/verify.mjs` | 대기 |
 | 컨덕터 | Z1 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/permission-mode/` 삭제 | PM-B 통합 | — | Z1 검증 grep | 대기 |
 
