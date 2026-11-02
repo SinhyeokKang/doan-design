@@ -21,7 +21,7 @@
 |---|---|---|---|---|---|---|
 | A | T1, T3 | `app/src/renderer/`(`selection.ts` 또는 새 규칙 파일, `canvasMessage.ts`, `CanvasController.ts`, `CanvasTools.tsx`, `App.tsx`, `styles.css`, `ds/controls.css`, 각 테스트), `app/src/restore/uiState.ts`, `app/src/main/uiState.ts`(+test), `.doan/ds/tooltip.html` | 없음 | Claude Opus high: 포인터 캡처·포커스·키 순서·ui-state 복원 경쟁이 얽혀 있고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 49049539..0b4e2781, 리뷰 중 |
 | B | T2 | `app/src/main/canvasScript.ts`, `app/src/main/canvasScript.test.ts` | 없음(메시지 모양은 결정 기록) | Codex gpt-6-astra medium: 파일 하나지만 편집 대상 판정과 blur 처리에 판단이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합 a04a8711 |
-| RA | A 리뷰 | 읽기만 | A | Codex gpt-6-astra medium: 다른 모델 계열의 독립 리뷰 | `/code-review` 보고서 | 대기 |
+| RA | A 리뷰 | 읽기만 | A | Codex gpt-6-astra medium: 다른 모델 계열의 독립 리뷰 | `/code-review` 보고서 | 완료: 🔴 1, 🟡 1 → A 수정 1회차 |
 | RB | B 리뷰 | 읽기만 | B | Claude Sonnet medium: 작은 diff, 다른 계열 리뷰 | `/code-review` 보고서 | 완료: 🔴 0, 🟡 1(통합 확인으로 넘김) |
 | D | 사용자 요청 디자인 이슈 2개(아래 결정 기록) | `ComposerParts.tsx`, `ShellSidebar.tsx`·`HomeComposerView.tsx`의 드롭다운 클래스, `styles.css`, `ds/surfaces.css`와 테스트, `docs/DESIGN.md` 해당 행 | A 통합(styles.css 겹침) | Claude Sonnet high: 범위가 작지만 실제 앱 computed style 측정이 필요하다. Claude 사용량을 아낀다 | `npm --prefix app test`, typecheck, 실제 앱 측정 | 대기 |
 | C | T4(`/runtime-test`, `/design-sync`) | `.scratch/`, `docs/DESIGN.md`의 측정값, design-sync가 고치는 앱 코드(그때 A와 겹치지 않게 지휘자가 순서를 잡는다) | A·B 통합 | Claude Opus high: 실제 앱 probe, 측정과 판단 | probe 완료 표식·exit 0, real-state 전후 같음, `measure.mjs` | 대기 |
@@ -46,3 +46,5 @@ T5의 `/refactor`는 지적이 나온 배치의 작업자가 한다.
   - 지휘자 판단: `terminal-agent-activity.html`·`buzz-project-settings.html` 초안에는 지운 `.doan-picking-esc.doan-kbd` 규칙의 사본이 남아 있다. 초안은 자기 CSS를 품은 그림이고 앱 코드가 아니어서 고치지 않는다.
 - RA: Codex gpt-6-astra medium(dispatch `ctx_9f5eb52eaca4`, worktree `canvas-hand-tool-ra`)으로 시작했다. 대시보드 기준 Codex 사용량은 18%다.
 - D: Claude Sonnet high(dispatch `ctx_7142167b7441`, worktree `canvas-hand-tool-d`)로 시작했다. RA가 `styles.css` 수정을 요구하면 D가 끝난 뒤 A에게 보낸다.
+- RA 완료(테스트 5610/5610, typecheck 통과): 🔴 Space 상태가 그것을 받은 문서·보드보다 오래 남는다. 리로드·전환·닫기 때 `spaceHeld`가 풀리지 않고, 보드가 없을 때 받은 Space-down이 로드 뒤 레이어를 띄운다. 🟡 렌더러의 대기 중 명령과 seq가 같은 클릭은 받아들여지지만 포커스를 옮기지 않는다. 사용자 결정 항목은 없다. A의 차이 #5·#6·#10은 유지한다(RA도 같은 판단). A에 수정 1회차를 보냈다(dispatch `ctx_e6707ea5ebc7`). RA 작업자는 release했다.
+- 통합 HEAD 첫 테스트 실행에서 1개가 실패했고 다시 돌리니 5610/5610 통과했다. 실패한 테스트 이름은 출력이 잘려 남지 않았다. 동시에 작업자들이 `npm ci`를 돌리던 부하에서 난 flaky로 보고, 최종 `/verify`에서 다시 본다.
