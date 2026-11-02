@@ -24,7 +24,7 @@
   - `canvasScript.test.ts`(기존 `fakeCanvas` 하네스, "forwards Esc outside editable elements only" 옆): "forwards Space down/up outside editable elements, ignores repeat", "prevents Space scrolling the canvas", "sends Space up on blur", "forwards V and H outside editable elements".
   - 검증: `npm --prefix app test` green.
 - [ ] T3. `CanvasController.ts` 도구(`select|hand`)·별도 pick 상태, 끌기 레이어, Space·V·H·Esc, 포커스, hover. `CanvasTools.tsx` Hand 버튼·툴팁·`aria-keyshortcuts`·tabIndex·위쪽 주석. `App.tsx` 레이어 요소 위치와 픽 안내 Esc의 공용 키 변형. `styles.css` 레이어 z-index와 커서, `.doan-picking-esc.doan-kbd` 규칙 삭제. `ds/controls.css`에 `doan-kbd[data-ui-variant="on-prominent"]`와 `data-ui-size="sm"`, 키가 있는 툴팁 배치. `.doan/ds/tooltip.html`에 키가 있는 툴팁을 더한다(design '어두운 바탕의 키 표시').
-  - `CanvasController.test.ts`: H로 레이어가 생긴다; V·Esc로 Select가 된다; 입력창의 Esc는 Hand를 풀지 않는다; 픽을 시작하면 레이어가 없고 픽이 끝나면 Hand로 돌아온다; 픽 중 V·H 무시; 캔버스에서 온 Space down은 iframe에 포커스가 있을 때만 레이어를 띄운다; Space up은 항상 받는다; 레이어가 뜰 때 `hover-leave`를 보낸다; Overview·빈 상태를 거쳐도 Hand가 유지된다; 보드를 그리지 않는 상태(loading·failed·noWidth·unlisted)에서는 레이어가 없다; 끄는 중 캔버스 전환·`pointercancel`·`lostpointercapture`에서 끌기가 끝나고 grabbing이 풀린다; 끄는 중 Space up·V는 pointerup 뒤에 적용된다; 끌기는 pointermove 증분으로 `panBy`를 부른다; 캔버스 클릭 뒤 포커스가 `.area`로 가고 픽 중에는 가지 않는다.
+  - `CanvasController.test.ts`: H로 레이어가 생긴다; V·Esc로 Select가 된다; 입력창의 Esc는 Hand를 풀지 않는다; 픽을 시작하면 레이어가 없고 픽이 끝나면 Hand로 돌아온다; 픽 중 V·H 무시; 캔버스에서 온 Space down은 iframe에 포커스가 있을 때만 레이어를 띄운다; Space up은 항상 받는다; 레이어가 뜰 때 `hover-leave`를 보낸다; Overview·빈 상태를 거쳐도 Hand가 유지된다; 보드를 그리지 않는 상태(loading·failed·noWidth·unlisted)에서는 레이어가 없다; 끄는 중 캔버스 전환·`pointercancel`·`lostpointercapture`에서 끌기가 끝나고 grabbing이 풀린다; 끄는 중 Space up·V는 pointerup 뒤에 적용된다; 끌기는 pointermove 증분으로 `panBy`를 부른다; 캔버스 클릭 뒤 포커스가 `.area`로 가고 픽 중에는 가지 않는다. 앱이 마지막으로 본 포인터가 캔버스 영역 밖이면 선택 메시지가 와도 포커스가 옮겨지지 않는다(위조 대응).
   - App 테스트(기존 ui-state 하네스, POSTMORTEM 2026-11-01의 방식): 저장된 Hand로 시작하면 Hand다; 읽기가 끝나기 전에는 저장을 보내지 않는다; 읽기 전에 V·H로 바꾸면 늦은 저장값이 덮지 않는다; Hand·Select로 바꾸면 합친 상태가 저장된다(Select는 필드 없음).
   - `CanvasTools.test.tsx`: `aria-pressed`가 도구를 따른다(지금 Select 고정을 확인하는 테스트를 바꾼다); Select·Hand onClick; 눌린 도구가 `tabIndex=0`; 툴팁에 V·H.
   - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과.
@@ -39,7 +39,8 @@
   - Esc 순서, 캔버스 전환 뒤 Hand 유지, 앱을 다시 켠 뒤 Hand 유지와 Select로 바꾼 뒤 다시 켜면 Select, 픽 시작 시 레이어 없음과 픽 끝난 뒤 Hand 복귀.
   - POSTMORTEM: Hand 상태에서 Tab을 누르면 도구 행의 y가 그대로다(아래쪽에 포커스 가능한 컨트롤이 있는 초안에서). ⌥-click 뒤 iframe에서 Space를 누르고 앱에서 떼는 순서와 그 반대 순서. Space만 누르고 포인터를 움직이지 않았을 때 hover 표시가 사라지고 커서가 grab이 된다.
   - 휠·⌘-휠이 레이어 위에서도 된다.
-  - design.md 'T4에서 확인할 가정' 네 개를 각각 통과·실패로 적는다.
+  - 포인터를 composer에 둔 채 위조 선택 메시지를 보내면 composer 포커스가 그대로다. 프레임을 실제로 클릭하면 포커스가 `.area`로 간다.
+  - design.md 'T4에서 확인할 가정' 다섯 개를 각각 통과·실패로 적는다.
   - 도구 행 측정: 높이·너비, 두 도구 40px, 눌림 채움을 초안과 대조한다.
   - 검증: probe가 완료 표식과 함께 exit 0으로 끝나고 앞 항목이 모두 통과한다. real-state 확인이 실행 전후로 통과한다. 스크린샷과 측정값을 `.scratch/`에 남긴다.
 - [ ] T5. `/code-review` → 고를 항목이 있으면 `/refactor`.

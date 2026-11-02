@@ -23,7 +23,7 @@
 ## 포커스
 
 - 캔버스 여백 클릭(`clickOnMargin`)과 캔버스 안 클릭은 `section.area`에 `focus({ preventScroll: true })`를 준다. 픽 중 클릭은 포커스를 옮기지 않는다. hover는 포커스를 가져가지 않는다(ARCHITECTURE §3 'Practical nested iframe limit').
-- 캔버스 안 클릭은 iframe에서 일어나 앱이 직접 보지 못한다. 그래서 주입 스크립트가 보내는 클릭 선택 메시지를 받았을 때 포커스를 옮긴다. 이 메시지는 위조할 수 있다(ARCHITECTURE 'Untrusted messages'). 위조된 메시지가 composer 포커스를 가져갈 수 있는지와 그 대응은 `/tdd` 전에 정한다(아래 '열린 점').
+- 캔버스 안 클릭은 iframe에서 일어나 앱이 직접 보지 못한다. 그래서 주입 스크립트가 보내는 클릭 선택 메시지를 받았을 때 포커스를 옮긴다. 이 메시지는 위조할 수 있다(ARCHITECTURE 'Untrusted messages'). 그래서 앱이 마지막으로 본 포인터가 캔버스 영역(`section.area` 안의 여백이나 iframe) 위였을 때만 포커스를 옮긴다(시작 점검에서 사용자가 정함). 앱 window의 capture pointermove(`pointerOnApp`)가 마지막으로 본 대상이 캔버스 영역 밖(composer·사이드바 등)이면 그 뒤의 선택 메시지는 포커스를 옮기지 않는다. 포인터가 캔버스 위에 있을 때의 위조는 남는다. 이 정도는 선택 위조와 같은 수준이다. OOPIF 위의 포인터를 앱이 어떻게 보는지는 T4에서 확인한다.
 - 끌기 레이어는 포커스를 가져가지 않는다(`tabIndex` 없음, pointerdown에서 `preventDefault`).
 
 ## 도구 상태
@@ -95,10 +95,7 @@ PoC로 확인된 적이 없다. T4 runtime-test에서 본다.
 - `setPointerCapture`가 창 밖으로 나간 포인터에도 유지된다. 안 되면 끄는 동안 window의 pointermove·pointerup 리스너로 대신한다.
 - Space를 누르고 포인터를 움직이지 않아도 커서가 grab으로 바뀐다(Chromium은 pointermove 없이 커서를 갱신하지 않을 수 있다).
 - 레이어 위의 휠·⌘-휠이 `.area`로 간다.
-
-## 열린 점
-
-- 위조된 클릭 선택 메시지가 composer 포커스를 가져갈 수 있다. 지금은 위조된 선택이 선택만 바꾼다. `/tdd` 전에 대응을 정한다(예: 앱이 본 마지막 포인터 위치가 iframe 위일 때만 포커스를 옮긴다).
+- 포인터가 composer에서 캔버스 프레임으로 들어갈 때 앱의 마지막 pointermove 대상이 캔버스 영역 안이다(포커스 조건이 진짜 클릭을 막지 않는다).
 
 ## POSTMORTEM에서 가져온 함정
 
