@@ -101,14 +101,20 @@ func TestExportWritesTheViewerPageAndReportsTheResult(t *testing.T) {
 		t.Fatalf("title %q meta %q", shell.title, shell.meta)
 	}
 	// Nothing local is left except the links the result names and what CSS files name that do not exist.
+	// missing.css and gone.png sit inside the token CSS, behind a <link> data URI and its @import chain; they are
+	// found only if the scan descends there, and every other reference in that CSS has to be a data URI.
 	allowed := map[string]bool{"other.html#top": true, "submit.html": true, "missing.css": true, "gone.png": true}
+	reached := map[string]bool{}
 	for _, ref := range append(localReferences(t, page), localReferences(t, []byte(shell.srcdoc))...) {
+		reached[ref] = true
 		if !allowed[ref] {
 			t.Errorf("local reference left in the page: %q", ref)
 		}
 	}
-	if len(localReferences(t, []byte(shell.srcdoc))) == 0 {
-		t.Error("the re-scan found nothing: it proves nothing")
+	for ref := range allowed {
+		if !reached[ref] {
+			t.Errorf("the re-scan never reached %q", ref)
+		}
 	}
 	info, err := os.Stat(out)
 	if err != nil {
@@ -629,12 +635,13 @@ func localReferences(t *testing.T, doc []byte) []string {
 	t.Helper()
 	var out []string
 	var cssRefs func(text string, mode canvas.Mode)
-	note := func(href string, css bool) {
+	note := func(href string) {
 		href = strings.TrimSpace(href)
 		switch {
 		case href == "", strings.HasPrefix(href, "#"), strings.HasPrefix(href, "https:"), strings.HasPrefix(href, "http:"):
 		case strings.HasPrefix(href, "data:"):
-			if css && strings.HasPrefix(href, "data:text/css") {
+			// Any inlined stylesheet: a <link> or an @import, nested as deep as the imports go.
+			if strings.HasPrefix(href, "data:text/css") {
 				_, body, _ := strings.Cut(href, ",")
 				text, err := url.PathUnescape(body)
 				if err != nil {
@@ -648,7 +655,7 @@ func localReferences(t *testing.T, doc []byte) []string {
 	}
 	cssRefs = func(text string, mode canvas.Mode) {
 		for _, r := range canvas.CSSRefs(text, mode) {
-			note(r.Value, r.Import)
+			note(r.Value)
 		}
 	}
 	z := html.NewTokenizer(bytes.NewReader(doc))
@@ -683,14 +690,14 @@ func localReferences(t *testing.T, doc []byte) []string {
 				key, val, hasAttr = z.TagAttr()
 				switch string(key) {
 				case "src", "href", "xlink:href", "poster", "data", "action":
-					note(string(val), false)
+					note(string(val))
 				case "srcset":
 					// A URL may hold commas (data:), so candidates are told apart by the comma that ends
 					// the token before a URL.
 					wantURL := true
 					for _, field := range strings.Fields(string(val)) {
 						if wantURL {
-							note(strings.TrimRight(field, ","), false)
+							note(strings.TrimRight(field, ","))
 						}
 						wantURL = strings.HasSuffix(field, ",")
 					}
@@ -709,6 +716,29 @@ func TestExportReferenceScanSeesWhatItShould(t *testing.T) {
 	}
 }
 
+// The scan has to fail when a repo-relative reference is left inside inlined CSS: in a linked stylesheet, in
+// an @import inside it, and in the second level of imports.
+func TestExportReferenceScanDescendsIntoInlinedCSS(t *testing.T) {
+	css := func(text string) string { return "data:text/css;charset=utf-8," + url.PathEscape(text) }
+	inner := css(".c{background:url(leak.png)}")
+	middle := css("@import url(\"" + inner + "\"); .b{background:url(data:image/png;base64,AA==)}")
+	for name, doc := range map[string]string{
+		"link":         `<link rel="stylesheet" href="` + css("a{background:url(leak.png)}") + `">`,
+		"link import":  `<link rel="stylesheet" href="` + css("@import url(\""+css("a{background:url(leak.png)}")+"\");") + `">`,
+		"two levels":   `<link rel="stylesheet" href="` + css("@import url(\""+middle+"\");") + `">`,
+		"style import": `<style>@import url("` + inner + `");</style>`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := localReferences(t, []byte(doc)); !reflect.DeepEqual(got, []string{"leak.png"}) {
+				t.Fatalf("got %q", got)
+			}
+		})
+	}
+	if got := localReferences(t, []byte(`<link rel="stylesheet" href="`+css("a{background:url(data:image/png;base64,AA==)}")+`">`)); len(got) != 0 {
+		t.Fatalf("a clean stylesheet reported %q", got)
+	}
+}
+
 func TestExportInternalErrorsDropThePath(t *testing.T) {
 	for _, err := range []error{
 		&fs.PathError{Op: "stat", Path: "/Users/someone/repo/.doan/x.html", Err: syscall.EACCES},
@@ -721,5 +751,42 @@ func TestExportInternalErrorsDropThePath(t *testing.T) {
 	}
 	if e := exportInternal(syscall.EACCES); !strings.Contains(e.Message, "permission denied") {
 		t.Errorf("the reason was lost: %q", e.Message)
+	}
+}
+
+// The next steps must not lead an agent past the guide's rules: no moving files or changing the served folders
+// on its own, no replacing a file the user did not choose.
+func exportNextSteps(t *testing.T, root string, code string, args ...string) string {
+	t.Helper()
+	got := exportRun(t, root, ExitCode(code), args...)
+	steps := got["error"].(map[string]any)["nextSteps"].([]any)
+	var all []string
+	for _, step := range steps {
+		all = append(all, step.(string))
+	}
+	return strings.Join(all, "\n")
+}
+
+func TestExportNextStepsStayWithinTheGuide(t *testing.T) {
+	root := exporttest.Seed(t)
+	dir := exportOutput(t)
+	refused := exportNextSteps(t, root, "export_refused", exporttest.RefuseScope, "-o", filepath.Join(dir, "x.html"))
+	for _, want := range []string{"Fix the listed references", "needs the user's approval first"} {
+		if !strings.Contains(refused, want) {
+			t.Errorf("export_refused next steps lack %q: %s", want, refused)
+		}
+	}
+	for _, banned := range []string{"move the file", "add its folder", "--add-serve"} {
+		if strings.Contains(refused, banned) {
+			t.Errorf("export_refused next steps tell the agent to %q: %s", banned, refused)
+		}
+	}
+	out := filepath.Join(dir, "y.html")
+	if err := os.WriteFile(out, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exists := exportNextSteps(t, root, "destination_exists", exporttest.Empty, "-o", out)
+	if !strings.Contains(exists, "Ask the user") || !strings.Contains(exists, "only if the user agreed") {
+		t.Errorf("destination_exists next steps: %s", exists)
 	}
 }

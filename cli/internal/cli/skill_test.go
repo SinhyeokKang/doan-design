@@ -245,6 +245,10 @@ func TestSkillGuideOpenOffer(t *testing.T) {
 
 // The onboarding section says which commands open the app; `doan open` is the second one.
 func TestSkillGuideSaysOnlyOpenAlsoOpensTheApp(t *testing.T) {
+	// The open line does not repeat this: the onboarding section is where the guide says the bundled CLI starts a closed Doan once.
+	if !strings.Contains(skillBody, "the CLI inside the app opens that app once and waits up to 15 seconds") {
+		t.Error("the onboarding section does not say that the bundled CLI opens a closed Doan once")
+	}
 	if !strings.Contains(skillBody, "Only `doan open` also opens the app; `doan active` never does.") {
 		t.Error("the onboarding section does not say that doan open may also open the app")
 	}
@@ -265,7 +269,6 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		"`.doan/canvases/*.html` or `.doan/ds/*.html`",
 		"it only navigates",
 		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
-		"A bundled CLI starts a closed Doan once",
 		"On failure: `canvas_not_found`",
 		"`project_not_open` (name the folder; they add it with Add Project…, then ask again)",
 		"`busy` (`message` says what blocks; they finish it, then ask again)",
@@ -291,10 +294,10 @@ func TestSkillGuideExportCommand(t *testing.T) {
 		t.Fatalf("want one doan export line, got %d", len(command))
 	}
 	for _, required := range []string{
-		"- `doan export <canvas path> -o x.html`",
+		"- `doan export <canvas path> -o PATH --json`",
 		"only if asked",
-		"not in `.doan/`",
-		"Say if `external` needs internet or `links` break",
+		"PATH theirs, not in `.doan/`",
+		"Say `external` needs internet, `links` break",
 	} {
 		if !strings.Contains(command[0], required) {
 			t.Errorf("doan export guidance is missing: %s", required)

@@ -134,7 +134,7 @@ func refusedReferences(canvasPath string, refused []export.Refusal) *Error {
 	return &Error{
 		Code:      "export_refused",
 		Message:   strings.Join(lines, "\n"),
-		NextSteps: []string{"Fix the listed references (move the file into .doan/assets/, add its folder with `doan config --add-serve`, fix the path, or inline the frame's content), then export again"},
+		NextSteps: []string{"Fix the listed references in the canvas, then export again. Moving or copying files into the repository, or changing the served folders with `doan config`, needs the user's approval first"},
 	}
 }
 
@@ -163,7 +163,7 @@ func writeExport(ctx Context, output string, force bool, data []byte) *Error {
 			return usageError("The output path is a directory; name a file")
 		}
 		if !force {
-			return &Error{Code: "destination_exists", Message: "The output file already exists", NextSteps: []string{"Choose another -o path, or pass --force to replace it"}}
+			return &Error{Code: "destination_exists", Message: "The output file already exists", NextSteps: []string{"Ask the user, or choose another -o name. Pass --force only if the user agreed to replace that file"}}
 		}
 	} else if !os.IsNotExist(err) {
 		return exportInternal(err)
