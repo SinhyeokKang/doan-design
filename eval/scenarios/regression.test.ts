@@ -24,6 +24,12 @@ function fixture(id: string, transcript = "") {
   cpSync(join(import.meta.dirname, id, "fixtures/pass"), repo, { recursive: true });
   return createContext({ repo, agent: "fixture", transcript, cli, env: process.env, seedCommit: "HEAD" });
 }
+test("scenario subprocesses use their temporary runtime instead of the inherited app runtime", () => {
+  const ctx = fixture("R1");
+  const runtime = ctx.run(process.execPath, ["-p", "process.env.DOAN_RUNTIME || 'default real HOME runtime'"]);
+  assert.equal(runtime.code, 0, runtime.stderr);
+  assert.equal(runtime.stdout.trim(), join(root, "runtime.json"));
+});
 function all(checks: Checks, ctx: ReturnType<typeof fixture>) {
   const failed = checks(ctx).filter(c => !c.pass);
   assert.deepEqual(failed, []);
