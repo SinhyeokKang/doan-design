@@ -13,6 +13,8 @@ export type Ownership = "ours" | "legacy-ours" | "missing" | "foreign";
 export interface Observation {
   kind: "missing" | "file" | "directory" | "symlink" | "other";
   value?: string | null; content?: string | null; real?: string | null; blockedParent?: string | null; error?: string;
+  // The file's bytes are not UTF-8, so `content` is null rather than a lossy decode Doan could write back.
+  undecodable?: true;
 }
 // `want` is the link value, or the file content when `file`. `root` is the deepest folder the runner may not
 // create: provider folders are never created. `after` lists the targets this one goes through.
@@ -80,15 +82,25 @@ function stringEnd(text: string, at: number): number {
   while (text[i] !== '"') i += text[i] === "\\" ? 2 : 1;
   return i + 1;
 }
+// A container is skipped by counting brackets, not by recursing: JSON.parse accepts nesting deeper than the stack.
 function valueEnd(text: string, at: number): number {
   if (text[at] === '"') return stringEnd(text, at);
-  if (text[at] === "{" || text[at] === "[") return entries(text, at).close + 1;
+  if (text[at] === "{" || text[at] === "[") {
+    let depth = 0, i = at;
+    do {
+      if (text[i] === '"') { i = stringEnd(text, i); continue; }
+      if (text[i] === "{" || text[i] === "[") depth++;
+      else if (text[i] === "}" || text[i] === "]") depth--;
+      i++;
+    } while (depth > 0);
+    return i;
+  }
   let i = at;
   while (i < text.length && !",]} \t\n\r".includes(text.charAt(i))) i++;
   return i;
 }
-// The entries of the object or array opening at `at`, and the offset of its closing bracket.
-function entries(text: string, at: number): { list: Entry[]; close: number } {
+// The entries of the object or array opening at `at`.
+function entries(text: string, at: number): Entry[] {
   const object = text[at] === "{", list: Entry[] = [];
   let i = skipSpace(text, at + 1);
   while (text[i] !== (object ? "}" : "]")) {
@@ -100,11 +112,11 @@ function entries(text: string, at: number): { list: Entry[]; close: number } {
     i = skipSpace(text, end);
     if (text[i] === ",") i = skipSpace(text, i + 1);
   }
-  return { list, close: i };
+  return list;
 }
 // Adds `values` as the last entries of the container opening at `open`, separated the way its last entry is.
 function append(text: string, open: number, values: string[]): string {
-  const { list } = entries(text, open), last = list.at(-1);
+  const list = entries(text, open), last = list.at(-1);
   if (!last) return `${text.slice(0, open + 1)}${values.join(", ")}${text.slice(open + 1)}`;
   const gap = text.slice(list.at(-2)?.end ?? open + 1, last.at);
   const lead = gap.slice(gap.indexOf(",") + 1);
@@ -112,7 +124,7 @@ function append(text: string, open: number, values: string[]): string {
 }
 // JSON.parse keeps the last of duplicate keys, so the value it read is the last member with that key.
 function memberValue(text: string, open: number, key: string): number | null {
-  const member = entries(text, open).list.filter(entry => entry.key === key).at(-1);
+  const member = entries(text, open).filter(entry => entry.key === key).at(-1);
   return member ? skipSpace(text, skipSpace(text, stringEnd(text, member.at)) + 1) : null;
 }
 
@@ -185,6 +197,7 @@ function claudeSettingsStep(target: PlannedTarget, observation: Observation): St
     ({ ...base, action: "skip", item: { target: target.target, path: target.path, providers: [...target.providers], reason: "claude-settings", problem } });
   const merged = typeof observation.content === "string" ? mergeClaudeAllow(observation.content) : null;
   if (observation.kind === "symlink") return merged?.kind === "keep" ? { ...base, action: "keep" } : item("link");
+  if (observation.undecodable) return item("json");
   if (merged === null) return { ...base, action: "changed" };
   return merged.kind === "keep" ? { ...base, action: "keep" } : merged.kind === "write" ? { ...base, action: "replace" } : item(merged.problem);
 }
