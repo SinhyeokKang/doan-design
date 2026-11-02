@@ -144,7 +144,7 @@ No subagent is ported. Doan's presets are read by the current agent, which does 
 
 ## Decisions the `document` preset must carry
 
-Recorded in the feature spec (§3.1, §3.2) and confirmed in A1-R on 2026-10-29:
+These decisions are stated in PRODUCT.md §5 'Skills' (Design presets):
 
 - The preset writes two artifacts: a rules document for agents, and design-system canvases for people to check colors, typography, and components.
 - Rules document location: update the project's existing design document if there is one; otherwise ask the user where it should go; if there is no answer, propose a root `DESIGN.md` (user decision 2026-10-29). Do not put it under `.doan/`.
