@@ -3,8 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, test, vi } from "vitest";
 import { Doany, mountDoany } from "./Doany";
 
-// The WebGL calls of the original .doan/assets/doany/motion/mascot.js up to its first frame, from
-// .scratch/doan-mascot/golden.mjs (objects are creation ids, typed arrays are length and checksum).
+// The WebGL calls of the V2 draft .doan/assets/doany/v2/mascot.js up to its first frame, from
+// .scratch/doany-v2/golden-trace.mjs (objects are creation ids, typed arrays are length and checksum).
 const golden = JSON.parse(readFileSync(new URL("./doany.golden.json", import.meta.url), "utf8")) as { scenarios: { name: string; trace?: unknown[] }[] };
 const trace = golden.scenarios.find(item => item.name === "idle")!.trace!;
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -210,7 +210,7 @@ test("the stylesheet is linked and keeps the draft's host rules with the shared 
   const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
   expect(html).toContain('<link rel="stylesheet" href="./doany.css" />');
   const css = readFileSync(new URL("./doany.css", import.meta.url), "utf8");
-  expect(css).toContain(".doany img { padding: 20%; }");
+  expect(css).toContain(".doany img { padding: 16.5%; }");
   expect(css).toContain(".doany [hidden] { display: none; }");
   expect(css).toMatch(/\.doany:focus-visible \{ outline: 2px solid var\(--border-focus\); outline-offset: 2px; border-radius: var\(--radius-container\); \}/);
 });

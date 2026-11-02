@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Doany, Doan's mascot: the WebGL shell of the draft prototype .doan/assets/doany/motion/mascot.js
+// Doany, Doan's mascot: the WebGL shell of the V2 draft prototype .doan/assets/doany/v2/mascot.js
 // (MIT, Doan contributors). Context options, shaders, mesh, blend and texture parameters are the
-// draft's, unchanged (Doany.test.tsx compares the WebGL calls with the original's); motion lives in
-// doanyMotion.ts and the frame loop in doanyRig.ts.
+// draft's, unchanged (Doany.test.tsx compares the WebGL calls with the draft's, and doanyRender.test.ts
+// checks the shader's anchors against the shipped artwork); motion lives in doanyMotion.ts and the
+// frame loop in doanyRig.ts.
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { createDoanyRig, type DoanyRig, type DoanyTarget } from "./doanyRig";
 
@@ -18,16 +19,12 @@ const vertex = `
       vUV = aUV;
       vec2 p = aUV;
       if (layer > .5) {
-        p = p * .83 + vec2(.09, .01);
         vec2 h = p - vec2(.67,.30);
         float c = cos(hatTilt), s = sin(hatTilt);
         p = vec2(c*h.x-s*h.y,s*h.x+c*h.y) + vec2(.67,.30);
       }
       vec2 q = p - vec2(.5,.60);
-      float edge = smoothstep(.15,.49,length(q));
       if (layer < .5) {
-        float angle = atan(q.y,q.x);
-        q += normalize(q+vec2(.0001))*edge*(sin(angle*6.+time*2.3)*.005 + sin(angle*3.-time*5.)*energy*.012);
         q.x += look.x * .018 * (1.-abs(q.y));
       }
       q.x *= 1.+squash;
@@ -35,8 +32,8 @@ const vertex = `
       q.y += squash*.36;
       float c = cos(tilt), s = sin(tilt);
       q = vec2(c*q.x-s*q.y,s*q.x+c*q.y);
-      q += vec2(0.,.12-lift);
-      gl_Position = vec4(q.x*1.20,-q.y*1.20,0.,1.);
+      q += vec2(0.,.10-lift);
+      gl_Position = vec4(q.x*1.34,-q.y*1.34,0.,1.);
     }`;
 const fragment = `
     precision mediump float;
@@ -51,8 +48,8 @@ const fragment = `
     void main() {
       vec4 col = texture2D(skin,vUV);
       if (layer < .5) {
-        float mask = max(eye(vec2(.384,.554)), eye(vec2(.617,.554)));
-        float shine = exp(-pow((vUV.y-.527-look.y*.014)*42.,2.));
+        float mask = max(eye(vec2(.421,.550)), eye(vec2(.619,.550)));
+        float shine = exp(-pow((vUV.y-.523-look.y*.014)*42.,2.));
         col.rgb = mix(col.rgb,vec3(.025)+vec3(.085)*shine,mask);
       }
       gl_FragColor = col;

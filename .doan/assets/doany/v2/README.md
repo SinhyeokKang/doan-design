@@ -1,6 +1,8 @@
 # Doany V2 — selected Pebble
 
-Status: approved still artwork and runnable canvas prototype; not implemented in the app.
+Status: the app's mascot. Approved still artwork and runnable canvas prototype;
+the app ships copies of `doany.png`, `body.png` and `hat.png`
+(`app/src/renderer/public/doany/`) and the icon resized from `white.png`.
 
 ## Source of truth
 
@@ -37,6 +39,11 @@ Ready:
   coordinate space. They are visual reconstructions, not pixel-exact crops.
 - `mascot.js`: runnable V2 WebGL prototype, isolated with `data-mascot-v2` and
   `window.doanyV2Demo`; retains V1 timing, removes radial edge waves.
+- `white.png`: square white logo, the V1 `../white/` method applied to
+  `doany.png`: the alpha bounding box scaled proportionally (Lanczos) to 84% of
+  the square on its longer side, centred and alpha-composited on pure white, with
+  no generated changes. `app/resources/icon.png` is `sips -z 1024 1024` of it,
+  as the V1 icon was of `../white/doany.png`.
 - `simple/doany-accent.svg`: flat V2 favicon master; accent body (`#973BE1`,
   `--violet-9` / `--affordance-accent` in renderer tokens), black beret and eyes,
   transparent background, no gradients or texture. It traces `doany.png`: the
@@ -47,14 +54,14 @@ Ready:
 - `source-prompt.txt`, `layer-prompts.json`: artwork provenance.
 - `LICENSE`: MIT license for motion code, not artwork.
 
-Pending: white app-icon export, application copies/integration, final visual
-approval and real-app verification. Do not overwrite `../motion/`.
+Do not overwrite `../motion/` or the other V1 directories.
 
 The canvas reuses V1 screen CSS. V2 fallback padding is 16.5%; shader scale is
 1.34, neutral vertical offset .10, body pivot (.5,.60), hat pivot (.67,.30).
 Both textures use the same UV coordinates with no extra hat scaling. Eye centers
-are (.421,.550) and (.619,.550), radii (.035,.056). These are prototype anchors;
-verify visual matching again in the app. See the feature design for handoff.
+are (.421,.550) and (.619,.550), radii (.035,.056). The app uses the same
+anchors; `doanyRender.test.ts` checks them against the shipped artwork (padding,
+eyes, hop headroom). See the feature design for handoff.
 
 ## Motion contract
 

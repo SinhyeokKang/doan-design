@@ -12,9 +12,9 @@
   - 검증: 호흡·깜빡임·시선·입력·반복 홉·reduced motion을 114/142.5px 슬롯에서 직접 확인하고 `go run ./cli/cmd/doan check --repo . --json` 실행. 커밋 경계: V2 모션 초안·좌표·출처.
 - [x] C2. 손으로 단순화한 V2 Pebble SVG와 16·32·48px favicon을 `.doan/assets/doany/v2/simple/`에 새로 만든다. `.doan`의 V1 파일(`simple/` 포함)은 그대로 남긴다(사용자). 앱 쪽은 V2로 일괄 교체한다. 색은 `--affordance-accent`(`#973BE1`) 단색, 검은 베레모와 눈, 투명 배경. 현행 마스코트를 보여 주는 DS 참조(`.doan/ds/doany.html`)와 README는 V2 파일을 가리키게 한다.
   - 검증: `go run ./cli/cmd/doan check --repo . --json`에 새 오류 없음. 결과 스크린샷을 handoff에 남긴다.
-- [ ] D. `/tdd`로 바뀌는 렌더 계약과 기존 모션·생명주기 회귀를 고정한다. 필요한 렌더 좌표 계산만 순수 함수로 분리한다. 변경 없는 시간 모델 테스트는 재사용한다.
+- [x] D. `/tdd`로 바뀌는 렌더 계약과 기존 모션·생명주기 회귀를 고정한다. 필요한 렌더 좌표 계산만 순수 함수로 분리한다. 변경 없는 시간 모델 테스트는 재사용한다.
   - 검증: `npm --prefix app test`에서 새 회귀가 구현 전 실패하는지 확인한다. 공유 스키마 단계는 변경이 없어 생략한다.
-- [ ] E. `/implement`로 기존 Doany 렌더러에 V2 자산·좌표·변형을 적용한다. fallback·컨텍스트 손실·숨김·dispose 계약을 유지하고, V2 정지 원본으로 흰 배경 앱 아이콘을 만든다. DS 참조와 출처·fixture 생성 설명을 맞춘다.
+- [x] E. `/implement`로 기존 Doany 렌더러에 V2 자산·좌표·변형을 적용한다. fallback·컨텍스트 손실·숨김·dispose 계약을 유지하고, V2 정지 원본으로 흰 배경 앱 아이콘을 만든다. DS 참조와 출처·fixture 생성 설명을 맞춘다.
   - 검증: `npm --prefix app test`, `npm --prefix app run typecheck`, `npm --prefix app run build`. 커밋 경계: V2 앱 적용·회귀 검증.
 - [ ] F. `/design-sync`로 V2 초안과 앱을 비교하고 `/runtime-test`로 바뀐 동작을 짧게 확인한다. 임시 HOME/userData/SHELL/agent 설정/DOAN_RUNTIME을 사용한다. 정상·축소 창, 포인터·입력·클릭·Enter·Space·전송 및 거절, 정점 잘림, reduced motion, Welcome 뒤 숨김, 실패 fallback, StrictMode와 24회 Home 재방문을 포함한다.
   - 검증: `node .scratch/design-sync/doany-v2/measure.mjs`와 `npm --prefix app run package` 후 격리된 패키지 실행. 실제 장면·시간·프레임 증거를 남긴다. 전용 영구 e2e suite는 만들지 않는다.
