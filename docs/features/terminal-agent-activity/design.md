@@ -87,11 +87,11 @@ v1(`active`)과 v2(onboarding 전용) 옆에 `work` 전용 v3를 따로 둔다. 
   - 캔버스 행이나 프로젝트 행의 터미널 슬롯을 누르면 그 캔버스를 연다. 여럿이면 가장 최근에 바뀐 캔버스를 연다. 캔버스 알림 dot의 D10 규칙(`docs/features/canvas-viewport-units/orch.md`)과 같다.
 - **캔버스 페이지**: Agent indicator를 재사용한다. glow·dot field와 notice를 보이고 Stop은 두지 않는다. notice는 버튼이 없는 `role=status`이다. 버튼이 없으므로 notice 안쪽 여백을 따로 맞춘다(`/design-draft`에서 정하고 `/design-sync`에서 잰다).
   - 합성은 `app/src/renderer/agentIndicator.ts` `canvasAgent`에서 한다: 앱 대화가 같은 캔버스에서 작업 중이거나 답을 기다리면 앱 대화의 indicator가 이긴다. 터미널 변형에는 Stop이 없다.
-  - 전환: 앱 대화의 turn이 끝났는데 같은 캔버스에 터미널 세션이 남아 있으면, indicator는 사라지지 않고 터미널 변형으로 바뀐다(notice 문구가 바뀌고 Stop이 없어진다). 터미널 세션도 끝나면 사라진다.
+  - 전환: 앱 대화의 turn이 끝났는데 같은 캔버스에 터미널 세션이 남아 있으면, indicator는 사라지지 않고 터미널 변형으로 바뀐다(Stop만 없어진다. 문구는 그대로다). 터미널 세션도 끝나면 사라진다.
   - 로딩 중·실패·폭 없음인 캔버스에서는 보이고, 목록에 없는 페이지와 프로젝트 문제에서는 보이지 않는다. PRODUCT §5 item 2 'Agent indicator' 규칙과 같다.
 - **캔버스 대화 패널**: 새 대화 상태의 'Terminal session' 이어 가기 선택지는, 그 연결 기록의 세션(`provider:id`)이 작업 중 목록에 있으면 비활성이고 이유 한 줄을 보인다. 새 대화는 그대로 고를 수 있다. `done`이나 만료로 목록에서 빠지면 다시 고를 수 있다. 이미 이어 가기가 선택돼 있었다면 새 대화로 바꾼다. 익명 세션은 연결 기록과 맞출 수 없으므로 막지 않는다.
 - **문구**(clarify 프리셋으로 정했다):
-  - notice: "Agent is working in a terminal". 앱 대화의 notice "Agent is working"에 출처만 더한다. provider 이름을 넣지 않는 것도 같다.
+  - notice: "Agent is working". 앱 대화의 notice와 같은 문구이고, 터미널 변형은 Stop만 보이지 않는다.
   - 슬롯 접근 이름: "Claude Code is working in a terminal", "Codex is working in a terminal", 익명 "An agent is working in a terminal". 앱 대화 슬롯 "`<provider>` is working"에 출처만 더한다.
   - 비활성 이유: "Still working in your terminal. You can continue it when it finishes." 선택지 제목 "Continue the `<provider>` session from your terminal"과 같은 "your terminal"을 쓰고, 언제 다시 고를 수 있는지 알린다.
 
