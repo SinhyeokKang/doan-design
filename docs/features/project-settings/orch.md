@@ -61,3 +61,7 @@
 - A2 수정 1회차: RA1 🟡 3과 RA2 🟡 1·⚪ 3을 retain한 A2 작업자에게 보냈다(task `task_b14230b9d2b2`, dispatch `ctx_9bb9c753aadb`). 작업자가 브리프를 읽기 시작한 것을 확인했다.
 - A2 수정 1회차 완료: 419dc4ce·2c8e9341을 25981634·6ec0b7fe로 통합했다(작업자 보고: `verify.mjs` PASS, 테스트 5705, 새 테스트는 먼저 red를 보았거나 변이로 확인). 지휘자가 diff를 직접 읽고 재리뷰 없이 받아들였다. 리뷰어가 제안한 수정과 같고 범위가 작다. A2 작업자는 release했고 worktree는 Orca로 지웠다(깨끗함, `git cherry`에 `+` 없음, `.scratch`는 `evidence-a2`로 복사, 브랜치 `SinhyeokKang/project-settings-page-a2`는 2c8e9341로 다시 만듦).
 - C: Claude Sonnet high(task `task_6c596b0c0be5`, dispatch `ctx_8d4abdc8c941`, worktree `project-settings-c`, 브랜치 `SinhyeokKang/project-settings-orch-brief`)로 6ec0b7fe 위에서 시작했다.
+- C 질문 3건(지휘자 판단으로 답했다):
+  - (1) 실제 앱에서 Locate가 성공하면 페이지가 새 루트로 옮겨 가지 않고 origin으로 닫힌다. 원인은 main `shell.ts`의 `replace(from, to)`가 `onChange(entries())`만 보내고 `{from, root}` focus를 보내지 않는 것이다. 그래서 옛 루트가 목록에서 사라지고 `followProjectSettings`가 `leave`를 돌려준다. A2의 App 테스트는 focus를 직접 주입해서 이 결함을 잡지 못했다. 답: `replace`가 focus를 함께 보내게 고치고, C의 소유 범위에 `shell.ts`와 그 테스트를 더한다. 다른 FolderFocus 사용처가 바뀌지 않는지 확인한다. 근거: spec 완료 조건 5.
+  - (2) Share 확인이 main이 돌려준 절대 경로를 보인다. 답: worktree 안 경로는 저장 표기와 같은 상대 경로로, 밖 경로는 절대 경로로 보인다(제목·본문·접근 이름). 근거: 시안과 design.
+  - (3) 확인이 열린 동안 뒤 컨트롤을 비활성으로 그린다. 시안 타일은 활성이다. 답: 구현을 시안에 맞춘다. 확인은 `showModal`이라 뒤가 이미 inert이고, 비활성 표시는 사용자 결정이 아니라 구현 선택이었다.
