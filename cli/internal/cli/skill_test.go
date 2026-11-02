@@ -278,3 +278,39 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		}
 	}
 }
+
+// The export line is written for the output budget; each clause below is a rule the guide must keep.
+func TestSkillGuideExportCommand(t *testing.T) {
+	var command []string
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "- `doan export ") {
+			command = append(command, l)
+		}
+	}
+	if len(command) != 1 {
+		t.Fatalf("want one doan export line, got %d", len(command))
+	}
+	for _, required := range []string{
+		"- `doan export <canvas path> -o x.html`",
+		"only if asked",
+		"not in `.doan/`",
+		"Say if `external` needs internet or `links` break",
+	} {
+		if !strings.Contains(command[0], required) {
+			t.Errorf("doan export guidance is missing: %s", required)
+		}
+	}
+	// The line belongs to the Commands list, before `doan skill`.
+	list := skillBody[strings.Index(skillBody, "## Commands"):]
+	if strings.Index(list, "- `doan export ") > strings.Index(list, "- `doan skill`") {
+		t.Error("the export line is outside the Commands list")
+	}
+	// Export is not a way to produce files for the agent's own use: the guide never lists it as a step.
+	for _, step := range []string{"I. ", "J. "} {
+		for _, l := range strings.Split(skillBody, "\n") {
+			if strings.HasPrefix(l, step) && strings.Contains(l, "doan export") {
+				t.Errorf("step %q runs doan export", step)
+			}
+		}
+	}
+}
