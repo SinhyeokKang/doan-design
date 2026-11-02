@@ -7,6 +7,8 @@ description: Build an ad-hoc signed tester dmg of Doan from the latest remote ma
 
 A local stand-in until release packaging exists (BACKLOG 'Release packaging'): arm64 only, ad-hoc signed, not notarized. It changes no build settings; everything happens in a temporary worktree.
 
+**The dmg always goes to the Desktop (`~/Desktop`).** Never leave it in the repo, `.scratch/`, `app/dist/` or any other folder, even when asked for "a build" without a location.
+
 ## Steps
 
 1. **Source.** `git fetch origin main`, note `sha=$(git rev-parse --short=7 origin/main)`, and add a temporary worktree at `origin/main` under `.scratch/tester-build/<sha>` (detached). Never build from a dirty or unpushed checkout.
