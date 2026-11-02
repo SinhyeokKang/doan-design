@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { shellCommands, commandWords, mcpTools, toolCalls } from "./transcript.ts";
+import { shellCommands, commandWords, doanCommand, doanPositionals, mcpTools, toolCalls } from "./transcript.ts";
 test("only Bash tool_use and Codex exec headers yield shell commands", () => {
   assert.deepEqual(shellCommands('guide: doan active\n{"type":"user","message":{"content":[{"type":"tool_result","content":"doan active"}]}}'), []);
   assert.deepEqual(shellCommands('{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"doan active"}}]}}'), ["doan active"]);
@@ -114,4 +114,12 @@ test("only a whole standalone literal patch batch qualifies as code-mode invocat
   const invalidString = `await tools.apply_patch('${patch}');`;
   assert.equal(calls(invalidString).patches, undefined);
   assert.deepEqual(calls(invalidString).patchCandidates, [patch]);
+});
+test("doan export flags are read as flags, so the canvas stays the second positional", () => {
+  const words = ["doan", "export", ".doan/canvases/profile.html", "-o", "/tmp/out.html", "--force", "--json"];
+  assert.equal(doanCommand(words), "export");
+  assert.deepEqual(doanPositionals(words), ["export", ".doan/canvases/profile.html"]);
+  assert.deepEqual(doanPositionals(["doan", "export", "-o", "x.html", "a.html", "--force"]), ["export", "a.html"]);
+  assert.equal(doanPositionals(["doan", "export", "a.html", "-o"]), undefined);
+  assert.equal(doanPositionals(["doan", "export", "a.html", "-x", "y"]), undefined);
 });

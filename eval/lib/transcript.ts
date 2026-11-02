@@ -8,8 +8,8 @@ export function scriptTokens(source: string): string[] {
 // Mirror the CLI's known flag arities; a flag value is never command evidence.
 export function doanPositionals(words: string[]): string[] | undefined {
   if (!/^(?:.*\/)?doan$/.test(words[0] ?? "")) return undefined;
-  const values = ["repo", "token-css", "add-serve", "remove-serve", "canvas", "agent", "frame"];
-  const booleans = ["json", "clear-token-css"];
+  const values = ["repo", "token-css", "add-serve", "remove-serve", "canvas", "agent", "frame", "o"];
+  const booleans = ["json", "clear-token-css", "force"];
   const positionals: string[] = [];
   for (let i = 1; i < words.length; i++) {
     const word = words[i];

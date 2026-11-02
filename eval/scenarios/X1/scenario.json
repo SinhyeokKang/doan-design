@@ -1,0 +1,9 @@
+{
+  "id": "X1",
+  "title": "Export a canvas as one HTML file to share, only because the person asked",
+  "focus": "write",
+  "init": {
+    "tokenCss": ".doan/assets/tokens.css"
+  },
+  "selection": null
+}
