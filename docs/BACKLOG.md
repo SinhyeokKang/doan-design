@@ -37,6 +37,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Known defects
 
+- Runtime probes with an isolated HOME still write to the real `~/.gemini/antigravity-cli/` (logs, a crash log, `cli.log`): the app's Antigravity tool-fact check starts the language server, which does not follow HOME. Seen on 2026-11-02 in every dogfooding probe; ARCHITECTURE §7 'Known limits' names only `~/.codex` and cursor. `real-state.ts` flags it as a changed fingerprint.
 - Text fields have no right-click edit menu (Cut, Copy, Paste). It is app-wide, so buzz-home left it out; no feature owns it.
 - Quick Open on Home does not say that results are missing while some projects are still being read: the list fills in live as projects finish, yet the reading text “Try again shortly.” suggests reopening, which the live update makes unnecessary.
 - A project registered through a symlinked path fails every Doan-connection start: with `/tmp/<x>`, Codex starts from Home failed (“Couldn't start with Codex right now”, `session_unavailable`) while `/private/tmp/<x>` worked; probably `prepare.ts`'s `canonicalDirectory(request.root) !== request.root` check, not confirmed, and Claude was not tried. Projects added through the UI are stored by real path, but one added under a symlinked home folder would fail the same way.

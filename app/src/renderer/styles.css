@@ -645,6 +645,12 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-settings-row:focus-visible { outline-offset: -2px; }
 .shell-side .shell-settings-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .shell-side .shell-settings-row[aria-current="page"] svg { color: var(--text-standard); }
+/* The Home row sits between Search and the projects (dogfooding #2) and reads as a Settings category row. */
+.shell-side .shell-home-row { flex: none; width: 100%; padding-inline: 10px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); text-align: left; }
+.shell-side .shell-home-row svg { width: var(--size-icon); height: var(--size-icon); flex: none; color: var(--text-subtle); }
+.shell-side .shell-home-row:focus-visible { outline-offset: -2px; }
+.shell-side .shell-home-row[aria-current="page"] { background: var(--affordance-backdrop-pressed); }
+.shell-side .shell-home-row[aria-current="page"] svg { color: var(--text-standard); }
 .shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }
 .settings-panel { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); font-variant-numeric: normal; }
 .settings-page { max-width: 48rem; margin: 0 auto; padding: var(--space-8) var(--space-6) var(--space-6); }

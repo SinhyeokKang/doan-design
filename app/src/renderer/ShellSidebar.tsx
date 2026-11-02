@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, ChevronDown, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, type HomeCard, type RowAction } from "./homeCards";
@@ -33,6 +33,8 @@ interface Props {
   projectSettings(root: string, projectKey: string): void;
   // On Home the sidebar marks no current project or canvas (buzz-home design §3).
   home?: boolean;
+  // The Home row above the projects (dogfooding #2: Home had no visible way back).
+  goHome?(): void;
   // Home-conversation states by slotKey (design §7.2) and roots to flash after an add (design §6).
   slots?: ReadonlyMap<string, Slot>;
   highlight?: readonly string[];
@@ -177,6 +179,7 @@ export function ShellSidebar(props: Props) {
   }
   return <aside className="side shell-side" ref={host} aria-label="Projects">
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
+    <button type="button" className="shell-home-row row" aria-current={props.home ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
     <div className="shell-projects">
       <h2 className="shell-projects-heading">Projects</h2>
       <div role="tree" aria-label="Projects and canvases">

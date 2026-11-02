@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-02 — The loaded project's row did nothing on a canvas, though PRODUCT said it opened the Overview
+
+- **Area**: `app/src/renderer/App.tsx` (`toggleProject`), now `shellNavigation.ts` (`loadedProjectRow`, `projectsTab`).
+- **Symptom**: in dogfooding, "there is no way back to Home or the Overview". On a canvas, clicking the current project's sidebar row did nothing; the only routes were the row's "…" menu > Overview and Go > Home (⇧⌘H), neither visible.
+- **Root cause**: the loaded-row branch handled two cases (another screen → enter; Overview shown → open the slot) and returned for the third (a canvas shown), so PRODUCT §5 item 3's "reachable from … the sidebar project row" held only from other screens.
+- **Net**: no test exercised the loaded row while a canvas was shown; found by the user. The rule is now a pure function with each screen pinned in `shellNavigation.test.ts`; the real app was checked for all three routes (`.scratch/runtime-test/dogfood-repro/run-nav.log`).
+- **Prevention**: when a navigation branch returns early, list every screen it can run on and pin each in a test. Search: `rg -n "currentScreen.current !==|shownOverviewRef.current ===" app/src/renderer/App.tsx`.
+
 ### 2026-11-02 — A picked model was forgotten: one start path skipped the memory and a fixed default overrode it
 
 - **Area**: `app/src/renderer/App.tsx` (HomeRun `host.sent`, the only Last used writer), `CanvasConversationPanel.tsx` (its own `startConversation`), `homeComposer.ts` (`defaultModel`/`defaultEffort` prefer a fixed default), now `rememberChoice.ts`.

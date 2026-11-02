@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commitVisit, emptyHistory, historyTarget, projectExpanded, projectHue, projectInitial, reconcileProjects, selectProjectRoot } from "./shellNavigation";
+import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectsTab, projectExpanded, projectHue, projectInitial, reconcileProjects, selectProjectRoot } from "./shellNavigation";
 import { parseUiState } from "../restore/uiState";
 
 describe("shell navigation", () => {
@@ -71,5 +71,21 @@ describe("shell project persistence", () => {
   });
   it.each([-1, 1e300, null])("drops only invalid timestamp %s", selectedAt => {
     expect(parse({ a: { roots: ["a"], selectedRoot: "a", selectedAt, expanded: false } })?.shellProjects?.a).toEqual({ roots: ["a"], selectedRoot: "a", expanded: false });
+  });
+});
+
+// Dogfooding #2: there was no visible way back to Home or to the Overview from a canvas.
+describe("ways back", () => {
+  it("the loaded project's row opens its Overview from a canvas, keeps the slot rule on the Overview, and re-enters from elsewhere", () => {
+    expect(loadedProjectRow({ screen: "workspace", overviewShown: false })).toBe("overview");
+    expect(loadedProjectRow({ screen: "workspace", overviewShown: true })).toBe("slot");
+    expect(loadedProjectRow({ screen: "home", overviewShown: false })).toBe("enter");
+    expect(loadedProjectRow({ screen: "settings", overviewShown: true })).toBe("enter");
+  });
+  it("the Projects tab leaves a page as before and goes Home from a workspace", () => {
+    expect(projectsTab("addProjects")).toBe("leavePage");
+    expect(projectsTab("settings")).toBe("leavePage");
+    expect(projectsTab("workspace")).toBe("home");
+    expect(projectsTab("home")).toBe("stay");
   });
 });
