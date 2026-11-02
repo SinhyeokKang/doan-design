@@ -58,7 +58,7 @@ Properties to cover: size, padding, gap, border and radius, colors (text, backgr
 
 Both sides are read with `getComputedStyle` in the same Electron/Chromium build, so units, fonts and token variables resolve the same way.
 
-- Write the script at `.scratch/design-sync/<screen>/measure.mjs`, using `app/runtime/environment.ts` and `harness.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir`, `DOAN_CLI` and `isolatedEnv` from `app/runtime/environment.ts` (temp `HOME`, `TMPDIR`, fake `SHELL`, `CLAUDE_CONFIG_DIR`/`CODEX_HOME` under that HOME, pre-written `onboarding.json`), the folder dialog replaced through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas.
+- Write the script at `.scratch/design-sync/<screen>/measure.mjs`, using `app/runtime/environment.ts` and `harness.ts`: `npm --prefix app run build`, `go build -o <temp>/doan ./cli/cmd/doan`, Playwright `_electron.launch` with a temporary `--user-data-dir`, `DOAN_CLI` and `isolatedEnv` from `app/runtime/environment.ts` (temp `HOME`, `TMPDIR`, fake `SHELL`, `CLAUDE_CONFIG_DIR`/`CODEX_HOME` under that HOME, pre-written `onboarding.json`), the folder dialog replaced through `electronApp.evaluate`, then add this repo with Add Project… and open the canvas. Wrap the whole script in `realState()` / `assertRealState()` from `app/runtime/real-state.ts` (needs `python3.12`), not only the Playwright launches, and treat any `electron-vite dev` run as an app launch with the same isolation (POSTMORTEM 2026-10-30).
 - **Draft side**: the canvas iframe is a Playwright `Frame`; read styles and `getBoundingClientRect()` inside it. Do not use `boundingBox()` for elements inside the iframe — it ignores the board scale. Computed styles do not depend on the zoom.
 - **Implementation side**: the app window's renderer page, brought to the state of each row.
 - Create the states for real (hover, focus, scroll, selection) before reading. Read values that load asynchronously at the same moment as the rest, after they settle.
@@ -68,6 +68,7 @@ Both sides are read with `getComputedStyle` in the same Electron/Chromium build,
 
 ### 4. Fix
 
+- Before changing UI, check Doan's own design presets as AGENTS.md 'Design presets in development skills' says, and name the presets read in the report.
 - Bulk replacements assert that they matched; a replacement that silently matched nothing must not be reported as fixed.
 - Comments say why the value matters (what breaks without it), not which draft it came from.
 - Do not change how screens you did not measure look. If a shared primitive must change, prefer the call site, and record it in `docs/DESIGN.md`.
