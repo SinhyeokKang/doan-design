@@ -49,16 +49,17 @@ export function reconcileProjects(saved: Record<string, ShellProject>, groups: r
 
 // The loaded project's sidebar row (dogfooding #2, PRODUCT §5 item 3 'Project Overview' "the sidebar project row"):
 // elsewhere it re-enters the workspace; on a canvas it opens the Overview; on the Overview it opens the row's slot.
-// From Home the row opens the Overview rather than re-entering the last canvas (user decision); a page goes back to
-// the loaded workspace as it was.
+// From Home and the Project Settings page, which shows Home's sidebar (project-settings design '화면'), the row opens the
+// Overview rather than re-entering the last canvas (user decision); another page goes back to the loaded workspace as it
+// was.
 export function loadedProjectRow(at: { screen: string; overviewShown: boolean }): "enter" | "overview" | "slot" {
-  if (at.screen === "home") return "overview";
+  if (at.screen === "home" || at.screen === "projectSettings") return "overview";
   if (at.screen !== "workspace") return "enter";
   return at.overviewShown ? "slot" : "overview";
 }
 
 // The header's Projects tab leaves a page for where it came from, and from a workspace goes Home (dogfooding #2).
 export function projectsTab(screen: string): "leavePage" | "home" | "stay" {
-  if (screen === "addProjects" || screen === "settings") return "leavePage";
+  if (screen === "addProjects" || screen === "settings" || screen === "projectSettings") return "leavePage";
   return screen === "workspace" ? "home" : "stay";
 }

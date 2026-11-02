@@ -3,7 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { Bell, Bot, Check, ChevronDown, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
-import { cardRow, type HomeCard, type RowAction } from "./homeCards";
+import { cardRow, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
 import { projectExpanded, projectHue, projectInitial } from "./shellNavigation";
 import { sortedCanvases } from "./canvasOrder";
 import { rowProblem, typeaheadNext } from "./canvasTree";
@@ -36,18 +36,21 @@ interface Props {
   overview(root: string): void;
   action(action: RowAction, root: string): void;
   remove(roots: string[]): Promise<void>;
-  // The project menu's Project Settings: a dialog for the worktree the menu shows, not a move, so a locked page allows
-  // it (buzz-settings design '잠금').
-  projectSettings(root: string, projectKey: string): void;
-  // On Home the sidebar marks no current project or canvas (buzz-home design §3).
+  // The project menu's Project Settings: the page for the worktree the menu shows. It is a move, so a locked page shows
+  // it unavailable (project-settings design '이동과 잠금').
+  projectSettings(root: string): void;
+  // On Home and the pages the sidebar marks no current project or canvas (buzz-home design §3).
   home?: boolean;
+  // The Home row is current only on Home itself, not on a page that shows Home's sidebar (PRODUCT §5 item 3).
+  homeCurrent?: boolean;
   // The Home row above the projects (dogfooding #2: Home had no visible way back).
   goHome?(): void;
   // Home-conversation states by slotKey (design §7.2) and roots to flash after an add (design §6).
   slots?: ReadonlyMap<string, Slot>;
   highlight?: readonly string[];
-  // The Add Projects page is selecting or cloning: moves away are shown unavailable and App ignores them
-  // (buzz-add-projects design '잠금'). aria-disabled keeps them in the focus order.
+  // A page holds work (Add Projects selecting or cloning; Settings or Project Settings a confirmation or a write): moves
+  // away are shown unavailable and App ignores them (buzz-add-projects design '잠금'). aria-disabled keeps them in the
+  // focus order.
   locked?: boolean;
   // The Settings page: the project tree gives way to its categories, a plain list of buttons (buzz-settings design
   // 'LNB'). Choosing one leaves focus on its row.
@@ -79,7 +82,6 @@ function SlotMark({ slot }: { slot: Slot | undefined }) {
 }
 // Canvas paths start with `.doan/`, so a head's key never equals a canvas row's.
 const headKey = (root: string, group: GroupId) => `${root}\n#${group}`;
-const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ShellSidebar(props: Props) {
   const { cards, projects, loaded, canvas } = props;
   const descriptionPrefix = useId();
@@ -193,7 +195,7 @@ export function ShellSidebar(props: Props) {
   }
   return withHandle(<aside className="side shell-side" ref={host} aria-label="Projects">
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
-    <button type="button" className="shell-home-row row" aria-current={props.home ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
+    <button type="button" className="shell-home-row row" aria-current={props.homeCurrent ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
     <div className="shell-projects doan-scroll">
       <h2 className="shell-projects-heading">Projects</h2>
       <div role="tree" aria-label="Projects and canvases">
@@ -233,7 +235,7 @@ export function ShellSidebar(props: Props) {
                 <DropdownMenu.Separator className="doan-menu-sep" />
                 <DropdownMenu.Item className="doan-menu-item" disabled={menuEntry.kind !== "list"} aria-disabled={locked ?? (menuEntry.kind !== "list" || undefined)} onSelect={() => run(() => props.overview(menuEntry.path))}><LayoutGrid />Overview</DropdownMenu.Item>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.action("showInFinder", menuEntry.path))}><FolderOpen />Show in Finder</DropdownMenu.Item>
-                <DropdownMenu.Item className="doan-menu-item" onSelect={() => run(() => props.projectSettings(menuEntry.path, card.key))}><Settings />Project Settings</DropdownMenu.Item>
+                <DropdownMenu.Item className="doan-menu-item" aria-disabled={locked} onSelect={() => run(() => props.projectSettings(menuEntry.path))}><Settings />Project Settings</DropdownMenu.Item>
                 {menuInfo.actions.filter(action => action !== "remove" && action !== "showInFinder").map(action => <DropdownMenu.Item className="doan-menu-item" key={action} onSelect={() => run(() => props.action(action, menuEntry.path))}>{labels[action]}</DropdownMenu.Item>)}
                 <DropdownMenu.Item className="doan-menu-item" onSelect={() => {
                   const current = live.current.cards.find(item => item.key === card.key);

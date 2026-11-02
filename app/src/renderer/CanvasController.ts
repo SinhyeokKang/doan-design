@@ -398,8 +398,8 @@ export class CanvasController {
         if (update.reason === "missing" || update.reason === "duplicateId") this.canvasRemoved?.({ folder: open.folder, row: open.row, duplicates: update.reason === "duplicateId" ? update.count : null });
         this.state.status = update.reason === "closed" ? "empty" : "missing";
         this.state.message = update.reason === "closed" ? "Pick a canvas from the list"
-          : update.reason === "notFound" ? `The project ${name} is missing. Use Locate… to find it.`
-          : update.reason === "uninitialized" ? `The project ${name} is not set up. Use Set Up… on Home.`
+          : update.reason === "notFound" ? `The project ${name} is missing. Use Locate above.`
+          : update.reason === "uninitialized" ? `The project ${name} is not set up. Use Set Up above.`
           : `${open.canvas} is no longer in the list. It was deleted or moved.`;
         break;
       }

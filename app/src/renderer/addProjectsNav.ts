@@ -1,16 +1,18 @@
 import type { ProjectPhase } from "./projectStep";
 
-// Where a page (Add Projects or Settings) goes when it is left (buzz-add-projects design '화면과 이동', buzz-settings
-// design '화면과 내비게이션'). The origin is the last Projects-side screen, not the previous one, so moving from one page
-// to the other never makes a page the return target.
+// Where a page (Add Projects, Settings or Project Settings) goes when it is left (buzz-add-projects design '화면과
+// 이동', buzz-settings design '화면과 내비게이션'). The origin is the last Projects-side screen, not the previous one, so
+// moving from one page to another never makes a page the return target.
 export type AddPageOrigin = { screen: "home" } | { screen: "workspace"; root: string };
-export type PageName = "addProjects" | "settings";
+export type PageName = "addProjects" | "settings" | "projectSettings";
 export type ShellScreen = AddPageOrigin | { screen: PageName };
 export type AddPageEvent =
   | { kind: "projectsTab" } | { kind: "back" } | { kind: "cancel" } | { kind: "forward" } | { kind: "reopen" } | { kind: "home" }
   // editing: an edited field or an IME composition holds the key. overlay: Quick Open or a dialog closes itself first.
   | { kind: "escape"; editing: boolean; overlay: boolean }
-  | { kind: "added"; root: string };
+  | { kind: "added"; root: string }
+  // The page's worktree left the list (Remove from Doan, a removal elsewhere); nothing is left to hold the page.
+  | { kind: "gone" };
 // A sidebar row or a Quick Open pick is not an event here: it leaves through the shell's own navigation, whose
 // controller asks the draft guard canvas by canvas (only the canvas already open skips it). The page never decides
 // that a move may skip the guard.
@@ -27,10 +29,20 @@ export function pageEnter(from: ShellScreen, origin: AddPageOrigin, to: PageName
   return { kind: "enter", origin: from.screen === "home" || from.screen === "workspace" ? from : origin, cancelPending: true };
 }
 
+// Choosing a worktree's Project Settings while its page is already open (project-settings design '같은 페이지에서
+// 다시 들어오기'). It never goes through pageEnter, which would stay: the page is the same, only its worktree changes.
+// The origin is kept as it is.
+export function projectSettingsReentry(shown: string, target: string, locked: boolean):
+  { kind: "ignore" } | { kind: "focusTitle" } | { kind: "switch"; root: string; cancelPending: true } {
+  if (locked) return { kind: "ignore" };
+  return target === shown ? { kind: "focusTitle" } : { kind: "switch", root: target, cancelPending: true };
+}
+
 // locked: the page owns a write, a clone or a confirmation, so every move away is ignored; the page's own completion
-// (added) is not a move away.
+// (added) is not a move away, and neither is its worktree being removed: gone passes the lock because the page has
+// nothing left to show (a pending result is dropped with the page).
 export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots: readonly string[], locked = false): AddPageDestination {
-  if (locked && event.kind !== "added") return { kind: "stay" };
+  if (locked && event.kind !== "added" && event.kind !== "gone") return { kind: "stay" };
   switch (event.kind) {
     case "forward": case "reopen": return { kind: "stay" };
     case "escape": if (event.editing || event.overlay) return { kind: "stay" }; break;

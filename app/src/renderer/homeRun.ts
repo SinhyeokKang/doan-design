@@ -21,7 +21,7 @@ import type { StartInput, StartOutcome } from "./HomeComposerView";
 
 export interface HomeRunHost {
   // canvas: the canvas open in the loaded root's workspace, as committed (the same rows App's visits name).
-  view(): { screen: "home" | "workspace" | "addProjects" | "settings"; loadedRoot: string | null; entries: readonly FolderEntry[]; canvas: string | null };
+  view(): { screen: "home" | "workspace" | "addProjects" | "settings" | "projectSettings"; loadedRoot: string | null; entries: readonly FolderEntry[]; canvas: string | null };
   label(root: string): string;
   // The move after a send goes through the draft guard and waits for the project's read; it is not the person's move.
   // `arrived` says whether the run still wants it: App commits the screen only when it returns true. `conversationId`

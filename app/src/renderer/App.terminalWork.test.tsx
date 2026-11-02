@@ -67,7 +67,7 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
-const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
+const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
 
 const A = ".doan/canvases/a.html", B = ".doan/canvases/b.html";
 const PREFS: PreferencesSnapshot = { preferences: { v: 1, notifications: { enabled: true, approval: true, finished: true, failed: true }, newConversation: { provider: "codex" } }, notice: null };
@@ -238,31 +238,37 @@ test("a refused link shows one toast with its reason and no action, and moves no
 function openDialog(closes: boolean) {
   const dialog = { open: true, events: [] as { type: string; cancelable: boolean }[], dispatchEvent(event: Event) {
     dialog.events.push({ type: event.type, cancelable: event.cancelable });
-    if (closes) { dialog.open = false; (all(tree).find(element => element.type === ProjectSettingsDialog)!.props as unknown as { onClose(): void }).onClose(); }
+    if (closes) { dialog.open = false; (all(tree).find(element => element.type === ProjectSetupDialog)!.props as unknown as { onClose(): void }).onClose(); }
     return false;
   } };
   vi.stubGlobal("document", { activeElement: null, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === "dialog[open]" && dialog.open ? [dialog] : [] });
   return dialog;
 }
+// The Set Up dialog stands for any dialog here (Project Settings is a page now, project-settings T4).
+function openSetUp() {
+  folders([{ path: "/w/b", kind: "uninitialized" }]);
+  (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as { action(action: string, root: string): void }).action("setUp", "/w/b"); render();
+  expect(all(tree).some(element => element.type === ProjectSetupDialog)).toBe(true);
+}
 test("a link that lands while a dialog is open dismisses it as its Cancel would, then moves", async () => {
   await start();
-  (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as { projectSettings(root: string, key: string): void }).projectSettings("/w/a", "/w/a"); render();
+  openSetUp();
   const dialog = openDialog(true);
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: B, frame: "pricing" } as never); render();
   expect(dialog.events).toEqual([{ type: "cancel", cancelable: true }]);
-  expect(all(tree).some(element => element.type === ProjectSettingsDialog)).toBe(false);
+  expect(all(tree).some(element => element.type === ProjectSetupDialog)).toBe(false);
   expect(harness.controller!.openCanvas!.mock.lastCall!.slice(0, 3)).toEqual(["/w/a", expect.objectContaining({ path: B }), "pricing"]);
 });
 
 test("a dialog that does not close for its cancel (busy) keeps the link from moving", async () => {
   await start();
-  (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as { projectSettings(root: string, key: string): void }).projectSettings("/w/a", "/w/a"); render();
+  openSetUp();
   const dialog = openDialog(false);
   const before = harness.controller!.openCanvas!.mock.calls.length;
   listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: B } as never); render();
   expect(dialog.events).toEqual([{ type: "cancel", cancelable: true }]);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
-  expect(all(tree).some(element => element.type === ProjectSettingsDialog)).toBe(true);
+  expect(all(tree).some(element => element.type === ProjectSetupDialog)).toBe(true);
 });
 
 // From Home a project row opens its Overview, never the last canvas (user decision): the loaded project's row and

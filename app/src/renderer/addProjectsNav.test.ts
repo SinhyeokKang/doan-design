@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { addPageReturn, leaveLocked, pageEnter, pageEscape, type AddPageOrigin } from "./addProjectsNav";
+import { addPageReturn, leaveLocked, pageEnter, pageEscape, projectSettingsReentry, type AddPageOrigin } from "./addProjectsNav";
 import type { ProjectPhase } from "./projectStep";
 
 const home: AddPageOrigin = { screen: "home" };
@@ -107,4 +107,47 @@ test("settings page: every leaving move is ignored while the page is locked", ()
     expect(addPageReturn(ws, event, roots, true)).toEqual({ kind: "stay" });
   // The page's own completion is not a move away from it.
   expect(addPageReturn(ws, { kind: "added", root: "/w/new" }, roots, true)).toEqual({ kind: "home", select: "/w/new" });
+});
+
+// project-settings design '이동과 잠금': Project Settings is a third page that shares the origin.
+test("project settings page: entering from Home, a workspace or another page records or keeps the origin", () => {
+  expect(pageEnter({ screen: "home" }, ws, "projectSettings", false)).toEqual({ kind: "enter", origin: home, cancelPending: true });
+  expect(pageEnter({ screen: "workspace", root: "/w/b" }, home, "projectSettings", false)).toEqual({ kind: "enter", origin: { screen: "workspace", root: "/w/b" }, cancelPending: true });
+  expect(pageEnter({ screen: "addProjects" }, ws, "projectSettings", false)).toEqual({ kind: "enter", origin: ws, cancelPending: true });
+  expect(pageEnter({ screen: "projectSettings" }, ws, "addProjects", false)).toEqual({ kind: "enter", origin: ws, cancelPending: true });
+});
+
+test("project settings page: a locked page, or the page already shown, keeps every entry out", () => {
+  expect(pageEnter({ screen: "projectSettings" }, ws, "projectSettings", false)).toEqual({ kind: "stay" });
+  expect(pageEnter({ screen: "addProjects" }, ws, "projectSettings", true)).toEqual({ kind: "stay" });
+  expect(pageEnter({ screen: "projectSettings" }, ws, "addProjects", true)).toEqual({ kind: "stay" });
+  expect(pageEnter({ screen: "projectSettings" }, ws, "settings", true)).toEqual({ kind: "stay" });
+});
+
+test("project settings page: Projects tab, Back and Escape return to the origin, Home when its project is gone", () => {
+  for (const event of [{ kind: "projectsTab" }, { kind: "back" }, escape] as const) {
+    expect(addPageReturn(ws, event, roots, false)).toEqual({ kind: "workspace", root: "/w/a" });
+    expect(addPageReturn(home, event, roots, false)).toEqual({ kind: "home", select: null });
+    expect(addPageReturn(ws, event, ["/w/b"], false)).toEqual({ kind: "home", select: null });
+    expect(addPageReturn(ws, event, roots, true)).toEqual({ kind: "stay" });
+  }
+});
+
+// A removed worktree takes the page with it whatever it holds (a write, a picker, a confirmation).
+test("gone returns to the origin even while the page is locked", () => {
+  expect(addPageReturn(ws, { kind: "gone" }, roots, true)).toEqual({ kind: "workspace", root: "/w/a" });
+  expect(addPageReturn(home, { kind: "gone" }, roots, true)).toEqual({ kind: "home", select: null });
+  expect(addPageReturn(ws, { kind: "gone" }, roots, false)).toEqual({ kind: "workspace", root: "/w/a" });
+});
+
+test("gone with the origin project removed too returns Home", () => {
+  expect(addPageReturn(ws, { kind: "gone" }, ["/w/b"], true)).toEqual({ kind: "home", select: null });
+  expect(addPageReturn(ws, { kind: "gone" }, [], false)).toEqual({ kind: "home", select: null });
+});
+
+test("project settings page: picking the worktree already shown focuses the title, another one switches, a lock ignores both", () => {
+  expect(projectSettingsReentry("/w/a", "/w/a", false)).toEqual({ kind: "focusTitle" });
+  expect(projectSettingsReentry("/w/a", "/w/b", false)).toEqual({ kind: "switch", root: "/w/b", cancelPending: true });
+  expect(projectSettingsReentry("/w/a", "/w/a", true)).toEqual({ kind: "ignore" });
+  expect(projectSettingsReentry("/w/a", "/w/b", true)).toEqual({ kind: "ignore" });
 });

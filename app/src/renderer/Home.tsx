@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { FolderEntry } from "../main/view";
 import { displayPath } from "./projectDisplay";
-import { cardRow, type RowAction } from "./homeCards";
+import { cardRow, ROW_ACTION_LABELS as labels, type RowAction } from "./homeCards";
 import { AlertIcon } from "./AlertIcon";
 import { HeroComposer, type HeroComposerProps } from "./HomeComposerView";
 import { groupProjects } from "./homeCards";
@@ -30,7 +30,6 @@ export function Home({ header, sidebar, ...composer }: HomeProps) {
   </main>;
 }
 
-const labels: Record<RowAction, string> = { setUp: "Set Up…", locate: "Locate…", remove: "Remove", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 export function ProblemActions({ entry, action, workspace }: { entry: FolderEntry; action: (action: RowAction, root: string) => void; workspace: { name: string; homeDirectory: string | null; home: () => void } }) {
   const [details, setDetails] = useState(false);
   const row = cardRow(entry, null, null);

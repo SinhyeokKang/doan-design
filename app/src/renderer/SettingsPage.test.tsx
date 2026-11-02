@@ -146,11 +146,10 @@ test("the current category takes the pressed fill with standard ink, and a locke
   expect(css).toContain('.shell-side .shell-settings-row[aria-disabled="true"] svg { color: var(--text-disabled); }');
 });
 
-test("dialogs over Settings keep the page's 14/20 text and plain numerals without the page's tracking", () => {
+test("a confirmation over a Settings page drops the page's tracking", () => {
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
-  // The Fix… confirmation is rendered inside the panel and would inherit its body-sm tracking.
+  // The Fix… and Share confirmations are rendered inside the panel and would inherit its body-sm tracking.
   expect(css).toContain(".settings-panel .doan-dialog { letter-spacing: normal; }");
-  expect(css).toContain(".settings-dialog { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); font-variant-numeric: normal; }");
 });
 
 test("a line that belongs to the group, not a row (the recovery actions), is a row of its own under a hairline", () => {

@@ -321,7 +321,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       if (!folders.has(to)) add(to);
       reorder(next);
       const write = store.replace(next);
-      onChange(entries());
+      // The focus is how the renderer tells a moved root from a removed one: the Project Settings page and a loaded
+      // workspace follow it, where a bare list would show the old root vanishing.
+      onChange(entries(), { from, root: to });
       logWrite(await write);
     },
     rereadAll() {

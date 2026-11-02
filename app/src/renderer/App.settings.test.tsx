@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
@@ -68,7 +69,8 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { QuickOpen } = await import("./QuickOpenDialog");
 const { Home } = await import("./Home");
 const { HomeRun } = await import("./homeRun");
-const { ProjectSettingsDialog } = await import("./ProjectSettingsDialog");
+const { ProjectSettingsPage } = await import("./ProjectSettingsPage");
+const { ProjectSetupDialog } = await import("./ProjectSetupDialog");
 const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
 const { KeyedConversationStrip } = await import("./ConversationStripView");
@@ -128,7 +130,7 @@ type PageProps = { section: string; arrival: { focus: { kind: string; provider?:
 const settings = () => find<PageProps>(SettingsPage)[0];
 const onSettings = () => settings() !== undefined;
 const addPage = () => find<{ header: ReactElement }>(AddProjectsPage)[0];
-const homeEl = () => find<{ header: ReactElement; openSettings(target: unknown): void; defaults: unknown }>(Home)[0];
+const homeEl = () => find<{ header: ReactElement; openSettings(target: unknown): void; defaults: unknown; select: { root: string; seq: number } | null }>(Home)[0];
 function topBar(header: ReactElement) {
   const bar = (header.type as (props: unknown) => ReactNode)(header.props);
   const buttons = all(bar).filter(element => element.type === "button");
@@ -136,7 +138,7 @@ function topBar(header: ReactElement) {
   const named = (label: string) => buttons.find(button => text(button).includes(label))!;
   return { back: named("Back"), forward: named("Forward"), add: named("Add Projects"), projects: named("Projects"), settings: named("Settings") };
 }
-const workspaceHeader = () => all(tree).find(element => typeof element.type === "function" && element.type.name === "TopBar" && !all(settings()?.props.header).includes(element) && !all(addPage()?.props.header).includes(element))!;
+const workspaceHeader = () => all(tree).find(element => typeof element.type === "function" && element.type.name === "TopBar" && !all(settings()?.props.header).includes(element) && !all(addPage()?.props.header).includes(element) && !all(projectPage()?.props.header).includes(element))!;
 function folders(entries: FolderEntry[]) { listeners.folders!(entries as never); render(); }
 const click = (element: ReactElement<Record<string, unknown>>) => { (element.props.onClick as () => void)(); render(); };
 const escape = () => { windowListeners.keydown!({ key: "Escape", target: { tagName: "BUTTON" }, isComposing: false, keyCode: 27, preventDefault: vi.fn() } as never); render(); };
@@ -400,22 +402,352 @@ test("Settings components never start or send a conversation", () => {
   for (const name of files) expect(readFileSync(new URL(name, dir), "utf8"), name).not.toMatch(/startConversation|sendConversation/);
 });
 
-// buzz-settings U5: Project Settings is a dialog over whatever screen is open, not a move; the Add Projects lock allows it.
-test("the project menu's Project Settings opens its dialog as a modal, even while Add Projects is locked", () => {
+// project-settings T4: Project Settings is a page now (design '이동과 잠금'). App opens it from the project menus,
+// keeps the origin it shares with Add Projects and Settings, holds the page's lock and leaves when its worktree goes.
+type ProjectPage = ReactElement<{ root: string; origin: unknown; arrival: { seq: number } | null; header: ReactElement; sidebar: Sidebar & { props: { home?: boolean } };
+  onState(report: { locked: boolean }): void; onGone(): void; onRerooted(root: string, origin: unknown): void;
+  onAction(action: string, root: string, notice: (text: string) => void): void; onRemove(): void }>;
+const projectPage = () => find<ProjectPage["props"]>(ProjectSettingsPage)[0] as ProjectPage | undefined;
+const grouped = (path: string): FolderEntry => ({ ...listed(path), git: { common: "/w/a/.git", main: "/w/a", worktrees: [] } } as FolderEntry);
+const sidebarOf = () => find<{ projectSettings(root: string): void; worktree(root: string): void; toggle(key: string): void; locked?: boolean; home?: boolean; cards: { key: string; rows: { path: string }[] }[] }>(ShellSidebar)[0]!.props;
+const openProjectSettings = (root = "/w/a") => { sidebarOf().projectSettings(root); render(); };
+const lockPage = (locked = true) => { projectPage()!.props.onState({ locked }); render(); };
+// From a workspace on /w/a, open /w/a's Project Settings from its sidebar menu.
+function projectSettingsFromWorkspace(entries: FolderEntry[] = [listed("/w/a"), listed("/w/b")]) {
+  render();
+  folders(entries);
+  sidebarOf().worktree("/w/a"); render();
+  openProjectSettings("/w/a");
+  expect(projectPage()).toBeDefined();
+  clearController();
+}
+
+// The Home row as the sidebar draws it: current only on Home (PRODUCT §5 item 3), not on a page showing Home's sidebar.
+const homeRowCurrent = (sidebar: ReactElement) => /class="shell-home-row row"[^>]*aria-current="page"/.test(renderToStaticMarkup(sidebar));
+
+test("Project Settings opens as a page from Home, a workspace or Add Projects: the Projects tab is current, the sidebar marks no row, not even Home, the menu sees Settings", () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  openProjectSettings("/w/a");
+  const page = projectPage()!;
+  expect(page.props).toMatchObject({ root: "/w/a", origin: { screen: "home" } });
+  expect(page.props.arrival?.seq).toBeGreaterThan(0);
+  const bar = topBar(page.props.header);
+  expect(bar.projects.props["aria-current"]).toBe("page");
+  expect([bar.add.props["aria-current"], bar.settings.props["aria-current"]]).toEqual([undefined, undefined]);
+  expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
+  // Home's sidebar: no current project or canvas, no category list, and the Home row is not current either.
+  expect(page.props.sidebar.props.home).toBe(true);
+  expect(page.props.sidebar.props.settings).toBeUndefined();
+  expect(homeRowCurrent(page.props.sidebar)).toBe(false);
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
+  // Nothing modal: the page is a screen, so the toast keeps running.
+  expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
+  // From a workspace the workspace is the origin; from Add Projects the origin stays.
+  reset(); projectSettingsFromWorkspace();
+  expect(projectPage()!.props.origin).toEqual({ screen: "workspace", root: "/w/a" });
+  click(topBar(projectPage()!.props.header).add);
+  expect(addPage()).toBeDefined();
+  expect(homeRowCurrent(find<Record<string, unknown>>(AddProjectsPage)[0]!.props.sidebar as ReactElement)).toBe(false);
+  openProjectSettings("/w/b");
+  expect(projectPage()!.props).toMatchObject({ root: "/w/b", origin: { screen: "workspace", root: "/w/a" } });
+  // And back to Settings and Add Projects without changing it either.
+  click(topBar(projectPage()!.props.header).settings);
+  expect(onSettings()).toBe(true);
+  click(topBar(settings()!.props.header).projects);
+  expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+  expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+});
+
+test("the Overview's recovery menu opens the page too", () => {
   render();
   folders([listed("/w/a")]);
-  find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
-  const dialog = find<{ root: string; projectKey: string; onClose(): void; onAction(action: string, root: string): void }>(ProjectSettingsDialog)[0]!;
-  expect(dialog.props).toMatchObject({ root: "/w/a", projectKey: "/w/a" });
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith(expect.objectContaining({ modal: true }));
-  expect(doan.openSettings).not.toHaveBeenCalled();
-  dialog.props.onClose(); render();
-  expect(find(ProjectSettingsDialog)).toHaveLength(0);
+  sidebarOf().worktree("/w/a"); render();
+  find<{ onProjectSettings(root: string): void }>(ProjectOverview)[0]!.props.onProjectSettings("/w/a"); render();
+  expect(projectPage()!.props).toMatchObject({ root: "/w/a", origin: { screen: "workspace", root: "/w/a" } });
+});
+
+test("Projects tab, Back and Escape leave for the origin, Home when the origin project is gone; the loaded project's row opens its Overview", async () => {
+  for (const leave of [() => click(topBar(projectPage()!.props.header).projects), () => click(topBar(projectPage()!.props.header).back), escape]) {
+    reset();
+    projectSettingsFromWorkspace();
+    readUiState(null); await Promise.resolve(); await Promise.resolve(); render();
+    expect(doan.saveUiState!.mock.lastCall?.[0]).toMatchObject({ screen: "workspace", root: "/w/a" });
+    leave();
+    expect(projectPage()).toBeUndefined();
+    expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+    // The workspace was kept hidden, not opened again.
+    expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+    // From a workspace on /w/b, the origin /w/b removed: Home.
+    reset();
+    render();
+    folders([listed("/w/a"), listed("/w/b")]);
+    sidebarOf().worktree("/w/b"); render();
+    openProjectSettings("/w/a");
+    folders([listed("/w/a")]);
+    leave();
+    expect(projectPage()).toBeUndefined();
+    expect(homeEl()).toBeDefined();
+  }
+  // The loaded project's sidebar row opens its Overview, as from Home.
+  reset();
+  projectSettingsFromWorkspace();
+  const key = sidebarOf().cards.find(card => card.rows.some(row => row.path === "/w/a"))!.key;
+  sidebarOf().toggle(key); render();
+  expect(harness.controller!.showOverview).toHaveBeenCalledTimes(1);
+  expect(projectPage()).toBeUndefined();
+});
+
+test("picking another worktree's Project Settings on the page switches to it with a new page and the same origin; the same one focuses the title", () => {
+  projectSettingsFromWorkspace();
+  const first = projectPage()!;
+  openProjectSettings("/w/a");
+  expect(projectPage()!.key).toBe(first.key);
+  expect(projectPage()!.props.arrival!.seq).toBeGreaterThan(first.props.arrival!.seq);
+  openProjectSettings("/w/b");
+  const second = projectPage()!;
+  // A new key mounts a new page: /w/a's config session ends and its late replies can't reach /w/b's page.
+  expect(second.key).not.toBe(first.key);
+  expect(second.props).toMatchObject({ root: "/w/b", origin: { screen: "workspace", root: "/w/a" } });
+  // Picking /w/a again right away remounts once more; the origin is still the workspace.
+  openProjectSettings("/w/a");
+  expect(projectPage()!.key).not.toBe(second.key);
+  expect(projectPage()!.props).toMatchObject({ root: "/w/a", origin: { screen: "workspace", root: "/w/a" } });
+  click(topBar(projectPage()!.props.header).back);
+  expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+});
+
+test("while the page holds a picker, a confirmation or a write, every way out and every entry from outside is ignored; the toast waits", () => {
+  const moves: [string, () => void][] = [
+    ["Projects tab", () => click(topBar(projectPage()!.props.header).projects)],
+    ["Back", () => click(topBar(projectPage()!.props.header).back)],
+    ["Add Projects tab", () => click(topBar(projectPage()!.props.header).add)],
+    ["Settings tab", () => click(topBar(projectPage()!.props.header).settings)],
+    ["Escape", escape],
+    ["Go > Home", () => { listeners.menu!("home" as never); render(); }],
+    ["Quick Open", () => { listeners.menu!("quickOpen" as never); render(); }],
+    ["Search", () => { (projectPage()!.props.sidebar.props.search as () => void)(); render(); }],
+    ["sidebar worktree", () => { sidebarOf().worktree("/w/b"); render(); }],
+    ["sidebar project row", () => { sidebarOf().toggle(sidebarOf().cards[0]!.key); render(); }],
+    ["another worktree's Project Settings", () => openProjectSettings("/w/b")],
+    ["Settings… (⌘,)", () => cmdComma()],
+    ["sign-in toast", () => { harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } }); (harness.toast.show.mock.lastCall![2] as () => void)(); render(); }],
+    ["notification click", () => { listeners.notificationClick!({ conversationId: "gone", root: "/w/b" } as never); render(); }],
+    ["File > Add Project…", () => { listeners.openAddProjects!(); render(); }],
+  ];
+  for (const [name, move] of moves) {
+    reset();
+    projectSettingsFromWorkspace();
+    const before = projectPage()!;
+    lockPage();
+    move();
+    expect(projectPage()?.props.root, name).toBe("/w/a");
+    expect(projectPage()!.key, name).toBe(before.key);
+    expect(onSettings(), name).toBe(false);
+    expect(addPage(), name).toBeUndefined();
+    for (const method of ["openWorkspace", "openCanvas", "showOverview"]) expect(harness.controller![method], `${name}: ${method}`).not.toHaveBeenCalled();
+    expect(find(QuickOpen), name).toHaveLength(0);
+  }
+  reset();
+  projectSettingsFromWorkspace();
+  lockPage();
+  const bar = topBar(projectPage()!.props.header);
+  for (const button of [bar.add, bar.projects, bar.settings, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
+  expect(projectPage()!.props.sidebar.props.locked).toBe(true);
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, locked: true });
+  expect(harness.toast.setModal).toHaveBeenLastCalledWith(true);
+  // A Settings target that came in while locked was dropped, not queued.
+  cmdComma({ section: "about" });
+  lockPage(false);
+  expect(onSettings()).toBe(false);
+  expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
+  click(topBar(projectPage()!.props.header).projects);
+  expect(projectPage()).toBeUndefined();
+});
+
+test("a doan:// link leaves an unlocked page for its canvas and is dropped on a locked one", () => {
+  projectSettingsFromWorkspace();
+  lockPage();
+  listeners.openLink!({ kind: "navigate", root: "/w/b", canvas: rowA.path } as never); render();
+  expect(harness.controller!.openCanvas).not.toHaveBeenCalled();
+  expect(projectPage()).toBeDefined();
+  lockPage(false);
+  listeners.openLink!({ kind: "navigate", root: "/w/b", canvas: rowA.path } as never); render();
+  const call = harness.controller!.openCanvas!.mock.lastCall!;
+  expect(call.slice(0, 2)).toEqual(["/w/b", rowA]);
+  (call[3] as { opened(): void }).opened(); render();
+  expect(projectPage()).toBeUndefined();
+  expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+});
+
+test("while Add Projects is locked the sidebar shows Project Settings unavailable and it opens nothing", () => {
+  render();
+  folders([listed("/w/a")]);
   click(topBar(homeEl()!.props.header).add);
   find<{ onState(report: { locked: boolean; choose: boolean }): void }>(AddProjectsPage)[0]!.props.onState({ locked: true, choose: false }); render();
-  find<{ projectSettings(root: string, key: string): void }>(ShellSidebar)[0]!.props.projectSettings("/w/a", "/w/a"); render();
-  expect(find(ProjectSettingsDialog)).toHaveLength(1);
+  expect(sidebarOf().locked).toBe(true);
+  openProjectSettings("/w/a");
+  expect(projectPage()).toBeUndefined();
   expect(addPage()).toBeDefined();
+});
+
+test("the page's worktree removed while the page is locked leaves for the origin anyway", () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/b"); render();
+  openProjectSettings("/w/a");
+  lockPage();
+  folders([listed("/w/b")]);
+  projectPage()!.props.onGone(); render();
+  expect(projectPage()).toBeUndefined();
+  expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+  // The lock went with the page.
+  click(topBar(workspaceHeader()).projects);
+  expect(homeEl()).toBeDefined();
+});
+
+test("Locate or Set Up moving the worktree keeps the page and its origin on the new root", () => {
+  projectSettingsFromWorkspace([listed("/w/a")]);
+  const before = projectPage()!;
+  listeners.folders!([listed("/w/moved")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  // The page follows the reroot itself (followProjectSettings) and reports it.
+  projectPage()!.props.onRerooted("/w/moved", { screen: "workspace", root: "/w/moved" }); render();
+  expect(projectPage()!.key).toBe(before.key);
+  expect(projectPage()!.props).toMatchObject({ root: "/w/moved", origin: { screen: "workspace", root: "/w/moved" } });
+  click(topBar(projectPage()!.props.header).back);
+  expect(projectPage()).toBeUndefined();
+  expect(homeEl()).toBeUndefined();
+  expect(topBar(workspaceHeader()).projects.props["aria-current"]).toBe("page");
+});
+
+// main reports a located project as a re-root focus (shell.replace), like Set Up. From Home, Add Projects or the Project
+// Settings page the Locate does not open the new root, so the loaded root must not follow it (the controller never
+// opened it); only the workspace Locate, which opens the new root itself, keeps working as before.
+const locating = () => { let finish: (value: unknown) => void = () => {}; doan.locateProject = vi.fn(() => new Promise(resolve => { finish = resolve; })); return (value: unknown) => finish(value); };
+const loadedOf = (sidebar: ReactElement) => (sidebar.props as { loaded?: unknown }).loaded;
+const settleLocate = async () => { await Promise.resolve(); await Promise.resolve(); render(); };
+
+test("Locate of the loaded root from Home does not move the loaded root to the located one", async () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  expect(loadedOf(find(ShellSidebar)[0]!)).toBe("/w/a");
+  find<{ goHome(): void }>(ShellSidebar)[0]!.props.goHome(); render();
+  expect(homeEl()).toBeDefined();
+  clearController();
+  const answer = locating();
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("locate", "/w/a"); render();
+  listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+  expect(loadedOf(find(ShellSidebar)[0]!)).not.toBe("/w/moved");
+  expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+});
+
+test("Locate of the loaded root from the Project Settings page does not move the loaded root, while the page follows", async () => {
+  projectSettingsFromWorkspace([listed("/w/a"), listed("/w/b")]);
+  expect(loadedOf(projectPage()!.props.sidebar)).toBe("/w/a");
+  const answer = locating();
+  projectPage()!.props.onAction("locate", "/w/a", vi.fn()); render();
+  listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+  expect(loadedOf(projectPage()!.props.sidebar)).not.toBe("/w/moved");
+  expect(harness.controller!.openWorkspace).not.toHaveBeenCalled();
+});
+
+test("Locate from the workspace still opens the located root", async () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  clearController();
+  const answer = locating();
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("locate", "/w/a"); render();
+  listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+  expect(harness.controller!.openWorkspace).toHaveBeenCalledWith("/w/moved", expect.any(Function));
+});
+
+// Locate now produces re-roots too, and one is never consumed: a later in-place Set Up of a root equal to an old
+// re-root's `from` must not follow that old move.
+test("Set Up chooses the re-root made after it started, not an older one from the same root", () => {
+  render();
+  folders([{ path: "/w/a", kind: "uninitialized" }]);
+  listeners.folders!([listed("/w/old")] as never, { from: "/w/a", root: "/w/old" } as never); render();
+  folders([{ path: "/w/a", kind: "uninitialized" }, listed("/w/old")]);
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("setUp", "/w/a"); render();
+  expect(find(ProjectSetupDialog)).toHaveLength(1);
+  folders([listed("/w/a"), listed("/w/old")]);
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  expect(homeEl()!.props.select).toMatchObject({ root: "/w/a" });
+});
+
+test("Set Up chooses the root it was re-rooted to", () => {
+  render();
+  folders([{ path: "/w/a", kind: "uninitialized" }]);
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("setUp", "/w/a"); render();
+  listeners.folders!([listed("/w/up")] as never, { from: "/w/a", root: "/w/up" } as never); render();
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  expect(homeEl()!.props.select).toMatchObject({ root: "/w/up" });
+});
+
+// A fake focusable element for focusCurrent's checks (connected, in the page's shell, visible).
+function focusable(name: string, focused: string[], connected = true) {
+  return Object.assign(new (globalThis.HTMLElement as unknown as new () => object)(), {
+    name, isConnected: connected, focus: () => focused.push(name), matches: () => false, getClientRects: () => [{}],
+    closest: (selector: string) => selector === ".settings-shell" ? {} : null,
+  });
+}
+
+test("Set Up opens its dialog over the page; closed from outside, focus returns to the page once the dialog is gone", () => {
+  render();
+  folders([{ path: "/w/a", kind: "uninitialized" }]);
+  openProjectSettings("/w/a");
+  const focused: string[] = [];
+  const setUpButton = focusable("Set Up", focused), heading = focusable("title", focused);
+  vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
+  vi.stubGlobal("document", { activeElement: setUpButton, body: {}, querySelector: () => null, querySelectorAll: (selector: string) => selector === ".settings-panel h1" ? [heading] : [] });
+  projectPage()!.props.onAction("setUp", "/w/a", vi.fn()); render();
+  expect(find<{ root: string }>(ProjectSetupDialog)[0]?.props.root).toBe("/w/a");
+  expect(projectPage()).toBeDefined();
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith(expect.objectContaining({ screen: "settings", modal: true }));
+  // `doan init` in a terminal: the dialog closes, the page shows the settings and its Set Up button is gone.
+  Object.assign(setUpButton, { isConnected: false });
+  folders([listed("/w/a")]);
+  expect(find(ProjectSetupDialog)).toHaveLength(0);
+  expect(projectPage()).toBeDefined();
+  expect(focused).toEqual(["title"]);
+});
+
+test("Remove from Doan removes the page's whole group; with a running conversation its confirmation comes first and Cancel returns focus", async () => {
+  projectSettingsFromWorkspace([grouped("/w/a"), grouped("/w/b"), listed("/w/c")]);
+  const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
+  const ask = vi.spyOn(run, "remove").mockImplementation(paths => {
+    run.removing = { paths, conversations: ["c1"], title: "Stop the conversation and remove a?", body: "b", cancel: "Cancel", confirm: "Stop and Remove" };
+    return Promise.resolve();
+  });
+  const focused: string[] = [];
+  const removeButton = focusable("Remove from Doan", focused);
+  vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
+  vi.stubGlobal("document", { activeElement: removeButton, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+  projectPage()!.props.onRemove(); render();
+  expect(ask).toHaveBeenCalledWith(["/w/a", "/w/b"], expect.any(String));
+  const dialog = all(tree).find(element => element.type === "dialog" && element.props["aria-label"] === "Stop the conversation and remove a?")!;
+  expect(dialog).toBeDefined();
+  expect(projectPage()).toBeDefined();
+  const cancel = all(dialog).find(element => element.type === "button" && element.props.children === "Cancel")!;
+  click(cancel);
+  expect(focused).toEqual(["Remove from Doan"]);
+  expect(projectPage()).toBeDefined();
+  // No running conversation: removed at once with Undo, and the page leaves once its worktree is gone.
+  ask.mockRestore();
+  doan.removeProjects = vi.fn(async () => ({ kind: "removed", label: "a", removalId: "r1" }));
+  projectPage()!.props.onRemove(); await Promise.resolve(); await Promise.resolve(); render();
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"]);
+  expect(harness.toast.show).toHaveBeenLastCalledWith("a removed. Files stay on disk.", "Undo", expect.any(Function), expect.any(Function));
+  folders([listed("/w/c")]);
+  projectPage()!.props.onGone(); render();
+  expect(projectPage()).toBeUndefined();
+  expect(homeEl()).toBeDefined();
 });
 
 const problemEntries: FolderEntry[] = [
@@ -478,4 +810,39 @@ test("a worktree picked from the branch chip focuses the new Overview's chip, no
   find<{ onWorktree(root: string): void }>(ProjectOverview)[0]!.props.onWorktree("/w/b"); render();
   expect(find<{ root: string }>(ProjectOverview)[0]!.props.root).toBe("/w/b");
   expect(focused).toEqual([".workspace .ov-main .wt-chip"]);
+});
+
+// project-settings design '영향 범위' 복구 라벨: a problem workspace with no canvas open points at the status line's
+// recovery action above the canvas, by its label without the ellipsis.
+test("the canvas area of a missing or not set up workspace points at Locate or Set Up above", () => {
+  const text = (node: unknown): string => Array.isArray(node) ? node.map(text).join("") : typeof node === "string" ? node : isValidElement<Record<string, unknown>>(node) ? text(node.props.children) : "";
+  for (const [entry, sentence] of [[{ path: "/w/a", kind: "notFound" }, "The project a is missing. Use Locate above."], [{ path: "/w/a", kind: "uninitialized" }, "The project a is not set up. Use Set Up above."]] as [FolderEntry, string][]) {
+    reset();
+    render();
+    folders([entry]);
+    sidebarOf().worktree("/w/a"); render();
+    const pane = all(tree).find(element => "viewport" in (element.props as object))!;
+    const status = all((pane.type as (props: unknown) => ReactNode)(pane.props)).find(element => element.props.className === "canvas-status")!;
+    expect(text(status), entry.kind).toBe(sentence);
+  }
+});
+
+// Fix round 1 (review RA2 ⚪3): what the sidebar does around the page, as Home does.
+test("entering the page leaves the sidebar's expansion as it was", () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  const before = JSON.stringify(sidebarOf().cards.map(card => [card.key, (find<{ projects: Record<string, { expanded: boolean }> }>(ShellSidebar)[0]!.props.projects[card.key])?.expanded ?? false]));
+  openProjectSettings("/w/b");
+  const after = JSON.stringify(sidebarOf().cards.map(card => [card.key, (find<{ projects: Record<string, { expanded: boolean }> }>(ShellSidebar)[0]!.props.projects[card.key])?.expanded ?? false]));
+  expect(projectPage()).toBeDefined();
+  expect(after).toBe(before);
+});
+
+test("another project's row opens its Overview from the page, as from Home, never its last canvas", async () => {
+  projectSettingsFromWorkspace();
+  const key = sidebarOf().cards.find(card => card.rows.some(row => row.path === "/w/b"))!.key;
+  sidebarOf().toggle(key); for (let i = 0; i < 5; i++) await Promise.resolve(); render();
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
+  expect(projectPage()).toBeUndefined();
 });

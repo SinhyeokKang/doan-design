@@ -83,9 +83,15 @@ describe("ways back", () => {
     expect(loadedProjectRow({ screen: "addProjects", overviewShown: false })).toBe("enter");
     expect(loadedProjectRow({ screen: "settings", overviewShown: true })).toBe("enter");
   });
+  // project-settings design '화면' 사이드바: the Project Settings page has no current row, and the loaded project's row
+  // opens its Overview there as it does from Home (POSTMORTEM 2026-11-02: every screen the branch runs on is pinned).
+  it("the loaded project's row opens its Overview from the Project Settings page", () => {
+    expect(loadedProjectRow({ screen: "projectSettings", overviewShown: false })).toBe("overview");
+  });
   it("the Projects tab leaves a page as before and goes Home from a workspace", () => {
     expect(projectsTab("addProjects")).toBe("leavePage");
     expect(projectsTab("settings")).toBe("leavePage");
+    expect(projectsTab("projectSettings")).toBe("leavePage");
     expect(projectsTab("workspace")).toBe("home");
     expect(projectsTab("home")).toBe("stay");
   });

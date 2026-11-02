@@ -80,7 +80,7 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   const entries: FolderEntry[] = [{ path: "/a", kind: "list", servedRev: 0, canvases: [canvas] }, { path: "/b", kind: "list", servedRev: 0, canvases: [] }];
   const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {} };
   const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
-  const home = renderToStaticMarkup(<Sidebar {...props} home slots={slots} highlight={["/b"]} />);
+  const home = renderToStaticMarkup(<Sidebar {...props} home homeCurrent slots={slots} highlight={["/b"]} />);
   // Only the Home row is current on Home (dogfooding #2); no project or canvas row is.
   expect(home.replace(/<button type="button" class="shell-home-row row" aria-current="page">/, "")).not.toContain("aria-current");
   expect(home).toContain('<span>a</span><span class="row-slot working" role="img" aria-label="Claude Code is working"><span class="doan-spinner" aria-hidden="true"></span></span>');
@@ -174,8 +174,11 @@ it("puts a Home row above the projects, current only on Home", () => {
   const html = render("/repo");
   expect(html).toMatch(/<button[^>]*class="shell-home-row row"[^>]*>.*Home<\/span><\/button>.*shell-projects-heading/s);
   expect(html).not.toMatch(/class="shell-home-row row"[^>]*aria-current/);
-  const onHome = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} goHome={vi.fn()} />);
+  const onHome = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home homeCurrent search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} goHome={vi.fn()} />);
   expect(onHome).toMatch(/class="shell-home-row row"[^>]*aria-current="page"/);
+  // A page shows Home's sidebar (no current project or canvas) without being Home.
+  const onPage = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} goHome={vi.fn()} />);
+  expect(onPage).not.toContain("aria-current");
 });
 
 // Dogfooding: the sidebar list scrolled with the classic 15px scrollbar and grey track while the panels use the thin,

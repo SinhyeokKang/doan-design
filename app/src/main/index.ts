@@ -417,7 +417,7 @@ function createWindow(): BrowserWindow {
   const owner = window.webContents.id;
   // A sign-in belongs to the renderer that started it; a lost renderer cannot cancel it any more.
   window.webContents.on("render-process-gone", () => { configBridge?.clear(); void agentAuth?.ownerClosed(owner); });
-  // A reloaded renderer has no Project Settings dialog left to answer (buzz-settings S4).
+  // A reloaded renderer has no Project Settings page left to answer (buzz-settings S4).
   window.webContents.on("did-navigate", () => { configBridge?.clear(); });
   // `.git/HEAD` is not watched, so a branch switched elsewhere shows when the
   // human comes back to the window.
@@ -850,7 +850,7 @@ async function start(): Promise<void> {
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);
     if (!fromWindow(event) || from === null || !win) return { kind: "unavailable" };
-    const picked = await dialog.showOpenDialog(win, { title: "Locate…", properties: ["openDirectory"] });
+    const picked = await dialog.showOpenDialog(win, { title: "Locate", properties: ["openDirectory"] });
     const path = picked.filePaths[0];
     if (picked.canceled || path === undefined) return { kind: "cancelled" };
     const judged = await flow.judge(path);
@@ -967,7 +967,7 @@ async function start(): Promise<void> {
       if (!window || window.isDestroyed()) return null;
       const picked = await dialog.showOpenDialog(window, kind === "tokenCss"
         ? { title: "Choose Token CSS", properties: ["openFile"], defaultPath: root, filters: [{ name: "CSS", extensions: ["css"] }] }
-        : { title: "Add to Serve", properties: ["openFile", "openDirectory"], defaultPath: root });
+        : { title: "Add File or Folder", properties: ["openFile", "openDirectory"], defaultPath: root });
       return picked.canceled ? null : picked.filePaths[0] ?? null;
     },
   });
@@ -978,7 +978,7 @@ async function start(): Promise<void> {
     return senderKind(event) === kind ? choice : { kind: "unavailable" };
   });
   handle("config:write", { kind: "unavailable" }, (_event, value: unknown) => bridge.write(value));
-  // The Project Settings dialog opened or closed: a new session, and late replies of the old one answer unavailable.
+  // A Project Settings page mounted or unmounted: a new session, and late replies of the old one answer unavailable.
   handle("config:session-start", undefined, () => { bridge.clear(); });
   handle("config:session-end", undefined, () => { bridge.clear(); });
 

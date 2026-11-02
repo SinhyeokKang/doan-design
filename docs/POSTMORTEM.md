@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-03 — Locate on the Project Settings page closed the page instead of following the moved worktree
+
+- **Area**: `app/src/main/shell.ts` (`replace`), `app/src/renderer/App.tsx` (`onFolders`), `ProjectSettingsPage.tsx` (`followProjectSettings`); fixed in b26eb412 on `feat/project-settings` before merge.
+- **Symptom**: in the real app a successful Locate on a Missing worktree's Project Settings page left the page for its origin; the page should have shown the new root (project-settings spec 완료 조건 5).
+- **Root cause**: the renderer learns about a reroot only from the optional second argument of the folder-list event (`FolderFocus {from, root}`). Set Up's reconcile path (`shell.ts:124`) sent it; `replace()`, which Locate uses, sent only the list. Without the focus the old root simply vanished from the list, and the page's follow rule read that as "gone". The workspace Locate path did not need the event, because `folders:locate` returns the new root and App sets it directly, so nothing exposed the gap until a second consumer relied on the event.
+- **Net**: caught by the batch C `/runtime-test` probe (43/44). Missed by the App test, which called `listeners.folders!(list, {from, root})` with a hand-made focus, and by `shell.test.ts`, which checked only the list after `replace`. A test that injects the event main is supposed to send cannot catch main not sending it.
+- **Prevention**: when renderer behavior depends on an optional field of a main event, pin in main's test that every path producing that change sends it (`shell.test.ts` now asserts the focus after `replace`). Search run: `rg -n 'onChange\(entries\(\)' app/src/main/shell.ts` lists nine list-only calls; only `replace` (Locate) and the Set Up reconcile move a root, and both now send the focus. `rg -n 'listeners\.folders!\(.*from:' app/src/renderer/*.test.tsx` finds one injected focus (`App.settings.test.tsx:613`); it is now backed by the main test.
+
 ### 2026-11-02 — Evaluation unit checks inherited the real session-recording runtime
 
 - **Area**: `eval/scenarios/{regression,audit}.test.ts`, `H1`–`H5` and `R6b` scenario tests.

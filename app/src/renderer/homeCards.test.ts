@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { CanvasRow, FolderEntry, GitInfo } from "../main/view";
-import { cardRow, groupProjects, measureNarrow } from "./homeCards";
+import { cardRow, groupProjects, measureNarrow, ROW_ACTION_LABELS } from "./homeCards";
 import type { SelectionView } from "./selection";
 
 const canvas = (): CanvasRow => ({ path: ".doan/canvases/a.html", url: "u" });
@@ -145,4 +145,11 @@ describe("measureNarrow", () => {
   test("a row without a summary (a problem row) is never narrow", () => {
     expect(measureNarrow(card([row("/a", { wide: [300, 120] }, false)])).size).toBe(0);
   });
+});
+
+// project-settings design '영향 범위' 복구 라벨 (spec 9): the status line, the sidebar's project menu, the Overview's
+// recovery menu and the Project Settings page share one label table, with no trailing ellipsis.
+test("recovery labels drop the ellipsis, and Remove is Remove from Doan everywhere", () => {
+  expect(ROW_ACTION_LABELS).toEqual({ setUp: "Set Up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" });
+  for (const label of Object.values(ROW_ACTION_LABELS)) expect(label).not.toMatch(/…|\.\.\.$/);
 });

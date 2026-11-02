@@ -39,7 +39,7 @@ export type {
 };
 // A clipboard write main made; stale when main refused the request.
 type CopyResult = { kind: "success" } | { kind: "error"; message: string } | { kind: "stale" };
-// The Project Settings dialog's config writes; a chosen path goes back only as the choice id main gave.
+// The Project Settings page's config writes; a chosen path goes back only as the choice id main gave.
 export type ConfigWrite =
   | { root: string; op: "setTokenCss" | "addServe"; choiceId: string }
   | { root: string; op: "clearTokenCss" }
@@ -319,7 +319,7 @@ const api = {
   readAbout: (): Promise<AboutRead | null> => ipcRenderer.invoke("about:read"),
   // Main writes what About last read; resolves after the clipboard write settled.
   copyAbout: (): Promise<CopyResult> => ipcRenderer.invoke("about:copy"),
-  // Project Settings dialog: start a session when it opens and end it when it closes; replies to calls of an ended
+  // Project Settings page: start a session when it mounts and end it when it unmounts; replies to calls of an ended
   // session answer unavailable.
   startConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-start"),
   endConfigSession: (): Promise<void> => ipcRenderer.invoke("config:session-end"),

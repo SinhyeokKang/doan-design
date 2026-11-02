@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, test, vi } from "vitest";
-import { Home } from "./Home";
+import { Home, ProblemActions } from "./Home";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import { authStatus } from "../main/agentAuth/state";
 import type { AccountIdentity, AuthState, AuthStatusDto, Provider, ToolFacts } from "../main/agentAuth/types";
@@ -175,4 +175,13 @@ test("Doany (114px) is the stage's first child, above the greeting; the stage ha
   const stage = css.match(/\n\.home-stage \{[^}]*\}/)![0];
   expect(stage).not.toContain("152px");
   expect(stage).toContain("padding: var(--space-8);");
+});
+
+// project-settings design '영향 범위' 복구 라벨 (draft frame workspace-status): the status line's actions have no
+// ellipsis, and Remove names what it removes.
+test("the workspace status line offers Locate, Set Up and Remove from Doan", () => {
+  const line = (entry: FolderEntry) => renderToStaticMarkup(<ProblemActions entry={entry} action={() => {}} workspace={{ name: "acme-web", homeDirectory: "/Users/ada", home: () => {} }} />);
+  const labels = (html: string) => Array.from(html.matchAll(/<button[^>]*>([^<]*)/g), match => match[1]);
+  expect(labels(line({ path: "/Users/ada/code/acme-web", kind: "notFound" }))).toEqual(["Locate", "Remove from Doan", "Go Home"]);
+  expect(labels(line({ path: "/Users/ada/code/acme-web", kind: "uninitialized" }))).toEqual(["Set Up", "Remove from Doan", "Go Home"]);
 });

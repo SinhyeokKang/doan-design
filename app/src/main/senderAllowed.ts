@@ -21,7 +21,7 @@ const mainOnly = new Set([
   "pointer:get",
   // buzz-add-projects: the Add Projects page's project session; Settings has no such page.
   "add-projects:read", "add-projects:inspect", "add-projects:select", "add-projects:clone", "add-projects:cancel",
-  // buzz-settings: the Settings page and the Project Settings dialog. Main fixes every URL, clipboard text and
+  // buzz-settings: the Settings page and the Project Settings page. Main fixes every URL, clipboard text and
   // notification itself; these carry choices and requests only.
   "preferences:read", "preferences:write", "notifications:test", "notifications:open-settings", "about:read", "about:copy",
   "config:session-start", "config:session-end",
