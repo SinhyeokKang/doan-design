@@ -397,3 +397,12 @@ func TestViewportHeightUnitSkipsTokenCSS(t *testing.T) {
 		t.Fatalf("%+v", fs)
 	}
 }
+
+func TestViewportHeightUnitKeepsRawToken(t *testing.T) {
+	in := base()
+	in.Canvases[0].Styles = canvas.ScanCSS(`a{a:+5vh;b:1e+2vh;c:100v\68}`, canvas.Stylesheet)
+	fs := codes(Run(in), "viewport_height_unit")
+	if len(fs) != 3 || fs[0].Value != "+5vh" || fs[1].Value != `100v\68` || fs[2].Value != "1e+2vh" || !strings.Contains(fs[2].Message, `"1e+2vh"`) {
+		t.Fatalf("%+v", fs)
+	}
+}

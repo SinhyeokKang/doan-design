@@ -172,7 +172,12 @@ func TestViewportHeights(t *testing.T) {
 	}{
 		{name: "units", css: `a{a:100vh;b:100dvh;c:100svh;d:100lvh;e:100vb;f:100dvb;g:100svb;h:100lvb}`, want: []string{"100vh", "100dvh", "100svh", "100lvh", "100vb", "100dvb", "100svb", "100lvb"}},
 		{name: "case", css: `a{height:100VH;min-height:50DvH}`, want: []string{"100VH", "50DvH"}},
-		{name: "number forms", css: `a{a:.5vh;b:-10vh;c:1e2vh;d:1.5vh;e:-1.5vh;f:+5vh;g:1E-2vh;h:-.5vh}`, want: []string{".5vh", "-10vh", "1e2vh", "1.5vh", "-1.5vh", "5vh", "1E-2vh", "-.5vh"}},
+		{name: "number forms", css: `a{a:.5vh;b:-10vh;c:1e2vh;d:1.5vh;e:-1.5vh;f:+5vh;g:1E-2vh;h:-.5vh}`, want: []string{".5vh", "-10vh", "1e2vh", "1.5vh", "-1.5vh", "+5vh", "1E-2vh", "-.5vh"}},
+		{name: "signs and exponents", css: `a{a:+.5vh;b:1e+2vh;c:1.5e+2vh;d:+5vh;e:-1e-2dvh}`, want: []string{"+.5vh", "1e+2vh", "1.5e+2vh", "+5vh", "-1e-2dvh"}},
+		{name: "exponent is not a unit", css: `a{a:1em;b:2ex;c:1e3vh}`, want: []string{"1e3vh"}},
+		{name: "escaped unit", css: `a{a:100v\68;b:100V\48 ;c:5\76 h}`, want: []string{`100v\68`, `100V\48`, `5\76 h`}},
+		{name: "escaped unit suffix", css: `a{a:100vh\78;b:100v\68x;c:100vh\\}`},
+		{name: "escaped identifier", css: `a{animation-name:\31 00vh;b:\31 00vh;c:x\31 00vh}`},
 		{name: "functions", css: `a{height:calc(100dvh - 128px);max-height:min(55dvh, 576px)}`, want: []string{"100dvh", "55dvh"}},
 		{name: "custom property", css: `a{--h:100vh;height:var(--h)}`, want: []string{"100vh"}},
 		{name: "declaration list", css: `height:100vh`, mode: Declarations, want: []string{"100vh"}},
