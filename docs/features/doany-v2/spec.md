@@ -7,7 +7,7 @@
 - 선택 원본: [V2 정지 이미지](../../../.doan/assets/doany/v2/doany.png).
 - 원본과 바이트가 같은 탐색 이미지: `.doan/assets/doany/shape-study/pebble.png`.
 - SHA-256: `42346ecd5e16cd421bbfffc17d04826f278495f8997cd62564dd6e67d09e6e9c`.
-- 캔버스: [doan-mascot.html](../../../.doan/canvases/doan-mascot.html), `doany-v2-selected`, `doany-v2-motion-spec` 프레임.
+- 캔버스: [doan-mascot.html](../../../.doan/canvases/doan-mascot.html), `doany-v2-home`, `doany-v2-welcome`, `doany-v2-selected`, `doany-v2-motion-spec` 프레임.
 - V2 전용 에셋: `.doan/assets/doany/v2/`. V1의 `transparent/`, `motion/`, `white/`, `simple/`을 덮어쓰지 않는다.
 
 ## 사용자와 문제
@@ -22,7 +22,7 @@ Home과 Welcome을 보는 사람이 대상이다. 사용자는 기존 여섯 갈
 
 기존 [PRODUCT §5 Doany](../../PRODUCT.md) 계약을 이어받는다. Home·Welcome의 정지 이미지와 모션, 패키지 앱 아이콘, Doany DS 참조를 V2로 맞춘다. V2 앱 아이콘은 선택 원본을 흰 배경에 합성한다. 화면 구조·문구·슬롯·키보드 동작은 바꾸지 않는다. 별도 신규 마스코트 화면, 애니메이션 엔진, 외부 의존성은 추가하지 않는다.
 
-현재 문서는 구현 전 명세이다. V2 정지 원본과 캔버스의 정적 모션 설명만 준비되어 있다. V2 몸통·베레모 텍스처, 움직이는 프로토타입, 앱 적용, 패키지 아이콘은 아직 만들지 않았다.
+현재 문서는 구현 전 명세이다. V2 정지 원본·몸통·베레모 텍스처와 같은 캔버스의 실행 Home·Welcome 초안이 준비되어 있다. 앱 적용과 패키지 아이콘은 아직 만들지 않았다.
 
 ## 완료 조건
 
