@@ -39,3 +39,5 @@
 - C는 A2 통합 뒤에 시작한다. 실제 앱 probe는 C만 돌린다.
 
 ## 기록
+
+- 2026-11-03 Run `run_f6208075f892`. A1: task `task_106c3583acf7`, dispatch `ctx_cbbbc7bfc61b`, worktree `project-settings-a1`(브랜치 `SinhyeokKang/feat-project-settings-a1`), launch.effective claude sonnet high. B: task `task_e58f8c7d394e`, dispatch `ctx_cbbd464d3b06`, worktree `project-settings-b`(브랜치 `SinhyeokKang/feat-project-settings-task`), launch.effective claude sonnet medium. 둘 다 30ece8ae에서 시작했다.
