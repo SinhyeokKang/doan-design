@@ -32,7 +32,7 @@ type Context struct {
 	// RuntimePath and Dial reach the app; Run fills them so bodies never read the environment or open sockets.
 	RuntimePath string
 	Dial        func(socket string, deadline time.Time) (net.Conn, error)
-	// RuntimeExplicit, Executable, Launch and Sleep let only onboarding start open the app this CLI is bundled in.
+	// RuntimeExplicit, Executable, Launch and Sleep let only onboarding start and open open the app this CLI is bundled in.
 	RuntimeExplicit bool
 	Executable      func() (string, error)
 	Launch          func(bundle string) error
@@ -41,6 +41,8 @@ type Context struct {
 type Outcome struct {
 	Result any
 	Exit   int
+	// Text is what a person sees on success without --json; the JSON result is unchanged.
+	Text string
 }
 type Flags struct {
 	JSON                          bool
@@ -48,6 +50,8 @@ type Flags struct {
 	TokenCSSSet, CanvasSet        bool
 	ClearTokenCSS                 bool
 	AddServe, RemoveServe         []string
+	// Frames keeps every --frame so a repeated one is an error rather than the last one winning.
+	Frames []string
 
 	Session, Operation, Provider, Request, Path, URL, Destination, Inspection string
 	SpendCopilotRequest, Initialize                                           bool
@@ -69,6 +73,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   active
   work start <canvas path>
   work done [<canvas path>...]
+  open <canvas path> [--frame <id>]
   onboarding start
   onboarding status --session <id> [--operation <id>]
   onboarding check --session <id> --provider <id> --request <id> [--spend-copilot-request]
@@ -100,7 +105,7 @@ func repository(ctx Context, f Flags) (repo.Repository, *Error) {
 	return r, nil
 }
 
-// runtimePath is resolved only for active, work and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
+// runtimePath is resolved only for active, work, open and onboarding, so a bad DOAN_RUNTIME cannot break file-only commands.
 // An e2e or dev app started with --user-data-dir writes runtime.json there, and this variable points the CLI at it.
 func runtimePath() (string, *Error) {
 	if p := os.Getenv("DOAN_RUNTIME"); p != "" {
@@ -116,8 +121,8 @@ func runtimePath() (string, *Error) {
 	return filepath.Join(home, "Library", "Application Support", "doan", "runtime.json"), nil
 }
 
-// onboardingRuntime treats a set but empty DOAN_RUNTIME as explicit, so it
-// never opens the default app; active keeps reading empty as unset.
+// onboardingRuntime, also used by open, treats a set but empty DOAN_RUNTIME as
+// explicit, so it never opens the default app; active keeps reading empty as unset.
 func onboardingRuntime() (string, bool, *Error) {
 	_, explicit := os.LookupEnv("DOAN_RUNTIME")
 	path, failure := runtimePath()
@@ -134,6 +139,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.Func("remove-serve", "", func(s string) error { f.RemoveServe = append(f.RemoveServe, s); return nil })
 	fs.StringVar(&f.Canvas, "canvas", "", "")
 	fs.StringVar(&f.Agent, "agent", "", "")
+	fs.Func("frame", "", func(s string) error { f.Frames = append(f.Frames, s); return nil })
 	for name, target := range map[string]*string{"session": &f.Session, "operation": &f.Operation, "provider": &f.Provider, "request": &f.Request, "path": &f.Path, "url": &f.URL, "destination": &f.Destination, "inspection": &f.Inspection} {
 		fs.StringVar(target, name, "", "")
 	}
@@ -166,6 +172,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			allowed["canvas"] = true
 		case "comment":
 			allowed["agent"] = true
+		case "open":
+			allowed["frame"] = true
 		case "onboarding":
 			// Onboarding takes absolute paths and never searches for a repository.
 			allowed = map[string]bool{"json": true}
@@ -243,6 +251,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						if ctx.RuntimePath, ctx.RuntimeExplicit, failure = onboardingRuntime(); failure == nil {
 							o, failure = Onboarding(ctx, f, pos[1:])
 						}
+					case "open":
+						if ctx.RuntimePath, ctx.RuntimeExplicit, failure = onboardingRuntime(); failure == nil {
+							o, failure = Open(ctx, f, pos[1:])
+						}
 					case "comment":
 						if len(pos) < 2 || pos[1] != "resolve" {
 							failure = usageError("Expected comment resolve")
@@ -275,6 +287,12 @@ func emit(o Outcome, failure *Error, jsonMode bool, stdout, stderr io.Writer) in
 			text += s + "\n"
 		}
 		if _, e := io.WriteString(stderr, EscapeControl(text)); e != nil {
+			return 1
+		}
+		return exit
+	}
+	if o.Text != "" {
+		if _, e := io.WriteString(stdout, EscapeControl(o.Text)+"\n"); e != nil {
 			return 1
 		}
 		return exit

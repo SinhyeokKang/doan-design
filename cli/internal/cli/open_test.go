@@ -1,11 +1,15 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/SinhyeokKang/doan-design/cli/internal/formats"
 )
@@ -202,5 +206,514 @@ func TestOpenReplyKeepsSecretsOut(t *testing.T) {
 		if failure == nil || failure.Code != "busy" || failure.Message != "Doan sent a message that cannot be shown" {
 			t.Errorf("leaked %q: %v", leak, failure)
 		}
+	}
+}
+
+// open runs the command against the harness's fake clock and launcher.
+func (h *launchHarness) open(root string, args []string, frames ...string) (Outcome, *Error) {
+	ctx := h.ctx
+	ctx.Start = root
+	return Open(ctx, Flags{Repo: root, Frames: frames, Given: map[string]bool{}}, args)
+}
+
+func openedApp(t *testing.T, dir string, frame string) *onboardingApp {
+	return startOnboardingApp(t, dir, func(map[string]any) string {
+		return `{"v":4,"ok":true,"opened":true,"frame":"` + frame + `"}`
+	})
+}
+
+func openProject(t *testing.T) string {
+	t.Helper()
+	root := realPath(t, initialized(t))
+	putFile(t, root, ".doan/canvases/home.html", validCanvas)
+	putFile(t, root, ".doan/ds/brand.html", validCanvas)
+	return root
+}
+
+func TestOpenSendsTheV4Request(t *testing.T) {
+	root := openProject(t)
+	for _, tt := range []struct {
+		name   string
+		args   []string
+		frames []string
+		frame  string
+		want   map[string]any
+		text   string
+	}{
+		{"canvas only", []string{".doan/canvases/home.html"}, nil, "none",
+			map[string]any{"v": float64(4), "token": testToken, "root": root, "path": ".doan/canvases/home.html"},
+			"Opened .doan/canvases/home.html in Doan"},
+		{"frame found", []string{".doan/canvases/home.html"}, []string{"hero"}, "found",
+			map[string]any{"v": float64(4), "token": testToken, "root": root, "path": ".doan/canvases/home.html", "frame": "hero"},
+			"Opened .doan/canvases/home.html in Doan at frame hero"},
+		{"frame missing", []string{filepath.Join(root, ".doan/ds/brand.html")}, []string{"nope"}, "missing",
+			map[string]any{"v": float64(4), "token": testToken, "root": root, "path": ".doan/ds/brand.html", "frame": "nope"},
+			"Opened .doan/ds/brand.html in Doan; frame nope was not found"},
+	} {
+		h := newLaunchHarness(t)
+		app := openedApp(t, h.dir, tt.frame)
+		o, failure := h.open(root, tt.args, tt.frames...)
+		if failure != nil {
+			t.Fatalf("%s: %v", tt.name, failure)
+		}
+		if !reflect.DeepEqual(o.Result, map[string]any{"opened": true, "frame": tt.frame}) || o.Text != tt.text {
+			t.Errorf("%s: %v %q", tt.name, o.Result, o.Text)
+		}
+		if got := app.received(); len(got) != 1 || !reflect.DeepEqual(got[0], tt.want) {
+			t.Errorf("%s: wire %v", tt.name, got)
+		}
+		if len(h.launches) != 0 || h.elapsed != 0 {
+			t.Errorf("%s: %v %v", tt.name, h.launches, h.elapsed)
+		}
+	}
+}
+
+func TestOpenToleratesAFrameResultForNoFrame(t *testing.T) {
+	root := openProject(t)
+	for _, frame := range []string{"found", "missing"} {
+		h := newLaunchHarness(t)
+		openedApp(t, h.dir, frame)
+		o, failure := h.open(root, []string{".doan/canvases/home.html"})
+		if failure != nil || o.Text != "Opened .doan/canvases/home.html in Doan" {
+			t.Errorf("%s: %q %v", frame, o.Text, failure)
+		}
+	}
+}
+
+func TestOpenAsksNothingWhenTheInputIsWrong(t *testing.T) {
+	root := openProject(t)
+	outside := t.TempDir()
+	putFile(t, outside, ".doan/canvases/home.html", "canvas")
+	if err := os.Symlink(filepath.Join(outside, ".doan/canvases/home.html"), filepath.Join(root, ".doan/canvases/out.html")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, ".doan/canvases/gone.html"), filepath.Join(root, ".doan/canvases/dangling.html")); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name   string
+		args   []string
+		frames []string
+		code   string
+	}{
+		{"no canvas", nil, nil, "usage_error"},
+		{"two canvases", []string{".doan/canvases/home.html", ".doan/ds/brand.html"}, nil, "usage_error"},
+		{"frame twice", []string{".doan/canvases/home.html"}, []string{"a", "b"}, "usage_error"},
+		{"empty frame", []string{".doan/canvases/home.html"}, []string{""}, "usage_error"},
+		{"control character", []string{".doan/canvases/home.html"}, []string{"a\nb"}, "usage_error"},
+		{"long frame", []string{".doan/canvases/home.html"}, []string{strings.Repeat("a", 201)}, "usage_error"},
+		{"outside the canvas directories", []string{"src/home.html"}, nil, "usage_error"},
+		{"parent traversal", []string{".doan/canvases/../../home.html"}, nil, "usage_error"},
+		{"absolute path outside the root", []string{filepath.Join(outside, ".doan/canvases/home.html")}, nil, "usage_error"},
+		{"link leaving the root", []string{".doan/canvases/out.html"}, nil, "usage_error"},
+		{"dangling link", []string{".doan/canvases/dangling.html"}, nil, "usage_error"},
+		{"no such file", []string{".doan/canvases/missing.html"}, nil, "canvas_not_found"},
+		{"no such file in ds", []string{".doan/ds/missing.html"}, []string{"hero"}, "canvas_not_found"},
+	} {
+		h := newLaunchHarness(t)
+		app := openedApp(t, h.dir, "none")
+		_, failure := h.open(root, tt.args, tt.frames...)
+		if failure == nil || failure.Code != tt.code {
+			t.Errorf("%s: %v", tt.name, failure)
+			continue
+		}
+		if tt.code == "canvas_not_found" && ExitCode(tt.code) != 2 {
+			t.Errorf("%s: exit %d", tt.name, ExitCode(tt.code))
+		}
+		if len(app.received()) != 0 || len(h.launches) != 0 {
+			t.Errorf("%s asked the app: %v %v", tt.name, app.received(), h.launches)
+		}
+	}
+	// A symlink that stays inside the root opens the canvas it points at.
+	if err := os.Symlink(filepath.Join(root, ".doan/canvases/home.html"), filepath.Join(root, ".doan/canvases/alias.html")); err != nil {
+		t.Fatal(err)
+	}
+	h := newLaunchHarness(t)
+	app := openedApp(t, h.dir, "none")
+	if _, failure := h.open(root, []string{".doan/canvases/alias.html"}); failure != nil {
+		t.Fatal(failure)
+	}
+	if got := app.received(); len(got) != 1 || got[0]["path"] != ".doan/canvases/home.html" {
+		t.Fatal(got)
+	}
+}
+
+func TestOpenRepositoryErrors(t *testing.T) {
+	h := newLaunchHarness(t)
+	app := openedApp(t, h.dir, "none")
+	notRepo := realPath(t, t.TempDir())
+	if _, failure := h.open(notRepo, []string{".doan/canvases/home.html"}); failure == nil || failure.Code != "repo_not_found" || ExitCode(failure.Code) != 2 {
+		t.Fatal(failure)
+	}
+	if len(app.received()) != 0 || len(h.launches) != 0 {
+		t.Fatal(app.received(), h.launches)
+	}
+}
+
+func TestOpenAppRefusals(t *testing.T) {
+	root := openProject(t)
+	for _, tt := range []struct {
+		reply, code, in string
+		exit            int
+	}{
+		{`{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`, "project_not_open", `"` + filepath.Base(root) + `"`, 3},
+		{`{"v":4,"ok":false,"error":{"code":"canvas_not_found","message":"m"}}`, "canvas_not_found", ".doan/canvases/home.html", 2},
+		{`{"v":4,"ok":false,"error":{"code":"busy","message":"Finish Doan's first run"}}`, "busy", "Finish Doan's first run", 5},
+		{`{"v":4,"ok":false,"error":{"code":"bad_request","message":"m"}}`, "internal_error", "malformed", 1},
+		{`{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`, "app_protocol_mismatch", "another protocol", 3},
+	} {
+		h := newLaunchHarness(t)
+		app := startOnboardingApp(t, h.dir, func(map[string]any) string { return tt.reply })
+		_, failure := h.open(root, []string{".doan/canvases/home.html"})
+		if failure == nil || failure.Code != tt.code || ExitCode(failure.Code) != tt.exit || !strings.Contains(failure.Message, tt.in) {
+			t.Errorf("%s: %v", tt.code, failure)
+		}
+		// A refusal is final: no retry, no launch.
+		if len(app.received()) != 1 || len(h.launches) != 0 || h.elapsed != 0 {
+			t.Errorf("%s: %d requests, %v, %v", tt.code, len(app.received()), h.launches, h.elapsed)
+		}
+	}
+}
+
+func TestOpenBootstrapLaunchesOwningBundleOnce(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	var app *onboardingApp
+	// The app publishes its runtime a few polls after the launch.
+	h.onSleep = func(n int) {
+		if n == 3 {
+			app = openedApp(t, h.dir, "found")
+		}
+	}
+	o, failure := h.open(root, []string{".doan/canvases/home.html"}, "hero")
+	if failure != nil || o.Result.(map[string]any)["frame"] != "found" {
+		t.Fatal(o, failure)
+	}
+	if len(h.launches) != 1 || h.launches[0] != filepath.Join(realPath(t, h.dir), "Doan Apps", "doan.app") {
+		t.Fatal(h.launches)
+	}
+	if len(app.received()) != 1 || h.elapsed > 15*time.Second {
+		t.Fatal(app.received(), h.elapsed)
+	}
+}
+
+// A launched app answers not_ready until it has restored; the request is sent again, never held by the app.
+func TestOpenLaunchedAppNotReadyThenOpens(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	var app *onboardingApp
+	var mu sync.Mutex
+	calls := 0
+	h.onLaunch = func() {
+		app = startOnboardingApp(t, h.dir, func(map[string]any) string {
+			mu.Lock()
+			defer mu.Unlock()
+			calls++
+			if calls <= 3 {
+				return `{"v":4,"ok":false,"error":{"code":"not_ready","message":"m"}}`
+			}
+			return `{"v":4,"ok":true,"opened":true,"frame":"none"}`
+		})
+	}
+	if _, failure := h.open(root, []string{".doan/canvases/home.html"}); failure != nil {
+		t.Fatal(failure)
+	}
+	if len(h.launches) != 1 || len(app.received()) != 4 {
+		t.Fatal(h.launches, len(app.received()))
+	}
+}
+
+func TestOpenBootstrapStopsAtFifteenSeconds(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	started := time.Now()
+	_, failure := h.open(root, []string{".doan/canvases/home.html"})
+	if failure == nil || failure.Code != "app_launch_failed" || ExitCode(failure.Code) != 3 {
+		t.Fatal(failure)
+	}
+	if len(h.launches) != 1 || h.elapsed < 15*time.Second || h.elapsed > 16*time.Second {
+		t.Fatal(h.launches, h.elapsed)
+	}
+	if time.Since(started) > 5*time.Second {
+		t.Fatal("bootstrap waited on the wall clock")
+	}
+	if !strings.Contains(strings.Join(failure.NextSteps, "\n"), "doan open") {
+		t.Fatal(failure.NextSteps)
+	}
+}
+
+// A launched app that never leaves not_ready is still a failed launch, not a busy app.
+func TestOpenLaunchedAppNeverReadyIsLaunchFailure(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	h.onLaunch = func() {
+		startOnboardingApp(t, h.dir, func(map[string]any) string {
+			return `{"v":4,"ok":false,"error":{"code":"not_ready","message":"m"}}`
+		})
+	}
+	_, failure := h.open(root, []string{".doan/canvases/home.html"})
+	if failure == nil || failure.Code != "app_launch_failed" || len(h.launches) != 1 || h.elapsed < 15*time.Second || h.elapsed > 16*time.Second {
+		t.Fatal(failure, h.launches, h.elapsed)
+	}
+}
+
+func TestOpenRunningAppThatStaysNotReadyIsBusy(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	app := startOnboardingApp(t, h.dir, func(map[string]any) string {
+		return `{"v":4,"ok":false,"error":{"code":"not_ready","message":"m"}}`
+	})
+	started := time.Now()
+	_, failure := h.open(root, []string{".doan/canvases/home.html"})
+	if failure == nil || failure.Code != "busy" || ExitCode(failure.Code) != 5 || !strings.Contains(failure.Message, "still opening") {
+		t.Fatal(failure)
+	}
+	if len(h.launches) != 0 || h.elapsed < 15*time.Second || h.elapsed > 16*time.Second || len(app.received()) < 2 {
+		t.Fatal(h.launches, h.elapsed, len(app.received()))
+	}
+	if time.Since(started) > 5*time.Second {
+		t.Fatal("retries waited on the wall clock")
+	}
+}
+
+func TestOpenRunningAppNotReadyThenOpens(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	var mu sync.Mutex
+	calls := 0
+	app := startOnboardingApp(t, h.dir, func(map[string]any) string {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls < 3 {
+			return `{"v":4,"ok":false,"error":{"code":"not_ready","message":"m"}}`
+		}
+		return `{"v":4,"ok":true,"opened":true,"frame":"none"}`
+	})
+	if _, failure := h.open(root, []string{".doan/canvases/home.html"}); failure != nil {
+		t.Fatal(failure)
+	}
+	if len(h.launches) != 0 || len(app.received()) != 3 {
+		t.Fatal(h.launches, len(app.received()))
+	}
+}
+
+// If the app quits while it is asked to retry, that is app_not_running, not a launch to attempt.
+func TestOpenAppGoneWhileNotReadyIsNotLaunched(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	startOnboardingApp(t, h.dir, func(map[string]any) string {
+		return `{"v":4,"ok":false,"error":{"code":"not_ready","message":"m"}}`
+	})
+	h.onSleep = func(n int) { os.Remove(filepath.Join(h.dir, "runtime.json")) }
+	_, failure := h.open(root, []string{".doan/canvases/home.html"})
+	if failure == nil || failure.Code != "app_not_running" || len(h.launches) != 0 {
+		t.Fatal(failure, h.launches)
+	}
+}
+
+func TestOpenExplicitRuntimeNeverLaunches(t *testing.T) {
+	root := openProject(t)
+	for _, tt := range []struct {
+		name  string
+		setup func(h *launchHarness)
+		code  string
+	}{
+		{"missing", func(h *launchHarness) {}, "app_not_running"},
+		{"broken", func(h *launchHarness) { putFile(t, h.dir, "runtime.json", `{`) }, "app_not_running"},
+		{"unreachable", func(h *launchHarness) {
+			putFile(t, h.dir, "runtime.json", runtimeJSON(filepath.Join(h.dir, "gone.sock")))
+		}, "app_not_running"},
+		{"stale token", func(h *launchHarness) {
+			startOnboardingApp(t, h.dir, func(map[string]any) string { return string(replyFixture(t, "error-bad-token")) })
+		}, "app_not_running"},
+		{"old app", func(h *launchHarness) {
+			startOnboardingApp(t, h.dir, func(map[string]any) string {
+				return `{"v":1,"ok":false,"error":{"code":"bad_request","message":"m"}}`
+			})
+		}, "app_protocol_mismatch"},
+	} {
+		h := newLaunchHarness(t)
+		h.ctx.RuntimeExplicit = true
+		tt.setup(h)
+		_, failure := h.open(root, []string{".doan/canvases/home.html"})
+		if failure == nil || failure.Code != tt.code || len(h.launches) != 0 || h.elapsed != 0 {
+			t.Errorf("%s: %v %v %v", tt.name, failure, h.launches, h.elapsed)
+			continue
+		}
+		if strings.Contains(failure.Message, h.dir) {
+			t.Errorf("%s names the runtime path: %s", tt.name, failure.Message)
+		}
+	}
+	// An explicit runtime that is still starting is asked again, and still never launched.
+	h := newLaunchHarness(t)
+	h.ctx.RuntimeExplicit = true
+	var mu sync.Mutex
+	calls := 0
+	startOnboardingApp(t, h.dir, func(map[string]any) string {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls < 2 {
+			return `{"v":4,"ok":false,"error":{"code":"not_ready","message":"m"}}`
+		}
+		return `{"v":4,"ok":true,"opened":true,"frame":"none"}`
+	})
+	if _, failure := h.open(root, []string{".doan/canvases/home.html"}); failure != nil || len(h.launches) != 0 {
+		t.Fatal(failure, h.launches)
+	}
+}
+
+func TestOpenOutsideABundleDoesNotLaunch(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	standalone := filepath.Join(h.dir, "doan")
+	putFile(t, h.dir, "doan", "#!/bin/sh\n")
+	h.ctx.Executable = func() (string, error) { return standalone, nil }
+	_, failure := h.open(root, []string{".doan/canvases/home.html"})
+	if failure == nil || failure.Code != "app_not_running" || len(h.launches) != 0 || h.elapsed != 0 {
+		t.Fatal(failure, h.launches)
+	}
+	requireRecoveryOrder(t, failure.NextSteps, [][]string{
+		{"open Doan", "doan open"},
+		{"If Doan is open, a sandbox may block this shell from its socket", "outside the sandbox", "approval", "Codex sessions started after Doan opens", "by name", "restart earlier sessions"},
+		{"If it still fails", "Applications", "Settings… > About"},
+	})
+}
+
+// Without DOAN_RUNTIME, a runtime the shell may not read means the app is likely running behind a sandbox.
+func TestOpenDeniedRuntimeIsNotLaunched(t *testing.T) {
+	root := openProject(t)
+	h := newLaunchHarness(t)
+	putFile(t, h.dir, "runtime.json", runtimeJSON(filepath.Join(h.dir, "app.sock")))
+	os.Chmod(filepath.Join(h.dir, "runtime.json"), 0)
+	_, failure := h.open(root, []string{".doan/canvases/home.html"})
+	if failure == nil || failure.Code != "app_not_running" || len(h.launches) != 0 {
+		t.Fatal(failure, h.launches)
+	}
+}
+
+// runOpen runs the real command against a fake app and returns its exit code, stdout and stderr.
+func runOpen(t *testing.T, runtime string, args ...string) (int, string, string) {
+	t.Helper()
+	t.Setenv("DOAN_RUNTIME", runtime)
+	var out, errout bytes.Buffer
+	code := Run(append([]string{"open"}, args...), strings.NewReader(""), &out, &errout)
+	return code, out.String(), errout.String()
+}
+
+func TestRunOpenArguments(t *testing.T) {
+	root := openProject(t)
+	for _, tt := range []struct {
+		name  string
+		args  []string
+		frame any
+		code  int
+	}{
+		{"frame after the path", []string{".doan/canvases/home.html", "--frame", "hero"}, "hero", 0},
+		{"frame before the path", []string{"--frame", "hero", ".doan/canvases/home.html"}, "hero", 0},
+		{"frame with equals", []string{".doan/canvases/home.html", "--frame=hero"}, "hero", 0},
+		{"frame with spaces", []string{".doan/canvases/home.html", "--frame", "hero section"}, "hero section", 0},
+		{"no frame", []string{".doan/canvases/home.html"}, nil, 0},
+		{"frame without a value", []string{".doan/canvases/home.html", "--frame"}, nil, 2},
+		{"empty frame", []string{".doan/canvases/home.html", "--frame="}, nil, 2},
+		{"frame twice", []string{".doan/canvases/home.html", "--frame", "a", "--frame", "b"}, nil, 2},
+		{"no path", []string{"--frame", "hero"}, nil, 2},
+		{"unsupported flag", []string{".doan/canvases/home.html", "--canvas", "x"}, nil, 2},
+		{"onboarding flag", []string{".doan/canvases/home.html", "--session", "s"}, nil, 2},
+	} {
+		app := openedApp(t, shortTempDir(t), "none")
+		code, out, errout := runOpen(t, app.runtime, append(tt.args, "--repo", root, "--json")...)
+		if code != tt.code || errout != "" {
+			t.Errorf("%s: exit %d: %s %s", tt.name, code, out, errout)
+			continue
+		}
+		got := app.received()
+		if tt.code != 0 {
+			if len(got) != 0 || !strings.Contains(out, `"usage_error"`) {
+				t.Errorf("%s: %v %s", tt.name, got, out)
+			}
+			continue
+		}
+		if len(got) != 1 || got[0]["frame"] != tt.frame || got[0]["path"] != ".doan/canvases/home.html" {
+			t.Errorf("%s: %v", tt.name, got)
+		}
+	}
+	// --frame belongs to open alone.
+	if code, out, _ := runOpen(t, "/x/runtime.json", "--repo", root, "--json"); code != 2 {
+		t.Fatal(code, out)
+	}
+	var out, errout bytes.Buffer
+	if code := Run([]string{"ls", "--frame", "x", "--repo", root, "--json"}, strings.NewReader(""), &out, &errout); code != 2 || !strings.Contains(out.String(), "--frame") {
+		t.Fatal(code, out.String())
+	}
+}
+
+func TestRunOpenRuntimeEnvironment(t *testing.T) {
+	root := openProject(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	args := []string{".doan/canvases/home.html", "--repo", root, "--json"}
+	// A relative DOAN_RUNTIME is a usage error, as for active and work.
+	if code, out, _ := runOpen(t, "relative/runtime.json", args...); code != 2 || !strings.Contains(out, `"usage_error"`) {
+		t.Fatal(code, out)
+	}
+	// Set but empty is explicit: the default app is neither read as a hint to launch nor launched.
+	if code, out, _ := runOpen(t, "", args...); code != 3 || !strings.Contains(out, `"app_not_running"`) {
+		t.Fatal(code, out)
+	}
+	if code, out, _ := runOpen(t, filepath.Join(home, "none", "runtime.json"), args...); code != 3 || !strings.Contains(out, `"app_not_running"`) || strings.Contains(out, home) {
+		t.Fatal(code, out)
+	}
+}
+
+func TestRunOpenOutput(t *testing.T) {
+	root := openProject(t)
+	app := openedApp(t, shortTempDir(t), "found")
+	code, out, errout := runOpen(t, app.runtime, ".doan/canvases/home.html", "--frame", "hero", "--repo", root)
+	if code != 0 || out != "Opened .doan/canvases/home.html in Doan at frame hero\n" || errout != "" {
+		t.Fatal(code, out, errout)
+	}
+	// A frame id with control characters cannot reach the terminal: the request is refused before output.
+	code, out, errout = runOpen(t, app.runtime, ".doan/canvases/home.html", "--frame", "a\x1b[2Jb", "--repo", root)
+	if code != 2 || out != "" || strings.Contains(errout, "\x1b") {
+		t.Fatal(code, out, errout)
+	}
+	missing := startOnboardingApp(t, shortTempDir(t), func(map[string]any) string {
+		return `{"v":4,"ok":false,"error":{"code":"project_not_open","message":"m"}}`
+	})
+	code, out, errout = runOpen(t, missing.runtime, ".doan/canvases/home.html", "--repo", root)
+	if code != 3 || out != "" || !strings.HasPrefix(errout, "error: Doan does not have the folder ") || !strings.Contains(errout, "Add Projects") {
+		t.Fatal(code, out, errout)
+	}
+	code, out, _ = runOpen(t, app.runtime, ".doan/canvases/home.html", "--frame", "hero", "--repo", root, "--json")
+	var envelope map[string]any
+	if json.Unmarshal([]byte(out), &envelope) != nil || code != 0 || !reflect.DeepEqual(envelope["result"], map[string]any{"opened": true, "frame": "found"}) {
+		t.Fatal(code, out)
+	}
+}
+
+func TestOpenNeverPrintsTheTokenOrRuntimePath(t *testing.T) {
+	root := openProject(t)
+	for name, reply := range map[string]string{
+		"busy message": `{"v":4,"ok":false,"error":{"code":"busy","message":"blocked by ` + testToken + `"}}`,
+		"token field":  `{"v":4,"ok":true,"opened":true,"frame":"none","token":"` + testToken + `"}`,
+		"opened":       `{"v":4,"ok":true,"opened":true,"frame":"none"}`,
+	} {
+		app := startOnboardingApp(t, shortTempDir(t), func(map[string]any) string { return reply })
+		for _, mode := range [][]string{{"--json"}, {}} {
+			args := append([]string{".doan/canvases/home.html", "--repo", root}, mode...)
+			code, out, errout := runOpen(t, app.runtime, args...)
+			if all := out + errout; strings.Contains(all, testToken) || strings.Contains(all, app.runtime) || strings.Contains(all, filepath.Dir(app.runtime)) {
+				t.Errorf("%s %v exit %d leaked: %s %s", name, mode, code, out, errout)
+			}
+		}
+	}
+}
+
+func TestHelpListsOpen(t *testing.T) {
+	var out, errout bytes.Buffer
+	if code := Run([]string{"help"}, strings.NewReader(""), &out, &errout); code != 0 || !strings.Contains(out.String(), "  open <canvas path> [--frame <id>]\n") {
+		t.Fatal(code, out.String())
 	}
 }

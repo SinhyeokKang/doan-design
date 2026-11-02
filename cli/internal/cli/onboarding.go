@@ -187,81 +187,114 @@ func onboardingRequest(name string, cmd onboardingCommand, f Flags) (map[string]
 	return request, nil
 }
 
-// onboardingStart is the only onboarding path that may open the app, and only the bundle this CLI belongs to.
-func onboardingStart(ctx Context, request map[string]any) (map[string]any, *Error) {
-	reply, failure, launchable := callOnboarding(ctx, request, ctx.Now().Add(activeTimeout))
-	// An explicit DOAN_RUNTIME names a specific app (dev, e2e, eval); opening the default one would answer for another.
-	if failure == nil || !launchable || ctx.RuntimeExplicit {
-		return reply, failure
+// bootstrap sends a request through attempt and, when no app is listening, opens the app this CLI is bundled in
+// once and sends it again until the bootstrap cap. attempt returns the validated reply or a failure, and
+// launchable reports a failure that means no app is listening, which is the only thing that may open the app.
+// A not_ready failure means a running app is still starting: it is asked again within the same cap, with no launch.
+func bootstrap(ctx Context, fail func(code, message string) *Error, attempt func(deadline time.Time) (map[string]any, *Error, bool)) (map[string]any, *Error) {
+	reply, failure, launchable := attempt(ctx.Now().Add(activeTimeout))
+	if failure == nil {
+		return reply, nil
 	}
-	bundle, ok := ownBundle(ctx.Executable)
-	if !ok {
-		return nil, onboardingFailure("app_not_running", "Doan is not running, and this doan CLI is not inside a Doan app to open")
-	}
+	launched := false
 	deadline := ctx.Now().Add(bootstrapTimeout)
-	if ctx.Launch(bundle) != nil {
-		return nil, onboardingFailure("app_launch_failed", "Could not open Doan")
+	if failure.Code != "not_ready" {
+		// An explicit DOAN_RUNTIME names a specific app (dev, e2e, eval); opening the default one would answer for another.
+		if !launchable || ctx.RuntimeExplicit {
+			return reply, failure
+		}
+		bundle, ok := ownBundle(ctx.Executable)
+		if !ok {
+			return nil, fail("app_not_running", "Doan is not running, and this doan CLI is not inside a Doan app to open")
+		}
+		if ctx.Launch(bundle) != nil {
+			return nil, fail("app_launch_failed", "Could not open Doan")
+		}
+		launched = true
 	}
 	for {
 		ctx.Sleep(bootstrapPoll)
-		attempt := ctx.Now().Add(activeTimeout)
-		if attempt.After(deadline) {
-			attempt = deadline
+		next := ctx.Now().Add(activeTimeout)
+		if next.After(deadline) {
+			next = deadline
 		}
-		reply, failure, _ = callOnboarding(ctx, request, attempt)
-		// While the launched app starts, a missing runtime, a refused socket or a slow first answer all mean "not yet".
-		if failure == nil || failure.Code != "app_not_running" {
-			return reply, failure
+		reply, failure, _ = attempt(next)
+		if failure == nil {
+			return reply, nil
+		}
+		// While a launched app starts, a missing runtime, a refused socket or a slow first answer all mean "not yet".
+		if failure.Code != "not_ready" && !(launched && failure.Code == "app_not_running") {
+			return nil, failure
 		}
 		if !ctx.Now().Before(deadline) {
-			return nil, onboardingFailure("app_launch_failed", "Doan did not become ready within 15 seconds")
+			if launched {
+				return nil, fail("app_launch_failed", "Doan did not become ready within 15 seconds")
+			}
+			return nil, failure
 		}
 	}
+}
+
+// onboardingStart is the only onboarding path that may open the app, and only the bundle this CLI belongs to.
+func onboardingStart(ctx Context, request map[string]any) (map[string]any, *Error) {
+	return bootstrap(ctx, onboardingFailure, func(deadline time.Time) (map[string]any, *Error, bool) {
+		return callOnboarding(ctx, request, deadline)
+	})
 }
 
 // callOnboarding sends one v2 request and returns the validated reply. launchable
 // reports a failure that means no app is listening, which only start may act on.
 func callOnboarding(ctx Context, request map[string]any, deadline time.Time) (map[string]any, *Error, bool) {
+	answer, token, failure, launchable := exchange(ctx, request, deadline, onboardingFailure)
+	if failure != nil {
+		return nil, failure, launchable
+	}
+	return readOnboardingReply(answer, request["op"].(string), token, ctx.RuntimePath)
+}
+
+// exchange sends one request line to the app named by the runtime file and returns its one reply line with the
+// token it was sent under. fail builds the command's own app failures, so each command's nextSteps name itself.
+func exchange(ctx Context, request map[string]any, deadline time.Time, fail func(code, message string) *Error) (line []byte, token string, failure *Error, launchable bool) {
 	if _, e := os.Stat(ctx.RuntimePath); errors.Is(e, fs.ErrNotExist) {
-		return nil, onboardingFailure("app_not_running", "Doan is not running"), true
+		return nil, "", fail("app_not_running", "Doan is not running"), true
 	}
 	data, ok := readRuntimeBytes(ctx.RuntimePath)
 	if !ok {
-		return nil, onboardingFailure("app_not_running", "Cannot read the Doan runtime file"), false
+		return nil, "", fail("app_not_running", "Cannot read the Doan runtime file"), false
 	}
 	rt, code := readRuntime(data)
 	if code == "app_protocol_mismatch" {
-		return nil, onboardingFailure(code, "The Doan runtime file has another protocol version"), false
+		return nil, "", fail(code, "The Doan runtime file has another protocol version"), false
 	} else if code != "" {
 		// Doan rewrites the file when it starts, so a damaged one is no sign of a running app.
-		return nil, onboardingFailure(code, "The Doan runtime file is not valid"), true
+		return nil, "", fail(code, "The Doan runtime file is not valid"), true
 	}
 	conn, e := ctx.Dial(rt.Socket, deadline)
 	if e != nil {
 		// A left-over runtime file points at a removed or unbound socket; a denied one may be a sandbox around a running app.
 		gone := errors.Is(e, syscall.ENOENT) || errors.Is(e, syscall.ECONNREFUSED)
-		return nil, onboardingFailure("app_not_running", "Cannot connect to Doan"), gone
+		return nil, "", fail("app_not_running", "Cannot connect to Doan"), gone
 	}
 	defer conn.Close()
 	if e := conn.SetDeadline(deadline); e != nil {
-		return nil, internal(e), false
+		return nil, "", internal(e), false
 	}
 	wire := map[string]any{"token": rt.Token}
 	for k, v := range request {
 		wire[k] = v
 	}
-	line, e := json.Marshal(wire)
+	encoded, e := json.Marshal(wire)
 	if e != nil {
-		return nil, internal(e), false
+		return nil, "", internal(e), false
 	}
-	if _, e := conn.Write(append(line, '\n')); e != nil {
-		return nil, onboardingFailure("app_not_running", "Cannot send to Doan"), false
+	if _, e := conn.Write(append(encoded, '\n')); e != nil {
+		return nil, "", fail("app_not_running", "Cannot send to Doan"), false
 	}
-	answer, failure := readLine(conn)
+	line, failure = readLine(conn)
 	if failure != nil {
-		return nil, failure, false
+		return nil, "", failure, false
 	}
-	return readOnboardingReply(answer, request["op"].(string), rt.Token, ctx.RuntimePath)
+	return line, rt.Token, nil, false
 }
 
 // withoutSecrets replaces any message naming a secret and reports false when

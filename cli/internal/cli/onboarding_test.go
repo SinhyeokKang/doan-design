@@ -757,7 +757,8 @@ func TestOnboardingStartDeniedDefaultRuntimeIsNotLaunched(t *testing.T) {
 	}
 }
 
-func TestOnboardingOnlyStartLaunches(t *testing.T) {
+// Only `onboarding start` and `open` open the app; every other command that needs it reports it missing.
+func TestOnlyOnboardingStartAndOpenLaunch(t *testing.T) {
 	h := newLaunchHarness(t)
 	if _, failure := h.run("status", "--session", "s_1"); failure == nil || failure.Code != "app_not_running" {
 		t.Fatal(failure)
@@ -768,8 +769,19 @@ func TestOnboardingOnlyStartLaunches(t *testing.T) {
 	if _, failure := Active(ctx, Flags{Repo: root}, nil); failure == nil || failure.Code != "app_not_running" {
 		t.Fatal(failure)
 	}
+	if o, failure := Work(ctx, Flags{Repo: root}, []string{"done"}); failure != nil || o.Result.(map[string]any)["delivered"] != false {
+		t.Fatal(o, failure)
+	}
 	if len(h.launches) != 0 || h.elapsed != 0 {
 		t.Fatal(h.launches, h.elapsed)
+	}
+	canvas := realPath(t, root)
+	putFile(t, canvas, ".doan/canvases/home.html", "canvas")
+	if _, failure := h.open(canvas, []string{".doan/canvases/home.html"}); failure == nil || failure.Code != "app_launch_failed" {
+		t.Fatal(failure)
+	}
+	if len(h.launches) != 1 {
+		t.Fatal(h.launches)
 	}
 }
 
