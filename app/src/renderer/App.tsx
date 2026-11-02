@@ -5,6 +5,7 @@ import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } f
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
 import type { CanvasRow, FolderEntry } from "../main/view";
+import type { WorkItem } from "../main/workState";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
@@ -60,6 +61,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import { KeyedConversationStrip } from "./ConversationStripView";
 import { stripView } from "./conversationStrip";
 import { slotKey } from "./homeConversations";
+import { withTerminalSlots } from "./conversationList";
 import { seenMark, sidebarSlots } from "./canvasNotice";
 import { HomeRun } from "./homeRun";
 import { SettingsPage, type SettingsArrival } from "./SettingsPage";
@@ -781,6 +783,15 @@ export function App() {
   // Settings… (⌘,) from main, after it has shown a hidden window; a payload that is not a target is dropped.
   useEffect(() => window.doan.onOpenSettingsPage(value => { const target = parseSettingsTarget(value); if (target) live.current.openSettings(target); }), []);
   useEffect(() => window.doan.onNotificationClick(click => live.current.notificationClick(click)), []);
+  // The canvases terminal sessions work on (terminal-agent-activity 'Renderer IPC'): subscribed first, then read, and a
+  // change that lands before the read answers is newer than it.
+  const [work, setWork] = useState<readonly WorkItem[]>([]);
+  useEffect(() => {
+    let current = true, changed = false;
+    const stop = window.doan.onWorkChanged(items => { changed = true; setWork(items); });
+    void window.doan.getWork().then(items => { if (current && !changed) setWork(items); }).catch(console.error);
+    return () => { current = false; stop(); };
+  }, []);
   // The renderer's one sign-in controller tells a sign-in that ended away from Agents in the shared toast, and hears
   // when the window comes back to the front (design 'App 수준 로그인 컨트롤러').
   useEffect(() => agentSignIn().onToast(({ text, action }) => live.current.toast.show(text, action?.label, action ? () => live.current.openSettings(action.target) : undefined)), []);
@@ -1156,7 +1167,7 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={(root, key) => { if (!live.current.modal) setProjectSettings(previous => ({ root, key, seq: (previous?.seq ?? 0) + 1 })); }}
-    home={home} goHome={() => live.current.home()} slots={sidebarSlots(run.slots(), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
+    home={home} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})} />;
   const topBar = <TopBar back={onPage || onSettings || back !== null} forward={!onPage && !onSettings && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => onPage || onSettings ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;
