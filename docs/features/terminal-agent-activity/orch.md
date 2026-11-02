@@ -14,6 +14,7 @@
 - O2 (지휘자 판단 — 파일 겹침): `app/src/main/index.ts`·`app/src/preload/index.ts`는 B만, `app/src/renderer/App.tsx`는 D만 고친다. 그래서 deep link(T8b)를 main 쪽(B)과 renderer 쪽(D)으로 나눈다. `parseOpenLink`·링크 대기(T4c TS)는 main에서 쓰므로 B가 맡는다.
 - O3 (지휘자 판단 — 스키마 공유): 스키마·fixture·두 검증기(T1)와 open-link fixture(T1b)는 A·B가 함께 읽으므로 작은 배치 S로 먼저 끝내 통합한 뒤 A·B를 시작한다.
 - O5 (사용자 지시 "일부는 Codex로 구현 바꿔", 범위는 지휘자 판단): 아직 시작하지 않은 A(Go CLI)와 B(app main)를 Codex `gpt-6-astra` medium으로 구현한다. 이미 돌고 있는 P·S·C와 UI 판단이 큰 D, 실제 앱 probe인 G는 Claude로 둔다. Codex가 구현한 배치의 리뷰는 Claude Sonnet high가 맡아 교차 모델 리뷰를 유지한다.
+- O6 (지휘자 판단 — PRODUCT §5 item 0, C의 질문): `~/.claude/settings.json`이 심볼릭 링크이거나 일반 파일이 아니면 링크를 따라가지 않는다. 그대로 두고 About의 agent setup 결과에 보인다.
 - O4 (지휘자 판단 — T12 주의): runtime-test에서 `doan://`을 실제 `/Applications` 사본이 받으면 그 실행을 멈추고 사용자에게 묻는다(tasks T12).
 
 ## 배치
