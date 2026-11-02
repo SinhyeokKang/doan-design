@@ -53,3 +53,5 @@
 - RA1(A1 리뷰, Claude Sonnet 서브에이전트): 🔴 0, 🟡 3. (1) 읽기 중 문제 상태가 되면 Retry가 계속 비활성으로 남는다. (2) `gone` 뒤 늦은 선택기 응답이 사라진 워크트리의 확인을 다시 연다. (3) 읽기 실패 문장이 두 번 보인다. A1의 handoff 차이 7개는 모두 허용 판정이다. 지적은 `.scratch/orch/review-RA1.md`에 두고 A2 수정 회차로 보낸다.
   - 지휘자 판단: 시안의 `Saving (controls disabled)` 타일은 Remove from Doan도 비활성으로 그렸지만, design '잠금'은 쓰기 중에도 Remove from Doan을 쓸 수 있다고 정했다. design을 따르고, 시안 타일은 C가 design에 맞게 고친다(초안은 결정을 따른다).
   - 지휘자 판단: Share 제목의 code 표시는 앞의 결정대로 시안을 따른다. 리뷰어는 시안을 고치자고 했지만, 사용자가 확정한 시안이 정본이고 `SettingsDialog` 변경이 작다.
+- A2 완료: c7009681·b51706be를 eb4af6b5·34452faf로 통합했다(작업자 보고: 커밋마다 `verify.mjs` PASS, 마지막 테스트 5698, T5 grep 결과 없음). 수정 회차에 다시 쓰려고 작업자를 retain했다. handoff의 차이 7개 중 2번(사이드바 Home 행이 이 페이지에서도 `aria-current`를 가짐, Add Projects와 같음)은 RA2 판정을 보고 정한다. `senderAllowed.ts:24` 주석의 "dialog"는 수정 회차에 넣는다.
+- RA2: Claude Opus 서브에이전트로 시작했다.
