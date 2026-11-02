@@ -46,7 +46,7 @@ Three files under `docs/features/<slug>/`. The slug is kebab-case.
 
 1. Scope gate. If it hits, ask back and wait.
 2. Read `docs/PRODUCT.md` so nothing conflicts with what is already decided. Do not redesign what is decided. README is an introduction; do not cite it as a decision.
-3. If `docs/POSTMORTEM.md` exists, grep it for the areas this feature touches and quote the matching pitfalls in design.md.
+3. If `docs/POSTMORTEM.md` exists, grep it for the areas this feature touches and quote the matching pitfalls in design.md. For a UI flow, check Doan's own design presets as AGENTS.md 'Design presets in development skills' says, and name the presets read in the report.
 4. Write the three files.
 5. Ask about points open to interpretation **one at a time** with the runtime's question tool (AskUserQuestion in Claude Code). Give each set of options one recommendation with a reason, and include a visible 'Other (type your own)' option. Apply each answer to the documents.
 6. **Commit** once the documents are written and the questions are settled — only `docs/features/<slug>/`. `docs(feature): <slug> spec, design, tasks`. Since only documents change, commit on the checked-out branch without switching, and on main push straight to main (AGENTS.md 'Commit conventions'). Stage paths one by one; trailers follow `/ship`'s commit rules.
