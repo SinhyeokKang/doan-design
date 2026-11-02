@@ -56,3 +56,8 @@
   - 지휘자 판단: 🟡와 ⚪ 1(앱의 frame 결과가 요청과 맞지 않으면 `internal_error`), ⚪ 2(디렉터리 symlink 행)를 A 수정 회차로 보낸다. ⚪ 3은 B의 busy 문구가 고정 문자열이라 그대로 두고, ⚪ 4는 해가 없어 그대로 둔다.
 - A 수정 회차 1: task `task_4baf04928122`, dispatch `ctx_4c2e230bd977`, 같은 터미널과 worktree. 시작을 확인했다.
 - A 수정 회차 1 완료: 12498298을 e00c1313으로 통합했다(작업자 보고: red 테스트 먼저, `verify.mjs` PASS. 통합 뒤 `go test ./cli/...`·`go vet ./...` 통과). 지휘자가 diff를 직접 확인했다: `not_ready`를 본 뒤의 느린 응답은 cap까지 다시 시도하고 `busy`로 끝나며, 사라진 앱만 `app_not_running`이다. A 작업자는 release했고 worktree는 Orca로 지웠다(깨끗함, `git cherry`에 `+` 없음, `.scratch`는 `.scratch/orch/evidence-a`로 복사). 브랜치 `SinhyeokKang/feat-canvas-open-offer`는 12498298에 남아 있다.
+- RB(B 리뷰, Claude Opus 서브에이전트): 🔴 0, 🟡 3, ⚪ 2. 보고서: `.scratch/orch/review-RB.md`.
+  - 🟡 1: timeout으로 CLI가 `busy`를 받은 뒤에도 renderer가 다이얼로그를 닫고 이동한다. 🟡 3: CLI와 앱의 시간 여유가 0.5초뿐이다. 둘과 ⚪ 둘(App 답 테스트 `toStrictEqual`, 창이 없을 때의 문구)을 B 수정 회차로 보낸다.
+  - 🟡 2: frame 결과는 정적 frame 목록(`row.frames`) 기준이라 스크립트가 만든 frame은 `missing`으로 답한다. design 결정 5(로드를 기다리지 않음)의 결과다. 지휘자 판단: 코드는 그대로 두고 T11에서 ARCHITECTURE §12에 근사로 적는다.
+  - handoff 차이는 모두 수락했다(6은 🟡 2 문서화가 조건). 차이 1은 T11에서 ARCHITECTURE §7 'Deep links'에 적는다.
+- B 수정 회차 1: task `task_d6f4af951d8b`, dispatch `ctx_d649af9946d9`, 같은 터미널과 worktree.
