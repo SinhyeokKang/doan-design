@@ -58,7 +58,7 @@
 | 1 canvas-hand-tool | Claude Code 세션 ceb45427, worktree `canvas-hand-tool-orch` | 2026-11-03 | PR #75, 병합 a6d35fd2 | 완료 |
 | 2 project-settings | Claude Code 세션 06b8fea0, worktree `project-settings-orch` | 2026-11-03 | PR #76, 병합 02952e32 | 완료 |
 | 3 canvas-open-offer | Claude Code 세션 c935fb51, worktree `canvas-open-offer-orch` | 2026-11-03 | PR #77, 병합 3b6f9ed2 | 완료 |
-| 4 agent-reply-chips | Claude Code 세션 0344e3fb, worktree `agent-reply-chips-orch` | 2026-11-03 | | 진행 중 |
+| 4 agent-reply-chips | Claude Code 세션 0344e3fb, worktree `agent-reply-chips-orch` | 2026-11-03 | PR #78, 병합 35ecf91b | 완료 |
 | 5 canvas-row-menu | | | | 대기 |
 | 6 setup-via-onboarding | | | | 대기 |
 
@@ -114,3 +114,18 @@
     - Orca가 작업자 worktree를 지우면서 브랜치를 지우고, 다음 작업자가 같은 이름(`…-2`)을 다시 쓴 일이 있었다. 구현 브랜치는 배치 글자를 붙인 이름으로 다시 만들어 두는 편이 안전하다.
     - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, runtime-test, agent-eval 세 라운드, 최종 verify 로그)는 main checkout의 `.scratch/chain-261103/link3-evidence/`로 옮겼다.
     - 사용량(링크 3 끝): Claude 7일 79%(2026-11-04 13:59 KST 초기화). **Codex 주간 한도는 91%를 썼다(9% 남음, 2026-11-04 15:35 KST 초기화, `/agent-eval`의 Codex rollout 기록 기준).** 체인 규칙대로 링크 4부터 Codex 작업자를 쓰지 않고 Claude Sonnet으로 리뷰한다. 링크 4의 `/agent-eval`(R9·R8c)도 실제 Codex를 쓰므로, 남은 양으로 모자라면 Codex 쪽 실행만 초기화 뒤로 미루고 그 사실을 기록한다.
+- 2026-11-03 링크 4 완료(세션 0344e3fb): PR #78을 main에 병합했다(35ecf91b). 통합 HEAD 3c67b363에서 `/verify --eval` PASS(앱 테스트 6002).
+  - intake: spec·design·tasks의 규칙 J 전제를 링크 3의 결과에 맞췄다(앱 대화에서는 `OPEN_GUIDANCE`가 링크와 열기 제안을 모두 막는다). R8b를 R8c로 바꿨다. 다른 캔버스 칩은 `openLink`와 같은 `decideOpen` 경로로 연다. main `resolveOpenTarget`은 root와 경로로 찾으므로 쓰지 않았다.
+  - 배치: A1(T0–T2, Claude Sonnet high), A2(T3–T4, Claude Opus high, 수정 2회), B(T5–T6과 `/agent-eval`, Claude Sonnet high, 수정 2회), C(T7 `/runtime-test`, Claude Sonnet high, 재측정 1회). 리뷰는 Claude 서브에이전트(RA1·RB Sonnet, RA2 Opus)로 했고 🔴는 모두 0이었다. T8 verify와 Z1 문서 승격은 지휘자가 했다. Codex 작업자는 쓰지 않았다.
+  - 확인하지 못한 것: 데스크톱이 잠겨 네이티브 입력(포인터 클릭, 답 안 칩의 실제 Tab 순서, Cmd-click)은 Playwright/CDP로 대신 확인했다. 칩 전용 토스트 "Project is still being read. Try again shortly."와 프로젝트 문제 토스트는 실제 앱에서 닿지 못해 단위 테스트로만 확인했다. 둘 다 BACKLOG 'Not verified in the real app'에 적었다. `/agent-eval` 첫 Claude 라운드에서 runner가 또 `keychain:provider-items` 해시 변화만으로 exit 1을 냈다. judge 없이 다시 돌린 확인에서는 exit 0이었다.
+  - 사용자 확인이 필요한 것(아침 보고):
+    - 긴 캔버스 이름: 다른 캔버스 칩도 180px가 상한이고, 라벨이 먼저 말줄임되며 캔버스 이름은 잘리지 않는다(초안과 같다). 캔버스 이름만으로 180px 칩에 들어가지 않을 때만 칩이 그만큼 넓어지고, 답 블록 너비를 넘으면 그 이름이 칩 안에서 말줄임된다. 시작 점검 결정이 다루지 않은 경우라 지휘자가 정했다. 이를 위해 `.conversation-thread .msg-agent`가 inline-size container가 됐다(답 블록 배치는 그대로임을 실제 앱에서 쟀다).
+    - R9 검사: 처음에 지휘자가 '프레임 링크와 요소 링크가 하나 이상씩'을 요구했다. 그 때문에 고친 요소 둘을 정확히 링크한 Codex 답 두 개가 떨어졌다. spec 완료 조건은 고친 대상을 맞는 링크로 가리키는 것이라 그 조건을 빼고 검사기를 그 자리에서 고쳤다(U-023은 이슈가 아니라 시나리오 결함으로 기록). 다시 돌린 Codex R9는 3/3 pass다.
+    - R8c는 Claude에서 judge만 partial이다(캔버스의 규칙 G 메모 누락, 기존 U-021과 같은 원인).
+  - 다음 링크가 알아야 할 것:
+    - 턴 프롬프트 끝은 `OPEN_GUIDANCE`, `LINK_GUIDANCE`, `doan check` 줄 순서다. 가이드(`skill.md`)는 이 링크에서 바뀌지 않았다. 출력 예산의 남은 양은 링크 3 기록(약 134 B) 그대로다.
+    - eval: R8b는 R8c로 바뀌었고 R9가 새로 생겼다. `finalAnswer`와 `withoutCode`는 `eval/lib/answer.ts`에, `turn-prompt.ts`는 `eval/lib`에 있다. H4–H8은 새 경로를 import한다.
+    - 앱: `parseReplyAnchor`(`app/src/main/conversation/replyAnchor.ts`, import 없음), renderer `replyUrlTransform`·`replyChipTarget`, `CanvasController.openCanvas`의 `{ frame } | { element }` 대상과 root·경로에 묶인 대기 locate, `Anchor.element.selector`는 선택 필드(사람 앵커는 여전히 selector를 요구한다). 링크 5가 `ShellSidebar`·사이드바 행 메뉴를 고칠 때 이 파일들과는 겹치지 않는다.
+    - 운영: 대기 루프가 작업자의 `status` 메시지를 heartbeat처럼 넘겨 B가 약 45분 기다린 일이 있었다. 예시 `wait.sh`는 이제 `status`에도 깬다(증거 디렉터리). 지휘자 worktree에는 앱 의존성이 없으니 최종 verify 전에 `npm --prefix app ci`와 electron 내려받기를 먼저 한다. Orca가 작업자 브랜치 이름을 재사용해서(`…-2`, `…-3`), 구현 브랜치는 `agent-reply-chips-a1`·`-a2`·`-b`로 다시 만들어 남겼다.
+    - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, runtime-test, agent-eval 라운드, 최종 verify 로그, feature 문서 사본)를 main checkout의 `.scratch/chain-261103/link4-evidence/`로 옮겼다.
+    - 사용량(링크 4 끝): Claude 7일 80%(2026-11-04 13:59 KST 초기화). Codex 주간 91%(이 링크의 `/agent-eval` Codex 실행 뒤에도 그대로, 2026-11-04 15:35 KST 초기화). 체인 규칙대로 링크 5도 Codex 작업자를 쓰지 않는다.
