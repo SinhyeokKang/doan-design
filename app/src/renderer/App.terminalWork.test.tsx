@@ -192,3 +192,13 @@ test("a refused link shows one toast with its reason and no action, and moves no
   expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t open the link. The canvas isn’t in acme-web.");
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
+
+// As a notification's click (notificationTarget): a link that lands while a dialog is open goes nowhere, so no canvas
+// opens under it.
+test("a link that lands while a dialog is open moves nowhere", async () => {
+  await start();
+  (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as { projectSettings(root: string, key: string): void }).projectSettings("/w/a", "/w/a"); render();
+  const before = harness.controller!.openCanvas!.mock.calls.length;
+  listeners.openLink!({ kind: "navigate", root: "/w/a", canvas: B } as never); render();
+  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
+});
