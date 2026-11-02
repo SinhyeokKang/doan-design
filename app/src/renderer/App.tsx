@@ -925,10 +925,11 @@ export function App() {
   }
   // A doan:// link (terminal-agent-activity design 'Deep link'): Quick Open's move. A frame moves the view as Quick Open's
   // frame does, without selection; a frame not in the canvas leaves the canvas only, with no toast. A refused link
-  // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move.
+  // shows one toast. Main checked the root and the list; the renderer's list may still lag, as for any move. Like a
+  // notification's click, a link landing on a locked page or an open dialog goes nowhere.
   function openLink(result: OpenLinkResult) {
     if (result.kind !== "navigate") { live.current.toast.show(openLinkRefusal(result)); return; }
-    if (locked()) return;
+    if (locked() || live.current.modal) return;
     cancelRestore();
     const target = entriesRef.current.find(entry => entry.path === result.root);
     const row = target?.kind === "list" ? target.canvases.find(row => row.path === result.canvas) : undefined;
