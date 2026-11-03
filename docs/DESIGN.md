@@ -86,7 +86,7 @@ A light, neutral system (Light only, below): black `prominent` actions and white
   - a notice (see Notices).
 - **Status pill.** `.ob-chip` is a 20px pill in caption type on the status `affordance-*` fill with the matching `text-*`. The reference has no such pill; Doan keeps it for project and tool status (the workspace status line, Home's project picker, About). It is a separate primitive from `.doan-chip`.
 - **Shared dialog sizes.** The Share confirmation (Project Settings page) is compact and centred; Project Setup is standard, 128px from the top. Replaced: the Add Projects dialog and its SetUpFolderConfirm are now the Add Projects page (see Add Projects page).
-- **Toast without a type.** Success, error and undo toasts share the one neutral floating toast and differ only by their text; there is no type colour and no close button.
+- **Toast without a type.** Success and error toasts share the one neutral floating toast and differ only by their text; there is no type colour and no close button.
 - **Focus ring colour.** The ring is `border-focus` (`neutral-12`, black, 21:1 on white); the reference ring uses `text-standard`. Inset rings are −2px, matching the draft and the menu rows.
 - **Tooltip offset.** The shared tooltip defaults to `sideOffset` 4.
 - **Type family.** `--type-family` (locally bundled Geist, followed by the system sans stack with `Apple SD Gothic Neo`) is the role the renderer reads; `--font-sans` is only a legacy alias.
@@ -438,13 +438,13 @@ Reference: `.doan/canvases/buzz-add-projects.html`, 11 full-window frames at 123
 
 ## Projects home
 
-Reference: `.doan/canvases/buzz-project-settings.html`, the frames `workspace-status` (five strips: Missing, Not set up, Config error closed and open, CLI error) and `removal-toast`, measured by `/design-sync` in the built app at 1238 × 780 beside the draft read in the app's canvas iframe, with the Project Settings page (see Project Settings page). Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal toast with Undo and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page). Every strip was reached for real: a loaded workspace whose project then stopped listing (invalid `.doan/config.json`, `.doan/` removed, the folder removed, `doan ls` failing).
+Reference: `.doan/canvases/buzz-project-settings.html`, the frames `workspace-status` (five strips: Missing, Not set up, Config error closed and open, CLI error), measured by `/design-sync` in the built app at 1238 × 780 beside the draft read in the app's canvas iframe, with the Project Settings page (see Project Settings page). Home itself has no project cards, checklist or banner (see Home); this section covers the project surfaces that remain: the removal confirmation and the workspace status line. Replaced: the Add Projects checklist (`.add-dialog`), its set-up confirmation and the window drop overlay are now the Add Projects page (see Add Projects page). Every strip was reached for real: a loaded workspace whose project then stopped listing (invalid `.doan/config.json`, `.doan/` removed, the folder removed, `doan ls` failing).
 
 ### Measured contracts
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Removal toast | The shared toast (`doan-floating doan-toast`): 384 × 58, message then Undo, 12px padding and gap, 24px corner on white at 90%, 16px from the window's right and bottom edges; message 14/20, Undo a prominent default-size button. Equal to the draft's | Drawn as shipped. |
+| Removal confirmation | The same `doan-dialog` compact `alertdialog` as the 'Trash dialog' row ('Canvas row menu and export viewer'): Cancel subtle, Remove from Doan (or Stop and Remove) prominent, focus starting on Cancel. Not measured separately; seen in a real-app screenshot only | Reuses the existing dialog instead of a new component. |
 | Status line (`.ws-status`) | Padding 7px 12px; gap 10; 1px bottom divider (`--border-standard`) on `--surface-inset`; caption 12 type in `--text-subtle`; 47px high with the 32px buttons; the path in the message is a white code chip (4px corner, 0 / 4 padding) measured with it; actions in `.wt-actions` with a 10px gap, then Go Home (ghost) | Keeps recovery actions aligned with Go Home. |
 | Status pill (`.ob-chip`) | 20px, 0 / 8 padding, caption 12 / 16. Missing and CLI error: `warn` (rgb(255,247,194) with rgb(79,52,34) text); Config error: `err` (rgb(254,235,236), rgb(100,23,35)); Not set up: neutral (rgb(245,245,246), rgb(82,82,82)) | 'Status pill'. |
 | Strip actions | Missing: Locate, Remove from Doan; Not set up: Set Up, Remove from Doan; Config error: Show in Finder, Retry, Details ▸ (▾ open); CLI error: Retry, Remove from Doan; each strip ends with Go Home. All default-size buttons, 32px high (Show in Finder included) | |
@@ -454,20 +454,19 @@ Reference: `.doan/canvases/buzz-project-settings.html`, the frames `workspace-st
 
 - **`~/…` paths.** Recovery text and the worktree menu abbreviate paths under the HOME value supplied by main as `~/…`. Matching is boundary-aware; other roots remain absolute, and full-path tooltips keep the original path. Main prefers its process HOME, with Electron's home path as fallback, so isolated development runs do not use the machine user's home.
 - **Recovery copy and Locate.** Locate on a loaded workspace keeps that workspace visible while main replaces its root; the renderer waits for the located root's list before opening its canvas. The canvas recovery copy is "The project <name> is missing. Use Locate above." or "The project <name> is not set up. Use Set Up above."; the labels are Locate, Set Up and Remove from Doan, with no trailing ellipsis.
-- **Removal toast label.** The toast keeps its shipped label: `<name> (<branch>) removed. Files stay on disk.` for one worktree, `<name> and N worktrees removed. …` for a group (`removal.ts`); the draft draws "acme-web removed.". The toast is not redrawn.
+- **Removal confirmation copy.** "Remove <label> from Doan?" where the label is the project, or `<name> (<branch>)` for one worktree of several; the body says only the list changes and "Files and Git worktrees stay on disk." (`removalConfirm`, `removalQuestionLabel` in `homeConversations.ts`). Removal shows no toast.
 - **Problem rows.** Main's error strings stay plain text, including any paths, instead of the draft's embedded code chip. Details keeps the expanded/collapsed arrow (▸/▾). CLI error rows expose only Retry and Remove from Doan.
 - **Problem-entry data.** Error/loading entries keep `lastCommon` for grouping but not the last branch, so they show path + ◌, and the workspace hides its branch chip while its entry is not a successful list. No branch cache is added.
 
 ### Documented differences from the draft
 
 - **Strip width and font.** The status line fills the workspace (1222px at this window; the draft's stage is 938px), so its flexible text and the end-aligned actions move by the 284px difference; its root and the detail wrapper inherit the app body's 13px / normal where the draft canvas body is 14 / 20 (every child sets its own size).
-- **Removal toast label.** See above; the text is the only differing value.
 
 ### Not verified and unpinned
 
 - Not verified: very long project/branch/canvas/selection values; minimum-window overflow; disabled problem entries in the worktree menu; long toast; absolute-time tooltip; hover and focus of the strip's buttons.
 - Known note: Locate into a non-list root can keep the previous missing-project message in the canvas area while the status line shows the new root state.
-- Unpinned: the toast's timer pause and Undo, native menu Undo, and the strip's measured values above.
+- Unpinned: the toast's timer pause, native menu Undo, and the strip's measured values above.
 
 ## Project Overview
 
@@ -844,7 +843,7 @@ Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`,
 
 ## Project Settings page
 
-Reference: `.doan/canvases/buzz-project-settings.html`, the frames `alt-2-page`, `alt-2-page-problem`, `alt-2-states` (nine tiles), `alt-2-states-problem` (six tiles), plus `workspace-status` and `removal-toast` (see Projects home). Measured by `/design-sync` in the built app at 1238 × 780 (`.scratch/design-sync/buzz-project-settings/measure.mjs`): 25 element trees (711 draft parts) paired by tag and position, because the draft's `v-*` and `v2-*` classes are draft-local. Every state was reached for real: settings with token CSS and two shared paths; Saving (a held `doan config`), Saved, a refused Token CSS pick and a refused Shared path; the Share confirmation; no token CSS and nothing shared; Reading settings (held `doan config`); Read failed (failing `doan config`); Missing and a refused Locate; Not set up; Config error with Details open; CLI error; Still reading (held `doan ls`). The header, sidebar and status line parts were paired by selector.
+Reference: `.doan/canvases/buzz-project-settings.html`, the frames `alt-2-page`, `alt-2-page-problem`, `alt-2-states` (nine tiles), `alt-2-states-problem` (six tiles), plus `workspace-status` (see Projects home). Measured by `/design-sync` in the built app at 1238 × 780 (`.scratch/design-sync/buzz-project-settings/measure.mjs`): 25 element trees (711 draft parts) paired by tag and position, because the draft's `v-*` and `v2-*` classes are draft-local. Every state was reached for real: settings with token CSS and two shared paths; Saving (a held `doan config`), Saved, a refused Token CSS pick and a refused Shared path; the Share confirmation; no token CSS and nothing shared; Reading settings (held `doan config`); Read failed (failing `doan config`); Missing and a refused Locate; Not set up; Config error with Details open; CLI error; Still reading (held `doan ls`). The header, sidebar and status line parts were paired by selector.
 
 The page is Settings' column (see Settings: panel, column, header, sections, group, row) around a project header, in the shell of Home and the workspace.
 
@@ -879,7 +878,7 @@ The page is Settings' column (see Settings: panel, column, header, sections, gro
 ### Behaviour beyond the measured draft
 
 - **Locate follows the project.** Choosing a folder for a missing project moves the page to the new root and keeps the origin (main reports the move as a re-root focus). Set Up does the same.
-- **Origin.** Escape (probed in the real app), the Projects tab and Back (unit tests) return to the screen the page was opened from; a workspace origin is returned to as that workspace, and Remove from Doan from a page opened on Home returns to Home with an Undo toast.
+- **Origin.** Escape (probed in the real app), the Projects tab and Back (unit tests) return to the screen the page was opened from; a workspace origin is returned to as that workspace, and Remove from Doan from a page opened on Home returns to Home after its confirmation, with no toast.
 - **Held writes expire.** A write that waits on `doan config` ends with the CLI's 10 second timeout, which also ends the lock; a probe that needs the lock acts within that.
 
 ### Not verified
