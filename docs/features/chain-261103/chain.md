@@ -1,6 +1,6 @@
 # orchestrate chain — 2026-11-03
 
-규칙: [`/orchestrate` §6 'Linked runs'](../../../.agents/skills/orchestrate/SKILL.md), AGENTS.md 'Workflow'의 Chains 항목. 이 파일은 이 체인의 순서·상시 권한·상태·인계 기록의 정본이다. 마지막 링크가 병합한 뒤 이 디렉터리를 지운다. 상시 권한과 인계 규칙은 오전 체인(커밋 `09b6f50a`, 병합 뒤 삭제)과 같다(2026-11-03 사용자).
+규칙: [`/orchestrate` §6 'Linked runs'](../../../.agents/skills/orchestrate/SKILL.md), AGENTS.md 'Workflow'의 Chains 항목. 이 파일은 이 체인의 순서·상시 권한·상태·인계 기록의 정본이다. 마지막 링크가 병합한 뒤 이 디렉터리를 지운다. 상시 권한과 인계 규칙은 이전 체인(커밋 `09b6f50a`, 병합 뒤 삭제)과 같다(2026-11-03 사용자).
 
 ## 순서
 
@@ -21,7 +21,7 @@
 
 승인 뒤 각 지휘자는 일상적인 판단을 스스로 한다. 새 제품·범위 결정이나 실제 사용자 상태를 건드리는 결정이 생길 때만 묻는다.
 
-## 상시 권한 (2026-11-03 사용자, 오전 체인과 같음)
+## 상시 권한 (2026-11-03 사용자, 이전 체인과 같음)
 
 - **main 병합**: 모든 링크가 자기 PR을 main에 병합한다. 병합 전 조건은 orchestrate의 통합 gate(통합 HEAD `/verify`, 영향받은 앱 동작 `/runtime-test`, 해당하면 `/agent-eval`)와 문서 승격·feature 디렉터리 삭제다.
 - **Codex 작업자**: 모든 링크에서 Claude 지휘자가 Codex 작업자를 섞어 쓸 수 있다(AGENTS.md 'Runtime differences'의 교차 허가). 지휘자는 링크를 시작할 때와 배치를 나눌 때 Codex의 남은 사용량을 확인하고(예: `claude-dashboard:check-usage`), 남은 양에 맞춰 Codex에 줄 배치를 정한다. 주 구현은 Claude가 맡고, Codex는 독립 리뷰와 일부 기계적 배치에 쓴다. 모델·effort는 orchestrate §0의 Codex 규칙을 따른다. 사용한 범위는 각 링크의 orch.md에 적는다.
@@ -57,4 +57,4 @@
 
 ## 인계 기록
 
-- 2026-11-03 체인 작성 세션: 순서와 상시 권한(오전 체인과 같음)을 사용자와 정해 이 파일을 main에 push했다. 첫 지휘자는 '시작 점검'부터 한다.
+- 2026-11-03 체인 작성 세션: 순서와 상시 권한(이전 체인과 같음)을 사용자와 정해 이 파일을 main에 push했다. 첫 지휘자는 '시작 점검'부터 한다.
