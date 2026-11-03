@@ -30,7 +30,7 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T2 | `app/src/main/conversation/{store,drafts,service,ipc}.ts`와 그 테스트(새 `storeDelete.test.ts` 포함), `app/src/main/index.ts`, `app/src/main/notifyService.ts`와 테스트, `app/src/preload/index.ts`와 테스트 | 없음 | Opus high — 되돌릴 수 없는 삭제, index commit 순서, 크래시 뒤 정리, live runner와 늦은 이벤트 경쟁 | `npm --prefix app test`, `npm --prefix app run typecheck` | 완료(`34024e09`..`51afcccc`), RA 리뷰 중 |
+| A | T1, T2 | `app/src/main/conversation/{store,drafts,service,ipc}.ts`와 그 테스트(새 `storeDelete.test.ts` 포함), `app/src/main/index.ts`, `app/src/main/notifyService.ts`와 테스트, `app/src/preload/index.ts`와 테스트 | 없음 | Opus high — 되돌릴 수 없는 삭제, index commit 순서, 크래시 뒤 정리, live runner와 늦은 이벤트 경쟁 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합(`702e3c68`..`7e10089a`, `9539aad1`..`88b0ac33`), 리뷰 4회차 🔴0 🟡0 |
 | B | T3 | `app/src/renderer/`의 새 `conversationDelete.ts`, `overviewConversation.ts`, `canvasConversation.ts`, `overviewRun.ts`, `canvasRun.ts`, `homeRun.ts`, `conversationStore.ts`와 그 테스트 | 없음 | Opus high — IPC 답과 목록 이벤트의 순서 경쟁, revision 규칙, 여러 Run의 상태 정리 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합(`aac23ea4`..`6710020a`), 리뷰 2회차 🔴0 🟡0 |
 | C | T4, N1 | `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, 새 확인 알림 컴포넌트, `styles.css`, `App.tsx`(삭제 호출과 정리 연결), 그 테스트, `docs/DESIGN.md`(`/design-sync` 값) | A·B 통합 | Opus high — Radix 구조 probe, 포커스 반환, 실제 앱 확인과 초안 비교 | test, typecheck, build, `/runtime-test`, `/design-sync` | 대기 |
 | RA·RB·RC | 각 배치 `/code-review` | 보고만 | 해당 배치 완료 | Opus high — 데이터 삭제·경쟁·포커스 결함을 찾는 독립 리뷰 | 🔴 0 | 대기 |
@@ -54,3 +54,4 @@
 - C step 0 Radix probe: Esc 한 항목만 실패(툴팁이 먼저 닫힘), 나머지 통과. 결정 5로 답했다. A 수정 1회차에는 사용자 결정 D1을 담아 보냈다(dispatch `ctx_65adf4a0fc54`). C는 dispatch `ctx_db9637228489`, worktree `conv-delete-C`, 기준 `7e10089a`.
 - A 수정 1회차(D1: `e0e5383e`, `dbf8d3fd`)와 2회차(종료 push `app:quitting`·preload `onQuitting`: `09e3f585`, `9cc5303d`) 완료. RA 재리뷰(dispatch `ctx_7c274c9b258d`) 시작. C는 통합 뒤 `onQuitting`을 연결한다.
 - RA 재리뷰(1·2회차): 🔴 0, 🟡 1(Y3: 중단된 종료 뒤 `app:quitting false`인데 서비스는 계속 종료 중이라 거짓 토스트), ⚪ 4. 지휘자 판단 D2: 서비스는 지금처럼 종료 상태로 두고, 중단된 종료에는 false push를 보내지 않는다(이 batch 안의 변경으로 끝남). ⚪1(커밋되지 않은 기록 정리)도 A 수정 3회차에 넣었다. ⚪2·⚪3은 받아들인다. ⚪4(D1과 다른 feature 문서 문구, `deletions.json`, `app:quitting`)는 T5에서 반영한다.
+- RA 3회차 재리뷰: 🔴 0, 🟡 0, ⚪ 2(보고만). A 수정 커밋 6개를 `9539aad1`..`88b0ac33`로 cherry-pick했다. A·RA worker를 release했다. 통합 HEAD에서 verify.mjs를 돌린다.
