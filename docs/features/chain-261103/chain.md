@@ -53,8 +53,8 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 project-remove-confirm | `project-remove-confirm-orch` (첫 지휘자) | 2026-11-03 | PR #82, 병합 `30829d0e` | 완료 |
-| 2 canvas-selection-tools | `canvas-selection-tools-orch` | 2026-11-03 | | 인계 |
-| 3 shell-panel-layout | | | | 대기 |
+| 2 canvas-selection-tools | `canvas-selection-tools-orch` | 2026-11-03 | PR #83, 병합 `7b8eb2ee` | 완료 |
+| 3 shell-panel-layout | `shell-panel-layout-orch` | 2026-11-03 | | 인계 |
 
 ## 인계 기록
 
@@ -69,3 +69,9 @@
   - `/runtime-test` 13/13 통과(사이드바 메뉴·상태 줄·Project Settings 알림, Esc·Cancel, 확정 뒤 Home·토스트 없음, Edit 메뉴에 Undo Remove 없음). 네이티브 ⌘Z 키 입력은 보내지 않았다(BACKLOG 'Not verified').
   - 링크 3이 알아야 할 것: View 메뉴를 더할 `main/index.ts`의 `MenuInputs`는 이제 `screen`·`modal` 두 키와 플래그만 받는다(`toast` 키 없음, 키 수가 다르면 거절). `menuState(screen, modal, context)`에서 `toastOpen` 인자가 없어졌다.
   - 로그인 프로필은 그대로 두었다(링크 3이 쓴다).
+- 2026-11-03 링크 2 지휘자: canvas-selection-tools를 PR #83으로 main에 병합했다(`7b8eb2ee`).
+  - 배치: W1(Claude Opus medium, 테스트·구현 커밋 2개, R1·R2 실제 앱 확인), 독립 리뷰 R(Claude Sonnet medium, 🔴 0·🟡 1), 수정 라운드 W1-fix1(Claude Sonnet medium). 🟡 1(점 강조 안쪽 사각 구멍)은 8배 확대 측정에서 재현되지 않아 코드를 바꾸지 않았다. Codex는 쓰지 않았다(5시간 한도 95%). Claude 7일 한도는 사용자 확인으로 87%였다(대시보드 스크립트는 98%로 읽었다).
+  - 강조 강도: 사용자가 네 캔버스의 스크린샷을 보고 선 3px·glow 45%를 확인했다.
+  - 통합 HEAD `/verify` PASS(첫 실행). 실제 앱 확인은 통합 HEAD와 앱 트리가 같은 W1 커밋에서 했다.
+  - 확인하지 못한 것(DESIGN.md 'Canvas area' Not verified): 실제 forced colors·reduced transparency 설정(에뮬레이션이 캔버스 iframe에 닿지 않음), 사진 중간 밝기 위 일부 지점의 3:1 미달(최저 2.82:1), 3px 테두리로 줄어든 안쪽 여백 1px.
+  - 링크 3이 알아야 할 것: `CanvasController`에 `enterTool()`(select → hand에서 선택 해제)과 `dropSelection()`(publish 없는 Esc 해제)이 생겼다. 사이드바 숨기기(⌘B)는 도구를 바꾸지 않으므로 선택에 영향이 없어야 한다. orchestration 루프에서 정착한 작업자 터미널은 `agent_unconfigured`로 재사용되지 않아 수정 라운드는 같은 worktree에 새 작업자를 띄웠다. `orca worktree rm`은 병합된 배치 브랜치를 지우므로 tip을 적어 두고 다시 만든다.
