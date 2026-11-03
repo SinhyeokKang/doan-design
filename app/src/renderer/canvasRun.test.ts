@@ -583,3 +583,17 @@ test("other canvases and conversations keep what they show", () => {
   expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, archived: false, notice: null });
   expect(h.run.revision()).toBe(revision);
 });
+
+// Review RB ⚪1: until the list is read again, a pick from the list read before the delete must not choose it.
+test("a canvas that opens before the next list read does not pick the deleted conversation", async () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A), summary(B, { canvas: CART })]);
+  // An entry asked cart for its current conversation before cart opened.
+  h.run.request(cart, B, null);
+  confirmDelete(h, B);
+  h.run.show(cart);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  await flush();
+  expect(doan.readConversation).not.toHaveBeenCalledWith({ conversationId: B });
+});

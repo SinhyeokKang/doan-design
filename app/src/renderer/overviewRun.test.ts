@@ -794,3 +794,32 @@ test("a returned draft whose take was in flight is not put back after the delete
   await flush(); await flush();
   expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
 });
+
+// Review RB ⚪1: until the list is read again, a pick from the list read before the delete must not choose it.
+test("leaving and returning before the next list read does not pick or remember the deleted conversation", () => {
+  const h = deleteShown();
+  confirmDelete(h, A);
+  h.run.show(OTHER);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+  expect(h.state.remembered).toEqual({ [ROOT]: B });
+});
+
+// Review RB ⚪2: an Edit and resend that resolves after the delete does not put a draft back.
+test("an Edit and resend that resolves after the delete restores nothing and releases its files", async () => {
+  const h = harness();
+  const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });
+  histories.set(A, [message, event(A, { type: "turn.started" }), event(A, { type: "turn.failed", code: "unknown" })]);
+  doan.removeAttachment = vi.fn(async () => true);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A), summary(B)]);
+  await flush();
+  const issued = deferred<unknown[]>();
+  doan.attachmentsFromPaths!.mockImplementation(() => issued.promise);
+  const pending = h.run.editAndResend(ROOT, A);
+  confirmDelete(h, A);
+  issued.resolve([{ ok: true, attachment: { id: "x", name: "a.png", kind: "image", pasted: false, size: 1, path: "/tmp/a.png" } }]);
+  expect(await pending).toBe(false);
+  expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
+  expect(doan.removeAttachment).toHaveBeenCalledWith("x");
+});
