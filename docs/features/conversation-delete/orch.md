@@ -55,3 +55,4 @@
 - A 수정 1회차(D1: `e0e5383e`, `dbf8d3fd`)와 2회차(종료 push `app:quitting`·preload `onQuitting`: `09e3f585`, `9cc5303d`) 완료. RA 재리뷰(dispatch `ctx_7c274c9b258d`) 시작. C는 통합 뒤 `onQuitting`을 연결한다.
 - RA 재리뷰(1·2회차): 🔴 0, 🟡 1(Y3: 중단된 종료 뒤 `app:quitting false`인데 서비스는 계속 종료 중이라 거짓 토스트), ⚪ 4. 지휘자 판단 D2: 서비스는 지금처럼 종료 상태로 두고, 중단된 종료에는 false push를 보내지 않는다(이 batch 안의 변경으로 끝남). ⚪1(커밋되지 않은 기록 정리)도 A 수정 3회차에 넣었다. ⚪2·⚪3은 받아들인다. ⚪4(D1과 다른 feature 문서 문구, `deletions.json`, `app:quitting`)는 T5에서 반영한다.
 - RA 3회차 재리뷰: 🔴 0, 🟡 0, ⚪ 2(보고만). A 수정 커밋 6개를 `9539aad1`..`88b0ac33`로 cherry-pick했다. A·RA worker를 release했다. 통합 HEAD에서 verify.mjs를 돌린다.
+- 통합 HEAD(A+B, `88b0ac33`)에서 verify.mjs PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build).
