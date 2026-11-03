@@ -17,6 +17,7 @@
 8. 실행 중인 앱에 `open -g`가 가면 앱이 앞으로 오는 문제(T0 항목 4)는 이번 범위에서 고치지 않고 BACKLOG에 남긴다. 고치려면 비목표인 Dock 클릭(`activate`) 동작을 바꿔야 한다. (지휘자 판단)
 9. 터미널에서 아직 열려 있는 Codex 세션은 이어하기를 제안하지 않는다. Claude는 `sessions/<pid>.json`으로 미리 거르지만 Codex는 사전 검사가 없어 제안했다가 보낼 때 실패한다. batch E가 PoC로 살아 있는 세션의 표지를 찾고, 결과가 긍정적이면 이 run에서 구현한다. 부정적이면 BACKLOG에 남긴다. (사용자 결정)
 10. Codex PoC(batch E, codex 0.166.0)는 긍정이다. `<CODEX_HOME>/thread-writer-locks/<threadId>.lock`을 writer가 배타 flock으로 쥐고, 세션이 열린 채 `thread/resume`을 보내면 `-32600 already has an active writer`로 거절된다. 구현: 디렉터리 없음은 free(지원 writer 0.164.0+는 lock 전에 디렉터리를 만든다), 이상한 디렉터리는 unknown, lock 파일 없음은 free, 있으면 `lsof`로 연 프로세스가 있으면 occupied, 없으면 stale이라 free, `lsof` 실패는 unknown. `lockf` 검사는 Codex 자신의 resume을 거절시킬 수 있어 쓰지 않는다. `/exit` 뒤 약 1분 동안 데몬이 lock을 쥐므로 그동안 이어하기가 숨는다. (지휘자 판단 — 사용자 결정 9의 '긍정이면 이 run에')
+11. 앱도 자신을 띄운 터미널의 환경을 login shell 검사와 실행하는 에이전트에 넘기지 않는다. B2는 CLI 실행 경로만 막으므로, 사람이나 에이전트가 터미널에서 `open -a Doan`, 실행 파일, `npm run dev`로 띄우는 경로가 남는다. Dock 실행과 같은 launchd 환경만 남긴다. 실행 환경에만 준 `CLAUDE_CONFIG_DIR`/`CODEX_HOME`은 더 이상 프로필을 정하지 않는다(셸 설정 파일의 값은 그대로 쓴다). batch F. (사용자 결정)
 
 ## 배치
 
@@ -27,6 +28,7 @@
 | B | T1 CLI 실행 방식, B2 깨끗한 실행 환경(결정 7) | `cli/internal/cli/onboarding.go`, `open.go`, `run.go`, `onboarding_test.go`, `open_test.go` | A | Sonnet medium — argv 하나와 인자 전달, 설계가 정해져 있다 | `go test ./...`, `go vet ./...` | 대기 |
 | D | T4 guide와 eval | `cli/internal/cli/skill.md`, `eval/scenarios/O2/`, `docs/USABILITY-EVAL.md` | A | Sonnet high — 문구는 짧지만 크기 예산과 실제 eval 라운드 판정이 단계가 많다 | `go test ./...`, `verify.mjs --eval`, O2 self-test, `/agent-eval` O1·O2·O3·O3b | 대기 |
 | E | Codex 터미널 점유 PoC, 긍정이면 구현(결정 9) | `app/src/main/conversation/io.ts`, `prepare.ts`와 테스트 | 없음 | Opus high — 실제 Codex 프로세스 관찰과 fail-closed 판단이 필요하다 | PoC 보고 뒤 사용자 판단, `npm --prefix app test`·typecheck·build | 진행 |
+| F | 앱의 실행 환경 정리(결정 11) | `app/src/main/onboarding/machine.ts`, `conversation/environment.ts`, `agentAuth/environment.ts`와 테스트, 새 모듈 하나 | 없음 | Opus high — 모든 에이전트 실행 경로의 환경을 바꾸고, 틀리면 Dock 실행이 깨진다 | `npm --prefix app test`·typecheck·build | 진행 |
 | RC | C 리뷰 | 없음(보고만) | C | Opus high — C와 같은 이유 | `/code-review` | 대기 |
 | RBD | B·D 리뷰 | 없음(보고만) | B, D | Sonnet medium — 작은 diff | `/code-review` | 대기 |
 | T5 | 승격, 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, 이 디렉터리 | 통합 | 지휘자 | `verify.mjs`, tasks T5의 `rg` | 대기 |
