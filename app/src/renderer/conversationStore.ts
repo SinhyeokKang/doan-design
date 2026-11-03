@@ -77,7 +77,7 @@ export class ConversationStore {
   // message stayed queued (refused, or the turn ended first); until then the row shows Sending… on either screen.
   async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string }> {
     if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
-    const reply = await sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
+    const reply = await window.doan.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
     if (reply && "error" in reply) this.markQueued(conversationId, itemId, false);
     else this.unqueued(conversationId, itemId);
     return reply;
@@ -236,13 +236,6 @@ export class ConversationStore {
 }
 
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
-
-// TODO(queue-send-now phase 2): call window.doan.sendQueuedNow directly once the preload exposes it; until then an
-// app without the method answers as main would for a conversation that cannot take the message.
-function sendQueuedNow(request: { conversationId: string; itemId: string }): Promise<void | { error: string }> {
-  const api = window.doan as unknown as { sendQueuedNow?(request: { conversationId: string; itemId: string }): Promise<void | { error: string }> };
-  return api.sendQueuedNow ? api.sendQueuedNow(request) : Promise.resolve({ error: "not_running" });
-}
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their
 // paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend.
