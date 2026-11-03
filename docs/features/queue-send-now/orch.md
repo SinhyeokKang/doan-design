@@ -30,3 +30,9 @@
 - C와 D는 파일이 겹치지 않아 병렬로 돈다.
 
 ## 진행 기록
+
+- Run `run_137ea997fd5f`. worker는 Orca 기본 인자(`--dangerously-skip-permissions`)로 bypass로 뜬다.
+- A: dispatch `ctx_c66bd899eeb2`, worktree `qsn-a`(branch `SinhyeokKang/qsn-a`), Sonnet medium(effective 확인).
+- B: dispatch `ctx_fb4481bad936`, worktree `qsn-b`(branch `SinhyeokKang/qsn-b`), Opus high(effective 확인).
+- B 질문(소비 신호 계약) → conductor 판단: 신호를 `EventPayload`·`types.ts`에 넣지 않는다(가로채기를 놓치면 v1 로그에 가짜 이벤트가 남는다). `steer()`는 받아들이면 resolve, 거절하면 reject. 소비는 runners.ts의 open 옵션 콜백 `onSteerConsumed(messageId)`로 emit과 같은 순서에 부른다. 실제 `user.message` append는 C가 service.ts에서 한다.
+- A 완료(`bef2d1c6`, 테스트 6320 통과, typecheck 통과, red 선확인은 기록 없음). 통합 뒤 D 시작, A 리뷰는 병렬.
