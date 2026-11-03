@@ -17,7 +17,7 @@
 
 1. 로컬 모드는 `.doan/`을 저장소 폴더 안에 두고 git이 추적하지 않게 한다. 저장소 밖(userData 등)으로 옮기지 않는다. 캔버스의 상대 경로(token CSS, 폰트, assets), CLI의 저장소 탐색, 서빙 범위가 그대로 동작한다.
 2. Doan(CLI)이 저장소의 `.git/info/exclude`(커밋되지 않는 이 기기 전용 제외 목록, 같은 저장소의 모든 worktree가 공유)에 표식이 붙은 `.doan/` 한 줄을 넣고 뺀다. git 명령은 실행하지 않는다.
-3. 이미 `.doan/`이 커밋된 프로젝트도 로컬로 바꿀 수 있다. 이미 추적 중인 파일은 exclude가 빼지 않으므로, 계속 추적된다는 것과 빼는 방법(`git rm -r --cached .doan` 뒤 커밋)을 안내한다. 커밋은 사람이나 에이전트가 한다.
+3. 이미 `.doan/`이 커밋된 프로젝트도 로컬로 바꿀 수 있다. 이미 추적 중인 파일은 exclude가 빼지 않으므로, 계속 추적된다는 것과 빼는 방법(`git rm -r --cached .doan` 뒤 커밋)을 안내한다. 커밋은 사람이나 에이전트가 한다. Doan이 `git rm -r --cached`를 실행하지 않는 이유: 그 삭제가 커밋되어 push되면 팀원이 pull할 때 그들의 `.doan/`이 지워지고, Doan이 커밋하지 않으므로 stage된 삭제가 사람의 다음 커밋에 섞인다.
 4. 로컬 모드에서 `.doan/`은 worktree를 따라가지 않는다. 각 checkout에 따로 있다. 이 한계를 받아들이고 설정 화면과 문서에 적는다.
 5. 모드는 프로젝트 셋업(Set Up 폼, 첫 실행·Add Projects의 setup 확인)에서 고르고 Project Settings에서 바꾼다. 에이전트용으로 `doan init --local`과 `doan config`의 모드 옵션을 둔다.
 
