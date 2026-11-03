@@ -46,6 +46,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 - `doan open` launching a closed app: the bundled CLI opens the app once through `/usr/bin/open` and waits for it (ARCHITECTURE §4 'Bootstrap'), but `open` passes no `--user-data-dir` or environment, so an isolated probe cannot reach this path. Only unit tests with an injected launcher and clock cover it; a launch, the wait through `not_ready` and the canvas opening afterwards have not been seen in the real app.
 - Exported canvas files (`doan export`) were opened only in headless Chromium and Playwright WebKit, with the desktop locked: real Safari is not verified, nor is Firefox, nor a Safari pinch gesture (the viewer handles only ⌘/Ctrl-wheel).
 - Whether Finder's Put Back works for a canvas moved with Move to Trash (`shell.trashItem`) is unverified; the dialog promises only restoring from the Trash.
+- Move to Trash unavailable while the canvas's app conversation works was checked only in unit tests (the real-app probe had no signed-in agent; the terminal `doan work` case was checked in the real app). The permission state next to the row button and the refusal toasts only main can cause (`busy`, `notListed`, `notFile`) were not reached in the real app; their copy is pinned by `canvasRowMessages.test.ts`.
 - `/agent-eval` scenario X1 measures only the successful export: no export with a non-empty `links`, and no refused export.
 
 ## Known defects
