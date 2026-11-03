@@ -90,12 +90,15 @@ export class ConversationStore {
     this.host.changed();
     return true;
   }
-  // A queue main already sent shows no more once a read started after the queue says so.
+  // A queue main already sent shows no more once a read started after the queue says so. Main's count leaves out the
+  // message Send now has in flight, so that row stays until Send now's answer settles it.
   syncQueues(): void {
     for (const [id, queue] of this.queues) {
       const list = this.host.list(queue.root);
       const c = Array.isArray(list) ? list.find(item => item.conversationId === id) : undefined;
-      if (c && c.queued === 0 && queue.items.length > 0 && this.host.readsApplied(queue.root) > queue.after) this.queues.set(id, { ...queue, items: [] });
+      if (!c || c.queued !== 0 || this.host.readsApplied(queue.root) <= queue.after) continue;
+      const items = queue.items.filter(item => item.sending);
+      if (items.length < queue.items.length) this.queues.set(id, { ...queue, items });
     }
   }
   setDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void {

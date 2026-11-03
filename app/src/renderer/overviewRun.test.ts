@@ -535,6 +535,35 @@ test("Send now marks the queued message sending until main answers, then drops i
   expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
 });
 
+// Main's list count leaves out the message Send now put in flight, so a read saying none are queued keeps it; only
+// main's answer to Send now settles it.
+test("a list read with nothing queued keeps the row Send now is sending and drops the rest", async () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  h.run.queued(ROOT, A, { id: "q1", text: "first" });
+  const read = deferred<void>();
+  doan.sendQueuedNow = vi.fn(() => read.promise);
+  const sent = h.run.store.sendQueuedNow(A, "q1");
+  h.answer(ROOT, [summary(A, { phase: "running", working: true, queued: 0 })]);
+  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first", sending: true }]);
+  read.resolve();
+  await sent;
+  expect(h.run.queue(A)).toEqual([]);
+
+  h.run.queued(ROOT, A, { id: "q2", text: "second" });
+  h.run.queued(ROOT, A, { id: "q3", text: "third" });
+  const refused = deferred<{ error: string }>();
+  doan.sendQueuedNow = vi.fn(() => refused.promise);
+  const again = h.run.store.sendQueuedNow(A, "q2");
+  h.answer(ROOT, [summary(A, { phase: "running", working: true, queued: 0 })]);
+  expect(h.run.queue(A)).toEqual([{ id: "q2", text: "second", sending: true }]);
+  // Refused, it is queued again in main; the row says so until a read reports otherwise.
+  refused.resolve({ error: "not_running" });
+  expect(await again).toEqual({ error: "not_running" });
+  expect(h.run.queue(A)).toEqual([{ id: "q2", text: "second" }]);
+});
+
 test("a removed root takes its state and drafts with it", () => {
   const h = harness();
   h.run.show(ROOT);
