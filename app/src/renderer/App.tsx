@@ -1115,11 +1115,10 @@ export function App() {
           : canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
         try { overviewRuns.deleted(conversationId); canvasRuns.deleted(conversationId); homeRun.current.deleted(conversationId); }
         finally { store.deleted(conversationId); }
-        // Only while the alert is still open: an alert cancelled meanwhile has already returned focus to the trigger.
-        if (shown && deletingRef.current?.target === current.target) afterDelete.current = from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input";
+        if (shown) afterDelete.current = from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input";
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
     }
-    if (deletingRef.current?.target === current.target) closeDelete();
+    closeDelete();
     if (code !== null && !quitting()) live.current.toast.show(deleteRefusalText(code, title));
   }
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).

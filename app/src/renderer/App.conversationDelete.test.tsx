@@ -294,20 +294,24 @@ test("deleting the canvas's current conversation from its Title menu shows the n
   expect(focused.calls).toEqual([FIELDS[".doan-conv-panel .composer-input"]]);
 });
 
-test("an alert cancelled while its request is out keeps focus on the trigger, also when the shown conversation is deleted", async () => {
+// PRODUCT item 3 'Deep links': a busy dialog refuses its cancel. Cancelling here would stop nothing, and a second
+// request for the same conversation would share the store's one deleting mark with the first (review 🟡1).
+test("while its request is out the alert refuses Cancel and Escape, and stays until main answers", async () => {
   await openOverview();
   const reply = deferred<undefined>();
   doan.deleteConversation = vi.fn(() => reply.promise);
   const button = ask(target("c1"));
   dialog()!.confirm(); render();
-  dialog()!.cancel(); render();
-  expect(button.focus).toHaveBeenCalledOnce();
+  // Through the drawn alert: its Cancel button and its cancel event (Escape, a link's dismissal).
+  const drawn = ConversationDeleteDialog(dialog() as never);
+  const cancelButton = all(drawn).find(element => element.type === "button" && element.props["children"] === "Cancel")!;
+  (cancelButton.props["onClick"] as () => void)();
+  (drawn.props["onCancel"] as (event: unknown) => void)({ preventDefault: () => {} });
+  render();
+  expect(dialog()?.pending).toBe(true);
+  expect(button.focus).not.toHaveBeenCalled();
   reply.resolve(undefined); await flushAll();
+  expect(dialog()).toBeUndefined();
   expect(overview()!.run.view("/w/a").kind).toBe("new");
-  expect(focused.calls).toEqual([]);
-  // A later alert's close goes back to its own trigger, not to a stale composer target.
-  const next = ask(target("c2"));
-  dialog()!.cancel(); render();
-  expect(next.focus).toHaveBeenCalledOnce();
-  expect(focused.calls).toEqual([]);
+  expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
 });

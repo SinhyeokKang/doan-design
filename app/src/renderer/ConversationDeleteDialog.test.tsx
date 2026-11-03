@@ -107,9 +107,19 @@ test("Delete is unavailable while its request is out, and when the conversation 
   expect(renderToStaticMarkup(working.tree)).toContain(reason);
   (working.deleteButton.props["onClick"] as () => void)();
   expect(working.confirm).not.toHaveBeenCalled();
-  // Cancel stays usable.
+  // Cancel stays usable while only the reason holds Delete.
   (working.cancelButton.props["onClick"] as () => void)();
   expect(working.cancel).toHaveBeenCalledOnce();
+});
+
+test("while the request is out Cancel and Escape (a link's dismissal too) are refused", () => {
+  const pending = dialog({ pending: true });
+  (pending.cancelButton.props["onClick"] as () => void)();
+  const event = { preventDefault: vi.fn() };
+  (pending.tree.props["onCancel"] as (event: unknown) => void)(event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(pending.cancel).not.toHaveBeenCalled();
+  expect(pending.cancelButton.props["aria-disabled"]).toBe(true);
 });
 
 test("an unsent draft is text or chips, a preset or an attachment", () => {
@@ -140,4 +150,14 @@ test("the row Delete is 24px in subtle ink and keeps the shared icon button focu
 test("while the row Delete shows, the time's visible text is clipped and its spoken label stays", () => {
   expect(css).toContain('.conv-row:is(:hover, :has([data-highlighted])) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }');
   expect(css).toContain('.conv-delete.doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }');
+});
+
+// Review notes: an unavailable button paints no pressed fill either, and a row without a time (an unreadable
+// conversation) keeps a spot for the Delete so it never covers the title or the status mark.
+test("unavailable header and row buttons paint no hover or pressed fill", () => {
+  expect(css).toContain(':is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }');
+  expect(css).toContain('.conv-list .conv-row > .conv-delete.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }');
+});
+test("a row without a time keeps the Delete's spot while it shows", () => {
+  expect(css).toContain('.conv-row:is(:hover, :has([data-highlighted])) .cv-head:not(:has(.cv-when))::after { content: ""; flex: none; width: var(--size-control-xs); }');
 });

@@ -942,7 +942,7 @@ body:has(.shell-top) { background: transparent; }
 .ov-new-conv { flex: none; margin-left: auto; }
 /* New conversation on the new conversation state: unavailable, still focusable with its tooltip. */
 :is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
-:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 .ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
@@ -980,11 +980,14 @@ body:has(.shell-top) { background: transparent; }
 .conv-delete.doan-icon-button { position: absolute; top: calc(var(--space-2) + (var(--type-body-sm-line-height) - var(--size-control-xs)) / 2); right: var(--space-2); width: var(--size-control-xs); height: var(--size-control-xs); color: var(--text-subtle); }
 .conv-delete.doan-icon-button[data-highlighted]:not([aria-disabled="true"]) { background: var(--affordance-subtle-hover); }
 .conv-delete.doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
-.conv-delete.doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
+/* Heavier than the shared pressed rule (ds/controls.css), which would otherwise paint it. */
+.conv-list .conv-row > .conv-delete.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
 /* Hidden: clipped to 1px, never display: none, so Radix can still return focus to it (POSTMORTEM 2026-11-03). While it
    shows, the time's visible text is clipped and its spot keeps the button's width; the spoken label stays. */
 .conv-row:not(:hover, :has([data-highlighted])) > .conv-delete { width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .conv-row:is(:hover, :has([data-highlighted])) .cv-when { min-width: var(--size-control-xs); }
+/* A row without a time (an unreadable conversation) still keeps the spot, so the Delete covers no title or mark. */
+.conv-row:is(:hover, :has([data-highlighted])) .cv-head:not(:has(.cv-when))::after { content: ""; flex: none; width: var(--size-control-xs); }
 .conv-row:is(:hover, :has([data-highlighted])) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .conv-item .t { font-weight: var(--type-weight-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
