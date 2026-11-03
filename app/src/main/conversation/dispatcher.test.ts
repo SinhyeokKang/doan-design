@@ -96,3 +96,55 @@ it("does not tag an RPC timeout as an error reply", async () => {
     const error = await timedOut; expect((error as Error).message).toBe("RPC timeout"); expect(error).not.toBeInstanceOf(RpcError);
   } finally { vi.useRealTimers(); }
 });
+// queue-send-now: turn/steer goes through a request whose timeout refuses only that steer, and its echo is reported
+// in line with the turn's events.
+describe("Codex steer path", () => {
+  function steering() {
+    const writes: unknown[] = [], seen: unknown[] = []; const cleanup = vi.fn();
+    const rpc = new CodexDispatcher(v => writes.push(v), v => seen.push(v), cleanup, id => seen.push({ consumed: id }));
+    rpc.begin({ root: "/repo", sessionId: "s", turnId: "local" }); rpc.started("t");
+    return { rpc, writes, seen, cleanup };
+  }
+  const echo = (clientId: string) => ({ method: "item/started", params: { threadId: "s", turnId: "t", item: { type: "userMessage", id: "u", clientId, content: [] } } });
+  it("reports a steered message's echo between the turn's events, once", async () => {
+    const h = steering();
+    h.rpc.receive({ method: "item/agentMessage/delta", params: { threadId: "s", turnId: "t", itemId: "m", delta: "a" } });
+    const accepted = h.rpc.steer({ threadId: "s", expectedTurnId: "t", input: [], clientUserMessageId: "c1" }, "c1");
+    expect(h.writes).toEqual([{ id: "doan-1", method: "turn/steer", params: { threadId: "s", expectedTurnId: "t", input: [], clientUserMessageId: "c1" } }]);
+    h.rpc.receive({ id: "doan-1", result: { turnId: "t" } }); await expect(accepted).resolves.toEqual({ turnId: "t" });
+    h.rpc.receive(echo("c1")); h.rpc.receive({ method: "item/completed", params: { threadId: "s", turnId: "t", item: { type: "userMessage", id: "u", clientId: "c1", content: [] } } });
+    h.rpc.receive({ method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "completed" } } });
+    expect(h.seen).toEqual([{ type: "message.delta", messageId: "m", text: "a" }, { consumed: "c1" }, { type: "turn.done" }]);
+  });
+  it("refuses a steer the server answers with an error without failing the turn", async () => {
+    const h = steering();
+    const refused = h.rpc.steer({}, "c1").catch((e: unknown) => e);
+    h.rpc.receive({ id: "doan-1", error: { code: -32600, message: "no active turn to steer" } });
+    const error = await refused; expect(error).toBeInstanceOf(RpcError); expect((error as Error).message).toBe("no active turn to steer");
+    expect(h.seen).toEqual([]); expect(h.cleanup).not.toHaveBeenCalled(); expect(h.rpc.running()).toBe(true);
+  });
+  it("refuses a steer unanswered for 10 s without failing the turn or the protocol", async () => {
+    vi.useFakeTimers();
+    try {
+      const h = steering();
+      const timedOut = h.rpc.steer({}, "c1").catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(((await timedOut) as Error).message).toBe("RPC timeout");
+      expect(h.cleanup).not.toHaveBeenCalled(); expect(h.rpc.running()).toBe(true);
+      h.rpc.receive({ id: "doan-1", result: { turnId: "t" } });
+      h.rpc.receive({ method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "completed" } } });
+      expect(h.seen).toEqual([{ type: "turn.done" }]); expect(h.cleanup).not.toHaveBeenCalled();
+    } finally { vi.useRealTimers(); }
+  });
+  it("refuses a steer once the turn has ended, without writing it", async () => {
+    const h = steering();
+    h.rpc.receive({ method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "completed" } } });
+    expect(h.rpc.running()).toBe(false);
+    await expect(h.rpc.steer({}, "c1")).rejects.toThrow("not_running");
+    const closed = steering(); closed.rpc.close(); expect(closed.rpc.running()).toBe(false);
+    await expect(closed.rpc.steer({}, "c1")).rejects.toThrow("not_running");
+    const stopped = steering(); stopped.rpc.stop("user"); expect(stopped.rpc.running()).toBe(false);
+    await expect(stopped.rpc.steer({}, "c1")).rejects.toThrow("not_running");
+    expect([...h.writes, ...closed.writes, ...stopped.writes]).toEqual([]);
+  });
+});

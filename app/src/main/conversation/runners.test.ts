@@ -562,3 +562,200 @@ it("sends no probe and no approval or sandbox for a Codex run on an external pro
     expect(lines.find(r => r.method === "turn/start")!.params).not.toHaveProperty("sandboxPolicy");
   } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+// queue-send-now: steer on the Codex and Claude runners. The fakes follow the PoC's wire shapes (Claude Code 2.1.317, Codex 0.166.0).
+// FAKE_STEER: "echo" accepts and echoes the clientUserMessageId in the same turn, then completes; "error" answers the
+// steer with the server's after-completion error and completes; "silent" never answers the steer and completes later;
+// "complete" completes the turn with turn/start; "slow" answers turn/start late.
+function steerCodex(root: string): string {
+  const command = join(root, "codex");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+const mode = process.env.FAKE_STEER;
+const done = () => send({method:'turn/completed',params:{threadId:'session',turn:{id:'native-1',status:'completed'}}});
+readline.createInterface({input:process.stdin}).on('line', line => {
+ fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
+ const r = JSON.parse(line);
+ if(r.method==='initialize') send({id:r.id,result:{userAgent:'fake'}});
+ if(r.method==='thread/start') send({id:r.id,result:{thread:{id:'session'},approvalPolicy:'on-request',sandbox:{type:'readOnly'}}});
+ if(r.method==='config/read') send({id:r.id,result:{config:{}}});
+ if(r.method==='turn/start') {
+  const reply = () => send({id:r.id,result:{turn:{id:'native-1'}}});
+  if(mode==='slow') setTimeout(() => { reply(); done(); }, 400); else reply();
+  if(mode==='complete') done();
+ }
+ if(r.method==='turn/steer') {
+  if(mode==='echo') {
+   send({id:r.id,result:{turnId:r.params.expectedTurnId}});
+   const item = {type:'userMessage',id:'u1',clientId:r.params.clientUserMessageId,content:r.params.input};
+   send({method:'item/started',params:{threadId:'session',turnId:'native-1',item}});
+   send({method:'item/completed',params:{threadId:'session',turnId:'native-1',item}});
+   send({method:'item/completed',params:{threadId:'session',turnId:'native-1',item:{type:'agentMessage',id:'a1',text:'BANANA'}}});
+   done();
+  }
+  if(mode==='error') { send({id:r.id,error:{code:-32600,message:'no active turn to steer'}}); done(); }
+  if(mode==='silent') setTimeout(done, 500);
+ }
+});
+`, { mode: 0o700 });
+  return command;
+}
+async function codexSteerRun(mode: string, body: (h: { runner: Awaited<ReturnType<typeof openRunner>> & { steer?: (prompt: string, turnId: string, messageId: string) => Promise<void> }; seq: unknown[]; root: string }) => Promise<void>) {
+  const root = mkdtempSync(join(tmpdir(), "doan-codex-steer-")), command = steerCodex(root), seq: unknown[] = [];
+  const runner = await openRunner({ command, runtime: "codex", cwd: root, configDir: root, env: { ...process.env, FAKE_STEER: mode }, model: "gpt-6-luna", effort: "high", steerConsumed: (id: string) => seq.push({ consumed: id }) } as Parameters<typeof openRunner>[0], e => seq.push(e), () => {}, () => {});
+  try { await body({ runner, seq, root }); } finally { vi.useRealTimers(); await runner.close(); rmSync(root, { recursive: true, force: true }); }
+}
+it("steers a running Codex turn with the native turn id and the message id, no overrides, and reports its echo in line", async () => {
+  await codexSteerRun("echo", async ({ runner, seq, root }) => {
+    await runner.send("first", "local-1");
+    await runner.steer!("Extra note", "local-1", "c1");
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    expect(seq).toEqual([{ consumed: "c1" }, { type: "message.done", messageId: "a1", text: "BANANA" }, { type: "turn.done" }]);
+    const steers = seenLines(root).filter(r => r.method === "turn/steer");
+    expect(steers.map(r => r.params)).toEqual([{ threadId: "session", expectedTurnId: "native-1", input: [{ type: "text", text: "Extra note" }], clientUserMessageId: "c1" }]);
+  });
+});
+it("refuses a Codex steer the server answers with an error, and the turn still ends as it would", async () => {
+  await codexSteerRun("error", async ({ runner, seq }) => {
+    await runner.send("first", "local-1");
+    await expect(runner.steer!("late", "local-1", "c1")).rejects.toThrow("no active turn to steer");
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    expect(seq).toEqual([{ type: "turn.done" }]);
+  });
+});
+it("refuses a Codex steer unanswered for 10 s without failing the turn", async () => {
+  await codexSteerRun("silent", async ({ runner, seq }) => {
+    await runner.send("first", "local-1");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const refused = runner.steer!("note", "local-1", "c1").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(((await refused) as Error).message).toBe("RPC timeout");
+    vi.useRealTimers();
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    expect(seq).toEqual([{ type: "turn.done" }]);
+  });
+}, 15000);
+it("refuses a Codex steer before the turn has its native id, after it ended, and for another turn, without writing it", async () => {
+  await codexSteerRun("slow", async ({ runner, seq, root }) => {
+    const sending = runner.send("first", "local-1");
+    await vi.waitFor(() => expect(seenLines(root).some(r => r.method === "turn/start")).toBe(true));
+    await expect(runner.steer!("early", "local-1", "c1")).rejects.toThrow("not_running");
+    await sending; await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    await expect(runner.steer!("late", "local-1", "c2")).rejects.toThrow("not_running");
+    expect(seenLines(root).filter(r => r.method === "turn/steer")).toEqual([]);
+  });
+  await codexSteerRun("complete", async ({ runner, seq, root }) => {
+    await runner.send("first", "local-1"); await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    await expect(runner.steer!("late", "local-1", "c1")).rejects.toThrow("not_running");
+    await runner.send("second", "local-2");
+    await expect(runner.steer!("other turn", "local-1", "c2")).rejects.toThrow("not_running");
+    expect(seenLines(root).filter(r => r.method === "turn/steer")).toEqual([]);
+  });
+});
+// A Claude CLI that, like the real one in streaming-input mode, exits only once its stdin ends. FAKE_STEER: "fold" runs
+// a tool and folds a steered message into the turn at its status frame; "continued" answers without tools and goes on
+// to another turn for the steered message, after a result with queued_turn_count 0; "single" ends the first turn
+// at once; "failed" and "aborted" end it with an error or an aborted result; "hold" never ends it.
+function steerClaude(root: string): string {
+  const command = join(root, "claude");
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
+const mode = process.env.FAKE_STEER; let users = 0, first = '00000000-0000-4000-8000-00000000000f';
+const sys = (subtype, uuids) => send({type:'system',subtype,user_message_uuids:uuids,session_id:'s'});
+const say = (id, text) => send({type:'assistant',parent_tool_use_id:null,message:{id,role:'assistant',content:[{type:'text',text}]}});
+const result = (uuids, extra) => send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:uuids,queued_turn_count:0,session_id:'s',...extra});
+const input = readline.createInterface({input:process.stdin});
+input.on('line', line => {
+ fs.appendFileSync(${JSON.stringify(join(root, "seen"))}, line + '\\n');
+ const r = JSON.parse(line);
+ if(r.type==='control_request') send({type:'control_response',response:{subtype:'success',request_id:r.request_id,response:{commands:[],models:[],account:{}}}});
+ if(r.type!=='user') return;
+ if(++users === 1) {
+  if(r.uuid) first = r.uuid;
+  sys('init',[first]); sys('status',[first]);
+  if(mode==='fold') send({type:'assistant',parent_tool_use_id:null,message:{id:'a1',role:'assistant',content:[{type:'tool_use',id:'toolu_1',name:'Bash',input:{command:'sleep 12'}}]}});
+  if(mode==='continued' || mode==='hold') say('a1','40 facts');
+  if(mode==='single') { say('a1','hello'); result([first]); }
+  if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:'s'});
+  if(mode==='aborted') send({type:'result',subtype:'error_during_execution',is_error:true,terminal_reason:'aborted_tools',errors:[],session_id:'s'});
+  return;
+ }
+ if(mode==='fold') { sys('status',[first, r.uuid]); say('a2','BANANA'); result([first, r.uuid]); }
+ if(mode==='continued') { result([first]); sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]); }
+});
+input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); setTimeout(() => process.exit(0), 20); });
+`, { mode: 0o700 });
+  return command;
+}
+const STEER_ID = "6190301c-24ce-42a9-8a51-ad4fdf91835e";
+async function claudeSteerRun(mode: string, body: (h: { runner: Awaited<ReturnType<typeof openRunner>> & { steer?: (prompt: string, turnId: string, messageId: string) => Promise<void> }; seq: unknown[]; root: string; exited: ReturnType<typeof vi.fn> }) => Promise<void>) {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-steer-")), command = steerClaude(root), seq: unknown[] = [], exited = vi.fn();
+  const runner = await openRunner({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_STEER: mode }, steerConsumed: (id: string) => seq.push({ consumed: id }) } as Parameters<typeof openRunner>[0], e => seq.push(e), exited, () => {});
+  try { await body({ runner, seq, root, exited }); } finally { await runner.close(); rmSync(root, { recursive: true, force: true }); }
+}
+const userLines = (root: string) => readFileSync(join(root, "seen"), "utf8").split("\n").filter(Boolean).map(line => JSON.parse(line) as Record<string, unknown>).filter(r => r.type === "user");
+it("folds a Claude message steered during a tool into the running turn, then closes its input on the result", async () => {
+  await claudeSteerRun("fold", async ({ runner, seq, root, exited }) => {
+    const sending = runner.send("hello", "turn-1");
+    await vi.waitFor(() => expect(seq).toContainEqual(expect.objectContaining({ type: "activity" })));
+    await runner.steer!("Extra note", "turn-1", STEER_ID);
+    await sending;
+    expect(seq).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }, { consumed: STEER_ID }, { type: "message.done", messageId: "a2", text: "BANANA" }, { type: "turn.done" }]);
+    const steered = userLines(root)[1];
+    expect(steered).toMatchObject({ uuid: STEER_ID, message: { role: "user", content: "Extra note" }, parent_tool_use_id: null });
+    expect(steered).not.toHaveProperty("priority");
+    expect(readFileSync(join(root, "closed"), "utf8")).toBe("");
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+    await expect(runner.steer!("after", "turn-1", "late")).rejects.toThrow("not_running");
+  });
+}, 15000);
+it("waits past a Claude result with queued_turn_count 0 while the steered message is unread, and ends on the continued turn's result", async () => {
+  await claudeSteerRun("continued", async ({ runner, seq }) => {
+    const sending = runner.send("hello", "turn-1");
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "message.done", messageId: "a1", text: "40 facts" }));
+    await runner.steer!("Extra note", "turn-1", STEER_ID);
+    await sending;
+    expect(seq).toEqual([{ type: "message.done", messageId: "a1", text: "40 facts" }, { consumed: STEER_ID }, { type: "message.done", messageId: "a2", text: "BANANA" }, { type: "turn.done" }]);
+  });
+}, 15000);
+it.each([
+  ["single", { type: "turn.done" }],
+  ["failed", { type: "turn.failed", code: "unknown", detail: "Unrecognized provider failure" }],
+  ["aborted", { type: "turn.failed", code: "process_exited" }],
+])("closes a Claude turn's input on its %s terminal so the CLI exits, and refuses a steer after it", async (mode, terminal) => {
+  await claudeSteerRun(mode, async ({ runner, seq, exited }) => {
+    await runner.send("hello", "turn-1");
+    expect(seq.filter(e => ["turn.done", "turn.failed", "interrupted"].includes((e as { type?: string }).type ?? ""))).toEqual([terminal]);
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+    await expect(runner.steer!("late", "turn-1", STEER_ID)).rejects.toThrow("not_running");
+  });
+}, 15000);
+it("refuses a Claude steer for another turn or after a stop, and a stop closes the input", async () => {
+  await claudeSteerRun("hold", async ({ runner, seq, exited }) => {
+    await expect(runner.steer!("before", "turn-1", STEER_ID)).rejects.toThrow("not_running");
+    // A stopped send rejects with the SDK's abort; it is caught from the start so the rejection is never unhandled.
+    const sending = runner.send("hello", "turn-1").catch((e: unknown) => e);
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "message.done", messageId: "a1", text: "40 facts" }));
+    await expect(runner.steer!("other", "turn-2", STEER_ID)).rejects.toThrow("not_running");
+    await runner.stop();
+    await expect(runner.steer!("stopped", "turn-1", STEER_ID)).rejects.toThrow("not_running");
+    await sending;
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+  });
+}, 15000);
+// POSTMORTEM 2026-10-28: a send on turn.done, before the previous process's exit callback, is not refused as busy.
+it("accepts a Claude send issued on turn.done, before the first CLI has exited", async () => {
+  const root = mkdtempSync(join(tmpdir(), "doan-claude-next-")), command = steerClaude(root);
+  const store = new ConversationStore(root);
+  const service = new ConversationService(store,
+    async (_request, stored) => ({ command, runtime: "claude", cwd: root, configDir: root, env: { PATH: process.env.PATH, HOME: root, CLAUDE_CONFIG_DIR: root, FAKE_STEER: "single" }, ...(stored ? { sessionId: stored.session.sessionId } : {}) }),
+    openRunner, () => {});
+  try {
+    const { conversationId } = await service.start({ root, mode: "new", runtime: "claude", text: "hello", anchors: [] });
+    await vi.waitFor(() => expect(store.read(conversationId)).toContainEqual(expect.objectContaining({ type: "turn.done" })), { interval: 1 });
+    await service.send(conversationId, "again", []);
+    await vi.waitFor(() => expect(store.read(conversationId).filter(e => e.type === "turn.done")).toHaveLength(2));
+  } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
+}, 15000);
