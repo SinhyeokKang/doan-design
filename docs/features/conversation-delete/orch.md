@@ -19,7 +19,12 @@
    - 요청만 걸려 있던 상태는 보이는 화면을 바꾸지 않고 요청만 버린다(spec 완료 조건 7).
    - 제목이 빈 대화의 거절 토스트는 `this conversation` 문구를 쓴다(확인 알림의 `Delete this conversation?`과 맞춤).
    - `not_found` 거절은 이미 main에 없는 대화이므로 C가 성공 경로의 `deleted()` 정리를 적용한 뒤 `“<title>” was already deleted.` 토스트를 띄운다. 정리하지 않으면 다음 목록 읽기까지 지운 대화가 화면에 남는다.
-4. T5(문서 승격)는 지휘자가 한다. DESIGN.md의 `/design-sync` 값은 C가 쓰고, 지휘자가 통합 때 확인한다.
+4. D1(사용자 결정, RA Y1): 시작 때 정리는 삭제가 기록한 id의 기록·초안만 지운다. index에 없더라도 기록이 없는 파일은 남긴다(index를 외부 요인으로 잃은 기기에서 다음 실행 때 모든 기록을 지우는 문제). design §2.1·§2.2의 "index에 없는 모든 기록" 규칙을 대신하며 T5에서 ARCHITECTURE에 적는다.
+5. C 질문 — 지휘자 판단:
+   - Radix probe에서 Delete 툴팁이 열린 동안 첫 Esc가 툴팁만 닫았다. 구조는 그대로 두고 제목 메뉴를 controlled로 바꿔 툴팁의 Esc가 메뉴도 닫게 한다(spec 완료 조건 2).
+   - renderer에는 종료 신호가 없다. A가 수정 1회차 뒤 main→renderer 종료 push(before-quit에서 `conversations.quit()` 전)를 더하고, C가 그것으로 종료 중 거절 토스트를 막는다(spec 완료 조건 5, design §3.4).
+   - tasks T4의 "OS 알림 클릭이 확인 알림을 Cancel처럼 닫음"은 PRODUCT §5 item 0 'Notifications'(모달 중 클릭은 창만 앞으로)를 따른다. `doan://` 링크는 기존대로 Cancel처럼 닫는다.
+6. T5(문서 승격)는 지휘자가 한다. DESIGN.md의 `/design-sync` 값은 C가 쓰고, 지휘자가 통합 때 확인한다.
 
 ## 배치
 
@@ -46,3 +51,4 @@
 - A 완료: `34024e09`..`51afcccc`(4개). app test·typecheck·verify.mjs 통과(worker 보고). 승인한 범위 밖 파일은 `app/src/main/index.test.ts` mock 한 줄. main은 종료 중 거절과 working 거절을 둘 다 `busy`로 답하므로 종료 중 토스트 생략은 C가 renderer 쪽 종료 신호로 처리한다. RA(Opus high, dispatch `ctx_e701d6c32732`)를 `conv-delete-A`에서 시작했다.
 - B 수정 1회차 완료: `c2473b77` test, `58579f14` fix. verify.mjs 통과(6434 tests, worker 보고). 🟡1 postmortem은 생략한다(지휘자 판단: main에 들어가기 전 리뷰에서 잡았고, 같은 함정이 POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn'에 이미 있다). RB 재리뷰(dispatch `ctx_7c78cef5420b`) 시작.
 - RB 재리뷰: 🔴 0, 🟡 0, ⚪ 1(보이지 않는 events 항목, 조치 없음). B 커밋 4개를 `aac23ea4`..`6710020a`로 cherry-pick했다. B·RB worker를 release했다. worktree `conv-delete-B`는 정리 전까지 남는다. handoff와 review는 `.scratch/orch-conversation-delete/evidence/`에 복사했다.
+- C step 0 Radix probe: Esc 한 항목만 실패(툴팁이 먼저 닫힘), 나머지 통과. 결정 5로 답했다. A 수정 1회차에는 사용자 결정 D1을 담아 보냈다(dispatch `ctx_65adf4a0fc54`). C는 dispatch `ctx_db9637228489`, worktree `conv-delete-C`, 기준 `7e10089a`.
