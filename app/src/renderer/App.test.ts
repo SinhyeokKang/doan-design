@@ -53,25 +53,18 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
   } finally { vi.unstubAllGlobals(); }
 });
 
-// R-M ⚪5: a command App does not name must not run the Undo toast's action.
-it("routes each menu command to its own handler, and the removed Resolved Comment commands never reach Undo", () => {
-  const to = { home: vi.fn(), quickOpen: vi.fn(), undo: vi.fn(), newConversation: vi.fn(), addSelection: vi.fn() };
-  menuCommand("nextResolved" as never, to);
-  menuCommand("previousResolved" as never, to);
-  expect(to.undo).not.toHaveBeenCalled();
-  menuCommand("undoRemove", to);
-  expect(to.undo).toHaveBeenCalledOnce();
-  menuCommand("future" as never, to);
+// R-M ⚪5: a command App does not name runs no handler.
+it("routes each menu command to its own handler, and an unknown or removed command reaches none", () => {
+  const to = { home: vi.fn(), quickOpen: vi.fn(), newConversation: vi.fn(), addSelection: vi.fn() };
+  for (const name of ["nextResolved", "previousResolved", "future"]) menuCommand(name as never, to);
+  for (const handler of Object.values(to)) expect(handler).not.toHaveBeenCalled();
   menuCommand("home", to); menuCommand("quickOpen", to);
-  expect(to.undo).toHaveBeenCalledOnce();
   expect(to.home).toHaveBeenCalledOnce();
   expect(to.quickOpen).toHaveBeenCalledOnce();
   // buzz-project: File > New Conversation (⌘N).
   menuCommand("newConversation", to);
   expect(to.newConversation).toHaveBeenCalledOnce();
-  expect(to.undo).toHaveBeenCalledOnce();
   // buzz-canvas-conversation: Edit > Add Selection to Conversation (⌘L).
   menuCommand("addSelectionToConversation", to);
   expect(to.addSelection).toHaveBeenCalledOnce();
-  expect(to.undo).toHaveBeenCalledOnce();
 });

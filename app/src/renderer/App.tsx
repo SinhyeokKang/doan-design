@@ -84,14 +84,12 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
 import { preferenceAfterPick, rememberChoice, rememberPermission, type ComposerChoice } from "./rememberChoice";
 
-// Each command names its handler; one App does not know does nothing, so a
-// new menu item can never run the Undo toast's action (R-M ⚪5).
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; newConversation: () => void; addSelection: () => void }): void {
+// Each command names its handler; one App does not know does nothing (R-M ⚪5).
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; addSelection: () => void }): void {
   if (name === "home") to.home();
   else if (name === "newConversation") to.newConversation();
   else if (name === "addSelectionToConversation") to.addSelection();
   else if (name === "quickOpen") to.quickOpen();
-  else if (name === "undoRemove") to.undo();
 }
 
 // A focus move that waits (a pick's end, Add on a folded panel) carries the intent it started with (design §2 'Focus
@@ -715,7 +713,7 @@ export function App() {
 
 
   const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null;
-  // A locked Project Settings page holds the Undo toast too: its Share confirmation makes the toast inert while the page
+  // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
   // itself is not modal (project-settings design '영향 범위' 토스트, POSTMORTEM 2026-10-25 'Native hiding bypassed
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
@@ -1096,7 +1094,6 @@ export function App() {
     menuCommand(name, {
       home: () => live.current.home(),
       quickOpen: () => live.current.search(),
-      undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
       newConversation: () => live.current.newConversation(),
       addSelection: () => live.current.addSelection(),
     });
@@ -1301,10 +1298,10 @@ export function App() {
   useEffect(() => {
     // The Project Settings page enables the menu as Settings does (no canvas items, no New Conversation), so main's
     // menu state needs no screen of its own (project-settings design '영향 범위' 메뉴).
-    void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo",
+    void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null ? { overview: true } : {}),
       ...(menuSelection ? { selection: true } : {}), ...(menuPicker ? { pickerAvailable: true } : {}) });
-  }, [screen, state.open, modal, toast.toast?.action, page.choose, pageLocked, shownOverview, menuSelection, menuPicker]);
+  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuSelection, menuPicker]);
   useLayoutEffect(() => { overviewRun.current!.show(shownOverview); }, [shownOverview]);
   // The window's focus decides whether the shown conversation is seen (spec decision 11); the focus listener is the
   // sign-in controller's below.

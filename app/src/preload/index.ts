@@ -19,7 +19,7 @@ import type {
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { Selection } from "../formats/types";
 import type { FolderFocus, ProjectInitResult } from "../main/shell";
-import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, RestoreResult, TokenCssChoice, ViewCommand } from "../main/index";
+import type { FolderPurpose, LocateResult, MenuCommand, MenuInputs, ProjectInitRequest, RemoveResult, TokenCssChoice, ViewCommand } from "../main/index";
 import type { ExternalTarget, SettingsPageTarget, SettingsSection } from "../main/settings";
 import type { ConfigChoice, ConfigKind, ConfigReply } from "../main/configBridge";
 import type { Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply } from "../main/preferences";
@@ -288,9 +288,6 @@ const api = {
     return () => ipcRenderer.removeListener("view-command", receive);
   },
   removeProjects: (paths: string[]): Promise<RemoveResult> => ipcRenderer.invoke("folders:remove", { paths }),
-  restoreProjects: (removalId: string): Promise<RestoreResult> => ipcRenderer.invoke("folders:restore", { removalId }),
-  // The removal toast expired without Undo.
-  forgetRemoval: (removalId: string): Promise<void> => ipcRenderer.invoke("folders:forget-removal", { removalId }),
   locateProject: (path: string): Promise<LocateResult> => ipcRenderer.invoke("folders:locate", { path }),
   revealProject: (path: string): Promise<void> => ipcRenderer.invoke("folders:reveal", { path }),
   setMenuState: (inputs: MenuInputs): Promise<void> => ipcRenderer.invoke("menu:state", inputs),

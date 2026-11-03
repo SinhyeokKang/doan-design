@@ -6,7 +6,6 @@ export interface MenuEnabled {
   home: boolean;
   // Zoom In/Out, Actual Size, Fit, Reload Canvas.
   canvasView: boolean;
-  undoRemove: boolean;
   // Go > Quick Open… (design-nav): every screen, since it searches all projects.
   quickOpen: boolean;
   // File > New Conversation: a project Overview or canvas.
@@ -26,10 +25,10 @@ export interface MenuEnabled {
 // `overview`: the workspace shows a project's Overview, not a problem screen.
 // `selection`: the canvas has a selection to add; `pickerAvailable`: the composer takes input and the canvas is loaded
 // (design §2), so the menu follows the same availability as the canvas toolbar.
-export function menuState(screen: Screen, modalOpen: boolean, toastOpen: boolean, context: { wizardOpen: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean } = { wizardOpen: false }): MenuEnabled {
+export function menuState(screen: Screen, modalOpen: boolean, context: { wizardOpen: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean } = { wizardOpen: false }): MenuEnabled {
   const settings = !context.wizardOpen && !modalOpen && context.locked !== true;
-  if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, undoRemove: false, quickOpen: false, newConversation: false, addSelectionToConversation: false };
-  return { settings, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", undoRemove: toastOpen, quickOpen: true,
+  if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, addSelectionToConversation: false };
+  return { settings, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", quickOpen: true,
     newConversation: screen === "canvas" || (screen === "workspace" && context.overview === true),
     addSelectionToConversation: screen === "canvas" && context.selection === true && context.pickerAvailable === true };
 }

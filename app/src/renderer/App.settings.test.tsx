@@ -165,7 +165,7 @@ test("the header Settings tab opens the page on the last category's title; the s
   expect([bar.back.props.disabled, bar.forward.props.disabled]).toEqual([false, true]);
   expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" } } });
   expect(settings()!.props.sidebar.props.settings?.section).toBe("agents");
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false });
   expect(doan.openSettings).not.toHaveBeenCalled();
 });
 
@@ -233,7 +233,7 @@ test("while a category holds a confirmation or a write, incoming targets wait an
   lock();
   const bar = topBar(settings()!.props.header);
   for (const button of [bar.add, bar.projects, bar.settings, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, locked: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, locked: true });
   const before = settings()!.props.arrival;
   cmdComma({ section: "about" });
   harness.signIn.onToast!({ text: "Codex sign-in didn’t finish.", action: { label: "Open Agents settings", target: { section: "agents", provider: "codex" } } });
@@ -441,7 +441,7 @@ test("Project Settings opens as a page from Home, a workspace or Add Projects: t
   expect(page.props.sidebar.props.home).toBe(true);
   expect(page.props.sidebar.props.settings).toBeUndefined();
   expect(homeRowCurrent(page.props.sidebar)).toBe(false);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false });
   // Nothing modal: the page is a screen, so the toast keeps running.
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
   // From a workspace the workspace is the origin; from Add Projects the origin stays.
@@ -555,14 +555,14 @@ test("while the page holds a picker, a confirmation or a write, every way out an
   const bar = topBar(projectPage()!.props.header);
   for (const button of [bar.add, bar.projects, bar.settings, bar.back]) expect(button.props["aria-disabled"]).toBe(true);
   expect(projectPage()!.props.sidebar.props.locked).toBe(true);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false, locked: true });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, locked: true });
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(true);
   // A Settings target that came in while locked was dropped, not queued.
   cmdComma({ section: "about" });
   lockPage(false);
   expect(onSettings()).toBe(false);
   expect(harness.toast.setModal).toHaveBeenLastCalledWith(false);
-  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false, toast: false });
+  expect(doan.setMenuState!).toHaveBeenLastCalledWith({ screen: "settings", modal: false });
   click(topBar(projectPage()!.props.header).projects);
   expect(projectPage()).toBeUndefined();
 });
@@ -738,7 +738,7 @@ test("Set Up opens its dialog over the page; closed from outside, focus returns 
 const removalDialog = () => all(tree).find(element => element.type === "dialog" && element.props.role === "alertdialog" && element.props["aria-labelledby"] === "project-remove-title");
 const removalTitle = () => { const dialog = removalDialog(); return dialog && all(dialog).find(element => element.props.id === "project-remove-title")?.props.children; };
 const dialogButton = (label: string) => all(removalDialog()!).find(element => element.type === "button" && element.props.children === label)!;
-const removed = () => vi.fn(async () => ({ kind: "removed", label: "a", removalId: "r1" }));
+const removed = () => vi.fn(async () => ({ kind: "removed" }));
 
 test("Remove from Doan on the page asks first for the page's whole group; Cancel returns focus; confirming removes without a toast and the page leaves", async () => {
   projectSettingsFromWorkspace([grouped("/w/a"), grouped("/w/b"), listed("/w/c")]);
