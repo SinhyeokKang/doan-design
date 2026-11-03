@@ -52,3 +52,4 @@
 - B 수정 1회차 완료: `c2473b77` test, `58579f14` fix. verify.mjs 통과(6434 tests, worker 보고). 🟡1 postmortem은 생략한다(지휘자 판단: main에 들어가기 전 리뷰에서 잡았고, 같은 함정이 POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn'에 이미 있다). RB 재리뷰(dispatch `ctx_7c78cef5420b`) 시작.
 - RB 재리뷰: 🔴 0, 🟡 0, ⚪ 1(보이지 않는 events 항목, 조치 없음). B 커밋 4개를 `aac23ea4`..`6710020a`로 cherry-pick했다. B·RB worker를 release했다. worktree `conv-delete-B`는 정리 전까지 남는다. handoff와 review는 `.scratch/orch-conversation-delete/evidence/`에 복사했다.
 - C step 0 Radix probe: Esc 한 항목만 실패(툴팁이 먼저 닫힘), 나머지 통과. 결정 5로 답했다. A 수정 1회차에는 사용자 결정 D1을 담아 보냈다(dispatch `ctx_65adf4a0fc54`). C는 dispatch `ctx_db9637228489`, worktree `conv-delete-C`, 기준 `7e10089a`.
+- A 수정 1회차(D1: `e0e5383e`, `dbf8d3fd`)와 2회차(종료 push `app:quitting`·preload `onQuitting`: `09e3f585`, `9cc5303d`) 완료. RA 재리뷰(dispatch `ctx_7c274c9b258d`) 시작. C는 통합 뒤 `onQuitting`을 연결한다.
