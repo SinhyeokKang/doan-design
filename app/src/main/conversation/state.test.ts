@@ -122,3 +122,13 @@ describe("bound and restored markers", () => {
     expect(state.turn).toBe("idle"); expect(state.archived).toBe(false); expect(state.lastSeq).toBe(3);
   });
 });
+
+describe("a turn with two user.message events (queue-send-now)", () => {
+  it("folds as one turn that continues past the second message", () => {
+    const events = [event(1, { type: "user.message", text: "first", anchors: [] }), event(2, { type: "turn.started" }), event(3, { type: "user.message", text: "pushed in", anchors: [] }), event(4, { type: "message.done", messageId: "m", text: "Both." })];
+    const running = foldConversation(events, "a", false);
+    expect(running.turn).toBe("streaming");
+    expect(running.turnId).toBe("turn-1");
+    expect(foldConversation([...events, event(5, { type: "turn.done" })], "a", false).turn).toBe("idle");
+  });
+});

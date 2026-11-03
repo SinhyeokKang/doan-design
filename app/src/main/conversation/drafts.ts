@@ -140,6 +140,17 @@ export class DraftStore {
     this.save();
     return [...items];
   }
+  // Only this waiting message, marked as on its way out (Send now); false when it is missing or already marked.
+  markOneSending(id: string, itemId: string): boolean { return this.setSending(id, itemId, true); }
+  // The refused or ended send of that one message: it waits again where it was.
+  unmarkSending(id: string, itemId: string): boolean { return this.setSending(id, itemId, false); }
+  private setSending(id: string, itemId: string, on: boolean): boolean {
+    const before = this.file.queued[id];
+    if (!before?.some(item => item.itemId === itemId && Boolean(item.sending) !== on)) return false;
+    this.file.queued[id] = before.map(item => item.itemId !== itemId ? item : on ? { ...item, sending: true } : { itemId: item.itemId, text: item.text, anchors: item.anchors, attachments: item.attachments });
+    this.save();
+    return true;
+  }
   // Their send was accepted: they are in the conversation's history now.
   sent(id: string, itemIds: readonly string[]): void {
     const left = (this.file.queued[id] ?? []).filter(item => !itemIds.includes(item.itemId));

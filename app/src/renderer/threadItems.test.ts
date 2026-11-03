@@ -175,3 +175,15 @@ describe("scrollFollow", () => {
     expect(scrollFollow(false, 25)).toBe(false);
   });
 });
+
+describe("threadItems with a message pushed into a running turn (queue-send-now)", () => {
+  test("shows both user messages in order inside the one turn, without a crash fold", () => {
+    seq = 0;
+    const events = [...turn("t1", "first"), ev("t1", { type: "message.delta", messageId: "m1", text: "Working" }), ev("t1", { type: "user.message", text: "pushed in", anchors: [] }), ev("t1", { type: "message.done", messageId: "m1", text: "Both." }), ev("t1", { type: "turn.done" })];
+    const items = threadItems(events, ROOT, true);
+    expect(items.map(i => i.kind)).toEqual(["user", "agent", "user", "agent"].slice(0, items.length));
+    expect(items.filter(i => i.kind === "user")).toHaveLength(2);
+    expect(items.some(i => i.kind === "end" && i.end.kind === "interrupted")).toBe(false);
+    expect(items.filter(i => i.kind === "agent")).toHaveLength(1);
+  });
+});

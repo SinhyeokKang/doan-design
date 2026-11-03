@@ -21,6 +21,8 @@ const EXTRA_ROOTS = [
   join(SRC, "renderer/anchorField.ts"), join(SRC, "renderer/canvasPicker.ts"),
   // permission-mode: the common mode ids and rules the picker imports by value.
   join(SRC, "main/conversation/permissionMode.ts"),
+  // queue-send-now: the provider table and the Send now rule the composer imports by value.
+  join(SRC, "main/conversation/steerSupport.ts"),
 ];
 
 function entries(): string[] {
