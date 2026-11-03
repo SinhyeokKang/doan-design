@@ -30,7 +30,7 @@ Why the loop exists: in malmoi (2026-09-13) a modal fixed to the pixel in its dr
 
 1. The working tree is clean and `npm --prefix app test` is green. Measuring on top of mixed changes hides the cause of a mismatch.
 2. You are on a `<type>/<slug>` branch (from `/ship` or `/orchestrate`), not main. This skill commits but never pushes.
-3. This repo has `.doan/config.json`, the canvas is listed by `go run ./cli/cmd/doan ls --json --repo .`, and `go run ./cli/cmd/doan check --json --repo .` reports no error for it (a missing `doan:width` makes the app refuse to draw it).
+3. This repo has `.doan/config.json`, the canvas is listed by `doan ls --json --repo .`, and `doan check --json --repo .` reports no error for it (a missing `doan:width` makes the app refuse to draw it).
 4. Every frame the screen needs is in the canvas — default, loading, empty, error and other states. A state with no frame is not compared; say so in the report.
 5. You can reach every state in the implementation with temp repos and fixtures (using `app/runtime/` isolation and cleanup support). **A state you could not reach is not "verified".**
 
