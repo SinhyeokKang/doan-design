@@ -26,7 +26,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | A | T1, T2 | `app/src/main/conversation/{store,drafts,service,ipc}.ts`와 그 테스트(새 `storeDelete.test.ts` 포함), `app/src/main/index.ts`, `app/src/main/notifyService.ts`와 테스트, `app/src/preload/index.ts`와 테스트 | 없음 | Opus high — 되돌릴 수 없는 삭제, index commit 순서, 크래시 뒤 정리, live runner와 늦은 이벤트 경쟁 | `npm --prefix app test`, `npm --prefix app run typecheck` | 완료(`34024e09`..`51afcccc`), RA 리뷰 중 |
-| B | T3 | `app/src/renderer/`의 새 `conversationDelete.ts`, `overviewConversation.ts`, `canvasConversation.ts`, `overviewRun.ts`, `canvasRun.ts`, `homeRun.ts`, `conversationStore.ts`와 그 테스트 | 없음 | Opus high — IPC 답과 목록 이벤트의 순서 경쟁, revision 규칙, 여러 Run의 상태 정리 | `npm --prefix app test`, `npm --prefix app run typecheck` | 완료(`16cb172a`, `7ca1032c`), RB 리뷰 중 |
+| B | T3 | `app/src/renderer/`의 새 `conversationDelete.ts`, `overviewConversation.ts`, `canvasConversation.ts`, `overviewRun.ts`, `canvasRun.ts`, `homeRun.ts`, `conversationStore.ts`와 그 테스트 | 없음 | Opus high — IPC 답과 목록 이벤트의 순서 경쟁, revision 규칙, 여러 Run의 상태 정리 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합(`aac23ea4`..`6710020a`), 리뷰 2회차 🔴0 🟡0 |
 | C | T4, N1 | `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, 새 확인 알림 컴포넌트, `styles.css`, `App.tsx`(삭제 호출과 정리 연결), 그 테스트, `docs/DESIGN.md`(`/design-sync` 값) | A·B 통합 | Opus high — Radix 구조 probe, 포커스 반환, 실제 앱 확인과 초안 비교 | test, typecheck, build, `/runtime-test`, `/design-sync` | 대기 |
 | RA·RB·RC | 각 배치 `/code-review` | 보고만 | 해당 배치 완료 | Opus high — 데이터 삭제·경쟁·포커스 결함을 찾는 독립 리뷰 | 🔴 0 | 대기 |
 | T5 | 문서 승격, feature 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/conversation-delete/` | C 통합 | 지휘자 | `verify.mjs`, `rg` 확인 | 대기 |
@@ -45,3 +45,4 @@
 - RB 완료: 🔴 0, 🟡 1(homeRun 진행 중 claim이 지운 대화를 되살림), ⚪ 4. 수정 1회차(🟡1, ⚪1 stale 목록 창, ⚪2·⚪3 테스트 고정)를 B에 보냈다(dispatch `ctx_394155d5ba75`). quitting 중 거절 토스트 확인은 RC가 본다.
 - A 완료: `34024e09`..`51afcccc`(4개). app test·typecheck·verify.mjs 통과(worker 보고). 승인한 범위 밖 파일은 `app/src/main/index.test.ts` mock 한 줄. main은 종료 중 거절과 working 거절을 둘 다 `busy`로 답하므로 종료 중 토스트 생략은 C가 renderer 쪽 종료 신호로 처리한다. RA(Opus high, dispatch `ctx_e701d6c32732`)를 `conv-delete-A`에서 시작했다.
 - B 수정 1회차 완료: `c2473b77` test, `58579f14` fix. verify.mjs 통과(6434 tests, worker 보고). 🟡1 postmortem은 생략한다(지휘자 판단: main에 들어가기 전 리뷰에서 잡았고, 같은 함정이 POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn'에 이미 있다). RB 재리뷰(dispatch `ctx_7c78cef5420b`) 시작.
+- RB 재리뷰: 🔴 0, 🟡 0, ⚪ 1(보이지 않는 events 항목, 조치 없음). B 커밋 4개를 `aac23ea4`..`6710020a`로 cherry-pick했다. B·RB worker를 release했다. worktree `conv-delete-B`는 정리 전까지 남는다. handoff와 review는 `.scratch/orch-conversation-delete/evidence/`에 복사했다.
