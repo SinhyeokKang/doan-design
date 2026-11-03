@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useReducer, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Check, ChevronDown, GitBranch, Plus } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, GitBranch, Plus } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
 import type { AttachmentResult } from "../main/attachments";
@@ -554,8 +554,8 @@ export function HeroComposer(props: HeroComposerProps) {
         </div>}
       </div>
       {prompts.length > 0 && <div className="home-suggestions" role="group" aria-label="Suggested prompts" inert={started}>{prompts.map(prompt => {
-        const button = <button key={prompt.label} type="button" className="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet" onClick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }}>
-          <GroupIcon name={groupIcon(prompt.preset.group)} /><span>{prompt.label}</span></button>;
+        const button = <button key={prompt.label} type="button" className="suggestion" onClick={() => { edit({ preset: prompt.preset, text: prompt.text }); queueMicrotask(focusEnd); }}>
+          <span className="suggestion-icon"><GroupIcon name={groupIcon(prompt.preset.group)} /></span><span className="suggestion-label">{prompt.label}</span><ArrowUpRight className="suggestion-go" aria-hidden="true" /></button>;
         return <Tooltip key={prompt.label}><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent>{prompt.label}</TooltipContent></Tooltip>;
       })}</div>}
       {notice && <div className="doan-notice error doan-panel composer-notice" role="alert"><AlertIcon /><span className="grow-text">{notice.text}</span>{notice.retry && <button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="subtle" onClick={() => void send()}>Retry</button>}</div>}

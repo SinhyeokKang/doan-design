@@ -680,14 +680,21 @@ body:has(.shell-top) { background: transparent; }
 .canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }
-/* Suggested prompts under the composer: they wrap instead of shortening (2026-10-29 user). */
-.home-suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-4); padding-inline: var(--space-8); }
+/* Suggested prompts: a prompt-only button, not the shared doan-button (.doan/canvases/suggested-prompt-variants.html
+   variant C). Full-width rows; on Home they take the composer's width, 32px under it. */
+.home-suggestions { display: flex; flex-direction: column; gap: var(--space-1); width: min(680px, 100%); margin-top: var(--space-8); }
 /* Hidden while the draft is not empty but keeping its place, so the field above does not move (design '배치'). */
 .home-stage .home-suggestions[inert] { visibility: hidden; }
-.suggestion { max-width: 100%; gap: var(--space-1h); font-weight: var(--type-weight-regular); }
-.suggestion span { overflow: hidden; text-overflow: ellipsis; }
-/* The suggestion's group icon carries the accent; its sentence stays standard ink (2026-10-29 user). */
-.suggestion svg { width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
+.suggestion { display: flex; align-items: center; width: 100%; min-width: 0; gap: var(--space-3); padding: var(--space-2) var(--space-3) var(--space-2) var(--space-2); border-radius: var(--radius-row); background: transparent; color: var(--text-standard); cursor: pointer; text-align: left; font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); letter-spacing: var(--type-label-sm-letter-spacing); transition: background-color var(--time-state) var(--ease-state); }
+@media (hover: hover) { .suggestion:hover { background: var(--affordance-subtle); } }
+.suggestion:active { background: var(--affordance-subtle-pressed); }
+.suggestion:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.suggestion-icon { flex: none; display: grid; place-items: center; width: var(--size-control-xs); height: var(--size-control-xs); border-radius: var(--radius-toolbar-icon); background: var(--surface-accent-subtle); }
+.suggestion-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The group icon and the hover arrow carry the accent; the sentence stays standard ink (2026-10-29 user). */
+.suggestion svg { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); color: var(--affordance-accent); }
+.suggestion-go { visibility: hidden; }
+.suggestion:is(:hover, :focus-visible) .suggestion-go { visibility: visible; }
 
 /* buzz-home: the temporary Home-conversation strip at the top of the workspace body (design §7), on the same white panel. */
 .workspace.with-strip { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
@@ -813,7 +820,7 @@ body:has(.shell-top) { background: transparent; }
    thread so its short names (.activity, .marker, .md) never reach other screens. buzz-project places it. */
 .conversation-thread { position: relative; display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .conversation-thread .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb-quiet) transparent; }
-.conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-4); }
+.conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }
 .conversation-thread .thread-item { display: flex; flex-direction: column; min-width: 0; }
 .conversation-thread .caret { display: inline-block; width: 1px; height: var(--type-label-line-height); margin: 0 1px -6px; background: var(--text-standard); animation: thread-caret 1s steps(1) infinite; }
 @keyframes thread-caret { 50% { opacity: 0; } }
@@ -916,11 +923,12 @@ body:has(.shell-top) { background: transparent; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
 .ov-scroll { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
 .ov-scroll > .conversation-thread { flex: 1; }
-.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) 0; }
+.ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-6); }
 .ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
 .ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
 .ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
-/* New conversation: the moved line and the suggestions sit right above the composer, start-aligned. */
+/* New conversation: the moved line and the suggestions sit in the middle of the empty area (suggested-prompt-variants). */
+.ov-new { flex: 1; display: flex; flex-direction: column; justify-content: center; }
 /* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
 .doan-notice.moved { margin-bottom: var(--space-3); }
 .doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
@@ -929,8 +937,9 @@ body:has(.shell-top) { background: transparent; }
 .moved-text { display: flex; min-width: 0; white-space: nowrap; }
 .moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.ov-suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
-.ov-suggestions .suggestion span { white-space: nowrap; }
+.ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); }
+/* The panel's column ends at the composer; auto margins put the suggestions in the middle of what is left. */
+.cp-scroll > .ov-suggestions { margin-block: auto; }
 /* The conversation dropdown: New, then the project conversations drawn like the right panel's rows, split by hairlines;
    the shown one has the selected fill. It scrolls inside its height. */
 .conv-menu { width: 360px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
@@ -1050,8 +1059,8 @@ body:has(.shell-top) { background: transparent; }
    thread's side insets and sits in the middle of the panel body instead of touching the panel edges at the top. */
 .cp-scroll > .conversation-thread:has(> :is(.thread-loading, .thread-notice)) { justify-content: center; padding: var(--space-2) var(--space-4) 0; }
 .cp-scroll:has(> .conversation-thread) > .doan-notice { margin: var(--space-2) var(--space-4) 0; }
-.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) 0; }
-.doan-conv-panel .conversation-thread .thread { gap: var(--space-3); }
+.doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-6); }
+.doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }
 .doan-conv-panel .msg-user { max-width: 92%; }
 .doan-conv-panel :is(.md, .msg-agent p, .bubble) { font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 .cp-foot { flex: none; padding: var(--space-3); }
