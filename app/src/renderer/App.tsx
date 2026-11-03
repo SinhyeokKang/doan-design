@@ -1080,10 +1080,11 @@ export function App() {
   }
   // conversation-delete design §3.4: a title menu row's Delete asks first. Cancel and Escape return focus to the menu's
   // trigger (`beforeModal`); the row's button is inside the closed menu.
-  function openDelete(target: DeleteTarget, trigger: HTMLElement | null) {
-    if (locked() || live.current.modal) return;
+  function openDelete(target: DeleteTarget, trigger: HTMLElement | null): boolean {
+    if (locked() || live.current.modal) return false;
     beforeModal.current = trigger;
     changeDeleting({ target, pending: false });
+    return true;
   }
   function closeDelete() { changeDeleting(null); modalClosed(); }
   // main answers busy for a refusal while the app quits too, and that refusal shows no toast. The renderer has no

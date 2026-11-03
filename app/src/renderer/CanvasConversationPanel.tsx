@@ -137,7 +137,8 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
   // The person chose what the panel shows, before the run hears it.
   onChoose?(): void;
   // A row's Delete: the host asks for confirmation and returns focus to `trigger` (conversation-delete design §3.4).
-  onDelete?(target: DeleteTarget, trigger: HTMLElement | null): void;
+  // False when it does not open the alert, so the closing menu returns focus as usual.
+  onDelete?(target: DeleteTarget, trigger: HTMLElement | null): boolean;
 }) {
   const target = run.target();
   const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen) : [];
@@ -172,8 +173,7 @@ export function CanvasConversationTitle({ run, list, canvasName, now, seen, titl
                 <span className="conv-preview">{item.preview}</span>
               </DropdownMenu.RadioItem>
               {target && <ConversationDeleteItem conversationId={item.conversationId} title={item.title} deletable={item.deletable} onDelete={() => {
-                deleting.current = true;
-                onDelete?.({ conversationId: item.conversationId, root: target.root, title: item.title, provider: item.provider, from: "canvas" }, trigger.current);
+                deleting.current = onDelete?.({ conversationId: item.conversationId, root: target.root, title: item.title, provider: item.provider, from: "canvas" }, trigger.current) === true;
               }} onEscape={() => setMenuOpen(false)} />}
             </div>)}</div>}
         </DropdownMenu.RadioGroup>

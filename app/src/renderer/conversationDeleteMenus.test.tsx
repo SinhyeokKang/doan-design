@@ -67,7 +67,7 @@ function overview(list: ListView, current: string | null | undefined) {
   });
   run.show(ROOT);
   if (current !== undefined) run.select(ROOT, current);
-  const onDeleteConversation = vi.fn();
+  const onDeleteConversation = vi.fn((_target: unknown, _trigger: unknown) => true);
   const html = renderToStaticMarkup(<TooltipProvider><ProjectOverview run={run} support={new DockedSupport(() => {})} root={ROOT} project="doan" entry={entry} worktrees={[entry]} homeDirectory="/code"
     notice={null} unavailable={null} list={list} seen={new Set()} holder={null} prefs={{}} defaults={null} now={Date.parse("2026-10-30T00:03:00.000Z")}
     onWorktree={() => {}} onOpenCanvas={() => {}} onRetryList={() => {}} onStart={async () => ({ ok: true })} onSettings={() => {}}
@@ -81,7 +81,7 @@ function canvas(list: ListView, current: string | null) {
   run.show({ root: ROOT, canvas: CANVAS });
   run.sync();
   run.select(current);
-  const onDelete = vi.fn(), onPicked = vi.fn();
+  const onDelete = vi.fn((_target: unknown, _trigger: unknown) => true), onPicked = vi.fn();
   const html = renderToStaticMarkup(<TooltipProvider><CanvasConversationTitle run={run} list={list} canvasName="checkout" now={Date.parse("2026-10-30T00:03:00.000Z")} seen={new Set()}
     title={current ? "t" : "New conversation"} current={current} onPicked={onPicked} onDelete={onDelete} /></TooltipProvider>);
   return { run, html, onDelete, onPicked };
@@ -221,4 +221,19 @@ test("canvas panel: New conversation stays available on a shown conversation", (
   (newButton()["onClick"] as () => void)();
   expect(select).toHaveBeenCalledWith(null);
   expect(onPicked).toHaveBeenCalledOnce();
+});
+
+// Review note: the host may refuse to open the alert (another modal, a locked page); the closing menu then returns
+// focus to its trigger as usual instead of leaving it on the body.
+test.each([
+  ["Overview", () => { const drawn = overview(projectList(), A); drawn.onDeleteConversation.mockReturnValue(false); return drawn; }],
+  ["canvas panel", () => { const drawn = canvas(canvasList(), A); drawn.onDelete.mockReturnValue(false); return drawn; }],
+] as const)("%s: a Delete the host does not open leaves the menu's focus return alone", (_name, draw) => {
+  draw();
+  // The mock's return value is set after drawing; the handler reads it when pressed.
+  press(deleteItem("Checkout copy"));
+  const close = menu.contents.find(props => props["className"] === "doan-floating doan-menu conv-menu")!["onCloseAutoFocus"] as (event: { preventDefault(): void }) => void;
+  const event = { preventDefault: vi.fn() };
+  close(event);
+  expect(event.preventDefault).not.toHaveBeenCalled();
 });

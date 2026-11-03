@@ -82,8 +82,9 @@ export interface ProjectOverviewProps {
   onProjectSettings(root: string): void;
   onSettings(target: SettingsTarget): void;
   onNotice?(text: string): void;
-  // A row's Delete in the title menu: the host asks for confirmation and returns focus to `trigger` (design §3.4).
-  onDeleteConversation?(target: DeleteTarget, trigger: HTMLElement | null): void;
+  // A row's Delete in the title menu: the host asks for confirmation and returns focus to `trigger` (design §3.4). False
+  // when it does not open the alert (another modal, a locked page), so the closing menu returns focus as usual.
+  onDeleteConversation?(target: DeleteTarget, trigger: HTMLElement | null): boolean;
 }
 
 const NEW_PLACEHOLDER = "Ask or describe what to design, / for presets";
@@ -358,8 +359,7 @@ export function ProjectOverview(props: ProjectOverviewProps) {
                     <span className="conv-preview">{item.preview}</span>
                   </DropdownMenu.RadioItem>
                   <ConversationDeleteItem conversationId={item.conversationId} title={item.title} deletable={item.deletable} onDelete={() => {
-                    deleting.current = true;
-                    props.onDeleteConversation?.({ conversationId: item.conversationId, root, title: item.title, provider: item.provider, from: "overview" }, titleTrigger.current);
+                    deleting.current = props.onDeleteConversation?.({ conversationId: item.conversationId, root, title: item.title, provider: item.provider, from: "overview" }, titleTrigger.current) === true;
                   }} onEscape={() => setMenuOpen(false)} />
                 </div>)}</div>}
             </DropdownMenu.RadioGroup>
