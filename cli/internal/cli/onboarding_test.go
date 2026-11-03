@@ -498,14 +498,15 @@ func TestOwnBundle(t *testing.T) {
 // launchHarness runs onboarding commands with a fake clock, a fake launcher and a
 // bundled CLI, against the default (not explicit) runtime path in its own HOME.
 type launchHarness struct {
-	t        *testing.T
-	ctx      Context
-	dir      string
-	elapsed  time.Duration
-	launches []string
-	onLaunch func()
-	onSleep  func(n int)
-	sleeps   int
+	t           *testing.T
+	ctx         Context
+	dir         string
+	elapsed     time.Duration
+	launches    []string
+	backgrounds []bool
+	onLaunch    func()
+	onSleep     func(n int)
+	sleeps      int
 }
 
 func newLaunchHarness(t *testing.T) *launchHarness {
@@ -523,8 +524,9 @@ func newLaunchHarness(t *testing.T) *launchHarness {
 		},
 		RuntimePath: filepath.Join(h.dir, "runtime.json"),
 		Executable:  func() (string, error) { return cli, nil },
-		Launch: func(bundle string) error {
+		Launch: func(bundle string, background bool) error {
 			h.launches = append(h.launches, bundle)
+			h.backgrounds = append(h.backgrounds, background)
 			if h.onLaunch != nil {
 				h.onLaunch()
 			}
@@ -603,7 +605,7 @@ func TestOnboardingStartBootstrapStopsAtFifteenSeconds(t *testing.T) {
 
 func TestOnboardingStartLaunchFailure(t *testing.T) {
 	h := newLaunchHarness(t)
-	h.ctx.Launch = func(string) error {
+	h.ctx.Launch = func(string, bool) error {
 		h.launches = append(h.launches, "x")
 		return errors.New("open: LSOpenURLsWithRole() failed /secret/stderr")
 	}
@@ -880,5 +882,31 @@ func TestOnboardingCancelWordingStatesScope(t *testing.T) {
 	}
 	if !strings.Contains(usage, "cancels only a sign_in or project_clone operation; any other kind returns the target unchanged") {
 		t.Errorf("usage misses cancel scope")
+	}
+}
+
+func TestLaunchArgs(t *testing.T) {
+	for _, tt := range []struct {
+		bundle     string
+		background bool
+		want       []string
+	}{
+		{"/Applications/Doan.app", false, []string{"/Applications/Doan.app"}},
+		{"/Applications/Doan.app", true, []string{"-g", "/Applications/Doan.app", "--args", "--doan-launch=background"}},
+		{"/Users/a b/Doan Apps/doan.app", false, []string{"/Users/a b/Doan Apps/doan.app"}},
+		{"/Users/a b/Doan Apps/doan.app", true, []string{"-g", "/Users/a b/Doan Apps/doan.app", "--args", "--doan-launch=background"}},
+	} {
+		if got := launchArgs(tt.bundle, tt.background); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("launchArgs(%q, %v) = %q, want %q", tt.bundle, tt.background, got, tt.want)
+		}
+	}
+}
+
+// onboarding start opens the app behind the app in use; the mode is what the bootstrap passes to Launch.
+func TestOnboardingStartLaunchesInBackground(t *testing.T) {
+	h := newLaunchHarness(t)
+	_, _ = h.run("start")
+	if len(h.backgrounds) != 1 || !h.backgrounds[0] {
+		t.Fatal(h.backgrounds)
 	}
 }

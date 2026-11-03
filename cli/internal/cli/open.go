@@ -32,7 +32,7 @@ func Open(ctx Context, f Flags, args []string) (Outcome, *Error) {
 		return Outcome{}, failure
 	}
 	target := openTarget{root: r.Root, path: resolved, frame: frame}
-	reply, failure := bootstrap(ctx, openFailure, func(deadline time.Time) (map[string]any, *Error, bool) {
+	reply, failure := bootstrap(ctx, false, openFailure, func(deadline time.Time) (map[string]any, *Error, bool) {
 		return callOpen(ctx, request, target, deadline)
 	})
 	if failure != nil {

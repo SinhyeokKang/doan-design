@@ -420,6 +420,10 @@ func TestOpenBootstrapLaunchesOwningBundleOnce(t *testing.T) {
 	if len(h.launches) != 1 || h.launches[0] != filepath.Join(realPath(t, h.dir), "Doan Apps", "doan.app") {
 		t.Fatal(h.launches)
 	}
+	// doan open is the user asking to see a canvas, so the app comes to the front.
+	if len(h.backgrounds) != 1 || h.backgrounds[0] {
+		t.Fatal(h.backgrounds)
+	}
 	if len(app.received()) != 1 || h.elapsed > 15*time.Second {
 		t.Fatal(app.received(), h.elapsed)
 	}
@@ -784,14 +788,14 @@ func openedStep() (map[string]any, *Error, bool) {
 func TestBootstrapAfterNotReadyKeepsWaitingThroughSlowAnswers(t *testing.T) {
 	h := newLaunchHarness(t)
 	script := &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){notReadyStep, slowStep, slowStep, notReadyStep, openedStep}}
-	reply, failure := bootstrap(h.ctx, openFailure, script.attempt)
+	reply, failure := bootstrap(h.ctx, false, openFailure, script.attempt)
 	if failure != nil || reply["opened"] != true || script.calls != 5 || len(h.launches) != 0 {
 		t.Fatal(reply, failure, script.calls, h.launches)
 	}
 	// Never answering to the end is the app that is still opening, so the cap ends it as not_ready.
 	h = newLaunchHarness(t)
 	script = &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){notReadyStep, slowStep}}
-	_, failure = bootstrap(h.ctx, openFailure, script.attempt)
+	_, failure = bootstrap(h.ctx, false, openFailure, script.attempt)
 	if failure == nil || failure.Code != "not_ready" || len(h.launches) != 0 || h.elapsed < 15*time.Second || h.elapsed > 16*time.Second {
 		t.Fatal(failure, h.launches, h.elapsed)
 	}
@@ -801,7 +805,7 @@ func TestBootstrapAfterNotReadyKeepsWaitingThroughSlowAnswers(t *testing.T) {
 func TestBootstrapAfterNotReadyStopsWhenTheAppIsGone(t *testing.T) {
 	h := newLaunchHarness(t)
 	script := &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){notReadyStep, slowStep, goneStep}}
-	_, failure := bootstrap(h.ctx, openFailure, script.attempt)
+	_, failure := bootstrap(h.ctx, false, openFailure, script.attempt)
 	if failure == nil || failure.Code != "app_not_running" || script.calls != 3 || len(h.launches) != 0 {
 		t.Fatal(failure, script.calls, h.launches)
 	}
@@ -811,7 +815,7 @@ func TestBootstrapAfterNotReadyStopsWhenTheAppIsGone(t *testing.T) {
 func TestBootstrapSlowFirstAnswerIsFinal(t *testing.T) {
 	h := newLaunchHarness(t)
 	script := &scriptedAttempt{steps: []func() (map[string]any, *Error, bool){slowStep, openedStep}}
-	_, failure := bootstrap(h.ctx, openFailure, script.attempt)
+	_, failure := bootstrap(h.ctx, false, openFailure, script.attempt)
 	if failure == nil || failure.Code != "app_not_running" || script.calls != 1 || len(h.launches) != 0 || h.elapsed != 0 {
 		t.Fatal(failure, script.calls, h.launches, h.elapsed)
 	}
