@@ -717,7 +717,7 @@ Reference: `.doan/canvases/conversation-delete.html` (frames `row-button`, `row-
 ### Not verified
 
 - A real agent working or waiting: the unavailable rows were reached through a wrapped `conversation:list` answer.
-- Main's `busy` and `not_found` toasts, and no toast during a quit. Only `unknown` was reached. The renderer has no quitting signal yet, so a refusal while quitting still shows its toast. The copy is pinned by `conversationDelete.test.ts` and the flow by `App.conversationDelete.test.tsx`.
+- Main's `busy` and `not_found` toasts, and no toast after main's `app:quitting` push (a refusal while the app quits). Only `unknown` was reached in the real app. The copy is pinned by `conversationDelete.test.ts` and the flow, the quit case included, by `App.conversationDelete.test.tsx`.
 - The alert dismissed by a `doan://` link (the shared `dismissDialogs` path) and an OS notification click while it is open (PRODUCT item 0: a click during a modal only brings the window forward).
 - Roles and names were read from DOM attributes, not the accessibility tree. Dark mode, reduced transparency and forced colours.
 
