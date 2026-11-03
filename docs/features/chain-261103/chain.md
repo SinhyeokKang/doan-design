@@ -60,7 +60,7 @@
 | 3 canvas-open-offer | Claude Code 세션 c935fb51, worktree `canvas-open-offer-orch` | 2026-11-03 | PR #77, 병합 3b6f9ed2 | 완료 |
 | 4 agent-reply-chips | Claude Code 세션 0344e3fb, worktree `agent-reply-chips-orch` | 2026-11-03 | PR #78, 병합 35ecf91b | 완료 |
 | 5 canvas-row-menu | Claude Code 세션 e4ed3c1b, worktree `canvas-row-menu-orch` | 2026-11-03 | PR #79, 병합 88f9ee97 | 완료 |
-| 6 setup-via-onboarding | Claude Code 세션 d0c0b53b, worktree `setup-via-onboarding-orch` | 2026-11-03 | | 진행 중 |
+| 6 setup-via-onboarding | Claude Code 세션 d0c0b53b, worktree `setup-via-onboarding-orch` | 2026-11-03 | PR #80, 병합 e22b3c4e | 완료 |
 
 ## 인계 기록
 
@@ -150,3 +150,14 @@
     - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, design-sync·runtime-test·agent-eval 증거, 최종 verify 로그, feature 문서 사본)를 main checkout의 `.scratch/chain-261103/link5-evidence/`로 옮겼다. 구현 브랜치는 `canvas-row-menu-a1`·`-a2`·`-b`·`-c1`·`-c2`·`-d`·`-e`로 남겼다(로컬).
     - 사용량(링크 5 끝): Claude 7일은 링크 중간 작업자 상태줄 기준 82%였다(끝에는 대시보드가 값을 읽지 못했다, 2026-11-04 13:59 KST 초기화). Codex 주간 91%(X1 Codex 실행 뒤에도 그대로, 2026-11-04 15:35 KST 초기화). **링크 6은 사용자 지시대로 Codex 작업자를 섞어 쓴다**(위 사용자 기록).
 - 2026-11-03 링크 5 지휘자: 링크 6 세션(worktree `setup-via-onboarding-orch`, Orca 터미널 term_eb13b7fe)이 브리프로 시작해 시작을 push한 것(4a5622eb)을 확인하고 물러났다. 링크 5 worktree `canvas-row-menu-orch`는 깨끗하고 main에 모두 들어갔다(`git cherry`에 `+` 없음). 세션의 실행 checkout이라 지우지 않았고, 사용자가 세션을 닫은 뒤 지우면 된다.
+- 2026-11-03 링크 6 완료(세션 d0c0b53b): PR #80을 main에 병합했다(e22b3c4e). 통합 HEAD a20e110a에서 `/verify --eval` PASS(앱 테스트 6206, self-test 41개 시나리오). 그 뒤에는 문서 커밋만 있었다.
+  - 배치: A(T1 eval 하네스·O3·O3b, Claude Sonnet high, 수정 1회), G(T3 가이드, Claude Opus high, 수정 1회), B(T2 기준선·T5·O3b 반복, Claude Sonnet high). 리뷰 RA·RG는 Codex gpt-6-astra medium이었다(사용자 지시대로 섞어 씀, 각 🔴 0·🟡 1, 모두 고쳤다). Codex는 리뷰 두 번에만 썼다. 기계적 배치로 뗄 만한 것이 없었고, eval은 실제 Claude·Codex를 띄워 Codex 샌드박스 안에서 돌리기 어렵다. T4 verify와 Z1 문서 승격은 지휘자가 했다.
+  - 결과: 기준선 `o3-baseline`에서 O3는 6/6이었고, O3b는 0/6이었다(모든 실행이 `completed: true`를 받고도 `complete`를 불렀다, U-023). 가이드를 바꾼 뒤 `o3-guide`와 `o3-guide-o3b-repeat`에서 O3·O3b 모두 두 에이전트가 통과했다(O3b는 에이전트마다 3/3). O1·O2·D12·D9는 기준 라운드처럼 통과했다. D10h-claude는 judge만 partial이었는데, 이유가 기준 라운드와 같아 회귀가 아니다. runner는 매번 exit 0이었고 real-state도 그대로였다(이번에는 `keychain:provider-items` 변화가 없었다).
+  - 확인하지 못한 것: 앱에 닿지 못할 때 `doan init`으로 가는 폴백은 eval 시나리오가 재지 않는다(가짜 앱은 항상 닿는다).
+  - 사용자 확인이 필요한 것(아침 보고):
+    - 결정 3("묻지 않고 init")과 init 줄의 "token CSS 경로를 먼저 묻는다"가 부딪혔다. 지휘자가 정했다: 명시적 `doan init` 요청에서만 token CSS를 먼저 묻고, 앱에 닿지 못할 때의 폴백에서는 묻지 않는다. 사용자가 말한 경로만 `--token-css`로 넘긴다.
+    - 가이드 예산(29 B 남음) 때문에 'Onboarding' 첫 문단·step 1·init 줄만 줄여서는 449 B가 넘었다. 지휘자 판단으로 'Onboarding' 절 전체(step 2–8, 넘겨줄 때 문단, cancel·`--request` 문단)를 사실을 지키며 줄였다. 그중 하나로 step 5의 `changes` 파일 목록 괄호를 지웠다(init 줄과 실제 `changes`가 같은 파일을 말한다). 지금 `--json`+안내는 21,596 / 21,600 B라 다음 가이드 변경은 그만큼 줄일 곳을 찾아야 한다.
+    - 공용 프로필 로그아웃: 화면이 잠겨 앱 GUI 대신, 앱 sign-out이 실행하는 것과 같은 `claude auth logout`을 그 프로필에 실행했다. 명령은 성공을 알렸지만 Keychain 항목 `Claude Code-credentials-5def49d2`는 남았다. 그래서 그 항목 하나만 `security delete-generic-password`로 지웠고, 항목이 없어졌음을 확인했다. 앱 sign-out도 서버 토큰을 회수하지 않으므로 결과는 같다. 그 뒤 `userData`·`userData.bak-hand`와 Playwright `webkit-2370`을 지웠다. 다른 `Claude Code-credentials-*` 항목은 건드리지 않았다.
+  - 브랜치: `setup-via-onboarding-a`·`-b1`·`-b2`·`-g`(로컬)로 남겼다. 증거는 main checkout의 `.scratch/chain-261103/link6-evidence/`다.
+  - 사용량(끝): Codex 주간 93%(2026-11-04 15:35 KST 초기화). Claude 7일은 작업자 상태줄 기준 83%였다(2026-11-04 13:59 KST 초기화).
+
