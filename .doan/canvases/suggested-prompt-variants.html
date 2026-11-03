@@ -1,0 +1,132 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="suggested-prompt-variants"><meta name="doan:width" content="1360"><title>suggested-prompt-variants — Suggested prompt button</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><style>
+@font-face{font-family:Geist;src:url('../../app/src/renderer/public/fonts/geist/Geist.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+@layer base{*,::before,::after{box-sizing:border-box;border:0 solid;margin:0;padding:0}h1,h2,h3{font-size:inherit;font-weight:inherit}img,svg{display:block;vertical-align:middle}button{font:inherit;letter-spacing:inherit;color:inherit;background-color:transparent;cursor:pointer;text-align:left}}
+:root{--radix-popper-available-height:384px;--radix-tooltip-content-transform-origin:center;--radix-dropdown-menu-content-available-height:384px}
+:where(svg){width:var(--size-icon);height:var(--size-icon);flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+body{padding:var(--space-8);width:1360px;background:var(--surface-inset);color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);-webkit-font-smoothing:antialiased}
+
+.intro{padding:var(--space-4) 0 var(--space-10)}
+.intro h1{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle);max-width:1000px}
+.board{margin-bottom:var(--space-16)}
+.caption{margin-bottom:var(--space-4)}
+.caption h2{font-size:var(--type-body-lg-size);line-height:var(--type-body-lg-line-height);letter-spacing:var(--type-body-lg-letter-spacing);font-weight:var(--type-weight-medium)}
+.caption p{margin-top:var(--space-1);color:var(--text-subtle);max-width:1000px}
+.pair{display:flex;gap:var(--space-6);align-items:flex-start}
+.tile{display:flex;flex-direction:column;gap:var(--space-2)}
+.tile>h3{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+
+/* Mock surfaces: the Overview main column and the canvas conversation panel, empty new conversation. */
+.surface{display:flex;flex-direction:column;background:var(--surface-panel);border-radius:var(--radius-panel);box-shadow:0 0 0 1px var(--border-standard);overflow:hidden}
+.surface.ov{width:840px;height:460px}
+.surface.cp{width:360px;height:460px}
+.empty{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-4)}
+.foot{flex:none;padding:var(--space-3) var(--space-6) var(--space-4)}
+.cp .foot{padding:var(--space-3)}
+.ov .foot>*{max-width:720px;margin-inline:auto}
+.composer-card{display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-4) var(--space-3) var(--space-3) var(--space-4);border-radius:var(--radius-container);background:var(--surface-panel);box-shadow:var(--shadow-xs),0 0 0 1px var(--border-standard)}
+.composer-card .ph{min-height:calc(2 * var(--type-label-line-height));color:var(--text-metadata);font-size:var(--type-label-size);line-height:var(--type-label-line-height)}
+.composer-card .bar{display:flex;justify-content:flex-end}
+.send{display:grid;place-items:center;width:var(--size-control-sm);height:var(--size-control-sm);border-radius:var(--radius-pill);background:var(--affordance-accent);color:var(--text-on-accent)}
+.send svg{width:var(--size-icon-sm);height:var(--size-icon-sm)}
+
+.group{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--space-2);max-width:720px}
+.sp svg{width:var(--size-icon-sm);height:var(--size-icon-sm);color:var(--affordance-accent)}
+.sp span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Current: shared doan-button quiet sm, start-aligned right above the composer. */
+.now .empty{justify-content:flex-end;align-items:stretch;padding:0}
+.now .group{justify-content:flex-start;max-width:none;margin:0 auto var(--space-3);width:calc(100% - 2 * var(--space-6))}
+.now.ov .group{max-width:720px}
+.now.cp .group{width:calc(100% - 2 * var(--space-3))}
+.now .sp{gap:var(--space-1h);font-weight:var(--type-weight-regular);max-width:100%}
+
+/* A · Outline pill */
+.va .sp{display:inline-flex;align-items:center;gap:var(--space-2);max-width:100%;min-height:var(--size-control-sm);padding:0 var(--space-4) 0 var(--space-3);border-radius:var(--radius-pill);box-shadow:inset 0 0 0 1px var(--border-standard);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.va .sp.hover{background:var(--affordance-subtle)}
+
+/* B · Tile card */
+.vb .group{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
+.cp.vb .group{grid-template-columns:1fr}
+.vb .sp{display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-3);min-height:96px;padding:var(--space-3) var(--space-4) var(--space-4);border-radius:var(--radius-row);background:var(--surface-panel);box-shadow:inset 0 0 0 1px var(--border-standard);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.cp.vb .sp{flex-direction:row;align-items:center;min-height:0;padding:var(--space-3)}
+.vb .sp svg{width:var(--size-icon);height:var(--size-icon)}
+.vb .sp span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.vb .sp.hover{background:var(--affordance-subtle)}
+
+/* C · Stacked row */
+.vc .group{flex-direction:column;flex-wrap:nowrap;width:100%;gap:var(--space-1)}
+.vc .sp{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3) var(--space-2) var(--space-2);border-radius:var(--radius-row);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.vc .sp .ic{flex:none;display:grid;place-items:center;width:var(--size-control-xs);height:var(--size-control-xs);border-radius:var(--radius-toolbar-icon);background:var(--surface-accent-subtle)}
+.vc .sp span{flex:1}
+.vc .sp .go{color:var(--text-metadata);visibility:hidden}
+.vc .sp.hover{background:var(--affordance-subtle)}
+.vc .sp.hover .go{visibility:visible}
+
+/* Chosen: C sits right above the composer on the Overview and in the panel, not in the middle. */
+.ov.vc .empty,.cp.vc .empty{justify-content:flex-end;padding:0 var(--space-6) var(--space-3)}
+.cp.vc .empty{padding:0 var(--space-3) var(--space-3)}
+/* D · Soft accent chip */
+.vd .sp{display:inline-flex;align-items:center;gap:var(--space-1h);max-width:100%;min-height:var(--size-control-sm);padding:0 var(--space-4) 0 var(--space-3);border-radius:var(--radius-control);background:color-mix(in srgb,var(--surface-accent-subtle) 55%,transparent);color:var(--text-accent-subtle);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.vd .sp.hover{background:var(--surface-accent-subtle)}
+
+.surface.home{width:1224px;height:560px}
+.home .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:var(--space-8)}
+.home .greet{font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.home .composer-card{width:min(680px,100%);margin-top:var(--space-10);box-shadow:var(--shadow-panel),0 0 var(--space-6) 2px color-mix(in srgb,var(--affordance-accent) 27%,transparent),0 0 calc(var(--space-8) * 2) var(--space-2) color-mix(in srgb,var(--affordance-accent) 7%,transparent)}
+.home .group{width:min(680px,100%);margin-top:var(--space-8)}
+.note{margin-top:var(--space-3);color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+</style></head><body>
+<header class="intro">
+  <h1>Suggested prompt button</h1>
+  <p>Variants for a button only the suggested prompts use, replacing the shared <code>doan-button</code> (quiet, sm). Variants A, B and D show the group in the middle of the empty area; the chosen C sits right above the composer on the Overview and in the canvas conversation panel, and 32px under the Home composer. The second button in each surface shows the hover state. Not in code: variants A–D and the centered placement; sentences are the real <code>suggestedPrompts</code> labels for a project with canvases.</p>
+</header>
+
+<template id="t-compass"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg></template>
+<template id="t-scan-eye"><svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="1"/><path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0"/></svg></template>
+<template id="t-paintbrush"><svg viewBox="0 0 24 24"><path d="m14.622 17.897-10.68-2.913"/><path d="M18.376 2.622a1 1 0 1 1 3.002 3.002L17.36 9.643a.5.5 0 0 0 0 .707l.944.944a2.41 2.41 0 0 1 0 3.408l-.944.944a.5.5 0 0 1-.707 0L8.354 7.348a.5.5 0 0 1 0-.707l.944-.944a2.41 2.41 0 0 1 3.408 0l.944.944a.5.5 0 0 0 .707 0z"/><path d="M9 8c-1.804 2.71-3.97 3.46-6.583 3.948a.507.507 0 0 0-.302.819l7.32 8.883a1 1 0 0 0 .79.379h.01a1 1 0 0 0 .796-.406c1.66-2.267 2.344-4.6 2.414-7.63"/></svg></template>
+<template id="t-arrow"><svg viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></template>
+<template id="t-up"><svg viewBox="0 0 24 24"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></template>
+
+<section class="board" data-doan-frame="current" data-doan-title="00 · Current (reference)" data-doan-implements="app/src/renderer/ProjectOverview.tsx" data-variant="now">
+  <div class="caption"><h2>00 · Current</h2><p>The shared quiet button, start-aligned right above the composer. For reference.</p></div>
+</section>
+<section class="board" data-doan-frame="variant-a" data-doan-title="A · Outline pill" data-variant="va">
+  <div class="caption"><h2>A · Outline pill</h2><p>No fill, a hairline ring and full pill radius. The lightest of the four; it reads as an option, not a control. Wraps into centered lines.</p></div>
+</section>
+<section class="board" data-doan-frame="variant-b" data-doan-title="B · Tile card" data-variant="vb">
+  <div class="caption"><h2>B · Tile card</h2><p>Icon on top, sentence below, three equal cards with a hairline ring; a sentence wraps to two lines instead of truncating. In the narrow panel the cards become one column with the icon at the start.</p></div>
+</section>
+<section class="board" data-doan-frame="variant-c" data-doan-title="C · Stacked row (chosen)" data-variant="vc">
+  <div class="caption"><h2>C · Stacked row (chosen)</h2><p>Placed right above the composer, 12px over the composer area. One column of full-width rows (the Overview column, 720px; the panel width), the group icon in a violet tile and an arrow that shows on hover. Long sentences keep one line.</p></div>
+</section>
+<section class="board" data-doan-frame="variant-d" data-doan-title="D · Soft accent chip" data-variant="vd">
+  <div class="caption"><h2>D · Soft accent chip</h2><p>A faint violet fill with violet ink and no ring. Says "Doan suggests this" most clearly, but adds violet to the empty state: the accent places list in DESIGN.md would change.</p></div>
+</section>
+<section class="board" data-doan-frame="variant-c-home" data-doan-title="C · Stacked row · Home" data-variant="vc" data-home>
+  <div class="caption"><h2>C · Stacked row on Home</h2><p>Home keeps the group under the composer, centered, now 32px below it (was 16px); the button shape changes too. The rows take the full composer width (680px).</p></div>
+</section>
+
+<script>
+const prompts = [["compass", "Document the design system of doan-design"], ["scan-eye", "Review the Checkout canvas"], ["paintbrush", "Polish the Onboarding canvas"]];
+const icon = id => document.getElementById("t-" + id).innerHTML;
+const button = (variant, [k, label], i) => {
+  const hover = i === 1 ? " hover" : "";
+  if (variant === "now") return `<button type="button" class="sp doan-button${hover}" data-ui-size="sm" data-ui-variant="quiet">${icon(k)}<span>${label}</span></button>`;
+  if (variant === "vc") return `<button type="button" class="sp${hover}"><i class="ic">${icon(k)}</i><span>${label}</span><i class="go">${icon("arrow")}</i></button>`;
+  return `<button type="button" class="sp${hover}">${icon(k)}<span>${label}</span></button>`;
+};
+const surface = (variant, kind, frame) => `<div class="tile"><h3>${kind === "ov" ? "Overview · new conversation" : "Canvas panel · new conversation"}</h3>
+  <div class="surface ${kind} ${variant}" data-doan-id="${frame}-${kind}"><div class="empty"><div class="group" role="group" aria-label="Suggested prompts">${prompts.map((p, i) => button(variant, p, i)).join("")}</div></div>
+  <div class="foot"><div class="composer-card"><div class="ph">${kind === "ov" ? "Ask about this project…" : "Ask about this canvas…"}</div><div class="bar"><span class="send">${icon("up")}</span></div></div></div></div></div>`;
+const home = (variant, frame) => `<div class="tile"><h3>Home · empty composer</h3>
+  <div class="surface home ${variant}" data-doan-id="${frame}-home"><div class="stage"><div class="greet">What should we design today?</div>
+  <div class="composer-card"><div class="ph">Message</div><div class="bar"><span class="send">${icon("up")}</span></div></div>
+  <div class="group" role="group" aria-label="Suggested prompts">${prompts.map((p, i) => button(variant, p, i)).join("")}</div></div></div></div>`;
+for (const board of document.querySelectorAll("[data-variant]")) {
+  const v = board.dataset.variant, f = board.dataset.doanFrame;
+  if ("home" in board.dataset) { board.insertAdjacentHTML("beforeend", home(v, f)); continue; }
+  board.insertAdjacentHTML("beforeend", `<div class="pair">${surface(v, "ov", f)}${surface(v, "cp", f)}</div>`);
+}
+</script>
+</body></html>

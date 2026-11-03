@@ -83,7 +83,7 @@ test("a new conversation offers Home's suggestions over the composer, also for a
 test("canvases but no conversations: a new conversation with suggestions naming the canvas", () => {
   const html = render([]);
   expect(html).toContain("Review the checkout canvas");
-  expect(html).toContain('class="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet"');
+  expect(html).toContain('class="suggestion" title="Review the checkout canvas"><span class="suggestion-icon">');
 });
 
 test("a promotion leaves the moved line with Open above the suggestions", () => {
@@ -189,4 +189,17 @@ test("the picker shows the conversation's own mode, and a new conversation's def
   expect(render([summary()], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="default" aria-label="Permission: Default"');
   expect(render([], { prefs: { permissions: { claude: "bypass" } } })).toContain('data-mode="bypass" aria-label="Permission: Full access, no approval requests"');
   expect(render([], { prefs: { permissions: { claude: "bypass" } }, defaults: { provider: "claude", permissionMode: "acceptEdits" } })).toContain('data-mode="acceptEdits"');
+});
+
+// Thread spacing (2026-11-03 user): wider gaps between thread items and more room above the composer; the new
+// conversation's suggestion rows stay right above the composer on the Overview and in the canvas panel.
+test("thread spacing, and the suggestion rows right above the composer on the Overview and in the canvas panel", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(".conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }");
+  expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-6); }");
+  expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-6); }");
+  expect(css).toContain(".doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }");
+  expect(css).toContain(".ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }");
+  expect(css).not.toMatch(/\.ov-new \{/);
 });

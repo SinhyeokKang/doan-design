@@ -64,8 +64,11 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html).toContain('<div class="composer-tray"><span class="tray-branch">');
   expect(html).toContain('<span class="tray-path">/code/doan-design</span>');
   expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
-  expect(html.match(/class="suggestion doan-button" data-ui-size="sm" data-ui-variant="quiet"/g)).toHaveLength(3);
-  expect(html).toContain("<span>Review the buzz-onboarding canvas</span>");
+  // suggested-prompt-variants C: a prompt-only row (icon tile, sentence, hover arrow), not the shared doan-button.
+  expect(html.match(/<button type="button" class="suggestion"[^>]*><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
+  expect(html).not.toContain("suggestion doan-button");
+  expect(html).toContain('<span class="suggestion-label">Review the buzz-onboarding canvas</span>');
+  expect(html.match(/suggestion-go/g)).toHaveLength(3);
   expect(html).not.toContain("composer-reason");
 });
 
@@ -141,9 +144,8 @@ test("Home CSS keeps the draft's measured icon sizes, popover status type, chip 
   // The preset chip's x renders in the shared chip-remove metadata ink, as the confirmed draft does.
   expect(css).toContain(".chip-remove.doan-icon-button { color: var(--text-metadata); }");
   expect(css).not.toMatch(/\.preset-chip \.chip-remove[^{]*\{[^}]*color/);
-  // Send keeps the shared disabled fill while sending, as the draft renders it; suggestions keep the shared sm padding.
+  // Send keeps the shared disabled fill while sending, as the draft renders it.
   expect(css).not.toMatch(/\.composer-send[^{]*\{[^}]*background/);
-  expect(css).not.toMatch(/\.suggestion[^{]*\{[^}]*padding/);
 });
 
 // buzz-conversation R1: the composer's focused border and the disabled ink of its tools.
@@ -165,7 +167,7 @@ test("typing keeps the suggestions' place, out of the accessibility tree and the
   expect(empty).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
   const typed = render([project("/code/doan-design")], { text: "Draw a pricing page." });
   expect(typed).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts" inert="">');
-  expect(typed.match(/class="suggestion doan-button"/g)).toHaveLength(3);
+  expect(typed.match(/class="suggestion"/g)).toHaveLength(3);
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".home-stage .home-suggestions[inert] { visibility: hidden; }");
 });
@@ -186,4 +188,15 @@ test("the workspace status line offers Locate, Set Up and Remove from Doan", () 
   const labels = (html: string) => Array.from(html.matchAll(/<button[^>]*>([^<]*)/g), match => match[1]);
   expect(labels(line({ path: "/Users/ada/code/acme-web", kind: "notFound" }))).toEqual(["Locate", "Remove from Doan", "Go Home"]);
   expect(labels(line({ path: "/Users/ada/code/acme-web", kind: "uninitialized" }))).toEqual(["Set Up", "Remove from Doan", "Go Home"]);
+});
+
+// suggested-prompt-variants C (confirmed): full-width rows, 32px under the Home composer; an accent icon tile and an
+// arrow shown on hover or keyboard focus.
+test("suggestion CSS: full-width rows with an accent icon tile, Home's group 32px under the composer", () => {
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.home-suggestions \{[^}]*flex-direction: column;[^}]*width: min\(680px, 100%\);[^}]*margin-top: var\(--space-8\);/);
+  expect(css).toMatch(/\.suggestion \{[^}]*display: flex;[^}]*width: 100%;[^}]*gap: var\(--space-3\);[^}]*padding: var\(--space-2\) var\(--space-3\) var\(--space-2\) var\(--space-2\);[^}]*border-radius: var\(--radius-row\);/);
+  expect(css).toMatch(/\.suggestion-icon \{[^}]*width: var\(--size-control-xs\);[^}]*height: var\(--size-control-xs\);[^}]*border-radius: var\(--radius-toolbar-icon\);[^}]*background: var\(--surface-accent-subtle\);/);
+  expect(css).toMatch(/\.suggestion-go \{[^}]*visibility: hidden;/);
+  expect(css).toMatch(/\.suggestion:is\(:hover, :focus-visible\) \.suggestion-go \{ visibility: visible; \}/);
 });
