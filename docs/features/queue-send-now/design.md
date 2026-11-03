@@ -6,7 +6,7 @@
 |---|---|
 | app main `conversation/runners.ts` | `Runner`에 선택 메서드 `steer(prompt, turnId, messageId)`를 더한다. Codex는 `turn/steer`, Claude는 열린 streaming input 생성기로 메시지 하나를 더 보낸다. ACP 러너에는 없다 |
 | app main `conversation/dispatcher.ts` | steer 요청은 timeout이 나도 거절만 하는 경로로 보낸다. 지금 `request`는 10초 timeout에 `this.fail()`을 불러(`dispatcher.ts:27`) `failProtocol`이 턴 전체를 `session_unavailable`로 끝낸다(`runners.ts:60-63`) |
-| app main `conversation/transport.ts` | 끼워 넣은 메시지의 소비 신호를 읽고, 그 시점에 `user.message`를 낸다. Claude result가 `queued_turn_count > 0`이거나 넣은 uuid가 아직 소비되지 않았으면 턴을 끝내지 않는다(PoC 결과에 따라. §4) |
+| app main `conversation/transport.ts` | 끼워 넣은 메시지의 소비 신호를 읽고, 그 시점에 `user.message`를 낸다. Claude result는 넣은 uuid가 아직 소비되지 않았으면 턴을 끝내지 않는다(`queued_turn_count`는 쓰지 않는다. §4) |
 | app main `conversation/service.ts` | `sendNow(conversationId, itemId)`: 큐 항목 하나를 실행 중인 턴에 넣고, 받아들여지면 그 턴의 `turnId`로 `user.message`를 append한다 |
 | app main `conversation/drafts.ts` | 항목 하나만 `sending`으로 표시하고, 거절되면 표시를 되돌리는 연산 |
 | app main `conversation/ipc.ts`, `app/src/preload/index.ts` | 새 채널 `conversation:sendQueuedNow {conversationId, itemId}` → `void \| ConversationError` |
@@ -21,7 +21,7 @@
 `sendNowShown({provider, phase, sending})`이 참일 때만 행에 Send now를 그린다. `provider`는 composer picker가 아니라 그 대화에 저장된 provider다.
 
 - provider가 `STEER_PROVIDERS`(PoC로 확인된 것만. 처음 값 `claude`, `codex`)에 있다. ACP 세 provider는 넣지 않는다. 권한 picker가 provider가 없는 모드를 빼는 것과 같은 방식이다(PRODUCT §5 item 1 'Permission picker').
-- 대화의 phase가 `running`이다. `waiting`(권한 응답 대기)은 T0 결과로 정한다(spec 결정 3). 준비 중, 끝난 턴의 판정·큐 전송 대기(`working`이지만 phase가 running이 아님)에서는 숨긴다. 넣을 턴이 없기 때문이다. `running`에는 fold의 `starting`도 들어가므로(`summary.ts:35`) Codex `startingTurn` 구간에도 버튼이 보일 수 있다. 그때 누르면 거절되고 상태 줄이 뜬다(spec 완료 조건 8·10).
+- 대화의 phase가 `running`이다. `waiting`(권한 응답 대기)에서도 보인다(spec 결정 3, §4). 준비 중, 끝난 턴의 판정·큐 전송 대기(`working`이지만 phase가 running이 아님)에서는 숨긴다. 넣을 턴이 없기 때문이다. `running`에는 fold의 `starting`도 들어가므로(`summary.ts:35`) Codex `startingTurn` 구간에도 버튼이 보일 수 있다. 그때 누르면 거절되고 상태 줄이 뜬다(spec 완료 조건 8·10).
 - `sending`인 행은 버튼 대신 `Sending…`을 보인다. 눌린 직후부터 에이전트가 읽었다는 신호가 오거나 거절될 때까지다.
 
 provider 지원 여부는 고정 표다. 실행 중에 provider에 묻지 않는다. 설치 버전마다 다를 수 있는 점은 최소 버전(`minimumVersions.ts`)에서 PoC로 확인해 덮는다.
@@ -32,7 +32,7 @@ provider 지원 여부는 고정 표다. 실행 중에 provider에 묻지 않는
 2. drafts.json에서 그 항목 하나만 `sending`으로 표시한다(디스크에 먼저 쓴다. crash면 재시작 때 draft로 돌아온다. 기존 `sending` 규칙).
 3. 첨부 id를 `files.reclaim`으로 다시 확인하고, `turnPrompt`로 프롬프트를 만든다. anchor·첨부 서술은 일반 send와 같고, guidance 줄도 그대로 붙인다(별도 steer용 프롬프트를 두지 않는다).
 4. live 턴 identity(대화 id, live 객체, `turnId`)를 await 전후로 비교한다(POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn').
-5. `runner.steer(prompt, turnId, messageId)`가 성공하면(provider가 받아들임) 항목은 `sending`으로 남는다. `messageId`는 항목마다 새로 만든 UUID로, Claude는 `SDKUserMessage.uuid`, Codex는 `clientUserMessageId`로 넘긴다. transport가 그 id의 소비 신호(Claude frame·result의 `user_message_uuid(s)`, Codex `userMessage` item의 `clientUserMessageId`)를 내면, 같은 live 턴이 아직 실행 중일 때 그 `turnId`로 `user.message`를 append·publish하고, 항목을 `drafts.sent`로 지우고 첨부를 `consume`한다(spec 결정 2). thread 위치가 '에이전트가 읽은 시점'이 되는 이유다.
+5. `runner.steer(prompt, turnId, messageId)`가 성공하면(provider가 받아들임) 항목은 `sending`으로 남는다. `messageId`는 항목마다 새로 만든 UUID로, Claude는 `SDKUserMessage.uuid`, Codex는 `clientUserMessageId`로 넘긴다. transport가 그 id의 소비 신호(Claude frame·result의 `user_message_uuid(s)`, Codex `userMessage` item의 `clientId`)를 내면, 같은 live 턴이 아직 실행 중일 때 그 `turnId`로 `user.message`를 append·publish하고, 항목을 `drafts.sent`로 지우고 첨부를 `consume`한다(spec 결정 2). thread 위치가 '에이전트가 읽은 시점'이 되는 이유다.
 6. steer가 거절되거나 그 사이 턴이 끝났으면 `sending` 표시를 되돌린다. provider가 받아들였지만 소비 신호 없이 턴이 끝난 경우도 같다. 항목은 큐에 남고, 턴의 terminal 처리(§2.3)가 원래 순서대로 처리한다. renderer에는 `not_running`을 돌려준다. renderer는 답을 받은 뒤 대화가 아직 `running`이면 그 행 아래에 상태 줄을 보이고, 턴이 끝났으면 아무것도 띄우지 않는다(spec 완료 조건 10). 새 오류 코드는 두지 않는다.
 
 ### 2.3 턴이 끝나는 경우와의 경합
@@ -44,9 +44,9 @@ provider 지원 여부는 고정 표다. 실행 중에 provider에 묻지 않는
 
 ### 2.4 Provider 러너
 
-- **Codex**: `turn/steer {threadId: sessionId, expectedTurnId: activeTurn, input: [{type: "text", text: prompt}], clientUserMessageId: messageId}`. 요청은 timeout이 나도 거절만 하는 경로로 보낸다(§1 `dispatcher.ts`). 권한 응답 대기 중에 서버가 응답을 미뤄도 턴이 실패하지 않게 하기 위해서다. `activeTurn`이 아직 native id가 아닐 때(`startingTurn`)는 거절한다(`not_running`). `expectedTurnId`가 일치하지 않거나 실행 중인 턴이 없으면 JSON-RPC 오류 → 거절. model·effort·권한은 넘기지 않는다(steer가 override를 받지 않고, 실행 중인 턴의 모드는 바뀌지 않는다는 PRODUCT 규칙과도 맞다). steer가 만드는 `userMessage` item은 지금 무시된다(`transport.ts:167-179`). `clientUserMessageId`가 붙은 것은 소비 신호로 읽는다(PoC에서 echo를 확인). 완료 직전에 받아들여진 steer가 다른 turnId의 follow-up turn으로 돌면 그 알림은 무시되므로(`transport.ts:162-163`) 보이지 않는 턴이 생길 수 있다. PoC에서 확인하고, 그렇다면 Codex는 실패로 본다.
-- **Claude**: `messages()` 생성기를 첫 메시지 뒤에도 열어 두고, `steer`가 `uuid: messageId`를 붙인 메시지를 하나 더 내보내게 한다. `priority`는 PoC 결과로 정한다(작업을 중단하지 않는 값, 예상 `next`). 생성기는 `normalizeClaude`가 terminal 이벤트(done·failed·aborted, `endTransport`, stop·close 포함)를 낸 즉시 닫는다. 하나라도 빠지면 stdin이 열린 채 CLI가 끝나지 않아 `send`가 resolve되지 않고 `previousExit`가 영구 대기한다(POSTMORTEM 2026-10-28). `finished`이거나 terminal을 이미 본 뒤의 `steer`는 거절한다.
-  - **턴 끝 경합**: CLI가 `queued_turn_count: 0`인 result를 낸 직후 생성기가 steer 메시지를 내보내면, Doan은 result로 턴을 끝내고 이후 frame을 무시하는데(`transport.ts:96`, `:124-128`) CLI는 그 메시지로 숨은 턴을 돌린다. consume 루프는 CLI가 끝날 때까지 이어져(`runners.ts:163-176`) 다음 send와 flush가 막힌다(`service.ts:204`). 그래서 terminal은 "`queued_turn_count`가 0이고, 넣은 uuid가 모두 `user_message_uuids`에서 소비된 result"로 정의한다. 이것으로 막지 못하면 Claude는 PoC 실패다(spec 결정 6).
+- **Codex**: `turn/steer {threadId: sessionId, expectedTurnId: activeTurn, input: [{type: "text", text: prompt}], clientUserMessageId: messageId}`. 요청은 timeout이 나도 거절만 하는 경로로 보낸다(§1 `dispatcher.ts`). 권한 응답 대기 중에 서버가 응답을 미뤄도 턴이 실패하지 않게 하기 위해서다. `activeTurn`이 아직 native id가 아닐 때(`startingTurn`)는 거절한다(`not_running`). `expectedTurnId`가 일치하지 않거나 실행 중인 턴이 없으면 JSON-RPC 오류 → 거절. model·effort·권한은 넘기지 않는다(steer가 override를 받지 않고, 실행 중인 턴의 모드는 바뀌지 않는다는 PRODUCT 규칙과도 맞다). steer가 만드는 `userMessage` item은 지금 무시된다(`transport.ts:167-179`). `clientId`에 보낸 `clientUserMessageId`가 echo된 것은 소비 신호로 읽는다(§4). 완료 직전에 받아들여진 steer가 다른 turnId의 follow-up turn으로 돌면 그 알림은 무시되므로(`transport.ts:162-163`) 보이지 않는 턴이 생길 수 있다. T0에서는 이 경합을 만들어 내지 못했다(§4). 소비 신호는 같은 `turnId`의 echo만 인정하므로, 그런 경우 항목은 받아들여졌지만 소비되지 않은 것으로 남아 §2.2 6단계대로 처리된다.
+- **Claude**: `messages()` 생성기를 첫 메시지 뒤에도 열어 두고, `steer`가 `uuid: messageId`를 붙인 메시지를 하나 더 내보내게 한다. `priority`는 넘기지 않는다(§4). 생성기는 `normalizeClaude`가 terminal 이벤트(done·failed·aborted, `endTransport`, stop·close 포함)를 낸 즉시 닫는다. 하나라도 빠지면 stdin이 열린 채 CLI가 끝나지 않아 `send`가 resolve되지 않고 `previousExit`가 영구 대기한다(POSTMORTEM 2026-10-28). `finished`이거나 terminal을 이미 본 뒤의 `steer`는 거절한다.
+  - **턴 끝 경합**: CLI가 `queued_turn_count: 0`인 result를 낸 직후 생성기가 steer 메시지를 내보내면, Doan은 result로 턴을 끝내고 이후 frame을 무시하는데(`transport.ts:96`, `:124-128`) CLI는 그 메시지로 숨은 턴을 돌린다. consume 루프는 CLI가 끝날 때까지 이어져(`runners.ts:163-176`) 다음 send와 flush가 막힌다(`service.ts:204`). 그래서 terminal은 "넣은 uuid가 모두 `user_message_uuids`에서 소비된 result"로 정의한다. T0에서 `queued_turn_count`는 남은 steer가 있어도 0이었고, 이어지는 턴의 `system/init`이 uuid를 echo했다(§4).
 - **ACP**: `steer`가 없다. renderer는 버튼을 그리지 않고, 그래도 IPC 요청이 오면 service가 `not_running`으로 거절한다.
 
 ## 3. 순수 함수로 뺄 부분 (`/tdd` 대상)
@@ -55,20 +55,37 @@ provider 지원 여부는 고정 표다. 실행 중에 provider에 묻지 않는
 - `STEER_PROVIDERS` / `canSteer(provider)` — 같은 모듈.
 - `queueFocusAfter(items, index)` — Send now 성공·Remove 뒤 포커스 대상(다음 행 Send now → 다음 행 Remove → 입력란). 렌더러 순수 함수.
 - `DraftStore.markOneSending(id, itemId)` / `DraftStore.unmarkSending(id, itemId)` — 하나만 표시, 거절 시 되돌림, 이미 `sending`이거나 없는 항목은 false. `queued()`가 표시된 항목을 빼는지, `giveBackQueued`가 표시된 항목도 draft로 돌려주는지.
-- Claude transport `normalizeClaude`: 넣은 uuid의 소비 신호를 `user.message`로 낸다. `queued_turn_count > 0`이거나 넣은 uuid가 아직 소비되지 않은 result는 terminal이 아니고, 그 밖에는 지금처럼 terminal이다(§4 PoC가 이 경로를 확인한 경우에만).
-- Codex transport: `clientUserMessageId`가 붙은 `userMessage` item을 소비 신호로 읽는다.
+- Claude transport `normalizeClaude`: 넣은 uuid의 소비 신호를 `user.message`로 낸다. 넣은 uuid가 아직 소비되지 않은 result는 terminal이 아니고, 그 밖에는 지금처럼 terminal이다(§4).
+- Codex transport: `clientId`가 보낸 id인 `userMessage` item을 소비 신호로 읽는다.
 - Codex 러너의 steer 요청 구성(`expectedTurnId`, override 없음)은 fake app-server 테스트로 고정한다(`runners.test.ts` 기존 방식).
 
-## 4. PoC 의존
+## 4. PoC 결과 (T0, 2026-11-03)
 
-다음 가정은 코드·문서만으로 확인되지 않았다. 첫 태스크에서 격리 프로필의 실제 provider로 확인한다.
+격리 프로필 대신 사용자가 정한 대로 현재 로그인 프로필(`~/.codex`, 현재 `CLAUDE_CONFIG_DIR`)로 돌렸고, cwd만 임시 디렉터리(`os.tmpdir()`)의 새 git 저장소로 두었다. 두 프로필에는 PoC 세션 기록이 남는다. 최소 버전은 `.scratch/queue-send-now/v/`에 npm으로 따로 설치했다. Claude는 SDK 0.3.312(앱 의존성)에 `pathToClaudeCodeExecutable`로 CLI를 바꿔 끼웠고, 모델은 `claude-haiku-4-5`다. 스크립트는 `.scratch/queue-send-now/codex.mjs`·`claude.mjs`, 로그는 같은 폴더의 `*.log`다. 각 경우 1회씩 돌렸다.
 
-- **Codex**: 최소 버전 0.164.0과 설치본 0.166.0에서 `turn/steer`가 존재하고, 실행 중 턴에 받아들여지며, 같은 turn의 `turn/completed` 하나로 끝나는가. 권한 응답 대기 중 steer의 응답과 그 지연 시간. 턴 완료 직후 steer의 오류 모양. 완료 직전에 받아들여진 steer가 같은 turn에 들어가는가, 다른 turnId의 follow-up turn으로 도는가. steer 응답과 `turn/completed`의 도착 순서. steer가 만드는 알림(`item/started` `userMessage` 등)과 `clientUserMessageId`의 echo.
-- **Claude**: 실행 중 턴에 생성기로 두 번째 메시지를 내면 (a) 같은 턴에 접혀 result가 하나인가, (b) 다음 턴으로 따로 돌아 첫 result에 `queued_turn_count: 1`이 오는가. `priority` 없음·`next`·`later`·`now`의 차이(`now`가 도구를 중단하면 쓰지 않는다). 도구 호출 없이 답만 쓰는 중에 넣었을 때. 권한 응답 대기 중에 넣었을 때. 보낸 `uuid`가 frame과 result의 `user_message_uuid(s)`에 echo되는가. result 직전·직후에 넣었을 때 메시지가 처리되는가, 숨은 턴이 생기는가.
-- **provider별 통과 기준**: Codex는 같은 turn에서 받아들여지고 `turn/completed`가 하나이며 `clientUserMessageId`가 echo된다. Claude는 fold(result 하나)이거나 `queued_turn_count` 연속이고, uuid가 echo되어 턴 끝 경합을 판정할 수 있다. 실패한 provider는 `STEER_PROVIDERS`에서 뺀다(spec 결정 6). 둘 다 실패하면 이 feature는 멈추고 사용자에게 다시 묻는다.
-- **Codex 최소 버전**: 0.164.0에서 실패하고 0.166.0에서 통과하면 Codex 최소 버전(`minimumVersions.ts`)을 0.166.0으로 올린다(spec 결정 7).
+| Provider·버전 | 경우 | 관찰 | 판정 |
+|---|---|---|---|
+| Codex 0.166.0·0.164.0 | 명령 실행 중 steer | `turn/steer` 응답 `{turnId}`(같은 turn), 2–10 ms. 약 50–60 ms 뒤 `item/started`·`item/completed` `userMessage`가 같은 `turnId`로 오고 `clientId`에 보낸 `clientUserMessageId`가 echo된다. `turn/started` 1회, `turn/completed` 1회. 최종 답이 steer 메시지를 인용 | 통과 |
+| Codex 0.166.0·0.164.0 | 권한 응답 대기 중 steer (`untrusted`, `item/commandExecution/requestApproval` 대기) | steer 응답 5–8 ms, 대기를 막지 않음. `userMessage` echo도 대기 중에 옴. 승인 뒤 같은 turn에서 끝나고 답이 steer를 반영 | 통과 |
+| Codex 0.166.0·0.164.0 | `turn/completed` 직후 steer | JSON-RPC 오류 `{code: -32600, message: "no active turn to steer"}`. 새 turn 없음 | 통과(거절) |
+| Claude 2.1.317·2.1.312 | Bash 실행 중, `priority` 없음 | 도구 결과 직후 `system/status` frame의 `user_message_uuids`에 보낸 uuid가 처음 나온다(접힘). result 1개, 그 result의 `user_message_uuids`에도 있음. 답이 반영 | 통과 |
+| Claude 2.1.317 | Bash 실행 중, `next` | `priority` 없음과 같다 | 통과 |
+| Claude 2.1.317 | Bash 실행 중, `later` | 접히지 않는다. 첫 result 뒤 CLI가 새 턴(`system/init`의 `user_message_uuids` = 보낸 uuid)을 돌리고 result가 하나 더 온다 | 쓰지 않음 |
+| Claude 2.1.317 | Bash 실행 중, `now` | 도구는 끝까지 돈다. 그러나 첫 턴이 답 없이 끝나고(result `""`, `num_turns` 2) 이어서 새 턴이 돈다. 원래 요청의 답이 사라진다 | 쓰지 않음 |
+| Claude 2.1.317·2.1.312 | `canUseTool` 응답 대기 중, `priority` 없음 | 생성기 쪽 전송은 막히지 않는다. 허용 뒤 도구 결과 직후 `system/status`에서 uuid가 소비되고 같은 턴에 접힌다. result 1개 | 통과 |
+| Claude 2.1.317·2.1.312 | 도구 없이 답을 쓰는 중, `priority` 없음 | 접히지 않는다. 첫 result는 **`queued_turn_count: 0`** 인데 메시지는 남아 있고, 곧바로(약 10 ms) 새 턴의 `system/init`이 보낸 uuid를 echo한 뒤 result가 하나 더 온다 | 통과(연속 턴, uuid로만 판정 가능) |
+| Claude 2.1.317·2.1.312 | result 직후, `priority` 없음 | 위와 같다. 새 턴이 돌고 `system/init`에서 uuid echo, result 하나 더 | 통과(연속 턴) |
 
-PoC 코드는 `.scratch/queue-send-now/`에 두고 관찰은 이 문서와 커밋 메시지에 적는다(AGENTS.md 'Commit conventions'). 실제 provider 호출은 실제 계정 상태를 쓰므로 격리 HOME·`CLAUDE_CONFIG_DIR`·`CODEX_HOME`으로 돌린다.
+확정한 것:
+
+- `STEER_PROVIDERS`는 `claude`, `codex` 둘 다다.
+- Codex 최소 버전은 0.164.0 그대로다(spec 결정 7의 상향 불필요).
+- Codex의 소비 신호는 `userMessage` item의 **`clientId`** 필드다(요청 이름은 `clientUserMessageId`). 이 item은 서버가 받아들인 직후 오므로, Codex에서 "에이전트가 읽은 시점"은 받아들인 시점이다.
+- Claude `priority`는 넘기지 않는다(없음과 `next`가 같고, `later`는 접히지 않으며, `now`는 답을 잃는다).
+- Claude의 `queued_turn_count`는 남은 steer 메시지를 세지 않는다(0인데 다음 턴이 돈다). terminal 판정에 쓰지 않는다. **result는 넣은 uuid가 모두 `user_message_uuids`(frame이나 result)에서 소비됐을 때만 terminal**이고, 아직이면 이어지는 턴(`system/init`이 그 uuid를 echo)을 기다려 그 result에서 끝낸다. 소비 신호는 그 uuid가 처음 나온 frame이다(`system/status` 또는 `system/init`).
+- 권한 응답 대기 중에도 Send now를 보인다(spec 결정 3). 두 provider 모두 대기 중 전송을 막지 않았다.
+
+확인하지 못한 것: Codex에서 `turn/completed` 직전(거의 동시)에 받아들여진 steer가 다른 `turnId`의 follow-up turn으로 도는 경합은 만들어 내지 못했다. 완료 뒤에는 거절, 실행 중에는 같은 turn이었다. 각 경우 1회 관찰이다.
 
 ## 5. 형식 변경
 
