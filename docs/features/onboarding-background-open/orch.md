@@ -16,6 +16,7 @@
 7. CLI는 앱을 깨끗한 환경으로 실행한다(`onboarding start`, `doan open` 모두). T0(b)로 다시 뜬 실제 Doan(pid 14002)이 실행한 Orca 터미널의 환경(`CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_SESSION_ID`, `ORCA_*`)을 그대로 가졌다(`ps eww`). `/usr/bin/open`이 호출한 쪽 환경을 앱에 넘긴 것이다. 그래서 앱이 실행한 터미널의 프로필로 이어하기를 판단했고, 이어할 수 없는 Orca 세션에도 이어하기가 떴다가 보낼 때 실패한 것으로 보인다(사용자 보고). 이어하지 못하는 세션은 보이지 않는다는 기존 규칙(PRODUCT §3)은 그대로다. batch B 후속(B2)으로 넣는다. (사용자 결정)
 8. 실행 중인 앱에 `open -g`가 가면 앱이 앞으로 오는 문제(T0 항목 4)는 이번 범위에서 고치지 않고 BACKLOG에 남긴다. 고치려면 비목표인 Dock 클릭(`activate`) 동작을 바꿔야 한다. (지휘자 판단)
 9. 터미널에서 아직 열려 있는 Codex 세션은 이어하기를 제안하지 않는다. Claude는 `sessions/<pid>.json`으로 미리 거르지만 Codex는 사전 검사가 없어 제안했다가 보낼 때 실패한다. batch E가 PoC로 살아 있는 세션의 표지를 찾고, 결과가 긍정적이면 이 run에서 구현한다. 부정적이면 BACKLOG에 남긴다. (사용자 결정)
+10. Codex PoC(batch E, codex 0.166.0)는 긍정이다. `<CODEX_HOME>/thread-writer-locks/<threadId>.lock`을 writer가 배타 flock으로 쥐고, 세션이 열린 채 `thread/resume`을 보내면 `-32600 already has an active writer`로 거절된다. 구현: 디렉터리 없음은 free(지원 writer 0.164.0+는 lock 전에 디렉터리를 만든다), 이상한 디렉터리는 unknown, lock 파일 없음은 free, 있으면 `lsof`로 연 프로세스가 있으면 occupied, 없으면 stale이라 free, `lsof` 실패는 unknown. `lockf` 검사는 Codex 자신의 resume을 거절시킬 수 있어 쓰지 않는다. `/exit` 뒤 약 1분 동안 데몬이 lock을 쥐므로 그동안 이어하기가 숨는다. (지휘자 판단 — 사용자 결정 9의 '긍정이면 이 run에')
 
 ## 배치
 
