@@ -977,7 +977,7 @@ body:has(.shell-top) { background: transparent; }
 .conv-list .conv-row:is(:has(> .conv-item.current), :has([data-highlighted]), :hover) + .conv-row > .conv-item::before { display: none; }
 .conv-row:has(> .conv-delete[data-highlighted]) > .conv-item:not(.current) { background: var(--affordance-floating-hover); }
 /* Delete: 24px with the 16px Trash2, centred on the first line, its glyph flush with the time's right edge. */
-.conv-delete.doan-icon-button { position: absolute; top: calc(var(--space-2) + (var(--type-body-sm-line-height) - var(--size-control-xs)) / 2); right: var(--space-2); width: var(--size-control-xs); height: var(--size-control-xs); color: var(--text-subtle); outline-offset: -2px; }
+.conv-delete.doan-icon-button { position: absolute; top: calc(var(--space-2) + (var(--type-body-sm-line-height) - var(--size-control-xs)) / 2); right: var(--space-2); width: var(--size-control-xs); height: var(--size-control-xs); color: var(--text-subtle); }
 .conv-delete.doan-icon-button[data-highlighted]:not([aria-disabled="true"]) { background: var(--affordance-subtle-hover); }
 .conv-delete.doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
 .conv-delete.doan-icon-button[aria-disabled="true"]:hover { background: transparent; }

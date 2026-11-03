@@ -132,6 +132,11 @@ test("the row keeps its fill while its Delete is highlighted, and the hairline s
   expect(css).toContain('.conv-list .conv-row + .conv-row > .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }');
   expect(css).not.toContain(".conv-list .conv-item + .conv-item::before");
 });
+// design-sync: the draft's keyboard ring sits 2px outside the button, the shared icon button ring; an own offset broke it.
+test("the row Delete is 24px in subtle ink and keeps the shared icon button focus ring", () => {
+  expect(css).toContain(".conv-delete.doan-icon-button { position: absolute; top: calc(var(--space-2) + (var(--type-body-sm-line-height) - var(--size-control-xs)) / 2); right: var(--space-2); width: var(--size-control-xs); height: var(--size-control-xs); color: var(--text-subtle); }");
+  expect(css).not.toMatch(/\.conv-delete[^{]*\{[^}]*outline/);
+});
 test("while the row Delete shows, the time's visible text is clipped and its spoken label stays", () => {
   expect(css).toContain('.conv-row:is(:hover, :has([data-highlighted])) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }');
   expect(css).toContain('.conv-delete.doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }');
