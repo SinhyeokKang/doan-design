@@ -18,6 +18,7 @@
 9. 터미널에서 아직 열려 있는 Codex 세션은 이어하기를 제안하지 않는다. Claude는 `sessions/<pid>.json`으로 미리 거르지만 Codex는 사전 검사가 없어 제안했다가 보낼 때 실패한다. batch E가 PoC로 살아 있는 세션의 표지를 찾고, 결과가 긍정적이면 이 run에서 구현한다. 부정적이면 BACKLOG에 남긴다. (사용자 결정)
 10. Codex PoC(batch E, codex 0.166.0)는 긍정이다. `<CODEX_HOME>/thread-writer-locks/<threadId>.lock`을 writer가 배타 flock으로 쥐고, 세션이 열린 채 `thread/resume`을 보내면 `-32600 already has an active writer`로 거절된다. 구현: 디렉터리 없음은 free(지원 writer 0.164.0+는 lock 전에 디렉터리를 만든다), 이상한 디렉터리는 unknown, lock 파일 없음은 free, 있으면 `lsof`로 연 프로세스가 있으면 occupied, 없으면 stale이라 free, `lsof` 실패는 unknown. `lockf` 검사는 Codex 자신의 resume을 거절시킬 수 있어 쓰지 않는다. `/exit` 뒤 약 1분 동안 데몬이 lock을 쥐므로 그동안 이어하기가 숨는다. (지휘자 판단 — 사용자 결정 9의 '긍정이면 이 run에')
 11. 앱도 자신을 띄운 터미널의 환경을 login shell 검사와 실행하는 에이전트에 넘기지 않는다. B2는 CLI 실행 경로만 막으므로, 사람이나 에이전트가 터미널에서 `open -a Doan`, 실행 파일, `npm run dev`로 띄우는 경로가 남는다. Dock 실행과 같은 launchd 환경만 남긴다. 실행 환경에만 준 `CLAUDE_CONFIG_DIR`/`CODEX_HOME`은 더 이상 프로필을 정하지 않는다(셸 설정 파일의 값은 그대로 쓴다). batch F. (사용자 결정)
+12. 통합 뒤 실제 앱 확인에는 사용자의 실제 로그인 세션(실제 HOME의 Claude·Codex)을 써도 된다. userData는 임시로 둔다. PoC·probe 사본의 LaunchServices 등록 정리(`lsregister -u`)도 승인됐다. (사용자 결정)
 
 ## 배치
 
