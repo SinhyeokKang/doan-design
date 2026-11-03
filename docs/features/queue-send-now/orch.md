@@ -43,3 +43,7 @@
 - qsn-a worktree 삭제(Orca), 브랜치 `SinhyeokKang/qsn-a`는 `120a6a37`에 남겨 둠.
 - D 1단계 완료 `b117df8d`(테스트 6328·build·verify 통과, verify 첫 회 `shell.test.ts` flake 1회). store는 IPC가 '소비 뒤 resolve, 거절·턴 종료는 `not_running`'이라고 가정한다 → C 브리프에 계약으로 더했다. D worker release, 리뷰 `ctx_403ed827e0e5`(Opus medium, focus 판단이 많아 올림).
 - B 완료 `722aea8b`·`115ac9e0`(red 선확인, 테스트 6272·verify 통과). 계약: `steer()` resolve/reject + `steerConsumed(messageId)` 훅. 위험: Claude가 받아들인 uuid를 끝내 echo하지 않으면 턴이 stop 전까지 안 끝남(감시 타이머 없음). 통합 뒤 C 시작, B 리뷰 병렬.
+- B를 `491da8df`·`9f201e4e`로 통합. B worker release. B 리뷰 `ctx_e5761caf29cb`(Opus high). C 시작 `ctx_1ef327b40012`(worktree `qsn-c`, base `9f201e4e`, Opus high).
+- D 1단계 리뷰(Opus medium): 🔴 1(sending 항목만 남으면 목록 count 0으로 행이 사라짐) · 🟡 2(상태 줄이 `role=list` 직속, 턴 종료 거절 순서는 C 계약). 수정 1회차 `ctx_9def7c7d5668`(qsn-d, Opus medium). C에는 '거절 IPC 답보다 terminal 이벤트 publish가 먼저' 계약을 메시지로 보냈다.
+- 통합 HEAD `9f201e4e`(A+B)에서 typecheck 통과, `npm --prefix app test` 244 files / 6349 tests 통과.
+- D 수정 1회차 `1c2dbdf8`·`c14de93b`(🔴1·🟡1 반영, 테스트 6329·typecheck·build 통과). D 1단계+수정을 통합한다. 🟡2는 2단계 probe.
