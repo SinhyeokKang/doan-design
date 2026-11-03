@@ -68,6 +68,10 @@ const violetAllowed = [
   // The dot on the folded conversation panel's open button, the sidebar slot's unseen dot (buzz-canvas-conversation
   // design §2 'News dot', confirmed draft open-badge).
   '.doan-icon-button[data-badge="true"]::after',
+  // The canvas jump highlight (chip locate, Frames drawer, Quick Open, deep link): a 3px accent gradient line drawn
+  // by the masked ::before and an accent glow, readable over any canvas (canvas-selection-tools spec decision 2).
+  ".mark.jump-highlight",
+  ".mark.jump-highlight::before",
 ];
 
 function compareAllowed(found: string[], allowed: string[]) {

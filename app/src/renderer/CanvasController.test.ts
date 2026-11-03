@@ -1862,11 +1862,10 @@ describe("picking", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("a picked element ends picking and hands its anchor and the frames to the callback, without touching the selection", () => {
+  it("a picked element ends picking and hands its anchor and the frames to the callback; the selection stays cleared", () => {
     const h = harness();
     try {
       h.select(1);
-      const selection = h.state().selection;
       h.send.mockClear();
       const results = started(h);
       results.mockImplementation(() => expect(h.state().picking).toBe(false));
@@ -1874,8 +1873,9 @@ describe("picking", () => {
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "picked", anchor: { frame: { id: "hero" }, element: { doanId: "pay", selector: '[data-doan-id="pay"]', tag: "button" } },
         frames: [{ id: "intro", x: 0, y: 0, width: 10, height: 10 }, { id: "hero", x: 0, y: 20, width: 10, height: 10 }] });
       expect(picks(h).at(-1)).toEqual({ type: "pick-cancel", document: "doc", seq: 2 });
-      expect(h.state()).toMatchObject({ picking: false, selection });
-      expect(h.send).not.toHaveBeenCalled();
+      expect(h.state()).toMatchObject({ picking: false, selection: null });
+      // Told once, when the pick started.
+      expect(h.send).toHaveBeenCalledExactlyOnceWith(null);
       expect(h.inspect).toHaveBeenCalledTimes(1);
       // A second reply for the same pick is dropped.
       picked(h, { target: h.target });
@@ -1929,7 +1929,7 @@ describe("picking", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("Esc while picking cancels only the pick, also from an editable target, and keeps the selection", () => {
+  it("Esc while picking cancels only the pick, also from an editable target; the selection stays cleared", () => {
     const h = harness();
     try {
       h.select(1);
@@ -1938,10 +1938,81 @@ describe("picking", () => {
       const event = escape(h, { target: field });
       expect(event.defaultPrevented).toBe(true);
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
-      expect(h.state()).toMatchObject({ picking: false, selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ tool: "select", picking: false, selection: null });
+      // The one clear is the pick start's, not the Esc's.
+      expect(posted(h).filter(m => m.type === "clear")).toEqual([{ type: "clear", seq: 2 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  // canvas-selection-tools spec 5–7: a pick that starts drops the selection, and its end does not bring it back.
+  it("a pick that starts clears the selection before pick-start, tells main once and shows no notice", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.send.mockClear();
+      started(h);
+      const sent = posted(h).filter(m => m.type === "clear" || m.type === "pick-start");
+      expect(sent).toEqual([{ type: "clear", seq: 2 }, { type: "pick-start", document: "doc", seq: 1 }]);
+      expect(h.state()).toMatchObject({ picking: true, selection: null, inspector: null, notice: "" });
+      expect(h.send).toHaveBeenCalledExactlyOnceWith(null);
+      expect(h.markOf("selected")?.hidden).toBe(true);
+      // A select the canvas sent before the pick does not bring it back.
+      h.select(1);
+      h.layout({ seq: 1, document: "doc", selected: h.target.rect });
+      expect(h.state().selection).toBeNull();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a pick without a selection sends no clear and does not tell main", () => {
+    const h = harness();
+    try {
+      started(h);
       expect(posted(h).some(m => m.type === "clear")).toBe(false);
-      // Back on the select tool, Esc clears the selection again.
-      escape(h);
+      expect(h.send).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a pick that cannot start sends no clear", () => {
+    vi.useFakeTimers();
+    const h = harness();
+    try {
+      h.controller.command("reload");
+      vi.advanceTimersByTime(FIRST_LAYOUT_TIMEOUT_MS);
+      h.current().contentWindow.postMessage.mockClear();
+      expect(h.controller.pick()).toBe(false);
+      expect(posted(h).some(m => m.type === "clear")).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("after a pick ends or is cancelled the selection stays cleared and the tool before the pick comes back", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      started(h);
+      h.controller.cancelPick();
+      expect(h.state()).toMatchObject({ tool: "select", picking: false, selection: null });
+      // In Hand the drawer's frame is the selection a pick drops.
+      h.host.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "KeyH", key: "h" }));
+      h.controller.selectFrame(1, "hero");
+      h.select(3, { target: { rect: { x: 0, y: 20, width: 10, height: 10 }, tag: "section", frame: { id: "hero" }, frameIndex: 1, path: [{ label: "hero", selector: '[data-doan-frame="hero"]' }] } });
+      expect(h.state()).toMatchObject({ tool: "hand", selection: expect.objectContaining({ tag: "section" }) });
+      started(h);
+      expect(h.state().selection).toBeNull();
+      picked(h, { pick: 3, target: h.target });
+      expect(h.state()).toMatchObject({ tool: "hand", picking: false, selection: null });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a pick during a reload drops the selection the new document would have looked for", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.controller.command("reload");
+      expect(h.state().reanchoring).toBe(true);
+      started(h);
+      expect(h.state()).toMatchObject({ selection: null, reanchoring: false });
+      h.layout({ document: "doc2" });
+      expect(posted(h).some(m => m.type === "select-anchor")).toBe(false);
       expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
   });
@@ -1968,17 +2039,18 @@ describe("picking", () => {
       expect(results).toHaveBeenCalledExactlyOnceWith({ kind: "cancelled" });
       started(h);
       h.receive({ type: "key", seq: 0, key: "Escape" });
-      expect(h.state()).toMatchObject({ picking: false, selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ picking: false, selection: null });
     } finally { h.controller.dispose(); }
   });
 
-  it("a click on the board margin while picking keeps picking and the selection", () => {
+  it("a click on the board margin while picking keeps picking and selects nothing", () => {
     const h = harness();
     try {
       h.select(1);
       started(h);
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0, ctrlKey: false, altKey: false }));
-      expect(h.state()).toMatchObject({ picking: true, selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ picking: true, selection: null });
+      expect(posted(h).filter(m => m.type === "clear")).toHaveLength(1);
     } finally { h.controller.dispose(); }
   });
 
@@ -1990,13 +2062,14 @@ describe("picking", () => {
       h.host.dispatchEvent(Object.assign(new Event("keydown"), { key: "Alt" }));
       expect(posted(h).at(-1)).toEqual({ type: "hover-alt", alt: true, seq: 1 });
       picked(h, { target: h.target });
-      // The selection channel still expects seq 1, so the reply to an earlier click still applies.
-      h.select(1, { target: { ...h.target, tag: "em" } });
+      // The pick start's clear took selection seq 2; the pick itself took none, so a click at seq 2 still applies.
+      h.select(2, { target: { ...h.target, tag: "em" } });
       expect(h.state().selection?.tag).toBe("em");
       h.controller.pick();
       escape(h);
       escape(h);
-      expect(posted(h).filter(m => m.type === "clear")).toEqual([{ type: "clear", seq: 2 }]);
+      expect(posted(h).filter(m => m.type === "clear")).toEqual([{ type: "clear", seq: 2 }, { type: "clear", seq: 3 }]);
+      expect(picks(h).filter(m => m.type === "pick-start").map(m => m.seq)).toEqual([1, 3]);
     } finally { h.controller.dispose(); }
   });
 
@@ -2129,15 +2202,15 @@ describe("picking", () => {
     const h = harness();
     try {
       h.select(1);
-      const selection = h.state().selection;
       h.send.mockClear();
       started(h);
       expect(h.current().style.pointerEvents).toBe("none");
-      // A click in between lands on the board instead of the canvas: picking goes on and nothing is selected.
+      // A click in between lands on the board instead of the canvas: picking goes on and nothing is selected. The
+      // one clear and the one null to main are the pick start's.
       h.viewport.dispatchEvent(Object.assign(new Event("click"), { button: 0, ctrlKey: false, altKey: false }));
-      expect(h.state()).toMatchObject({ picking: true, selection });
-      expect(h.send).not.toHaveBeenCalled();
-      expect(posted(h).some(m => m.type === "clear" || m.type === "select-anchor")).toBe(false);
+      expect(h.state()).toMatchObject({ picking: true, selection: null });
+      expect(h.send).toHaveBeenCalledExactlyOnceWith(null);
+      expect(posted(h).filter(m => m.type === "clear" || m.type === "select-anchor")).toEqual([{ type: "clear", seq: 2 }]);
       // An acknowledgement for another pick or document does not open the canvas.
       acked(h, { pick: 0 });
       acked(h, { document: "other" });
@@ -2691,13 +2764,16 @@ describe("hand tool", () => {
     } finally { h.controller.dispose(); }
   });
 
-  it("Esc in Hand turns Hand off before it clears the selection", () => {
+  // In Hand only the Frames drawer selects (canvas-selection-tools spec decision 4).
+  it("Esc in Hand turns Hand off before it clears a frame the drawer selected", () => {
     const h = harness();
     try {
-      h.select(1);
       press(h, "KeyH");
+      h.controller.selectFrame(1, "hero");
+      h.select(1, { target: frameReply });
+      expect(h.state()).toMatchObject({ tool: "hand", selection: expect.objectContaining({ tag: "section" }) });
       press(h, "Escape");
-      expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "section" }) });
       press(h, "Escape");
       expect(h.state().selection).toBeNull();
     } finally { h.controller.dispose(); }
@@ -2707,12 +2783,116 @@ describe("hand tool", () => {
     const h = harness();
     try {
       const field = { tagName: "TEXTAREA", isContentEditable: false };
-      h.select(1);
       press(h, "KeyH");
+      h.controller.selectFrame(1, "hero");
+      h.select(1, { target: frameReply });
       press(h, "Escape", { target: field });
-      expect(h.state()).toMatchObject({ tool: "hand", selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.state()).toMatchObject({ tool: "hand", selection: expect.objectContaining({ tag: "section" }) });
       expect(press(h, "KeyV", { target: field }).defaultPrevented).toBe(false);
       expect(h.state().tool).toBe("hand");
+    } finally { h.controller.dispose(); }
+  });
+
+  // canvas-selection-tools spec 1–4: switching to Hand drops the selection; a held Space does not.
+  const clears = (h: H) => posted(h).filter(m => m.type === "clear");
+  const cleared = (h: H) => {
+    expect(h.state()).toMatchObject({ tool: "hand", selection: null, inspector: null, notice: "" });
+    expect(h.send).toHaveBeenLastCalledWith(null);
+    expect(h.markOf("selected")?.hidden).toBe(true);
+  };
+
+  it("H clears the selection, tells main and the canvas, and shows no notice", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      press(h, "KeyH");
+      cleared(h);
+      expect(clears(h)).toEqual([{ type: "clear", seq: 2 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("the toolbar's Hand clears the selection the same way", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.controller.setTool("hand");
+      cleared(h);
+      expect(clears(h)).toEqual([{ type: "clear", seq: 2 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("Hand without a selection sends no clear and does not tell main", () => {
+    const h = harness();
+    try {
+      press(h, "KeyH");
+      expect(h.state().tool).toBe("hand");
+      expect(clears(h)).toEqual([]);
+      expect(h.send).not.toHaveBeenCalled();
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a held Space keeps the selection, through a drag too", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      press(h, "Space");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      pointer(h, "pointermove", { clientX: 20, clientY: 10 });
+      pointer(h, "pointerup");
+      release(h, "Space");
+      expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "span" }) });
+      expect(h.markOf("selected")?.hidden).toBe(false);
+      expect(clears(h)).toEqual([]);
+      expect(h.send).toHaveBeenCalledTimes(1);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("H pressed during a Space drag clears once the drag ends and Hand applies", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      press(h, "Space");
+      pointer(h, "pointerdown", { clientX: 10, clientY: 10 });
+      press(h, "KeyH");
+      expect(h.state()).toMatchObject({ tool: "select", selection: expect.objectContaining({ tag: "span" }) });
+      expect(clears(h)).toEqual([]);
+      release(h, "Space");
+      pointer(h, "pointerup");
+      cleared(h);
+      expect(clears(h)).toEqual([{ type: "clear", seq: 2 }]);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("a select the canvas sent before H does not bring a selection back", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      press(h, "KeyH");
+      h.select(1, { target: { ...h.target, tag: "em" } });
+      h.layout({ seq: 1, selected: h.target.rect });
+      cleared(h);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("going back to Select by V, the toolbar or Esc brings no selection back", () => {
+    for (const back of [(h: H) => press(h, "KeyV"), (h: H) => h.controller.setTool("select"), (h: H) => press(h, "Escape")]) {
+      const h = harness();
+      try {
+        h.select(1);
+        press(h, "KeyH");
+        back(h);
+        expect(h.state()).toMatchObject({ tool: "select", selection: null });
+        expect(clears(h)).toHaveLength(1);
+      } finally { h.controller.dispose(); }
+    }
+  });
+
+  it("a saved Hand applied at launch clears a selection made before the read", () => {
+    const h = harness();
+    try {
+      h.select(1);
+      h.controller.restoreTool("hand");
+      cleared(h);
     } finally { h.controller.dispose(); }
   });
 
@@ -3231,4 +3411,19 @@ it("styles the drag layer between the board and the canvas chrome, and drops the
   const controls = readFileSync(new URL("./ds/controls.css", import.meta.url), "utf8");
   expect(controls).toMatch(/\.doan-kbd\[data-ui-variant="on-prominent"\] \{[^}]*background: color-mix\(in srgb, currentColor 16%, transparent\);[^}]*color: inherit;[^}]*box-shadow: none;/);
   expect(controls).toMatch(/\.doan-kbd\[data-ui-size="sm"\] \{[^}]*padding: 0 var\(--space-1h\);[^}]*font-size: var\(--type-caption-size\);/);
+});
+
+// canvas-selection-tools design §3: every jump highlight is a 3px accent gradient line, a 1px panel ring and an accent
+// glow, drawn by a masked ::before so the 12px point keeps its circle; each media fallback keeps a visible edge.
+it("styles the jump highlight as an accent gradient line with a ring and a glow, and its fallbacks", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toMatch(/\.mark\.jump-highlight \{[^}]*border: 3px solid transparent;[^}]*box-shadow: 0 0 0 1px var\(--surface-panel\), 0 0 16px 2px color-mix\(in srgb, var\(--affordance-accent\) 45%, transparent\);[^}]*animation: frame-jump-fade 1\.2s linear forwards;/);
+  expect(css).toMatch(/\.mark\.jump-highlight::before \{[^}]*content: "";[^}]*position: absolute;[^}]*inset: -3px;[^}]*padding: 3px;[^}]*border-radius: inherit;[^}]*background: linear-gradient\(135deg, var\(--affordance-accent\), var\(--indigo-600\)\);[^}]*mask: linear-gradient\(#000 0 0\) content-box, linear-gradient\(#000 0 0\);[^}]*mask-composite: exclude;/);
+  expect(css).toMatch(/@keyframes frame-jump-fade \{ 0%, 66\.6667% \{ opacity: 1; \} 100% \{ opacity: 0; \} \}/);
+  expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{ \.mark\.jump-highlight \{ animation: none; \} \}/);
+  expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{ \.mark\.jump-highlight \{ box-shadow: 0 0 0 1px var\(--surface-panel\); \} \}/);
+  expect(css).toMatch(/@media \(forced-colors: active\) \{ \.mark\.jump-highlight \{ border-color: Highlight; box-shadow: none; \} \.mark\.jump-highlight::before \{ display: none; \} \}/);
+  expect(css).toMatch(/\.mark\.jump-highlight\.jump-point \{ border-radius: 50%; \}/);
+  expect(css).not.toMatch(/\.mark\.jump-highlight \{[^}]*--affordance-backdrop-pressed/);
 });
