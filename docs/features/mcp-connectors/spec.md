@@ -7,7 +7,11 @@ Doan 연결(PRODUCT §3 In scope 7)로 실행하는 대화에서 에이전트가
 - **사람(앱 사용자)**: 설정 > MCP Connectors에서 서버를 추가·연결·해제·삭제하고 에이전트별 상태를 본다. 대화에서는 "Notion의 ○○ 기획서를 읽고 시안을 그려줘"처럼 요청하고, 도구 호출은 기존 권한 요청으로 승인한다.
 - **에이전트(Claude Code, Codex)**: Doan 연결 대화에서 연결된 서버의 MCP 도구를 일반 도구처럼 받는다. 에이전트용 guide·skill·CLI 출력은 바뀌지 않는다.
 
-## 문제 (관찰된 사실)
+## 문제
+
+기획서와 티켓이 Notion·Jira에 있으면 Doan 대화의 에이전트가 그 spec을 읽지 못해 캔버스를 그릴 수 없다. 사람은 spec을 복사해 대화에 붙여 넣어야 한다. 리뷰 단위가 spec(티켓) 하나라는 PRODUCT §4 'Unit of review'와 바로 이어지는 문제다. PRODUCT §1·§3에는 아직 없으며, 이 feature가 끝나면 Z1에서 추가한다(범위 확장은 사용자가 승인함).
+
+### 관찰된 사실
 
 - Doan 연결 대화는 Doan 전용 프로필(`<userData>/agent-auth/profiles/<provider>/`)로 실행되므로, 사람이 터미널에서 `~/.claude.json`이나 `~/.codex/config.toml`에 등록한 MCP 서버를 읽지 않는다. Doan 앱에는 MCP 서버를 등록할 화면이 없다.
 - Claude는 claude.ai 계정의 커넥터가 Doan 대화에서도 로드된다(Doan Claude 프로필의 `claudeAiMcpEverConnected`에 `claude.ai Figma` 등이 기록됨, 2026-11-03 확인). Codex에는 이런 경로가 없다.
@@ -28,15 +32,24 @@ Doan 연결(PRODUCT §3 In scope 7)로 실행하는 대화에서 에이전트가
 ## 완료 조건
 
 1. 설정 사이드바에 MCP Connectors 카테고리가 Agents와 Notifications 사이에 있다.
-2. MCP Connectors에서 프리셋(Notion, Atlassian, Figma) 또는 `https://` URL로 서버를 추가할 수 있다. 추가된 서버는 행 하나로 보이고, 그 아래에 Doan 연결이 있는 Claude Code·Codex마다 상태가 하나씩 붙는다.
-3. 에이전트별 상태는 `연결 필요`, `연결 중`, `연결됨`, `다시 연결 필요`, `확인 실패` 중 하나다. Doan 연결이 없거나 실행할 수 없는 provider는 상태 대신 그 이유와 설정 > Agents로 가는 동작을 보인다. Cursor·Copilot·Antigravity는 `이 에이전트에서는 아직 지원하지 않음`으로 보이고 동작이 없다.
-4. "연결"을 누르면 그 provider의 공식 MCP 로그인이 실행된다. Claude는 기존 sign-in처럼 인증 링크가 연결을 누른 창에 오고, Codex는 CLI가 기본 브라우저를 연다(Doan은 링크를 따로 열지 않는다). 허용하면 상태가 `연결됨`이 되고, 취소하거나 실패하면 이전 상태로 돌아가며 이유를 보인다.
-5. Doan은 MCP 토큰을 읽거나 저장하지 않는다. 토큰은 각 provider CLI가 프로필 키체인에 둔다. 평문 토큰 파일이 생기면 연결을 실패로 처리하고 그 파일을 지운다.
-6. `연결됨`인 서버의 도구는 그 provider의 Doan 연결로 시작하는 새 대화·이어지는 대화의 **첫 턴부터** 보인다. 도구 호출은 기존 권한 요청 흐름을 그대로 탄다.
+2. MCP Connectors에서 프리셋(P3에서 Claude·Codex 모두 통과한 것. 후보는 Notion, Atlassian, Figma) 또는 `https://` URL로 서버를 추가할 수 있다.
+   - 진입: "Add connector" 버튼 → 메뉴(프리셋, 구분선, "Custom URL…"). Custom URL은 compact dialog(URL 필드, Cancel/Add, Enter 제출, Escape 닫기)이고, 잘못된 URL은 필드 아래 인라인 오류로 보인다.
+   - 중복: 이미 추가한 프리셋은 메뉴에서 비활성이고 "Added"를 표시한다. 같은 URL은 거절하고 "Already added as <name>."을 보인다.
+   - 표시 이름: 프리셋은 서비스 이름, URL 커넥터는 호스트이고 설명은 전체 URL이다. 내부 이름 `doan-<slug>`는 보이지 않는다. 이름 편집은 이번 범위가 아니다.
+   - 빈 목록이면 카테고리 설명 아래에 "No connectors yet."과 Add connector를 둔다. `mcp-connectors.json`을 읽을 수 없거나 더 새로운 `v`이면 Settings storage 규칙과 같은 notice를 보이고 추가·삭제를 막는다.
+   - 포커스: 추가 뒤에는 새 행의 첫 Connect로, Remove 뒤에는 다음 행(없으면 Add connector)으로 간다.
+   - 추가된 서버는 행 하나로 보이고, 그 아래에 Claude Code·Codex마다 상태가 하나씩 붙는다(Doan 연결이 없어도 보인다). Cursor·Copilot·Antigravity는 행에 넣지 않고, 카테고리 설명에 "Cursor, Antigravity and GitHub Copilot can’t use these connectors yet." 한 줄만 둔다.
+3. 에이전트별 상태는 `Checking…`(상태를 읽는 중, 동작 비활성, role=status), `Not connected`(연결 필요), `Connecting…`(연결 중), `Connected`(연결됨), `Reconnect needed`(다시 연결 필요), `Couldn’t check`(확인 실패, Retry) 중 하나다. 앱 UI 문구는 영어다(PRODUCT §5). 문구 형식은 Settings > Agents를 따른다. Doan 연결이 없거나 실행할 수 없는 provider는 상태 대신 그 이유와 설정 > Agents로 가는 동작을 보인다. 이유 문구는 커넥터의 `Connected`와 섞이지 않게 sign-in 어휘를 쓴다(예: "Claude Code isn’t signed in").4. Connect를 누르면 그 provider의 공식 MCP 로그인이 실행된다. 흐름은 Settings > Agents sign-in 규칙(PRODUCT §5 항목 0)을 따른다.
+   - Claude: 인증 링크가 Connect를 누른 창에 오고 자동으로 열린다. 행에는 Open again과 Cancel이 있다.
+   - Codex: CLI가 기본 브라우저를 직접 연다(Doan은 링크를 따로 열지 않는다). 행에는 "Codex opened your default browser. Allow access to <Notion> there, then return here."와 Cancel만 있다.
+   - 허용하면 상태가 `Connected`가 된다. 취소하면 이전 상태로 조용히 돌아간다. 실패하면 이전 상태로 돌아가고 이유와 Retry를 보인다(실패 이유별 문구는 `/design-draft`에서 Agents alert 형식으로 정한다).
+   - 페이지를 떠나도 시도는 이어진다. MCP Connectors가 보이지 않을 때 실패하면 "Open MCP Connectors" 동작이 있는 toast를 띄운다. 앱을 종료하면 시도는 취소된다.
+5. Doan은 MCP 토큰을 읽거나 저장하지 않는다. 토큰은 각 provider CLI가 OS 키체인에 둔다(Claude는 프로필 키체인 항목 안, Codex는 `Codex MCP Credentials`의 `<서버 이름>|<URL 해시>` 항목). 평문 토큰 파일이 생기면 연결을 실패로 처리하고 그 파일을 지운다.
+6. `Connected`인 서버의 도구는 그 provider의 Doan 연결로 시작하는 새 대화·이어지는 대화의 **첫 턴부터** 보인다. 단, Codex에서 서버 준비가 상한(값은 P2에서 정한다) 안에 끝나지 않으면 그 서버 없이 턴을 시작하고, 대화에 그 사실을 한 줄로 보인다. 도구 호출은 기존 권한 요청 흐름을 그대로 탄다.
 7. Doan이 등록한 서버 이름은 사람의 터미널 Claude Code·Codex 설정과 키체인 항목과 겹치지 않는다. 연결·해제·삭제·Doan sign-out이 터미널 쪽 MCP 설정과 토큰을 바꾸지 않는다.
-8. 에이전트별 "연결 해제"는 그 provider의 MCP 토큰만 지우고 등록은 남긴다. 서버 "삭제"는 모든 provider에서 토큰과 등록을 지운다. Doan sign-out은 그 provider의 Doan MCP 토큰도 지운다.
+8. 에이전트별 "연결 해제"는 그 provider의 MCP 토큰만 지우고 등록은 남긴다. 서버 "삭제"(Remove)는 모든 provider에서 토큰과 등록을 지운다. Disconnect는 확인 없이 바로 실행한다. Remove는 되돌릴 수 없으므로 compact alert "Remove <Notion> from Doan’s agents?"(본문 "Claude Code and Codex disconnect from it. Your terminal setup is not changed.", 버튼 Cancel / Remove(destructive), Escape는 취소)를 거치고, alert가 열린 동안 Settings 페이지를 잠근다. 연결 시도 중인 커넥터는 Remove가 비활성이다. Doan sign-out은 그 provider의 Doan MCP 토큰도 지우고 등록은 남긴다. MCP 로그아웃이 실패해도 sign-out은 진행하고, 다음 시작 때 다시 시도한다. 그동안 그 커넥터의 연결은 막힌다. Settings > Agents의 sign-out 확인 본문에 "Its MCP connectors need connecting again."을 한 줄 더한다.
 9. 에이전트 계정을 교체 sign-in하면, 교체가 끝난 뒤 Doan이 새 프로필에 커넥터 등록을 다시 넣고 그 provider의 상태는 모두 `다시 연결 필요`가 된다. 이전 계정으로 받은 MCP 토큰은 로그아웃해서 새 계정이 쓰지 않게 한다. 교체가 끝나지 않으면 기존 프로필의 등록과 토큰은 그대로다.
-10. 실행 중인 대화가 있는 provider에서 연결·해제·삭제를 하면, 그 변경은 다음에 시작하는 턴부터 적용된다고 알린다(실행 중인 턴은 바꾸지 않는다).
+10. 실행 중인 대화가 있는 provider에서 Connect·Disconnect·Remove가 성공하면, 그 provider 줄 아래에 info notice "Applies from <Claude Code>’s next turn. The running turn keeps its current tools."를 보인다. 상태 변화는 role=status로 한 번 읽어 주고, 실행 중인 턴이 끝나면 notice를 없앤다. toast는 쓰지 않는다. 실행 중인 턴은 바꾸지 않는다.
 
 ## 비목표
 

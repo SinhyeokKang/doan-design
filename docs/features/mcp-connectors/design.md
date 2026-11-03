@@ -7,15 +7,15 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 ## 영향받는 구성 요소
 
 - **app main (새 모듈 `app/src/main/mcpConnectors/`)**
-  - `store`: `<userData>/mcp-connectors.json` 읽기·쓰기. 쓰기 방식은 `preferences.ts`와 같다(검증된 patch, 직렬화, temp+rename, 더 새로운 `v`는 쓰지 않음, 읽을 수 없는 파일은 빈 목록으로 읽지 않고 오류).
+  - `store`: `<userData>/mcp-connectors.json` 읽기·쓰기. 쓰기는 `preferences.ts`처럼 검증된 patch, 직렬화, temp+rename으로 하고, 더 새로운 `v`는 쓰지 않는다. 깨진 파일 처리는 `preferences.ts`(기본값으로 읽고 `.broken-*`로 옮김)가 아니라 agent-auth metadata 방식(ARCHITECTURE §7 'Agent authentication')을 따른다: 읽을 수 없으면 오류로 두고 추가·삭제를 막는다. 등록이 provider 쪽에 남아 있으므로, 빈 목록으로 읽으면 Doan 목록과 provider 등록이 어긋나기 때문이다. 커넥터마다 provider별 `everConnected`(한 번이라도 연결에 성공했는지)를 저장한다. `Reconnect needed` 판정에 쓴다.
   - `providers`: Claude·Codex 어댑터. 명령은 기존 `agentAuth/providers.ts`의 `command`·`args`와 `agentAuth/environment.ts`의 `providerEnv`를 그대로 쓴다(프로필 변수, `DOAN_RUNTIME`, allowlist).
     - Claude: 등록 `claude mcp add --transport http --scope user <name> <url>`, 로그인 `claude mcp login <name>`을 node-pty로 실행, 해제 `claude mcp logout <name>`, 삭제 `claude mcp remove <name> -s user`, 상태 `claude mcp get <name>`.
-    - Codex: 모든 호출에 `-c cli_auth_credentials_store="keyring" -c mcp_oauth_credentials_store="keyring"`를 붙인다(기존 auth와 같은 이유: `auto`는 조용히 파일로 쓸 수 있다). 등록+로그인 `codex mcp add <name> --url <url>`(등록되어 있지 않을 때, OAuth를 스스로 시작), 재로그인 `codex mcp login <name>`, 해제 `codex mcp logout <name>`, 삭제 `codex mcp remove <name>`, 상태 `codex mcp list --json`.
+    - Codex: `-c mcp_oauth_credentials_store="keyring"`를 `agentAuth/providers.ts` codex `args`에 더해, MCP 명령뿐 아니라 대화 app-server를 포함한 모든 Codex 프로세스에 붙인다(기존 `cli_auth_credentials_store`와 같은 이유: `auto`는 조용히 파일로 쓸 수 있고, 대화 중 토큰 갱신도 저장을 일으킨다). 등록+로그인 `codex mcp add <name> --url <url>`(등록되어 있지 않을 때, OAuth를 스스로 시작), 재로그인 `codex mcp login <name>`, 해제 `codex mcp logout <name>`, 삭제 `codex mcp remove <name>`, 상태 `codex mcp list --json`.
   - `service`: 시도(attempt) 하나씩 직렬화, provider별 lease, 상태 갱신, 렌더러 이벤트.
-- **agentAuth**: lease에 새 용도 `"mcp"`를 더한다(POSTMORTEM 2026-10-30 'A model list read made sign-out ask to stop conversations': 새 lease는 용도를 골라야 한다). `stop_required`는 지금처럼 run만 센다. sign-out 순서에 "그 provider의 Doan 커넥터 전부 MCP 로그아웃"을 더한다. 인증 링크는 기존 `BROWSER` hook·링크 파일·소유 창 규칙을 재사용한다.
-- **conversation (Codex)**: app-server가 MCP 설정을 시작할 때만 읽는지 PoC로 확인한다(task P2). 그렇다면 커넥터가 바뀐 provider의 idle app-server를 다음 턴 전에 다시 띄운다. 턴 시작 전에는 Doan 커넥터 서버의 `mcpServer/startupStatus/updated`를 기다린다(상한 있음, 넘으면 그 서버 없이 시작하고 대화에 알림 한 줄). Claude는 턴마다 SDK를 새로 띄우고 `settingSources`에 `user`가 있어 바꿀 것이 없다.
-- **IPC (`app/src/main/mcpConnectors/ipc.ts`, preload)**: `mcp:list`, `mcp:add`, `mcp:connect`, `mcp:disconnect`, `mcp:remove`, `mcp:cancel`, 이벤트 `mcp:changed`. 경계는 Settings IPC와 같다(메인 창의 main frame만, 입력 검증, 실패는 `{error: code}`).
-- **renderer**: `settingsSections.ts`에 `"mcp"`, `SettingsMcpConnectors.tsx`(새 카테고리). 행·상태·동작은 Settings > Agents 행과 같은 프리미티브와 문구 규칙을 쓴다.
+- **agentAuth**: `acquire(provider, use: "run" | "listing")`(`agentAuth/manager.ts`)의 `use` 타입을 넓혀 `"mcp"`를 더한다(POSTMORTEM 2026-10-30 'A model list read made sign-out ask to stop conversations': 새 lease는 용도를 골라야 한다). `stop_required`는 지금처럼 run만 센다. sign-out·교체의 drain은 lease가 0이 될 때까지 기다리는데 `stopRuns`(`app/src/main/index.ts`)는 대화만 멈추므로, `stopRuns` 배선에 그 provider의 MCP 시도 취소를 더한다. 진행 중인 MCP 시도는 sign-out·교체가 시작되면 취소되고, 취소는 알리지 않는다. sign-out 순서에 "그 provider의 Doan 커넥터 전부 MCP 로그아웃"을 provider logout 앞에 더한다. sign-out은 writer slot 안에서 돌고 `admit()`가 `busy`를 돌려주므로, MCP 로그아웃은 lease 경로가 아니라 manager 내부 실행으로 한다. MCP 로그아웃이 실패해도 sign-out은 진행한다. 실패한 것은 교체 때와 같은 '미뤄 둔 로그아웃'으로 `mcp-connectors.json`에 기록하고 다음 시작 때 다시 시도하며, 그동안 그 커넥터의 연결을 막는다(아래 '계정 교체'). `doan-*` 등록은 남긴다. 인증 링크는 기존 `BROWSER` hook·링크 파일·소유 창 규칙을 재사용한다. 단, 기존 `claudeLink`(`agentAuth/providers.ts`)는 `https://claude.com/cai/oauth/authorize`만 통과시키므로, MCP 링크는 새 순수 함수 `mcpAuthLink`로 검증한다(ARCHITECTURE §7: main이 모든 URL을 고정한다).
+- **conversation (Codex)**: app-server가 MCP 설정을 시작할 때만 읽는지 PoC로 확인한다(task P2). 그렇다면 커넥터가 바뀐 provider의 idle app-server를 다음 턴 전에 다시 띄운다. 턴 시작 전에는 Doan 커넥터 서버 가운데 `Connected`인 서버만 `mcpServer/startupStatus/updated`를 기다린다(상한 있음, 넘으면 그 서버 없이 시작하고 대화에 알림 한 줄). 등록만 되고 토큰이 없는 서버까지 기다리면 매 턴 상한까지 멈추기 때문이다. 이 알림은 서버 단위라 `threadId`/`turnId`로 거르는 transport 리듀서(`conversation/transport.ts`)가 버리므로, `thread/start`와 `turn/start` 사이의 runner(`conversation/runners.ts`)에서 받는다. 재사용되는 app-server는 이미 받은 상태를 누적해 판정한다. 상한 초과 알림은 기존 대화 이벤트 `activity`의 `kind: "other"`(`conversation/types.ts`)로 남기고 문구는 "<Notion> wasn’t ready, so this turn started without it."이다. 새 이벤트 타입을 만들지 않으므로 history 포맷은 바뀌지 않는다. Claude는 턴마다 SDK를 새로 띄우고 `settingSources`에 `user`가 있어 바꿀 것이 없다.
+- **IPC (`app/src/main/mcpConnectors/ipc.ts`, preload)**: 기존 `agent-auth:*`와 같은 kebab 접두어로 `mcp-connectors:list`, `:add`, `:connect`, `:disconnect`, `:remove`, `:cancel`, `:open-link`(링크 다시 열기. 창은 URL을 지정하지 못하고 main이 가진 링크만 연다), 이벤트 `:changed`(상태와 소유 창에 보낼 링크 포함). 채널은 `app/src/main/senderAllowed.ts`의 명시 allowlist에 더한다. 경계는 Settings IPC와 같다(메인 창의 main frame만, 입력 검증, 실패는 `{error: code}`).
+- **renderer**: `settingsSections.ts`에 `"mcp"`(target은 `{section:"mcp"}`만. 커넥터·provider 단위 target은 쓰는 곳이 생길 때 더한다), `SettingsMcpConnectors.tsx`(새 카테고리). 행·상태·동작은 Settings > Agents 행과 같은 프리미티브와 문구 규칙을 쓴다.
 - **CLI(Go)·skills·shared formats·app socket**: 바뀌지 않는다.
 
 ## pty: node-pty
@@ -24,23 +24,30 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 - 의존성 추가: `npm --prefix app install --save-exact node-pty@<version>`(AGENTS.md 'Commands'). 버전은 Electron 45에서 빌드되는 최신 안정판으로 task에서 정한다.
 - 번들 제약: main은 의존성을 번들한다(`externalizeDeps: false`, ARCHITECTURE §7 'Setup'). 네이티브 `.node` 바이너리는 번들할 수 없으므로 node-pty만 외부화하고, electron-builder에서 `asarUnpack`과 Electron ABI 재빌드가 필요하다. 패키지 앱에서 서명(ad-hoc tester build 포함)과 실행을 확인한다.
 - pty 출력은 TTY 제어 문자가 섞이므로 링크는 출력이 아니라 `BROWSER` hook의 링크 파일로만 받는다. 출력은 실패 진단(마지막 일부)으로만 쓴다.
-- pty 프로세스도 Doan이 띄운 프로세스 그룹으로 정리한다(ARCHITECTURE §7 'Quit and process cleanup').
+- pty 프로세스도 Doan이 띄운 프로세스 그룹으로 정리한다(ARCHITECTURE §7 'Quit and process cleanup'). node-pty `kill()`은 pid 하나에만 신호를 보내므로 `OwnedGroup(pty.pid)`로 그룹 전체를 정리하고, forkpty의 setsid로 pid가 그룹 리더라는 사실을 테스트로 고정한다. 종료는 `onExit` 뒤 그룹 liveness를 확인해 판정한다(POSTMORTEM 2026-10-27 'SDK process death reached failure classification before group release').
 
 ## 이름 규칙
 
-- provider에 등록하는 서버 이름은 `doan-<slug>`다. 프리셋은 고정 slug(`notion`, `atlassian`, `figma`), URL 추가는 호스트에서 만든 slug에 겹치면 `-2`, `-3`을 붙인다.
+- provider에 등록하는 서버 이름은 `doan-<slug>`다. 프리셋은 고정 slug(`notion`, `atlassian`, `figma`), URL 추가는 호스트에서 만든 slug다. slug는 `[a-z0-9-]`만 쓰고 길이 상한을 둔다(`mcp__doan-<slug>__<tool>`이 provider의 도구 이름 상한을 넘지 않게. 상한 값은 P1에서 확인한다). 같은 프리셋과 같은 URL은 다시 추가할 수 없다. URL은 다르고 slug만 겹치면 `-2`, `-3`을 붙인다.
 - 이유: Codex 키체인 계정이 `<name>|<URL 해시>`이고 해시가 URL에서만 나온다(PoC). 터미널 Codex의 `notion`과 이름이 같으면 같은 키체인 항목을 공유하게 되어, Doan의 해제·삭제·sign-out이 터미널 토큰을 지운다. `doan-` 접두어로 갈라 둔다. Claude는 토큰이 프로필 키체인 항목 안에 있어 충돌하지 않지만 규칙을 하나로 둔다.
 - 에이전트가 보는 도구 이름은 Claude `mcp__doan-notion__…`, Codex `mcp__doan_notion__…`가 된다.
+
+## 등록 정합
+
+- 첫 연결을 취소하거나 실패해도 provider 등록(Codex `mcp add`가 남긴 것 포함)은 남기고 `Not connected`(등록됨+인증 필요)로 본다.
+- 쓰기 순서: 추가는 `mcp-connectors.json` 먼저, provider 등록은 그다음이다. 삭제는 준비된 provider마다 logout 다음 remove를 하고(Codex `mcp logout`은 `config.toml`의 URL로 키체인 키를 만들기 때문에 순서가 바뀌면 토큰이 남는다), 그 뒤 파일에서 지운다.
+- reconcile: provider가 준비될 때(앱 시작, sign-in 끝, 교체 commit)마다 그 프로필에서 파일에 없는 `doan-*` 등록을 logout·remove하고, 파일에 있는데 등록이 없는 커넥터는 다시 등록한다(상태는 `Not connected` 또는 `Reconnect needed`). Doan 연결이 없는 provider에서 Remove한 커넥터도 이 단계에서 지워진다. `doan-` 접두어는 Doan이 만든 것이므로 지워도 터미널 설정에 닿지 않는다.
 
 ## 상태 판정
 
 에이전트별 상태는 다음 사실에서 순수 함수로 정한다.
 
 1. provider 준비 상태(`readiness()`): Doan 연결이 없거나 실행할 수 없으면 커넥터 상태 대신 그 이유.
-2. 진행 중인 시도: `연결 중`(취소 가능).
-3. provider 상태 명령의 결과: 등록 안 됨 → `연결 필요`, 등록됨+인증 필요 → `다시 연결 필요`(한 번이라도 연결했던 경우) 또는 `연결 필요`, 연결됨 → `연결됨`, 명령 실패·파싱 실패 → `확인 실패`(Retry).
+2. 진행 중인 시도: `Connecting…`(취소 가능).
+3. 상태 명령을 읽는 중이고 마지막으로 읽은 값이 없음: `Checking…`(동작 비활성).
+4. provider 상태 명령의 결과: 등록 안 됨 → `Not connected`, 등록됨+인증 필요 → `Reconnect needed`(저장된 `everConnected`가 참일 때) 또는 `Not connected`, 연결됨 → `Connected`, 명령 실패·파싱 실패·시간 초과 → `Couldn’t check`(Retry).
 
-상태 명령은 네트워크를 쓴다(Claude `mcp get`은 서버 health check를 한다). 그래서 상태는 MCP Connectors 화면에 들어올 때, 시도가 끝났을 때, Retry 때만 읽고 polling하지 않는다. 에이전트 sign-in 화면처럼 마지막으로 읽은 값을 보인다.
+상태 명령은 네트워크를 쓴다(Claude `mcp get`은 서버 health check를 한다). 그래서 상태는 MCP Connectors 화면에 들어올 때, 시도가 끝났을 때, Retry 때, 그리고 그 provider의 auth 상태가 바뀌었을 때(sign-out, 만료, 교체 commit)만 읽고 polling하지 않는다. 에이전트 sign-in 화면처럼 마지막으로 읽은 값을 보인다.
 
 ## 토큰 저장 확인
 
@@ -56,6 +63,7 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 - `parseConnectorsFile(json)` / `patchConnectors(...)`: `mcp-connectors.json` 스키마(테스트가 스키마).
 - `parseClaudeMcpGet(stdout)`, `parseCodexMcpList(json)`: 상태 명령 출력 → `registered`·`auth` 사실. 픽스처는 PoC에서 받은 실제 출력.
 - `connectorState(readiness, attempt, facts, everConnected)`: 위 '상태 판정'.
+- `mcpAuthLink(raw)`: Claude MCP 인가 링크 검증. `https`, 사용자 정보·fragment 없음, `response_type=code`, `code_challenge` 있음, `redirect_uri`가 `http://localhost` 또는 `127.0.0.1`의 1024–65535 포트 `/callback`, 길이 상한. 픽스처는 PoC 링크다.
 - `codexStartupGate(events, names, elapsed)`: 턴 시작 여부(`wait` / `start` / `start_without(names)`).
 - `plaintextLeftovers(provider, files)`: 지워야 할 평문 파일.
 - `parseSettingsSection`: `"mcp"` 추가.
@@ -77,7 +85,7 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 - **의존성 추가**: node-pty는 사용자 승인으로 들인다(위 'pty: node-pty'). main 번들 규칙의 예외가 하나 생기므로 ARCHITECTURE §7 'Setup'에 이유와 함께 적는다.
 - **프로세스 정리**(ARCHITECTURE §7 'Quit and process cleanup'): node-pty가 만든 pty 아래의 `claude` 프로세스도 Doan이 띄운 분리 그룹으로 다룬다. 종료 시 시도는 취소되고 결과를 쓰지 않는다.
 - **대화는 sign-in을 제공하지 않는다**(PRODUCT §3 In scope 7): MCP 연결도 설정에서만 한다.
-- PRODUCT §3에 이 기능이 아직 없다. In scope 7(또는 새 항목)과 §5 항목 0의 Settings 카테고리 목록을 고치는 task를 마지막에 둔다.
+- PRODUCT §1·§3에 이 기능이 아직 없다(범위 확장은 사용자가 승인함). §1 Problem(spec '문제'), §3 In scope 7(또는 새 항목), §5 항목 0의 Settings 카테고리 목록을 고치는 task를 마지막에 둔다.
 
 ## POSTMORTEM에서 가져온 함정
 
@@ -88,9 +96,10 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 
 ## 계정 교체 (사용자 결정: 등록만 옮기고 다시 연결)
 
-- 교체가 commit된 뒤에만 움직인다. 새 프로필에 `doan-*` 서버를 다시 등록하고(Codex는 `mcp add`가 OAuth를 시작하므로 등록은 `config.toml`에 provider 명령 대신 같은 내용을 쓰는 방법이 필요한지 P4에서 확인), 상태는 `다시 연결 필요`로 둔다.
+- staging 프로필을 쓰는 provider는 `loginClears`인 Codex뿐이다(`agentAuth/manager.ts`, `providers.ts`). Claude 교체는 live 프로필에서 일어나므로 `doan-*` 등록은 그대로 남는다. Claude MCP 토큰이 같은 프로필의 `auth login` 뒤에도 남는지는 P4에서 확인한다. 남으면 교체 commit 뒤 live 프로필에서 `claude mcp logout doan-*`를 실행하고 상태를 `Reconnect needed`로 둔다.
+- 아래는 Codex 경로다. 교체가 commit된 뒤에만 움직인다. 새 프로필에 `doan-*` 서버를 다시 등록하고(Codex는 `mcp add`가 OAuth를 시작하므로 등록은 `config.toml`에 provider 명령 대신 같은 내용을 쓰는 방법이 필요한지 P4에서 확인), 상태는 `다시 연결 필요`로 둔다.
 - Codex 키체인 항목은 프로필이 아니라 `<name>|<URL 해시>`로 정해지므로, 그대로 두면 새 계정이 이전 계정의 MCP 토큰을 쓴다. 그래서 교체 commit 직후, 기존 프로필이 logout되기 전에 그 프로필로 `codex mcp logout doan-*`를 먼저 실행한다. Claude 토큰은 기존 프로필의 키체인 항목과 함께 사라지는지 P4에서 확인한다.
-- 이 정리가 실패하면 기존 프로필 정리(`cleanup.json`)와 같은 방식으로 기록하고 다음 시작 때 다시 시도한다. 그동안 새 프로필의 커넥터는 `다시 연결 필요`로 두고 연결을 막지 않는다. 막을지 여부는 P4 결과로 다시 본다.
+- 이 정리가 실패하면 미뤄 둔 로그아웃을 `mcp-connectors.json`에 기록하고(`cleanup.json` 포맷은 바꾸지 않는다) 다음 시작 때 다시 시도한다. 키체인 키가 프로필과 무관하므로, 그사이 새 계정으로 연결하면 미뤄 둔 재시도가 새 토큰을 지운다. 그래서 기록이 남아 있는 동안 그 커넥터의 Codex 연결을 막는다. 행에는 "Doan is still disconnecting the previous account. Try again later."를 보이고, Connect를 누르면 재시도를 먼저 한 번 돌린 뒤 성공했을 때만 연결을 시작한다.
 - 2026-10-30 'Packaged-app probes failed…: keychain…': 실제 앱 확인(runtime-test)은 격리 HOME에 `Library/Keychains` 링크가 필요하고, 끝나면 만든 항목을 지운다.
 
 ## PoC 의존 (구현 전에 확인)
@@ -98,9 +107,8 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 - **P1. 상태 읽기와 토큰 파일**: `claude mcp get`의 출력 형태(JSON 옵션이 없음), `codex mcp list --json`에 인증 상태가 들어 있는지, Codex keyring 강제 시 프로필에 MCP 토큰 파일이 생기지 않는지.
 - **P2. Codex app-server의 설정 재읽기와 준비 이벤트**: 실행 중인 app-server가 새로 등록된 서버를 다음 `thread/start`에서 읽는지, 아니면 재시작이 필요한지. `mcpServer/startupStatus/updated`의 형태와 Doan이 턴 전에 기다릴 수 있는지.
 - **P3. 프리셋 URL**: Atlassian과 Figma 원격 MCP가 Claude Code·Codex의 CIMD client를 받아 주는지. 통과한 것만 프리셋에 넣는다.
-- **P4. sign-out과 교체**: `claude auth logout`이 프로필 키체인 항목의 MCP 토큰도 지우는지. Codex의 `<name>|<URL 해시>` 항목이 교체된 프로필에서도 그대로 쓰이는지.
+- **P4. sign-out과 교체**: `claude auth logout`이 프로필 키체인 항목의 MCP 토큰도 지우는지. 같은 프로필에서 `claude auth login`(교체)을 한 뒤 MCP 토큰이 남는지. Codex의 `<name>|<URL 해시>` 항목이 교체된 프로필에서도 그대로 쓰이는지.
 
-## 범위 밖에서 함께 발견한 것 (BACKLOG 후보, 이 feature가 고치지 않음)
+## 범위 밖에서 함께 발견한 것 (이 feature가 고치지 않음)
 
-- Antigravity 대화 중 실제 `~/.gemini/antigravity-cli`에 language server 로그가 생기고 실제 키체인 항목 `gemini | antigravity`가 수정됐다(2026-11-03 13:35, 격리 HOME 실행 중). 원인 미확인.
-- Antigravity 에이전트가 셸 도구로 다른 provider 프로필(`profiles/claude/projects/…jsonl`)을 읽었다. 모든 프로필이 같은 userData 아래에 있어 대화 기록이 provider 사이에 노출된다.
+PoC 중 발견한 Antigravity의 실제 `~/.gemini`·키체인 수정과 provider 사이 프로필 노출은 이미 `docs/BACKLOG.md`에 기록되어 있다.
