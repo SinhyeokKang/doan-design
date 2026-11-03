@@ -74,6 +74,13 @@ export function joined(items: readonly DraftParts[]): DraftParts {
   return { text: words.text, anchors: words.anchors, attachments: items.flatMap(item => item.attachments) };
 }
 
+// The conversations among ids the index does not hold: drafts a deletion left when the app ended before it discarded
+// them. Compared without case, as store.ts orphanHistories; an entry under a malformed id is no conversation's and stays.
+export function orphanDrafts(ids: readonly string[], indexIds: readonly string[]): string[] {
+  const held = new Set(indexIds.map(id => id.toLowerCase()));
+  return ids.filter(id => validId(id) && !held.has(id.toLowerCase()));
+}
+
 // The input queue and the drafts it hands back, per conversation, in <userData>/conversations/drafts.json. Every change
 // is written at once (temporary file and rename); at the next start the queued messages become drafts and never go out
 // by themselves. A file that is not a drafts file is kept for diagnosis: nothing more is queued, and returned drafts
@@ -180,6 +187,18 @@ export class DraftStore {
     delete this.file.returned[id];
     try { this.write(); } catch (error) { this.file.returned[id] = draft; throw error; }
     return draft;
+  }
+  // Every conversation the file holds, entries it could not read included.
+  ids(): string[] {
+    return [...new Set([this.file.queued, this.file.returned, this.unread.queued, this.unread.returned].flatMap(Object.keys))];
+  }
+  // A deleted conversation's queue and returned draft go with it, unread entries and items on their way out included
+  // (a deletion waits for the turn to end, so none should be left). Never throws: the deletion is already committed.
+  discard(id: string): void {
+    const maps = [this.file.queued, this.file.returned, this.unread.queued, this.unread.returned];
+    if (!maps.some(map => Object.hasOwn(map, id))) return;
+    for (const map of maps) delete map[id];
+    this.save();
   }
   private merge(id: string, draft: DraftParts, reason: string): void {
     const earlier = this.file.returned[id];

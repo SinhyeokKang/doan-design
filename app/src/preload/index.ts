@@ -122,6 +122,10 @@ const api = {
   // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  // Deletes Doan's record of the conversation on this device (index entry, history, queue and returned draft); the
+  // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
+  // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
+  deleteConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:delete", request),
   // One summary per conversation main keeps for this project, current and archived; a row whose history cannot be
   // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
   // working: main still works on it (preparing, running, waiting for an answer, judging its turn, about to send its

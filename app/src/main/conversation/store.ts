@@ -187,18 +187,23 @@ export class ConversationStore {
     this.removeOrphans();
   }
   // After recovery no uncommitted start's log is left, so a history the index does not hold is one a deletion left
-  // behind (delete). Only an index that exists and reads counts: a missing or unreadable one is not an empty list, and
-  // treating it as one would remove every history. Links and anything but a regular file stay.
+  // behind (delete). Only an index that exists and reads counts (indexedIds): a missing or unreadable one is not an
+  // empty list, and treating it as one would remove every history. Links and anything but a regular file stay.
   private removeOrphans(): void {
-    let text: string;
-    try { text = readRegular(join(this.directory, "index.json")); } catch { return; }
-    const read = parseIndex(text); if (!read.ok) return;
+    const indexed = this.indexedIds(); if (!indexed) return;
     let names: string[];
     try { names = readdirSync(this.directory); } catch (error) { console.error("doan: conversation directory unreadable; orphan histories kept", error); return; }
-    for (const name of orphanHistories(names, read.entries.map(m => m.conversationId))) {
+    for (const name of orphanHistories(names, indexed)) {
       const path = join(this.directory, name);
       try { if (lstatSync(path).isFile()) unlinkSync(path); } catch (error) { console.error("doan: orphan conversation history left for the next start", error); }
     }
+  }
+  // The ids of an index.json that exists and reads, for orphan cleanup; null otherwise. Never throws.
+  indexedIds(): string[] | null {
+    let text: string;
+    try { text = readRegular(join(this.directory, "index.json")); } catch { return null; }
+    const read = parseIndex(text);
+    return read.ok ? read.entries.map(m => m.conversationId) : null;
   }
   list(): ConversationMetadata[] {
     if (!this.accepting) this.recover();
