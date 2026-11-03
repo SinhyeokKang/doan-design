@@ -28,6 +28,8 @@ const mainOnly = new Set([
   "setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
   "config:read", "config:write", "config:choose",
+  // canvas-row-menu: the sidebar's canvas row menu; Show in Finder takes only an id main gave for a file it wrote.
+  "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",
 ]);
 
 // The caller must first identify a registered window and check its main frame.

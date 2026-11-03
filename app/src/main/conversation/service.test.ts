@@ -353,6 +353,33 @@ it("binds a new canvas at the first folder refresh after the turn ends, never wh
   // Judged: another project conversation may start at once, inside what used to be the window.
   await h.service.start(homeRequest);
 });
+// canvas-row-menu: Move to Trash reads an unjudged project turn's grounds.
+it("hands out a project turn's edits and changed paths while it runs and within the binding window, and none after its judgement", async () => {
+  const h = homeFixture();
+  const id = (await h.service.start(homeRequest)).conversationId;
+  expect(h.service.projectEvidence("/repo")).toEqual([{ edits: [], changed: [] }]);
+  h.service.receive(id, { type: "activity", kind: "edit", summary: "Edit", path: "/repo/.doan/canvases/a.html" });
+  h.service.refreshed("/repo", [".doan/canvases/b.html"]);
+  const running = h.service.projectEvidence("/repo");
+  expect(running).toEqual([{ edits: ["/repo/.doan/canvases/a.html"], changed: [".doan/canvases/b.html"] }]);
+  // Copies: a caller cannot change the grounds.
+  running[0]!.edits.push("/repo/x.html");
+  expect(h.service.projectEvidence("/repo")[0]!.edits).toEqual(["/repo/.doan/canvases/a.html"]);
+  // Exactly the root: another worktree's path is another root.
+  expect(h.service.projectEvidence("/repo-wt")).toEqual([]);
+  expect(h.service.projectEvidence("/rep")).toEqual([]);
+  h.service.receive(id, { type: "turn.done" });
+  expect(h.service.projectEvidence("/repo")).toEqual([{ edits: ["/repo/.doan/canvases/a.html"], changed: [".doan/canvases/b.html"] }]);
+  h.service.refreshed("/repo", []);
+  expect(h.service.projectEvidence("/repo")).toEqual([]);
+});
+it("hands out no grounds for a turn whose binding window passed before its judgement ran", async () => {
+  const h = homeFixture();
+  const id = (await h.service.start(homeRequest)).conversationId;
+  h.service.receive(id, { type: "turn.done" });
+  h.passBindingWindow();
+  expect(h.service.projectEvidence("/repo")).toEqual([]);
+});
 it("never lets a turn judged without a canvas take a canvas made later", async () => {
   const h = homeFixture();
   const id = (await h.service.start(homeRequest)).conversationId;

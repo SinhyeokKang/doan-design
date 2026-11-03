@@ -1447,6 +1447,54 @@ describe("a canvas moved with the same id", () => {
   });
 });
 
+// canvas-row-menu: a canvas moved to the Trash is not followed to the one other canvas sharing its id.
+describe("a canvas moved to the Trash", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  function trashHarness() {
+    const h = selectionHarness();
+    const twin = { ...h.row, path: ".doan/canvases/twin.html", url: "http://localhost/t/k/f/.doan/canvases/twin.html" };
+    const removed = vi.fn(), followed = vi.fn();
+    h.controller.canvasRemoved = removed;
+    h.controller.canvasMoved = followed;
+    const list = (...canvases: object[]) => [{ path: "/repo", kind: "list" as const, servedRev: 0, canvases }] as FolderEntry[];
+    return { ...h, twin, removed, followed, list };
+  }
+
+  it("closes the open canvas as trashed, not removed or moved, while another canvas shares its id", () => {
+    const h = trashHarness();
+    try {
+      h.controller.updateEntries(h.list(h.row, h.twin, h.other));
+      h.controller.trash.begin("/repo", h.row.path);
+      h.controller.updateEntries(h.list(h.twin, h.other));
+      expect(h.followed).not.toHaveBeenCalled();
+      expect(h.removed).not.toHaveBeenCalled();
+      expect(h.state()).toMatchObject({ open: null, selection: null });
+      // Used once: the mark is gone with the row.
+      expect(h.controller.trash.has("/repo", h.row.path)).toBe(false);
+    } finally { h.controller.dispose(); }
+  });
+
+  it("sweeps a mark for a canvas that was not open", () => {
+    const h = trashHarness();
+    try {
+      h.controller.trash.begin("/repo", h.other.path);
+      h.controller.updateEntries(h.list(h.row));
+      expect(h.controller.trash.has("/repo", h.other.path)).toBe(false);
+      expect(h.state()).toMatchObject({ open: { canvas: h.row.path } });
+    } finally { h.controller.dispose(); }
+  });
+
+  it("follows the twin again once a refused reply lifted the mark", () => {
+    const h = trashHarness();
+    try {
+      h.controller.updateEntries(h.list(h.row, h.twin, h.other));
+      h.controller.trash.settle(h.controller.trash.begin("/repo", h.row.path), "refused");
+      h.controller.updateEntries(h.list(h.twin, h.other));
+      expect(h.followed).toHaveBeenCalledOnce();
+    } finally { h.controller.dispose(); }
+  });
+});
+
 describe("Activity", () => {
   function activityHarness() {
     const h = selectionHarness();

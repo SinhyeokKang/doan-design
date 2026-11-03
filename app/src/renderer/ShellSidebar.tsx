@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { DropdownMenu } from "radix-ui";
-import { Bell, Bot, Check, ChevronDown, CircleMinus, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook } from "lucide-react";
+import { Bell, Bot, Check, ChevronDown, CircleMinus, Download, Ellipsis, FolderOpen, GitBranch, Hand, House, Info, LayoutGrid, PanelsTopLeft, Search, Settings, SwatchBook, Trash2 } from "lucide-react";
 import type { CanvasRow } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 import { cardRow, ROW_ACTION_LABELS as labels, type HomeCard, type RowAction } from "./homeCards";
@@ -12,6 +12,7 @@ import { ResizeHandle } from "./ConversationPanel";
 import type { PanelBounds } from "./rightPanelSize";
 import { displayPath } from "./projectDisplay";
 import { slotKey } from "./homeConversations";
+import { canvasStem } from "./canvasRowMessages";
 import type { SidebarSlot as Slot } from "./canvasNotice";
 import { SETTINGS_SECTIONS, type SettingsSection } from "./settingsSections";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
@@ -55,6 +56,41 @@ interface Props {
   // The Settings page: the project tree gives way to its categories, a plain list of buttons (buzz-settings design
   // 'LNB'). Choosing one leaves focus on its row.
   settings?: { section: SettingsSection; select(section: SettingsSection): void };
+  canvasMenu: CanvasMenu;
+}
+// A canvas row's menu (canvas-row-menu design '행 버튼과 메뉴'). `blocked`: an agent works on the canvas (trashBlock),
+// so Move to Trash is unavailable; `exporting`: that canvas's export is running. `trash` gets the row's button, where
+// focus goes back when the dialog closes.
+export interface CanvasMenu {
+  blocked(root: string, row: CanvasRow): boolean;
+  exporting(root: string, path: string): boolean;
+  exportCanvas(root: string, row: CanvasRow): void;
+  trash(root: string, row: CanvasRow, button: HTMLElement | null): void;
+}
+// One open menu at a time; a canvas menu's key is its row's `root\npath`.
+export type OpenMenu = { kind: "project" | "canvas"; key: string };
+export interface TreeRow { key: string; parent?: string; canvas?: boolean }
+// The menu a list change or a lock closes, by kind: the project menu's root left its card, the canvas menu's row left
+// the tree or the page locked (POSTMORTEM 2026-11-01: a popup whose trigger turns unavailable closes its own state).
+// A canvas menu is never judged by the project rule, which would close it as soon as it opened.
+export function staleMenu(menu: OpenMenu | null, cards: readonly HomeCard[], menuRoot: string | null, rows: readonly TreeRow[], locked: boolean): boolean {
+  if (menu?.kind === "project") return !cards.some(card => card.key === menu.key && card.rows.some(row => row.path === menuRoot));
+  if (menu?.kind === "canvas") return locked || !rows.some(row => row.key === menu.key);
+  return false;
+}
+// Where focus goes when the focused row leaves the tree. A canvas row hands it to the next row of its group, else the
+// previous one, else the group's head, so a removed canvas row's focus stays in its group (canvas-row-menu design
+// '삭제 뒤 화면'). Any other row: the row now at its place.
+export function recoveryKey(previous: readonly TreeRow[], current: readonly TreeRow[], lost: string): string | undefined {
+  const index = previous.findIndex(row => row.key === lost);
+  const parent = previous[index]?.parent;
+  const kept = (row: TreeRow) => row.parent === parent && current.some(item => item.key === row.key);
+  if (previous[index]?.canvas && parent !== undefined) {
+    const target = previous.slice(index + 1).find(kept) ?? previous.slice(0, index).reverse().find(kept);
+    if (target) return target.key;
+    if (current.some(row => row.key === parent)) return parent;
+  }
+  return current[Math.min(Math.max(0, index), current.length - 1)]?.key;
 }
 const SECTION_ICONS: Record<SettingsSection, typeof Bot> = { agents: Bot, notifications: Bell, about: Info };
 const RANK: Record<Slot["kind"], number> = { permission: 3, working: 2, unseen: 1, canvas: 0 };
@@ -80,6 +116,43 @@ function SlotMark({ slot }: { slot: Slot | undefined }) {
   // A canvas notice is the unseen dot itself (canvas-viewport-units D9); only its label differs.
   return <span className={`row-slot ${slot.kind === "canvas" ? "unseen" : slot.kind}`} role="img" aria-label={slot.label}>{slot.kind === "permission" ? <Hand aria-hidden="true" /> : slot.kind === "working" ? <span className="doan-spinner" aria-hidden="true" /> : <i />}</span>;
 }
+interface RowMenu {
+  menu: CanvasMenu; root: string; row: CanvasRow; name: string; reasonId: string; open: boolean; locked: boolean; tabIndex: number;
+  setOpen(open: boolean): void;
+  rowNode(): HTMLElement | undefined;
+  // The row as the list holds it now: an item chosen for a row that left the list does nothing.
+  current(): CanvasRow | undefined;
+  // Focus for a menu whose row left the tree while it was open.
+  lostFocus(): void;
+}
+// A canvas row's button and menu (canvas-row-menu design '행 버튼과 메뉴'), drawn inline so the row's own tree holds
+// it. Unavailable items keep `aria-disabled`, not Radix `disabled`, so arrows still reach them and their reason line
+// is read through `aria-describedby` (DESIGN 'Locked Back'); their name is the label alone, so the reason is read once. While the page is locked the button is unavailable too:
+// unlike the project menu, nothing in this one works then.
+function canvasRowMenu(args: RowMenu): ReactElement {
+  const { menu, root, row, locked } = args;
+  const exportReason = row.error ? "Can’t read this canvas." : menu.exporting(root, row.path) ? "Exporting…" : null;
+  const trashReason = menu.blocked(root, row) ? "An agent is working on this canvas." : null;
+  const item = (label: string, Icon: typeof Download, reason: string | null, id: string, act: (current: CanvasRow) => void) =>
+    <DropdownMenu.Item className={`doan-menu-item${reason ? " shell-menu-reasoned" : ""}`} aria-label={reason ? label : undefined} aria-disabled={reason ? true : undefined} aria-describedby={reason ? id : undefined} onSelect={event => {
+      if (reason) { event.preventDefault(); return; }
+      const current = args.current();
+      if (current) act(current);
+    }}><Icon aria-hidden="true" />{reason ? <span className="shell-menu-text"><span>{label}</span><small id={id} className="shell-menu-reason">{reason}</small></span> : label}</DropdownMenu.Item>;
+  return <DropdownMenu.Root open={args.open} onOpenChange={open => { if (!open || !locked) args.setOpen(open); }}>
+    <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${args.name} menu`} aria-disabled={locked || undefined} tabIndex={args.tabIndex} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
+    <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-canvas-menu shell-side-menu" data-ui-size="compact" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
+      // A dialog the menu opened owns focus (App returns it to this button when it closes), as does a control focus
+      // already moved to (POSTMORTEM 2026-10-30: a dialog is found by its rendered element, not a styling class).
+      const active = document.activeElement;
+      if (document.querySelector('[role="dialog"], dialog[open], .ob-overlay') || (active instanceof HTMLElement && active !== document.body && !active.closest(".shell-canvas-menu, .shell-more"))) event.preventDefault();
+      else if (!args.rowNode()) { event.preventDefault(); if (document.activeElement === document.body || document.activeElement?.closest(".shell-canvas-menu")) args.lostFocus(); }
+    }}>
+      {item("Export…", Download, exportReason, `${args.reasonId}-export`, current => menu.exportCanvas(root, current))}
+      {item("Move to Trash", Trash2, trashReason, `${args.reasonId}-trash`, current => menu.trash(root, current, args.rowNode()?.querySelector<HTMLElement>(".shell-more") ?? null))}
+    </DropdownMenu.Content></DropdownMenu.Portal>
+  </DropdownMenu.Root>;
+}
 // Canvas paths start with `.doan/`, so a head's key never equals a canvas row's.
 const headKey = (root: string, group: GroupId) => `${root}\n#${group}`;
 export function ShellSidebar(props: Props) {
@@ -88,17 +161,19 @@ export function ShellSidebar(props: Props) {
   const host = useRef<HTMLElement>(null);
   const search = useRef<HTMLButtonElement>(null);
   const [focused, setFocused] = useState("");
-  const [menu, setMenu] = useState<string | null>(null);
+  const [menu, setMenu] = useState<OpenMenu | null>(null);
   const [repairRoot, setRepairRoot] = useState<string | null>(null);
   const menuIndex = useRef(0);
   const menuRoot = useRef<string | null>(null);
+  // Where a canvas menu's focus goes when its row left the tree while it was open.
+  const canvasMenuFocus = useRef<string | undefined>(undefined);
   const ownedFocus = useRef<string | null>(null);
-  const previousKeys = useRef<string[]>([]);
+  const previousRows = useRef<TreeRow[]>([]);
   const previousProjects = useRef<string[]>([]);
   const elements = useRef(new Map<string, HTMLElement>());
   const buffer = useRef({ text: "", at: 0 });
   const live = useRef(props); live.current = props;
-  const rows: { key: string; parent?: string; name: string; activate(): void; right(): void; left(): void }[] = [];
+  const rows: { key: string; parent?: string; canvas?: boolean; name: string; activate(): void; right(): void; left(): void }[] = [];
   // Each listed, expanded project's groups and visible rows, built once for both the keyboard order and the render.
   const layouts = new Map<string, { groups: SidebarGroup[]; items: SidebarItem[]; slot: { key: string; slot: Slot } | undefined }>();
   const focus = (key: string | undefined) => {
@@ -111,7 +186,7 @@ export function ShellSidebar(props: Props) {
     focus(next?.key);
   };
   useLayoutEffect(() => {
-    if (menu && !cards.some(card => card.key === menu && card.rows.some(row => row.path === menuRoot.current))) {
+    if (menu?.kind === "project" && staleMenu(menu, cards, menuRoot.current, [], false)) {
       setMenu(null);
       if (document.activeElement === document.body || document.activeElement?.closest(".shell-project-menu")) fallback();
     }
@@ -155,21 +230,26 @@ export function ShellSidebar(props: Props) {
         rows.push({ key: head, parent: card.key, name: group.label, activate: () => props.toggleGroup(card.key, group.id), right: () => step("ArrowRight"), left: () => step("ArrowLeft") });
       } else {
         const row = item.row;
-        rows.push({ key: `${root}\n${row.path}`, parent: head, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => props.open(entry!.path, row), right: () => {}, left: () => focus(head) });
+        rows.push({ key: `${root}\n${row.path}`, parent: head, canvas: true, name: row.path.split("/").at(-1)!.replace(/\.html$/, ""), activate: () => props.open(entry!.path, row), right: () => {}, left: () => focus(head) });
       }
     }
   }
+  // Before the recovery below, which moves `previousRows` on: the place the vanished row had is read from them.
+  useLayoutEffect(() => {
+    if (menu?.kind !== "canvas" || !staleMenu(menu, cards, null, rows, !!props.locked)) return;
+    canvasMenuFocus.current = rows.some(row => row.key === menu.key) ? undefined : recoveryKey(previousRows.current, rows, menu.key);
+    setMenu(null);
+  });
   useLayoutEffect(() => {
     const lost = ownedFocus.current;
     if (lost && !rows.some(row => row.key === lost) && !document.querySelector('[role="dialog"], dialog[open]')) {
       const projectIndex = previousProjects.current.indexOf(lost);
-      const index = previousKeys.current.indexOf(lost);
-      const target = projectIndex >= 0 ? cards[Math.min(projectIndex, cards.length - 1)]?.key : rows[Math.min(Math.max(0, index), rows.length - 1)]?.key;
+      const target = projectIndex >= 0 ? cards[Math.min(projectIndex, cards.length - 1)]?.key : recoveryKey(previousRows.current, rows, lost);
       if (document.activeElement === document.body || !document.activeElement?.isConnected) focus(target);
       ownedFocus.current = null;
     }
     if (lost && rows.some(row => row.key === lost)) ownedFocus.current = null;
-    previousKeys.current = rows.map(row => row.key);
+    previousRows.current = rows.map(row => ({ key: row.key, ...(row.parent !== undefined ? { parent: row.parent } : {}), ...(row.canvas ? { canvas: true } : {}) }));
     previousProjects.current = cards.map(card => card.key);
   });
   const rowRef = (key: string) => (node: HTMLDivElement | null) => {
@@ -207,7 +287,8 @@ export function ShellSidebar(props: Props) {
         const layout = layouts.get(card.key) ?? { groups: [], items: [], slot: undefined };
         const notice = noticeTarget(layout.slot);
         const info = cardRow(entry, loaded, null);
-        const menuEntry = (menu === card.key && card.rows.find(row => row.path === repairRoot)) || entry;
+        const projectMenu = menu?.kind === "project" && menu.key === card.key;
+        const menuEntry = (projectMenu && card.rows.find(row => row.path === repairRoot)) || entry;
         const menuInfo = cardRow(menuEntry, loaded, null);
         const target = () => live.current.cards.find(item => item.key === card.key)?.rows.find(row => row.path === menuEntry.path);
         const run = (action: () => void) => { if (target()) action(); };
@@ -218,7 +299,7 @@ export function ShellSidebar(props: Props) {
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
             {info.chip && <span className="shell-problem">{info.chip}</span>}
             <SlotMark slot={layout.slot?.slot} />
-            <DropdownMenu.Root open={menu === card.key} onOpenChange={open => { setMenu(open ? card.key : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
+            <DropdownMenu.Root open={projectMenu} onOpenChange={open => { setMenu(open ? { kind: "project", key: card.key } : null); if (open) { setRepairRoot(null); menuIndex.current = index; menuRoot.current = entry.path; } }}>
               <DropdownMenu.Trigger asChild><button className="doan-icon-button shell-more" aria-label={`${card.name} menu`} tabIndex={active === card.key ? 0 : -1} onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}><Ellipsis aria-hidden="true" /></button></DropdownMenu.Trigger>
               <DropdownMenu.Portal><DropdownMenu.Content className="menu doan-floating doan-menu shell-project-menu shell-side-menu" sideOffset={4} collisionPadding={8} align="end" onClick={event => event.stopPropagation()} onCloseAutoFocus={event => {
                 const active = document.activeElement;
@@ -252,8 +333,12 @@ export function ShellSidebar(props: Props) {
                 <div ref={rowRef(key)} className="shell-group-head row" role="treeitem" data-key={key} aria-label={group.label} aria-describedby={countId} aria-disabled={locked} aria-level={2} aria-expanded={group.open} tabIndex={active === key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(key); }} onKeyDown={event => keyboard(event, key)} onClick={() => props.toggleGroup(card.key, group.id)}><ChevronDown aria-hidden="true" /><span className="shell-group-label">{group.label}</span><span className="doan-chip shell-group-count" data-ui-variant="translucent" aria-hidden="true">{group.rows.length}</span><span id={countId} className="sr-only">{countDescription(group.rows.length)}</span></div>
                 {group.open && <div role="group">{group.rows.length ? group.rows.map((row, canvasIndex) => {
                   const descriptionId = `${countId}-${canvasIndex}`;
-                  const key = `${entry.path}\n${row.path}`, problem = rowProblem(row);
-                  return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={row.path.split("/").at(-1)?.replace(/\.html$/, "")} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Icon aria-hidden="true" /><span>{row.path.split("/").at(-1)?.replace(/\.html$/, "")}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} /></div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
+                  const key = `${entry.path}\n${row.path}`, problem = rowProblem(row), name = canvasStem(row.path);
+                  return <div key={key}><div ref={rowRef(key)} className="shell-canvas-row row" aria-describedby={problem ? descriptionId : undefined} aria-label={name} data-key={key} role="treeitem" aria-disabled={locked} aria-level={3} aria-current={!props.home && entry.path === loaded && row.path === canvas && !props.unlisted ? "location" : undefined} tabIndex={active === key ? 0 : -1} onFocus={() => setFocused(key)} onKeyDown={event => keyboard(event, key)} onClick={() => props.open(entry.path, row)}><Icon aria-hidden="true" /><span>{name}</span><SlotMark slot={props.slots?.get(slotKey(entry.path, row.path))} />
+                    {canvasRowMenu({ menu: props.canvasMenu, root: entry.path, row, name, reasonId: descriptionId, open: menu?.kind === "canvas" && menu.key === key, locked: !!locked, tabIndex: active === key ? 0 : -1,
+                      setOpen: open => setMenu(open ? { kind: "canvas", key } : null), rowNode: () => elements.current.get(key),
+                      current: () => { const listed = live.current.cards.flatMap(item => item.rows).find(item => item.path === entry.path); return listed?.kind === "list" ? listed.canvases.find(item => item.path === row.path) : undefined; },
+                      lostFocus: () => focus(canvasMenuFocus.current) })}</div>{problem && <div id={descriptionId} className="shell-canvas-error">{problem.sentence}<ErrorDetails className="btn ghost" detail={problem.detail}>{(button, detail) => <>{button}{detail && <pre>{detail}</pre>}</>}</ErrorDetails></div>}</div>;
                 }) : <p className="shell-empty">{group.empty}</p>}</div>}
               </div>;
             }) : <p className="shell-empty">{info.chip}</p>}

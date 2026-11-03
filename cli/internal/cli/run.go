@@ -55,6 +55,8 @@ type Flags struct {
 
 	Session, Operation, Provider, Request, Path, URL, Destination, Inspection string
 	SpendCopilotRequest, Initialize                                           bool
+	Output                                                                    string
+	Force                                                                     bool
 	// Given tells an empty flag value from an absent flag.
 	Given map[string]bool
 }
@@ -74,6 +76,7 @@ const usage = `Usage: doan <command> [--repo <path>] [--json]
   work start <canvas path>
   work done [<canvas path>...]
   open <canvas path> [--frame <id>]
+  export <canvas path> -o <file> [--force]
   onboarding start
   onboarding status --session <id> [--operation <id>]
   onboarding check --session <id> --provider <id> --request <id> [--spend-copilot-request]
@@ -145,6 +148,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	fs.BoolVar(&f.SpendCopilotRequest, "spend-copilot-request", false, "")
 	fs.BoolVar(&f.Initialize, "initialize", false, "")
+	fs.StringVar(&f.Output, "o", "", "")
+	fs.BoolVar(&f.Force, "force", false, "")
 	f.Given = map[string]bool{}
 	pos, err := SplitArgs(args, fs)
 	o := Outcome{}
@@ -174,6 +179,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			allowed["agent"] = true
 		case "open":
 			allowed["frame"] = true
+		case "export":
+			allowed["o"] = true
+			allowed["force"] = true
 		case "onboarding":
 			// Onboarding takes absolute paths and never searches for a repository.
 			allowed = map[string]bool{"json": true}
@@ -255,6 +263,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 						if ctx.RuntimePath, ctx.RuntimeExplicit, failure = onboardingRuntime(); failure == nil {
 							o, failure = Open(ctx, f, pos[1:])
 						}
+					case "export":
+						o, failure = Export(ctx, f, pos[1:])
 					case "comment":
 						if len(pos) < 2 || pos[1] != "resolve" {
 							failure = usageError("Expected comment resolve")

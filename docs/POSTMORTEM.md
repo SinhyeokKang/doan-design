@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-03 — A canvas row menu closed by Esc dropped focus to the page body
+
+- **Area**: `app/src/renderer/styles.css` (canvas row `.shell-more`), `ShellSidebar.tsx`, `App.tsx`; fixed in 82649b3b on `feat/canvas-row-menu` before merge.
+- **Symptom**: closing a canvas row's menu with Esc, or choosing Export…, left focus on `<body>` instead of the row's menu button (canvas-row-menu spec: Esc returns focus to the button). Shift+Tab onto the idle button did the same.
+- **Root cause**: the row button is revealed only on hover, `:focus-within` or while its menu is open, and the idle state used `display: none`. When the menu closes, `aria-expanded` turns false and focus is in the portal, not the row, so the button is `display: none` at the moment Radix calls `focus()` on its trigger; a box-less element cannot take focus and the call silently does nothing. App's own return after a modal (`focusCurrent`, which requires a box) failed the same way, and the batch had patched only that path with a `data-held` reveal.
+- **Net**: caught by the independent review (RC2), which applied the built CSS to the row markup in Chromium. Missed by the batch's tests: they run in a DOM without the stylesheet, where every element has a box, so "focus returns to the trigger" passed.
+- **Prevention**: an element that receives focus programmatically (a menu trigger, a dialog's return target) is hidden only visually (`position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)`), never with `display: none` or `visibility: hidden`; pin the hide rule in a CSS test. Search: `rg -n 'display:\s*none' app/src/renderer/styles.css app/src/renderer/ds/*.css` and check every hit that hides a trigger, a roving-tabindex item or a focus-return target. Run on 2026-11-03: no other hit hides a focus target.
+
 ### 2026-11-03 — Locate on the Project Settings page closed the page instead of following the moved worktree
 
 - **Area**: `app/src/main/shell.ts` (`replace`), `app/src/renderer/App.tsx` (`onFolders`), `ProjectSettingsPage.tsx` (`followProjectSettings`); fixed in b26eb412 on `feat/project-settings` before merge.

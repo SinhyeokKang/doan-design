@@ -1,0 +1,257 @@
+/* The viewer page's styles. Token values and component rules are copied from the app so the page
+   needs no other file (a canvas export is one file and makes no requests): tokens from
+   app/src/renderer/tokens.css, buttons from ds/controls.css, menus and notices from
+   ds/surfaces.css, the header from styles.css (.ov-head, .doan-canvas-*). The class names are the
+   app's. Only the roles this page reads are copied, one light theme. Geist is not bundled, so the
+   type family falls back to the system stack the token already names. */
+
+:root {
+  color-scheme: light;
+  --neutral-1: #ffffff;
+  --neutral-quiet-hover: #f1f1f2;
+  --neutral-2: #f5f5f6;
+  --neutral-3: #e8e8e8;
+  --neutral-4: #dadada;
+  --neutral-7: #959595;
+  --neutral-9: #5f5f5f;
+  --neutral-10: #525252;
+  --neutral-12: #000000;
+  --neutral-standard-text: #0f0f0f;
+  --neutral-glass: rgb(255 255 255 / 90%);
+  --neutral-backdrop-hover: rgb(0 0 0 / 6%);
+  --neutral-backdrop-pressed: rgb(0 0 0 / 10%);
+
+  --font-system-sans: ui-sans-serif, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --type-family: "Geist", var(--font-system-sans);
+
+  --surface-panel: var(--neutral-1);
+  --surface-popover: var(--neutral-1);
+  --surface-elevated-glass: var(--neutral-glass);
+  --surface-inset: var(--neutral-2);
+  --text-standard: var(--neutral-standard-text);
+  --text-subtle: var(--neutral-10);
+  --text-metadata: var(--neutral-9);
+  --text-disabled: var(--neutral-7);
+  --border-standard: var(--neutral-3);
+  --border-focus: var(--neutral-12);
+  --scrollbar-thumb-quiet: color-mix(in srgb, var(--border-standard) 90%, transparent);
+  --affordance-subtle-hover: var(--neutral-quiet-hover);
+  --affordance-subtle-pressed: var(--neutral-4);
+  --affordance-backdrop-hover: var(--neutral-backdrop-hover);
+  --affordance-backdrop-pressed: var(--neutral-backdrop-pressed);
+  --affordance-floating-hover: var(--neutral-2);
+
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-1h: 6px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --size-control-sm: 32px;
+  --size-chrome: 56px;
+  --size-icon: 16px;
+  --radius-row: 16px;
+  --radius-container: 24px;
+  --radius-icon-button: 18px;
+  --radius-capsule: 34px;
+  --radius-pill: 9999px;
+  --shadow-panel: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --blur-sm: 8px;
+  --time-state: 150ms;
+  --ease-state: ease;
+
+  --type-weight-medium: 500;
+  --type-caption-size: 12px;
+  --type-caption-line-height: 16px;
+  --type-body-sm-size: 14px;
+  --type-body-sm-line-height: 20px;
+  --type-body-sm-letter-spacing: -0.0025em;
+  --type-label-sm-size: 14px;
+  --type-label-sm-line-height: 20px;
+  --type-label-sm-letter-spacing: 0.0025em;
+}
+
+*, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; border: 0 solid; }
+html, body { height: 100%; }
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-inset);
+  color: var(--text-standard);
+  font-family: var(--type-family);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  /* The app's body sets this, so the zoom percentage and frame numbers keep one width per digit. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; border-style: none; }
+svg { display: block; flex: none; }
+
+/* ── Header (styles.css .ov-head, .doan-canvas-head and friends) ─────────────── */
+.ov-head { display: flex; align-items: center; gap: var(--space-2); min-width: 0; min-height: var(--size-chrome); padding: var(--space-2) var(--space-4); }
+.doan-canvas-head { flex: none; background: var(--surface-panel); }
+.doan-canvas-name { display: inline-flex; align-items: center; gap: var(--space-1h); flex: none; max-width: 40%; min-width: 0; padding-left: var(--space-2); color: var(--text-subtle); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.doan-canvas-name svg { width: var(--size-icon); height: var(--size-icon); }
+.doan-canvas-name span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
+.ov-title-wrap { position: relative; display: flex; min-width: 0; }
+.ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
+.ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chev { width: var(--space-4); height: var(--space-4); flex: none; color: var(--text-metadata); }
+.doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
+.doan-canvas-zoom { position: relative; display: flex; align-items: center; gap: var(--space-half); }
+/* Two classes: `.doan-button` below sets min-width 0 and gap 8px, and one class would lose to it by source order. */
+.doan-canvas-zoom .doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.doan-canvas-head .doan-icon-button { color: var(--text-standard); }
+.doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
+
+/* Without JavaScript (Quick Look, a mail preview) the header is the canvas name alone: the drawer
+   and the zoom controls cannot work there. shell.js adds `js` to <html> first thing. */
+.ov-sep, .ov-title-wrap, .doan-canvas-head-tools { display: none; }
+.js .ov-sep, .js .ov-title-wrap, .js .doan-canvas-head-tools { display: flex; }
+
+/* ── Buttons (ds/controls.css) ───────────────────────────────────────────────── */
+.doan-button {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--size-control-sm);
+  padding: var(--space-1h) var(--space-4);
+  border-radius: var(--radius-capsule);
+  font-weight: var(--type-weight-medium);
+  font-size: var(--type-label-sm-size);
+  line-height: var(--type-label-sm-line-height);
+  letter-spacing: var(--type-label-sm-letter-spacing);
+  white-space: nowrap;
+}
+.doan-button[data-ui-variant="trigger"] { padding-inline: var(--space-2); }
+.doan-icon-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  border-radius: var(--radius-icon-button);
+}
+:is(.doan-button, .doan-icon-button) > svg { flex-shrink: 0; width: var(--size-icon); height: var(--size-icon); }
+:is(.doan-button, .doan-icon-button) {
+  background: transparent;
+  color: var(--text-standard);
+  cursor: pointer;
+  transition: background-color var(--time-state) var(--ease-state), color var(--time-state) var(--ease-state);
+}
+@media (hover: hover) and (pointer: fine) {
+  .doan-icon-button:hover:not(:disabled) { background: var(--affordance-subtle-hover); }
+  .doan-button[data-ui-variant="trigger"]:hover:not(:disabled) { background: var(--affordance-backdrop-hover); }
+}
+.doan-icon-button:active:not(:disabled), .doan-icon-button[aria-haspopup][aria-expanded="true"]:not(:disabled) { background: var(--affordance-subtle-pressed); }
+.doan-button[data-ui-variant="trigger"][aria-haspopup][aria-expanded="true"]:not(:disabled) { background: var(--affordance-backdrop-hover); }
+.doan-button[data-ui-variant="trigger"]:active:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+:is(.doan-button, .doan-icon-button):disabled { background: transparent; color: var(--text-disabled); cursor: not-allowed; }
+:is(.doan-button, .doan-icon-button):focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.doan-button, .doan-icon-button) { transition: none; }
+}
+
+/* ── Menus (ds/surfaces.css) ─────────────────────────────────────────────────── */
+.doan-floating {
+  color: var(--text-standard);
+  background: var(--surface-popover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-1);
+}
+.doan-floating[data-ui-size="compact"] { border-radius: var(--radius-row); padding: var(--space-half); }
+@media (prefers-reduced-transparency: no-preference) and (not (forced-colors: active)) {
+  @supports (backdrop-filter: blur(1px)) {
+    .doan-floating { background: var(--surface-elevated-glass); -webkit-backdrop-filter: blur(var(--blur-sm)); backdrop-filter: blur(var(--blur-sm)); }
+  }
+}
+@media (forced-colors: active) {
+  .doan-floating { border-color: CanvasText; }
+}
+.doan-menu {
+  overflow-y: auto;
+  max-height: min(384px, calc(100vh - 2 * var(--size-chrome)));
+  min-width: 184px;
+  max-width: min(320px, calc(100vw - var(--space-4)));
+}
+.doan-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-control-sm);
+  padding: var(--space-1h) var(--space-3);
+  border-radius: max(0px, calc(var(--radius-container) - var(--space-1) - 1px));
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  letter-spacing: var(--type-body-sm-letter-spacing);
+  color: var(--text-standard);
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  outline: none;
+}
+.doan-floating[data-ui-size="compact"] .doan-menu-item { padding: var(--space-1) var(--space-2); border-radius: max(0px, calc(var(--radius-row) - var(--space-half) - 1px)); }
+.doan-menu-item .sub { min-width: 0; overflow: hidden; color: var(--text-metadata); text-overflow: ellipsis; }
+.doan-menu-head { padding: var(--space-2) var(--space-3) var(--space-1); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.doan-menu-sep { height: 1px; margin: var(--space-1) var(--space-3); background: var(--border-standard); }
+.doan-menu-item[data-highlighted] { background: var(--affordance-floating-hover); }
+.doan-menu-item[role="option"][tabindex]:focus,
+[role="listbox"]:not(:has(:focus)) > .doan-menu-item[role="option"][tabindex]:hover { background: var(--affordance-floating-hover); }
+.doan-menu-item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.doan-menu::-webkit-scrollbar { width: var(--space-2); }
+.doan-menu::-webkit-scrollbar-thumb { border-radius: var(--radius-pill); background: var(--scrollbar-thumb-quiet); }
+.doan-menu::-webkit-scrollbar-track { margin-block: var(--radius-container); }
+.doan-menu[data-ui-size="compact"]::-webkit-scrollbar-track { margin-block: var(--radius-row); }
+
+/* Opened under its trigger; `hidden` closes it. The app uses a Radix popper, this page a plain
+   absolute box in the trigger's wrapper. */
+.doan-frame-list, .doan-zoom-menu { position: absolute; z-index: 2; top: calc(100% + var(--space-1)); }
+.doan-frame-list { left: 0; width: 320px; }
+.doan-zoom-menu { right: calc(var(--size-control-sm) + var(--space-half)); width: 184px; }
+.doan-frame-list[hidden], .doan-zoom-menu[hidden] { display: none; }
+.doan-frame-row { gap: var(--space-2); }
+.doan-frame-num { flex: none; min-width: var(--space-6); color: var(--text-metadata); font-variant-numeric: tabular-nums; }
+.doan-frame-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.doan-frame-viewing { flex: none; color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }
+.doan-frame-note { margin: var(--space-1) 0 0; padding-top: var(--space-2); border-top: 1px solid var(--border-standard); white-space: normal; }
+.doan-zoom-key { margin-left: auto; }
+
+/* ── Notice (ds/surfaces.css .doan-notice.doan-panel) ────────────────────────── */
+.doan-panel { overflow: hidden; border-radius: var(--radius-container); background: var(--surface-panel); box-shadow: var(--shadow-panel); }
+.doan-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1h);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-row);
+  background: var(--surface-panel);
+  color: var(--text-standard);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line-height);
+  overflow-wrap: anywhere;
+}
+.doan-alert-icon { flex: none; margin-block: calc((var(--type-body-sm-line-height) - var(--size-icon)) / 2); }
+
+/* ── Board ───────────────────────────────────────────────────────────────────── */
+/* The board is the app's inset grey, a native scroll container: panning is the browser's scroll,
+   zoom is a transform on the stage inside a spacer of the scaled size (shell.js). */
+.board { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--surface-inset); }
+.board:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.board iframe { display: block; border: 0; }
+/* The canvas as the CSS alone shows it: its doan:width wide, one screen high. */
+.canvas { height: 100vh; }
+.vw-noscript { position: absolute; z-index: 1; top: var(--space-4); left: var(--space-4); right: var(--space-4); }
+.js .spacer { position: relative; }
+.js .stage { position: absolute; transform-origin: 0 0; visibility: hidden; }
+.js.ready .stage { visibility: visible; }

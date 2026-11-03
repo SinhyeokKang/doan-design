@@ -1,0 +1,2 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "name": "Bash", "input": {"command": "doan export .doan/canvases/profile.html -o ../profile.html"}}]}}
+{"type": "result", "result": "Exported the profile canvas to profile.html next to the repository. It is one self-contained file. The Partner banner image still loads from https://example.com/partner-banner.png, so that image needs internet."}

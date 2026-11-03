@@ -38,7 +38,9 @@ import { validateSelection } from "../formats/validate";
 import { childOfTopFrame, frameNavigationAllowed, fromAppFrame, isCanvasFrame } from "./canvasFrame";
 import { canvasScriptSource } from "./canvasScript";
 import { createAddFlow, type AddFlow } from "./addProjects";
-import { cliCommand, readFolder, runConfig, runDesignSkill, runLs } from "./cli";
+import { cliCommand, readFolder, runConfig, runDesignSkill, runExport, runLs } from "./cli";
+import { createCanvasExport, EXPORT_REFUSED } from "./canvasExport";
+import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
 import { aboutCli, aboutText, aboutTool, type AboutRead } from "./about";
 import { PROVIDERS } from "./agentAuth/types";
@@ -602,6 +604,29 @@ async function start(): Promise<void> {
     const id = designSkillGetRequest(value);
     return id === null ? DESIGN_SKILL_REFUSED : interpretGet(await runDesignSkill(cli, id), id);
   });
+  // canvas-row-menu: Move to Trash and Export act only on rows of main's own list. Busy is judged on main's grounds:
+  // this root's conversations, its unjudged project turns and terminal work.
+  const canvasTrash = createCanvasTrash({
+    entries: () => ready.entries(),
+    busy: target => trashBusy(target, conversations?.list(target.root) ?? [], conversations?.projectEvidence(target.root) ?? [], workItems(workState)),
+    trashItem: path => electronShell.trashItem(path),
+  });
+  handle("canvas:trashPlan", TRASH_REFUSED, (_event, value: unknown) => canvasTrash.plan(value));
+  handle("canvas:trash", TRASH_REFUSED, (_event, value: unknown) => canvasTrash.trash(value));
+  const canvasExport = createCanvasExport({
+    entries: () => ready.entries(),
+    // A name only: the panel opens where macOS last saved, and the app remembers no folder.
+    async choose(name) {
+      if (!win || win.isDestroyed()) return null;
+      const picked = await dialog.showSaveDialog(win, { defaultPath: name, filters: [{ name: "HTML", extensions: ["html"] }] });
+      return picked.canceled || !picked.filePath ? null : picked.filePath;
+    },
+    running: (root, path) => send("canvas:exportRunning", { root, path }),
+    run: (root, path, output) => runExport(cli, root, path, output),
+    reveal: path => electronShell.showItemInFolder(path),
+  });
+  handle("canvas:export", EXPORT_REFUSED, (_event, value: unknown) => canvasExport.export(value));
+  handle("canvas:revealExport", undefined, (_event, value: unknown) => { canvasExport.reveal(value); });
   // `doan active` is an extra; the app works without it, and the CLI then
   // reports that the app is not running.
   runtime = await startRuntime(userData, {

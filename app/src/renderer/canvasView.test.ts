@@ -10,6 +10,7 @@ import {
   layoutHeight,
   MAX_HEIGHT,
   sameDocument,
+  TrashMarks,
 } from "./canvasView";
 
 const open = { folder: "/repo", canvas: ".doan/canvases/a.html", row: {} };
@@ -172,6 +173,99 @@ describe("canvasViewUpdate: row revisions and canvas ids", () => {
   test("an empty id and no id are the same canvas id", () => {
     const blank = [list("/repo", 1, [row(".doan/canvases/a.html", { id: "", rev: 1 })])];
     expect(canvasViewUpdate(blank, blank, { ...home, row: {} })).toEqual({ kind: "none" });
+  });
+});
+
+// canvas-row-menu: a canvas the person moved to the Trash is not followed to another canvas sharing its id.
+describe("canvasViewUpdate: Move to Trash", () => {
+  const home = { folder: "/repo", canvas: ".doan/canvases/a.html", row: { id: "home" } };
+  const a = row(".doan/canvases/a.html", { id: "home" });
+  const twin = row(".doan/canvases/twin.html", { id: "home" });
+  const b = row(".doan/canvases/b.html", { id: "other" });
+  const prev = [list("/repo", 1, [a, twin, b])];
+  const gone = [list("/repo", 1, [twin, b])];
+
+  test("clears as trashed, not moved, when one other canvas shares the id", () => {
+    // Without a mark the same update follows the twin.
+    expect(canvasViewUpdate(prev, gone, home)).toEqual({ kind: "moved", canvas: twin, from: ".doan/canvases/a.html" });
+    const marks = new TrashMarks();
+    marks.settle(marks.begin("/repo", ".doan/canvases/a.html"), "trashed");
+    expect(canvasViewUpdate(prev, gone, home, marks)).toEqual({ kind: "clear", reason: "trashed" });
+  });
+
+  test("a pending mark counts: the row can leave the list before the reply arrives", () => {
+    const marks = new TrashMarks();
+    marks.begin("/repo", ".doan/canvases/a.html");
+    expect(canvasViewUpdate(prev, gone, home, marks)).toEqual({ kind: "clear", reason: "trashed" });
+    expect(canvasViewUpdate(prev, [list("/repo", 1, [b])], home, marks)).toEqual({ kind: "clear", reason: "trashed" });
+  });
+
+  test("a refused reply lifts the mark, so a later disappearance is a move again", () => {
+    const marks = new TrashMarks();
+    marks.settle(marks.begin("/repo", ".doan/canvases/a.html"), "refused");
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(false);
+    expect(canvasViewUpdate(prev, gone, home, marks)).toEqual({ kind: "moved", canvas: twin, from: ".doan/canvases/a.html" });
+  });
+
+  test("a mark changes nothing while the path is still listed, and is per folder and path", () => {
+    const marks = new TrashMarks();
+    marks.begin("/repo", ".doan/canvases/a.html");
+    expect(canvasViewUpdate(prev, prev, home, marks)).toEqual({ kind: "none" });
+    const other = new TrashMarks();
+    other.begin("/repo-wt", ".doan/canvases/a.html");
+    other.begin("/repo", ".doan/canvases/b.html");
+    expect(canvasViewUpdate(prev, gone, home, other)).toEqual({ kind: "moved", canvas: twin, from: ".doan/canvases/a.html" });
+  });
+
+  test("a mark is used once: sweep drops it when its path leaves the list or its folder goes", () => {
+    const marks = new TrashMarks();
+    const mark = marks.begin("/repo", ".doan/canvases/a.html");
+    marks.begin("/repo", ".doan/canvases/b.html");
+    marks.begin("/gone", ".doan/canvases/x.html");
+    marks.sweep([list("/repo", 1, [b])]);
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(false);
+    expect(marks.has("/repo", ".doan/canvases/b.html")).toBe(true);
+    expect(marks.has("/gone", ".doan/canvases/x.html")).toBe(false);
+    // A reply after the sweep does not bring the mark back.
+    marks.settle(mark, "trashed");
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(false);
+  });
+
+  test("sweep keeps marks of a folder whose list is loading or failed", () => {
+    const marks = new TrashMarks();
+    marks.begin("/repo", ".doan/canvases/a.html");
+    marks.sweep([{ path: "/repo", kind: "loading" }]);
+    marks.sweep([{ path: "/repo", kind: "error", message: "Cannot read config" }]);
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
+  });
+
+  test("a newer request refused first leaves the older pending mark, so the trashed canvas is not followed", () => {
+    // Main refuses a second request for a row still being moved at once, so its reply overtakes the first one's.
+    const marks = new TrashMarks();
+    const first = marks.begin("/repo", ".doan/canvases/a.html");
+    const second = marks.begin("/repo", ".doan/canvases/a.html");
+    marks.settle(second, "refused");
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
+    marks.settle(first, "trashed");
+    expect(canvasViewUpdate(prev, gone, home, marks)).toEqual({ kind: "clear", reason: "trashed" });
+  });
+
+  test("a mark settled twice or a mark another store issued changes nothing", () => {
+    const marks = new TrashMarks();
+    const mark = marks.begin("/repo", ".doan/canvases/a.html");
+    marks.settle(mark, "refused");
+    marks.begin("/repo", ".doan/canvases/a.html");
+    marks.settle(mark, "refused");
+    marks.settle(new TrashMarks().begin("/repo", ".doan/canvases/a.html"), "refused");
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
+  });
+
+  test("a refused reply for an older request leaves a newer mark for the same path", () => {
+    const marks = new TrashMarks();
+    const first = marks.begin("/repo", ".doan/canvases/a.html");
+    marks.begin("/repo", ".doan/canvases/a.html");
+    marks.settle(first, "refused");
+    expect(marks.has("/repo", ".doan/canvases/a.html")).toBe(true);
   });
 });
 

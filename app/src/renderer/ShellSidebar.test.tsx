@@ -1,14 +1,16 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, test, vi } from "vitest";
-import { projectSlotEntry, ShellSidebar } from "./ShellSidebar";
+import { projectSlotEntry, recoveryKey, ShellSidebar, staleMenu } from "./ShellSidebar";
 import type { FolderEntry } from "../main/view";
 import type { SidebarSlot as Slot } from "./canvasNotice";
+import type { CanvasMenu } from "./ShellSidebar";
+const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 const projectSlot = (slots: ReadonlyMap<string, Slot>, roots: readonly string[], shown: readonly string[]) => projectSlotEntry(slots, roots, shown)?.slot;
 const row = { path: ".doan/canvases/folder/canvas.html", url: "u", frames: [{ id: "hidden-frame" }] };
 const entry: Extract<FolderEntry, { kind: "list" }> = { path: "/repo", kind: "list", servedRev: 0, canvases: [row], git: { common: "/repo/.git", branch: "main", worktrees: [] } };
 function render(loaded: string | null, selected = "/repo", expanded = false, problem = false, unlisted = false) {
   const first: FolderEntry = problem ? { ...entry, canvases: [{ ...row, error: { code: "bad", message: "Unreadable" } }] } : entry;
-  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
+  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [first, { ...entry, path: "/other", canvases: [] }] }]} projects={{ common: { roots: ["/repo", "/other"], selectedRoot: selected, expanded } }} loaded={loaded} unlisted={unlisted} canvas={loaded ? row.path : undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} />);
 }
 it("renders project to canvas IA, locks current expansion, and keeps the branch passive", () => {
   const html = render("/repo");
@@ -78,7 +80,7 @@ test("on Home no row is current; the slot shows a permission hand, a spinner or 
   const Sidebar = ShellSidebar;
   const canvas = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = [{ path: "/a", kind: "list", servedRev: 0, canvases: [canvas] }, { path: "/b", kind: "list", servedRev: 0, canvases: [] }];
-  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {} };
+  const props = { cards: [{ key: "a", name: "alpha", rows: [entries[0]!] }, { key: "b", name: "beta", rows: [entries[1]!] }], projects: { a: { roots: ["/a"], expanded: true } }, loaded: "/a", canvas: canvas.path, homeDirectory: null, search: () => {}, toggle: () => {}, toggleGroup: () => {}, worktree: () => {}, open: () => {}, overview: () => {}, action: () => {}, remove: async () => {}, projectSettings: () => {}, canvasMenu: NO_CANVAS_MENU };
   const slots = new Map([["/a\n.doan/canvases/a.html", { kind: "working" as const, label: "Claude Code is working" }], ["/b", { kind: "permission" as const, label: "Codex needs your answer" }]]);
   const home = renderToStaticMarkup(<Sidebar {...props} home homeCurrent slots={slots} highlight={["/b"]} />);
   // Only the Home row is current on Home (dogfooding #2); no project or canvas row is.
@@ -102,7 +104,7 @@ test("a project row carries a bound canvas's slot only while that canvas row is 
 function groups(canvases: string[], closed?: { ds?: false; canvases?: false }, extra: { slots?: Map<string, Slot>; entry?: FolderEntry } = {}) {
   const listed: FolderEntry = extra.entry ?? { path: "/a", kind: "list", servedRev: 0, canvases: canvases.map(name => ({ path: `.doan/${name}.html`, url: name })) };
   return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [listed] }]} projects={{ common: { roots: ["/a"], expanded: true, ...(closed ? { groups: closed } : {}) } }} loaded={null} canvas={undefined} homeDirectory={null} {...(extra.slots ? { slots: extra.slots } : {})}
-    search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} />);
+    search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} />);
 }
 const heads = (html: string) => [...html.matchAll(/<div class="shell-group-head row"[^>]*>.*?<\/div>/g)].map(match => match[0]);
 
@@ -174,10 +176,10 @@ it("puts a Home row above the projects, current only on Home", () => {
   const html = render("/repo");
   expect(html).toMatch(/<button[^>]*class="shell-home-row row"[^>]*>.*Home<\/span><\/button>.*shell-projects-heading/s);
   expect(html).not.toMatch(/class="shell-home-row row"[^>]*aria-current/);
-  const onHome = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home homeCurrent search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} goHome={vi.fn()} />);
+  const onHome = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home homeCurrent search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} goHome={vi.fn()} />);
   expect(onHome).toMatch(/class="shell-home-row row"[^>]*aria-current="page"/);
   // A page shows Home's sidebar (no current project or canvas) without being Home.
-  const onPage = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} goHome={vi.fn()} />);
+  const onPage = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} home search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} goHome={vi.fn()} />);
   expect(onPage).not.toContain("aria-current");
 });
 
@@ -185,7 +187,7 @@ it("puts a Home row above the projects, current only on Home", () => {
 // quiet one. Both sidebar views take the shared `.doan-scroll`.
 it("scrolls the project list and the Settings categories with the shared thin scrollbar", () => {
   expect(render("/repo")).toContain('<div class="shell-projects doan-scroll">');
-  const settings = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} settings={{ section: "agents", select: vi.fn() }} />);
+  const settings = renderToStaticMarkup(<ShellSidebar cards={[]} projects={{}} loaded={null} canvas={undefined} homeDirectory={null} search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={vi.fn()} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} settings={{ section: "agents", select: vi.fn() }} />);
   expect(settings).toContain('<div class="shell-projects doan-scroll">');
 });
 
@@ -227,4 +229,112 @@ test("CSS: the sidebar column is the resizable width and its handle sits in the 
   expect(css).toContain(":root { --doan-sidebar-width: 220px; }");
   expect(css).toContain(".doan-panel-handle.doan-sidebar-handle { grid-column: 1 / 2; grid-row: 2 / -1; left: 100%; }");
   expect(css).toContain('.doan-panel-handle:is([data-ui-state="hover"], [data-ui-state="drag"], :focus-visible)::after { opacity: 0.7; }');
+});
+
+// canvas-row-menu design '행 버튼과 메뉴' (draft row-button, confirmed by the user).
+function canvasMarkup(extra: Record<string, unknown> = {}, slot?: Slot) {
+  const slots = slot ? { slots: new Map([[`/repo\n${row.path}`, slot]]) } : {};
+  return renderToStaticMarkup(<ShellSidebar cards={[{ key: "common", name: "demo", rows: [entry] }]} projects={{ common: { roots: ["/repo"], expanded: true } }} loaded={null} canvas={undefined} homeDirectory={null}
+    search={vi.fn()} toggle={vi.fn()} toggleGroup={vi.fn()} worktree={vi.fn()} open={vi.fn()} overview={vi.fn()} action={vi.fn()} remove={async () => {}} projectSettings={vi.fn()} canvasMenu={NO_CANVAS_MENU} {...slots} {...extra} />);
+}
+it("gives a canvas row, in a subdirectory too, the project row's menu button after its status spot", () => {
+  const html = canvasMarkup({}, { kind: "working", label: "Codex is working" });
+  const canvasRow = html.slice(html.indexOf('class="shell-canvas-row row"'));
+  expect(canvasRow).toMatch(/^class="shell-canvas-row row"[^>]*aria-label="canvas"/);
+  expect(canvasRow.indexOf('<span class="row-slot working" role="img" aria-label="Codex is working">')).toBeGreaterThan(0);
+  expect(canvasRow.indexOf('<span class="row-slot working"')).toBeLessThan(canvasRow.indexOf('aria-label="canvas menu"'));
+  expect(canvasRow).toMatch(/<button class="doan-icon-button shell-more" aria-label="canvas menu" tabindex="-1"[^>]*>/);
+});
+it("marks a locked canvas row's button aria-disabled, never the project row's", () => {
+  const html = canvasMarkup({ locked: true });
+  expect(html).toMatch(/aria-label="canvas menu" aria-disabled="true"/);
+  expect(html).not.toMatch(/aria-label="demo menu" aria-disabled/);
+  expect(html).not.toMatch(/aria-label="canvas menu"[^>]* disabled=""/);
+});
+
+// The ownedFocus recovery's new branches (tasks T6, design '삭제 뒤 화면'): a removed canvas row's focus stays in its group.
+it("hands a removed canvas row's focus to the next row of its group, else the previous one, else the group head", () => {
+  const project = { key: "p" }, ds = { key: "p\n#ds", parent: "p" }, canvases = { key: "p\n#canvases", parent: "p" };
+  const canvas = (key: string, parent: string) => ({ key, parent, canvas: true });
+  const a = canvas("p\na", ds.key), b = canvas("p\nb", ds.key), c = canvas("p\nc", ds.key), d = canvas("p\nd", canvases.key);
+  const previous = [project, ds, a, b, c, canvases, d];
+  const without = (...lost: { key: string }[]) => previous.filter(row => !lost.includes(row));
+  expect(recoveryKey(previous, without(b), b.key)).toBe(c.key);
+  // The last row of its group goes up, not into the next group.
+  expect(recoveryKey(previous, without(c), c.key)).toBe(b.key);
+  expect(recoveryKey(previous, without(b, c), c.key)).toBe(a.key);
+  // A group left empty keeps its head.
+  expect(recoveryKey(previous, without(d), d.key)).toBe(canvases.key);
+  expect(recoveryKey(previous, without(a, b, c), b.key)).toBe(ds.key);
+  // Any other row keeps the earlier rule, the row now at its place: a project row, and a group head (RC2 ⚪5; tasks T6
+  // asks only for the canvas-row branches).
+  const other = { key: "q" };
+  expect(recoveryKey([project, other, ds], [project, ds], other.key)).toBe(ds.key);
+  expect(recoveryKey([project, other], [project], other.key)).toBe(project.key);
+  expect(recoveryKey(previous, [project, a, b, c, canvases, d], ds.key)).toBe(a.key);
+});
+
+it("judges an open canvas menu by its own row, so the project menu's rule never closes it", () => {
+  const cards = [{ key: "common", name: "demo", rows: [entry] }];
+  const rows = [{ key: "common" }, { key: `/repo\n${row.path}`, parent: "/repo\n#canvases" }];
+  expect(staleMenu(null, cards, null, rows, false)).toBe(false);
+  // The project rule: no card has this key, so it would close the menu at once (design '함정').
+  expect(staleMenu({ kind: "project", key: `/repo\n${row.path}` }, cards, "/repo", rows, false)).toBe(true);
+  expect(staleMenu({ kind: "canvas", key: `/repo\n${row.path}` }, cards, null, rows, false)).toBe(false);
+  expect(staleMenu({ kind: "canvas", key: `/repo\n${row.path}` }, cards, null, rows.slice(0, 1), false)).toBe(true);
+  // A lock closes it (POSTMORTEM 2026-11-01: a disabled trigger closes its own popup state).
+  expect(staleMenu({ kind: "canvas", key: `/repo\n${row.path}` }, cards, null, rows, true)).toBe(true);
+  expect(staleMenu({ kind: "project", key: "common" }, cards, "/repo", rows, true)).toBe(false);
+  expect(staleMenu({ kind: "project", key: "common" }, cards, "/gone", rows, false)).toBe(true);
+});
+
+it("shows a canvas row's button only under the pointer, with focus in the row or an open menu, in place of the status spot", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  // RC2 🔴1: the idle button is hidden visually only. A display: none (or visibility: hidden) button cannot take the
+  // focus Radix returns when its menu closes (Esc, Export…) or App when the Move to Trash dialog does: it fell to <body>.
+  const idle = css.match(/\.shell-canvas-row:not\(:hover, :focus-within\):not\(:has\(> \.shell-more\[aria-expanded="true"\]\)\) > \.shell-more \{([^}]*)\}/)![1]!;
+  expect(idle).toContain("position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%);");
+  expect(idle).not.toMatch(/display|visibility/);
+  for (const rule of css.replace(/\/\*[\s\S]*?\*\//g, "").match(/[^}]*\.shell-more[^{]*\{[^}]*\}/g) ?? []) expect(rule).not.toMatch(/display: none|visibility: hidden/);
+  expect(css).toContain('.shell-side .shell-canvas-row:is(:hover, :focus-within, :has(> .shell-more[aria-expanded="true"])) { padding-right: 0; }');
+  // Hidden visually only: never display: none or visibility: hidden, which would drop the spot's name.
+  const spot = css.match(/\.shell-canvas-row:is\([^{]*\) > \.row-slot \{([^}]*)\}/)![1]!;
+  expect(spot).toContain("clip-path: inset(50%)");
+  expect(spot).not.toMatch(/display|visibility/);
+  // POSTMORTEM 2026-10-27 (border-box height): a 32px border-box button in a 32px row with no vertical padding.
+  expect(css).toContain("* { box-sizing: border-box;");
+  expect(css).toContain(".shell-side .row { display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 8px;");
+  expect(css).toContain(".shell-more.doan-icon-button { width: 32px; height: 32px; flex: none;");
+  // The canvas menu is not a project menu (link 1 user decision): it keeps the opaque sidebar fill.
+  expect(css).toContain(".shell-canvas-menu { width: 204px;");
+});
+
+// RC2 🟡1: a locked canvas button has the disabled ink and no hover or pressed fill (user-confirmed draft). The shared
+// button's hover rule weighs (0,4,0) and its pressed rule (0,5,0), so the reset must weigh more.
+it("gives a locked canvas row button no hover or pressed fill, outweighing the shared button rules", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  const controls = readFileSync(new URL("./ds/controls.css", import.meta.url), "utf8");
+  expect(css).toContain('.shell-more[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }');
+  const reset = '.shell-side .shell-canvas-row.row > .shell-more.doan-icon-button[aria-disabled="true"]:is(:hover, :active)';
+  expect(css).toContain(`${reset} { background: transparent; }`);
+  // Class, attribute and pseudo-class weight, counting :is()/:not() by their heaviest argument.
+  const weight = (selector: string): number => {
+    let rest = selector, total = 0;
+    for (;;) {
+      const match = rest.match(/:(is|not)\(/);
+      if (!match) break;
+      const start = match.index!, open = start + match[0].length;
+      let depth = 1, end = open;
+      while (depth) { const ch = rest[end++]; if (ch === "(") depth++; else if (ch === ")") depth--; }
+      const args = rest.slice(open, end - 1).split(/,(?![^(]*\))/);
+      total += Math.max(...args.map(weight));
+      rest = rest.slice(0, start) + rest.slice(end);
+    }
+    return total + (rest.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+/g) ?? []).length;
+  };
+  const shared = controls.split("\n").filter(line => line.includes(":is(.doan-button, .doan-icon-button):not(") && /:hover|:active/.test(line)).map(line => line.trim().split(" {")[0]!);
+  expect(shared.length).toBeGreaterThanOrEqual(2);
+  for (const selector of shared) expect(weight(reset)).toBeGreaterThan(weight(selector));
 });

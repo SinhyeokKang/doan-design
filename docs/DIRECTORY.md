@@ -19,6 +19,9 @@ Where things live, one entry per directory. File-level detail is in the code; ru
 - `cli/internal/repo/`: repo discovery, config, path resolution, canvas and comment listing, the serving scope and read-only Git metadata.
 - `cli/internal/canvas/`: the pure HTML canvas model and CSS scanner.
 - `cli/internal/check/`: the pure `doan check` rules.
+- `cli/internal/export/`: the `doan export` pipeline — local references resolved against the serving scope, HTML and CSS rewritten into data, the size cap and the viewer page assembly (`ARCHITECTURE.md` §3 'Exported canvas and viewer').
+  - `viewer/`: the embedded viewer page files (`shell.html`, `shell.css`, `lib.js`, `shell.js`, `measure.js`); `app/src/main/exportViewer.test.ts` pins their copies of app code.
+  - `exporttest/`: seed repository fixtures that only tests import.
 - `cli/internal/comments/`: resolve-event construction and the append.
 - `cli/internal/formats/`: Go validation and comment-event folding.
 

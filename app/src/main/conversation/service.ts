@@ -391,6 +391,14 @@ export class ConversationService {
     });
     return { current: summaries.find(m => m.state === "current") ?? null, archived: summaries.filter(m => m.state === "archived") };
   }
+  // canvas-row-menu: the grounds of this root's project turns not judged yet (running, or ended within the binding
+  // window), for Move to Trash's busy check (canvasTrash.ts trashBusy). Exactly this root, as copies.
+  projectEvidence(root: string): { edits: string[]; changed: string[] }[] {
+    const now = Date.now();
+    return [...this.evidence.values()]
+      .filter(evidence => evidence.root === root && (evidence.endedAt === undefined || now - evidence.endedAt <= BIND_GRACE_MS))
+      .map(evidence => ({ edits: [...evidence.edits], changed: [...evidence.changed] }));
+  }
   // One summary per indexed conversation of the root; an unreadable history fails only its own row.
   list(root: string): ConversationSummary[] {
     return this.store.list().filter(m => m.root === root).map(m => {

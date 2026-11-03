@@ -420,3 +420,25 @@ test("doan open requests arrive on their own event and are answered by id throug
   stop();
   expect(emitter.listenerCount("doan-open:request")).toBe(0);
 });
+
+test("canvas trash and export use fixed channels and send only the row's root and path", async () => {
+  await api.planCanvasTrash(ROOT, ".doan/canvases/a.html");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("canvas:trashPlan", { root: ROOT, path: ".doan/canvases/a.html" });
+  await api.trashCanvas(ROOT, ".doan/canvases/a.html");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("canvas:trash", { root: ROOT, path: ".doan/canvases/a.html" });
+  await api.exportCanvas(ROOT, ".doan/canvases/a.html");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("canvas:export", { root: ROOT, path: ".doan/canvases/a.html" });
+  await api.revealExport("id-1");
+  expect(mocks.invoke).toHaveBeenLastCalledWith("canvas:revealExport", "id-1");
+});
+
+test("onExportRunning passes the running export's root and path and unsubscribes", () => {
+  const listener = vi.fn();
+  const stop = api.onExportRunning(listener);
+  emitter.emit("canvas:exportRunning", {}, { root: ROOT, path: ".doan/canvases/a.html" });
+  expect(listener).toHaveBeenCalledExactlyOnceWith({ root: ROOT, path: ".doan/canvases/a.html" });
+  stop();
+  emitter.emit("canvas:exportRunning", {}, { root: ROOT, path: ".doan/canvases/a.html" });
+  expect(listener).toHaveBeenCalledOnce();
+  expect(emitter.listenerCount("canvas:exportRunning")).toBe(0);
+});

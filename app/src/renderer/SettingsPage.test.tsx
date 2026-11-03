@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { CanvasMenu } from "./ShellSidebar";
+const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 
 // buzz-settings U2: the Settings page frame and its sidebar categories, with hooks as plain state
 // (App.addProjects.test.tsx style) so the page's own effects and the sidebar's handlers run.
@@ -111,7 +113,7 @@ test("Agents' lock reaches App", () => {
 
 function sidebar(settings: { section: PageProps["section"]; select(section: string): void }, locked = false) {
   hooks.cursor = 0; hooks.refCursor = 0; hooks.effectCursor = 0; hooks.pending = [];
-  return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), home: true, locked, settings });
+  return ShellSidebar({ cards: [], projects: {}, loaded: null, canvas: undefined, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU, home: true, locked, settings });
 }
 
 test("on the Settings page the sidebar keeps Search and lists the three categories as plain buttons", () => {

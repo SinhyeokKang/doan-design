@@ -11,6 +11,8 @@ import type { PresetListReply, PresetSummary } from "./homeComposer";
 import { ShellSidebar } from "./ShellSidebar";
 import { groupProjects } from "./homeCards";
 import { TooltipProvider } from "./components/ui/tooltip";
+import type { CanvasMenu } from "./ShellSidebar";
+const NO_CANVAS_MENU: CanvasMenu = { blocked: () => false, exporting: () => false, exportCanvas: () => {}, trash: () => {} };
 
 vi.mock("./components/ui/tooltip", async importOriginal => {
   const actual = await importOriginal<typeof import("./components/ui/tooltip")>();
@@ -32,7 +34,7 @@ const project = (path: string, canvases: CanvasRow[] = [row("buzz-onboarding")])
 
 function render(entries: FolderEntry[], memory: Partial<ComposerMemory> = {}, props: Partial<HeroComposerProps> = {}) {
   const cards = groupProjects(entries, new Map());
-  const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} toggleGroup={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} projectSettings={() => {}} />;
+  const sidebar = <ShellSidebar home cards={cards} projects={{}} loaded={entries[0]?.path ?? null} canvas={entries[0]?.kind === "list" ? entries[0].canvases[0]?.path : undefined} homeDirectory={null} search={() => {}} toggle={() => {}} toggleGroup={() => {}} worktree={() => {}} open={() => {}} overview={() => {}} action={() => {}} remove={async () => {}} projectSettings={() => {}} canvasMenu={NO_CANVAS_MENU} />;
   return renderToStaticMarkup(<TooltipProvider><Home header={<header className="top shell-top" />} sidebar={sidebar} entries={entries} homeDirectory="/Users/ada" shellProjects={{}} loaded={null} select={null}
     prefs={{}} memory={{ current: { ...emptyComposer(), auth: AUTH, presets: LISTED, greeting: null, ...memory } }} running={new Map()} restore={null}
     start={async () => ({ ok: true })} openConversation={() => {}} addProjects={() => {}} openSettings={() => {}} {...props} /></TooltipProvider>);

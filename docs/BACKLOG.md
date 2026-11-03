@@ -44,6 +44,10 @@ What Doan has not settled or not shown yet: product questions without a decision
 - A sidebar canvas row whose app conversation has an unseen ending while a terminal agent works on it: the click keeps the panel folded (unit tests), but the real-app probe could not make the unseen dot appear, so neither that case nor its control was seen.
 - Whether the Claude Code allow rules (`Bash(doan work start *)`, `Bash(doan work done *)`, `Bash(doan open *)`) really stop the permission prompt: the real-app probe saw the merge, and `/agent-eval` runs Claude with `-p` and `--allowedTools Bash`, which cannot show a prompt.
 - `doan open` launching a closed app: the bundled CLI opens the app once through `/usr/bin/open` and waits for it (ARCHITECTURE §4 'Bootstrap'), but `open` passes no `--user-data-dir` or environment, so an isolated probe cannot reach this path. Only unit tests with an injected launcher and clock cover it; a launch, the wait through `not_ready` and the canvas opening afterwards have not been seen in the real app.
+- Exported canvas files (`doan export`) were opened only in headless Chromium and Playwright WebKit, with the desktop locked: real Safari is not verified, nor is Firefox, nor a Safari pinch gesture (the viewer handles only ⌘/Ctrl-wheel).
+- Whether Finder's Put Back works for a canvas moved with Move to Trash (`shell.trashItem`) is unverified; the dialog promises only restoring from the Trash.
+- Move to Trash unavailable while the canvas's app conversation works was checked only in unit tests (the real-app probe had no signed-in agent; the terminal `doan work` case was checked in the real app). The permission state next to the row button and the refusal toasts only main can cause (`busy`, `notListed`, `notFile`) were not reached in the real app; their copy is pinned by `canvasRowMessages.test.ts`.
+- `/agent-eval` scenario X1 measures only the successful export: no export with a non-empty `links`, and no refused export.
 
 ## Known defects
 
@@ -56,3 +60,9 @@ What Doan has not settled or not shown yet: product questions without a decision
 - `active.go` `readLine` returns a line whose newline arrives as byte 65,537 without checking its length, so `doan active` and `doan onboarding …` accept one byte over the 64 KiB reply cap (ARCHITECTURE §4 'Connection contract'); `doan work` checks the length itself.
 - A `doan://` link that arrives while a page is locked (Add Projects selecting or cloning, a locked Settings or Project Settings page) or while a dialog refuses its cancel (Set Up while running, first run) is dropped with no toast, so the person sees nothing happen. `doan open` does not have this gap: it answers `busy` and says what blocks.
 - A Locate on another worktree from a page's sidebar does not move that page's origin: the Project Settings page (and the Add Projects page) move the origin only when it was the rerooted worktree itself, so leaving after locating the origin's workspace from the sidebar goes Home instead of to the moved workspace.
+- `doan export` does not follow a local document inside `iframe`, `frame`, `object` or `embed` (it refuses the export), nor a file that JavaScript reads through `import` or `fetch` (it is left out, and the request fails in the file).
+- A `doan export` process that is killed can leave its temporary file `.<name>.doan-<hex>` in the output folder.
+- `repo.Resolve` reads the whole directory of every reference to find its on-disk spelling (`diskSpelling`), so `doan export` and `doan check` cost references × directory entries: 15.7 s for 5,000 assets in one directory.
+- `doan export` peaks at about 55 times its input in memory for a large stylesheet (1.36 GB for a 24 MiB CSS file). The cause was not profiled; copies made by `rewriteCSS` and the data URI are suspected.
+- `doan export` ignores `<base href>`: references resolve from the canvas's folder, as the serving scope check does, so nothing leaks, but a canvas that relies on `<base>` exports with the wrong or refused references.
+- `doan export` refuses an SVG sprite that contains a `<style>` element, because inlined it would style the whole canvas.

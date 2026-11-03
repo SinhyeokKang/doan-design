@@ -1,0 +1,11 @@
+[
+  [
+    "export",
+    ".doan/canvases/profile.html",
+    "-o",
+    "{{repo}}/../profile.html",
+    "--repo",
+    "{{repo}}",
+    "--json"
+  ]
+]

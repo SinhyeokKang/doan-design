@@ -1,0 +1,1 @@
+In this repository, export the canvas `.doan/canvases/profile.html` as one HTML file that I can email to a reviewer who does not have this repository. Save it as `profile.html` in the folder that contains this repository, `{{repo}}/..`.

@@ -245,6 +245,10 @@ func TestSkillGuideOpenOffer(t *testing.T) {
 
 // The onboarding section says which commands open the app; `doan open` is the second one.
 func TestSkillGuideSaysOnlyOpenAlsoOpensTheApp(t *testing.T) {
+	// The open line does not repeat this: the onboarding section is where the guide says the bundled CLI starts a closed Doan once.
+	if !strings.Contains(skillBody, "the CLI inside the app opens that app once and waits up to 15 seconds") {
+		t.Error("the onboarding section does not say that the bundled CLI opens a closed Doan once")
+	}
 	if !strings.Contains(skillBody, "Only `doan open` also opens the app; `doan active` never does.") {
 		t.Error("the onboarding section does not say that doan open may also open the app")
 	}
@@ -265,7 +269,6 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 		"`.doan/canvases/*.html` or `.doan/ds/*.html`",
 		"it only navigates",
 		"Returns `{opened, frame}` where `frame` is `found`, `missing` (no such frame; say only the canvas opened) or `none`",
-		"A bundled CLI starts a closed Doan once",
 		"On failure: `canvas_not_found`",
 		"`project_not_open` (name the folder; they add it with Add Project…, then ask again)",
 		"`busy` (`message` says what blocks; they finish it, then ask again)",
@@ -275,6 +278,42 @@ func TestSkillGuideOpenCommand(t *testing.T) {
 	} {
 		if !strings.Contains(command, required) {
 			t.Errorf("doan open guidance is missing: %s", required)
+		}
+	}
+}
+
+// The export line is written for the output budget; each clause below is a rule the guide must keep.
+func TestSkillGuideExportCommand(t *testing.T) {
+	var command []string
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "- `doan export ") {
+			command = append(command, l)
+		}
+	}
+	if len(command) != 1 {
+		t.Fatalf("want one doan export line, got %d", len(command))
+	}
+	for _, required := range []string{
+		"- `doan export <canvas path> -o PATH --json`",
+		"only if asked",
+		"PATH theirs, not in `.doan/`",
+		"Say `external` needs internet, `links` break",
+	} {
+		if !strings.Contains(command[0], required) {
+			t.Errorf("doan export guidance is missing: %s", required)
+		}
+	}
+	// The line belongs to the Commands list, before `doan skill`.
+	list := skillBody[strings.Index(skillBody, "## Commands"):]
+	if strings.Index(list, "- `doan export ") > strings.Index(list, "- `doan skill`") {
+		t.Error("the export line is outside the Commands list")
+	}
+	// Export is not a way to produce files for the agent's own use: the guide never lists it as a step.
+	for _, step := range []string{"I. ", "J. "} {
+		for _, l := range strings.Split(skillBody, "\n") {
+			if strings.HasPrefix(l, step) && strings.Contains(l, "doan export") {
+				t.Errorf("step %q runs doan export", step)
+			}
 		}
 	}
 }

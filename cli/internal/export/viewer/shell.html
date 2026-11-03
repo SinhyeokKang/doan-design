@@ -1,0 +1,65 @@
+<!doctype html>
+<!--
+  The page `doan export` writes: a light viewer around the canvas, which sits in a sandboxed iframe.
+  `assemble` replaces the placeholders below in ONE pass over this file, so a replaced value is
+  never searched again (a canvas that contains a placeholder is safe). A placeholder is an
+  upper-case name in double braces. This comment names them without braces on purpose: it is part
+  of the file the replacement runs over.
+
+    NAME    the canvas name (file stem) as HTML text: escape & < > " ', so a name can neither close
+            a tag nor start one. Used only in text positions (title, header).
+    WIDTH   doan:width as a decimal integer. The CSS-only view (no JavaScript) sizes the iframe
+            with it; shell.js reads the same number from META.
+    META    JSON {"name": string, "width": number} for shell.js, inside a
+            <script type="application/json">. Write every "<" as \u003c so the value can neither
+            end the script nor open an HTML comment.
+    STYLE   shell.css.
+    SCRIPT  lib.js followed by shell.js, wrapped in a function so the names stay local. Neither
+            file may contain "</script" or an HTML comment opener (viewer test).
+    SRCDOC  the rewritten canvas HTML as a double-quoted attribute value: escape & and ". Its head
+            starts with an inline script holding lib.js followed by measure.js, wrapped in a
+            function (assemble builds that; this file does not).
+
+  There is deliberately no CSP meta: a srcdoc document inherits its parent's CSP, so a restrictive
+  one here would block the canvas's own CDN scripts and fonts. This page's code is inline and makes
+  no requests.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{NAME}}</title>
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+<header class="ov-head doan-canvas-head">
+  <span class="doan-canvas-name" id="name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>{{NAME}}</span></span>
+  <span class="ov-sep" aria-hidden="true">/</span>
+  <span class="ov-title-wrap">
+    <button type="button" class="ov-title doan-button doan-frame-trigger" id="drawer-button" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="drawer" aria-label="Frames" disabled><span id="drawer-label">Frames</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <div class="doan-floating doan-menu doan-frame-list" id="drawer" hidden>
+      <div role="listbox" id="drawer-list"></div>
+      <p class="doan-menu-head doan-frame-note" id="drawer-note" hidden></p>
+    </div>
+  </span>
+  <div class="doan-canvas-head-tools">
+    <span class="doan-canvas-zoom">
+      <button type="button" class="doan-icon-button" id="zoom-out" aria-label="Zoom out" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+      <button type="button" class="doan-button doan-zoom-value" id="zoom-button" data-ui-variant="trigger" data-ui-size="sm" aria-haspopup="menu" aria-expanded="false" aria-controls="zoom-menu" aria-label="Zoom options" disabled><span id="zoom-value">&mdash;</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button type="button" class="doan-icon-button" id="zoom-in" aria-label="Zoom in" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      <div class="doan-floating doan-menu doan-zoom-menu" id="zoom-menu" data-ui-size="compact" role="menu" aria-label="Zoom options" hidden></div>
+    </span>
+  </div>
+</header>
+<main class="board" id="board" tabindex="0" aria-label="Canvas">
+  <noscript><p class="doan-notice doan-panel vw-noscript"><svg class="doan-alert-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg><span>This preview shows the top of the canvas. Open the file in a web browser to see all of it and its frames.</span></p></noscript>
+  <div class="spacer" id="spacer"><div class="stage" id="stage"><iframe class="canvas" id="canvas" sandbox="allow-scripts" style="width:{{WIDTH}}px" srcdoc="{{SRCDOC}}"></iframe></div></div>
+</main>
+<script type="application/json" id="doan-meta">{{META}}</script>
+<script>
+{{SCRIPT}}
+</script>
+</body>
+</html>
