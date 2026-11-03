@@ -3,7 +3,7 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { agentEnv } from "./environment";
-import { canonicalDirectory, claudeOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
+import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
@@ -53,7 +53,12 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
       if (occupancy !== "free") throw new Error("session_unavailable");
       if (!claudeSessionExists(configDir, session.sessionId)) throw new Error("session_unavailable");
     }
-    if (session && runtime === "codex" && !codexSessionExists(configDir, session.sessionId, cwd)) throw new Error("session_unavailable");
+    if (session && runtime === "codex") {
+      const occupancy = await codexOccupancy(configDir, session.sessionId);
+      if (occupancy === "occupied") throw Object.assign(new Error("session_in_use"), { runtime, sessionId: session.sessionId });
+      if (occupancy !== "free") throw new Error("session_unavailable");
+      if (!codexSessionExists(configDir, session.sessionId, cwd)) throw new Error("session_unavailable");
+    }
     const env = agentEnv({ env: inherited, path: probe.path, configDir }, runtime, appRuntime, { root, cwd, configDir });
     if (!env) throw new Error("session_unavailable");
     return { runtime, command, configDir, cwd, env: env.env, ...(session ? { sessionId: session.sessionId } : {}), ...(picked?.available ? { lastCheckAt: picked.record.at } : {}) };
@@ -156,8 +161,8 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
       if (stored) {
         const id = stored.session.sessionId;
         const exists = provider === "claude" ? claudeSessionExists(configDir, id) : provider === "codex" ? codexSessionExists(configDir, id, cwd) : acpSessionExists(configDir, adapter.acp!.sessions, id);
-        // Codex admits a writer at thread/resume and ACP servers at session/load; there is no registry to read first.
-        // Only doan runs in the dedicated profile, and doan's reservations keep one runner per session.
+        // Codex admits a writer at thread/resume and ACP servers at session/load. Codex's writer lock is not read here:
+        // only doan runs in the dedicated profile, and doan's reservations keep one runner per session.
         const occupancy = provider === "claude" ? await claudeOccupancy(configDir, id) : "free";
         recheck();
         const current = auth.state(provider);
