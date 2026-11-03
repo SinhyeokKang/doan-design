@@ -249,6 +249,27 @@ test("an onboarding script must describe valid app state", () => {
   assert.throws(() => onboardingApp({ providers: [{ provider: "claude", connected: false, verified: true }], changes: [], readyAfterCheck: [] }, "/r"));
   assert.throws(() => onboardingApp({ providers: [readyAgent("claude"), readyAgent("claude")], changes: [], readyAfterCheck: [] }, "/r"));
   assert.throws(() => onboardingApp({ providers: [], changes: [], readyAfterCheck: [], extra: 1 } as any, "/r"));
+  for (const completed of ["true", 1, null]) assert.throws(() => onboardingApp({ providers: [], changes: [], readyAfterCheck: [], completed } as any, "/r"), Error, `completed ${JSON.stringify(completed)}`);
+});
+
+test("completed defaults to false and a true script reports it from start and status", () => {
+  const script = { providers: [readyAgent("claude")], changes: CHANGES, readyAfterCheck: [] };
+  for (const completed of [undefined, false]) {
+    const ask = session(completed === undefined ? script : { ...script, completed });
+    assert.equal(ask({ op: "start" }).result.completed, false);
+    assert.equal(ask({ op: "status", ...S }).result.completed, false);
+  }
+  const done = session({ ...script, completed: true });
+  assert.equal(done({ op: "start" }).result.completed, true);
+  assert.equal(done({ op: "status", ...S }).result.completed, true);
+});
+
+test("the O1 and O2 scripts still load without a completed key", () => {
+  for (const id of ["O1", "O2"]) {
+    const script = JSON.parse(readFileSync(join(import.meta.dirname, "../scenarios", id, "onboarding.json"), "utf8"));
+    assert.equal("completed" in script, false, id);
+    assert.equal(session(script)({ op: "start" }).result.completed, false, id);
+  }
 });
 
 function exchange(socketPath: string, line: string): Promise<any> {
