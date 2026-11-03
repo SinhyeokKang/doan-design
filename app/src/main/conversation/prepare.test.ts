@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
+import { closeSync, mkdtempSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ probe: vi.fn(), run: vi.fn() }));
@@ -72,6 +72,34 @@ it("names a linked Claude session that a live terminal process holds, and still 
   const handler = conversationHandler(service, routed, () => [{ path: root, kind: "list", canvases: [canvas] }]);
   expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_in_use", runtime: "claude", session: sessionId });
   expect(await handler(true, "start", { root, canvas, mode: "resume", text: "hello" })).toEqual({ error: "session_in_use" });
+});
+
+// A Codex session still open in a terminal is refused up front, like Claude, instead of failing at thread/resume.
+it("names a linked Codex session whose writer lock a live process holds, and refuses an unreadable lock directory", async () => {
+  const root = temp(); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });
+  mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: root }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.166.0" });
+  const canvas = { id: "a", path: ".doan/canvases/a.html" }, sessionId = "01a1a1f0-3466-7691-96f0-37f5415d3cb9";
+  const directory = join(root, "sessions", "2026", "11", "04"); mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, `rollout-2026-11-04T00-03-56-${sessionId}.jsonl`), JSON.stringify({ type: "session_meta", payload: { id: sessionId, cwd: root, cli_version: "0.166.0" } }) + "\n");
+  writeFileSync(join(root, "sessions.jsonl"), JSON.stringify({ v: 1, at: "2026-11-04T00:00:00.000Z", root, canvas, hash: "sha256:" + "a".repeat(64), runtime: "codex", sessionId, configDir: root, cwd: root }) + "\n");
+  const prepare = createPrepare(root, join(root, "runtime.json"), { HOME: root });
+  const routed = routePrepare(prepare, () => Promise.reject(new Error("not_logged_in")));
+  const service = new ConversationService(new ConversationStore(root), routed, vi.fn(), () => {});
+  const handler = conversationHandler(service, routed, () => [{ path: root, kind: "list", canvases: [canvas] }]);
+  expect((await prepare({ root, mode: "resume", canvas, text: "", anchors: [] })).sessionId).toBe(sessionId);
+  // This test process stands for the terminal's Codex writer holding the thread's lock file open.
+  const locks = join(root, "thread-writer-locks"); mkdirSync(locks); writeFileSync(join(locks, `${sessionId}.lock`), "");
+  const fd = openSync(join(locks, `${sessionId}.lock`), "r");
+  try {
+    const refused = await prepare({ root, mode: "resume", canvas, text: "", anchors: [] }).then(() => null, (error: unknown) => error);
+    expect(refused).toBeInstanceOf(Error); expect(refused).toMatchObject({ message: "session_in_use", runtime: "codex", sessionId });
+    expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_in_use", runtime: "codex", session: sessionId });
+  } finally { closeSync(fd); }
+  // A lock file nobody holds is what a killed writer leaves behind.
+  expect((await prepare({ root, mode: "resume", canvas, text: "", anchors: [] })).sessionId).toBe(sessionId);
+  rmSync(locks, { recursive: true }); symlinkSync(temp(), locks);
+  await expect(prepare({ root, mode: "resume", canvas, text: "", anchors: [] })).rejects.toThrow("session_unavailable");
+  expect(await handler(true, "resumeTarget", { root, canvas })).toEqual({ available: false, reason: "session_unavailable" });
 });
 
 it.each(["valid", "valid-0.163.0", "valid-0.170.0", "wrong-id", "wrong-cwd", "wrong-version", "version-prefixed", "version-trailing", "version-number", "version-null", "version-missing", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync, realpathSync, renameSync, constants } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync, realpathSync, renameSync, constants, openSync, closeSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readSessionTail, claudeOccupancy, codexSessionExists } from "./io";
+import { readSessionTail, claudeOccupancy, codexOccupancy, codexSessionExists } from "./io";
 import { ConversationStore } from "./store";
 const hooks = vi.hoisted(() => ({ open: undefined as undefined | ((path: unknown, flags: number) => void), truncate: false, beforeWrite: undefined as undefined | (() => void), oversizedList: false }));
 vi.mock("node:fs", async original => {
@@ -90,6 +90,37 @@ describe("conversation disk boundaries", () => {
     expect(await claudeOccupancy(config, "running-y", inspect)).toBe("occupied");
     // A record left by a killed run of the same version is dead and does not block.
     expect(await claudeOccupancy(config, "running-y", async () => null)).toBe("free");
+  });
+  // codex 0.166.0 live (batch E PoC): the thread's writer holds <CODEX_HOME>/thread-writer-locks/<id>.lock with an
+  // exclusive flock and deletes it on a clean exit; a SIGKILL leaves the file behind with nobody holding it.
+  it("reads a Codex thread writer lock and fails closed on anything it cannot read", async () => {
+    const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", locks = join(config, "thread-writer-locks"), lock = join(locks, `${id}.lock`);
+    const inspect = vi.fn(async (_path: string) => true);
+    // No supported writer has run in this profile, so none holds the thread.
+    expect(await codexOccupancy(config, id, inspect)).toBe("free");
+    mkdirSync(locks); writeFileSync(join(locks, ".coordination.lock"), "");
+    expect(await codexOccupancy(config, id, inspect)).toBe("free");
+    expect(inspect).not.toHaveBeenCalled();
+    writeFileSync(lock, "");
+    expect(await codexOccupancy(config, id, inspect)).toBe("occupied"); expect(inspect).toHaveBeenCalledWith(lock);
+    expect(await codexOccupancy(config, id, async () => false)).toBe("free");
+    expect(await codexOccupancy(config, id, async () => { throw new Error("lsof timed out"); })).toBe("unknown");
+    expect(await codexOccupancy(config, "not-a-thread", inspect)).toBe("unknown");
+    rmSync(lock); const target = join(temp(), "held.lock"); writeFileSync(target, ""); symlinkSync(target, lock);
+    expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(lock); mkdirSync(lock); expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(locks, { recursive: true });
+    const linked = realpathSync(temp()); symlinkSync(linked, locks); expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(locks); writeFileSync(locks, ""); expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(locks); mkdirSync(locks); chmodSync(locks, 0o000);
+    try { expect(await codexOccupancy(config, id, inspect)).toBe("unknown"); } finally { chmodSync(locks, 0o755); }
+  });
+  it("sees a Codex lock file another descriptor holds open and treats an unopened one as stale", async () => {
+    const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", lock = join(config, "thread-writer-locks", `${id}.lock`);
+    mkdirSync(join(config, "thread-writer-locks")); writeFileSync(lock, "");
+    expect(await codexOccupancy(config, id)).toBe("free");
+    const fd = openSync(lock, "r");
+    try { expect(await codexOccupancy(config, id)).toBe("occupied"); } finally { closeSync(fd); }
   });
 });
 
