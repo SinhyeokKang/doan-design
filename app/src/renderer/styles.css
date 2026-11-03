@@ -1140,7 +1140,11 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    starts at the shell's 8px inner margin. Only a toggle animates (data-sidebar-motion), as folding the conversation
    panel does; a drag or a window resize must not. */
 :root[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-right-width); }
+/* The page panels and the workspace's right column are auto-placed after the sidebar, so without it they would fall
+   into the empty first column. */
 :root[data-sidebar="hidden"] .home-shell { grid-template-columns: 0px minmax(0, 1fr); }
+:root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }
+:root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }
 :root[data-sidebar="hidden"] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { margin-left: 0; }
 :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell) { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
 :root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }

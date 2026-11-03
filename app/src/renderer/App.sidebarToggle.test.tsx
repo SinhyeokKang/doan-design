@@ -222,3 +222,12 @@ test("⌘B in the composer toggles the sidebar instead of Bold, once; other keys
   key(field);
   expect(sidebars().length).toBeGreaterThan(0);
 });
+
+// T11 runtime probe: the page panels and the workspace's right column are auto-placed after the sidebar, so with it
+// unmounted they fell into the empty first column (0px wide). Hidden, they are placed explicitly.
+test("a hidden sidebar places the auto-placed panels in their own columns", async () => {
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(':root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }');
+  expect(css).toContain(':root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }');
+});
