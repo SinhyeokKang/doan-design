@@ -50,3 +50,5 @@
 - D를 `950d0822`·`0368612f`·`44d1a162`로 통합(typecheck 통과). D 수정 worker release. 2단계는 C 통합 뒤 qsn-d에서 새 worker로.
 - B 리뷰(Opus high): 🔴 0 · 🟡 3. 🟡1(실패 terminal 뒤 미소비 steer로 숨은 턴) → B 수정 1회차 `ctx_c54d451e2cf5`. 🟡3(Codex 소비 신호가 steer 응답보다 먼저 오거나 timeout 거절 뒤에 옴) → B는 RpcError 거절 때 id 제거, C에는 '소비 신호 우선' 계약을 보냄. 🟡2(Claude가 받아들인 uuid를 echo하지 않으면 Stop 전까지 턴이 안 끝남) → conductor 판단: 이번엔 상한을 두지 않는다(design §2.4가 상한 없이 정의, 데이터 손실 없음). BACKLOG에 남기고 T5 probe에서 반복 확인한다. PR에 사용자 확인 항목으로 적는다.
 - B 수정 1회차 `837524d9`(🟡1·🟡3 반영, red 선확인, 테스트 6275 통과). `shell.test.ts` 're-root focus'가 간헐 실패(격리 9회 중 2회, 이번 변경과 무관) — BACKLOG 후보.
+- B를 `647d3633`로 통합, B worker release, qsn-b worktree 삭제 요청(브랜치 `SinhyeokKang/qsn-b`는 `837524d9`에 남김). C에는 rebase 후 gate 재실행을 요청했다.
+- C 완료 `d6cee431`(base `9f201e4e`, rebase 안 함. verify 3회차 통과, 1·2회차는 `watch.test.ts`·`shell.test.ts` flake). 계획과 다른 점: done flush가 진행 중 steer를 await하지 않고, terminal 처리 직전에 미소비 steer를 되돌린다(`dropSteers`). B 계약상 terminal 뒤에는 소비가 없으므로 결과는 같고 Codex RPC 대기가 없다. 리뷰에서 판단한다. preload는 `sendQueuedNow({conversationId, itemId})`.
