@@ -1031,6 +1031,8 @@ app.on("before-quit", (event) => {
   // JS wrapper exists. Electron then crashes trying to emit its close event.
   // Let the native stack unwind before either disposal or app.quit().
   quitScheduled = true;
+  // conversation:delete answers busy while quitting as while working; this lets the renderer tell the two apart.
+  send("app:quitting", true);
   // Accepted: onboarding saves no completion, and neither it nor the Add Projects page starts project work from here,
   // before any teardown is awaited.
   onboarding?.closeForQuit();
@@ -1040,6 +1042,7 @@ app.on("before-quit", (event) => {
     // the capture window and block will-quit. Persist state before teardown.
     try { await conversations?.quit(); } catch (error) {
       quitScheduled = false;
+      send("app:quitting", false);
       onboarding?.reopenAfterAbortedQuit();
       addPage?.reopenAfterAbortedQuit();
       console.error("doan: conversation persistence failed during quit", error);

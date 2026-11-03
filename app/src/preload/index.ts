@@ -365,6 +365,13 @@ const api = {
     ipcRenderer.on("notifications:click", receive);
     return () => ipcRenderer.removeListener("notifications:click", receive);
   },
+  // true once a quit is under way and conversations stop (conversation:delete then answers busy as it does while one
+  // works); false when that quit was aborted and the app goes on.
+  onQuitting(listener: (quitting: boolean) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, quitting: boolean) => listener(quitting);
+    ipcRenderer.on("app:quitting", receive);
+    return () => ipcRenderer.removeListener("app:quitting", receive);
+  },
   // Main asks for the Settings page, at a category and optionally a provider row; a hidden window is already shown.
   onOpenSettingsPage(listener: (target: SettingsPageTarget) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, target: SettingsPageTarget) => listener(target);

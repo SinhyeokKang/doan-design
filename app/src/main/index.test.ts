@@ -592,7 +592,8 @@ test("a quit goes ahead without asking the renderer", async () => {
   expect(event.preventDefault).toHaveBeenCalledOnce();
   await new Promise<void>(resolve => setImmediate(resolve));
   expect(mocks.app.quit).toHaveBeenCalledOnce();
-  expect(window().webContents.send).not.toHaveBeenCalled();
+  // Only the one-way quitting notice, which nothing waits for.
+  expect(window().webContents.send.mock.calls).toEqual([["app:quitting", true]]);
 });
 
 test("project setup IPC rejects untrusted frames, arbitrary paths and forged choices", async () => {
