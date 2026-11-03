@@ -50,4 +50,6 @@ tasks 항목과 배치: T1→A, T2→B, T3→G, T4→지휘자, T5→B, Z1→지
 - T4: 통합 HEAD a20e110a에서 `node .agents/skills/verify/scripts/verify.mjs --eval` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, eval-tests, eval-self-test, build). 로그 `.scratch/orch/verify-eval.log`.
 - Z1 일부: PRODUCT §2·§5 item 0 'First run'·item 8을 고쳤다(06c223dc). ARCHITECTURE §14는 O 계열 시나리오를 나열하지 않고(설계 프리셋 집합만 나열), §4의 onboarding 요청 형식은 바뀌지 않아 고칠 것이 없다. BACKLOG에 이 feature가 닫는 항목은 없다.
 - T5: B에 보냈다(같은 작업자, 같은 worktree, feat로 rebase 뒤 패키지 재빌드).
+- B(T5) 완료: `o3-guide`(일곱 시나리오, 두 에이전트, judge 모두 실행), runner exit 0, real-state 그대로. O3·O3b 모두 두 에이전트 pass(O3b는 `complete`를 부르지 않음). O1·O2·D12·D9는 기준 라운드처럼 pass. D10h-claude는 judge만 partial이고 `o3-guide-repeat`(×2)에서도 같은 이유(DESIGN.md가 README의 laptop 사실을 반복)여서 기준 라운드(`eval-d10h-261101`)와 같다. 회귀가 아니다. 커밋 dd507fe9를 feat에 0daa673a로 넣었고 브랜치 `setup-via-onboarding-b2`로 남겼다. Codex 주간은 93% 그대로였다.
+- 지휘자 판단: O3b는 기준선 0/6에서 에이전트마다 1회 pass라 근거가 얇다. 그래서 병합 전에 O3b만 `--repeat 2`로 더 잰다(`o3-guide-o3b-repeat`).
 
