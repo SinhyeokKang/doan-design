@@ -6,6 +6,7 @@ import {
 } from "./canvasConversation";
 import { dockedRefusal, type DockedMode } from "./dockedRules";
 import { startErrorView } from "./homeComposer";
+import { projectConversationMenu } from "./overviewConversation";
 
 const NOW = Date.parse("2026-11-01T12:00:00.000Z");
 const at = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
@@ -105,6 +106,23 @@ describe("canvasConversationMenu", () => {
     ], billing, null, NOW);
     expect(rows.map(r => r.status?.label ?? null)).toEqual(["Needs your answer", "Working", "Finished, not seen"]);
     expect(canvasConversationMenu([summary({ unseen: true })], billing, null, NOW, new Set(["c1"]))[0]!.status).toBeNull();
+  });
+
+  // conversation-delete design §3.1: both menus build their rows with menuItem, so Delete reads the same in each.
+  test("each row says whether it can be deleted, as the Overview's menu does", () => {
+    const list = [
+      summary({ conversationId: "w", phase: "waiting", working: true, lastActivityAt: at(1) }),
+      summary({ conversationId: "r", state: "archived", phase: "running", working: true, lastActivityAt: at(2) }),
+      summary({ conversationId: "e", state: "archived", lastActivityAt: at(3) }),
+    ];
+    const rows = canvasConversationMenu(list, billing, null, NOW);
+    expect(rows.map(r => [r.conversationId, r.deletable])).toEqual([
+      ["w", { available: false, reason: "The agent is waiting for your answer." }],
+      ["r", { available: false, reason: "The agent is working on this conversation." }],
+      ["e", { available: true }],
+    ]);
+    const { canvas: _w, ...asProject } = list[0]!;
+    expect(projectConversationMenu([asProject], NOW)[0]!.deletable).toEqual(rows[0]!.deletable);
   });
 
   test("an empty list has no rows", () => {

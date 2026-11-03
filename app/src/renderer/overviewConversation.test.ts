@@ -120,7 +120,7 @@ describe("projectConversationMenu", () => {
   test("an item carries title, provider, short time and preview", () => {
     expect(projectConversationMenu([summary({ conversationId: "c", title: "Pricing ideas", provider: "codex", lastActivityAt: ago(3 * MIN), preview: "Three options" })], NOW)).toEqual([{
       conversationId: "c", title: "Pricing ideas", provider: "codex", status: null,
-      time: { text: "3m", label: "3 minutes ago" }, preview: "Three options", readError: false,
+      time: { text: "3m", label: "3 minutes ago" }, preview: "Three options", readError: false, deletable: { available: true },
     }]);
   });
 
@@ -147,6 +147,24 @@ describe("projectConversationMenu", () => {
     ], NOW);
     expect(menu.map(item => item.conversationId)).toEqual(["ok", "broken"]);
     expect(menu[1]).toMatchObject({ title: "Lost thread", preview: "Can’t read this conversation", time: null, status: null, readError: true });
+  });
+
+  // conversation-delete design §3.1: a working or waiting conversation's Delete is unavailable, with the reason.
+  test("each item says whether it can be deleted", () => {
+    const menu = projectConversationMenu([
+      summary({ conversationId: "w", phase: "waiting", working: true, lastActivityAt: ago(1 * MIN) }),
+      summary({ conversationId: "r", phase: "running", working: true, lastActivityAt: ago(2 * MIN) }),
+      summary({ conversationId: "j", working: true, lastActivityAt: ago(3 * MIN) }),
+      summary({ conversationId: "e", lastActivityAt: ago(4 * MIN) }),
+      summary({ conversationId: "broken", readError: true, lastActivityAt: "", preview: "" }),
+    ], NOW);
+    expect(menu.map(item => [item.conversationId, item.deletable])).toEqual([
+      ["w", { available: false, reason: "The agent is waiting for your answer." }],
+      ["r", { available: false, reason: "The agent is working on this conversation." }],
+      ["j", { available: false, reason: "The agent is working on this conversation." }],
+      ["e", { available: true }],
+      ["broken", { available: true }],
+    ]);
   });
 });
 

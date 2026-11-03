@@ -454,3 +454,115 @@ test("New chosen while the list loads holds Send until the list answers; a faile
   await flush();
   expect(failed.run.view()).toMatchObject({ kind: "new", listError: true, start: { pending: false } });
 });
+
+// conversation-delete tasks T3, design §3.2: the state after a conversation is deleted. App marks the conversation
+// deleting before conversation:delete, then on success calls each run's deleted and the store's.
+const confirmDelete = (h: ReturnType<typeof harness>, id: string) => { h.run.deleted(id); h.store.deleted(id); };
+
+test("deleting the canvas's current conversation shows the new conversation state; an archived one is not picked", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A), summary(B, { state: "archived" })]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  const revision = h.run.revision();
+  h.store.startDelete(A);
+  confirmDelete(h, A);
+  expect(h.run.view()).toMatchObject({ kind: "new", listError: false });
+  expect(h.run.revision()).toBeGreaterThan(revision);
+  expect(h.run.composerKey()).toBe(canvasKey(checkout));
+  // The canvas has no current conversation now; the archived one stays archived and unpicked.
+  h.answer([summary(B, { state: "archived" })]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.run.show(cart);
+  h.run.show(checkout);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+});
+
+test("a list that drops the shown conversation before the delete reply does not switch to another one", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A), summary(B, { state: "archived" })]);
+  h.run.select(B);
+  h.store.startDelete(B);
+  h.answer([summary(A)]);
+  // Held while the delete is pending, rather than falling back to the current conversation.
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+  confirmDelete(h, B);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+});
+
+test("a refused delete releases the hold, so the next list read picks as before", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A), summary(B, { state: "archived" })]);
+  h.run.select(B);
+  h.store.startDelete(B);
+  h.store.cancelDelete(B);
+  h.answer([summary(A)]);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+});
+
+test("a start or send reply sent before the delete does not replace the new conversation state", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(A)]);
+  const revision = h.run.revision();
+  confirmDelete(h, A);
+  h.run.started(checkout, B, "claude", revision);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+});
+
+test("every canvas state holding the deleted conversation is cleared: a pending request elsewhere and a duplicated ID", () => {
+  const h = harness();
+  const copy = { root: ROOT, canvas: { path: ".doan/canvases/checkout-copy.html", id: CHECKOUT.id } };
+  h.run.show(checkout);
+  h.answer([summary(A), summary(B, { canvas: CART })]);
+  // An entry asked cart for A before cart opened; it waits in cart's state.
+  h.run.request(cart, A, null);
+  confirmDelete(h, A);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  // Two canvases sharing the ID share the state, so the other one shows the new conversation state too.
+  h.run.show(copy);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+  h.run.show(cart);
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
+  expect(h.host.reread).not.toHaveBeenCalled();
+});
+
+test("a conversation started here but not listed yet is cleared when deleted", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([]);
+  h.run.started(checkout, A, "claude", h.run.revision());
+  expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  confirmDelete(h, A);
+  h.answer([]);
+  expect(h.run.view()).toMatchObject({ kind: "new" });
+});
+
+test("a promotion notice for the deleted conversation goes, and the list comparison does not raise it again", () => {
+  const h = harness();
+  h.run.show(checkout);
+  h.answer([summary(P, { canvas: null })]);
+  h.answer([summary(P)]);
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
+  confirmDelete(h, P);
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
+  // Before the next read lands, the lists already read still name it; nothing announces it.
+  h.run.sync();
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
+  h.answer([]);
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
+});
+
+test("other canvases and conversations keep what they show", () => {
+  const h = harness();
+  h.run.show(cart);
+  h.answer([summary(A), summary(B, { canvas: CART })]);
+  const revision = h.run.revision();
+  confirmDelete(h, A);
+  expect(h.run.view()).toEqual({ kind: "conversation", conversationId: B, archived: false, notice: null });
+  expect(h.run.revision()).toBe(revision);
+});
