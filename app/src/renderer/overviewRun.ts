@@ -271,7 +271,7 @@ export class OverviewRun {
   // person's choices hold, so a list read that lands later never replaces one (POSTMORTEM 2026-10-25).
   private resolve(root: string, s: RootState): void {
     const list = this.host.list(root);
-    const read = Array.isArray(list) ? list : null;
+    const read = Array.isArray(list) ? this.store.withoutDeleted(list) : null;
     if (s.request) {
       const request = s.request;
       const pick = pickOverviewConversation(read, undefined, request.conversationId);

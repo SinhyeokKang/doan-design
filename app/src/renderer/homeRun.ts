@@ -501,7 +501,8 @@ export class HomeRun {
       this.track(id);
       void this.history(id).then(read => {
         this.claiming.delete(id);
-        if (!read || this.conversations.some(item => item.conversationId === id)) return;
+        // Deleted while its history was read: the claim lapses.
+        if (!read || this.deletedIds.has(id) || this.conversations.some(item => item.conversationId === id)) return;
         this.events.set(id, mergeConversationEvents(read.events, this.events.get(id) ?? [], id));
         this.claimed.add(id);
         this.conversations = [...this.conversations, { conversationId: id, root, provider: summary.provider, phase: "starting", ...(summary.canvas ? { canvas: summary.canvas.path } : {}) }];

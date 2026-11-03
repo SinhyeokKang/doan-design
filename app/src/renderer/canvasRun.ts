@@ -244,7 +244,8 @@ export class CanvasRun {
   private resolve(s: CanvasState): void {
     // Deleting what shows: deleted() resets it once main answers; a list read without it must not pick another.
     if (typeof s.shown === "string" && this.store.deleting(s.shown)) return;
-    const list = this.host.list(s.target.root);
+    const listed = this.host.list(s.target.root);
+    const list = Array.isArray(listed) ? this.store.withoutDeleted(listed) : listed;
     const drawing = this.host.drawing(s.target.root, s.target.canvas);
     if (s.request) {
       const request = s.request;

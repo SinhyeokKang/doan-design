@@ -113,6 +113,10 @@ export class ConversationStore {
   startDelete(conversationId: string): void { this.deletingIds.add(conversationId); }
   cancelDelete(conversationId: string): void { this.deletingIds.delete(conversationId); }
   deleting(conversationId: string): boolean { return this.deletingIds.has(conversationId); }
+  // A list read before main deleted it still names it until the next read answers: picks leave it out.
+  withoutDeleted(list: readonly ConversationSummary[]): readonly ConversationSummary[] {
+    return list.filter(c => !this.deletedIds.has(c.conversationId));
+  }
   // main deleted it: its thread, draft, returned draft and queue go. The new conversation's draft stays (spec decision 5).
   deleted(conversationId: string): void {
     this.deletingIds.delete(conversationId);
