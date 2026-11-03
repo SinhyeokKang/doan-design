@@ -56,8 +56,9 @@ func TestSkillGuideActive(t *testing.T) {
 		t.Error("rule A does not cover active html and text")
 	}
 	recovery := ""
+	// The onboarding section also names `app_not_running` and a sandbox; this rule is the `doan active` sub-bullet.
 	for _, l := range lines {
-		if strings.Contains(l, "`app_not_running`") && strings.Contains(l, "sandbox") {
+		if strings.HasPrefix(l, "  - On `app_not_running`") && strings.Contains(l, "sandbox") {
 			recovery = l
 		}
 	}
@@ -93,17 +94,52 @@ func TestSkillGuideHandoff(t *testing.T) {
 	}
 }
 
-// `doan init --json` never prompts, so the guide must make the agent ask first.
+// `doan init --json` never prompts, so the guide must make the agent ask first when the user names it.
+// The onboarding fallback runs it without asking, and it never registers the project in the app (setup-via-onboarding decisions 3, 4).
 func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
 	for _, l := range strings.Split(skillBody, "\n") {
 		if strings.HasPrefix(l, "- `doan init ") {
-			if !strings.Contains(l, "Run it only when the user asks, and ask the user for the token CSS path first.") {
-				t.Fatal(l)
+			for _, required := range []string{
+				"It installs no agent skills and does not add the project to Doan.",
+				"Run it only when the user names `doan init`, asking for the token CSS path first, or when a repository setup cannot reach Doan.",
+			} {
+				if !strings.Contains(l, required) {
+					t.Errorf("init entry misses %q: %s", required, l)
+				}
 			}
 			return
 		}
 	}
 	t.Fatal("guide has no init command entry")
+}
+
+// A request to set up a repository goes through onboarding, which registers it in the app; init is only the fallback
+// when Doan cannot be reached, so unattended runs do not stop (setup-via-onboarding decisions 1, 2, 3, 5).
+func TestSkillGuideSetupGoesThroughOnboarding(t *testing.T) {
+	var first, step1 string
+	for _, l := range strings.Split(skillBody, "\n") {
+		if strings.HasPrefix(l, "Use these commands when the user asks you to set up Doan") {
+			first = l
+		}
+		if strings.HasPrefix(l, "1. `doan onboarding start --json`") {
+			step1 = l
+		}
+	}
+	for _, required := range []string{
+		"Use these commands when the user asks you to set up Doan or a repository for Doan.",
+		"On `completed: true` from `start`, stop after `select` (no `complete`).",
+		"Never ask for token CSS; pass one the user named to `doan config --token-css` after `select` (or to `doan init`).",
+		"If a repository setup cannot reach Doan (`app_not_running`, `app_launch_failed`, `app_protocol_mismatch`, or a sandbox blocks its socket), run `doan init` without asking and tell the user the project is not in Doan: they add it with Add Project….",
+		"Onboarding needs no skill or project and takes no `--repo`; path arguments are absolute.",
+	} {
+		if !strings.Contains(first, required) {
+			t.Errorf("onboarding first paragraph misses %q", required)
+		}
+	}
+	// Asking the user to open Doan is for the other onboarding requests; a repository setup takes the init fallback.
+	if !strings.Contains(step1, "Outside a repository setup, on `app_not_running` or `app_launch_failed`, ask the user to open Doan") {
+		t.Errorf("step 1 does not split the setup fallback from asking: %q", step1)
+	}
 }
 
 func TestSkillConfigRequiresHumanRequest(t *testing.T) {

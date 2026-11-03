@@ -1,0 +1,4 @@
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_0", "name": "Bash", "input": {"command": "doan skill"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_1", "name": "Bash", "input": {"command": "doan onboarding start --json"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "tool_use", "id": "toolu_2", "name": "Bash", "input": {"command": "doan init"}}]}}
+{"type": "assistant", "message": {"content": [{"type": "text", "text": "Doan is set up: `doan init` added .doan/config.json, .doan/canvases/ and .gitattributes."}]}}

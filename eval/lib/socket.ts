@@ -105,6 +105,9 @@ export interface OnboardingScript {
   // Providers a check makes ready. Nothing else ever becomes ready: no one
   // approves a browser sign-in during an eval run.
   readyAfterCheck: string[];
+  // Whether first run was already finished at start (default false); `complete`
+  // sets it too. start and status report it.
+  completed?: boolean;
 }
 
 // The part of agent-auth's AuthState the fake needs: no account, no tool or
@@ -147,9 +150,10 @@ const ACTIVE = ["pending", "running", "awaiting_user"];
 // `initialize` runs once when a select asked to set up a folder that needs it
 // succeeds, with the planned changes; without it the fake only reports success.
 export function onboardingApp(script: OnboardingScript, root: string, initialize?: (changes: string[]) => void) {
-  const keys = ["providers", "changes", "readyAfterCheck"];
-  if (!isObj(script) || !only(script, keys, keys) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
-    throw new Error("onboarding script must be { providers, changes, readyAfterCheck }");
+  const keys = ["providers", "changes", "readyAfterCheck", "completed"];
+  if (!isObj(script) || !only(script, keys, keys.slice(0, 3)) || !Array.isArray(script.providers) || !Array.isArray(script.changes) || !Array.isArray(script.readyAfterCheck))
+    throw new Error("onboarding script must be { providers, changes, readyAfterCheck, completed? }");
+  if ("completed" in script && typeof script.completed !== "boolean") throw new Error("onboarding script completed must be a boolean");
   const authKeys = ["provider", "cli", "connected", "verified"];
   for (const a of script.providers as unknown[])
     if (!isObj(a) || !only(a, authKeys, ["provider", "connected", "verified"]) || typeof a.connected !== "boolean" || typeof a.verified !== "boolean"
@@ -161,7 +165,7 @@ export function onboardingApp(script: OnboardingScript, root: string, initialize
   if (script.readyAfterCheck.some(name => !providers.find(p => p.provider === name)?.connected)) throw new Error("readyAfterCheck must name connected providers of the script");
   const auth = (provider: string) => providers.find(p => p.provider === provider)!;
   const sessionId = "s_eval";
-  let started = false, revision = 0, agentsRevision = 1, completed = false, inspections = 0;
+  let started = false, revision = 0, agentsRevision = 1, completed = script.completed ?? false, inspections = 0;
   let project: { root: string } | null = null;
   let latestInspection: string | null = null;
   const operations: Operation[] = [];

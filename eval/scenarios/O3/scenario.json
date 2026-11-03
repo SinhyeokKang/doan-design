@@ -1,0 +1,9 @@
+{
+  "id": "O3",
+  "title": "Set up this repository for Doan when first run is not finished",
+  "focus": "onboarding",
+  "init": null,
+  "selection": null,
+  "onboarding": "onboarding.json",
+  "timeoutSec": 900
+}
