@@ -24,6 +24,16 @@ vi.mock("radix-ui", async original => {
     RadioItem: part("div", "menuitemradio", menu.items), Item: part("div", "menuitem", menu.items), Separator: part("div", "separator"), Label: part("div"),
   } };
 });
+// State setters record their calls, so the menu's open setter can be watched under static markup.
+vi.mock("react", async original => {
+  const actual = await original<typeof import("react")>();
+  return { ...actual, useState: (initial: unknown) => {
+    const [value, set] = actual.useState(initial);
+    const recorded = Object.assign((next: unknown) => { recorded.calls.push(next); set(next as never); }, { calls: [] as unknown[] });
+    return [value, recorded];
+  } };
+});
+const tooltips = vi.hoisted(() => [] as Record<string, unknown>[]);
 const focused = vi.hoisted(() => ({ calls: [] as unknown[] }));
 vi.mock("./chipField", async original => ({ ...await original<typeof import("./chipField")>(), focusFieldEnd: (field: unknown) => { focused.calls.push(field); } }));
 // The New conversation button's props, recorded by its tooltip trigger.
@@ -33,7 +43,7 @@ vi.mock("./components/ui/tooltip", async original => {
   return { ...actual, TooltipTrigger: ({ children }: { children: ReactElement }) => {
     if (isValidElement(children)) triggers.push(children.props as Record<string, unknown>);
     return cloneElement(children);
-  } };
+  }, TooltipContent: (props: Record<string, unknown>) => { tooltips.push(props); return null; } };
 });
 const { TooltipProvider } = await import("./components/ui/tooltip");
 const { ProjectOverview } = await import("./ProjectOverview");
@@ -53,7 +63,7 @@ const summary = (conversationId: string, title: string, extra: Partial<Conversat
 const FIELD = { field: true };
 
 beforeEach(() => {
-  menu.items.length = 0; menu.roots.length = 0; menu.contents.length = 0; triggers.length = 0; focused.calls.length = 0;
+  menu.items.length = 0; menu.roots.length = 0; menu.contents.length = 0; triggers.length = 0; tooltips.length = 0; focused.calls.length = 0;
   vi.stubGlobal("window", { doan: { readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })) } });
   vi.stubGlobal("document", { querySelector: (selector: string) => selector.endsWith(".composer-input") ? FIELD : null });
 });
@@ -236,4 +246,14 @@ test.each([
   const event = { preventDefault: vi.fn() };
   close(event);
   expect(event.preventDefault).not.toHaveBeenCalled();
+});
+
+// Review RC ⚪2: the Delete tooltip's Escape reaches each screen's title menu, which closes.
+test.each(screens)("%s: Escape on a Delete's tooltip closes the title menu", (_name, draw) => {
+  draw();
+  const root = menu.roots.find(props => "open" in props)!;
+  const setOpen = root["onOpenChange"] as { calls: unknown[] };
+  const escape = tooltips.find(props => props["children"] === "Delete conversation")!["onEscapeKeyDown"] as () => void;
+  escape();
+  expect(setOpen.calls).toEqual([false]);
 });
