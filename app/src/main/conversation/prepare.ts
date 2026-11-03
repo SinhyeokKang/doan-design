@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { agentEnv } from "./environment";
+import { launchEnv } from "../launchEnv";
 import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
@@ -38,7 +39,7 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
     const probe = await probeShell(inherited); if (!probe.ok) throw new Error("cli_missing");
     const command = findOnPath(probe.path, runtime, path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } });
     if (!command) throw new Error("cli_missing");
-    const version = await runProcess(command, ["--version"], { ...inherited, PATH: probe.path }, 5000);
+    const version = await runProcess(command, ["--version"], { ...launchEnv(inherited), PATH: probe.path }, 5000);
     if (version.exitCode !== 0 || version.timedOut || versionStatus(runtime, version.stdout) !== "supported") throw new Error(request.mode === "resume" ? "session_unavailable" : "runtime_unsupported");
     let root: string, cwd: string, configDir: string;
     try {

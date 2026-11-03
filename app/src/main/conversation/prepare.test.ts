@@ -10,6 +10,7 @@ import { conversationHandler } from "./ipc";
 import { processStart } from "./io";
 import { ConversationService } from "./service";
 import { ConversationStore } from "./store";
+import { DOCK, TERMINAL } from "../launchEnv.fixture";
 const paths: string[] = []; afterEach(() => { vi.clearAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function temp() { const root = realpathSync(mkdtempSync(join(tmpdir(), "doan-prepare-"))); paths.push(root); return root; }
 it("fails closed with a missing installed CLI despite the SDK platform dependency", async () => {
@@ -31,6 +32,12 @@ it("uses selected canonical profile and fails unknown versions before opening", 
   await expect(prepare({ ...request, mode: "resume" }, { runtime: "codex", origin: "new", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: config, cwd: root })).rejects.toThrow("session_unavailable");
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli" });
   await expect(prepare({ ...request, mode: "resume" }, { runtime: "codex", origin: "new", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: config, cwd: root })).rejects.toThrow("session_unavailable");
+});
+it("checks the external CLI's version with the launch environment and the login shell's PATH", async () => {
+  const root = temp(); const config = join(root, "profile"); mkdirSync(config); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });
+  mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: config }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.164.0" });
+  await createPrepare(root, join(root, "runtime.json"), { ...TERMINAL, HOME: root })({ root, mode: "new", runtime: "codex", text: "hello", anchors: [] });
+  expect(mocks.run.mock.calls[0]?.[2]).toEqual({ ...DOCK, HOME: root, PATH: root });
 });
 // A legacy external run has no readiness wiring: nothing it sees is recorded.
 it.each([
