@@ -5,9 +5,9 @@
 ## 1. 영향받는 구성 요소
 
 - **app (renderer)**: `rightPanelSize.ts`, `sidebarSize.ts`, `App.tsx`(`TopBar`, 폭 상태와 측정, 셸 렌더), `ProjectOverview.tsx`(헤더), `ConversationPanel.tsx`의 `ResizeHandle`(재사용, 변경 없음 목표), `styles.css`, `ShellSidebar.tsx`(숨길 때 열린 메뉴와 포커스).
-- **app (main)**: `main/index.ts`(View 메뉴 항목, `MenuCommand`, `MenuInputs`, `menu:state` 입력 검증), `main/menuState.ts`(활성 여부).
+- **app (main)**: `main/index.ts`(View 메뉴 항목, `MenuCommand`, `MenuInputs`, `menu:state` 입력 검증, 전체 화면 상태 알림), `main/menuState.ts`(활성 여부).
 - **app (restore)**: `restore/uiState.ts`(`UiState`의 `sidebar`, 새 `overviewPanel` 필드 파싱).
-- **app (preload)**: `setMenuState` 입력 타입이 바뀐다(`MenuInputs`에 필드 하나).
+- **app (preload)**: `setMenuState` 입력 타입이 바뀐다(`MenuInputs`에 필드 하나). 전체 화면 상태를 읽고 구독하는 API가 더해진다.
 - **CLI(Go) / 스킬 / 앱 소켓 / `.doan/config.json` / 코멘트 이벤트 / `runtime.json`**: 바뀌지 않는다.
 
 ## 2. 항목별 설계
@@ -81,6 +81,13 @@
 - 그 밖에는 포커스를 옮기지 않는다. 보일 때도 옮기지 않는다.
 - 사이드바를 전제로 한 기존 포커스 규칙(캔버스를 휴지통으로 옮긴 뒤 다음 행으로, 행 메뉴 Esc 뒤 트리거로)은 사이드바가 보일 때만 해당한다. 숨긴 동안 그 흐름은 사이드바 메뉴에서만 시작되므로 생기지 않는다.
 
+### 2.5 전체 화면에서의 헤더
+
+- main이 메인 창의 `enter-full-screen`·`leave-full-screen`에서 renderer로 전체 화면 여부(boolean)를 보낸다. renderer가 처음 그릴 때와 창을 다시 보일 때 쓰도록 지금 값을 읽는 invoke도 둔다(구독보다 먼저 이벤트가 오면 최신 값이 이긴다). 채널 이름과 preload 모양은 기존 `work:changed`·`deep-link:open` 구독 방식을 따른다. 메인 창 main frame만 받는다(기존 sender 검사).
+- App은 루트 요소에 `data-fullscreen` 속성을 두고, CSS가 `.shell-top .traffic-space`의 폭을 0으로 만든다. 헤더 `padding: 0 8px`는 그대로라 첫 버튼이 x8에 온다. 전환 애니메이션은 두지 않는다(macOS 전환 중에 바뀐다).
+- 상태는 저장하지 않는다. 운영체제의 창 상태라서 ui-state에 넣지 않는다.
+- 사이드바 숨김 레이아웃, 탭 캡슐 가운데 정렬, 캔버스 페이지 표면은 바뀌지 않는다. 헤더의 drag 영역도 그대로다.
+
 ## 3. 순수 함수로 뺄 부분 (`/tdd` 대상)
 
 1. `rightPanelSize.ts`
@@ -97,7 +104,7 @@
 
 - JSON Schema 원본(ARCHITECTURE §11 'Shared formats')은 바뀌지 않는다. `v`도, TS·Go 공용 fixture도 바뀌지 않는다.
 - 바뀌는 것은 기기 로컬 `ui-state.json`의 선택 필드 두 개(`sidebar.hidden`, `overviewPanel`)다. ARCHITECTURE §7 'Navigation persistence and IPC'가 말하는 대로 공유 형식이 아니다.
-- IPC: `menu:state` 입력에 `sidebarHidden`이 더해진다. 앱 내부 IPC이고 CLI 계약(ARCHITECTURE §12)과 앱 소켓 버전은 바뀌지 않는다.
+- IPC: `menu:state` 입력에 `sidebarHidden`이 더해진다. main → renderer 전체 화면 알림과 읽기 invoke가 더해진다. 앱 내부 IPC이고 CLI 계약(ARCHITECTURE §12)과 앱 소켓 버전은 바뀌지 않는다.
 
 ## 5. 관례 영향
 
@@ -119,6 +126,7 @@
 
 ## 8. 참고와 출처
 
-- 사이드바 토글 단축키 ⌘B와 View 메뉴 항목 "Hide Sidebar / Show Sidebar"는 사용자가 정했다. 다른 앱에서 가져온 동작은 없다.
+- 사이드바 토글 단축키 ⌘B와 View 메뉴 항목 "Hide Sidebar / Show Sidebar"는 사용자가 정했다.
+- 전체 화면에서 신호등 자리를 비우는 동작(2.5)은 사용자가 다른 macOS 앱(전체 화면에서 왼쪽 UI를 신호등이 없어진 만큼 당김)을 보고 요청했다(2026-11-03 사용자 스크린샷). 특정 앱의 코드나 값은 가져오지 않았다.
 - 리사이즈 핸들의 모양은 이미 DESIGN 'References'가 적은 malmoi `components/ui/resizable.tsx`(malmoi `6dcdd575`)를 따른다. 새 출처는 없다.
 - 읽은 디자인 프리셋: `layout`(`go run ./cli/cmd/doan design-skill layout --json`). 앱 표면에서는 익숙한 구조와 접을 수 있는 사이드바가 기대되는 패턴이라는 점, 좁은 폭에서 무엇이 줄고 무엇이 남는지 정해 두라는 점을 반영했다(완료 기준 2·4·9).
