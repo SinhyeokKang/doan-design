@@ -83,9 +83,11 @@ body {
   font-family: var(--type-family);
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line-height);
+  /* The app's body sets this, so the zoom percentage and frame numbers keep one width per digit. */
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
-button { font: inherit; }
+button { font: inherit; border-style: none; }
 svg { display: block; flex: none; }
 
 /* ── Header (styles.css .ov-head, .doan-canvas-head and friends) ─────────────── */
@@ -101,7 +103,8 @@ svg { display: block; flex: none; }
 .chev { width: var(--space-4); height: var(--space-4); flex: none; color: var(--text-metadata); }
 .doan-canvas-head-tools { display: flex; align-items: center; gap: var(--space-1); flex: none; margin-left: auto; }
 .doan-canvas-zoom { position: relative; display: flex; align-items: center; gap: var(--space-half); }
-.doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+/* Two classes: `.doan-button` below sets min-width 0 and gap 8px, and one class would lose to it by source order. */
+.doan-canvas-zoom .doan-zoom-value { min-width: 72px; gap: var(--space-1); font-variant-numeric: tabular-nums; }
 .doan-canvas-head .doan-icon-button { color: var(--text-standard); }
 .doan-canvas-head :is(.doan-icon-button, .doan-button):disabled, .doan-canvas-head .doan-button:disabled .chev { color: var(--text-disabled); }
 

@@ -531,6 +531,27 @@ describe("viewer files", () => {
   });
 });
 
+// design-sync (canvas-row-menu): the draft's header was measured against this page in Chromium, and three rules were missing or lost
+// a cascade tie. The values are the app's; the computed-style probe is `.scratch/design-sync/canvas-row-menu/viewer.mjs`.
+describe("header rules the draft's measurement pinned", () => {
+  const rule = (selector: string): string => new RegExp(`^${selector.replace(/[.[\]()]/g, "\\$&")} \\{([^}]*)\\}$`, "m").exec(shellCss)?.[1] ?? "";
+
+  test("the body keeps the app's tabular digits, so the zoom percentage and frame numbers do not jitter", () => {
+    expect(/^body \{([^}]*)\}$/m.exec(shellCss)?.[1]).toMatch(/font-variant-numeric: tabular-nums;/);
+  });
+
+  test("the zoom value rule has two classes: `.doan-button` below it sets min-width 0 and an 8px gap, and one class would lose by source order", () => {
+    expect(shellCss).not.toMatch(/^\.doan-zoom-value \{/m);
+    const zoom = rule(".doan-canvas-zoom .doan-zoom-value");
+    expect(zoom).toContain("min-width: 72px;");
+    expect(zoom).toContain("gap: var(--space-1);");
+  });
+
+  test("buttons carry no border style, as the app's reset leaves them", () => {
+    expect(shellCss).toMatch(/^button \{ font: inherit; border-style: none; \}$/m);
+  });
+});
+
 describe("without JavaScript", () => {
   test("<noscript> carries the line that says to open the file in a browser", () => {
     const noscript = /<noscript>([\s\S]*?)<\/noscript>/.exec(shellHtml)?.[1] ?? "";
