@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { addPageReturn, leaveLocked, pageEnter, pageEscape, projectSettingsReentry, type AddPageOrigin } from "./addProjectsNav";
+import { addPageReturn, leaveLocked, pageEnter, pageEscape, projectSettingsReentry, workspaceRemoved, type AddPageOrigin } from "./addProjectsNav";
 import type { ProjectPhase } from "./projectStep";
 
 const home: AddPageOrigin = { screen: "home" };
@@ -150,4 +150,12 @@ test("project settings page: picking the worktree already shown focuses the titl
   expect(projectSettingsReentry("/w/a", "/w/b", false)).toEqual({ kind: "switch", root: "/w/b", cancelPending: true });
   expect(projectSettingsReentry("/w/a", "/w/a", true)).toEqual({ kind: "ignore" });
   expect(projectSettingsReentry("/w/a", "/w/b", true)).toEqual({ kind: "ignore" });
+});
+
+test("workspaceRemoved: only the loaded workspace's root leaving the list, not a Locate in progress or another screen", () => {
+  expect(workspaceRemoved("workspace", "/w/a", ["/w/c"], null)).toBe(true);
+  expect(workspaceRemoved("workspace", "/w/a", ["/w/a"], null)).toBe(false);
+  expect(workspaceRemoved("workspace", "/w/a", ["/w/moved"], "/w/a")).toBe(false);
+  expect(workspaceRemoved("workspace", null, [], null)).toBe(false);
+  for (const screen of ["home", "addProjects", "settings", "projectSettings"] as const) expect(workspaceRemoved(screen, "/w/a", [], null)).toBe(false);
 });

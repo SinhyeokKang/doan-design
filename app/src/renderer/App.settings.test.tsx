@@ -861,3 +861,65 @@ test("another project's row opens its Overview from the page, as from Home, neve
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
   expect(projectPage()).toBeUndefined();
 });
+
+// project-remove-confirm design §1: the loaded workspace's project leaving the list (Remove from Doan) goes Home; a
+// reroot (Locate, Set Up) or another project's removal keeps the workspace.
+const workspaceMain = () => all(tree).find(element => element.type === "main" && String(element.props.className).includes("workspace"))!;
+const workspaceShown = () => (workspaceMain().props.style as { visibility: string }).visibility === "visible" && workspaceMain().props.inert === false;
+
+test("removing the project of a workspace showing a canvas goes Home and hides the workspace", () => {
+  render();
+  folders([listed("/w/a"), listed("/w/c")]);
+  harness.controller!.openCanvas!.mockImplementation((_root: string, _row: CanvasRow, _view: unknown, done: { opened(): void }) => done.opened());
+  find<{ open(root: string, row: CanvasRow): void }>(ShellSidebar)[0]!.props.open("/w/a", rowA); render();
+  expect(workspaceShown()).toBe(true);
+  clearController();
+  folders([listed("/w/c")]);
+  expect(homeEl()).toBeDefined();
+  expect(workspaceMain().props.style).toEqual({ visibility: "hidden" });
+  expect(workspaceMain().props.inert).toBe(true);
+  expect(harness.controller!.cancelWorkspaceOpen).toHaveBeenCalled();
+});
+
+test("removing the project of a workspace showing its Overview or a problem goes Home", () => {
+  for (const entry of [listed("/w/a"), { path: "/w/a", kind: "notFound" } as FolderEntry]) {
+    reset();
+    render();
+    folders([entry, listed("/w/c")]);
+    sidebarOf().worktree("/w/a"); render();
+    expect(workspaceShown()).toBe(true);
+    folders([listed("/w/c")]);
+    expect(homeEl(), entry.kind).toBeDefined();
+    expect(workspaceMain().props.style).toEqual({ visibility: "hidden" });
+  }
+});
+
+test("removing another project keeps the loaded workspace", () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  folders([listed("/w/a")]);
+  expect(workspaceShown()).toBe(true);
+  expect(loadedOf(find(ShellSidebar)[0]!)).toBe("/w/a");
+});
+
+test("a workspace Locate or a Set Up reroot of the loaded root keeps the workspace on the new root", async () => {
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  const answer = locating();
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("locate", "/w/a"); render();
+  listeners.folders!([listed("/w/moved"), listed("/w/b")] as never, { from: "/w/a", root: "/w/moved" } as never); render();
+  expect(workspaceShown()).toBe(true);
+  answer({ kind: "located", root: "/w/moved" }); await settleLocate();
+  expect(workspaceShown()).toBe(true);
+  expect(loadedOf(find(ShellSidebar)[0]!)).toBe("/w/moved");
+  // A Set Up reroot arrives as a focus on the same list event.
+  reset();
+  render();
+  folders([listed("/w/a"), listed("/w/b")]);
+  sidebarOf().worktree("/w/a"); render();
+  listeners.folders!([listed("/w/a2"), listed("/w/b")] as never, { from: "/w/a", root: "/w/a2" } as never); render();
+  expect(workspaceShown()).toBe(true);
+  expect(loadedOf(find(ShellSidebar)[0]!)).toBe("/w/a2");
+});

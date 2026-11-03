@@ -29,7 +29,7 @@ import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
 import { useToast } from "./Toast";
 import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
-import { addPageReturn, pageEnter, pageEscape, projectSettingsReentry, type AddPageEvent, type AddPageOrigin, type PageName, type ShellScreen } from "./addProjectsNav";
+import { addPageReturn, pageEnter, pageEscape, projectSettingsReentry, workspaceRemoved, type AddPageEvent, type AddPageOrigin, type PageName, type ShellScreen } from "./addProjectsNav";
 import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
@@ -450,7 +450,10 @@ export function App() {
     }
   }, [screen, loadedRoot]);
   useEffect(() => {
-    if (loadedRoot && loadedRoot !== locating?.from && !entries.some(entry => entry.path === loadedRoot)) { setLoadedRoot(null); }
+    if (!loadedRoot || loadedRoot === locating?.from || entries.some(entry => entry.path === loadedRoot)) return;
+    setLoadedRoot(null);
+    // Leaving as leavePage does for Home: a startup restore or a workspace still opening must not land after it.
+    if (workspaceRemoved(screen, loadedRoot, entries.map(entry => entry.path), locating?.from ?? null)) { cancelRestore(); controller.current?.cancelWorkspaceOpen(); setScreen("home"); }
   }, [entries, loadedRoot, locating]);
   useEffect(() => {
     const root = locating?.root;
