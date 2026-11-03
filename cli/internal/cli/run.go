@@ -32,10 +32,10 @@ type Context struct {
 	// RuntimePath and Dial reach the app; Run fills them so bodies never read the environment or open sockets.
 	RuntimePath string
 	Dial        func(socket string, deadline time.Time) (net.Conn, error)
-	// RuntimeExplicit, Executable, Launch and Sleep let only onboarding start and open open the app this CLI is bundled in.
+	// RuntimeExplicit, Executable, Launch and Sleep let only onboarding start (in the background) and open (in front) open the app this CLI is bundled in.
 	RuntimeExplicit bool
 	Executable      func() (string, error)
-	Launch          func(bundle string) error
+	Launch          func(bundle string, background bool) error
 	Sleep           func(time.Duration)
 }
 type Outcome struct {

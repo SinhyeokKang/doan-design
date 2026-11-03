@@ -77,7 +77,7 @@ func onboardingFailure(code, message string) *Error {
 		"operation_not_found":   {"Run `doan onboarding status` to list this session's operations"},
 		"request_conflict":      {"Use a new --request id for other arguments; reuse an id only to resend the same request"},
 		"busy":                  {"Wait for the running operation (`doan onboarding status`), then send a new --request id"},
-		"stop_required":         {"Ask the user to stop the running conversation in Doan, then retry"},
+		"stop_required":         {"Ask the user to click Doan in the Dock, stop the running conversation there, then retry"},
 		"initialize_required":   {"Tell the user the planned changes from inspect; run select again with --initialize once they agree; a request to set up Doan or select a repository is not agreement, only an explicit agreement to Doan adding these files"},
 		"no_ready_agent":        {"Sign in to an agent first (`doan onboarding sign-in`)"},
 		"no_project":            {"Select or clone a project first (`doan onboarding project select` or `clone`)"},
@@ -191,7 +191,8 @@ func onboardingRequest(name string, cmd onboardingCommand, f Flags) (map[string]
 // once and sends it again until the bootstrap cap. attempt returns the validated reply or a failure, and
 // launchable reports a failure that means no app is listening, which is the only thing that may open the app.
 // A not_ready failure means a running app is still starting: it is asked again within the same cap, with no launch.
-func bootstrap(ctx Context, fail func(code, message string) *Error, attempt func(deadline time.Time) (map[string]any, *Error, bool)) (map[string]any, *Error) {
+// background opens the app without activating it (see launchArgs).
+func bootstrap(ctx Context, background bool, fail func(code, message string) *Error, attempt func(deadline time.Time) (map[string]any, *Error, bool)) (map[string]any, *Error) {
 	reply, failure, launchable := attempt(ctx.Now().Add(activeTimeout))
 	if failure == nil {
 		return reply, nil
@@ -211,7 +212,7 @@ func bootstrap(ctx Context, fail func(code, message string) *Error, attempt func
 		if !ok {
 			return nil, fail("app_not_running", "Doan is not running, and this doan CLI is not inside a Doan app to open")
 		}
-		if ctx.Launch(bundle) != nil {
+		if ctx.Launch(bundle, background) != nil {
 			return nil, fail("app_launch_failed", "Could not open Doan")
 		}
 		launched = true
@@ -247,7 +248,7 @@ func bootstrap(ctx Context, fail func(code, message string) *Error, attempt func
 
 // onboardingStart is the only onboarding path that may open the app, and only the bundle this CLI belongs to.
 func onboardingStart(ctx Context, request map[string]any) (map[string]any, *Error) {
-	return bootstrap(ctx, onboardingFailure, func(deadline time.Time) (map[string]any, *Error, bool) {
+	return bootstrap(ctx, true, onboardingFailure, func(deadline time.Time) (map[string]any, *Error, bool) {
 		return callOnboarding(ctx, request, deadline)
 	})
 }
@@ -487,14 +488,48 @@ func plistStrings(data []byte) map[string]string {
 	}
 }
 
-// launchBundle opens the app through LaunchServices so it is visible and does not inherit this shell's environment.
-func launchBundle(bundle string) error {
+// backgroundLaunchFlag tells the app it was opened behind the app in use; the app reads the same string.
+const backgroundLaunchFlag = "--doan-launch=background"
+
+// launchArgs builds the /usr/bin/open arguments. -g keeps LaunchServices from activating the app, and --args reaches
+// the app only when it starts fresh, which is the only time bootstrap launches it.
+func launchArgs(bundle string, background bool) []string {
+	if background {
+		return []string{"-g", bundle, "--args", backgroundLaunchFlag}
+	}
+	return []string{bundle}
+}
+
+// launchEnv is the only environment /usr/bin/open gets. open hands its own environment to a newly launched app,
+// so inheriting the caller's would give the app that terminal's agent profile (CLAUDE_CONFIG_DIR, CODEX_HOME) and
+// hook variables, where a Dock or Finder launch gets the launchd environment. HOME, USER, LOGNAME and TMPDIR are
+// what the launchd environment also has; PATH is fixed because open needs none of the caller's.
+func launchEnv(getenv func(string) string) []string {
+	env := []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"}
+	for _, key := range []string{"HOME", "USER", "LOGNAME", "TMPDIR"} {
+		if v := getenv(key); v != "" {
+			env = append(env, key+"="+v)
+		}
+	}
+	return env
+}
+
+// launchCommand builds the /usr/bin/open command that starts the app in front or behind (see launchArgs).
+func launchCommand(ctx context.Context, bundle string, background bool) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "/usr/bin/open", launchArgs(bundle, background)...)
+	cmd.Env = launchEnv(os.Getenv)
+	return cmd
+}
+
+// launchBundle opens the app through LaunchServices without this shell's environment. Foreground brings it to the
+// front; background leaves the app in use in front.
+func launchBundle(bundle string, background bool) error {
 	if runtime.GOOS != "darwin" {
 		return errors.New("opening Doan is supported only on macOS")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), bootstrapTimeout)
 	defer cancel()
-	return exec.CommandContext(ctx, "/usr/bin/open", bundle).Run()
+	return launchCommand(ctx, bundle, background).Run()
 }
 
 var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_./@%+=:,-]+$`)

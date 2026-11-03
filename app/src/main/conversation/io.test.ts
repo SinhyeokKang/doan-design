@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync, realpathSync, renameSync, constants } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync, readFileSync, realpathSync, renameSync, constants, openSync, closeSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readSessionTail, claudeOccupancy, codexSessionExists } from "./io";
+import { spawn } from "node:child_process";
+import { readSessionTail, claudeOccupancy, codexOccupancy, codexSessionExists, fileHolders, type FileHolder } from "./io";
 import { ConversationStore } from "./store";
 const hooks = vi.hoisted(() => ({ open: undefined as undefined | ((path: unknown, flags: number) => void), truncate: false, beforeWrite: undefined as undefined | (() => void), oversizedList: false }));
 vi.mock("node:fs", async original => {
@@ -11,9 +12,19 @@ vi.mock("node:fs", async original => {
     writeSync: (fd: number, buffer: Uint8Array) => { hooks.beforeWrite?.(); return fs.writeSync(fd, buffer); }, openSync: (path: import("node:fs").PathLike, flags: number, mode?: number) => { hooks.open?.(path, flags); return fs.openSync(path, flags, mode); },
     ftruncateSync: (fd: number, length: number) => { if (hooks.truncate) throw new Error("rollback interrupted"); return fs.ftruncateSync(fd, length); } };
 });
+// lsof replies for fileHolders; undefined runs the real command.
+const lsof = vi.hoisted(() => ({ reply: undefined as undefined | { error: null | { code?: unknown; killed?: boolean; signal?: string }; stdout: string; stderr: string } }));
+vi.mock("node:child_process", async original => {
+  const cp = await original<typeof import("node:child_process")>();
+  return { ...cp, execFile: (...args: unknown[]) => {
+    const reply = lsof.reply; if (!reply || args[0] !== "/usr/sbin/lsof") return (cp.execFile as (...a: unknown[]) => unknown)(...args);
+    const callback = args.at(-1) as (error: unknown, stdout: string, stderr: string) => void;
+    queueMicrotask(() => callback(reply.error && Object.assign(new Error("lsof"), reply.error), reply.stdout, reply.stderr));
+  } };
+});
 const roots: string[] = [];
 function temp() { const p = mkdtempSync(join(tmpdir(), "doan-conversation-")); roots.push(p); return p; }
-afterEach(() => { hooks.open = undefined; hooks.truncate = false; hooks.beforeWrite = undefined; hooks.oversizedList = false; roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
+afterEach(() => { lsof.reply = undefined; hooks.open = undefined; hooks.truncate = false; hooks.beforeWrite = undefined; hooks.oversizedList = false; roots.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 describe("conversation disk boundaries", () => {
   it("reads only complete bounded session tail rows and rejects final links", () => {
     const root = temp(); const path = join(root, "sessions.jsonl");
@@ -90,6 +101,92 @@ describe("conversation disk boundaries", () => {
     expect(await claudeOccupancy(config, "running-y", inspect)).toBe("occupied");
     // A record left by a killed run of the same version is dead and does not block.
     expect(await claudeOccupancy(config, "running-y", async () => null)).toBe("free");
+  });
+  // codex 0.166.0 live (batch E PoC): the thread's writer holds <CODEX_HOME>/thread-writer-locks/<id>.lock with an
+  // exclusive flock and deletes it on a clean exit; a SIGKILL leaves the file behind with nobody holding it.
+  it("reads a Codex thread writer lock and fails closed on anything it cannot read", async () => {
+    const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", locks = join(config, "thread-writer-locks"), lock = join(locks, `${id}.lock`);
+    const inspect = vi.fn(async (_path: string): Promise<FileHolder[]> => [{ pid: 900, pgid: 900, ppid: 1 }]);
+    // No supported writer has run in this profile, so none holds the thread.
+    expect(await codexOccupancy(config, id, inspect)).toBe("free");
+    mkdirSync(locks); writeFileSync(join(locks, ".coordination.lock"), "");
+    expect(await codexOccupancy(config, id, inspect)).toBe("free");
+    expect(inspect).not.toHaveBeenCalled();
+    writeFileSync(lock, "");
+    expect(await codexOccupancy(config, id, inspect)).toBe("occupied"); expect(inspect).toHaveBeenCalledWith(lock);
+    expect(await codexOccupancy(config, id, async () => [])).toBe("free");
+    expect(await codexOccupancy(config, id, async () => { throw new Error("lsof timed out"); })).toBe("unknown");
+    expect(await codexOccupancy(config, "not-a-thread", inspect)).toBe("unknown");
+    rmSync(lock); const target = join(temp(), "held.lock"); writeFileSync(target, ""); symlinkSync(target, lock);
+    expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(lock); mkdirSync(lock); expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(locks, { recursive: true });
+    const linked = realpathSync(temp()); symlinkSync(linked, locks); expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(locks); writeFileSync(locks, ""); expect(await codexOccupancy(config, id, inspect)).toBe("unknown");
+    rmSync(locks); mkdirSync(locks); chmodSync(locks, 0o000);
+    try { expect(await codexOccupancy(config, id, inspect)).toBe("unknown"); } finally { chmodSync(locks, 0o755); }
+  });
+  // Doan's own Codex server holds the lock of the session it resumed; Doan's reservations govern that, not this check.
+  it("ignores lock holders in a process group Doan's main process leads and counts every other holder", async () => {
+    const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", self = 4000;
+    mkdirSync(join(config, "thread-writer-locks")); writeFileSync(join(config, "thread-writer-locks", `${id}.lock`), "");
+    const server = { pid: 700, pgid: 700, ppid: self }, serverChild = { pid: 701, pgid: 700, ppid: 700 };
+    const read = (holders: FileHolder[]) => codexOccupancy(config, id, async () => holders, self);
+    expect(await read([server, serverChild])).toBe("free");
+    expect(await read([server, { pid: 900, pgid: 900, ppid: 1 }])).toBe("occupied");
+    // A descendant whose group leader is not among the holders cannot be traced back to Doan.
+    expect(await read([{ pid: 801, pgid: 800, ppid: 800 }])).toBe("occupied");
+    // A direct child that shares another group was not spawned as a runner's own group.
+    expect(await read([{ pid: 702, pgid: 3999, ppid: self }])).toBe("occupied");
+  });
+  it.each([
+    ["one holder", { error: null, stdout: "p12\ng12\nR1\nf3\n", stderr: "" }, [{ pid: 12, pgid: 12, ppid: 1 }]],
+    ["two holders", { error: null, stdout: "p12\ng12\nR1\nf3\np13\ng12\nR12\nf3\nf4\n", stderr: "" }, [{ pid: 12, pgid: 12, ppid: 1 }, { pid: 13, pgid: 12, ppid: 12 }]],
+    ["nobody", { error: { code: 1 }, stdout: "", stderr: "" }, []],
+  ])("parses lsof holders: %s", async (_name, reply, holders) => {
+    lsof.reply = reply; expect(await fileHolders("/x.lock")).toEqual(holders);
+  });
+  it.each([
+    ["exit 0 without a process", { error: null, stdout: "f3\n", stderr: "" }],
+    ["exit 0 empty", { error: null, stdout: "", stderr: "" }],
+    ["missing group and parent", { error: null, stdout: "p12\nf3\n", stderr: "" }],
+    ["unknown field", { error: null, stdout: "p12\ng12\nR1\nx9\n", stderr: "" }],
+    ["repeated field", { error: null, stdout: "p12\ng12\ng13\nR1\n", stderr: "" }],
+    ["non-numeric pid", { error: null, stdout: "pabc\ng12\nR1\n", stderr: "" }],
+    ["exit 1 with stderr", { error: { code: 1 }, stdout: "", stderr: "lsof: status error on /x.lock: No such file or directory\n" }],
+    ["exit 1 with stdout", { error: { code: 1 }, stdout: "p12\n", stderr: "" }],
+    ["timeout", { error: { killed: true, code: null, signal: "SIGTERM" }, stdout: "", stderr: "" }],
+    ["missing lsof", { error: { code: "ENOENT" }, stdout: "", stderr: "" }],
+  ])("refuses an lsof reply it cannot read: %s", async (_name, reply) => {
+    lsof.reply = reply; await expect(fileHolders("/x.lock")).rejects.toThrow();
+    const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9";
+    mkdirSync(join(config, "thread-writer-locks")); writeFileSync(join(config, "thread-writer-locks", `${id}.lock`), "");
+    expect(await codexOccupancy(config, id)).toBe("unknown");
+  });
+  it("tells a detached child of this process from another holder with the real lsof", async () => {
+    const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", lock = join(config, "thread-writer-locks", `${id}.lock`);
+    mkdirSync(join(config, "thread-writer-locks")); writeFileSync(lock, "");
+    const hold = async (detached: boolean) => {
+      const child = spawn("/bin/sh", ["-c", 'exec 3<"$1"; echo ready; exec sleep 30', "sh", lock], { detached, stdio: ["ignore", "pipe", "ignore"] });
+      await new Promise<void>(resolve => child.stdout.once("data", () => resolve()));
+      return child;
+    };
+    // Doan's runners spawn the provider detached, so it leads its own group with this process as its parent.
+    const own = await hold(true);
+    try {
+      expect((await fileHolders(lock)).map(h => h.pid)).toContain(own.pid);
+      expect(await codexOccupancy(config, id)).toBe("free");
+    } finally { process.kill(-own.pid!, "SIGKILL"); }
+    await vi.waitFor(async () => expect(await fileHolders(lock)).toEqual([]));
+    const other = await hold(false);
+    try { expect(await codexOccupancy(config, id)).toBe("occupied"); } finally { other.kill("SIGKILL"); }
+  });
+  it("sees a Codex lock file another descriptor holds open and treats an unopened one as stale", async () => {
+    const config = realpathSync(temp()), id = "01a1a1f0-3466-7691-96f0-37f5415d3cb9", lock = join(config, "thread-writer-locks", `${id}.lock`);
+    mkdirSync(join(config, "thread-writer-locks")); writeFileSync(lock, "");
+    expect(await codexOccupancy(config, id)).toBe("free");
+    const fd = openSync(lock, "r");
+    try { expect(await codexOccupancy(config, id)).toBe("occupied"); } finally { closeSync(fd); }
   });
 });
 

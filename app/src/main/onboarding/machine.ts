@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { userInfo } from "node:os";
 import { basename, isAbsolute } from "node:path";
 import type { CliRun } from "../folderState";
+import { launchEnv } from "../launchEnv";
 import { parseShellProbe, type ShellProbe } from "./states";
 
 // PoC 7a: 83 ms. Leave room for cold startup.
@@ -37,7 +38,8 @@ export function runProcess(command: string, args: string[], env: NodeJS.ProcessE
 function shellName(env: NodeJS.ProcessEnv, fallback = () => userInfo().shell): string {
   try { return env.SHELL || fallback() || ""; } catch { return ""; }
 }
-export async function probeShell(env: NodeJS.ProcessEnv, fallback?: () => string): Promise<ShellProbe> {
+export async function probeShell(inherited: NodeJS.ProcessEnv, fallback?: () => string): Promise<ShellProbe> {
+  const env = launchEnv(inherited);
   const shell = shellName(env, fallback);
   if (!isAbsolute(shell)) return { ok: false, reason: "No executable login shell is available." };
   const nonce = randomUUID().replaceAll("-", "");

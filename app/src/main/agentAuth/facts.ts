@@ -2,6 +2,7 @@ import { basename, isAbsolute } from "node:path";
 import { parseCliVersion, versionStatus } from "../conversation/sessions";
 import { findOnPath, type ShellProbe } from "../onboarding/states";
 import { PROVIDER_AUTH } from "./providers";
+import { launchEnv } from "../launchEnv";
 import type { CliRun } from "../folderState";
 import type { Provider, ToolFacts } from "./types";
 
@@ -27,7 +28,7 @@ export async function toolFacts(provider: Provider, deps: FactsDeps): Promise<To
     if (!probe.ok) return { cli: "found", version: "unknown", tools };
     const command = findOnPath(probe.path, PROVIDER_AUTH[provider].command, deps.executable);
     if (!command) return { cli: "missing", version: "unknown", tools };
-    const run = await deps.run(command, ["--version"], { ...deps.inherited, PATH: probe.path }, 5000);
+    const run = await deps.run(command, ["--version"], { ...launchEnv(deps.inherited), PATH: probe.path }, 5000);
     if (run.exitCode !== 0 || run.timedOut) return { cli: "found", version: "unknown", tools };
     const installed = parseCliVersion(run.stdout)?.installed;
     return { cli: "found", version: versionStatus(provider, run.stdout), ...(installed ? { installed } : {}), tools };

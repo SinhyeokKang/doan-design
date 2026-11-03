@@ -94,7 +94,7 @@ describe("runLs", () => {
     const fake = fakeCli(`if IFS= read -r line; then exit 97; fi; printf '%s\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"root":"/r","scope":[],"canvases":[]}}'`);
     // This is an argument/stdin contract check, not a two-second performance bound.
     const pending = runLs(fake, { repo: "/some/repo" });
-    expect(spawn).toHaveBeenLastCalledWith(fake, ["ls", "--json", "--repo", "/some/repo"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["ls", "--json", "--repo", "/some/repo"], { cwd: undefined, env: expect.any(Object), stdio: ["ignore", "pipe", "pipe"] });
     const run = await pending;
     expect(run.timedOut).toBe(false);
     expect(run.exitCode).toBe(0);
@@ -115,6 +115,22 @@ describe("runLs", () => {
     expect(Date.now() - started).toBeLessThan(3_000);
     expect(run.timedOut).toBe(true);
     expect(folderState(run).kind).toBe("cliError");
+  });
+});
+
+describe("CLI environment", () => {
+  test("the CLI sees the launchd keys, not the launching terminal's session or tools", async () => {
+    const out = join(dir(), "env.txt");
+    const fake = fakeCli(`/usr/bin/env > '${out}'; echo '{"v":1,"ok":true,"result":{"root":"/r","scope":[],"canvases":[]}}'`);
+    const terminal = { ORCA_TERMINAL_HANDLE: "term_1", CLAUDE_CODE_SESSION_ID: "s", CODEX_THREAD_ID: "t", CLAUDE_CONFIG_DIR: "/orca/claude", TERM_PROGRAM: "Orca", FOO: "bar", HTTPS_PROXY: "http://proxy:8080", SSH_AUTH_SOCK: "/tmp/agent.sock" };
+    const saved = Object.fromEntries(Object.keys(terminal).map(name => [name, process.env[name]]));
+    Object.assign(process.env, terminal);
+    try { await runLs(fake, { repo: dir() }); } finally {
+      for (const [name, value] of Object.entries(saved)) if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+    const seen = Object.fromEntries(readFileSync(out, "utf8").trim().split("\n").map(line => line.split(/=(.*)/s).slice(0, 2)));
+    expect(seen).toMatchObject({ HOME: process.env.HOME, HTTPS_PROXY: "http://proxy:8080", SSH_AUTH_SOCK: "/tmp/agent.sock" });
+    for (const name of ["ORCA_TERMINAL_HANDLE", "CLAUDE_CODE_SESSION_ID", "CODEX_THREAD_ID", "CLAUDE_CONFIG_DIR", "TERM_PROGRAM", "FOO"]) expect(seen).not.toHaveProperty(name);
   });
 });
 
@@ -172,7 +188,7 @@ describe("runDesignSkill", () => {
     const out = join(dir(), "args");
     const fake = fakeCli(`if IFS= read -r line; then exit 97; fi; printf '%s\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"version":"dev","presets":[]}}'`);
     const run = await runDesignSkill(fake);
-    expect(spawn).toHaveBeenLastCalledWith(fake, ["design-skill", "--json"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["design-skill", "--json"], { cwd: undefined, env: expect.any(Object), stdio: ["ignore", "pipe", "pipe"] });
     expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["design-skill", "--json"]);
     expect(interpretList(run)).toEqual({ v: 1, ok: true, result: { version: "dev", presets: [] } });
   });
@@ -181,7 +197,7 @@ describe("runDesignSkill", () => {
     const out = join(dir(), "args");
     const fake = fakeCli(`printf '[%s]\\n' "$@" > '${out}'; echo '{"v":1,"ok":false,"error":{"code":"usage_error","message":"m","nextSteps":[]}}'; exit 2`);
     const run = await runDesignSkill(fake, id);
-    expect(spawn).toHaveBeenLastCalledWith(fake, ["design-skill", "--json", "--", id], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["design-skill", "--json", "--", id], { cwd: undefined, env: expect.any(Object), stdio: ["ignore", "pipe", "pipe"] });
     expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["[design-skill]", "[--json]", "[--]", `[${id}]`]);
     expect(interpretGet(run, id)).toMatchObject({ ok: false, error: { code: "usage_error" } });
   });
@@ -208,7 +224,7 @@ describe("runExport", () => {
     const out = join(dir(), "args");
     const fake = fakeCli(`if IFS= read -r line; then exit 97; fi; printf '[%s]\\n' "$@" > '${out}'; echo '{"v":1,"ok":true,"result":{"external":[]}}'`);
     const run = await runExport(fake, "/repo", ".doan/canvases/a b.html", "/Users/me/Desktop/a b.html");
-    expect(spawn).toHaveBeenLastCalledWith(fake, ["export", ".doan/canvases/a b.html", "-o", "/Users/me/Desktop/a b.html", "--force", "--repo", "/repo", "--json"], { cwd: undefined, stdio: ["ignore", "pipe", "pipe"] });
+    expect(spawn).toHaveBeenLastCalledWith(fake, ["export", ".doan/canvases/a b.html", "-o", "/Users/me/Desktop/a b.html", "--force", "--repo", "/repo", "--json"], { cwd: undefined, env: expect.any(Object), stdio: ["ignore", "pipe", "pipe"] });
     expect(readFileSync(out, "utf8").trim().split("\n")).toEqual(["[export]", "[.doan/canvases/a b.html]", "[-o]", "[/Users/me/Desktop/a b.html]", "[--force]", "[--repo]", "[/repo]", "[--json]"]);
     expect(run).toMatchObject({ exitCode: 0, timedOut: false });
   });

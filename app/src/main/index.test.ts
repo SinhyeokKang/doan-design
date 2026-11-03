@@ -60,7 +60,8 @@ const mocks = await vi.hoisted(async () => {
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
     createPreferencesStore: vi.fn(),
-    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
+    app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true),
+      isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
       store: vi.fn(), remove: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
@@ -168,6 +169,7 @@ beforeEach(async () => {
   mocks.createInspector.mockReturnValue(mocks.inspector);
   mocks.inspector.inspect.mockResolvedValue({ ok: true, rows: [] });
   mocks.app.requestSingleInstanceLock.mockReturnValue(true);
+  mocks.app.isActive.mockReturnValue(true);
   mocks.shell.entries.mockReturnValue([]);
   mocks.shell.open.mockResolvedValue({ root: "/repo" });
   mocks.shell.epoch.mockReturnValue(1);
@@ -2143,4 +2145,245 @@ test("work deadlines use one timeout and file changes stay within their root", (
     mocks.app.emit("will-quit");
     expect(vi.getTimerCount()).toBe(baseline);
   } finally { timeout.mockRestore(); interval.mockRestore(); vi.useRealTimers(); }
+});
+
+// onboarding-background-open: `onboarding start` keeps Doan behind the app in use and shows the window on activation.
+describe("background onboarding launch and start", () => {
+  // Relaunches main with the CLI's background flag in argv (or without it) and the given activation at window creation.
+  async function launch({ background, active }: { background: boolean; active: boolean }) {
+    vi.resetModules();
+    vi.clearAllMocks();
+    mocks.app.removeAllListeners();
+    mocks.Window.instances.length = 0;
+    mocks.ipc.clear();
+    mocks.app.isActive.mockReturnValue(active);
+    const argv = process.argv;
+    process.argv = background ? [...argv, "--doan-launch=background"] : argv;
+    try {
+      await import("./index");
+      await vi.waitFor(() => expect(mocks.Window.instances).toHaveLength(1));
+    } finally { process.argv = argv; }
+  }
+  async function start() {
+    const state = mocks.startRuntime.mock.calls[0]?.[1];
+    if (typeof state !== "object" || state === null || !("onboarding" in state) || typeof state.onboarding !== "function") throw new Error("no onboarding receiver");
+    return await state.onboarding({ v: 2, token: "t", op: "start" }) as { ok: boolean };
+  }
+  const visibleSent = () => vi.mocked(window().webContents.send).mock.calls.filter(([channel]) => channel === "window:visible").map(([, value]) => value);
+  const hideApp = () => mocks.notifications.get("NSApplicationDidHideNotification")?.();
+
+  test("a background launch behind another app creates the window hidden and tells the renderer", async () => {
+    await launch({ background: true, active: false });
+    expect(window().options.show).toBe(false);
+    expect(window().show).not.toHaveBeenCalled();
+    expect(mocks.app.show).not.toHaveBeenCalled();
+    expect(mocks.app.dock.bounce).not.toHaveBeenCalled();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: false });
+    expect(mocks.thumbnails.pause).toHaveBeenCalled();
+    expect(mocks.thumbnails.resume).not.toHaveBeenCalled();
+  });
+
+  test("a background launch that became active during startup shows the window at once", async () => {
+    await launch({ background: true, active: true });
+    expect(window().options.show).not.toBe(false);
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+  });
+
+  test("a launch without the flag shows the window even when another app is in front", async () => {
+    await launch({ background: false, active: false });
+    expect(window().options.show).not.toBe(false);
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+  });
+
+  test("activation shows the waiting window once and ends the wait", async () => {
+    await launch({ background: true, active: false });
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+    expect(visibleSent().at(-1)).toEqual({ visible: true });
+    expect(mocks.thumbnails.resume).toHaveBeenCalled();
+    mocks.app.emit("did-resign-active");
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("activation without a wait leaves a closed window closed", async () => {
+    await launch({ background: false, active: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    mocks.app.emit("did-become-active");
+    expect(window().show).not.toHaveBeenCalled();
+  });
+
+  test("the start after a background launch bounces once without showing; a second start does not bounce", async () => {
+    await launch({ background: true, active: false });
+    expect((await start()).ok).toBe(true);
+    expect(mocks.app.dock.bounce).toHaveBeenCalledExactlyOnceWith("informational");
+    expect(window().show).not.toHaveBeenCalled();
+    expect(mocks.app.show).not.toHaveBeenCalled();
+    await start();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledOnce();
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("an inactive start with a closed window waits and bounces; the window shows on activation", async () => {
+    await launch({ background: false, active: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    mocks.app.isActive.mockReturnValue(false);
+    await start();
+    expect(window().show).not.toHaveBeenCalled();
+    expect(mocks.app.show).not.toHaveBeenCalled();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledExactlyOnceWith("informational");
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("an inactive start with a minimized window does not restore it until activation", async () => {
+    await launch({ background: false, active: true });
+    window().isMinimized.mockReturnValue(true);
+    mocks.app.isActive.mockReturnValue(false);
+    await start();
+    expect(window().restore).not.toHaveBeenCalled();
+    expect(window().show).not.toHaveBeenCalled();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledOnce();
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().restore).toHaveBeenCalledOnce();
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("an inactive start while the whole app is hidden does not unhide it until activation", async () => {
+    await launch({ background: false, active: true });
+    hideApp();
+    mocks.app.isActive.mockReturnValue(false);
+    await start();
+    expect(mocks.app.show).not.toHaveBeenCalled();
+    expect(window().show).not.toHaveBeenCalled();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledOnce();
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(mocks.app.show).toHaveBeenCalledOnce();
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("an inactive start with a visible window bounces and does not raise it", async () => {
+    await launch({ background: false, active: false });
+    await start();
+    expect(window().show).not.toHaveBeenCalled();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledOnce();
+    await start();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledTimes(2);
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).not.toHaveBeenCalled();
+  });
+
+  test("an active start shows a closed or minimized window, unhides the app and does not bounce", async () => {
+    await launch({ background: false, active: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    hideApp();
+    window().isMinimized.mockReturnValue(true);
+    await start();
+    expect(mocks.app.show).toHaveBeenCalledOnce();
+    expect(window().restore).toHaveBeenCalledOnce();
+    expect(window().show).toHaveBeenCalledOnce();
+    expect(mocks.app.dock.bounce).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["activate", () => mocks.app.emit("activate")],
+    ["second-instance", () => mocks.app.emit("second-instance")],
+    ["Add Project…", () => Reflect.apply(item("Add Project…").click ?? (() => { throw new Error("no click handler"); }), undefined, [])],
+  ])("showing the window through %s ends the wait, so a later activation does not show it again", async (_name, reveal) => {
+    await launch({ background: true, active: false });
+    reveal();
+    expect(window().show).toHaveBeenCalledOnce();
+    window().emit("close", { preventDefault: vi.fn() });
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("a start while a fullscreen close is still pending waits, bounces once and shows on activation", async () => {
+    await launch({ background: false, active: true });
+    window().isFullScreen.mockReturnValue(true);
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(window().setFullScreen).toHaveBeenCalledExactlyOnceWith(false);
+    mocks.app.isActive.mockReturnValue(false);
+    await start();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledExactlyOnceWith("informational");
+    expect(window().show).not.toHaveBeenCalled();
+    window().isFullScreen.mockReturnValue(false);
+    window().emit("leave-full-screen");
+    expect(window().hide).toHaveBeenCalledOnce();
+    await start();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledOnce();
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
+  test("a Dock click (did-become-active, then activate) restores a waiting minimized window once and ends the wait", async () => {
+    await launch({ background: true, active: false });
+    window().isMinimized.mockReturnValue(true);
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    window().isMinimized.mockReturnValue(false);
+    mocks.app.emit("activate");
+    expect(window().restore).toHaveBeenCalledOnce();
+    expect(window().show).toHaveBeenCalled();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    const shows = window().show.mock.calls.length;
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledTimes(shows);
+  });
+
+  // A variable, not a literal: the mock's entry type has no canvases.
+  const listed = [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }];
+  test.each([
+    ["doan open", async () => {
+      mocks.shell.entries.mockReturnValue(listed);
+      await invoke("deep-link:ready", window().webContents, null);
+      const state = mocks.startRuntime.mock.calls[0]?.[1];
+      if (typeof state !== "object" || state === null || !("open" in state) || typeof state.open !== "function") throw new Error("no open receiver");
+      const opening = state.open({ v: 4, token: "t", root: "/repo", path: ".doan/canvases/a.html" }) as Promise<{ ok: boolean }>;
+      const asked = window().webContents.send.mock.calls.find(([channel]) => channel === "doan-open:request")?.[1] as { id: string } | undefined;
+      if (!asked) throw new Error("no doan-open request");
+      await invoke("doan-open:answer", window().webContents, null, { id: asked.id, kind: "opened", frame: "none" });
+      expect((await opening).ok).toBe(true);
+    }],
+    ["a doan:// link", async () => {
+      mocks.shell.entries.mockReturnValue(listed);
+      await invoke("deep-link:ready", window().webContents, null);
+      mocks.app.emit("open-url", { preventDefault: vi.fn() }, "doan://open?root=%2Frepo&canvas=.doan%2Fcanvases%2Fa.html");
+    }],
+    ["a notification click", async () => {
+      void invoke("notifications:test", window().webContents, null);
+      await vi.waitFor(() => expect(mocks.Notification.instances).toHaveLength(1));
+      mocks.Notification.instances[0]!.emit("click");
+    }],
+  ])("%s shows the window and ends the wait", async (_name, reveal) => {
+    await launch({ background: true, active: false });
+    await reveal();
+    expect(window().show).toHaveBeenCalled();
+    window().emit("close", { preventDefault: vi.fn() });
+    const shows = window().show.mock.calls.length;
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledTimes(shows);
+  });
+
+  test("activation after quit does not touch the destroyed window", async () => {
+    await launch({ background: true, active: false });
+    mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    window().destroyed = true;
+    mocks.app.isActive.mockReturnValue(true);
+    expect(() => mocks.app.emit("did-become-active")).not.toThrow();
+    expect(window().show).not.toHaveBeenCalled();
+  });
 });

@@ -3,7 +3,8 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 import { probeShell, runProcess } from "../onboarding/machine";
 import { findOnPath } from "../onboarding/states";
 import { agentEnv } from "./environment";
-import { canonicalDirectory, claudeOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
+import { launchEnv } from "../launchEnv";
+import { canonicalDirectory, claudeOccupancy, codexOccupancy, codexSessionExists, readRegular, readSessionTail } from "./io";
 import { PROVIDER_AUTH } from "../agentAuth/providers";
 import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessions";
 import { judgeConnection } from "../agentAuth/connection";
@@ -14,20 +15,21 @@ import { externalConversation, type ConversationMetadata, type ExternalSession }
 // The pinned @anthropic-ai/claude-agent-sdk in app/package.json. It ships with the app, so a test pins it rather
 // than a check at run time.
 export const BUNDLED_CLAUDE_SDK = "0.3.312";
-export type ExternalPrepare = (request: StartRequest, stored?: ExternalSession) => Promise<Prepared>;
+// reusing: the send goes to this conversation's live Codex server, which already holds the thread.
+export type ExternalPrepare = (request: StartRequest, stored?: ExternalSession, reusing?: boolean) => Promise<Prepared>;
 export type AccountPrepare = (request: StartRequest, stored?: ConversationMetadata & { owner: { kind: "doan" } }, use?: "run" | "listing") => Promise<Prepared>;
 // New conversations run on the doan account; a resumed external association and legacy entries keep the external
 // profile. Neither path falls back to the other.
 export function routePrepare(external: ExternalPrepare, account: AccountPrepare): Prepare {
-  return (request, stored, use) => {
+  return (request, stored, use, reusing) => {
     if (!stored) return request.mode === "resume" ? external(request) : account(request, undefined, use);
-    if (externalConversation(stored)) return external(request, stored.session);
+    if (externalConversation(stored)) return reusing ? external(request, stored.session, true) : external(request, stored.session);
     if (stored.owner.kind !== "doan") throw new Error("session_unavailable");
     return account(request, { ...stored, owner: stored.owner });
   };
 }
 export function createPrepare(userData: string, appRuntime: string, inherited: NodeJS.ProcessEnv): ExternalPrepare {
-  return async (request: StartRequest, stored?: ExternalSession): Promise<Prepared> => {
+  return async (request: StartRequest, stored?: ExternalSession, reusing = false): Promise<Prepared> => {
     const picked = request.mode === "resume" && !stored ? pickSession(readSessionTail(userData), request.root, request.canvas ?? null, () => null) : null;
     if (picked && !picked.available) throw new Error("no_session");
     const session = stored ?? (picked?.available ? picked.record : undefined);
@@ -37,7 +39,7 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
     const probe = await probeShell(inherited); if (!probe.ok) throw new Error("cli_missing");
     const command = findOnPath(probe.path, runtime, path => { try { accessSync(path, constants.X_OK); return statSync(path).isFile(); } catch { return false; } });
     if (!command) throw new Error("cli_missing");
-    const version = await runProcess(command, ["--version"], { ...inherited, PATH: probe.path }, 5000);
+    const version = await runProcess(command, ["--version"], { ...launchEnv(inherited), PATH: probe.path }, 5000);
     if (version.exitCode !== 0 || version.timedOut || versionStatus(runtime, version.stdout) !== "supported") throw new Error(request.mode === "resume" ? "session_unavailable" : "runtime_unsupported");
     let root: string, cwd: string, configDir: string;
     try {
@@ -53,7 +55,13 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
       if (occupancy !== "free") throw new Error("session_unavailable");
       if (!claudeSessionExists(configDir, session.sessionId)) throw new Error("session_unavailable");
     }
-    if (session && runtime === "codex" && !codexSessionExists(configDir, session.sessionId, cwd)) throw new Error("session_unavailable");
+    // A reused server opens no thread/resume, and Doan's reservation already makes it the session's only owner.
+    if (session && runtime === "codex" && !reusing) {
+      const occupancy = await codexOccupancy(configDir, session.sessionId);
+      if (occupancy === "occupied") throw Object.assign(new Error("session_in_use"), { runtime, sessionId: session.sessionId });
+      if (occupancy !== "free") throw new Error("session_unavailable");
+      if (!codexSessionExists(configDir, session.sessionId, cwd)) throw new Error("session_unavailable");
+    }
     const env = agentEnv({ env: inherited, path: probe.path, configDir }, runtime, appRuntime, { root, cwd, configDir });
     if (!env) throw new Error("session_unavailable");
     return { runtime, command, configDir, cwd, env: env.env, ...(session ? { sessionId: session.sessionId } : {}), ...(picked?.available ? { lastCheckAt: picked.record.at } : {}) };
@@ -156,8 +164,8 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
       if (stored) {
         const id = stored.session.sessionId;
         const exists = provider === "claude" ? claudeSessionExists(configDir, id) : provider === "codex" ? codexSessionExists(configDir, id, cwd) : acpSessionExists(configDir, adapter.acp!.sessions, id);
-        // Codex admits a writer at thread/resume and ACP servers at session/load; there is no registry to read first.
-        // Only doan runs in the dedicated profile, and doan's reservations keep one runner per session.
+        // Codex admits a writer at thread/resume and ACP servers at session/load. Codex's writer lock is not read here:
+        // only doan runs in the dedicated profile, and doan's reservations keep one runner per session.
         const occupancy = provider === "claude" ? await claudeOccupancy(configDir, id) : "free";
         recheck();
         const current = auth.state(provider);

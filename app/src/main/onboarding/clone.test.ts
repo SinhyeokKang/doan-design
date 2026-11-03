@@ -18,6 +18,7 @@ vi.mock("node:fs/promises", async original => {
     rmdir: async (...args: Parameters<typeof real.rmdir>) => { if (failing.rmdir) throw denied(failing.rmdir); return real.rmdir(...args); },
   };
 });
+import { DOCK, NETWORK_LOCALE, TERMINAL } from "../launchEnv.fixture";
 import { cloneArgs, cloneEnv, cloneFailure, locateGit, runClone, type CloneProcess } from "./clone";
 
 const dirs: string[] = [];
@@ -221,7 +222,14 @@ describe("clone invocation", () => {
     for (const name of ["GIT_ASKPASS", "SSH_ASKPASS", "GIT_DIR", "GIT_SSH_COMMAND"]) expect(built).not.toHaveProperty(name);
     // A user's own ssh command (a key per account) reaches git unchanged.
     expect(cloneEnv({ GIT_SSH_COMMAND: "ssh -i ~/.ssh/work" }, "/usr/bin").GIT_SSH_COMMAND).toBe("ssh -i ~/.ssh/work");
+    // locateGit judged the /usr/bin/git shim with this developer directory; the clone must run the shim with the same one.
+    expect(cloneEnv({ DEVELOPER_DIR: "/Applications/Xcode.app/Contents/Developer" }, "/usr/bin").DEVELOPER_DIR).toBe("/Applications/Xcode.app/Contents/Developer");
     expect(cloneArgs("git@github.com:acme/studio.git", "/tmp/t").join(" ")).not.toMatch(/sshCommand|StrictHostKeyChecking|BatchMode/);
+  });
+
+  it("gives git the launchd, ssh agent, proxy and CA keys, not the launching terminal's environment", () => {
+    const path = "/opt/homebrew/bin:/usr/bin";
+    expect(cloneEnv({ ...TERMINAL, ...NETWORK_LOCALE }, path)).toEqual({ ...DOCK, ...NETWORK_LOCALE, PATH: path, GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never", GCM_INTERACTIVE: "never" });
   });
 
   it("uses core.sshCommand from the user's git config", async () => {

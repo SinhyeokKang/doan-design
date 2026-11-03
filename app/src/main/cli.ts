@@ -2,6 +2,7 @@ import { initArgs } from "./onboarding/states";
 import { spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
 import { folderState, type CliRun, type FolderState } from "./folderState";
+import { launchEnv } from "./launchEnv";
 
 const CLI_TIMEOUT_MS = 10_000;
 
@@ -66,10 +67,13 @@ export async function readFolder(cli: string, path: string, timeoutMs = CLI_TIME
 
 // Not `execFile`: its 1 MiB default `maxBuffer` is below a large repo's normal
 // `ls` output. stdin is ignored so the CLI never waits for an answer (POSTMORTEM
-// "A character device is not necessarily a terminal").
+// "A character device is not necessarily a terminal"). The launching terminal's session IDs would let the CLI record
+// session associations for that session, so the CLI gets the launchd environment; PATH stays the app's own because
+// it only resolves an unpackaged run's bare `doan` (cliCommand), and the CLI starts nothing through PATH.
 function runCli(cli: string, args: string[], cwd: string | undefined, timeoutMs: number): Promise<CliRun> {
   return new Promise((resolve) => {
-    const child = spawn(cli, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const env = { ...launchEnv(process.env), ...(process.env.PATH ? { PATH: process.env.PATH } : {}) };
+    const child = spawn(cli, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let settled = false;

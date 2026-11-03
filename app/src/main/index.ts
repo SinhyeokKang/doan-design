@@ -60,6 +60,7 @@ import { startShell, type Shell, type ProjectInitResult } from "./shell";
 import { createThrottle } from "./throttle";
 import { createThumbnails, type ThumbnailReply, type Thumbnails } from "./thumbnails";
 import { createWindowCapturer } from "./thumbnailWindow";
+import { launchedInBackground, revealFor } from "./backgroundReveal";
 import { createUiStateStore, type UiStateStore } from "./uiState";
 import { linkTarget } from "./openLink";
 import { openLinkQueue, openRequests, resolveOpenLink } from "./deepLinks";
@@ -165,6 +166,11 @@ const openCanvasRequests = openRequests({
 });
 // Electron 45 delivers a launch URL before ready; restoring the renderer must finish before it is consumed.
 app.on("open-url", (event, url) => { event.preventDefault(); openLinks.receive(url); });
+// Every way Doan becomes the frontmost app (Dock, ⌘Tab, Spotlight, Mission Control) ends here; ⌘Tab emits no
+// `activate`. Without a window yet, createWindow reads app.isActive() instead.
+app.on("did-become-active", () => {
+  if (revealPending && win && !win.isDestroyed()) bringForward(win);
+});
 let conversations: ConversationService | undefined;
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
@@ -186,6 +192,8 @@ let onboardingOpen = false;
 let quitting = false;
 let quitScheduled = false;
 let cancelPendingHide = () => {};
+// A Close Window waiting for fullscreen to end: the window is about to hide, so onboarding start treats it as hidden.
+let hidingAfterFullScreen = false;
 let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
 let canvasSeen: CanvasSeenStore | undefined;
@@ -199,9 +207,12 @@ const FULLSCREEN_EXIT_WAIT_MS = 2000;
 // is hidden: closed with the app still running, or with the whole app hidden
 // (⌘H, doan › Hide). Tracked here rather than with the window's `hide`/`show`
 // events, which macOS did not emit for these calls in the e2e run.
-// createWindow makes the window shown, without showWindow.
+// createWindow makes the window shown, without showWindow, except a hidden background launch.
 let windowShown = true;
 let appHidden = false;
+// onboarding start while another app is in front: the window waits for Doan to become active (backgroundReveal.ts).
+let revealPending = false;
+let revealBounced = false;
 function syncThumbnailPause(): void {
   if (windowShown && !appHidden) thumbnails?.resume();
   else thumbnails?.pause();
@@ -215,6 +226,9 @@ function visibilityChanged(): void {
 
 function showWindow(window: BrowserWindow): void {
   cancelPendingHide();
+  // Any other way of showing the window ends the wait, so a stale one cannot show it again later.
+  revealPending = false;
+  revealBounced = false;
   window.show();
   windowShown = true;
   visibilityChanged();
@@ -392,7 +406,16 @@ function denyPermissions(): void {
 }
 
 function createWindow(): BrowserWindow {
+  // Launched by `onboarding start` behind the app in use: create hidden and wait, unless Doan became active during
+  // startup (a Dock click or ⌘Tab), which shows it as usual.
+  const hidden = launchedInBackground(process.argv) && !app.isActive();
+  if (hidden) {
+    revealPending = true;
+    windowShown = false;
+    syncThumbnailPause();
+  }
   const window = new BrowserWindow({
+    show: !hidden,
     width: 1238,
     height: 780,
     minWidth: 960,
@@ -446,9 +469,11 @@ function createWindow(): BrowserWindow {
       // macOS cannot hide until the transition ends; a later open cancels this close.
       const hide = () => { cancelPendingHide(); if (!window.isDestroyed()) hideWindow(window); };
       const timeout = setTimeout(() => cancelPendingHide(), FULLSCREEN_EXIT_WAIT_MS);
+      hidingAfterFullScreen = true;
       cancelPendingHide = () => {
         clearTimeout(timeout);
         window.removeListener("leave-full-screen", hide);
+        hidingAfterFullScreen = false;
         cancelPendingHide = () => {};
       };
       window.once("leave-full-screen", hide);
@@ -486,6 +511,27 @@ function showFromNotification(target: NotificationTarget | null): void {
   showWindow(window);
   window.focus();
   if (target) send("notifications:click", target);
+}
+
+function bringForward(window: BrowserWindow): void {
+  if (appHidden) app.show();
+  if (window.isMinimized()) window.restore();
+  showWindow(window);
+}
+
+// Neither app.show() nor window.show() runs while another app is in front: both activate Doan.
+function revealForStart(window: BrowserWindow): void {
+  const reveal = revealFor({
+    appActive: app.isActive(),
+    windowVisible: windowShown && !appHidden && !window.isMinimized() && !hidingAfterFullScreen,
+    bounced: revealPending && revealBounced,
+  });
+  if (reveal.show === "now") bringForward(window);
+  if (reveal.show === "on-activate") revealPending = true;
+  if (reveal.bounce) {
+    app.dock?.bounce("informational");
+    if (reveal.show === "on-activate") revealBounced = true;
+  }
 }
 
 // Resolves to the stored root so the setup wizard can show the project it opened.
@@ -631,8 +677,9 @@ async function start(): Promise<void> {
     open: request => openCanvasRequests.open(request),
     async onboarding(request) {
       const service = await onboardingStarted;
-      // start brings the app forward, hidden window included, and keeps the session and its input (design '설치 직후 진입').
-      if (request.op === "start" && win && !win.isDestroyed()) { if (appHidden) app.show(); showWindow(win); }
+      // start keeps the session and its input (design '설치 직후 진입'); the window comes forward only when Doan is
+      // already in front.
+      if (request.op === "start" && win && !win.isDestroyed()) revealForStart(win);
       return service.answer(request);
     },
   }).catch((error: unknown) => {
