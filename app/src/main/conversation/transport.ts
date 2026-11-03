@@ -14,6 +14,17 @@ function finish(state: TransportState, event: EventPayload): TransportResult {
 }
 function aborted(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "process_exited" }); }
 export function endTransport(state: TransportState): TransportResult { return aborted(state); }
+// consumed: steered message ids the agent read with this frame, reported before the frame's events.
+export interface SteerResult extends TransportResult { consumed?: string[] }
+// Registered before the message is written, so a result racing it already knows the turn is not over.
+export function steerTransport(state: TransportState, id: string): TransportState {
+  return state.terminal ? state : { ...state, steered: [...state.steered ?? [], id] };
+}
+function consume(state: TransportState, seen: readonly unknown[]): { state: TransportState; consumed: string[] } {
+  const consumed = (state.steered ?? []).filter(id => seen.includes(id));
+  return consumed.length ? { state: { ...state, steered: state.steered!.filter(id => !consumed.includes(id)) }, consumed } : { state, consumed };
+}
+function withConsumed(result: TransportResult, consumed: string[]): SteerResult { return consumed.length ? { ...result, consumed } : result; }
 export function transportError(detail: string): FailureCode {
   if (/already has an active writer/i.test(detail)) return "session_in_use";
   if (/not logged in|authentication required|unauthorized|invalid api key|authentication failed/i.test(detail)) return "not_logged_in";
@@ -92,8 +103,14 @@ export function claudeReportedMode(raw: unknown): PermissionModeId | undefined {
   if (!object(raw) || raw.type !== "system" || raw.subtype !== "status" || typeof raw.permissionMode !== "string") return undefined;
   return claudeModeAfterPlan(raw.permissionMode);
 }
-export function normalizeClaude(state: TransportState, raw: unknown, root: string): TransportResult {
+export function normalizeClaude(state: TransportState, raw: unknown, root: string): SteerResult {
   if (state.terminal || !object(raw) || raw.parent_tool_use_id) return unchanged(state);
+  // A steered message is read when its uuid first appears in a frame's user_message_uuids: the system/status after a
+  // tool result when it folds into the running turn, or the system/init of the turn the CLI runs for it (PoC, Claude Code 2.1.317 and 2.1.312).
+  const read = consume(state, Array.isArray(raw.user_message_uuids) ? raw.user_message_uuids : []);
+  return withConsumed(claudeFrame(read.state, raw, root), read.consumed);
+}
+function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: string): TransportResult {
   if (raw.type === "stream_event" && object(raw.event)) {
     const event = raw.event;
     if (event.type === "message_start" && object(event.message) && typeof event.message.id === "string") return { state: { ...state, messageId: event.message.id, textBlock: null }, events: [] };
@@ -123,14 +140,16 @@ export function normalizeClaude(state: TransportState, raw: unknown, root: strin
   }
   if (raw.type === "result") {
     if (raw.terminal_reason === "aborted_tools" || raw.terminal_reason === "interrupted") return aborted(state);
-    if (raw.subtype === "success" && raw.is_error === false) return finish(state, { type: "turn.done" });
+    // queued_turn_count stays 0 while a steered message is unread (same PoC), so only the uuids tell that the CLI goes on
+    // to another turn for it; that turn's result ends this one. A stop still ends here.
+    if (raw.subtype === "success" && raw.is_error === false) return state.steered?.length && !state.stop ? unchanged(state) : finish(state, { type: "turn.done" });
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail);
   }
   return unchanged(state);
 }
 export interface CodexContext { root: string; sessionId: string; turnId: string }
-export interface CodexTransportResult extends TransportResult {
+export interface CodexTransportResult extends SteerResult {
   request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" };
 }
 export interface CodexReplyOwner { requestId: string | number; sessionId: string; turnId: string }
@@ -166,6 +185,12 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
   }
   if ((raw.method === "item/completed" || raw.method === "item/started") && object(params.item)) {
     const item = params.item;
+    // A turn/steer is read on acceptance; its userMessage item echoes clientUserMessageId as clientId
+    // (PoC, Codex 0.166.0 and 0.164.0).
+    if (item.type === "userMessage") {
+      const read = consume(state, typeof item.clientId === "string" ? [item.clientId] : []);
+      return withConsumed(unchanged(read.state), read.consumed);
+    }
     const id = text(item.id);
     if (raw.method === "item/completed" && id in state.fileSummaries) state = { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, id) };
     if (raw.method === "item/completed" && item.type === "agentMessage" && id && !state.completedMessages.includes(id)) {
