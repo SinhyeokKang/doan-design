@@ -36,3 +36,10 @@
 tasks 항목과 배치: T1→A, T2→B, T3→G, T4→지휘자, T5→B, Z1→지휘자. 주인 없는 항목은 없다.
 
 ## 진행
+
+- A(T1) 완료: 작업자 커밋 29b21977·3ea098dc를 feat에 b04006b9·88b08b90으로 cherry-pick했다(리뷰 전 선통합). 브랜치 `setup-via-onboarding-a`로 남겼다. gate: eval 단위 267/267, self-test O3·O3b PASS(작업자 보고).
+- RA(Codex gpt-6-astra medium, `launch.effective` 확인)와 B(T2 기준선, Claude Sonnet high)를 띄웠다. B는 G가 통합되기 전의 feat에서 시작했다.
+- RA 결과: 🔴 0, 🟡 1(`noDoanInit`이 `env …`·`/usr/bin/env …`로 감싼 init을 놓친다. select 뒤 init은 기존 config 때문에 파일을 쓰지 않아 `repo_untouched`도 못 잡는다), 🟢 1(O3b 테스트 제목). 보고서 `.scratch/orch/review-RA.md`. A에 수정 1회를 보냈다. 고치는 곳은 `O3/setup-checks.ts` 안으로 정했다(지휘자 판단: 공용 파서 `eval/lib/transcript.ts`를 바꾸면 다른 시나리오의 기록 라운드와 비교가 흔들린다). B에는 라운드가 끝난 뒤 env로 감싼 init이 있었는지 transcript에서 확인해 적으라고 보냈다.
+- G(T3) 완료: 커밋 72c82427, 브랜치 `setup-via-onboarding-g`로 남겼다. `--json`+안내 21,599 / 21,600 B(1 B 남음), 일반 출력+안내 20,924 B. `go test ./...`·`go vet ./...` 통과(작업자 보고). 기준선이 끝날 때까지 feat에 넣지 않는다. RG(Codex gpt-6-astra medium)를 띄웠다.
+- A 수정 1회 완료: 커밋 8f72756a를 feat에 1d5d3546으로 넣었다. `noDoanInit`이 `env`·절대 경로 `env`와 그 `NAME=value`·`-i`·`-u NAME`·`--`를 벗긴다(`O3/setup-checks.ts` 안). 지휘자가 diff를 직접 확인했다(작은 수정이라 Codex 재리뷰는 하지 않았다). eval 단위 267/267, self-test PASS(작업자 보고). A 작업자를 놓고 worktree를 지웠다. 브랜치 `setup-via-onboarding-a`는 8f72756a로 남겼다.
+
