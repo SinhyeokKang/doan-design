@@ -44,6 +44,8 @@ const violetAllowed = [
   ".composer-send .doan-spinner",
   ".preset-chip",
   ".suggestion svg",
+  // The suggested prompt's icon tile (suggested-prompt-variants C, confirmed 2026-11-03).
+  ".suggestion-icon",
   ".home-composer .composer",
   ".drop-target",
   ".row-slot.permission",
