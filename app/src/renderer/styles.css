@@ -332,9 +332,16 @@ code, kbd { font-family: var(--type-family); }
 .side .row[aria-current="location"] :is(.g, .glyph, .d, .tw) { color: var(--text-sidebar-selected); }
 .crumbs button.repo { border-radius: 5px; padding: 1px 4px; margin: 0 -4px; }
 .crumbs button.repo:hover { background: var(--surface-inset); color: var(--text-standard); }
-.mark.jump-highlight { border: 2px solid var(--border-focus); border-radius: 1px; box-shadow: 0 0 0 3px var(--affordance-backdrop-pressed); animation: frame-jump-fade 1.2s linear forwards; }
+/* The jump highlight sits over any canvas content, so it is an accent gradient line with a panel ring and a glow.
+   border-image ignores border-radius, so the line is a masked ::before: the 12px point keeps its circle, and the
+   mask stays off the element's own ring and glow. */
+.mark.jump-highlight { border: 3px solid transparent; border-radius: 1px; box-shadow: 0 0 0 1px var(--surface-panel), 0 0 16px 2px color-mix(in srgb, var(--affordance-accent) 45%, transparent); animation: frame-jump-fade 1.2s linear forwards; }
+.mark.jump-highlight::before { content: ""; position: absolute; inset: -3px; padding: 3px; border-radius: inherit; background: linear-gradient(135deg, var(--affordance-accent), var(--indigo-600)); mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude; }
 @keyframes frame-jump-fade { 0%, 66.6667% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .mark.jump-highlight { animation: none; } }
+@media (prefers-reduced-transparency: reduce) { .mark.jump-highlight { box-shadow: 0 0 0 1px var(--surface-panel); } }
+/* Forced colors drop background images and shadows, so the line falls back to the system highlight border. */
+@media (forced-colors: active) { .mark.jump-highlight { border-color: Highlight; box-shadow: none; } .mark.jump-highlight::before { display: none; } }
 
 /* The Overview covers the canvas panel in the same cell; the panel stays laid out beneath it. */
 .workspace > .doan-canvas-panel, .workspace > .ov { grid-column: 2; grid-row: -2; }

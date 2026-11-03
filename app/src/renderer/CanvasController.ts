@@ -482,8 +482,26 @@ export class CanvasController {
     if (this.drag !== null) { this.pendingTool = tool; return; }
     this.pendingTool = null;
     if (tool === this.tool) return;
-    this.tool = tool;
+    this.enterTool(tool);
     this.publish();
+  }
+
+  // Switching to Hand drops the selection (canvas-selection-tools spec 1). A held Space and a pick leave `tool`
+  // alone, so they keep it. Does not publish: callers do.
+  private enterTool(tool: CanvasTool): void {
+    const toHand = this.tool === "select" && tool === "hand";
+    this.tool = tool;
+    if (toHand) this.dropSelection();
+  }
+
+  // Esc's clear without its publish. The clear command raises the selection seq, so a select the canvas sent before
+  // it cannot bring the selection back, and it makes the script forget the node its layouts would report again.
+  private dropSelection(): void {
+    if (!shouldGuardEscape(this.state.selection, this.reanchor)) return;
+    this.transition(() => {
+      this.sendCommand({ type: "clear" });
+      this.clearSelection(false);
+    });
   }
 
   destination(root: string): { root: string; canvas?: string } {
@@ -868,6 +886,8 @@ export class CanvasController {
   pick(): boolean {
     if (this.frame === null || this.state.open === null || this.state.status !== null || this.state.unlisted) return false;
     if (this.state.picking) return true;
+    // A pick that starts drops the selection, ahead of pick-start so the script lets go of it before picking.
+    this.dropSelection();
     this.state.picking = true;
     this.armPick();
     this.syncFrameInput();
@@ -1081,7 +1101,7 @@ export class CanvasController {
     if (drag === null) return;
     this.drag = null;
     if (this.layer.hasPointerCapture(drag.pointerId)) this.layer.releasePointerCapture(drag.pointerId);
-    if (this.pendingTool !== null) { this.tool = this.pendingTool; this.pendingTool = null; }
+    if (this.pendingTool !== null) { const tool = this.pendingTool; this.pendingTool = null; if (tool !== this.tool) this.enterTool(tool); }
   }
 
   private finishDrag(): void {
