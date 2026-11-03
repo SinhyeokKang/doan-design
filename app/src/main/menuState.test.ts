@@ -3,15 +3,15 @@ import { menuState } from "./menuState";
 
 describe("menuState", () => {
   test("home: add project only; no Home, no canvas items", () => {
-    expect(menuState("home", false)).toEqual({ addProject: true, home: false, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false });
+    expect(menuState("home", false)).toEqual({ addProject: true, home: false, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false, toggleSidebar: true });
   });
 
   test("workspace without a canvas: Home, but no canvas items", () => {
-    expect(menuState("workspace", false)).toEqual({ addProject: true, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false });
+    expect(menuState("workspace", false)).toEqual({ addProject: true, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false, toggleSidebar: true });
   });
 
   test("workspace with a canvas: every canvas item", () => {
-    expect(menuState("canvas", false)).toEqual({ addProject: true, home: true, canvasView: true, quickOpen: true, settings: true, newConversation: true, addSelectionToConversation: false });
+    expect(menuState("canvas", false)).toEqual({ addProject: true, home: true, canvasView: true, quickOpen: true, settings: true, newConversation: true, addSelectionToConversation: false, toggleSidebar: true });
   });
 
   // Canvas conversations extend the Overview shortcut to the canvas page.
@@ -28,7 +28,7 @@ describe("menuState", () => {
   // buzz-settings design '메뉴': Settings… is a page move now, so a modal disables it too.
   test("an open modal disables everything, Settings… included", () => {
     for (const screen of ["home", "workspace", "canvas"] as const) {
-      expect(menuState(screen, true)).toEqual({ addProject: false, home: false, canvasView: false, quickOpen: false, settings: false, newConversation: false, addSelectionToConversation: false });
+      expect(menuState(screen, true)).toEqual({ addProject: false, home: false, canvasView: false, quickOpen: false, settings: false, newConversation: false, addSelectionToConversation: false, toggleSidebar: false });
     }
   });
 });
@@ -42,8 +42,8 @@ test("disables Settings while the wizard is open", () => {
 describe("Add Projects page", () => {
   const main = { wizardOpen: false };
   test("Add Project… only in the choose phase, where it opens Choose folder; Home and Quick Open stay; no canvas items", () => {
-    expect(menuState("addProjects", false, { ...main, choose: true })).toEqual({ addProject: true, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false });
-    expect(menuState("addProjects", false, { ...main, choose: false })).toEqual({ addProject: false, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false });
+    expect(menuState("addProjects", false, { ...main, choose: true })).toEqual({ addProject: true, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false, toggleSidebar: true });
+    expect(menuState("addProjects", false, { ...main, choose: false })).toEqual({ addProject: false, home: true, canvasView: false, quickOpen: true, settings: true, newConversation: false, addSelectionToConversation: false, toggleSidebar: true });
     expect(menuState("addProjects", false, main).addProject).toBe(false);
   });
 
@@ -52,7 +52,7 @@ describe("Add Projects page", () => {
   });
 
   test("locked disables every item that leaves the page, Settings… included", () => {
-    const locked = { addProject: false, home: false, canvasView: false, quickOpen: false, settings: false, newConversation: false, addSelectionToConversation: false };
+    const locked = { addProject: false, home: false, canvasView: false, quickOpen: false, settings: false, newConversation: false, addSelectionToConversation: false, toggleSidebar: true };
     expect(menuState("addProjects", false, { ...main, choose: true, locked: true })).toEqual(locked);
     expect(menuState("addProjects", false, { ...main, locked: true })).toEqual(locked);
     expect(menuState("addProjects", false, { ...main, choose: true, locked: false }).addProject).toBe(true);
@@ -60,7 +60,7 @@ describe("Add Projects page", () => {
   });
 
   test("an open modal disables the page's items as before", () => {
-    const off = { addProject: false, home: false, canvasView: false, quickOpen: false, settings: true, newConversation: false, addSelectionToConversation: false };
+    const off = { addProject: false, home: false, canvasView: false, quickOpen: false, settings: true, newConversation: false, addSelectionToConversation: false, toggleSidebar: false };
     expect(menuState("addProjects", true, { ...main, choose: true })).toEqual({ ...off, settings: false });
   });
 });
@@ -70,14 +70,14 @@ describe("Add Projects page", () => {
 describe("settings page", () => {
   const main = { wizardOpen: false };
   test("Settings…, Add Project…, Home and Quick Open stay; no canvas items", () => {
-    expect(menuState("settings", false, main)).toEqual({ settings: true, addProject: true, home: true, canvasView: false, quickOpen: true, newConversation: false, addSelectionToConversation: false });
-    expect(menuState("settings", false, { ...main, choose: true })).toEqual({ settings: true, addProject: true, home: true, canvasView: false, quickOpen: true, newConversation: false, addSelectionToConversation: false });
+    expect(menuState("settings", false, main)).toEqual({ settings: true, addProject: true, home: true, canvasView: false, quickOpen: true, newConversation: false, addSelectionToConversation: false, toggleSidebar: true });
+    expect(menuState("settings", false, { ...main, choose: true })).toEqual({ settings: true, addProject: true, home: true, canvasView: false, quickOpen: true, newConversation: false, addSelectionToConversation: false, toggleSidebar: true });
   });
 
   test("a locked Settings page disables everything that leaves it, Settings… included", () => {
-    const off = { settings: false, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, addSelectionToConversation: false };
+    const off = { settings: false, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, addSelectionToConversation: false, toggleSidebar: true };
     expect(menuState("settings", false, { ...main, locked: true })).toEqual(off);
-    expect(menuState("settings", true, main)).toEqual(off);
+    expect(menuState("settings", true, main)).toEqual({ ...off, toggleSidebar: false });
   });
 
   test("the Add Projects page's lock disables Settings… so the page cannot be left for Settings", () => {
@@ -101,4 +101,16 @@ test("Add Selection to Conversation requires a canvas selection and an available
   for (const context of [{ wizardOpen: false }, { ...ready, selection: false }, { ...ready, pickerAvailable: false }, { ...ready, locked: true }])
     expect(menuState("canvas", false, context).addSelectionToConversation).toBe(false);
   expect(menuState("canvas", true, ready).addSelectionToConversation).toBe(false);
+});
+
+// shell-panel-layout design §3-3: Hide/Show Sidebar never leaves the screen, so a page lock keeps it; a modal or first
+// run turns it off like every other main-window item.
+test("Hide/Show Sidebar is off behind a modal and in first run, and on under a page lock", () => {
+  for (const screen of ["home", "workspace", "canvas", "addProjects", "settings"] as const) {
+    expect(menuState(screen, false).toggleSidebar, screen).toBe(true);
+    expect(menuState(screen, false, { wizardOpen: false, locked: true }).toggleSidebar, screen).toBe(true);
+    expect(menuState(screen, true).toggleSidebar, screen).toBe(false);
+    expect(menuState(screen, false, { wizardOpen: true }).toggleSidebar, screen).toBe(false);
+    expect(menuState(screen, true, { wizardOpen: false, locked: true }).toggleSidebar, screen).toBe(false);
+  }
 });

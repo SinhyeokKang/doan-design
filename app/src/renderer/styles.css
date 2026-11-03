@@ -402,6 +402,11 @@ body:has(.shell-top) { background: transparent; }
 .workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 88px; }
+/* Fullscreen has no traffic lights: the first header button lines up with the panels' left edge (x8). The header
+   already sits inside the shell's 8px margin, so its own left padding goes too. App sets the attribute from main's
+   fullscreen events; no transition, macOS is mid-animation when it changes. */
+:root[data-fullscreen] .shell-top .traffic-space { width: 0; }
+:root[data-fullscreen] .shell-top.top { padding-left: 0; }
 .shell-history { display: flex; gap: 4px; }
 .shell-history .doan-icon-button { width: 32px; height: 32px; border-radius: 10px; }
 .shell-top svg { width: 16px; height: 16px; }
@@ -925,6 +930,7 @@ body:has(.shell-top) { background: transparent; }
 .ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
 /* The title gives way first in a narrow window (design §2.1). */
 .ov-title-wrap { display: flex; min-width: 0; }
+.ov-new-conv { flex: none; margin-left: auto; }
 .ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
@@ -1129,11 +1135,27 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    containing block is the sidebar's column below the header; it fills the 8px gutter after it. Both lines are named:
    an absolutely positioned item's auto end line is the grid's padding edge, not the next line. */
 .doan-panel-handle.doan-sidebar-handle { grid-column: 1 / 2; grid-row: 2 / -1; left: 100%; }
+/* The Overview's handle is a shell grid child on the right column's start edge: .right-stack clips its rounded corner,
+   so a handle inside it would lose its half over the Overview. */
+.doan-panel-handle.doan-overview-handle { grid-column: 3 / 4; grid-row: 2 / -1; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
 /* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
+/* shell-panel-layout: a hidden sidebar leaves every shell with its handle and the 8px gap behind it, so the main panel
+   starts at the shell's 8px inner margin. Only a toggle animates (data-sidebar-motion), as folding the conversation
+   panel does; a drag or a window resize must not. */
+:root[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-right-width); }
+/* The page panels and the workspace's right column are auto-placed after the sidebar, so without it they would fall
+   into the empty first column. */
+:root[data-sidebar="hidden"] .home-shell { grid-template-columns: 0px minmax(0, 1fr); }
+:root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }
+:root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }
+:root[data-sidebar="hidden"] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { margin-left: 0; }
+:root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell) { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+:root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
 @media (prefers-reduced-motion: reduce) {
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+  :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { transition: none; }
 }
 
 /* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html

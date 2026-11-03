@@ -230,6 +230,9 @@ const api = {
   // Hidden: closed with the app running, or the whole app hidden (⌘H).
   onWindowVisible: (listener: (visible: boolean) => void): (() => void) =>
     subscribe<{ visible: boolean }>("window:visible", "window:visible", value => listener(value.visible)),
+  // macOS fullscreen, where the window has no traffic lights.
+  onFullScreen: (listener: (fullScreen: boolean) => void): (() => void) =>
+    subscribe<{ fullScreen: boolean }>("window:fullscreen", "window:fullscreen", value => listener(value.fullScreen)),
   // The Project step's folder picker: a path only, null when cancelled. The session inspects and registers it.
   // The Add Projects page uses it too; it belongs to no session.
   chooseOnboardingFolder: (purpose: FolderPurpose): Promise<string | null> => ipcRenderer.invoke("onboarding:choose-folder", purpose),

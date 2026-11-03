@@ -55,7 +55,7 @@ it("unsubscribes both preload bridges across StrictMode effect setup, cleanup an
 
 // R-M ⚪5: a command App does not name runs no handler.
 it("routes each menu command to its own handler, and an unknown or removed command reaches none", () => {
-  const to = { home: vi.fn(), quickOpen: vi.fn(), newConversation: vi.fn(), addSelection: vi.fn() };
+  const to = { home: vi.fn(), quickOpen: vi.fn(), newConversation: vi.fn(), addSelection: vi.fn(), toggleSidebar: vi.fn() };
   for (const name of ["nextResolved", "previousResolved", "future"]) menuCommand(name as never, to);
   for (const handler of Object.values(to)) expect(handler).not.toHaveBeenCalled();
   menuCommand("home", to); menuCommand("quickOpen", to);
@@ -67,4 +67,7 @@ it("routes each menu command to its own handler, and an unknown or removed comma
   // buzz-canvas-conversation: Edit > Add Selection to Conversation (⌘L).
   menuCommand("addSelectionToConversation", to);
   expect(to.addSelection).toHaveBeenCalledOnce();
+  // shell-panel-layout: View > Hide/Show Sidebar (⌘B).
+  menuCommand("toggleSidebar", to);
+  expect(to.toggleSidebar).toHaveBeenCalledOnce();
 });

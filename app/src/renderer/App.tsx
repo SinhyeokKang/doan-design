@@ -23,7 +23,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Plus, Settings, LayoutGrid } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
@@ -45,11 +45,11 @@ import { replyChipTarget } from "./replyChipTarget";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
 import type { ScrollTo } from "./overviewRun";
-import { ConversationPanel } from "./ConversationPanel";
-import { panelBounds, panelWidth } from "./rightPanelSize";
-import { SIDEBAR_BOUNDS, sidebarWidth } from "./sidebarSize";
+import { ConversationPanel, ResizeHandle } from "./ConversationPanel";
+import { canvasPanelDefault, OVERVIEW_PANEL_DEFAULT, panelBounds, panelWidth } from "./rightPanelSize";
+import { SIDEBAR_BOUNDS, sidebarToggleView, sidebarWidth, type SidebarToggleView } from "./sidebarSize";
 import { duplicateIdText } from "./canvasView";
-import { TooltipProvider } from "./components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./components/ui/tooltip";
 import { Wizard } from "./Onboarding";
 import { isMainCheckout } from "./projectStep";
 import { ProjectOverview } from "./ProjectOverview";
@@ -85,8 +85,9 @@ import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences"
 import { preferenceAfterPick, rememberChoice, rememberPermission, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing (R-M ⚪5).
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; addSelection: () => void }): void {
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; addSelection: () => void; toggleSidebar: () => void }): void {
   if (name === "home") to.home();
+  else if (name === "toggleSidebar") to.toggleSidebar();
   else if (name === "newConversation") to.newConversation();
   else if (name === "addSelectionToConversation") to.addSelection();
   else if (name === "quickOpen") to.quickOpen();
@@ -110,15 +111,15 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
-  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, sidebar, canvasTool } = input;
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
+  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, overviewPanel, sidebar, canvasTool } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
 }
 
 // The start's ui-state read under what the run wrote before it (buzz-project T1): a root the run set, cleared (New) or
@@ -280,11 +281,35 @@ export function App() {
   const rightPanelRef = useRef(rightPanel); rightPanelRef.current = rightPanel;
   const panelTouched = useRef(false);
   const changePanel = (change: (previous: NonNullable<UiState["rightPanel"]>) => NonNullable<UiState["rightPanel"]>) => { panelTouched.current = true; setRightPanelState(change); };
+  // The Overview's canvas conversations panel width on this device (undefined: its default), apart from the canvas
+  // panel's, the same way: a resize before the read wins.
+  const [overviewSaved, setOverviewSaved] = useState<number | undefined>(undefined);
+  const overviewTouched = useRef(false);
   // The sidebar's width on this device (undefined: the default), the same way: a resize before the read wins. The
   // shown width is a root variable, so every shell's grid follows it and a drag can preview it without a render.
   const [sidebarSaved, setSidebarSaved] = useState<number | undefined>(undefined);
   const sidebarTouched = useRef(false);
   const shownSidebar = sidebarWidth(sidebarSaved);
+  // Hidden on every screen at once and remembered on this device like the width; a toggle before the read wins. Shown
+  // as a root attribute, so every shell's grid drops its first column the way it follows the width variable.
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const sidebarHiddenRef = useRef(sidebarHidden); sidebarHiddenRef.current = sidebarHidden;
+  const sidebarHiddenTouched = useRef(false);
+  // Focus was in the sidebar (or one of its menus) when it was hidden: the header's Show sidebar button takes it.
+  const sidebarFocus = useRef(false);
+  // Only a toggle animates the shells' first column; the startup read and a resize do not.
+  const sidebarMotion = useRef(false);
+  // The header button, ⌘B and View > Hide/Show Sidebar. Hiding unmounts the sidebar, so its open menus close with it
+  // instead of waiting under a flag to reappear (POSTMORTEM 2026-11-01 'A frame drawer list closed by a disabled trigger
+  // reopened by itself'). Not a Back/Forward visit.
+  function toggleSidebar() {
+    const hide = !sidebarHiddenRef.current;
+    const active = document.activeElement;
+    sidebarFocus.current = hide && typeof Element !== "undefined" && active instanceof Element && active.closest(".shell-side, .doan-sidebar-handle, .shell-side-menu") !== null;
+    sidebarHiddenTouched.current = true;
+    sidebarMotion.current = true;
+    setSidebarHidden(hide);
+  }
   // Optional: App's DOM-less tests stub a document without a root element.
   const previewSidebar = (width: number) => document.documentElement?.style.setProperty("--doan-sidebar-width", `${width}px`);
   useLayoutEffect(() => previewSidebar(shownSidebar), [shownSidebar]);
@@ -471,7 +496,9 @@ export function App() {
       if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
+      if (active && state?.overviewPanel && !overviewTouched.current) setOverviewSaved(state.overviewPanel.width);
       if (active && state?.sidebar && !sidebarTouched.current) setSidebarSaved(state.sidebar.width);
+      if (active && state?.sidebar?.hidden && !sidebarHiddenTouched.current) setSidebarHidden(true);
       // The controller keeps a tool the person chose before this read.
       if (active && state?.canvasTool) controller.current?.restoreTool(state.canvasTool);
       if (active && !restoreCancelled.current) setRestore({ state, started: performance.now() });
@@ -522,11 +549,13 @@ export function App() {
   };
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
   const savedScreen = screen === "addProjects" || screen === "settings" || screen === "projectSettings" ? page.origin.screen : screen;
-  const sidebarState = sidebarSaved === undefined ? undefined : { width: sidebarSaved };
-  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState, canvasTool: state.tool });
-  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState, canvasTool: state.tool };
+  const sidebarState = sidebarSaved === undefined && !sidebarHidden ? undefined
+    : { ...(sidebarSaved === undefined ? {} : { width: sidebarSaved }), ...(sidebarHidden ? { hidden: true as const } : {}) };
+  const overviewPanelState = overviewSaved === undefined ? undefined : { width: overviewSaved };
+  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool });
+  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, sidebarSaved, state.tool]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, overviewSaved, sidebarSaved, sidebarHidden, state.tool]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -718,8 +747,8 @@ export function App() {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, pickEnded, followMode, openLink, openCanvasRequest };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1096,6 +1125,7 @@ export function App() {
       quickOpen: () => live.current.search(),
       newConversation: () => live.current.newConversation(),
       addSelection: () => live.current.addSelection(),
+      toggleSidebar: () => live.current.toggleSidebar(),
     });
   }), []);
   const onPage = screen === "addProjects", onSettings = screen === "settings", onProjectSettings = screen === "projectSettings";
@@ -1300,8 +1330,8 @@ export function App() {
     // menu state needs no screen of its own (project-settings design '영향 범위' 메뉴).
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null ? { overview: true } : {}),
-      ...(menuSelection ? { selection: true } : {}), ...(menuPicker ? { pickerAvailable: true } : {}) });
-  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuSelection, menuPicker]);
+      ...(menuSelection ? { selection: true } : {}), ...(menuPicker ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}) });
+  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuSelection, menuPicker, sidebarHidden]);
   useLayoutEffect(() => { overviewRun.current!.show(shownOverview); }, [shownOverview]);
   // The window's focus decides whether the shown conversation is seen (spec decision 11); the focus listener is the
   // sign-in controller's below.
@@ -1332,12 +1362,55 @@ export function App() {
     previousOverview.current = shownOverview;
   }, [shownOverview]);
   // The canvas page's right column (buzz-canvas design §2 '오른쪽 패널'): the conversation panel at its remembered width,
-  // clamped to the window's bounds, or none while folded. The Overview keeps its own 280px column.
+  // clamped to the window's bounds, or none while folded. The Overview's column has its own remembered width under the
+  // same bounds: the canvas panel stays in the layout under the Overview, so the one measure serves both.
   const canvasPage = overview === null;
   const panelBox = panelSize ?? { window: 0, shell: 0 };
-  const shownPanel = panelWidth(rightPanel.width, panelBox.window, panelBox.shell);
   const panelLimits = panelBounds(panelBox.window, panelBox.shell);
-  const rightColumn = canvasPage ? (rightPanel.open ? `${shownPanel}px` : "0px") : undefined;
+  const shownPanel = panelWidth(rightPanel.width, panelLimits, canvasPanelDefault(panelBox.window));
+  const shownOverviewPanel = panelWidth(overviewSaved, panelLimits, OVERVIEW_PANEL_DEFAULT);
+  const rightColumn = canvasPage ? (rightPanel.open ? `${shownPanel}px` : "0px") : `${shownOverviewPanel}px`;
+  useLayoutEffect(() => {
+    // Optional: App's DOM-less tests stub a document without a root element.
+    const root = document.documentElement;
+    if (!root) return;
+    const animate = sidebarMotion.current;
+    sidebarMotion.current = false;
+    if (animate) root.setAttribute("data-sidebar-motion", "");
+    if (sidebarHidden) root.setAttribute("data-sidebar", "hidden");
+    else root.removeAttribute("data-sidebar");
+    if (!animate) return;
+    const timer = setTimeout(() => root.removeAttribute("data-sidebar-motion"), 250);
+    return () => { clearTimeout(timer); root.removeAttribute("data-sidebar-motion"); };
+  }, [sidebarHidden]);
+  // Fullscreen has no traffic lights; the header's CSS drops their space under this attribute (design §2.5).
+  useEffect(() => window.doan.onFullScreen(fullScreen => {
+    const root = document.documentElement;
+    if (!root) return;
+    if (fullScreen) root.setAttribute("data-fullscreen", "");
+    else root.removeAttribute("data-fullscreen");
+  }), []);
+  useEffect(() => {
+    if (!sidebarFocus.current) return;
+    sidebarFocus.current = false;
+    // Every screen draws its own header; the shown one is outside the inert workspace or page.
+    [...document.querySelectorAll<HTMLElement>(".shell-sidebar-toggle")].find(button => !button.closest("[inert]"))?.focus();
+  }, [sidebarHidden]);
+  // The composer is contenteditable, where Chromium takes ⌘B as Bold before the menu's key equivalent sees it (T0 PoC):
+  // the field hands it to the sidebar instead. A handled key never reaches the menu, so this cannot toggle twice.
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.isComposing || event.key.toLowerCase() !== "b") return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.isContentEditable || !target.closest("[data-chip-field]")) return;
+      event.preventDefault();
+      if (!live.current.modal) live.current.toggleSidebar();
+    };
+    // On the document, ahead of the field's own handlers in the capture phase; the window's keydown is the pages' Escape.
+    // Optional: App's DOM-less tests stub a document without listeners.
+    document.addEventListener?.("keydown", keydown, true);
+    return () => document.removeEventListener?.("keydown", keydown, true);
+  }, []);
   useLayoutEffect(() => {
     const measure = () => {
       const main = shellRoot.current, canvas = main?.querySelector<HTMLElement>(":scope > .doan-canvas-panel");
@@ -1350,15 +1423,14 @@ export function App() {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  // The sidebar's width moves the canvas column's start, so a committed resize measures again.
-  }, [shownSidebar]);
+  // The sidebar's width and hiding move the canvas column's start, so either measures again.
+  }, [shownSidebar, sidebarHidden]);
   // Written here rather than in the style prop: a drag previews its width on the same property (previewPanel), and this
   // runs only when the committed width changes, so a render during the drag does not undo the preview.
   useLayoutEffect(() => {
     const main = shellRoot.current;
     if (!main) return;
-    if (rightColumn) main.style.setProperty("--doan-right-width", rightColumn);
-    else main.style.removeProperty("--doan-right-width");
+    main.style.setProperty("--doan-right-width", rightColumn);
   }, [rightColumn]);
   // A canvas opened under the Overview was fitted to the Overview's layout; fit it again once this commit has applied
   // the canvas page's column (design §2 '첫 Fit'). The controller does it once per opened canvas.
@@ -1442,14 +1514,17 @@ export function App() {
     view={stripView(shown.state, { provider: shown.conversation.provider, project: projectLabel(shown.conversation.root), branch: null, canvas: shown.conversation.canvas ? canvasLabel({ path: shown.conversation.canvas, url: "" }) : null })}
     onEditOnHome={() => void run.editOnHome(shown.conversation.conversationId)} onOpen={() => run.openConversation(shown.conversation.conversationId)}
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
-  const sidebar = (home: boolean) => <ShellSidebar cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
+  const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
+  const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
+  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
-    home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas)} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
+    home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
     resize={{ width: shownSidebar, bounds: SIDEBAR_BOUNDS, preview: previewSidebar, onResize: width => { sidebarTouched.current = true; setSidebarSaved(width); } }} />;
   // The Project Settings page sits under the Projects tab (page null) but leaves like the other pages.
   const anyPage = onPage || onSettings || onProjectSettings;
-  const topBar = <TopBar back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
+  const sidebarToggle = sidebarToggleView(sidebarHidden, shellSlots);
+  const topBar = (overPage: boolean) => <TopBar sidebar={{ view: sidebarToggle, controls: sidebarHidden ? undefined : sidebarId(overPage), toggle: toggleSidebar }} back={anyPage || back !== null} forward={!anyPage && forward !== null} page={onPage ? "addProjects" : onSettings ? "settings" : null} locked={pageLocked}
     previous={() => anyPage ? leavePage({ kind: "back" }) : travel(back)} next={() => travel(forward)}
     addProjects={openAddProjects} projects={() => { const move = projectsTab(currentScreen.current); if (move === "leavePage") leavePage({ kind: "projectsTab" }); else if (move === "home") home(); }} settings={() => { if (!locked()) openSettings({}); }} />;
   // The selection-lost notice is an event: a toast once, not a line left on the board.
@@ -1464,23 +1539,23 @@ export function App() {
     current: composerMemory.current.root ? { root: composerMemory.current.root, name: composerMemory.current.root } : null, loaded: loadedRoot, lastRoot: homeMemory?.lastRoot ?? null }).root;
   const settingsProject = entries.some(entry => entry.path === modelRoot && entry.kind === "list") ? { root: modelRoot!, name: projectLabel(modelRoot!) } : null;
   return <TooltipProvider>
-  {screen === "home" && <Home header={topBar} sidebar={sidebar(true)}
+  {screen === "home" && <Home header={topBar(true)} sidebar={sidebar(true)}
     entries={entries} homeDirectory={homeDirectory} shellProjects={shellProjects} loaded={loadedRoot} select={select} prefs={homeMemory}
     memory={composerMemory} running={run.running()} restore={run.restore} start={(request, last) => run.start(request, last)} openConversation={id => run.openConversation(id)} addProjects={openAddProjects}
     defaults={preferences ? preferences.preferences.newConversation : undefined} openSettings={openSettings} onRemember={rememberPick} />}
-  {onSettings && <SettingsPage header={topBar} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
+  {onSettings && <SettingsPage header={topBar(true)} sidebar={sidebar(true)} section={settings.section} arrival={settings.arrival} onState={settingsReport}
     agents={{ signIn: agentSignIn(), preferences, save: savePreferences, project: settingsProject }} />}
-  {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
+  {onProjectSettings && <ProjectSettingsPage key={projectSettings.key} header={topBar(true)} sidebar={sidebar(true)} root={projectSettings.root} entries={entries} reroot={reroot}
     origin={page.origin} homeDirectory={homeDirectory} arrival={projectSettings.arrival} onState={projectSettingsReport} onGone={() => leavePage({ kind: "gone" })}
     onRerooted={projectSettingsRerooted} onAction={(name, root, notice) => action(name, root, notice)}
     onRemove={() => { const group = cards.find(card => card.rows.some(row => row.path === projectSettings.root)); if (group) void remove(group.rows.map(row => row.path)); }} />}
-  {onPage && <AddProjectsPage key={page.seq} header={topBar} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
+  {onPage && <AddProjectsPage key={page.seq} header={topBar(true)} sidebar={sidebar(true)} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
     mainCheckout={path => isMainCheckout(entries, path)} choose={page.chooseSeq} onState={pageReport} onCancel={() => leavePage({ kind: "cancel" })} onAdded={pageAdded} />}
   <main ref={shellRoot} className={`app-shell workspace${entry && entry.kind !== "list" ? " with-status" : ""}${strip ? " with-strip" : ""}`}
     style={{ visibility: screen !== "workspace" ? "hidden" : "visible" }}
     data-panel={canvasPage && !rightPanel.open ? "collapsed" : undefined} data-panel-motion={panelMotion ? "" : undefined}
     inert={screen !== "workspace"} aria-hidden={screen !== "workspace"}>
-    {topBar}
+    {topBar(false)}
     {entry && entry.kind !== "list" && <ProblemActions entry={entry} action={action} workspace={{ name: card?.name ?? name, homeDirectory, home }} />}
     {sidebar(false)}
     {strip}
@@ -1501,6 +1576,8 @@ export function App() {
       onAction={(name, root) => action(name, root)}
       onProjectSettings={root => openProjectSettings(root)}
       onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} />}
+    {overview && <ResizeHandle className="doan-overview-handle" label="Resize canvas conversations" width={shownOverviewPanel} bounds={panelLimits} preview={previewPanel}
+      onResize={width => { overviewTouched.current = true; setOverviewSaved(width); }} />}
     {overview ? <div className="right-stack"><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
@@ -1542,11 +1619,16 @@ function topDialog(): HTMLDialogElement | null {
 
 // Add Projects, Projects and Settings are page tabs; on a page Back returns to where it was opened from. `locked` marks
 // the tabs and Back unavailable while App ignores them (buzz-add-projects and buzz-settings design '잠금').
-function TopBar({ back, forward, previous, next, page, locked, addProjects, projects, settings }: { back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void }) {
+function TopBar({ sidebar, back, forward, previous, next, page, locked, addProjects, projects, settings }: { sidebar: { view: SidebarToggleView; controls: string | undefined; toggle(): void }; back: boolean; forward: boolean; previous(): void; next(): void; page: "addProjects" | "settings" | null; locked: boolean; addProjects(): void; projects(): void; settings(): void }) {
   const unavailable = locked || undefined;
   const tab = (name: typeof page) => name === page ? { className: "current", "aria-current": "page" as const } : {};
   return <header className="top shell-top"><span className="traffic-space" aria-hidden="true" />
-    <div className="shell-history"><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
+    <div className="shell-history">
+      {/* Left of Back, so Back and Forward move one button right (shell-panel-layout design §2.4 '헤더'). */}
+      <Tooltip><TooltipTrigger asChild><button className="doan-icon-button shell-sidebar-toggle" data-ui-placement="chrome" aria-label={sidebar.view.label} aria-expanded={sidebar.view.icon === "hide"}
+        aria-controls={sidebar.controls} data-badge={sidebar.view.badge ? "true" : undefined} onClick={sidebar.toggle}>{sidebar.view.icon === "hide" ? <PanelLeftClose aria-hidden="true" /> : <PanelLeftOpen aria-hidden="true" />}</button></TooltipTrigger>
+        <TooltipContent className="has-key">{sidebar.view.icon === "hide" ? "Hide sidebar" : "Show sidebar"}<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘B</span></TooltipContent></Tooltip>
+      <button className="doan-icon-button" data-ui-placement="chrome" aria-label="Back" disabled={!back} aria-disabled={unavailable} onClick={previous}><ArrowLeft /></button><button className="doan-icon-button" data-ui-placement="chrome" aria-label="Forward" disabled={!forward} onClick={next}><ArrowRight /></button></div>
     <div className="shell-modes"><button {...tab("addProjects")} aria-disabled={unavailable} onClick={addProjects}><Plus />Add Projects</button><button {...tab(null)} aria-disabled={unavailable} onClick={projects}><LayoutGrid />Projects</button><button {...tab("settings")} aria-disabled={unavailable} onClick={settings}><Settings />Settings</button></div>
   </header>;
 }

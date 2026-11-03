@@ -18,6 +18,8 @@ import { SETTINGS_SECTIONS, type SettingsSection } from "./settingsSections";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
 
 interface Props {
+  // What the header's sidebar button points at with aria-controls.
+  id?: string;
   // The sidebar's width handle, drawn after the sidebar as a sibling in the shell grid (see .doan-sidebar-handle).
   resize?: { width: number; bounds: PanelBounds; onResize(width: number | undefined): void; preview(width: number): void };
   cards: HomeCard[];
@@ -262,7 +264,7 @@ export function ShellSidebar(props: Props) {
   const withHandle = (aside: ReactElement) => props.resize ? <>{aside}<ResizeHandle edge="end" className="doan-sidebar-handle" label="Resize sidebar" {...props.resize} /></> : aside;
   if (props.settings) {
     const { section, select } = props.settings;
-    return withHandle(<aside className="side shell-side" ref={host} aria-label="Settings">
+    return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Settings">
       <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
       <div className="shell-projects doan-scroll">
         <h2 className="shell-projects-heading">Settings</h2>
@@ -273,7 +275,7 @@ export function ShellSidebar(props: Props) {
       </div>
     </aside>);
   }
-  return withHandle(<aside className="side shell-side" ref={host} aria-label="Projects">
+  return withHandle(<aside className="side shell-side" id={props.id} ref={host} aria-label="Projects">
     <button ref={search} className="shell-search" aria-disabled={locked} onClick={props.search}><Search aria-hidden="true" />Search</button>
     <button type="button" className="shell-home-row row" aria-current={props.homeCurrent ? "page" : undefined} aria-disabled={locked} onClick={() => props.goHome?.()}><House aria-hidden="true" /><span>Home</span></button>
     <div className="shell-projects doan-scroll">
