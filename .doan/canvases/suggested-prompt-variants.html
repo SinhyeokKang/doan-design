@@ -63,6 +63,9 @@ body{padding:var(--space-8);width:1360px;background:var(--surface-inset);color:v
 .vc .sp.hover{background:var(--affordance-subtle)}
 .vc .sp.hover .go{visibility:visible}
 
+/* Chosen: C sits right above the composer on the Overview and in the panel, not in the middle. */
+.ov.vc .empty,.cp.vc .empty{justify-content:flex-end;padding:0 var(--space-6) var(--space-3)}
+.cp.vc .empty{padding:0 var(--space-3) var(--space-3)}
 /* D · Soft accent chip */
 .vd .sp{display:inline-flex;align-items:center;gap:var(--space-1h);max-width:100%;min-height:var(--size-control-sm);padding:0 var(--space-4) 0 var(--space-3);border-radius:var(--radius-control);background:color-mix(in srgb,var(--surface-accent-subtle) 55%,transparent);color:var(--text-accent-subtle);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
 .vd .sp.hover{background:var(--surface-accent-subtle)}
@@ -76,7 +79,7 @@ body{padding:var(--space-8);width:1360px;background:var(--surface-inset);color:v
 </style></head><body>
 <header class="intro">
   <h1>Suggested prompt button</h1>
-  <p>Variants for a button only the suggested prompts use, replacing the shared <code>doan-button</code> (quiet, sm). In every variant the group sits in the middle of the empty area, horizontally and vertically, on the Overview and in the canvas conversation panel. Home keeps its current place under the composer and takes the chosen button shape. The second button in each surface shows the hover state. Not in code: variants A–D and the centered placement; sentences are the real <code>suggestedPrompts</code> labels for a project with canvases.</p>
+  <p>Variants for a button only the suggested prompts use, replacing the shared <code>doan-button</code> (quiet, sm). Variants A, B and D show the group in the middle of the empty area; the chosen C sits right above the composer on the Overview and in the canvas conversation panel, and 32px under the Home composer. The second button in each surface shows the hover state. Not in code: variants A–D and the centered placement; sentences are the real <code>suggestedPrompts</code> labels for a project with canvases.</p>
 </header>
 
 <template id="t-compass"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg></template>
@@ -94,8 +97,8 @@ body{padding:var(--space-8);width:1360px;background:var(--surface-inset);color:v
 <section class="board" data-doan-frame="variant-b" data-doan-title="B · Tile card" data-variant="vb">
   <div class="caption"><h2>B · Tile card</h2><p>Icon on top, sentence below, three equal cards with a hairline ring; a sentence wraps to two lines instead of truncating. In the narrow panel the cards become one column with the icon at the start.</p></div>
 </section>
-<section class="board" data-doan-frame="variant-c" data-doan-title="C · Stacked row" data-variant="vc">
-  <div class="caption"><h2>C · Stacked row</h2><p>One column of full-width rows (the Overview column, 720px; the panel width), the group icon in a violet tile and an arrow that shows on hover. Long sentences keep one line.</p></div>
+<section class="board" data-doan-frame="variant-c" data-doan-title="C · Stacked row (chosen)" data-variant="vc">
+  <div class="caption"><h2>C · Stacked row (chosen)</h2><p>Placed right above the composer, 12px over the composer area. One column of full-width rows (the Overview column, 720px; the panel width), the group icon in a violet tile and an arrow that shows on hover. Long sentences keep one line.</p></div>
 </section>
 <section class="board" data-doan-frame="variant-d" data-doan-title="D · Soft accent chip" data-variant="vd">
   <div class="caption"><h2>D · Soft accent chip</h2><p>A faint violet fill with violet ink and no ring. Says "Doan suggests this" most clearly, but adds violet to the empty state: the accent places list in DESIGN.md would change.</p></div>
