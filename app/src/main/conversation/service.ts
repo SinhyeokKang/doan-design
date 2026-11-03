@@ -35,6 +35,8 @@ export interface Prepared {
   // The conversation's chosen permission mode for this run, absent for Default. planApproved: the mode Claude switched
   // to once the person approved a plan on a turn sent with Plan, which becomes the conversation's stored mode.
   permissionMode?: PermissionModeId; planApproved?: (mode: PermissionModeId) => void;
+  // The agent read a message steer added (its messageId), in line with the run's events (runners.ts SteerHooks).
+  steerConsumed?: (messageId: string) => void;
 }
 // attachments: the turn's files, which only Antigravity also receives as image blocks. models: the provider's list for
 // this folder, from a runner opened only to read it.
@@ -49,7 +51,9 @@ export interface TurnChoice { model?: string; effort?: string; permissionMode?: 
 // apart from the model, Default included) and rechecked attachments.
 // defaultEffort: the level the turn names when its choice has none (models.ts ModelOption); it is never stored.
 export interface SendExtras extends TurnChoice { attachments?: AttachmentRecord[]; defaultEffort?: string }
-export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList> }
+// steer: Claude and Codex only (steerSupport.ts); adds a message to the running turn turnId and resolves once the
+// provider accepted it, which is not yet the agent reading it (Prepared.steerConsumed).
+export interface Runner { sessionId: string; send(prompt: string, turnId: string, attachments?: readonly AttachmentRecord[], choice?: TurnChoice): Promise<void>; answer(requestId: string, optionId: string): boolean; stop(): Promise<void>; close(): Promise<void>; models?(): Promise<ModelList>; steer?(prompt: string, turnId: string, messageId: string): Promise<void> }
 // What a queued send needs from main's attachment store: the queued ids checked again as the send's attachments
 // (reclaim throws attachment_missing), consumed once that send was accepted, discarded with a removed message (a paste
 // goes with it) and released when they come back in a draft, which carries their paths instead.
@@ -86,6 +90,10 @@ interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runn
 interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; endedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
+// A queued message Send now put into a running turn (live, turnId) that the agent has not read yet. Its item stays in
+// drafts.json marked sending until the request is answered; message: the user.message appended once the agent reads
+// it. answered: the request already has its answer (a refusal), though the provider may still have taken it.
+interface Steer { id: string; itemId: string; live: Live; turnId: string; message: EventPayload; ids: string[]; attached?: StartAttachments; answered: boolean; resolve(): void; reject(error: Error): void }
 export class ConversationService {
   private listings = new Set<Listing>();
   private listingOf = new WeakMap<Prepared, Listing>();
@@ -104,6 +112,8 @@ export class ConversationService {
   // A Stop or a sign-out of its provider refuses such a send as busy, as it refuses one waiting for the previous process.
   private judging = new Map<string, { wake(): void; cancelled: boolean; provider?: Provider }>();
   private drafts: DraftStore;
+  // By messageId, until the agent reads it or its turn ends; a refused one stays, since its read may still come.
+  private steers = new Map<string, Steer>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
@@ -134,7 +144,7 @@ export class ConversationService {
     let opening = false, input: Prepared | undefined;
     const turnId = live.turnId;
     try {
-      input = { ...await this.prepare(request), ...choice(request), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported) };
+      input = { ...await this.prepare(request), ...choice(request), ...mode(request.permissionMode), planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId) };
       if (input.owner) live.provider = input.owner.provider;
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
@@ -225,7 +235,8 @@ export class ConversationService {
     try {
       this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, runtime === "codex" && !!live.runner); reserved = true;
       const turnId = live.turnId;
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported) };
+      // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId) };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");
@@ -368,9 +379,10 @@ export class ConversationService {
       this.append(id, live.turnId, event);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
-      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.endedAt = Date.now(); this.ended(id, live, event.type); }
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.endedAt = Date.now(); this.dropSteers(id); this.ended(id, live, event.type); }
     } catch (error) {
       live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
+      this.dropSteers(id);
       // Its turn never ends, so it is never judged and must not hold its root.
       this.dropEvidence(id);
       // No event says so, but the list's projectBusy and, once the process is gone, the phase change.
@@ -490,6 +502,7 @@ export class ConversationService {
       if (live.runner) closing.push(live.runner.close()); else if (live.cleanup) closing.push(live.cleanup());
       if (live.accepted && live.busy && !live.terminal) this.append(id, live.turnId, { type: "interrupted", reason: "appQuit" });
       live.terminal = true; live.busy = false;
+      this.dropSteers(id);
     }
     return Promise.all(closing).then(() => undefined);
   }
@@ -524,6 +537,39 @@ export class ConversationService {
     if (!this.drafts.remove(id, itemId)) throw new Error("stale");
     const ids = this.forget(id, [itemId]); if (ids.length) this.queueOptions.files?.discard?.(ids);
     this.changed(m.root);
+  }
+  // Send now: one queued message into the running turn, without stopping it. It resolves once the agent read the
+  // message, which is then in the turn's history and out of the queue; until then the item stays queued, marked sending.
+  // not_running: nothing runs that can take it (also a provider without steer), the provider refused it, or the turn
+  // ended first; the item then waits again where it was and follows the queue's rules. stale: the item is gone or
+  // already on its way out. The checks run again after the provider's answer (POSTMORTEM 2026-10-27). A turn's end is
+  // published before its refusals are answered, so the renderer knows why.
+  // async only so that every refusal is a rejection; everything up to the steer request runs in the caller's tick.
+  async sendNow(id: string, itemId: string): Promise<void> {
+    const m = this.metadata(id), live = this.live.get(id);
+    if (!live || !this.steerable(id, live)) throw new Error("not_running");
+    const runner = live.runner!, item = this.drafts.queued(id).find(entry => entry.itemId === itemId);
+    if (!item || !this.drafts.markOneSending(id, itemId)) throw new Error("stale");
+    const ids = this.queuedExtras.get(itemId)?.ids ?? [], files = this.queueOptions.files;
+    let attached: StartAttachments | undefined, prompt: string | null;
+    let attachments: AttachmentRecord[];
+    try {
+      attached = ids.length && files ? files.reclaim(ids) : undefined;
+      attachments = attached ? attached.recheck() : item.attachments;
+      // The prompt a send of this message would carry, Home's paragraph and guidance included.
+      prompt = turnPrompt(item.anchors, item.text, m, { home: m.fromHome === true && !m.canvas, attachments }); if (prompt === null) throw new Error("bad_request");
+    } catch (error) { this.drafts.unmarkSending(id, itemId); throw error; }
+    const turnId = live.turnId, messageId = randomUUID();
+    const message: EventPayload = { type: "user.message", text: item.text, anchors: item.anchors, ...(attachments.length ? { attachments } : {}) };
+    return new Promise<void>((resolve, reject) => {
+      // Registered before the request: Codex may report the read before its answer to the request.
+      const steer: Steer = { id, itemId, live, turnId, message, ids, ...(attached ? { attached } : {}), answered: false, resolve, reject };
+      this.steers.set(messageId, steer);
+      this.changedOf(id);
+      runner.steer!(prompt, turnId, messageId).then(() => {
+        if (this.steers.get(messageId) === steer && (!this.steerable(id, live) || live.turnId !== turnId)) this.endSteer(messageId, steer);
+      }, () => { if (this.steers.get(messageId) === steer) this.refuse(steer); });
+    });
   }
   // The draft queued messages came back as, handed over once.
   takeDraft(id: string): ReturnedDraft | null {
@@ -590,6 +636,7 @@ export class ConversationService {
     }
     this.dropEvidence(id);
     this.cancelWait(id);
+    this.dropSteers(id);
     this.giveBack(id, "interrupted");
   }
   // Every queued message, also those on their way out, comes back as one draft; their held ids go, since the draft
@@ -640,6 +687,44 @@ export class ConversationService {
     if (this.live.get(id) === live && !live.busy && !live.holding) delete live.project;
     this.changedOf(id);
   }
+  // What a Send now needs, as a send's checks (checkSend) plus a turn accepted and running in a runner that can steer.
+  private steerable(id: string, live: Live): boolean {
+    const m = this.store.list().find(entry => entry.conversationId === id);
+    return !this.quitting && this.live.get(id) === live && live.accepted && live.busy && !live.terminal && !live.closed && !live.failedPersistence &&
+      !live.exited && !this.stopped(live) && m?.state === "current" && typeof live.runner?.steer === "function";
+  }
+  private steering(id: string): [string, Steer][] { return [...this.steers].filter(([, steer]) => steer.id === id); }
+  // The agent read a steered message: it joins its turn's history at this point and leaves the queue. The read decides,
+  // also over a refusal already answered (a Codex answer that timed out while the server took it), as long as the turn
+  // it went into still runs and the message is still queued; a turn that ended dropped its steers first (dropSteers).
+  private steerConsumed(id: string, messageId: string): void {
+    const steer = this.steers.get(messageId); if (!steer || steer.id !== id) return;
+    const live = steer.live;
+    if (this.live.get(id) !== live || live.turnId !== steer.turnId || !live.accepted || live.terminal || live.failedPersistence) return;
+    // A refused message the person removed since is not queued any more; a pending one is marked sending.
+    const same = this.steering(id).filter(([, other]) => other.itemId === steer.itemId);
+    if (!this.drafts.queued(id).some(item => item.itemId === steer.itemId) && !same.some(([, other]) => !other.answered)) { this.steers.delete(messageId); return; }
+    steer.attached?.sent();
+    this.receive(id, steer.message);
+    // A history that stopped taking writes left the message out; receive took it back into the queue (dropSteers).
+    if (live.failedPersistence) return;
+    this.forget(id, [steer.itemId]); this.drafts.sent(id, [steer.itemId]);
+    if (steer.ids.length) this.queueOptions.files?.consume(steer.ids);
+    // A Send now of the same message after a refusal is answered by this read too.
+    for (const [key, other] of same) { this.steers.delete(key); if (!other.answered) { other.answered = true; other.resolve(); } }
+    this.changedOf(id);
+  }
+  // Refused by the provider: the message waits in its place again and the request is answered, but the steer stays
+  // until its turn ends, in case the provider took it after all.
+  private refuse(steer: Steer): void {
+    this.drafts.unmarkSending(steer.id, steer.itemId);
+    if (!steer.answered) { steer.answered = true; steer.reject(new Error("not_running")); }
+    this.changedOf(steer.id);
+  }
+  // The turn ended (or stopped taking writes) before the agent read its steered messages, which no run reports later:
+  // they wait in the queue again, in their places, before the terminal handling sends or hands back the queue.
+  private dropSteers(id: string): void { for (const [key, steer] of this.steering(id)) this.endSteer(key, steer); }
+  private endSteer(key: string, steer: Steer): void { this.steers.delete(key); if (!steer.answered) this.refuse(steer); }
   private refreshCanvas(metadata: ConversationMetadata): ConversationMetadata {
     const canvas = this.admit(metadata.root, metadata.canvas);
     if (!canvas || !metadata.canvas || canvas.path === metadata.canvas.path) return metadata;

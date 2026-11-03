@@ -191,3 +191,50 @@ describe("DraftStore emptied queues", () => {
     expect(store.queued(B)).toHaveLength(1);
   });
 });
+
+describe("DraftStore single-item sending", () => {
+  const item = (itemId: string) => ({ itemId, text: itemId, anchors: [], attachments: [] });
+  it("marks one item, hides it from queued, and unmarks it in place", () => {
+    const store = new DraftStore(directory());
+    store.add(A, item("q1")); store.add(A, item("q2")); store.add(A, item("q3"));
+    expect(store.markOneSending(A, "q2")).toBe(true);
+    expect(store.queued(A).map(i => i.itemId)).toEqual(["q1", "q3"]);
+    expect(store.markOneSending(A, "q2")).toBe(false);
+    expect(store.remove(A, "q2")).toBe(false);
+    expect(store.unmarkSending(A, "q2")).toBe(true);
+    expect(store.queued(A).map(i => i.itemId)).toEqual(["q1", "q2", "q3"]);
+    expect(store.unmarkSending(A, "q2")).toBe(false);
+  });
+  it("refuses a missing item or conversation", () => {
+    const store = new DraftStore(directory());
+    store.add(A, item("q1"));
+    expect(store.markOneSending(A, "nope")).toBe(false);
+    expect(store.markOneSending(B, "q1")).toBe(false);
+    expect(store.unmarkSending(A, "q1")).toBe(false);
+  });
+  it("writes the mark to disk so a restart returns the item as a draft", () => {
+    const dir = directory();
+    const store = new DraftStore(dir);
+    store.add(A, item("q1")); store.add(A, item("q2"));
+    store.markOneSending(A, "q1");
+    const reopened = new DraftStore(dir);
+    expect(reopened.queued(A)).toEqual([]);
+    expect(reopened.returned(A)?.text).toBe("q1\n\nq2");
+    expect(reopened.returned(A)?.reason).toBe("restarted");
+  });
+  it("gives a marked item back with the rest as one draft in order", () => {
+    const store = new DraftStore(directory());
+    store.add(A, item("q1")); store.add(A, item("q2")); store.add(A, item("q3"));
+    store.markOneSending(A, "q2");
+    expect(store.giveBackQueued(A, "interrupted")).toBe(true);
+    expect(store.returned(A)?.text).toBe("q1\n\nq2\n\nq3");
+    expect(store.queued(A)).toEqual([]);
+  });
+  it("sent removes only the marked item", () => {
+    const store = new DraftStore(directory());
+    store.add(A, item("q1")); store.add(A, item("q2"));
+    store.markOneSending(A, "q1");
+    store.sent(A, ["q1"]);
+    expect(store.queued(A).map(i => i.itemId)).toEqual(["q2"]);
+  });
+});

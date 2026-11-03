@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
@@ -1508,5 +1508,286 @@ describe("permission mode", () => {
     await h.service.send(id, "again", []);
     stale("bypass");
     expect(h.store.list()[0]).toMatchObject({ permissionMode: "plan" });
+  });
+});
+
+// queue-send-now T4: Send now puts one queued message into the running turn; it joins the turn when the agent reads it.
+describe("send now", () => {
+  const a = { path: ".doan/canvases/a.html", id: "a" };
+  const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
+  const file = (n: number) => ({ name: `f${n}.png`, size: 1, kind: "image" as const, path: `/Users/me/f${n}.png` });
+  const userMessages = (h: ReturnType<typeof homeFixture>, id: string) => h.store.read(id).filter(e => e.type === "user.message");
+  const tick = () => new Promise(resolve => setTimeout(resolve, 10));
+  // The provider's side of each steer: accept or refuse it, and report the agent reading it (runners.ts SteerHooks).
+  function steering(h: ReturnType<typeof homeFixture>, runner = h.runners.at(-1)!) {
+    const calls: { prompt: string; turnId: string; messageId: string; accept(): void; refuse(error: Error): void }[] = [];
+    runner.steer = vi.fn((prompt: string, turnId: string, messageId: string) => new Promise<void>((accept, refuse) => { calls.push({ prompt, turnId, messageId, accept, refuse }); }));
+    const read = (messageId: string) => h.open.mock.calls.at(-1)![0].steerConsumed!(messageId);
+    const turnOf = () => vi.mocked(runner.send).mock.calls.at(-1)![1];
+    return { calls, read, turnOf };
+  }
+  // Answered or still waiting, without waiting for it.
+  async function answer(promise: Promise<void>): Promise<"pending" | "ok" | string> {
+    const result = promise.then(() => "ok", (error: Error) => error.message);
+    return Promise.race([result, tick().then(() => "pending")]);
+  }
+  async function running(h: ReturnType<typeof homeFixture>, start: Parameters<ConversationService["start"]>[0] = canvasStart) {
+    const id = (await h.service.start(start)).conversationId;
+    return { id, ...steering(h) };
+  }
+  const sending = (h: ReturnType<typeof homeFixture>, id: string) =>
+    (JSON.parse(readFileSync(join(h.dir, "conversations", "drafts.json"), "utf8")).queued[id] ?? []).filter((item: { sending?: true }) => item.sending).map((item: { text: string }) => item.text);
+
+  it("puts the message into the running turn and answers once the agent read it, which appends it to that turn there", async () => {
+    const h = homeFixture();
+    const { id, calls, read, turnOf } = await running(h);
+    const first = h.service.queue(id, { text: "one", anchors: [] }); h.service.queue(id, { text: "two", anchors: [] });
+    const sent = h.service.sendNow(id, first.itemId);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ turnId: turnOf(), messageId: expect.any(String) });
+    expect(calls[0]!.prompt).toContain("one");
+    // Marked on disk before the provider answers; the list counts only waiting messages (the renderer keeps the row).
+    expect(sending(h, id)).toEqual(["one"]);
+    expect(h.service.list("/repo")[0]!.queued).toBe(1);
+    calls[0]!.accept();
+    expect(await answer(sent)).toBe("pending");
+    expect(userMessages(h, id)).toHaveLength(1);
+    h.service.receive(id, { type: "message.delta", messageId: "m1", text: "working" });
+    read(calls[0]!.messageId);
+    expect(await answer(sent)).toBe("ok");
+    const events = h.store.read(id);
+    expect(events.at(-1)).toMatchObject({ type: "user.message", text: "one", turnId: turnOf() });
+    expect(events.at(-2)).toMatchObject({ type: "message.delta" });
+    expect(h.service.list("/repo")[0]!.queued).toBe(1);
+    // The turn goes on; the rest of the queue follows it as before.
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(3));
+    expect(userMessages(h, id).at(-1)).toMatchObject({ text: "two" });
+  });
+  it("answers when the agent's read comes before the provider's answer", async () => {
+    const h = homeFixture();
+    const { id, calls, read } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    read(calls[0]!.messageId);
+    expect(await answer(sent)).toBe("ok");
+    calls[0]!.accept(); await tick();
+    expect(userMessages(h, id)).toHaveLength(2);
+  });
+  it.each([["before the provider answered", false], ["after the provider accepted it, unread", true]])(
+    "keeps the message queued in its place when the turn is done %s, and sends the queue in its order once", async (_when, accepted) => {
+      const h = homeFixture();
+      const { id, calls } = await running(h);
+      h.service.queue(id, { text: "one", anchors: [] });
+      const second = h.service.queue(id, { text: "two", anchors: [] });
+      const sent = h.service.sendNow(id, second.itemId);
+      if (accepted) { calls[0]!.accept(); await tick(); }
+      h.service.receive(id, { type: "turn.done" });
+      expect(await answer(sent)).toBe("not_running");
+      expect(h.service.list("/repo")[0]!.working).toBe(true);
+      h.open.mock.calls[0]![2]();
+      await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(2));
+      expect(userMessages(h, id).at(-1)).toMatchObject({ text: "one\n\ntwo" });
+      // A late answer and read of the earlier steer change nothing now (POSTMORTEM 2026-10-27, 2026-10-28).
+      if (!accepted) calls[0]!.accept();
+      h.open.mock.calls[0]![0].steerConsumed!(calls[0]!.messageId);
+      await tick();
+      expect(userMessages(h, id)).toHaveLength(2);
+      expect(vi.mocked(h.runners.at(-1)!.send)).toHaveBeenCalledTimes(1);
+      expect(h.runners.reduce((n, r) => n + vi.mocked(r.send).mock.calls.length, 0)).toBe(2);
+    });
+  it.each([
+    ["fails", { type: "turn.failed" as const, code: "rate_limited" as const }, "turn_failed"],
+    ["is stopped", { type: "interrupted" as const, reason: "user" as const }, "interrupted"],
+  ])("hands the queue back with the steered message when the turn %s first", async (_how, end, reason) => {
+    const h = homeFixture();
+    const { id, calls } = await running(h);
+    h.service.queue(id, { text: "one", anchors: [] });
+    const second = h.service.queue(id, { text: "two", anchors: [] });
+    const sent = h.service.sendNow(id, second.itemId);
+    calls[0]!.accept(); await tick();
+    h.service.receive(id, end);
+    expect(await answer(sent)).toBe("not_running");
+    expect(h.service.takeDraft(id)).toEqual({ text: "one\n\ntwo", anchors: [], attachments: [], reason });
+  });
+  it("hands the steered message back when the conversation is archived or its provider signs out meanwhile", async () => {
+    const h = homeFixture();
+    const { id, calls } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    calls[0]!.accept();
+    await h.service.stopRuns("claude");
+    expect(await answer(sent)).toBe("not_running");
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "one", reason: "interrupted" });
+  });
+  it("hands the steered message back when another start archives the conversation meanwhile, and ignores its late read", async () => {
+    const h = homeFixture();
+    const { id, calls, read } = await running(h);
+    const queued = h.service.queue(id, { text: "two", anchors: [] });
+    const archived = h.service.sendNow(id, queued.itemId);
+    calls[0]!.accept();
+    await h.service.start(canvasStart);
+    expect(h.store.list().find(m => m.conversationId === id)?.state).toBe("archived");
+    expect(await answer(archived)).toBe("not_running");
+    read(calls[0]!.messageId);
+    expect(userMessages(h, id)).toHaveLength(1);
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "two", reason: "interrupted" });
+  });
+  it("keeps the message queued, not sending, when the provider refuses it, and the queue follows the turn's end", async () => {
+    const h = homeFixture();
+    const { id, calls } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    calls[0]!.refuse(Object.assign(new Error("no active turn to steer"), { code: -32600 }));
+    expect(await answer(sent)).toBe("not_running");
+    expect(sending(h, id)).toEqual([]);
+    expect(h.service.list("/repo")[0]!.queued).toBe(1);
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(2));
+    expect(userMessages(h, id).at(-1)).toMatchObject({ text: "one" });
+  });
+  it("hands a refused message back with the queue when the turn then fails", async () => {
+    const h = homeFixture();
+    const { id, calls } = await running(h);
+    const queued = h.service.queue(id, { text: "two", anchors: [] });
+    const refused = h.service.sendNow(id, queued.itemId);
+    calls[0]!.refuse(new Error("RPC timeout"));
+    expect(await answer(refused)).toBe("not_running");
+    h.service.receive(id, { type: "turn.failed", code: "rate_limited" });
+    expect(h.service.takeDraft(id)).toMatchObject({ text: "two", reason: "turn_failed" });
+  });
+  it("lets the agent's read decide over a refusal already answered, while the turn runs and the message is queued", async () => {
+    const h = homeFixture();
+    const { id, calls, read, turnOf } = await running(h);
+    const one = h.service.queue(id, { text: "one", anchors: [] }), two = h.service.queue(id, { text: "two", anchors: [] });
+    const first = h.service.sendNow(id, one.itemId);
+    calls[0]!.refuse(new Error("RPC timeout"));
+    expect(await answer(first)).toBe("not_running");
+    // The server took it after all.
+    read(calls[0]!.messageId);
+    expect(userMessages(h, id).at(-1)).toMatchObject({ text: "one", turnId: turnOf() });
+    expect(h.service.list("/repo")[0]!.queued).toBe(1);
+    // A refused message the person removed since stays out of the history.
+    const second = h.service.sendNow(id, two.itemId);
+    calls[1]!.refuse(new Error("RPC timeout"));
+    expect(await answer(second)).toBe("not_running");
+    h.service.removeQueued(id, two.itemId);
+    read(calls[1]!.messageId);
+    expect(userMessages(h, id)).toHaveLength(2);
+  });
+  it("answers a Send now made again after a refusal with the earlier steer's late read, once", async () => {
+    const h = homeFixture();
+    const { id, calls, read } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const first = h.service.sendNow(id, item.itemId);
+    calls[0]!.refuse(new Error("RPC timeout"));
+    expect(await answer(first)).toBe("not_running");
+    const again = h.service.sendNow(id, item.itemId);
+    read(calls[0]!.messageId);
+    expect(await answer(again)).toBe("ok");
+    calls[1]!.accept(); read(calls[1]!.messageId); await tick();
+    expect(userMessages(h, id).map(e => e.type === "user.message" && e.text)).toEqual(["Make a pricing page", "one"]);
+  });
+  it("publishes the turn's end before it answers the refusal it causes", async () => {
+    const h = homeFixture();
+    const { id, calls } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    let seen = -1;
+    const sent = h.service.sendNow(id, item.itemId).catch(() => { seen = h.published.length; });
+    calls[0]!.accept(); await tick();
+    h.service.receive(id, { type: "turn.done" });
+    await sent;
+    const done = h.published.findIndex(e => e.type === "turn.done");
+    expect(done).toBeGreaterThanOrEqual(0);
+    expect(done).toBeLessThan(seen);
+  });
+  it("answers stale for the same row twice and for a row already gone, and keeps a sending row from Remove", async () => {
+    const h = homeFixture();
+    const { id, calls } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    await expect(h.service.sendNow(id, item.itemId)).rejects.toThrow("stale");
+    expect(calls).toHaveLength(1);
+    expect(() => h.service.removeQueued(id, item.itemId)).toThrow("stale");
+    expect(sending(h, id)).toEqual(["one"]);
+    await expect(h.service.sendNow(id, "44444444-4444-4444-8444-444444444444")).rejects.toThrow("stale");
+    await expect(h.service.sendNow("33333333-3333-4333-8333-333333333333", item.itemId)).rejects.toThrow("not_found");
+    calls[0]!.accept();
+    expect(await answer(sent)).toBe("pending");
+  });
+  it("puts two rows in one after the other in the order the agent read them", async () => {
+    const h = homeFixture();
+    const { id, calls, read, turnOf } = await running(h);
+    const one = h.service.queue(id, { text: "one", anchors: [] }), two = h.service.queue(id, { text: "two", anchors: [] });
+    const first = h.service.sendNow(id, one.itemId), second = h.service.sendNow(id, two.itemId);
+    expect(sending(h, id)).toEqual(["one", "two"]);
+    calls[0]!.accept(); calls[1]!.accept();
+    read(calls[0]!.messageId); read(calls[1]!.messageId);
+    expect([await answer(first), await answer(second)]).toEqual(["ok", "ok"]);
+    expect(userMessages(h, id).map(e => [e.type === "user.message" && e.text, e.turnId])).toEqual([["Make a pricing page", turnOf()], ["one", turnOf()], ["two", turnOf()]]);
+    expect(h.service.list("/repo")[0]!.queued).toBe(0);
+  });
+  it("refuses as not_running when no turn runs, while it prepares, and for a runner without steer, leaving the row as it was", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    // An ACP runner has no steer.
+    await expect(h.service.sendNow(id, item.itemId)).rejects.toThrow("not_running");
+    expect(sending(h, id)).toEqual([]);
+    steering(h);
+    h.service.receive(id, { type: "permission.request", requestId: "r1", tool: "Bash", summary: "ls", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+    // Waiting for a permission answer still runs.
+    const waiting = h.service.sendNow(id, item.itemId);
+    expect(await answer(waiting)).toBe("pending");
+    h.service.receive(id, { type: "turn.done" });
+    expect(await answer(waiting)).toBe("not_running");
+    await expect(h.service.sendNow(id, item.itemId)).rejects.toThrow("not_running");
+  });
+  it("hands a steered message back as a draft after a restart", async () => {
+    const h = homeFixture();
+    const { id } = await running(h);
+    const item = h.service.queue(id, { text: "one", anchors: [] });
+    void h.service.sendNow(id, item.itemId).catch(() => {});
+    const restarted = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => [], () => {}, { drafts: new DraftStore(join(h.dir, "conversations")) });
+    expect(restarted.takeDraft(id)).toMatchObject({ text: "one", reason: "restarted" });
+  });
+  it("keeps a project conversation's root while only a steered message is queued at the turn's end, then sends it", async () => {
+    const h = homeFixture();
+    const { id, calls } = await running(h, homeRequest);
+    const item = h.service.queue(id, { text: "next", anchors: [] });
+    const sent = h.service.sendNow(id, item.itemId);
+    calls[0]!.accept(); await tick();
+    h.service.receive(id, { type: "turn.done" });
+    expect(await answer(sent)).toBe("not_running");
+    h.service.refreshed("/repo", []);
+    h.passBindingWindow();
+    await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
+    h.open.mock.calls[0]![2]();
+    await vi.waitFor(() => expect(userMessages(h, id)).toHaveLength(2));
+    expect(userMessages(h, id).at(-1)).toMatchObject({ text: "next" });
+  });
+  it("rechecks a queued message's files, lists them in the prompt and records them, consuming them once read", async () => {
+    let gone = false;
+    const sent = vi.fn();
+    const files: QueueFiles = { reclaim: vi.fn(() => { if (gone) throw Object.assign(new Error("attachment_missing"), { missing: ["f1"] }); return { recheck: () => [file(0)], sent }; }), consume: vi.fn() };
+    const h = homeFixture([], { files });
+    const { id, calls, read } = await running(h);
+    const item = h.service.queue(id, { text: "look", anchors: [], attachments: [file(0)], ids: ["f0"] });
+    const answered = h.service.sendNow(id, item.itemId);
+    expect(files.reclaim).toHaveBeenCalledWith(["f0"]);
+    expect(JSON.parse(calls[0]!.prompt.split("\n\n")[1]!).attachments).toEqual([{ name: "f0.png", kind: "image", path: "/Users/me/f0.png" }]);
+    calls[0]!.accept(); await tick();
+    expect(files.consume).not.toHaveBeenCalled();
+    read(calls[0]!.messageId);
+    expect(await answer(answered)).toBe("ok");
+    expect(sent).toHaveBeenCalledOnce();
+    expect(files.consume).toHaveBeenCalledWith(["f0"]);
+    expect(userMessages(h, id).at(-1)).toMatchObject({ text: "look", attachments: [file(0)] });
+
+    gone = true;
+    const other = h.service.queue(id, { text: "again", anchors: [], attachments: [file(1)], ids: ["f1"] });
+    await expect(h.service.sendNow(id, other.itemId)).rejects.toThrow("attachment_missing");
+    expect(sending(h, id)).toEqual([]);
+    expect(calls).toHaveLength(1);
   });
 });

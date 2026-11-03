@@ -4,7 +4,7 @@ import claudeInterrupted from "./fixtures/claude-interrupted.json";
 import codex from "./fixtures/codex.json";
 import codexInterrupted from "./fixtures/codex-interrupted.json";
 import codexHome from "./fixtures/codex-home.json";
-import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode } from "./transport";
+import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport, endSteerWait } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
   let state: TransportState = { ...initialTransport(), stop };
@@ -208,4 +208,118 @@ it("reads the mode a Claude status message reports, and nothing from other messa
   expect(claudeReportedMode({ type: "system", subtype: "status", status: null, permissionMode: "dontAsk" })).toBe("default");
   for (const raw of [{ type: "system", subtype: "status", status: "compacting" }, { type: "system", subtype: "init", permissionMode: "plan" }, { type: "result", permissionMode: "plan" }, null, "status"])
     expect(claudeReportedMode(raw)).toBeUndefined();
+});
+
+// A message steered into the running turn. Frame shapes and ids are a PoC run's (Claude Code 2.1.317/2.1.312,
+// Codex 0.166.0/0.164.0).
+describe("steered message consumption", () => {
+  const FIRST = "6b793a86-9a1c-40e9-8855-84984dff4f8a", STEERED = "008d3a33-94cc-41f0-ad00-4b370be622d2";
+  type Step = unknown | { steer: string };
+  // Records consumption and events in one sequence, as the runner delivers them.
+  function run(runtime: "claude" | "codex", steps: Step[], stop: "user" | "appQuit" | null = null) {
+    let state: TransportState = { ...initialTransport(), stop };
+    const seen: (EventPayload | { consumed: string })[] = [];
+    for (const step of steps) {
+      if (step && typeof step === "object" && "steer" in step) { state = steerTransport(state, String(step.steer)); continue; }
+      const next = runtime === "claude" ? normalizeClaude(state, step, "/repo") : normalizeCodex(state, step, { root: "/repo", sessionId: "session-1", turnId: "turn-1" });
+      state = next.state; seen.push(...(next.consumed ?? []).map(consumed => ({ consumed })), ...next.events);
+    }
+    return { state, seen };
+  }
+  const system = (subtype: string, uuids: string[]) => ({ type: "system", subtype, user_message_uuids: uuids, session_id: "s" });
+  const say = (id: string, body: string) => ({ type: "assistant", parent_tool_use_id: null, message: { id, content: [{ type: "text", text: body }] } });
+  const result = (uuids: string[], extra: Record<string, unknown> = {}) => ({ type: "result", subtype: "success", is_error: false, result: "ok", user_message_uuid: uuids[0], user_message_uuids: uuids, queued_turn_count: 0, ...extra });
+  it("folds a Claude message steered during a tool into the same turn, consumed at the status frame that first lists it", () => {
+    const { seen } = run("claude", [
+      system("init", [FIRST]), system("status", [FIRST]),
+      { type: "assistant", parent_tool_use_id: null, message: { id: "a1", content: [{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command: "sleep 12" } }] } },
+      { steer: STEERED },
+      { type: "user", parent_tool_use_id: null, message: { role: "user", content: [{ tool_use_id: "toolu_1", type: "tool_result", content: "(Bash completed with no output)", is_error: false }] } },
+      system("status", [FIRST, STEERED]),
+      say("a2", "BANANA"),
+      result([FIRST, STEERED]),
+    ]);
+    expect(seen).toEqual([
+      { type: "activity", kind: "command", summary: "Running a command" },
+      { consumed: STEERED },
+      { type: "message.done", messageId: "a2", text: "BANANA" },
+      { type: "turn.done" },
+    ]);
+  });
+  it("waits past a Claude result that reports no queued turn while a steered message is unread, and ends on the continued turn's result", () => {
+    const { seen, state } = run("claude", [
+      system("init", [FIRST]), system("status", [FIRST]),
+      { steer: STEERED },
+      say("a1", "40 facts"),
+      result([FIRST], { queued_turn_count: 0 }),
+      system("init", [STEERED]), system("status", [STEERED]),
+      say("a2", "BANANA"),
+      result([STEERED]),
+    ]);
+    expect(seen).toEqual([
+      { type: "message.done", messageId: "a1", text: "40 facts" },
+      { consumed: STEERED },
+      { type: "message.done", messageId: "a2", text: "BANANA" },
+      { type: "turn.done" },
+    ]);
+    expect(state.terminal).toBe(true);
+  });
+  it("ends a Claude result that also first lists the steered message, consumption first", () => {
+    expect(run("claude", [{ steer: STEERED }, say("a1", "done"), result([FIRST, STEERED])]).seen)
+      .toEqual([{ type: "message.done", messageId: "a1", text: "done" }, { consumed: STEERED }, { type: "turn.done" }]);
+  });
+  it("keeps a Claude result without a steered message terminal, as before", () => {
+    const { seen, state } = run("claude", [system("init", [FIRST]), say("a1", "OK"), result([FIRST])]);
+    expect(seen).toEqual([{ type: "message.done", messageId: "a1", text: "OK" }, { type: "turn.done" }]);
+    expect(state.terminal).toBe(true);
+  });
+  it.each(["user", "appQuit"] as const)("ends a Claude turn stopped by %s as interrupted even while a steered message is unread", stop => {
+    expect(run("claude", [{ steer: STEERED }, result([FIRST])], stop).seen).toEqual([{ type: "interrupted", reason: stop }]);
+    expect(run("claude", [{ steer: STEERED }, result([FIRST], { terminal_reason: "interrupted" })], stop).seen).toEqual([{ type: "interrupted", reason: stop }]);
+  });
+  it("ends a Claude turn on a failed or aborted result even while a steered message is unread", () => {
+    expect(run("claude", [{ steer: STEERED }, { type: "result", subtype: "error_during_execution", is_error: true, errors: ["Rate limit exceeded"] }]).seen)
+      .toEqual([{ type: "turn.failed", code: "rate_limited", detail: "Rate limit exceeded" }]);
+    expect(run("claude", [{ steer: STEERED }, result([FIRST], { terminal_reason: "aborted_tools" })]).seen).toEqual([{ type: "turn.failed", code: "process_exited" }]);
+  });
+  it("reports a Claude steered message consumed once and never one it did not steer", () => {
+    const { seen } = run("claude", [{ steer: STEERED }, system("status", ["other", STEERED]), system("init", [STEERED]), result([STEERED])]);
+    expect(seen).toEqual([{ consumed: STEERED }, { type: "turn.done" }]);
+    expect(run("claude", [system("status", [FIRST, STEERED]), result([FIRST, STEERED])]).seen).toEqual([{ type: "turn.done" }]);
+    expect(run("claude", [{ steer: STEERED }, { ...system("status", [STEERED]), parent_tool_use_id: "toolu_1" }, result([FIRST])]).seen).toEqual([]);
+  });
+  it("marks only a Claude success result that leaves a steered message unread as awaiting its read, and ends that wait as done", () => {
+    let state = steerTransport(initialTransport(), STEERED);
+    const waiting = normalizeClaude(state, result([FIRST]), "/repo"); state = waiting.state;
+    expect(waiting).toMatchObject({ events: [], awaitingRead: true });
+    expect(normalizeClaude(initialTransport(), result([FIRST]), "/repo")).not.toHaveProperty("awaitingRead");
+    expect(normalizeClaude(state, system("init", [STEERED]), "/repo")).not.toHaveProperty("awaitingRead");
+    const ended = endSteerWait(state);
+    expect(ended.events).toEqual([{ type: "turn.done" }]);
+    expect(ended.state.terminal).toBe(true);
+    expect(endSteerWait(ended.state).events).toEqual([]);
+    expect(endSteerWait({ ...state, stop: "user" }).events).toEqual([{ type: "interrupted", reason: "user" }]);
+  });
+  it("takes no steered message after a terminal result", () => {
+    const ended = run("claude", [result([FIRST])]).state;
+    expect(steerTransport(ended, STEERED)).toBe(ended);
+    expect(normalizeClaude(ended, system("init", [STEERED]), "/repo")).toEqual({ state: ended, events: [] });
+  });
+  const echo = (method: string, item: Record<string, unknown>, turnId = "turn-1") => ({ method, params: { threadId: "session-1", turnId, item } });
+  const userMessage = (clientId: string | null) => ({ type: "userMessage", id: `u-${clientId}`, clientId, content: [{ type: "text", text: "Extra note", text_elements: [] }] });
+  it("reads a Codex userMessage item of the same turn echoing a steered clientUserMessageId as its consumption, once", () => {
+    const { seen } = run("codex", [
+      { steer: STEERED },
+      echo("item/started", userMessage(STEERED)), echo("item/completed", userMessage(STEERED)),
+      { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } },
+    ]);
+    expect(seen).toEqual([{ consumed: STEERED }, { type: "turn.done" }]);
+  });
+  it("ignores Codex userMessage items of another turn, of another client id, or of no client id", () => {
+    expect(run("codex", [{ steer: STEERED }, echo("item/started", userMessage(STEERED), "turn-2"), echo("item/started", userMessage("other")), echo("item/started", userMessage(null))]).seen).toEqual([]);
+    expect(run("codex", [echo("item/started", userMessage(STEERED))]).seen).toEqual([]);
+  });
+  it("ends a Codex turn on completion even while a steered message is unread", () => {
+    expect(run("codex", [{ steer: STEERED }, { method: "turn/completed", params: { threadId: "session-1", turn: { id: "turn-1", status: "completed" } } }]).seen).toEqual([{ type: "turn.done" }]);
+  });
 });

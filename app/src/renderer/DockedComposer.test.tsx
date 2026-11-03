@@ -36,7 +36,7 @@ function render(patch: Partial<DockedComposerProps> = {}, { text, ...draft }: Pa
     presets: undefined, suggested: [], onPresetsOpen: () => {}, onPresetsRetry: () => {},
     thumbnails: {}, onAttach: () => {}, onFiles: () => {}, onAttachmentRemoved: () => {},
     turn: "idle", busy: null, canvasGone: false, queued: [],
-    onSend: ok, onQueue: ok, onStop: () => {}, onRemoveQueued: () => {}, onOpen: () => {},
+    onSend: ok, onQueue: ok, onStop: () => {}, onRemoveQueued: async () => true, onOpen: () => {},
     ...patch,
   };
   return renderToStaticMarkup(<TooltipProvider><DockedComposer {...props} /></TooltipProvider>);
@@ -74,8 +74,9 @@ test("while the turn runs, Send's place is Stop on an empty field and Queue with
   expect(stop).not.toMatch(/aria-label="Stop"[^>]*disabled/);
   const queue = render({ turn: "running", queued: [{ id: "q1", text: "Also make the caption shorter" }] }, { text: "Use the shorter label" });
   expect(queue).toMatch(/class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Queue"/);
-  // Queued messages sit above the card in the order sent, each with Remove only.
-  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-item" role="listitem">.*<span class="queue-text">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message">/);
+  // Queued messages sit above the card in the order sent; without Send now offered a row has Remove only, described
+  // by its text.
+  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
   expect(queue.indexOf('class="queue"')).toBeLessThan(queue.indexOf("composer-card"));
   // Queued messages do not change the slot: an empty field still offers Stop.
   expect(render({ turn: "running", queued: [{ id: "q1", text: "x" }] })).toContain('aria-label="Stop"');
@@ -190,3 +191,14 @@ test("a terminal session shows a fixed Permission trigger after its fixed Effort
   expect(html).not.toContain('data-mode="bypass"');
   expect(html.indexOf("composer-effort")).toBeLessThan(html.indexOf("composer-permission"));
 });
+
+// queue-send-now design §8, draft frame `queue-row`.
+test("a row that offers Send now draws it between the text and Remove; one in flight reads Sending… and stays enabled", () => {
+  const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also make the caption shorter" }, { id: "q2", text: "Second", sending: true }] });
+  expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" aria-label="Send queued message now" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
+  expect(rows).toMatch(/aria-label="Send queued message now" aria-describedby="[^"]+" aria-disabled="true"[^>]*>Sending…<\/button>/);
+  expect(rows).not.toMatch(/queue-send[^>]* disabled=""/);
+  // Not offered (an unsupported provider, a turn that does not run): Remove only.
+  expect(render({ turn: "running", sendNow: false, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "x" }] })).not.toContain("Send now");
+});
+

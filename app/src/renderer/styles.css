@@ -689,6 +689,15 @@ body:has(.shell-top) { background: transparent; }
 .queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
 .queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Send now (queue-send-now draft `queue-row`): the shared xs button; the row's text gives way, the button never shrinks. */
+.queue-item .queue-send { color: var(--text-standard); }
+.queue-item .queue-send[aria-disabled="true"] { color: var(--text-metadata); cursor: default; }
+.queue-entry { display: flex; flex-direction: column; min-width: 0; }
+/* Refused while the turn runs: one caption line under the row, aligned with its clock, neutral ink. Empty, it takes no
+   room; with text, it keeps the queue's row gap above it. */
+.queue-status:not(:empty) { margin-top: var(--space-1); }
+.queue-status { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); color: var(--text-subtle); }
+.queue-status svg { width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .canvas-gone { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: var(--radius-row); background: var(--surface-inset); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }
 .canvas-gone svg { flex: none; }
 .grow-text { flex: 1; min-width: 0; }

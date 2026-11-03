@@ -16,7 +16,8 @@ import { splitRequest, type AttachmentDraft } from "./homeComposer";
 export type ListView = readonly ConversationSummary[] | "loading" | "error";
 // liveAfter: the history's last seq; a permission request after it arrived while the thread was open.
 export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "ready"; liveAfter: number }
-export interface QueuedMessage { id: string; text: string }
+// sending: Send now put this message into the running turn and its answer has not come back (queue-send-now).
+export interface QueuedMessage { id: string; text: string; sending?: boolean }
 
 export interface ConversationStoreHost {
   list(root: string): ListView;
@@ -72,12 +73,32 @@ export class ConversationStore {
     this.queues.set(conversationId, { ...queue, items: queue.items.filter(item => item.id !== itemId) });
     this.host.changed();
   }
-  // A queue main already sent shows no more once a read started after the queue says so.
+  // Send now: one queued message into the running turn. Main answers once the agent read it (the row leaves) or the
+  // message stayed queued (refused, or the turn ended first); until then the row shows Sending… on either screen.
+  async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string }> {
+    if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
+    const reply = await window.doan.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
+    if (reply && "error" in reply) this.markQueued(conversationId, itemId, false);
+    else this.unqueued(conversationId, itemId);
+    return reply;
+  }
+  private markQueued(conversationId: string, itemId: string, sending: boolean): boolean {
+    const queue = this.queues.get(conversationId);
+    const item = queue?.items.find(entry => entry.id === itemId);
+    if (!queue || !item || !!item.sending === sending) return false;
+    this.queues.set(conversationId, { ...queue, items: queue.items.map(entry => entry === item ? { id: item.id, text: item.text, ...(sending ? { sending } : {}) } : entry) });
+    this.host.changed();
+    return true;
+  }
+  // A queue main already sent shows no more once a read started after the queue says so. Main's count leaves out the
+  // message Send now has in flight, so that row stays until Send now's answer settles it.
   syncQueues(): void {
     for (const [id, queue] of this.queues) {
       const list = this.host.list(queue.root);
       const c = Array.isArray(list) ? list.find(item => item.conversationId === id) : undefined;
-      if (c && c.queued === 0 && queue.items.length > 0 && this.host.readsApplied(queue.root) > queue.after) this.queues.set(id, { ...queue, items: [] });
+      if (!c || c.queued !== 0 || this.host.readsApplied(queue.root) <= queue.after) continue;
+      const items = queue.items.filter(item => item.sending);
+      if (items.length < queue.items.length) this.queues.set(id, { ...queue, items });
     }
   }
   setDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void {

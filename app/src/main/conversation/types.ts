@@ -61,6 +61,8 @@ export interface TransportState {
   completedMessages: string[];
   activities: string[];
   fileSummaries: Record<string, string>;
+  // Message ids steered into this turn and not yet read by the agent; absent where nothing steers.
+  steered?: string[];
 }
 export interface TransportResult { state: TransportState; events: EventPayload[] }
 export interface PermissionChoice { option: PermissionOption; response: unknown }

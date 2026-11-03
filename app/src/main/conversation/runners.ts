@@ -8,10 +8,17 @@ import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeV
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { parseClaudeModels, parseCodexModels } from "./models";
-import { claudePermissionSummary, claudeReportedMode, endTransport, initialTransport, normalizeClaude, transportError } from "./transport";
+import { claudePermissionSummary, claudeReportedMode, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, transportError } from "./transport";
 import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
+// steerConsumed: the agent read a steered message, called in line with the run's events so the message
+// takes its place in the thread there.
+export interface SteerHooks { steerConsumed?: (messageId: string) => void }
+// steer adds a message to the running turn turnId (the id send was given). It resolves once the provider accepted it
+// and rejects otherwise: Error "not_running" when there is no such running turn here, RpcError with the server's
+// message when Codex refuses it, and Error "RPC timeout" or "process_exited" when no answer came.
+export interface SteeringRunner extends Runner { steer(prompt: string, turnId: string, messageId: string): Promise<void> }
 export const openRunner: OpenRunner = (input, emit, exited, registerStop) =>
   input.runtime === "claude" ? openClaude(input, emit, exited, registerStop) : input.runtime === "codex" ? openCodex(input, emit, exited, registerStop) : openAcp(input, emit, exited, registerStop);
 // Opens the provider only to read its model list for this folder: no prompt, no model request.
@@ -49,15 +56,15 @@ function openCodexList(input: Prepared, emit: (event: EventPayload) => void, exi
   return openCodex(input, emit, exited, registerStop, true);
 }
 // list: model/list after initialize instead of a thread, so reading the list starts no session.
-async function openCodex(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void, list = false): Promise<Runner> {
+async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void, list = false): Promise<SteeringRunner> {
   // Doan-account args select the dedicated credential store; they must precede the subcommand.
   const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
-  let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", buffer = "", dead = false;
+  let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", localTurn = "", buffer = "", dead = false;
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
   let protocolFailed = false;
-  const dispatcher = new CodexDispatcher(write, emit, () => failProtocol());
+  const dispatcher = new CodexDispatcher(write, emit, () => failProtocol(), id => input.steerConsumed?.(id));
   const failProtocol = () => {
     if (protocolFailed) return; protocolFailed = true;
     emit({ type: "turn.failed", code: "session_unavailable" }); dispatcher.close(); void group?.stop();
@@ -92,7 +99,7 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
     write({ method: "initialized" });
     if (list) {
       const models = parseCodexModels(await dispatcher.request("model/list", {}));
-      return { sessionId: "", models: async () => ({ models }), send: async () => { throw new Error("session_unavailable"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
+      return { sessionId: "", models: async () => ({ models }), send: async () => { throw new Error("session_unavailable"); }, steer: async () => { throw new Error("not_running"); }, answer: () => false, stop: async () => { await group?.stop(); }, close: async () => { dispatcher.close(); await group?.stop(); } };
     }
     const result = await judgedStep(dispatcher.request(resume ? "thread/resume" : "thread/start", resume ? { threadId: input.sessionId } : { cwd: input.cwd }), reply => { if (!resume) judge(codexThreadStart(reply)); });
     if (!object(result) || !object(result.thread) || typeof result.thread.id !== "string" || !result.thread.id) throw new Error("session_unavailable");
@@ -118,7 +125,7 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       // The server was opened with the conversation's choice then; a send may have changed it since.
       const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
-      activeTurn = turnId; startingTurn = true;
+      activeTurn = turnId; localTurn = turnId; startingTurn = true;
       dispatcher.begin({ root: input.cwd, sessionId, turnId });
       let result: unknown;
       // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
@@ -128,27 +135,55 @@ async function openCodex(input: Prepared, emit: (event: EventPayload) => void, e
       activeTurn = result.turn.id; dispatcher.started(activeTurn);
       startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw);
     },
+    // Before turn/start answers there is no native id to expect (startingTurn); a steer then is refused, not held.
+    // No model, effort or permission: a steered message runs in the running turn's.
+    async steer(prompt, turnId, messageId) {
+      if (dead || startingTurn || turnId !== localTurn || activeTurn === localTurn) throw new Error("not_running");
+      await dispatcher.steer({ threadId: sessionId, expectedTurnId: activeTurn, input: [{ type: "text", text: prompt }], clientUserMessageId: messageId }, messageId);
+    },
     answer: (id, option) => dispatcher.answer(id, option),
     async stop() { dispatcher.stop("user"); if (activeTurn) await dispatcher.request("turn/interrupt", { threadId: sessionId, turnId: activeTurn }).catch(() => { void group?.stop(); }); },
     async close() { dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
   };
 }
+// After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn,
+// about 10 ms later (Claude Code 2.1.312, 2.1.317). An echo that never came would keep the turn running and the row on
+// Sending… until Stop, so the wait is bounded: past it the turn ends as done and the message goes back to the queue.
+export const STEER_READ_WAIT_MS = 30_000;
 // Claude Code refuses to start under the organization pin when the repo's settings supply their own credential
 // (2.1.312: "managed settings require a first-party login"). The SDK keeps no stderr for a custom spawn, so the runner reads it.
 const PIN_REFUSED = /managed settings require a first-party login/i;
-async function openClaude(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
+async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<SteeringRunner> {
   // A doan Claude run is only ever pinned to its login's organization (user decision 2026-10-28): without one, a repo's
   // API key could replace the login, so the connection must be signed in again instead of running unpinned.
   const organization = input.owner ? input.owner.workspaceId : undefined;
   if (organization === null || organization === "") throw new Error("not_logged_in");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
-  let group: OwnedGroup | undefined, state = initialTransport(), deliver: ((message: SDKUserMessage | null) => void) | undefined;
+  let group: OwnedGroup | undefined, state = initialTransport();
   const pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve(value: PermissionResult): void }>();
   let finished = false, childExited = false, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
+  // The turn's input stays open after its first message so steer can add more, and closes the moment the turn ends:
+  // the CLI exits only once its stdin ends, and until then send and the next turn wait (POSTMORTEM 2026-10-28).
+  const inbox: { message: SDKUserMessage; accepted(): void; refused(error: Error): void }[] = [];
+  let pulled = false, inputClosed = false, turn = "", wake: (() => void) | undefined;
+  // Armed by a success result that leaves a steered uuid unread, disarmed by any read and on every terminal path.
+  let readWait: ReturnType<typeof setTimeout> | undefined, readExpired = false;
+  const endReadWait = () => { clearTimeout(readWait); readWait = undefined; };
   async function* messages(): AsyncGenerator<SDKUserMessage> {
-    const message = await new Promise<SDKUserMessage | null>(resolve => { deliver = resolve; });
-    if (message) yield message;
+    pulled = true;
+    for (;;) {
+      while (!inbox.length && !inputClosed) await new Promise<void>(resolve => { wake = resolve; });
+      const next = inputClosed ? undefined : inbox.shift();
+      if (!next) return;
+      next.accepted(); yield next.message;
+    }
   }
+  const enqueue = (message: SDKUserMessage) => new Promise<void>((accepted, refused) => { inbox.push({ message, accepted, refused }); wake?.(); });
+  const closeInput = () => {
+    if (inputClosed) return; inputClosed = true;
+    for (const item of inbox.splice(0)) item.refused(new Error("not_running"));
+    wake?.();
+  };
   const q = query({ prompt: messages(), options: {
     cwd: input.cwd, env: input.env, pathToClaudeCodeExecutable: input.command, settingSources: ["user", "project", "local"], includePartialMessages: true,
     // A repo's .claude/settings*.json env API key or apiKeyHelper would otherwise replace the doan login. Pinning the
@@ -165,7 +200,7 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
       const child = spawn(options.command, options.args, { cwd: options.cwd, env: options.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
       if (child.pid) {
         const owned = new OwnedGroup(child.pid, undefined, undefined, exited); group = owned;
-        registerStop(() => { controller.abort(); deliver?.(null); return owned.stop(); });
+        registerStop(() => { controller.abort(); closeInput(); return owned.stop(); });
       }
       child.stderr.setEncoding("utf8"); child.stderr.on("data", (text: string) => { stderr = (stderr + text).slice(-8192); });
       stderrDone = new Promise(resolve => child.stderr.once("close", resolve));
@@ -184,43 +219,70 @@ async function openClaude(input: Prepared, emit: (event: EventPayload) => void, 
     for (const [requestId, request] of pending) { pending.delete(requestId); request.resolve({ behavior: "deny", message: "Request expired." }); emit({ type: "permission.resolved", requestId, optionId: "expired" }); }
   };
   try { await timeout(q.initializationResult()); } catch (error) {
-    controller.abort(); void group?.stop();
+    controller.abort(); closeInput(); void group?.stop();
     if (input.owner) { await Promise.race([stderrDone, new Promise(resolve => setTimeout(resolve, 1000).unref())]); if (PIN_REFUSED.test(stderr)) throw new Error("credential_override"); }
     throw error;
   }
   return {
     sessionId,
     models: async () => ({ models: parseClaudeModels(await timeout(q.supportedModels())) }),
-    async send(prompt) {
+    async send(prompt, turnId) {
       if (finished) throw new Error("process_exited");
+      // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
+      const expireRead = () => {
+        readWait = undefined;
+        if (finished || state.terminal) return;
+        const result = endSteerWait(state); state = result.state; readExpired = true;
+        for (const event of result.events) emit(event);
+        closeInput(); void group?.stop();
+      };
       const consume = (async () => {
         try {
           for await (const raw of q) {
+            if (readExpired) break;
             // Only a turn sent with Plan follows a reported switch (the plan's approval); a suggestion's setMode on another
             // turn stays that process's.
             const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
             if (reported && reported !== "plan") input.planApproved?.(reported);
-            const result = normalizeClaude(state, raw, input.cwd); state = result.state; for (const event of result.events) emit(event);
+            const result = normalizeClaude(state, raw, input.cwd); state = result.state;
+            for (const id of result.consumed ?? []) input.steerConsumed?.(id);
+            if (result.consumed?.length) endReadWait();
+            if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);
+            for (const event of result.events) emit(event);
+            if (!state.terminal) continue;
+            endReadWait(); closeInput();
+            // A failed or aborted result can end the turn with a steered message already written and unread; the item
+            // goes back to the draft, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
+            if (state.steered?.length) { void group?.stop(); break; }
           }
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
         } catch (error) {
           // SDK exit errors can precede group disappearance; neither cleanup nor provider errors prove process death.
-          if (!childExited || !object(error) || (error.errorClass !== "process_exited_nonzero" && error.errorClass !== "process_killed_by_signal")) throw error;
+          if (!readExpired && (!childExited || !object(error) || (error.errorClass !== "process_exited_nonzero" && error.errorClass !== "process_killed_by_signal"))) throw error;
           const result = endTransport(state); state = result.state;
           for (const event of result.events) emit(event);
-        } finally { finished = true; expire(); void group?.stop(); }
+        } finally { finished = true; endReadWait(); closeInput(); expire(); void group?.stop(); }
       })();
       // The SDK starts consuming input as part of its initialization handshake.
-      if (!deliver) { controller.abort(); void group?.stop(); throw new Error("session_unavailable"); }
-      deliver({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: sessionId });
+      if (!pulled) { controller.abort(); closeInput(); void group?.stop(); throw new Error("session_unavailable"); }
+      turn = turnId;
+      void enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: sessionId }).catch(() => {});
       await consume;
+    },
+    // Registered with the transport before it is written, so a result the CLI sends before reading it does not end the
+    // turn. No priority: "next" behaves as none, "later" runs a separate turn and "now" drops the answer
+    // (PoC, Claude Code 2.1.317).
+    async steer(prompt, turnId, messageId) {
+      if (finished || inputClosed || state.terminal || !turn || turnId !== turn) throw new Error("not_running");
+      state = steerTransport(state, messageId);
+      await enqueue({ type: "user", message: { role: "user", content: prompt }, parent_tool_use_id: null, session_id: sessionId, uuid: messageId as NonNullable<SDKUserMessage["uuid"]> });
     },
     answer(id, option) {
       const request = pending.get(id); if (!request || !["allow", "deny", ...(request.suggestions.length ? ["always"] : [])].includes(option)) return false;
       pending.delete(id); request.resolve(option === "deny" ? { behavior: "deny", message: "Denied by the user." } : { behavior: "allow", updatedInput: request.input, ...(option === "always" ? { updatedPermissions: request.suggestions } : {}) });
       emit({ type: "permission.resolved", requestId: id, optionId: option }); return true;
     },
-    async stop() { state = { ...state, stop: "user" }; expire(); controller.abort(); deliver?.(null); await group?.stop(); },
-    async close() { state = { ...state, stop: "appQuit" }; expire(); controller.abort(); deliver?.(null); await group?.stop(); },
+    async stop() { state = { ...state, stop: "user" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
+    async close() { state = { ...state, stop: "appQuit" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
   };
 }

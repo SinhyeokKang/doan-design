@@ -3,6 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
+import { sendNowShown } from "../main/conversation/steerSupport";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Canvas, ConversationEvent } from "../main/conversation/types";
@@ -10,7 +11,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
-import { startNewConversation } from "./CanvasConversationPanel";
+import { startNewConversation, steerPhaseOf } from "./CanvasConversationPanel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
@@ -388,9 +389,17 @@ export function ProjectOverview(props: ProjectOverviewProps) {
         onAttachmentRemoved={attachment => { if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(console.error); }}
         turn={conversationId ? turnOf(thread?.events ?? null, summary, live) : "idle"} busy={busy} canvasGone={false} unavailable={props.unavailable}
         queued={conversationId ? run.queue(conversationId) : []}
+        sendNow={!!conversationId && !!provider && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
+        onSendQueuedNow={itemId => conversationId ? run.store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
         onStop={() => { if (conversationId) void window.doan.interruptConversation({ conversationId }).catch(console.error); }}
-        onRemoveQueued={itemId => { if (conversationId) void window.doan.removeQueuedMessage({ conversationId, itemId }).then(reply => { if (!reply || !("error" in reply)) run.unqueued(conversationId, itemId); }).catch(console.error); }}
+        onRemoveQueued={async itemId => {
+          if (!conversationId) return false;
+          const reply = await window.doan.removeQueuedMessage({ conversationId, itemId }).catch(error => { console.error(error); return { error: "unknown" }; });
+          if (reply && "error" in reply) return false;
+          run.unqueued(conversationId, itemId);
+          return true;
+        }}
         onOpen={openOther} />
     </div></div>
   </section>;

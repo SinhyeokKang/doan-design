@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { conversationHandler, conversationMethods, validateSendExtras } from "./ipc";
-import { ConversationService, type Prepare } from "./service";
+import { ConversationService, type OpenRunner, type Prepare } from "./service";
 import { ModelCatalog, type ModelOption } from "./models";
 import { AttachmentStore } from "../attachments";
 import { ConversationStore } from "./store";
@@ -416,4 +416,37 @@ it("accepts validated extras for a new canvas conversation and refuses each extr
     expect(h.attachments.consume).toHaveBeenCalledWith(extras.attachments);
     expect(h.attachments.markSent.mock.invocationCallOrder[0]).toBeLessThan(h.attachments.consume.mock.invocationCallOrder[0]!);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+// queue-send-now T4: Send now's channel answers once the agent read the message, not when the provider took it.
+describe("send queued now channel", () => {
+  it("validates the request, answers after the read, and passes stale and not_running through", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      const owner = { kind: "doan" as const, provider: "codex" as const, connectionId: "c", accountId: "a", workspaceId: "o", profile: "p" };
+      const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, owner, ...(stored ? { sessionId: stored.session.sessionId } : {}) }));
+      const steer = vi.fn(async () => {});
+      const open = vi.fn<OpenRunner>(async () => ({ sessionId: "s1", send: vi.fn(async () => {}), steer, answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }));
+      const service = new ConversationService(new ConversationStore(dir), prepare, open, () => {});
+      const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [] }]);
+      expect(conversationMethods).toContain("sendQueuedNow");
+      const id = (await handle(true, "start", { root: "/repo", mode: "newDesign", runtime: "codex", text: "x" }) as { conversationId: string }).conversationId;
+      const queued = await handle(true, "queue", { conversationId: id, text: "y" }) as { itemId: string };
+      for (const bad of [{ conversationId: id }, { conversationId: id, itemId: 1 }, { conversationId: id, itemId: "x".repeat(65) }, { conversationId: "../x", itemId: queued.itemId }])
+        expect(await handle(true, "sendQueuedNow", bad)).toEqual({ error: "bad_request" });
+      expect(await handle(false, "sendQueuedNow", { conversationId: id, itemId: queued.itemId })).toEqual({ error: "bad_request" });
+      let answered: unknown = "pending";
+      const sent = handle(true, "sendQueuedNow", { conversationId: id, itemId: queued.itemId }).then(value => { answered = value; });
+      await vi.waitFor(() => expect(steer).toHaveBeenCalledOnce());
+      expect(await handle(true, "sendQueuedNow", { conversationId: id, itemId: queued.itemId })).toEqual({ error: "stale" });
+      await new Promise(resolve => setTimeout(resolve, 10));
+      expect(answered).toBe("pending");
+      open.mock.calls[0]![0].steerConsumed!((steer.mock.calls[0] as unknown as string[])[2]!);
+      await sent;
+      expect(answered).toBeUndefined();
+      const left = await handle(true, "queue", { conversationId: id, text: "z" }) as { itemId: string };
+      service.receive(id, { type: "turn.done" });
+      expect(await handle(true, "sendQueuedNow", { conversationId: id, itemId: left.itemId })).toEqual({ error: "not_running" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
 });

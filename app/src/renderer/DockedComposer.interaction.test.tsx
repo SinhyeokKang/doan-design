@@ -68,7 +68,7 @@ function setup(patch: Partial<DockedComposerProps> = {}, drafts: [string, Docked
     presets: undefined, suggested: [], onPresetsOpen: vi.fn(), onPresetsRetry: vi.fn(),
     thumbnails: {}, onAttach: vi.fn(), onFiles: vi.fn(), onAttachmentRemoved: vi.fn(),
     turn: "idle", busy: null, canvasGone: false, queued: [],
-    onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(), onOpen: vi.fn(),
+    onSend: send, onQueue: queue, onStop: vi.fn(), onRemoveQueued: vi.fn(async () => true), onOpen: vi.fn(),
     ...patch,
   };
   const draw = () => { hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = []; return DockedComposer(props); };
@@ -147,14 +147,6 @@ test("while the turn runs, Enter on an empty field does nothing, Stop stops, and
   expect(queue).toHaveBeenCalledWith({ text: "Also shorten the caption", anchors: [], attachments: [] });
   expect(send).not.toHaveBeenCalled();
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
-});
-
-test("Remove on a queued message hands its id to the host", () => {
-  const { props, render } = setup({ turn: "running", queued: [{ id: "q1", text: "First" }, { id: "q2", text: "Second" }] });
-  const removes = render().filter(item => item["aria-label"] === "Remove queued message");
-  expect(removes).toHaveLength(2);
-  (removes[1]!.onClick as () => void)();
-  expect(props.onRemoveQueued).toHaveBeenCalledWith("q2");
 });
 
 test("a late project_busy keeps the draft and shows Home's busy sentence until the person edits", async () => {

@@ -101,3 +101,15 @@ describe("clampSeen", () => {
     expect(clampSeen(0, 0, undefined)).toBe(0);
   });
 });
+
+describe("a turn with two user.message events (queue-send-now)", () => {
+  const pushed: EventPayload = { type: "user.message", text: "pushed in", anchors: [] };
+  it("keeps the title and shows the turn as running with its activity as the preview", () => {
+    const s = conversationSummary(doan, { ok: true, events: history(...started, pushed, { type: "activity", kind: "read", summary: "Reading index.html" }) }, live);
+    expect(s).toMatchObject({ title: "Make a pricing page", phase: "running", unseen: false, preview: "Reading index.html" });
+  });
+  it("ends as one unseen turn whose preview is the last answer", () => {
+    const s = conversationSummary(doan, { ok: true, events: history(...started, pushed, { type: "message.done", messageId: "m", text: "Both done." }, { type: "turn.done" }) }, live);
+    expect(s).toMatchObject({ title: "Make a pricing page", phase: "ended", unseen: true, preview: "Both done." });
+  });
+});
