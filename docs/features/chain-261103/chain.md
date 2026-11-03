@@ -52,10 +52,14 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 project-remove-confirm | (인계 시 기록) | | | 대기(시작 점검 후) |
+| 1 project-remove-confirm | `project-remove-confirm-orch` (첫 지휘자) | 2026-11-03 | | 진행 |
 | 2 canvas-selection-tools | | | | 대기 |
 | 3 shell-panel-layout | | | | 대기 |
 
 ## 인계 기록
 
 - 2026-11-03 체인 작성 세션: 순서와 상시 권한(이전 체인과 같음)을 사용자와 정해 이 파일을 main에 push했다. 첫 지휘자는 '시작 점검'부터 한다.
+- 2026-11-03 첫 지휘자(`project-remove-confirm-orch`): 시작 점검을 마치고 사용자에게 일괄 승인을 받았다.
+  - 세 feature의 '확인 필요'는 남지 않았다. `/feature-review`·`/design-draft`는 세 링크 모두 건너뛴다(사용자 결정).
+  - 남아 있던 '명령 미정' 검증을 승인대로 tasks.md에 적었다. shell-panel-layout T0: `app/node_modules/.bin/electron .scratch/shell-panel-layout/cmdb-poc`로 PoC를 띄우고 요소마다 포커스를 둔 뒤 `osascript -e 'tell application "System Events" to keystroke "b" using command down'`로 네이티브 ⌘B를 보낸다(터미널에 손쉬운 사용 권한 필요, 화면이 잠겨 있으면 '입력창이 직접 넘김' 갈래). canvas-selection-tools Z1·Z2·Z4: `rg`·`test ! -d`·`git show --stat` 문서 대조.
+  - 로그인: 링크 1·2의 `/runtime-test`는 로그인이 필요 없다. 링크 3 T11의 숨긴 사이드바 permission·unseen 점에는 실제 에이전트 대화가 필요해 Claude 로그인을 지금 만들었다(사용자 브라우저 승인). 프로필은 `/Users/sinhyeokkang/code/doan-design/.scratch/provider-profile/userData`, `agent-auth/metadata.json`에 Claude 연결 하나가 있다. 개발 실행이라 agent setup은 아무것도 쓰지 않았다. 링크 3이 병합 전에 로그아웃·Keychain 확인·userData 삭제를 한다.
