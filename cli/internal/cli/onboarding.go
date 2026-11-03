@@ -500,15 +500,36 @@ func launchArgs(bundle string, background bool) []string {
 	return []string{bundle}
 }
 
-// launchBundle opens the app through LaunchServices so it does not inherit this shell's environment. Foreground
-// brings it to the front; background leaves the app in use in front.
+// launchEnv is the only environment /usr/bin/open gets. open hands its own environment to a newly launched app,
+// so inheriting the caller's would give the app that terminal's agent profile (CLAUDE_CONFIG_DIR, CODEX_HOME) and
+// hook variables, where a Dock or Finder launch gets the launchd environment. HOME, USER, LOGNAME and TMPDIR are
+// what the launchd environment also has; PATH is fixed because open needs none of the caller's.
+func launchEnv(getenv func(string) string) []string {
+	env := []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"}
+	for _, key := range []string{"HOME", "USER", "LOGNAME", "TMPDIR"} {
+		if v := getenv(key); v != "" {
+			env = append(env, key+"="+v)
+		}
+	}
+	return env
+}
+
+// launchCommand builds the /usr/bin/open command that starts the app in front or behind (see launchArgs).
+func launchCommand(ctx context.Context, bundle string, background bool) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "/usr/bin/open", launchArgs(bundle, background)...)
+	cmd.Env = launchEnv(os.Getenv)
+	return cmd
+}
+
+// launchBundle opens the app through LaunchServices without this shell's environment. Foreground brings it to the
+// front; background leaves the app in use in front.
 func launchBundle(bundle string, background bool) error {
 	if runtime.GOOS != "darwin" {
 		return errors.New("opening Doan is supported only on macOS")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), bootstrapTimeout)
 	defer cancel()
-	return exec.CommandContext(ctx, "/usr/bin/open", launchArgs(bundle, background)...).Run()
+	return launchCommand(ctx, bundle, background).Run()
 }
 
 var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_./@%+=:,-]+$`)

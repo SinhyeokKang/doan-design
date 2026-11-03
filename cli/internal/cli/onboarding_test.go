@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -908,5 +909,32 @@ func TestOnboardingStartLaunchesInBackground(t *testing.T) {
 	_, _ = h.run("start")
 	if len(h.backgrounds) != 1 || !h.backgrounds[0] {
 		t.Fatal(h.backgrounds)
+	}
+}
+
+// open passes its environment to the app it launches, so the command must not carry the caller's variables.
+func TestLaunchCommandEnvIsMinimal(t *testing.T) {
+	t.Setenv("CLAUDE_CONFIG_DIR", "/tmp/x")
+	t.Setenv("CODEX_HOME", "/tmp/y")
+	t.Setenv("ORCA_X", "1")
+	t.Setenv("DOAN_RUNTIME", "/tmp/r.json")
+	t.Setenv("HOME", "/Users/tester")
+	for _, background := range []bool{false, true} {
+		cmd := launchCommand(context.Background(), "/Applications/Doan.app", background)
+		got := map[string]string{}
+		for _, kv := range cmd.Env {
+			k, v, _ := strings.Cut(kv, "=")
+			got[k] = v
+		}
+		if cmd.Env == nil || got["HOME"] != "/Users/tester" || got["PATH"] != "/usr/bin:/bin:/usr/sbin:/sbin" {
+			t.Fatalf("background=%v: %v", background, cmd.Env)
+		}
+		for k := range got {
+			switch k {
+			case "PATH", "HOME", "USER", "LOGNAME", "TMPDIR":
+			default:
+				t.Errorf("background=%v: caller variable %s leaked", background, k)
+			}
+		}
 	}
 }
