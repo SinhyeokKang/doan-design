@@ -293,3 +293,21 @@ test("deleting the canvas's current conversation from its Title menu shows the n
   expect(harness.toast.show).not.toHaveBeenCalled();
   expect(focused.calls).toEqual([FIELDS[".doan-conv-panel .composer-input"]]);
 });
+
+test("an alert cancelled while its request is out keeps focus on the trigger, also when the shown conversation is deleted", async () => {
+  await openOverview();
+  const reply = deferred<undefined>();
+  doan.deleteConversation = vi.fn(() => reply.promise);
+  const button = ask(target("c1"));
+  dialog()!.confirm(); render();
+  dialog()!.cancel(); render();
+  expect(button.focus).toHaveBeenCalledOnce();
+  reply.resolve(undefined); await flushAll();
+  expect(overview()!.run.view("/w/a").kind).toBe("new");
+  expect(focused.calls).toEqual([]);
+  // A later alert's close goes back to its own trigger, not to a stale composer target.
+  const next = ask(target("c2"));
+  dialog()!.cancel(); render();
+  expect(next.focus).toHaveBeenCalledOnce();
+  expect(focused.calls).toEqual([]);
+});

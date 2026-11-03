@@ -940,6 +940,9 @@ body:has(.shell-top) { background: transparent; }
 /* The title gives way first in a narrow window (design §2.1). */
 .ov-title-wrap { display: flex; min-width: 0; }
 .ov-new-conv { flex: none; margin-left: auto; }
+/* New conversation on the new conversation state: unavailable, still focusable with its tooltip. */
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+:is(.ov-head .ov-new-conv, .doan-conv-head .doan-conv-new).doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
 .ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }
@@ -966,8 +969,23 @@ body:has(.shell-top) { background: transparent; }
 .conv-new svg { width: var(--size-icon); height: var(--size-icon); flex: none; }
 .conv-menu .doan-menu-item.current { background: var(--affordance-backdrop-pressed); }
 .conv-item { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-half); padding-block: var(--space-2); }
-.conv-list .conv-item + .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }
-.conv-list .conv-item:is(.current, [data-highlighted])::before, .conv-list .conv-item:is(.current, [data-highlighted]) + .conv-item::before { display: none; }
+/* A row is its radio item and its Delete in a .conv-row wrapper (conversation-delete design §3.3), so the hairline and
+   the highlight read from the wrapper: the row keeps its fill while the highlight sits on its Delete. */
+.conv-row { position: relative; }
+.conv-list .conv-row + .conv-row > .conv-item::before { content: ""; position: absolute; top: 0; left: var(--space-3); right: var(--space-3); height: 1px; background: var(--border-standard); }
+.conv-list .conv-row:is(:has(> .conv-item.current), :has([data-highlighted]), :hover) > .conv-item::before,
+.conv-list .conv-row:is(:has(> .conv-item.current), :has([data-highlighted]), :hover) + .conv-row > .conv-item::before { display: none; }
+.conv-row:has(> .conv-delete[data-highlighted]) > .conv-item:not(.current) { background: var(--affordance-floating-hover); }
+/* Delete: 24px with the 16px Trash2, centred on the first line, its glyph flush with the time's right edge. */
+.conv-delete.doan-icon-button { position: absolute; top: calc(var(--space-2) + (var(--type-body-sm-line-height) - var(--size-control-xs)) / 2); right: var(--space-2); width: var(--size-control-xs); height: var(--size-control-xs); color: var(--text-subtle); outline-offset: -2px; }
+.conv-delete.doan-icon-button[data-highlighted]:not([aria-disabled="true"]) { background: var(--affordance-subtle-hover); }
+.conv-delete.doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.conv-delete.doan-icon-button[aria-disabled="true"]:hover { background: transparent; }
+/* Hidden: clipped to 1px, never display: none, so Radix can still return focus to it (POSTMORTEM 2026-11-03). While it
+   shows, the time's visible text is clipped and its spot keeps the button's width; the spoken label stays. */
+.conv-row:not(:hover, :has([data-highlighted])) > .conv-delete { width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.conv-row:is(:hover, :has([data-highlighted])) .cv-when { min-width: var(--size-control-xs); }
+.conv-row:is(:hover, :has([data-highlighted])) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .conv-item .t { font-weight: var(--type-weight-regular); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-subtle); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
 .conv-error { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); color: var(--text-subtle); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); }

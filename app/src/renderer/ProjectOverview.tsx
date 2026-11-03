@@ -16,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
 import { GroupIcon } from "./ComposerParts";
+import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
@@ -81,6 +82,8 @@ export interface ProjectOverviewProps {
   onProjectSettings(root: string): void;
   onSettings(target: SettingsTarget): void;
   onNotice?(text: string): void;
+  // A row's Delete in the title menu: the host asks for confirmation and returns focus to `trigger` (design §3.4).
+  onDeleteConversation?(target: DeleteTarget, trigger: HTMLElement | null): void;
 }
 
 const NEW_PLACEHOLDER = "Ask or describe what to design, / for presets";
@@ -273,6 +276,12 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const firstMessage = thread?.events.find(event => event.type === "user.message");
   const title = conversationId ? summary?.title || (firstMessage?.type === "user.message" ? firstMessage.text : "") : "New conversation";
   const picked = useRef(false);
+  // The title menu's trigger, where focus returns after a Delete's confirmation; `deleting` keeps the closing menu from
+  // taking focus back while the alert opens.
+  const titleTrigger = useRef<HTMLButtonElement | null>(null);
+  const deleting = useRef(false);
+  // Controlled, so a Delete tooltip's Escape closes the menu too.
+  const [menuOpen, setMenuOpen] = useState(false);
   const choose = (value: string) => {
     picked.current = true;
     run.select(root, value === NEW ? null : value);
@@ -286,6 +295,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
   const repairChoice = repairRow ? worktreeChoice(repairRow) : null;
   const chipLabel = branch ?? root.split("/").at(-1) ?? root;
 
+  // The column shows the new conversation state (design §2.5: a failed first read is one too).
+  const showsNew = conversationId === null && !waiting;
   const moved = view.kind === "new" ? view.moved : null;
   const movedCanvas = moved && canvasLabel({ path: moved.canvas.path, url: "" });
   const placeholder = draft.preset && draft.segments.length === 0 ? presetPlaceholder(draft.preset) : mode.kind === "new" ? NEW_PLACEHOLDER : REPLY_PLACEHOLDER;
@@ -326,29 +337,38 @@ export function ProjectOverview(props: ProjectOverviewProps) {
       </span>
       <span className="ov-sep" aria-hidden="true">/</span>
       <span className="ov-title-wrap">
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild disabled={list === "loading"}><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
+        <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownMenu.Trigger asChild disabled={list === "loading"}><button ref={titleTrigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
             <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
           <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label="Project conversations" align="start" sideOffset={4} collisionPadding={8}
-            onCloseAutoFocus={event => { if (!picked.current) return; picked.current = false; event.preventDefault(); focusField(); }}>
+            onCloseAutoFocus={event => {
+              if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
+              if (!picked.current) return; picked.current = false; event.preventDefault(); focusField();
+            }}>
             <DropdownMenu.RadioGroup value={conversationId ?? NEW} onValueChange={choose}>
               <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${conversationId === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
               <DropdownMenu.Separator className="doan-menu-sep" />
               <DropdownMenu.Label className="doan-menu-head">{`Conversations in ${project}`}</DropdownMenu.Label>
               {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
                 <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); props.onRetryList(); }}>Retry</DropdownMenu.Item></div>
-                : <div className="conv-list">{menuItems.map(item => <DropdownMenu.RadioItem key={item.conversationId} value={item.conversationId} textValue={item.title}
-                  className={`doan-menu-item conv-item${item.conversationId === conversationId ? " current" : ""}`}>
-                  <ConversationHead line={item} name={item.title} nameClass="t" />
-                  <span className="conv-preview">{item.preview}</span>
-                </DropdownMenu.RadioItem>)}</div>}
+                : <div className="conv-list">{menuItems.map(item => <div key={item.conversationId} className="conv-row">
+                  <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title}
+                    className={`doan-menu-item conv-item${item.conversationId === conversationId ? " current" : ""}`}>
+                    <ConversationHead line={item} name={item.title} nameClass="t" />
+                    <span className="conv-preview">{item.preview}</span>
+                  </DropdownMenu.RadioItem>
+                  <ConversationDeleteItem conversationId={item.conversationId} title={item.title} deletable={item.deletable} onDelete={() => {
+                    deleting.current = true;
+                    props.onDeleteConversation?.({ conversationId: item.conversationId, root, title: item.title, provider: item.provider, from: "overview" }, titleTrigger.current);
+                  }} onEscape={() => setMenuOpen(false)} />
+                </div>)}</div>}
             </DropdownMenu.RadioGroup>
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root>
       </span>
       {/* The title menu's New conversation one click away, at the header's end so it does not move with the title. */}
-      <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button ov-new-conv" aria-label="New conversation"
-        onClick={() => startNewConversation(conversationId, id => run.select(root, id), focusField)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
+      <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button ov-new-conv" aria-label="New conversation" aria-disabled={showsNew || undefined}
+        onClick={() => startNewConversation(conversationId, showsNew, id => run.select(root, id), focusField)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
         <TooltipContent>New conversation</TooltipContent></Tooltip>
     </header>
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text">{props.notice}</span></div>}

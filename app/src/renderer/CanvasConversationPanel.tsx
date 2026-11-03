@@ -20,6 +20,7 @@ import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
 import { GroupIcon } from "./ComposerParts";
+import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
 import type { ListView } from "./conversationStore";
@@ -122,45 +123,64 @@ export function linkedAt(at: string | undefined, now: number): string | null {
   return date.toDateString() === today.toDateString() ? clock : `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${clock}`;
 }
 
-// The header's New conversation button: the menu's item one click away, left of Hide conversation (dogfooding). On a new
-// conversation already it only focuses the composer.
-export function startNewConversation(current: string | null, select: (id: string | null) => void, focus: () => void): void {
+// The header's New conversation button: the menu's item one click away, left of Hide conversation (dogfooding). On the
+// new conversation state it is unavailable (`aria-disabled`, still focusable with its tooltip) and does nothing; while
+// the list is read (nothing shown yet) it focuses the composer.
+export function startNewConversation(current: string | null, isNew: boolean, select: (id: string | null) => void, focus: () => void): void {
+  if (isNew) return;
   if (current !== null) select(null);
   focus();
 }
 
-export function CanvasConversationTitle({ run, list, canvasName, now, seen, title, current, onPicked, onChoose }: {
+export function CanvasConversationTitle({ run, list, canvasName, now, seen, title, current, onPicked, onChoose, onDelete }: {
   run: CanvasRun; list: ListView; canvasName: string; now: number; seen: ReadonlySet<string>; title: string; current: string | null; onPicked(): void;
   // The person chose what the panel shows, before the run hears it.
   onChoose?(): void;
+  // A row's Delete: the host asks for confirmation and returns focus to `trigger` (conversation-delete design §3.4).
+  onDelete?(target: DeleteTarget, trigger: HTMLElement | null): void;
 }) {
   const target = run.target();
   const items = Array.isArray(list) && target ? canvasConversationMenu(list, target.canvas, current, now, seen) : [];
   const picked = useRef(false);
+  // The trigger focus returns to after a Delete's confirmation; `deleting` keeps the closing menu from taking focus back
+  // while the alert opens.
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const deleting = useRef(false);
+  // Controlled, so a Delete tooltip's Escape closes the menu too.
+  const [menuOpen, setMenuOpen] = useState(false);
   const select = (id: string | null) => { onChoose?.(); run.select(id); };
-  const startNew = () => startNewConversation(current, select, onPicked);
+  const isNew = run.view()?.kind === "new";
+  const startNew = () => startNewConversation(current, isNew, select, onPicked);
   return <><span className="ov-title-wrap doan-conv-title">
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild disabled={list === "loading"}><button type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
+    <DropdownMenu.Root open={menuOpen} onOpenChange={setMenuOpen}>
+      <DropdownMenu.Trigger asChild disabled={list === "loading"}><button ref={trigger} type="button" className="ov-title doan-button" data-ui-size="sm" data-ui-variant="trigger" title={title}>
         <span>{title}</span><ChevronDown className="chev" aria-hidden="true" /></button></DropdownMenu.Trigger>
       <DropdownMenu.Portal><DropdownMenu.Content className="doan-floating doan-menu conv-menu" aria-label={`Conversations on ${canvasName}`} align="end" sideOffset={4} collisionPadding={8}
-        onCloseAutoFocus={event => { if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked(); }}>
+        onCloseAutoFocus={event => {
+          if (deleting.current) { deleting.current = false; event.preventDefault(); return; }
+          if (!picked.current) return; picked.current = false; event.preventDefault(); onPicked();
+        }}>
         <DropdownMenu.RadioGroup value={current ?? NEW} onValueChange={value => { picked.current = true; select(value === NEW ? null : value); }}>
           <DropdownMenu.RadioItem value={NEW} className={`doan-menu-item conv-new${current === null ? " current" : ""}`} textValue="New conversation"><Plus aria-hidden="true" /><span>New conversation</span></DropdownMenu.RadioItem>
           <DropdownMenu.Separator className="doan-menu-sep" />
           <DropdownMenu.Label className="doan-menu-head">{`Conversations on ${canvasName}`}</DropdownMenu.Label>
           {list === "error" ? <div className="conv-error" role="status"><span>Couldn’t read conversations</span>
             <DropdownMenu.Item className="doan-menu-item" onSelect={event => { event.preventDefault(); run.retryList(); }}>Retry</DropdownMenu.Item></div>
-            : <div className="conv-list">{items.map(item => <DropdownMenu.RadioItem key={item.conversationId} value={item.conversationId} textValue={item.title}
-              className={`doan-menu-item conv-item${item.selected ? " current" : ""}`}>
-              <ConversationHead line={item} name={item.title} nameClass="t" />
-              <span className="conv-preview">{item.preview}</span>
-            </DropdownMenu.RadioItem>)}</div>}
+            : <div className="conv-list">{items.map(item => <div key={item.conversationId} className="conv-row">
+              <DropdownMenu.RadioItem value={item.conversationId} textValue={item.title} className={`doan-menu-item conv-item${item.selected ? " current" : ""}`}>
+                <ConversationHead line={item} name={item.title} nameClass="t" />
+                <span className="conv-preview">{item.preview}</span>
+              </DropdownMenu.RadioItem>
+              {target && <ConversationDeleteItem conversationId={item.conversationId} title={item.title} deletable={item.deletable} onDelete={() => {
+                deleting.current = true;
+                onDelete?.({ conversationId: item.conversationId, root: target.root, title: item.title, provider: item.provider, from: "canvas" }, trigger.current);
+              }} onEscape={() => setMenuOpen(false)} />}
+            </div>)}</div>}
         </DropdownMenu.RadioGroup>
       </DropdownMenu.Content></DropdownMenu.Portal>
     </DropdownMenu.Root>
   </span>
-  <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" onClick={startNew}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
+  <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button doan-conv-new" aria-label="New conversation" aria-disabled={isNew || undefined} onClick={startNew}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
     <TooltipContent>New conversation</TooltipContent></Tooltip></>;
 }
 
