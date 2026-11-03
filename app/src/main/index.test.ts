@@ -2326,6 +2326,57 @@ describe("background onboarding launch and start", () => {
     expect(window().show).toHaveBeenCalledOnce();
   });
 
+  test("a Dock click (did-become-active, then activate) restores a waiting minimized window once and ends the wait", async () => {
+    await launch({ background: true, active: false });
+    window().isMinimized.mockReturnValue(true);
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    window().isMinimized.mockReturnValue(false);
+    mocks.app.emit("activate");
+    expect(window().restore).toHaveBeenCalledOnce();
+    expect(window().show).toHaveBeenCalled();
+    expect(await invoke("window:visible", window().webContents, null)).toEqual({ visible: true });
+    window().emit("close", { preventDefault: vi.fn() });
+    const shows = window().show.mock.calls.length;
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledTimes(shows);
+  });
+
+  // A variable, not a literal: the mock's entry type has no canvases.
+  const listed = [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }];
+  test.each([
+    ["doan open", async () => {
+      mocks.shell.entries.mockReturnValue(listed);
+      await invoke("deep-link:ready", window().webContents, null);
+      const state = mocks.startRuntime.mock.calls[0]?.[1];
+      if (typeof state !== "object" || state === null || !("open" in state) || typeof state.open !== "function") throw new Error("no open receiver");
+      const opening = state.open({ v: 4, token: "t", root: "/repo", path: ".doan/canvases/a.html" }) as Promise<{ ok: boolean }>;
+      const asked = window().webContents.send.mock.calls.find(([channel]) => channel === "doan-open:request")?.[1] as { id: string } | undefined;
+      if (!asked) throw new Error("no doan-open request");
+      await invoke("doan-open:answer", window().webContents, null, { id: asked.id, kind: "opened", frame: "none" });
+      expect((await opening).ok).toBe(true);
+    }],
+    ["a doan:// link", async () => {
+      mocks.shell.entries.mockReturnValue(listed);
+      await invoke("deep-link:ready", window().webContents, null);
+      mocks.app.emit("open-url", { preventDefault: vi.fn() }, "doan://open?root=%2Frepo&canvas=.doan%2Fcanvases%2Fa.html");
+    }],
+    ["a notification click", async () => {
+      void invoke("notifications:test", window().webContents, null);
+      await vi.waitFor(() => expect(mocks.Notification.instances).toHaveLength(1));
+      mocks.Notification.instances[0]!.emit("click");
+    }],
+  ])("%s shows the window and ends the wait", async (_name, reveal) => {
+    await launch({ background: true, active: false });
+    await reveal();
+    expect(window().show).toHaveBeenCalled();
+    window().emit("close", { preventDefault: vi.fn() });
+    const shows = window().show.mock.calls.length;
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledTimes(shows);
+  });
+
   test("activation after quit does not touch the destroyed window", async () => {
     await launch({ background: true, active: false });
     mocks.app.emit("before-quit", { preventDefault: vi.fn() });
