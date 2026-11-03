@@ -15,6 +15,7 @@
 6. Dock bounce는 부차적이다. 확인의 중심은 온보딩이 뒤에서 제대로 진행되는지(맨 앞 앱 불변, 세션 진행, 활성화 때 창과 포커스)다. bounce는 반환값과 사용자의 시각 확인(T0 중 "빠운스됨")만 기록하고, Dock 자동 숨김 사례는 확인하지 않은 것으로 남긴다. (사용자 결정)
 7. CLI는 앱을 깨끗한 환경으로 실행한다(`onboarding start`, `doan open` 모두). T0(b)로 다시 뜬 실제 Doan(pid 14002)이 실행한 Orca 터미널의 환경(`CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_SESSION_ID`, `ORCA_*`)을 그대로 가졌다(`ps eww`). `/usr/bin/open`이 호출한 쪽 환경을 앱에 넘긴 것이다. 그래서 앱이 실행한 터미널의 프로필로 이어하기를 판단했고, 이어할 수 없는 Orca 세션에도 이어하기가 떴다가 보낼 때 실패한 것으로 보인다(사용자 보고). 이어하지 못하는 세션은 보이지 않는다는 기존 규칙(PRODUCT §3)은 그대로다. batch B 후속(B2)으로 넣는다. (사용자 결정)
 8. 실행 중인 앱에 `open -g`가 가면 앱이 앞으로 오는 문제(T0 항목 4)는 이번 범위에서 고치지 않고 BACKLOG에 남긴다. 고치려면 비목표인 Dock 클릭(`activate`) 동작을 바꿔야 한다. (지휘자 판단)
+9. 터미널에서 아직 열려 있는 Codex 세션은 이어하기를 제안하지 않는다. Claude는 `sessions/<pid>.json`으로 미리 거르지만 Codex는 사전 검사가 없어 제안했다가 보낼 때 실패한다. batch E가 PoC로 살아 있는 세션의 표지를 찾고, 결과가 긍정적이면 이 run에서 구현한다. 부정적이면 BACKLOG에 남긴다. (사용자 결정)
 
 ## 배치
 
@@ -24,6 +25,7 @@
 | C | T2 main 순수 규칙, T3 main 연결 | `app/src/main/backgroundReveal.ts`(+test), `app/src/main/index.ts`, `app/src/main/index.test.ts` | A | Opus high — 활성화·포커스·창 상태 경로가 얽히고 틀리면 창이 끝내 안 보인다 | `npm --prefix app test`·typecheck·build, LaunchServices probe(완료 조건 2~4, 6) | 대기 |
 | B | T1 CLI 실행 방식, B2 깨끗한 실행 환경(결정 7) | `cli/internal/cli/onboarding.go`, `open.go`, `run.go`, `onboarding_test.go`, `open_test.go` | A | Sonnet medium — argv 하나와 인자 전달, 설계가 정해져 있다 | `go test ./...`, `go vet ./...` | 대기 |
 | D | T4 guide와 eval | `cli/internal/cli/skill.md`, `eval/scenarios/O2/`, `docs/USABILITY-EVAL.md` | A | Sonnet high — 문구는 짧지만 크기 예산과 실제 eval 라운드 판정이 단계가 많다 | `go test ./...`, `verify.mjs --eval`, O2 self-test, `/agent-eval` O1·O2·O3·O3b | 대기 |
+| E | Codex 터미널 점유 PoC, 긍정이면 구현(결정 9) | `app/src/main/conversation/io.ts`, `prepare.ts`와 테스트 | 없음 | Opus high — 실제 Codex 프로세스 관찰과 fail-closed 판단이 필요하다 | PoC 보고 뒤 사용자 판단, `npm --prefix app test`·typecheck·build | 진행 |
 | RC | C 리뷰 | 없음(보고만) | C | Opus high — C와 같은 이유 | `/code-review` | 대기 |
 | RBD | B·D 리뷰 | 없음(보고만) | B, D | Sonnet medium — 작은 diff | `/code-review` | 대기 |
 | T5 | 승격, 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, 이 디렉터리 | 통합 | 지휘자 | `verify.mjs`, tasks T5의 `rg` | 대기 |
