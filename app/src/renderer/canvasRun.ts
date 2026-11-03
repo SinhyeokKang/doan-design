@@ -188,6 +188,27 @@ export class CanvasRun {
     this.host.changed();
   }
 
+  // main deleted it (conversation-delete design §3.2), on whichever canvas. Every canvas state that shows it shows the
+  // new conversation state with a newer revision, so a start or send reply sent before cannot replace that; a canvas
+  // with no current conversation left picks none, never an archived one. A request still waiting for it is dropped,
+  // and the list kept for the promotion comparison leaves it out, so neither brings it back.
+  deleted(conversationId: string): void {
+    for (const [key, s] of this.canvases) {
+      // `last` keeps its identity: sync compares it with the host's list to tell a new read.
+      s.previous = s.previous && s.previous.filter(c => c.conversationId !== conversationId);
+      if (s.notice?.open === conversationId) s.notice = null;
+      if (s.request?.conversationId === conversationId) s.request = null;
+      if (s.shown !== conversationId) continue;
+      s.unconfirmed = null;
+      s.revision++;
+      // A canvas not on screen asks for its terminal session when it shows again.
+      if (key === this.visible) this.setShown(s, null); else s.shown = null;
+    }
+    this.seenEnd.delete(conversationId);
+    if (this.scroll?.conversationId === conversationId) this.scroll = null;
+    this.host.changed();
+  }
+
   // After every list read HomeRun applied: requests waiting for the list, promotions and returned drafts.
   sync(): void {
     for (const s of this.canvases.values()) {
@@ -221,6 +242,8 @@ export class CanvasRun {
     this.checkSeen();
   }
   private resolve(s: CanvasState): void {
+    // Deleting what shows: deleted() resets it once main answers; a list read without it must not pick another.
+    if (typeof s.shown === "string" && this.store.deleting(s.shown)) return;
     const list = this.host.list(s.target.root);
     const drawing = this.host.drawing(s.target.root, s.target.canvas);
     if (s.request) {

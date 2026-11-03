@@ -705,11 +705,13 @@ test("a start or send reply sent before the delete does not replace the new conv
 test("a deleted conversation an entry asked for is dropped, so the list is not read again for it", () => {
   const h = harness();
   h.run.show(ROOT);
-  h.answer(ROOT, [summary(B)]);
+  // Asked for while the first read is in flight: the request waits for the list.
+  h.host.reread(ROOT);
   h.run.request(ROOT, A, null);
-  expect(h.host.reread).toHaveBeenCalledTimes(1);
   confirmDelete(h, A);
-  h.answer(ROOT, [summary(B)]);
+  // That read, started before the request, answers without it.
+  h.lists.set(ROOT, [summary(B)]);
+  vi.spyOn(h.host, "readsApplied").mockReturnValue(h.host.readsStarted(ROOT));
   h.run.sync();
   expect(h.host.reread).toHaveBeenCalledTimes(1);
   expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });

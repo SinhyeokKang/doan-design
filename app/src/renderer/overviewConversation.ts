@@ -1,6 +1,7 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
+import { deleteAvailability, type DeleteAvailability } from "./conversationDelete";
 import { conversationWork } from "./conversationList";
 import { draftKey } from "./dockedRules";
 import type { Slot } from "./homeConversations";
@@ -63,10 +64,11 @@ export function byActivity(a: ConversationSummary, b: ConversationSummary): numb
   return a.conversationId < b.conversationId ? -1 : a.conversationId > b.conversationId ? 1 : 0;
 }
 
-export interface MenuItem extends ConversationLine { title: string; readError: boolean }
+// deletable: whether the row's Delete can be used, with the reason when it cannot.
+export interface MenuItem extends ConversationLine { title: string; readError: boolean; deletable: DeleteAvailability }
 // One dropdown row, the same in the Overview and the canvas panel.
 export function menuItem(c: ConversationSummary, now: number, seen: ReadonlySet<string>): MenuItem {
-  return { ...conversationLine(c, now, seen), title: c.title, readError: c.readError === true };
+  return { ...conversationLine(c, now, seen), title: c.title, readError: c.readError === true, deletable: deleteAvailability(c) };
 }
 
 export function projectConversationMenu(list: readonly ConversationSummary[], now: number, seen: ReadonlySet<string> = new Set()): MenuItem[] {

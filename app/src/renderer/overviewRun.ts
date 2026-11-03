@@ -205,6 +205,23 @@ export class OverviewRun {
     return this.visible === root && s?.revision === revision && s.current?.conversationId === conversationId;
   }
   live(root: string, conversationId: string): boolean { return this.store.live(root, conversationId); }
+  // main deleted it (conversation-delete design §3.2), in whichever root. A root that showed it shows the new
+  // conversation state with a newer revision, so a start or send reply sent before cannot replace that; a request
+  // still waiting for it is dropped, so the list is not read again for it. The memory and the moved line go too. The
+  // store's records go through its own deleted, which App calls as well.
+  deleted(conversationId: string): void {
+    for (const s of this.roots.values()) {
+      if (s.request?.conversationId === conversationId) s.request = null;
+      if (s.moved?.conversationId === conversationId) s.moved = null;
+      if (s.current?.conversationId === conversationId) { s.revision++; s.current = { conversationId: null, listed: false }; }
+    }
+    for (const [root, remembered] of Object.entries(this.host.remembered() ?? {})) if (remembered === conversationId) this.host.remember(root, null);
+    this.seenEnd.delete(conversationId);
+    this.promotions.delete(conversationId);
+    this.asked.delete(conversationId);
+    if (this.scroll?.conversationId === conversationId) this.scroll = null;
+    this.host.changed();
+  }
 
   // conversation:event, subscribed at App mount so nothing is lost before a read.
   event(event: ConversationEvent): void { this.store.event(event); }
@@ -291,6 +308,9 @@ export class OverviewRun {
     const current = s.current;
     if (!current || current.conversationId === null) return;
     const id = current.conversationId;
+    // Deleting: deleted() resets the root once main answers. Read as gone now, its draft would move over the new
+    // conversation's (conversation-delete spec decision 5).
+    if (this.store.deleting(id)) return;
     const change = overviewAfterListChange({ root, conversationId: id, listed: current.listed }, { root, list });
     if (change.kind === "keep") {
       if (list.some(c => c.conversationId === id)) current.listed = true;

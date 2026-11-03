@@ -109,11 +109,14 @@ export class HomeRun {
   // A new canvas that appeared while the move after its send is still under way; decided once the move ends.
   private openedDuringMove: { conversationId: string; row: CanvasRow } | null = null;
   private focus: "composer" | null = null;
+  // Deleted in this run: a late event or a list read from before the delete must not register it again.
+  private deletedIds = new Set<string>();
 
   constructor(private host: HomeRunHost) {}
 
   // Subscribed at App mount so no event is lost before a start's reply or the first read (ARCHITECTURE §7).
   event(event: ConversationEvent): void {
+    if (this.deletedIds.has(event.conversationId)) return;
     const tracked = this.events.get(event.conversationId);
     if (!tracked) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     if (isText(event) && tracked.some(item => isText(item) && item.turnId === event.turnId)) return;
@@ -258,6 +261,21 @@ export class HomeRun {
     const row = this.canvasRow(root, conversationId);
     if (row) this.host.openCanvas(root, row, { conversationId, waiting: found?.phase === "waiting" || this.strips[conversationId]?.kind === "permission" });
     else this.host.openOverview(root, () => true, () => {}, conversationId);
+  }
+
+  // main deleted it (conversation-delete design §3.2). This run keeps its own conversations whatever the list says, so
+  // the strip, its Open and Edit on Home would go on naming it; slots and rows follow main's next list read.
+  deleted(conversationId: string): void {
+    this.deletedIds.add(conversationId);
+    this.conversations = this.conversations.filter(item => item.conversationId !== conversationId);
+    const { [conversationId]: _strip, ...strips } = this.strips;
+    this.strips = strips;
+    this.lastRequests = new Map([...this.lastRequests].filter(([, request]) => request.conversationId !== conversationId));
+    for (const records of [this.events, this.histories, this.extras, this.seen, this.laterSeen]) records.delete(conversationId);
+    for (const ids of [this.claimed, this.claiming]) ids.delete(conversationId);
+    this.unclaimed = this.unclaimed.filter(event => event.conversationId !== conversationId);
+    if (this.openedDuringMove?.conversationId === conversationId) this.openedDuringMove = null;
+    this.host.changed();
   }
 
   // Edit on Home (design §3.4): this run's own last request when it is still the root's, otherwise rebuilt from the
@@ -474,7 +492,7 @@ export class HomeRun {
   // A visit does not take it away: as in the run that started it, the strip stays until Dismiss.
   private claimFor(root: string, list: readonly ConversationSummary[]): void {
     const known = new Set(this.conversations.map(item => item.conversationId));
-    const candidates = list.filter(c => c.fromHome && !c.readError && !known.has(c.conversationId) && !this.dismissed.has(c.conversationId)
+    const candidates = list.filter(c => c.fromHome && !c.readError && !known.has(c.conversationId) && !this.dismissed.has(c.conversationId) && !this.deletedIds.has(c.conversationId)
       && (c.phase !== "ended" || c.unseen));
     for (const summary of candidates) {
       const id = summary.conversationId;

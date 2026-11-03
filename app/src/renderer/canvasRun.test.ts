@@ -502,6 +502,16 @@ test("a refused delete releases the hold, so the next list read picks as before"
   h.store.cancelDelete(B);
   h.answer([summary(A)]);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
+  // A list held while the delete was pending applies at the sync after the refusal.
+  const held = harness();
+  held.run.show(checkout);
+  held.answer([summary(A), summary(B, { state: "archived" })]);
+  held.run.select(B);
+  held.store.startDelete(B);
+  held.answer([summary(A)]);
+  held.store.cancelDelete(B);
+  held.run.sync();
+  expect(held.run.view()).toMatchObject({ kind: "conversation", conversationId: A });
 });
 
 test("a start or send reply sent before the delete does not replace the new conversation state", () => {
@@ -514,18 +524,23 @@ test("a start or send reply sent before the delete does not replace the new conv
   expect(h.run.view()).toMatchObject({ kind: "new" });
 });
 
-test("every canvas state holding the deleted conversation is cleared: a pending request elsewhere and a duplicated ID", () => {
+test("every canvas state holding the deleted conversation is cleared: a duplicated ID and a request still waiting", () => {
   const h = harness();
-  const copy = { root: ROOT, canvas: { path: ".doan/canvases/checkout-copy.html", id: CHECKOUT.id } };
+  const copy = { root: ROOT, canvas: { path: ".doan/canvases/checkout-copy.html", id: "checkout" } };
+  const D = "aaaaaaaa-0000-4000-8000-000000000004";
   h.run.show(checkout);
-  h.answer([summary(A), summary(B, { canvas: CART })]);
-  // An entry asked cart for A before cart opened; it waits in cart's state.
-  h.run.request(cart, A, null);
+  h.answer([summary(A), summary(B, { canvas: CART }), summary(D, { canvas: CART, state: "archived" })]);
+  // An entry asked cart for its archived D before cart opened; it waits in cart's state.
+  h.run.request(cart, D, null);
+  h.store.startDelete(A);
   confirmDelete(h, A);
+  h.store.startDelete(D);
+  confirmDelete(h, D);
   expect(h.run.view()).toMatchObject({ kind: "new" });
   // Two canvases sharing the ID share the state, so the other one shows the new conversation state too.
   h.run.show(copy);
   expect(h.run.view()).toMatchObject({ kind: "new" });
+  // cart never showed D: it picks its own default, and the list is not read again for D.
   h.run.show(cart);
   expect(h.run.view()).toMatchObject({ kind: "conversation", conversationId: B });
   expect(h.host.reread).not.toHaveBeenCalled();
@@ -550,7 +565,9 @@ test("a promotion notice for the deleted conversation goes, and the list compari
   expect(h.run.view()).toMatchObject({ kind: "new", notice: { kind: "promoted", open: P } });
   confirmDelete(h, P);
   expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
-  // Before the next read lands, the lists already read still name it; nothing announces it.
+  // Before the next read lands, the lists already read still name it; the panel resolving again announces nothing.
+  h.run.show(checkout);
+  expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
   h.run.sync();
   expect(h.run.view()).toMatchObject({ kind: "new", notice: null });
   h.answer([]);

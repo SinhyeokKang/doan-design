@@ -51,6 +51,11 @@ export class ConversationStore {
   // Each screen's run hears a thread change for its own seen and promotion rules: "read" once its history was read,
   // "event" for each live event merged into it.
   private listeners = new Set<(conversationId: string, change: "read" | "event") => void>();
+  // Between conversation:delete and its reply: the reply and main's list notice come in either order (POSTMORTEM
+  // 2026-10-26), so a list without the conversation is not read as it having gone (conversation-delete design §3.2).
+  private deletingIds = new Set<string>();
+  // Deleted in this run: an event that arrives late is dropped rather than kept for a read that would bring it back.
+  private deletedIds = new Set<string>();
 
   constructor(private host: ConversationStoreHost) {}
 
@@ -103,6 +108,22 @@ export class ConversationStore {
   }
   setDrafts(update: (drafts: ReadonlyMap<string, DockedDraft>) => ReadonlyMap<string, DockedDraft>): void {
     this.drafts = update(this.drafts);
+    this.host.changed();
+  }
+  startDelete(conversationId: string): void { this.deletingIds.add(conversationId); }
+  cancelDelete(conversationId: string): void { this.deletingIds.delete(conversationId); }
+  deleting(conversationId: string): boolean { return this.deletingIds.has(conversationId); }
+  // main deleted it: its thread, draft, returned draft and queue go. The new conversation's draft stays (spec decision 5).
+  deleted(conversationId: string): void {
+    this.deletingIds.delete(conversationId);
+    this.deletedIds.add(conversationId);
+    this.dropDrafts(key => key === `conversation:${conversationId}`);
+    this.threads.delete(conversationId);
+    this.queues.delete(conversationId);
+    this.taking.delete(conversationId);
+    this.taken.delete(conversationId);
+    this.providers.delete(conversationId);
+    this.unclaimed = this.unclaimed.filter(event => event.conversationId !== conversationId);
     this.host.changed();
   }
   // Drafts whose key matches go (a removed project's).
@@ -158,7 +179,7 @@ export class ConversationStore {
     if (message?.type !== "user.message") return false;
     const key = `conversation:${conversationId}`, before = this.drafts.get(key);
     const restored = await draftFrom(message.text, message.anchors, message.attachments ?? []);
-    if (this.drafts.get(key) !== before) {
+    if (this.drafts.get(key) !== before || this.deletedIds.has(conversationId)) {
       // Not applied: the files issued for it go back.
       for (const attachment of restored.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
       return false;
@@ -177,6 +198,7 @@ export class ConversationStore {
 
   // conversation:event, subscribed at App mount so nothing is lost before a read.
   event(event: ConversationEvent): void {
+    if (this.deletedIds.has(event.conversationId)) return;
     const thread = this.threads.get(event.conversationId);
     if (!thread) { this.unclaimed = [...this.unclaimed, event].slice(-500); return; }
     this.threads.set(event.conversationId, { ...thread, events: mergeConversationEvents(thread.events, [event], event.conversationId) });
@@ -220,6 +242,10 @@ export class ConversationStore {
       if (!reply || "error" in reply) { this.taking.delete(conversationId); return; }
       const returned = await draftFrom(reply.text, reply.anchors, reply.attachments);
       this.taking.delete(conversationId);
+      if (this.deletedIds.has(conversationId)) {
+        for (const attachment of returned.attachments) if (attachment.id) void window.doan.removeAttachment(attachment.id).catch(() => false);
+        return;
+      }
       const key = `conversation:${conversationId}`;
       this.setDrafts(drafts => {
         const current = drafts.get(key) ?? EMPTY_DRAFT;
