@@ -44,12 +44,14 @@ export function cloneArgs(url: string, target: string): string[] {
 }
 
 // Login-shell PATH so the user's credential helpers (gh among them) are found, and the user's own SSH setup
-// (core.sshCommand, ~/.ssh/config, the ssh agent) applies unchanged. The launchd environment only (launchEnv): the
-// launching terminal's GIT_* and askpass settings are not the user's git setup. Nothing can wait for input: the clone
-// runs in its own process group with no controlling terminal and stdin closed, git's terminal prompt is off and no
-// askpass helper is offered, so ssh cannot ask; host key checking stays as the user set it.
+// (core.sshCommand, GIT_SSH_COMMAND, ~/.ssh/config) applies unchanged (D17, 2026-10-29 user). Otherwise the launchd
+// environment only (launchEnv): the launching terminal's other GIT_* and askpass settings are not the user's git
+// setup. Nothing can wait for input: the clone runs in its own process group with no controlling terminal and stdin
+// closed, git's terminal prompt is off and no askpass helper is offered, so ssh cannot ask; host key checking stays
+// as the user set it.
 export function cloneEnv(inherited: NodeJS.ProcessEnv, path: string): Record<string, string> {
-  return { ...launchEnv(inherited), PATH: path, GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never", GCM_INTERACTIVE: "never" };
+  const ssh = inherited.GIT_SSH_COMMAND !== undefined ? { GIT_SSH_COMMAND: inherited.GIT_SSH_COMMAND } : {};
+  return { ...launchEnv(inherited), ...ssh, PATH: path, GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never", GCM_INTERACTIVE: "never" };
 }
 
 export interface GitLocation {

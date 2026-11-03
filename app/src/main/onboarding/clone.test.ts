@@ -220,8 +220,8 @@ describe("clone invocation", () => {
     const built = cloneEnv({ HOME: "/Users/ada", GIT_ASKPASS: "/x", SSH_ASKPASS: "/y", GIT_DIR: "/z", PATH: "/old" }, "/opt/homebrew/bin:/usr/bin");
     expect(built).toMatchObject({ HOME: "/Users/ada", PATH: "/opt/homebrew/bin:/usr/bin", GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never" });
     for (const name of ["GIT_ASKPASS", "SSH_ASKPASS", "GIT_DIR", "GIT_SSH_COMMAND"]) expect(built).not.toHaveProperty(name);
-    // An ssh command in the launch environment is the launching terminal's; core.sshCommand is the user's (below).
-    expect(cloneEnv({ GIT_SSH_COMMAND: "ssh -i ~/.ssh/work" }, "/usr/bin")).not.toHaveProperty("GIT_SSH_COMMAND");
+    // A user's own ssh command (a key per account) reaches git unchanged.
+    expect(cloneEnv({ GIT_SSH_COMMAND: "ssh -i ~/.ssh/work" }, "/usr/bin").GIT_SSH_COMMAND).toBe("ssh -i ~/.ssh/work");
     expect(cloneArgs("git@github.com:acme/studio.git", "/tmp/t").join(" ")).not.toMatch(/sshCommand|StrictHostKeyChecking|BatchMode/);
   });
 
