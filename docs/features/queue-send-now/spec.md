@@ -23,7 +23,7 @@
 
 ## 완료 조건
 
-1. Send now를 지원하는 provider의 대화에서 턴이 실행 중(running. 권한 응답 대기 중 표시 여부는 결정 3의 T0 결과로 정한다)일 때, 큐 행마다 Remove 앞에 Send now 버튼이 있다. provider는 composer picker가 아니라 그 대화에 저장된 provider로 판정한다.
+1. Send now를 지원하는 provider의 대화에서 턴이 실행 중(running. 권한 응답 대기 중 포함)일 때, 큐 행마다 Remove 앞에 Send now 버튼이 있다. provider는 composer picker가 아니라 그 대화에 저장된 provider로 판정한다.
 2. Send now를 누르면 그 행의 메시지 하나가 실행 중인 턴에 들어간다. Doan 턴(thread와 상태 표시)은 끝나지 않고, 그때까지의 작업(편집, activity, 답변)은 그대로 남는다. provider가 메시지를 받아들인 뒤 에이전트가 읽기 전까지 그 행은 `Sending…`으로 남는다. 에이전트가 읽었다는 신호가 오면 행이 큐에서 사라지고, 그 시점의 위치에 사람 메시지로 보인다. 에이전트의 이어지는 답변은 그 메시지 아래에 붙는다.
 3. 큐에 메시지가 여러 개면 누른 행만 들어가고, 나머지는 기존 규칙대로 남는다(done 턴 뒤 한 메시지로 나가고, failed·stopped 등에서는 draft로 돌아온다).
 4. 들어간 메시지의 anchor와 첨부는 일반 send와 같은 방식으로 에이전트에 전달되고 thread에 보인다.
@@ -48,9 +48,9 @@
 ## 결정
 
 1. **큐에 여러 개 있을 때 Send now의 단위**: 행마다 버튼을 두고, 누른 행 하나만 넣는다. 나머지는 원래 큐 규칙을 따른다.
-2. **thread 표시**: 일반 사람 메시지와 같은 모양으로, 실행 중인 턴 안에서 에이전트가 그 메시지를 읽은 시점의 위치에 둔다(`/feature-review`에서 정함). 신호는 Claude는 보낸 메시지의 `uuid` echo(`user_message_uuid(s)`), Codex는 `clientUserMessageId`가 붙은 `userMessage` item이다(T0에서 확인). 별도 라벨은 두지 않는다. 누른 순간에 붙이면 아직 스트리밍 중인 답 아래에 놓이고, 권한 대기 중이면 권한 카드에 대한 답처럼 읽히기 때문이다.
-3. **권한 응답 대기 중 Send now**: 보인다. 메시지는 provider가 받을 수 있는 시점(Claude는 다음 도구 경계로 추정 — PoC 확인 전 가정, Codex는 서버가 정함)에 들어간다. PoC(T0)에서 대기 중 steer가 거절되거나 응답을 막으면, 대기 중에는 숨긴다.
-4. **Claude가 같은 턴에 접지 않고 다음 턴으로 따로 돌릴 때**: PoC(T0)에서 `queued_turn_count > 0`인 result 뒤에 이어지는 턴이 확인되면, Doan은 CLI의 연속 턴을 Doan 턴 하나로 이어 받고 마지막 result에서 끝낸다. 같은 턴에 접히는 것도, 연속 턴도 확인되지 않으면 Claude에서도 Send now를 숨긴다.
+2. **thread 표시**: 일반 사람 메시지와 같은 모양으로, 실행 중인 턴 안에서 에이전트가 그 메시지를 읽은 시점의 위치에 둔다(`/feature-review`에서 정함). 신호는 Claude는 보낸 메시지의 `uuid` echo(`user_message_uuid(s)`), Codex는 `clientId`에 보낸 id가 echo된 `userMessage` item이다(T0에서 확인. Codex는 받아들인 직후 이 item이 온다). 별도 라벨은 두지 않는다. 누른 순간에 붙이면 아직 스트리밍 중인 답 아래에 놓이고, 권한 대기 중이면 권한 카드에 대한 답처럼 읽히기 때문이다.
+3. **권한 응답 대기 중 Send now**: 보인다. T0에서 두 provider 모두 대기 중 전송을 막지 않았다. Claude는 허용 뒤 도구 결과 직후에 메시지를 읽고, Codex는 대기 중에 받아들인다(design §4).
+4. **Claude가 같은 턴에 접지 않고 다음 턴으로 따로 돌릴 때**: T0에서 도구 없이 답을 쓰는 중이나 result 직후에 넣으면 CLI가 이어지는 턴을 돌렸고, 이때 첫 result의 `queued_turn_count`는 0이었다. Doan은 넣은 uuid가 소비될 때까지 result를 terminal로 보지 않고, CLI의 연속 턴을 Doan 턴 하나로 이어 받아 마지막 result에서 끝낸다(design §4).
 5. **Edit on Home가 가져오는 요청**: 지금처럼 마지막 `user.message`를 가져온다. 밀어 넣은 메시지가 있던 턴이 실패하면, 처음 요청이 아니라 밀어 넣은 메시지가 돌아온다. Edit on Home 규칙은 이번 범위에서 바꾸지 않는다.
 
 `/feature-review`에서 정한 것:
