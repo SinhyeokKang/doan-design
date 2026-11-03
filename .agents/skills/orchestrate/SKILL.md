@@ -84,13 +84,7 @@ When the run includes `/design-draft`, the conductor owns and performs the draft
 
 ## 6. Linked runs (chains)
 
-A **chain** runs several `/orchestrate` runs one after another, each feature merged to main before the next starts. The chain file `docs/features/chain-<YYMMDD>/chain.md` (Korean, committed on main) is the single source for the chain: order, the user's standing permissions, the status of each link and the handoff log. Read it at intake; it overrides the defaults below only where it says so.
-
-- **One session per link.** Each link starts in a new Claude Code session in its own Orca top-level worktree created from the freshly pulled `origin/main` (`orca worktree create --name <slug>-orch --no-parent --agent claude ...`). The conductor branches `feat/<slug>` from main inside that worktree as usual. A session never conducts two links.
-- **Permissions come from the chain file.** A chain may grant, for its listed links only: merging each link's PR to main (an exception to 'Do not merge PRs'), and crossing the model boundary for workers (for example Codex workers under a Claude conductor; AGENTS.md 'Runtime differences'). Use only what the chain file grants; anything else is asked as usual.
-- **Finish before handing off.** The outgoing conductor completes its link: all batches integrated, final `/verify`, docs promoted and the feature directory deleted, PR pushed and merged (when granted), local main pulled, its batch worktrees cleaned up (§5). It then records the result in the chain file (merge commit, PR, unverified items, decisions the next link must know) and pushes that to main.
-- **Responsible handoff.** The outgoing conductor starts the next link's session with a brief that points to the chain file, the next feature's documents and anything not yet written down, and lists what the next session must do first. It waits until the new session has visibly started on the brief (the receipt's prompt outcome, then a first message or a chain-file acknowledgement), and answers its questions about the previous link. A handoff that only launched a terminal is not complete.
-- **Retire.** After the handoff is acknowledged, the outgoing conductor stops: it releases or closes nothing that belongs to the new session, confirms its own worktree is clean and fully on main (`git cherry` with no `+`), removes that worktree through Orca when it is not the session's own running checkout, or asks the user to close the session, and reports. The last link deletes the chain directory after its merge.
+When this run is a link in a chain (a `docs/features/chain-<YYMMDD>/chain.md` lists it), read that chain file at intake and follow [/chain](../chain/SKILL.md) §3 for permissions, the start check, finishing, handoff and retiring.
 
 ## Report
 
@@ -107,8 +101,8 @@ Worktrees: <what remains>
 
 ## Prohibited
 
-- Do not merge PRs, unless a chain file grants it for the current link (§6).
+- Do not merge PRs, unless a chain file grants it for the current link (§6, `/chain`).
 - The conductor does not edit batch code directly.
-- Do not cross model families without permission (a chain file may grant it for its links, §6).
+- Do not cross model families without permission (a chain file may grant it for its links, §6, `/chain`).
 - Do not run batches with overlapping files in parallel.
 - Do not approve another session's permission prompts or widen permission rules without user approval.
