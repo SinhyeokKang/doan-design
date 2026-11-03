@@ -100,8 +100,8 @@ func TestSkillInitRequiresHumanRequestAndTokenPath(t *testing.T) {
 	for _, l := range strings.Split(skillBody, "\n") {
 		if strings.HasPrefix(l, "- `doan init ") {
 			for _, required := range []string{
-				"It installs no agent skills and does not add the project to the Doan app.",
-				"Run it only when the user names `doan init`, asking for the token CSS path first, or when Doan cannot be reached (see Onboarding).",
+				"It installs no agent skills and does not add the project to Doan.",
+				"Run it only when the user names `doan init`, asking for the token CSS path first, or when a repository setup cannot reach Doan.",
 			} {
 				if !strings.Contains(l, required) {
 					t.Errorf("init entry misses %q: %s", required, l)
@@ -127,9 +127,10 @@ func TestSkillGuideSetupGoesThroughOnboarding(t *testing.T) {
 	}
 	for _, required := range []string{
 		"Use these commands when the user asks you to set up Doan or a repository for Doan.",
-		"If `start` returns `completed: true`, stop after `select` (no `complete`).",
+		"On `completed: true` from `start`, stop after `select` (no `complete`).",
 		"Never ask for token CSS; pass one the user named to `doan config --token-css` after `select` (or to `doan init`).",
-		"If Doan cannot be reached (`app_not_running`, `app_launch_failed`, `app_protocol_mismatch`, or a sandbox blocks its socket), run `doan init` without asking and tell the user the project is not in the Doan app: they add it with Add Project….",
+		"If a repository setup cannot reach Doan (`app_not_running`, `app_launch_failed`, `app_protocol_mismatch`, or a sandbox blocks its socket), run `doan init` without asking and tell the user the project is not in Doan: they add it with Add Project….",
+		"Onboarding needs no skill or project and takes no `--repo`; path arguments are absolute.",
 	} {
 		if !strings.Contains(first, required) {
 			t.Errorf("onboarding first paragraph misses %q", required)
