@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { sharedShell, toolFacts, type FactsDeps } from "./facts";
 import type { Provider } from "./types";
+import { DOCK, TERMINAL } from "../launchEnv.fixture";
 
 const CLI = "/Applications/doan.app/Contents/Resources/bin/doan";
 function deps(over: Partial<FactsDeps> = {}): FactsDeps & { run: ReturnType<typeof vi.fn> } {
@@ -53,5 +54,12 @@ describe("tool facts", () => {
     finish(); expect(await first).toEqual([{ ok: true, path: "/bin" }, { ok: true, path: "/bin" }, { ok: true, path: "/bin" }]);
     const later = shell(); finish(); await later;
     expect(probe).toHaveBeenCalledTimes(2);
+  });
+});
+describe("version check environment", () => {
+  it("runs the CLI with the launchd environment, not the launching terminal's", async () => {
+    const d = deps({ inherited: TERMINAL });
+    await toolFacts("claude", d);
+    expect(d.run.mock.calls[0]![2]).toEqual({ ...DOCK, PATH: "/bin" });
   });
 });
