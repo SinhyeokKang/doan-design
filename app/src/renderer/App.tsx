@@ -1111,18 +1111,23 @@ export function App() {
       const reply = await window.doan.deleteConversation({ conversationId });
       code = reply && "error" in reply ? reply.error : null;
     } catch (error) { console.error(error); }
-    finally {
+    // The cleanup may throw (a Run's defect); the mark still ends once and the alert, which refuses its cancel while
+    // busy, still closes, or the window would stay behind it until a reload.
+    try {
       if (code === null || code === "not_found") {
-        const overviewView = overviewRuns.view(root), canvasView = canvasRuns.view();
-        const shown = from === "overview" ? overviewView.kind === "conversation" && overviewView.conversationId === conversationId
-          : canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
-        try { overviewRuns.deleted(conversationId); canvasRuns.deleted(conversationId); homeRun.current.deleted(conversationId); }
-        finally { store.deleted(conversationId); }
-        if (shown) afterDelete.current = from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input";
+        try {
+          const overviewView = overviewRuns.view(root), canvasView = canvasRuns.view();
+          const shown = from === "overview" ? overviewView.kind === "conversation" && overviewView.conversationId === conversationId
+            : canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
+          overviewRuns.deleted(conversationId); canvasRuns.deleted(conversationId); homeRun.current.deleted(conversationId);
+          if (shown) afterDelete.current = from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input";
+        } finally { store.deleted(conversationId); }
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
+    } catch (error) { console.error(error); }
+    finally {
+      closeDelete();
+      if (code !== null && !quitting()) live.current.toast.show(deleteRefusalText(code, title));
     }
-    closeDelete();
-    if (code !== null && !quitting()) live.current.toast.show(deleteRefusalText(code, title));
   }
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {

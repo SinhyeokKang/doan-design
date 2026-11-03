@@ -279,6 +279,8 @@ test("not_found cleans up as a deletion and says it was already deleted", async 
   expect(calls.filter(call => !call.endsWith(".sync"))).toEqual(["ConversationStore.startDelete", "OverviewRun.deleted", "CanvasRun.deleted", "HomeRun.deleted", "ConversationStore.deleted"]);
   expect(overview()!.run.view("/w/a").kind).toBe("new");
   expect(harness.toast.show).toHaveBeenCalledWith("“Title c1” was already deleted.");
+  // The shown conversation is gone and the screen is the new conversation state: focus goes to its composer.
+  expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
 });
 
 test("deleting the canvas's current conversation from its Title menu shows the new conversation state, not the archived one, and focuses the panel's composer", async () => {
@@ -329,4 +331,48 @@ test("a refusal after main said the app is quitting shows no toast", async () =>
   expect(overview()!.run.store.deleting("c1")).toBe(false);
   expect(dialog()).toBeUndefined();
   expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+// Review RC (conductor) 🟡1: a throw in any cleanup must still end the deleting mark and close the alert, which refuses
+// its cancel while busy and would otherwise hold the window until a reload.
+test("a cleanup that throws after a deletion still ends the mark and closes the alert", async () => {
+  await openOverview();
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  doan.deleteConversation = vi.fn(async () => undefined);
+  const deleted = vi.spyOn(OverviewRun.prototype, "deleted").mockImplementationOnce(() => { throw new Error("broken run"); });
+  try {
+    ask(target("c2"));
+    dialog()!.confirm(); await flushAll();
+    expect(overview()!.run.store.deleting("c2")).toBe(false);
+    expect(dialog()).toBeUndefined();
+    expect(error).toHaveBeenCalled();
+  } finally { deleted.mockRestore(); }
+});
+test("a re-read that throws after a refusal still ends the mark, closes the alert and shows the toast", async () => {
+  await openOverview();
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+  ask(target("c1"));
+  const sync = vi.spyOn(OverviewRun.prototype, "sync").mockImplementation(() => { throw new Error("broken read"); });
+  try {
+    dialog()!.confirm(); await flushAll();
+  } finally { sync.mockRestore(); }
+  render();
+  expect(overview()!.run.store.deleting("c1")).toBe(false);
+  expect(dialog()).toBeUndefined();
+  expect(harness.toast.show).toHaveBeenCalledWith("Couldn’t delete “Title c1”. The agent started working on it.");
+  expect(error).toHaveBeenCalled();
+});
+
+// Review RC ⚪3: the canvas panel's refusal and Cancel return focus to the panel's title trigger.
+test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus returns to the panel's title trigger", async (_name, confirm) => {
+  await openCanvasPanel();
+  doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+  const button = ask(target("c1", "canvas"));
+  if (confirm) { dialog()!.confirm(); await flushAll(); } else { dialog()!.cancel(); render(); }
+  expect(dialog()).toBeUndefined();
+  expect(title()!.run.view()).toMatchObject({ kind: "conversation", conversationId: "c1" });
+  expect(button.focus).toHaveBeenCalledOnce();
+  expect(focused.calls).toEqual([]);
+  expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
 });
