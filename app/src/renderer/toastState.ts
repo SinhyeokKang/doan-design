@@ -18,8 +18,8 @@ export interface ToastState {
   focused: boolean;
   hidden: boolean;
   modal: boolean;
-  // The toast the last event took away, so the caller can tell main a removal's
-  // undo window is over without re-deriving it.
+  // The toast the last event took away, so the caller can act on its ending
+  // without re-deriving it.
   ended?: ToastEnd;
 }
 

@@ -209,7 +209,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const entry = props.entries.find(item => item.path === root) ?? null;
   const card = cards.find(item => item.rows.some(row => row.path === root)) ?? null;
   const project = card?.name ?? "";
-  // A chosen root that left the list falls back without restoring on Undo (design §4.2).
+  // A chosen root that left the list falls back, and is not chosen again when it comes back (design §4.2).
   useEffect(() => {
     if (!picked.announcement) return;
     update({ root: picked.root });

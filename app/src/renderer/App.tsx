@@ -29,7 +29,7 @@ import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
 import { useToast } from "./Toast";
 import { AddProjectsPage, type AddPageReport } from "./AddProjectsPage";
-import { addPageReturn, pageEnter, pageEscape, projectSettingsReentry, type AddPageEvent, type AddPageOrigin, type PageName, type ShellScreen } from "./addProjectsNav";
+import { addPageReturn, pageEnter, pageEscape, projectSettingsReentry, workspaceRemoved, type AddPageEvent, type AddPageOrigin, type PageName, type ShellScreen } from "./addProjectsNav";
 import type { FolderFocus } from "../main/shell";
 import type { RowAction } from "./homeCards";
 import { groupProjects } from "./homeCards";
@@ -66,7 +66,7 @@ import { defaultProject, startErrorView } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
 import { DockedSupport } from "./dockedSupport";
 import { sameCanvas } from "./ProjectOverview";
-import { slotKey as canvasSlotKey, type Slot } from "./homeConversations";
+import { removalQuestionLabel, slotKey as canvasSlotKey, type Slot } from "./homeConversations";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import { KeyedConversationStrip } from "./ConversationStripView";
@@ -84,14 +84,12 @@ import type { PermissionModeId } from "../main/conversation/permissionMode";
 import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences";
 import { preferenceAfterPick, rememberChoice, rememberPermission, type ComposerChoice } from "./rememberChoice";
 
-// Each command names its handler; one App does not know does nothing, so a
-// new menu item can never run the Undo toast's action (R-M ⚪5).
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; undo: () => void; newConversation: () => void; addSelection: () => void }): void {
+// Each command names its handler; one App does not know does nothing (R-M ⚪5).
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; addSelection: () => void }): void {
   if (name === "home") to.home();
   else if (name === "newConversation") to.newConversation();
   else if (name === "addSelectionToConversation") to.addSelection();
   else if (name === "quickOpen") to.quickOpen();
-  else if (name === "undoRemove") to.undo();
 }
 
 // A focus move that waits (a pick's end, Add on a folded panel) carries the intent it started with (design §2 'Focus
@@ -450,7 +448,10 @@ export function App() {
     }
   }, [screen, loadedRoot]);
   useEffect(() => {
-    if (loadedRoot && loadedRoot !== locating?.from && !entries.some(entry => entry.path === loadedRoot)) { setLoadedRoot(null); }
+    if (!loadedRoot || loadedRoot === locating?.from || entries.some(entry => entry.path === loadedRoot)) return;
+    setLoadedRoot(null);
+    // Leaving as leavePage does for Home: a startup restore or a workspace still opening must not land after it.
+    if (workspaceRemoved(screen, loadedRoot, entries.map(entry => entry.path), locating?.from ?? null)) { cancelRestore(); controller.current?.cancelWorkspaceOpen(); setScreen("home"); }
   }, [entries, loadedRoot, locating]);
   useEffect(() => {
     const root = locating?.root;
@@ -712,7 +713,7 @@ export function App() {
 
 
   const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null;
-  // A locked Project Settings page holds the Undo toast too: its Share confirmation makes the toast inert while the page
+  // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
   // itself is not modal (project-settings design '영향 범위' 토스트, POSTMORTEM 2026-10-25 'Native hiding bypassed
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
@@ -727,6 +728,12 @@ export function App() {
     const previous = beforeModal.current;
     focusCurrent(previous);
   }, [modal, entries]);
+  // A path the removal confirmation names left the list (a reroot, a removal elsewhere): it closes, since it no longer
+  // names what would go and main refuses a removal of an unlisted path (project-remove-confirm design §2).
+  useEffect(() => {
+    const removing = homeRun.current.removing;
+    if (removing && !removing.paths.every(path => entries.some(entry => entry.path === path))) { homeRun.current.cancelRemove(); modalClosed(); }
+  }, [entries]);
   // The row the Move to Trash dialog asks about left the list: the dialog closes. A folder still loading keeps it.
   useEffect(() => {
     if (!trashing) return;
@@ -979,7 +986,7 @@ export function App() {
   function remove(paths: string[]): Promise<void> {
     cancelRestore();
     rememberFocus();
-    return homeRun.current.remove(paths, cards.find(card => card.rows.some(row => paths.includes(row.path)))?.name ?? names.get(paths[0] ?? "") ?? "");
+    return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names));
   }
   async function removeNow(paths: string[]) {
     cancelRestore();
@@ -996,7 +1003,6 @@ export function App() {
       const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
       const nextHistory = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
       historyRef.current = nextHistory; setHistory(nextHistory);
-      toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
     }
   }
   // canvas-row-menu design 'Alert Dialog': the dialog asks main whether a comment file goes too before it can be
@@ -1088,7 +1094,6 @@ export function App() {
     menuCommand(name, {
       home: () => live.current.home(),
       quickOpen: () => live.current.search(),
-      undo: () => { if (live.current.toast.toast?.action === "Undo") live.current.toast.action(); },
       newConversation: () => live.current.newConversation(),
       addSelection: () => live.current.addSelection(),
     });
@@ -1293,10 +1298,10 @@ export function App() {
   useEffect(() => {
     // The Project Settings page enables the menu as Settings does (no canvas items, no New Conversation), so main's
     // menu state needs no screen of its own (project-settings design '영향 범위' 메뉴).
-    void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal, toast: toast.toast?.action === "Undo",
+    void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null ? { overview: true } : {}),
       ...(menuSelection ? { selection: true } : {}), ...(menuPicker ? { pickerAvailable: true } : {}) });
-  }, [screen, state.open, modal, toast.toast?.action, page.choose, pageLocked, shownOverview, menuSelection, menuPicker]);
+  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuSelection, menuPicker]);
   useLayoutEffect(() => { overviewRun.current!.show(shownOverview); }, [shownOverview]);
   // The window's focus decides whether the shown conversation is seen (spec decision 11); the focus listener is the
   // sign-in controller's below.
@@ -1512,8 +1517,8 @@ export function App() {
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
-  {run.removing && <dialog className="doan-dialog" data-ui-size="compact" aria-label={run.removing.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
-    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{run.removing.title}</h3><p className="doan-dialog-description">{run.removing.body}</p></div></div>
+  {run.removing && <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
     <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
       <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
   </dialog>}

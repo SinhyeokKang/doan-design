@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { add, insertAt, load, remove, replaceAt } from "./folders";
+import { add, load, remove, replaceAt } from "./folders";
 
 describe("add", () => {
   test("appends a new path", () => {
@@ -65,30 +65,6 @@ describe("load", () => {
     expect(load('["/a", 1]')).toEqual([]);
     expect(load('["/a", null]')).toEqual([]);
     expect(load('[["/a"]]')).toEqual([]);
-  });
-});
-
-describe("insertAt", () => {
-  test("puts the path back at its index", () => {
-    expect(insertAt(["/a", "/c"], "/b", 1)).toEqual(["/a", "/b", "/c"]);
-    expect(insertAt(["/a"], "/b", 0)).toEqual(["/b", "/a"]);
-  });
-
-  test("clamps an index outside the list", () => {
-    expect(insertAt(["/a"], "/b", 9)).toEqual(["/a", "/b"]);
-    expect(insertAt(["/a"], "/b", -3)).toEqual(["/b", "/a"]);
-    expect(insertAt(["/a"], "/b", Number.NaN)).toEqual(["/b", "/a"]);
-    expect(insertAt([], "/a", 2)).toEqual(["/a"]);
-  });
-
-  test("keeps a path that is already stored where it is", () => {
-    expect(insertAt(["/a", "/b"], "/b", 0)).toEqual(["/a", "/b"]);
-  });
-
-  test("does not change the input list", () => {
-    const list = ["/a"];
-    insertAt(list, "/b", 0);
-    expect(list).toEqual(["/a"]);
   });
 });
 

@@ -118,19 +118,15 @@ test("the old wizard and Connections calls are gone; the folder picker uses a fi
   await api.chooseOnboardingFolder("destination"); expect(mocks.invoke).toHaveBeenLastCalledWith("onboarding:choose-folder", "destination");
 });
 
-test("project remove, restore, locate and reveal use fixed channels", async () => {
+test("project remove, locate and reveal use fixed channels", async () => {
   await api.removeProjects([ROOT]);
   expect(mocks.invoke).toHaveBeenLastCalledWith("folders:remove", { paths: [ROOT] });
-  await api.restoreProjects("r");
-  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:restore", { removalId: "r" });
-  await api.forgetRemoval("r");
-  expect(mocks.invoke).toHaveBeenLastCalledWith("folders:forget-removal", { removalId: "r" });
   await api.locateProject(ROOT);
   expect(mocks.invoke).toHaveBeenLastCalledWith("folders:locate", { path: ROOT });
   await api.revealProject(ROOT);
   expect(mocks.invoke).toHaveBeenLastCalledWith("folders:reveal", { path: ROOT });
-  await api.setMenuState({ screen: "home", modal: false, toast: true });
-  expect(mocks.invoke).toHaveBeenLastCalledWith("menu:state", { screen: "home", modal: false, toast: true });
+  await api.setMenuState({ screen: "home", modal: false });
+  expect(mocks.invoke).toHaveBeenLastCalledWith("menu:state", { screen: "home", modal: false });
 });
 
 // The wizard's single-folder contract stays as it was.

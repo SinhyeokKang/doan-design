@@ -54,7 +54,6 @@ import type { InspectResult } from "./inspect";
 import { createInspector, parseInspectRequest, type Inspector } from "./inspector";
 import { startRuntime, type Runtime } from "./runtime";
 import { menuState, type Screen } from "./menuState";
-import { removalLabel } from "./removal";
 import { senderAllowed, type WindowKind } from "./senderAllowed";
 import { INSTALL_URLS, NOTIFICATION_SETTINGS_URL, parseExternalTarget, type SettingsPageTarget } from "./settings";
 import { startShell, type Shell, type ProjectInitResult } from "./shell";
@@ -76,15 +75,14 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "undoRemove" | "quickOpen" | "newConversation" | "addSelectionToConversation";
+export type MenuCommand = "home" | "quickOpen" | "newConversation" | "addSelectionToConversation";
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
 // `selection`: the canvas has a selection to add; `pickerAvailable`: the composer takes input and the canvas is loaded
 // (design §2), so the menu follows the same availability as the canvas toolbar.
-export interface MenuInputs { screen: Screen; modal: boolean; toast: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean }
-export type RemoveResult = { kind: "removed"; removalId: string; label: string } | { kind: "unavailable" };
-export type RestoreResult = { kind: "restored"; paths: string[] } | { kind: "unavailable" };
+export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean }
+export type RemoveResult = { kind: "removed" } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
 // onboarding session, so picking a folder changes nothing.
@@ -193,12 +191,8 @@ let uiState: UiStateStore | undefined;
 let canvasSeen: CanvasSeenStore | undefined;
 let thumbnails: Thumbnails | undefined;
 // The app always starts on Home (design 'Memory model').
-const HOME: MenuInputs = { screen: "home", modal: false, toast: false };
+const HOME: MenuInputs = { screen: "home", modal: false };
 let menuInputs: MenuInputs = HOME;
-// Only the newest removal can be undone; main keeps what Undo needs.
-let removal: { id: string; paths: string[]; indexes: number[] } | null = null;
-// Counts removals started, so one saved late cannot take Undo from a newer one.
-let removals = 0;
 const FULLSCREEN_EXIT_WAIT_MS = 2000;
 
 // Thumbnails are for the window's overview, so nothing is captured while it
@@ -297,15 +291,11 @@ function editHistory(kind: "undo" | "redo"): NonNullable<MenuItemConstructorOpti
 
 // Page zoom and reload roles would act on the whole window; the view commands
 // go to the renderer, which zooms the board and reloads only the canvas.
-// The menu is rebuilt whenever its enablement changes; Undo Remove takes the
-// system Undo's place (and ⌘Z) only while the removal toast is up.
+// The menu is rebuilt whenever its enablement changes.
 function setMenu(): void {
   const view = (command: ViewCommand) => () => send("view-command", command);
   const command = (name: MenuCommand) => () => send("menu-command", name);
-  const enabled = menuState(menuInputs.screen, menuInputs.modal, menuInputs.toast, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, selection: menuInputs.selection === true, pickerAvailable: menuInputs.pickerAvailable === true });
-  const undo: MenuItemConstructorOptions = enabled.undoRemove
-    ? { label: "Undo Remove", accelerator: "CmdOrCtrl+Z", click: command("undoRemove") }
-    : { label: "Undo", accelerator: "CmdOrCtrl+Z", click: editHistory("undo") };
+  const enabled = menuState(menuInputs.screen, menuInputs.modal, { wizardOpen: onboardingOpen, choose: menuInputs.choose === true, locked: menuInputs.locked === true, overview: menuInputs.overview === true, selection: menuInputs.selection === true, pickerAvailable: menuInputs.pickerAvailable === true });
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       // Role labels would read "About doan" from app.name, which stays "doan" for userData.
@@ -327,11 +317,11 @@ function setMenu(): void {
           } },
         ],
       },
-      // The `editMenu` role's items, spelled out so Undo can be swapped.
+      // The `editMenu` role's items, spelled out so Undo and Redo reach the composer's chip field.
       {
         label: "Edit",
         submenu: [
-          undo, { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: editHistory("redo") }, { type: "separator" },
+          { label: "Undo", accelerator: "CmdOrCtrl+Z", click: editHistory("undo") }, { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: editHistory("redo") }, { type: "separator" },
           { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "pasteAndMatchStyle" }, { role: "delete" }, { role: "selectAll" },
           { type: "separator" },
           { label: "Add Selection to Conversation", accelerator: "CmdOrCtrl+L", enabled: enabled.addSelectionToConversation, click: command("addSelectionToConversation") },
@@ -368,7 +358,7 @@ function setMenu(): void {
 const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 
 function setMenuInputs(next: MenuInputs): void {
-  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal && next.toast === menuInputs.toast &&
+  if (next.screen === menuInputs.screen && next.modal === menuInputs.modal &&
     next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview &&
     next.selection === menuInputs.selection && next.pickerAvailable === menuInputs.pickerAvailable) return;
   menuInputs = next;
@@ -377,12 +367,12 @@ function setMenuInputs(next: MenuInputs): void {
 
 const MENU_FLAGS = ["choose", "locked", "overview", "selection", "pickerAvailable"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
-  if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value) || !("toast" in value)) return null;
+  if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);
-  if (Object.keys(value).length !== 3 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
-  const { screen, modal, toast } = value;
-  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects" && screen !== "settings") || typeof modal !== "boolean" || typeof toast !== "boolean") return null;
-  const inputs: MenuInputs = { screen, modal, toast };
+  if (Object.keys(value).length !== 2 + flags.length || flags.some(flag => { const set: unknown = Reflect.get(value, flag); return set !== undefined && typeof set !== "boolean"; })) return null;
+  const { screen, modal } = value;
+  if ((screen !== "home" && screen !== "workspace" && screen !== "canvas" && screen !== "addProjects" && screen !== "settings") || typeof modal !== "boolean") return null;
+  const inputs: MenuInputs = { screen, modal };
   for (const flag of flags) if (Reflect.get(value, flag) === true) inputs[flag] = true;
   return inputs;
 }
@@ -862,35 +852,14 @@ async function start(): Promise<void> {
       !paths.every((path) => stored.some((entry) => entry.path === path))) return { kind: "unavailable" };
     const roots = paths.map(String);
     const before = ready.entries();
-    const entries = before.filter((entry) => roots.includes(entry.path));
-    const label = removalLabel(entries);
     if (selection && roots.includes(selection.root)) selection = null;
-    // The list changes before folders.json is written: the old Undo goes
-    // now, not when the write ends.
-    const generation = ++removals;
-    removal = null;
     return new Promise((resolve) => {
       void ready.remove(roots).then((removed) => {
         if (removed.paths.length === 0) { resolve({ kind: "unavailable" }); return; }
         void thumbs.removed(removed.paths, before);
-        const id = randomUUID();
-        if (generation === removals) removal = { id, ...removed };
-        resolve({ kind: "removed", removalId: id, label });
+        resolve({ kind: "removed" });
       });
     });
-  });
-  const removalId = (value: unknown): string | null => typeof value === "object" && value !== null && Object.keys(value).length === 1 &&
-    "removalId" in value && typeof value.removalId === "string" ? value.removalId : null;
-  handle("folders:restore", { kind: "unavailable" }, async (event, value: unknown): Promise<RestoreResult> => {
-    const id = removalId(value);
-    if (!fromWindow(event) || id === null || removal?.id !== id) return { kind: "unavailable" };
-    const { paths, indexes } = removal;
-    removal = null;
-    return { kind: "restored", paths: await ready.restore(paths, indexes) };
-  });
-  // The toast expired: Undo is gone, so is what it needed.
-  handle("folders:forget-removal", undefined, (event, value: unknown) => {
-    if (fromWindow(event) && removal !== null && removalId(value) === removal.id) removal = null;
   });
   handle("folders:locate", { kind: "unavailable" }, async (event, value: unknown): Promise<LocateResult> => {
     const from = storedPath(value);

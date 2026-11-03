@@ -158,7 +158,7 @@ export function startErrorView(code: string, provider: Provider, project: string
 
 // Order (design §4.2): the first-run handoff, the loaded workspace, the last Home send, then the sidebar's first
 // healthy root. A chosen root that is still listed stays chosen even when unhealthy, so Send explains it; a removed
-// one falls back to the sidebar order only, and is not restored by Undo.
+// one falls back to the sidebar order only, and adding it again does not choose it again.
 export function defaultProject(entries: readonly FolderEntry[], lastCommon: ReadonlyMap<string, string>, prefs: {
   handoff?: string | null; current?: { root: string; name: string } | null; loaded?: string | null; lastRoot?: string | null;
 }): { root: string | null; announcement: string | null } {

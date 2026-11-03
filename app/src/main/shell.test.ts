@@ -691,33 +691,13 @@ describe("storing, removing and restoring", () => {
     await vi.waitFor(() => expect(shell.entries()).toEqual([{ path: plain, kind: "uninitialized" }]), until);
   });
 
-  test("remove reports the original indexes and restore puts the folders back there with new server keys", async () => {
+  test("remove reports the stored paths it removed and saves the rest", async () => {
     const [a, b, c, d] = [writeRepo(dir()), writeRepo(dir()), writeRepo(dir()), writeRepo(dir())];
     const { shell, foldersFile } = await start();
     await shell.store([a, b, c, d]);
-    await vi.waitFor(() => expect(listed(shell.entries(), d)).toBeDefined(), until);
-    await vi.waitFor(() => expect(listed(shell.entries(), b)).toBeDefined(), until);
-    const before = listed(shell.entries(), b)?.canvases[0]?.url;
-    expect(await shell.remove([b, d, "/not/stored"])).toEqual({ paths: [b, d], indexes: [1, 3] });
+    expect(await shell.remove([b, d, "/not/stored"])).toEqual({ paths: [b, d] });
     expect(shell.entries().map((entry) => entry.path)).toEqual([a, c]);
     expect(saved(foldersFile)).toEqual([a, c]);
-    expect(await shell.restore([b, d], [1, 3])).toEqual([b, d]);
-    expect(shell.entries().map((entry) => entry.path)).toEqual([a, b, c, d]);
-    expect(saved(foldersFile)).toEqual([a, b, c, d]);
-    await vi.waitFor(() => expect(listed(shell.entries(), b)).toBeDefined(), until);
-    const after = listed(shell.entries(), b)?.canvases[0]?.url;
-    expect(after).toBeDefined();
-    expect(after).not.toBe(before);
-  });
-
-  test("restore skips a folder that was added again meanwhile", async () => {
-    const [a, b] = [writeRepo(dir()), writeRepo(dir())];
-    const { shell } = await start();
-    await shell.store([a, b]);
-    await shell.remove([a]);
-    await shell.store([a]);
-    expect(await shell.restore([a], [0])).toEqual([]);
-    expect(shell.entries().map((entry) => entry.path)).toEqual([b, a]);
   });
 
   test("replace swaps a folder in place, or only drops it when the new one is stored elsewhere", async () => {

@@ -238,7 +238,7 @@ test("a permission slot stays until it is answered, whatever happened to its toa
   expect(h.run.slots().get(ROOT)?.kind).toBe("working");
 });
 
-test("removing a project with a running Home conversation asks; Cancel keeps both, Stop and Remove interrupts and then removes", async () => {
+test("removing a project asks; with a running Home conversation Cancel keeps both, Stop and Remove interrupts and then removes", async () => {
   const h = harness();
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
   await h.run.remove([ROOT], "doan");
@@ -251,10 +251,14 @@ test("removing a project with a running Home conversation asks; Cancel keeps bot
   await h.run.confirmRemove();
   expect(h.order).toEqual(["interrupt", "remove"]);
   expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });
-  // Without a running conversation the removal goes straight through.
+  // Without a running conversation the removal still asks first, and removes only once confirmed.
   const idle = harness();
   await idle.run.remove([ROOT], "doan");
+  expect(idle.run.removing).toMatchObject({ paths: [ROOT], conversations: [], title: "Remove doan from Doan?", confirm: "Remove from Doan" });
+  expect(idle.host.removeNow).not.toHaveBeenCalled();
+  await idle.run.confirmRemove();
   expect(idle.host.removeNow).toHaveBeenCalledWith([ROOT]);
+  expect(doan.interruptConversation).toHaveBeenCalledTimes(1);
 });
 
 test("Edit on Home sends the last request back to Home", async () => {
@@ -583,7 +587,7 @@ test("the removal guard and Home's reason line read the list after a reload", as
   await flush();
   expect(h.run.running()).toEqual(new Map([[ROOT, { conversationId: "p", waiting: true }]]));
   await h.run.remove([ROOT], "doan");
-  expect(h.run.removing).toMatchObject({ conversations: ["p"], body: "A conversation in doan needs your answer. Doan stops it, then removes the project from the list. Files stay on disk." });
+  expect(h.run.removing).toMatchObject({ conversations: ["p"], body: "A conversation in doan needs your answer. Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk." });
 });
 
 test("a project conversation main still counts as working after its turn ended holds Home's reason line and the removal guard", async () => {

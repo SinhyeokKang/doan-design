@@ -2,7 +2,7 @@ import type { ResponseRecord } from "./comments/document";
 import { realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { readFolder, runLs, runInit } from "./cli";
-import { insertAt, replaceAt } from "./folders";
+import { replaceAt } from "./folders";
 import { openFolderStore } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
 import { folderState, initOutcome, reconcileFolders, type InitOutcome } from "./folderState";
@@ -28,11 +28,8 @@ export interface Shell {
   // Stores roots main already judged, after the stored ones; resolves to the
   // paths that were not stored yet.
   store(paths: readonly string[]): Promise<string[]>;
-  // Resolves to the stored paths it removed, in stored order, with their indexes.
-  remove(paths: readonly string[]): Promise<{ paths: string[]; indexes: number[] }>;
-  // Puts removed paths back at their indexes with new server keys; a path
-  // stored again meanwhile is skipped. Resolves to the paths put back.
-  restore(paths: readonly string[], indexes: readonly number[]): Promise<string[]>;
+  // Resolves to the stored paths it removed, in stored order.
+  remove(paths: readonly string[]): Promise<{ paths: string[] }>;
   // Locate: `to` takes `from`'s place, or only `from` goes when `to` is stored.
   replace(from: string, to: string): Promise<void>;
   // Re-reads every root without a loading state (the branch may have changed:
@@ -280,8 +277,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     async remove(paths) {
       const list = store.list();
       const removed = list.filter((path) => paths.includes(path) && folders.has(path));
-      if (removed.length === 0) return { paths: [], indexes: [] };
-      const indexes = removed.map((path) => list.indexOf(path));
+      if (removed.length === 0) return { paths: [] };
       for (const path of removed) {
         const folder = folders.get(path);
         if (folder) detach(folder);
@@ -289,25 +285,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const write = store.replace(list.filter((path) => !removed.includes(path)));
       onChange(entries());
       logWrite(await write);
-      return { paths: removed, indexes };
-    },
-    async restore(paths, indexes) {
-      // Ascending, so each index means the same place it did at removal.
-      const pairs = paths.map((path, i) => ({ path, index: indexes[i] ?? Number.POSITIVE_INFINITY })).sort((a, b) => a.index - b.index);
-      let next = store.list();
-      const restored: string[] = [];
-      for (const { path, index } of pairs) {
-        if (folders.has(path) || restored.includes(path)) continue;
-        next = insertAt(next, path, index);
-        restored.push(path);
-      }
-      if (restored.length === 0) return [];
-      for (const path of restored) add(path);
-      reorder(next);
-      const write = store.replace(next);
-      onChange(entries());
-      logWrite(await write);
-      return restored;
+      return { paths: removed };
     },
     async replace(from, to) {
       const folder = folders.get(from);

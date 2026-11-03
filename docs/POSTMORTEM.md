@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-03 — Removing the loaded workspace's project left an empty workspace instead of going Home
+
+- **Area**: `app/src/renderer/App.tsx` (the effect that clears `loadedRoot`), `addProjectsNav.ts` (`workspaceRemoved`); fixed in 2ab94ada on `feat/project-remove-confirm`.
+- **Symptom**: removing a project from the sidebar menu while one of its canvases (or its Overview) was open kept the window on the workspace screen with only the closed-canvas empty message; the person had to go Home by hand.
+- **Root cause**: when the loaded root left the list, App cleared `loadedRoot` and left `screen` at `"workspace"`; the controller closed the open canvas. The pages (Add Projects, Settings, Project Settings) had a "the origin project is gone, go Home" rule (`addPageReturn`), but the workspace screen had no equivalent decision, and `onFolders` and `removeNow` cleaned up only memory (sidebar, history, conversations).
+- **Net**: found by the user in the real app. Missed by the removal tests, which checked the destination only from the pages and from Home, never with the workspace on screen.
+- **Prevention**: when adding a path that takes a root out of the list, pin in an App test where each screen lands (workspace, Overview, each page), not only the list. Search: `rg -n 'setLoadedRoot\(null\)|addPageReturn|workspaceRemoved' app/src/renderer`; run on 2026-11-03, the only `setLoadedRoot(null)` outside tests (`App.tsx:452`) is followed by the `workspaceRemoved` check.
+
 ### 2026-11-03 — A canvas row menu closed by Esc dropped focus to the page body
 
 - **Area**: `app/src/renderer/styles.css` (canvas row `.shell-more`), `ShellSidebar.tsx`, `App.tsx`; fixed in 82649b3b on `feat/canvas-row-menu` before merge.

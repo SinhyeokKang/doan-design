@@ -52,6 +52,13 @@ export function addPageReturn(origin: AddPageOrigin, event: AddPageEvent, roots:
   return origin.screen === "workspace" && roots.includes(origin.root) ? { kind: "workspace", root: origin.root } : { kind: "home", select: null };
 }
 
+// The loaded workspace's root left the list (Remove from Doan) while the workspace is on screen: it goes Home, as a page
+// whose origin project was removed does. A reroot is not a removal: a Set Up or Locate focus moves the loaded root first,
+// and a workspace Locate still waiting on its answer holds the old root (`locatingFrom`).
+export function workspaceRemoved(screen: ShellScreen["screen"], loadedRoot: string | null, roots: readonly string[], locatingFrom: string | null): boolean {
+  return screen === "workspace" && loadedRoot !== null && loadedRoot !== locatingFrom && !roots.includes(loadedRoot);
+}
+
 // Only a field you type into holds Escape (design '화면과 이동': the URL field, an IME composition); a focused radio of
 // the candidates list does not. An IME may hold Escape without setting isComposing; keyCode 229 is its own key then
 // (homeComposer isSubmitKey).

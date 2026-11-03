@@ -1,5 +1,6 @@
 import type { Provider } from "../main/agentAuth/types";
 import type { StripState } from "./conversationStrip";
+import type { HomeCard } from "./homeCards";
 import type { AttachmentDraft, PresetSummary } from "./homeComposer";
 
 // Home conversations the renderer follows in this run: those it started and, after a reload, those main's list names
@@ -35,15 +36,35 @@ function aConversation(project: string, waiting: boolean): string {
   return waiting ? `A conversation in ${project} needs your answer.` : `A conversation is still running in ${project}.`;
 }
 
+// Every removal asks first (project-remove-confirm design §2): one confirmation, the running-conversation one when a
+// conversation holds a root, since it already asks before removing. `label` names the project (removalQuestionLabel),
+// `count` the worktrees removed. Only the list changes, which the body says.
 // `running`: the conversations that hold the project's roots (HomeRun reads them from main's list).
-export function removalConfirm(running: readonly { conversationId: string; waiting: boolean }[], project: string): { conversations: string[]; title: string; body: string; cancel: string; confirm: string } | null {
-  if (running.length === 0) return null;
+export function removalConfirm(running: readonly { conversationId: string; waiting: boolean }[], label: string, count: number): { conversations: string[]; title: string; body: string; cancel: string; confirm: string } {
+  if (running.length === 0) return {
+    conversations: [],
+    title: `Remove ${label} from Doan?`,
+    body: `This removes ${count > 1 ? `its ${count} worktrees` : "it"} from Doan's project list only. Files and Git worktrees stay on disk.`,
+    cancel: "Cancel", confirm: "Remove from Doan",
+  };
   return {
     conversations: running.map(c => c.conversationId),
-    title: `Stop the conversation and remove ${project}?`,
-    body: `${aConversation(project, running.every(c => c.waiting))} Doan stops it, then removes the project from the list. Files stay on disk.`,
+    title: `Stop the conversation and remove ${label}?`,
+    body: `${aConversation(label, running.every(c => c.waiting))} Doan stops it, then removes the project from the list. Files and Git worktrees stay on disk.`,
     cancel: "Cancel", confirm: "Stop and Remove",
   };
+}
+
+// The project the removal confirmation names: its card, and one worktree of several (the status line's Remove from
+// Doan) by its branch as the sidebar shows it. Built here from the card rows; the renderer never imports main's modules
+// as values (POSTMORTEM 2026-10-30 'A renderer import of a main module left the built app's window blank').
+export function removalQuestionLabel(cards: readonly HomeCard[], paths: readonly string[], names: ReadonlyMap<string, string>): string {
+  const card = cards.find(card => card.rows.some(row => paths.includes(row.path)));
+  if (!card) return names.get(paths[0] ?? "") ?? "";
+  const row = paths.length === 1 && card.rows.length > 1 ? card.rows.find(row => row.path === paths[0]) : undefined;
+  const git = row?.kind === "list" ? row.git : undefined;
+  const branch = git?.branch ?? (git?.detached === undefined ? undefined : `detached ${git.detached.slice(0, 7)}`);
+  return branch === undefined ? card.name : `${card.name} (${branch})`;
 }
 
 export interface LastRequest {

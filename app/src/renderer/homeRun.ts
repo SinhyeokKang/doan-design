@@ -396,18 +396,16 @@ export class HomeRun {
     return best && { conversation: best.conversation, state: best.state };
   }
 
-  // A running conversation is stopped first, and only after the person agrees (design §7.5).
+  // Nothing is removed before the person agrees; a running conversation is stopped first (design §7.5,
+  // project-remove-confirm design §2).
   remove(paths: string[], project: string): Promise<void> {
     const merged = this.merged();
     const running = paths.flatMap(root => (merged.get(root) ?? []).filter(holdsRoot)).map(c => ({ conversationId: c.conversationId, waiting: c.phase === "waiting" }));
-    const ask = removalConfirm(running, project);
-    if (!ask) return this.host.removeNow(paths);
-    this.removing = { paths, ...ask };
+    this.removing = { paths, ...removalConfirm(running, project, paths.length) };
     this.host.changed();
     return Promise.resolve();
   }
   cancelRemove(): void { this.removing = null; this.host.changed(); }
-  // Undo restores the project only; the stopped conversation does not start again.
   async confirmRemove(): Promise<void> {
     const removing = this.removing;
     if (!removing) return;

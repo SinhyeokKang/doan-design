@@ -20,14 +20,6 @@ export function load(text: string): string[] {
   return [...new Set(value.filter((entry) => entry !== ""))];
 }
 
-// Undo puts a removed folder back where it was. An index past the end appends,
-// and a path that is already stored stays where it is.
-export function insertAt(list: readonly string[], path: string, index: number): string[] {
-  if (list.includes(path)) return [...list];
-  const at = Math.min(Math.max(Math.trunc(index) || 0, 0), list.length);
-  return [...list.slice(0, at), path, ...list.slice(at)];
-}
-
 // Locate swaps a missing folder for the one picked, in the same place. If the
 // picked folder is already stored elsewhere, only the old entry goes, so one
 // folder never gets two keys and watchers.

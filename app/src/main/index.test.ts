@@ -61,7 +61,7 @@ const mocks = await vi.hoisted(async () => {
     app: Object.assign(new EventEmitter(), { setName: vi.fn(), whenReady: vi.fn<() => Promise<void>>(), isPackaged: true, getPath: () => "/tmp/doan-index-test", getVersion: () => "9.8.7", exit: vi.fn(), quit: vi.fn(), show: vi.fn(), requestSingleInstanceLock: vi.fn(() => true) }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
-      store: vi.fn(), remove: vi.fn(), restore: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
+      store: vi.fn(), remove: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
     flow: { add: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
     electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn(), trashItem: vi.fn() },
@@ -442,7 +442,7 @@ test("ignores selection:set from other senders", async () => {
 });
 
 test("clears only the removed project selection", async () => {
-  mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths, indexes: [0] }));
+  mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths }));
   mocks.shell.entries.mockReturnValue([{ path: ROOT }, { path: "/Users/sam/code/other" }]);
   const contents = window().webContents;
   await invoke("selection:set", contents, null, SELECTION);
@@ -702,7 +702,7 @@ function submenu(label: string): MenuItemConstructorOptions[] {
   if (!menu || !Array.isArray(menu.submenu)) throw new Error(`missing menu ${label}`);
   return menu.submenu;
 }
-const state = (screen: string, modal = false, toast = false) => ({ screen, modal, toast });
+const state = (screen: string, modal = false) => ({ screen, modal });
 
 describe("menus", () => {
   test("pins the item names and accelerators", () => {
@@ -715,7 +715,7 @@ describe("menus", () => {
     expect(item("Add Project…").accelerator).toBe("CmdOrCtrl+O");
     expect(item("Close Window").accelerator).toBe("CmdOrCtrl+W");
     expect(submenu("Go").map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Home", "Shift+CmdOrCtrl+H"], ["Quick Open…", "CmdOrCtrl+K"]]);
-    // Without a removal toast Undo and Redo keep working in text fields (routed below).
+    // Undo and Redo keep working in text fields (routed below); a removal has no Undo of its own.
     expect(submenu("Edit").slice(0, 2).map((entry) => [entry.label, entry.accelerator])).toEqual([["Undo", "CmdOrCtrl+Z"], ["Redo", "Shift+CmdOrCtrl+Z"]]);
     expect(submenu("Edit").map((entry) => entry.role).filter(Boolean)).toEqual(expect.arrayContaining(["cut", "copy", "paste", "selectAll"]));
   });
@@ -734,20 +734,16 @@ describe("menus", () => {
     await invoke("menu:state", contents, null, state("workspace"));
     expect(menuEnabled("Home")).toBe(true);
     expect(menuEnabled("Zoom In")).toBe(false);
-    await invoke("menu:state", contents, null, state("canvas", true, true));
+    await invoke("menu:state", contents, null, state("canvas", true));
     for (const label of ["Add Project…", "Home", "Zoom In"]) expect(menuEnabled(label), label).toBe(false);
     // A modal may hold a text field, so its ⌘Z stays a text undo.
     expect(submenu("Edit")[0]?.label).toBe("Undo");
   });
 
-  test("Undo Remove takes ⌘Z only while the removal toast is up", async () => {
+  test("Edit > Undo is always the text Undo; a removal has no Undo Remove", async () => {
     const contents = window().webContents;
-    await invoke("menu:state", contents, null, state("home", false, true));
-    expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove", accelerator: "CmdOrCtrl+Z" });
-    click("Undo Remove");
-    expect(contents.send).toHaveBeenCalledWith("menu-command", "undoRemove");
     await invoke("menu:state", contents, null, state("home"));
-    expect(submenu("Edit")[0]?.label).toBe("Undo");
+    expect(submenu("Edit")[0]).toMatchObject({ label: "Undo", accelerator: "CmdOrCtrl+Z" });
     expect(() => item("Undo Remove")).toThrow();
   });
 
@@ -771,7 +767,7 @@ describe("menus", () => {
   test("refuses bad menu states and other senders", async () => {
     const contents = window().webContents;
     const builds = mocks.menu.mock.calls.length;
-    for (const bad of [null, "canvas", { screen: "canvas" }, state("about"), { ...state("canvas"), more: 1 }, { screen: "canvas", modal: 1, toast: false },
+    for (const bad of [null, "canvas", { screen: "canvas" }, state("about"), { ...state("canvas"), more: 1 }, { screen: "canvas", modal: 1 }, { ...state("canvas"), toast: false },
       { ...state("canvas"), reviewing: true }]) {
       await invoke("menu:state", contents, null, bad);
     }
@@ -783,7 +779,7 @@ describe("menus", () => {
 
   test.each(["did-navigate", "render-process-gone"])("a renderer that is replaced (%s) is back on Home", async (event) => {
     const contents = window().webContents;
-    await invoke("menu:state", contents, null, state("canvas", false, true));
+    await invoke("menu:state", contents, null, state("canvas"));
     window().webContents.emit(event);
     expect(menuEnabled("Zoom In")).toBe(false);
     expect(submenu("Edit")[0]?.label).toBe("Undo");
@@ -880,14 +876,13 @@ describe("menus", () => {
     expect(menuEnabled("Add Project…")).toBe(false);
   });
 
-  test("a locked page disables everything that leaves it; Undo Remove gives ⌘Z back", async () => {
+  test("a locked page disables everything that leaves it", async () => {
     const contents = window().webContents;
-    await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: true });
+    await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true, locked: true });
     for (const label of ["Add Project…", "Home", "Quick Open…"]) expect(menuEnabled(label), label).toBe(false);
     expect(submenu("Edit")[0]?.label).toBe("Undo");
-    await invoke("menu:state", contents, null, { ...state("addProjects", false, true), choose: true, locked: false });
+    await invoke("menu:state", contents, null, { ...state("addProjects"), choose: true, locked: false });
     expect(menuEnabled("Add Project…")).toBe(true);
-    expect(submenu("Edit")[0]).toMatchObject({ label: "Undo Remove" });
   });
 
   // buzz-settings: the Settings page is a screen; its lock (and the Add Projects page's) disables Settings… too.
@@ -935,11 +930,10 @@ const entries = [
   { path: "/code/other", kind: "notFound" },
 ];
 
-describe("removing and restoring", () => {
+describe("removing", () => {
   beforeEach(() => {
     mocks.shell.entries.mockReturnValue(entries);
-    mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths, indexes: paths.map((path) => entries.findIndex((entry) => entry.path === path)) }));
-    mocks.shell.restore.mockImplementation(async (paths: string[]) => paths);
+    mocks.shell.remove.mockImplementation(async (paths: string[]) => ({ paths }));
   });
 
   test("refuses paths that are not stored, and other senders", async () => {
@@ -952,11 +946,11 @@ describe("removing and restoring", () => {
     expect(mocks.shell.remove).not.toHaveBeenCalled();
   });
 
-  test("removes a row or a card with a label and a removal id", async () => {
+  test("removes a row or a card", async () => {
     const contents = window().webContents;
-    expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed", removalId: expect.any(String), label: "app (fix)" });
+    expect(await invoke("folders:remove", contents, null, { paths: [WT] })).toEqual({ kind: "removed" });
     expect(mocks.shell.remove).toHaveBeenCalledWith([WT]);
-    expect(await invoke("folders:remove", contents, null, { paths: [APP, WT] })).toEqual({ kind: "removed", removalId: expect.any(String), label: "app and 1 worktree" });
+    expect(await invoke("folders:remove", contents, null, { paths: [APP, WT] })).toEqual({ kind: "removed" });
   });
 
   // Nothing asks the renderer first: the removal starts within the request.
@@ -970,56 +964,6 @@ describe("removing and restoring", () => {
     expect(mocks.shell.remove).toHaveBeenCalledOnce();
     expect(runtimeState().selection()).toBeNull();
   });
-
-  test("restore puts the removed paths back at their indexes once", async () => {
-    const contents = window().webContents;
-    const removed = await invoke("folders:remove", contents, null, { paths: [APP, WT] }) as { removalId: string };
-    expect(await invoke("folders:restore", contents, {}, { removalId: removed.removalId })).toEqual({ kind: "unavailable" });
-    expect(await invoke("folders:restore", contents, null, { removalId: removed.removalId })).toEqual({ kind: "restored", paths: [APP, WT] });
-    expect(mocks.shell.restore).toHaveBeenCalledExactlyOnceWith([APP, WT], [0, 1]);
-    expect(await invoke("folders:restore", contents, null, { removalId: removed.removalId })).toEqual({ kind: "unavailable" });
-  });
-
-  test("a removal id expires on the next removal or when the renderer says so", async () => {
-    const contents = window().webContents;
-    const first = await invoke("folders:remove", contents, null, { paths: [APP] }) as { removalId: string };
-    const second = await invoke("folders:remove", contents, null, { paths: [WT] }) as { removalId: string };
-    expect(await invoke("folders:restore", contents, null, { removalId: first.removalId })).toEqual({ kind: "unavailable" });
-    await invoke("folders:forget-removal", contents, {}, { removalId: second.removalId });
-    await invoke("folders:forget-removal", contents, null, { removalId: "forged" });
-    await invoke("folders:forget-removal", contents, null, { removalId: second.removalId });
-    expect(await invoke("folders:restore", contents, null, { removalId: second.removalId })).toEqual({ kind: "unavailable" });
-    for (const bad of [null, "x", { removalId: 1 }, { removalId: second.removalId, more: 1 }]) {
-      expect(await invoke("folders:restore", contents, null, bad)).toEqual({ kind: "unavailable" });
-    }
-    expect(mocks.shell.restore).not.toHaveBeenCalled();
-  });
-
-  // The shell changes the list at once and only then waits for folders.json,
-  // so an Undo that arrives during that write must already find the old id gone.
-  test("a removal id expires when the next removal starts, before it is saved", async () => {
-    const contents = window().webContents;
-    const first = await invoke("folders:remove", contents, null, { paths: [APP] }) as { removalId: string };
-    let save!: () => void;
-    mocks.shell.remove.mockImplementationOnce((paths: string[]) => new Promise((resolve) => { save = () => resolve({ paths, indexes: [1] }); }));
-    const second = invoke("folders:remove", contents, null, { paths: [WT] }) as Promise<{ removalId: string }>;
-    expect(await invoke("folders:restore", contents, null, { removalId: first.removalId })).toEqual({ kind: "unavailable" });
-    save();
-    expect(await invoke("folders:restore", contents, null, { removalId: (await second).removalId })).toEqual({ kind: "restored", paths: [WT] });
-    expect(mocks.shell.restore).toHaveBeenCalledExactlyOnceWith([WT], [1]);
-  });
-
-  test("an older removal saved last does not take Undo from the newer one", async () => {
-    const contents = window().webContents;
-    let save!: () => void;
-    mocks.shell.remove.mockImplementationOnce((paths: string[]) => new Promise((resolve) => { save = () => resolve({ paths, indexes: [0] }); }));
-    const first = invoke("folders:remove", contents, null, { paths: [APP] }) as Promise<{ removalId: string }>;
-    const second = await invoke("folders:remove", contents, null, { paths: [WT] }) as { removalId: string };
-    save();
-    expect(await invoke("folders:restore", contents, null, { removalId: (await first).removalId })).toEqual({ kind: "unavailable" });
-    expect(await invoke("folders:restore", contents, null, { removalId: second.removalId })).toEqual({ kind: "restored", paths: [WT] });
-  });
-
 });
 
 describe("locate and reveal", () => {
@@ -1285,7 +1229,7 @@ describe("thumbnails", () => {
   test("a removal drops the removed projects' cache with the list from before", async () => {
     const before = [{ path: "/repo", kind: "list", canvases: [] }, { path: "/other", kind: "list", canvases: [] }];
     mocks.shell.entries.mockReturnValue(before);
-    mocks.shell.remove.mockResolvedValue({ paths: ["/repo"], indexes: [0] });
+    mocks.shell.remove.mockResolvedValue({ paths: ["/repo"] });
     expect(await invoke("folders:remove", window().webContents, null, { paths: ["/repo"] })).toMatchObject({ kind: "removed" });
     expect(mocks.thumbnails.removed).toHaveBeenCalledExactlyOnceWith(["/repo"], before);
   });
