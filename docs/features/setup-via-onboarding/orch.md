@@ -24,12 +24,12 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1 | `eval/lib/socket.ts`(+테스트), 새 `eval/scenarios/O3/**`·`O3b/**` | 없음 | Claude Sonnet high — 기존 판정을 재사용하는 시나리오 작업이지만 오탐 방지 판정이 있다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios O3,O3b` | 대기 |
-| G | T3 | `cli/internal/cli/skill.md`, `skill_test.go` | 없음(통합은 B의 기준선 뒤) | Claude Opus high — 29 B 예산 안에서 에이전트 행동을 바꾸는 문구다. 틀리면 기존 O1·O2·D12가 흔들린다 | `go test ./...`, `go vet ./...` | 대기 |
-| B | T2, 뒤에 T5 | `docs/USABILITY-EVAL.md` | A 통합(T2), G 통합과 T4(T5) | Claude Sonnet high — 실제 eval 실행과 기록. 판단은 실패 분류 정도다 | 라운드 기록 | 대기 |
-| RA | A 리뷰 | 보고만 | A | Codex gpt-6-astra medium — 독립 리뷰(사용자 지시) | 보고 | 대기 |
-| RG | G 리뷰 | 보고만 | G | Codex gpt-6-astra medium — 독립 리뷰(사용자 지시) | 보고 | 대기 |
-| 지휘자 | T4, Z1 | 통합, 문서 승격 | 모든 배치 | — | `verify.mjs --eval`, Z1 grep | 대기 |
+| A | T1 | `eval/lib/socket.ts`(+테스트), 새 `eval/scenarios/O3/**`·`O3b/**` | 없음 | Claude Sonnet high — 기존 판정을 재사용하는 시나리오 작업이지만 오탐 방지 판정이 있다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios O3,O3b` | 완료(수정 1회) |
+| G | T3 | `cli/internal/cli/skill.md`, `skill_test.go` | 없음(통합은 B의 기준선 뒤) | Claude Opus high — 29 B 예산 안에서 에이전트 행동을 바꾸는 문구다. 틀리면 기존 O1·O2·D12가 흔들린다 | `go test ./...`, `go vet ./...` | 완료(수정 1회) |
+| B | T2, 뒤에 T5 | `docs/USABILITY-EVAL.md` | A 통합(T2), G 통합과 T4(T5) | Claude Sonnet high — 실제 eval 실행과 기록. 판단은 실패 분류 정도다 | 라운드 기록 | 완료(T2, T5, O3b 반복) |
+| RA | A 리뷰 | 보고만 | A | Codex gpt-6-astra medium — 독립 리뷰(사용자 지시) | 보고 | 완료(🔴 0·🟡 1) |
+| RG | G 리뷰 | 보고만 | G | Codex gpt-6-astra medium — 독립 리뷰(사용자 지시) | 보고 | 완료(🔴 0·🟡 1) |
+| 지휘자 | T4, Z1 | 통합, 문서 승격 | 모든 배치 | — | `verify.mjs --eval`, Z1 grep | 완료 |
 
 겹침: A와 G는 파일이 겹치지 않아 병렬이다. B는 `docs/USABILITY-EVAL.md`만 쓴다. 순서: A·G 병렬 → A 통합 → B(T2) → G 통합 → T4 → B(T5) → Z1.
 
@@ -52,4 +52,7 @@ tasks 항목과 배치: T1→A, T2→B, T3→G, T4→지휘자, T5→B, Z1→지
 - T5: B에 보냈다(같은 작업자, 같은 worktree, feat로 rebase 뒤 패키지 재빌드).
 - B(T5) 완료: `o3-guide`(일곱 시나리오, 두 에이전트, judge 모두 실행), runner exit 0, real-state 그대로. O3·O3b 모두 두 에이전트 pass(O3b는 `complete`를 부르지 않음). O1·O2·D12·D9는 기준 라운드처럼 pass. D10h-claude는 judge만 partial이고 `o3-guide-repeat`(×2)에서도 같은 이유(DESIGN.md가 README의 laptop 사실을 반복)여서 기준 라운드(`eval-d10h-261101`)와 같다. 회귀가 아니다. 커밋 dd507fe9를 feat에 0daa673a로 넣었고 브랜치 `setup-via-onboarding-b2`로 남겼다. Codex 주간은 93% 그대로였다.
 - 지휘자 판단: O3b는 기준선 0/6에서 에이전트마다 1회 pass라 근거가 얇다. 그래서 병합 전에 O3b만 `--repeat 2`로 더 잰다(`o3-guide-o3b-repeat`).
+- B(T5 후속) 완료: `o3-guide-o3b-repeat`(O3b × 2, 두 에이전트) 4회 모두 pass. 가이드를 바꾼 뒤 O3b는 에이전트마다 3/3이다(기준선 0/6). U-023을 fixed로 기록했다. runner exit 0, real-state 그대로, Codex 주간 93%. 커밋 5c2c0bf3를 feat에 c79792a5로 넣었다. 브랜치 `setup-via-onboarding-b2`는 5c2c0bf3로 남겼다. B 작업자를 놓고 worktree를 지웠다. eval 증거는 `.scratch/orch/agent-eval/`로 옮겼다.
+- 마지막 링크 정리(chain.md '로그인'): 화면이 잠겨 앱 GUI를 쓰지 않았다. 앱 sign-out이 실행하는 것과 같은 `claude auth logout`을 공용 프로필의 `CLAUDE_CONFIG_DIR`로 실행했다. 명령은 exit 0과 "Successfully logged out"을 냈지만 Keychain 항목 `Claude Code-credentials-5def49d2`(프로필 경로의 SHA-256 앞 8자리)는 남았다. 실행 전 `auth status`도 `loggedIn: false`였다. 항목을 만든 claude 바이너리와 지금 바이너리가 달라 Keychain ACL 때문에 읽지 못한 것으로 보이지만 확인하지 않았다. 지휘자 판단으로 그 항목 하나만 `security delete-generic-password -s "Claude Code-credentials-5def49d2" -a sinhyeok`로 지웠고, 항목이 없어졌음을 확인했다(`find-generic-password`, `dump-keychain`). 앱 sign-out도 서버 토큰을 회수하지 않으므로(ARCHITECTURE 'Sign-out is local') 결과는 같다. Codex 프로필은 `Not logged in`이었다. 그 뒤 `userData`와 `userData.bak-hand`를 지웠다(백업에는 Keychain 항목이 없었다). Playwright `webkit-2370`도 지웠다.
+- 사용량(끝): Codex 주간 93%(2026-11-04 15:35 KST 초기화). Codex는 리뷰 RA·RG 두 번에 썼다(gpt-6-astra medium). Claude 7일은 작업자 상태줄 기준 83%였다.
 
