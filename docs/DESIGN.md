@@ -688,6 +688,43 @@ Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-sta
 
 `DockedComposer.test.tsx` (an anchor chip makes the box), `DockedComposer.interaction.test.tsx` (a locked composer takes no preset, file or chip removal), `canvasPicker.test.ts`, `CanvasController.test.ts`, `ConversationThread.locate.test.tsx`, `CanvasConversationPanel.test.tsx`, `Onboarding.test.tsx` (choice card markup). Sizes, colours and geometry above are `.scratch/` probes only.
 
+## Conversation delete
+
+Reference: `.doan/canvases/conversation-delete.html` (frames `row-button`, `row-unavailable`, `delete-dialog`, `delete-toast`, `after-delete`). Measured by `/design-sync` in the built app at 1238 × 780 (`.scratch/design-sync/conversation-delete/measure.mjs`): 42 rows, read with `getComputedStyle` in one Electron, the draft in the app's canvas iframe. The Overview's Conversation menu and the canvas panel's Title menu were reached in an isolated app from stored conversation records. Working and waiting rows came from main's own `conversation:list` answer, wrapped in the main process because no agent runs in an isolated app. The refusal toast came from a conversations directory made read-only (`unknown`).
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Row wrapper | Each conversation row is a `.conv-row` (`position: relative`) holding the row's radio item and its Delete. The hairline is `.conv-row + .conv-row > .conv-item::before` (inset 12), hidden around the current, the hovered and the highlighted row. While the highlight sits on the Delete, the row keeps its highlight fill rgb(245,245,246). The selected row keeps the pressed fill rgba(0,0,0,0.1) | The sibling selector `.conv-item + .conv-item` no longer matches once rows are wrapped. When the highlight moves to the button, the row loses `data-highlighted`. |
+| Row Delete | A Radix menu item (`role="menuitem"`, not a nested button): 24 × 24 `doan-icon-button`, 18 px corners, a 16 px Trash2 in `--text-subtle` (rgb(82,82,82)). It sits 6 from the row's top and 8 from its end, centred on the first line, its glyph flush with the time's end (12 in). Highlighted: fill `--affordance-subtle-hover` (rgb(241,241,242)), from the keyboard the 2 px black ring at offset 2 | |
+| Shown and hidden | It shows while the pointer is over the row and while the row or the button is highlighted. Otherwise it is `position: absolute`, 1 × 1, `overflow: hidden`, `clip-path: inset(50%)`. While it shows, the time keeps a 24 px spot and its visible text gets the same clip, while the spoken label stays | Radix must be able to return focus to it; a `display: none` item cannot take focus (POSTMORTEM 2026-11-03). |
+| Unavailable Delete | Working or waiting: `--text-disabled` ink (rgb(149,149,149)), no fill on hover or highlight, default cursor, `aria-disabled` and reachable by the arrows. Its reason is an `sr-only` sibling that `aria-describedby` names, and it is the tooltip's text | The status mark already shows the state; the tooltip says why Delete waits. |
+| Tooltip | The shared tooltip: 24 high, padding 4 / 8, 12 px corners, black with white 12/16 text; 4 above the button, centred on it, drawn over the menu (hit-tested). It shows on keyboard highlight and when the pointer rests on the button, not on the row alone | |
+| Escape | One Escape on a highlighted Delete closes the tooltip and the title menu together, and focus returns to the trigger | The tooltip is the top dismissable layer: without routing its Escape to the (controlled) menu, the first Escape closed only the tooltip (runtime probe). |
+| Confirmation | The Trash dialog ('Canvas row menu and export viewer'): compact `alertdialog`, 400 wide, 32 padding, 28 corners, 16 gap. Title 16/24/500, body 14/20 rgb(82,82,82). Cancel subtle rgb(245,245,246) and Delete prominent black, both 40 high. The reason notice (12 / 16 padding, 16 corners, rgb(245,245,246)) and the unavailable Delete (rgb(232,232,232), rgb(149,149,149) ink) are equal to the draft's | Measured plain, with the unsent line, and after the conversation started working while the alert was open. |
+| Refusal toast | The shipped toast: 384 wide, 12 padding, 24 corners; message 14/20 | |
+| After the last conversation | The Conversation menu holds New conversation only (the shipped empty list) | |
+| New conversation on the new state | The header's New conversation (`ov-new-conv`, canvas panel `doan-conv-new`) on the new conversation state: `aria-disabled`, `--text-disabled` ink, no hover fill (transparent), default cursor. The tooltip stays `New conversation` and the button stays in the focus order; a click does nothing | Not drawn in the draft (decided after it); checked in the real app only (`.scratch/runtime-test/conversation-delete/probe.mjs`). |
+
+### Documented differences from the draft
+
+- **Text-less roots.** The menu, the Delete item, its icon, the dialog and toast roots inherit the app body's 13 px / normal (and a `div` item's `start` alignment), where the draft's stage and its `button` specimens give 14 / 20 and `center`. None of them paints text of its own; every text child (titles, preview, dialog title and body, toast message) matches.
+- **Tooltip gap and wrapping.** The draft's stand-in tooltip sits 2 px above the button, while its caption and rule comment say 4. The app uses the shared tooltip's 4 px `sideOffset`. The stand-in's `white-space: nowrap` belongs to its absolute staging; the shared tooltip wraps at 384 px, and every reason fits on one line (24 high, as drawn).
+- **Row focus ring.** When Radix focuses a hovered row in keyboard modality, the shared `.doan-menu-item:focus-visible` inset ring (2 px, offset −2) shows; the draft draws the fill alone. This shipped rule is unchanged ('Canvas row menu and export viewer', 'Keyboard ring on a menu item').
+- **Placement.** The draft hangs the menu on its tile and draws the dialog static and the toast in a stage. The app uses Radix's popper, the top layer and a fixed toast. Position, overflow, max width and z-index are not compared.
+
+### Not verified
+
+- A real agent working or waiting: the unavailable rows were reached through a wrapped `conversation:list` answer.
+- Main's `busy` and `not_found` toasts, and no toast during a quit. Only `unknown` was reached. The renderer has no quitting signal yet, so a refusal while quitting still shows its toast. The copy is pinned by `conversationDelete.test.ts` and the flow by `App.conversationDelete.test.tsx`.
+- The alert dismissed by a `doan://` link (the shared `dismissDialogs` path) and an OS notification click while it is open (PRODUCT item 0: a click during a modal only brings the window forward).
+- Roles and names were read from DOM attributes, not the accessibility tree. Dark mode, reduced transparency and forced colours.
+
+### Regression pointers
+
+`ConversationDeleteDialog.test.tsx` (item names, unavailable state, Escape, dialog, the clipped hidden button, the wrapper hairline and the row fill rules), `conversationDeleteMenus.test.tsx` (both menus' row structure, unavailable rows, delete without picking, the controlled menu, no rows on a list error or while loading, N1 on both screens), `App.conversationDelete.test.tsx` (the deleting mark, cleanup order, refusal toasts, focus). Probes: `.scratch/runtime-test/conversation-delete/radix-probe.mjs`, `probe.mjs`, `unavailable-probe.mjs`; the table is `.scratch/design-sync/conversation-delete/measure.mjs`. Geometry is otherwise unpinned.
+
 ## Terminal agent activity
 
 Reference: `.doan/canvases/terminal-agent-activity.html` (`terminal-notice`, `sidebar-slot`, `resume-disabled`, `deeplink-refusal`). Measured by `/design-sync` (`.scratch/design-sync/terminal-agent-activity/measure.mjs`) in the built app at 1238 × 780 against the draft read in the app's canvas iframe: 59 part pairs over 15 states, 4 of them the suggestion re-measure on Home, the Overview and the canvas panel. Terminal work was real: the built CLI's `doan work start|done` against the isolated app's `DOAN_RUNTIME`, as Claude Code (`CLAUDE_CODE_SESSION_ID`), Codex (`CODEX_THREAD_ID`) and an anonymous session. The terminal session choice came from a real `doan check` association under the fake Claude session, answered by the app's own resume probe (a version-only fake `claude` on the fake login shell's `PATH` and a transcript file). Only the app-conversation notice (the draft's comparison tile) used replaced conversation handlers, and the suggestions an injected ready agent.
