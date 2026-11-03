@@ -54,7 +54,7 @@
 |---|---|---|---|---|
 | 1 project-remove-confirm | `project-remove-confirm-orch` (첫 지휘자) | 2026-11-03 | PR #82, 병합 `30829d0e` | 완료 |
 | 2 canvas-selection-tools | `canvas-selection-tools-orch` | 2026-11-03 | PR #83, 병합 `7b8eb2ee` | 완료 |
-| 3 shell-panel-layout | `shell-panel-layout-orch` | 2026-11-03 | | 인계 |
+| 3 shell-panel-layout | `shell-panel-layout-orch` | 2026-11-03 | PR #84, 병합 `61c504a1` | 완료 |
 
 ## 인계 기록
 
@@ -75,3 +75,10 @@
   - 통합 HEAD `/verify` PASS(첫 실행). 실제 앱 확인은 통합 HEAD와 앱 트리가 같은 W1 커밋에서 했다.
   - 확인하지 못한 것(DESIGN.md 'Canvas area' Not verified): 실제 forced colors·reduced transparency 설정(에뮬레이션이 캔버스 iframe에 닿지 않음), 사진 중간 밝기 위 일부 지점의 3:1 미달(최저 2.82:1), 3px 테두리로 줄어든 안쪽 여백 1px.
   - 링크 3이 알아야 할 것: `CanvasController`에 `enterTool()`(select → hand에서 선택 해제)과 `dropSelection()`(publish 없는 Esc 해제)이 생겼다. 사이드바 숨기기(⌘B)는 도구를 바꾸지 않으므로 선택에 영향이 없어야 한다. orchestration 루프에서 정착한 작업자 터미널은 `agent_unconfigured`로 재사용되지 않아 수정 라운드는 같은 worktree에 새 작업자를 띄웠다. `orca worktree rm`은 병합된 배치 브랜치를 지우므로 tip을 적어 두고 다시 만든다.
+- 2026-11-03 링크 3 지휘자: shell-panel-layout을 PR #84로 main에 병합했다(`61c504a1`).
+  - 배치: W1(Claude Opus medium, T0–T9 커밋 4개와 T11 결함 수정 1개, T11 실제 앱 확인), 독립 리뷰 R(Claude Sonnet medium, 🔴 0·🟡 2), W2(Claude Opus medium, 🟡1 확인과 전체 화면 헤더 T12·T13). Codex는 쓰지 않았다(5시간 한도 97%). Claude 7일 한도는 사용자 확인으로 87%였다(스크립트는 98%로 읽었다).
+  - 범위 추가(사용자 결정): 전체 화면에서 신호등 자리를 비우고 헤더 왼쪽 버튼을 x8로 당긴다(spec 5, T12·T13).
+  - T0: 입력창(chip field)에서는 ⌘B가 메뉴로 가지 않아, App이 document capture keydown으로 직접 넘긴다.
+  - 통합 HEAD `/verify` PASS(두 번째 실행). 첫 실행은 `shell.test.ts` replace 테스트(BACKLOG 'Known defects')에서 실패했다.
+  - 확인하지 못한 것(DESIGN·BACKLOG): 네이티브 ⌃⌘F, Home 밖의 전체 화면 헤더, 280에서의 터미널 세션 카드·추천 프롬프트, 960에서 캔버스 notice·토스트 재측정, 숨긴 채 시작할 때의 깜박임(DOM만). 네이티브 ⌘B 이중 토글은 네이티브 키 probe로만 잡힌다.
+  - 로그인 정리: 프로필로 `claude auth logout`(앱 sign-out이 쓰는 CLI 경로)을 돌려 Keychain 항목 `Claude Code-credentials-45991d82`가 사라진 것을 확인했고, 기본 항목은 그대로다. userData를 지웠다.
