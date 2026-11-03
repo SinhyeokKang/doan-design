@@ -36,7 +36,7 @@ test("O3b drops only the checks that need complete", () => {
   assert.deepEqual(ids.filter(id => ["no_doan_init", "no_complete", "inspected_repo_path", "selected_with_initialize"].includes(id)).sort(), ["inspected_repo_path", "no_complete", "no_doan_init", "selected_with_initialize"]);
 });
 
-test("the O3b fake app starts with first run finished, and complete does not undo it", () => {
+test("the O3b fake app reports first run finished from start and status", () => {
   const script = JSON.parse(readFileSync(join(import.meta.dirname, "onboarding.json"), "utf8"));
   assert.equal(script.completed, true);
   const app = onboardingApp(script, ROOT);

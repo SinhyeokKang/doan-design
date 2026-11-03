@@ -2,13 +2,32 @@ import { commandWords, doanCommand } from "../../lib/transcript.ts";
 import type { Check, CheckContext } from "../../lib/types.ts";
 import { describeAll, requests, type Exchange } from "../O1/log.ts";
 
+// commandWords strips `NAME=value` prefixes but not the `env` executable, so
+// `env DOAN_RUNTIME=… doan init` would hide the command from doanCommand. Handled
+// here, not in the shared parser, so other scenarios' recorded rounds stay comparable.
+function unwrapEnv(words: string[]): string[] {
+  let rest = words;
+  while (/^(?:.*\/)?env$/.test(rest[0] ?? "")) {
+    let i = 1;
+    for (; i < rest.length; i++) {
+      const word = rest[i];
+      if (word === "--") { i++; break; }
+      if (/^[A-Za-z_][A-Za-z_0-9]*=/.test(word) || ["-", "-i", "--ignore-environment"].includes(word) || /^(?:-u.+|--unset=.*)$/.test(word)) continue;
+      if (word === "-u" || word === "--unset") { i++; continue; }
+      break;
+    }
+    rest = rest.slice(i);
+  }
+  return rest;
+}
+
 // A repository setup request goes through `doan onboarding`; `doan init` writes
 // the files but never registers the project with the app. Judged from parsed
 // tool calls, so prose, `echo` and `grep` mentions of "doan init" and
 // `onboarding … --initialize` are not runs of it. A command built inside a
 // Codex template literal is not extracted; `repo_untouched` still sees its files.
 export function noDoanInit(ctx: CheckContext): Check {
-  const ran = ctx.calls.commands.flatMap(commandWords).filter(words => doanCommand(words) === "init");
+  const ran = ctx.calls.commands.flatMap(commandWords).map(unwrapEnv).filter(words => doanCommand(words) === "init");
   return { id: "no_doan_init", pass: ran.length === 0, detail: ran.length ? `ran ${ran.map(words => words.join(" ")).join("; ")}, which does not add the project to the Doan app` : "no `doan init`" };
 }
 

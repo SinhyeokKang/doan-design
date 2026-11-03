@@ -55,6 +55,12 @@ test("noDoanInit finds doan init in every shell tool shape and wrapping", () => 
     `/bin/zsh -lc "cd /tmp/repo && ${BUNDLE} --json init"`,
     "DOAN_RUNTIME=/tmp/rt.json doan init",
     "command doan init",
+    "env DOAN_RUNTIME=/tmp/rt.json doan init",
+    "/usr/bin/env DOAN_RUNTIME=/tmp/rt.json doan init",
+    "env -i HOME=/tmp doan init",
+    "env -u DOAN_RUNTIME doan --json init",
+    "env -- doan init",
+    "cd /tmp/repo && /usr/bin/env doan init",
   ];
   for (const command of initCommands)
     for (const shape of [claude, codex, codeMode]) assert.equal(ranInit(shape(command)), true, `${shape.name}: ${command}`);
@@ -73,6 +79,11 @@ test("noDoanInit ignores onboarding, quoted mentions and prose", () => {
     "echo 'run doan init later'",
     "git log --grep='doan init'",
     "cat docs/doan-init.md",
+    'env | grep "doan init"',
+    "echo env doan init",
+    "env DOAN_RUNTIME=/tmp/rt.json doan skill",
+    `/usr/bin/env ${BUNDLE} ${SELECT}`,
+    "env",
   ];
   for (const command of notInit)
     for (const shape of [claude, codex, codeMode]) assert.equal(ranInit(shape(command)), false, `${shape.name}: ${command}`);
