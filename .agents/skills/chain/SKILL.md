@@ -16,16 +16,14 @@ The chain file `docs/features/chain-<YYMMDD>/chain.md` is the single source for 
 
 1. **Check each feature.** `docs/features/<slug>/{spec,design,tasks}.md` exist. Note for each: whether `/feature-review` ran or the user waived it, whether a draft still needs the user's confirmation, any open point left in its documents ('확인 필요' or similar), any task whose verification command is "needs user confirmation", and whether its `/runtime-test` needs a provider login. Do not settle these yourself; they go into the start check.
 2. **Order by file overlap.** Read each design's affected files. A link that removes or restructures code another link extends goes first, so the later link starts on top of it; a known bug fix goes early; the largest link usually goes last. Write one line of reasoning per link.
-3. **Standing permissions.** Ask the user, one question at a time with the question tool, unless they just said "same as before" (then copy the previous chain's terms from git history, `git log --all -- 'docs/features/chain-*'`, and name its commit):
-   - merging each link's PR to main (an exception to `/orchestrate`'s 'Do not merge PRs');
-   - crossing the model boundary for workers (AGENTS.md 'Runtime differences'), and how much.
-   Anything not granted here is asked as usual.
+3. **Standing permissions.** Ask the user whether each link merges its own PR to main (an exception to `/orchestrate`'s 'Do not merge PRs'), unless they just said "same as before" (then copy the previous chain's terms from git history, `git log --all -- 'docs/features/chain-*'`, and name its commit). Anything not granted here is asked as usual.
+   - **Model boundary**: the same rule as `/orchestrate` and AGENTS.md 'Runtime differences'. Nothing crosses it until the user explicitly allows it. Do not ask or offer; record a crossing only when the user states it, with the scope they give (every link, or named links) and any limit they mention. "Same as before" does not carry a previous chain's crossing over unless the user says so.
 4. **Facts from the machine, not memory.** The date comes from `date '+%Y-%m-%d'` (it names the directory and the log entries). Absolute paths, such as the shared login profile, come from `git rev-parse --show-toplevel` of the main checkout. A chain directory name may repeat one deleted earlier; refer to that earlier chain by commit.
 5. **Write the file** with these sections:
    - `규칙`: a link to this skill and AGENTS.md 'Workflow' Chains.
    - `순서`: each link with links to its spec·design·tasks, its review/draft state and the ordering reason.
    - `시작 점검`: what the first conductor must settle with the user before link 1 — everything step 1 left open — and that it asks them in one batch and records the approval in `인계 기록`. After that approval, conductors decide routine matters themselves and ask only for new product or scope decisions or decisions that touch real user state.
-   - `상시 권한`: step 3's grants. For Codex workers: the conductor checks remaining Codex usage at link start and when splitting batches, Claude does the main implementation, and each link's `orch.md` records the scope used.
+   - `상시 권한`: step 3's grants, and the conductor runtime (the setup session's model family unless the user allowed another). When the user allowed a crossing: its scope, that the conductor checks the other family's remaining usage at link start and when splitting batches, and that each link's `orch.md` records the scope used.
    - `로그인` (only when a link needs one): probes use the real HOME's provider login; the first conductor creates every login the chain needs in the start check; the logged-in userData lives in the main checkout's `.scratch/provider-profile/userData` (absolute path), because each link has its own worktree; links reuse it, copy it for destructive probes, check it before asking for a new login, and do not sign out per link; the last link signs out, confirms the Keychain item is gone and deletes the userData before its merge.
    - `인계와 물러나기`: a pointer to §3 of this skill.
    - `운영 메모`: worker-wait loop notes and whether `/agent-eval` applies to any link.
@@ -38,14 +36,16 @@ The chain file `docs/features/chain-<YYMMDD>/chain.md` is the single source for 
 Only when the user asks to start. Load the version-matched `orca-cli` guide, fetch `origin`, then create link 1's top-level worktree with the conductor in it:
 
 ```
-orca worktree create --name <slug>-orch --no-parent --agent claude --prompt "<brief>" --json
+orca worktree create --name <slug>-orch --no-parent --agent <runtime> --prompt "<brief>" --json
 ```
+
+`<runtime>` is the conductor runtime the chain file names: this session's own model family (`claude` from Claude Code, `codex` from Codex) unless the user allowed another.
 
 The brief points to the chain file and link 1's feature directory, says this conductor is the first and starts with the chain file's start check, lists what the start check must settle, and says to run `/orchestrate docs/features/<slug>/` after the approval. Confirm the session started on it (the receipt's outcome, then the terminal's title or first output via `orca terminal list --worktree <id> --json`) before reporting. This session then stays out of the chain; it does not conduct links.
 
 ## 3. Rules for conductors in a chain
 
-- **One session per link.** Each link starts in a new Claude Code session in its own Orca top-level worktree created from the freshly pulled `origin/main` (`orca worktree create --name <slug>-orch --no-parent --agent claude ...`). The conductor branches `feat/<slug>` from main inside that worktree as usual. A session never conducts two links.
+- **One session per link.** Each link starts in a new session of the chain file's conductor runtime, in its own Orca top-level worktree created from the freshly pulled `origin/main` (`orca worktree create --name <slug>-orch --no-parent --agent <runtime> ...`). The conductor branches `feat/<slug>` from main inside that worktree as usual. A session never conducts two links.
 - **Permissions come from the chain file.** Use only what it grants for its listed links; anything else is asked as usual.
 - **The first conductor runs the start check** before link 1 and gets the user's one-time approval.
 - **Finish before handing off.** The outgoing conductor completes its link: all batches integrated, final `/verify`, docs promoted and the feature directory deleted, PR pushed and merged (when granted), local main pulled, its batch worktrees cleaned up (`/orchestrate` §5). It then records the result in the chain file (merge commit, PR, unverified items, decisions the next link must know) and pushes that to main.
@@ -69,5 +69,5 @@ First conductor: not started / <worktree> started on the brief
 ## Prohibited
 
 - The setup session does not edit feature documents, settle a feature's open points itself, or conduct a link.
-- Do not grant a permission the user did not give, or carry over a previous chain's terms without the user saying so.
+- Do not grant a permission the user did not give, or carry over a previous chain's terms without the user saying so. Never cross the model boundary, for conductors or workers, without the user's explicit permission.
 - Do not start the first conductor before the user asks.
