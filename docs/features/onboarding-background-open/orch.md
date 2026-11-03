@@ -1,0 +1,36 @@
+# onboarding-background-open — orch
+
+- 원본: [spec.md](./spec.md), [design.md](./design.md), [tasks.md](./tasks.md)
+- 시작 hash: `7ac9cb46e66cd346451a2fdaa368d10f825bd653` (main)
+- 통합 브랜치: `feat/onboarding-background-open`
+- 모델: Claude만 쓴다(교차 허가 없음). `/agent-eval`은 AGENTS.md 상시 예외로 두 에이전트를 돌린다.
+
+## 결정 기록
+
+1. T0(a)의 `/usr/bin/open -g`, `lsappinfo`, `lsregister -dump` 사용을 승인한다. ⌘Tab·Dock 클릭은 worker가 computer-use(`orca computer`)로 하고, bounce 시각 확인만 사람에게 묻는다. (사용자 결정)
+2. T0(b)는 지금 승인한다. worker가 T0 단계에서 실제 Doan을 잠시 종료하고, 지금 설치된 번들의 CLI로 실제 HOME·userData에서 `doan onboarding start --json`을 한 번 실행한다. 설치된 번들은 아직 `-g`를 쓰지 않으므로 이 실행은 실제 경로의 기준 동작(전후 상태, 맨 앞 앱)을 기록한다. 완료 조건 1의 새 동작은 T0(a) PoC와 T3 probe로 확인한다. (사용자 결정)
+3. T1·T2·T3·T4는 T0이 통과한 뒤 시작한다. design §6이 "하나라도 실패하면 구현 전에 멈춘다"고 적었다. (지휘자 판단 — design §6)
+4. T0과 T2·T3은 같은 worker·worktree가 맡는다. PoC 패치와 LaunchServices·computer-use 절차를 T3 probe에 그대로 쓴다. (지휘자 판단)
+5. T5(문서 승격, feature 디렉터리 삭제)는 지휘자가 통합 뒤 직접 한다. 문서만 바뀐다. (지휘자 판단 — orchestrate §5)
+
+## 배치
+
+| 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
+|---|---|---|---|---|---|---|
+| A | T0(a)(b) PoC, tasks.md '확인 결과' | `app/src/main/index.ts`(커밋하지 않는 패치만), `docs/features/onboarding-background-open/tasks.md` '확인 결과' 절 | 없음 | Opus high — 실제 상태와 GUI를 다루고 실패 판단이 spec 모양을 바꾼다 | design §6 1~4 판정, real-state 지문 불변 | 대기 |
+| C | T2 main 순수 규칙, T3 main 연결 | `app/src/main/backgroundReveal.ts`(+test), `app/src/main/index.ts`, `app/src/main/index.test.ts` | A | Opus high — 활성화·포커스·창 상태 경로가 얽히고 틀리면 창이 끝내 안 보인다 | `npm --prefix app test`·typecheck·build, LaunchServices probe(완료 조건 2~4, 6) | 대기 |
+| B | T1 CLI 실행 방식 | `cli/internal/cli/onboarding.go`, `open.go`, `run.go`, `onboarding_test.go`, `open_test.go` | A | Sonnet medium — argv 하나와 인자 전달, 설계가 정해져 있다 | `go test ./...`, `go vet ./...` | 대기 |
+| D | T4 guide와 eval | `cli/internal/cli/skill.md`, `eval/scenarios/O2/`, `docs/USABILITY-EVAL.md` | A | Sonnet high — 문구는 짧지만 크기 예산과 실제 eval 라운드 판정이 단계가 많다 | `go test ./...`, `verify.mjs --eval`, O2 self-test, `/agent-eval` O1·O2·O3·O3b | 대기 |
+| RC | C 리뷰 | 없음(보고만) | C | Opus high — C와 같은 이유 | `/code-review` | 대기 |
+| RBD | B·D 리뷰 | 없음(보고만) | B, D | Sonnet medium — 작은 diff | `/code-review` | 대기 |
+| T5 | 승격, 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, 이 디렉터리 | 통합 | 지휘자 | `verify.mjs`, tasks T5의 `rg` | 대기 |
+
+## 파일 겹침과 순서
+
+- A → (C ‖ B ‖ D). B와 D는 같은 디렉터리(`cli/internal/cli/`)지만 파일이 겹치지 않는다.
+- GUI·패키지 조율: C의 LaunchServices probe와 D의 `npm --prefix app run package`가 겹치면 `design.doan.app` 등록이 여럿 생긴다(POSTMORTEM 2026-10-30). D는 앱을 실행하지 않고, C는 probe 전에 `lsregister -dump`를 확인하고 경로로 연다.
+- 통합 순서: B → C → D(어느 순서든 충돌 없음), 통합 HEAD에서 `verify.mjs --eval`.
+
+## 리뷰·검증 기록
+
+(진행하며 채운다.)
