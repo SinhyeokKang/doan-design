@@ -1383,6 +1383,13 @@ export function App() {
     const timer = setTimeout(() => root.removeAttribute("data-sidebar-motion"), 250);
     return () => { clearTimeout(timer); root.removeAttribute("data-sidebar-motion"); };
   }, [sidebarHidden]);
+  // Fullscreen has no traffic lights; the header's CSS drops their space under this attribute (design §2.5).
+  useEffect(() => window.doan.onFullScreen(fullScreen => {
+    const root = document.documentElement;
+    if (!root) return;
+    if (fullScreen) root.setAttribute("data-fullscreen", "");
+    else root.removeAttribute("data-fullscreen");
+  }), []);
   useEffect(() => {
     if (!sidebarFocus.current) return;
     sidebarFocus.current = false;

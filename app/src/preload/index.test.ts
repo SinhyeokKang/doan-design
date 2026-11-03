@@ -188,6 +188,18 @@ test("window visibility: the current value is asked for, and later changes follo
   expect(emitter.listenerCount("window:visible")).toBe(0);
 });
 
+test("fullscreen: the current value is asked for, and later changes follow", async () => {
+  mocks.invoke.mockResolvedValueOnce({ fullScreen: true });
+  const listener = vi.fn();
+  const stop = api.onFullScreen(listener);
+  expect(mocks.invoke).toHaveBeenLastCalledWith("window:fullscreen");
+  await Promise.resolve(); await Promise.resolve();
+  emitter.emit("window:fullscreen", {}, { fullScreen: false });
+  expect(listener.mock.calls).toEqual([[true], [false]]);
+  stop();
+  expect(emitter.listenerCount("window:fullscreen")).toBe(0);
+});
+
 test("install pages use their fixed target channel", async () => {
   await api.openInstallPage("claude");
   expect(mocks.invoke).toHaveBeenLastCalledWith("setup:open-external", { target: "claude" });

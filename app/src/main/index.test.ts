@@ -368,11 +368,13 @@ test("does not intercept fullscreen close while quitting", async () => {
 
 test.each(["activate", "open"])("cancels pending fullscreen hide on %s", async (action) => {
   window().isFullScreen.mockReturnValue(true);
+  // The window's own fullscreen listeners (the renderer's notice) stay; only the pending hide goes.
+  const permanent = window().listenerCount("leave-full-screen");
   window().emit("close", { preventDefault: vi.fn() });
   if (action === "activate") mocks.app.emit("activate");
   else await invoke("folders:open", window().webContents, null);
   expect(window().show).toHaveBeenCalledOnce();
-  expect(window().listenerCount("leave-full-screen")).toBe(0);
+  expect(window().listenerCount("leave-full-screen")).toBe(permanent);
   window().emit("leave-full-screen");
   expect(window().hide).not.toHaveBeenCalled();
 });
@@ -381,9 +383,10 @@ test("expires a fullscreen hide request when the transition event never arrives"
   vi.useFakeTimers();
   try {
     window().isFullScreen.mockReturnValue(true);
+    const permanent = window().listenerCount("leave-full-screen");
     window().emit("close", { preventDefault: vi.fn() });
     vi.runAllTimers();
-    expect(window().listenerCount("leave-full-screen")).toBe(0);
+    expect(window().listenerCount("leave-full-screen")).toBe(permanent);
     window().emit("leave-full-screen");
     expect(window().hide).not.toHaveBeenCalled();
   } finally { vi.useRealTimers(); }
@@ -1233,6 +1236,19 @@ describe("thumbnails", () => {
     expect(await invoke("window:visible", {}, null)).toBeNull();
     // Settings is refused by the test that runs every main-only channel from it.
     expect(await invoke("window:visible", (await captureWindow()).webContents, null)).toBeNull();
+  });
+
+  test("the main renderer learns when the window enters and leaves fullscreen; only it may ask", async () => {
+    const sent = () => vi.mocked(window().webContents.send).mock.calls.filter(([channel]) => channel === "window:fullscreen").map(([, value]) => value);
+    expect(await invoke("window:fullscreen", window().webContents, null)).toEqual({ fullScreen: false });
+    window().isFullScreen.mockReturnValue(true);
+    window().emit("enter-full-screen");
+    expect(await invoke("window:fullscreen", window().webContents, null)).toEqual({ fullScreen: true });
+    window().isFullScreen.mockReturnValue(false);
+    window().emit("leave-full-screen");
+    expect(sent()).toEqual([{ fullScreen: true }, { fullScreen: false }]);
+    expect(await invoke("window:fullscreen", {}, null)).toBeNull();
+    expect(await invoke("window:fullscreen", (await captureWindow()).webContents, null)).toBeNull();
   });
 
   test("a fullscreen window pauses captures once it is really hidden", () => {

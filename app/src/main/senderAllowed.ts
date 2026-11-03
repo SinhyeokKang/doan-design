@@ -9,6 +9,8 @@ const mainOnly = new Set([
   // canvas-viewport-units D9: the canvas page marks a canvas seen.
   "canvas:seen",
   "window:visible",
+  // shell-panel-layout §2.5: the header drops the traffic-light space in fullscreen.
+  "window:fullscreen",
   // buzz-onboarding: the first-run session the CLI shares; Settings never drives first-run.
   "onboarding:start", "onboarding:status", "onboarding:check", "onboarding:cancel", "onboarding:inspect", "onboarding:select", "onboarding:clone", "onboarding:complete",
   // doan-design-skills: preset reads for the home; Settings has no preset UI.

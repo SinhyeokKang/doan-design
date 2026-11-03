@@ -402,6 +402,11 @@ body:has(.shell-top) { background: transparent; }
 .workspace.with-status { grid-template-rows: var(--size-chrome) auto minmax(0, 1fr); }
 .shell-top.top { position: relative; padding: 0 8px; gap: 0; border: 0; background: transparent; }
 .shell-top .traffic-space { width: 88px; }
+/* Fullscreen has no traffic lights: the first header button lines up with the panels' left edge (x8). The header
+   already sits inside the shell's 8px margin, so its own left padding goes too. App sets the attribute from main's
+   fullscreen events; no transition, macOS is mid-animation when it changes. */
+:root[data-fullscreen] .shell-top .traffic-space { width: 0; }
+:root[data-fullscreen] .shell-top.top { padding-left: 0; }
 .shell-history { display: flex; gap: 4px; }
 .shell-history .doan-icon-button { width: 32px; height: 32px; border-radius: 10px; }
 .shell-top svg { width: 16px; height: 16px; }

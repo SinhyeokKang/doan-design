@@ -455,6 +455,9 @@ function createWindow(): BrowserWindow {
       window.setFullScreen(false);
     } else hideWindow(window);
   });
+  // The traffic lights are gone in fullscreen, so the header gives back their space (shell-panel-layout §2.5).
+  window.on("enter-full-screen", () => send("window:fullscreen", { fullScreen: true }));
+  window.on("leave-full-screen", () => send("window:fullscreen", { fullScreen: false }));
   window.on("closed", () => {
     void agentAuth?.ownerClosed(owner);
     cancelPendingHide();
@@ -832,6 +835,7 @@ async function start(): Promise<void> {
   });
   handle("app:home", null, event => fromWindow(event) ? homeDirectory() : null);
   handle("window:visible", null, event => fromWindow(event) ? { visible: windowShown && !appHidden } : null);
+  handle("window:fullscreen", null, event => fromWindow(event) ? { fullScreen: win!.isFullScreen() } : null);
   handle("folders:get", [], (event) => (fromWindow(event) ? seenStore.apply(ready.entries()) : []));
   handle("canvas:seen", false, (event, value: unknown) => {
     if (!fromWindow(event)) return false;

@@ -48,9 +48,9 @@
 
 ## 5. 전체 화면에서의 헤더 (링크 3 진행 중 추가, 사용자 요청)
 
-- [ ] T12. 전체 화면 헤더(design §2.5): main의 전체 화면 알림과 읽기 invoke, preload API, App 루트 `data-fullscreen`, `.traffic-space` 폭 0. main 테스트에 enter/leave 이벤트가 알림을 보냄, App 테스트에 알림·초기 읽기에 따른 루트 속성, CSS 고정 테스트에 전체 화면에서 신호등 자리 폭 0을 고정한다.
+- [x] T12. 전체 화면 헤더(design §2.5): main의 전체 화면 알림과 읽기 invoke, preload API, App 루트 `data-fullscreen`, `.traffic-space` 폭 0. main 테스트에 enter/leave 이벤트가 알림을 보냄, App 테스트에 알림·초기 읽기에 따른 루트 속성, CSS 고정 테스트에 전체 화면에서 신호등 자리 폭 0을 고정한다.
   - 검증: `npm --prefix app test`의 새 테스트가 red → green, `npm --prefix app run typecheck` 통과.
-- [ ] T13. 실제 앱 확인: 격리된 앱에서 전체 화면에 들어가고 나오며(`BrowserWindow.setFullScreen` 또는 네이티브 ⌃⌘F), 사이드바 보임/숨김 각각에서 헤더 버튼 위치(x8 / x104)와 탭 캡슐이 겹치지 않음을 스크린샷으로 확인한다.
+- [x] T13. 실제 앱 확인: 격리된 앱에서 전체 화면에 들어가고 나오며(`BrowserWindow.setFullScreen` 또는 네이티브 ⌃⌘F), 사이드바 보임/숨김 각각에서 헤더 버튼 위치(x8 / x104)와 탭 캡슐이 겹치지 않음을 스크린샷으로 확인한다.
   - 검증: `/runtime-test` 보고서의 결과와 스크린샷 경로.
 
 ── 커밋 5: `feat(app): reclaim the traffic-light space in fullscreen` ──

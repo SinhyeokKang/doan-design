@@ -83,7 +83,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onExportRunning: on("exportRunning"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -230,4 +230,28 @@ test("a hidden sidebar places the auto-placed panels in their own columns", asyn
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(':root[data-sidebar="hidden"] .home-shell > .home-panel { grid-column: 2; }');
   expect(css).toContain(':root[data-sidebar="hidden"] .workspace > :is(.doan-conv-column, .right-stack) { grid-column: 3; }');
+});
+
+// shell-panel-layout design §2.5: main's fullscreen value (its initial read, then each change) marks the root element,
+// and the header's traffic-light space collapses under it.
+test("fullscreen marks the root element so the header drops the traffic-light space", async () => {
+  const attributes = new Map<string, string>();
+  const root = { setAttribute: (name: string, value: string) => attributes.set(name, value), removeAttribute: (name: string) => attributes.delete(name), style: { setProperty: vi.fn() } };
+  vi.stubGlobal("document", { activeElement: null, body: {}, documentElement: root, querySelector: () => null, querySelectorAll: () => [] });
+  await start();
+  expect(doan.onFullScreen).toHaveBeenCalledOnce();
+  expect(attributes.has("data-fullscreen")).toBe(false);
+  listeners.fullScreen!(true as never); render();
+  expect(attributes.get("data-fullscreen")).toBe("");
+  // Independent of the sidebar's hidden state.
+  toggle();
+  expect(attributes.get("data-fullscreen")).toBe("");
+  listeners.fullScreen!(false as never); render();
+  expect(attributes.has("data-fullscreen")).toBe(false);
+  expect(attributes.get("data-sidebar")).toBe("hidden");
+  const { readFileSync } = await import("node:fs");
+  const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+  expect(css).toContain(":root[data-fullscreen] .shell-top .traffic-space { width: 0; }");
+  // The header sits inside the shell's 8px margin, so its padding would put the first button at x16 (T13 probe).
+  expect(css).toContain(":root[data-fullscreen] .shell-top.top { padding-left: 0; }");
 });
