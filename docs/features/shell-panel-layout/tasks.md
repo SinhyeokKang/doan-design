@@ -46,6 +46,15 @@
 
 ── 커밋 4: `feat(app): hide and show the sidebar` ──
 
+## 5. 전체 화면에서의 헤더 (링크 3 진행 중 추가, 사용자 요청)
+
+- [ ] T12. 전체 화면 헤더(design §2.5): main의 전체 화면 알림과 읽기 invoke, preload API, App 루트 `data-fullscreen`, `.traffic-space` 폭 0. main 테스트에 enter/leave 이벤트가 알림을 보냄, App 테스트에 알림·초기 읽기에 따른 루트 속성, CSS 고정 테스트에 전체 화면에서 신호등 자리 폭 0을 고정한다.
+  - 검증: `npm --prefix app test`의 새 테스트가 red → green, `npm --prefix app run typecheck` 통과.
+- [ ] T13. 실제 앱 확인: 격리된 앱에서 전체 화면에 들어가고 나오며(`BrowserWindow.setFullScreen` 또는 네이티브 ⌃⌘F), 사이드바 보임/숨김 각각에서 헤더 버튼 위치(x8 / x104)와 탭 캡슐이 겹치지 않음을 스크린샷으로 확인한다.
+  - 검증: `/runtime-test` 보고서의 결과와 스크린샷 경로.
+
+── 커밋 5: `feat(app): reclaim the traffic-light space in fullscreen` ──
+
 ## 검증
 
 - [ ] T10. 공용 게이트.
@@ -60,9 +69,9 @@
 ## 승격과 정리
 
 - [ ] Z1. 결론을 현재 규칙으로 승격하고 이 디렉터리를 지운다. 문서마다 커밋을 나누고, 근거는 커밋 메시지에 쓴다.
-  - `docs/PRODUCT.md`(영문): §5 항목 1 사이드바 문장(숨기기, ⌘B와 View 메뉴, 이 기기에 기억, 숨긴 동안 버튼의 점과 신호, 자동으로 열지 않음), §5 항목 2 'Conversation panel' 'Width'(최소 280), §5 항목 3 'Project Overview'(헤더의 New conversation 버튼, Canvas conversations 패널의 폭 조절과 따로 기억하는 폭).
+  - `docs/PRODUCT.md`(영문): §5 항목 1 사이드바 문장(숨기기, ⌘B와 View 메뉴, 이 기기에 기억, 숨긴 동안 버튼의 점과 신호, 자동으로 열지 않음), §5 항목 2 'Conversation panel' 'Width'(최소 280), §5 항목 3 'Project Overview'(헤더의 New conversation 버튼, Canvas conversations 패널의 폭 조절과 따로 기억하는 폭), §5 항목 1 헤더의 전체 화면 동작.
   - `docs/ARCHITECTURE.md`(영문): §7 'Navigation persistence and IPC'의 선택 필드 목록(`overviewPanel`, `sidebar.hidden`), §7 'App menu'(View > Hide/Show Sidebar ⌘B, T0 결과가 '못 받음'이면 입력창이 ⌘B를 넘기는 이유).
-  - `docs/DESIGN.md`(영문): 'App shell'(헤더 버튼 자리와 Back·Forward 위치, 숨김 레이아웃, 점), 'Project Overview'(Panels, Header의 버튼, 핸들), 'Canvas area and right panel'의 'Panel width'·'No overlap', 'Canvas conversation panel'의 'Narrow'. 측정하지 못한 값은 'Not verified'에 둔다.
+  - `docs/DESIGN.md`(영문): 'App shell'(헤더 버튼 자리와 Back·Forward 위치, 숨김 레이아웃, 점, 전체 화면의 신호등 자리), 'Project Overview'(Panels, Header의 버튼, 핸들), 'Canvas area and right panel'의 'Panel width'·'No overlap', 'Canvas conversation panel'의 'Narrow'. 측정하지 못한 값은 'Not verified'에 둔다.
   - `docs/BACKLOG.md`: T11에서 확인하지 못한 표면(네이티브 ⌘B 등)이 있으면 적는다.
   - 마지막으로 `docs/features/shell-panel-layout/`를 지운다.
   - 검증: `rg -n "28dvw" docs/PRODUCT.md docs/DESIGN.md`가 기본 폭 문맥에서만 나오고, `docs/features/shell-panel-layout/`가 없다.
