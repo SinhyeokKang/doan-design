@@ -57,3 +57,4 @@
 - RA 3회차 재리뷰: 🔴 0, 🟡 0, ⚪ 2(보고만). A 수정 커밋 6개를 `9539aad1`..`88b0ac33`로 cherry-pick했다. A·RA worker를 release했다. 통합 HEAD에서 verify.mjs를 돌린다.
 - 통합 HEAD(A+B, `88b0ac33`)에서 verify.mjs PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build).
 - C 완료: `93eea881`..`baa5fc9c`(merge `5d69d621` 포함 11개). verify.mjs PASS(6533 tests), 실제 앱 probe radix 13·flow 19·unavailable 11 PASS, design-sync 42행(하나 수정, 나머지 DESIGN.md에 기록). 실제 앱에서 닿지 못한 것: 실제로 일하는 에이전트, busy·not_found 토스트, 종료 중 거절(단위 테스트로만 고정). 계획과 다른 점: 일하는 중 알림은 Cancel을 거절한다(PRODUCT 'Deep links'의 busy dialog 규칙), 알림 중 OS 알림 클릭은 PRODUCT item 0을 따른다. 지휘자 RC(Opus high, dispatch `ctx_a01e4ebb039d`)를 시작했다.
+- RC: 🔴 0, 🟡 1(confirmDelete의 정리가 예외에 보호되지 않아 알림이 닫히지 않을 수 있음), ⚪ 5. 지휘자 판단: 보던 대화가 `not_found`이면 composer에 포커스하고 토스트를 띄운다(화면이 새 대화 상태로 바뀌므로). C 수정 1회차(🟡1, ⚪1~4)를 보냈다. ⚪5(PRODUCT 196줄은 Overview와 캔버스 panel 모두에 해당)는 T5에서 반영한다.
