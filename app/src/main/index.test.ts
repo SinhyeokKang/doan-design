@@ -812,6 +812,32 @@ describe("menus", () => {
     expect(menuEnabled("New Conversation")).toBe(false);
   });
 
+  // shell-panel-layout design §2.4 '단축키와 메뉴': View's first item hides and shows the sidebar; its name follows the
+  // renderer's state, a page lock keeps it, a modal turns it off.
+  test("View > Hide/Show Sidebar follows the validated sidebar state and tells the renderer", async () => {
+    const contents = window().webContents;
+    expect(submenu("View").slice(0, 2).map((entry) => [entry.label ?? entry.type, entry.accelerator])).toEqual([["Hide Sidebar", "CmdOrCtrl+B"], ["separator", undefined]]);
+    // The test app starts in first run, which turns it off.
+    expect(menuEnabled("Hide Sidebar")).toBe(false);
+    await completeFirstRun();
+    expect(menuEnabled("Hide Sidebar")).toBe(true);
+    click("Hide Sidebar");
+    expect(contents.send).toHaveBeenCalledWith("menu-command", "toggleSidebar");
+    await invoke("menu:state", contents, null, { ...state("canvas"), sidebarHidden: true });
+    expect(submenu("View")[0]).toMatchObject({ label: "Show Sidebar", accelerator: "CmdOrCtrl+B" });
+    expect(menuEnabled("Show Sidebar")).toBe(true);
+    await invoke("menu:state", contents, null, { ...state("settings"), locked: true, sidebarHidden: true });
+    expect(menuEnabled("Show Sidebar")).toBe(true);
+    await invoke("menu:state", contents, null, { ...state("canvas", true), sidebarHidden: true });
+    expect(menuEnabled("Show Sidebar")).toBe(false);
+    for (const bad of [{ ...state("canvas"), sidebarHidden: "true" }, { ...state("canvas"), sidebarHidden: 1 }]) {
+      await invoke("menu:state", contents, null, bad);
+      expect(menuEnabled("Show Sidebar")).toBe(false);
+    }
+    await invoke("menu:state", contents, null, state("canvas"));
+    expect(submenu("View")[0]?.label).toBe("Hide Sidebar");
+  });
+
   test("canvas conversation menu commands follow validated selection and picker state", async () => {
     const contents = window().webContents;
     const ready = { ...state("canvas"), selection: true, pickerAvailable: true };

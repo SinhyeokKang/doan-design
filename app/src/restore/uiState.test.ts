@@ -380,3 +380,20 @@ test("reads the Overview panel's width apart from the canvas panel's; a malforme
   expect(first?.overviewPanel).toEqual({ width: 420 });
   expect(parse(first)).toEqual(first);
 });
+
+// shell-panel-layout design §2.4 '상태와 저장': the sidebar field carries its width and a hidden flag, each on its own.
+test("reads the sidebar's hidden flag beside its width; only true is kept", () => {
+  expect(parse({ screen: "home", sidebar: { width: 260, hidden: true } })?.sidebar).toEqual({ width: 260, hidden: true });
+  expect(parse({ screen: "home", sidebar: { hidden: true } })?.sidebar).toEqual({ hidden: true });
+  expect(parse({ screen: "home", sidebar: { width: 260 } })?.sidebar).toEqual({ width: 260 });
+  expect(parse({ screen: "home", sidebar: { width: 260, hidden: false } })?.sidebar).toEqual({ width: 260 });
+  expect(parse({ screen: "home", sidebar: { width: "260", hidden: true } })?.sidebar).toEqual({ hidden: true });
+  expect(parse({ screen: "home", sidebar: { width: 260, hidden: "yes" } })?.sidebar).toEqual({ width: 260 });
+  for (const sidebar of [{ width: "260", hidden: "true" }, { hidden: false }, { hidden: 1 }, { width: -1, hidden: null }]) {
+    const state = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, sidebar });
+    expect(state).not.toHaveProperty("sidebar");
+    expect(state?.root).toBe("/repo/a");
+  }
+  const first = parse({ screen: "home", sidebar: { width: 300, hidden: true, extra: 1 } });
+  expect(parse(first)).toEqual(first);
+});

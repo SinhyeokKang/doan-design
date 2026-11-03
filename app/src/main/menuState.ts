@@ -12,6 +12,8 @@ export interface MenuEnabled {
   newConversation: boolean;
   // Edit > Add Selection to Conversation: requires both a canvas selection and an available picker.
   addSelectionToConversation: boolean;
+  // View > Hide/Show Sidebar: it never leaves the screen, so a page lock keeps it (shell-panel-layout spec '결정' 5).
+  toggleSidebar: boolean;
 }
 
 // Design 'Menus and per-screen enablement'. `workspace` is a workspace with no
@@ -27,8 +29,9 @@ export interface MenuEnabled {
 // (design §2), so the menu follows the same availability as the canvas toolbar.
 export function menuState(screen: Screen, modalOpen: boolean, context: { wizardOpen: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean } = { wizardOpen: false }): MenuEnabled {
   const settings = !context.wizardOpen && !modalOpen && context.locked !== true;
-  if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, addSelectionToConversation: false };
-  return { settings, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", quickOpen: true,
+  const toggleSidebar = !context.wizardOpen && !modalOpen;
+  if (modalOpen || context.locked === true) return { settings, addProject: false, home: false, canvasView: false, quickOpen: false, newConversation: false, addSelectionToConversation: false, toggleSidebar };
+  return { settings, toggleSidebar, addProject: screen !== "addProjects" || context.choose === true, home: screen !== "home", canvasView: screen === "canvas", quickOpen: true,
     newConversation: screen === "canvas" || (screen === "workspace" && context.overview === true),
     addSelectionToConversation: screen === "canvas" && context.selection === true && context.pickerAvailable === true };
 }

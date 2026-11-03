@@ -4,7 +4,7 @@
 
 ## PoC
 
-- [ ] T0. ⌘B가 메뉴 단축키로 오는지 확인한다(design §7). `.scratch/shell-panel-layout/cmdb-poc/`에 작은 Electron 앱을 두고(앱의 `node_modules` Electron), `format*` beforeinput을 막는 contenteditable, 일반 `<input>`, iframe, `CmdOrCtrl+B` 메뉴 항목을 넣는다. 각 요소에 포커스를 둔 채 네이티브 ⌘B를 보내 click 로그가 한 번 찍히는지, 입력 내용에 서식이 생기지 않는지 본다. 결과(요소별 받음/못 받음)를 T9 아래 'T0 결과'에 적고 design §2.4 '단축키와 메뉴'의 갈래를 고른다. 데스크톱이 잠겨 네이티브 키를 보낼 수 없으면 '입력창이 직접 넘김' 갈래로 진행하고, 두 번 토글되지 않는지는 T11에서 다시 본다.
+- [x] T0. ⌘B가 메뉴 단축키로 오는지 확인한다(design §7). `.scratch/shell-panel-layout/cmdb-poc/`에 작은 Electron 앱을 두고(앱의 `node_modules` Electron), `format*` beforeinput을 막는 contenteditable, 일반 `<input>`, iframe, `CmdOrCtrl+B` 메뉴 항목을 넣는다. 각 요소에 포커스를 둔 채 네이티브 ⌘B를 보내 click 로그가 한 번 찍히는지, 입력 내용에 서식이 생기지 않는지 본다. 결과(요소별 받음/못 받음)를 T9 아래 'T0 결과'에 적고 design §2.4 '단축키와 메뉴'의 갈래를 고른다. 데스크톱이 잠겨 네이티브 키를 보낼 수 없으면 '입력창이 직접 넘김' 갈래로 진행하고, 두 번 토글되지 않는지는 T11에서 다시 본다.
   - 검증: `app/node_modules/.bin/electron .scratch/shell-panel-layout/cmdb-poc`로 PoC 창을 띄우고, 요소마다 포커스를 둔 뒤 `osascript -e 'tell application "System Events" to keystroke "b" using command down'`로 네이티브 ⌘B를 보낸다(실행하는 터미널에 손쉬운 사용 권한 필요). 요소별 click 로그 횟수와 입력 내용을 'T0 결과'에 적는다.
 
 ## 1. 캔버스 대화 패널 최소 폭
@@ -34,14 +34,14 @@
 
 ## 4. 사이드바 숨기기/보이기
 
-- [ ] T6. `sidebarToggleView(hidden, slots)`(design §3-2): 라벨, 아이콘, 점 우선순위, `canvas` 슬롯 무시.
+- [x] T6. `sidebarToggleView(hidden, slots)`(design §3-2): 라벨, 아이콘, 점 우선순위, `canvas` 슬롯 무시.
   - 검증: `npm --prefix app test`에서 `sidebarSize.test.ts`(또는 새 테스트 파일)가 red → green.
-- [ ] T7. `main/menuState.ts`의 `toggleSidebar`(design §3-3).
+- [x] T7. `main/menuState.ts`의 `toggleSidebar`(design §3-3).
   - 검증: `npm --prefix app test`에서 `menuState.test.ts`가 모달·첫 실행에서 꺼짐, 페이지 잠금에서 켜짐으로 red → green.
-- [ ] T8. `restore/uiState.ts`의 `sidebar.hidden` 파싱과 `sidebar` 필드의 부분 값(`width`만, `hidden`만, 둘 다 잘못됨)(design §3-4).
+- [x] T8. `restore/uiState.ts`의 `sidebar.hidden` 파싱과 `sidebar` 필드의 부분 값(`width`만, `hidden`만, 둘 다 잘못됨)(design §3-4).
   - 검증: `npm --prefix app test`에서 `uiState.test.ts`의 새 테스트가 red → green.
-- [ ] T9. 사이드바 숨기기/보이기 연결(design §2.4): View 메뉴 항목과 `MenuCommand`·`MenuInputs`·`menu:state` 검증, `TopBar` 버튼과 점·툴팁, 루트 속성과 셸 CSS, 숨길 때 unmount, 포커스 이동, 저장과 읽기 전 규칙, 측정 효과 의존성. T0이 '못 받음'이면 입력창 keydown이 ⌘B를 넘긴다. App 테스트에 버튼과 메뉴 명령의 토글, 사이드바 안 포커스에서 숨기면 버튼으로 포커스, 열린 프로젝트 메뉴가 숨김 뒤 다시 나타나지 않음, 숨긴 동안 슬롯 신호에 따른 이름, 읽기 전 저장 없음을 고정한다.
-  - T0 결과: (T0에서 적는다)
+- [x] T9. 사이드바 숨기기/보이기 연결(design §2.4): View 메뉴 항목과 `MenuCommand`·`MenuInputs`·`menu:state` 검증, `TopBar` 버튼과 점·툴팁, 루트 속성과 셸 CSS, 숨길 때 unmount, 포커스 이동, 저장과 읽기 전 규칙, 측정 효과 의존성. T0이 '못 받음'이면 입력창 keydown이 ⌘B를 넘긴다. App 테스트에 버튼과 메뉴 명령의 토글, 사이드바 안 포커스에서 숨기면 버튼으로 포커스, 열린 프로젝트 메뉴가 숨김 뒤 다시 나타나지 않음, 숨긴 동안 슬롯 신호에 따른 이름, 읽기 전 저장 없음을 고정한다.
+  - T0 결과: 메뉴가 입력창에서 ⌘B를 받지 못한다 → '입력창이 직접 넘김' 갈래. PoC는 `.scratch/shell-panel-layout/cmdb-poc/`, 입력 소스는 한국어 2벌식이었다. `osascript ... key code 11 using command down`(B 키)으로 보낸 결과: 포커스 없음(body) click 1회, contenteditable(`format*` beforeinput 막음) click 0회·`formatBold` beforeinput 1회(막혀서 서식 없음), 일반 `<input>` click 1회, iframe 안 `<input>` click 1회, iframe 안 contenteditable click 0회·`formatBold` 1회. tasks의 `keystroke "b"`로 보냈을 때는 한국어 입력 소스에서 contenteditable·`<input>`·iframe 모두 click 0회였다(key code로 다시 확인). 구현은 `ChipField` keydown에 콜백을 넘기는 대신 App이 document capture keydown에서 chip field의 ⌘B만 받아 `preventDefault` 후 토글한다(prop 전달 없이 모든 composer에 적용). 캔버스 iframe 안 contenteditable은 넘기지 않는다.
   - 검증: `npm --prefix app test`의 새 테스트가 red → green, `npm --prefix app run typecheck` 통과.
 
 ── 커밋 4: `feat(app): hide and show the sidebar` ──

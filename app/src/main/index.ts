@@ -75,13 +75,13 @@ export type TokenCssChoice = { kind: "selected"; choiceId: string; path: string 
 
 export type ViewCommand = "zoomIn" | "zoomOut" | "actualSize" | "fit" | "reload";
 // Menu items whose work belongs to the renderer's screen state.
-export type MenuCommand = "home" | "quickOpen" | "newConversation" | "addSelectionToConversation";
+export type MenuCommand = "home" | "quickOpen" | "newConversation" | "addSelectionToConversation" | "toggleSidebar";
 // What the renderer reports so main can enable menu items (design 'Menus').
 // `choose`, `locked`: the Add Projects page shows its choose phase, or a phase nothing may leave (menuState).
 // `overview`: a project Overview shows (File > New Conversation).
 // `selection`: the canvas has a selection to add; `pickerAvailable`: the composer takes input and the canvas is loaded
 // (design §2), so the menu follows the same availability as the canvas toolbar.
-export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean }
+export interface MenuInputs { screen: Screen; modal: boolean; choose?: boolean; locked?: boolean; overview?: boolean; selection?: boolean; pickerAvailable?: boolean; sidebarHidden?: boolean }
 export type RemoveResult = { kind: "removed" } | { kind: "unavailable" };
 export type LocateResult = { kind: "located"; root: string } | { kind: "refused"; message: string } | { kind: "cancelled" } | { kind: "unavailable" };
 // The onboarding Project step's folder picker: a path only. Inspection, registration and setup go through the
@@ -332,6 +332,9 @@ function setMenu(): void {
       {
         label: "View",
         submenu: [
+          // Its name follows the renderer's sidebar state, which is why `sidebarHidden` is a menu input.
+          { label: menuInputs.sidebarHidden === true ? "Show Sidebar" : "Hide Sidebar", accelerator: "CmdOrCtrl+B", enabled: enabled.toggleSidebar, click: command("toggleSidebar") },
+          { type: "separator" },
           { label: "Zoom In", accelerator: "CmdOrCtrl+=", enabled: enabled.canvasView, click: view("zoomIn") },
           { label: "Zoom Out", accelerator: "CmdOrCtrl+-", enabled: enabled.canvasView, click: view("zoomOut") },
           { label: "Actual Size", accelerator: "CmdOrCtrl+0", enabled: enabled.canvasView, click: view("actualSize") },
@@ -360,12 +363,12 @@ const homeDirectory = (): string => process.env.HOME ?? app.getPath("home");
 function setMenuInputs(next: MenuInputs): void {
   if (next.screen === menuInputs.screen && next.modal === menuInputs.modal &&
     next.choose === menuInputs.choose && next.locked === menuInputs.locked && next.overview === menuInputs.overview &&
-    next.selection === menuInputs.selection && next.pickerAvailable === menuInputs.pickerAvailable) return;
+    next.selection === menuInputs.selection && next.pickerAvailable === menuInputs.pickerAvailable && next.sidebarHidden === menuInputs.sidebarHidden) return;
   menuInputs = next;
   setMenu();
 }
 
-const MENU_FLAGS = ["choose", "locked", "overview", "selection", "pickerAvailable"] as const;
+const MENU_FLAGS = ["choose", "locked", "overview", "selection", "pickerAvailable", "sidebarHidden"] as const;
 function parseMenuInputs(value: unknown): MenuInputs | null {
   if (typeof value !== "object" || value === null || !("screen" in value) || !("modal" in value)) return null;
   const flags = MENU_FLAGS.filter(flag => flag in value);

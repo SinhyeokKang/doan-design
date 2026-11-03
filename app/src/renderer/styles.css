@@ -1136,8 +1136,17 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
 /* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }
+/* shell-panel-layout: a hidden sidebar leaves every shell with its handle and the 8px gap behind it, so the main panel
+   starts at the shell's 8px inner margin. Only a toggle animates (data-sidebar-motion), as folding the conversation
+   panel does; a drag or a window resize must not. */
+:root[data-sidebar="hidden"] .workspace.app-shell { grid-template-columns: 0px minmax(0, 1fr) var(--doan-right-width); }
+:root[data-sidebar="hidden"] .home-shell { grid-template-columns: 0px minmax(0, 1fr); }
+:root[data-sidebar="hidden"] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { margin-left: 0; }
+:root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell) { transition: grid-template-columns var(--time-panel-enter) var(--ease-settle); }
+:root[data-sidebar-motion] :is(.workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { transition: margin-left var(--time-panel-enter) var(--ease-settle); }
 @media (prefers-reduced-motion: reduce) {
   .workspace.app-shell[data-panel-motion], .workspace[data-panel-motion] > .doan-conv-column[data-collapsed] { transition: none; }
+  :root[data-sidebar-motion] :is(.workspace.app-shell, .home-shell, .workspace > .doan-canvas-panel, .workspace > .ov, .workspace > .strip-slot, .home-panel) { transition: none; }
 }
 
 /* buzz-canvas: the agent indicator while this canvas's current conversation works or waits (.doan/canvases/buzz-canvas.html

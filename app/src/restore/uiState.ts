@@ -58,8 +58,9 @@ export interface UiState {
   // The Overview's canvas conversations panel, apart from the canvas panel's (shell-panel-layout spec 3). Missing is
   // its default.
   overviewPanel?: { width: number };
-  // The shell sidebar's width, one per device. Missing is the default; the renderer clamps a kept width.
-  sidebar?: { width: number };
+  // The shell sidebar, one per device: its width (missing is the default; the renderer clamps a kept width) and whether
+  // it is hidden (only `true` is stored). Each is read on its own; with neither the field is left out.
+  sidebar?: { width?: number; hidden?: true };
   // The canvas tool last chosen on this device (canvas-hand-tool design '기기 저장'). Only Hand is stored; a missing
   // field is Select.
   canvasTool?: "hand";
@@ -126,8 +127,10 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   if (rightPanel !== undefined) state.rightPanel = rightPanel;
   const overviewWidth = isRecord(value["overviewPanel"]) ? value["overviewPanel"]["width"] : undefined;
   if (savedWidth(overviewWidth)) state.overviewPanel = { width: overviewWidth };
-  const sidebarRaw = isRecord(value["sidebar"]) ? value["sidebar"]["width"] : undefined;
-  if (typeof sidebarRaw === "number" && Number.isFinite(sidebarRaw) && sidebarRaw > 0 && sidebarRaw <= RIGHT_PANEL_MAX_SAVED_WIDTH) state.sidebar = { width: sidebarRaw };
+  if (isRecord(value["sidebar"])) {
+    const width = value["sidebar"]["width"], hidden = value["sidebar"]["hidden"] === true;
+    if (savedWidth(width) || hidden) state.sidebar = { ...(savedWidth(width) ? { width } : {}), ...(hidden ? { hidden: true } : {}) };
+  }
   if (value["canvasTool"] === "hand") state.canvasTool = "hand";
   if (isRecord(value["home"])) state.home = parseHome(value["home"], saved);
   // `settingsTab` is the old Settings window's field, read until the renderer first saves `settingsSection`.
