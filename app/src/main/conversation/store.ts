@@ -1,4 +1,4 @@
-import { closeSync, constants, fstatSync, ftruncateSync, lstatSync, mkdirSync, readdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, constants, fstatSync, ftruncateSync, lstatSync, mkdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { CANVAS_DIRS, canvasDir } from "../../formats/canvasPath";
@@ -112,11 +112,18 @@ export function restoreEntries(entries: readonly ConversationMetadata[], id: str
 export function deleteEntries(entries: readonly ConversationMetadata[], id: string): ConversationMetadata[] | null {
   return entries.some(m => m.conversationId === id) ? entries.filter(m => m.conversationId !== id) : null;
 }
-// The history file names among names whose conversation the index does not hold. Ids are compared without case: the
-// store refuses ids that differ only by case, and a case-insensitive file system names both with one file.
-export function orphanHistories(names: readonly string[], indexIds: readonly string[]): string[] {
+// The recorded deletions that committed: ids the index no longer holds. Compared without case: the store refuses ids
+// that differ only by case, and a case-insensitive file system names both with one file.
+export function committedDeletions(recorded: readonly string[], indexIds: readonly string[]): string[] {
   const held = new Set(indexIds.map(id => id.toLowerCase()));
-  return names.filter(name => name.endsWith(".jsonl") && validId(name.slice(0, -6)) && !held.has(name.slice(0, -6).toLowerCase()));
+  return recorded.filter(id => !held.has(id.toLowerCase()));
+}
+function parseDeletions(text: string): string[] | null {
+  let raw: unknown;
+  try { raw = JSON.parse(text); } catch { return null; }
+  if (!object(raw) || raw.v !== 1 || !Array.isArray(raw.ids)) return null;
+  const ids: unknown[] = [...raw.ids];
+  return ids.every(validId) && new Set(ids).size === ids.length ? ids : null;
 }
 export interface JournalWrite { id: string; turn: string; body: EventPayload }
 // What an accepted change does to the index. replaced: the current conversations it archives.
@@ -184,26 +191,6 @@ export class ConversationStore {
     try { mkdirSync(this.directory, { mode: 0o700 }); } catch (error) { if (!object(error) || error.code !== "EEXIST") throw error; }
     if (canonicalDirectory(this.directory) !== this.directory) throw new Error("Linked conversation directory");
     this.recover();
-    this.removeOrphans();
-  }
-  // After recovery no uncommitted start's log is left, so a history the index does not hold is one a deletion left
-  // behind (delete). Only an index that exists and reads counts (indexedIds): a missing or unreadable one is not an
-  // empty list, and treating it as one would remove every history. Links and anything but a regular file stay.
-  private removeOrphans(): void {
-    const indexed = this.indexedIds(); if (!indexed) return;
-    let names: string[];
-    try { names = readdirSync(this.directory); } catch (error) { console.error("doan: conversation directory unreadable; orphan histories kept", error); return; }
-    for (const name of orphanHistories(names, indexed)) {
-      const path = join(this.directory, name);
-      try { if (lstatSync(path).isFile()) unlinkSync(path); } catch (error) { console.error("doan: orphan conversation history left for the next start", error); }
-    }
-  }
-  // The ids of an index.json that exists and reads, for orphan cleanup; null otherwise. Never throws.
-  indexedIds(): string[] | null {
-    let text: string;
-    try { text = readRegular(join(this.directory, "index.json")); } catch { return null; }
-    const read = parseIndex(text);
-    return read.ok ? read.entries.map(m => m.conversationId) : null;
   }
   list(): ConversationMetadata[] {
     if (!this.accepting) this.recover();
@@ -221,10 +208,14 @@ export class ConversationStore {
     if (!validEntries(entries, 2)) throw new Error("Invalid conversation index");
     // A future or damaged index is kept for diagnosis instead of being replaced.
     this.readIndex();
-    const path = join(this.directory, `index-${randomUUID()}.tmp`);
+    this.replace("index", JSON.stringify({ v: 2, conversations: entries }));
+  }
+  // <name>.json written whole: a temporary file, then the rename.
+  private replace(name: string, text: string): void {
+    const path = join(this.directory, `${name}-${randomUUID()}.tmp`);
     const fd = openRegular(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
-    try { this.write(fd, JSON.stringify({ v: 2, conversations: entries })); } finally { closeSync(fd); }
-    try { renameSync(path, join(this.directory, "index.json")); } catch (error) { unlinkSync(path); throw error; }
+    try { this.write(fd, text); } finally { closeSync(fd); }
+    try { renameSync(path, join(this.directory, `${name}.json`)); } catch (error) { unlinkSync(path); throw error; }
   }
   // The index rename is the commit point. An undo record survives interrupted log writes.
   acceptStart(entries: ConversationMetadata[], id: string, writes: JournalWrite[]): ConversationEvent[] {
@@ -259,15 +250,51 @@ export class ConversationStore {
     try { unlinkSync(journal); } catch (error) { console.error("doan: committed change cleanup deferred", error); }
     return saved;
   }
-  // The index rename is the commit point: a history removed first would leave an indexed conversation that cannot be
-  // read. A history the unlink leaves behind is read by nothing and goes at the next start (removeOrphans). No journal:
-  // the index is the only file that changes. not_found when the index does not hold it.
+  // The deletion is recorded (deletions.json) before the index rename, its commit point: only a recorded deletion's
+  // history and drafts are removed later (finishDeletions), so a history the index does not list for another reason,
+  // such as an index.json that was lost and written anew, is never taken for one. A history removed before the commit
+  // would leave an indexed conversation that cannot be read. not_found when the index does not hold it; a record that
+  // cannot be read or written refuses the deletion before anything changes.
   delete(id: string): void {
     this.recover();
     const next = deleteEntries(this.readIndex(), id); if (!next) throw new Error("not_found");
+    const recorded = this.readDeletions();
+    if (!recorded.includes(id)) this.replace("deletions", JSON.stringify({ v: 1, ids: [...recorded, id] }));
     this.save(next);
     try { unlinkSync(join(this.directory, `${id}.jsonl`)); }
     catch (error) { if (!object(error) || error.code !== "ENOENT") console.error("doan: deleted conversation history left for the next start", error); }
+  }
+  // At start, after recovery: each recorded deletion the index no longer lists committed, so its history (a regular
+  // file only, never a link) and its drafts (discard) go; one the index still lists never committed and is only
+  // dropped from the record. An index that is missing or cannot be read decides nothing, and the record waits. An id
+  // whose cleanup failed stays recorded for the next start. Never throws.
+  finishDeletions(discard: (id: string) => void): void {
+    const record = join(this.directory, "deletions.json");
+    let recorded: string[];
+    try { recorded = this.readDeletions(); } catch (error) { console.error("doan: conversation deletion record unreadable; kept as it is", error); return; }
+    if (!recorded.length) return;
+    let indexed: string[];
+    try {
+      const read = parseIndex(readRegular(join(this.directory, "index.json")));
+      if (!read.ok) throw new Error(read.code);
+      indexed = read.entries.map(m => m.conversationId);
+    } catch (error) { console.error("doan: conversation index unreadable; recorded deletions wait for the next start", error); return; }
+    const left = new Set<string>();
+    for (const id of committedDeletions(recorded, indexed)) {
+      const path = join(this.directory, `${id}.jsonl`);
+      try { if (lstatSync(path).isFile()) unlinkSync(path); }
+      catch (error) { if (!object(error) || error.code !== "ENOENT") { console.error("doan: deleted conversation history left for the next start", error); left.add(id); } }
+      try { discard(id); } catch (error) { console.error("doan: deleted conversation drafts left for the next start", error); left.add(id); }
+    }
+    try { if (left.size) this.replace("deletions", JSON.stringify({ v: 1, ids: [...left] })); else unlinkSync(record); }
+    catch (error) { console.error("doan: conversation deletion record could not be updated", error); }
+  }
+  // The recorded deletions; none without the file. Throws when it cannot be read.
+  private readDeletions(): string[] {
+    let text: string;
+    try { text = readRegular(join(this.directory, "deletions.json")); } catch (error) { if (object(error) && error.code === "ENOENT") return []; throw error; }
+    const ids = parseDeletions(text); if (!ids) throw new Error("Invalid conversation deletion record");
+    return ids;
   }
   private recover(): void {
     const path = join(this.directory, "start-undo.json");

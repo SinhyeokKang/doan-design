@@ -9,7 +9,7 @@ import { messageLine } from "./messageText";
 import { BIND_GRACE_MS, projectBusy, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued } from "./queue";
-import { DraftStore, joined, orphanDrafts, type ReturnedDraft } from "./drafts";
+import { DraftStore, joined, type ReturnedDraft } from "./drafts";
 import type { ConversationOwner, Provider } from "../agentAuth/types";
 import type { ModelList } from "./models";
 import type { PermissionModeId } from "./permissionMode";
@@ -118,9 +118,8 @@ export class ConversationService {
   // deleted: a conversation deleted (delete), once its index entry is gone.
   constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
-    // Drafts a deletion left when the app ended before it discarded them; only an index that exists and reads counts.
-    const indexed = store.indexedIds();
-    if (indexed) for (const id of orphanDrafts(this.drafts.ids(), indexed)) this.drafts.discard(id);
+    // The deletions an earlier run recorded finish here, their drafts included (store.ts finishDeletions).
+    store.finishDeletions(id => this.drafts.discard(id));
   }
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
