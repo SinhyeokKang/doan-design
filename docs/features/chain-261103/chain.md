@@ -59,7 +59,7 @@
 | 2 project-settings | Claude Code 세션 06b8fea0, worktree `project-settings-orch` | 2026-11-03 | PR #76, 병합 02952e32 | 완료 |
 | 3 canvas-open-offer | Claude Code 세션 c935fb51, worktree `canvas-open-offer-orch` | 2026-11-03 | PR #77, 병합 3b6f9ed2 | 완료 |
 | 4 agent-reply-chips | Claude Code 세션 0344e3fb, worktree `agent-reply-chips-orch` | 2026-11-03 | PR #78, 병합 35ecf91b | 완료 |
-| 5 canvas-row-menu | Claude Code 세션 e4ed3c1b, worktree `canvas-row-menu-orch` | 2026-11-03 | | 진행 중 |
+| 5 canvas-row-menu | Claude Code 세션 e4ed3c1b, worktree `canvas-row-menu-orch` | 2026-11-03 | PR #79, 병합 88f9ee97 | 완료 |
 | 6 setup-via-onboarding | | | | 대기 |
 
 ## 인계 기록
@@ -131,3 +131,21 @@
     - 사용량(링크 4 끝): Claude 7일 80%(2026-11-04 13:59 KST 초기화). Codex 주간 91%(이 링크의 `/agent-eval` Codex 실행 뒤에도 그대로, 2026-11-04 15:35 KST 초기화). 체인 규칙대로 링크 5도 Codex 작업자를 쓰지 않는다.
 - 2026-11-03 링크 4 지휘자: 링크 5 세션(e4ed3c1b)이 브리프로 시작해 시작을 push한 것(5b96de98)을 확인하고 물러났다. 링크 4 worktree는 깨끗하고 main에 모두 들어갔다(`git cherry`에 `+` 없음). 세션의 실행 checkout이라 지우지 않았고, 사용자가 세션을 닫은 뒤 지우면 된다. 브리프는 main checkout의 `.scratch/chain-261103/brief-link5.md`다.
 - 2026-11-03 사용자(링크 5 진행 중): 마지막 링크 6(setup-via-onboarding)은 Codex 작업자를 섞어 쓴다. 링크 1 지휘자가 남긴 'Codex 주간 한도가 10% 아래면 Codex를 쓰지 않는다' 규칙보다 이 지시가 앞선다. 주 구현은 Claude, Codex는 독립 리뷰와 일부 기계적 배치에 쓰고(상시 권한 'Codex 작업자'), 시작할 때와 배치를 나눌 때 Codex 주간 남은 양(rollout `rate_limits` window 10080분, 2026-11-04 15:35 KST 초기화)을 확인해 배치를 정한다. 한도로 Codex가 멈추면 그 배치만 Claude로 돌리고 orch.md에 적는다.
+- 2026-11-03 링크 5 완료(세션 e4ed3c1b): PR #79를 main에 병합했다(88f9ee97). 통합 HEAD에서 `/verify --eval` PASS(앱 테스트 6206, eval 255, self-test 포함). 그 뒤에는 문서 커밋만 있었다.
+  - intake: terminal-agent-activity 전제를 지우고, design의 행 번호를 이름 기준으로 바꿨으며, `shell-side-menu`와 가이드 예산을 적고, eval id를 `X1`로 정했다.
+  - 배치: A1(T1–T3 Go 자산 해석·다시 쓰기, Claude Opus high, 수정 2회), B(T4 viewer, Claude Sonnet high, 수정 1회), C1(T6·T9 휴지통·export IPC, Claude Opus high, 수정 1회), A2(T5·T7·T8 조립·`doan export`·가이드, Claude Sonnet high, 수정 1회), C2(T10 행 메뉴 UI, Claude Opus high, 수정 1회), D(T11 eval X1, Claude Sonnet high), E(T12·T13 `/design-sync`·`/runtime-test`, Claude Sonnet high, 후속 1회). 리뷰는 Claude 서브에이전트(RA1·RC1·RA2·RC2 Opus, RB·RA1-fix1 Sonnet)로 했다. 🔴은 RC2의 1건(숨은 버튼이 `display:none`이라 메뉴를 닫으면 포커스가 body로 떨어짐)뿐이었고 고쳤다(POSTMORTEM 2026-11-03). Z1 문서 승격은 Sonnet 서브에이전트 초안을 지휘자가 검토해 커밋했다. Codex 작업자는 쓰지 않았다.
+  - 확인하지 못한 것: 데스크톱이 링크 내내 잠겨 있었다. 그래서 **실제 Safari 확인(T13 e)과 Finder Put Back(T13 f)은 하지 못했다**. export 결과는 headless Chromium, Playwright WebKit(Safari 아님, 브라우저 바이너리만 `~/Library/Caches/ms-playwright`에 받음), Electron에서 확인했다. 네이티브 입력은 CDP로 대신 확인했다. 앱 대화 작업 중 Move to Trash 비활성, 권한 점, main만 내는 거절 토스트는 실제 앱에서 닿지 못해 단위 테스트로만 확인했다. 모두 BACKLOG에 적었다. `/agent-eval` X1은 성공 경로만 잰다.
+  - 사용자 확인이 필요한 것(아침 보고):
+    - **SVG `<use>`**: data: URL을 `<use href>`에 넣으면 Chromium·WebKit에서 그려지지 않는다(두 엔진에서 재현). 그래서 결과 파일에서는 참조한 SVG 파일을 숨긴 inline `<svg>`에 한 번 넣고 href를 `#id`로 바꾼다. 링크 1 지휘자가 남긴 'Safari에서 안 되면 가장 가까운 구조를 고른다' 결정과 같은 성격으로 지휘자가 정했다. fragment가 없거나 id가 겹치거나 sprite에 `<style>`이 있으면 export를 거절한다(inline한 `<style>`이 캔버스 전체에 적용되기 때문이다).
+    - viewer에는 Geist를 넣지 않는다(결과마다 약 93 KB). shell 크롬은 시스템 글꼴 스택으로 보인다.
+    - 가이드 예산 때문에 `doan open` 줄의 "A bundled CLI starts a closed Doan once."를 지웠다. 같은 사실은 Onboarding 1단계의 "Only `doan open` also opens the app"에 남아 있고, `skill_test.go`가 그 문장을 고정한다.
+    - 초안 `canvas-row-menu.html`의 평소 행 버튼은 앱처럼 clip으로 숨기게 고쳤다(보이는 모양은 같다).
+  - 다음 링크가 알아야 할 것:
+    - **가이드 출력 예산: `doan skill --json` 21,405 B + note 166 B = 21,571 / 21,600 B(29 B 남음).** 링크 6이 가이드의 Onboarding과 `doan init` 줄을 고칠 때 줄이는 쪽으로 쓴다. Onboarding 1단계의 "Only `doan open` also opens the app" 문장을 바꾸면 `doan open`이 닫힌 앱을 연다는 사실을 다른 곳에 남겨야 한다(위 삭제 때문에 그 문장이 유일한 자리다).
+    - eval: 새 시나리오 X1이 있다. `eval/lib/transcript.ts`가 `doan export`의 `-o`·`--force`를 읽는다. 기존 id는 D·H·O·R·W 계열과 R8c·R9·W3b·W4·X1이다. 링크 6의 O3는 겹치지 않는다.
+    - 앱: 사이드바 캔버스 행 메뉴(`ShellSidebar.tsx` `canvasMenu` prop, `CanvasTrashDialog.tsx`, `canvasRowMessages.ts`), IPC `canvas:trashPlan`·`canvas:trash`·`canvas:export`·`canvas:revealExport`와 이벤트 `canvas:exportRunning`(ARCHITECTURE §7 'Canvas row menu IPC'). 링크 6이 고치는 Onboarding 파일과는 겹치지 않는다.
+    - `/agent-eval` 첫 Claude 라운드는 이번에도 `keychain:provider-items` 해시 변화만으로 exit 1이었다. `--no-judge` 재실행은 exit 0이었다.
+    - 운영: 지휘자 worktree에는 앱 의존성이 없으니 최종 verify 전에 `npm --prefix app ci`와 electron 내려받기를 한다. 리뷰 전에 배치를 feat에 먼저 cherry-pick해 다음 배치를 일찍 시작했고, 리뷰 수정은 새 커밋으로 받아 뒤 배치에 rebase를 보냈다. 격리 앱의 Keychain 접근이 `/agent-eval` real-state 검사와 겹칠 수 있어 runtime probe는 eval 라운드 뒤에 돌렸다. 대기 루프 `wait.sh`·`tail.py`는 증거 디렉터리에 있다.
+    - Playwright WebKit 바이너리가 `~/Library/Caches/ms-playwright/webkit-*`에 남아 있다. 마지막 링크가 정리할 때 함께 지워도 된다.
+    - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, design-sync·runtime-test·agent-eval 증거, 최종 verify 로그, feature 문서 사본)를 main checkout의 `.scratch/chain-261103/link5-evidence/`로 옮겼다. 구현 브랜치는 `canvas-row-menu-a1`·`-a2`·`-b`·`-c1`·`-c2`·`-d`·`-e`로 남겼다(로컬).
+    - 사용량(링크 5 끝): Claude 7일은 링크 중간 작업자 상태줄 기준 82%였다(끝에는 대시보드가 값을 읽지 못했다, 2026-11-04 13:59 KST 초기화). Codex 주간 91%(X1 Codex 실행 뒤에도 그대로, 2026-11-04 15:35 KST 초기화). **링크 6은 사용자 지시대로 Codex 작업자를 섞어 쓴다**(위 사용자 기록).
