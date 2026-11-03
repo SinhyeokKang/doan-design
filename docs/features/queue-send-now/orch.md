@@ -40,3 +40,6 @@
 - D 1단계: dispatch `ctx_d2899cdcebc5`, worktree `qsn-d`, Opus medium(effective 확인). A 리뷰: dispatch `ctx_841a89d5eaec`, `qsn-a` worktree, Sonnet high.
 - A 리뷰(Sonnet high): 🔴 0 · 🟡 3(queueFocusAfter의 sending 행, SteerPhase `starting` 매핑, red 미확인). 수정 1회차를 새 worker `ctx_ee5f4ec6f535`(qsn-a, Sonnet medium)로 보냈다. 같은 터미널 재사용은 Orca가 `agent_unconfigured`로 거절해 A·리뷰 worker를 release하고 새로 띄웠다. D에는 매핑 설명을 메시지로 보냈다.
 - A 수정 1회차 `120a6a37`(🟡 3건 반영, mutation으로 red 확인, 테스트 6322 통과). 통합했다. A 완료.
+- qsn-a worktree 삭제(Orca), 브랜치 `SinhyeokKang/qsn-a`는 `120a6a37`에 남겨 둠.
+- D 1단계 완료 `b117df8d`(테스트 6328·build·verify 통과, verify 첫 회 `shell.test.ts` flake 1회). store는 IPC가 '소비 뒤 resolve, 거절·턴 종료는 `not_running`'이라고 가정한다 → C 브리프에 계약으로 더했다. D worker release, 리뷰 `ctx_403ed827e0e5`(Opus medium, focus 판단이 많아 올림).
+- B 완료 `722aea8b`·`115ac9e0`(red 선확인, 테스트 6272·verify 통과). 계약: `steer()` resolve/reject + `steerConsumed(messageId)` 훅. 위험: Claude가 받아들인 uuid를 끝내 echo하지 않으면 턴이 stop 전까지 안 끝남(감시 타이머 없음). 통합 뒤 C 시작, B 리뷰 병렬.
