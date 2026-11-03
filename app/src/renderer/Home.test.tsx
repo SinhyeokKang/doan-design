@@ -65,7 +65,7 @@ test("an empty composer for a project with canvases: project above, tray below, 
   expect(html).toContain('<span class="tray-path">/code/doan-design</span>');
   expect(html).toContain('<div class="home-suggestions" role="group" aria-label="Suggested prompts">');
   // suggested-prompt-variants C: a prompt-only row (icon tile, sentence, hover arrow), not the shared doan-button.
-  expect(html.match(/<button type="button" class="suggestion"><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
+  expect(html.match(/<button type="button" class="suggestion"[^>]*><span class="suggestion-icon"><svg[^>]*aria-hidden="true"/g)).toHaveLength(3);
   expect(html).not.toContain("suggestion doan-button");
   expect(html).toContain('<span class="suggestion-label">Review the buzz-onboarding canvas</span>');
   expect(html.match(/suggestion-go/g)).toHaveLength(3);
