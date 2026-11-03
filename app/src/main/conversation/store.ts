@@ -259,8 +259,17 @@ export class ConversationStore {
     this.recover();
     const next = deleteEntries(this.readIndex(), id); if (!next) throw new Error("not_found");
     const recorded = this.readDeletions();
-    if (!recorded.includes(id)) this.replace("deletions", JSON.stringify({ v: 1, ids: [...recorded, id] }));
-    this.save(next);
+    const added = !recorded.includes(id);
+    if (added) this.replace("deletions", JSON.stringify({ v: 1, ids: [...recorded, id] }));
+    try { this.save(next); } catch (error) {
+      // Not committed: its entry leaves the record again, so it can never be finished later (say, once a lost index
+      // was written anew without it). If that fails too, the next start still finds it indexed and only drops it.
+      if (added) {
+        try { if (recorded.length) this.replace("deletions", JSON.stringify({ v: 1, ids: recorded })); else unlinkSync(join(this.directory, "deletions.json")); }
+        catch (cleanup) { console.error("doan: uncommitted conversation deletion left in its record", cleanup); }
+      }
+      throw error;
+    }
     try { unlinkSync(join(this.directory, `${id}.jsonl`)); }
     catch (error) { if (!object(error) || error.code !== "ENOENT") console.error("doan: deleted conversation history left for the next start", error); }
   }

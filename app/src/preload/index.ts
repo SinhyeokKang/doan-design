@@ -366,7 +366,7 @@ const api = {
     return () => ipcRenderer.removeListener("notifications:click", receive);
   },
   // true once a quit is under way and conversations stop (conversation:delete then answers busy as it does while one
-  // works); false when that quit was aborted and the app goes on.
+  // works). Main sends no false today: an aborted quit leaves the conversations stopped until a restart.
   onQuitting(listener: (quitting: boolean) => void): () => void {
     const receive = (_event: Electron.IpcRendererEvent, quitting: boolean) => listener(quitting);
     ipcRenderer.on("app:quitting", receive);
