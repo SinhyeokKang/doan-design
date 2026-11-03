@@ -65,7 +65,7 @@ vi.mock("./thumbnails", () => ({ useThumbnails: () => ({ thumbnails: new Map(), 
 const { App } = await import("./App");
 const { ShellSidebar } = await import("./ShellSidebar");
 const { RightPanel } = await import("./RightPanel");
-const { ConversationPanel } = await import("./ConversationPanel");
+const { ConversationPanel, ResizeHandle } = await import("./ConversationPanel");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { HomeRun } = await import("./homeRun");
 const { CanvasConversation } = await import("./CanvasConversationPanel");
@@ -216,6 +216,44 @@ test("a read that fails still lets saves through, with the panel's own state", a
   expect(doan.saveUiState).not.toHaveBeenCalled();
   readUiState(null); await Promise.resolve(); await Promise.resolve(); render();
   expect(saved()).toMatchObject({ screen: "workspace", root: "/w/a", rightPanel: { open: true } });
+});
+
+// shell-panel-layout design §2.3: the Overview's canvas conversations panel has its own handle and its own remembered
+// width; changing one panel's width leaves the other's alone.
+type Handle = { label?: string; onResize(width: number | undefined): void };
+const overviewHandle = () => find<Handle>(ResizeHandle).find(element => element.props.label === "Resize canvas conversations")?.props;
+const savedPanels = () => doan.saveUiState!.mock.lastCall?.[0] as { rightPanel?: unknown; overviewPanel?: unknown } | undefined;
+const toOverview = () => { find<{ worktree(root: string): void }>(ShellSidebar)[0]!.props.worktree("/w/a"); render(); };
+
+test("the Overview's panel has its own handle, and its width and the canvas panel's are saved apart", async () => {
+  render();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
+  folders([listed("/w/a")]); toOverview();
+  expect(find(ProjectOverview)).toHaveLength(1);
+  overviewHandle()!.onResize(420); render();
+  expect(savedPanels()).toMatchObject({ rightPanel: { open: true, width: 400 }, overviewPanel: { width: 420 } });
+  // A double click goes back to the default and stores nothing.
+  overviewHandle()!.onResize(undefined); render();
+  expect(savedPanels()).not.toHaveProperty("overviewPanel");
+  expect(savedPanels()?.rightPanel).toEqual({ open: true, width: 400 });
+  // The canvas page's panel resizes on its own.
+  reset();
+  await canvasPage({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, rightPanel: { open: true, width: 400 }, overviewPanel: { width: 500 } });
+  expect(overviewHandle()).toBeUndefined();
+  panel()!.onResize(450); render();
+  expect(savedPanels()).toMatchObject({ rightPanel: { open: true, width: 450 }, overviewPanel: { width: 500 } });
+});
+
+test("the read Overview width is kept; one changed before the read wins, and nothing is saved before it", async () => {
+  render(); folders([listed("/w/a")]); toOverview();
+  overviewHandle()!.onResize(360); render();
+  expect(doan.saveUiState).not.toHaveBeenCalled();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, overviewPanel: { width: 600 }, rightPanel: { open: true, width: 400 } }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(savedPanels()).toMatchObject({ overviewPanel: { width: 360 }, rightPanel: { open: true, width: 400 } });
+
+  reset(); render(); folders([listed("/w/a")]); toOverview();
+  readUiState({ screen: "home", expanded: {}, lastByRoot: {}, home: {}, overviewPanel: { width: 600 } }); await Promise.resolve(); await Promise.resolve(); render();
+  expect(savedPanels()?.overviewPanel).toEqual({ width: 600 });
 });
 
 // canvas-hand-tool design '기기 저장' and '시작 복원': the last canvas tool is saved with the rest of ui-state, only

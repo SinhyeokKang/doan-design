@@ -45,8 +45,8 @@ import { replyChipTarget } from "./replyChipTarget";
 import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
 import type { ScrollTo } from "./overviewRun";
-import { ConversationPanel } from "./ConversationPanel";
-import { canvasPanelDefault, panelBounds, panelWidth } from "./rightPanelSize";
+import { ConversationPanel, ResizeHandle } from "./ConversationPanel";
+import { canvasPanelDefault, OVERVIEW_PANEL_DEFAULT, panelBounds, panelWidth } from "./rightPanelSize";
 import { SIDEBAR_BOUNDS, sidebarWidth } from "./sidebarSize";
 import { duplicateIdText } from "./canvasView";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -110,15 +110,15 @@ function withGroups(project: ShellProject, change: (groups: ShellProject["groups
   const { groups, ...rest } = project, next = change(groups);
   return next ? { ...rest, groups: next } : rest;
 }
-export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
-  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, sidebar, canvasTool } = input;
+export function savedUiState(input: { screen: "home" | "workspace"; loadedRoot: string | null; open: CanvasState["open"]; expanded: Record<string, string[]>; shellProjects: Record<string, ShellProject>; home: HomeMemory | null; view: UiState["view"] & {}; memory: UiState["lastByRoot"]; settingsSection?: SettingsSection; conversationByRoot?: Record<string, string> | null; rightPanel?: UiState["rightPanel"]; overviewPanel?: UiState["overviewPanel"]; sidebar?: UiState["sidebar"]; canvasTool?: CanvasState["tool"] }): UiState | null {
+  const { screen, loadedRoot, open, expanded, shellProjects, home, view, settingsSection, rightPanel, overviewPanel, sidebar, canvasTool } = input;
   const conversationByRoot = input.conversationByRoot && Object.keys(input.conversationByRoot).length ? input.conversationByRoot : undefined;
   if (home === null) return null;
   const canvas = open && open.folder === loadedRoot ? open.canvas : undefined;
   const canvasId = canvas ? open?.row.id : undefined;
   // The loaded root's canvas is in `lastByRoot` too, so a restart on Home still reopens it on entry.
   const lastByRoot = { ...input.memory, ...(loadedRoot && canvas ? { [loadedRoot]: { canvas, view } } : {}) };
-  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
+  return { screen, expanded, shellProjects, lastByRoot, home, ...(loadedRoot ? { root: loadedRoot } : {}), ...(canvas ? { canvas, view, ...(canvasId ? { canvasId } : {}) } : {}), ...(settingsSection ? { settingsSection } : {}), ...(conversationByRoot ? { conversationByRoot } : {}), ...(rightPanel ? { rightPanel } : {}), ...(overviewPanel ? { overviewPanel } : {}), ...(sidebar ? { sidebar } : {}), ...(canvasTool === "hand" ? { canvasTool } : {}) };
 }
 
 // The start's ui-state read under what the run wrote before it (buzz-project T1): a root the run set, cleared (New) or
@@ -280,6 +280,10 @@ export function App() {
   const rightPanelRef = useRef(rightPanel); rightPanelRef.current = rightPanel;
   const panelTouched = useRef(false);
   const changePanel = (change: (previous: NonNullable<UiState["rightPanel"]>) => NonNullable<UiState["rightPanel"]>) => { panelTouched.current = true; setRightPanelState(change); };
+  // The Overview's canvas conversations panel width on this device (undefined: its default), apart from the canvas
+  // panel's, the same way: a resize before the read wins.
+  const [overviewSaved, setOverviewSaved] = useState<number | undefined>(undefined);
+  const overviewTouched = useRef(false);
   // The sidebar's width on this device (undefined: the default), the same way: a resize before the read wins. The
   // shown width is a root variable, so every shell's grid follows it and a drag can preview it without a render.
   const [sidebarSaved, setSidebarSaved] = useState<number | undefined>(undefined);
@@ -471,6 +475,7 @@ export function App() {
       if (active) { conversationByRoot.current = mergeConversationMemory(state?.conversationByRoot, conversationByRoot.current, memoryTouched.current); memoryRead.current = true; setMemoryTick(tick => tick + 1); overviewRun.current?.sync(); }
       if (active && state?.settingsSection && !sectionChosen.current) setSettings({ ...settingsRef.current, section: state.settingsSection });
       if (active && state?.rightPanel && !panelTouched.current) setRightPanelState(state.rightPanel);
+      if (active && state?.overviewPanel && !overviewTouched.current) setOverviewSaved(state.overviewPanel.width);
       if (active && state?.sidebar && !sidebarTouched.current) setSidebarSaved(state.sidebar.width);
       // The controller keeps a tool the person chose before this read.
       if (active && state?.canvasTool) controller.current?.restoreTool(state.canvasTool);
@@ -523,10 +528,11 @@ export function App() {
   // A page is never restored; a restart opens the screen it came from. Settings keeps only its last category.
   const savedScreen = screen === "addProjects" || screen === "settings" || screen === "projectSettings" ? page.origin.screen : screen;
   const sidebarState = sidebarSaved === undefined ? undefined : { width: sidebarSaved };
-  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState, canvasTool: state.tool });
-  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, sidebar: sidebarState, canvasTool: state.tool };
+  const overviewPanelState = overviewSaved === undefined ? undefined : { width: overviewSaved };
+  const persisted = useRef({ screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool });
+  persisted.current = { screen: savedScreen, loadedRoot, open: state.open, expanded, shellProjects, home: homeMemory, settingsSection: settings.section, rightPanel, overviewPanel: overviewPanelState, sidebar: sidebarState, canvasTool: state.tool };
   // At commit, so a change already on screen has been sent.
-  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, sidebarSaved, state.tool]);
+  useLayoutEffect(save, [restore, savedScreen, loadedRoot, state.open, expanded, shellProjects, homeMemory, settings.section, memoryTick, rightPanel, overviewSaved, sidebarSaved, state.tool]);
   const completeNavigation = (root: string, cursor?: number) => {
     const visit = controller.current?.destination(root);
     if (!visit || !entriesRef.current.some(entry => entry.path === root)) return;
@@ -1332,12 +1338,14 @@ export function App() {
     previousOverview.current = shownOverview;
   }, [shownOverview]);
   // The canvas page's right column (buzz-canvas design §2 '오른쪽 패널'): the conversation panel at its remembered width,
-  // clamped to the window's bounds, or none while folded. The Overview keeps its own 280px column.
+  // clamped to the window's bounds, or none while folded. The Overview's column has its own remembered width under the
+  // same bounds: the canvas panel stays in the layout under the Overview, so the one measure serves both.
   const canvasPage = overview === null;
   const panelBox = panelSize ?? { window: 0, shell: 0 };
   const panelLimits = panelBounds(panelBox.window, panelBox.shell);
   const shownPanel = panelWidth(rightPanel.width, panelLimits, canvasPanelDefault(panelBox.window));
-  const rightColumn = canvasPage ? (rightPanel.open ? `${shownPanel}px` : "0px") : undefined;
+  const shownOverviewPanel = panelWidth(overviewSaved, panelLimits, OVERVIEW_PANEL_DEFAULT);
+  const rightColumn = canvasPage ? (rightPanel.open ? `${shownPanel}px` : "0px") : `${shownOverviewPanel}px`;
   useLayoutEffect(() => {
     const measure = () => {
       const main = shellRoot.current, canvas = main?.querySelector<HTMLElement>(":scope > .doan-canvas-panel");
@@ -1357,8 +1365,7 @@ export function App() {
   useLayoutEffect(() => {
     const main = shellRoot.current;
     if (!main) return;
-    if (rightColumn) main.style.setProperty("--doan-right-width", rightColumn);
-    else main.style.removeProperty("--doan-right-width");
+    main.style.setProperty("--doan-right-width", rightColumn);
   }, [rightColumn]);
   // A canvas opened under the Overview was fitted to the Overview's layout; fit it again once this commit has applied
   // the canvas page's column (design §2 '첫 Fit'). The controller does it once per opened canvas.
@@ -1501,6 +1508,8 @@ export function App() {
       onAction={(name, root) => action(name, root)}
       onProjectSettings={root => openProjectSettings(root)}
       onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} />}
+    {overview && <ResizeHandle className="doan-overview-handle" label="Resize canvas conversations" width={shownOverviewPanel} bounds={panelLimits} preview={previewPanel}
+      onResize={width => { overviewTouched.current = true; setOverviewSaved(width); }} />}
     {overview ? <div className="right-stack"><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}

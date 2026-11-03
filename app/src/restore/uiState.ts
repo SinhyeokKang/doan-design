@@ -55,6 +55,9 @@ export interface UiState {
   // The canvas page's conversation panel (buzz-canvas design §2), one per device. A missing `width` is the
   // window-relative default, which only the renderer can compute.
   rightPanel?: { open: boolean; width?: number };
+  // The Overview's canvas conversations panel, apart from the canvas panel's (shell-panel-layout spec 3). Missing is
+  // its default.
+  overviewPanel?: { width: number };
   // The shell sidebar's width, one per device. Missing is the default; the renderer clamps a kept width.
   sidebar?: { width: number };
   // The canvas tool last chosen on this device (canvas-hand-tool design '기기 저장'). Only Hand is stored; a missing
@@ -121,6 +124,8 @@ export function parseUiState(text: string, savedRoots: readonly string[]): UiSta
   if (isRecord(value["conversationByRoot"])) state.conversationByRoot = entries(value["conversationByRoot"], saved, (item) => (typeof item === "string" && CONVERSATION_ID.test(item) ? item : undefined));
   const rightPanel = parseRightPanel(value["rightPanel"]);
   if (rightPanel !== undefined) state.rightPanel = rightPanel;
+  const overviewWidth = isRecord(value["overviewPanel"]) ? value["overviewPanel"]["width"] : undefined;
+  if (savedWidth(overviewWidth)) state.overviewPanel = { width: overviewWidth };
   const sidebarRaw = isRecord(value["sidebar"]) ? value["sidebar"]["width"] : undefined;
   if (typeof sidebarRaw === "number" && Number.isFinite(sidebarRaw) && sidebarRaw > 0 && sidebarRaw <= RIGHT_PANEL_MAX_SAVED_WIDTH) state.sidebar = { width: sidebarRaw };
   if (value["canvasTool"] === "hand") state.canvasTool = "hand";
@@ -182,6 +187,10 @@ function parseRightPanel(value: unknown): UiState["rightPanel"] {
   const width = typeof raw === "number" && Number.isFinite(raw) && raw > 0 && raw <= RIGHT_PANEL_MAX_SAVED_WIDTH ? raw : undefined;
   if (open === undefined && width === undefined) return undefined;
   return width === undefined ? { open: open ?? true } : { open: open ?? true, width };
+}
+
+function savedWidth(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= RIGHT_PANEL_MAX_SAVED_WIDTH;
 }
 
 function nonEmpty(value: unknown): value is string {

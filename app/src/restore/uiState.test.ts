@@ -364,3 +364,19 @@ test("a parsed rightPanel survives a second parse unchanged", () => {
   expect(first?.rightPanel).toEqual({ open: false, width: 420 });
   expect(parse(first)).toEqual(first);
 });
+
+// shell-panel-layout design §2.3: the Overview's canvas conversations panel keeps its own width, checked like the
+// canvas panel's.
+test("reads the Overview panel's width apart from the canvas panel's; a malformed one is dropped", () => {
+  expect(parse({ screen: "home", overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } })).toMatchObject({ overviewPanel: { width: 420 }, rightPanel: { open: true, width: 300 } });
+  for (const width of [1, 10_000, 280.5]) expect(parse({ screen: "home", overviewPanel: { width } })?.overviewPanel).toEqual({ width });
+  for (const overviewPanel of [null, {}, { width: "420" }, { width: 0 }, { width: -1 }, { width: 10_001 }, { width: Number.NaN }, [420]]) {
+    const state = parse({ screen: "workspace", root: "/repo/a", expanded: {}, lastByRoot: {}, overviewPanel });
+    expect(state).not.toHaveProperty("overviewPanel");
+    expect(state?.root).toBe("/repo/a");
+  }
+  expect(parseUiState('{"screen":"home","overviewPanel":{"width":1e999}}', saved)).not.toHaveProperty("overviewPanel");
+  const first = parse({ screen: "home", overviewPanel: { width: 420, extra: 1 } });
+  expect(first?.overviewPanel).toEqual({ width: 420 });
+  expect(parse(first)).toEqual(first);
+});

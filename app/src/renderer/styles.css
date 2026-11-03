@@ -1130,6 +1130,9 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
    containing block is the sidebar's column below the header; it fills the 8px gutter after it. Both lines are named:
    an absolutely positioned item's auto end line is the grid's padding edge, not the next line. */
 .doan-panel-handle.doan-sidebar-handle { grid-column: 1 / 2; grid-row: 2 / -1; left: 100%; }
+/* The Overview's handle is a shell grid child on the right column's start edge: .right-stack clips its rounded corner,
+   so a handle inside it would lose its half over the Overview. */
+.doan-panel-handle.doan-overview-handle { grid-column: 3 / 4; grid-row: 2 / -1; }
 .doan-panel-handle:focus-visible { box-shadow: 0 0 0 2px var(--border-focus); }
 /* Over the whole window while dragging: the canvas iframe cannot take the pointer and the cursor stays col-resize. */
 .doan-resize-cover { position: fixed; inset: 0; z-index: 1000; cursor: col-resize; }

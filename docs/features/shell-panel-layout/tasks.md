@@ -25,9 +25,9 @@
 
 ## 3. Overview 오른쪽 패널 폭 조절
 
-- [ ] T4. `restore/uiState.ts`에 `overviewPanel.width` 파싱(캔버스 패널 폭과 같은 범위 검사, design §3-4).
+- [x] T4. `restore/uiState.ts`에 `overviewPanel.width` 파싱(캔버스 패널 폭과 같은 범위 검사, design §3-4).
   - 검증: `npm --prefix app test`에서 `uiState.test.ts`의 새 테스트가 red → green.
-- [ ] T5. Overview 오른쪽 패널의 핸들, 따로 기억하는 폭, 공유 한계, 읽기 전 변경 우선, 저장(design §2.3). App 테스트에 두 패널 폭이 서로 바뀌지 않음, 더블클릭하면 280, 읽기가 끝나기 전에는 저장을 보내지 않음을 고정한다.
+- [x] T5. Overview 오른쪽 패널의 핸들, 따로 기억하는 폭, 공유 한계, 읽기 전 변경 우선, 저장(design §2.3). App 테스트에 두 패널 폭이 서로 바뀌지 않음, 더블클릭하면 280, 읽기가 끝나기 전에는 저장을 보내지 않음을 고정한다.
   - 검증: `npm --prefix app test`에서 App 테스트(`App.conversationPanel.test.tsx` 또는 같은 방식의 새 파일)가 red → green.
 
 ── 커밋 3: `feat(app): resize the Overview's canvas conversations panel` ──
