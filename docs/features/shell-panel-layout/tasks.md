@@ -5,7 +5,7 @@
 ## PoC
 
 - [ ] T0. ⌘B가 메뉴 단축키로 오는지 확인한다(design §7). `.scratch/shell-panel-layout/cmdb-poc/`에 작은 Electron 앱을 두고(앱의 `node_modules` Electron), `format*` beforeinput을 막는 contenteditable, 일반 `<input>`, iframe, `CmdOrCtrl+B` 메뉴 항목을 넣는다. 각 요소에 포커스를 둔 채 네이티브 ⌘B를 보내 click 로그가 한 번 찍히는지, 입력 내용에 서식이 생기지 않는지 본다. 결과(요소별 받음/못 받음)를 T9 아래 'T0 결과'에 적고 design §2.4 '단축키와 메뉴'의 갈래를 고른다. 데스크톱이 잠겨 네이티브 키를 보낼 수 없으면 '입력창이 직접 넘김' 갈래로 진행하고, 두 번 토글되지 않는지는 T11에서 다시 본다.
-  - 검증: 명령 미정 — 사용자 확인 필요(`.scratch/` Electron 실행과 System Events keystroke는 AGENTS.md 'Commands'에 없다).
+  - 검증: `app/node_modules/.bin/electron .scratch/shell-panel-layout/cmdb-poc`로 PoC 창을 띄우고, 요소마다 포커스를 둔 뒤 `osascript -e 'tell application "System Events" to keystroke "b" using command down'`로 네이티브 ⌘B를 보낸다(실행하는 터미널에 손쉬운 사용 권한 필요). 요소별 click 로그 횟수와 입력 내용을 'T0 결과'에 적는다.
 
 ## 1. 캔버스 대화 패널 최소 폭
 
