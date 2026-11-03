@@ -9,9 +9,9 @@
 
 ## 1. 캔버스 대화 패널 최소 폭
 
-- [ ] T1. `rightPanelSize.ts`: `panelBounds` 최소 280 고정, `canvasPanelDefault(window)`, `panelWidth(saved, bounds, fallback)`, Overview 기본 280 상수(design §3-1). 기존 `rightPanelSize.test.ts`의 "the default and the minimum are max(320, 28%)" 기대를 기본 폭과 최소 폭으로 나눠 고친다.
+- [x] T1. `rightPanelSize.ts`: `panelBounds` 최소 280 고정, `canvasPanelDefault(window)`, `panelWidth(saved, bounds, fallback)`, Overview 기본 280 상수(design §3-1). 기존 `rightPanelSize.test.ts`의 "the default and the minimum are max(320, 28%)" 기대를 기본 폭과 최소 폭으로 나눠 고친다.
   - 검증: `npm --prefix app test`에서 `rightPanelSize.test.ts`가 새 기대로 red → green.
-- [ ] T2. App이 캔버스 대화 패널 기본 폭으로 `canvasPanelDefault`를 쓰게 연결한다. 280에서 패널 머리, 메뉴, 스레드, docked 입력창, 터미널 세션 선택 카드, 추천 프롬프트가 넘치면 그 CSS만 고친다(design §2.2).
+- [x] T2. App이 캔버스 대화 패널 기본 폭으로 `canvasPanelDefault`를 쓰게 연결한다. 280에서 패널 머리, 메뉴, 스레드, docked 입력창, 터미널 세션 선택 카드, 추천 프롬프트가 넘치면 그 CSS만 고친다(design §2.2).
   - 검증: `npm --prefix app test`와 `npm --prefix app run typecheck` 통과. 실제 앱 확인은 T11.
 
 ── 커밋 1: `feat(app): let the canvas conversation panel narrow to 280px` ──

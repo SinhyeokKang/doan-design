@@ -1,13 +1,17 @@
-// Size rules for the canvas page's conversation panel (buzz-canvas design §2 'Right panel', §3). Pure: the
-// renderer measures the window and the shell column and passes them in.
+// Size rules for the canvas page's conversation panel and the Overview's canvas conversations panel (buzz-canvas
+// design §2 'Right panel', §3). Pure: the renderer measures the window and the shell column and passes them in.
 
 export interface PanelBounds {
   min: number;
   max: number;
 }
 
-const FLOOR = 320;
-const WINDOW_SHARE_MIN = 0.28;
+// The narrowest either right panel goes, whatever the window: its head, composer and cards still fit at 280.
+export const PANEL_MIN = 280;
+// The Overview's canvas conversations panel starts at its former fixed width.
+export const OVERVIEW_PANEL_DEFAULT = 280;
+const DEFAULT_FLOOR = 320;
+const DEFAULT_WINDOW_SHARE = 0.28;
 const WINDOW_SHARE_MAX = 0.5;
 // The canvas must keep this much width beside the panel.
 const CANVAS_MIN = 360;
@@ -17,17 +21,20 @@ const NUDGE = 16;
 // the canvas limit follows the real layout. In a window too narrow for both limits the maximum wins.
 export function panelBounds(windowWidth: number, shellWidth: number): PanelBounds {
   const max = Math.max(0, Math.floor(Math.min(windowWidth * WINDOW_SHARE_MAX, shellWidth - CANVAS_MIN)));
-  const min = Math.min(Math.round(Math.max(FLOOR, windowWidth * WINDOW_SHARE_MIN)), max);
-  return { min, max };
+  return { min: Math.min(PANEL_MIN, max), max };
+}
+
+// The canvas conversation panel's default: wider than its minimum and growing with the window.
+export function canvasPanelDefault(windowWidth: number): number {
+  return Math.round(Math.max(DEFAULT_FLOOR, windowWidth * DEFAULT_WINDOW_SHARE));
 }
 
 // The width to show. `saved` is never rewritten here: a window that shrinks shows a clamped width while the
-// saved value stays, so widening the window again brings it back. A missing or unusable value is the default,
-// which is the minimum.
-export function panelWidth(saved: number | undefined, windowWidth: number, shellWidth: number): number {
-  const { min, max } = panelBounds(windowWidth, shellWidth);
-  if (saved === undefined || !Number.isFinite(saved)) return min;
-  return Math.min(max, Math.max(min, saved));
+// saved value stays, so widening the window again brings it back. A missing or unusable value is the panel's
+// `fallback` default, clamped the same way.
+export function panelWidth(saved: number | undefined, bounds: PanelBounds, fallback: number): number {
+  const wanted = saved === undefined || !Number.isFinite(saved) ? fallback : saved;
+  return Math.min(bounds.max, Math.max(bounds.min, wanted));
 }
 
 // On the panel's start (left) edge ← moves the edge left and widens the panel; on the sidebar's end edge → widens.

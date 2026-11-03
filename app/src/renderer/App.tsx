@@ -46,7 +46,7 @@ import type { ReplyAnchor } from "../main/conversation/replyAnchor";
 import { distinctTargets } from "./anchorField";
 import type { ScrollTo } from "./overviewRun";
 import { ConversationPanel } from "./ConversationPanel";
-import { panelBounds, panelWidth } from "./rightPanelSize";
+import { canvasPanelDefault, panelBounds, panelWidth } from "./rightPanelSize";
 import { SIDEBAR_BOUNDS, sidebarWidth } from "./sidebarSize";
 import { duplicateIdText } from "./canvasView";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -1335,8 +1335,8 @@ export function App() {
   // clamped to the window's bounds, or none while folded. The Overview keeps its own 280px column.
   const canvasPage = overview === null;
   const panelBox = panelSize ?? { window: 0, shell: 0 };
-  const shownPanel = panelWidth(rightPanel.width, panelBox.window, panelBox.shell);
   const panelLimits = panelBounds(panelBox.window, panelBox.shell);
+  const shownPanel = panelWidth(rightPanel.width, panelLimits, canvasPanelDefault(panelBox.window));
   const rightColumn = canvasPage ? (rightPanel.open ? `${shownPanel}px` : "0px") : undefined;
   useLayoutEffect(() => {
     const measure = () => {
