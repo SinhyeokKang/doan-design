@@ -42,3 +42,4 @@
 
 - run `run_4a5ad927bf28`. A: task `task_5cb6cbf8ae13`, dispatch `ctx_a4f6225bf27e`, worktree `conv-delete-A`(Opus high 확인). B: task `task_ee6385d7b5ea`, dispatch `ctx_677113085527`, worktree `conv-delete-B`(Opus high 확인). 둘 다 `6985e033`에서 시작했다.
 - B 완료: `16cb172a` test, `7ca1032c` feat. app test·typecheck·verify.mjs 통과(worker 보고). RB(Opus high, task `task_1cab74a2b171`, dispatch `ctx_d19aab30cb5f`)를 `conv-delete-B` worktree에서 시작했다.
+- RB 완료: 🔴 0, 🟡 1(homeRun 진행 중 claim이 지운 대화를 되살림), ⚪ 4. 수정 1회차(🟡1, ⚪1 stale 목록 창, ⚪2·⚪3 테스트 고정)를 B에 보냈다(dispatch `ctx_394155d5ba75`). quitting 중 거절 토스트 확인은 RC가 본다.
