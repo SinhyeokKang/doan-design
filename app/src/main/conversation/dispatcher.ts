@@ -3,7 +3,8 @@ import { codexPermission, endTransport, initialTransport, normalizeCodex, normal
 import type { EventPayload, PendingPermission } from "./types";
 // The server's own error answer to a pending request; timeouts, write failures and exit reject with a plain Error.
 export class RpcError extends Error {}
-interface Pending { owner?: CodexReplyOwner; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
+// steered: the message a turn/steer carries, dropped when the server refuses it.
+interface Pending { owner?: CodexReplyOwner; steered?: string; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }
 export class CodexDispatcher {
   private state = initialTransport();
   private context: CodexContext = { root: "", sessionId: "", turnId: "" };
@@ -24,19 +25,21 @@ export class CodexDispatcher {
   // A turn that can still take a steered message: begun, not stopped and not ended.
   running(): boolean { return !this.closed && !this.state.terminal && !this.state.stop && !!this.context.turnId; }
   // turn/steer for messageId. The server may hold its reply while the turn waits on a permission answer, so an unanswered
-  // steer refuses only itself: a timeout must not fail the protocol and with it the running turn.
+  // steer refuses only itself: a timeout must not fail the protocol and with it the running turn. The server does not
+  // order its reply and the echo, so the message can be consumed before this resolves, and after a timeout (the server
+  // may still have taken it); a refused one is never reported.
   steer(params: unknown, messageId: string): Promise<unknown> {
     if (!this.running()) return Promise.reject(new Error("not_running"));
     this.state = steerTransport(this.state, messageId);
-    return this.call("turn/steer", params, undefined, false);
+    return this.call("turn/steer", params, undefined, false, messageId);
   }
-  private call(method: string, params: unknown, owner: CodexReplyOwner | undefined, failOnTimeout: boolean): Promise<unknown> {
+  private call(method: string, params: unknown, owner: CodexReplyOwner | undefined, failOnTimeout: boolean, steered?: string): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("process_exited"));
     const id = owner?.requestId ?? `doan-${this.next++}`;
     if (this.pending.has(id)) return Promise.reject(new Error("Duplicate RPC ID"));
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("RPC timeout")); if (failOnTimeout) this.fail(); }, 10_000);
-      this.pending.set(id, { ...(owner ? { owner } : {}), resolve, reject, timer });
+      this.pending.set(id, { ...(owner ? { owner } : {}), ...(steered ? { steered } : {}), resolve, reject, timer });
       try { this.write({ id, method, params }); } catch (error) { clearTimeout(timer); this.pending.delete(id); reject(error); this.fail(); }
     });
   }
@@ -62,6 +65,8 @@ export class CodexDispatcher {
     this.pending.delete(raw.id); clearTimeout(pending.timer);
     if ("error" in raw) {
       if (pending.owner) this.apply(normalizeCodexReply(this.state, raw, this.context, pending.owner));
+      // Dropped here, not in a rejection handler: an echo later in the same chunk is received before those run.
+      if (pending.steered && this.state.steered) this.state = { ...this.state, steered: this.state.steered.filter(id => id !== pending.steered) };
       pending.reject(new RpcError(object(raw.error) && typeof raw.error.message === "string" ? raw.error.message : "RPC error"));
     } else pending.resolve(raw.result);
   }

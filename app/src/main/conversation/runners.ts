@@ -231,7 +231,11 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             const result = normalizeClaude(state, raw, input.cwd); state = result.state;
             for (const id of result.consumed ?? []) input.steerConsumed?.(id);
             for (const event of result.events) emit(event);
-            if (state.terminal) closeInput();
+            if (!state.terminal) continue;
+            closeInput();
+            // A failed or aborted result can end the turn with a steered message already written and unread; the item
+            // goes back to the draft, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
+            if (state.steered?.length) { void group?.stop(); break; }
           }
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
         } catch (error) {

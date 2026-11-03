@@ -116,10 +116,11 @@ describe("Codex steer path", () => {
     h.rpc.receive({ method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "completed" } } });
     expect(h.seen).toEqual([{ type: "message.delta", messageId: "m", text: "a" }, { consumed: "c1" }, { type: "turn.done" }]);
   });
-  it("refuses a steer the server answers with an error without failing the turn", async () => {
+  it("refuses a steer the server answers with an error without failing the turn, and never reports it read", async () => {
     const h = steering();
     const refused = h.rpc.steer({}, "c1").catch((e: unknown) => e);
-    h.rpc.receive({ id: "doan-1", error: { code: -32600, message: "no active turn to steer" } });
+    // The echo right behind the error in the same chunk is received before the rejection's handlers run.
+    h.rpc.receive({ id: "doan-1", error: { code: -32600, message: "no active turn to steer" } }); h.rpc.receive(echo("c1"));
     const error = await refused; expect(error).toBeInstanceOf(RpcError); expect((error as Error).message).toBe("no active turn to steer");
     expect(h.seen).toEqual([]); expect(h.cleanup).not.toHaveBeenCalled(); expect(h.rpc.running()).toBe(true);
   });
@@ -131,9 +132,10 @@ describe("Codex steer path", () => {
       await vi.advanceTimersByTimeAsync(10_000);
       expect(((await timedOut) as Error).message).toBe("RPC timeout");
       expect(h.cleanup).not.toHaveBeenCalled(); expect(h.rpc.running()).toBe(true);
-      h.rpc.receive({ id: "doan-1", result: { turnId: "t" } });
+      // The server may still have taken it, so a late echo is still the message's consumption.
+      h.rpc.receive({ id: "doan-1", result: { turnId: "t" } }); h.rpc.receive(echo("c1"));
       h.rpc.receive({ method: "turn/completed", params: { threadId: "s", turn: { id: "t", status: "completed" } } });
-      expect(h.seen).toEqual([{ type: "turn.done" }]); expect(h.cleanup).not.toHaveBeenCalled();
+      expect(h.seen).toEqual([{ consumed: "c1" }, { type: "turn.done" }]); expect(h.cleanup).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
   });
   it("refuses a steer once the turn has ended, without writing it", async () => {

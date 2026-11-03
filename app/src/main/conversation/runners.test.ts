@@ -565,7 +565,9 @@ it("sends no probe and no approval or sandbox for a Codex run on an external pro
 
 // queue-send-now: steer on the Codex and Claude runners. The fakes follow the PoC's wire shapes (Claude Code 2.1.317, Codex 0.166.0).
 // FAKE_STEER: "echo" accepts and echoes the clientUserMessageId in the same turn, then completes; "error" answers the
-// steer with the server's after-completion error and completes; "silent" never answers the steer and completes later;
+// steer with the server's after-completion error and completes; "refused" answers with an error and then echoes it anyway;
+// "early" echoes the message before its steer reply and completes later; "silent" never answers the steer, echoes it
+// and completes later;
 // "complete" completes the turn with turn/start; "slow" answers turn/start late.
 function steerCodex(root: string): string {
   const command = join(root, "codex");
@@ -594,8 +596,12 @@ readline.createInterface({input:process.stdin}).on('line', line => {
    send({method:'item/completed',params:{threadId:'session',turnId:'native-1',item:{type:'agentMessage',id:'a1',text:'BANANA'}}});
    done();
   }
+  const item = {type:'userMessage',id:'u1',clientId:r.params.clientUserMessageId,content:r.params.input};
+  const echo = () => send({method:'item/started',params:{threadId:'session',turnId:'native-1',item}});
   if(mode==='error') { send({id:r.id,error:{code:-32600,message:'no active turn to steer'}}); done(); }
-  if(mode==='silent') setTimeout(done, 500);
+  if(mode==='refused') { send({id:r.id,error:{code:-32600,message:'no active turn to steer'}}); echo(); done(); }
+  if(mode==='early') { echo(); send({id:r.id,result:{turnId:r.params.expectedTurnId}}); setTimeout(done, 50); }
+  if(mode==='silent') setTimeout(() => { echo(); done(); }, 500);
  }
 });
 `, { mode: 0o700 });
@@ -624,7 +630,24 @@ it("refuses a Codex steer the server answers with an error, and the turn still e
     expect(seq).toEqual([{ type: "turn.done" }]);
   });
 });
-it("refuses a Codex steer unanswered for 10 s without failing the turn", async () => {
+it("never reports a Codex steer read once the server refused it, even if an echo follows", async () => {
+  await codexSteerRun("refused", async ({ runner, seq }) => {
+    await runner.send("first", "local-1");
+    await expect(runner.steer!("late", "local-1", "c1")).rejects.toThrow("no active turn to steer");
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    expect(seq).toEqual([{ type: "turn.done" }]);
+  });
+});
+// The server does not order its turn/steer reply and the userMessage echo: consumption can come before acceptance.
+it("reports a Codex steer read before steer resolves when the echo precedes the reply", async () => {
+  await codexSteerRun("early", async ({ runner, seq }) => {
+    await runner.send("first", "local-1");
+    await runner.steer!("Extra note", "local-1", "c1").then(() => seq.push("accepted"));
+    await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+    expect(seq).toEqual([{ consumed: "c1" }, "accepted", { type: "turn.done" }]);
+  });
+});
+it("refuses a Codex steer unanswered for 10 s without failing the turn, and still reports its late echo", async () => {
   await codexSteerRun("silent", async ({ runner, seq }) => {
     await runner.send("first", "local-1");
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -633,7 +656,7 @@ it("refuses a Codex steer unanswered for 10 s without failing the turn", async (
     expect(((await refused) as Error).message).toBe("RPC timeout");
     vi.useRealTimers();
     await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
-    expect(seq).toEqual([{ type: "turn.done" }]);
+    expect(seq).toEqual([{ consumed: "c1" }, { type: "turn.done" }]);
   });
 }, 15000);
 it("refuses a Codex steer before the turn has its native id, after it ended, and for another turn, without writing it", async () => {
@@ -656,7 +679,8 @@ it("refuses a Codex steer before the turn has its native id, after it ended, and
 // A Claude CLI that, like the real one in streaming-input mode, exits only once its stdin ends. FAKE_STEER: "fold" runs
 // a tool and folds a steered message into the turn at its status frame; "continued" answers without tools and goes on
 // to another turn for the steered message, after a result with queued_turn_count 0; "single" ends the first turn
-// at once; "failed" and "aborted" end it with an error or an aborted result; "hold" never ends it.
+// at once; "failed" and "aborted" end it with an error or an aborted result; "hold" never ends it; "hidden" runs a tool,
+// answers the steered message's line with a failed result and then goes on to a turn for it that ignores stdin's end.
 function steerClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
@@ -675,7 +699,7 @@ input.on('line', line => {
  if(++users === 1) {
   if(r.uuid) first = r.uuid;
   sys('init',[first]); sys('status',[first]);
-  if(mode==='fold') send({type:'assistant',parent_tool_use_id:null,message:{id:'a1',role:'assistant',content:[{type:'tool_use',id:'toolu_1',name:'Bash',input:{command:'sleep 12'}}]}});
+  if(mode==='fold' || mode==='hidden') send({type:'assistant',parent_tool_use_id:null,message:{id:'a1',role:'assistant',content:[{type:'tool_use',id:'toolu_1',name:'Bash',input:{command:'sleep 12'}}]}});
   if(mode==='continued' || mode==='hold') say('a1','40 facts');
   if(mode==='single') { say('a1','hello'); result([first]); }
   if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:'s'});
@@ -684,8 +708,13 @@ input.on('line', line => {
  }
  if(mode==='fold') { sys('status',[first, r.uuid]); say('a2','BANANA'); result([first, r.uuid]); }
  if(mode==='continued') { result([first]); sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]); }
+ if(mode==='hidden') {
+  send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:'s'});
+  setTimeout(() => { sys('init',[r.uuid]); say('a2','hidden edit'); }, 50);
+  setInterval(() => say('a3','still working'), 100); setTimeout(() => { result([r.uuid]); process.exit(0); }, 10000);
+ }
 });
-input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); setTimeout(() => process.exit(0), 20); });
+input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); if(mode!=='hidden') setTimeout(() => process.exit(0), 20); });
 `, { mode: 0o700 });
   return command;
 }
@@ -730,6 +759,21 @@ it.each([
     expect(seq.filter(e => ["turn.done", "turn.failed", "interrupted"].includes((e as { type?: string }).type ?? ""))).toEqual([terminal]);
     await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
     await expect(runner.steer!("late", "turn-1", STEER_ID)).rejects.toThrow("not_running");
+  });
+}, 15000);
+// A failed result that leaves a steered message unread ends the turn and the item goes back to the draft, so the CLI must
+// not go on to run it unseen: the group stops with the input, and send does not wait for the hidden turn.
+it("stops the Claude CLI when a failed result leaves a steered message unread, so its hidden turn neither records nor holds send", async () => {
+  await claudeSteerRun("hidden", async ({ runner, seq, root, exited }) => {
+    const sending = runner.send("hello", "turn-1");
+    await vi.waitFor(() => expect(seq).toContainEqual(expect.objectContaining({ type: "activity" })));
+    const started = Date.now();
+    await runner.steer!("Extra note", "turn-1", STEER_ID);
+    await sending;
+    expect(Date.now() - started).toBeLessThan(3000);
+    expect(userLines(root)[1]).toMatchObject({ uuid: STEER_ID });
+    expect(seq).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }, { type: "turn.failed", code: "unknown", detail: "Unrecognized provider failure" }]);
+    await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
   });
 }, 15000);
 it("refuses a Claude steer for another turn or after a stop, and a stop closes the input", async () => {
