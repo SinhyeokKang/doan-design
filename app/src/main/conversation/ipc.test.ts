@@ -354,6 +354,31 @@ describe("queue channels", () => {
   });
 });
 
+// conversation-delete design §2.4: conversation:delete takes an opaque id and answers nothing or a known code.
+describe("delete channel", () => {
+  it("deletes an idle conversation and answers busy, not_found, unknown and bad_request as codes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "doan-ipc-"));
+    try {
+      expect(conversationMethods).toContain("delete");
+      const prepare = vi.fn<Prepare>(async (_request, stored) => ({ runtime: "codex", configDir: "/profile", cwd: "/repo", command: "/fake", env: {}, sessionId: stored?.session.sessionId ?? "s1" }));
+      const exits: (() => void)[] = [];
+      const open = vi.fn<OpenRunner>(async (_input, _emit, exited) => { exits.push(exited); return { sessionId: "s1", send: vi.fn(async () => {}), answer: () => false, stop: vi.fn(async () => {}), close: vi.fn(async () => {}) }; });
+      const store = new ConversationStore(dir), service = new ConversationService(store, prepare, open, () => {});
+      const handle = conversationHandler(service, prepare, () => [{ path: "/repo", kind: "list", canvases: [{ path: ".doan/canvases/a.html" }] }]);
+      const id = (await handle(true, "start", { root: "/repo", mode: "resume", canvas: { path: ".doan/canvases/a.html" }, text: "x" }) as { conversationId: string }).conversationId;
+      expect(await handle(true, "delete", { conversationId: id })).toEqual({ error: "busy" });
+      for (const conversationId of [undefined, "", "../x", 1]) expect(await handle(true, "delete", { conversationId })).toEqual({ error: "bad_request" });
+      expect(await handle(false, "delete", { conversationId: id })).toEqual({ error: "bad_request" });
+      service.receive(id, { type: "turn.done" });
+      expect(await handle(true, "delete", { conversationId: id })).toBeUndefined();
+      expect(store.list()).toEqual([]);
+      expect(await handle(true, "delete", { conversationId: id })).toEqual({ error: "not_found" });
+      writeFileSync(join(dir, "conversations", "index.json"), "broken");
+      expect(await handle(true, "delete", { conversationId: id })).toEqual({ error: "unknown" });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
 // buzz-conversation fix round 1 (RA2 Y4): a queued message is accepted only after main holds its attachments.
 describe("queue acceptance", () => {
   function fixture(dir: string, markSent: () => void) {

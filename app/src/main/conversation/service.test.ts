@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationStore } from "./store";
@@ -284,10 +284,11 @@ function homeFixture(canvases: { path: string; id?: string }[] = [], options: { 
   const published: ConversationEvent[] = [];
   const admit = (_root: string, canvas?: Canvas) => options.admit && canvas ? resolveListedCanvas(canvas, listed) : undefined;
   const drafts = new DraftStore(join(dir, "conversations"));
-  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, root => changes.push(root), { drafts, ...(options.files ? { files: options.files } : {}) });
+  const deleted: string[] = [];
+  const service = new ConversationService(store, prepare, open, e => published.push(e), admit, 10_000, () => listed, root => changes.push(root), { drafts, ...(options.files ? { files: options.files } : {}) }, id => deleted.push(id));
   // Moves the clock the project limit reads past the binding window of every turn that ended so far.
   let skew = 0; const now = Date.now; vi.spyOn(Date, "now").mockImplementation(() => now() + skew);
-  return { dir, service, store, runners, open, prepare, listed, changes, published, owner, drafts, passBindingWindow: () => { skew += 10_001; } };
+  return { dir, service, store, runners, open, prepare, listed, changes, published, owner, drafts, deleted, passBindingWindow: () => { skew += 10_001; } };
 }
 const homeRequest = { root: "/repo", mode: "newDesign" as const, runtime: "claude" as const, text: "Make a pricing page", anchors: [] };
 it("runs a Home start with its chosen model and effort, records them, and applies them again on the next send", async () => {
@@ -1789,5 +1790,158 @@ describe("send now", () => {
     await expect(h.service.sendNow(id, other.itemId)).rejects.toThrow("attachment_missing");
     expect(sending(h, id)).toEqual([]);
     expect(calls).toHaveLength(1);
+  });
+});
+
+// conversation-delete design §2.3: Doan's own record of a conversation on this device goes; the agent's files stay.
+describe("delete", () => {
+  const a = { path: ".doan/canvases/a.html", id: "a" };
+  const canvasStart = { ...homeRequest, mode: "new" as const, canvas: a };
+  const history = (h: { dir: string }, id: string) => join(h.dir, "conversations", `${id}.jsonl`);
+  // A canvas conversation whose turn ended and whose process is gone.
+  async function idle(h: ReturnType<typeof homeFixture>) {
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+    return id;
+  }
+  it("removes an idle conversation's index entry and history, announces the list once and reports the deletion", async () => {
+    const h = homeFixture();
+    const id = await idle(h), other = (await h.service.start({ ...canvasStart, canvas: { path: ".doan/canvases/b.html", id: "b" } })).conversationId;
+    h.changes.length = 0;
+    h.service.delete(id);
+    expect(h.store.list().map(m => m.conversationId)).toEqual([other]);
+    expect(existsSync(history(h, id))).toBe(false);
+    expect(h.service.list("/repo").map(s => s.conversationId)).toEqual([other]);
+    expect(h.changes).toEqual(["/repo"]);
+    expect(h.deleted).toEqual([id]);
+  });
+  it.each([
+    ["running", async (h: ReturnType<typeof homeFixture>) => (await h.service.start(canvasStart)).conversationId],
+    ["waiting for an answer", async (h: ReturnType<typeof homeFixture>) => {
+      const id = (await h.service.start(canvasStart)).conversationId;
+      h.service.receive(id, { type: "permission.request", requestId: "r", tool: "Write", summary: "Write a.html", options: [{ id: "allow", label: "Allow", kind: "allow" }] });
+      return id;
+    }],
+    ["waiting for its judgement", async (h: ReturnType<typeof homeFixture>) => {
+      const id = (await h.service.start(homeRequest)).conversationId;
+      h.service.receive(id, { type: "turn.done" }); h.open.mock.calls[0]![2]();
+      return id;
+    }],
+    ["holding its queue for the previous process", async (h: ReturnType<typeof homeFixture>) => {
+      const id = (await h.service.start(canvasStart)).conversationId;
+      h.service.queue(id, { text: "next", anchors: [] });
+      h.service.receive(id, { type: "turn.done" });
+      await new Promise(resolve => setTimeout(resolve, 10));
+      return id;
+    }],
+    ["with a send waiting for the previous process", async (h: ReturnType<typeof homeFixture>) => {
+      const id = (await h.service.start(canvasStart)).conversationId;
+      h.service.receive(id, { type: "turn.done" });
+      void h.service.send(id, "again", []).catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 10));
+      return id;
+    }],
+  ] as const)("refuses as busy while the conversation is %s and changes nothing", async (_name, setup) => {
+    const h = homeFixture();
+    const id = await setup(h);
+    const before = readFileSync(history(h, id), "utf8");
+    expect(h.service.list("/repo")[0]!.working).toBe(true);
+    expect(() => h.service.delete(id)).toThrow("busy");
+    expect(h.store.list().map(m => m.conversationId)).toEqual([id]);
+    expect(readFileSync(history(h, id), "utf8")).toBe(before);
+    expect(h.runners[0]!.close).not.toHaveBeenCalled();
+    expect(h.deleted).toEqual([]);
+  });
+  it("refuses as busy while the app quits and as not_found for a conversation it does not hold", async () => {
+    const h = homeFixture();
+    const id = await idle(h);
+    expect(() => h.service.delete("33333333-3333-4333-8333-333333333333")).toThrow("not_found");
+    void h.service.quit();
+    expect(() => h.service.delete(id)).toThrow("busy");
+    expect(h.store.list()).toHaveLength(1);
+  });
+  it("deletes nothing and closes nothing when the index cannot be read", async () => {
+    const h = fixture();
+    const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" });
+    writeFileSync(join(h.store["directory"] as string, "index.json"), "broken");
+    expect(() => h.service.delete(id)).toThrow("Invalid conversation index");
+    expect(h.runners[0]!.close).not.toHaveBeenCalled();
+    expect(h.store.read(id).length).toBeGreaterThan(0);
+  });
+  it("closes an idle Codex server it would have reused, ignores its late events and releases the session once its process exits (POSTMORTEM 2026-10-28)", async () => {
+    const h = fixture();
+    const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" });
+    const emit = h.open.mock.calls[0]![1];
+    h.service.delete(id);
+    expect(h.runners[0]!.close).toHaveBeenCalledOnce();
+    emit({ type: "message.delta", messageId: "m", text: "late" });
+    h.service.receive(id, { type: "turn.done" });
+    expect(existsSync(join(h.store["directory"] as string, `${id}.jsonl`))).toBe(false);
+    // The deleted conversation's process still holds its session until its group is gone.
+    await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).rejects.toThrow("session_in_use");
+    h.exits[0]!();
+    await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).resolves.toMatchObject({ conversationId: expect.any(String) });
+  });
+  it("answers not_found to every later call on the deleted conversation and writes no history for it", async () => {
+    const h = homeFixture();
+    const id = await idle(h);
+    h.service.delete(id);
+    await expect(h.service.send(id, "again", [])).rejects.toThrow("not_found");
+    expect(() => h.service.queue(id, { text: "x", anchors: [] })).toThrow("not_found");
+    expect(() => h.service.markSeen(id, 1)).toThrow("not_found");
+    expect(() => h.service.setPermissionMode(id, "plan")).toThrow("not_found");
+    expect(() => h.service.takeDraft(id)).toThrow("not_found");
+    expect(() => h.service.read(id)).toThrow("not_found");
+    await expect(h.service.interrupt(id)).rejects.toThrow("not_found");
+    await expect(h.service.sendNow(id, "item")).rejects.toThrow("not_found");
+    expect(() => h.service.delete(id)).toThrow("not_found");
+    expect(existsSync(history(h, id))).toBe(false);
+  });
+  it("discards the conversation's returned draft with it", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "queued", anchors: [] });
+    h.service.receive(id, { type: "interrupted", reason: "user" }); h.open.mock.calls[0]![2]();
+    expect(h.service.list("/repo")[0]).toMatchObject({ returnedDraft: true, working: false });
+    h.service.delete(id);
+    expect(h.drafts.returned(id)).toBeUndefined();
+    expect(JSON.parse(readFileSync(join(h.dir, "conversations", "drafts.json"), "utf8")).returned).toEqual({});
+  });
+  it("still succeeds once the index is committed when the drafts or the deletion report fail afterwards", async () => {
+    const h = homeFixture();
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "queued", anchors: [] });
+    h.service.receive(id, { type: "interrupted", reason: "user" }); h.open.mock.calls[0]![2]();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(h.drafts as unknown as { write(): void }, "write").mockImplementation(() => { throw new Error("ENOSPC"); });
+    h.deleted.push = () => { throw new Error("notification gone"); };
+    expect(() => h.service.delete(id)).not.toThrow();
+    expect(h.store.list()).toEqual([]);
+    expect(log).toHaveBeenCalled();
+  });
+  it("removes, at the next start, drafts of conversations the index no longer holds", async () => {
+    const h = homeFixture();
+    const kept = await idle(h);
+    const gone = "33333333-3333-4333-8333-333333333333";
+    const draft = { text: "x", anchors: [], attachments: [], reason: "turn_failed" };
+    const path = join(h.dir, "conversations", "drafts.json");
+    writeFileSync(path, JSON.stringify({ v: 1, queued: {}, returned: { [kept]: draft, [gone]: draft } }));
+    const restarted = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => [], () => {}, { drafts: new DraftStore(join(h.dir, "conversations")) });
+    expect(restarted.list("/repo")[0]).toMatchObject({ conversationId: kept, returnedDraft: true });
+    expect(Object.keys(JSON.parse(readFileSync(path, "utf8")).returned)).toEqual([kept]);
+  });
+  it("removes no drafts at start when index.json is missing or unreadable", () => {
+    for (const index of [null, "broken"]) {
+      const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
+      const store = new ConversationStore(dir), conversations = join(dir, "conversations");
+      if (index !== null) writeFileSync(join(conversations, "index.json"), index);
+      const draft = { text: "x", anchors: [], attachments: [], reason: "turn_failed" };
+      const value = JSON.stringify({ v: 1, queued: {}, returned: { "33333333-3333-4333-8333-333333333333": draft } });
+      writeFileSync(join(conversations, "drafts.json"), value);
+      new ConversationService(store, async () => { throw new Error("unused"); }, async () => { throw new Error("unused"); }, () => {}, () => {}, 10_000, () => [], () => {}, { drafts: new DraftStore(conversations) });
+      expect(readFileSync(join(conversations, "drafts.json"), "utf8"), String(index)).toBe(value);
+    }
   });
 });
