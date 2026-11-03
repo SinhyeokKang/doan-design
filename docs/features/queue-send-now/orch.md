@@ -52,3 +52,8 @@
 - B 수정 1회차 `837524d9`(🟡1·🟡3 반영, red 선확인, 테스트 6275 통과). `shell.test.ts` 're-root focus'가 간헐 실패(격리 9회 중 2회, 이번 변경과 무관) — BACKLOG 후보.
 - B를 `647d3633`로 통합, B worker release, qsn-b worktree 삭제 요청(브랜치 `SinhyeokKang/qsn-b`는 `837524d9`에 남김). C에는 rebase 후 gate 재실행을 요청했다.
 - C 완료 `d6cee431`(base `9f201e4e`, rebase 안 함. verify 3회차 통과, 1·2회차는 `watch.test.ts`·`shell.test.ts` flake). 계획과 다른 점: done flush가 진행 중 steer를 await하지 않고, terminal 처리 직전에 미소비 steer를 되돌린다(`dropSteers`). B 계약상 terminal 뒤에는 소비가 없으므로 결과는 같고 Codex RPC 대기가 없다. 리뷰에서 판단한다. preload는 `sendQueuedNow({conversationId, itemId})`.
+- C를 `171dd6a8`로 통합. 결합 HEAD에서 typecheck 통과, conversation 테스트 29 files / 821 tests 통과. C worker release.
+- C 리뷰 `ctx_2a45d4abbf36`(Opus high, `dropSteers` 대체 판단 포함). D 2단계 `ctx_dc2e5731803d`(qsn-d, Opus medium): 실제 preload 연결과 Claude·Codex `/runtime-test`, Claude 연속 턴 경우 5회 반복.
+- C 리뷰(Opus high): 🔴 0 · 🟡 1 · ⚪ 5. `dropSteers` 대체는 design §2.3과 같다고 판정(모든 terminal 경로 추적). 🟡1(목록 count가 sending을 빼서 행이 사라짐)은 D 수정 1회차 `0368612f`에서 이미 고쳤다. ⚪(quit·failedPersistence dropSteers 테스트 없음, Codex 프로세스 사망 때 거절과 turn.failed 순서 미확인, timeout 뒤 재요청 시 에이전트가 두 번 읽을 수 있음)은 고치지 않고 PR에 적는다. C 완료, qsn-c worktree 삭제(브랜치 `SinhyeokKang/qsn-c`는 `d6cee431`에 남김).
+- D 2단계 질문: Doan은 자체 sign-in(`<userData>/agent-auth`)만 써서 `CLAUDE_CONFIG_DIR`·`CODEX_HOME`을 가리켜도 실제 턴이 돌지 않는다. → conductor 판단(결정 1의 취지 안): sign-in된 scratch userData `.scratch/agent-auth-probe/userData`를 쓴다. `folders.json`은 백업·복원(바이트 비교), SHELL·DOAN_RUNTIME·DOAN_CLI 격리, HOME은 격리 먼저, keychain이 막힐 때만 실제 HOME. ACP probe도 돌린다(버튼 없음 기대).
+- D 2단계 `f5d5310d`→`ee028416` 통합. T5 probe 전부 통과(Claude·Codex, Claude 연속 턴 5/5 hang 없음). 실제 HOME 사용(격리 HOME은 keychain 접근 불가). ACP는 실제 앱에서 `not_logged_in`이라 단위 표만. 통합 HEAD `/verify` PASS. qsn-d 삭제.
