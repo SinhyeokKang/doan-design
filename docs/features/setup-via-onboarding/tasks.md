@@ -4,6 +4,10 @@
 
 링크 시작 때 지휘자가 정해 이 파일에 적는 것: O1·O2·D12·D9·D10h 각각의 기준 라운드(`docs/USABILITY-EVAL.md`에서 그 시나리오의 최신 기록 라운드. D10h가 대체됐으면 그때의 현재 id), 가이드 출력 크기(`doan skill --json` + bundle 안내).
 
+링크 시작(`4a5622eb`)에서 정한 값:
+- 기준 라운드: O1·O2·D12·D9는 `project-settings-guide`(2026-11-03; O1-claude는 judge만 fail이었고 `project-settings-guide-repeat`에서 pass/pass). D10h는 `eval-d10h-261101`(2026-11-01, claude partial(judge만), codex pass). D10h는 대체되지 않았다.
+- 가이드 출력 크기: `doan skill --json` 21,405 B + bundle 안내 166 B = 21,571 / 21,600 B(29 B 남음). 일반 출력은 20,730 B.
+
 ## E. 하네스와 시나리오
 
 - [ ] T1. 가짜 앱 `completed`, 시나리오 O3·O3b(design '영향 받는 부분').
