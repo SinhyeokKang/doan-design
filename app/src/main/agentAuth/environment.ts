@@ -7,7 +7,8 @@ export type ProviderEnv = { ok: true; env: Record<string, string> } | { ok: fals
 // An allowlist, not a denylist: inherited API keys, other providers' homes and external
 // session IDs would otherwise override the dedicated login. Read from the launchd environment (launchEnv), so a
 // terminal-launched app signs in the way a Dock-launched one does.
-const INHERITED = new Set(["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR"]);
+const INHERITED = new Set(["HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "LANG", "TZ", "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS",
+  "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "no_proxy", "all_proxy"]);
 // PoC 10 isolated Cursor, Antigravity and Copilot only through a dedicated HOME; Codex needed the real HOME for its keyring.
 const PROFILE_VARIABLE: Record<Provider, string> = { claude: "CLAUDE_CONFIG_DIR", codex: "CODEX_HOME", cursor: "HOME", antigravity: "HOME", copilot: "HOME" };
 const RESERVED = new Set(["PATH", "DOAN_RUNTIME", "DOAN_APP_CONVERSATION", "HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_HOME", "SSH_AUTH_SOCK", "GIT_CONFIG_GLOBAL"]);
@@ -23,7 +24,7 @@ export function providerEnv(input: ProviderEnvInput): ProviderEnv {
   if (extra.some(([name]) => RESERVED.has(name))) return { ok: false, code: "reserved_extra" };
   const inherited = launchEnv(input.inherited);
   const env: Record<string, string> = {};
-  for (const [name, text] of Object.entries(inherited)) if (INHERITED.has(name) && value(text)) env[name] = text;
+  for (const [name, text] of Object.entries(inherited)) if ((INHERITED.has(name) || name.startsWith("LC_")) && value(text)) env[name] = text;
   Object.assign(env, Object.fromEntries(extra), { PATH: input.path, DOAN_RUNTIME: input.appRuntime, DOAN_APP_CONVERSATION: "1", [PROFILE_VARIABLE[input.provider]]: input.profileDir });
   if (PROFILE_VARIABLE[input.provider] === "HOME") {
     // A dedicated HOME hides the user's git and ssh setup from the agent's tool shell; only these two come back

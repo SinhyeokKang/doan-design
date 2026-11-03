@@ -15,7 +15,8 @@ const inherited = {
 // A dedicated HOME gets back only the user's ssh agent and real git config (user decision 2026-10-28).
 const dedicated = { SSH_AUTH_SOCK: "/tmp/ssh-agent.sock", GIT_CONFIG_GLOBAL: "/Users/ada/.gitconfig" };
 const input = (provider: Provider, over: Record<string, unknown> = {}) => ({ provider, inherited, path: "/verified/bin:/usr/bin", profileDir: "/data/profiles/" + provider, appRuntime: "/data/runtime.json", ...over });
-const kept = { USER: "ada", LOGNAME: "ada", SHELL: "/bin/zsh", TMPDIR: "/tmp/ada", PATH: "/verified/bin:/usr/bin", DOAN_RUNTIME: "/data/runtime.json", DOAN_APP_CONVERSATION: "1" };
+const kept = { USER: "ada", LOGNAME: "ada", SHELL: "/bin/zsh", TMPDIR: "/tmp/ada", LANG: "ko_KR.UTF-8", LC_ALL: "ko_KR.UTF-8",
+  HTTPS_PROXY: "http://proxy:8080", no_proxy: "localhost", NODE_EXTRA_CA_CERTS: "/etc/ca.pem", PATH: "/verified/bin:/usr/bin", DOAN_RUNTIME: "/data/runtime.json", DOAN_APP_CONVERSATION: "1" };
 
 describe("provider child environment", () => {
   it("routes each provider to its dedicated profile and drops other credentials and session IDs", () => {
@@ -47,7 +48,7 @@ describe("provider child environment", () => {
     for (const provider of ["claude", "codex", "cursor", "antigravity", "copilot"] as const) {
       const fromTerminal = providerEnv(input(provider, { inherited: TERMINAL }));
       expect(fromTerminal).toEqual(providerEnv(input(provider, { inherited: DOCK })));
-      for (const name of ["ORCA_TERMINAL_HANDLE", "ORCA_AGENT_HOOK_TOKEN", "CLAUDE_CODE_SESSION_ID", "TERM_PROGRAM", "TERM", "LANG", "FOO"]) expect(fromTerminal.ok && fromTerminal.env).not.toHaveProperty(name);
+      for (const name of ["ORCA_TERMINAL_HANDLE", "ORCA_AGENT_HOOK_TOKEN", "CLAUDE_CODE_SESSION_ID", "TERM_PROGRAM", "TERM", "FOO"]) expect(fromTerminal.ok && fromTerminal.env).not.toHaveProperty(name);
     }
   });
   it("names each invalid input explicitly", () => {

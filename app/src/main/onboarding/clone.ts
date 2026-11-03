@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, rename, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { OwnedGroup } from "../conversation/process";
+import { launchEnv } from "../launchEnv";
 import { findOnPath } from "./states";
 
 // The one git run onboarding makes: the clone the user approved (buzz-onboarding design 'GitHub 조회·clone 실행 계약').
@@ -43,14 +44,12 @@ export function cloneArgs(url: string, target: string): string[] {
 }
 
 // Login-shell PATH so the user's credential helpers (gh among them) are found, and the user's own SSH setup
-// (core.sshCommand, GIT_SSH_COMMAND, ~/.ssh/config) applies unchanged (D17, 2026-10-29 user). Nothing can wait for
-// input: the clone runs in its own process group with no controlling terminal and stdin closed, git's terminal
-// prompt is off and no askpass helper is offered, so ssh cannot ask; host key checking stays as the user set it.
+// (core.sshCommand, ~/.ssh/config, the ssh agent) applies unchanged. The launchd environment only (launchEnv): the
+// launching terminal's GIT_* and askpass settings are not the user's git setup. Nothing can wait for input: the clone
+// runs in its own process group with no controlling terminal and stdin closed, git's terminal prompt is off and no
+// askpass helper is offered, so ssh cannot ask; host key checking stays as the user set it.
 export function cloneEnv(inherited: NodeJS.ProcessEnv, path: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(inherited)) if (value !== undefined) env[key] = value;
-  for (const key of ["GIT_ASKPASS", "SSH_ASKPASS", "GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_PARAMETERS"]) delete env[key];
-  return { ...env, PATH: path, GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never", GCM_INTERACTIVE: "never" };
+  return { ...launchEnv(inherited), PATH: path, GIT_TERMINAL_PROMPT: "0", SSH_ASKPASS_REQUIRE: "never", GCM_INTERACTIVE: "never" };
 }
 
 export interface GitLocation {
