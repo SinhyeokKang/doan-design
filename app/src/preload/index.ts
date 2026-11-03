@@ -122,6 +122,10 @@ const api = {
   // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
   sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
+  // Deletes Doan's record of the conversation on this device (index entry, history, queue and returned draft); the
+  // agent's own session files stay. busy while it works or the app quits; not_found when it is already gone; unknown
+  // when the index cannot be read, and then nothing is deleted. A success is announced with onConversationListChanged.
+  deleteConversation: (request: { conversationId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:delete", request),
   // One summary per conversation main keeps for this project, current and archived; a row whose history cannot be
   // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
   // working: main still works on it (preparing, running, waiting for an answer, judging its turn, about to send its
@@ -360,6 +364,13 @@ const api = {
     const receive = (_event: Electron.IpcRendererEvent, target: NotificationTarget) => listener(target);
     ipcRenderer.on("notifications:click", receive);
     return () => ipcRenderer.removeListener("notifications:click", receive);
+  },
+  // true once a quit is under way and conversations stop (conversation:delete then answers busy as it does while one
+  // works). Main sends no false today: an aborted quit leaves the conversations stopped until a restart.
+  onQuitting(listener: (quitting: boolean) => void): () => void {
+    const receive = (_event: Electron.IpcRendererEvent, quitting: boolean) => listener(quitting);
+    ipcRenderer.on("app:quitting", receive);
+    return () => ipcRenderer.removeListener("app:quitting", receive);
   },
   // Main asks for the Settings page, at a category and optionally a provider row; a hidden window is already shown.
   onOpenSettingsPage(listener: (target: SettingsPageTarget) => void): () => void {

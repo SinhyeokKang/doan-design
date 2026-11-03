@@ -859,3 +859,77 @@ test("a conversation that leaves Plan in main's list tells App the mode it moved
   expect(h.host.followedMode).toHaveBeenCalledTimes(2);
   expect(h.host.followedMode).toHaveBeenLastCalledWith("claude", "default");
 });
+
+// conversation-delete tasks T3, design §3.2: a deleted conversation leaves the strip, Edit on Home and the run's
+// records, and late events or a list read started before the delete do not bring it back.
+test("a deleted conversation leaves the strip and Edit on Home", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  h.run.event(event("c1", { type: "turn.started" }));
+  h.run.event(event("c1", { type: "turn.done" }));
+  expect(h.run.strip(ROOT)?.conversation.conversationId).toBe("c1");
+  expect(h.run.lastRequests.get(ROOT)?.conversationId).toBe("c1");
+  h.run.deleted("c1");
+  expect(h.run.strip(ROOT)).toBeNull();
+  expect(h.run.conversations).toEqual([]);
+  expect(h.run.lastRequests.has(ROOT)).toBe(false);
+  expect(h.run.knows("c1")).toBe(false);
+  expect(h.run.slots().size).toBe(0);
+  await h.run.editOnHome("c1");
+  expect(h.host.goHome).not.toHaveBeenCalled();
+  expect(h.host.changed).toHaveBeenCalled();
+});
+
+test("late events and a list read from before the delete do not bring a deleted conversation back", async () => {
+  // The list read was answered before main deleted it; its history still read then.
+  lists({ [ROOT]: [summary({ conversationId: "c1", unseen: true })] });
+  doan.readConversation!.mockResolvedValue({ events: [event("c1", { type: "user.message", text: "Draw it", anchors: [] }), event("c1", { type: "turn.done" })], lastSeq: 2, turn: "idle" });
+  const h = harness();
+  h.run.event(event("c2", { type: "turn.started" }));
+  h.run.deleted("c1");
+  h.run.event(event("c1", { type: "turn.started" }));
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(h.run.strip(ROOT)).toBeNull();
+  expect(h.run.conversations).toEqual([]);
+  expect(doan.readConversation).not.toHaveBeenCalledWith({ conversationId: "c1" });
+});
+
+test("deleting one conversation leaves another's strip", async () => {
+  const h = harness();
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c1" }); await sending;
+  h.arrive();
+  h.run.deleted("c9");
+  expect(h.run.strip(ROOT)?.conversation.conversationId).toBe("c1");
+  expect(h.run.lastRequests.get(ROOT)?.conversationId).toBe("c1");
+});
+
+// Review RB 🟡1: a claim whose history read is in flight when the conversation is deleted must not put it back.
+test("a claim whose history read lands after the delete registers nothing", async () => {
+  lists({ [ROOT]: [summary({ conversationId: "c1", unseen: true })] });
+  const read = deferred<unknown>();
+  doan.readConversation!.mockImplementation(() => read.promise);
+  const h = harness();
+  h.run.entriesChanged();
+  await flush(); await flush();
+  expect(doan.readConversation).toHaveBeenCalledWith({ conversationId: "c1" });
+  h.run.deleted("c1");
+  h.run.event(event("c1", { type: "turn.started" }));
+  read.resolve({ events: [event("c1", { type: "user.message", text: "Draw it", anchors: [] }), event("c1", { type: "turn.done" })], lastSeq: 2, turn: "idle" });
+  await flush(); await flush();
+  expect(h.run.conversations).toEqual([]);
+  expect(h.run.strip(ROOT)).toBeNull();
+});
+
+// Review RB ⚪3: late events of a deleted conversation are not buffered, so a burst of them cannot push another
+// conversation's early events (those that came before its start reply) out of the bounded buffer.
+test("late events of a deleted conversation do not crowd out another conversation's buffered events", async () => {
+  const h = harness();
+  h.run.event(event("c2", { type: "turn.started" }));
+  h.run.event(event("c2", { type: "permission.request", requestId: "r1", tool: "Edit", summary: "Edit x", options: [{ id: "a", label: "Allow", kind: "allow" }] }));
+  h.run.deleted("c1");
+  for (let i = 0; i < 500; i++) h.run.event(event("c1", { type: "activity", kind: "edit", summary: "Editing" }));
+  const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c2" }); await sending;
+  expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
+});

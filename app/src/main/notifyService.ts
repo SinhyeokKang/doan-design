@@ -69,6 +69,13 @@ export function createNotifyService(deps: NotifyDeps) {
       notification.show();
     },
 
+    // A deleted conversation's notification has nothing left to lead to.
+    close(conversationId: string): void {
+      const shown = held.get(conversationId); if (!shown) return;
+      held.delete(conversationId);
+      shown.notification.close();
+    },
+
     // Shown whatever the switches and focus say: the point is to see one now.
     test(): Promise<TestNotificationReply> {
       const notification = deps.create({ ...TEST_NOTIFICATION });

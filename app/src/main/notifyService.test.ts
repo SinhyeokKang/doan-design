@@ -151,3 +151,18 @@ test("names a conversation by its provider, its project as Home names it, and th
   expect(conversationNames(conversations, entries, "c3")).toEqual({ provider: "Codex", root: "/gone/site", project: "site", branch: null });
   expect(conversationNames(conversations, entries, "missing")).toBeNull();
 });
+
+test("closing a deleted conversation's notification closes only that one and forgets it", () => {
+  service.event(approval("c1", "r1"));
+  service.event(done("c2"));
+  const [first, second] = created;
+  service.close("c1");
+  expect(first!.close).toHaveBeenCalledOnce();
+  expect(second!.close).not.toHaveBeenCalled();
+  // Forgotten: a later event of that conversation has nothing of it left to close.
+  service.event(resolved("c1", "r1"));
+  expect(first!.close).toHaveBeenCalledOnce();
+  service.close("c1");
+  service.close("unknown");
+  expect(first!.close).toHaveBeenCalledOnce();
+});

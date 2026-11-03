@@ -240,13 +240,17 @@ test("the panel header offers New conversation next to the title menu", () => {
   expect(html).toMatch(/<button type="button" class="doan-icon-button doan-conv-new" aria-label="New conversation"[^>]*><svg[^>]*lucide-square-pen/);
 });
 
-test("New conversation selects a new conversation and focuses the composer, or only focuses when already new", () => {
+// N1 (conversation-delete orch decisions 1–2): on the new conversation state it does nothing.
+test("New conversation selects a new conversation and focuses the composer, does nothing when already new, and only focuses while nothing shows", () => {
   const select = vi.fn(), focus = vi.fn();
-  startNewConversation("c1", select, focus);
+  startNewConversation("c1", false, select, focus);
   expect(select).toHaveBeenCalledWith(null);
   expect(focus).toHaveBeenCalledTimes(1);
   select.mockClear(); focus.mockClear();
-  startNewConversation(null, select, focus);
+  startNewConversation(null, true, select, focus);
+  expect(select).not.toHaveBeenCalled();
+  expect(focus).not.toHaveBeenCalled();
+  startNewConversation(null, false, select, focus);
   expect(select).not.toHaveBeenCalled();
   expect(focus).toHaveBeenCalledTimes(1);
 });

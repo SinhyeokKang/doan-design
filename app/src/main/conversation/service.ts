@@ -115,8 +115,11 @@ export class ConversationService {
   // By messageId, until the agent reads it or its turn ends; a refused one stays, since its read may still come.
   private steers = new Map<string, Steer>();
   // listChanged: a root whose conversation list (conversation:list) changed, sent after the write it reports.
-  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}) {
+  // deleted: a conversation deleted (delete), once its index entry is gone.
+  constructor(private store: ConversationStore, private prepare: Prepare, private open: OpenRunner, private publish: (event: ConversationEvent) => void, private admit: (root: string, canvas?: Canvas) => Canvas | void = () => {}, private exitWaitMs = EXIT_WAIT_MS, private canvases: (root: string) => readonly Canvas[] = () => [], private listChanged: (root: string) => void = () => {}, private queueOptions: QueueOptions = {}, private deleted: (id: string) => void = () => {}) {
     this.drafts = queueOptions.drafts ?? new DraftStore(null);
+    // The deletions an earlier run recorded finish here, their drafts included (store.ts finishDeletions).
+    store.finishDeletions(id => this.drafts.discard(id));
   }
   private reserve(id: string, input?: Prepared, reuse = false): void {
     const key = input?.sessionId ? { runtime: input.runtime, configDir: input.configDir, sessionId: input.sessionId } : null;
@@ -576,6 +579,21 @@ export class ConversationService {
     const m = this.metadata(id), draft = this.drafts.take(id);
     if (draft) this.changed(m.root);
     return draft;
+  }
+  // Deleting removes Doan's own record of the conversation on this device: its index entry, history, queue and returned
+  // draft. The agent's session files stay. Refused (busy) while it works or the app quits. The check and the deletion
+  // run in one tick, so no send starts between them; an awaiting send is working, and later calls find no metadata.
+  // The run is closed as an archived one's (archive): its live entry stays, so its process's exit callback still
+  // releases the reservation (POSTMORTEM 2026-10-28), and terminal keeps a late event from recreating the history
+  // (store.append creates the file). The index commit is the result; cleanup after it only logs a failure.
+  delete(id: string): void {
+    if (this.quitting || this.working(id)) throw new Error("busy");
+    const m = this.metadata(id);
+    this.archive(id);
+    this.store.delete(id);
+    this.drafts.discard(id);
+    try { this.deleted(id); } catch (error) { console.error("doan: deleted conversation cleanup failed", error); }
+    this.changed(m.root);
   }
   // Working (the list's working): preparing, running or waiting for an answer, a turn waiting for its judgement, a queue
   // about to go out, or a send waiting for the previous process or for the judgement.

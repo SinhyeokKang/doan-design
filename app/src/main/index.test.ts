@@ -54,6 +54,8 @@ const mocks = await vi.hoisted(async () => {
     // Conversation metadata the mocked store lists, and the service's event publisher main passed it.
     conversations: [] as unknown[],
     publishConversation: undefined as ((event: unknown) => void) | undefined,
+    // The callback main gave the service for a deleted conversation.
+    deletedConversation: undefined as ((id: string) => void) | undefined,
     // The conversation service main created, so a test can pin what main asks it.
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
@@ -107,13 +109,13 @@ vi.mock("electron", () => ({
   nativeTheme: mocks.nativeTheme,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
-vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } } }));
+vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
 // The fake store makes no conversations directory, so the queue's drafts stay in memory.
 vi.mock("./conversation/drafts", async (importOriginal) => { const original = await importOriginal<typeof import("./conversation/drafts")>(); return { ...original, DraftStore: class extends original.DraftStore { constructor() { super(null); } } }; });
 vi.mock("./conversation/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./conversation/service")>();
   return { ...actual, ConversationService: class extends actual.ConversationService {
-    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.conversationService = this; }
+    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.deletedConversation = args[9] as never; mocks.conversationService = this; }
   } };
 });
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
@@ -590,7 +592,8 @@ test("a quit goes ahead without asking the renderer", async () => {
   expect(event.preventDefault).toHaveBeenCalledOnce();
   await new Promise<void>(resolve => setImmediate(resolve));
   expect(mocks.app.quit).toHaveBeenCalledOnce();
-  expect(window().webContents.send).not.toHaveBeenCalled();
+  // Only the one-way quitting notice, which nothing waits for.
+  expect(window().webContents.send.mock.calls).toEqual([["app:quitting", true]]);
 });
 
 test("project setup IPC rejects untrusted frames, arbitrary paths and forged choices", async () => {
@@ -1524,6 +1527,30 @@ test("an approved quit prevents native window teardown until the next event-loop
   expect(resumed.preventDefault).not.toHaveBeenCalled();
 });
 
+// conversation-delete orch decision 5: conversation:delete answers busy while quitting as while working, so the
+// renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
+// stopped (the service stays quitting), so main never takes it back (review RA Y3, D2).
+test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
+  const contents = window().webContents;
+  const service = mocks.conversationService as unknown as { quit(): Promise<void> };
+  const stop = vi.spyOn(service, "quit").mockRejectedValueOnce(new Error("EIO"));
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  contents.send.mockClear();
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  expect(contents.send).toHaveBeenCalledExactlyOnceWith("app:quitting", true);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await vi.waitFor(() => expect(log).toHaveBeenCalledWith("doan: conversation persistence failed during quit", expect.any(Error)));
+  expect(contents.send.mock.invocationCallOrder[0]).toBeLessThan(stop.mock.invocationCallOrder[0] ?? 0);
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  expect(contents.send.mock.calls.filter(call => call[0] === "app:quitting")).toEqual([["app:quitting", true]]);
+  // The next quit proceeds and says so again.
+  contents.send.mockClear();
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await vi.waitFor(() => expect(mocks.app.quit).toHaveBeenCalledOnce());
+  expect(contents.send.mock.calls.filter(call => call[0] === "app:quitting")).toEqual([["app:quitting", true]]);
+});
+
 test("repeated quit requests before deferred teardown schedule only one quit", async () => {
   const events = [{ preventDefault: vi.fn() }, { preventDefault: vi.fn() }];
   for (const event of events) mocks.app.emit("before-quit", event);
@@ -1862,6 +1889,13 @@ describe("settings page", () => {
       window().isFocused.mockReturnValue(true);
       publish({ ...turnDone, seq: 3 });
       expect(mocks.Notification.instances).toHaveLength(1);
+    });
+
+    test("deleting a conversation closes its notification", () => {
+      publish(turnDone);
+      expect(mocks.Notification.instances[0]!.close).not.toHaveBeenCalled();
+      mocks.deletedConversation?.("c1");
+      expect(mocks.Notification.instances[0]!.close).toHaveBeenCalledOnce();
     });
 
     test("Desktop notifications off shows nothing", () => {

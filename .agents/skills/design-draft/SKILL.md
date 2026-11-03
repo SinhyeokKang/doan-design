@@ -23,7 +23,7 @@ Dogfooding loop (PRODUCT §5 'Dogfooding'): doan's own UI drafts are canvases in
 ## Prerequisites (stop if any fails)
 
 1. `docs/features/<slug>/design.md` has a draft request: canvas path and id, the frame ids to draw, and constraints. If the state list is missing, stop and ask; do not invent it.
-2. `go run ./cli/cmd/doan check --json --repo .` runs (the repo's `.doan/config.json` is valid).
+2. `doan check --json --repo .` runs (the repo's `.doan/config.json` is valid). This skill dogfoods the installed `doan` on `PATH` (AGENTS.md 'Commands'); if `doan` is not on `PATH`, stop and ask the user to install Doan.
 
 ## Steps
 
@@ -36,15 +36,17 @@ Read the files themselves; do not work from someone's summary of them.
 - `docs/DESIGN.md` — the measured contract of screens already shipped.
 - Existing drafts in `.doan/canvases/` (shared classes, how "not in code" is marked), the design-system canvases in `.doan/ds/`, `app/src/renderer/tokens.css`, the shared primitives in `app/src/renderer/ds/` (`index.css`), `.doan/assets/mock.css`.
 - The renderer code for any shipped screen the draft shows (`app/src/renderer/`).
-- `go run ./cli/cmd/doan ls --json --repo .` and `go run ./cli/cmd/doan check --json --repo .` before you start, so new findings are yours.
+- `doan ls --json --repo .` and `doan check --json --repo .` before you start, so new findings are yours.
 
-**Design presets**: list doan's own presets with `go run ./cli/cmd/doan design-skill --json` and read the ones this draft needs with `go run ./cli/cmd/doan design-skill <id> --json` — typically `shape` before drawing flows and states, `harden` or `onboard` for error, empty and first-use states, `clarify` for copy, and `critique` on the finished draft before handing it over. Read only what fits; do not run every preset. This skill's rules win over a preset (shipped screens copied, tokens first, no app-code edits, the feature documents' decisions). Name the presets you read in the report. If the command is unavailable (`usage_error` on an older checkout), say so and continue.
+**Design presets**: list doan's own presets with `doan design-skill --json` and read the ones this draft needs with `doan design-skill <id> --json` — typically `shape` before drawing flows and states, `harden` or `onboard` for error, empty and first-use states, `clarify` for copy, and `critique` on the finished draft before handing it over. Read only what fits; do not run every preset. This skill's rules win over a preset (shipped screens copied, tokens first, no app-code edits, the feature documents' decisions). Name the presets you read in the report. If the command is unavailable (`usage_error` on an older checkout), say so and continue.
 
 If spec and design leave a visible choice open (a state, a label, a placement), ask the user one question at a time with the runtime's question tool, one recommendation each. Record each answer in the feature's `design.md`.
 
 ### 2. Draw
 
 Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 convention 1).
+
+- **Work signal** (guide rules I and J, as any agent editing a canvas): run `doan work start <canvas path> --json` before the first edit, and again when several minutes pass between edits. When you stop drawing (handing over, or stopping to ask), run `doan work done <canvas path> --json`. `delivered: false` is expected when the checkout is not a project registered in the app (for example an unregistered worktree); do not retry it, and note it in the report.
 
 - **Conventions** (ARCHITECTURE §1): `<meta name="doan:canvas">` with the requested id and `<meta name="doan:width">` in `<head>`; every requested frame as `data-doan-frame` with a `data-doan-title`; `data-doan-id` on elements the implementation will be paired with or a message will point at.
 - **`data-doan-implements` points only to files that exist now.** A path to a file the feature will create is an `implements_not_found` error.
@@ -59,8 +61,8 @@ Write the canvas at the path the request names (one HTML file, ARCHITECTURE §1 
 
 ### 3. Check with the CLI
 
-- `go run ./cli/cmd/doan check --json --repo .` — no new error-level finding compared with the run before you started, and none in this canvas. The only new warnings allowed are `hardcoded_color` in `.doan/assets/mock.css`.
-- `go run ./cli/cmd/doan ls --json --repo .` — the canvas is listed with the requested id and width, and its `frames` ids equal the requested list (no missing, no extra).
+- `doan check --json --repo .` — no new error-level finding compared with the run before you started, and none in this canvas. The only new warnings allowed are `hardcoded_color` in `.doan/assets/mock.css`.
+- `doan ls --json --repo .` — the canvas is listed with the requested id and width, and its `frames` ids equal the requested list (no missing, no extra).
 
 ### 4. Hand over for review
 
@@ -90,7 +92,7 @@ Copied from shipped screens: <which, from which code / DESIGN.md section>
 Change requests: <differences from shipped screens you would propose, or none>
 Questions asked: <question → answer>
 Literals without a token: <value — where — component constant | proposed token>
-check: <errors 0, warnings>   ls: <frame ids match / differ>
+check: <errors 0, warnings>   ls: <frame ids match / differ>   work: <delivered true / false and why>
 Commit: <hash>
 Next: user review in the app → --revise or confirmed
 ```

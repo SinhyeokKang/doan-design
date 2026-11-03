@@ -76,7 +76,8 @@ test("on a shown conversation the button moves to a new conversation and focuses
   expect(focused.calls).toEqual([FIELD]);
 });
 
-test("on a new conversation the button only focuses the composer, and works while the list is read", async () => {
+// N1 (conversation-delete orch decisions 1–2): on the new conversation state the button is unavailable and does nothing.
+test("on the new conversation state the button does nothing, also while the list is read", async () => {
   for (const list of [[summary], "loading"] as ListView[]) {
     const { run, press } = setup(list, null);
     const select = vi.spyOn(run, "select");
@@ -85,6 +86,6 @@ test("on a new conversation the button only focuses the composer, and works whil
     expect(select).not.toHaveBeenCalled();
     expect(run.view(ROOT).kind).toBe("new");
     await Promise.resolve();
-    expect(focused.calls).toEqual([FIELD]);
+    expect(focused.calls).toEqual([]);
   }
 });

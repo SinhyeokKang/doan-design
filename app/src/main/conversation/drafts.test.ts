@@ -238,3 +238,48 @@ describe("DraftStore single-item sending", () => {
     expect(store.queued(A).map(i => i.itemId)).toEqual(["q2"]);
   });
 });
+
+// conversation-delete design §2.2: a deleted conversation's queue and returned draft go with it.
+describe("DraftStore discard", () => {
+  const item = (itemId: string, text: string) => ({ itemId, text, anchors: [], attachments: [] });
+  it("removes a conversation's queue, its items on their way out and its returned draft, and saves at once", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    store.add(A, item("q1", "one")); store.add(A, item("q2", "two")); store.markOneSending(A, "q2");
+    store.giveBack(A, { text: "back", anchors: [], attachments: [] }, "turn_failed");
+    store.add(B, item("q3", "other"));
+    store.discard(A);
+    expect(store.queued(A)).toEqual([]); expect(store.returned(A)).toBeUndefined();
+    expect(store.queued(B)).toHaveLength(1);
+    const saved = JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8"));
+    expect(saved).toEqual({ v: 1, queued: { [B]: [item("q3", "other")] }, returned: {} });
+    expect(new DraftStore(dir).returned(A)).toBeUndefined();
+  });
+  it("removes an entry of that conversation it could not read", () => {
+    const dir = directory();
+    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: {}, returned: { [A]: { text: "z".repeat(40_000), anchors: [], attachments: [], reason: "turn_failed" }, [B]: { text: "kept", anchors: [], attachments: [], reason: "turn_failed" } } }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = new DraftStore(dir);
+    store.discard(A);
+    expect(JSON.parse(readFileSync(join(dir, "drafts.json"), "utf8")).returned).toEqual({ [B]: { text: "kept", anchors: [], attachments: [], reason: "turn_failed" } });
+  });
+  it("writes nothing for a conversation without drafts", () => {
+    const dir = directory(), store = new DraftStore(dir);
+    const write = vi.spyOn(store as unknown as { write(): void }, "write");
+    store.discard(A);
+    expect(write).not.toHaveBeenCalled();
+  });
+  it("never throws when the file is damaged or the write fails, and drops the drafts in memory", () => {
+    const dir = directory(); writeFileSync(join(dir, "drafts.json"), "{broken");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const damaged = new DraftStore(dir);
+    damaged.giveBack(A, { text: "kept", anchors: [], attachments: [] }, "turn_failed");
+    expect(() => damaged.discard(A)).not.toThrow();
+    expect(damaged.returned(A)).toBeUndefined();
+    expect(readFileSync(join(dir, "drafts.json"), "utf8")).toBe("{broken");
+    const failing = new DraftStore(directory());
+    failing.add(A, item("q1", "one"));
+    vi.spyOn(failing as unknown as { write(): void }, "write").mockImplementationOnce(() => { throw new Error("ENOSPC"); });
+    expect(() => failing.discard(A)).not.toThrow();
+    expect(failing.queued(A)).toEqual([]);
+  });
+});

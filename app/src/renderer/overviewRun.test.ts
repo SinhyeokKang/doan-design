@@ -629,3 +629,197 @@ test("an Edit and resend restore dropped for newer typing releases its issued at
   expect(doan.removeAttachment).toHaveBeenCalledWith("issued-1");
   expect(textOf(h.run.drafts.get(`conversation:${A}`))).toBe("newer");
 });
+
+// conversation-delete tasks T3, design §3.2: the state after a conversation is deleted. App marks the conversation
+// deleting before conversation:delete, then on success calls each run's deleted and the store's.
+function deleteShown() {
+  const h = harness();
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { lastActivityAt: "2026-10-31T00:00:00.000Z" }), summary(B)]);
+  return h;
+}
+const confirmDelete = (h: ReturnType<typeof harness>, id: string) => { h.run.deleted(id); h.run.store.deleted(id); };
+
+test("deleting the shown conversation shows the new conversation state, keeps the new conversation's draft and forgets the memory", async () => {
+  const h = deleteShown();
+  await flush();
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+  expect(h.state.remembered).toEqual({ [ROOT]: A });
+  h.run.setDrafts(drafts => new Map(drafts).set(`root:${ROOT}`, draft("separate new words")).set(`conversation:${A}`, draft("unsent")));
+  const revision = h.run.revision(ROOT);
+  h.run.store.startDelete(A);
+  confirmDelete(h, A);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(h.run.revision(ROOT)).toBeGreaterThan(revision);
+  expect(h.state.remembered).toEqual({});
+  // Spec decision 5: the deleted conversation's draft goes; the new conversation's stays as it was.
+  expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
+  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("separate new words");
+  expect(h.run.thread(A)).toBeNull();
+  expect(h.run.store.deleting(A)).toBe(false);
+  // The list without it changes nothing more.
+  h.answer(ROOT, [summary(B)]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  expect(textOf(h.run.drafts.get(`root:${ROOT}`))).toBe("separate new words");
+});
+
+test("a list that drops the conversation before the delete reply moves no draft, in either order", () => {
+  for (const listFirst of [true, false]) {
+    const h = deleteShown();
+    h.run.setDrafts(drafts => new Map(drafts).set(`root:${ROOT}`, draft("separate new words")).set(`conversation:${A}`, draft("unsent")));
+    h.run.store.startDelete(A);
+    if (listFirst) {
+      h.answer(ROOT, [summary(B)]);
+      // Held while the delete is pending: it is not read as gone.
+      expect(h.run.view(ROOT), `list first: ${listFirst}`).toEqual({ kind: "conversation", conversationId: A });
+    }
+    confirmDelete(h, A);
+    if (!listFirst) h.answer(ROOT, [summary(B)]);
+    expect(h.run.view(ROOT), `list first: ${listFirst}`).toEqual({ kind: "new", moved: null });
+    expect(textOf(h.run.drafts.get(`root:${ROOT}`)), `list first: ${listFirst}`).toBe("separate new words");
+    expect(h.run.drafts.has(`conversation:${A}`), `list first: ${listFirst}`).toBe(false);
+  }
+});
+
+test("a refused delete releases the mark and leaves what shows", () => {
+  const h = deleteShown();
+  h.run.store.startDelete(A);
+  expect(h.run.store.deleting(A)).toBe(true);
+  h.run.store.cancelDelete(A);
+  expect(h.run.store.deleting(A)).toBe(false);
+  h.answer(ROOT, [summary(A, { lastActivityAt: "2026-10-31T00:00:00.000Z" }), summary(B)]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: A });
+});
+
+test("a start or send reply sent before the delete does not replace the new conversation state", () => {
+  const h = deleteShown();
+  const revision = h.run.revision(ROOT);
+  confirmDelete(h, A);
+  h.run.sent(ROOT, A, revision);
+  expect(h.state.remembered).toEqual({});
+  h.run.started(ROOT, C, "claude", revision);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+});
+
+test("a deleted conversation an entry asked for is dropped, so the list is not read again for it", () => {
+  const h = harness();
+  h.run.show(ROOT);
+  // Asked for while the first read is in flight: the request waits for the list.
+  h.host.reread(ROOT);
+  h.run.request(ROOT, A, null);
+  confirmDelete(h, A);
+  // That read, started before the request, answers without it.
+  h.lists.set(ROOT, [summary(B)]);
+  vi.spyOn(h.host, "readsApplied").mockReturnValue(h.host.readsStarted(ROOT));
+  h.run.sync();
+  expect(h.host.reread).toHaveBeenCalledTimes(1);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+});
+
+test("the memory of a root not on screen is forgotten too, and other roots keep what they show", () => {
+  const h = harness();
+  h.run.show(OTHER);
+  h.answer(OTHER, [summary(C)]);
+  h.state.remembered = { [ROOT]: A, [OTHER]: C };
+  const revision = h.run.revision(OTHER);
+  confirmDelete(h, A);
+  expect(h.state.remembered).toEqual({ [OTHER]: C });
+  expect(h.run.view(OTHER)).toEqual({ kind: "conversation", conversationId: C });
+  expect(h.run.revision(OTHER)).toBe(revision);
+  // The root picks without it later.
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(B)]);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+});
+
+test("the moved line of a deleted promoted conversation goes", async () => {
+  const h = promotedSetup(true);
+  await flush();
+  h.answer(ROOT, [summary(A, { canvas: CANVAS, title: "Checkout copy" })]);
+  expect(h.run.view(ROOT)).toMatchObject({ kind: "new", moved: { conversationId: A } });
+  confirmDelete(h, A);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+  h.answer(ROOT, []);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+});
+
+test("deleting the last conversation leaves the new conversation state", () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A)]);
+  confirmDelete(h, A);
+  h.answer(ROOT, []);
+  expect(h.run.view(ROOT)).toEqual({ kind: "new", moved: null });
+});
+
+test("the store drops the deleted conversation's thread, queue and late events, and ignores its events afterwards", async () => {
+  const h = deleteShown();
+  await flush();
+  h.run.queued(ROOT, A, { id: "q1", text: "next" });
+  confirmDelete(h, A);
+  expect(h.run.queue(A)).toEqual([]);
+  expect(h.run.thread(A)).toBeNull();
+  h.run.event(event(A, { type: "turn.done" }));
+  expect(h.run.thread(A)).toBeNull();
+});
+
+test("events buffered for a deleted conversation nothing tracked are dropped, and later ones are not buffered", () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(B)]);
+  // An event for a conversation nothing tracks waits for a read; the deleted one's must not.
+  h.run.event(event(C, { type: "turn.started" }));
+  h.run.event(event(A, { type: "turn.started" }));
+  confirmDelete(h, A);
+  h.run.event(event(A, { type: "turn.done" }));
+  // Whatever reads it again finds none of its events buffered.
+  h.run.store.track(A);
+  expect(h.run.thread(A)?.events).toEqual([]);
+  h.run.store.track(C);
+  expect(h.run.thread(C)?.events.map(e => e.type)).toEqual(["turn.started"]);
+});
+
+test("a returned draft whose take was in flight is not put back after the delete", async () => {
+  const h = harness();
+  const take = deferred<unknown>();
+  doan.takeConversationDraft!.mockImplementationOnce(() => take.promise);
+  histories.set(A, ended(A));
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { returnedDraft: true })]);
+  await flush();
+  expect(doan.takeConversationDraft).toHaveBeenCalledWith({ conversationId: A });
+  confirmDelete(h, A);
+  take.resolve({ text: "queued words", anchors: [], attachments: [], reason: "stopped" });
+  await flush(); await flush();
+  expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
+});
+
+// Review RB ⚪1: until the list is read again, a pick from the list read before the delete must not choose it.
+test("leaving and returning before the next list read does not pick or remember the deleted conversation", () => {
+  const h = deleteShown();
+  confirmDelete(h, A);
+  h.run.show(OTHER);
+  h.run.show(ROOT);
+  expect(h.run.view(ROOT)).toEqual({ kind: "conversation", conversationId: B });
+  expect(h.state.remembered).toEqual({ [ROOT]: B });
+});
+
+// Review RB ⚪2: an Edit and resend that resolves after the delete does not put a draft back.
+test("an Edit and resend that resolves after the delete restores nothing and releases its files", async () => {
+  const h = harness();
+  const message = event(A, { type: "user.message", text: "Draw it", anchors: [], attachments: [{ name: "a.png", size: 1, kind: "image", path: "/tmp/a.png" }] });
+  histories.set(A, [message, event(A, { type: "turn.started" }), event(A, { type: "turn.failed", code: "unknown" })]);
+  doan.removeAttachment = vi.fn(async () => true);
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A), summary(B)]);
+  await flush();
+  const issued = deferred<unknown[]>();
+  doan.attachmentsFromPaths!.mockImplementation(() => issued.promise);
+  const pending = h.run.editAndResend(ROOT, A);
+  confirmDelete(h, A);
+  issued.resolve([{ ok: true, attachment: { id: "x", name: "a.png", kind: "image", pasted: false, size: 1, path: "/tmp/a.png" } }]);
+  expect(await pending).toBe(false);
+  expect(h.run.drafts.has(`conversation:${A}`)).toBe(false);
+  expect(doan.removeAttachment).toHaveBeenCalledWith("x");
+});

@@ -784,7 +784,7 @@ async function start(): Promise<void> {
   }, undefined, root => {
     const project = ready.entries().find(entry => entry.path === root);
     return project?.kind === "list" ? project.canvases : [];
-  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model) });
+  }, root => send("conversation:listChanged", { root }), { drafts: conversationDrafts, files: queueFiles(attachments), defaultEffort: (root, provider, model) => modelCatalog?.defaultEffort(root, provider, model) }, id => notify.close(id));
   conversations = conversationService;
   attachments.cleanup();
   modelCatalog = new ModelCatalog((root, runtime) => conversationService.prepareListing(root, runtime), input => conversationService.listModels(input, listModels));
@@ -1031,6 +1031,9 @@ app.on("before-quit", (event) => {
   // JS wrapper exists. Electron then crashes trying to emit its close event.
   // Let the native stack unwind before either disposal or app.quit().
   quitScheduled = true;
+  // conversation:delete answers busy while quitting as while working; this lets the renderer tell the two apart. Never
+  // taken back: after an aborted quit the conversations stay stopped (the service stays quitting) until a restart.
+  send("app:quitting", true);
   // Accepted: onboarding saves no completion, and neither it nor the Add Projects page starts project work from here,
   // before any teardown is awaited.
   onboarding?.closeForQuit();

@@ -181,6 +181,14 @@ export class DraftStore {
     try { this.write(); } catch (error) { this.file.returned[id] = draft; throw error; }
     return draft;
   }
+  // A deleted conversation's queue and returned draft go with it, unread entries and items on their way out included
+  // (a deletion waits for the turn to end, so none should be left). Never throws: the deletion is already committed.
+  discard(id: string): void {
+    const maps = [this.file.queued, this.file.returned, this.unread.queued, this.unread.returned];
+    if (!maps.some(map => Object.hasOwn(map, id))) return;
+    for (const map of maps) delete map[id];
+    this.save();
+  }
   private merge(id: string, draft: DraftParts, reason: string): void {
     const earlier = this.file.returned[id];
     this.file.returned[id] = { ...(earlier ? joined([earlier, draft]) : draft), reason };

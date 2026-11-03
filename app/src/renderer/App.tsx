@@ -12,6 +12,10 @@ import type { ExportReply } from "../main/canvasExport";
 import { trashBlock } from "./canvasRowMenu";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
+import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
+import { deleteAvailability, deleteDialogView, deleteRefusalText } from "./conversationDelete";
+import { focusFieldEnd } from "./chipField";
+import { draftKey } from "./dockedRules";
 import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
@@ -159,6 +163,14 @@ export function App() {
   const trashingRef = useRef(trashing);
   const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
   const trashSeq = useRef(0);
+  // conversation-delete: the conversation a title menu's Delete asks about, and whether its request is out. Set through
+  // `changeDeleting`, so the reply sees the dialog as it is. `afterDelete` is the composer focus goes to once the
+  // shown conversation was deleted, instead of the menu's trigger.
+  const [deletingConversation, setDeletingConversation] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
+  const deletingRef = useRef(deletingConversation);
+  const changeDeleting = (next: typeof deletingConversation) => { deletingRef.current = next; setDeletingConversation(next); };
+  const afterDelete = useRef<string | null>(null);
+  const quittingRef = useRef(false);
   // The canvases whose `doan export` runs (`root\npath`): from main's running event, sent once the save panel closed on
   // a file, to the export's reply. The progress toast waits a second from that event.
   const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
@@ -741,7 +753,7 @@ export function App() {
   const search = () => { if (locked()) return; cancelRestore(); beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setQuickOpen(true); };
 
 
-  const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null;
+  const modal = wizard !== null || setup !== null || quickOpen || homeRun.current.removing !== null || trashing !== null || deletingConversation !== null;
   // A locked Project Settings page holds the toast too: its Share confirmation makes the toast inert while the page
   // itself is not modal (project-settings design '영향 범위' 토스트, POSTMORTEM 2026-10-25 'Native hiding bypassed
   // renderer-only lifetime checks').
@@ -754,6 +766,9 @@ export function App() {
   useEffect(() => {
     if (modal || !focusAfterModal.current) return;
     focusAfterModal.current = false;
+    const field = afterDelete.current && document.querySelector<HTMLElement>(afterDelete.current);
+    afterDelete.current = null;
+    if (field) { focusFieldEnd(field); return; }
     const previous = beforeModal.current;
     focusCurrent(previous);
   }, [modal, entries]);
@@ -940,6 +955,7 @@ export function App() {
   // Settings… (⌘,) from main, after it has shown a hidden window; a payload that is not a target is dropped.
   useEffect(() => window.doan.onOpenSettingsPage(value => { const target = parseSettingsTarget(value); if (target) live.current.openSettings(target); }), []);
   useEffect(() => window.doan.onNotificationClick(click => live.current.notificationClick(click)), []);
+  useEffect(() => window.doan.onQuitting(quitting => { quittingRef.current = quitting; }), []);
   // doan:// links: subscribed on mount, while main holds them until App is ready (below).
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
   // `doan open` requests (canvas-open-offer): main sends them only once links are ready, and each is answered by its id.
@@ -1063,6 +1079,55 @@ export function App() {
       live.current.toast.show(trashToast(canvasStem(row.path), reply));
     };
     window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
+  }
+  // conversation-delete design §3.4: a title menu row's Delete asks first. Cancel and Escape return focus to the menu's
+  // trigger (`beforeModal`); the row's button is inside the closed menu.
+  function openDelete(target: DeleteTarget, trigger: HTMLElement | null): boolean {
+    if (locked() || live.current.modal) return false;
+    beforeModal.current = trigger;
+    changeDeleting({ target, pending: false });
+    return true;
+  }
+  function closeDelete() { changeDeleting(null); modalClosed(); }
+  // main answers busy for a refusal while the app quits too, and that refusal shows no toast; main says when a quit
+  // proceeds (never reset).
+  const quitting = () => quittingRef.current;
+  function deleteSummary(target: DeleteTarget) {
+    const list = homeRun.current.listState(target.root);
+    return Array.isArray(list) ? list.find(c => c.conversationId === target.conversationId) : undefined;
+  }
+  // The store marks the conversation as being deleted before main is asked, and the mark ends exactly once: deleted
+  // (success, or not_found: main has none either) or cancelled (any other refusal, a rejected call). A leaked mark would
+  // freeze that conversation's state until a reload. The dialog closes on the reply; only a refusal shows a toast.
+  async function confirmDelete() {
+    const current = deletingRef.current;
+    if (!current || current.pending) return;
+    changeDeleting({ ...current, pending: true });
+    const { conversationId, root, title, from } = current.target;
+    const overviewRuns = overviewRun.current!, canvasRuns = canvasRun.current!, store = overviewRuns.store;
+    store.startDelete(conversationId);
+    let code: string | null = "unknown";
+    try {
+      const reply = await window.doan.deleteConversation({ conversationId });
+      code = reply && "error" in reply ? reply.error : null;
+    } catch (error) { console.error(error); }
+    // The cleanup may throw (a Run's defect); the mark still ends once and the alert, which refuses its cancel while
+    // busy, still closes, or the window would stay behind it until a reload.
+    try {
+      if (code === null || code === "not_found") {
+        try {
+          const overviewView = overviewRuns.view(root), canvasView = canvasRuns.view();
+          const shown = from === "overview" ? overviewView.kind === "conversation" && overviewView.conversationId === conversationId
+            : canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
+          overviewRuns.deleted(conversationId); canvasRuns.deleted(conversationId); homeRun.current.deleted(conversationId);
+          if (shown) afterDelete.current = from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input";
+        } finally { store.deleted(conversationId); }
+      } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
+    } catch (error) { console.error(error); }
+    finally {
+      closeDelete();
+      if (code !== null && !quitting()) live.current.toast.show(deleteRefusalText(code, title));
+    }
   }
   // What keeps Move to Trash unavailable, for the menu and the open dialog alike (main judges again).
   function trashWorking(root: string, row: CanvasRow) {
@@ -1575,14 +1640,14 @@ export function App() {
       onSendConversation={(provider, request) => run.send(overview.path, provider, request)}
       onAction={(name, root) => action(name, root)}
       onProjectSettings={root => openProjectSettings(root)}
-      onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} />}
+      onSettings={target => openSettings(target)} onNotice={text => toast.show(text)} onDeleteConversation={openDelete} />}
     {overview && <ResizeHandle className="doan-overview-handle" label="Resize canvas conversations" width={shownOverviewPanel} bounds={panelLimits} preview={previewPanel}
       onResize={width => { overviewTouched.current = true; setOverviewSaved(width); }} />}
     {overview ? <div className="right-stack"><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
       open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={Date.now()} seen={run.seenPending()}
-          title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
+          title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
         {panelTarget && entry?.kind === "list" && <CanvasConversation run={canvasRun.current!} support={support.current!} target={panelTarget} canvasName={panelCanvasName}
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked} onRemember={rememberPick}
@@ -1599,6 +1664,13 @@ export function App() {
     <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
       <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
   </dialog>}
+  {deletingConversation && (() => {
+    const { target, pending } = deletingConversation, summary = deleteSummary(target);
+    const draft = unsentDraft(overviewRun.current!.store.drafts.get(draftKey({ kind: "existing", conversationId: target.conversationId, provider: target.provider }))) || summary?.returnedDraft === true;
+    const availability = summary ? deleteAvailability(summary) : { available: true as const };
+    return <ConversationDeleteDialog view={deleteDialogView(target.title, target.provider, draft)} reason={availability.available ? null : availability.reason} pending={pending}
+      cancel={closeDelete} confirm={() => void confirmDelete()} />;
+  })()}
   {trashing && <CanvasTrashDialog view={trashDialogView(canvasStem(trashing.row.path), trashing.row.path, trashing.plan, trashWorking(trashing.root, trashing.row))} cancel={closeTrash} confirm={confirmTrash} />}
   {toast.element}
   {wizard !== null && <Wizard key={wizard} session={wizard} projects={entries.map(entry => entry.path)} homeDirectory={homeDirectory}
