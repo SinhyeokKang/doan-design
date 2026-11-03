@@ -43,12 +43,12 @@
 ## Z. 문서 승격 (마지막)
 
 - [ ] Z1. `docs/PRODUCT.md`를 현재 규칙으로 고쳐 쓴다: §5 item 2 'Toolbar'(Hand로 바꾸면 선택이 해제되고 Space는 해제하지 않음), item 4(“In Hand clicks neither select nor clear”는 클릭 규칙으로 남기고, “a pick and a chip's locate never change it”을 “starting a pick clears it; a chip's locate never changes it”으로), item 6('Pick from canvas'와 “Picking and locating change neither…” 문장). 근거는 커밋 메시지에 쓴다.
-  - 검증: 명령 미정 — 사용자 확인 필요(PRODUCT.md에 Hand·pick이 선택을 바꾸지 않는다는 문장이 남지 않았는지 문서 대조).
+  - 검증: `rg -n -i 'never change|change neither' docs/PRODUCT.md`에 Hand·pick이 선택을 바꾸지 않는다는 문맥이 0건.
 - [ ] Z2. `docs/ARCHITECTURE.md` §3 'Picking and locate'의 “Picks and locate never send a selection command or change `doan active`”를 새 규칙으로 고친다.
-  - 검증: 명령 미정 — 사용자 확인 필요(문서 대조; `/doc-check` 범위 실행으로 대신할 수 있다).
+  - 검증: `rg -n 'never send a selection command' docs/ARCHITECTURE.md` 0건.
 - [ ] Z3. `docs/DESIGN.md`: 'Canvas area and right panel'의 Overlay marks 'Jump highlight'와 'Canvas conversation'의 Locate 행을 R2 측정값으로, 'Accent places'에 새 selector를 더한다. R2에서 확인하지 못한 표면(예: 실제 forced colors 설정)은 'Not verified'에 적는다.
   - 검증: `npm --prefix app test`(`accentPlaces`) green, DESIGN.md 값이 `styles.css`와 같다.
 - [ ] Z4. `docs/features/canvas-selection-tools/`를 지운다.
-  - 검증: 명령 미정 — 사용자 확인 필요(이 디렉터리가 없고 다른 파일은 바뀌지 않았는지 확인).
+  - 검증: `test ! -d docs/features/canvas-selection-tools`가 성공하고, 그 커밋의 `git show --stat`에 그 디렉터리의 파일만 있다.
 
 ── commit (문서별로 나눔): `docs(product): …`, `docs(architecture): …`, `docs(design): …`, `docs(feature): remove canvas-selection-tools` ──
