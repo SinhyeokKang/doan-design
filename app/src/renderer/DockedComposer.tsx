@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
 import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
@@ -459,8 +459,10 @@ export function QueueRows(props: QueueRowsProps) {
   return <div className="queue" role="list" aria-label="Queued messages">{props.items.map((item, index) => {
     const textId = `${idBase}-${index}`;
     const offered = props.sendNow || !!item.sending;
-    return <Fragment key={item.id}>
-      <div className="queue-item" role="listitem"><Clock aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
+    // The status line sits in the row's listitem (a list owns only listitems) and is drawn from the start, empty, so the
+    // live region is registered before a refusal puts text in it.
+    return <div key={item.id} className="queue-entry" role="listitem">
+      <div className="queue-item"><Clock aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
         {offered && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <Tooltip><TooltipTrigger asChild>
             {/* aria-disabled, not disabled, while in flight: a disabled button drops focus to the body in Chromium. */}
@@ -472,8 +474,8 @@ export function QueueRows(props: QueueRowsProps) {
           <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
             aria-label="Remove queued message" aria-describedby={textId} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button>}</QueueButtonLife>
       </div>
-      {refused.has(item.id) && <div className="queue-status" role="status"><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></div>}
-    </Fragment>;
+      <div className="queue-status" role="status">{refused.has(item.id) && <><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></>}</div>
+    </div>;
   })}</div>;
 }
 

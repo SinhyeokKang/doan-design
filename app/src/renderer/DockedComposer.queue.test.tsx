@@ -115,12 +115,12 @@ test("a refusal while the turn still runs shows the status line under the row; o
   (running.rows(running.draw(), "Send queued message now")[1]!.onClick as () => void)();
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   const tree = running.draw();
-  const status = tree.filter(item => item.role === "status");
-  expect(status).toHaveLength(1);
-  expect(elements(status[0]!.children as ReactNode).some(item => item.children === SEND_NOW_REFUSED_TEXT)).toBe(true);
-  // Under the refused row: after its listitem, before the next.
+  // Each row's listitem holds a status region from its first draw (a live region added with its text may go unread);
+  // only the refused row's says something, under that row.
   const order = tree.filter(item => item.role === "listitem" || item.role === "status").map(item => item.role);
-  expect(order).toEqual(["listitem", "listitem", "status", "listitem"]);
+  expect(order).toEqual(["listitem", "status", "listitem", "status", "listitem", "status"]);
+  const said = tree.filter(item => item.role === "status").map(item => elements(item.children as ReactNode).some(child => child.children === SEND_NOW_REFUSED_TEXT));
+  expect(said).toEqual([false, true, false]);
   expect(running.focused.at).toBeNull();
 
   const ended = setup({ onSendNow: vi.fn(async () => ({ error: "not_running" })) });
@@ -128,7 +128,7 @@ test("a refusal while the turn still runs shows the status line under the row; o
   ended.props.sendNow = false;
   ended.draw();
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
-  expect(ended.draw().filter(item => item.role === "status")).toHaveLength(0);
+  expect(ended.draw().filter(item => item.role === "status").every(item => elements(item.children as ReactNode).length === 0)).toBe(true);
 });
 
 test("focus the person moved elsewhere while the agent had not read the message yet stays there", async () => {

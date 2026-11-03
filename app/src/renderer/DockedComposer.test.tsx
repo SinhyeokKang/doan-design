@@ -76,7 +76,7 @@ test("while the turn runs, Send's place is Stop on an empty field and Queue with
   expect(queue).toMatch(/class="composer-send doan-icon-button" data-ui-variant="accent" aria-label="Queue"/);
   // Queued messages sit above the card in the order sent; without Send now offered a row has Remove only, described
   // by its text.
-  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-item" role="listitem">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
+  expect(queue).toMatch(/<div class="queue" role="list" aria-label="Queued messages"><div class="queue-entry" role="listitem"><div class="queue-item">.*<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
   expect(queue.indexOf('class="queue"')).toBeLessThan(queue.indexOf("composer-card"));
   // Queued messages do not change the slot: an empty field still offers Stop.
   expect(render({ turn: "running", queued: [{ id: "q1", text: "x" }] })).toContain('aria-label="Stop"');
