@@ -55,6 +55,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Known defects
 
+- A Claude steered message whose read arrives after `STEER_READ_WAIT_MS`, or a CLI that changes how it reports reads (only the uuid echo counts), ends the turn as done and returns the message to the queue, so it goes out again in the next turn even if the agent already acted on it. Never observed; the bound was checked only with a fake CLI, not with a real Claude CLI.
 - Send now ordering on a Codex process death is unconfirmed: the dispatcher may reject an in-flight steer with `process_exited` before `exited()` appends `turn.failed`, so the renderer could briefly show “Couldn’t send now. It stays queued.” for a turn that is ending. The item itself is handled correctly.
 - `service.test.ts` does not pin that quit and a persistence failure unmark in-flight steers (only terminal events and archive are pinned); without it a persistence failure would leave the request unanswered and the item `sending` for the rest of the run.
 - `shell.test.ts` 'replace reports the move as a re-root focus, and only a real move' fails now and then in the full app suite and passes alone: the last change event after `replace` sometimes lacks the `{from, root}` focus, probably because a listing started by the earlier `store` reports after it. Seen twice on 2026-11-03 (project-remove-confirm), which did not touch `replace` or this test.
