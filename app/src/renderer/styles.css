@@ -925,6 +925,7 @@ body:has(.shell-top) { background: transparent; }
 .ov-sep { flex: none; color: var(--text-metadata); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); }
 /* The title gives way first in a narrow window (design §2.1). */
 .ov-title-wrap { display: flex; min-width: 0; }
+.ov-new-conv { flex: none; margin-left: auto; }
 .ov-title.doan-button { min-width: 0; flex-shrink: 1; gap: var(--space-1h); font-size: var(--type-label-sm-size); line-height: var(--type-label-sm-line-height); font-weight: var(--type-weight-medium); }
 .ov-title span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ov-notice { margin: 0 var(--space-4) var(--space-2); }

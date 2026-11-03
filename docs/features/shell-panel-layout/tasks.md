@@ -18,7 +18,7 @@
 
 ## 2. Overview New conversation 버튼
 
-- [ ] T3. Overview 헤더 끝의 New conversation 버튼(design §2.1). `ProjectOverview.test.tsx`에 버튼 이름, 대화가 보일 때 새 대화 상태로 바뀌고 입력창이 포커스를 받음, 새 대화 상태에서는 포커스만 받음을 고정한다.
+- [x] T3. Overview 헤더 끝의 New conversation 버튼(design §2.1). `ProjectOverview.test.tsx`에 버튼 이름, 대화가 보일 때 새 대화 상태로 바뀌고 입력창이 포커스를 받음, 새 대화 상태에서는 포커스만 받음을 고정한다.
   - 검증: `npm --prefix app test`에서 `ProjectOverview.test.tsx`의 새 테스트가 red → green.
 
 ── 커밋 2: `feat(app): add a New conversation button to the Overview header` ──

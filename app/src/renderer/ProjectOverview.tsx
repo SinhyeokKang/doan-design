@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DropdownMenu } from "radix-ui";
-import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, FolderOpen, GitBranch, Plus, Settings, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
 import type { ConversationSummary } from "../main/conversation/summary";
@@ -10,6 +10,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { HomeMemory } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import { plainText, textSegments } from "./anchorField";
+import { startNewConversation } from "./CanvasConversationPanel";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { canvasLabel } from "./canvasTree";
 import { focusFieldEnd } from "./chipField";
 import { GroupIcon } from "./ComposerParts";
@@ -343,6 +345,10 @@ export function ProjectOverview(props: ProjectOverviewProps) {
           </DropdownMenu.Content></DropdownMenu.Portal>
         </DropdownMenu.Root>
       </span>
+      {/* The title menu's New conversation one click away, at the header's end so it does not move with the title. */}
+      <Tooltip><TooltipTrigger asChild><button type="button" className="doan-icon-button ov-new-conv" aria-label="New conversation"
+        onClick={() => startNewConversation(conversationId, id => run.select(root, id), focusField)}><SquarePen aria-hidden="true" /></button></TooltipTrigger>
+        <TooltipContent>New conversation</TooltipContent></Tooltip>
     </header>
     {props.notice && <div className="doan-notice ov-notice" role="status"><AlertIcon /><span className="grow-text">{props.notice}</span></div>}
     <div className="ov-scroll">
