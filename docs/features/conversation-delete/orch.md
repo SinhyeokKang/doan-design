@@ -20,8 +20,8 @@
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| A | T1, T2 | `app/src/main/conversation/{store,drafts,service,ipc}.ts`와 그 테스트(새 `storeDelete.test.ts` 포함), `app/src/main/index.ts`, `app/src/main/notifyService.ts`와 테스트, `app/src/preload/index.ts`와 테스트 | 없음 | Opus high — 되돌릴 수 없는 삭제, index commit 순서, 크래시 뒤 정리, live runner와 늦은 이벤트 경쟁 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| B | T3 | `app/src/renderer/`의 새 `conversationDelete.ts`, `overviewConversation.ts`, `canvasConversation.ts`, `overviewRun.ts`, `canvasRun.ts`, `homeRun.ts`, `conversationStore.ts`와 그 테스트 | 없음 | Opus high — IPC 답과 목록 이벤트의 순서 경쟁, revision 규칙, 여러 Run의 상태 정리 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
+| A | T1, T2 | `app/src/main/conversation/{store,drafts,service,ipc}.ts`와 그 테스트(새 `storeDelete.test.ts` 포함), `app/src/main/index.ts`, `app/src/main/notifyService.ts`와 테스트, `app/src/preload/index.ts`와 테스트 | 없음 | Opus high — 되돌릴 수 없는 삭제, index commit 순서, 크래시 뒤 정리, live runner와 늦은 이벤트 경쟁 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중 |
+| B | T3 | `app/src/renderer/`의 새 `conversationDelete.ts`, `overviewConversation.ts`, `canvasConversation.ts`, `overviewRun.ts`, `canvasRun.ts`, `homeRun.ts`, `conversationStore.ts`와 그 테스트 | 없음 | Opus high — IPC 답과 목록 이벤트의 순서 경쟁, revision 규칙, 여러 Run의 상태 정리 | `npm --prefix app test`, `npm --prefix app run typecheck` | 진행 중 |
 | C | T4, N1 | `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`, 새 확인 알림 컴포넌트, `styles.css`, `App.tsx`(삭제 호출과 정리 연결), 그 테스트, `docs/DESIGN.md`(`/design-sync` 값) | A·B 통합 | Opus high — Radix 구조 probe, 포커스 반환, 실제 앱 확인과 초안 비교 | test, typecheck, build, `/runtime-test`, `/design-sync` | 대기 |
 | RA·RB·RC | 각 배치 `/code-review` | 보고만 | 해당 배치 완료 | Opus high — 데이터 삭제·경쟁·포커스 결함을 찾는 독립 리뷰 | 🔴 0 | 대기 |
 | T5 | 문서 승격, feature 디렉터리 삭제 | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/conversation-delete/` | C 통합 | 지휘자 | `verify.mjs`, `rg` 확인 | 대기 |
@@ -34,3 +34,5 @@
 - tasks.md의 T1~T5와 N1은 모두 위 표의 한 행에 속한다.
 
 ## 진행 기록
+
+- run `run_4a5ad927bf28`. A: task `task_5cb6cbf8ae13`, dispatch `ctx_a4f6225bf27e`, worktree `conv-delete-A`(Opus high 확인). B: task `task_ee6385d7b5ea`, dispatch `ctx_677113085527`, worktree `conv-delete-B`(Opus high 확인). 둘 다 `6985e033`에서 시작했다.
