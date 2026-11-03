@@ -63,7 +63,8 @@ export interface QueueFiles { reclaim(ids: string[]): StartAttachments; consume(
 export interface QueueOptions { drafts?: DraftStore; files?: QueueFiles; defaultEffort?: (root: string, provider: Provider, model: string) => string | undefined }
 export type OpenRunner = (input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<Runner>;
 // use "listing": a model list read, which a sign-out stops without asking (agentAuth/manager.ts acquire).
-export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use?: "run" | "listing") => Promise<Prepared>;
+// reusing: a send to this conversation's live Codex server, which keeps its thread open between turns.
+export type Prepare = (request: StartRequest, stored?: ConversationMetadata, use?: "run" | "listing", reusing?: boolean) => Promise<Prepared>;
 // Reads a model list through a provider process opened only for that, reporting its spawn and disappearance as
 // OpenRunner does; it never releases the lease itself.
 export type ReadModels = (input: Prepared, exited: () => void, registerStop: (stop: () => Promise<void>) => void) => Promise<ModelList>;
@@ -236,10 +237,11 @@ export class ConversationService {
     const expected = restoring ? "archived" : "current";
     let reserved = false, opening = false, input: Prepared | undefined, leased = false;
     try {
-      this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, runtime === "codex" && !!live.runner); reserved = true;
+      const reusing = runtime === "codex" && !!live.runner;
+      this.reserve(id, { ...metadata.session, runtime, command: "", env: {} }, reusing); reserved = true;
       const turnId = live.turnId;
       // steerConsumed names no turn: a reused Codex server keeps the callback it opened with.
-      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId) };
+      input = { ...await this.prepare({ root: metadata.root, ...(metadata.canvas ? { canvas: metadata.canvas } : {}), mode: "resume", text, anchors }, metadata, undefined, reusing), ...chosen, planApproved: reported => this.planApproved(id, live, turnId, reported), steerConsumed: messageId => this.steerConsumed(id, messageId) };
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");

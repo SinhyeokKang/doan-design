@@ -36,6 +36,15 @@ it("retains idle Codex ownership until confirmed exit and reuses only the owning
   await h.service.interrupt(id); await expect(h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } })).rejects.toThrow("session_in_use");
   h.exits[0]?.(); await h.service.start({ ...request, canvas: { path: ".doan/canvases/b.html" } });
 });
+it("tells prepare when a send reuses the conversation's live Codex server", async () => {
+  const h = fixture(); const id = (await h.service.start(request)).conversationId;
+  expect(h.prepare.mock.calls[0]?.[3]).toBeFalsy();
+  h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "again", []);
+  expect(h.prepare.mock.calls[1]?.[3]).toBe(true);
+  await h.service.interrupt(id); h.exits[0]?.();
+  await h.service.send(id, "after exit", []);
+  expect(h.prepare.mock.calls[2]?.[3]).toBeFalsy();
+});
 it("keeps archived history read-only and persists quit interruption synchronously", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.quit(); expect(h.store.read(id).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });

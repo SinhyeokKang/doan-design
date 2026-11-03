@@ -14,20 +14,21 @@ import { externalConversation, type ConversationMetadata, type ExternalSession }
 // The pinned @anthropic-ai/claude-agent-sdk in app/package.json. It ships with the app, so a test pins it rather
 // than a check at run time.
 export const BUNDLED_CLAUDE_SDK = "0.3.312";
-export type ExternalPrepare = (request: StartRequest, stored?: ExternalSession) => Promise<Prepared>;
+// reusing: the send goes to this conversation's live Codex server, which already holds the thread.
+export type ExternalPrepare = (request: StartRequest, stored?: ExternalSession, reusing?: boolean) => Promise<Prepared>;
 export type AccountPrepare = (request: StartRequest, stored?: ConversationMetadata & { owner: { kind: "doan" } }, use?: "run" | "listing") => Promise<Prepared>;
 // New conversations run on the doan account; a resumed external association and legacy entries keep the external
 // profile. Neither path falls back to the other.
 export function routePrepare(external: ExternalPrepare, account: AccountPrepare): Prepare {
-  return (request, stored, use) => {
+  return (request, stored, use, reusing) => {
     if (!stored) return request.mode === "resume" ? external(request) : account(request, undefined, use);
-    if (externalConversation(stored)) return external(request, stored.session);
+    if (externalConversation(stored)) return reusing ? external(request, stored.session, true) : external(request, stored.session);
     if (stored.owner.kind !== "doan") throw new Error("session_unavailable");
     return account(request, { ...stored, owner: stored.owner });
   };
 }
 export function createPrepare(userData: string, appRuntime: string, inherited: NodeJS.ProcessEnv): ExternalPrepare {
-  return async (request: StartRequest, stored?: ExternalSession): Promise<Prepared> => {
+  return async (request: StartRequest, stored?: ExternalSession, reusing = false): Promise<Prepared> => {
     const picked = request.mode === "resume" && !stored ? pickSession(readSessionTail(userData), request.root, request.canvas ?? null, () => null) : null;
     if (picked && !picked.available) throw new Error("no_session");
     const session = stored ?? (picked?.available ? picked.record : undefined);
@@ -53,7 +54,8 @@ export function createPrepare(userData: string, appRuntime: string, inherited: N
       if (occupancy !== "free") throw new Error("session_unavailable");
       if (!claudeSessionExists(configDir, session.sessionId)) throw new Error("session_unavailable");
     }
-    if (session && runtime === "codex") {
+    // A reused server opens no thread/resume, and Doan's reservation already makes it the session's only owner.
+    if (session && runtime === "codex" && !reusing) {
       const occupancy = await codexOccupancy(configDir, session.sessionId);
       if (occupancy === "occupied") throw Object.assign(new Error("session_in_use"), { runtime, sessionId: session.sessionId });
       if (occupancy !== "free") throw new Error("session_unavailable");

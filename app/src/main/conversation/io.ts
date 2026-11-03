@@ -84,24 +84,45 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
   } catch { return "unknown"; }
 }
 
-// Whether any process has the file open. lsof is read-only; Node has no flock call, and probing with lockf(1) would
-// take the exclusive lock itself, so a Codex writer acquiring at that instant would be refused. It costs ~100 ms, which
-// is why callers run it only when a lock file exists. Exit 1 with no output means nobody has it open.
-export function fileOpenByAnyProcess(path: string): Promise<boolean> {
+// The processes that have the file open, read with lsof: read-only, while Node has no flock call and probing with
+// lockf(1) would take the exclusive lock itself, so a Codex writer acquiring at that instant would be refused. It costs
+// ~100 ms, which is why callers run it only when a lock file exists. Exit 1 with no output means nobody has it open;
+// any other reply it cannot read rejects.
+export interface FileHolder { pid: number; pgid: number; ppid: number }
+export function fileHolders(path: string): Promise<FileHolder[]> {
   return new Promise((resolve, reject) => {
-    execFile("/usr/sbin/lsof", ["-Fp", "-n", "-P", "-l", "-w", "--", path], { timeout: 2000, maxBuffer: 65536 }, (error, stdout, stderr) => {
-      if (!error) { /^p[1-9][0-9]*$/m.test(stdout) ? resolve(true) : reject(new Error("Malformed lsof output")); }
-      else if (error.code === 1 && !stdout.trim() && !stderr.trim()) resolve(false);
-      else reject(error);
+    execFile("/usr/sbin/lsof", ["-FpgR", "-n", "-P", "-l", "-w", "--", path], { timeout: 2000, maxBuffer: 65536 }, (error, stdout, stderr) => {
+      if (error) { if (error.code === 1 && !stdout.trim() && !stderr.trim()) resolve([]); else reject(error); return; }
+      const holders = parseHolders(stdout); if (holders) resolve(holders); else reject(new Error("Malformed lsof output"));
     });
   });
+}
+// -F output: a p<pid> line opens each process, followed by its g<pgid> and R<ppid> and then f<fd> lines.
+function parseHolders(stdout: string): FileHolder[] | null {
+  const holders: Partial<FileHolder>[] = [];
+  for (const line of stdout.split("\n")) {
+    if (!line) continue;
+    const field = line[0], value = line.slice(1), current = holders.at(-1);
+    if (field === "f") { if (!current) return null; continue; }
+    if (!/^(?:0|[1-9][0-9]*)$/.test(value)) return null;
+    if (field === "p") holders.push({ pid: Number(value) });
+    else if ((field === "g" || field === "R") && current) {
+      const key = field === "g" ? "pgid" : "ppid"; if (current[key] !== undefined) return null; current[key] = Number(value);
+    } else return null;
+  }
+  if (!holders.length || holders.some(h => !h.pid || h.pgid === undefined || h.ppid === undefined)) return null;
+  return holders as FileHolder[];
 }
 // Codex (0.164.0 and later) admits one writer per thread through an exclusive flock on
 // <CODEX_HOME>/thread-writer-locks/<id>.lock, the same lock thread/resume refuses on ("already has an active writer").
 // A plain `codex` TUI loads the thread in its managed app-server daemon, which keeps holding it for about a minute
 // after /exit. A clean exit deletes the file; a SIGKILL leaves it with nobody holding it, so the file alone is not
 // occupancy. A missing directory means no supported writer has run in this profile.
-export async function codexOccupancy(config: string, threadId: string, inspect = fileOpenByAnyProcess): Promise<"free" | "occupied" | "unknown"> {
+// A Codex server Doan opened holds the lock of the thread it resumed; that is not a terminal holding the session, and
+// Doan's reservations already keep it to one runner. Runners spawn each provider detached, so it leads its own process
+// group as a direct child of this (main) process: holders in such a group are ignored. A holder whose group leader is
+// not among the holders cannot be traced to Doan and counts.
+export async function codexOccupancy(config: string, threadId: string, inspect = fileHolders, self = process.pid): Promise<"free" | "occupied" | "unknown"> {
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(threadId)) return "unknown";
   try {
     const directory = join(canonicalDirectory(config), "thread-writer-locks");
@@ -112,7 +133,9 @@ export async function codexOccupancy(config: string, threadId: string, inspect =
     let entry;
     try { entry = lstatSync(lock); } catch (error) { if (object(error) && error.code === "ENOENT") return "free"; throw error; }
     if (!entry.isFile()) return "unknown";
-    return await inspect(lock) ? "occupied" : "free";
+    const holders = await inspect(lock);
+    const doan = new Set(holders.filter(h => h.pid === h.pgid && h.ppid === self).map(h => h.pid));
+    return holders.some(h => !doan.has(h.pgid)) ? "occupied" : "free";
   } catch { return "unknown"; }
 }
 
