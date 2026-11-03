@@ -27,6 +27,10 @@ const (
 	ReasonUseType      = "use target is not an SVG file"
 	// A <style> in a copied SVG file would apply to the whole canvas.
 	ReasonUseStyle = "SVG file has a style element"
+	// A url() in a custom property resolves from each stylesheet that uses
+	// it, and these name different existing files: which one shows depends
+	// on the element, so the export cannot pick one.
+	ReasonAmbiguous = "names different files from the stylesheets that use it"
 )
 
 type assetState int

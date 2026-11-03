@@ -395,6 +395,10 @@ type CSSRef struct {
 	Value      string
 	Import     bool
 	Start, End int
+	// Custom is the custom property whose declared value holds this url(),
+	// or "". The browser resolves such a url() only where a var() puts it
+	// into a real property, so its base is the consumer's, not this text's.
+	Custom string
 }
 
 // CSSRefs walks the same tokens and @import rule as ScanCSS, so export
@@ -407,21 +411,121 @@ func CSSRefs(text string, mode Mode) []CSSRef {
 	}
 	var out []CSSRef
 	target := -1
+	start, paren := 0, 0
 	for i, t := range ts {
 		if depth == 0 && t.kind == '@' && i+2 < len(ts) && ts[i+1].start == t.end && lower(ts[i+1].text) == "import" && (ts[i+2].kind == 's' || ts[i+2].kind == 'u') {
 			target = i + 2
 		}
 		if t.kind == 'u' || i == target {
-			out = append(out, CSSRef{Value: refValue(text[t.start:t.end]), Import: i == target, Start: t.start, End: t.end})
+			r := CSSRef{Value: refValue(text[t.start:t.end]), Import: i == target, Start: t.start, End: t.end}
+			if depth > 0 && t.kind == 'u' {
+				r.Custom = customName(ts[start:i])
+			}
+			out = append(out, r)
 		}
-		if t.kind == '{' {
+		// Declaration boundaries as ScanCSS finds them.
+		switch {
+		case t.kind == '(':
+			paren++
+		case t.kind == ')' && paren > 0:
+			paren--
+		case t.kind == '{':
 			depth++
-		}
-		if t.kind == '}' && depth > 0 {
-			depth--
+			start, paren = i+1, 0
+		case t.kind == '}':
+			if depth > 0 {
+				depth--
+			}
+			start, paren = i+1, 0
+		case t.kind == ';' && paren == 0:
+			start = i + 1
 		}
 	}
 	return out
+}
+
+// customName returns the custom property a declaration's tokens declare, or "".
+func customName(ts []token) string {
+	if len(ts) >= 2 && ts[0].kind == 'i' && custom(ts[0].text) && ts[1].kind == ':' {
+		return ts[0].text
+	}
+	return ""
+}
+
+// CustomUse is what one style text does with custom properties.
+type CustomUse struct {
+	// Used holds the custom properties a var() puts into a real property.
+	Used map[string]bool
+	// Hops maps a custom property to those its own value names with var():
+	// whatever uses it uses them too.
+	Hops map[string]map[string]bool
+	// URLSyntax holds the @property registrations whose syntax accepts
+	// <url>; the browser resolves their url()s where they are declared.
+	URLSyntax map[string]bool
+}
+
+// CustomUses walks the declarations ScanCSS walks.
+func CustomUses(text string, mode Mode) CustomUse {
+	u := CustomUse{Used: map[string]bool{}, Hops: map[string]map[string]bool{}, URLSyntax: map[string]bool{}}
+	ts := lex(text)
+	depth := 0
+	if mode == Declarations {
+		depth = 1
+	}
+	start, paren := 0, 0
+	// registering is the @property block being read, or "".
+	registering := ""
+	declaration := func(d []token) {
+		if len(d) < 2 || d[0].kind != 'i' || d[1].kind != ':' {
+			return
+		}
+		name := d[0].text
+		if registering != "" && lower(name) == "syntax" && len(d) > 2 && d[2].kind == 's' && strings.Contains(lower(d[2].text), "<url>") {
+			u.URLSyntax[registering] = true
+		}
+		for i := 2; i+2 < len(d); i++ {
+			if d[i].kind == 'i' && lower(d[i].text) == "var" && d[i+1].kind == '(' && d[i+1].start == d[i].end && d[i+2].kind == 'i' && custom(d[i+2].text) {
+				if !custom(name) {
+					u.Used[d[i+2].text] = true
+					continue
+				}
+				if u.Hops[name] == nil {
+					u.Hops[name] = map[string]bool{}
+				}
+				u.Hops[name][d[i+2].text] = true
+			}
+		}
+	}
+	for i, t := range ts {
+		switch {
+		case t.kind == '(':
+			paren++
+		case t.kind == ')' && paren > 0:
+			paren--
+		case t.kind == '{':
+			p := ts[start:i]
+			if len(p) == 3 && p[0].kind == '@' && p[1].start == p[0].end && lower(p[1].text) == "property" && p[2].kind == 'i' && custom(p[2].text) {
+				registering = p[2].text
+			}
+			depth++
+			start, paren = i+1, 0
+		case t.kind == '}' || t.kind == ';' && paren == 0:
+			if depth > 0 {
+				declaration(ts[start:i])
+			}
+			if t.kind == '}' {
+				if depth > 0 {
+					depth--
+				}
+				registering = ""
+			}
+			start, paren = i+1, 0
+		}
+	}
+	if depth > 0 && start < len(ts) {
+		declaration(ts[start:])
+	}
+	return u
 }
 
 // refValue decodes a string token or a url() token's raw text.

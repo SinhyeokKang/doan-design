@@ -88,11 +88,15 @@ func inline(root string, config repo.Config, canvasPath string, src []byte, limi
 		return Result{}, nil, err
 	}
 	in := &inliner{root: root, scope: scope, limit: limit, files: map[string][]byte{}, sizes: map[string]int64{}, sheets: map[string][]sheet{}, external: map[string]bool{}, links: map[string]bool{}, refusedSeen: map[Refusal]bool{}, ids: documentIDs(src), spriteIDs: map[string]map[string]bool{}, spriteStyled: map[string]bool{}}
+	in.collectUses(canvasPath, src)
+	if in.err != nil {
+		return Result{}, nil, in.err
+	}
 	// grown sums only what replacements add, so it never exceeds the real output.
 	var grown int64
 	ref := in.ref(canvasPath, true, nil, nil, &grown)
-	out, bodyEnd := rewriteHTMLBody(src, ref, func(text string, mode canvas.Mode) string {
-		return rewriteCSS(text, mode, func(href string, kind refKind) (string, bool) { return ref(kind, href) })
+	out, bodyEnd := rewriteHTMLBody(src, func(kind refKind, href string) (string, bool) { return ref(kind, href, "") }, func(text string, mode canvas.Mode) string {
+		return rewriteCSSRefs(text, mode, ref)
 	})
 	if in.err != nil {
 		return Result{}, nil, in.err
@@ -151,6 +155,7 @@ type inliner struct {
 	tooLarge     bool
 	err          error
 	built        int64 // bytes of data URIs built, so tests can see the stop is early
+	uses         uses
 }
 
 // sheet is one inlined stylesheet. Its text depends on the @import chain
@@ -171,12 +176,12 @@ func (in *inliner) stopped() bool { return in.err != nil || in.tooLarge }
 // canvas, which no chain contains). grown counts
 // the size of the output being built from this file: once it passes the
 // limit, the whole export does, because that output ends up in it.
-func (in *inliner) ref(from string, direct bool, ancestors []string, reached map[string]bool, grown *int64) func(refKind, string) (string, bool) {
-	return func(kind refKind, href string) (string, bool) {
+func (in *inliner) ref(from string, direct bool, ancestors []string, reached map[string]bool, grown *int64) func(refKind, string, string) (string, bool) {
+	return func(kind refKind, href, custom string) (string, bool) {
 		if in.stopped() {
 			return "", false
 		}
-		v, ok := in.replace(from, direct, ancestors, reached, grown, kind, href)
+		v, ok := in.replace(from, direct, ancestors, reached, grown, kind, href, custom)
 		if ok {
 			*grown += int64(len(v))
 			if *grown > in.limit {
@@ -187,7 +192,8 @@ func (in *inliner) ref(from string, direct bool, ancestors []string, reached map
 	}
 }
 
-func (in *inliner) replace(from string, direct bool, ancestors []string, reached map[string]bool, grown *int64, kind refKind, href string) (string, bool) {
+// custom is the custom property whose value holds href, or "".
+func (in *inliner) replace(from string, direct bool, ancestors []string, reached map[string]bool, grown *int64, kind refKind, href, custom string) (string, bool) {
 	h := trimURL(href)
 	switch classifyRef(kind, href) {
 	case classExternal:
@@ -202,6 +208,14 @@ func (in *inliner) replace(from string, direct bool, ancestors []string, reached
 	case classRefuse:
 		in.refuse(from, h, ReasonFrame)
 	case classInline:
+		if custom != "" && kind == kindAsset && !in.uses.urlSyntax[custom] {
+			if dirs := in.uses.consumers(custom); len(dirs) > 0 {
+				return in.replaceCustom(from, direct, h, href, dirs)
+			}
+			// Nothing uses it, so the app loads nothing: resolve it where it
+			// is declared, as before, but a missing file blocks nothing.
+			direct = false
+		}
 		r, err := resolveAsset(in.root, in.scope, path.Dir(from), href)
 		if err != nil {
 			in.err = err
@@ -278,8 +292,11 @@ func (in *inliner) sprite(from, h, real string, grown *int64) (string, bool) {
 		// the browser loaded it as a document.
 		var local int64
 		ref := in.ref(real, true, nil, nil, &local)
-		out, _ := rewriteMarkup([]byte(content), ref, func(text string, mode canvas.Mode) string {
-			return rewriteCSS(text, mode, func(href string, kind refKind) (string, bool) { return ref(kind, href) })
+		// The sprite was not part of collectUses, so its custom property
+		// url()s keep the SVG file as their base.
+		url := func(kind refKind, href string) (string, bool) { return ref(kind, href, "") }
+		out, _ := rewriteMarkup([]byte(content), url, func(text string, mode canvas.Mode) string {
+			return rewriteCSS(text, mode, func(href string, kind refKind) (string, bool) { return url(kind, href) })
 		}, true)
 		if in.stopped() {
 			return "", false
@@ -470,8 +487,7 @@ func (in *inliner) inlineFile(real string, kind refKind, ancestors []string) (st
 	chain := append(ancestors[:len(ancestors):len(ancestors)], real)
 	reached := map[string]bool{real: true}
 	var grown int64
-	ref := in.ref(real, false, chain, reached, &grown)
-	text := rewriteCSS(string(b), canvas.Stylesheet, func(href string, kind refKind) (string, bool) { return ref(kind, href) })
+	text := rewriteCSSRefs(string(b), canvas.Stylesheet, in.ref(real, false, chain, reached, &grown))
 	if in.stopped() {
 		return "", nil, nil
 	}

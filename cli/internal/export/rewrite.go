@@ -12,6 +12,12 @@ import (
 // when replace returns true, and copies every other byte as it is. An
 // @import target is reported as kindStylesheet, a url() as kindAsset.
 func rewriteCSS(text string, mode canvas.Mode, replace func(ref string, kind refKind) (string, bool)) string {
+	return rewriteCSSRefs(text, mode, func(kind refKind, ref, _ string) (string, bool) { return replace(ref, kind) })
+}
+
+// rewriteCSSRefs is rewriteCSS whose callback also gets the custom property
+// holding each url() (canvas.CSSRef.Custom).
+func rewriteCSSRefs(text string, mode canvas.Mode, replace func(kind refKind, ref, custom string) (string, bool)) string {
 	var b strings.Builder
 	last := 0
 	for _, r := range canvas.CSSRefs(text, mode) {
@@ -19,7 +25,7 @@ func rewriteCSS(text string, mode canvas.Mode, replace func(ref string, kind ref
 		if r.Import {
 			kind = kindStylesheet
 		}
-		v, ok := replace(r.Value, kind)
+		v, ok := replace(kind, r.Value, r.Custom)
 		if !ok {
 			continue
 		}
