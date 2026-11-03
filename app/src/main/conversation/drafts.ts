@@ -147,7 +147,12 @@ export class DraftStore {
   private setSending(id: string, itemId: string, on: boolean): boolean {
     const before = this.file.queued[id];
     if (!before?.some(item => item.itemId === itemId && Boolean(item.sending) !== on)) return false;
-    this.file.queued[id] = before.map(item => item.itemId !== itemId ? item : on ? { ...item, sending: true } : { itemId: item.itemId, text: item.text, anchors: item.anchors, attachments: item.attachments });
+    this.file.queued[id] = before.map(item => {
+      if (item.itemId !== itemId) return item;
+      if (on) return { ...item, sending: true };
+      const { sending: _sending, ...rest } = item;
+      return rest;
+    });
     this.save();
     return true;
   }
