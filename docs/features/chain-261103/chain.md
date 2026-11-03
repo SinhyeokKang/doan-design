@@ -60,7 +60,7 @@
 | 3 canvas-open-offer | Claude Code 세션 c935fb51, worktree `canvas-open-offer-orch` | 2026-11-03 | PR #77, 병합 3b6f9ed2 | 완료 |
 | 4 agent-reply-chips | Claude Code 세션 0344e3fb, worktree `agent-reply-chips-orch` | 2026-11-03 | PR #78, 병합 35ecf91b | 완료 |
 | 5 canvas-row-menu | Claude Code 세션 e4ed3c1b, worktree `canvas-row-menu-orch` | 2026-11-03 | PR #79, 병합 88f9ee97 | 완료 |
-| 6 setup-via-onboarding | | | | 대기 |
+| 6 setup-via-onboarding | Claude Code 세션 d0c0b53b, worktree `setup-via-onboarding-orch` | 2026-11-03 | | 진행 중 |
 
 ## 인계 기록
 
