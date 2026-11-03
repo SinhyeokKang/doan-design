@@ -921,7 +921,6 @@ Reference: `.doan/canvases/canvas-row-menu.html`, the frames `row-button`, `row-
 
 ### Documented differences from the draft
 
-- **Idle button.** The draft hides it with `display: none`; the app clips it (see Idle button above), so it keeps its focus. The idle look is identical: nothing paints. The draft's `row-button` frame still draws `display: none`.
 - **Menu fill.** The draft's menu is the translucent glass `rgba(255,255,255,0.9)`; the app's is opaque white through `shell-side-menu`, because the window's native vibrancy gives a web backdrop-filter nothing to blur (decided with the sidebar menus; the shipped project menu is the same). The class list also lacks the draft's `shell-project-menu` (its focus-return effect keys on it); `shell-canvas-menu` repeats the four rules.
 - **Keyboard ring on a menu item.** The app's shared menu item paints a 2px inset ring on the focused item; the draft draws the highlight fill alone. Opened from the keyboard, the first item is focused; the draft's unreadable-row and exporting menus highlight Move to Trash, which the real menu reaches with one arrow from the unavailable Export….
 - **Portaled containers.** The menu, dialog and toast roots inherit the body's 13px / normal where the draft's stage gives 14 / 20; every child sets its own type and matches, and no root paints text of its own.
