@@ -44,3 +44,4 @@
 - B 완료: `16cb172a` test, `7ca1032c` feat. app test·typecheck·verify.mjs 통과(worker 보고). RB(Opus high, task `task_1cab74a2b171`, dispatch `ctx_d19aab30cb5f`)를 `conv-delete-B` worktree에서 시작했다.
 - RB 완료: 🔴 0, 🟡 1(homeRun 진행 중 claim이 지운 대화를 되살림), ⚪ 4. 수정 1회차(🟡1, ⚪1 stale 목록 창, ⚪2·⚪3 테스트 고정)를 B에 보냈다(dispatch `ctx_394155d5ba75`). quitting 중 거절 토스트 확인은 RC가 본다.
 - A 완료: `34024e09`..`51afcccc`(4개). app test·typecheck·verify.mjs 통과(worker 보고). 승인한 범위 밖 파일은 `app/src/main/index.test.ts` mock 한 줄. main은 종료 중 거절과 working 거절을 둘 다 `busy`로 답하므로 종료 중 토스트 생략은 C가 renderer 쪽 종료 신호로 처리한다. RA(Opus high, dispatch `ctx_e701d6c32732`)를 `conv-delete-A`에서 시작했다.
+- B 수정 1회차 완료: `c2473b77` test, `58579f14` fix. verify.mjs 통과(6434 tests, worker 보고). 🟡1 postmortem은 생략한다(지휘자 판단: main에 들어가기 전 리뷰에서 잡았고, 같은 함정이 POSTMORTEM 2026-10-27 'Awaited conversation work outlived its current turn'에 이미 있다). RB 재리뷰(dispatch `ctx_7c78cef5420b`) 시작.
