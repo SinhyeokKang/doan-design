@@ -7,7 +7,7 @@ import type { ConversationService, Prepare, QueueFiles, StartAttachments, StartR
 import type { ModelCatalog } from "./models";
 import type { AttachmentStore } from "../attachments";
 import type { Anchor, AttachmentRecord, Canvas } from "./types";
-export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen", "queue", "removeQueued", "takeDraft", "setPermissionMode"] as const;
+export const conversationMethods = ["resumeTarget", "forCanvas", "start", "send", "interrupt", "answerPermission", "read", "models", "list", "markSeen", "queue", "removeQueued", "sendQueuedNow", "takeDraft", "setPermissionMode"] as const;
 export type ConversationMethod = typeof conversationMethods[number];
 // attachment_missing names the attachments that were moved, deleted or forgotten since they were added.
 export interface ConversationError { error: string; missing?: string[] }
@@ -169,6 +169,10 @@ export function conversationHandler(service: ConversationService, prepare: Prepa
         case "removeQueued":
           if (typeof raw.itemId !== "string" || raw.itemId.length > 64) throw new Error("bad_request");
           service.removeQueued(raw.conversationId, raw.itemId); return undefined;
+        // Answers once the agent read the message (service.sendNow), not when the provider took it.
+        case "sendQueuedNow":
+          if (typeof raw.itemId !== "string" || raw.itemId.length > 64) throw new Error("bad_request");
+          await service.sendNow(raw.conversationId, raw.itemId); return undefined;
         case "takeDraft": return service.takeDraft(raw.conversationId);
         case "markSeen":
           if (typeof raw.seq !== "number" || !Number.isSafeInteger(raw.seq) || raw.seq < 0) throw new Error("bad_request");

@@ -116,6 +116,11 @@ const api = {
   setConversationPermissionMode: (request: { conversationId: string; permissionMode: PermissionModeId }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:setPermissionMode", request),
   // stale: the item already went out, came back or was removed.
   removeQueuedMessage: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:removeQueued", request),
+  // Send now: the queued message goes into the running turn without stopping it. It answers once the agent read it,
+  // when the message is in the turn's history and out of the queue. not_running: nothing runs that can take it, the
+  // provider refused it, or the turn ended first (the message stays queued and follows the queue's rules); stale: the
+  // item is gone or already on its way out; attachment_missing: one of its files went away (it stays queued).
+  sendQueuedNow: (request: { conversationId: string; itemId: string }): Promise<void | ConversationError> => ipcRenderer.invoke("conversation:sendQueuedNow", request),
   takeConversationDraft: (request: { conversationId: string }): Promise<ReturnedDraft | null | ConversationError> => ipcRenderer.invoke("conversation:takeDraft", request),
   // One summary per conversation main keeps for this project, current and archived; a row whose history cannot be
   // read carries readError. Read it again on onConversationListChanged, in whatever order the reply and change arrive.
