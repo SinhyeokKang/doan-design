@@ -2307,6 +2307,25 @@ describe("background onboarding launch and start", () => {
     expect(window().show).toHaveBeenCalledOnce();
   });
 
+  test("a start while a fullscreen close is still pending waits, bounces once and shows on activation", async () => {
+    await launch({ background: false, active: true });
+    window().isFullScreen.mockReturnValue(true);
+    window().emit("close", { preventDefault: vi.fn() });
+    expect(window().setFullScreen).toHaveBeenCalledExactlyOnceWith(false);
+    mocks.app.isActive.mockReturnValue(false);
+    await start();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledExactlyOnceWith("informational");
+    expect(window().show).not.toHaveBeenCalled();
+    window().isFullScreen.mockReturnValue(false);
+    window().emit("leave-full-screen");
+    expect(window().hide).toHaveBeenCalledOnce();
+    await start();
+    expect(mocks.app.dock.bounce).toHaveBeenCalledOnce();
+    mocks.app.isActive.mockReturnValue(true);
+    mocks.app.emit("did-become-active");
+    expect(window().show).toHaveBeenCalledOnce();
+  });
+
   test("activation after quit does not touch the destroyed window", async () => {
     await launch({ background: true, active: false });
     mocks.app.emit("before-quit", { preventDefault: vi.fn() });

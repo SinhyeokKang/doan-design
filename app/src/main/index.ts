@@ -192,6 +192,8 @@ let onboardingOpen = false;
 let quitting = false;
 let quitScheduled = false;
 let cancelPendingHide = () => {};
+// A Close Window waiting for fullscreen to end: the window is about to hide, so onboarding start treats it as hidden.
+let hidingAfterFullScreen = false;
 let addFlow: AddFlow | undefined;
 let uiState: UiStateStore | undefined;
 let canvasSeen: CanvasSeenStore | undefined;
@@ -467,9 +469,11 @@ function createWindow(): BrowserWindow {
       // macOS cannot hide until the transition ends; a later open cancels this close.
       const hide = () => { cancelPendingHide(); if (!window.isDestroyed()) hideWindow(window); };
       const timeout = setTimeout(() => cancelPendingHide(), FULLSCREEN_EXIT_WAIT_MS);
+      hidingAfterFullScreen = true;
       cancelPendingHide = () => {
         clearTimeout(timeout);
         window.removeListener("leave-full-screen", hide);
+        hidingAfterFullScreen = false;
         cancelPendingHide = () => {};
       };
       window.once("leave-full-screen", hide);
@@ -519,7 +523,7 @@ function bringForward(window: BrowserWindow): void {
 function revealForStart(window: BrowserWindow): void {
   const reveal = revealFor({
     appActive: app.isActive(),
-    windowVisible: windowShown && !appHidden && !window.isMinimized(),
+    windowVisible: windowShown && !appHidden && !window.isMinimized() && !hidingAfterFullScreen,
     bounced: revealPending && revealBounced,
   });
   if (reveal.show === "now") bringForward(window);
