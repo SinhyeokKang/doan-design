@@ -46,4 +46,8 @@ tasks 항목과 배치: T1→A, T2→B, T3→G, T4→지휘자, T5→B, Z1→지
 - B(T2) 완료: `o3-baseline`(O3·O3b × 3, 두 에이전트, judge 모두 실행). O3는 6/6 pass, O3b는 0/6이다. 여섯 실행 모두 `completed: true`를 받고도 `complete`를 불렀다(U-023, layer guide). init을 고른 실행은 없고, 모두 먼저 `doan skill`을 읽었으며 작업 공간의 `doan`을 썼다. env로 감싼 init도 없었다. runner exit 0, real-state 그대로(Keychain 포함). 커밋 754169f3를 feat에 1bb01457로 넣었고 브랜치 `setup-via-onboarding-b1`로 남겼다.
 - 지휘자 판단(design 'PoC 의존'): 기준선이 O3b에서 실패하므로 T3을 줄이지 않고 G의 문구 그대로 간다.
 - 사용량: B의 마지막 Codex rollout 기준 Codex 주간 93% 사용(7% 남음, 2026-11-04 15:35 KST 초기화).
+- G 수정 1회 완료: 커밋 4e3fbc1d. 첫 문단의 init 폴백을 저장소 세팅으로 한정했고("If a repository setup cannot reach Doan …"), init 줄도 같은 조건을 쓴다. "takes no `--repo`"는 되살렸다. `--json`+안내 21,596 / 21,600 B. 지휘자가 word diff를 직접 확인했다. 72c82427·4e3fbc1d를 feat에 599229e5·a20e110a로 넣었다(기준선 뒤). G 작업자를 놓고 worktree를 지웠다. 브랜치 `setup-via-onboarding-g`는 4e3fbc1d로 남겼다.
+- T4: 통합 HEAD a20e110a에서 `node .agents/skills/verify/scripts/verify.mjs --eval` PASS(verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, eval-tests, eval-self-test, build). 로그 `.scratch/orch/verify-eval.log`.
+- Z1 일부: PRODUCT §2·§5 item 0 'First run'·item 8을 고쳤다(06c223dc). ARCHITECTURE §14는 O 계열 시나리오를 나열하지 않고(설계 프리셋 집합만 나열), §4의 onboarding 요청 형식은 바뀌지 않아 고칠 것이 없다. BACKLOG에 이 feature가 닫는 항목은 없다.
+- T5: B에 보냈다(같은 작업자, 같은 worktree, feat로 rebase 뒤 패키지 재빌드).
 
