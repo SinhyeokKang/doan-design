@@ -364,6 +364,17 @@ test("settings page calls use fixed channels and pass their requests as data", a
   }
 });
 
+test("the quitting push is a subscription that unsubscribes", () => {
+  const heard = vi.fn();
+  const stop = api.onQuitting(heard);
+  emitter.emit("app:quitting", {}, true);
+  emitter.emit("app:quitting", {}, false);
+  stop();
+  emitter.emit("app:quitting", {}, true);
+  expect(heard.mock.calls).toEqual([[true], [false]]);
+  expect(emitter.listenerCount("app:quitting")).toBe(0);
+});
+
 test("notification clicks and the open-Settings command are subscriptions that unsubscribe", () => {
   const clicked = vi.fn();
   const opened = vi.fn();

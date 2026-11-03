@@ -1526,6 +1526,28 @@ test("an approved quit prevents native window teardown until the next event-loop
   expect(resumed.preventDefault).not.toHaveBeenCalled();
 });
 
+// conversation-delete orch decision 5: conversation:delete answers busy while quitting as while working, so the
+// renderer learns of the quit from main and its refusal toast can stay quiet.
+test("main tells the renderer it is quitting before the conversations stop, and that it is not when the quit is aborted", async () => {
+  const contents = window().webContents;
+  const service = mocks.conversationService as unknown as { quit(): Promise<void> };
+  const stop = vi.spyOn(service, "quit").mockRejectedValueOnce(new Error("EIO"));
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  contents.send.mockClear();
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  expect(contents.send).toHaveBeenCalledExactlyOnceWith("app:quitting", true);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await vi.waitFor(() => expect(contents.send).toHaveBeenLastCalledWith("app:quitting", false));
+  expect(contents.send.mock.invocationCallOrder[0]).toBeLessThan(stop.mock.invocationCallOrder[0] ?? 0);
+  expect(mocks.app.quit).not.toHaveBeenCalled();
+  // The next quit proceeds and says so again; nothing clears it.
+  contents.send.mockClear();
+  mocks.app.emit("before-quit", { preventDefault: vi.fn() });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await vi.waitFor(() => expect(mocks.app.quit).toHaveBeenCalledOnce());
+  expect(contents.send.mock.calls.filter(call => call[0] === "app:quitting")).toEqual([["app:quitting", true]]);
+});
+
 test("repeated quit requests before deferred teardown schedule only one quit", async () => {
   const events = [{ preventDefault: vi.fn() }, { preventDefault: vi.fn() }];
   for (const event of events) mocks.app.emit("before-quit", event);
