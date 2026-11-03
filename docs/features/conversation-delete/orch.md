@@ -53,3 +53,4 @@
 - RB 재리뷰: 🔴 0, 🟡 0, ⚪ 1(보이지 않는 events 항목, 조치 없음). B 커밋 4개를 `aac23ea4`..`6710020a`로 cherry-pick했다. B·RB worker를 release했다. worktree `conv-delete-B`는 정리 전까지 남는다. handoff와 review는 `.scratch/orch-conversation-delete/evidence/`에 복사했다.
 - C step 0 Radix probe: Esc 한 항목만 실패(툴팁이 먼저 닫힘), 나머지 통과. 결정 5로 답했다. A 수정 1회차에는 사용자 결정 D1을 담아 보냈다(dispatch `ctx_65adf4a0fc54`). C는 dispatch `ctx_db9637228489`, worktree `conv-delete-C`, 기준 `7e10089a`.
 - A 수정 1회차(D1: `e0e5383e`, `dbf8d3fd`)와 2회차(종료 push `app:quitting`·preload `onQuitting`: `09e3f585`, `9cc5303d`) 완료. RA 재리뷰(dispatch `ctx_7c274c9b258d`) 시작. C는 통합 뒤 `onQuitting`을 연결한다.
+- RA 재리뷰(1·2회차): 🔴 0, 🟡 1(Y3: 중단된 종료 뒤 `app:quitting false`인데 서비스는 계속 종료 중이라 거짓 토스트), ⚪ 4. 지휘자 판단 D2: 서비스는 지금처럼 종료 상태로 두고, 중단된 종료에는 false push를 보내지 않는다(이 batch 안의 변경으로 끝남). ⚪1(커밋되지 않은 기록 정리)도 A 수정 3회차에 넣었다. ⚪2·⚪3은 받아들인다. ⚪4(D1과 다른 feature 문서 문구, `deletions.json`, `app:quitting`)는 T5에서 반영한다.
