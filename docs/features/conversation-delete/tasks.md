@@ -1,6 +1,6 @@
 # conversation-delete — tasks
 
-순서: 저장소 순수 함수·I/O → 서비스·IPC → renderer 순수 규칙 → UI → 승격. 형식(JSON Schema) 변경이 없어 schema·fixture 단계는 없다. UI가 있으므로 `/feature-review` 뒤 `/design-draft`가 `.doan/canvases/conversation-delete.html`(행 버튼 휴식·hover·하이라이트·하위 메뉴·사용 불가 항목·확인 알림(초안 줄 유무)·거절 토스트·마지막 대화를 지운 빈 목록)을 그리고, 사용자가 앱에서 확인한 뒤 `/tdd`로 들어간다.
+순서: 저장소 순수 함수·I/O → 서비스·IPC → renderer 순수 규칙 → UI → 승격. 형식(JSON Schema) 변경이 없어 schema·fixture 단계는 없다. UI가 있으므로 `/feature-review` 뒤 `/design-draft`가 `.doan/canvases/conversation-delete.html`(행 Delete 버튼 휴식·hover·선택 행 hover·하이라이트와 툴팁·사용 불가 툴팁·확인 알림(초안 줄 유무)·거절 토스트·마지막 대화를 지운 빈 목록)을 그리고, 사용자가 앱에서 확인한 뒤 `/tdd`로 들어간다.
 
 ## T1. 저장소 삭제와 고아 기록 정리
 
@@ -27,20 +27,20 @@
 - 검증: `npm --prefix app test` green, `npm --prefix app run typecheck` 통과.
 - **commit 경계**: `feat(renderer): conversation delete rules and state after deletion`
 
-## T4. 제목 메뉴의 행 버튼, 하위 메뉴, 확인 알림
+## T4. 제목 메뉴의 행 Delete 버튼, 확인 알림
 
-- 먼저 확인: Radix `RadioItem` + 형제 `Sub`의 동작을 격리된 실제 앱에서 짧게 probe한다(design §8). 통과 조건: ↓ 순서가 행 → 버튼 → 다음 행, 버튼이 하이라이트된 동안 행 채움 유지, hover만으로 하위 메뉴가 열리지 않고 클릭·→·Enter로 열림, ← 뒤 `document.activeElement`가 그 버튼, Esc 뒤 제목 메뉴가 닫히고 포커스가 trigger, `SubContent`가 `.doan-floating` 위에 뜸(스크린샷). 실패하면 구조를 바꾸기 전에 멈추고 보고한다.
-- `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`: 행 wrapper, `SubTrigger` 메뉴 버튼(hover 열기 막음), Delete 항목(사용 불가 이유 줄), clip 숨김·행 하이라이트·구분선 선택자 CSS(design §3.3).
+- 먼저 확인: Radix `RadioItem` + 형제 `Item`과 그 Tooltip의 동작을 격리된 실제 앱에서 짧게 probe한다(design §8). 통과 조건: ↓ 순서가 행 → 버튼 → 다음 행, 버튼이 하이라이트된 동안 행 채움 유지, 키보드 하이라이트와 포인터 머무름 모두에서 툴팁이 메뉴 위에 뜸(스크린샷), 클릭·Enter로 확인 알림이 열리고 대화는 바뀌지 않음, Esc 뒤 제목 메뉴가 닫히고 포커스가 trigger. 실패하면 구조를 바꾸기 전에 멈추고 보고한다.
+- `ProjectOverview.tsx`, `CanvasConversationPanel.tsx`: 행 wrapper, Delete 버튼 Item과 툴팁(사용 불가 이유), clip 숨김·행 하이라이트·구분선 선택자 CSS(design §3.3).
 - 확인 알림 컴포넌트와 흐름: 열기, 초안 줄, Cancel·Esc, Delete(진행 중 비활성), 성공 뒤 포커스(보던 대화면 composer, 아니면 trigger), 성공 토스트 없음, 거절 토스트와 trigger 포커스, 종료 중 거절에는 토스트 없음(design §3.4).
-- 테스트: 컴포넌트 테스트(버튼 이름, 행 클릭과 버튼 클릭 구분, 키보드 순서, 사용 불가 항목의 `aria-disabled`·`aria-describedby`, 알림 문구·초안 줄·포커스, 거절 토스트, 알림이 열린 동안 `deleteAvailability`가 불가로 바뀌면 Delete가 `aria-disabled`이고 `doan-notice`가 보임, 목록 읽기 실패·읽는 중에 버튼이 없음, OS 알림 클릭이 알림을 Cancel처럼 닫음), CSS 테스트로 숨은 버튼이 `display: none`이 아님과 행 사이 구분선을 고정.
-- 검증: `npm --prefix app test` green, `npm --prefix app run typecheck`·`npm --prefix app run build` 통과. 실제 앱 확인은 `/runtime-test`(Overview·canvas panel에서 삭제, 보이던 대화 삭제 뒤 새 대화 상태, 사용 불가 항목, 재시작 뒤 사라짐, 하위 메뉴 스크린샷), 초안과의 비교는 `/design-sync`.
+- 테스트: 컴포넌트 테스트(버튼 이름, 행 클릭과 버튼 클릭 구분, 키보드 순서, 사용 불가 버튼의 `aria-disabled`·`aria-describedby`와 툴팁 문구, 알림 문구·초안 줄·포커스, 거절 토스트, 알림이 열린 동안 `deleteAvailability`가 불가로 바뀌면 Delete가 `aria-disabled`이고 `doan-notice`가 보임, 목록 읽기 실패·읽는 중에 버튼이 없음, OS 알림 클릭이 알림을 Cancel처럼 닫음), CSS 테스트로 숨은 버튼이 `display: none`이 아님과 행 사이 구분선을 고정.
+- 검증: `npm --prefix app test` green, `npm --prefix app run typecheck`·`npm --prefix app run build` 통과. 실제 앱 확인은 `/runtime-test`(Overview·canvas panel에서 삭제, 보이던 대화 삭제 뒤 새 대화 상태, 사용 불가 항목, 재시작 뒤 사라짐, 툴팁 스크린샷), 초안과의 비교는 `/design-sync`.
 - **commit 경계**: `feat(renderer): delete conversations from the title menus`
 
 ## T5. 문서 승격과 feature 디렉터리 삭제
 
-- `docs/PRODUCT.md`(영문, 현재 규칙으로): §5 item 2 'Conversation panel' Title menu와 item 3 'Project Overview' Conversation menu에 행 메뉴 버튼·Delete·사용 불가 조건·확인 알림·삭제 뒤 표시 규칙. §3 In scope 6에 대화를 이 기기에서 지울 수 있고 에이전트 세션 파일은 그대로라는 문장.
+- `docs/PRODUCT.md`(영문, 현재 규칙으로): §5 item 2 'Conversation panel' Title menu와 item 3 'Project Overview' Conversation menu에 행 Delete 버튼·사용 불가 조건과 툴팁·확인 알림·삭제 뒤 표시 규칙. §3 In scope 6에 대화를 이 기기에서 지울 수 있고 에이전트 세션 파일은 그대로라는 문장.
 - `docs/ARCHITECTURE.md`: §7 'Events'(삭제는 기록 전체와 index 항목을 없애고 이벤트를 다시 쓰지 않음), 'Device-local storage and limits'(삭제 순서, index 먼저, 시작 때 고아 기록·초안 정리와 그 조건, "Every current/archived change goes through the undo journal" 문장을 삭제와 맞게 고침), 서비스 삭제의 `terminal` 표시 이유(늦은 append가 파일을 다시 만듦).
-- `docs/DESIGN.md`: `/design-sync`가 잰 값(행 버튼, 하위 메뉴, 확인 알림)과 확인하지 못한 표면.
+- `docs/DESIGN.md`: `/design-sync`가 잰 값(행 버튼, 툴팁, 확인 알림)과 확인하지 못한 표면.
 - `docs/BACKLOG.md`: 남겨 둔 붙여넣기 이미지 사본(spec 결정 7), 기록 쓰기에 실패한 대화는 재시작 전까지 지울 수 없음(spec 결정 15), 실제 앱에서 확인하지 못한 표면.
 - `docs/features/conversation-delete/` 삭제.
 - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과, `rg -n "docs/features/conversation-delete" docs AGENTS.md` 결과 없음(DESIGN이 초안 `.doan/canvases/conversation-delete.html`을 인용하는 것은 허용).
