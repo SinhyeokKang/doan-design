@@ -13,6 +13,8 @@
 4. T0과 T2·T3은 같은 worker·worktree가 맡는다. PoC 패치와 LaunchServices·computer-use 절차를 T3 probe에 그대로 쓴다. (지휘자 판단)
 5. T5(문서 승격, feature 디렉터리 삭제)는 지휘자가 통합 뒤 직접 한다. 문서만 바뀐다. (지휘자 판단 — orchestrate §5)
 6. Dock bounce는 부차적이다. 확인의 중심은 온보딩이 뒤에서 제대로 진행되는지(맨 앞 앱 불변, 세션 진행, 활성화 때 창과 포커스)다. bounce는 반환값과 사용자의 시각 확인(T0 중 "빠운스됨")만 기록하고, Dock 자동 숨김 사례는 확인하지 않은 것으로 남긴다. (사용자 결정)
+7. CLI는 앱을 깨끗한 환경으로 실행한다(`onboarding start`, `doan open` 모두). T0(b)로 다시 뜬 실제 Doan(pid 14002)이 실행한 Orca 터미널의 환경(`CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_SESSION_ID`, `ORCA_*`)을 그대로 가졌다(`ps eww`). `/usr/bin/open`이 호출한 쪽 환경을 앱에 넘긴 것이다. 그래서 앱이 실행한 터미널의 프로필로 이어하기를 판단했고, 이어할 수 없는 Orca 세션에도 이어하기가 떴다가 보낼 때 실패한 것으로 보인다(사용자 보고). 이어하지 못하는 세션은 보이지 않는다는 기존 규칙(PRODUCT §3)은 그대로다. batch B 후속(B2)으로 넣는다. (사용자 결정)
+8. 실행 중인 앱에 `open -g`가 가면 앱이 앞으로 오는 문제(T0 항목 4)는 이번 범위에서 고치지 않고 BACKLOG에 남긴다. 고치려면 비목표인 Dock 클릭(`activate`) 동작을 바꿔야 한다. (지휘자 판단)
 
 ## 배치
 
@@ -20,7 +22,7 @@
 |---|---|---|---|---|---|---|
 | A | T0(a)(b) PoC, tasks.md '확인 결과' | `app/src/main/index.ts`(커밋하지 않는 패치만), `docs/features/onboarding-background-open/tasks.md` '확인 결과' 절 | 없음 | Opus high — 실제 상태와 GUI를 다루고 실패 판단이 spec 모양을 바꾼다 | design §6 1~4 판정, real-state 지문 불변 | 대기 |
 | C | T2 main 순수 규칙, T3 main 연결 | `app/src/main/backgroundReveal.ts`(+test), `app/src/main/index.ts`, `app/src/main/index.test.ts` | A | Opus high — 활성화·포커스·창 상태 경로가 얽히고 틀리면 창이 끝내 안 보인다 | `npm --prefix app test`·typecheck·build, LaunchServices probe(완료 조건 2~4, 6) | 대기 |
-| B | T1 CLI 실행 방식 | `cli/internal/cli/onboarding.go`, `open.go`, `run.go`, `onboarding_test.go`, `open_test.go` | A | Sonnet medium — argv 하나와 인자 전달, 설계가 정해져 있다 | `go test ./...`, `go vet ./...` | 대기 |
+| B | T1 CLI 실행 방식, B2 깨끗한 실행 환경(결정 7) | `cli/internal/cli/onboarding.go`, `open.go`, `run.go`, `onboarding_test.go`, `open_test.go` | A | Sonnet medium — argv 하나와 인자 전달, 설계가 정해져 있다 | `go test ./...`, `go vet ./...` | 대기 |
 | D | T4 guide와 eval | `cli/internal/cli/skill.md`, `eval/scenarios/O2/`, `docs/USABILITY-EVAL.md` | A | Sonnet high — 문구는 짧지만 크기 예산과 실제 eval 라운드 판정이 단계가 많다 | `go test ./...`, `verify.mjs --eval`, O2 self-test, `/agent-eval` O1·O2·O3·O3b | 대기 |
 | RC | C 리뷰 | 없음(보고만) | C | Opus high — C와 같은 이유 | `/code-review` | 대기 |
 | RBD | B·D 리뷰 | 없음(보고만) | B, D | Sonnet medium — 작은 diff | `/code-review` | 대기 |
