@@ -102,4 +102,4 @@ PoC 코드는 `.scratch/queue-send-now/`에 두고 관찰은 이 문서와 커�
 - 단축키는 두지 않는다(spec 비목표).
 - DESIGN.md 'Queued messages'의 "xs Remove"는 실제로 X 아이콘 버튼이므로 승격 때 바로잡는다.
 
-`/design-draft`(T0 다음, 구현 전)로 `buzz-conversation.html`의 큐 상태에 행을 더할지, 새 프레임을 둘지는 그 단계에서 정한다. 그릴 상태: 휴식·hover·focus, `Sending…`, 거절 상태 줄, 여러 행, 지원하지 않는 provider(버튼 없음).
+초안은 새 파일 `.doan/canvases/queue-send-now.html`(canvas id `queue-send-now`)이다. 이미 main에 있는 `buzz-conversation.html`은 고치지 않는다(`/design-draft` 금지 사항). frame은 `queue-row`(휴식·hover와 tooltip·focus·`Sending…`, 720·360), `queue-rows`(여러 행·거절 상태 줄), `queue-unsupported`(지원하지 않는 provider, 버튼 없음)이다. T0보다 먼저 그렸다. 권한 응답 대기 중의 표시(spec 결정 3)와 상태 줄이 보이는 시간은 그리지 않았다.
