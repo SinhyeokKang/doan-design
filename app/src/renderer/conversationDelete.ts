@@ -24,6 +24,11 @@ function quoted(title: string): string | null {
   return `“${chars.slice(0, TITLE_CHARS).join("")}${chars.length > TITLE_CHARS ? "…" : ""}”`;
 }
 
+// The row Delete's accessible name, quoting the title as the alert and the toast do.
+export function deleteItemLabel(title: string): string {
+  return `Delete ${quoted(title) ?? "this conversation"}`;
+}
+
 // hasDraft: the conversation's composer draft or a queue main gave back, both discarded with it.
 export function deleteDialogView(title: string, provider: Provider, hasDraft: boolean): { title: string; body: string } {
   const name = quoted(title);

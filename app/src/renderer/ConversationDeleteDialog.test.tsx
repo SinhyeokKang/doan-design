@@ -19,6 +19,11 @@ const item = (props: Parameters<typeof ConversationDeleteItem>[0]) => all(Conver
 const menuItem = (tree: ReactElement<Record<string, unknown>>[]) => tree.find(element => element.props["className"] === "doan-icon-button conv-delete")!;
 const tooltip = (tree: ReactElement<Record<string, unknown>>[]) => tree.find(element => element.type === TooltipContent)!;
 
+test("the row Delete's name quotes the title as the alert does", () => {
+  expect(menuItem(item({ conversationId: "c1", title: "", deletable: { available: true }, onDelete: vi.fn(), onEscape: vi.fn() })).props["aria-label"]).toBe("Delete this conversation");
+  expect(menuItem(item({ conversationId: "c1", title: "Fix\nthe totals", deletable: { available: true }, onDelete: vi.fn(), onEscape: vi.fn() })).props["aria-label"]).toBe("Delete “Fix the totals”");
+});
+
 test("an available row Delete is named for its conversation, has no typeahead text and says Delete conversation", () => {
   const onDelete = vi.fn(), onEscape = vi.fn();
   const tree = item({ conversationId: "c1", title: "Tighten the spacing", deletable: { available: true }, onDelete, onEscape });

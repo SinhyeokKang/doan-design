@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
-import { DELETE_TOOLTIP, deleteAvailability, deleteDialogView, deleteRefusalText } from "./conversationDelete";
+import { DELETE_TOOLTIP, deleteAvailability, deleteDialogView, deleteItemLabel, deleteRefusalText } from "./conversationDelete";
 
 // conversation-delete tasks T3, design §3.1: whether a conversation can be deleted, the confirm alert's words and the
 // refusal toast.
@@ -96,5 +96,21 @@ describe("deleteRefusalText", () => {
     expect(deleteRefusalText("busy", "")).toBe("Couldn’t delete this conversation. The agent started working on it.");
     expect(deleteRefusalText("not_found", "")).toBe("This conversation was already deleted.");
     expect(deleteRefusalText("unknown", " ")).toBe("Couldn’t delete this conversation. Try again.");
+  });
+});
+
+// The row Delete's accessible name quotes the title as the alert and the toast do (review RC 🟡2).
+describe("deleteItemLabel", () => {
+  test("names the conversation by its quoted title", () => {
+    expect(deleteItemLabel("Ideas")).toBe("Delete “Ideas”");
+  });
+  test("one line, cut at 60 code points without splitting a surrogate pair", () => {
+    expect(deleteItemLabel("  Fix\nthe\r\n totals  ")).toBe("Delete “Fix the totals”");
+    const long = "😀".repeat(70);
+    expect(deleteItemLabel(long)).toBe(`Delete “${"😀".repeat(60)}…”`);
+  });
+  test("an empty title says this conversation", () => {
+    expect(deleteItemLabel("")).toBe("Delete this conversation");
+    expect(deleteItemLabel(" \n ")).toBe("Delete this conversation");
   });
 });

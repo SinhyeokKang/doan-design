@@ -3,7 +3,7 @@ import { Trash2 } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { AlertIcon } from "./AlertIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
-import { DELETE_TOOLTIP, type DeleteAvailability } from "./conversationDelete";
+import { DELETE_TOOLTIP, deleteItemLabel, type DeleteAvailability } from "./conversationDelete";
 import type { DockedDraft } from "./dockedRules";
 
 // What a title menu row's Delete hands the host: the conversation, and the screen whose menu it came from (the shown
@@ -23,7 +23,7 @@ export function ConversationDeleteItem({ conversationId, title, deletable, onDel
   const reason = deletable.available ? null : deletable.reason;
   return <>
     <Tooltip><TooltipTrigger asChild>
-      <DropdownMenu.Item className="doan-icon-button conv-delete" textValue="" aria-label={`Delete “${title}”`}
+      <DropdownMenu.Item className="doan-icon-button conv-delete" textValue="" aria-label={deleteItemLabel(title)}
         {...(reason ? { "aria-disabled": true, "aria-describedby": reasonId } : {})}
         onSelect={event => { if (reason) { event.preventDefault(); return; } onDelete(); }}>
         <Trash2 aria-hidden="true" />
