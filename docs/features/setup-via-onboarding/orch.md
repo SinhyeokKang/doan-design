@@ -1,0 +1,36 @@
+# setup-via-onboarding — orch
+
+출처: [spec](./spec.md)·[design](./design.md)·[tasks](./tasks.md). chain-261103의 링크 6(마지막)이다([chain.md](../chain-261103/chain.md)).
+
+- 시작 해시: `4a5622eb`(origin/main, 링크 6 시작 기록)
+- 통합 브랜치: `feat/setup-via-onboarding`
+- 지휘자: Claude Code 세션 d0c0b53b, worktree `setup-via-onboarding-orch`
+
+## 결정 기록
+
+- intake: design의 출력 예산 수치가 옛 값(`465c5fa9`, 여유 약 1,655 B)이라 링크 6 시작 값(21,571 / 21,600 B, 29 B 남음)으로 고쳤다. 새 문구는 'Onboarding' 첫 문단, step 1, init 줄 안에서 줄여 넣는다. step 1의 "Only `doan open` also opens the app"는 남긴다(링크 5 인계). 지휘자 판단 — 근거: chain.md 링크 5 완료 기록, tasks T3 "여유가 모자라면 줄일 곳을 정해 orch.md에 적는다".
+- intake: design이 전제한 가이드 문장("Use these commands when the user asks you to set up Doan.", step 1의 "On `app_not_running` or `app_launch_failed`, ask the user to open Doan …", init 줄 끝 "Run it only when the user asks, and ask the user for the token CSS path first.")은 지금 `skill.md`에 그대로 있다. 고칠 전제는 없다.
+- intake: 기준 라운드와 가이드 크기를 tasks에 적었다(O1·O2·D12·D9 `project-settings-guide`, D10h `eval-d10h-261101`).
+- 지휘자 판단: T3(가이드)는 T1과 병렬로 쓰되, T2 기준선 패키지가 만들어질 때까지 feat에 통합하지 않는다. 기준선은 가이드를 바꾸기 전의 HEAD에서 재야 하기 때문이다. 기준선에서 두 에이전트가 이미 O3·O3b를 모두 통과하면 T3을 문구를 분명히 하는 수준으로 줄일지 그때 정한다(design 'PoC 의존').
+- 지휘자 판단: Codex(사용자 지시, chain.md 2026-11-03 사용자 기록)는 독립 리뷰 두 번(RA, RG)에 쓴다. 기계적 배치로 뗄 만한 것이 없다. T1은 주 구현이고, T2·T5는 실제 Claude·Codex를 띄우는 eval이라 Codex 샌드박스 안에서 돌리기 어렵다.
+
+## 사용량
+
+- 시작: Codex 주간(window 10080분) 91% 사용, 9% 남음, 2026-11-04 15:35 KST 초기화(링크 5 X1 eval rollout 기준. `~/.codex/sessions`의 최신 rollout에는 30일 창만 있다). 크레딧 잔액 있음. Claude 7일은 링크 5 중간 82%(2026-11-04 13:59 KST 초기화).
+
+## 배치
+
+| 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | gate | 상태 |
+|---|---|---|---|---|---|---|
+| A | T1 | `eval/lib/socket.ts`(+테스트), 새 `eval/scenarios/O3/**`·`O3b/**` | 없음 | Claude Sonnet high — 기존 판정을 재사용하는 시나리오 작업이지만 오탐 방지 판정이 있다 | `node --test 'eval/**/*.test.ts'`, `node eval/run.ts --self-test --scenarios O3,O3b` | 대기 |
+| G | T3 | `cli/internal/cli/skill.md`, `skill_test.go` | 없음(통합은 B의 기준선 뒤) | Claude Opus high — 29 B 예산 안에서 에이전트 행동을 바꾸는 문구다. 틀리면 기존 O1·O2·D12가 흔들린다 | `go test ./...`, `go vet ./...` | 대기 |
+| B | T2, 뒤에 T5 | `docs/USABILITY-EVAL.md` | A 통합(T2), G 통합과 T4(T5) | Claude Sonnet high — 실제 eval 실행과 기록. 판단은 실패 분류 정도다 | 라운드 기록 | 대기 |
+| RA | A 리뷰 | 보고만 | A | Codex gpt-6-astra medium — 독립 리뷰(사용자 지시) | 보고 | 대기 |
+| RG | G 리뷰 | 보고만 | G | Codex gpt-6-astra medium — 독립 리뷰(사용자 지시) | 보고 | 대기 |
+| 지휘자 | T4, Z1 | 통합, 문서 승격 | 모든 배치 | — | `verify.mjs --eval`, Z1 grep | 대기 |
+
+겹침: A와 G는 파일이 겹치지 않아 병렬이다. B는 `docs/USABILITY-EVAL.md`만 쓴다. 순서: A·G 병렬 → A 통합 → B(T2) → G 통합 → T4 → B(T5) → Z1.
+
+tasks 항목과 배치: T1→A, T2→B, T3→G, T4→지휘자, T5→B, Z1→지휘자. 주인 없는 항목은 없다.
+
+## 진행
