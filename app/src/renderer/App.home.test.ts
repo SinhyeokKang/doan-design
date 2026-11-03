@@ -30,9 +30,9 @@ test("first run's project handoff focuses the composer ahead of the focus held b
   expect(wizardCloseFocus(null)).toBe("previous");
 });
 
-test("removing a project with a running Home conversation asks first; cancel keeps both, confirm names the conversation to stop", () => {
-  expect(removalConfirm([{ conversationId: "c1", waiting: false }], "doan")).toMatchObject({ conversations: ["c1"], cancel: "Cancel", confirm: "Stop and Remove" });
-  expect(removalConfirm([], "doan")).toBeNull();
+test("removing a project asks first; with a running Home conversation the confirmation names the conversation to stop", () => {
+  expect(removalConfirm([{ conversationId: "c1", waiting: false }], "doan", 1)).toMatchObject({ conversations: ["c1"], cancel: "Cancel", confirm: "Stop and Remove" });
+  expect(removalConfirm([], "doan", 1)).toMatchObject({ conversations: [], cancel: "Cancel", confirm: "Remove from Doan" });
 });
 
 test("Edit on Home asks before replacing a different draft", () => {

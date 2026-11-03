@@ -75,6 +75,7 @@ const { RightPanel } = await import("./RightPanel");
 const { ConversationPanel } = await import("./ConversationPanel");
 const { KeyedConversationStrip } = await import("./ConversationStripView");
 const { ProjectOverview } = await import("./ProjectOverview");
+const { ProblemActions } = await import("./Home");
 
 const rowA: CanvasRow = { path: ".doan/canvases/a.html", id: "a", url: "u-a" };
 const listed = (path: string): FolderEntry => ({ path, kind: "list", servedRev: 0, canvases: [rowA] });
@@ -733,36 +734,100 @@ test("Set Up opens its dialog over the page; closed from outside, focus returns 
   expect(focused).toEqual(["title"]);
 });
 
-test("Remove from Doan removes the page's whole group; with a running conversation its confirmation comes first and Cancel returns focus", async () => {
+// project-remove-confirm design §2: every Remove from Doan asks first in one alert dialog, found by its role and title.
+const removalDialog = () => all(tree).find(element => element.type === "dialog" && element.props.role === "alertdialog" && element.props["aria-labelledby"] === "project-remove-title");
+const removalTitle = () => { const dialog = removalDialog(); return dialog && all(dialog).find(element => element.props.id === "project-remove-title")?.props.children; };
+const dialogButton = (label: string) => all(removalDialog()!).find(element => element.type === "button" && element.props.children === label)!;
+const removed = () => vi.fn(async () => ({ kind: "removed", label: "a", removalId: "r1" }));
+
+test("Remove from Doan on the page asks first for the page's whole group; Cancel returns focus; confirming removes without a toast and the page leaves", async () => {
   projectSettingsFromWorkspace([grouped("/w/a"), grouped("/w/b"), listed("/w/c")]);
-  const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
-  const ask = vi.spyOn(run, "remove").mockImplementation(paths => {
-    run.removing = { paths, conversations: ["c1"], title: "Stop the conversation and remove a?", body: "b", cancel: "Cancel", confirm: "Stop and Remove" };
-    return Promise.resolve();
-  });
+  doan.removeProjects = removed();
   const focused: string[] = [];
   const removeButton = focusable("Remove from Doan", focused);
   vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
   vi.stubGlobal("document", { activeElement: removeButton, body: {}, querySelector: () => null, querySelectorAll: () => [] });
   projectPage()!.props.onRemove(); render();
-  expect(ask).toHaveBeenCalledWith(["/w/a", "/w/b"], expect.any(String));
-  const dialog = all(tree).find(element => element.type === "dialog" && element.props["aria-label"] === "Stop the conversation and remove a?")!;
-  expect(dialog).toBeDefined();
+  expect(removalTitle()).toBe("Remove a from Doan?");
+  expect(removalDialog()!.props["aria-describedby"]).toBe("project-remove-body");
+  expect(dialogButton("Remove from Doan")).toBeDefined();
+  expect(doan.removeProjects).not.toHaveBeenCalled();
   expect(projectPage()).toBeDefined();
-  const cancel = all(dialog).find(element => element.type === "button" && element.props.children === "Cancel")!;
-  click(cancel);
+  click(dialogButton("Cancel"));
+  expect(removalDialog()).toBeUndefined();
   expect(focused).toEqual(["Remove from Doan"]);
-  expect(projectPage()).toBeDefined();
-  // No running conversation: removed at once with Undo, and the page leaves once its worktree is gone.
-  ask.mockRestore();
-  doan.removeProjects = vi.fn(async () => ({ kind: "removed", label: "a", removalId: "r1" }));
-  projectPage()!.props.onRemove(); await Promise.resolve(); await Promise.resolve(); render();
+  expect(doan.removeProjects).not.toHaveBeenCalled();
+  // Confirmed: removed with no toast, and the page leaves once its worktree is gone.
+  projectPage()!.props.onRemove(); render();
+  click(dialogButton("Remove from Doan"));
+  await Promise.resolve(); await Promise.resolve(); render();
   expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a", "/w/b"]);
-  expect(harness.toast.show).toHaveBeenLastCalledWith("a removed. Files stay on disk.", "Undo", expect.any(Function), expect.any(Function));
+  expect(harness.toast.show).not.toHaveBeenCalled();
   folders([listed("/w/c")]);
   projectPage()!.props.onGone(); render();
   expect(projectPage()).toBeUndefined();
   expect(homeEl()).toBeDefined();
+});
+
+test("the sidebar menu and the status line ask first too; Escape removes nothing and returns focus", () => {
+  const entrances: [string, () => void, string][] = [
+    ["sidebar menu", () => { find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render(); }, "Remove a from Doan?"],
+    ["status line", () => { sidebarOf().worktree("/w/b"); render(); find<{ action(name: string, root: string): void }>(ProblemActions)[0]!.props.action("remove", "/w/b"); render(); }, "Remove b from Doan?"],
+  ];
+  for (const [name, open, title] of entrances) {
+    reset();
+    render();
+    folders([listed("/w/a"), { path: "/w/b", kind: "notFound" }, listed("/w/c")]);
+    doan.removeProjects = removed();
+    const focused: string[] = [];
+    const menu = Object.assign(focusable("menu", focused), { closest: (selector: string) => selector === ".home-shell" || selector === ".workspace" ? {} : null });
+    vi.stubGlobal("getComputedStyle", () => ({ visibility: "visible" }));
+    vi.stubGlobal("document", { activeElement: menu, body: {}, querySelector: () => null, querySelectorAll: () => [] });
+    open();
+    expect(removalTitle(), name).toBe(title);
+    expect(doan.removeProjects, name).not.toHaveBeenCalled();
+    (removalDialog()!.props.onCancel as (event: { preventDefault(): void }) => void)({ preventDefault: vi.fn() }); render();
+    expect(removalDialog(), name).toBeUndefined();
+    expect(focused, name).toEqual(["menu"]);
+    expect(doan.removeProjects, name).not.toHaveBeenCalled();
+  }
+});
+
+test("one worktree of several removed from the status line is named by its branch", () => {
+  render();
+  folders([{ ...grouped("/w/a"), git: { common: "/w/a/.git", main: "/w/a", branch: "main", worktrees: [] } } as FolderEntry, { ...grouped("/w/b"), git: { common: "/w/a/.git", main: "/w/a", branch: "fix", worktrees: [] } } as FolderEntry]);
+  sidebarOf().worktree("/w/b"); render();
+  find<{ action(name: string, root: string): void }>(ShellSidebar)[0]!.props.action("remove", "/w/b"); render();
+  expect(removalTitle()).toBe("Remove a (fix) from Doan?");
+});
+
+test("with a running conversation only its Stop and Remove confirmation shows", async () => {
+  render();
+  folders([listed("/w/a"), listed("/w/c")]);
+  doan.removeProjects = removed();
+  const run = hooks.refs.find(ref => ref.current instanceof HomeRun)!.current as InstanceType<typeof HomeRun>;
+  vi.spyOn(run as unknown as { merged(): Map<string, unknown[]> }, "merged").mockReturnValue(new Map([["/w/a", [{ conversationId: "c1", state: "current", working: true, phase: "running" }]]]));
+  doan.interruptConversation = vi.fn(async () => {});
+  find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render();
+  expect(all(tree).filter(element => element.type === "dialog")).toHaveLength(1);
+  expect(removalTitle()).toBe("Stop the conversation and remove a?");
+  click(dialogButton("Stop and Remove"));
+  for (let i = 0; i < 4; i++) await Promise.resolve();
+  render();
+  expect(doan.interruptConversation).toHaveBeenCalledWith({ conversationId: "c1" });
+  expect(doan.removeProjects).toHaveBeenCalledWith(["/w/a"]);
+  expect(harness.toast.show).not.toHaveBeenCalled();
+});
+
+test("the removal confirmation closes when a path it names leaves the list", () => {
+  render();
+  folders([listed("/w/a"), listed("/w/c")]);
+  doan.removeProjects = removed();
+  find<{ remove(roots: string[]): void }>(ShellSidebar)[0]!.props.remove(["/w/a"]); render();
+  expect(removalDialog()).toBeDefined();
+  listeners.folders!([listed("/w/a2"), listed("/w/c")] as never, { from: "/w/a", root: "/w/a2" } as never); render();
+  expect(removalDialog()).toBeUndefined();
+  expect(doan.removeProjects).not.toHaveBeenCalled();
 });
 
 const problemEntries: FolderEntry[] = [

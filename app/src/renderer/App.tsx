@@ -66,7 +66,7 @@ import { defaultProject, startErrorView } from "./homeComposer";
 import { OverviewRun } from "./overviewRun";
 import { DockedSupport } from "./dockedSupport";
 import { sameCanvas } from "./ProjectOverview";
-import { slotKey as canvasSlotKey, type Slot } from "./homeConversations";
+import { removalQuestionLabel, slotKey as canvasSlotKey, type Slot } from "./homeConversations";
 import type { Anchor, Canvas } from "../main/conversation/types";
 import type { ConversationSummary } from "../main/conversation/summary";
 import { KeyedConversationStrip } from "./ConversationStripView";
@@ -730,6 +730,12 @@ export function App() {
     const previous = beforeModal.current;
     focusCurrent(previous);
   }, [modal, entries]);
+  // A path the removal confirmation names left the list (a reroot, a removal elsewhere): it closes, since it no longer
+  // names what would go and main refuses a removal of an unlisted path (project-remove-confirm design §2).
+  useEffect(() => {
+    const removing = homeRun.current.removing;
+    if (removing && !removing.paths.every(path => entries.some(entry => entry.path === path))) { homeRun.current.cancelRemove(); modalClosed(); }
+  }, [entries]);
   // The row the Move to Trash dialog asks about left the list: the dialog closes. A folder still loading keeps it.
   useEffect(() => {
     if (!trashing) return;
@@ -982,7 +988,7 @@ export function App() {
   function remove(paths: string[]): Promise<void> {
     cancelRestore();
     rememberFocus();
-    return homeRun.current.remove(paths, cards.find(card => card.rows.some(row => paths.includes(row.path)))?.name ?? names.get(paths[0] ?? "") ?? "");
+    return homeRun.current.remove(paths, removalQuestionLabel(cards, paths, names));
   }
   async function removeNow(paths: string[]) {
     cancelRestore();
@@ -999,7 +1005,6 @@ export function App() {
       const before = previous.visits.slice(0, previous.cursor + 1).filter(visit => !paths.includes(visit.root));
       const nextHistory = { visits: previous.visits.filter(visit => !paths.includes(visit.root)), cursor: before.length - 1 };
       historyRef.current = nextHistory; setHistory(nextHistory);
-      toast.show(`${result.label} removed. Files stay on disk.`, "Undo", () => { void window.doan.restoreProjects(result.removalId).catch(console.error); }, () => { void window.doan.forgetRemoval(result.removalId).catch(console.error); });
     }
   }
   // canvas-row-menu design 'Alert Dialog': the dialog asks main whether a comment file goes too before it can be
@@ -1515,8 +1520,8 @@ export function App() {
   </main>
   {setup && <ProjectSetupDialog key={setup} root={setup} name={names.get(setup) ?? setup.split("/").at(-1) ?? setup} onClose={() => { setSetup(null); modalClosed(); }} onRerooted={(root, message) => { choose(root); setSetup(null); setHighlight([root]); toast.show(message); modalClosed(); }} />}
   {quickOpen && <QuickOpen entries={entries} currentRoot={screen === "workspace" ? loadedRoot : null} rendered={rendered} pick={pick} close={() => { setQuickOpen(false); if (document.activeElement === document.body || !document.activeElement?.isConnected || document.activeElement.closest("dialog.qo")) modalClosed(); }} />}
-  {run.removing && <dialog className="doan-dialog" data-ui-size="compact" aria-label={run.removing.title} ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
-    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title">{run.removing.title}</h3><p className="doan-dialog-description">{run.removing.body}</p></div></div>
+  {run.removing && <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="project-remove-title" aria-describedby="project-remove-body" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); run.cancelRemove(); modalClosed(); }}>
+    <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="project-remove-title">{run.removing.title}</h3><p className="doan-dialog-description" id="project-remove-body">{run.removing.body}</p></div></div>
     <div className="doan-dialog-actions"><button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={() => { run.cancelRemove(); modalClosed(); }}>{run.removing.cancel}</button>
       <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" onClick={() => { modalClosed(); void run.confirmRemove(); }}>{run.removing.confirm}</button></div>
   </dialog>}
