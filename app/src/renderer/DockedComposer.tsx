@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type MutableRefObject, type ReactElement } from "react";
 import { Clock, Crosshair, Gauge, Plus, Shield, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
@@ -26,6 +26,7 @@ import {
   type PresetListReply, type PresetSummary,
 } from "./homeComposer";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
+import { queueFocusAfter, type QueueFocus } from "./queueFocus";
 import type { PermissionPickerView } from "./permissionPicker";
 import type { SettingsTarget } from "./settingsSections";
 
@@ -91,12 +92,19 @@ export interface DockedComposerProps {
   refuse?(code: string, provider: Provider): DockedRefusal;
   // A refused terminal session's "Start a new conversation".
   onStartNew?(): void;
-  queued: readonly { id: string; text: string }[];
+  // sending: its Send now is in flight (the store's mark, so it holds on either screen).
+  queued: readonly { id: string; text: string; sending?: boolean }[];
+  // The rows offer Send now: the conversation's stored provider takes a message into a running turn and the turn runs
+  // or waits for a permission answer (steerSupport sendNowShown, decided as if no row were sending).
+  sendNow?: boolean;
+  // Main's answer once the agent read the message (the host drops the row), or an error while it stays queued.
+  onSendQueuedNow?(id: string): Promise<void | { error: string }>;
   // Send in an existing conversation, a restore in an archived one, a start in new-conversation mode.
   onSend(request: DockedRequest): Promise<DockedOutcome>;
   onQueue(request: DockedRequest): Promise<DockedOutcome>;
   onStop(): void;
-  onRemoveQueued(id: string): void;
+  // Whether main removed it (a row whose Send now is in flight is not).
+  onRemoveQueued(id: string): Promise<boolean>;
   onOpen(conversationId: string): void;
   // The canvas panel's: Pick from canvas, the field link, and chip locate for a chip clicked in the field.
   pick?: DockedPicker;
@@ -326,9 +334,8 @@ export function DockedComposer(props: DockedComposerProps) {
   // Only an id drawn below; the live reason shows with an older notice rather than behind it.
   const describedBy = reason && !reason.noAgent ? reasonId : undefined;
   return <div className="docked" data-shape={shape} ref={root} {...drop.handlers}>
-    {props.queued.length > 0 && <div className="queue" role="list" aria-label="Queued messages">{props.queued.map(item =>
-      <div key={item.id} className="queue-item" role="listitem"><Clock aria-hidden="true" /><span className="queue-text">{item.text}</span>
-        <button type="button" className="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" onClick={() => props.onRemoveQueued(item.id)}><X aria-hidden="true" /></button></div>)}</div>}
+    <QueueRows key={key} items={props.queued} sendNow={!!props.sendNow && !!props.onSendQueuedNow} onSendNow={id => props.onSendQueuedNow?.(id) ?? Promise.resolve({ error: "not_running" })}
+      onRemove={props.onRemoveQueued} focusInput={() => field.current?.focus()} />
     <ComposerCard readonly={isSending}>
       <ComposerChips attachments={draft.attachments} preset={draft.preset} thumbnails={props.thumbnails} homeDirectory={props.homeDirectory} disabled={isSending || locked} removeButtons={removeButtons} onRemove={index => removeChip(index, "button")} />
       {/* One field element in both shapes, at the same place and key: remounting it would drop focus and IME composition. */}
@@ -376,6 +383,107 @@ export function DockedComposer(props: DockedComposerProps) {
     {noteShown && <span className="chip-missing chip-note" id={noteId} role="status" style={{ left: missingAt.left, top: missingAt.top }}>{LOCATE_MISSING_TEXT}</span>}
     <div className="sr-only" role="status">{announcement}</div>
   </div>;
+}
+
+export const SEND_NOW_TIP = "Add to the current turn without stopping it";
+export const SEND_NOW_REFUSED_TEXT = "Couldn’t send now. It stays queued.";
+const SEND_NOW_REFUSED_MS = 4000;
+type QueueButton = "sendNow" | "remove";
+
+export interface QueueRowsProps {
+  items: readonly { id: string; text: string; sending?: boolean }[];
+  sendNow: boolean;
+  onSendNow(id: string): Promise<void | { error: string }>;
+  onRemove(id: string): Promise<boolean>;
+  focusInput(): void;
+}
+
+// The queued messages above the card (queue-send-now design §8): Send now between the text and Remove, both described
+// by the row's text so each row's buttons are told apart. Keyed by conversation, so a switch drops its notes and focus.
+export function QueueRows(props: QueueRowsProps) {
+  const [refused, setRefused] = useState<ReadonlySet<string>>(new Set());
+  // The rows as last drawn, read when an answer lands after the render it was asked from.
+  const latest = useRef(props); latest.current = props;
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
+  // Where focus goes once the row that left is no longer drawn (spec completion condition 11).
+  const pending = useRef<{ leaving: string; target: QueueFocus } | null>(null);
+  // A focused queue button that is no longer drawn (a phase change took Send now away, main sent the queue).
+  const lost = useRef(false);
+  const idBase = useId();
+  useEffect(() => {
+    if (refused.size === 0) return;
+    const timer = setTimeout(() => setRefused(new Set()), SEND_NOW_REFUSED_MS);
+    return () => clearTimeout(timer);
+  }, [refused]);
+  useLayoutEffect(() => {
+    const wanted = pending.current;
+    if (wanted && !props.items.some(item => item.id === wanted.leaving)) {
+      pending.current = null; lost.current = false;
+      const { target } = wanted;
+      const button = target.kind === "input" ? undefined : buttons.current.get(`${target.kind}:${target.itemId}`) ?? buttons.current.get(`remove:${target.itemId}`);
+      if (button) button.focus(); else props.focusInput();
+      return;
+    }
+    if (lost.current && !wanted) { lost.current = false; props.focusInput(); }
+  });
+
+  // The next row's buttons as they are drawn now; the row that leaves may already be gone from the latest list. Only
+  // while focus is still on that row (or was dropped with it): an agent may read the message long after the press,
+  // and focus the person moved meanwhile stays where they put it.
+  const focusAfter = (id: string, asked: QueueRowsProps["items"]) => {
+    const active = document.activeElement;
+    if (active && active !== document.body && ![`sendNow:${id}`, `remove:${id}`].some(name => buttons.current.get(name) === active)) return;
+    const now = latest.current;
+    const list = now.items.some(item => item.id === id) ? now.items : asked;
+    const rows = list.map(item => ({ itemId: item.id, sendNow: now.sendNow || !!item.sending }));
+    pending.current = { leaving: id, target: queueFocusAfter(rows, list.findIndex(item => item.id === id)) };
+  };
+  const sendNow = async (id: string) => {
+    const asked = props.items;
+    if (asked.find(item => item.id === id)?.sending) return;
+    setRefused(current => { if (!current.has(id)) return current; const next = new Set(current); next.delete(id); return next; });
+    const reply = await props.onSendNow(id).catch(() => ({ error: "unknown" }));
+    if (!reply || !("error" in reply)) { focusAfter(id, asked); return; }
+    // Only a turn that still runs says so; one that ended sends or returns the queue by its own rule (condition 10).
+    if (latest.current.sendNow && latest.current.items.some(item => item.id === id)) setRefused(current => new Set(current).add(id));
+  };
+  const remove = async (id: string) => {
+    const asked = props.items;
+    if (await props.onRemove(id).catch(() => false)) focusAfter(id, asked);
+  };
+  const keep = (kind: QueueButton, id: string) => (node: HTMLButtonElement | null) => {
+    if (node) buttons.current.set(`${kind}:${id}`, node); else buttons.current.delete(`${kind}:${id}`);
+  };
+
+  if (props.items.length === 0) return null;
+  return <div className="queue" role="list" aria-label="Queued messages">{props.items.map((item, index) => {
+    const textId = `${idBase}-${index}`;
+    const offered = props.sendNow || !!item.sending;
+    return <Fragment key={item.id}>
+      <div className="queue-item" role="listitem"><Clock aria-hidden="true" /><span className="queue-text" id={textId}>{item.text}</span>
+        {offered && <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
+          <Tooltip><TooltipTrigger asChild>
+            {/* aria-disabled, not disabled, while in flight: a disabled button drops focus to the body in Chromium. */}
+            <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs"
+              aria-label="Send queued message now" aria-describedby={textId} aria-disabled={item.sending || undefined}
+              onClick={() => { if (!item.sending) void sendNow(item.id); }}>{item.sending ? "Sending…" : "Send now"}</button>
+          </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
+        <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
+          <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"
+            aria-label="Remove queued message" aria-describedby={textId} onClick={() => void remove(item.id)}><X aria-hidden="true" /></button>}</QueueButtonLife>
+      </div>
+      {refused.has(item.id) && <div className="queue-status" role="status"><AlertIcon /><span>{SEND_NOW_REFUSED_TEXT}</span></div>}
+    </Fragment>;
+  })}</div>;
+}
+
+// Tells its row when the button it draws leaves while focused: its layout cleanup runs before React removes the node,
+// so focus can still be read there (after removal the page body holds it and no blur says so).
+function QueueButtonLife({ onLost, children }: { onLost(): void; children(life: (node: HTMLButtonElement | null) => void): ReactElement }) {
+  const node = useRef<HTMLButtonElement | null>(null);
+  const lost = useRef(onLost); lost.current = onLost;
+  useLayoutEffect(() => () => { if (node.current && node.current === document.activeElement) lost.current(); }, []);
+  return children(current => { if (current) node.current = current; });
 }
 
 // Pick from canvas, after Attach at the left end of the model row (design §2 'Picker'). aria-disabled, not disabled, so its reason

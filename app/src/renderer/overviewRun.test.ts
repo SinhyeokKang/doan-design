@@ -507,6 +507,34 @@ test("queued messages stay until a list read started after the queue says none a
   expect(h.run.queue(A)).toEqual([]);
 });
 
+// queue-send-now: the row reads Sending… on either screen until main answers; read, it leaves; refused, it stays.
+test("Send now marks the queued message sending until main answers, then drops it or puts it back", async () => {
+  const h = harness();
+  h.run.show(ROOT);
+  h.answer(ROOT, [summary(A, { phase: "running", working: true })]);
+  h.run.queued(ROOT, A, { id: "q1", text: "first" });
+  h.run.queued(ROOT, A, { id: "q2", text: "second" });
+  const read = deferred<void>();
+  doan.sendQueuedNow = vi.fn(() => read.promise);
+  const sent = h.run.store.sendQueuedNow(A, "q2");
+  expect(doan.sendQueuedNow).toHaveBeenCalledWith({ conversationId: A, itemId: "q2" });
+  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }, { id: "q2", text: "second", sending: true }]);
+  // A second press while it is in flight does not ask main again.
+  expect(await h.run.store.sendQueuedNow(A, "q2")).toEqual({ error: "stale" });
+  expect(doan.sendQueuedNow).toHaveBeenCalledTimes(1);
+  read.resolve();
+  expect(await sent).toBeUndefined();
+  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
+
+  doan.sendQueuedNow = vi.fn(async () => ({ error: "not_running" }));
+  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "not_running" });
+  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
+  // A call that throws reads as a refusal: the row stays queued.
+  doan.sendQueuedNow = vi.fn(async () => { throw new Error("gone"); });
+  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "unknown" });
+  expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
+});
+
 test("a removed root takes its state and drafts with it", () => {
   const h = harness();
   h.run.show(ROOT);

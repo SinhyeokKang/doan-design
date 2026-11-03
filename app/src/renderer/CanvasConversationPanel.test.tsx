@@ -2,10 +2,11 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { ConversationEvent } from "../main/conversation/types";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import { textSegments } from "./anchorField";
-import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, canvasScope, linkedAt, queuedText, startNewConversation, type CanvasConversationProps } from "./CanvasConversationPanel";
+import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, canvasScope, linkedAt, queuedText, startNewConversation, steerPhaseOf, type CanvasConversationProps } from "./CanvasConversationPanel";
 import { CanvasRun } from "./canvasRun";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { ConversationStore, type ListView } from "./conversationStore";
@@ -249,3 +250,23 @@ test("New conversation selects a new conversation and focuses the composer, or o
   expect(select).not.toHaveBeenCalled();
   expect(focus).toHaveBeenCalledTimes(1);
 });
+
+// queue-send-now design §2.1: Send now shows only while a turn runs or waits for a permission answer.
+test("steerPhaseOf reads the merged events first and the list after, as the composer's turn does", () => {
+  const at = (type: string, extra: Record<string, unknown> = {}) => ({ type, turnId: "t1", ...extra }) as unknown as ConversationEvent;
+  const started = at("turn.started"), working = at("activity", { summary: "Editing" });
+  const asking = at("permission.request", { requestId: "r", summary: "Edit x", options: [] });
+  const list = (patch: Partial<ConversationSummary>) => ({ phase: "ended", working: false, ...patch }) as ConversationSummary;
+  expect(steerPhaseOf([started, working], undefined, true)).toBe("running");
+  expect(steerPhaseOf([started, asking], undefined, true)).toBe("waiting");
+  // Not held by this run: the list decides.
+  expect(steerPhaseOf([started, working], list({ phase: "ended", working: false }), false)).toBe("ended");
+  expect(steerPhaseOf(null, list({ phase: "running", working: true }), false)).toBe("running");
+  expect(steerPhaseOf(null, list({ phase: "waiting" }), false)).toBe("waiting");
+  // A judged turn with work left (a queue about to go out) has no turn to take the message.
+  expect(steerPhaseOf(null, list({ phase: "ended", working: true }), false)).toBe("holding");
+  // The events' end wins over a list that still says running.
+  expect(steerPhaseOf([started, at("turn.done")], list({ phase: "running", working: true }), true)).toBe("holding");
+  expect(steerPhaseOf([started, at("turn.done")], list({ phase: "running", working: false }), true)).toBe("ended");
+});
+

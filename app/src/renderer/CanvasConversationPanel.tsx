@@ -3,6 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
+import { sendNowShown, type SteerPhase } from "../main/conversation/steerSupport";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
@@ -99,6 +100,18 @@ function turnOf(events: readonly ConversationEvent[] | null, summary: Conversati
   if ((kind === "starting" || kind === "working") && live) return "running";
   if (summary?.phase === "waiting") return "waiting";
   return summary?.working ? "running" : "idle";
+}
+// The phase Send now reads (queue-send-now design §2.1), with turnOf's order: a turn that runs or waits for a
+// permission answer has something to take the message; a judged turn with work left (a queue about to go out) and an
+// ended one do not. The merged events' end wins over a list that has not caught up.
+export function steerPhaseOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): SteerPhase {
+  const kind = events && events.length ? stripState(events).kind : null;
+  if (kind === "permission") return "waiting";
+  if ((kind === "starting" || kind === "working") && live) return "running";
+  const ended = kind === "done" || kind === "failed" || kind === "interrupted";
+  if (!ended && summary?.phase === "waiting") return "waiting";
+  if (!ended && summary?.phase === "running") return "running";
+  return summary?.working ? "holding" : "ended";
 }
 // "Linked by doan check at 14:02": the time of day, with the date when it was not today.
 export function linkedAt(at: string | undefined, now: number): string | null {
@@ -420,9 +433,17 @@ export function CanvasConversation(props: CanvasConversationProps) {
         unavailable={props.blocked} locked={props.blocked !== null} held={view.kind === "wait" || (newView?.start.pending ?? false)} fixed={fixed}
         refuse={refuse} onStartNew={() => run.choose("new")}
         queued={conversationId ? store.queue(conversationId) : []}
+        sendNow={!!conversationId && !!provider && !archived && sendNowShown({ provider, phase: steerPhaseOf(thread?.events ?? null, summary, live), sending: false })}
+        onSendQueuedNow={itemId => conversationId ? store.sendQueuedNow(conversationId, itemId) : Promise.resolve({ error: "not_running" })}
         onSend={send} onQueue={queue}
         onStop={() => { if (conversationId) void window.doan.interruptConversation({ conversationId }).catch(console.error); }}
-        onRemoveQueued={itemId => { if (conversationId) void window.doan.removeQueuedMessage({ conversationId, itemId }).then(reply => { if (!reply || !("error" in reply)) store.unqueued(conversationId, itemId); }).catch(console.error); }}
+        onRemoveQueued={async itemId => {
+          if (!conversationId) return false;
+          const reply = await window.doan.removeQueuedMessage({ conversationId, itemId }).catch(error => { console.error(error); return { error: "unknown" }; });
+          if (reply && "error" in reply) return false;
+          store.unqueued(conversationId, itemId);
+          return true;
+        }}
         onOpen={openConversation} />
     </div>
   </div>;

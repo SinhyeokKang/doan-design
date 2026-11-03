@@ -16,7 +16,8 @@ import { splitRequest, type AttachmentDraft } from "./homeComposer";
 export type ListView = readonly ConversationSummary[] | "loading" | "error";
 // liveAfter: the history's last seq; a permission request after it arrived while the thread was open.
 export interface Thread { events: ConversationEvent[]; read: "loading" | "error" | "ready"; liveAfter: number }
-export interface QueuedMessage { id: string; text: string }
+// sending: Send now put this message into the running turn and its answer has not come back (queue-send-now).
+export interface QueuedMessage { id: string; text: string; sending?: boolean }
 
 export interface ConversationStoreHost {
   list(root: string): ListView;
@@ -71,6 +72,23 @@ export class ConversationStore {
     if (!queue) return;
     this.queues.set(conversationId, { ...queue, items: queue.items.filter(item => item.id !== itemId) });
     this.host.changed();
+  }
+  // Send now: one queued message into the running turn. Main answers once the agent read it (the row leaves) or the
+  // message stayed queued (refused, or the turn ended first); until then the row shows Sending… on either screen.
+  async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string }> {
+    if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
+    const reply = await sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
+    if (reply && "error" in reply) this.markQueued(conversationId, itemId, false);
+    else this.unqueued(conversationId, itemId);
+    return reply;
+  }
+  private markQueued(conversationId: string, itemId: string, sending: boolean): boolean {
+    const queue = this.queues.get(conversationId);
+    const item = queue?.items.find(entry => entry.id === itemId);
+    if (!queue || !item || !!item.sending === sending) return false;
+    this.queues.set(conversationId, { ...queue, items: queue.items.map(entry => entry === item ? { id: item.id, text: item.text, ...(sending ? { sending } : {}) } : entry) });
+    this.host.changed();
+    return true;
   }
   // A queue main already sent shows no more once a read started after the queue says so.
   syncQueues(): void {
@@ -215,6 +233,13 @@ export class ConversationStore {
 }
 
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
+
+// TODO(queue-send-now phase 2): call window.doan.sendQueuedNow directly once the preload exposes it; until then an
+// app without the method answers as main would for a conversation that cannot take the message.
+function sendQueuedNow(request: { conversationId: string; itemId: string }): Promise<void | { error: string }> {
+  const api = window.doan as unknown as { sendQueuedNow?(request: { conversationId: string; itemId: string }): Promise<void | { error: string }> };
+  return api.sendQueuedNow ? api.sendQueuedNow(request) : Promise.resolve({ error: "not_running" });
+}
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their
 // paths (a moved file comes back as a missing chip). Shared by a returned queue and Edit and resend.
