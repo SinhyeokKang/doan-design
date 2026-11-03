@@ -192,15 +192,14 @@ test("the picker shows the conversation's own mode, and a new conversation's def
 });
 
 // Thread spacing (2026-11-03 user): wider gaps between thread items and more room above the composer; the new
-// conversation's suggestions sit in the middle of the empty area on the Overview and in the canvas panel.
-test("thread spacing and the centered suggestions on the Overview and in the canvas panel", async () => {
+// conversation's suggestion rows stay right above the composer on the Overview and in the canvas panel.
+test("thread spacing, and the suggestion rows right above the composer on the Overview and in the canvas panel", async () => {
   const { readFileSync } = await import("node:fs");
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   expect(css).toContain(".conversation-thread .thread { display: flex; flex-direction: column; gap: var(--space-6); }");
   expect(css).toContain(".ov-main .thread-scroll { padding: var(--space-2) var(--space-6) var(--space-6); }");
   expect(css).toContain(".doan-conv-panel .thread-scroll { padding: var(--space-2) var(--space-4) var(--space-6); }");
   expect(css).toContain(".doan-conv-panel .conversation-thread .thread { gap: var(--space-5); }");
-  expect(css).toMatch(/\.ov-new \{[^}]*flex: 1;[^}]*display: flex;[^}]*flex-direction: column;[^}]*justify-content: center;/);
-  expect(css).toMatch(/\.ov-suggestions \{[^}]*flex-direction: column;[^}]*gap: var\(--space-1\);/);
-  expect(css).toContain(".cp-scroll > .ov-suggestions { margin-block: auto; }");
+  expect(css).toContain(".ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }");
+  expect(css).not.toMatch(/\.ov-new \{/);
 });
