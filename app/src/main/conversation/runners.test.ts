@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listModels, openRunner } from "./runners";
@@ -680,13 +680,15 @@ it("refuses a Codex steer before the turn has its native id, after it ended, and
 // a tool and folds a steered message into the turn at its status frame; "continued" answers without tools and goes on
 // to another turn for the steered message, after a result with queued_turn_count 0; "single" ends the first turn
 // at once; "failed" and "aborted" end it with an error or an aborted result; "hold" never ends it; "hidden" runs a tool,
-// answers the steered message's line with a failed result and then goes on to a turn for it that ignores stdin's end.
+// answers the steered message's line with a failed result and then goes on to a turn for it that ignores stdin's end;
+// "late" answers the steered message's line with a success result that leaves it unread, echoes it in a follow-up turn
+// only once the file "go" exists, and ignores stdin's end until then.
 function steerClaude(root: string): string {
   const command = join(root, "claude");
   writeFileSync(command, `#!/usr/bin/env node
 const fs = require('node:fs'); const readline = require('node:readline');
 const send = value => process.stdout.write(JSON.stringify(value)+'\\n');
-const mode = process.env.FAKE_STEER; let users = 0, first = '00000000-0000-4000-8000-00000000000f';
+const mode = process.env.FAKE_STEER; let users = 0, first = '00000000-0000-4000-8000-00000000000f', echoed = false;
 const sys = (subtype, uuids) => send({type:'system',subtype,user_message_uuids:uuids,session_id:'s'});
 const say = (id, text) => send({type:'assistant',parent_tool_use_id:null,message:{id,role:'assistant',content:[{type:'text',text}]}});
 const result = (uuids, extra) => send({type:'result',subtype:'success',is_error:false,result:'ok',user_message_uuids:uuids,queued_turn_count:0,session_id:'s',...extra});
@@ -700,7 +702,7 @@ input.on('line', line => {
   if(r.uuid) first = r.uuid;
   sys('init',[first]); sys('status',[first]);
   if(mode==='fold' || mode==='hidden') send({type:'assistant',parent_tool_use_id:null,message:{id:'a1',role:'assistant',content:[{type:'tool_use',id:'toolu_1',name:'Bash',input:{command:'sleep 12'}}]}});
-  if(mode==='continued' || mode==='hold') say('a1','40 facts');
+  if(mode==='continued' || mode==='hold' || mode==='late') say('a1','40 facts');
   if(mode==='single') { say('a1','hello'); result([first]); }
   if(mode==='failed') send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:'s'});
   if(mode==='aborted') send({type:'result',subtype:'error_during_execution',is_error:true,terminal_reason:'aborted_tools',errors:[],session_id:'s'});
@@ -708,13 +710,20 @@ input.on('line', line => {
  }
  if(mode==='fold') { sys('status',[first, r.uuid]); say('a2','BANANA'); result([first, r.uuid]); }
  if(mode==='continued') { result([first]); sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]); }
+ if(mode==='late') {
+  result([first]); fs.writeFileSync(${JSON.stringify(join(root, "resulted"))}, '');
+  const poll = setInterval(() => {
+   if(!fs.existsSync(${JSON.stringify(join(root, "go"))})) return;
+   clearInterval(poll); echoed = true; sys('init',[r.uuid]); sys('status',[r.uuid]); say('a2','BANANA'); result([r.uuid]);
+  }, 20);
+ }
  if(mode==='hidden') {
   send({type:'result',subtype:'error_during_execution',is_error:true,errors:['Unrecognized provider failure'],session_id:'s'});
   setTimeout(() => { sys('init',[r.uuid]); say('a2','hidden edit'); }, 50);
   setInterval(() => say('a3','still working'), 100); setTimeout(() => { result([r.uuid]); process.exit(0); }, 10000);
  }
 });
-input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); if(mode!=='hidden') setTimeout(() => process.exit(0), 20); });
+input.on('close', () => { fs.writeFileSync(${JSON.stringify(join(root, "closed"))}, ''); if(mode!=='hidden' && (mode!=='late' || echoed)) setTimeout(() => process.exit(0), 20); });
 `, { mode: 0o700 });
   return command;
 }
@@ -774,6 +783,64 @@ it("stops the Claude CLI when a failed result leaves a steered message unread, s
     expect(userLines(root)[1]).toMatchObject({ uuid: STEER_ID });
     expect(seq).toEqual([{ type: "activity", kind: "command", summary: "Running a command" }, { type: "turn.failed", code: "unknown", detail: "Unrecognized provider failure" }]);
     await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce());
+  });
+}, 15000);
+// A success result that leaves a steered uuid unread waits at most STEER_READ_WAIT_MS (30 s) for its echo. The CLI's own
+// timers run in real time; only setTimeout is faked, from just before the steer, so a group stop's 2 s wait must be advanced.
+async function lateSteer(runner: { send(prompt: string, turnId: string): Promise<void>; steer?: (prompt: string, turnId: string, messageId: string) => Promise<void> }, seq: unknown[], root: string) {
+  const sending = runner.send("hello", "turn-1").then(() => "resolved", (e: unknown) => e);
+  await vi.waitFor(() => expect(seq).toContainEqual({ type: "message.done", messageId: "a1", text: "40 facts" }));
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  await runner.steer!("Extra note", "turn-1", STEER_ID);
+  await vi.waitFor(() => expect(existsSync(join(root, "resulted"))).toBe(true));
+  // The result is written before the marker; give the runner real time to read it (setInterval is not faked).
+  await new Promise<void>(resolve => { const timer = setInterval(() => { clearInterval(timer); resolve(); }, 100); });
+  return { sending };
+}
+const terminals = (seq: unknown[]) => seq.filter(e => ["turn.done", "turn.failed", "interrupted"].includes((e as { type?: string }).type ?? ""));
+it("ends a Claude turn as done when its steered message stays unread 30 s after a success result, and stops the CLI", async () => {
+  await claudeSteerRun("late", async ({ runner, seq, root, exited }) => {
+    try {
+      const { sending } = await lateSteer(runner, seq, root);
+      await vi.advanceTimersByTimeAsync(29_000);
+      expect(terminals(seq)).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1_500);
+      await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+      expect(await sending).toBe("resolved");
+      // The fake ignores stdin's end while the message is unread, so only the group's stop ends it.
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+      await vi.advanceTimersByTimeAsync(31_000);
+      expect(seq).toEqual([{ type: "message.done", messageId: "a1", text: "40 facts" }, { type: "turn.done" }]);
+      await expect(runner.steer!("late", "turn-1", "late")).rejects.toThrow("not_running");
+    } finally { vi.useRealTimers(); }
+  });
+}, 15000);
+it("goes on to the follow-up Claude turn when the steered message is read 29 s after the success result, and ends at its result", async () => {
+  await claudeSteerRun("late", async ({ runner, seq, root, exited }) => {
+    try {
+      const { sending } = await lateSteer(runner, seq, root);
+      await vi.advanceTimersByTimeAsync(29_000);
+      writeFileSync(join(root, "go"), "");
+      await vi.waitFor(() => expect(seq).toContainEqual({ type: "turn.done" }));
+      expect(await sending).toBe("resolved");
+      await vi.advanceTimersByTimeAsync(31_000);
+      expect(seq).toEqual([{ type: "message.done", messageId: "a1", text: "40 facts" }, { consumed: STEER_ID }, { type: "message.done", messageId: "a2", text: "BANANA" }, { type: "turn.done" }]);
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+    } finally { vi.useRealTimers(); }
+  });
+}, 15000);
+it("leaves a Claude turn stopped during the unread-steer wait as a stop, with no late done", async () => {
+  await claudeSteerRun("late", async ({ runner, seq, root, exited }) => {
+    try {
+      const { sending } = await lateSteer(runner, seq, root);
+      await vi.advanceTimersByTimeAsync(10_000);
+      const stopped = runner.stop();
+      await vi.advanceTimersByTimeAsync(2_000); await stopped;
+      expect(await sending).not.toBe("resolved");
+      await vi.waitFor(() => expect(exited).toHaveBeenCalledOnce(), { timeout: 3000 });
+      await vi.advanceTimersByTimeAsync(31_000);
+      expect(terminals(seq)).toEqual([]);
+    } finally { vi.useRealTimers(); }
   });
 }, 15000);
 it("refuses a Claude steer for another turn or after a stop, and a stop closes the input", async () => {

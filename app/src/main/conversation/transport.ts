@@ -14,12 +14,15 @@ function finish(state: TransportState, event: EventPayload): TransportResult {
 }
 function aborted(state: TransportState): TransportResult { return finish(state, { type: "turn.failed", code: "process_exited" }); }
 export function endTransport(state: TransportState): TransportResult { return aborted(state); }
-// consumed: steered message ids the agent read with this frame, reported before the frame's events.
-export interface SteerResult extends TransportResult { consumed?: string[] }
+// consumed: steered message ids the agent read with this frame, reported before the frame's events. awaitingRead: a
+// success result that is not terminal because a steered message is still unread; the runner bounds that wait.
+export interface SteerResult extends TransportResult { consumed?: string[]; awaitingRead?: true }
 // Registered before the message is written, so a result racing it already knows the turn is not over.
 export function steerTransport(state: TransportState, id: string): TransportState {
   return state.terminal ? state : { ...state, steered: [...state.steered ?? [], id] };
 }
+// The wait after awaitingRead ran out: the turn ends as that success result would have.
+export function endSteerWait(state: TransportState): TransportResult { return finish(state, { type: "turn.done" }); }
 function consume(state: TransportState, seen: readonly unknown[]): { state: TransportState; consumed: string[] } {
   const consumed = (state.steered ?? []).filter(id => seen.includes(id));
   return consumed.length ? { state: { ...state, steered: state.steered!.filter(id => !consumed.includes(id)) }, consumed } : { state, consumed };
@@ -110,7 +113,7 @@ export function normalizeClaude(state: TransportState, raw: unknown, root: strin
   const read = consume(state, Array.isArray(raw.user_message_uuids) ? raw.user_message_uuids : []);
   return withConsumed(claudeFrame(read.state, raw, root), read.consumed);
 }
-function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: string): TransportResult {
+function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: string): SteerResult {
   if (raw.type === "stream_event" && object(raw.event)) {
     const event = raw.event;
     if (event.type === "message_start" && object(event.message) && typeof event.message.id === "string") return { state: { ...state, messageId: event.message.id, textBlock: null }, events: [] };
@@ -142,7 +145,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     if (raw.terminal_reason === "aborted_tools" || raw.terminal_reason === "interrupted") return aborted(state);
     // queued_turn_count stays 0 while a steered message is unread (same PoC), so only the uuids tell that the CLI goes on
     // to another turn for it; that turn's result ends this one. A stop still ends here.
-    if (raw.subtype === "success" && raw.is_error === false) return state.steered?.length && !state.stop ? unchanged(state) : finish(state, { type: "turn.done" });
+    if (raw.subtype === "success" && raw.is_error === false) return state.steered?.length && !state.stop ? { ...unchanged(state), awaitingRead: true } : finish(state, { type: "turn.done" });
     const detail = Array.isArray(raw.errors) ? raw.errors.filter((e): e is string => typeof e === "string").join("\n") : text(raw.result);
     return failed(state, detail);
   }

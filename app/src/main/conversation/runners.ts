@@ -8,7 +8,7 @@ import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeV
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { parseClaudeModels, parseCodexModels } from "./models";
-import { claudePermissionSummary, claudeReportedMode, endTransport, initialTransport, normalizeClaude, steerTransport, transportError } from "./transport";
+import { claudePermissionSummary, claudeReportedMode, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, transportError } from "./transport";
 import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
 import type { EventPayload, FailureCode } from "./types";
@@ -146,6 +146,10 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     async close() { dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
   };
 }
+// After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn,
+// about 10 ms later (Claude Code 2.1.312, 2.1.317). An echo that never came would keep the turn running and the row on
+// Sending… until Stop, so the wait is bounded: past it the turn ends as done and the message goes back to the queue.
+export const STEER_READ_WAIT_MS = 30_000;
 // Claude Code refuses to start under the organization pin when the repo's settings supply their own credential
 // (2.1.312: "managed settings require a first-party login"). The SDK keeps no stderr for a custom spawn, so the runner reads it.
 const PIN_REFUSED = /managed settings require a first-party login/i;
@@ -162,6 +166,9 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   // the CLI exits only once its stdin ends, and until then send and the next turn wait (POSTMORTEM 2026-10-28).
   const inbox: { message: SDKUserMessage; accepted(): void; refused(error: Error): void }[] = [];
   let pulled = false, inputClosed = false, turn = "", wake: (() => void) | undefined;
+  // Armed by a success result that leaves a steered uuid unread, disarmed by any read and on every terminal path.
+  let readWait: ReturnType<typeof setTimeout> | undefined, readExpired = false;
+  const endReadWait = () => { clearTimeout(readWait); readWait = undefined; };
   async function* messages(): AsyncGenerator<SDKUserMessage> {
     pulled = true;
     for (;;) {
@@ -221,18 +228,29 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
     models: async () => ({ models: parseClaudeModels(await timeout(q.supportedModels())) }),
     async send(prompt, turnId) {
       if (finished) throw new Error("process_exited");
+      // The group stops as on any terminal that leaves a steered uuid unread; the SDK error that follows is that stop's.
+      const expireRead = () => {
+        readWait = undefined;
+        if (finished || state.terminal) return;
+        const result = endSteerWait(state); state = result.state; readExpired = true;
+        for (const event of result.events) emit(event);
+        closeInput(); void group?.stop();
+      };
       const consume = (async () => {
         try {
           for await (const raw of q) {
+            if (readExpired) break;
             // Only a turn sent with Plan follows a reported switch (the plan's approval); a suggestion's setMode on another
             // turn stays that process's.
             const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
             if (reported && reported !== "plan") input.planApproved?.(reported);
             const result = normalizeClaude(state, raw, input.cwd); state = result.state;
             for (const id of result.consumed ?? []) input.steerConsumed?.(id);
+            if (result.consumed?.length) endReadWait();
+            if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);
             for (const event of result.events) emit(event);
             if (!state.terminal) continue;
-            closeInput();
+            endReadWait(); closeInput();
             // A failed or aborted result can end the turn with a steered message already written and unread; the item
             // goes back to the draft, so the CLI must not run it in a turn nobody sees. The terminal event is out already.
             if (state.steered?.length) { void group?.stop(); break; }
@@ -240,10 +258,10 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
           if (!state.terminal) emit({ type: "turn.failed", code: "process_exited" });
         } catch (error) {
           // SDK exit errors can precede group disappearance; neither cleanup nor provider errors prove process death.
-          if (!childExited || !object(error) || (error.errorClass !== "process_exited_nonzero" && error.errorClass !== "process_killed_by_signal")) throw error;
+          if (!readExpired && (!childExited || !object(error) || (error.errorClass !== "process_exited_nonzero" && error.errorClass !== "process_killed_by_signal"))) throw error;
           const result = endTransport(state); state = result.state;
           for (const event of result.events) emit(event);
-        } finally { finished = true; closeInput(); expire(); void group?.stop(); }
+        } finally { finished = true; endReadWait(); closeInput(); expire(); void group?.stop(); }
       })();
       // The SDK starts consuming input as part of its initialization handshake.
       if (!pulled) { controller.abort(); closeInput(); void group?.stop(); throw new Error("session_unavailable"); }
@@ -264,7 +282,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       pending.delete(id); request.resolve(option === "deny" ? { behavior: "deny", message: "Denied by the user." } : { behavior: "allow", updatedInput: request.input, ...(option === "always" ? { updatedPermissions: request.suggestions } : {}) });
       emit({ type: "permission.resolved", requestId: id, optionId: option }); return true;
     },
-    async stop() { state = { ...state, stop: "user" }; expire(); controller.abort(); closeInput(); await group?.stop(); },
-    async close() { state = { ...state, stop: "appQuit" }; expire(); controller.abort(); closeInput(); await group?.stop(); },
+    async stop() { state = { ...state, stop: "user" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
+    async close() { state = { ...state, stop: "appQuit" }; endReadWait(); expire(); controller.abort(); closeInput(); await group?.stop(); },
   };
 }

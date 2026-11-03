@@ -4,7 +4,7 @@ import claudeInterrupted from "./fixtures/claude-interrupted.json";
 import codex from "./fixtures/codex.json";
 import codexInterrupted from "./fixtures/codex-interrupted.json";
 import codexHome from "./fixtures/codex-home.json";
-import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport } from "./transport";
+import { normalizeClaude, normalizeCodex, initialTransport, endTransport, claudePermission, claudePermissionSummary, codexPermission, permissionAnswer, transportError, claudeReportedMode, steerTransport, endSteerWait } from "./transport";
 import type { EventPayload, TransportState } from "./types";
 function collect(runtime: "claude" | "codex", messages: unknown[], stop: "user" | null = null) {
   let state: TransportState = { ...initialTransport(), stop };
@@ -287,6 +287,18 @@ describe("steered message consumption", () => {
     expect(seen).toEqual([{ consumed: STEERED }, { type: "turn.done" }]);
     expect(run("claude", [system("status", [FIRST, STEERED]), result([FIRST, STEERED])]).seen).toEqual([{ type: "turn.done" }]);
     expect(run("claude", [{ steer: STEERED }, { ...system("status", [STEERED]), parent_tool_use_id: "toolu_1" }, result([FIRST])]).seen).toEqual([]);
+  });
+  it("marks only a Claude success result that leaves a steered message unread as awaiting its read, and ends that wait as done", () => {
+    let state = steerTransport(initialTransport(), STEERED);
+    const waiting = normalizeClaude(state, result([FIRST]), "/repo"); state = waiting.state;
+    expect(waiting).toMatchObject({ events: [], awaitingRead: true });
+    expect(normalizeClaude(initialTransport(), result([FIRST]), "/repo")).not.toHaveProperty("awaitingRead");
+    expect(normalizeClaude(state, system("init", [STEERED]), "/repo")).not.toHaveProperty("awaitingRead");
+    const ended = endSteerWait(state);
+    expect(ended.events).toEqual([{ type: "turn.done" }]);
+    expect(ended.state.terminal).toBe(true);
+    expect(endSteerWait(ended.state).events).toEqual([]);
+    expect(endSteerWait({ ...state, stop: "user" }).events).toEqual([{ type: "interrupted", reason: "user" }]);
   });
   it("takes no steered message after a terminal result", () => {
     const ended = run("claude", [result([FIRST])]).state;
