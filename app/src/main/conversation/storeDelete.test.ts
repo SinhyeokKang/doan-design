@@ -99,7 +99,7 @@ describe("ConversationStore.delete", () => {
     expect(discarded).toEqual(["a"]);
     expect(existsSync(f.record)).toBe(false);
   });
-  it("records the deletion before the index commit and keeps everything when the index rename fails", () => {
+  it("keeps everything when the index rename fails and drops its own entry from the record again (review note 1)", () => {
     const f = seed({ "index.json": index(meta("a")), "a.jsonl": line("a", 1, "turn.started") });
     const store = new ConversationStore(f.root);
     const before = readFileSync(f.index, "utf8"), history = readFileSync(f.path("a"), "utf8");
@@ -107,12 +107,30 @@ describe("ConversationStore.delete", () => {
     expect(() => store.delete("a")).toThrow("EIO");
     expect(readFileSync(f.index, "utf8")).toBe(before);
     expect(readFileSync(f.path("a"), "utf8")).toBe(history);
-    expect(JSON.parse(readFileSync(f.record, "utf8"))).toEqual({ v: 1, ids: ["a"] });
-    // The next start finds the conversation still indexed: the deletion never committed, so only the record goes.
+    expect(existsSync(f.record)).toBe(false);
+    // An earlier deletion of this run stays recorded; only the failed one leaves.
+    const g = seed({ "index.json": index(meta("a"), meta("b", "current", ".doan/canvases/b.html")), "a.jsonl": line("a", 1, "turn.started"), "b.jsonl": line("b", 1, "turn.started") });
+    const other = new ConversationStore(g.root);
+    other.delete("b");
+    hooks.failRename = "index.json";
+    expect(() => other.delete("a")).toThrow("EIO");
+    expect(JSON.parse(readFileSync(g.record, "utf8"))).toEqual({ v: 1, ids: ["b"] });
     const discarded: string[] = [];
-    const next = launch(f.root, id => discarded.push(id));
-    expect(next.list()).toEqual([meta("a")]);
-    expect(readFileSync(f.path("a"), "utf8")).toBe(history);
+    expect(launch(g.root, id => discarded.push(id)).list()).toEqual([meta("a")]);
+    expect(discarded).toEqual(["b"]);
+    expect(existsSync(g.path("a"))).toBe(true);
+  });
+  it("keeps the entry for the next start, which finds it uncommitted, when it cannot drop it after a failed index rename", () => {
+    const f = seed({ "index.json": index(meta("a")), "a.jsonl": line("a", 1, "turn.started") });
+    const store = new ConversationStore(f.root);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    hooks.failRename = "index.json"; hooks.failUnlink = "deletions.json";
+    expect(() => store.delete("a")).toThrow("EIO");
+    expect(JSON.parse(readFileSync(f.record, "utf8"))).toEqual({ v: 1, ids: ["a"] });
+    expect(log).toHaveBeenCalled();
+    const discarded: string[] = [];
+    expect(launch(f.root, id => discarded.push(id)).list()).toEqual([meta("a")]);
+    expect(existsSync(f.path("a"))).toBe(true);
     expect(discarded).toEqual([]);
     expect(existsSync(f.record)).toBe(false);
   });

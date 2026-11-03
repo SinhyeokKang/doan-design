@@ -1528,20 +1528,22 @@ test("an approved quit prevents native window teardown until the next event-loop
 });
 
 // conversation-delete orch decision 5: conversation:delete answers busy while quitting as while working, so the
-// renderer learns of the quit from main and its refusal toast can stay quiet.
-test("main tells the renderer it is quitting before the conversations stop, and that it is not when the quit is aborted", async () => {
+// renderer learns of the quit from main and its refusal toast can stay quiet. An aborted quit leaves the conversations
+// stopped (the service stays quitting), so main never takes it back (review RA Y3, D2).
+test("main tells the renderer it is quitting before the conversations stop, and never takes it back after an aborted quit", async () => {
   const contents = window().webContents;
   const service = mocks.conversationService as unknown as { quit(): Promise<void> };
   const stop = vi.spyOn(service, "quit").mockRejectedValueOnce(new Error("EIO"));
-  vi.spyOn(console, "error").mockImplementation(() => {});
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
   contents.send.mockClear();
   mocks.app.emit("before-quit", { preventDefault: vi.fn() });
   expect(contents.send).toHaveBeenCalledExactlyOnceWith("app:quitting", true);
   await new Promise<void>(resolve => setImmediate(resolve));
-  await vi.waitFor(() => expect(contents.send).toHaveBeenLastCalledWith("app:quitting", false));
+  await vi.waitFor(() => expect(log).toHaveBeenCalledWith("doan: conversation persistence failed during quit", expect.any(Error)));
   expect(contents.send.mock.invocationCallOrder[0]).toBeLessThan(stop.mock.invocationCallOrder[0] ?? 0);
   expect(mocks.app.quit).not.toHaveBeenCalled();
-  // The next quit proceeds and says so again; nothing clears it.
+  expect(contents.send.mock.calls.filter(call => call[0] === "app:quitting")).toEqual([["app:quitting", true]]);
+  // The next quit proceeds and says so again.
   contents.send.mockClear();
   mocks.app.emit("before-quit", { preventDefault: vi.fn() });
   await new Promise<void>(resolve => setImmediate(resolve));
