@@ -1,6 +1,6 @@
 # orchestrate chain — 2026-11-03
 
-규칙: [`/orchestrate` §6 'Linked runs'](../../../.agents/skills/orchestrate/SKILL.md), AGENTS.md 'Workflow'의 Chains 항목. 이 파일은 이 체인의 순서·상시 권한·상태·인계 기록의 정본이다. 마지막 링크가 병합한 뒤 이 디렉터리를 지운다. 상시 권한과 인계 규칙은 이전 체인(커밋 `09b6f50a`, 병합 뒤 삭제)과 같다(2026-11-03 사용자).
+규칙: [`/chain`](../../../.agents/skills/chain/SKILL.md) §3, AGENTS.md 'Workflow'의 Chains 항목. 이 파일은 이 체인의 순서·상시 권한·상태·인계 기록의 정본이다. 마지막 링크가 병합한 뒤 이 디렉터리를 지운다. 상시 권한과 인계 규칙은 이전 체인(커밋 `09b6f50a`, 병합 뒤 삭제)과 같다(2026-11-03 사용자).
 
 ## 순서
 
@@ -37,10 +37,10 @@
 
 ## 인계와 물러나기
 
-- 각 링크는 새 Claude Code 세션과 최신 `origin/main`에서 만든 새 Orca worktree에서 시작한다(§6 'One session per link').
+- 각 링크는 새 Claude Code 세션과 최신 `origin/main`에서 만든 새 Orca worktree에서 시작한다(`/chain` §3 'One session per link').
 - 나가는 지휘자는 링크를 끝까지 마친다: 배치 통합, 최종 `/verify`, 문서 승격과 feature 디렉터리 삭제, PR push·병합, local main pull, 배치 worktree 정리. 그 뒤 이 파일에 결과(병합 커밋, PR, 확인하지 못한 항목, 다음 링크가 알아야 할 결정)를 적고 main에 push한다.
 - 다음 링크 세션을 이 파일·다음 feature 문서·아직 적지 않은 사항을 가리키는 브리프로 띄우고, 새 세션이 브리프로 시작한 것을 확인할 때까지 질문에 답한다.
-- 확인되면 물러난다(§6 'Retire'). 새 세션의 것은 닫지 않고, 자기 worktree가 깨끗하고 main에 모두 들어갔는지(`git cherry`에 `+` 없음) 확인한 뒤 worktree를 지우거나 사용자에게 세션을 닫아 달라고 하고 보고한다.
+- 확인되면 물러난다(`/chain` §3 'Retire'). 새 세션의 것은 닫지 않고, 자기 worktree가 깨끗하고 main에 모두 들어갔는지(`git cherry`에 `+` 없음) 확인한 뒤 worktree를 지우거나 사용자에게 세션을 닫아 달라고 하고 보고한다.
 
 ## 운영 메모
 
