@@ -47,3 +47,6 @@
 - D 1단계 리뷰(Opus medium): 🔴 1(sending 항목만 남으면 목록 count 0으로 행이 사라짐) · 🟡 2(상태 줄이 `role=list` 직속, 턴 종료 거절 순서는 C 계약). 수정 1회차 `ctx_9def7c7d5668`(qsn-d, Opus medium). C에는 '거절 IPC 답보다 terminal 이벤트 publish가 먼저' 계약을 메시지로 보냈다.
 - 통합 HEAD `9f201e4e`(A+B)에서 typecheck 통과, `npm --prefix app test` 244 files / 6349 tests 통과.
 - D 수정 1회차 `1c2dbdf8`·`c14de93b`(🔴1·🟡1 반영, 테스트 6329·typecheck·build 통과). D 1단계+수정을 통합한다. 🟡2는 2단계 probe.
+- D를 `950d0822`·`0368612f`·`44d1a162`로 통합(typecheck 통과). D 수정 worker release. 2단계는 C 통합 뒤 qsn-d에서 새 worker로.
+- B 리뷰(Opus high): 🔴 0 · 🟡 3. 🟡1(실패 terminal 뒤 미소비 steer로 숨은 턴) → B 수정 1회차 `ctx_c54d451e2cf5`. 🟡3(Codex 소비 신호가 steer 응답보다 먼저 오거나 timeout 거절 뒤에 옴) → B는 RpcError 거절 때 id 제거, C에는 '소비 신호 우선' 계약을 보냄. 🟡2(Claude가 받아들인 uuid를 echo하지 않으면 Stop 전까지 턴이 안 끝남) → conductor 판단: 이번엔 상한을 두지 않는다(design §2.4가 상한 없이 정의, 데이터 손실 없음). BACKLOG에 남기고 T5 probe에서 반복 확인한다. PR에 사용자 확인 항목으로 적는다.
+- B 수정 1회차 `837524d9`(🟡1·🟡3 반영, red 선확인, 테스트 6275 통과). `shell.test.ts` 're-root focus'가 간헐 실패(격리 9회 중 2회, 이번 변경과 무관) — BACKLOG 후보.
