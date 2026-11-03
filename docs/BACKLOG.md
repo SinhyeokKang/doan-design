@@ -29,6 +29,8 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Not verified in the real app
 
+- A double ⌘B toggle, the regression where a composer forwards ⌘B and the menu accelerator also fires (ARCHITECTURE §7 'App menu'): no automated test reaches native accelerators (Playwright keys do not), so only a native key probe (System Events `key code 11` with command, in the composer, a plain input and the canvas iframe) catches it; it passed once and must be repeated after changes to the menu, the forwarding listener or the focus handling. A contenteditable inside the canvas iframe gets no forwarding.
+
 - Cmd+Z after Remove from Doan as a native key press: the 2026-11-03 probe clicked Edit > Undo through the menu API (the project stayed removed) but sent no native keystroke.
 - Agent conversation foundation limits: conversation tests use synthetic SDK/JSONL peers; stress, power-loss durability and external-session atomic exclusion are untested; environments other than the local unsigned arm64 package are unverified. Latency samples establish no product latency bound.
 - First-run surfaces not verified in the real app: the development build; real Cmd+W keystrokes, real window activation and Escape on the native folder sheet; the `stop_required` dialogs; Claude's 10-second missing-hook failure; a long project path and a long account in the UI; the minimum window size beyond the Agent step; the Copilot check (it spends a request); failed replacements by a browser denial.
