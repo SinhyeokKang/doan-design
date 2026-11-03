@@ -1921,27 +1921,53 @@ describe("delete", () => {
     expect(h.store.list()).toEqual([]);
     expect(log).toHaveBeenCalled();
   });
-  it("removes, at the next start, drafts of conversations the index no longer holds", async () => {
+  it("discards, at the next start, the drafts of a recorded deletion and leaves drafts no deletion recorded", async () => {
     const h = homeFixture();
-    const kept = await idle(h);
-    const gone = "33333333-3333-4333-8333-333333333333";
-    const draft = { text: "x", anchors: [], attachments: [], reason: "turn_failed" };
-    const path = join(h.dir, "conversations", "drafts.json");
-    writeFileSync(path, JSON.stringify({ v: 1, queued: {}, returned: { [kept]: draft, [gone]: draft } }));
-    const restarted = new ConversationService(h.store, h.prepare, h.open, () => {}, () => {}, 10_000, () => [], () => {}, { drafts: new DraftStore(join(h.dir, "conversations")) });
-    expect(restarted.list("/repo")[0]).toMatchObject({ conversationId: kept, returnedDraft: true });
-    expect(Object.keys(JSON.parse(readFileSync(path, "utf8")).returned)).toEqual([kept]);
+    const id = (await h.service.start(canvasStart)).conversationId;
+    h.service.queue(id, { text: "queued", anchors: [] });
+    h.service.receive(id, { type: "interrupted", reason: "user" }); h.open.mock.calls[0]![2]();
+    // The drafts write fails during the deletion, so its draft stays on disk until the next start.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(h.drafts as unknown as { write(): void }, "write").mockImplementation(() => { throw new Error("ENOSPC"); });
+    h.service.delete(id);
+    const path = join(h.dir, "conversations", "drafts.json"), stray = "33333333-3333-4333-8333-333333333333";
+    const saved = JSON.parse(readFileSync(path, "utf8"));
+    expect(Object.keys(saved.returned)).toEqual([id]);
+    writeFileSync(path, JSON.stringify({ ...saved, returned: { ...saved.returned, [stray]: saved.returned[id] } }));
+    new ConversationService(new ConversationStore(h.dir), h.prepare, h.open, () => {}, () => {}, 10_000, () => [], () => {}, { drafts: new DraftStore(join(h.dir, "conversations")) });
+    expect(Object.keys(JSON.parse(readFileSync(path, "utf8")).returned)).toEqual([stray]);
+    expect(existsSync(join(h.dir, "conversations", "deletions.json"))).toBe(false);
   });
-  it("removes no drafts at start when index.json is missing or unreadable", () => {
+  it("removes no drafts at start when index.json is missing or unreadable, and keeps the record", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     for (const index of [null, "broken"]) {
       const dir = mkdtempSync(join(tmpdir(), "doan-service-")); paths.push(dir);
       const store = new ConversationStore(dir), conversations = join(dir, "conversations");
       if (index !== null) writeFileSync(join(conversations, "index.json"), index);
+      const gone = "33333333-3333-4333-8333-333333333333";
       const draft = { text: "x", anchors: [], attachments: [], reason: "turn_failed" };
-      const value = JSON.stringify({ v: 1, queued: {}, returned: { "33333333-3333-4333-8333-333333333333": draft } });
+      const value = JSON.stringify({ v: 1, queued: {}, returned: { [gone]: draft } }), record = JSON.stringify({ v: 1, ids: [gone] });
       writeFileSync(join(conversations, "drafts.json"), value);
+      writeFileSync(join(conversations, "deletions.json"), record);
       new ConversationService(store, async () => { throw new Error("unused"); }, async () => { throw new Error("unused"); }, () => {}, () => {}, 10_000, () => [], () => {}, { drafts: new DraftStore(conversations) });
       expect(readFileSync(join(conversations, "drafts.json"), "utf8"), String(index)).toBe(value);
+      expect(readFileSync(join(conversations, "deletions.json"), "utf8"), String(index)).toBe(record);
     }
+  });
+  it("marks the run terminal, so a late event of a turn not yet marked ended cannot recreate the history", async () => {
+    const h = homeFixture();
+    const id = await idle(h);
+    // A live entry that is not working but not marked terminal either; deletion must mark it.
+    (h.service as unknown as { live: Map<string, { terminal: boolean }> }).live.get(id)!.terminal = false;
+    h.service.delete(id);
+    h.service.receive(id, { type: "message.delta", messageId: "m", text: "late" });
+    expect(existsSync(history(h, id))).toBe(false);
+  });
+  it("refuses as busy while only a queue hold keeps the conversation working", async () => {
+    const h = homeFixture();
+    const id = await idle(h);
+    (h.service as unknown as { live: Map<string, { holding?: object }> }).live.get(id)!.holding = {};
+    expect(() => h.service.delete(id)).toThrow("busy");
+    expect(h.store.list().map(m => m.conversationId)).toEqual([id]);
   });
 });

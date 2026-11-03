@@ -54,6 +54,8 @@ const mocks = await vi.hoisted(async () => {
     // Conversation metadata the mocked store lists, and the service's event publisher main passed it.
     conversations: [] as unknown[],
     publishConversation: undefined as ((event: unknown) => void) | undefined,
+    // The callback main gave the service for a deleted conversation.
+    deletedConversation: undefined as ((id: string) => void) | undefined,
     // The conversation service main created, so a test can pin what main asks it.
     conversationService: undefined as { list(root: string): unknown[]; projectEvidence(root: string): unknown[] } | undefined,
     preferences: { read: vi.fn(), current: vi.fn(), update: vi.fn() },
@@ -107,13 +109,13 @@ vi.mock("electron", () => ({
   nativeTheme: mocks.nativeTheme,
   systemPreferences: { subscribeLocalNotification: (name: string, callback: () => void) => { mocks.notifications.set(name, callback); return mocks.notifications.size; } },
 }));
-vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } indexedIds() { return null; } } }));
+vi.mock("./conversation/store", async (importOriginal) => ({ ...await importOriginal<typeof import("./conversation/store")>(), ConversationStore: class { list() { return mocks.conversations; } finishDeletions() {} } }));
 // The fake store makes no conversations directory, so the queue's drafts stay in memory.
 vi.mock("./conversation/drafts", async (importOriginal) => { const original = await importOriginal<typeof import("./conversation/drafts")>(); return { ...original, DraftStore: class extends original.DraftStore { constructor() { super(null); } } }; });
 vi.mock("./conversation/service", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./conversation/service")>();
   return { ...actual, ConversationService: class extends actual.ConversationService {
-    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.conversationService = this; }
+    constructor(...args: ConstructorParameters<typeof actual.ConversationService>) { super(...args); mocks.publishConversation = args[3] as never; mocks.deletedConversation = args[9] as never; mocks.conversationService = this; }
   } };
 });
 vi.mock("./preferences", async (importOriginal) => ({ ...await importOriginal<typeof import("./preferences")>(), createPreferencesStore: mocks.createPreferencesStore }));
@@ -1862,6 +1864,13 @@ describe("settings page", () => {
       window().isFocused.mockReturnValue(true);
       publish({ ...turnDone, seq: 3 });
       expect(mocks.Notification.instances).toHaveLength(1);
+    });
+
+    test("deleting a conversation closes its notification", () => {
+      publish(turnDone);
+      expect(mocks.Notification.instances[0]!.close).not.toHaveBeenCalled();
+      mocks.deletedConversation?.("c1");
+      expect(mocks.Notification.instances[0]!.close).toHaveBeenCalledOnce();
     });
 
     test("Desktop notifications off shows nothing", () => {

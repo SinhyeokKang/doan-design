@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DraftStore, orphanDrafts } from "./drafts";
+import { DraftStore } from "./drafts";
 
 const paths: string[] = []; afterEach(() => { vi.restoreAllMocks(); paths.splice(0).forEach(p => rmSync(p, { recursive: true, force: true })); });
 function directory(): string { const dir = mkdtempSync(join(tmpdir(), "doan-drafts-")); paths.push(dir); const conversations = join(dir, "conversations"); mkdirSync(conversations); return conversations; }
@@ -281,19 +281,5 @@ describe("DraftStore discard", () => {
     vi.spyOn(failing as unknown as { write(): void }, "write").mockImplementationOnce(() => { throw new Error("ENOSPC"); });
     expect(() => failing.discard(A)).not.toThrow();
     expect(failing.queued(A)).toEqual([]);
-  });
-  it("lists every conversation the file holds, unreadable entries included", () => {
-    const dir = directory();
-    writeFileSync(join(dir, "drafts.json"), JSON.stringify({ v: 1, queued: { [A]: [item("q1", "one")] }, returned: { [B]: { text: "z".repeat(40_000), anchors: [], attachments: [], reason: "turn_failed" } } }));
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(new DraftStore(dir).ids().sort()).toEqual([A, B].sort());
-  });
-});
-
-describe("orphanDrafts", () => {
-  it("names only valid conversation ids the index does not hold, comparing without case", () => {
-    expect(orphanDrafts([A, B, "../x"], [A.toUpperCase()])).toEqual([B]);
-    expect(orphanDrafts([A], [])).toEqual([A]);
-    expect(orphanDrafts([], [A])).toEqual([]);
   });
 });
