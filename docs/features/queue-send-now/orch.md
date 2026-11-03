@@ -36,3 +36,7 @@
 - B: dispatch `ctx_fb4481bad936`, worktree `qsn-b`(branch `SinhyeokKang/qsn-b`), Opus high(effective 확인).
 - B 질문(소비 신호 계약) → conductor 판단: 신호를 `EventPayload`·`types.ts`에 넣지 않는다(가로채기를 놓치면 v1 로그에 가짜 이벤트가 남는다). `steer()`는 받아들이면 resolve, 거절하면 reject. 소비는 runners.ts의 open 옵션 콜백 `onSteerConsumed(messageId)`로 emit과 같은 순서에 부른다. 실제 `user.message` append는 C가 service.ts에서 한다.
 - A 완료(`bef2d1c6`, 테스트 6320 통과, typecheck 통과, red 선확인은 기록 없음). 통합 뒤 D 시작, A 리뷰는 병렬.
+- A를 `8f693ee1`로 통합. A worker는 리뷰 수정을 받으려고 retain.
+- D 1단계: dispatch `ctx_d2899cdcebc5`, worktree `qsn-d`, Opus medium(effective 확인). A 리뷰: dispatch `ctx_841a89d5eaec`, `qsn-a` worktree, Sonnet high.
+- A 리뷰(Sonnet high): 🔴 0 · 🟡 3(queueFocusAfter의 sending 행, SteerPhase `starting` 매핑, red 미확인). 수정 1회차를 새 worker `ctx_ee5f4ec6f535`(qsn-a, Sonnet medium)로 보냈다. 같은 터미널 재사용은 Orca가 `agent_unconfigured`로 거절해 A·리뷰 worker를 release하고 새로 띄웠다. D에는 매핑 설명을 메시지로 보냈다.
+- A 수정 1회차 `120a6a37`(🟡 3건 반영, mutation으로 red 확인, 테스트 6322 통과). 통합했다. A 완료.
