@@ -927,8 +927,7 @@ body:has(.shell-top) { background: transparent; }
 .ov-main .conversation-thread .thread { max-width: 720px; margin-inline: auto; }
 .ov-col { width: calc(100% - 2 * var(--space-6)); max-width: 720px; margin-inline: auto; }
 .ov-foot { flex: none; padding: var(--space-3) 0 var(--space-4); }
-/* New conversation: the moved line and the suggestions sit in the middle of the empty area (suggested-prompt-variants). */
-.ov-new { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+/* New conversation: the moved line and the suggestions sit right above the composer. */
 /* A lucide glyph renders 24px unless a rule sizes it; the shared notice rules size only their own alert icon. */
 .doan-notice.moved { margin-bottom: var(--space-3); }
 .doan-notice.moved > svg { width: var(--size-icon); height: var(--size-icon); }
@@ -937,9 +936,7 @@ body:has(.shell-top) { background: transparent; }
 .moved-text { display: flex; min-width: 0; white-space: nowrap; }
 .moved-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .moved-rest { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); }
-/* The panel's column ends at the composer; auto margins put the suggestions in the middle of what is left. */
-.cp-scroll > .ov-suggestions { margin-block: auto; }
+.ov-suggestions { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
 /* The conversation dropdown: New, then the project conversations drawn like the right panel's rows, split by hairlines;
    the shown one has the selected fill. It scrolls inside its height. */
 .conv-menu { width: 360px; max-width: calc(100vw - 16px); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; -webkit-app-region: no-drag; }
