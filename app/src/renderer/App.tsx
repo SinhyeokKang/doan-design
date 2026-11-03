@@ -170,6 +170,7 @@ export function App() {
   const deletingRef = useRef(deletingConversation);
   const changeDeleting = (next: typeof deletingConversation) => { deletingRef.current = next; setDeletingConversation(next); };
   const afterDelete = useRef<string | null>(null);
+  const quittingRef = useRef(false);
   // The canvases whose `doan export` runs (`root\npath`): from main's running event, sent once the save panel closed on
   // a file, to the export's reply. The progress toast waits a second from that event.
   const [exporting, setExporting] = useState<ReadonlySet<string>>(new Set());
@@ -954,6 +955,7 @@ export function App() {
   // Settings… (⌘,) from main, after it has shown a hidden window; a payload that is not a target is dropped.
   useEffect(() => window.doan.onOpenSettingsPage(value => { const target = parseSettingsTarget(value); if (target) live.current.openSettings(target); }), []);
   useEffect(() => window.doan.onNotificationClick(click => live.current.notificationClick(click)), []);
+  useEffect(() => window.doan.onQuitting(quitting => { quittingRef.current = quitting; }), []);
   // doan:// links: subscribed on mount, while main holds them until App is ready (below).
   useEffect(() => window.doan.onOpenLink(result => live.current.openLink(result)), []);
   // `doan open` requests (canvas-open-offer): main sends them only once links are ready, and each is answered by its id.
@@ -1087,9 +1089,9 @@ export function App() {
     return true;
   }
   function closeDelete() { changeDeleting(null); modalClosed(); }
-  // main answers busy for a refusal while the app quits too, and that refusal shows no toast. The renderer has no
-  // quitting signal yet (conversation-delete handoff C, deferred), so this is the one place to wire it.
-  const quitting = () => false;
+  // main answers busy for a refusal while the app quits too, and that refusal shows no toast; main says when a quit
+  // proceeds (never reset).
+  const quitting = () => quittingRef.current;
   function deleteSummary(target: DeleteTarget) {
     const list = homeRun.current.listState(target.root);
     return Array.isArray(list) ? list.find(c => c.conversationId === target.conversationId) : undefined;

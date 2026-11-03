@@ -95,7 +95,7 @@ function reset() {
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), conversationResumeTarget: vi.fn(async () => ({ available: false, reason: "no_record" })), readConversation: vi.fn(() => new Promise(() => {})), takeConversationDraft: vi.fn(async () => null), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: on("quitting"), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -314,4 +314,19 @@ test("while its request is out the alert refuses Cancel and Escape, and stays un
   expect(dialog()).toBeUndefined();
   expect(overview()!.run.view("/w/a").kind).toBe("new");
   expect(focused.calls).toEqual([FIELDS[".workspace .ov-main .composer-input"]]);
+});
+
+// main answers busy for a refusal while the app quits too: after its quitting push the refusal shows no toast, and the
+// mark is still cancelled.
+test("a refusal after main said the app is quitting shows no toast", async () => {
+  await openOverview();
+  doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+  listeners.quitting!(true as never);
+  ask(target("c1"));
+  calls.length = 0;
+  dialog()!.confirm(); await flushAll();
+  expect(calls.slice(0, 2)).toEqual(["ConversationStore.startDelete", "ConversationStore.cancelDelete"]);
+  expect(overview()!.run.store.deleting("c1")).toBe(false);
+  expect(dialog()).toBeUndefined();
+  expect(harness.toast.show).not.toHaveBeenCalled();
 });
