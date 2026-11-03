@@ -149,3 +149,4 @@
     - Playwright WebKit 바이너리가 `~/Library/Caches/ms-playwright/webkit-*`에 남아 있다. 마지막 링크가 정리할 때 함께 지워도 된다.
     - 증거: 이 링크의 `.scratch/orch/`(브리프, handoff, 리뷰, design-sync·runtime-test·agent-eval 증거, 최종 verify 로그, feature 문서 사본)를 main checkout의 `.scratch/chain-261103/link5-evidence/`로 옮겼다. 구현 브랜치는 `canvas-row-menu-a1`·`-a2`·`-b`·`-c1`·`-c2`·`-d`·`-e`로 남겼다(로컬).
     - 사용량(링크 5 끝): Claude 7일은 링크 중간 작업자 상태줄 기준 82%였다(끝에는 대시보드가 값을 읽지 못했다, 2026-11-04 13:59 KST 초기화). Codex 주간 91%(X1 Codex 실행 뒤에도 그대로, 2026-11-04 15:35 KST 초기화). **링크 6은 사용자 지시대로 Codex 작업자를 섞어 쓴다**(위 사용자 기록).
+- 2026-11-03 링크 5 지휘자: 링크 6 세션(worktree `setup-via-onboarding-orch`, Orca 터미널 term_eb13b7fe)이 브리프로 시작해 시작을 push한 것(4a5622eb)을 확인하고 물러났다. 링크 5 worktree `canvas-row-menu-orch`는 깨끗하고 main에 모두 들어갔다(`git cherry`에 `+` 없음). 세션의 실행 checkout이라 지우지 않았고, 사용자가 세션을 닫은 뒤 지우면 된다.
