@@ -42,4 +42,8 @@ tasks 항목과 배치: T1→A, T2→B, T3→G, T4→지휘자, T5→B, Z1→지
 - RA 결과: 🔴 0, 🟡 1(`noDoanInit`이 `env …`·`/usr/bin/env …`로 감싼 init을 놓친다. select 뒤 init은 기존 config 때문에 파일을 쓰지 않아 `repo_untouched`도 못 잡는다), 🟢 1(O3b 테스트 제목). 보고서 `.scratch/orch/review-RA.md`. A에 수정 1회를 보냈다. 고치는 곳은 `O3/setup-checks.ts` 안으로 정했다(지휘자 판단: 공용 파서 `eval/lib/transcript.ts`를 바꾸면 다른 시나리오의 기록 라운드와 비교가 흔들린다). B에는 라운드가 끝난 뒤 env로 감싼 init이 있었는지 transcript에서 확인해 적으라고 보냈다.
 - G(T3) 완료: 커밋 72c82427, 브랜치 `setup-via-onboarding-g`로 남겼다. `--json`+안내 21,599 / 21,600 B(1 B 남음), 일반 출력+안내 20,924 B. `go test ./...`·`go vet ./...` 통과(작업자 보고). 기준선이 끝날 때까지 feat에 넣지 않는다. RG(Codex gpt-6-astra medium)를 띄웠다.
 - A 수정 1회 완료: 커밋 8f72756a를 feat에 1d5d3546으로 넣었다. `noDoanInit`이 `env`·절대 경로 `env`와 그 `NAME=value`·`-i`·`-u NAME`·`--`를 벗긴다(`O3/setup-checks.ts` 안). 지휘자가 diff를 직접 확인했다(작은 수정이라 Codex 재리뷰는 하지 않았다). eval 단위 267/267, self-test PASS(작업자 보고). A 작업자를 놓고 worktree를 지웠다. 브랜치 `setup-via-onboarding-a`는 8f72756a로 남겼다.
+- RG 결과: 🔴 0, 🟡 1(첫 문단의 init 폴백이 저장소 세팅이 아닌 onboarding에도 걸려 step 1과 겹친다), 🟢 2(`--repo` 제약 문장이 약해짐, 예산 1 B). 보고서 `.scratch/orch/review-RG.md`. G에 수정 1회를 보냈다. RG 작업자를 놓고 worktree를 지웠다.
+- B(T2) 완료: `o3-baseline`(O3·O3b × 3, 두 에이전트, judge 모두 실행). O3는 6/6 pass, O3b는 0/6이다. 여섯 실행 모두 `completed: true`를 받고도 `complete`를 불렀다(U-023, layer guide). init을 고른 실행은 없고, 모두 먼저 `doan skill`을 읽었으며 작업 공간의 `doan`을 썼다. env로 감싼 init도 없었다. runner exit 0, real-state 그대로(Keychain 포함). 커밋 754169f3를 feat에 1bb01457로 넣었고 브랜치 `setup-via-onboarding-b1`로 남겼다.
+- 지휘자 판단(design 'PoC 의존'): 기준선이 O3b에서 실패하므로 T3을 줄이지 않고 G의 문구 그대로 간다.
+- 사용량: B의 마지막 Codex rollout 기준 Codex 주간 93% 사용(7% 남음, 2026-11-04 15:35 KST 초기화).
 
