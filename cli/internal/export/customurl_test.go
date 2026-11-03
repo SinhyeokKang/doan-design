@@ -34,7 +34,9 @@ const (
 	linkB = `<link rel="stylesheet" href="../assets/b/b.css">`
 )
 
-func svg(tag string) string { return `<svg xmlns="http://www.w3.org/2000/svg"><title>` + tag + `</title></svg>` }
+func svg(tag string) string {
+	return `<svg xmlns="http://www.w3.org/2000/svg"><title>` + tag + `</title></svg>`
+}
 
 func customURLCases() []customURLCase {
 	return []customURLCase{
