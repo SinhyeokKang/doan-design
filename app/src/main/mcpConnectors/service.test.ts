@@ -294,6 +294,14 @@ describe("status reads", () => {
     expect(held).toEqual({ claude: 0, codex: 0 });
   });
 
+  it("a refresh during a running read reads again after it, so a change the first read missed shows", async () => {
+    const s = service();
+    s.refresh("codex");
+    s.refresh("codex");
+    await s.idle();
+    expect(cli.commands("codex").filter(c => c[1] === "list")).toHaveLength(2);
+  });
+
   it("a status command that does not answer in time reads as Couldn’t check", async () => {
     vi.useFakeTimers();
     cli.hanging.add("codex list");

@@ -101,6 +101,7 @@ export class McpService implements McpConversationFacts {
   private generations = new Map<McpProvider, number>();
   private lastChanged = new Map<McpProvider, string>();
   private readyKeys = new Map<McpProvider, string | null>();
+  private again = new Set<McpProvider>();
   private queues = new Map<McpProvider, Promise<void>>();
   private pending = new Set<Promise<unknown>>();
   // Each attempt's and read's own work, for a stop that waits for exactly those.
@@ -153,7 +154,9 @@ export class McpService implements McpConversationFacts {
   // provider's sign-in changes, never on a timer (design '상태 판정').
   refresh(provider?: McpProvider): void {
     for (const each of provider ? [provider] : MCP_PROVIDERS) {
-      if (this.closed || this.reads.has(each) || !this.options.readiness(each).ready) continue;
+      if (this.closed || !this.options.readiness(each).ready) continue;
+      // A read already running may have started before the change this refresh is for: read once more after it.
+      if (this.reads.has(each)) { this.again.add(each); continue; }
       const owner: Owner = { stopped: false, processes: new Set() };
       this.reads.set(each, owner);
       this.work(owner, this.read(each, owner));
@@ -505,13 +508,18 @@ export class McpService implements McpConversationFacts {
       try {
         const names = this.servers().map(server => server.name);
         const outcomes = new Map<string, CheckOutcome>();
-        await Promise.all(names.map(async name => { outcomes.set(name, await this.facts(owner, lease, provider, name)); }));
+        if (provider === "codex") {
+          // One list answers for every server.
+          const read = await this.codexRead(owner, lease);
+          for (const name of names) outcomes.set(name, read(name));
+        } else await Promise.all(names.map(async name => { outcomes.set(name, await this.claudeGet(owner, lease, name)); }));
         if (owner.stopped || this.closed) return;
         this.checks.set(provider, outcomes);
       } finally { await lease.release(); }
     } finally {
       if (this.reads.get(provider) === owner) this.reads.delete(provider);
       this.changed();
+      if (this.again.delete(provider)) this.refresh(provider);
     }
   }
 
@@ -527,15 +535,19 @@ export class McpService implements McpConversationFacts {
 
   // One server's status: `claude mcp get <name>`, or its entry in `codex mcp list --json`.
   private async facts(owner: Owner, lease: Lease, provider: McpProvider, name: string): Promise<CheckOutcome> {
-    if (provider === "claude") return this.claudeGet(owner, lease, name);
+    return provider === "claude" ? this.claudeGet(owner, lease, name) : (await this.codexRead(owner, lease))(name);
+  }
+  private async codexRead(owner: Owner, lease: Lease): Promise<(name: string) => CheckOutcome> {
     const run = await this.run(owner, lease, "codex", [...COMMANDS.codex.list], { timeoutMs: this.limits.commandMs });
-    if (run.timedOut) return { ok: false, reason: "timeout" };
-    if (run.code !== 0) return { ok: false, reason: "failed" };
-    const servers = parseCodexMcpList(run.output);
-    if (!servers) return { ok: false, reason: "unparsable" };
-    const found = servers.find(server => server.name === name);
-    if (!found) return { ok: true, facts: { registered: false } };
-    return found.authenticated === null ? { ok: false, reason: "unparsable" } : { ok: true, facts: { registered: true, authenticated: found.authenticated } };
+    const servers = run.timedOut || run.code !== 0 ? null : parseCodexMcpList(run.output);
+    return name => {
+      if (run.timedOut) return { ok: false, reason: "timeout" };
+      if (run.code !== 0) return { ok: false, reason: "failed" };
+      if (!servers) return { ok: false, reason: "unparsable" };
+      const found = servers.find(server => server.name === name);
+      if (!found) return { ok: true, facts: { registered: false } };
+      return found.authenticated === null ? { ok: false, reason: "unparsable" } : { ok: true, facts: { registered: true, authenticated: found.authenticated } };
+    };
   }
   private async claudeGet(owner: Owner, lease: Lease, name: string): Promise<CheckOutcome> {
     const run = await this.run(owner, lease, "claude", COMMANDS.claude.get(name), { timeoutMs: this.limits.commandMs });
