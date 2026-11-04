@@ -6,7 +6,7 @@ import type { ConversationEvent } from "../main/conversation/types";
 import type { Canvas } from "../main/conversation/types";
 import type { FolderEntry } from "../main/view";
 import { textSegments } from "./anchorField";
-import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, canvasScope, linkedAt, queuedText, startNewConversation, steerPhaseOf, type CanvasConversationProps } from "./CanvasConversationPanel";
+import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle, canvasScope, linkedAt, queuedMessage, queuedText, startNewConversation, steerPhaseOf, type CanvasConversationProps } from "./CanvasConversationPanel";
 import { CanvasRun } from "./canvasRun";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { ConversationStore, type ListView } from "./conversationStore";
@@ -177,6 +177,14 @@ test("a queued message and the title before the list names the conversation show
   run.started({ root: ROOT, canvas: CANVAS }, "s1", "claude", run.revision());
   await flush();
   expect(canvasConversationTitle(run, []).title).toBe("Make Cart quieter");
+});
+
+// canvas-composer-polish A2: the queue row shows the line; Send now shows the request itself, chips and files, in the thread.
+test("a queued message keeps its request for the thread", () => {
+  const anchors = [{ frame: { id: "cart", title: "Cart" } }];
+  expect(queuedMessage("q1", { text: "Change {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 10, kind: "file" }] }))
+    .toEqual({ id: "q1", text: "Change Cart", message: { text: "Change {{1}}", anchors, attachments: [{ name: "notes.pdf", size: 10, kind: "file" }] } });
+  expect(queuedMessage("q2", { text: "Again", anchors: [], attachments: [] })).toEqual({ id: "q2", text: "Again", message: { text: "Again", anchors: [], attachments: [] } });
 });
 
 // Re-review BR2 R4: ⌘N while the first list read is still loading, with the terminal session answering first, must

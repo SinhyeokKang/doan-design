@@ -149,6 +149,15 @@ test("while the turn runs, Enter on an empty field does nothing, Stop stops, and
   expect(store.current.get("conversation:a")).toEqual(EMPTY_DRAFT);
 });
 
+// canvas-composer-polish A2: a queued message's files are drawn in the thread once Send now moves it there.
+test("a queued message carries its files' names, sizes and kinds for the thread, apart from the ids main takes", async () => {
+  const { queue, render, store, props } = setup({ turn: "running" });
+  store.current = new Map([["conversation:a", { ...draft("With the notes"), attachments: [{ key: "k", id: "f", name: "notes.md", kind: "file", pasted: false, status: "ready", size: 4096 }] }]]); props.drafts = store.current;
+  (button(render(), "Queue").onClick as () => void)();
+  await flush();
+  expect(queue).toHaveBeenCalledWith({ text: "With the notes", anchors: [], attachments: [{ id: "f" }], files: [{ name: "notes.md", size: 4096, kind: "file" }] });
+});
+
 test("a late project_busy keeps the draft and shows Home's busy sentence until the person edits", async () => {
   const { store, render } = setup({ onSend: async () => ({ error: "project_busy" }) }, [["conversation:a", draft("Draw it")]]);
   (button(render(), "Send").onClick as () => void)();

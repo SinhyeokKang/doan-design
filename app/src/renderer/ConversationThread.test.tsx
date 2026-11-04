@@ -352,3 +352,19 @@ test("a permission answer counts as sent only when main took it", async () => {
   expect(await answerReached(async () => ({ error: "not_found" }))).toBe(false);
   expect(await answerReached(() => Promise.reject(new Error("ipc")))).toBe(false);
 });
+
+// canvas-composer-polish A2, draft frame `sending`: the message Send now has in flight, with one caption line under it.
+describe("a message Send now has in flight", () => {
+  const sending: ThreadItem = { kind: "user", key: "qq1", seq: null, sending: true, anchors: [], preset: null, parts: [{ text: "Use the spacing" }], attachments: [{ name: "notes.pdf", size: 86016, kind: "file" }] };
+  test("is the person's message with its files, then a spinner and Sending; it has no actions", () => {
+    const out = html([sending]);
+    expect(out).toContain('<div class="msg-user"><div class="bubble">Use the spacing</div><div class="msg-files">');
+    expect(out).toMatch(/<\/small><\/span><\/span><\/div><span class="msg-sending"><span class="doan-spinner" aria-hidden="true"><\/span>Sending<\/span><\/div>/);
+    expect(out).not.toContain("<button");
+  });
+  test("a sent message has no Sending line, and a sending one does not hide the last end's Edit and resend", () => {
+    expect(html([{ ...sending, sending: undefined, key: "u1", seq: 1 } as ThreadItem])).not.toContain("msg-sending");
+    const out = html([{ kind: "end", key: "e2", seq: 2, end: { kind: "interrupted", reason: "user" } }, sending]);
+    expect(out).toContain("Edit and resend");
+  });
+});

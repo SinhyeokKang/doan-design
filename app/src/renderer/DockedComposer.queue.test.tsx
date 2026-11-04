@@ -40,7 +40,7 @@ function setup(patch: Partial<QueueRowsProps> = {}) {
   const focused = { at: null as string | null };
   const props: QueueRowsProps = {
     items: [{ id: "q1", text: "First" }, { id: "q2", text: "Second" }, { id: "q3", text: "Third" }], sendNow: true,
-    onSendNow: vi.fn(async () => {}), onRemove: vi.fn(async () => true), focusInput: () => { focused.at = "input"; page.activeElement = { name: "input" }; },
+    onSendNow: vi.fn(async () => {}), onRemove: vi.fn(async () => true), focusInput: () => { focused.at = "input"; page.activeElement = { name: "input" }; }, announce: vi.fn(),
     ...patch,
   };
   // Draws, hands each button its fake node and runs the layout effects, as a commit would.
@@ -55,33 +55,50 @@ function setup(patch: Partial<QueueRowsProps> = {}) {
   return { props, focused, draw, rows };
 }
 
-test("Send now and Remove hand the row's id to the host; a row in flight ignores another press", async () => {
-  const { props, draw, rows } = setup({ items: [{ id: "q1", text: "First" }, { id: "q2", text: "Second", sending: true }] });
+test("Send now and Remove hand the row's id to the host; Send now is the subtle capsule", async () => {
+  const { props, draw, rows } = setup({ items: [{ id: "q1", text: "First" }, { id: "q2", text: "Second" }] });
   const tree = draw();
   const sendNow = rows(tree, "Send queued message now");
-  expect(sendNow.map(item => item.children)).toEqual(["Send now", "Sending"]);
-  expect(sendNow.map(item => item["aria-disabled"])).toEqual([undefined, true]);
-  expect(sendNow.every(item => item.disabled === undefined)).toBe(true);
+  expect(sendNow.map(item => item.children)).toEqual(["Send now", "Send now"]);
+  expect(sendNow.map(item => [item["data-ui-variant"], item["data-ui-size"], item["aria-disabled"], item.disabled])).toEqual([["subtle", "xs", undefined, undefined], ["subtle", "xs", undefined, undefined]]);
   expect(tree.some(item => item.type === "span" && item.children === "Add to the current turn without stopping it")).toBe(true);
-  (sendNow[1]!.onClick as () => void)();
-  expect(props.onSendNow).not.toHaveBeenCalled();
   (sendNow[0]!.onClick as () => void)();
   expect(props.onSendNow).toHaveBeenCalledWith("q1");
   (rows(tree, "Remove queued message")[1]!.onClick as () => void)();
   expect(props.onRemove).toHaveBeenCalledWith("q2");
 });
 
-test("after Send now is read, focus goes to the next row's Send now once the row has left", async () => {
-  const { props, focused, draw, rows } = setup();
-  (rows(draw(), "Send queued message now")[0]!.onClick as () => void)();
-  await vi.waitFor(() => expect(props.onSendNow).toHaveBeenCalled());
-  await Promise.resolve(); await Promise.resolve();
-  // The row is still drawn: focus waits for it to leave.
-  draw();
-  expect(focused.at).toBeNull();
+// canvas-composer-polish A2: the row leaves at the press, so focus moves then, before the agent reads it.
+test("Send now moves focus to the next row's Send now once the row has left, without waiting for main's answer", async () => {
+  const answer = (() => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; })();
+  const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(() => answer.promise) });
+  const pressed = rows(draw(), "Send queued message now")[0]!;
+  (pressed.onClick as () => void)();
+  expect(props.onSendNow).toHaveBeenCalledWith("q1");
   props.items = props.items.filter(item => item.id !== "q1");
   draw();
   expect(focused.at).toBe("sendNow:id-0");
+});
+
+test("focus the person moved elsewhere before the row left stays there", async () => {
+  const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(() => new Promise<void>(() => {})) });
+  const tree = draw();
+  page.activeElement = { name: "input" };
+  (rows(tree, "Send queued message now")[0]!.onClick as () => void)();
+  props.items = props.items.filter(item => item.id !== "q1");
+  draw();
+  expect(focused.at).toBeNull();
+});
+
+test("a refused row coming back does not take focus, and focus waits for no row that never left", async () => {
+  const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(async () => ({ error: "stale" })) });
+  (rows(draw(), "Send queued message now")[0]!.onClick as () => void)();
+  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  draw();
+  // Removed later by Remove from elsewhere: Send now's focus target was dropped with its refusal.
+  props.items = props.items.filter(item => item.id !== "q1");
+  draw();
+  expect(focused.at).toBeNull();
 });
 
 test("after Remove, focus goes to the next row's Remove when Send now is not offered, and to the field after the last row", async () => {
@@ -122,6 +139,8 @@ test("a refusal while the turn still runs shows the status line under the row; o
   const said = tree.filter(item => item.role === "status").map(item => elements(item.children as ReactNode).some(child => child.children === SEND_NOW_REFUSED_TEXT));
   expect(said).toEqual([false, true, false]);
   expect(running.focused.at).toBeNull();
+  // The status line is drawn again with the row, so the composer's lasting live region says it too.
+  expect(running.props.announce).toHaveBeenCalledWith(SEND_NOW_REFUSED_TEXT);
 
   const ended = setup({ onSendNow: vi.fn(async () => ({ error: "not_running" })) });
   (ended.rows(ended.draw(), "Send queued message now")[1]!.onClick as () => void)();
@@ -129,17 +148,5 @@ test("a refusal while the turn still runs shows the status line under the row; o
   ended.draw();
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   expect(ended.draw().filter(item => item.role === "status").every(item => elements(item.children as ReactNode).length === 0)).toBe(true);
+  expect(ended.props.announce).not.toHaveBeenCalled();
 });
-
-test("focus the person moved elsewhere while the agent had not read the message yet stays there", async () => {
-  const read = (() => { let resolve!: () => void; const promise = new Promise<void>(r => { resolve = r; }); return { promise, resolve }; })();
-  const { props, focused, draw, rows } = setup({ onSendNow: vi.fn(() => read.promise) });
-  (rows(draw(), "Send queued message now")[0]!.onClick as () => void)();
-  page.activeElement = { name: "input" };
-  read.resolve();
-  await Promise.resolve(); await Promise.resolve();
-  props.items = props.items.filter(item => item.id !== "q1");
-  draw();
-  expect(focused.at).toBeNull();
-});
-
