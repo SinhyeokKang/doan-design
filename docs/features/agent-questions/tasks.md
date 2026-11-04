@@ -39,7 +39,7 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 - [ ] A2. `claudeQuestion`, `claudeQuestionResult`, `claudeFrame`의 `AskUserQuestion` activity 생략, fixture `claude-ask-user-question.json`(P1 기록에서 줄임)과 `fixtures/README.md` 출처.
   - 검증: `npm --prefix app test` — `transport.test.ts`: fixture 입력, 단일·여러 선택·Other·Skip(P1이 정한 형태)·잘못된 입력·상한 초과·같은 문장 중복, 순번↔문장 왕복, 기존 Claude 기대값 유지.
 - [ ] A3. `codexQuestion`, `codexQuestionResponse`, `normalizeCodex`의 질문 disposition, fixture `codex-request-user-input.json`(Codex 0.166.0 생성 스키마로 만든 합성)과 `fixtures/README.md` 출처.
-  - 검증: `npm --prefix app test` — `codexIngress.test.ts`: 아래 표의 경우마다 disposition과 wire 응답이 맞고 턴 실패가 없음, `options: null`이면 `other: true`, `isSecret`, 같은 id 중복, 기존 권한·elicitation 기대값 유지.
+  - 검증: `npm --prefix app test` — `codexIngress.test.ts`: 아래 표의 경우마다 disposition과 wire 응답이 맞고 턴 실패가 없음, `options: null`이면 `other: true`, 선택지가 있고 `isOther: false`이면 `other: false`, `isSecret`, 같은 id 중복, 기존 권한·elicitation 기대값 유지.
 
     | 경우 | disposition | 응답 |
     |---|---|---|
@@ -52,7 +52,7 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 - [ ] A4. `questionAnswer`(import 없는 공통 모듈, main 검증과 renderer Send 판정이 함께 씀).
   - 검증: `npm --prefix app test` — 번호 범위, 단일 질문에 둘, 여러 선택과 0개, Other 비허용 질문의 글, `options: null` 질문의 글 허용, 공백만 있는 글, 빠진 질문, Other 글 4,096 초과, `rendererImports.test.ts` 통과.
 - [ ] A5. main 알림 `notificationFor`·`closesNotification`. renderer: `threadItems`의 질문 항목과 `phaseText`, `conversationStrip` 질문 상태, `scrollTarget`, `permissionToastKey`, `turnOf`·`steerPhaseOf`, `focusAfter`의 질문 대상, `questionDraft` reducer.
-  - 검증: `npm --prefix app test` — `notifications.test.ts`·`notifyService.test.ts`(Approval requests 스위치, 제목 "needs your answer", 본문에 질문 문장 없음, `question.resolved`로 닫힘), `threadItems` 테스트(턴 종료 때 pending 만료, `live=false`의 `foldCrashed` 만료, `live=true` reload의 pending 카드), `overviewRun.test.ts`(질문만 기다릴 때 `scrollTarget`이 질문 항목, 권한과 질문이 함께면 가장 새 것), `homeConversations.test.ts`(질문의 toast 키), `CanvasConversationPanel.test.tsx`(질문 대기의 `steerPhaseOf` `waiting`), `composerRules.test.ts`(답한 뒤 다음 질문·권한·composer), 새 `questionDraft.test.ts`(Send 가능 조건, 보내는 중 잠금).
+  - 검증: `npm --prefix app test` — `notifications.test.ts`·`notifyService.test.ts`(Approval requests 스위치, 제목 "needs your answer", 본문에 질문 문장 없음, `question.resolved`로 닫힘), `threadItems` 테스트(턴 종료 때 pending 만료, `live=false`의 `foldCrashed` 만료, `live=true` reload의 pending 카드), `overviewRun.test.ts`(질문만 기다릴 때 `scrollTarget`이 질문 항목, 권한과 질문이 함께면 가장 새 것), `homeConversations.test.ts`(질문의 toast 키), `CanvasConversationPanel.test.tsx`(질문 대기의 `steerPhaseOf` `waiting`), `composerRules.test.ts`(답한 뒤 다음 질문·권한·composer), 새 `questionDraft.test.ts`(Send 가능 조건, 보내는 중 잠금), 고르던 답의 `requestId`별 보관과 `question.resolved` 때 지움(새 `conversationStore.test.ts`).
 
 ── commit: `feat: read and fold agent questions` ──
 
@@ -70,7 +70,7 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 ## C. UI
 
 - [ ] C1. `QuestionCard`와 접힌 줄(`ConversationThread.tsx`, `onAnswerQuestion` prop, `answerReached`의 거절 사유), host 두 곳의 preload 호출, 진입 스크롤·포커스(`CanvasConversationPanel.tsx`·`ProjectOverview.tsx`), `homeRun.ts`의 질문 갈래(design §6), strip(`ConversationStripView.tsx`의 Skip), 알림 배선(Approval requests 스위치). canvas-composer-polish가 먼저 들어가 있으면 질문 대기가 같은 root의 시작을 막지 않는지도 확인한다.
-  - 검증: `npm --prefix app test`(쓰레드 interaction 테스트: radio·checkbox 키보드, Other 입력과 IME 조합 중 Return, Send `aria-disabled`와 이유, 보내는 중 잠금, `stale`이면 오류 줄 없음, 그 밖의 실패 뒤 선택 유지, 보낸 뒤 포커스, `role="alert"`는 새 카드의 제목과 첫 문장만, 도착 때 포커스를 옮기지 않음; `ConversationStripView.test.tsx`: 질문 strip의 Skip과 그 뒤 Stop 포커스; 진입 때 첫 선택지나 입력칸 포커스; canvas-composer-polish가 들어가 있으면 `homeRun` 테스트의 시작 판정), `npm --prefix app run typecheck`, `npm --prefix app run build`.
+  - 검증: `npm --prefix app test`(쓰레드 interaction 테스트: radio·checkbox 키보드, Other 입력과 IME 조합 중 Return, Send `aria-disabled`와 이유, 보내는 중 잠금, `stale`이면 오류 줄 없음, 그 밖의 실패 뒤 선택 유지, 보낸 뒤 포커스, `role="alert"`는 새 카드의 제목과 첫 문장만, 도착 때 포커스를 옮기지 않음; `ConversationStripView.test.tsx`: 질문 strip에 답 컨트롤 없이 Skip과 Stop만 있음, Skip 뒤 Stop 포커스; 다른 대화로 갔다 돌아온 뒤 고르던 답 유지; 진입 때 첫 선택지나 입력칸 포커스; canvas-composer-polish가 들어가 있으면 `homeRun` 테스트의 시작 판정), `npm --prefix app run typecheck`, `npm --prefix app run build`.
 
 ── commit: `feat: show agent questions in the conversation thread` ──
 
@@ -88,7 +88,7 @@ P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 ## Z. 승격과 정리
 
 - [ ] Z1. 결론을 현재 규칙으로 옮긴다(영문). 근거는 커밋 메시지에 둔다.
-  - PRODUCT: §3 'Agent conversation foundation contract'('Resume and permissions'에 질문 전달, 'Events and ownership'에 재시작 뒤 질문 만료), §5 item 1('Project conversations'의 답 대기, Send now 조건), item 0 'Notifications'(질문 알림), item 2 'Conversation panel'·'Agent indicator'와 item 3 'Project Overview'(질문 카드, 첫 선택지 포커스), strip 규칙, P1·P2가 남긴 한계(질문을 볼 수 없는 모드, Codex 버전 조건), `isSecret` 답이 provider 자체 기록에 남을 수 있다는 한계. design '결정한 규칙' 아홉 항목을 모두 반영한다.
+  - PRODUCT: §3 'Agent conversation foundation contract'('Resume and permissions'에 질문 전달, 'Events and ownership'에 재시작 뒤 질문 만료), §5 item 1('Project conversations'의 답 대기, Send now 조건), item 0 'Notifications'(질문 알림), item 2 'Conversation panel'·'Agent indicator'와 item 3 'Project Overview'(질문 카드, 첫 선택지 포커스), strip 규칙, P1·P2가 남긴 한계(질문을 볼 수 없는 모드, Codex 버전 조건), `isSecret` 답이 provider 자체 기록에 남을 수 있다는 한계. design '결정한 규칙' 열다섯 항목을 모두 반영한다.
   - ARCHITECTURE §7 'Agent conversation runtime and IPC': 'Events'에 `question.request`·`question.resolved`와 이전 빌드에서 손상으로 읽힘, 'Permissions and terminals'에 Claude `AskUserQuestion`과 Codex `item/tool/requestUserInput` 경로·빈 답 규칙, IPC `answerQuestion`, secret 답을 저장하지 않음.
   - BACKLOG.md: P2에서 본 `serverRequest/resolved`가 있으면 그 항목, P6에서 구현하지 않기로 한 ACP provider의 질문과 막힌 PoC.
   - 그리고 `docs/features/agent-questions/`를 지운다.

@@ -43,7 +43,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 그 밖(Stop·종료 뒤, `turnId` 없음, `isBlocking: false`, 읽을 수 없음) → disposition `decline`, 응답 `{id, result: {answers: {}}}`. 턴은 실패하지 않는다. MCP elicitation의 `decline` 경로(`:190-194`)와 같은 모양이다. `CodexTransportResult`의 `decline` 주석(`transport.ts:167-168`)을 질문까지 넓힌다.
   - 다른 thread·turn → 지금처럼 `route`(`dispatcher.ts:59`의 `-32601` 오류 응답).
   - `requestId`는 MCP 승인과 같이 `${typeof id}:${id}`(`app/src/main/mcpConnectors/codexApproval.ts:29`).
-  - `options: null`인 질문은 `isOther`(스키마 기본값 false)와 관계없이 `other: true`로 읽는다. 글이 유일한 답이기 때문이다.
+  - `other`는 `isOther`를 따른다. 선택지가 있고 `isOther: false`이면 Other를 보이지 않는다. `options: null`인 질문은 `isOther`(스키마 기본값 false)와 관계없이 `other: true`로 읽는다. 글이 유일한 답이기 때문이다. Claude 질문은 늘 `other: true`다.
 - `dispatcher.ts`: 권한 표(`:12`)와 같이 질문 표를 둔다. 같은 서버 id가 권한 표나 질문 표에 이미 있으면 권한의 중복 처리(`:56`)와 같이 protocol fail로 본다. `answerQuestion`은 `codexQuestionResponse`로 `{id, result: {answers: {<id>: {answers: [...]}}}}`를 쓰고 `question.resolved`를 낸다. Skip은 빈 `answers`. `expire`(`:81-86`)는 질문에 오류 대신 빈 답을 쓴다. 턴이 끝나는 중이므로 어느 쪽도 턴 결과를 바꾸지 않지만, 빈 답은 Codex가 "no answers → continue"로 읽는 정상 응답이다(Codex 0.166.0 바이너리의 협업 모드 지시문). Stop에서는 `expire`의 빈 답이 `interrupt`(`runners.ts:215-219`)보다 먼저 가므로 그 사이 모델이 잠깐 이어 갈 수 있다. P2가 이를 관찰하고, 이어 가면 Stop의 만료만 오류 응답으로 바꾼다(턴은 이미 Stop으로 끝나는 중이다).
 - `isSecret` 질문: 카드는 입력을 가리고, `question.resolved`에 답을 남기지 않는다.
 
@@ -81,7 +81,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 키보드(macOS 관례): radio는 질문마다 같은 name이고, 화살표가 이동과 선택을 함께 하며, Tab은 고른 항목이나 첫 항목으로 들어간다. checkbox는 Space로 토글한다. Other를 클릭이나 Space로 고르면 입력칸으로 포커스가 가고, 화살표로 지나가며 고르면 입력칸만 열린다. Other 입력칸의 Return은 Send가 켜졌을 때만 보내고, IME 조합 중(`isComposing`)에는 보내지 않는다. radio·checkbox 위의 Return과 카드 안의 Esc는 아무것도 하지 않는다. Tab 순서는 선택지 → Other 입력 → Send → Skip → Stop.
   - 버튼: Send answer(질문이 둘 이상이면 Send answers, prominent), Skip, Stop. Send는 모든 질문에 답이 있을 때만 켜진다. 꺼진 Send는 New conversation 버튼처럼(PRODUCT §5 item 3) `aria-disabled`로 두어 포커스와 tooltip이 남는다.
   - 보내는 중: Send는 `aria-busy`와 spinner를 보이고, 선택지·Other·Skip은 읽기 전용이 되며 Stop만 살아 있다. 성공하면 접힐 때까지 잠근 채 둔다.
-  - 고르던 상태는 카드 안의 React state이고, 순수 reducer(`questionDraft`)로 계산한다. 같은 쓰레드에서 다시 그려도 유지되고 reload에서는 사라진다.
+  - 고르던 상태는 순수 reducer(`questionDraft`)로 계산하고, 카드 안 React state가 아니라 renderer의 `ConversationStore`(`conversationStore.ts:40`, `OverviewRun.store`로 canvas 패널과 공유)에 `requestId`별로 둔다. `ThreadBody`는 conversationId를 key로 다시 그려지므로(`ConversationThread.tsx:286-288`) 카드 state로는 다른 대화나 canvas로 갔다 오면 사라지기 때문이다. `question.resolved`가 오면 그 항목을 지우고, reload에서는 사라진다.
   - 보내기 실패: `answerReached`(`:231-237`)가 거절 사유를 돌려주게 바꾼다. 사유가 `stale`이면 main이 이미 그 질문을 풀었고 `question.resolved`가 오므로, 오류 줄 없이 접힘을 기다린다. 그 밖의 실패는 잠금을 풀고 고른 상태를 유지한 채 "Couldn’t send your answer. Try again."을 보인다.
   - 보낸 뒤 포커스: 카드가 접히면 권한 답 뒤와 같은 `composerRules.focusAfter`(`:44-50`) 규칙을 따른다. `pending`에 질문 요청도 넣어, 다음 미답 요청(권한이면 첫 선택 버튼, 질문이면 첫 선택지나 입력칸)이나 composer 입력칸으로 간다.
   - 긴 글: 질문 문장과 선택지는 자르지 않고 줄바꿈한다. header 칩만 말줄임하고 전체 글은 접근 가능한 이름에 둔다.
@@ -195,3 +195,9 @@ PRODUCT·ARCHITECTURE가 정하지 않았던 점을 사람이 다음과 같이 �
 7. Claude 선택지의 `preview`와 `annotations.notes`는 이번 범위 밖이다.
 8. 문제 workspace의 conversation strip은 질문 문장(줄임)과 Skip·Stop만 보인다. 답은 대화 화면에서 한다.
 9. 질문 알림은 Approval requests 스위치를 따르고, 제목은 `<Provider> needs your answer`다.
+10. 문제 workspace에서 기다리는 질문은 strip의 Skip이나 Stop으로만 끝낼 수 있다. 답할 곳이 없다는 새 문구는 더하지 않는다.
+11. 읽을 수 없는 Codex 질문(형식, 상한, 중복)은 카드 없이 빈 답으로 답한다.
+12. 질문이 여럿이면 모든 질문에 답해야 Send answers가 켜진다.
+13. Codex `isOther: false` 선택지 질문은 Other를 보이지 않는다. Claude 질문은 늘 Other가 있다.
+14. 고르던 답은 앱 안에서 다른 대화나 canvas로 이동해도 `requestId`별로 남고, 질문이 끝나면 지운다. reload·재시작 너머로는 남지 않는다.
+15. `isSecret` 답이 provider 자체의 기록(Codex rollout 등)에 남을 수 있는 한계를 받아들인다. Z1에서 한계로 적는다.
