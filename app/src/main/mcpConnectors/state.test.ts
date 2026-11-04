@@ -65,6 +65,20 @@ test("a sign-in or sign-out in progress does not disable Connect: pressing it fa
   expect(state({ readiness: busy })).toEqual({ status: "not_connected", action: "connect", disabled: null, blocked: false });
 });
 
+// spec 완료 조건 8 / design '상태 판정': while the previous account's logout is pending, the row offers Connect (which
+// retries that logout first) whatever the last read said (BA review 🟡2).
+test("a pending logout on a server that reads as connected shows Reconnect needed with Reconnect and its line", () => {
+  // The token may still be the previous account's, so the row never claims Connected.
+  expect(state({ blocked: true, check: read({ registered: true, authenticated: true }) })).toEqual({ status: "reconnect_needed", action: "reconnect", disabled: null, blocked: true });
+  expect(state({ blocked: true, everConnected: true, check: read({ registered: true, authenticated: true }) })).toMatchObject({ status: "reconnect_needed", action: "reconnect", blocked: true });
+});
+
+test("a pending logout on a server whose status read failed offers Connect with its line instead of Retry", () => {
+  expect(state({ blocked: true, check: { reading: false, last: { ok: false, reason: "timeout" } } })).toEqual({ status: "check_failed", action: "connect", disabled: null, blocked: true });
+  expect(state({ blocked: true, attempt: { name: "doan-figma", kind: "connect" }, check: { reading: false, last: { ok: false, reason: "failed" } } })).toMatchObject({ action: "connect", disabled: "busy", blocked: true });
+  expect(state({ blocked: true, readiness: { ready: false, cause: "reauth_required", action: "reauth" }, check: read({ registered: true, authenticated: true }) })).toMatchObject({ action: "reconnect", disabled: "not_ready", blocked: true });
+});
+
 test("a pending logout keeps Connect and shows its line under Connect or Reconnect only", () => {
   expect(state({ blocked: true })).toEqual({ status: "not_connected", action: "connect", disabled: null, blocked: true });
   expect(state({ blocked: true, everConnected: true, check: read({ registered: true, authenticated: false }) })).toMatchObject({ action: "reconnect", blocked: true });
