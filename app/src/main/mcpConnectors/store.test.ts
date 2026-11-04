@@ -84,13 +84,34 @@ test("a record whose removal cannot be written stays blocking, so a later Connec
   expect(failing.blocked("codex", "doan-notion")).toBe(true);
 });
 
-test("an unreadable pending file is not replaced; new records block in memory", () => {
+// BB review Y3: an unreadable record is not "no pending logout". Every doan- server stays blocked for both providers
+// until one logout of it succeeds in this run.
+test("an unreadable pending file is moved aside and every doan- server is blocked until its logout succeeds", () => {
   writeFileSync(pendingFile(), "[]");
-  const store = new ConnectorStore(dir);
+  const store = new ConnectorStore(dir, { now: () => new Date("2026-11-04T10:20:30.400Z") });
+  expect(store.unknown()).toBe(true);
+  expect(readdirSync(dir).sort()).toEqual(["mcp-connectors-pending.json.broken-2026-11-04T10-20-30-400Z"]);
   expect(store.pending()).toEqual([]);
-  expect(store.record([notion])).toBe(false);
+  for (const provider of ["claude", "codex"] as const) for (const name of ["doan-notion", "doan-anything"]) expect(store.blocked(provider, name)).toBe(true);
+  expect(store.blocked("codex", "notion")).toBe(false);
+  expect(store.clear("codex", "doan-notion")).toBe(true);
+  expect(store.blocked("codex", "doan-notion")).toBe(false);
+  expect(store.blocked("claude", "doan-notion")).toBe(true);
+  // A new failure goes to a fresh file.
+  expect(store.record([notion])).toBe(true);
+  expect(JSON.parse(readFileSync(pendingFile(), "utf8"))).toEqual({ v: 1, logouts: [notion] });
   expect(store.blocked("codex", "doan-notion")).toBe(true);
-  expect(readFileSync(pendingFile(), "utf8")).toBe("[]");
+});
+
+test("a pending file from a newer Doan is kept: everything is blocked as unknown and new records stay in memory", () => {
+  writeFileSync(pendingFile(), JSON.stringify({ v: 2, logouts: [] }));
+  const store = new ConnectorStore(dir);
+  expect(store.unknown()).toBe(true);
+  expect(store.blocked("claude", "doan-figma")).toBe(true);
+  expect(store.record([notion])).toBe(false);
+  expect(JSON.parse(readFileSync(pendingFile(), "utf8"))).toEqual({ v: 2, logouts: [] });
+  expect(store.clear("codex", "doan-notion")).toBe(true);
+  expect(store.blocked("codex", "doan-notion")).toBe(false);
 });
 
 test("pending records work while the connectors file is broken", () => {
