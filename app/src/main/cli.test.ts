@@ -135,18 +135,36 @@ describe("CLI environment", () => {
 });
 
 describe("readFolder before running the CLI", () => {
+  // The errno code tells a vanished folder (ENOENT, ENOTDIR) from one that could not be checked (terminal-work-worktrees design §2.3).
   test.each([
-    ["a missing path", () => join(tmp, "gone")],
+    ["a missing path", () => join(tmp, "gone"), "ENOENT"],
     ["a file", () => {
       const file = join(dir(), "file");
       writeFileSync(file, "");
       return file;
-    }],
-  ])("%s is folder not found and the CLI never runs", async (_label, path) => {
+    }, "ENOTDIR"],
+    ["a path under a file", () => {
+      const file = join(dir(), "file");
+      writeFileSync(file, "");
+      return join(file, "repo");
+    }, "ENOTDIR"],
+  ])("%s is folder not found and the CLI never runs", async (_label, path, code) => {
     const marker = join(dir(), "ran");
     const fake = fakeCli(`touch '${marker}'`);
-    expect(await readFolder(fake, path())).toEqual({ kind: "notFound" });
+    expect(await readFolder(fake, path())).toEqual({ kind: "notFound", code });
     expect(existsSync(marker)).toBe(false);
+  });
+
+  test.skipIf(process.getuid?.() === 0)("a folder that cannot be checked keeps its errno code", async () => {
+    const parent = dir();
+    const root = join(parent, "repo");
+    mkdirSync(root);
+    chmodSync(parent, 0o000);
+    try {
+      expect(await readFolder(fakeCli("exit 1"), root)).toEqual({ kind: "notFound", code: "EACCES" });
+    } finally {
+      chmodSync(parent, 0o755);
+    }
   });
 });
 
