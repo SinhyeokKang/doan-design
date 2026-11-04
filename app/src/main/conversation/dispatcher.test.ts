@@ -209,6 +209,21 @@ describe("Codex MCP elicitation wiring", () => {
     expect(h.events.slice(1)).toEqual([{ type: "turn.done" }, { type: "permission.resolved", requestId: "number:7", optionId: "expired" }]);
     expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
   });
+  // Review BC yellow 1: a stopped turn is no longer asked anything; Stop already answered what it was asking.
+  it("declines an approval that comes after Stop at once and never holds it", () => {
+    const h = mcp(); h.rpc.stop("user"); h.rpc.receive(elicitation);
+    expect(h.writes).toEqual([{ id: 7, result: { action: "decline" } }]);
+    expect(h.events).toEqual([]);
+    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+    h.rpc.receive({ method: "turn/completed", params: { threadId: thread, turn: { id: turn, status: "interrupted" } } });
+    expect(h.events).toEqual([{ type: "interrupted", reason: "user" }]); expect(h.writes).toHaveLength(1);
+  });
+  it("answers the approval being asked once at Stop, and a late answer writes nothing", () => {
+    const h = mcp(); h.rpc.receive(elicitation); h.rpc.stop("user");
+    expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
+    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "number:7", optionId: "expired" });
+    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+  });
   it("fails the protocol on a repeated request id instead of answering twice", () => {
     const h = mcp(); h.rpc.receive(elicitation); h.rpc.receive(elicitation);
     // Closing answers the first one, once.

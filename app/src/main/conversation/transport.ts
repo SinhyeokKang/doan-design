@@ -185,8 +185,11 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const otherOwner = (typeof params.threadId === "string" && params.threadId !== context.sessionId)
       || (typeof turnId === "string" && turnId !== context.turnId);
     const matched = params.threadId === context.sessionId && turnId === context.turnId;
-    const permission = matched && !state.terminal ? codexPermission(raw, state.fileSummaries, context.labels) : null;
-    // An elicitation this turn cannot ask about (a form, or one with no running turn) is declined, never failed: the
+    // A stopped turn asks nothing more: the person already left it, and the service drops its later events, so an MCP
+    // approval held now could never be answered.
+    const asking = matched && !state.terminal && !(state.stop && raw.method === MCP_ELICITATION);
+    const permission = asking ? codexPermission(raw, state.fileSummaries, context.labels) : null;
+    // An elicitation this turn cannot ask about (a form, or one with no running turn to ask in) is declined, never failed: the
     // tool call fails and the turn goes on (mcp-connectors spec 완료 조건 6).
     if (!otherOwner && !permission && raw.method === MCP_ELICITATION) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { action: "decline" } } } };
     const disposition = otherOwner ? "route" : permission ? "permission" : "unsupported";

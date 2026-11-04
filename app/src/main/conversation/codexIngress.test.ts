@@ -96,6 +96,10 @@ describe("Codex MCP elicitation", () => {
     const result = normalizeCodex({ ...initialTransport(), terminal: true }, request, mcp);
     expect(result).toMatchObject({ request: { disposition: "decline", response: { id: 7, result: { action: "decline" } } }, events: [] });
   });
+  it("declines a tool approval that comes after Stop, before the turn ended", () => {
+    const result = normalizeCodex({ ...initialTransport(), stop: "user" }, request, mcp);
+    expect(result).toMatchObject({ request: { disposition: "decline", response: { id: 7, result: { action: "decline" } } }, state: { terminal: false }, events: [] });
+  });
   it.each([null, undefined])("declines an elicitation of this thread whose turnId is %s", turnId => {
     const raw = { ...request, params: { ...request.params, ...(turnId === undefined ? { turnId: undefined } : { turnId }) } };
     expect(normalizeCodex(initialTransport(), raw, mcp)).toMatchObject({ request: { disposition: "decline" }, state: { terminal: false }, events: [] });
