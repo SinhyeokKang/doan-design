@@ -71,6 +71,7 @@ const { ShellSidebar } = await import("./ShellSidebar");
 const { ProjectOverview } = await import("./ProjectOverview");
 const { CanvasConversationTitle } = await import("./CanvasConversationPanel");
 const { ConversationDeleteDialog } = await import("./ConversationDeleteDialog");
+const { CanvasConversations } = await import("./RightPanel");
 const { OverviewRun } = await import("./overviewRun");
 const { CanvasRun } = await import("./canvasRun");
 const { HomeRun } = await import("./homeRun");
@@ -375,4 +376,69 @@ test.each([["a refusal", true], ["Cancel", false]])("canvas panel, %s: focus ret
   expect(button.focus).toHaveBeenCalledOnce();
   expect(focused.calls).toEqual([]);
   expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
+});
+
+// canvas-composer-polish spec 6: a Canvas conversations row's Delete takes the title menu's confirmation and deletion;
+// focus goes to the target the list computed before the alert opened, and Cancel or Escape returns it to that Delete.
+type ListFocus = { kind: "row"; key: string } | { kind: "title" };
+type ListProps = { list: unknown; onDelete(item: { key: string; conversationId: string; title: string; provider: string }, button: unknown, after: ListFocus): void };
+const canvasList = () => find<ListProps>(CanvasConversations)[0]?.props;
+function listTargets() {
+  const row = { isConnected: true, focus: vi.fn() }, head = { isConnected: true, focus: vi.fn() };
+  FIELDS['.ov-right .cv-row[data-key="c3"]'] = row as never;
+  FIELDS[".ov-right .rp-head"] = head as never;
+  vi.stubGlobal("CSS", { escape: (value: string) => value });
+  return { row, head };
+}
+const fromList = (conversationId: string, after: ListFocus, button = trigger()) => {
+  const item = (canvasList()!.list as { key: string; conversationId: string; title: string; provider: string }[]).find(row => row.conversationId === conversationId)!;
+  canvasList()!.onDelete(item, button, after); render();
+  return button;
+};
+
+test("a Canvas conversations row's Delete asks first, deletes through main, and sends focus to the target the list gave", async () => {
+  const { row, head } = listTargets();
+  try {
+    await openOverview([summary("c1"), onCanvas("c2"), summary("c3", { canvas: { path: ".doan/canvases/b.html" }, fromHome: false })]);
+    doan.deleteConversation = vi.fn(async () => undefined);
+    const button = fromList("c2", { kind: "row", key: "c3" });
+    expect(dialog()!.view.title).toBe("Delete “Title c2”?");
+    dialog()!.confirm(); await flushAll();
+    expect(doan.deleteConversation).toHaveBeenCalledWith({ conversationId: "c2" });
+    expect(dialog()).toBeUndefined();
+    expect(row.focus).toHaveBeenCalledOnce();
+    expect(head.focus).not.toHaveBeenCalled();
+    expect(button.focus).not.toHaveBeenCalled();
+    expect(focused.calls).toEqual([]);
+    expect(harness.toast.show).not.toHaveBeenCalled();
+    expect((canvasList()!.list as { conversationId: string }[]).map(item => item.conversationId)).not.toContain("c2");
+  } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
+});
+
+test("the last Canvas conversations row's deletion sends focus to the panel title", async () => {
+  const { head } = listTargets();
+  try {
+    await openOverview([summary("c1"), onCanvas("c2")]);
+    doan.deleteConversation = vi.fn(async () => undefined);
+    fromList("c2", { kind: "title" });
+    dialog()!.confirm(); await flushAll();
+    expect(head.focus).toHaveBeenCalledOnce();
+  } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
+});
+
+test.each([["a refusal", true], ["Cancel", false]])("Canvas conversations, %s: the row stays and focus returns to its Delete", async (_name, confirm) => {
+  const { row, head } = listTargets();
+  try {
+    await openOverview([summary("c1"), onCanvas("c2")]);
+    doan.deleteConversation = vi.fn(async () => ({ error: "busy" }));
+    const button = fromList("c2", { kind: "title" });
+    if (confirm) { dialog()!.confirm(); await flushAll(); } else { dialog()!.cancel(); render(); }
+    expect(dialog()).toBeUndefined();
+    expect(button.focus).toHaveBeenCalledOnce();
+    expect(row.focus).not.toHaveBeenCalled();
+    expect(head.focus).not.toHaveBeenCalled();
+    expect((canvasList()!.list as { conversationId: string }[]).map(item => item.conversationId)).toContain("c2");
+    expect(harness.toast.show).toHaveBeenCalledTimes(confirm ? 1 : 0);
+    if (confirm) expect(harness.toast.show).toHaveBeenCalledWith("Couldn’t delete “Title c2”. The agent started working on it.");
+  } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });

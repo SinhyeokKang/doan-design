@@ -1,12 +1,13 @@
 import { readFileSync } from "node:fs";
-import type { ReactNode } from "react";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow } from "../main/view";
-import { CanvasConversationList, ListLoading, observedRows, RowFocusMemory, type CanvasList } from "./CanvasConversationList";
+import { CanvasConversationList, ListLoading, observedRows, RowDelete, RowFocusMemory, type CanvasList } from "./CanvasConversationList";
 import { canvasConversationRows } from "./canvasConversationRows";
 import { CanvasConversations } from "./RightPanel";
+import { TooltipContent, TooltipProvider } from "./components/ui/tooltip";
 import type { ThumbnailState } from "./thumbnails";
 
 // buzz-project design §0 'right rows', §2.3 and §2.5.
@@ -27,7 +28,7 @@ const taxA = row({ path: ".doan/canvases/tax.html", id: "tax" });
 const taxB = row({ path: ".doan/canvases/tax-copy.html", id: "tax" });
 
 const rows = canvasConversationRows([
-  summary({ conversationId: "b", provider: "codex", phase: "waiting", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(0), preview: "Needs your answer: Run doan check" }),
+  summary({ conversationId: "b", title: "Ask about the header", provider: "codex", phase: "waiting", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(0), preview: "Needs your answer: Run doan check" }),
   summary({ conversationId: "r", canvas: { path: receipt.path }, lastActivityAt: ago(3 * MIN), preview: "Receipts now show the tax line separately." }),
   summary({ conversationId: "f", canvas: { path: refunds.path }, lastActivityAt: ago(4 * MIN) }),
   summary({ conversationId: "l", canvas: { path: legacy.path }, lastActivityAt: ago(5 * MIN) }),
@@ -40,7 +41,7 @@ const noop = () => {};
 // React's static render hoists a preload link for each image; the markup under test follows it.
 const markup = (node: ReactNode) => renderToStaticMarkup(node).replace(/<link [^>]*\/>/g, "");
 const render = (list: CanvasList, thumbs: ReadonlyMap<string, ThumbnailState> = thumbnails) => markup(
-  <CanvasConversationList list={list} project="acme-web" thumbnails={thumbs} open={noop} retry={noop} onVisible={noop} scroller={{ current: null }} title={{ current: null }} />);
+  <TooltipProvider><CanvasConversationList list={list} project="acme-web" thumbnails={thumbs} open={noop} retry={noop} onVisible={noop} onDelete={noop} scroller={{ current: null }} title={{ current: null }} /></TooltipProvider>);
 const item = (html: string, key: string) => {
   const at = html.indexOf(`data-key="${key}"`);
   return html.slice(html.lastIndexOf("<li", at), html.indexOf("</li>", at));
@@ -52,7 +53,7 @@ describe("canvas conversation list", () => {
   test("is one list without its own name; only the panel region is named", () => {
     expect(html.match(/role="list"/g)).toHaveLength(1);
     expect(html).toMatch(/^<ul class="rp-list" role="list">/);
-    const panel = markup(<CanvasConversations list={rows} project="acme-web" thumbnails={thumbnails} open={noop} retry={noop} onVisible={noop} />);
+    const panel = markup(<TooltipProvider><CanvasConversations list={rows} project="acme-web" thumbnails={thumbnails} open={noop} retry={noop} onVisible={noop} onDelete={noop} /></TooltipProvider>);
     expect(panel.match(/aria-label="Canvas conversations"/g)).toHaveLength(1);
     expect(panel).toContain('<aside class="right native-scroll ov-right" role="region" aria-label="Canvas conversations"><h2 class="phead rp-head" tabindex="-1">Canvas conversations</h2><ul class="rp-list" role="list">');
   });
@@ -106,6 +107,40 @@ describe("canvas conversation list", () => {
     expect(li).not.toContain("aria-disabled");
     expect(li).toContain("Can&#x27;t read this canvas — run doan check</small>");
     expect(li).toContain('class="note"');
+  });
+
+  // canvas-composer-polish spec 6 (draft frames cv-delete, cv-special): the title menu's Delete on every row.
+  test("every row, special rows included, has a Delete beside its row button, named by the conversation", () => {
+    for (const key of ["b", "r", "f", "l", "g", "t"]) {
+      const li = item(html, key);
+      expect(li, key).toMatch(/<\/button><button type="button" class="doan-icon-button cv-delete"[^>]*aria-label="Delete “[^"]*”"/);
+    }
+    expect(item(html, "b")).toContain('aria-label="Delete “Ask about the header”"');
+    expect(item(html, "r")).toContain('aria-label="Delete “Draw it”"');
+  });
+
+  test("Delete follows its row's Tab stop, so Tab moves between the row and its Delete", () => {
+    expect(item(html, "b").match(/tabindex="0"/g)).toHaveLength(2);
+    for (const key of ["r", "f", "l", "g", "t"]) expect(item(html, key)).not.toContain('tabindex="0"');
+  });
+
+  test("a working or waiting conversation's Delete is unavailable and reads its reason", () => {
+    for (const [key, reason] of [["b", "The agent is waiting for your answer."], ["g", "The agent is working on this conversation."]] as const) {
+      const li = item(html, key);
+      const button = /<button type="button" class="doan-icon-button cv-delete"[^>]*>/.exec(li)![0];
+      expect(button).toContain('aria-disabled="true"');
+      const why = /aria-describedby="([^"]+)"/.exec(button)![1]!;
+      expect(li).toContain(`<span class="sr-only" id="${why}">${reason}</span>`);
+    }
+    expect(/<button type="button" class="doan-icon-button cv-delete"[^>]*>/.exec(item(html, "r"))![0]).not.toContain("aria-disabled");
+  });
+
+  test("the row button itself is unchanged: Delete is a sibling, never inside it", () => {
+    for (const key of ["b", "g"]) {
+      const li = item(html, key);
+      const rowButton = li.slice(li.indexOf('<button type="button" class="cv-row"'), li.indexOf("</button>") + "</button>".length);
+      expect(rowButton).not.toContain("cv-delete");
+    }
   });
 
   test("no canvas conversations: the empty state", () => {
@@ -185,5 +220,47 @@ describe("observedRows", () => {
   test("leaves out rows without a listed canvas, and is empty without any", () => {
     expect(observedRows(rows.filter(r => r.row === null))).toBe("");
     expect(observedRows(rows)).toContain(billing.path);
+  });
+});
+
+// canvas-composer-polish spec 6, A5: the Delete's press. Where focus goes after the delete is computed before the
+// confirmation opens, since the alert takes focus from the list.
+function tree(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+  if (Array.isArray(node)) return node.flatMap(tree);
+  if (!isValidElement<Record<string, unknown>>(node)) return [];
+  return [node, ...tree(node.props.children as ReactNode)];
+}
+const text = (node: ReactNode): string => Array.isArray(node) ? node.map(text).join("") : typeof node === "string" ? node : isValidElement<{ children?: ReactNode }>(node) ? text(node.props.children) : "";
+describe("RowDelete", () => {
+  const listed = canvasConversationRows([
+    summary({ conversationId: "a", canvas: { path: billing.path, id: "billing" }, lastActivityAt: ago(0) }),
+    summary({ conversationId: "b", canvas: { path: receipt.path }, lastActivityAt: ago(MIN) }),
+    summary({ conversationId: "c", canvas: { path: refunds.path }, lastActivityAt: ago(2 * MIN) }),
+    summary({ conversationId: "w", phase: "running", working: true, canvas: { path: legacy.path }, lastActivityAt: ago(3 * MIN) }),
+  ], [billing, receipt, refunds, legacy], NOW);
+  const of = (key: string) => listed.find(row => row.key === key)!;
+  const press = (key: string, keys: readonly string[]) => {
+    const onDelete = vi.fn();
+    const nodes = tree(RowDelete({ item: of(key), keys, tabbable: false, onDelete, onFocus: noop }));
+    const button = nodes.find(element => element.type === "button")!;
+    const element = { name: `Delete ${key}` };
+    (button.props.onClick as (event: { currentTarget: unknown }) => void)({ currentTarget: element });
+    return { onDelete, element, nodes };
+  };
+
+  test("asks to delete with its button and the next row as focus target, else the previous row, else the panel title", () => {
+    const next = press("a", ["a", "b", "c"]);
+    expect(next.onDelete).toHaveBeenCalledWith(of("a"), next.element, { kind: "row", key: "b" });
+    const last = press("c", ["a", "b", "c"]);
+    expect(last.onDelete).toHaveBeenCalledWith(of("c"), last.element, { kind: "row", key: "b" });
+    const only = press("a", ["a"]);
+    expect(only.onDelete).toHaveBeenCalledWith(of("a"), only.element, { kind: "title" });
+  });
+
+  test("an unavailable Delete does nothing; its tooltip gives the reason, an available one says Delete conversation", () => {
+    const working = press("w", ["a", "w"]);
+    expect(working.onDelete).not.toHaveBeenCalled();
+    expect(text(working.nodes.find(element => element.type === TooltipContent)!.props.children as ReactNode)).toBe("The agent is working on this conversation.");
+    expect(text(press("a", ["a"]).nodes.find(element => element.type === TooltipContent)!.props.children as ReactNode)).toBe("Delete conversation");
   });
 });
