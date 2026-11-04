@@ -64,7 +64,7 @@ const mocks = await vi.hoisted(async () => {
       isActive: vi.fn(() => true), dock: { bounce: vi.fn(() => 7) } }),
     ipc: new Map<string, (...args: unknown[]) => unknown>(),
     shell: { tokenBase: "http://127.0.0.1:1/t/tok/", entries: vi.fn<() => { path: string; kind?: string }[]>(() => []), open: vi.fn<() => Promise<{ root: string } | { refused: string }>>(), reopen: vi.fn(), initialize: vi.fn(), epoch: vi.fn(), dispose: vi.fn(),
-      store: vi.fn(), remove: vi.fn(), replace: vi.fn(), rereadAll: vi.fn() },
+      store: vi.fn(), remove: vi.fn(), replace: vi.fn(), rereadAll: vi.fn(), adopt: vi.fn() },
     flow: { add: vi.fn(), confirm: vi.fn(), judge: vi.fn() },
     createAddFlow: vi.fn(),
     electronShell: { showItemInFolder: vi.fn(), openExternal: vi.fn(), trashItem: vi.fn() },
@@ -2111,6 +2111,31 @@ test("main exposes work only to its main frame and clears it on root removal", (
   expect(invoke("work:get", window().webContents, {})).toEqual([]);
   changed([]);
   expect(invoke("work:get", window().webContents, null)).toEqual([]);
+});
+
+// terminal-work-worktrees design §2.1-4: the adopted root is in the work state before the start's work applies.
+test("an adopted worktree takes the start's work at once", () => {
+  const W = "/orca/workspaces/repo/w1";
+  const state = mocks.startRuntime.mock.calls[0]?.[1] as { roots(): readonly string[]; adopt(root: string, view: unknown): void; work(request: unknown): void } | undefined;
+  if (!state) throw new Error("no runtime state");
+  const changed = mocks.startShell.mock.calls[0]?.[2];
+  if (typeof changed !== "function") throw new Error("no folder listener");
+  const before = [{ path: "/repo", kind: "list", canvases: [] }];
+  mocks.shell.entries.mockReturnValue(before);
+  changed(before);
+  expect(state.roots()).toEqual(["/repo"]);
+  const view = { kind: "list", root: W, scope: [".doan/canvases"], canvases: [], git: { common: "/repo/.git", worktrees: ["/repo", W] } };
+  // The real shell publishes the list synchronously inside adopt.
+  mocks.shell.adopt.mockImplementationOnce(() => {
+    const after = [...before, { path: W, kind: "list", canvases: [], autoRegistered: true }];
+    mocks.shell.entries.mockReturnValue(after);
+    changed(after);
+    return true;
+  });
+  state.adopt(W, view);
+  expect(mocks.shell.adopt).toHaveBeenCalledExactlyOnceWith(W, view);
+  state.work({ v: 3, token: "t", root: W, action: "start", path: ".doan/canvases/a.html" });
+  expect(invoke("work:get", window().webContents, null)).toEqual([{ root: W, path: ".doan/canvases/a.html", session: null, provider: null }]);
 });
 
 test("a launch link remains pending until the first loading folder has been listed", async () => {
