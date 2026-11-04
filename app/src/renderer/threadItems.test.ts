@@ -242,6 +242,35 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
     expect(steps("Waiting for mcp.example.com and Notion")).toEqual(["Notion wasn’t ready, so this turn started without it."]);
   });
 
+  // BU review R3-Y1 (.scratch/review-bu/round3-truncation.test.ts): main bounds both lines at 512 characters, cutting the
+  // server list; the cut item still matches the server it begins, every complete item must match exactly.
+  const longHosts = (letters: string[]) => letters.map(c => `${c.repeat(60)}.${c.repeat(60)}.${c.repeat(60)}.example.com`);
+  const bounded = (hosts: string[], offset = 0) => {
+    const names = hosts.map((_, i) => `doan-${i + offset}`);
+    const labels = Object.fromEntries(hosts.map((host, i) => { const url = `https://${host}/mcp`; expect(parseConnectorUrl(url).ok).toBe(true); return [names[i], connectorLabel({ name: names[i]!, url })]; }));
+    return { names, labels };
+  };
+  test("long server lists that main cut at its bound still fold for the same servers", () => {
+    const { names, labels } = bounded(longHosts(["a", "b", "c"]));
+    const lines = [waitingLine(names, labels), notReadyLine(names, labels)];
+    expect(lines.map(line => line.length)).toEqual([512, 512]);
+    seq = 0;
+    const steps = (threadItems([...turn("t1"), ...lines.map(waiting)], ROOT, true)[1] as { steps: { verb: string; sentence?: true }[] }).steps;
+    expect(steps.map(step => [step.verb, step.sentence])).toEqual([[lines[1], true]]);
+  });
+
+  test("a cut list for other servers, or whose cut item begins no waited-for server, does not fold", () => {
+    const waited = bounded(longHosts(["a", "b", "c"])), other = bounded(longHosts(["d", "e", "f"]), 3);
+    const fold = (lines: string[]) => { seq = 0; return (threadItems([...turn("t1"), ...lines.map(waiting)], ROOT, true)[1] as { steps: unknown[] }).steps.length; };
+    expect(fold([waitingLine(waited.names, waited.labels), notReadyLine(other.names, other.labels)])).toBe(2);
+    // The same first two servers, then a different third that main cut: the cut item matches nothing waited for.
+    const mixed = bounded([...longHosts(["a", "b"]), ...longHosts(["z"])], 0);
+    expect(notReadyLine(mixed.names, mixed.labels).length).toBe(512);
+    expect(fold([waitingLine(waited.names, waited.labels), notReadyLine(mixed.names, mixed.labels)])).toBe(2);
+    // A short Waiting line is complete: a not-ready line cut inside a server it never named does not fold.
+    expect(fold([waitingLine(waited.names.slice(0, 2), waited.labels), notReadyLine(waited.names, waited.labels)])).toBe(2);
+  });
+
   // BU review R2-Y2 (.scratch/review-bu/round2-host.test.ts): servers are named by main's label contract, so every URL
   // Doan accepts folds its own startup lines, written by main's own functions.
   test.each(["https://localhost/mcp", "https://[2001:db8::1]/mcp", "https://mcp.example.com./mcp", "https://mcp.example.com:8443/mcp", "https://intranet/mcp"])("a server added as %s folds its own lines", url => {
