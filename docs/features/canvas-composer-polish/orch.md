@@ -55,3 +55,4 @@
 - PRE 배선 1부 완료(`34921939` test, `165d286d` feat; 7115 통과). 통합: HEAD `cb402168`. `"end"` 모드는 App.tsx 호출이 남아 2부로 넘겼다. PRE 배선 2부 `ctx_c3c9dbb972d6`: press 신호 배선, 캔버스로 가는 포커스, command reply 제외, `"end"` 정리, docked probe.
 - SEND Overview 배선 완료(`934c3556` test, `afa35535` feat; 7130 통과). 통합했다. SEND 배치는 C2만 남았다.
 - SYNC(C1) `/design-sync`를 PRE 배선 2부와 병렬로 시작한다(Opus medium). 파일 소유가 겹치지 않고, GUI probe는 둘 다 격리된 앱이라 서로의 상태를 건드리지 않는다.
+- PRE 배선 2부 완료(`58bb4df2` test, `09920aff` feat; typecheck·7167·build 통과). docked probe(격리 앱, 합성 클릭용 커서 패치): 두 목록 모두 선택·빈 보드·⌥·오른쪽·Ctrl·픽 중 클릭에 닫히고 포커스가 body로 가지 않는다. press 없는 command reply는 닫지 않는다(에뮬레이션, unit 고정). 지휘자 판단: (1) Presets를 연 채 픽 중 프레임을 누르면 칩은 들어가지만 포커스가 캔버스 영역으로 갔다 — spec 3대로 칩이 들어가면 항상 필드로 가게 고친다(수정 요청). (2) `/` 목록에서 오른쪽·Ctrl 누름은 목록을 닫고 포커스를 필드에 둔다 — 그 누름은 원래 포커스를 옮기지 않으므로 받아들이고 한계로 적는다.
