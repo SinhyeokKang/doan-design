@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FolderEntry } from "../main/view";
-import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectsTab, projectExpanded, projectHue, projectInitial, reconcileProjects, selectProjectRoot } from "./shellNavigation";
+import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectsTab, projectExpanded, projectHue, projectInitial, reconcileProjects, selectProjectRoot, shownFolders } from "./shellNavigation";
 import { parseUiState } from "../restore/uiState";
 
 describe("shell navigation", () => {
@@ -137,5 +137,20 @@ describe("fallbackWorktree", () => {
     expect(fallbackWorktree([b], "/w/gone", null, P)).toEqual({ root: "/w/b", canvas: P });
     expect(fallbackWorktree([gone], "/w/gone", null, P)).toBeNull();
     expect(fallbackWorktree([], "/w/gone", "/w/b", P)).toBeNull();
+  });
+});
+
+// terminal-work-worktrees design §3.3: an auto-registered worktree shows only while it is a list; a hand-added one keeps
+// its problem rows.
+describe("shownFolders", () => {
+  const git = { common: "/repo/.git", main: "/w/main", worktrees: ["/w/main", "/w/auto"] };
+  const main: FolderEntry = { path: "/w/main", kind: "list", servedRev: 0, git, canvases: [] };
+  it("drops an auto-registered row that is not a list, whatever its state, and keeps the order of the rest", () => {
+    const auto = (entry: FolderEntry): FolderEntry => ({ ...entry, autoRegistered: true });
+    const listed = auto({ path: "/w/auto", kind: "list", servedRev: 0, git, canvases: [] });
+    const hidden = [auto({ path: "/w/l", kind: "loading" }), auto({ path: "/w/u", kind: "uninitialized" }), auto({ path: "/w/e", kind: "error", message: "bad" }),
+      auto({ path: "/w/c", kind: "cliError", reason: "x" }), auto({ path: "/w/n", kind: "notFound" })];
+    const hand: FolderEntry[] = [{ path: "/w/hu", kind: "uninitialized" }, { path: "/w/hn", kind: "notFound" }, { path: "/w/hl", kind: "loading" }];
+    expect(shownFolders([hidden[0]!, main, ...hidden.slice(1), hand[0]!, listed, ...hand.slice(1)])).toEqual([main, hand[0], listed, ...hand.slice(1)]);
   });
 });
