@@ -550,6 +550,10 @@ export class McpService implements McpConversationFacts {
   }
 
   private async read(provider: McpProvider, owner: Owner): Promise<void> {
+    // A Connect, Disconnect or Remove that succeeds meanwhile records what it established; a read that began before it
+    // may have run its commands before the change, so its result is dropped and the read that end() asked for (again)
+    // reads afresh (BU review Y2).
+    const started = this.generation(provider);
     this.changed();
     try {
       let lease: Lease;
@@ -562,7 +566,7 @@ export class McpService implements McpConversationFacts {
           const read = await this.codexRead(owner, lease);
           for (const name of names) outcomes.set(name, read(name));
         } else await Promise.all(names.map(async name => { outcomes.set(name, await this.claudeGet(owner, lease, name)); }));
-        if (owner.stopped || this.closed) return;
+        if (owner.stopped || this.closed || this.generation(provider) !== started) return;
         this.checks.set(provider, outcomes);
       } finally { await lease.release(); }
     } finally {
