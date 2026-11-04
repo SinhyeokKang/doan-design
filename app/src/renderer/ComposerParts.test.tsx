@@ -1,9 +1,27 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test } from "vitest";
-import { PermissionPicker, presetBody, SlashPresets } from "./ComposerParts";
+import { expect, test, vi } from "vitest";
+import { PermissionPicker, presetBody, PresetsButton, SlashPresets } from "./ComposerParts";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { permissionPickerView } from "./permissionPicker";
+
+// Hooks run as plain state only while `on`, so a component can be called directly and its handlers driven; markup tests
+// keep React's own hooks.
+const hooks = vi.hoisted(() => ({ on: false, states: [] as unknown[], refs: [] as { current: unknown }[], cursor: 0, refCursor: 0, effects: [] as (() => unknown)[] }));
+vi.mock("react", async original => {
+  const react = await original<typeof import("react")>();
+  return {
+    ...react,
+    useEffect: (effect: () => unknown, deps?: unknown[]) => hooks.on ? void hooks.effects.push(effect) : react.useEffect(effect as () => void, deps),
+    useRef: (value: unknown) => { if (!hooks.on) return react.useRef(value); const index = hooks.refCursor++; if (!(index in hooks.refs)) hooks.refs[index] = { current: value }; return hooks.refs[index]; },
+    useState: (value: unknown) => {
+      if (!hooks.on) return react.useState(value);
+      const index = hooks.cursor++;
+      if (!(index in hooks.states)) hooks.states[index] = typeof value === "function" ? (value as () => unknown)() : value;
+      return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === "function" ? (next as (v: unknown) => unknown)(hooks.states[index]) : next; }];
+    },
+  };
+});
 
 // Dogfooding: a preset row showed its title and group; it now reads as a card, the title over its one-line description.
 test("a preset row is its title over its description", () => {
@@ -71,4 +89,54 @@ test("a popover preset row takes focus from the pointer only when focus is alrea
   node2.ownerDocument.activeElement = node2;
   move({ currentTarget: node2 });
   expect(focused).toHaveLength(1);
+});
+
+// Every element's props in a tree drawn without React, keeping each element's type beside its props.
+function propsOf(node: ReactNode, found: { type: unknown; props: Record<string, unknown> }[] = []) {
+  if (Array.isArray(node)) node.forEach(child => propsOf(child, found));
+  else if (isValidElement<Record<string, unknown>>(node)) { found.push({ type: node.type, props: node.props }); propsOf(node.props.children as ReactNode, found); }
+  return found;
+}
+
+// canvas-composer-polish design 1: a press in the canvas iframe never reaches the app's document, so the canvas's signal
+// closes the Presets popover. Radix returns focus to the trigger after a close it did not see as an outside press; the
+// press went to the canvas, so focus must stay there.
+test("the canvas's press signal closes an open Presets popover without returning focus to the Presets button", () => {
+  hooks.on = true; hooks.states = []; hooks.refs = []; hooks.effects = [];
+  try {
+    const listeners = new Set<() => void>();
+    const canvasPress = vi.fn((listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; });
+    const picked = vi.fn();
+    const draw = () => {
+      hooks.cursor = 0; hooks.refCursor = 0; hooks.effects = [];
+      const tree = propsOf(PresetsButton({ reply: undefined, project: "p", suggested: [], listId: "l", disabled: false, onOpen: () => {}, onChoose: () => {}, onRetry: () => {}, onPicked: picked, canvasPress }));
+      return { root: tree[0]!.props, content: tree.find(item => typeof item.props.onCloseAutoFocus === "function")!.props };
+    };
+    const runEffects = () => hooks.effects.map(effect => effect()).filter((cleanup): cleanup is () => void => typeof cleanup === "function");
+
+    // Closed: nothing listens to the canvas.
+    draw(); let cleanups = runEffects();
+    expect(listeners.size).toBe(0);
+    cleanups.forEach(cleanup => cleanup());
+
+    (draw().root.onOpenChange as (open: boolean) => void)(true);
+    draw(); cleanups = runEffects();
+    expect(listeners.size).toBe(1);
+    for (const listener of [...listeners]) listener();
+    const { root, content } = draw();
+    expect(root.open).toBe(false);
+    cleanups.forEach(cleanup => cleanup());
+    expect(listeners.size).toBe(0);
+    const autoFocus = { preventDefault: vi.fn() };
+    (content.onCloseAutoFocus as (event: unknown) => void)(autoFocus);
+    expect(autoFocus.preventDefault).toHaveBeenCalled();
+    expect(picked).not.toHaveBeenCalled();
+
+    // A later close Radix makes itself (Escape) returns focus as before.
+    (draw().root.onOpenChange as (open: boolean) => void)(true);
+    (draw().root.onOpenChange as (open: boolean) => void)(false);
+    const escape = { preventDefault: vi.fn() };
+    (draw().content.onCloseAutoFocus as (event: unknown) => void)(escape);
+    expect(escape.preventDefault).not.toHaveBeenCalled();
+  } finally { hooks.on = false; }
 });
