@@ -67,7 +67,7 @@ export async function claudeOccupancy(config: string, sessionId: string, inspect
     const names = readdirSync(directory); if (names.length > 4096) return "unknown";
     let occupied = false;
     for (const name of names) {
-      // 2.1.312 keeps a per-process <pid>.<sha256>.key beside each record; it is not a registry record and is never read.
+      // Claude Code 2.1.312 keeps a per-process <pid>.<sha256>.key beside each record; it is not a registry record and is never read.
       if (/^[1-9][0-9]*\.[0-9a-f]{64}\.key$/.test(name)) continue;
       if (!/^[1-9][0-9]*\.json$/.test(name)) return "unknown";
       const raw: unknown = JSON.parse(readRegular(join(directory, name), 65536));
@@ -113,7 +113,7 @@ function parseHolders(stdout: string): FileHolder[] | null {
   if (!holders.length || holders.some(h => !h.pid || h.pgid === undefined || h.ppid === undefined)) return null;
   return holders as FileHolder[];
 }
-// Codex (0.164.0 and later) admits one writer per thread through an exclusive flock on
+// Codex (0.158.0 and later) admits one writer per thread through an exclusive flock on
 // <CODEX_HOME>/thread-writer-locks/<id>.lock, the same lock thread/resume refuses on ("already has an active writer").
 // A plain `codex` TUI loads the thread in its managed app-server daemon, which keeps holding it for about a minute
 // after /exit. A clean exit deletes the file; a SIGKILL leaves it with nobody holding it, so the file alone is not
@@ -140,7 +140,7 @@ export async function codexOccupancy(config: string, threadId: string, inspect =
 }
 
 // The rollout header records the Codex version that created the session and is never rewritten: a resume appends
-// without touching the first session_meta, so a conversation started on 0.163.0 keeps that cli_version under 0.164.0.
+// without touching the first session_meta, so a conversation started on 0.158.0 keeps that cli_version under a newer Codex.
 // Any version at or above the minimum may have created one, so the header is checked against a fixed floor, never
 // against the installed version.
 export function codexSessionExists(config: string, id: string, cwd: string): boolean {
