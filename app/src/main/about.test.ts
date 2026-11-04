@@ -78,11 +78,11 @@ describe("aboutView", () => {
     ]);
   });
 
-  test("while reading, every value is Checking… and the descriptions stay", () => {
+  test("while reading, every value is Checking and the descriptions stay", () => {
     const view = aboutView(null);
-    expect(view.app.map(row => [row.label, row.value])).toEqual([["Version", "Checking…"], ["doan command", "Checking…"]]);
+    expect(view.app.map(row => [row.label, row.value])).toEqual([["Version", "Checking"], ["doan command", "Checking"]]);
     expect(view.tools.map(row => row.id)).toEqual(["claude", "codex", "cursor", "antigravity", "copilot"]);
-    for (const row of view.tools) expect(row).toMatchObject({ value: "Checking…", status: null, error: null });
+    for (const row of view.tools) expect(row).toMatchObject({ value: "Checking", status: null, error: null });
     expect(view.tools[1]?.description).toBe("Doan needs 0.164.0 or later.");
   });
 

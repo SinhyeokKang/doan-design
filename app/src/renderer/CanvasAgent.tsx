@@ -54,8 +54,8 @@ export function CanvasAgent({ list, canvas, running, work, entries, onOpen, onOp
         <span className="doan-agent-dot" data-steady={view.steady ? "" : undefined} aria-hidden="true" />
         <span className="doan-agent-text" role="status">{view.text}</span>
         {!action ? null : action.kind === "stop"
-          // aria-disabled, not disabled: "Stopping…" keeps focus (design §2 'Esc와 포커스').
-          // The composer's Stop glyph; "Stopping…" spins in its place.
+          // aria-disabled, not disabled: "Stopping" keeps focus (design §2 'Esc와 포커스').
+          // The composer's Stop glyph; "Stopping" spins in its place.
           ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>
             {action.disabled ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}{action.label}</button>
           : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={onOpen}>{action.label}</button>}

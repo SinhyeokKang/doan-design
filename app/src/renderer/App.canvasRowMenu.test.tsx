@@ -48,7 +48,7 @@ const harness = vi.hoisted(() => ({
 }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
 vi.mock("./agentSignIn", () => ({
-  agentSignIn: () => ({ onToast: (listener: typeof harness.signIn.onToast) => { harness.signIn.onToast = listener; return () => {}; }, windowFocused: harness.signIn.windowFocused }),
+  agentSignIn: () => ({ state: { auth: undefined }, subscribe: () => () => {}, onToast: (listener: typeof harness.signIn.onToast) => { harness.signIn.onToast = listener; return () => {}; }, windowFocused: harness.signIn.windowFocused }),
 }));
 vi.mock("./CanvasController", async original => ({
   ...await original<typeof import("./CanvasController")>(),
@@ -95,7 +95,7 @@ function reset() {
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
     readShellActivity: vi.fn(async () => []), setSelection: vi.fn(async () => {}), inspect: vi.fn(), openSettings: vi.fn(async () => true),
     markCanvasSeen: vi.fn(async () => {}),
-    onWorkChanged: on("work"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(() => { calls.push("getWork"); return new Promise(resolve => { getWork = resolve; }); }),
+    onWorkChanged: on("work"), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(() => { calls.push("getWork"); return new Promise(resolve => { getWork = resolve; }); }),
     onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => { calls.push("openLinksReady"); }), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
   };
   vi.stubGlobal("window", { doan, addEventListener: vi.fn(), removeEventListener: vi.fn() });
@@ -283,7 +283,7 @@ test("Export: the item is unavailable from main's running event to the reply, th
     vi.advanceTimersByTime(999);
     expect(harness.toast.show).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(harness.toast.show).toHaveBeenLastCalledWith("Exporting “a”…");
+    expect(harness.toast.show).toHaveBeenLastCalledWith("Exporting “a”");
     // A second request main refuses while this one runs leaves it as it is.
     const second = deferred<unknown>();
     doan.exportCanvas = vi.fn(() => second.promise);

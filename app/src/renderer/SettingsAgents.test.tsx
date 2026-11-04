@@ -259,6 +259,8 @@ test("a stop_required refusal opens the stop dialog and locks the page until it 
   render();
   expect(props.onLock).toHaveBeenLastCalledWith(true);
   const dialog = all(tree).find(element => element.type === StopDialog)!;
+  // mcp-connectors spec 8: signing out also drops the agent's MCP connections.
+  expect((dialog.props.view as { body: string }).body).toBe("Claude Code is running a conversation. Signing out stops it. Your conversation history stays. Its MCP connectors need connecting again.");
   (dialog.props.close as () => void)();
   render();
   expect(props.onLock).toHaveBeenLastCalledWith(false);

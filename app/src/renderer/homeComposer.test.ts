@@ -160,7 +160,7 @@ test("an unverified agent after a restart can be sent with", () => {
 
 test("attachments being checked, and one that moved, block Send", () => {
   expect(sendAvailability(base({ attachments: [attachment("notes.md", { status: "checking" })] })))
-    .toEqual({ enabled: false, reason: { kind: "checking", text: "Checking attachments…" } });
+    .toEqual({ enabled: false, reason: { kind: "checking", text: "Checking attachments" } });
   expect(sendAvailability(base({ attachments: [attachment("brand-guidelines.pdf", { status: "missing" })] })))
     .toEqual({ enabled: false, reason: { kind: "attachmentMissing", text: "brand-guidelines.pdf was moved or deleted. Remove it, or attach it again." } });
 });
@@ -578,7 +578,7 @@ test("chips show type and size, a checking state, a pasted image and a moved fil
   expect(attachmentChipView(attachment("brand-guidelines.pdf", { size: 1.2 * 1024 * 1024 }), home).meta).toBe("PDF · 1.2 MB");
   expect(attachmentChipView(attachment("tiny.txt", { size: 900 }), home).meta).toBe("TXT · 900 B");
   expect(attachmentChipView(attachment("Makefile", { size: 2048 }), home).meta).toBe("2 KB");
-  expect(attachmentChipView((({ size: _size, ...rest }) => rest)(attachment("research-notes.md", { status: "checking" })), home)).toMatchObject({ meta: "Checking…", thumbnail: false, problem: false });
+  expect(attachmentChipView((({ size: _size, ...rest }) => rest)(attachment("research-notes.md", { status: "checking" })), home)).toMatchObject({ meta: "Checking", thumbnail: false, problem: false });
   expect(attachmentChipView(attachment("ignored.png", { kind: "image", pasted: true, size: 2.4 * 1024 * 1024, path: "/Users/ada/Library/doan/attachments/a1/pasted-1.png" }), home))
     .toMatchObject({ label: "Pasted image", meta: "PNG · 2.4 MB", removeLabel: "Remove pasted image", thumbnail: true });
   expect(attachmentChipView(attachment("brand-guidelines.pdf", { status: "missing" }), home))

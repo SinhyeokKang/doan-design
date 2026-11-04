@@ -1,7 +1,7 @@
 import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
-import { createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
+import { connectorFacts, createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
 import { listModels, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
 import { AttachmentStore, type AttachmentResult } from "./attachments";
@@ -44,6 +44,11 @@ import { createCanvasTrash, TRASH_REFUSED, trashBusy } from "./canvasTrash";
 import { createConfigBridge, type ConfigBridge } from "./configBridge";
 import { aboutCli, aboutText, aboutTool, type AboutRead } from "./about";
 import { PROVIDERS } from "./agentAuth/types";
+import { MCP_CHANNELS, McpIpc } from "./mcpConnectors/ipc";
+import { MCP_PROVIDERS } from "./mcpConnectors/presets";
+import { ptySpawner } from "./mcpConnectors/pty";
+import { McpService } from "./mcpConnectors/service";
+import { ConnectorStore } from "./mcpConnectors/store";
 import type { NotificationTarget } from "./notifications";
 import { conversationNames, createNotifyService } from "./notifyService";
 import { createPreferencesStore } from "./preferences";
@@ -174,6 +179,7 @@ app.on("did-become-active", () => {
 let conversations: ConversationService | undefined;
 let agentAuth: AuthManager | undefined;
 let authIpc: AuthIpc | undefined;
+let mcp: McpService | undefined;
 let onboarding: OnboardingService | undefined;
 let addPage: AddPageSession | undefined;
 // The socket may take a v2 request before start() has the service and the main window that owns CLI sign-ins.
@@ -704,7 +710,11 @@ async function start(): Promise<void> {
   removeStaleLinkDirs();
   const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
-    onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); }, stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve() });
+    onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
+    stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve(),
+    // Every sign-in or sign-out write first stops the provider's MCP connector work, lease or not.
+    stopMcp: provider => mcp?.stopProvider(provider) ?? Promise.resolve(),
+    mcpLogout: (provider, request) => mcp ? mcp.logoutForAuth(provider, request) : Promise.resolve({ failed: [] }) });
   // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }
   const executable = (path: string) => { try { accessSync(path, fsConstants.X_OK); return statSync(path).isFile(); } catch { return false; } };
@@ -724,10 +734,30 @@ async function start(): Promise<void> {
     authIpc = new AuthIpc({
       backend: agentAuth, openExternal: url => electronShell.openExternal(url),
       probe: provider => toolFacts(provider, { shell: shellForFacts, run: runProcess, executable, inherited: process.env, cli }),
-      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); },
+      // MCP Connectors follows every auth change: readiness, a new verified connection (pending logouts, reconcile and
+      // status reads) or a lost one.
+      publish: snapshot => { send(AUTH_CHANNELS.changed, snapshot); onboarding?.authChanged(snapshot); for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider); },
       prompt: (owner, event) => { if (win && !win.isDestroyed() && win.webContents.id === owner) send(AUTH_CHANNELS.prompt, event); },
     });
   }
+  // MCP Connectors (mcp-connectors): provider CLIs register, sign in and keep the tokens in the Doan profiles; Doan
+  // keeps the server list. It needs agent sign-in storage: without it every MCP call is refused like a forged one.
+  if (agentAuth) {
+    const auth = agentAuth;
+    mcp = new McpService({
+      store: new ConnectorStore(userData), auth,
+      readiness: provider => authIpc?.latest().providers.find(status => status.provider === provider)?.readiness ?? { ready: false, cause: "not_connected", action: "signIn" },
+      spawn: spawnAuthProcess, spawnPty: ptySpawner({ packaged: app.isPackaged }),
+      openExternal: url => electronShell.openExternal(url),
+      publish: snapshot => send(MCP_CHANNELS.changed, snapshot),
+    });
+  }
+  const mcpIpc = mcp ? new McpIpc(mcp) : null;
+  for (const channel of [MCP_CHANNELS.list, MCP_CHANNELS.add, MCP_CHANNELS.connect, MCP_CHANNELS.disconnect, MCP_CHANNELS.remove, MCP_CHANNELS.cancel, MCP_CHANNELS.openLink]) {
+    const refused = channel === MCP_CHANNELS.list ? null : { ok: false, reason: "invalid" };
+    handle(channel, refused, (_event, value) => mcpIpc ? mcpIpc.handle(channel, value) : refused);
+  }
+  for (const provider of MCP_PROVIDERS) mcp?.authChanged(provider);
   // Without readable account storage every auth call is refused like a forged one; reads answer null.
   for (const channel of [AUTH_CHANNELS.read, AUTH_CHANNELS.check, AUTH_CHANNELS.signIn, AUTH_CHANNELS.cancel, AUTH_CHANNELS.submitCode, AUTH_CHANNELS.openLink, AUTH_CHANNELS.signOut]) {
     const refused = channel === AUTH_CHANNELS.read ? null : { ok: false, reason: "invalid" };
@@ -804,7 +834,8 @@ async function start(): Promise<void> {
     });
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
-  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc);
+  // Runs read the MCP connectors' generation and names when they ask (mcp-connectors C1/C2).
+  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp));
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
     (request, stored, use) => agentAuth ? accountPrepare(request, stored, use) : Promise.reject(new Error("not_logged_in")));
@@ -1111,6 +1142,8 @@ app.on("before-quit", (event) => {
       console.error("doan: conversation persistence failed during quit", error);
       return;
     }
+    // MCP connector attempts are cancelled and write no result; their leases go before agent sign-in quits.
+    await mcp?.quit();
     // After conversations: their runs hold auth leases whose working credentials are written back here.
     await agentAuth?.quit();
     // Each adder owns only its clones; stopping them removes their temporary directories.

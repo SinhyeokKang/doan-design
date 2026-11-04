@@ -22,7 +22,9 @@ describe("provider auth adapters", () => {
     }
   });
   it("forces Codex onto the OS keyring and Cursor onto its official file store", () => {
-    expect(PROVIDER_AUTH.codex.args).toEqual(["-c", 'cli_auth_credentials_store="keyring"']);
+    // Every Codex process gets both, conversation app-servers included: a token refresh during a conversation also
+    // stores MCP OAuth tokens, and "auto" could silently write a file (mcp-connectors design 'providers').
+    expect(PROVIDER_AUTH.codex.args).toEqual(["-c", 'cli_auth_credentials_store="keyring"', "-c", 'mcp_oauth_credentials_store="keyring"']);
     expect(PROVIDER_AUTH.codex.plaintext).toEqual(["auth.json"]);
     expect(PROVIDER_AUTH.cursor.env).toEqual({ AGENT_CLI_CREDENTIAL_STORE: "file" });
   });

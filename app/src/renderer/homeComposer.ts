@@ -112,7 +112,7 @@ export function draftProblem(draft: string | readonly FieldSegment[], preset: Pr
   // checked, piece by piece between chips: braces typed on both sides of a chip are not one marker.
   if (preset) typed.push(composeRequest("", preset, 0));
   if (typed.some(piece => piece.includes("{{") || piece.includes("}}"))) return { kind: "anchorMarkers", text: "Remove {{ and }} from the message to send it." };
-  if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments…" };
+  if (attachments.some(a => a.status === "checking")) return { kind: "checking", text: "Checking attachments" };
   const moved = attachments.find(a => a.status === "missing");
   return moved ? { kind: "attachmentMissing", text: movedNotice(moved) } : null;
 }
@@ -491,7 +491,7 @@ export function attachmentChipView(a: AttachmentDraft, home: string | null): Att
   const dot = a.name.lastIndexOf(".");
   // Pasted images are always re-encoded to PNG by main.
   const type = a.pasted ? "PNG" : dot > 0 ? a.name.slice(dot + 1).toUpperCase() : null;
-  const meta = a.status === "checking" ? "Checking…" : a.status === "missing" ? "Moved or deleted" : [type, a.size === undefined ? null : formatSize(a.size)].filter(Boolean).join(" · ");
+  const meta = a.status === "checking" ? "Checking" : a.status === "missing" ? "Moved or deleted" : [type, a.size === undefined ? null : formatSize(a.size)].filter(Boolean).join(" · ");
   return {
     label, meta, tooltip: a.path === undefined ? null : displayPath(a.path, home),
     removeLabel: a.pasted ? "Remove pasted image" : `Remove ${a.name}`,

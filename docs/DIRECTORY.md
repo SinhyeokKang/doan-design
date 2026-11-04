@@ -39,10 +39,11 @@ Where things live, one entry per directory. File-level detail is in the code; ru
   - `agentSetup/`: launch-time agent setup for sessions outside Doan.
   - `comments/`: canvas document evidence and the shared object guard.
   - `conversation/`: the agent conversation backend (runners, admission, store, IPC) and its protocol `fixtures/`.
+  - `mcpConnectors/`: MCP connectors for Claude Code and Codex — the server list and pending-logout files, the provider MCP commands (Claude's sign-in in a pty), status and logout rules, the Codex startup and approval rules, IPC, and provider-output `fixtures/`.
   - `onboarding/`: first run and the session shared with the Add Projects page, clone, the skill stub `SKILL.md`.
   - `serve/`: the local canvas server.
 - `app/src/preload/`: the `window.doan` API.
-- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, Doany).
+- `app/src/renderer/`: the React renderer (`main.ts` is the entry, `App.tsx` the root) — screens, the canvas controller, the conversation UI, pure view rules with their tests; `ds/` the design-system CSS and checks, `components/ui/` shadcn components, `public/` static assets (fonts, provider marks, MCP preset marks, Doany).
 - `app/src/formats/`, `app/src/restore/`, `app/src/comments/`: pure modules shared by main and renderer (TypeScript format validation and folding, UI-state restore planning, comment projection used by eval H6/H7).
 - `app/src/brand/`: test-only product-name checks (Go counterpart in `cli/internal/cli/brand_test.go`).
 - `app/runtime/`: reusable support for focused real-Electron probes (isolation, cleanup, real-state fingerprints, native helpers), with Node tests in the shared gate.

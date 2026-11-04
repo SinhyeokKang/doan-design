@@ -57,9 +57,11 @@ function ActionButton<C extends string>({ button, run, data }: { button: Button<
 
 // A notice takes the white panel surface only where the backdrop is first run's transparent overlay; on a white surface
 // (a card, the provider list, Settings) the panel fill would vanish, so it keeps the inset notice.
-export function NoticeView({ notice, run, panel = false }: { notice: Notice; run: (command: AuthCommand) => void; panel?: boolean }) {
+// live: false keeps the notice's look without its live role, for a page whose one live region announces changes
+// (Settings > MCP Connectors, mcp-connectors spec 2).
+export function NoticeView<C extends string = AuthCommand>({ notice, run, panel = false, live = true }: { notice: Notice<C>; run: (command: C) => void; panel?: boolean; live?: boolean }) {
   return <>
-    <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}`} role={notice.role} tabIndex={-1}>
+    <div className={`doan-notice${notice.role === "alert" ? " error" : ""}${panel ? " doan-panel" : ""}`} role={live ? notice.role : undefined} tabIndex={-1}>
       {notice.spinner ? <span className="doan-spinner doan-alert-icon" aria-hidden="true" /> : <AlertIcon />}
       <span>{notice.title && <strong className="ob-notice-title">{notice.title}</strong>}{notice.body && <span className="ob-notice-body">{notice.body}</span>}</span>
     </div>
@@ -91,14 +93,14 @@ export function AgentFooter({ canContinue, busy, back, next, continueRef }: { ca
 }
 
 // Escape answers the open child dialog only; the onboarding window behind it stays.
-function dialogKeys(close: () => void) {
+export function dialogKeys(close: () => void) {
   return (event: { key: string; nativeEvent: { isComposing: boolean }; preventDefault(): void; stopPropagation(): void }) => {
     if (event.key !== "Escape") return;
     event.preventDefault(); event.stopPropagation();
     if (!event.nativeEvent.isComposing) close();
   };
 }
-const openModal = (node: HTMLDialogElement | null) => { if (node && !node.open) node.showModal(); };
+export const openModal = (node: HTMLDialogElement | null) => { if (node && !node.open) node.showModal(); };
 // showModal() focuses the dialog's first control, Doany on Welcome, and the scene effect reaches the heading only a
 // frame later; focusing the heading in the same task leaves no frame in which Doany's focus ring can paint.
 export function openOverlay(node: Pick<HTMLDialogElement, "open" | "showModal"> | null, heading: { focus(): void } | null) {

@@ -2,6 +2,9 @@ import { describe, expect, test } from "vitest";
 import type { ConversationEvent } from "../main/conversation/types";
 import { anchorParts, rootRelative, scrollFollow, threadItems } from "./threadItems";
 import { splitRequest } from "./homeComposer";
+import { notReadyLine, waitingLine } from "../main/conversation/mcpStartup";
+import { parseConnectorUrl } from "../main/mcpConnectors/names";
+import { connectorLabel } from "../main/mcpConnectors/presets";
 
 const ROOT = "/Users/ada/code/doan";
 let seq = 0;
@@ -190,5 +193,101 @@ describe("threadItems with a message pushed into a running turn (queue-send-now)
     seq = 0;
     const events = [...turn("t1", "first"), ev("t1", { type: "message.done", messageId: "m1", text: "Working" }), ev("t1", { type: "user.message", text: "pushed in", anchors: [] }), ev("t1", { type: "message.done", messageId: "m2", text: "Adjusted." }), ev("t1", { type: "turn.done" })];
     expect(threadItems(events, ROOT, true).map(i => i.kind)).toEqual(["user", "agent", "user", "agent"]);
+  });
+});
+
+// mcp-connectors spec 6 and draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
+// activities (history is append-only, mcpStartup.ts), and the thread shows one step that changed its text.
+describe("threadItems with a Codex MCP server that was not ready", () => {
+  const waiting = (text: string) => ev("t1", { type: "activity", kind: "other", summary: text });
+
+  test("while the turn waits, the running head is the Waiting line, as a sentence step", () => {
+    seq = 0;
+    const items = threadItems([...turn("t1"), waiting("Waiting for Notion")], ROOT, true);
+    expect(items[1]).toEqual({ kind: "activity", key: "a3", running: true, head: "Waiting for Notion", steps: [{ key: "s3", kind: "other", verb: "Waiting for Notion", path: null, sentence: true }] });
+  });
+
+  test("the not-ready line replaces its Waiting line: one step with the second text", () => {
+    seq = 0;
+    const events = [...turn("t1"), waiting("Waiting for Notion"), waiting("Notion wasn’t ready, so this turn started without it."),
+      ev("t1", { type: "message.done", messageId: "m1", text: "I couldn’t reach Notion." }), ev("t1", { type: "turn.done" })];
+    const items = threadItems(events, ROOT, true);
+    expect(items[1]).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step",
+      steps: [{ key: "s4", kind: "other", verb: "Notion wasn’t ready, so this turn started without it.", path: null, sentence: true }] });
+  });
+
+  test("the plural lines fold the same way, also when fewer servers were not ready than were waited for", () => {
+    seq = 0;
+    const plural = threadItems([...turn("t1"), waiting("Waiting for Notion and Figma"), waiting("Notion and Figma weren’t ready, so this turn started without them.")], ROOT, true);
+    expect(plural[1]).toMatchObject({ running: true, head: "Notion and Figma weren’t ready, so this turn started without them.", steps: [{ verb: "Notion and Figma weren’t ready, so this turn started without them." }] });
+    seq = 0;
+    const fewer = threadItems([...turn("t1"), waiting("Waiting for Notion, Atlassian and Figma"), waiting("Figma wasn’t ready, so this turn started without it.")], ROOT, true);
+    expect((fewer[1] as { steps: unknown[] }).steps).toHaveLength(1);
+  });
+
+  test("a Waiting line whose servers became ready stays a step; an agent's own 'other' activity is not folded or wrapped", () => {
+    seq = 0;
+    const events = [...turn("t1"), waiting("Waiting for Notion"), ev("t1", { type: "activity", kind: "read", path: `${ROOT}/a.html`, summary: "Read" }),
+      waiting("Waiting for the review"), waiting("Searching the web")];
+    const items = threadItems(events, ROOT, true);
+    expect((items[1] as { steps: { verb: string; sentence?: true }[] }).steps.map(step => [step.verb, step.sentence ?? false])).toEqual([
+      ["Waiting for Notion", true], ["Read", false], ["Waiting for the review", false], ["Searching the web", false]]);
+  });
+
+  // BU review Y7 (.scratch/review-bu/fold.test.ts): only the Waiting line for the same MCP servers is replaced.
+  test("an unrelated Waiting line and a Waiting line for other servers stay beside the not-ready line", () => {
+    const steps = (first: string) => { seq = 0; return (threadItems([...turn("t1"), waiting(first), waiting("Notion wasn’t ready, so this turn started without it.")], ROOT, true)[1] as { steps: { verb: string }[] }).steps.map(step => step.verb); };
+    expect(steps("Waiting for review")).toEqual(["Waiting for review", "Notion wasn’t ready, so this turn started without it."]);
+    expect(steps("Waiting for Figma")).toEqual(["Waiting for Figma", "Notion wasn’t ready, so this turn started without it."]);
+    expect(steps("Waiting for mcp.example.com and Notion")).toEqual(["Notion wasn’t ready, so this turn started without it."]);
+  });
+
+  // BU review R3-Y1 (.scratch/review-bu/round3-truncation.test.ts): main bounds both lines at 512 characters, cutting the
+  // server list; the cut item still matches the server it begins, every complete item must match exactly.
+  const longHosts = (letters: string[]) => letters.map(c => `${c.repeat(60)}.${c.repeat(60)}.${c.repeat(60)}.example.com`);
+  const bounded = (hosts: string[], offset = 0) => {
+    const names = hosts.map((_, i) => `doan-${i + offset}`);
+    const labels = Object.fromEntries(hosts.map((host, i) => { const url = `https://${host}/mcp`; expect(parseConnectorUrl(url).ok).toBe(true); return [names[i], connectorLabel({ name: names[i]!, url })]; }));
+    return { names, labels };
+  };
+  test("long server lists that main cut at its bound still fold for the same servers", () => {
+    const { names, labels } = bounded(longHosts(["a", "b", "c"]));
+    const lines = [waitingLine(names, labels), notReadyLine(names, labels)];
+    expect(lines.map(line => line.length)).toEqual([512, 512]);
+    seq = 0;
+    const steps = (threadItems([...turn("t1"), ...lines.map(waiting)], ROOT, true)[1] as { steps: { verb: string; sentence?: true }[] }).steps;
+    expect(steps.map(step => [step.verb, step.sentence])).toEqual([[lines[1], true]]);
+  });
+
+  test("a cut list for other servers, or whose cut item begins no waited-for server, does not fold", () => {
+    const waited = bounded(longHosts(["a", "b", "c"])), other = bounded(longHosts(["d", "e", "f"]), 3);
+    const fold = (lines: string[]) => { seq = 0; return (threadItems([...turn("t1"), ...lines.map(waiting)], ROOT, true)[1] as { steps: unknown[] }).steps.length; };
+    expect(fold([waitingLine(waited.names, waited.labels), notReadyLine(other.names, other.labels)])).toBe(2);
+    // The same first two servers, then a different third that main cut: the cut item matches nothing waited for.
+    const mixed = bounded([...longHosts(["a", "b"]), ...longHosts(["z"])], 0);
+    expect(notReadyLine(mixed.names, mixed.labels).length).toBe(512);
+    expect(fold([waitingLine(waited.names, waited.labels), notReadyLine(mixed.names, mixed.labels)])).toBe(2);
+    // A short Waiting line is complete: a not-ready line cut inside a server it never named does not fold.
+    expect(fold([waitingLine(waited.names.slice(0, 2), waited.labels), notReadyLine(waited.names, waited.labels)])).toBe(2);
+    // An agent's own Waiting line of the same length is no startup line.
+    seq = 0;
+    const own = `Waiting for ${"the review of the checkout flow ".repeat(20)}`.slice(0, 512);
+    expect((threadItems([...turn("t1"), waiting(own)], ROOT, true)[1] as { steps: { sentence?: true }[] }).steps[0]!.sentence).toBeUndefined();
+  });
+
+  // BU review R2-Y2 (.scratch/review-bu/round2-host.test.ts): servers are named by main's label contract, so every URL
+  // Doan accepts folds its own startup lines, written by main's own functions.
+  test.each(["https://localhost/mcp", "https://[2001:db8::1]/mcp", "https://mcp.example.com./mcp", "https://mcp.example.com:8443/mcp", "https://intranet/mcp"])("a server added as %s folds its own lines", url => {
+    expect(parseConnectorUrl(url).ok).toBe(true);
+    const labels = { "doan-x": connectorLabel({ name: "doan-x", url }), "doan-notion": "Notion" };
+    seq = 0;
+    const steps = (lines: string[]) => (threadItems([...turn("t1"), ...lines.map(waiting)], ROOT, true)[1] as { steps: { verb: string; sentence?: true }[] }).steps;
+    const folded = steps([waitingLine(["doan-x"], labels), notReadyLine(["doan-x"], labels)]);
+    expect(folded.map(step => [step.verb, step.sentence])).toEqual([[notReadyLine(["doan-x"], labels), true]]);
+    seq = 0;
+    expect(steps([waitingLine(["doan-x", "doan-notion"], labels), notReadyLine(["doan-x"], labels)])).toHaveLength(1);
+    // Another server's not-ready line still leaves this Waiting line alone.
+    seq = 0;
+    expect(steps([waitingLine(["doan-x"], labels), notReadyLine(["doan-notion"], labels)])).toHaveLength(2);
   });
 });

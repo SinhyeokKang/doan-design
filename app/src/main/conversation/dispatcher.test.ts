@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { CodexDispatcher, RpcError } from "./dispatcher";
+import elicitation from "./fixtures/codex-mcp-elicitation.json";
 import type { EventPayload, TransportState } from "./types";
 function harness() {
   const writes: unknown[] = [], events: EventPayload[] = []; const cleanup = vi.fn();
@@ -148,5 +149,84 @@ describe("Codex steer path", () => {
     const stopped = steering(); stopped.rpc.stop("user"); expect(stopped.rpc.running()).toBe(false);
     await expect(stopped.rpc.steer({}, "c1")).rejects.toThrow("not_running");
     expect([...h.writes, ...closed.writes, ...stopped.writes]).toEqual([]);
+  });
+});
+
+// mcp-connectors C2 (POSTMORTEM 2026-10-27 'Codex ingress confused unowned requests and notification errors'): every
+// MCP elicitation is answered exactly once with an explicit disposition, and none of them fails the turn.
+describe("Codex MCP elicitation wiring", () => {
+  const thread = elicitation.params.threadId, turn = elicitation.params.turnId;
+  function mcp() {
+    const writes: unknown[] = [], events: EventPayload[] = []; const cleanup = vi.fn();
+    const rpc = new CodexDispatcher(v => writes.push(v), v => events.push(v), cleanup);
+    rpc.begin({ root: "/repo", sessionId: thread, turnId: turn, labels: { "doan-echo-poc": "Echo" } });
+    return { rpc, writes, events, cleanup };
+  }
+  const withParams = (id: number | string, patch: Record<string, unknown>) => ({ ...elicitation, id, params: { ...elicitation.params, ...patch } });
+  const done = { method: "turn/completed", params: { threadId: thread, turn: { id: turn, status: "completed" } } };
+  it.each([
+    ["accept", { action: "accept", content: {} }],
+    ["decline", { action: "decline" }],
+    ["acceptForSession", { action: "accept", content: {}, _meta: { persist: "session" } }],
+  ])("asks with the connector's name and sends the answer for %s once", (option, result) => {
+    const h = mcp(); h.rpc.receive(elicitation);
+    expect(h.events).toEqual([expect.objectContaining({ type: "permission.request", requestId: "number:7", tool: "mcpToolCall", summary: "Run ping on Echo" })]);
+    expect(h.writes).toEqual([]);
+    expect(h.rpc.answer("number:7", option)).toBe(true);
+    expect(h.rpc.answer("number:7", option)).toBe(false);
+    expect(h.writes).toEqual([{ id: 7, result }]);
+    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "number:7", optionId: option });
+    h.rpc.receive(done); expect(h.events.at(-1)).toEqual({ type: "turn.done" }); expect(h.cleanup).not.toHaveBeenCalled();
+  });
+  it("refuses the always option Codex offers, which would write a lasting approval", () => {
+    const h = mcp(); h.rpc.receive(elicitation);
+    expect(h.rpc.answer("number:7", "always")).toBe(false); expect(h.writes).toEqual([]);
+  });
+  it("declines a form elicitation at once and keeps the turn running", () => {
+    const h = mcp(); h.rpc.receive(withParams(8, { _meta: { codex_approval_kind: "form" } }));
+    expect(h.writes).toEqual([{ id: 8, result: { action: "decline" } }]);
+    expect(h.events).toEqual([]); expect(h.rpc.running()).toBe(true);
+    h.rpc.receive({ method: "item/agentMessage/delta", params: { threadId: thread, turnId: turn, itemId: "m", delta: "go on" } });
+    h.rpc.receive(done);
+    expect(h.events).toEqual([{ type: "message.delta", messageId: "m", text: "go on" }, { type: "turn.done" }]);
+    expect(h.cleanup).not.toHaveBeenCalled();
+  });
+  it("declines an approval that comes after the turn ended and leaves nothing pending", () => {
+    const h = mcp(); h.rpc.receive(done); h.rpc.receive(withParams("late", {}));
+    expect(h.writes).toEqual([{ id: "late", result: { action: "decline" } }]);
+    expect(h.events).toEqual([{ type: "turn.done" }]);
+    expect(h.rpc.answer("string:late", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+  });
+  it("answers another thread's or turn's elicitation once without asking or failing this turn", () => {
+    const h = mcp();
+    h.rpc.receive(withParams(9, { threadId: "other" })); h.rpc.receive(withParams(10, { turnId: "other" }));
+    expect(h.writes).toEqual([9, 10].map(id => ({ id, error: { code: -32601, message: "Unsupported request or unavailable owner." } })));
+    expect(h.events).toEqual([]); expect(h.rpc.running()).toBe(true); expect(h.cleanup).not.toHaveBeenCalled();
+  });
+  it("answers an unanswered approval once when the turn ends", () => {
+    const h = mcp(); h.rpc.receive(elicitation); h.rpc.receive(done);
+    expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
+    expect(h.events.slice(1)).toEqual([{ type: "turn.done" }, { type: "permission.resolved", requestId: "number:7", optionId: "expired" }]);
+    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+  });
+  // Review BC yellow 1: a stopped turn is no longer asked anything; Stop already answered what it was asking.
+  it("declines an approval that comes after Stop at once and never holds it", () => {
+    const h = mcp(); h.rpc.stop("user"); h.rpc.receive(elicitation);
+    expect(h.writes).toEqual([{ id: 7, result: { action: "decline" } }]);
+    expect(h.events).toEqual([]);
+    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+    h.rpc.receive({ method: "turn/completed", params: { threadId: thread, turn: { id: turn, status: "interrupted" } } });
+    expect(h.events).toEqual([{ type: "interrupted", reason: "user" }]); expect(h.writes).toHaveLength(1);
+  });
+  it("answers the approval being asked once at Stop, and a late answer writes nothing", () => {
+    const h = mcp(); h.rpc.receive(elicitation); h.rpc.stop("user");
+    expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
+    expect(h.events.at(-1)).toEqual({ type: "permission.resolved", requestId: "number:7", optionId: "expired" });
+    expect(h.rpc.answer("number:7", "accept")).toBe(false); expect(h.writes).toHaveLength(1);
+  });
+  it("fails the protocol on a repeated request id instead of answering twice", () => {
+    const h = mcp(); h.rpc.receive(elicitation); h.rpc.receive(elicitation);
+    // Closing answers the first one, once.
+    expect(h.cleanup).toHaveBeenCalledOnce(); expect(h.writes).toEqual([{ id: 7, error: { code: -32601, message: "Unsupported request or unavailable owner." } }]);
   });
 });

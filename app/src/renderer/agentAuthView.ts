@@ -242,7 +242,8 @@ export function stopDialog(provider: Provider, intent: "signIn" | "signOut"): { 
   const name = PROVIDER_NAMES[provider];
   return {
     title: `Stop ${name} conversations?`,
-    body: `${name} is running a conversation. ${intent === "signOut" ? "Signing out" : "Signing in again"} stops it. Your conversation history stays.`,
+    // Signing out also logs the agent out of its MCP servers (mcp-connectors spec 8); only Claude Code and Codex have them.
+    body: `${name} is running a conversation. ${intent === "signOut" ? "Signing out" : "Signing in again"} stops it. Your conversation history stays.${intent === "signOut" && (provider === "claude" || provider === "codex") ? " Its MCP connectors need connecting again." : ""}`,
     cancel: button("dismiss", "Cancel", "subtle"), confirm: button(intent, intent === "signOut" ? "Stop and sign out" : "Stop and sign in"),
   };
 }

@@ -23,6 +23,8 @@ const EXTRA_ROOTS = [
   join(SRC, "main/conversation/permissionMode.ts"),
   // queue-send-now: the provider table and the Send now rule the composer imports by value.
   join(SRC, "main/conversation/steerSupport.ts"),
+  // mcp-connectors: the presets and connector types MCP Connectors settings will import by value.
+  join(SRC, "main/mcpConnectors/presets.ts"),
 ];
 
 function entries(): string[] {

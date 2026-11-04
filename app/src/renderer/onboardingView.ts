@@ -30,7 +30,7 @@ export const NO_TOKEN_HELPER = "Without token CSS, doan check won’t flag hardc
 export function formView(form: ProjectForm): FormView {
   return {
     token: form.token, ...(form.token === null ? { helper: NO_TOKEN_HELPER } : {}),
-    choose: { disabled: form.running }, setUp: { label: form.running ? "Setting Up…" : "Set Up Project", disabled: form.running },
+    choose: { disabled: form.running }, setUp: { label: form.running ? "Setting Up" : "Set Up Project", disabled: form.running },
     ...(form.error ? { error: form.error } : {}),
   };
 }

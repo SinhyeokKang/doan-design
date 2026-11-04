@@ -1,12 +1,14 @@
 import type { Anchor, Canvas, ConversationEvent, FailureCode, PermissionOption } from "../main/conversation/types";
 import { splitRequest, type PresetRef } from "./homeComposer";
+import { PRESETS } from "../main/mcpConnectors/presets";
 
 // A conversation's merged events (conversationStrip's mergeConversationEvents) as the thread draws them
 // (buzz-conversation design §3.3). Every item has a key that stays the same while later events arrive.
 
 // The person's text in order, with each anchor token `{{n}}` kept where it was typed (spec decision 17).
 export type MessagePart = { text: string } | { anchor: number };
-export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null }
+// sentence: a step whose text is a sentence and wraps instead of staying on one line (Codex's MCP startup lines).
+export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true }
 export type TurnEnd = { kind: "failed"; code: FailureCode } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
 export type ThreadItem =
   // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips.
@@ -58,7 +60,52 @@ type ActivityEvent = Extract<ConversationEvent, { type: "activity" }>;
 function step(event: ActivityEvent, root: string): ActivityStep {
   const path = event.path && (event.kind === "read" || event.kind === "edit") ? rootRelative(event.path, root) : null;
   const verb = event.kind === "command" ? "Ran a command" : event.kind === "other" || !path ? event.summary : DONE_VERB[event.kind];
-  return { key: `s${event.seq}`, kind: event.kind, verb, path };
+  const sentence = event.kind === "other" && startupServers(event.summary) !== null;
+  return { key: `s${event.seq}`, kind: event.kind, verb, path, ...(sentence ? { sentence: true as const } : {}) };
+}
+// Codex's MCP startup lines (main/conversation/mcpStartup.ts waitingLine and notReadyLine). History is append-only, so
+// main writes the not-ready line after its Waiting line; the thread shows them as one step that changed its text
+// (mcp-connectors spec 6).
+const WAITING = /^Waiting for (.+)$/;
+const NOT_READY = /^(.+) (?:wasn’t ready, so this turn started without it|weren’t ready, so this turn started without them)\.$/;
+// What mcpStartup.ts names: a preset's label or a URL server's label, which is connectorLabel's URL host (presets.ts)
+// of any URL parseConnectorUrl accepts: localhost, IPv6 literals, trailing dots and ports included. Joined
+// "A, B and C". A name that is no such host ("the review") is not a startup line; a single word that is a valid host
+// can't be told apart, which is safe because folding also needs a following not-ready line for the same servers.
+const PRESET_LABELS = new Set(PRESETS.map(preset => preset.label));
+function isServerLabel(name: string): boolean {
+  if (PRESET_LABELS.has(name)) return true;
+  if (!name || /[\s/?#@\\]/.test(name) || !URL.canParse(`https://${name}/`)) return false;
+  return new URL(`https://${name}/`).host === name;
+}
+// main bounds both lines at 512 characters by cutting the server list (waitingLine slices the line, notReadyLine its
+// list), so a line of that length may end in part of a server name, or in part of ", " / " and ".
+const LINE_BOUND = 512;
+interface StartupServers { kind: "waiting" | "notReady"; names: string[]; cut: string | null }
+function startupServers(summary: string): StartupServers | null {
+  const waiting = WAITING.exec(summary), notReady = waiting ? null : NOT_READY.exec(summary);
+  const list = waiting?.[1] ?? notReady?.[1];
+  if (!list) return null;
+  const names = list.split(/, | and /);
+  let cut: string | null = null;
+  if (summary.length >= LINE_BOUND) {
+    // Possibly cut: the last item is the start of a name (a host has no space or comma, so whatever follows one is a
+    // separator's start). One name alone never reaches the bound (a host is at most a few hundred characters), so a
+    // bounded line with no complete name before its cut is no startup line (an agent's own long "Waiting for …").
+    cut = names.pop()!.split(/[ ,]/)[0]!;
+    if (names.length === 0) return null;
+  }
+  return names.every(isServerLabel) ? { kind: waiting ? "waiting" : "notReady", names, cut: cut || null } : null;
+}
+// The not-ready line replaces the Waiting line it ends: the servers it names were all waited for (some of them may have
+// become ready meanwhile). Complete names match exactly; a cut item matches the waited-for name it begins (BU review
+// R3-Y1), so another server's line still stays apart.
+function endsWaiting(previous: ActivityStep, next: ActivityStep): boolean {
+  const before = previous.sentence ? startupServers(previous.verb) : null, after = next.sentence ? startupServers(next.verb) : null;
+  if (before?.kind !== "waiting" || after?.kind !== "notReady") return false;
+  const waited = (name: string) => before.names.includes(name) || (before.cut !== null && name.startsWith(before.cut));
+  const begins = (start: string) => before.names.some(name => name.startsWith(start)) || (before.cut !== null && (before.cut.startsWith(start) || start.startsWith(before.cut)));
+  return after.names.every(waited) && (after.cut === null || begins(after.cut));
 }
 function runningHead(last: ActivityStep): string {
   if (last.kind === "command") return "Running a command";
@@ -130,7 +177,9 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
       }
       case "activity": {
         const next = step(event, root);
-        if (group && group.turnId === event.turnId) group.item.steps.push(next);
+        const previous = group?.turnId === event.turnId ? group.item.steps.at(-1) : undefined;
+        if (previous && endsWaiting(previous, next)) group!.item.steps[group!.item.steps.length - 1] = next;
+        else if (group && group.turnId === event.turnId) group.item.steps.push(next);
         else {
           const item = { kind: "activity" as const, key: `a${event.seq}`, running: false, head: "", steps: [next] };
           items.push(item);

@@ -1,0 +1,3 @@
+Checking MCP server health…
+
+doan-notion: https://mcp.notion.com/mcp (HTTP) - ! Needs authentication

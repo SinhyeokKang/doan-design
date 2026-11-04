@@ -57,7 +57,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
 const button = (tree: ReactNode) => all(tree).find(element => element.type === "button");
 // The button's words without its icon or spinner.
 const label = (tree: ReactNode) => { const children = button(tree)?.props.children; return [children].flat().filter(child => typeof child === "string").join(""); };
-// What leads the words: the filled square on Stop, the spinner on "Stopping…" (the draft's 'agent-working' and
+// What leads the words: the filled square on Stop, the spinner on "Stopping" (the draft's 'agent-working' and
 // 'agent-waiting' frames; the square is the composer's Stop glyph).
 // Both are hidden from assistive tech, so the button's name stays its words.
 const lead = (tree: ReactNode) => { const first = all(button(tree)?.props.children as ReactNode)[0]; if (first && first.props["aria-hidden"] !== "true" && first.props["aria-hidden"] !== true) return "announced"; return first?.props.className === "doan-spinner" ? "spinner" : first ? "icon" : null; };
@@ -90,10 +90,10 @@ describe("CanvasAgent Stop", () => {
     expect(lead(tree)).toBe("icon");
     (button(tree)!.props.onClick as () => void)();
     tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stopping…");
+    expect(label(tree)).toBe("Stopping");
     expect(lead(tree)).toBe("spinner");
     expect(button(tree)!.props["aria-disabled"]).toBe(true);
-    // "Stopping…" ignores another press.
+    // "Stopping" ignores another press.
     (button(tree)!.props.onClick as () => void)();
     expect(interrupt).toHaveBeenCalledTimes(1);
     expect(interrupt).toHaveBeenCalledWith({ conversationId: "c1" });
@@ -108,7 +108,7 @@ describe("CanvasAgent Stop", () => {
     let tree = render(agent([summary({})]));
     (button(tree)!.props.onClick as () => void)();
     tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stopping…");
+    expect(label(tree)).toBe("Stopping");
     // Resolving with a rejected promise makes the pending interrupt reject instead of answering an error.
     reply(Promise.reject(new Error("gone"))); await flush();
     tree = render(agent([summary({})]));
@@ -116,12 +116,12 @@ describe("CanvasAgent Stop", () => {
     expect(onStopFailed).toHaveBeenCalledWith("Couldn’t stop Codex. Try again.");
   });
 
-  test("an accepted stop holds 'Stopping…' until the list shows the turn ended, and no toast", async () => {
+  test("an accepted stop holds 'Stopping' until the list shows the turn ended, and no toast", async () => {
     let tree = render(agent([summary({})]));
     (button(tree)!.props.onClick as () => void)();
     reply(undefined); await flush();
     tree = render(agent([summary({})]));
-    expect(label(tree)).toBe("Stopping…");
+    expect(label(tree)).toBe("Stopping");
     tree = render(agent([summary({ phase: "ended" })]));
     expect(shown(tree)).toBe(false);
     expect(onStopFailed).not.toHaveBeenCalled();

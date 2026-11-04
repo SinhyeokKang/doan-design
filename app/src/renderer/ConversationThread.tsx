@@ -274,7 +274,7 @@ const STEP_ICONS = { read: Eye, edit: Pencil, command: Terminal, other: Terminal
 function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
   return <ul className="activity-steps" id={id}>{steps.map(step => {
     const Icon = STEP_ICONS[step.kind];
-    return <li key={step.key}><Icon aria-hidden="true" /><span className="verb">{step.verb}</span>{step.path && <span className="path">{step.path}</span>}</li>;
+    return <li key={step.key}><Icon aria-hidden="true" /><span className={step.sentence ? "verb mcp-step" : "verb"}>{step.verb}</span>{step.path && <span className="path">{step.path}</span>}</li>;
   })}</ul>;
 }
 
@@ -373,7 +373,7 @@ const ThreadBody = function ThreadBody({ handle: ref, ...props }: ConversationTh
     <div className="doan-notice error thread-notice" role="alert"><AlertIcon /><span className="strip-text"><b>Doan couldn’t read this conversation</b><span>Try again. If it keeps failing, start a new conversation.</span></span>
       <span className="strip-actions"><button type="button" className="doan-button" data-ui-size="sm" data-ui-variant="panel" onClick={props.onRetry}>Retry</button></span></div>
   </div>;
-  if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation…</span></div>}</div>;
+  if (items === null) return <div className="conversation-thread">{slow && <div className="thread-loading" role="status"><span className="doan-spinner" aria-hidden="true" /><span>Loading conversation</span></div>}</div>;
 
   const p = PROVIDER_NAMES[provider];
   const resend = lastEnd(items);

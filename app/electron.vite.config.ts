@@ -23,9 +23,10 @@ function contentSecurityPolicy(): Plugin {
 
 export default defineConfig({
   main: {
-    // Bundled, not externalized: the main bundle is ESM, and Node's ESM resolver
-    // rejects ajv's extensionless subpath import (`ajv/dist/2020`).
-    build: { externalizeDeps: false, rolldownOptions: { input: { index: fileURLToPath(new URL("./src/main/index.ts", import.meta.url)) } } },
+    // Only node-pty is externalized because its native binary cannot be bundled.
+    // Other dependencies stay bundled: Node's ESM resolver rejects ajv's
+    // extensionless subpath import (`ajv/dist/2020`).
+    build: { externalizeDeps: false, rolldownOptions: { external: ["node-pty"], input: { index: fileURLToPath(new URL("./src/main/index.ts", import.meta.url)) } } },
   },
   preload: {
     build: {

@@ -193,10 +193,10 @@ test("a terminal session shows a fixed Permission trigger after its fixed Effort
 });
 
 // queue-send-now design §8, draft frame `queue-row`.
-test("a row that offers Send now draws it between the text and Remove; one in flight reads Sending… and stays enabled", () => {
+test("a row that offers Send now draws it between the text and Remove; one in flight reads Sending and stays enabled", () => {
   const rows = render({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also make the caption shorter" }, { id: "q2", text: "Second", sending: true }] });
   expect(rows).toMatch(/<span class="queue-text" id="([^"]+)">Also make the caption shorter<\/span><button type="button" class="doan-button queue-send" data-ui-size="xs" aria-label="Send queued message now" aria-describedby="\1"[^>]*>Send now<\/button><button type="button" class="chip-remove doan-icon-button" data-ui-size="xs" aria-label="Remove queued message" aria-describedby="\1">/);
-  expect(rows).toMatch(/aria-label="Send queued message now" aria-describedby="[^"]+" aria-disabled="true"[^>]*>Sending…<\/button>/);
+  expect(rows).toMatch(/aria-label="Send queued message now" aria-describedby="[^"]+" aria-disabled="true"[^>]*>Sending<\/button>/);
   expect(rows).not.toMatch(/queue-send[^>]* disabled=""/);
   // Not offered (an unsupported provider, a turn that does not run): Remove only.
   expect(render({ turn: "running", sendNow: false, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "x" }] })).not.toContain("Send now");

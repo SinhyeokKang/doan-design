@@ -1,0 +1,190 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="doan:canvas" content="export-viewer-chrome"><meta name="doan:width" content="1100"><title>export-viewer-chrome — the exported file's panel and tools</title><link rel="stylesheet" href="../../app/src/renderer/tokens.css"><link rel="stylesheet" href="../../app/src/renderer/ds/index.css"><link rel="stylesheet" href="../assets/ds-canvas.css"><link rel="stylesheet" href="../assets/mock.css"><style>
+/* ── Board layout for this canvas only ── */
+body{padding:var(--space-8);background:var(--surface-inset)}
+.intro{max-width:960px;padding:var(--space-4) 0 var(--space-10)}
+.intro h1{margin-top:var(--space-2);font-size:var(--type-title-size);line-height:var(--type-title-line-height);letter-spacing:var(--type-title-letter-spacing);font-weight:var(--type-weight-medium)}
+.intro p{margin-top:var(--space-4);color:var(--text-subtle)}
+.intro ul{margin-top:var(--space-2);color:var(--text-subtle);list-style:disc;padding-left:var(--space-5)}
+.specimen+.specimen{margin-top:var(--space-10)}
+.caption{display:grid;grid-template-columns:var(--space-10) 1fr;gap:var(--space-1) var(--space-2);margin-bottom:var(--space-4);max-width:960px}
+.caption>span{color:var(--text-metadata);padding-top:var(--space-1)}
+.caption h2{font-size:var(--type-body-size);line-height:var(--type-body-line-height);letter-spacing:var(--type-body-letter-spacing);font-weight:var(--type-weight-medium);display:flex;align-items:center;gap:var(--space-2)}
+.caption p{grid-column:2;color:var(--text-subtle)}
+.tiles{display:flex;flex-wrap:wrap;gap:var(--space-8);align-items:flex-start}
+.tile{display:grid;gap:var(--space-2);justify-items:start}
+.tile-label{color:var(--text-metadata);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height);letter-spacing:var(--type-caption-letter-spacing)}
+/* A 960 × 600 browser viewport: the page's <body>. */
+.vw{display:flex;flex-direction:column;overflow:hidden;width:960px;height:600px;box-shadow:var(--shadow-panel)}
+
+/* ── Restated from cli/internal/export/viewer/shell.css as shipped (f07bf23c); the same rules as the app's
+   styles.css (.ov-head, .doan-canvas-*), which canvases cannot link. The page body's font-variant is the shipped one. ── */
+.vw{color:var(--text-standard);font-family:var(--type-family);font-size:var(--type-body-sm-size);line-height:var(--type-body-sm-line-height);font-variant-numeric:tabular-nums}
+.ov-head{display:flex;align-items:center;gap:var(--space-2);min-width:0;min-height:var(--size-chrome);padding:var(--space-2) var(--space-4)}
+.doan-canvas-head{flex:none;background:var(--surface-panel)}
+.doan-canvas-name{display:inline-flex;align-items:center;gap:var(--space-1h);flex:none;max-width:40%;min-width:0;padding-left:var(--space-2);color:var(--text-subtle);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.doan-canvas-name svg{width:var(--size-icon);height:var(--size-icon)}
+.doan-canvas-name span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-sep{display:flex;flex:none;color:var(--text-metadata);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height)}
+.ov-title-wrap{position:relative;display:flex;min-width:0}
+.ov-title.doan-button{min-width:0;flex-shrink:1;gap:var(--space-1h);font-size:var(--type-label-sm-size);line-height:var(--type-label-sm-line-height);font-weight:var(--type-weight-medium)}
+.ov-title span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chev{width:var(--space-4);height:var(--space-4);flex:none;color:var(--text-metadata)}
+.doan-canvas-head-tools{display:flex;align-items:center;gap:var(--space-1);flex:none;margin-left:auto}
+.doan-canvas-zoom{position:relative;display:flex;align-items:center;gap:var(--space-half)}
+.doan-canvas-zoom .doan-zoom-value{min-width:72px;gap:var(--space-1);font-variant-numeric:tabular-nums}
+.doan-canvas-head .doan-icon-button{color:var(--text-standard)}
+.board{position:relative;flex:1;min-height:0;overflow:auto;background:var(--surface-inset)}
+/* Restated from app/src/renderer/styles.css as shipped (f07bf23c): the tools row and the pressed fill. */
+.doan-canvas-bottom{position:absolute;z-index:3;bottom:var(--space-5);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:var(--space-2);width:max-content;max-width:calc(100% - 2 * var(--space-3));pointer-events:none}
+.doan-canvas-bottom>*{pointer-events:auto}
+.doan-canvas-tools{display:flex;align-items:center;gap:var(--space-half)}
+.doan-canvas-tools .doan-icon-button{color:var(--text-standard)}
+.doan-canvas-tools>.doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled){background:var(--affordance-backdrop-pressed)}
+
+/* ── export-viewer-chrome: new, not in code ── */
+/* The window is the app's --bg-app grey (spec 1): the app's shell colour under reduced transparency, since a browser
+   has no native vibrancy to show through. */
+.vw{background:var(--bg-app)}
+/* The content panel: the app's .doan-canvas-panel with the conversation panel folded (white, four corners 24), 8 from
+   every window edge. The header, the board and the tools row are its children; the tools row sits outside the
+   scrolling board so it never scrolls with it, and clip (not hidden) keeps a focused descendant from scrolling it. */
+.doan-canvas-panel{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;margin:var(--space-2);background:var(--surface-panel);border-radius:var(--radius-container);overflow:clip;isolation:isolate}
+/* The drag surface: in Hand, while Space is held and while a drag holds the pointer, the canvas iframe takes
+   pointer-events none and the board takes the pointer, wheel included. Cursor values are the app's .drag-layer ones.
+   The attribute names are this draft's; the computed cursor and pointer-events are what /design-sync compares. */
+.board[data-pan]{cursor:grab}
+.board[data-pan][data-grabbing]{cursor:grabbing}
+.board[data-pan] .vw-canvas{pointer-events:none}
+/* The tools' tooltip, drawn by hand in the page (it has no Radix): the shared .doan-tooltip, label then key, centred
+   over its tool, 4 above the tool as the app's shared tooltip sits (DESIGN 'Tool tooltip offset'). From the panel's
+   bottom: the row's 20, its 1 px ring and 4 inset, the 40 tool, then 4. The tool's centre is half a tool and half the
+   2 gap from the row's centre. */
+.vw-tip{position:absolute;z-index:4;bottom:calc(var(--space-5) + 1px + var(--space-1) + var(--size-control) + var(--space-1));transform:translateX(-50%)}
+.vw-tip-select{left:calc(50% - (var(--size-control) + var(--space-half)) / 2)}
+.vw-tip-hand{left:calc(50% + (var(--size-control) + var(--space-half)) / 2)}
+
+/* ── Illustration only: the OS cursor and the drag path, which a static draft cannot show (copied from
+   canvas-hand-tool.html) ── */
+.cursor-ill{position:absolute;z-index:5;width:var(--space-6);height:var(--space-6);color:var(--text-standard);pointer-events:none}
+.cursor-ill path{stroke:var(--surface-panel);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.cursor-ill path+path{stroke:currentColor;stroke-width:2}
+.cursor-tag{position:absolute;z-index:5}
+.drag-trail{position:absolute;z-index:4;height:0;border-top:1px dashed var(--text-metadata);transform-origin:left}
+
+/* ── The exported canvas inside the iframe (mock colours). Its position stands for the board's scroll: Fit at 61 %
+   in viewer-select, 100 % scrolled in the other two; the page sets scrollLeft/Top, the draft sets left/top. ── */
+.vw-canvas{position:absolute;display:flex;gap:var(--space-10);width:1440px;padding:var(--space-10);background:var(--mock-bg);transform-origin:0 0}
+.mk-frame{width:280px}
+.mk-label{display:block;height:var(--space-5);color:var(--mock-ink-2);font-size:var(--type-caption-size);line-height:var(--type-caption-line-height)}
+.mk-screen{height:420px;display:flex;flex-direction:column;gap:var(--space-3);padding:var(--space-4);border-radius:var(--space-2);background:var(--mock-bg);box-shadow:0 0 0 1px var(--mock-line);overflow:hidden}
+.mk-screen i{display:block;border-radius:var(--space-1);background:var(--mock-fill)}
+.mk-screen .mk-bar{height:var(--space-6);margin:calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-2);border-radius:0;background:var(--mock-line)}
+.mk-screen .mk-h{height:var(--space-5);width:70%;background:var(--mock-ink)}
+.mk-screen .mk-p{height:var(--space-2);width:90%}
+.mk-screen .mk-p.short{width:60%}
+.mk-screen .mk-field{height:var(--space-10);margin-top:var(--space-2);box-shadow:inset 0 0 0 1px var(--mock-line);background:var(--mock-bg)}
+.mk-screen .mk-btn{height:var(--size-control);margin-top:auto;background:var(--mock-brand)}
+</style></head><body>
+<header class="intro"><span class="doan-chip">export-viewer-chrome · draft · 3 frames</span><h1>The exported file's viewer in the canvas page's panel, with Select and Hand.</h1>
+<p>Scope: <code>docs/features/export-viewer-chrome/</code> (spec 완료 조건 1–2, design ‘구조’). The viewer is on main; this is a new file drawn as a user-approved exception (tasks U0), and <code>canvas-row-menu.html</code> with its <code>viewer-shell</code> frame stays untouched. Task C2 compares all three frames — <b>viewer-select</b>, <b>viewer-hand</b>, <b>viewer-dragging</b> — with a file written by <code>doan export</code>, in the same Playwright browser. Each tile is a 960 × 600 browser viewport.</p>
+<ul>
+<li>New, not in code: the window's <code>--bg-app</code> grey; the white content panel 8 from every window edge with four 24 corners, holding the header and the board; the floating tools row with Select (V) and Hand (H) at the board's bottom centre; the tools' tooltips; the board's grab and grabbing cursors and the iframe's <code>pointer-events: none</code> while panning.</li>
+<li>Copied as shipped (f07bf23c): the header (name, <code>/</code>, frame trigger, zoom controls) from <code>cli/internal/export/viewer/shell.html</code> and <code>shell.css</code>; the panel's white and corners, the tools row, its 40 px tools, pressed fill, order, names, keys and icons, and the tooltip with the <code>sm</code> <code>on-prominent</code> key from <code>app/src/renderer/styles.css</code>, <code>CanvasTools.tsx</code>, <code>ds/</code> and DESIGN ‘Canvas area and right panel’. The app's third tool, Add to conversation, is not in the viewer (spec 비목표).</li>
+<li>Type: this draft renders Geist; the viewer bundles no Geist and falls to the system stack (DESIGN ‘Viewer font’), so text widths will differ in C2 and are not equality claims.</li>
+<li>Cursors are illustrations with a label (a static draft cannot show the OS cursor), copied from <code>canvas-hand-tool.html</code>: lucide <code>hand</code> and <code>hand-grab</code>. The page sets CSS <code>grab</code> / <code>grabbing</code> on the board. No reference outside this repository is used.</li>
+</ul></header>
+
+<section class="specimen"><div class="caption"><span>01</span><h2>Viewer · Select <span class="doan-chip" data-ui-variant="translucent">Panel and tools new, not in code</span></h2><p>The first view after the canvas is drawn: Fit (61 % for this 1440-wide canvas; its top at 80, so the tools row never covers it). Select is pressed by default on every open and is not saved. In Select the canvas works as today: clicks, scrolling and Tab reach its own controls. The pointer is over Select, so its tooltip names the key; the pressed tool holds the toolbar's one Tab stop.</p></div>
+<div class="tiles" data-doan-frame="viewer-select" data-doan-title="Viewer · Select pressed" data-doan-implements="cli/internal/export/viewer/shell.html">
+<div class="tile"><div class="vw" data-doan-id="sel-window">
+<div class="doan-canvas-panel" data-doan-id="sel-panel">
+<header class="ov-head doan-canvas-head" data-doan-id="sel-head">
+  <span class="doan-canvas-name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>checkout</span></span>
+  <span class="ov-sep" aria-hidden="true">/</span>
+  <span class="ov-title-wrap"><button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Frame 3: Payment method"><span>3. Payment method</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
+  <div class="doan-canvas-head-tools"><span class="doan-canvas-zoom">
+    <button type="button" class="doan-icon-button" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-haspopup="menu" aria-expanded="false" aria-label="Zoom 61%, zoom options"><span>61%</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button type="button" class="doan-icon-button" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+  </span></div>
+</header>
+<main class="board" tabindex="0" aria-label="Canvas" data-doan-id="sel-board">
+  <div class="vw-canvas" style="left:var(--space-8);top:calc(2 * var(--space-10));transform:scale(.6111)">
+    <div class="mk-frame"><span class="mk-label">Cart — default</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Cart — empty</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Payment method</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Payment — card error</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+  </div>
+</main>
+<div class="doan-tooltip has-key vw-tip vw-tip-select" role="tooltip" data-doan-id="sel-tooltip">Select<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm" data-doan-id="sel-tooltip-key">V</span></div>
+<div class="doan-canvas-bottom" data-doan-id="sel-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" data-doan-id="sel-tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Select" aria-keyshortcuts="V" tabindex="0" data-doan-id="sel-tool-select"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Hand" aria-keyshortcuts="H" tabindex="-1" data-doan-id="sel-tool-hand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+</div></div>
+</div></div><span class="tile-label">960 × 600 · Fit · Select pressed (default) · pointer over Select</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>02</span><h2>Viewer · Hand <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>Hand is pressed after H or a click on it; V, Select or Esc returns to Select. At 100 % the canvas is larger than the board, scrolled here. The board shows grab anywhere, over the canvas too: the canvas iframe takes no pointer input, so a click inside it does nothing and a plain wheel only pans. ⌘/Ctrl-wheel still zooms at the pointer. The pointer is over Hand, so its tooltip names the key.</p></div>
+<div class="tiles" data-doan-frame="viewer-hand" data-doan-title="Viewer · Hand pressed" data-doan-implements="cli/internal/export/viewer/shell.html">
+<div class="tile"><div class="vw" data-doan-id="hand-window">
+<div class="doan-canvas-panel" data-doan-id="hand-panel">
+<header class="ov-head doan-canvas-head" data-doan-id="hand-head">
+  <span class="doan-canvas-name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>checkout</span></span>
+  <span class="ov-sep" aria-hidden="true">/</span>
+  <span class="ov-title-wrap"><button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Frame 2: Cart — empty"><span>2. Cart — empty</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
+  <div class="doan-canvas-head-tools"><span class="doan-canvas-zoom">
+    <button type="button" class="doan-icon-button" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-haspopup="menu" aria-expanded="false" aria-label="Zoom 100%, zoom options"><span>100%</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button type="button" class="doan-icon-button" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+  </span></div>
+</header>
+<main class="board" tabindex="0" aria-label="Canvas" data-pan data-doan-id="hand-board">
+  <div class="vw-canvas" style="left:-168px;top:var(--space-10)" data-doan-id="hand-canvas">
+    <div class="mk-frame"><span class="mk-label">Cart — default</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Cart — empty</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Payment method</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Payment — card error</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+  </div>
+</main>
+<div class="doan-tooltip has-key vw-tip vw-tip-hand" role="tooltip" data-doan-id="hand-tooltip">Hand<span class="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm" data-doan-id="hand-tooltip-key">H</span></div>
+<div class="doan-canvas-bottom" data-doan-id="hand-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" data-doan-id="hand-tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" aria-keyshortcuts="V" tabindex="-1" data-doan-id="hand-tool-select"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Hand" aria-keyshortcuts="H" tabindex="0" data-doan-id="hand-tool-hand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+</div></div>
+<svg class="cursor-ill" style="left:520px;top:280px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+<span class="doan-chip cursor-tag" data-ui-variant="translucent" style="left:550px;top:308px">cursor: grab (illustration)</span>
+</div></div><span class="tile-label">960 × 600 · 100 %, scrolled · Hand pressed · grab over the canvas · pointer over Hand</span></div>
+</div></section>
+
+<section class="specimen"><div class="caption"><span>03</span><h2>Viewer · dragging <span class="doan-chip" data-ui-variant="translucent">New, not in code</span></h2><p>A drag in Hand: the view moves by the pointer's travel (here 160 left and 60 up from viewer-hand) and the board shows grabbing until the button is released. The move stays inside the board's scroll range and stops at its edges, so in a direction where the canvas is narrower than the board (Fit) nothing moves. Holding Space drags the same way in Select, with Select staying pressed. No tooltip: pressing the pointer closes it. The dashed line shows the drag; the page does not draw it.</p></div>
+<div class="tiles" data-doan-frame="viewer-dragging" data-doan-title="Viewer · dragging" data-doan-implements="cli/internal/export/viewer/shell.html">
+<div class="tile"><div class="vw" data-doan-id="drag-window">
+<div class="doan-canvas-panel" data-doan-id="drag-panel">
+<header class="ov-head doan-canvas-head" data-doan-id="drag-head">
+  <span class="doan-canvas-name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg><span>checkout</span></span>
+  <span class="ov-sep" aria-hidden="true">/</span>
+  <span class="ov-title-wrap"><button type="button" class="ov-title doan-button doan-frame-trigger" data-ui-size="sm" data-ui-variant="trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Frame 3: Payment method"><span>3. Payment method</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></span>
+  <div class="doan-canvas-head-tools"><span class="doan-canvas-zoom">
+    <button type="button" class="doan-icon-button" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <button type="button" class="doan-button doan-zoom-value" data-ui-variant="trigger" data-ui-size="sm" aria-haspopup="menu" aria-expanded="false" aria-label="Zoom 100%, zoom options"><span>100%</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+    <button type="button" class="doan-icon-button" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+  </span></div>
+</header>
+<main class="board" tabindex="0" aria-label="Canvas" data-pan data-grabbing data-doan-id="drag-board">
+  <div class="vw-canvas" style="left:-328px;top:calc(-1 * var(--space-5))" data-doan-id="drag-canvas">
+    <div class="mk-frame"><span class="mk-label">Cart — default</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Cart — empty</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Payment method</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+    <div class="mk-frame"><span class="mk-label">Payment — card error</span><div class="mk-screen"><i class="mk-bar"></i><i class="mk-h"></i><i class="mk-p"></i><i class="mk-p short"></i><i class="mk-field"></i><i class="mk-btn"></i></div></div>
+  </div>
+</main>
+<div class="doan-canvas-bottom" data-doan-id="drag-bottom"><div class="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" data-doan-id="drag-tools">
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="false" aria-label="Select" aria-keyshortcuts="V" tabindex="-1" data-doan-id="drag-tool-select"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/></svg></button>
+<button type="button" class="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-pressed="true" aria-label="Hand" aria-keyshortcuts="H" tabindex="0" data-doan-id="drag-tool-hand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg></button>
+</div></div>
+<span class="drag-trail" style="left:372px;top:232px;width:171px;transform:rotate(20.6deg)"></span>
+<svg class="cursor-ill" style="left:360px;top:220px" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/><path d="M18 11.5V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v1.4M14 10V8a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2M10 9.9V9a2 2 0 0 0-2-2a2 2 0 0 0-2 2v5M6 14a2 2 0 0 0-2-2a2 2 0 0 0-2 2M18 11a2 2 0 1 1 4 0v3a8 8 0 0 1-8 8h-4a8 8 0 0 1-8-8 2 2 0 1 1 4 0"/></svg>
+<span class="doan-chip cursor-tag" data-ui-variant="translucent" style="left:300px;top:184px">cursor: grabbing (illustration)</span>
+</div></div><span class="tile-label">960 × 600 · 100 %, mid-drag · Hand pressed · grabbing</span></div>
+</div></section>
+</body></html>

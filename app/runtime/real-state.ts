@@ -33,6 +33,16 @@ async function key(path: string, toml: boolean): Promise<string> {
   const result = await promisify(execFile)("python3.12", ["-c", 'import hashlib,json,sys,tomllib\nwith open(sys.argv[1],"rb") as f: servers=tomllib.load(f).get("mcp_servers",{}); v={"present":"doan" in servers,"value":servers.get("doan")}\nprint(hashlib.sha256(json.dumps(v,sort_keys=True,separators=(",",":")).encode()).hexdigest())', path], { timeout: 5_000, killSignal: "SIGKILL" });
   return result.stdout.trim();
 }
+// The whole MCP server table, not only the `doan` entry: MCP connector probes must show that the person's own
+// terminal servers (and their names, which share Codex keyring accounts) are untouched.
+async function servers(path: string, toml: boolean): Promise<string> {
+  let bytes: string;
+  try { bytes = await readFile(path, "utf8"); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return "absent-file"; throw error; }
+  if (!toml) return hash(JSON.stringify(JSON.parse(bytes).mcpServers ?? null));
+  const result = await promisify(execFile)("python3.12", ["-c", 'import hashlib,json,sys,tomllib\nwith open(sys.argv[1],"rb") as f: v=tomllib.load(f).get("mcp_servers")\nprint(hashlib.sha256(json.dumps(v,sort_keys=True,separators=(",",":")).encode()).hexdigest())', path], { timeout: 5_000, killSignal: "SIGKILL" });
+  return result.stdout.trim();
+}
 // Provider credential stores are compared by metadata only; reading them would copy secrets into probe logs.
 const AUTH_FILES = [".claude/.credentials.json", ".codex/auth.json", ".cursor/auth.json", ".config/cursor/auth.json", ".copilot/config.json", ".copilot/settings.json",
   ".config/gh/hosts.yml", ".gemini/antigravity-cli", ".gemini/config"];
@@ -49,6 +59,15 @@ async function keychain(): Promise<string> {
     .filter(([svce]) => svce && /claude|codex|cursor|gemini|antigravity|copilot|gh:|doan/i.test(svce)).map(item => item.join("|")).sort();
   return hash(JSON.stringify(items));
 }
+// Codex keys MCP tokens by `<server name>|<URL hash>`, not by profile, so a Doan server named like a terminal one would
+// share the person's token. Account names only, without modification dates: a terminal token refresh is not a change.
+export async function codexMcpAccounts(): Promise<string[] | string> {
+  let dump: string;
+  try { dump = (await promisify(execFile)("security", ["dump-keychain"], { timeout: 5_000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 * 1024 })).stdout; }
+  catch (error) { return `unavailable:${(error as NodeJS.ErrnoException).code ?? "error"}`; }
+  return dump.split(/^keychain: /m).filter(block => /"svce"<blob>="Codex MCP Credentials"/.test(block))
+    .map(block => block.match(/"acct"<blob>="([^"]*)"/)?.[1] ?? "").sort();
+}
 async function snapshot(): Promise<Record<string, string>> {
   const home = homedir();
   const result: Record<string, string> = {};
@@ -60,8 +79,15 @@ async function snapshot(): Promise<Record<string, string>> {
     ...["folders.json", "runtime.json", "onboarding.json", "ui-state.json", "agent-setup.json", "thumbnails", "sessions.jsonl", "conversations", "agent-auth"].map(name => join(home, "Library/Application Support/doan", name))])) result[path] = hash(JSON.stringify(await tree(path)));
   for (const rel of AUTH_FILES) result[`${join(home, rel)}:meta`] = hash(JSON.stringify(await meta(join(home, rel))));
   result["keychain:provider-items"] = await keychain();
-  for (const path of new Set([join(home, ".claude.json"), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, ".claude.json")] : [])])) result[`${path}:mcpServers.doan`] = await key(path, false);
-  for (const path of new Set([join(home, ".codex/config.toml"), ...(process.env.CODEX_HOME ? [join(process.env.CODEX_HOME, "config.toml")] : [])])) result[`${path}:mcp_servers.doan`] = await key(path, true);
+  result["keychain:codex-mcp-accounts"] = hash(JSON.stringify(await codexMcpAccounts()));
+  for (const path of new Set([join(home, ".claude.json"), ...(process.env.CLAUDE_CONFIG_DIR ? [join(process.env.CLAUDE_CONFIG_DIR, ".claude.json")] : [])])) {
+    result[`${path}:mcpServers.doan`] = await key(path, false);
+    result[`${path}:mcpServers`] = await servers(path, false);
+  }
+  for (const path of new Set([join(home, ".codex/config.toml"), ...(process.env.CODEX_HOME ? [join(process.env.CODEX_HOME, "config.toml")] : [])])) {
+    result[`${path}:mcp_servers.doan`] = await key(path, true);
+    result[`${path}:mcp_servers`] = await servers(path, true);
+  }
   return result;
 }
 export async function assertRealState(before: Record<string, string>): Promise<void> {

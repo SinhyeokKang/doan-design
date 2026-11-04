@@ -18,7 +18,7 @@ test("Move to Trash says one toast per reply: success, comments left behind, or 
 });
 
 test("Export says its progress, its result with Show in Finder, and why it failed", () => {
-  expect(exportProgress("checkout")).toBe("Exporting “checkout”…");
+  expect(exportProgress("checkout")).toBe("Exporting “checkout”");
   expect(exportToast("checkout", { kind: "cancelled" })).toBeNull();
   expect(exportToast("checkout", { kind: "exported", external: 0, reveal: "r1" })).toEqual({ text: "Exported “checkout”.", reveal: "r1" });
   expect(exportToast("checkout", { kind: "exported", external: 2, reveal: "r2" })).toEqual({ text: "Exported “checkout”. Parts of it load from the internet.", reveal: "r2" });

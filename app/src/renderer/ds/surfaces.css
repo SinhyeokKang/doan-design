@@ -239,6 +239,7 @@
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line-height);
   letter-spacing: var(--type-body-sm-letter-spacing);
+  font-weight: var(--type-weight-medium);
 }
 label.doan-preference-row-label { cursor: pointer; }
 .doan-preference-row-description {

@@ -463,3 +463,30 @@ test("onExportRunning passes the running export's root and path and unsubscribes
   expect(listener).toHaveBeenCalledOnce();
   expect(emitter.listenerCount("canvas:exportRunning")).toBe(0);
 });
+
+// mcp-connectors B4: Settings > MCP Connectors names a provider and a server, never a URL to open.
+test("MCP connector requests use fixed channels with provider and server names", async () => {
+  mocks.invoke.mockResolvedValue({ ok: true });
+  await api.readMcpConnectors(); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:list", undefined);
+  await api.readMcpConnectors({ refresh: true }); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:list", { refresh: true });
+  await api.addMcpServer("https://mcp.example.com/mcp"); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:add", { url: "https://mcp.example.com/mcp" });
+  await api.connectMcpServer("codex", "doan-notion"); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:connect", { provider: "codex", name: "doan-notion" });
+  await api.disconnectMcpServer("claude", "doan-notion"); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:disconnect", { provider: "claude", name: "doan-notion" });
+  await api.cancelMcpConnect("claude", "doan-notion"); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:cancel", { provider: "claude", name: "doan-notion" });
+  await api.openMcpLink("claude", "doan-notion"); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:open-link", { provider: "claude", name: "doan-notion" });
+  await api.removeMcpServer("doan-mcp-example-com"); expect(mocks.invoke).toHaveBeenLastCalledWith("mcp-connectors:remove", { name: "doan-mcp-example-com" });
+});
+
+test("delivers MCP connector snapshots newest first, never an older revision after a newer one", async () => {
+  let resolve!: (value: unknown) => void;
+  mocks.invoke.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  const seen: number[] = [];
+  const stop = api.onMcpConnectors(snapshot => seen.push(snapshot.revision));
+  expect(mocks.invoke).toHaveBeenCalledWith("mcp-connectors:list", undefined);
+  emitter.emit("mcp-connectors:changed", {}, { revision: 5, file: "ok", servers: [], providers: [] });
+  resolve({ revision: 3, file: "ok", servers: [], providers: [] }); await Promise.resolve(); await Promise.resolve();
+  emitter.emit("mcp-connectors:changed", {}, { revision: 6, file: "ok", servers: [], providers: [] });
+  expect(seen).toEqual([5, 6]);
+  stop();
+  expect(emitter.listenerCount("mcp-connectors:changed")).toBe(0);
+});

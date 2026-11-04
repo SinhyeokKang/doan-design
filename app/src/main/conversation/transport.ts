@@ -2,6 +2,8 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
+import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
+import { codexMcpApproval } from "../mcpConnectors/codexApproval";
 import type { EventPayload, FailureCode, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
 
 export function initialTransport(): TransportState {
@@ -80,17 +82,25 @@ function claudeKind(tool: string): ActivityKind {
   return /^(Write|Edit|MultiEdit)$/.test(tool) ? "edit" : /^(Read|Glob|Grep)$/.test(tool) ? "read" : tool === "Bash" ? "command" : "other";
 }
 function claudePath(input: Record<string, unknown>): string { return text(input.file_path) || text(input.path); }
-export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string): string {
+// A Doan connector's tool (`mcp__doan-<slug>__<tool>`) is named with its connector, and its input never reaches the
+// summary: it can hold page ids, queries and bodies (mcp-connectors spec 완료 조건 6). labels maps doan- names to
+// connector names; the presets are always known.
+const DOAN_MCP_TOOL = /^mcp__(doan-[a-z0-9][a-z0-9-]{0,15})__(.+)$/s;
+const PRESET_LABELS = connectorLabels([]);
+export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): string {
+  const mcp = tool.match(DOAN_MCP_TOOL);
+  if (mcp) return `Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`.slice(0, 512);
   const path = claudePath(input);
   return (text(input.description) || text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || GENERIC_SUMMARY[claudeKind(tool)]).slice(0, 512);
 }
 // Activity is stored and published for every call, so a shell command's text, description or arguments never go in it
 // (user decision 2026-10-30); only the permission request shows the command being approved.
-function claudeActivity(tool: string, input: Record<string, unknown>, root: string): EventPayload {
+// A Doan connector's tool input is the connector's (a page id, a query), never a file of the repo, so it gives no path.
+function claudeActivity(tool: string, input: Record<string, unknown>, root: string, labels?: Readonly<Record<string, string>>): EventPayload {
   const kind = claudeKind(tool);
-  return activity(kind, claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudePermissionSummary(tool, input, root), root);
+  return activity(kind, DOAN_MCP_TOOL.test(tool) ? "" : claudePath(input), kind === "command" ? GENERIC_SUMMARY.command : claudePermissionSummary(tool, input, root, labels), root);
 }
-function codexActivities(item: Record<string, unknown>, root: string): { events: EventPayload[]; files: string } {
+function codexActivities(item: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>>): { events: EventPayload[]; files: string } {
   if (item.type === "fileChange") {
     const paths = (Array.isArray(item.changes) ? item.changes.filter(object) : []).map(change => text(change.path));
     const events = paths.length ? paths.map(path => activity("edit", path, path ? displayPath(path, root) : GENERIC_SUMMARY.edit, root)) : [activity("edit", "", GENERIC_SUMMARY.edit, root)];
@@ -98,7 +108,7 @@ function codexActivities(item: Record<string, unknown>, root: string): { events:
   }
   if (item.type === "commandExecution") return { events: [activity("command", "", GENERIC_SUMMARY.command, root)], files: "" };
   const tool = text(item.tool), server = text(item.server);
-  return { events: [activity("other", "", tool ? (server ? `${tool} (${server})` : tool) : GENERIC_SUMMARY.other, root)], files: "" };
+  return { events: [activity("other", "", tool ? (server ? `${tool} (${serverLabel(server, labels)})` : tool) : GENERIC_SUMMARY.other, root)], files: "" };
 }
 // The mode a Claude status message reports ({type: "system", subtype: "status", permissionMode}, SDK 0.3.312), as a
 // common id; undefined for any other message. After a plan approval it names the mode the session now runs (P1).
@@ -106,14 +116,15 @@ export function claudeReportedMode(raw: unknown): PermissionModeId | undefined {
   if (!object(raw) || raw.type !== "system" || raw.subtype !== "status" || typeof raw.permissionMode !== "string") return undefined;
   return claudeModeAfterPlan(raw.permissionMode);
 }
-export function normalizeClaude(state: TransportState, raw: unknown, root: string): SteerResult {
+// labels: the connector names of the run (connectorLabels), so a Doan connector's tool never shows its doan- name.
+export function normalizeClaude(state: TransportState, raw: unknown, root: string, labels?: Readonly<Record<string, string>>): SteerResult {
   if (state.terminal || !object(raw) || raw.parent_tool_use_id) return unchanged(state);
   // A steered message is read when its uuid first appears in a frame's user_message_uuids: the system/status after a
   // tool result when it folds into the running turn, or the system/init of the turn the CLI runs for it (PoC, Claude Code 2.1.317 and 2.1.312).
   const read = consume(state, Array.isArray(raw.user_message_uuids) ? raw.user_message_uuids : []);
-  return withConsumed(claudeFrame(read.state, raw, root), read.consumed);
+  return withConsumed(claudeFrame(read.state, raw, root, labels), read.consumed);
 }
-function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: string): SteerResult {
+function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: string, labels?: Readonly<Record<string, string>>): SteerResult {
   if (raw.type === "stream_event" && object(raw.event)) {
     const event = raw.event;
     if (event.type === "message_start" && object(event.message) && typeof event.message.id === "string") return { state: { ...state, messageId: event.message.id, textBlock: null }, events: [] };
@@ -136,7 +147,7 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
     }
     for (const content of raw.message.content) {
       if (object(content) && content.type === "tool_use" && typeof content.id === "string" && !activities.includes(content.id)) {
-        events.push(claudeActivity(text(content.name), object(content.input) ? content.input : {}, root)); activities.push(content.id);
+        events.push(claudeActivity(text(content.name), object(content.input) ? content.input : {}, root, labels)); activities.push(content.id);
       }
     }
     return { state: { ...state, completedMessages, activities }, events };
@@ -151,10 +162,14 @@ function claudeFrame(state: TransportState, raw: Record<string, unknown>, root: 
   }
   return unchanged(state);
 }
-export interface CodexContext { root: string; sessionId: string; turnId: string }
+// labels: the connector names of the run (connectorLabels); the presets when absent.
+export interface CodexContext { root: string; sessionId: string; turnId: string; labels?: Readonly<Record<string, string>> }
+// decline: an MCP elicitation answered with response at once (a form, or a tool approval with no turn to ask in); the
+// turn goes on. unsupported and route are answered with an error.
 export interface CodexTransportResult extends SteerResult {
-  request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" };
+  request?: { id: string | number; method: string; disposition: "permission" | "unsupported" | "route" } | { id: string | number; method: string; disposition: "decline"; response: unknown };
 }
+const MCP_ELICITATION = "mcpServer/elicitation/request";
 export interface CodexReplyOwner { requestId: string | number; sessionId: string; turnId: string }
 // The dispatcher supplies ownership from its pending RPC table, never from the active turn.
 export function normalizeCodexReply(state: TransportState, raw: unknown, context: CodexContext, owner: CodexReplyOwner): TransportResult {
@@ -170,7 +185,13 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
     const otherOwner = (typeof params.threadId === "string" && params.threadId !== context.sessionId)
       || (typeof turnId === "string" && turnId !== context.turnId);
     const matched = params.threadId === context.sessionId && turnId === context.turnId;
-    const permission = matched && !state.terminal ? codexPermission(raw, state.fileSummaries) : null;
+    // A stopped turn asks nothing more: the person already left it, and the service drops its later events, so an MCP
+    // approval held now could never be answered.
+    const asking = matched && !state.terminal && !(state.stop && raw.method === MCP_ELICITATION);
+    const permission = asking ? codexPermission(raw, state.fileSummaries, context.labels) : null;
+    // An elicitation this turn cannot ask about (a form, or one with no running turn to ask in) is declined, never failed: the
+    // tool call fails and the turn goes on (mcp-connectors spec 완료 조건 6).
+    if (!otherOwner && !permission && raw.method === MCP_ELICITATION) return { ...unchanged(state), request: { id: raw.id, method: raw.method, disposition: "decline", response: { id: raw.id, result: { action: "decline" } } } };
     const disposition = otherOwner ? "route" : permission ? "permission" : "unsupported";
     const answered = permission ? { ...state, fileSummaries: withoutFileSummary(state.fileSummaries, text(params.itemId)) } : state;
     const result = permission ? { state: answered, events: [permission.event] }
@@ -200,7 +221,7 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
       return { state: { ...state, completedMessages: [...state.completedMessages, id] }, events: [{ type: "message.done", messageId: id, text: text(item.text) }] };
     }
     if (id && !state.activities.includes(id) && (item.type === "fileChange" || item.type === "commandExecution" || item.type === "mcpToolCall")) {
-      const { events, files } = codexActivities(item, context.root);
+      const { events, files } = codexActivities(item, context.root, context.labels ?? PRESET_LABELS);
       // A file approval names only its itemId, so the paths seen when the item started are kept for it.
       const fileSummaries = files && raw.method === "item/started" ? withFileSummary(state.fileSummaries, id, files) : state.fileSummaries;
       return { state: { ...state, activities: [...state.activities, id], fileSummaries }, events };
@@ -217,17 +238,18 @@ export function normalizeCodex(state: TransportState, raw: unknown, context: Cod
 function choice(id: string, label: string, kind: "allow" | "allowAlways" | "deny", response: unknown): PermissionChoice {
   return { option: { id, label, kind }, response };
 }
-export function claudePermission(requestId: string, tool: string, input: Record<string, unknown>, suggestions: readonly unknown[], root: string): PendingPermission {
+export function claudePermission(requestId: string, tool: string, input: Record<string, unknown>, suggestions: readonly unknown[], root: string, labels?: Readonly<Record<string, string>>): PendingPermission {
   const choices = [
     choice("allow", "Allow", "allow", { behavior: "allow", updatedInput: input }),
     choice("deny", "Deny", "deny", { behavior: "deny", message: "Denied by the user." }),
   ];
   if (suggestions.length) choices.push(choice("always", "Allow with suggested permissions", "allowAlways", { behavior: "allow", updatedInput: input, updatedPermissions: [...suggestions] }));
-  return { event: { type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, input, root), options: choices.map(c => c.option) }, choices };
+  return { event: { type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, input, root, labels), options: choices.map(c => c.option) }, choices };
 }
-export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<string, string>> = {}): PendingPermission | null {
+export function codexPermission(raw: unknown, fileSummaries: Readonly<Record<string, string>> = {}, labels: Readonly<Record<string, string>> = PRESET_LABELS): PendingPermission | null {
   if (!object(raw) || (typeof raw.id !== "number" && typeof raw.id !== "string") || !object(raw.params)) return null;
   const params = raw.params;
+  if (raw.method === MCP_ELICITATION) { const approval = codexMcpApproval(raw, labels); return approval?.kind === "permission" ? approval.permission : null; }
   if (raw.method === "item/permissions/requestApproval" && object(params.permissions)) {
     const response = (permissions: unknown, scope: "turn" | "session") => ({ id: raw.id, result: { permissions, scope } });
     const choices = [

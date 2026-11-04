@@ -109,7 +109,7 @@ export function CanvasConversationList({ list, project, thumbnails, open, retry,
 }
 
 export function ListLoading() {
-  return <p className="rp-loading" role="status">Loading canvas conversations…</p>;
+  return <p className="rp-loading" role="status">Loading canvas conversations</p>;
 }
 
 // No glyph without a ready preview: the inset fill only, named for screen readers. A ready image stays while a new

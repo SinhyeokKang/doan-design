@@ -211,10 +211,13 @@ test("every reply reason has a fixed effect", () => {
 
 test("reply stop_required opens a confirmation for sign-out and for sign-in", () => {
   expect(stopDialog("claude", "signOut")).toEqual({
-    title: "Stop Claude Code conversations?", body: "Claude Code is running a conversation. Signing out stops it. Your conversation history stays.",
+    title: "Stop Claude Code conversations?", body: "Claude Code is running a conversation. Signing out stops it. Your conversation history stays. Its MCP connectors need connecting again.",
     cancel: { command: "dismiss", label: "Cancel", variant: "subtle", disabled: false }, confirm: { command: "signOut", label: "Stop and sign out", variant: "prominent", disabled: false },
   });
   expect(stopDialog("codex", "signIn")).toMatchObject({ title: "Stop Codex conversations?", body: "Codex is running a conversation. Signing in again stops it. Your conversation history stays.", confirm: { command: "signIn", label: "Stop and sign in" } });
+  // Only Claude Code and Codex have MCP connectors (mcp-connectors spec 8).
+  expect(stopDialog("codex", "signOut").body).toBe("Codex is running a conversation. Signing out stops it. Your conversation history stays. Its MCP connectors need connecting again.");
+  expect(stopDialog("cursor", "signOut").body).toBe("Cursor is running a conversation. Signing out stops it. Your conversation history stays.");
 });
 
 test("every agent-auth error code maps to its alert and next action", () => {

@@ -468,7 +468,7 @@ export function QueueRows(props: QueueRowsProps) {
             {/* aria-disabled, not disabled, while in flight: a disabled button drops focus to the body in Chromium. */}
             <button type="button" ref={node => { life(node); keep("sendNow", item.id)(node); }} className="doan-button queue-send" data-ui-size="xs"
               aria-label="Send queued message now" aria-describedby={textId} aria-disabled={item.sending || undefined}
-              onClick={() => { if (!item.sending) void sendNow(item.id); }}>{item.sending ? "Sending…" : "Send now"}</button>
+              onClick={() => { if (!item.sending) void sendNow(item.id); }}>{item.sending ? "Sending" : "Send now"}</button>
           </TooltipTrigger><TooltipContent>{SEND_NOW_TIP}</TooltipContent></Tooltip>}</QueueButtonLife>}
         <QueueButtonLife onLost={() => { lost.current = true; }}>{life =>
           <button type="button" ref={node => { life(node); keep("remove", item.id)(node); }} className="chip-remove doan-icon-button" data-ui-size="xs"

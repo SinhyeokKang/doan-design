@@ -37,7 +37,7 @@ export type RowAction = "setUp" | "locate" | "remove" | "showInFinder" | "retry"
 export const ROW_ACTION_LABELS: Record<RowAction, string> = { setUp: "Set Up", locate: "Locate", remove: "Remove from Doan", showInFinder: "Show in Finder", retry: "Retry", details: "Details" };
 
 export interface CardRow {
-  chip?: "Not set up" | "Missing" | "Config error" | "CLI error" | "Reading…";
+  chip?: "Not set up" | "Missing" | "Config error" | "CLI error" | "Reading";
   // The first action takes focus when a problem row is clicked.
   actions: RowAction[];
   // Only for a list row.
@@ -59,7 +59,7 @@ export function cardRow(entry: FolderEntry, loaded: string | null, selection: Se
   const row = { current, ...(selected === undefined ? {} : { selected }) };
   switch (entry.kind) {
     case "loading":
-      return { ...row, chip: "Reading…", actions: [] };
+      return { ...row, chip: "Reading", actions: [] };
     case "uninitialized":
       return { ...row, chip: "Not set up", actions: ["setUp", "remove"] };
     case "notFound":

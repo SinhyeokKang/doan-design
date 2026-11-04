@@ -1,0 +1,90 @@
+[
+  {
+    "ms": 3330,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "doan-notion",
+      "status": "starting",
+      "error": null,
+      "failureReason": null
+    }
+  },
+  {
+    "ms": 3330,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "doan-atlassian",
+      "status": "starting",
+      "error": null,
+      "failureReason": null
+    }
+  },
+  {
+    "ms": 3330,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "doan-figma",
+      "status": "starting",
+      "error": null,
+      "failureReason": null
+    }
+  },
+  {
+    "ms": 3330,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "codex_apps",
+      "status": "starting",
+      "error": null,
+      "failureReason": null
+    }
+  },
+  {
+    "ms": 3373,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "doan-notion",
+      "status": "failed",
+      "error": "The doan-notion MCP server is not logged in. Run `codex mcp login doan-notion`.",
+      "failureReason": null
+    }
+  },
+  {
+    "ms": 4421,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "doan-atlassian",
+      "status": "ready",
+      "error": null,
+      "failureReason": null
+    }
+  },
+  {
+    "ms": 4552,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "codex_apps",
+      "status": "ready",
+      "error": null,
+      "failureReason": null
+    }
+  },
+  {
+    "ms": 4892,
+    "method": "mcpServer/startupStatus/updated",
+    "params": {
+      "threadId": "thread-1014",
+      "name": "doan-figma",
+      "status": "ready",
+      "error": null,
+      "failureReason": null
+    }
+  }
+]

@@ -4,7 +4,7 @@ import { projectNames, projectRow } from "./projectRow";
 
 describe("projectRow", () => {
   test("separates reading and empty hints from status chips", () => {
-    expect(projectRow({ path: "/repo", kind: "loading" })).toEqual({ hint: "Reading…", actions: ["close"] });
+    expect(projectRow({ path: "/repo", kind: "loading" })).toEqual({ hint: "Reading", actions: ["close"] });
     expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [] })).toEqual({ hint: "No canvases", actions: ["copyPrompt", "close"] });
     expect(projectRow({ path: "/repo", kind: "list", servedRev: 0, canvases: [{ path: ".doan/canvases/a.html", url: "url" }] })).toEqual({ actions: ["close"] });
   });

@@ -79,7 +79,7 @@ export class ConversationStore {
     this.host.changed();
   }
   // Send now: one queued message into the running turn. Main answers once the agent read it (the row leaves) or the
-  // message stayed queued (refused, or the turn ended first); until then the row shows Sending… on either screen.
+  // message stayed queued (refused, or the turn ended first); until then the row shows Sending on either screen.
   async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string }> {
     if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
     const reply = await window.doan.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));

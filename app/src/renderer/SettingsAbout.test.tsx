@@ -76,10 +76,10 @@ const actions = {} as HTMLElement;
 const render = () => run(() => SettingsAbout({ actions }));
 const row = (id: string) => all(tree).find(element => element.props["data-about"] === id)!;
 
-test("rows say Checking… while About is read on entry, then show versions and support", async () => {
+test("rows say Checking while About is read on entry, then show versions and support", async () => {
   render();
   expect(doan.readAbout).toHaveBeenCalledTimes(1);
-  for (const id of ["version", "cli", "claude", "codex"]) expect(words(row(id).props.children), id).toContain("Checking…");
+  for (const id of ["version", "cli", "claude", "codex"]) expect(words(row(id).props.children), id).toContain("Checking");
   expect(all(row("cli").props.children as ReactNode).some(element => element.props.role === "status")).toBe(true);
   reply(READ); await flush(); render();
   expect(words(row("version").props.children)).toContain("0.1.0");
@@ -103,7 +103,7 @@ test("a row whose version couldn’t be read says so with Retry, which reads Abo
 });
 
 // review BU2-3: a focus re-read keeps the shown versions, and a read in flight is not started again.
-test("returning to the window reads About again without Checking…; a focus during a read starts no other", async () => {
+test("returning to the window reads About again without Checking; a focus during a read starts no other", async () => {
   render();
   windowListeners.focus!();
   expect(doan.readAbout).toHaveBeenCalledTimes(1);
@@ -111,7 +111,7 @@ test("returning to the window reads About again without Checking…; a focus dur
   windowListeners.focus!(); render();
   expect(doan.readAbout).toHaveBeenCalledTimes(2);
   expect(words(row("claude").props.children)).toContain("2.1.330");
-  expect(words(row("claude").props.children)).not.toContain("Checking…");
+  expect(words(row("claude").props.children)).not.toContain("Checking");
   windowListeners.focus!();
   expect(doan.readAbout).toHaveBeenCalledTimes(2);
   reply({ ...READ, tools: READ.tools!.map(tool => tool.provider === "claude" ? { ...tool, installed: "2.1.400" } : tool) }); await flush(); render();
@@ -182,8 +182,8 @@ test("a copy that doesn’t set up agents: a neutral notice with the same icon, 
   expect(words(inside.find(element => element.props.className === "ob-notice-body")!.props.children)).toBe("It isn’t directly in the Applications folder. Open the Doan in Applications so your agents can use it.");
 });
 
-test("while About is read (setup may still be running), the row shows Checking… and no notice", () => {
+test("while About is read (setup may still be running), the row shows Checking and no notice", () => {
   render();
-  expect(words(row("cli").props.children)).toContain("Checking…");
+  expect(words(row("cli").props.children)).toContain("Checking");
   expect(notice()).toBeUndefined();
 });

@@ -933,3 +933,15 @@ test("late events of a deleted conversation do not crowd out another conversatio
   const sending = h.run.start(REQUEST, LAST); start.resolve({ conversationId: "c2" }); await sending;
   expect(h.run.strip(ROOT)?.state.kind).toBe("permission");
 });
+
+// mcp-connectors spec 10: Settings > MCP Connectors asks which agents have a Doan turn running anywhere.
+test("running providers are the agents with a Doan conversation running or waiting in any project; terminal ones and ended ones don't count", async () => {
+  lists({
+    [ROOT]: [summary({ conversationId: "a", provider: "codex", phase: "waiting" }), summary({ conversationId: "b", provider: "cursor", phase: "ended" })],
+    [OTHER]: [summary({ conversationId: "c", provider: "claude", phase: "running", owner: "legacy-external" }), summary({ conversationId: "d", provider: "copilot", phase: "running", canvas: { path: ".doan/canvases/x.html", id: "x" } })],
+  });
+  const h = harness([list(ROOT, ["a"]), list(OTHER, ["x"])]);
+  h.run.entriesChanged();
+  await flush();
+  expect([...h.run.runningProviders()].sort()).toEqual(["codex", "copilot"]);
+});

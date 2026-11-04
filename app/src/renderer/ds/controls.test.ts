@@ -180,6 +180,8 @@ test("a settings group is a bordered container of rows split by lines, and each 
   expect(row).toContain("padding: var(--space-3) 0;");
   expect(rule(css, ".doan-preference-row-content")).toContain("gap: var(--space-half);");
   expect(rule(css, ".doan-preference-row-label")).toContain("font-size: var(--type-body-sm-size);");
+  // A row's label is medium weight in every Settings page (user decision with MCP Connectors).
+  expect(rule(css, ".doan-preference-row-label")).toContain("font-weight: var(--type-weight-medium);");
   expect(rule(css, ".doan-preference-row-description")).toContain("font-size: var(--type-caption-size);");
   expect(rule(css, ".doan-preference-row-description")).toContain("color: var(--text-subtle);");
   expect(rule(css, ".doan-preference-row-trailing")).toContain("justify-content: flex-end;");

@@ -53,9 +53,11 @@ export class CodexDispatcher {
       if (result.request) {
         const { id, disposition } = result.request;
         if (disposition === "permission") {
-          const request = codexPermission(raw);
+          const request = codexPermission(raw, undefined, this.context.labels);
           if (!request || this.permissions.has(request.event.requestId)) { this.fail(); return; }
           this.permissions.set(request.event.requestId, { id, request });
+        } else if (result.request.disposition === "decline") {
+          try { this.write(result.request.response); } catch { this.fail(); return; }
         } else if (!this.reject(id)) return;
       }
       this.apply(result); return;

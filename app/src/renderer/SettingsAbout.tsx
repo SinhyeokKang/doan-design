@@ -7,7 +7,7 @@ import type { Provider } from "../main/agentAuth/types";
 import { AlertIcon } from "./AlertIcon";
 import { providerLogo } from "./homeComposer";
 
-const CHECKING = "Checking…";
+const CHECKING = "Checking";
 const TONES: Record<AboutRow["tone"], string> = { neutral: "ob-chip", ok: "ob-chip ok", warning: "ob-chip warn", error: "ob-chip err" };
 const PROVIDER_ROWS = new Set<string>(["claude", "codex", "cursor", "antigravity", "copilot"]);
 
@@ -36,7 +36,7 @@ export function SettingsAbout({ actions }: { actions: HTMLElement | null }) {
   const [failed, setFailed] = useState(false);
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const reads = useRef(0), inFlight = useRef(false);
-  // Entry and Retry say Checking…; a re-read on focus keeps the shown versions until the new ones arrive, and a read
+  // Entry and Retry say Checking; a re-read on focus keeps the shown versions until the new ones arrive, and a read
   // already running (a CLI run in main) is not started again.
   const load = (fresh: boolean) => {
     if (!fresh && inFlight.current) return;

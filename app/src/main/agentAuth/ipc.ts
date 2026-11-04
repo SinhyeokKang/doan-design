@@ -1,7 +1,7 @@
 import { validAuthId } from "./metadata";
 import { authStatus, readiness, recordedFacts } from "./state";
 import { PROVIDERS, validProvider, type AuthRejection, type AuthState, type AuthStatusDto, type AuthTransition, type Provider, type ToolFacts } from "./types";
-import type { AuthPrompt, CheckOutcome, CheckStarted, Started, WriteOptions } from "./manager";
+import { settlingStatus, type AuthPrompt, type CheckOutcome, type CheckStarted, type Started, type WriteOptions } from "./manager";
 
 // Kebab-case namespaces like ui-state. Main window and Settings both reach these (senderAllowed);
 // neither gets conversation-run rights from them.
@@ -26,6 +26,8 @@ export interface AuthBackend {
   cancel(provider: Provider, attemptId: string, owner: number): Promise<AuthTransition>;
   submitCode(provider: Provider, attemptId: string, owner: number, code: string): { ok: true } | { ok: false; reason: AuthRejection };
   signOut(provider: Provider, options: WriteOptions): Promise<Started>;
+  // A committed replacement still running its MCP step (AuthManager.settling): shown busy until it ends.
+  settling?(provider: Provider): boolean;
 }
 export interface AuthIpcOptions {
   backend: AuthBackend;
@@ -148,6 +150,6 @@ export class AuthIpc {
   // Applied at every read, so a refresh that started before a record cannot cover it with the build's unchanged facts.
   private factsOf(provider: Provider): ToolFacts { return recordedFacts(this.facts.get(provider) ?? UNPROBED, this.incompatibles.get(provider)); }
   private snapshot(): AuthSnapshot {
-    return { revision: this.revision, providers: PROVIDERS.map(p => authStatus(this.options.backend.state(p), this.factsOf(p), this.revision)) };
+    return { revision: this.revision, providers: PROVIDERS.map(p => settlingStatus(authStatus(this.options.backend.state(p), this.factsOf(p), this.revision), this.options.backend.settling?.(p) ?? false)) };
   }
 }

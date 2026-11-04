@@ -19,7 +19,7 @@ export type AboutTone = "neutral" | "ok" | "warning" | "error";
 export interface AboutRow { id: string; label: string; description: string | null; value: string | null; status: string | null; tone: AboutTone; error: string | null }
 export interface AboutView { app: AboutRow[]; tools: AboutRow[] }
 
-const CHECKING = "Checking…";
+const CHECKING = "Checking";
 // A failed read, unlike an answer such as Not installed, is an `error` the page pairs with Retry, as for the doan
 // command. Retry reads About again from the facts cache; it does not run the provider's CLI.
 const UNREAD_ERROR = "Couldn’t read the version.";
@@ -41,7 +41,7 @@ function toolStatus(tool: AboutTool): { status: string | null; tone: AboutTone; 
   }
 }
 
-// null: a read is running, and every row says Checking… until it ends.
+// null: a read is running, and every row says Checking until it ends.
 export function aboutView(read: AboutRead | null): AboutView {
   const row = (id: string, label: string, description: string | null, value: string | null): AboutRow => ({ id, label, description, value, status: null, tone: "neutral", error: null });
   if (read === null) {

@@ -29,6 +29,8 @@ const mainOnly = new Set([
   "config:session-start", "config:session-end",
   "setup:open-external",
   "agent-auth:read", "agent-auth:check", "agent-auth:sign-in", "agent-auth:cancel", "agent-auth:submit-code", "agent-auth:open-link", "agent-auth:sign-out",
+  // mcp-connectors: Settings > MCP Connectors; mcp-connectors:changed is an event main sends, not a request.
+  "mcp-connectors:list", "mcp-connectors:add", "mcp-connectors:connect", "mcp-connectors:disconnect", "mcp-connectors:remove", "mcp-connectors:cancel", "mcp-connectors:open-link",
   "config:read", "config:write", "config:choose",
   // canvas-row-menu: the sidebar's canvas row menu; Show in Finder takes only an id main gave for a file it wrote.
   "canvas:trashPlan", "canvas:trash", "canvas:export", "canvas:revealExport",

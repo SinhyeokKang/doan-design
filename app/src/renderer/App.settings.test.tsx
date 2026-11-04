@@ -39,11 +39,12 @@ vi.mock("react", async original => {
 const harness = vi.hoisted(() => ({
   controller: null as null | Record<string, ReturnType<typeof vi.fn>>,
   toast: { toast: null, element: null, show: vi.fn(), action: vi.fn(), setModal: vi.fn() },
-  signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn() },
+  signIn: { onToast: null as null | ((toast: { text: string; action: { label: string; target: unknown } | null }) => void), windowFocused: vi.fn(),
+    state: { auth: undefined as unknown }, listener: null as null | (() => void) },
 }));
 vi.mock("./Toast", () => ({ useToast: () => harness.toast }));
 vi.mock("./agentSignIn", () => ({
-  agentSignIn: () => ({ onToast: (listener: typeof harness.signIn.onToast) => { harness.signIn.onToast = listener; return () => {}; }, windowFocused: harness.signIn.windowFocused }),
+  agentSignIn: () => ({ state: harness.signIn.state, subscribe: (listener: () => void) => { harness.signIn.listener = listener; return () => {}; }, onToast: (listener: typeof harness.signIn.onToast) => { harness.signIn.onToast = listener; return () => {}; }, windowFocused: harness.signIn.windowFocused }),
 }));
 vi.mock("./CanvasController", async original => ({
   ...await original<typeof import("./CanvasController")>(),
@@ -89,12 +90,12 @@ let tree: ReactNode;
 function reset() {
   hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = [];
   listeners = {}; windowListeners = {};
-  harness.toast.show.mockClear(); harness.signIn.windowFocused.mockClear();
+  harness.toast.show.mockClear(); harness.signIn.windowFocused.mockClear(); harness.signIn.state.auth = undefined;
   const on = (name: string) => vi.fn((listener: (...args: never[]) => void) => { listeners[name] = listener; return () => {}; });
   doan = {
     onFolders: on("folders"), onViewCommand: on("view"), onMenuCommand: on("menu"), onConversationEvent: on("conversation"), onConversationListChanged: on("conversationList"), listConversations: vi.fn(async () => []), onOpenAddProjects: on("openAddProjects"),
     onOpenSettingsPage: on("openSettingsPage"), onNotificationClick: on("notificationClick"),
-    onWorkChanged: on("work"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
+    onWorkChanged: on("work"), onMcpConnectors: on("mcp"), onExportRunning: on("exportRunning"), onFullScreen: on("fullScreen"), getWork: vi.fn(async () => []), onOpenLink: on("openLink"), onQuitting: vi.fn(() => () => {}), openLinksReady: vi.fn(async () => {}), onOpenRequest: on("openRequest"), answerOpenRequest: vi.fn(async () => {}),
     homeDirectory: vi.fn(async () => "/Users/ada"), startOnboardingSession: vi.fn(async () => ({ ok: true, result: { sessionId: "s", completed: true } })),
     readUiState: vi.fn(() => new Promise(resolve => { readUiState = resolve; })), saveUiState: vi.fn(async () => true), setMenuState: vi.fn(async () => {}),
     readPreferences: vi.fn(async () => PREFS), savePreferences: vi.fn(async () => null),
@@ -987,4 +988,43 @@ test("a workspace Locate or a Set Up reroot of the loaded root keeps the workspa
   listeners.folders!([listed("/w/a2"), listed("/w/b")] as never, { from: "/w/a", root: "/w/a2" } as never); render();
   expect(workspaceShown()).toBe(true);
   expect(loadedOf(find(ShellSidebar)[0]!)).toBe("/w/a2");
+});
+
+// mcp-connectors spec 1: MCP Connectors exists only while Claude Code or Codex is signed in to Doan.
+const signedIn = (claude: boolean, codex: boolean) => ({ revision: 1, providers: [["claude", claude], ["codex", codex], ["cursor", true]].map(([provider, account]) => ({ provider, account: account ? { email: "a@b.c" } : null })) });
+function signIns(claude: boolean, codex: boolean) { harness.signIn.state.auth = signedIn(claude, codex); harness.signIn.listener?.(); render(); }
+
+test("MCP Connectors is listed and opens while Claude Code or Codex is signed in; signing both out turns the shown page into Agents once", () => {
+  render();
+  folders([listed("/w/a")]);
+  signIns(false, true);
+  cmdComma({ section: "mcp" });
+  expect(settings()!.props).toMatchObject({ section: "mcp", arrival: { focus: { kind: "heading" } } });
+  expect(settings()!.props.sidebar.props.settings).toMatchObject({ section: "mcp", mcp: true });
+  const seq = settings()!.props.arrival!.seq;
+  signIns(false, false);
+  expect(settings()!.props).toMatchObject({ section: "agents", arrival: { focus: { kind: "heading" }, seq: seq + 1 } });
+  expect((settings()!.props as unknown as { announcement?: string }).announcement).toBe("MCP Connectors is available while Claude Code or Codex is signed in.");
+  expect(settings()!.props.sidebar.props.settings).toMatchObject({ section: "agents", mcp: false });
+  // The next move clears the announcement.
+  settings()!.props.sidebar.props.settings!.select("about"); render();
+  expect((settings()!.props as unknown as { announcement?: string }).announcement).toBeUndefined();
+});
+
+test("while the category is hidden, a target or a saved section of MCP Connectors opens Agents", async () => {
+  render();
+  folders([listed("/w/a")]);
+  signIns(false, false);
+  cmdComma({ section: "mcp" });
+  expect(settings()!.props.section).toBe("agents");
+  expect((settings()!.props as unknown as { announcement?: string }).announcement).toBeUndefined();
+  for (const [signedInNow, section] of [[false, "agents"], [true, "mcp"]] as const) {
+    reset();
+    render();
+    folders([listed("/w/a")]);
+    readUiState({ screen: "home", expanded: {}, shellProjects: {}, lastByRoot: {}, settingsSection: "mcp" }); await Promise.resolve(); await Promise.resolve(); render();
+    signIns(signedInNow, false);
+    cmdComma();
+    expect(settings()!.props.section).toBe(section);
+  }
 });

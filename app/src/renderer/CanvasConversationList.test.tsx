@@ -119,7 +119,7 @@ describe("canvas conversation list", () => {
 
   test("loading shows nothing first, then the status line", () => {
     expect(render("loading")).toBe("");
-    expect(renderToStaticMarkup(<ListLoading />)).toBe('<p class="rp-loading" role="status">Loading canvas conversations…</p>');
+    expect(renderToStaticMarkup(<ListLoading />)).toBe('<p class="rp-loading" role="status">Loading canvas conversations</p>');
   });
 
   test("a failed read offers Retry", () => {

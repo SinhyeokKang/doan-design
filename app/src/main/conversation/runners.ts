@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { openAcp } from "./acpRunner";
@@ -8,6 +10,8 @@ import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeV
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { parseClaudeModels, parseCodexModels } from "./models";
+import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
+import { connectorLabels } from "../mcpConnectors/presets";
 import { claudePermissionSummary, claudeReportedMode, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, transportError } from "./transport";
 import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
@@ -52,6 +56,14 @@ function timeout<T>(promise: Promise<T>): Promise<T> {
     promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
+// The doan- servers Doan registered in this Codex profile, read from its config.toml for every turn: a Connect may have
+// added one since the server started. An unreadable or oversized file names none, so the turn does not wait.
+function profileServers(configDir: string): string[] {
+  try { const text = readFileSync(join(configDir, "config.toml"), "utf8"); return text.length > 1024 * 1024 ? [] : codexProfileServers(text); }
+  catch { return []; }
+}
+// One Codex send's start (runners.ts openCodex): stopped by a Stop that came before its turn existed, wake ends its wait.
+interface Start { stopped: boolean; wake(): void }
 function openCodexList(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
   return openCodex(input, emit, exited, registerStop, true);
 }
@@ -60,6 +72,12 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // Doan-account args select the dedicated credential store; they must precede the subcommand.
   const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
+  // starting: the current send until its turn/start answered (reload, server wait, the start itself). A Stop then marks
+  // that send, never the runner: a later send must not take it over. latest: the most recent send. settled: resolves
+  // when the latest send's start is over, so the next send takes the shared turn state only after it.
+  // reloadOwed: a reload the server refused, sent again before the next turn. closing: close() ran.
+  const startup = new CodexStartupWatch();
+  let starting: Start | undefined, latest: Start | undefined, settled = Promise.resolve(), reloadOwed = false, closing = false;
   let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", localTurn = "", buffer = "", dead = false;
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
@@ -76,13 +94,14 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     let end: number;
     while ((end = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
-      try { const raw: unknown = JSON.parse(line); if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { failProtocol(); }
+      // Startup statuses name a thread but no turn, and the reply that names the thread can still be on its way here.
+      try { const raw: unknown = JSON.parse(line); if (startup.receive(raw, sessionId)) continue; if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { failProtocol(); }
     }
   });
   const transportDied = () => {
     if (dead) return; dead = true;
     // Transport loss ends the turn now; only group disappearance releases ownership.
-    dispatcher.end(); void group?.stop();
+    dispatcher.end(); starting?.wake(); void group?.stop();
   };
   child.stderr.resume(); child.stdin.on("error", transportDied); child.stdout.once("end", transportDied);
   child.once("exit", () => { transportDied(); group?.childExited(); });
@@ -119,21 +138,70 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     }
     if (dead) throw new Error("process_exited");
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
+  // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server",
+  // P2), so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
+  // forgotten before it is sent, since the new ones can follow its reply at once. The reload is awaited to its answer
+  // even after a Stop, so its outcome is known. False: a Stop ended the phase.
+  const serversReady = async (phase: Start, reload: boolean, labels: Readonly<Record<string, string>>): Promise<boolean> => {
+    if (!input.owner) return true;
+    const names = profileServers(input.configDir);
+    if (reload) {
+      startup.forget(sessionId, names);
+      let applied = true;
+      try { await dispatcher.request("config/mcpServer/reload", {}); } catch (error) { if (!(error instanceof RpcError)) throw error; applied = false; }
+      reloadOwed = !applied;
+      if (dead || closing) throw new Error("process_exited");
+      if (phase.stopped) return false;
+      // A server that refused the reload keeps its servers and their settled statuses, so the turn need not wait.
+      if (!applied) return true;
+    }
+    const wait = startup.wait(sessionId, names, labels, emit);
+    phase.wake = wait.cancel;
+    const started = await wait.started;
+    if (dead || closing) throw new Error("process_exited");
+    return started && !phase.stopped;
+  };
+  // A server that cannot interrupt its own turn is stopped instead.
+  const interrupt = (turnId: string) => dispatcher.request("turn/interrupt", { threadId: sessionId, turnId }).then(() => {}, () => { void group?.stop(); });
   return {
     sessionId,
     async send(prompt, turnId, _attachments, choice) {
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
-      // The server was opened with the conversation's choice then; a send may have changed it since.
-      const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
-      activeTurn = turnId; localTurn = turnId; startingTurn = true;
-      dispatcher.begin({ root: input.cwd, sessionId, turnId });
-      let result: unknown;
-      // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
-      try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
-      if (dead) throw new Error("process_exited");
-      if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
-      activeTurn = result.turn.id; dispatcher.started(activeTurn);
-      startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw);
+      const own: Start = { stopped: false, wake: () => {} }, previous = settled;
+      let settle = () => {}; settled = new Promise<void>(resolve => { settle = resolve; });
+      starting = own; latest = own;
+      // The send's own end after a Stop; once a later send exists, that send's turn is the one being shown.
+      const stopped = () => { if (latest === own) emit({ type: "interrupted", reason: "user" }); };
+      try {
+        // A stopped send before this one may still await its turn/start reply, which only it may answer.
+        await previous;
+        if (dead || closing) throw new Error("process_exited");
+        if (own.stopped) { stopped(); return; }
+        // The server was opened with the conversation's choice then; a send may have changed it since.
+        const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
+        activeTurn = turnId; localTurn = turnId;
+        const labels = input.mcp?.labels() ?? connectorLabels([]);
+        dispatcher.begin({ root: input.cwd, sessionId, turnId, labels });
+        if (!await serversReady(own, choice?.reloadMcp === true || reloadOwed, labels)) { stopped(); return; }
+        startingTurn = true;
+        let result: unknown;
+        // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
+        try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
+        if (dead) throw new Error("process_exited");
+        if (!object(result) || !object(result.turn) || typeof result.turn.id !== "string") { failProtocol(); throw new Error("session_unavailable"); }
+        startingTurn = false;
+        // Stopped while turn/start was unanswered: the native turn is interrupted, never adopted as this turn's.
+        // A turn that already completed in the frames queued behind the reply has nothing left to interrupt.
+        if (own.stopped) {
+          const native = result.turn.id, frames = queued.splice(0);
+          const over = frames.some(raw => object(raw) && raw.method === "turn/completed" && object(raw.params) && object(raw.params.turn) && raw.params.turn.id === native);
+          for (const raw of frames) dispatcher.receive(raw);
+          if (!over) await interrupt(native);
+          stopped(); return;
+        }
+        activeTurn = result.turn.id; dispatcher.started(activeTurn);
+        for (const raw of queued.splice(0)) dispatcher.receive(raw);
+      } finally { if (starting === own) starting = undefined; settle(); }
     },
     // Before turn/start answers there is no native id to expect (startingTurn); a steer then is refused, not held.
     // No model, effort or permission: a steered message runs in the running turn's.
@@ -142,13 +210,19 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       await dispatcher.steer({ threadId: sessionId, expectedTurnId: activeTurn, input: [{ type: "text", text: prompt }], clientUserMessageId: messageId }, messageId);
     },
     answer: (id, option) => dispatcher.answer(id, option),
-    async stop() { dispatcher.stop("user"); if (activeTurn) await dispatcher.request("turn/interrupt", { threadId: sessionId, turnId: activeTurn }).catch(() => { void group?.stop(); }); },
-    async close() { dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
+    // Only a native turn can be interrupted: interrupting the local id fails, and that failure stops the server group.
+    // Before turn/start nothing was sent; while it is unanswered the send interrupts the native turn once it exists.
+    async stop() {
+      dispatcher.stop("user");
+      if (starting) { starting.stopped = true; starting.wake(); return; }
+      if (activeTurn && activeTurn !== localTurn) await interrupt(activeTurn);
+    },
+    async close() { closing = true; if (starting) { starting.stopped = true; starting.wake(); } dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
   };
 }
 // After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn,
 // about 10 ms later (Claude Code 2.1.312, 2.1.317). An echo that never came would keep the turn running and the row on
-// Sending… until Stop, so the wait is bounded: past it the turn ends as done and the message goes back to the queue.
+// Sending until Stop, so the wait is bounded: past it the turn ends as done and the message goes back to the queue.
 export const STEER_READ_WAIT_MS = 30_000;
 // Claude Code refuses to start under the organization pin when the repo's settings supply their own credential
 // (2.1.312: "managed settings require a first-party login"). The SDK keeps no stderr for a custom spawn, so the runner reads it.
@@ -159,6 +233,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   const organization = input.owner ? input.owner.workspaceId : undefined;
   if (organization === null || organization === "") throw new Error("not_logged_in");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
+  // A Claude run opens for one turn, so the connector names read here are current for it.
+  const labels = input.mcp?.labels();
   let group: OwnedGroup | undefined, state = initialTransport();
   const pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve(value: PermissionResult): void }>();
   let finished = false, childExited = false, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
@@ -211,7 +287,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       const requestId = randomUUID(); const suggestions = options.suggestions ?? [];
       return new Promise<PermissionResult>(resolve => {
         pending.set(requestId, { input: toolInput, suggestions, resolve });
-        emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
+        emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd, labels), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
       });
     },
   } });
@@ -244,7 +320,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             // turn stays that process's.
             const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
             if (reported && reported !== "plan") input.planApproved?.(reported);
-            const result = normalizeClaude(state, raw, input.cwd); state = result.state;
+            const result = normalizeClaude(state, raw, input.cwd, labels); state = result.state;
             for (const id of result.consumed ?? []) input.steerConsumed?.(id);
             if (result.consumed?.length) endReadWait();
             if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);

@@ -5,11 +5,11 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServer } from "node:http";
 import { AUTH_LINK_MARKER, BROWSER_HOOK } from "./antigravity";
-import { AuthManager, removeStaleLinkDirs, spawnAuthProcess, type AuthProcess, type Spawn } from "./manager";
+import { AuthManager, hookLinks, removeStaleLinkDirs, spawnAuthProcess, type AuthProcess, type McpLogoutRequest, type Spawn } from "./manager";
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
-import { PROVIDERS, type CheckResult, type Provider } from "./types";
+import { PROVIDERS, type AuthState, type CheckResult, type Provider } from "./types";
 
 type Step = "login" | "status" | "logout" | "acp" | "rpc";
 class FakeProcess implements AuthProcess {
@@ -1960,5 +1960,163 @@ describe("account identity lookup", () => {
       expect(processes.filter(p => p.step === "rpc" || p.step === "acp")).toEqual([]);
       expect(fetch).not.toHaveBeenCalled();
     });
+  });
+});
+
+// mcp-connectors B2/B3: MCP leases, and the MCP logout step a sign-out or a committed replacement runs.
+describe("MCP connector steps", () => {
+  const account = (id: string | null): CheckResult => ({ status: "connected", account: { id, workspace: null } });
+  async function signedInClaude(m: AuthManager, id: string | null) {
+    keychain = account(id);
+    const run = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    return run.done;
+  }
+  it("an mcp lease carries its extra environment and is not a conversation: sign-out stops it without stop_required", async () => {
+    const stopRuns = vi.fn(async (_provider: Provider) => { for (const lease of leases.splice(0)) setTimeout(() => void lease.release(), 5); });
+    const leases: Awaited<ReturnType<AuthManager["acquire"]>>[] = [];
+    const m = manager({ stopRuns }); await m.load();
+    await signedInCursor(m, "u1");
+    const lease = await m.acquire("cursor", "mcp", { DOAN_AUTH_LINK: "/tmp/doan-auth-link-1/links" });
+    expect(lease.env.DOAN_AUTH_LINK).toBe("/tmp/doan-auth-link-1/links");
+    leases.push(lease);
+    const out = started(await m.signOut("cursor"));
+    expect(stopRuns).toHaveBeenCalledWith("cursor");
+    const status = await next("status");
+    expect(leases).toEqual([]);
+    settledSet.add(status); status.finish(0);
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+  });
+  it("runs the MCP logout in the live profile before the provider logout of a sign-out", async () => {
+    const calls: { provider: Provider; request: Omit<McpLogoutRequest, "run"> }[] = [];
+    let listed: { code: number | null; stdout: string } | undefined;
+    const m = manager({ mcpLogout: async (provider, request) => {
+      const { run, ...rest } = request; calls.push({ provider, request: rest });
+      listed = await run(["mcp", "list", "--json"]);
+      return { failed: [] };
+    } }); await m.load();
+    keychain = account(null);
+    const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0); await first.done;
+    const out = started(await m.signOut("codex"));
+    const list = await next("status");
+    expect(list.args).toEqual(["-c", "store=keyring", "mcp", "list", "--json"]);
+    expect(list.cwd).toBe(storage.profileDir("codex"));
+    expect(processes.some(p => p.step === "logout")).toBe(false);
+    settledSet.add(list); list.print("[]"); list.finish(0);
+    await finish("logout", 0);
+    keychain = { status: "disconnected" };
+    await finish("status", 0);
+    expect(await out.done).toMatchObject({ phase: "disconnected" });
+    expect(listed).toEqual({ code: 0, stdout: "[]", stderr: "" });
+    expect(calls).toEqual([{ provider: "codex", request: { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: storage.profileDir("codex") } }]);
+  });
+  it("finishes a sign-out whose MCP logout throws", async () => {
+    const m = manager({ mcpLogout: async () => { throw new Error("list failed"); } }); await m.load();
+    await signedInClaude(m, "a1");
+    const out = started(await m.signOut("claude"));
+    await finish("logout", 0);
+    keychain = { status: "disconnected" };
+    await finish("status", 0);
+    expect(await out.done).toMatchObject({ phase: "disconnected", connection: null });
+  });
+  it("runs no MCP logout for a first sign-in, and passes both account ids after a committed live replacement", async () => {
+    const mcpLogout = vi.fn(async (_provider: Provider, _request: McpLogoutRequest) => ({ failed: [] }));
+    const m = manager({ mcpLogout }); await m.load();
+    await signedInClaude(m, "a1");
+    expect(mcpLogout).not.toHaveBeenCalled();
+    const replaced = await signedInClaude(m, "a2");
+    expect(replaced.connection?.account.id).toBe("a2");
+    expect(mcpLogout).toHaveBeenCalledOnce();
+    expect(mcpLogout.mock.calls[0]![1]).toMatchObject({ kind: "replace", previousAccountId: "a1", nextAccountId: "a2", staging: null });
+  });
+  it("runs no MCP logout when a replacement is cancelled or fails", async () => {
+    const mcpLogout = vi.fn(async () => ({ failed: [] }));
+    const m = manager({ mcpLogout }); await m.load();
+    await signedInClaude(m, "a1");
+    const cancelled = started(await m.signIn("claude", 7));
+    await next("login");
+    await m.cancel("claude", cancelled.attemptId, 7);
+    await cancelled.done;
+    const failed = started(await m.signIn("claude", 7));
+    await finish("login", 1);
+    await failed.done;
+    expect(mcpLogout).not.toHaveBeenCalled();
+  });
+  it("a staged Codex replacement logs out from the previous profile and hands over the staging profile, before that profile goes", async () => {
+    let request: McpLogoutRequest | undefined;
+    const m = manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), loginClears: true } }, mcpLogout: async (_provider, r) => {
+      request = r; await r.run(["mcp", "logout", "doan-notion"]); return { failed: [] };
+    } }); await m.load();
+    keychain = account(null);
+    const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0); await first.done;
+    const run = started(await m.signIn("codex", 7));
+    const login = await finish("login", 0); await finish("status", 0);
+    const mcp = await finish("logout", 0);
+    expect(mcp.args).toEqual(["-c", "store=keyring", "mcp", "logout", "doan-notion"]);
+    expect(mcp.cwd).toBe(storage.profileDir("codex"));
+    expect(request).toMatchObject({ kind: "replace", previousAccountId: null, nextAccountId: null, staging: login.cwd });
+    const retired = await finish("logout", 0);
+    expect(retired.args).toEqual(["-c", "store=keyring", "logout"]);
+    expect(retired.cwd).toBe(storage.profileDir("codex"));
+    expect((await run.done).connection!.profile).toBe(login.cwd.split("/").at(-1));
+  });
+  // BB review R1: the new connection must not run (a conversation or another MCP command) while the previous
+  // account's MCP tokens are being logged out or the staging profile is being registered.
+  it("keeps the provider closed until a committed replacement's MCP step finished, then publishes again", async () => {
+    let entered!: () => void, release!: () => void;
+    const inStep = new Promise<void>(resolve => { entered = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+    const changes: Provider[] = [], published: AuthState[] = [];
+    const m = manager({ onChange: state => { changes.push(state.provider); published.push(state); }, mcpLogout: async () => { entered(); await gate; return { failed: [] }; } }); await m.load();
+    await signedInClaude(m, "a1");
+    keychain = account("a2");
+    const second = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
+    await inStep;
+    expect(m.state("claude").connection?.account.id).toBe("a2");
+    expect(m.settling("claude")).toBe(true);
+    // Round 2 W1: readers see the provider busy, and nothing announced the new connection yet.
+    expect(m.status("claude", { cli: "found", version: "supported", tools: "ready" }).readiness).toEqual({ ready: false, cause: "busy", action: "wait" });
+    expect(published.some(state => state.connection?.account.id === "a2")).toBe(false);
+    await expect(m.acquire("claude", "run")).rejects.toThrow("busy");
+    await expect(m.acquire("claude", "mcp")).rejects.toThrow("busy");
+    const before = changes.length;
+    release();
+    await second.done;
+    expect(m.settling("claude")).toBe(false);
+    expect(changes.length).toBeGreaterThan(before);
+    expect(published.at(-1)).toMatchObject({ phase: "connected", connection: { account: { id: "a2" } } });
+    // No longer busy (this fixture's Claude account has no organization, so it reads as needing a new sign-in).
+    expect(m.status("claude", { cli: "found", version: "supported", tools: "ready" }).readiness).not.toMatchObject({ cause: "busy" });
+    await (await m.acquire("claude", "run")).release();
+  });
+  it("keeps Codex closed while its staging profile is being registered", async () => {
+    let entered!: () => void, release!: () => void;
+    const inStep = new Promise<void>(resolve => { entered = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
+    const m = manager({ adapters: { ...withAcp(), codex: { ...keychainProvider(() => keychain), loginClears: true } }, mcpLogout: async () => { entered(); await gate; return { failed: [] }; } }); await m.load();
+    keychain = account(null);
+    const first = started(await m.signIn("codex", 7)); await finish("login", 0); await finish("status", 0); await first.done;
+    const run = started(await m.signIn("codex", 7));
+    await finish("login", 0); await finish("status", 0);
+    await inStep;
+    await expect(m.acquire("codex", "run")).rejects.toThrow("busy");
+    release();
+    await finish("logout", 0);
+    await run.done;
+    await (await m.acquire("codex", "run")).release();
+  });
+  it("gives a command and child environment for a Doan-owned directory without a connection or lease", async () => {
+    const m = manager(); await m.load();
+    const dir = mkdtempSync(join(tmpdir(), "doan-mcp-home-"));
+    try {
+      const launched = await m.environment("codex", dir);
+      expect(launched.command).toBe("/bin/fake-cli");
+      expect(launched.env).toMatchObject({ CODEX_HOME: dir, PATH: "/verified/bin", DOAN_RUNTIME: "/data/runtime.json" });
+      for (const name of ["GH_TOKEN", "ANTHROPIC_API_KEY"]) expect(launched.env).not.toHaveProperty(name);
+      await m.quit();
+      await expect(m.environment("codex", dir)).rejects.toThrow("busy");
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+  it("exports the link-file hook the MCP sign-in reuses", () => {
+    const hooked = hookLinks(() => {});
+    expect(hooked.env.DOAN_AUTH_LINK).toMatch(/doan-auth-link-.*\/links$/);
+    hooked.close();
   });
 });

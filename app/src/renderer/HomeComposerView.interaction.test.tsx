@@ -316,7 +316,7 @@ test("projects and worktrees that are still being read are disabled with their s
   expect(items.map(props => !!props.disabled)).toEqual([false, true]);
   const worktrees = tree.filter(props => props.className === "doan-menu-item shell-worktree");
   expect(worktrees.map(props => !!props.disabled)).toEqual([false, true]);
-  expect(tree.filter(props => props.className === "ob-chip").map(props => props.children)).toEqual(["Reading…", "Reading…"]);
+  expect(tree.filter(props => props.className === "ob-chip").map(props => props.children)).toEqual(["Reading", "Reading"]);
   function render3(entries: FolderEntry[]) { return setup({}, { entries }).render(); }
 });
 
