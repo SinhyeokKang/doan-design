@@ -10,7 +10,7 @@ import { CONNECTOR_NAME, connectorName, connectorWithUrl, parseConnectorUrl, typ
 import { codexServerToml, mcpLogoutOutcome, mcpLogoutPlan, plaintextLeftovers, reconcilePlan, type McpLogoutInput } from "./plans";
 import { connectorLabel, connectorLabels, MCP_PROVIDERS, PRESETS, type ConnectorServer, type McpProvider } from "./presets";
 import { claudeConfigServers, codexConfigServers } from "./profileConfig";
-import { connectorState, type CheckOutcome, type ConnectorView } from "./state";
+import { connectorState, type CheckOutcome, type ConnectorView, type McpFacts } from "./state";
 import { codexMcpServers, parseClaudeMcpGet, parseClaudeMcpList, parseCodexMcpList, type ListedServer } from "./status";
 import type { ConnectorStore } from "./store";
 
@@ -28,7 +28,8 @@ export interface McpServerDto { name: string; label: string; url: string; preset
 // link: the row's Claude sign-in has a link main can open again (open-link); the URL itself stays in main.
 export interface McpRowDto { name: string; view: ConnectorView; failure: McpFailure | null; link: boolean }
 // lastChanged: the server whose Connect, Disconnect or Remove last succeeded for this provider ("Applies from …").
-export interface McpProviderDto { provider: McpProvider; rows: McpRowDto[]; lastChanged: string | null }
+// generation: McpConversationFacts.generation; it rises with each such success, so a reader tells one from a cancel.
+export interface McpProviderDto { provider: McpProvider; rows: McpRowDto[]; lastChanged: string | null; generation: number }
 // One revision for the whole snapshot, as agent-auth: a reader keeps the newest. file: the connectors file; while it
 // is broken or newer, URL servers cannot be added or removed, and a newer file's servers are not listed.
 export interface McpSnapshot { revision: number; file: "ok" | "broken" | "newer"; servers: McpServerDto[]; providers: McpProviderDto[] }
@@ -140,7 +141,7 @@ export class McpService implements McpConversationFacts {
       providers: MCP_PROVIDERS.map(provider => {
         const readiness = this.options.readiness(provider), attempt = this.attempts.get(provider) ?? null;
         return {
-          provider, lastChanged: this.lastChanged.get(provider) ?? null,
+          provider, lastChanged: this.lastChanged.get(provider) ?? null, generation: this.generation(provider),
           rows: servers.map(server => ({
             name: server.name,
             view: connectorState({
@@ -359,7 +360,7 @@ export class McpService implements McpConversationFacts {
       } finally { hooked?.close(); }
       if (attempt.stopped || this.closed) return;
       this.options.store.patch({ everConnected: { name: server.name, provider, value: true } });
-      this.succeeded(provider, server.name);
+      this.succeeded(provider, server.name, { registered: true, authenticated: true });
     } catch (error) { this.failed(provider, server.name, attempt, error); }
   }
 
@@ -422,7 +423,7 @@ export class McpService implements McpConversationFacts {
       if (attempt.stopped || this.closed) return;
       // A disconnected row is Not connected, not Reconnect needed (user decision, orch.md).
       this.options.store.patch({ everConnected: { name: server.name, provider, value: false } });
-      this.succeeded(provider, server.name);
+      this.succeeded(provider, server.name, { registered: true, authenticated: false });
     } catch (error) {
       this.failed(provider, server.name, attempt, error instanceof Failure && error.code !== "busy" && error.code !== "not_ready" ? new Failure("disconnect_failed", error.message) : error);
     }
@@ -683,9 +684,15 @@ export class McpService implements McpConversationFacts {
     this.changed();
     for (const provider of attempt.providers) this.refresh(provider);
   }
-  private succeeded(provider: McpProvider, name: string): void {
+  // facts: what the attempt just established, published as the row's last check when the attempt ends; otherwise the
+  // row would show the read from before the attempt until the follow-up read (a network health check) finishes.
+  private succeeded(provider: McpProvider, name: string, facts?: McpFacts): void {
     this.generations.set(provider, this.generation(provider) + 1);
     this.lastChanged.set(provider, name);
+    if (!facts) return;
+    const checks = this.checks.get(provider) ?? new Map<string, CheckOutcome>();
+    checks.set(name, { ok: true, facts });
+    this.checks.set(provider, checks);
   }
   private failed(provider: McpProvider, name: string, attempt: Attempt, error: unknown): void {
     if (attempt.stopped || this.closed) return;
