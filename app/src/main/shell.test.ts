@@ -830,6 +830,8 @@ exit 2
     }
     expect(shell.adopt(w, view(w, [main, w]))).toBe(false);
     expect(shell.entries().map(entry => entry.path)).toEqual([main, w]);
+    await shell.reopen(w);
+    expect(shell.entries()[1]).toEqual({ path: w, kind: "loading", autoRegistered: true, lastCommon: "/c/.git" });
   });
 
   test("the auto flag survives a restart", async () => {

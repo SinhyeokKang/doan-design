@@ -8,7 +8,8 @@ const CLI_TIMEOUT_MS = 10_000;
 
 export type LsTarget = { repo: string } | { cwd: string };
 
-export type FolderView = FolderState | { kind: "notFound" };
+// `code` is the errno code of the failed check: only ENOENT and ENOTDIR say the folder is gone (autoFolders.ts).
+export type FolderView = FolderState | { kind: "notFound"; code?: string };
 
 // A packaged app never falls back to PATH: another doan version there could
 // break the init/ls contract the app depends on.
@@ -58,9 +59,10 @@ export function runExport(cli: string, root: string, path: string, output: strin
 // found" rather than as the CLI's `repo_not_found` ("not initialized").
 export async function readFolder(cli: string, path: string, timeoutMs = CLI_TIMEOUT_MS): Promise<FolderView> {
   try {
-    if (!(await stat(path)).isDirectory()) return { kind: "notFound" };
-  } catch {
-    return { kind: "notFound" };
+    if (!(await stat(path)).isDirectory()) return { kind: "notFound", code: "ENOTDIR" };
+  } catch (error) {
+    const code: unknown = typeof error === "object" && error !== null ? Reflect.get(error, "code") : undefined;
+    return typeof code === "string" ? { kind: "notFound", code } : { kind: "notFound" };
   }
   return folderState(await runLs(cli, { repo: path }, timeoutMs));
 }
