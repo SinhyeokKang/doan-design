@@ -1,0 +1,45 @@
+# agent-questions — spec
+
+사람의 요청: "에이전트가 AskQuestion으로 턴 넘길 수 있게 하기". Doan 앱 대화에서 에이전트가 자기 질문 도구(Claude Code의 `AskUserQuestion`, Codex의 `request_user_input`)로 사람에게 묻고, 턴은 대화 안에서 답을 기다렸다가 그 답으로 이어진다.
+
+## 범위 확인(scope gate)
+
+- PRODUCT §3 Out of scope 4 'Autonomous agent wake-up'에 걸리지 않는다. 질문은 사람의 메시지로 이미 시작한 턴 안에서 일어나고, 사람의 답은 같은 턴을 이어 갈 뿐 새 에이전트 작업을 시작하지 않는다. 권한 요청과 같은 위치다(§3 'Agent conversation foundation contract' 'Resume and permissions': "Doan forwards the runtime's real approval requests and invents none").
+- §3 In scope 6 'Conversation' 안의 일이다. Out of scope 1·2·3·5·6·7과는 관계가 없다.
+- PRODUCT와 ARCHITECTURE에는 에이전트 질문에 대한 규칙이 없었다. 아래 규칙 가운데 그 두 문서가 정하지 않은 것은 사람이 결정했다(design '결정한 규칙'). Z1이 이를 PRODUCT·ARCHITECTURE로 옮긴다.
+
+## 사용자
+
+- **사람(앱 사용자)**: 대화 쓰레드에서 에이전트의 질문을 읽고, 선택지를 고르거나 직접 써서 답하거나 건너뛴다. 답을 기다리는 동안 사이드바 슬롯, Canvas conversations 행, agent indicator, toast, 알림이 권한 요청과 같이 "needs your answer"를 보인다.
+- **에이전트(앱 대화 안의 Claude Code·Codex)**: 질문 도구를 부르면 사람의 실제 답을 도구 결과로 받는다. 지금처럼 답 없는 허용·거절이나 턴 실패를 받지 않는다. 터미널 세션과 guide, CLI는 바뀌지 않는다.
+
+## 문제(관찰한 사실)
+
+1. **Claude의 질문이 권한 요청으로 보인다.** Claude 러너는 모든 도구 승인을 `canUseTool` 하나로 받아 `permission.request`로 내보낸다(`app/src/main/conversation/runners.ts:286-292`). `AskUserQuestion`도 여기로 오면, 요약은 `claudePermissionSummary`가 `description`·`command`·경로·`pattern`을 찾지 못해 `GENERIC_SUMMARY.other` "Using a tool"이 되고(`transport.ts:46`, `:90-95`), 선택지는 Allow·Deny뿐이다. Allow는 입력을 그대로 돌려주므로(`runners.ts:358`) 답(`answers`)이 비어 있다. SDK 타입은 답을 "User answers collected by the permission component"로 입력의 `answers`에 담는다고 적는다(`app/node_modules/@anthropic-ai/claude-agent-sdk/sdk-tools.d.ts:2685-2689`). 사람은 질문 문장도 선택지도 볼 수 없다. `AskUserQuestion`이 실제로 `canUseTool`에 오는지, 어떤 권한 모드에서 오는지, 답 없이 허용하면 에이전트가 무엇을 받는지는 실제 실행으로 확인하지 않았다(P1).
+2. **Codex의 질문은 턴을 실패시킨다.** Codex app-server 0.166.0 스키마에는 서버 요청 `item/tool/requestUserInput`(EXPERIMENTAL)이 있다(`codex app-server generate-json-schema` 출력의 `ToolRequestUserInputParams.json`·`ToolRequestUserInputResponse.json`). Doan은 initialize에서 `experimentalApi: true`를 보내므로(`runners.ts:115`) 이 요청을 받을 수 있다. 그런데 `normalizeCodex`는 권한으로 읽지 못한 같은 턴의 서버 요청을 `unsupported`로 답하고 턴을 `turn.failed` `session_unavailable`로 끝낸다(`transport.ts:194-198`, `dispatcher.ts:61`, `:101-104`). 코드를 읽어 얻은 결론이고, Doan의 권한 모드에서 Codex가 이 도구를 실제로 쓰는지는 확인하지 않았다(P2). 이 기기의 `codex features list`는 `default_mode_request_user_input`을 "under development / false"로 보이므로, Default 협업 모드에서는 도구가 없을 수 있다.
+3. **Doan의 design preset이 질문 도구를 쓰라고 한다.** `shape` preset은 "Use a structured question tool when available; otherwise ask and wait."라고 쓴다(`doan design-skill shape --json`). 앱 대화에서 이 preset을 고른 Claude는 1의 경로로 간다.
+4. **ACP provider는 질문을 건너뛴다.** Cursor의 `cursor/ask_question` 확장 요청은 `skipped`로 바로 답한다(`acp.ts:68-69`). 다른 ACP 요청은 `Method not found`다(`acp.ts:70-71`).
+
+## 완료 조건
+
+1. **Claude 질문 카드.** Doan 대화(Doan 연결과 이어받은 터미널 세션 모두)에서 Claude Code가 `AskUserQuestion`을 부르면, 쓰레드에 질문 카드가 나타난다. 카드는 질문마다 header, 질문 문장, 선택지(label과 description)를 보인다. `multiSelect`인 질문은 여러 개를 고를 수 있다. 질문마다 직접 쓰는 답(Other)이 있다. 턴은 답을 기다리는 상태가 되고 권한 요청과 같은 "needs your answer" 신호가 모두 켜진다.
+2. **답이 에이전트에 간다.** Send answer를 누르면 고른 선택지와 쓴 글이 `AskUserQuestion`의 답으로 Claude에 가고, 에이전트는 같은 턴에서 그 답으로 이어 간다. 에이전트가 받은 도구 결과에 사람이 고른 label(여럿이면 모두)과 Other 글이 들어 있음을 P1 기록과 runner 테스트로 보인다.
+3. **건너뛰기.** Skip을 누르면 답 없이 질문이 끝나고 에이전트는 같은 턴을 이어 간다. Skip의 wire 형태는 P1이 정한다.
+4. **Codex 질문.** Codex가 같은 턴에서 `item/tool/requestUserInput`(`isBlocking: true`)을 보내면 1–3과 같은 카드와 답이 동작하고, 답은 스키마의 `{answers: {<question id>: {answers: string[]}}}`로 간다. Doan의 어떤 권한 모드에서도 이 요청이 오지 않는다고 P2가 확인하면, 이 조건은 "이 요청이 와도 턴이 실패하지 않는다"(5)로 줄인다. `isBlocking: false` 요청은 카드 없이 빈 답으로 바로 답하고 턴은 이어진다.
+5. **실패하지 않음.** 읽을 수 없는 질문(형식이 틀림, 상한 초과), 이미 끝났거나 Stop한 턴의 질문, 다른 턴의 질문은 턴을 실패시키지 않는다. Claude는 거절 메시지로, Codex는 빈 답으로 답한다. 읽을 수 없는 질문은 카드를 만들지 않는다.
+6. **끝난 질문.** 답한 질문은 한 줄로 접혀 header와 답을 보인다. 건너뛴 질문, Stop이나 턴 종료·앱 재시작으로 답을 받지 못한 질문도 각각 한 줄로 남는다. 재시작 뒤 답하지 않은 질문은 권한 요청과 같이 만료로 접힌다(§3 'Events and ownership').
+7. **답 대기의 나머지 규칙은 권한 요청과 같다.** 대화의 phase는 `waiting`이고, 사이드바 슬롯·Canvas conversations 행·agent indicator("Agent needs your answer")·Show sidebar·Show conversation 점·다른 대화의 toast·Delete 불가·docked composer 이유 줄이 권한 요청과 같은 규칙을 따른다. 프로젝트를 막는 규칙도 그 시점의 권한 대기 규칙을 따른다(canvas-composer-polish 완료 조건 4가 바꾸는 중). 권한 요청 진입(toast·알림의 Open, 사이드바 슬롯)은 질문 카드의 첫 선택지에 포커스를 준다.
+8. **보내기와 Stop.** 질문을 기다리는 동안 composer의 메시지는 큐로 가고, Claude·Codex는 Send now를 그대로 보인다. 큐의 메시지는 질문의 답으로 쓰지 않는다. Stop은 지금처럼 턴을 끝내고 질문은 답 없이 접힌다.
+9. **기록.** 질문과 답은 대화 history에 남아 reload와 재시작 뒤에도 같은 쓰레드로 보인다. Codex의 `isSecret` 질문은 입력을 가리고 답 글을 history에 남기지 않는다.
+10. **기존 동작 보존.** 권한 요청, MCP 도구 승인(mcp-connectors), MCP form elicitation 거절, ACP provider의 동작은 바뀌지 않는다. `runners.test.ts`·`transport.test.ts`·`codexIngress.test.ts`·`dispatcher.test.ts`·`state.test.ts`의 기존 기대값은 질문과 관계없는 경우에 그대로 통과한다.
+
+## 비목표
+
+- ACP provider(Cursor, Antigravity, Copilot)의 질문. Cursor의 `cursor/ask_question`은 지금처럼 `skipped`로 답한다.
+- MCP 서버의 form elicitation에 답하는 화면. mcp-connectors가 정한 대로 거절한다.
+- Claude 선택지의 `preview`(목업·코드 미리보기)와 답의 `annotations.notes` 입력. 카드는 label과 description만 보인다.
+- Codex의 협업 모드(`collaborationMode`)를 바꿔 `request_user_input`을 켜는 것. Doan의 Plan은 지금처럼 승인 정책과 sandbox로만 매핑한다(`permissionMode.ts:100`).
+- guide, skill stub, 대화 prompt(`prompt.ts`)에 질문 도구 사용법을 더하는 것. 에이전트는 이미 도구 설명으로 안다.
+- 쓰레드 밖에서 질문에 답하는 것: 알림, toast, 사이드바 슬롯은 대화를 열 뿐 답하지 않는다. 문제 workspace의 conversation strip은 질문 문장(줄임)과 Skip·Stop만 보이고, 답은 대화 화면에서 한다.
+- 질문 카드에 고르던 중인 답을 reload·재시작 너머로 보관하는 것.
+- Codex가 `serverRequest/resolved`로 스스로 닫은 요청을 Doan 카드에 반영하는 것. 권한 요청에도 없는 처리이고, P2가 질문에서 이 알림을 보면 BACKLOG에 적는다.

@@ -1,0 +1,81 @@
+# agent-questions — tasks
+
+순서: PoC → UI 초안 → 순수 함수 → main 배선 → UI → 실제 앱 확인 → 문서 승격. 시작 전 조건: mcp-connectors가 main에 들어가 있다(design '다른 feature와의 관계'). 열린 결정은 design '결정한 규칙'에 정해져 있다.
+
+## P. PoC
+
+P1·P2는 로그인한 provider 프로필과 실제 모델 호출이 필요하다. 사람의 승인 뒤, 일회성 스크립트는 `.scratch/agent-questions/`에 두고 결과(버전, 모드별 관찰, 날짜)는 이 파일 아래 'P 결과'에 적는다.
+
+- [ ] P1. Claude `AskUserQuestion` 경로를 기록한다(design 'PoC 의존' P1의 다섯 항목). 결과로 Skip의 wire 형태와, `canUseTool`이 불리지 않는 모드가 있는지 정한다.
+  - 검증: AGENTS.md 'Commands'에 해당 명령이 없어 실행 방법은 사람이 정한다(실제 Claude 로그인과 모델 호출). 결과를 'P 결과'에 적고, 줄인 기록을 B1의 fixture 재료로 남긴다.
+- [ ] P2. Codex `item/tool/requestUserInput` 경로를 기록한다(design P2). 결과로 완료 조건 4를 유지할지 5로 줄일지 정한다.
+  - 검증: AGENTS.md 'Commands'에 해당 명령이 없어 실행 방법은 사람이 정한다(실제 Codex 로그인과 모델 호출). 결과를 'P 결과'에 적는다.
+
+### P 결과
+
+(PoC 뒤 채운다.)
+
+── commit: `docs(feature): record agent-questions PoC results` ──
+
+## U. UI 초안
+
+- [ ] U0. `/design-draft`로 새 초안 `.doan/canvases/agent-questions.html`을 그린다. 프레임: 쓰레드의 질문 카드(단일 선택, 여러 선택 + Other 입력, 질문 둘, 선택지 없는 글 답, secret 입력), Send 비활성 tooltip과 보내기 실패 줄, 접힌 줄(답함·건너뜀·만료·secret), 280 px 패널, Overview의 같은 카드, 문제 workspace strip(질문 문장, Skip·Stop). 기존 초안은 고치지 않는다. 사람이 앱에서 확인한다.
+  - 검증: 설치된 `doan check --repo .`가 base와 같은 finding만 낸다, 사람의 확인.
+
+── commit: `docs(design): draft agent questions` ──
+
+## A. 순수 함수
+
+- [ ] A1. 질문 타입·상한 모듈(type-only), `store.ts` `payload`의 두 이벤트 검증, `foldConversation`·`summary`의 질문 pending·해결·만료·미리보기.
+  - 검증: `npm --prefix app test` — 새 테스트 먼저 red, 구현 뒤 green(`state.test.ts`·`summary.test.ts`·store 검증: 상한 경계, 모르는 필드, 재시작 만료, 권한과 질문이 섞인 턴), `rendererImports.test.ts` 통과.
+- [ ] A2. `claudeQuestion`, `claudeQuestionResult`, `claudeFrame`의 `AskUserQuestion` activity 생략.
+  - 검증: `npm --prefix app test` — `transport.test.ts`: 단일·여러 선택·Other·Skip(P1이 정한 형태)·잘못된 입력·상한 초과, 순번↔문장 왕복, 기존 Claude 기대값 유지.
+- [ ] A3. `codexQuestion`, `codexQuestionResponse`, `normalizeCodex`의 질문 disposition.
+  - 검증: `npm --prefix app test` — `codexIngress.test.ts`: 같은 턴·다른 thread·다른 turn·`turnId` 없음·Stop 뒤·종료 뒤·`isBlocking: false`·`options: null`·`isSecret`, 모든 경우 disposition이 있고 턴 실패가 없음, 기존 권한·elicitation 기대값 유지.
+- [ ] A4. `questionAnswer`(IPC 뒤 main 검증).
+  - 검증: `npm --prefix app test` — 번호 범위, 단일 질문에 둘, 여러 선택, Other 비허용 질문의 글, 빠진 질문, 상한.
+- [ ] A5. renderer: `threadItems`의 질문 항목과 `phaseText`, `conversationStrip` 질문 상태, `notificationFor`·`closesNotification`, `questionDraft` reducer.
+  - 검증: `npm --prefix app test` — 턴 종료 때 pending 만료, 질문 대기의 "needs your answer", 알림 스위치와 닫힘, reducer의 Send 가능 조건.
+
+── commit: `feat: read and fold agent questions` ──
+
+## B. main 배선
+
+- [ ] B1. Claude runner의 질문 경로(`runners.ts` `canUseTool`, `answerQuestion`, `expire`), fixture `claude-ask-user-question.json`과 README 출처.
+  - 검증: `npm --prefix app test` — `runners.test.ts`(실제 SDK와 credential 없는 fake executable): 질문 → 답 → 같은 턴 계속, Skip, Stop 중 만료, 질문 대기 중 steer, 응답이 한 번뿐.
+- [ ] B2. Codex dispatcher의 질문 표, 답·Skip·만료의 빈 답, fixture `codex-request-user-input.json`과 README 출처.
+  - 검증: `npm --prefix app test` — `dispatcher.test.ts`: 같은 chunk의 turn/start 답과 질문 요청, 답 뒤 Stop과 Stop 뒤 답에서 서버·요청 id당 응답 하나, 다른 턴 route.
+- [ ] B3. service `answerQuestion`·`read`의 `pendingQuestion`, IPC `answerQuestion`, preload, ACP runner의 `false`.
+  - 검증: `npm --prefix app test` — `ipc.test.ts`(형식·상한·`bad_request`·`stale`), `service.test.ts`(질문 대기 phase, 답 뒤 `turn.done` 순간의 send), `npm --prefix app run typecheck`.
+
+── commit: `feat: let Claude and Codex ask the person in a conversation` ──
+
+## C. UI
+
+- [ ] C1. `QuestionCard`와 접힌 줄(`ConversationThread.tsx`), `turnOf`(`CanvasConversationPanel.tsx`·`ProjectOverview.tsx`), 권한 진입의 첫 선택지 포커스, strip(질문 문장과 Skip·Stop), 알림 배선(Approval requests 스위치).
+  - 검증: `npm --prefix app test`(쓰레드 interaction 테스트: radio·checkbox 키보드, Other 입력, Send 비활성 이유, 실패 뒤 선택 유지, `role="alert"`는 새 카드만), `npm --prefix app run typecheck`, `npm --prefix app run build`.
+
+── commit: `feat: show agent questions in the conversation thread` ──
+
+## D. 실제 앱 확인
+
+- [ ] D1. `/design-sync`로 질문 카드와 접힌 줄을 초안과 맞추고 DESIGN.md에 측정값을 적는다.
+  - 검증: `/design-sync` 보고의 측정 일치.
+- [ ] D2. `/runtime-test`: Claude 대화에서 질문 → 답 → 이어짐, 여러 선택과 Other, Skip, Stop, 다른 화면에서의 toast·사이드바 슬롯·agent indicator, 답 뒤 `turn.done` 순간의 send. P2가 Codex 요청을 확인했으면 Codex도 같은 항목. 로그인한 provider 프로필이 필요하므로 사람의 승인을 받고, 없으면 unit 테스트로만 확인했다고 적는다.
+  - 검증: `/runtime-test` 보고(스크린샷).
+- [ ] D3. 공통 gate.
+  - 검증: `node .agents/skills/verify/scripts/verify.mjs` exit 0.
+
+`/agent-eval`은 생략한다. guide·CLI 출력·skill stub·`doan check` 규칙이 바뀌지 않는다.
+
+## Z. 승격과 정리
+
+- [ ] Z1. 결론을 현재 규칙으로 옮긴다(영문). 근거는 커밋 메시지에 둔다.
+  - PRODUCT: §3 'Agent conversation foundation contract'('Resume and permissions'에 질문 전달, 'Events and ownership'에 재시작 뒤 질문 만료), §5 item 1('Project conversations'의 답 대기, Send now 조건), item 0 'Notifications'(질문 알림), item 2 'Conversation panel'·'Agent indicator'와 item 3 'Project Overview'(질문 카드, 첫 선택지 포커스), strip 규칙, P1·P2가 남긴 한계(질문을 볼 수 없는 모드, Codex 버전 조건). design '결정한 규칙' 아홉 항목을 모두 반영한다.
+  - ARCHITECTURE §7 'Agent conversation runtime and IPC': 'Events'에 `question.request`·`question.resolved`와 이전 빌드에서 손상으로 읽힘, 'Permissions and terminals'에 Claude `AskUserQuestion`과 Codex `item/tool/requestUserInput` 경로·빈 답 규칙, IPC `answerQuestion`, secret 답을 저장하지 않음.
+  - DESIGN.md: D1 측정값.
+  - BACKLOG.md: P2에서 본 `serverRequest/resolved`가 있으면 그 항목, ACP provider의 질문(이번 범위 밖).
+  - 그리고 `docs/features/agent-questions/`를 지운다.
+  - 검증: `grep -n 'question.request' docs/ARCHITECTURE.md`에 줄이 있다, `grep -n -i 'question' docs/PRODUCT.md`에 질문 카드 규칙이 있다, `docs/features/agent-questions/`가 없다.
+
+── commit: `docs(product): agent questions in conversations` / `docs(architecture): agent question events and transport` / `docs(design): measure the question card` / `docs(feature): remove agent-questions docs` ──
