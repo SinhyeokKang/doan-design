@@ -19,7 +19,7 @@ export function trashToast(stem: string, reply: TrashReply): string {
   return `Moved “${stem}” to Trash.`;
 }
 
-export const exportProgress = (stem: string) => `Exporting “${stem}”…`;
+export const exportProgress = (stem: string) => `Exporting “${stem}”`;
 
 // The result toast, with main's Show in Finder id once the file is written; null for a cancelled save panel. A
 // refusal from main (`exporting`, `notListed`) has no sentence of its own and reads as any other failure.

@@ -77,7 +77,7 @@ export function ProjectSetupDialog({ root, name, onClose, onRerooted }: { root: 
     </div>
     <div className="ob-buttons doan-dialog-actions">
       <button type="button" className="btn doan-button" data-ui-variant="subtle" disabled={form.running} onClick={close}>Cancel</button>
-      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up…" : "Set Up Project"}</button>
+      <button type="button" className="btn primary doan-button" data-ui-variant="prominent" disabled={form.running} onClick={() => void submit()}>{form.running ? "Setting Up" : "Set Up Project"}</button>
     </div>
   </dialog>;
 }

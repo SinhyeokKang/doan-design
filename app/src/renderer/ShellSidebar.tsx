@@ -135,7 +135,7 @@ interface RowMenu {
 // unlike the project menu, nothing in this one works then.
 function canvasRowMenu(args: RowMenu): ReactElement {
   const { menu, root, row, locked } = args;
-  const exportReason = row.error ? "Can’t read this canvas." : menu.exporting(root, row.path) ? "Exporting…" : null;
+  const exportReason = row.error ? "Can’t read this canvas." : menu.exporting(root, row.path) ? "Exporting" : null;
   const trashReason = menu.blocked(root, row) ? "An agent is working on this canvas." : null;
   const item = (label: string, Icon: typeof Download, reason: string | null, id: string, act: (current: CanvasRow) => void) =>
     <DropdownMenu.Item className={`doan-menu-item${reason ? " shell-menu-reasoned" : ""}`} aria-label={reason ? label : undefined} aria-disabled={reason ? true : undefined} aria-describedby={reason ? id : undefined} onSelect={event => {

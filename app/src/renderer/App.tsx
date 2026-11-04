@@ -1778,7 +1778,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
   picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; add: AddTool;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
-  const problemMessage = problem?.kind === "loading" ? "Reading project…"
+  const problemMessage = problem?.kind === "loading" ? "Reading project"
     : problem?.kind === "notFound" ? `The project ${projectName} is missing. Use Locate above.`
     : problem?.kind === "uninitialized" ? `The project ${projectName} is not set up. Use Set Up above.`
     : problem?.kind === "error" ? "Could not read the project configuration. Use Details or Retry above."
@@ -1821,7 +1821,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
       {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
     </CanvasAgent>
     {(state.status || problemMessage) && <div className="canvas-status" role="status">
-      {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading…</p>
+      {problemMessage ? <p>{problemMessage}</p> : state.status === "loading" ? <p><span className="doan-spinner" aria-hidden="true" />Loading</p>
         : state.status === "failed" ? <div><b>Couldn’t load the canvas</b><br />Run doan check in a terminal<br /><br /><button className="doan-button" data-ui-variant="panel" data-ui-size="sm" onClick={() => command("reload")}>Reload</button></div>
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}

@@ -4,7 +4,7 @@ export type DetailPart = string | { code: string };
 
 export interface ProjectRow {
   status?: "Error" | "CLI error" | "Not found" | "Not initialized";
-  hint?: "Reading…" | "No canvases";
+  hint?: "Reading" | "No canvases";
   detail?: DetailPart[];
   actions: ("reopen" | "setup" | "copyPrompt" | "close")[];
 }
@@ -12,7 +12,7 @@ export interface ProjectRow {
 export function projectRow(entry: FolderEntry): ProjectRow {
   switch (entry.kind) {
     case "loading":
-      return { hint: "Reading…", actions: ["close"] };
+      return { hint: "Reading", actions: ["close"] };
     case "list":
       return entry.canvases.length === 0 ? { hint: "No canvases", actions: ["copyPrompt", "close"] } : { actions: ["close"] };
     case "uninitialized":

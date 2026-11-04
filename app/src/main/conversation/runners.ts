@@ -148,7 +148,7 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
 }
 // After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn,
 // about 10 ms later (Claude Code 2.1.312, 2.1.317). An echo that never came would keep the turn running and the row on
-// Sending… until Stop, so the wait is bounded: past it the turn ends as done and the message goes back to the queue.
+// Sending until Stop, so the wait is bounded: past it the turn ends as done and the message goes back to the queue.
 export const STEER_READ_WAIT_MS = 30_000;
 // Claude Code refuses to start under the organization pin when the repo's settings supply their own credential
 // (2.1.312: "managed settings require a first-party login"). The SDK keeps no stderr for a custom spawn, so the runner reads it.

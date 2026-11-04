@@ -1232,7 +1232,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .doan-agent.doan-agent-terminal { padding: var(--space-1) var(--space-4); }
 .doan-agent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line-height); letter-spacing: var(--type-body-sm-letter-spacing); }
 /* The shared hover and pressed fills are light grey (doan-button rules weigh 0,4,0) and would put white text on near
-   white; these weigh more and stay on the dark material. "Stopping…" keeps focus (aria-disabled) but takes no fill. */
+   white; these weigh more and stay on the dark material. "Stopping" keeps focus (aria-disabled) but takes no fill. */
 .doan-agent .doan-button.doan-agent-action { flex: none; background: color-mix(in srgb, var(--text-on-prominent) 16%, transparent); color: var(--text-on-prominent); }
 @media (hover: hover) and (pointer: fine) { .doan-agent .doan-button.doan-agent-action:hover:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 26%, transparent); } }
 .doan-agent .doan-button.doan-agent-action:active:not(:disabled, [aria-disabled="true"]) { background: color-mix(in srgb, var(--text-on-prominent) 34%, transparent); }

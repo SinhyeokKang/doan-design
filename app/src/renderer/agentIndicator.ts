@@ -69,7 +69,7 @@ export interface AgentNoticeView {
   // The dot stops while the agent waits for an answer.
   steady: boolean;
   // null: a terminal session, which the app cannot stop.
-  action: { kind: "stop"; label: "Stop" | "Stopping…"; disabled: boolean } | { kind: "open"; label: "Open"; name: "Open the request" } | null;
+  action: { kind: "stop"; label: "Stop" | "Stopping"; disabled: boolean } | { kind: "open"; label: "Open"; name: "Open the request" } | null;
 }
 
 // `stopping` is the conversation whose Stop was pressed and whose turn has not ended yet. `terminal`: a terminal session
@@ -79,10 +79,10 @@ export function agentNoticeView(presence: AgentPresence | null, stopping: string
   // A fixed name, not the provider's (dogfooding): the panel beside the board already says which agent this is.
   if (presence.kind === "waiting") return { text: "Agent needs your answer", steady: true, action: { kind: "open", label: "Open", name: "Open the request" } };
   const held = stopping === presence.conversationId;
-  return { text: "Agent is working", steady: false, action: { kind: "stop", label: held ? "Stopping…" : "Stop", disabled: held } };
+  return { text: "Agent is working", steady: false, action: { kind: "stop", label: held ? "Stopping" : "Stop", disabled: held } };
 }
 
-// "Stopping…" lasts until the list shows the turn ended (no presence) or another conversation takes the canvas.
+// "Stopping" lasts until the list shows the turn ended (no presence) or another conversation takes the canvas.
 export function settleStopping(stopping: string | null, presence: AgentPresence | null): string | null {
   return stopping !== null && presence?.conversationId === stopping ? stopping : null;
 }
