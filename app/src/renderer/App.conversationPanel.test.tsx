@@ -527,16 +527,19 @@ test("a pick ends with focus back in the composer while focus stayed with the pi
   expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
 });
 
-test("a pick whose focus went elsewhere meanwhile adds its chip but does not take focus back, also after focus returns", async () => {
+// A chip a pick inserts always lands focus in the field (spec 3), even after focus went elsewhere meanwhile, such as
+// into the Presets popover the canvas click then closed; only the cancels keep focus the person moved.
+test("a pick that inserts a chip takes focus to the field even after focus went elsewhere; a cancel then leaves focus alone", async () => {
   const { link, conversation } = await canvasWithComposer();
   conversation.pick.onToggle();
   const ended = harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
-  focusMoved({ name: "a search field elsewhere" });
-  // Focus coming back to the picker before the canvas click does not restore the intent.
+  focusMoved({ name: "the Presets popover's search box" });
   focusMoved(null);
   ended({ kind: "picked", anchor: ANCHOR, frames: [] });
   expect(link.insert).toHaveBeenCalledWith(ANCHOR);
-  expect(link.focus).not.toHaveBeenCalled();
+  expect(link.focus).toHaveBeenCalledOnce();
+  expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
+  link.focus.mockClear();
   conversation.pick.onToggle();
   focusMoved({ name: "a menu" });
   (harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void)({ kind: "cancelled" });
