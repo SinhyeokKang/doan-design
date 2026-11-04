@@ -139,7 +139,7 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 
 ## PoC 결과 (2026-11-04, Claude Code 2.1.318, Codex 0.166.0, 격리 프로필)
 
-원본 출력은 `.scratch/mcp-poc/`(커밋하지 않음)에 있고, 픽스처로 쓸 출력은 task A0에서 정리해 커밋된 테스트 픽스처로 옮긴다.
+원본 출력은 `.scratch/mcp-poc/`(커밋하지 않음)에, 픽스처에 필요한 것은 계정 식별자를 지워 `poc/`에 있고, 픽스처로 쓸 출력은 task A0에서 정리해 커밋된 테스트 픽스처로 옮긴다.
 
 - **P1. 상태 읽기와 토큰 파일**: `claude mcp get <name>`은 JSON 옵션이 없다. 등록 전에는 exit 1과 `No MCP server named "<name>"…`, 등록 뒤에는 `Status:` 줄이 `! Needs authentication` 또는 `✔ Connected`다(해제 뒤에도 `! Needs authentication`). `codex mcp list --json`은 등록 전 `[]`, 항목마다 `auth_status`가 `not_logged_in` 또는 `o_auth`다. Claude 토큰은 프로필 키체인 항목 `Claude Code-credentials-<config dir 해시>`의 `mcpOAuth`에 들어가고 `.credentials.json`은 생기지 않는다. Codex 토큰은 `Codex MCP Credentials | doan-<slug>|<URL 해시>`에 들어가고, 터미널의 `notion` 항목과 해시는 같지만 이름이 달라 겹치지 않았다. `codex mcp logout`은 그 항목만 지웠다. 해제 뒤 등록만 남은 Claude 서버는 대화 init에서 `needs-auth`로 보이고 도구가 하나도 노출되지 않으며, 턴은 링크를 기다리지 않고 끝난다.
 - **P2. Codex app-server**: 위 'conversation (Codex)'와 'Codex MCP 도구 승인'. 재시작은 필요 없다. `config/mcpServer/reload`는 약 3ms 만에 답하고 상태 이벤트는 22–80ms 뒤에 온다. `turn/start` 때는 전에 실패한 서버만 다시 `starting`으로 온다.
