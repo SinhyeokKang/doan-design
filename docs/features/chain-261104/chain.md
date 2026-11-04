@@ -31,6 +31,7 @@
 - **지휘자 런타임**: Claude Code.
 - **Codex 작업자**(사용자가 이 체인에 허용함, 2026-11-04): 모든 링크에서 Claude 지휘자가 Codex 작업자를 섞어 쓸 수 있다(AGENTS.md 'Runtime differences'의 교차 허가). 주 구현은 Claude가 맡고, Codex는 독립 리뷰와 일부 기계적 배치에 쓴다. 모델·effort는 orchestrate §0의 Codex 규칙을 따른다. 지휘자는 링크를 시작할 때와 배치를 나눌 때 Codex의 남은 사용량을 확인하고 그에 맞춰 Codex에 줄 배치를 정한다. 사용한 범위는 각 링크의 orch.md에 적는다. 지휘자 자신은 Claude Code다.
 - **링크 1의 명령과 내려받기**(사용자, 2026-11-05 시작 점검): 릴리스 목록은 `npm view <pkg> versions --json`(`@anthropic-ai/claude-code`, `@openai/codex`, `@github/copilot`)과 Cursor의 공개 배포 경로 조회로, 설치는 `npm install --prefix .scratch/cli-minimum-versions/clis/<provider>-<version>`로, 정적 검사와 상태 비교는 `.scratch` 스크립트로 한다. `-g`, Homebrew, `claude install`·`claude update`, Cursor 설치 스크립트, 자체 업데이트는 쓰지 않는다. 내려받기 목록은 규칙으로 미리 승인했다: provider마다 테스터의 가장 오래된 버전부터 지금 최소 버전 바로 아래까지의 모든 릴리스. 지휘자는 그 목록을 다시 묻지 않고 'E 결과'에 적는다.
+- **멈추지 않고 진행**(사용자, 2026-11-05 링크 1 중): 체인을 멈추지 말고 끝까지 간다. 웬만한 결정은 지휘자가 내린다. 새 의존성, 범위 밖 변경, 실제 사용자 상태를 되돌릴 수 없게 바꾸는 일만 묻는다.
 - 그 밖의 권한(새 의존성, 범위 밖 변경, 위 규칙 밖의 내려받기)은 평소대로 사용자에게 묻는다.
 
 ## 로그인 (필요한 링크만)
@@ -57,7 +58,7 @@
 
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
-| 1 cli-minimum-versions | Claude Code · Orca `cli-minimum-versions-orch` | 2026-11-05 | | 진행 중 |
+| 1 cli-minimum-versions | Claude Code · Orca `cli-minimum-versions-orch` | 2026-11-05 | #94 · `cfa91a7b` | 완료 |
 | 2 canvas-composer-polish | | | | 대기 |
 | 3 export-viewer-chrome | | | | 대기 |
 
@@ -70,3 +71,9 @@
   - 링크 1 명령과 내려받기: '상시 권한'대로 규칙으로 미리 승인했다.
   - 로그인: 공용 프로필에 다섯 provider 연결을 만들었고 세 링크가 모두 쓴다('로그인'). 링크 1은 그 복사본으로 Cursor·Copilot의 sign-in만 줄일 수 있다. 프로필을 만든 dev 앱은 닫았다.
   - Codex 작업자 허가를 사용자가 다시 확인했다. 남은 사용량은 각 링크 지휘자가 시작 때 본다.
+- 2026-11-05 링크 1 지휘자(cli-minimum-versions): PR #94를 `cfa91a7b`로 병합했다.
+  - 결과: 최소 버전을 Claude Code 2.1.284, Codex 0.158.0, Copilot 1.0.89로 낮췄고 floor도 따라 내렸다. Cursor는 옛 버전을 받을 공개 경로가 없어 유지했다. 테스터 버전이 없어 사용자가 하한을 2026-09-28 이후 릴리스로 정했다. 사용자 요청으로 열린 대화가 `session_in_use`로 거절될 때 범용 문구 대신 "<agent> is using this session in another terminal. Try again when it finishes there."를 보이게 했다(`renderer/dockedRules.ts` `SEND_ERRORS`).
+  - 검증: 통합 HEAD `f66b10c3`에서 `verify: PASS`. 실제 앱 확인은 PR 본문에 있다. Z0 정리 뒤 사람 상태가 실험 전 snapshot과 같다.
+  - 남은 것: Notion '팀 901'의 워크스페이스 수준 "Enabled clients: Claude Code"는 사람의 다른 사용에 영향이 갈 수 있어 그대로 두었다. 연결별로 거둘 화면은 없었다. `providers.ts`의 Copilot "1.0.105 has no status command" 주석은 1.0.105에서 관찰한 사실로 남겼다(1.0.89에서도 같은 상태 확인이 통과).
+  - 다음 링크가 알 것: (1) 공용 프로필의 **복사본**을 다른 worktree의 dev 앱으로 열면 vault를 읽지 못했다(Cursor·Antigravity·Copilot이 `check_failed`). 링크 2는 복사본이 아니라 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`를 그 자리에서 쓰고, 같은 증상이면 먼저 이 원인을 의심한다. (2) Copilot 요청은 링크 1에서 약 10개를 썼다. (3) 지금 Codex 계정의 모델 목록(`~/.codex/models_cache.json`)에는 gpt-6-luna, gpt-5.6-terra, gpt-5.6-luna만 있고 orchestrate §0의 Astra·Sol id가 없다. 링크 1은 리뷰를 Claude Sonnet에 맡겼다. (4) Codex·Copilot의 `login`은 기본 브라우저(Chrome)를 직접 연다. Claude는 Doan의 "Open again" 링크를 ego-browser(로그인된 계정)에서 승인할 수 있다. (5) 사람 상태 비교 스크립트 `.scratch/cli-minimum-versions/state/state.ts`(링크 1 worktree)는 실제 runtime `sessions.jsonl`도 비교한다. 셸에서 `doan check`를 돌릴 때는 꼭 임시 `DOAN_RUNTIME`을 준다.
+  - 구현 브랜치(남김): `feat/cli-minimum-versions`, `SinhyeokKang/feat-lower-provider-cli`, `SinhyeokKang/fix-session-in-use`.
