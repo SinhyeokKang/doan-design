@@ -9,3 +9,5 @@ with the feature documents (task A0):
   to `doan-notion`, the server those runs registered at the Notion URL.
 - `link-*.txt`: authorization links `claude mcp login` handed to the BROWSER hook. `state` and `code_challenge` are
   placeholders, and the Atlassian and Figma DCR `client_id` values are replaced with fake ones.
+- `claude-list-needs-auth.txt`: `claude mcp list` output with `doan-notion` registered and signed out (exit 0; the
+  probe's trailing `exit 0` annotation is dropped). Added for the sign-out and replacement logout (batch BB).

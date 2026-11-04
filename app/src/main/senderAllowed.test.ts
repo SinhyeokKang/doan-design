@@ -86,3 +86,14 @@ describe("settings page channels", () => {
     for (const kind of ["main", "settings"]) expect(senderAllowed(channel, kind)).toBe(false);
   });
 });
+// mcp-connectors B4: the Settings > MCP Connectors requests; :changed is an event main sends, never a request.
+test("restricts every MCP Connectors request channel to main and refuses its event", async () => {
+  const { MCP_CHANNELS } = await import("./mcpConnectors/ipc");
+  const requests = Object.values(MCP_CHANNELS).filter(channel => channel !== MCP_CHANNELS.changed);
+  expect(requests).toEqual(["mcp-connectors:list", "mcp-connectors:add", "mcp-connectors:connect", "mcp-connectors:disconnect", "mcp-connectors:remove", "mcp-connectors:cancel", "mcp-connectors:open-link"]);
+  for (const channel of requests) {
+    expect(senderAllowed(channel, "main"), channel).toBe(true);
+    expect(senderAllowed(channel, "settings"), channel).toBe(false);
+  }
+  for (const kind of ["main", "settings"]) for (const channel of [MCP_CHANNELS.changed, "mcp-connectors:delete", "mcp-connectors:"]) expect(senderAllowed(channel, kind)).toBe(false);
+});
