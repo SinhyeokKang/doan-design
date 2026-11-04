@@ -9,7 +9,7 @@ export function projectHue(name: string): typeof hues[number] {
 // The thumbnail letter, shared by the sidebar and onboarding project cards.
 export function projectInitial(name: string): string { return Array.from(name.trim())[0]?.toUpperCase() ?? "?"; }
 export function projectExpanded(project: ShellProject, loaded: string | null): boolean {
-  return project.expanded || (loaded !== null && project.roots.includes(loaded));
+  return project.expanded || (!project.collapsed && loaded !== null && project.roots.includes(loaded));
 }
 export interface Visit { root: string; canvas?: string }
 export interface History { visits: Visit[]; cursor: number }
@@ -43,7 +43,9 @@ export function reconcileProjects(saved: Record<string, ShellProject>, groups: r
     const selected = candidates[0];
     // Open is the default, so a rejoined group stays closed only where every earlier project had closed it.
     const groups = previous.length ? (["ds", "canvases"] as const).filter(id => previous.every(item => item.groups?.[id] === false)) : [];
-    return [group.key, { roots: group.roots, expanded: previous.some(item => item.expanded), ...(selected?.selectedRoot ? { selectedRoot: selected.selectedRoot, ...(selected.selectedAt !== undefined ? { selectedAt: selected.selectedAt } : {}) } : {}), ...(groups.length ? { groups: Object.fromEntries(groups.map(id => [id, false])) as NonNullable<ShellProject["groups"]> } : {}) }];
+    // A folder update must not unfold a project folded by hand.
+    const collapsed = previous.length > 0 && previous.every(item => item.collapsed);
+    return [group.key, { roots: group.roots, expanded: previous.some(item => item.expanded), ...(collapsed ? { collapsed } : {}), ...(selected?.selectedRoot ? { selectedRoot: selected.selectedRoot, ...(selected.selectedAt !== undefined ? { selectedAt: selected.selectedAt } : {}) } : {}), ...(groups.length ? { groups: Object.fromEntries(groups.map(id => [id, false])) as NonNullable<ShellProject["groups"]> } : {}) }];
   }));
 }
 

@@ -187,11 +187,13 @@ test("an expanded project that is not loaded opens its terminal slot's canvas an
   sidebar().toggle(key, { root: "/w/b", path: B }); await flush(); render();
   expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/b", expect.objectContaining({ path: B }), undefined, expect.anything());
   expect(sidebar().projects[key]?.expanded).toBe(true);
-  // Without a terminal slot an expanded project's row folds it.
+  // Without a terminal slot an expanded project's row opens its Overview and stays expanded: only its chevron folds it
+  // (project-row-disclosure draft).
   listeners.work!([] as never); render();
   const before = harness.controller!.openCanvas!.mock.calls.length;
   sidebar().toggle(key); await flush(); render();
-  expect(sidebar().projects[key]?.expanded).toBe(false);
+  expect(sidebar().projects[key]?.expanded).toBe(true);
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
 });
 

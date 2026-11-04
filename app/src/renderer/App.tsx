@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
-import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectsTab, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
+import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -659,7 +659,7 @@ export function App() {
       const next = reconcileProjects(previous, cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
       if (loadedRoot && card && next[card.key]?.selectedRoot !== loadedRoot) {
         const project = next[card.key]!;
-        next[card.key] = { roots: project.roots, expanded: project.expanded, selectedRoot: loadedRoot, ...(project.groups ? { groups: project.groups } : {}) };
+        next[card.key] = { roots: project.roots, expanded: project.expanded, selectedRoot: loadedRoot, ...(project.collapsed ? { collapsed: true } : {}), ...(project.groups ? { groups: project.groups } : {}) };
       }
       return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
     });
@@ -685,7 +685,7 @@ export function App() {
   const toggleProject = async (key: string, notice?: { root: string; path: string }) => {
     const group = cards.find(card => card.key === key); if (!group) return;
     // A locked page keeps the disclosure; only the move to a workspace is ignored (design '잠금'). The loaded project's
-    // row is always open, so activating it only ever navigates.
+    // row folds only by its chevron, so activating it while locked does nothing.
     if (locked()) {
       if (!loadedRoot || !group.rows.some(row => row.path === loadedRoot))
         setShellProjects(previous => { const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) }; return { ...previous, [key]: { ...memory, expanded: !memory.expanded } }; });
@@ -702,6 +702,7 @@ export function App() {
     // Home and the Add Projects page show the sidebar without a current project: from Home its row opens the Overview,
     // from the page it goes back to the loaded workspace (design §3).
     if (loaded) {
+      if (shellRef.current[key]?.collapsed) setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path), expanded: true, collapsed: false } }));
       const move = loadedProjectRow({ screen: currentScreen.current, overviewShown: shownOverviewRef.current === loadedRoot });
       if (move === "enter") enter(loadedRoot);
       else if (notice) openNotice(notice);
@@ -711,10 +712,6 @@ export function App() {
     }
     cancelRestore(); controller.current?.cancelWorkspaceOpen();
     const memory = { ...(shellRef.current[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
-    // From Home, and from the Project Settings page that shows Home's sidebar, the row always opens the Overview, so an
-    // expanded project does not fold there (project-settings design '화면' 사이드바).
-    const fromHome = currentScreen.current === "home" || currentScreen.current === "projectSettings";
-    if (memory.expanded && !fromHome) { setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: false } })); return; }
     if (notice) { openNotice(notice, () => setShellProjects(previous => ({ ...previous, [key]: { ...(previous[key] ?? memory), expanded: true } }))); return; }
     const intent = navigationIntent.current, signature = groupSignature;
     const activity = await window.doan.readShellActivity({ roots: memory.roots }).catch(() => null);
@@ -723,12 +720,24 @@ export function App() {
     const root = selectProjectRoot(memory, activity ?? [], loadedRoot); if (!root) return;
     const selected = entriesRef.current.find(entry => entry.path === root);
     if (selected?.kind !== "list" && selected?.kind !== "loading") { setShellProjects(previous => ({ ...previous, [key]: { ...memory, selectedRoot: root, expanded: true } })); return; }
-    // From Home another project's row opens its Overview too, never its last canvas (user decision).
+    // Another project's row opens its Overview from anywhere, never its last canvas, and never folds it: only its chevron
+    // does (user decisions; project-row-disclosure draft).
     controller.current?.openWorkspace(root, next => {
       setShellProjects(previous => ({ ...previous, [key]: { ...memory, expanded: true } }));
       askSlot(next);
       completeNavigation(next);
-    }, false, undefined, fromHome);
+    }, false, undefined, true);
+  };
+  // The project row's chevron (project-row-disclosure draft): fold or unfold only, the loaded project included.
+  const discloseProject = (key: string) => {
+    const group = cards.find(card => card.key === key); if (!group) return;
+    setShellProjects(previous => {
+      const memory = { ...(previous[key] ?? { expanded: false }), roots: group.rows.map(row => row.path) };
+      const open = projectExpanded(memory, loadedRoot);
+      // Only the loaded project needs the mark: projectExpanded opens it regardless of `expanded`.
+      const loaded = loadedRoot !== null && memory.roots.includes(loadedRoot);
+      return { ...previous, [key]: { ...memory, expanded: !open, collapsed: open && loaded } };
+    });
   };
   // The project row's slot stands for a project conversation with work left: its Overview opens on it.
   const askSlot = (root: string) => {
@@ -1581,7 +1590,7 @@ export function App() {
     onDismiss={() => run.dismiss(shown.conversation.conversationId)} /></div>;
   const shellSlots = sidebarSlots(withTerminalSlots(run.slots(), work, entries), entries, shownCanvas);
   const sidebarId = (home: boolean) => home ? "doan-page-sidebar" : "doan-workspace-sidebar";
-  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
+  const sidebar = (home: boolean) => sidebarHidden ? null : <ShellSidebar id={sidebarId(home)} cards={cards} projects={shellProjects} loaded={loadedRoot} canvas={state.shown ?? undefined} unlisted={state.unlisted} homeDirectory={homeDirectory} search={search} toggle={(key, notice) => void toggleProject(key, notice)} disclose={discloseProject} toggleGroup={toggleShellGroup} worktree={enter} open={openSidebarCanvas} overview={showShellOverview} action={action} remove={remove}
     projectSettings={root => openProjectSettings(root)}
     canvasMenu={{ blocked: trashWorking, exporting: (root, path) => exporting.has(`${root}\n${path}`), exportCanvas, trash: openTrash }}
     home={home} homeCurrent={screen === "home"} goHome={() => live.current.home()} slots={shellSlots} highlight={highlight} locked={pageLocked} {...(onSettings ? { settings: { section: settings.section, select: selectSection } } : {})}
