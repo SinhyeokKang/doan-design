@@ -161,8 +161,8 @@ export class McpService implements McpConversationFacts {
   generation(provider: McpProvider): number { return this.generations.get(provider) ?? 0; }
   labels(): Record<string, string> { const read = this.options.store.connectors(); return connectorLabels(read.ok ? read.file.servers : []); }
 
-  // Status commands use the network, so they run on entering the page, after attempts, on Retry and when the
-  // provider's sign-in changes, never on a timer (design '상태 판정').
+  // Status commands use the network, so they run on entering the page, after an Add or an attempt, on Retry and when
+  // the provider's sign-in changes, never on a timer (design '상태 판정').
   refresh(provider?: McpProvider): void {
     for (const each of provider ? [provider] : MCP_PROVIDERS) {
       if (this.closed || !this.options.readiness(each).ready) continue;
@@ -185,6 +185,8 @@ export class McpService implements McpConversationFacts {
     const written = this.options.store.patch({ add: { name, url: parsed.url } });
     if (!written.ok) return { ok: false, reason: written.code === "write_failed" ? "write_failed" : "file_unreadable" };
     this.changed();
+    // The new server has no status yet, so it reads as Checking with Connect disabled until a read answers for it.
+    this.refresh();
     return { ok: true, name };
   }
 
