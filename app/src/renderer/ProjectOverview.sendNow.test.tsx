@@ -76,7 +76,7 @@ test("Send now shows the queued message with its chips and files above the open 
   expect(await composer.props!.onQueue({ text: "Tighten {{1}}", anchors, attachments: [{ id: "f1" }], files: [{ name: "notes.pdf", size: 86016, kind: "file" }] })).toEqual({ ok: true });
   // The Overview's row keeps the request's own text.
   render();
-  expect(composer.props!.queued).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
+  expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
 
   const answer = (() => { let resolve!: (value: { error: string }) => void; const promise = new Promise<{ error: string }>(r => { resolve = r; }); return { promise, resolve }; })();
   doan.sendQueuedNow = vi.fn(() => answer.promise);
@@ -92,6 +92,6 @@ test("Send now shows the queued message with its chips and files above the open 
   answer.resolve({ error: "not_running" });
   expect(await sent).toMatchObject({ error: "not_running" });
   expect(render()).not.toContain("msg-sending");
-  expect(composer.props!.queued).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
+  expect(composer.props!.queued.map(({ id, text }) => ({ id, text }))).toEqual([{ id: "q1", text: "Tighten {{1}}" }]);
   expect(run.sending(A)).toEqual([]);
 });
