@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { WorkItem } from "../main/workState";
-import { trashBlock } from "./canvasRowMenu";
+import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 
 const summary = (patch: Partial<ConversationSummary>): ConversationSummary => ({
   conversationId: "c1", title: "Draw it", state: "current", owner: "doan", provider: "claude", fromHome: false,
@@ -61,5 +61,22 @@ describe("trashBlock", () => {
     expect(trashBlock(target, [], [work("/repo-wt")], none)).toBeNull();
     const drawing = (root: string) => root === "/repo-wt" ? "p1" : null;
     expect(trashBlock(target, [], [], drawing)).toBeNull();
+  });
+});
+
+// canvas-composer-polish spec 5: the row menu's Export… and the toolbar's Export share their reasons.
+describe("canvasExportReason", () => {
+  const row = { path: ".doan/canvases/a.html", url: "u-a" };
+  test("a readable, listed canvas that is not exporting can export, also while another canvas exports", () => {
+    expect(canvasExportReason(row, false, false)).toBeNull();
+  });
+  test("a row read error, this canvas exporting, an unlisted page and no open canvas each say why", () => {
+    expect(canvasExportReason({ ...row, error: { code: "unreadable", message: "x" } }, false, false)).toBe("Can’t read this canvas.");
+    expect(canvasExportReason(row, true, false)).toBe("Exporting");
+    expect(canvasExportReason(row, false, true)).toBe("This page is not a listed canvas.");
+    expect(canvasExportReason(null, false, false)).toBe("Export isn’t available while the canvas can’t be shown.");
+  });
+  test("an unlisted page wins over the listed canvas's own state", () => {
+    expect(canvasExportReason({ ...row, error: { code: "unreadable", message: "x" } }, true, true)).toBe("This page is not a listed canvas.");
   });
 });

@@ -316,3 +316,62 @@ test("Export: a fast run shows no progress toast, a cancelled save panel no toas
     expect(harness.toast.show).toHaveBeenLastCalledWith("Couldn’t export “a”. Try again.");
   } finally { vi.useRealTimers(); }
 });
+
+// canvas-composer-polish spec 5: the canvas toolbar's Export runs the row menu's export on the open canvas, with the
+// row menu's reasons.
+type Exporter = { reason: string | null; onExport(button: HTMLElement): void };
+const exporter = () => (all(tree).find(element => typeof element.type === "function" && element.type.name === "CanvasPane")!.props as { exporter: Exporter }).exporter;
+
+test("the toolbar's Export exports the open canvas through the row menu's path, and its reason follows that canvas", async () => {
+  await start();
+  show(row());
+  expect(exporter().reason).toBeNull();
+  const answer = deferred<unknown>();
+  doan.exportCanvas = vi.fn(() => answer.promise);
+  exporter().onExport(button([])); render();
+  expect(doan.exportCanvas).toHaveBeenCalledWith("/w/a", A);
+  listeners.exportRunning!({ root: "/w/a", path: B } as never); render();
+  expect(exporter().reason).toBeNull();
+  listeners.exportRunning!({ root: "/w/a", path: A } as never); render();
+  expect(exporter().reason).toBe("Exporting");
+  expect(sidebar().canvasMenu.exporting("/w/a", A)).toBe(true);
+  answer.resolve({ kind: "cancelled" }); await flush(); render();
+  expect(exporter().reason).toBeNull();
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: A, row: { ...row(), error: { code: "unreadable", message: "x" } } }, shown: A }); render();
+  expect(exporter().reason).toBe("Can’t read this canvas.");
+  harness.setState!({ ...initialCanvasState(), open: { folder: "/w/a", canvas: A, row: row() }, shown: null, unlisted: true }); render();
+  expect(exporter().reason).toBe("This page is not a listed canvas.");
+  harness.setState!(initialCanvasState()); render();
+  expect(exporter().reason).toBe("Export isn’t available while the canvas can’t be shown.");
+  doan.exportCanvas!.mockClear();
+  exporter().onExport(button([])); render();
+  expect(doan.exportCanvas).not.toHaveBeenCalled();
+});
+
+test("focus that fell to the page while the save panel was open goes back to Export, once", async () => {
+  for (const close of ["running", "reply"] as const) {
+    reset();
+    await start();
+    show(row());
+    const answer = deferred<unknown>();
+    doan.exportCanvas = vi.fn(() => answer.promise);
+    const focused: string[] = [];
+    (document as { activeElement: unknown }).activeElement = document.body;
+    exporter().onExport(button(focused)); render();
+    if (close === "running") listeners.exportRunning!({ root: "/w/a", path: A } as never);
+    else answer.resolve({ kind: "cancelled" });
+    await flush(); render();
+    expect(focused, close).toEqual(["a menu"]);
+    answer.resolve({ kind: "exported", external: 0, reveal: "r" }); await flush(); render();
+    expect(focused, close).toEqual(["a menu"]);
+  }
+  // Focus the person moved elsewhere stays there.
+  reset();
+  await start();
+  show(row());
+  doan.exportCanvas = vi.fn(async () => ({ kind: "cancelled" }));
+  const focused: string[] = [];
+  (document as { activeElement: unknown }).activeElement = { name: "the frame drawer" };
+  exporter().onExport(button(focused)); await flush(); render();
+  expect(focused).toEqual([]);
+});
