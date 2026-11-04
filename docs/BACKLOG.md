@@ -31,6 +31,19 @@ What Doan has not settled or not shown yet: product questions without a decision
 - Deleting a conversation keeps its pasted image copies under `<userData>/attachments/<id>/`: another conversation may have re-attached the same copy (`attachments:fromPaths`), so removing them needs a reference count over every history. Conversations whose canvas left the project are not in either title menu and cannot be deleted yet.
 - Auto-registered worktrees pile up: every Orca or `git worktree add` session that sends `doan work start` adds one, and only a vanished folder removes it (PRODUCT §5 item 1). There is no per-worktree removal and no cap; Remove from Doan removes the whole group. A worktree on an external or network volume that is briefly unmounted (`ENOENT`) also leaves the list for good until its next `doan work start`.
 
+## Feature candidates
+
+Requests the person has asked for but no feature has taken up yet. Each bullet is one future `/feature` run; small requests are grouped so that one `/ship` can carry them.
+
+- Canvas and composer polish (one `/ship`-sized feature):
+  - The design preset drawer closes when the person clicks outside it.
+  - Send now on a queued message moves the message into the thread at once and shows its loading state there.
+  - The canvas toolbar's tool that adds the selection to the conversation becomes a Picker tool that behaves exactly like the canvas conversation panel's Picker.
+  - An Export button at the right end of the canvas toolbar, running the same export as the canvas row menu's Export… (PRODUCT §5 item 1 'Canvas row menu').
+  - Home starting a new conversation while another waits on the person ('Known defects').
+- Exported file with Doan's canvas chrome (its own feature): the HTML file `doan export` writes gets the canvas page's content panel and the Hand tool, so it looks and pans like the canvas page in Doan; today the viewer handles only ⌘/Ctrl-wheel zoom (PRODUCT §5 item 3 'Export and viewer'). The viewer is embedded by the Go CLI, so it changes CLI output and needs an `/agent-eval` check of X1.
+- Agent questions that hand the turn back (its own feature): an agent can ask the person a question through its question tool (Claude Code's `AskUserQuestion`) and the turn waits for the answer in the conversation. Doan's conversation runtime has no handling for these tools today; Codex's and the ACP providers' equivalents are unverified, so a PoC comes first.
+
 ## Not verified in the real app
 
 - Terminal work in another worktree, not reached in the real app (DESIGN.md 'Terminal work in another worktree'): Open's focus ring and pressed fill (not drawn in the draft), the draft side of Open's hover, picking while an app conversation works (the isolated app's agents were not signed in), the picking hint's ellipsis on a narrow board, dark mode and forced colours. The runtime probe was not rerun after the notice tooltip moved below the notice; the move was re-measured in the app.
@@ -62,6 +75,7 @@ What Doan has not settled or not shown yet: product questions without a decision
 
 ## Known defects
 
+- While a conversation waits on the person (for example a permission request), Home cannot start a new conversation; reported by the person, cause not traced. Whether a rule blocks it or a defect does is the first thing to find.
 - `open -g` to an app that is running but not yet answering its socket brings it forward: reopen fires `activate`, whose handler shows the window, so `onboarding start` during startup can still cover the app in use. Fixing it means changing the Dock-click `activate` behaviour.
 - One Claude session registry record below `CLAUDE_REGISTRY_FLOOR` makes the whole profile's resume `unknown`, so every terminal session continue in that profile is hidden while it lives. The Claude desktop app's bundled claude-code (2.1.309) writes such records into `~/.claude/sessions/`, so with a desktop Code session open no Claude terminal session can be continued. Narrowing the fail-closed rule (for example to the record of the session being resumed) needs a decision.
 - A Codex turn that fails because the configured default model does not exist for the account (`model_not_found`, seen with `gpt-6-astra` on a ChatGPT account) shows as “Codex stopped unexpectedly” and that it may have changed files, which misstates both the cause and the risk.
