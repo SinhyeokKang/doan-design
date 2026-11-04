@@ -928,7 +928,7 @@ Reference: `.doan/canvases/mcp-connectors.html`, frames `agents`, `one-agent`, `
 
 | Element | Measured contract | Reason |
 |---|---|---|
-| Category | Fourth Settings sidebar row between Agents and Notifications (204 × 32, the Settings rows' values) with a 16px Lucide Plug; listed only while Claude Code or Codex is signed in to Doan | |
+| Category | Second Settings sidebar row, between Agents and Notifications (204 × 32, the Settings rows' values) with a 16px Lucide Plug; listed only while Claude Code or Codex is signed in to Doan | |
 | Header | The Settings header (17px inset, title 24 / 26.4 / 500, lead caption 12 / 16 `--text-subtle` 8px below); Add server by URL in the action slot: `sm` `subtle` button 32 high, 16px Plus, 8px gap | |
 | Agent section | One per signed-in Claude Code and Codex, a `group` named by the agent; title label-sm 14 / 20 / 500 with the agent's 16px logo 6px before it; the header centres a signed-in-but-can't-run reason (caption, 2px under the title) and its `sm` `prominent` Open Agents settings | Shared Settings section values. |
 | List | `.doan-settings-group` with rows layout: 1px `--border-standard`, 24px corner, 0 16px padding, no shadow, rows split by its hairlines | The Settings group, as Agents' lists. |
