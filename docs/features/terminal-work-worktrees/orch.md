@@ -13,8 +13,8 @@
 3. T2a와 T2b는 한 배치에서 순서대로 한다 — 지휘자 판단. 둘 다 `app/src/main/index.ts`를 고치고, T2b가 T2a의 `adopt`를 쓴다.
 4. 자동 등록분 플래그(entries에 싣는 값)의 이름과 모양은 배치 M이 `/tdd`에서 정한다(design §3.3). 배치 R의 플래그 의존 항목은 M 통합 뒤 새 Task로 보낸다.
 5. `/runtime-test`와 `/design-sync`는 main과 renderer가 모두 통합된 뒤 배치 R 작업자가 한다 — 지휘자 판단. 보드 안내는 main의 자동 등록이 있어야 실제 앱에서 보인다.
-7. 보던 자동 등록 worktree가 사라질 때의 도착지는 직전 선택이나 main checkout이 문제 상태여도 그 root로 간다(사용자 결정, R1 리뷰). design §3.4 문구 그대로다.
 6. T4의 PRODUCT·ARCHITECTURE·BACKLOG 승격과 feature 디렉터리 삭제는 지휘자가 한다(/orchestrate §4·§5). DESIGN.md 측정값은 `/design-sync`를 하는 배치 R이 적는다.
+7. 보던 자동 등록 worktree가 사라질 때의 도착지는 직전 선택이나 main checkout이 문제 상태여도 그 root로 간다(사용자 결정, R1 리뷰). design §3.4 문구 그대로다.
 
 ## 배치
 
