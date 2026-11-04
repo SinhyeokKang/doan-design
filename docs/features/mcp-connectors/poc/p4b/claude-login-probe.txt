@@ -1,0 +1,4 @@
+{"why":"link","pid":45368,"link":"https://mcp.notion.com/authorize?response_type=<redacted>&client_id=<redacted>&code_challenge=<redacted>&code_challenge_method=<redacted>&redirect_uri=<redacted>&state=<redacted>&scope=<redacted>&resource=<redacted>","tail":"Fclaude.ai%2Foauth%2Fclaude-code-client-metadata&code_challenge=<redacted>&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A57116%2Fcallback&state=<redacted>&scope=default&resource=https%3A%2F%2Fmcp.notion.com%2Fmcp\u001b[39m\u001b]8;;\u0007\r\n\r\nWaiting for authorization… (^C to cancel)\r\n\u001b[1G\u001b[0JOr paste the redirect URL here: \u001b[33G","grp":"  PID  PGID COMMAND\n45368 45368 claude mcp login doan-p4b-poc\n"}
+exit {"exitCode":0,"signal":9}
+after kill: (none)   PID  PGID COMMAND
+

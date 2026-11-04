@@ -1,0 +1,1 @@
+https://mcp.atlassian.com/v1/authorize?response_type=code&client_id=MMcuKTTJdADQ8gRQ&code_challenge=REDACTED_CHALLENGE&code_challenge_method=S256&redirect_uri=http%3A%2F%2Flocalhost%3A62921%2Fcallback&state=REDACTED_STATE

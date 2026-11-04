@@ -1,0 +1,2 @@
+dist/mac-arm64/Doan.app: code has no resources but signature indicates they must be present
+exit 1

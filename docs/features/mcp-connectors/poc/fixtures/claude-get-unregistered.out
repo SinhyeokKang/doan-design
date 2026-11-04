@@ -1,0 +1,2 @@
+No MCP server named "doan-notion". Run `claude mcp add` to add one.
+exit 1
