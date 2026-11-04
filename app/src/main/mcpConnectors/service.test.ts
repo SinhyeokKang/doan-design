@@ -595,11 +595,13 @@ describe("sign-out and replacement logout", () => {
     await s.idle();
   });
 
-  it("an unreadable list records every server Doan knows, so none is skipped", async () => {
+  it("an unreadable list logs out every server Doan knows, so none is skipped; each failure is kept", async () => {
     cli.failing.add("codex list");
     const s = service();
-    expect(await s.logoutForAuth("codex", request("codex"))).toEqual({ failed: ["doan-notion", "doan-atlassian", "doan-figma"] });
-    expect(store.pending().map(entry => entry.name)).toEqual(["doan-notion", "doan-atlassian", "doan-figma"]);
+    // doan-notion and doan-figma log out; doan-atlassian is not registered in this profile, so its logout fails.
+    expect(await s.logoutForAuth("codex", request("codex"))).toEqual({ failed: ["doan-atlassian"] });
+    expect(cli.commands("codex").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-notion", "doan-atlassian", "doan-figma"]);
+    expect(store.pending().map(entry => entry.name)).toEqual(["doan-atlassian"]);
     await s.idle();
   });
 });
@@ -711,7 +713,7 @@ describe("review fixes", () => {
     await s.quit();
   });
 
-  it("Y3: an unreadable Codex list takes the servers from the profile's config.toml, never the connectors file", async () => {
+  it("Y3: an unreadable Codex list logs out the profile config's servers and every known server", async () => {
     writeFileSync(join(dir, "mcp-connectors.json"), "{broken");
     writeFileSync(join(profile("codex"), "config.toml"), 'model = "x"\n\n[mcp_servers.doan-custom]\nurl = "https://custom.example/mcp"\n\n[mcp_servers."doan-quoted"]\nurl = \'https://quoted.example/mcp\'\n\n[mcp_servers.notion]\nurl = "https://mcp.notion.com/mcp"\n');
     cli.registered.codex.set("doan-custom", { url: "https://custom.example/mcp", auth: true });
@@ -719,8 +721,13 @@ describe("review fixes", () => {
     cli.failing.add("codex logout doan-custom");
     const s = service();
     await s.logoutForAuth("codex", { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: profile("codex"), run: runner("codex") });
-    expect(cli.commands("codex").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-custom", "doan-quoted"]);
-    expect(store.pending("codex")).toEqual([{ provider: "codex", name: "doan-custom", url: "https://custom.example/mcp" }, { provider: "codex", name: "doan-quoted", url: "https://quoted.example/mcp" }]);
+    expect(cli.commands("codex").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-custom", "doan-quoted", "doan-notion", "doan-atlassian", "doan-figma"]);
+    // The connectors file is broken, so the known servers are the presets; each failed logout is kept with its URL.
+    expect(store.pending("codex")).toEqual([
+      { provider: "codex", name: "doan-custom", url: "https://custom.example/mcp" }, { provider: "codex", name: "doan-quoted", url: "https://quoted.example/mcp" },
+      { provider: "codex", name: "doan-notion", url: "https://mcp.notion.com/mcp" }, { provider: "codex", name: "doan-atlassian", url: "https://mcp.atlassian.com/v1/mcp" },
+      { provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" },
+    ]);
     await s.idle();
   });
 
@@ -734,12 +741,30 @@ describe("review fixes", () => {
     await s.idle();
   });
 
-  it("Y3: an unreadable Claude list takes the servers from the profile's .claude.json", async () => {
+  // BB review round 3: a parser miss (a config it reads wrongly as empty, or one it cannot decode) never drops a known
+  // server. The reviewer's three fallback inputs, each with a URL server in the connectors file.
+  it.each([
+    ["not valid TOML outside the servers", "not = [ valid toml\n"],
+    ["an unclosed multi-line string before the servers", 'instructions = """\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n'],
+    ["an invalid unicode escape in a URL", '[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/\\UFFFFFFFF"\n'],
+  ])("Round 3: an unreadable list with %s leaves every known server pending", async (_case, config) => {
+    store.patch({ add: { name: "doan-mcp-example-com", url: "https://mcp.example.com/mcp" } });
+    writeFileSync(join(profile("codex"), "config.toml"), config);
+    cli.failing.add("codex list");
+    const s = service();
+    const result = await s.logoutForAuth("codex", { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: profile("codex"), run: runner("codex") });
+    const known = ["doan-notion", "doan-atlassian", "doan-figma", "doan-mcp-example-com"];
+    expect(result.failed).toEqual(known);
+    expect(store.pending("codex").map(entry => entry.name)).toEqual(known);
+    await s.idle();
+  });
+
+  it("Y3: an unreadable Claude list logs out the profile's .claude.json servers and every known server", async () => {
     writeFileSync(join(profile("claude"), ".claude.json"), JSON.stringify({ mcpServers: { "doan-custom": { type: "http", url: "https://custom.example/mcp" }, notion: { type: "http", url: "https://mcp.notion.com/mcp" } } }));
     cli.failing.add("claude list");
     const s = service();
     await s.logoutForAuth("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a2", staging: null, profileDir: profile("claude"), run: runner("claude") });
-    expect(cli.commands("claude").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-custom"]);
+    expect(cli.commands("claude").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-custom", "doan-notion", "doan-atlassian", "doan-figma"]);
     await s.idle();
   });
 

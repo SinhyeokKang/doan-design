@@ -71,3 +71,12 @@ test("Claude .claude.json: mcpServers of the wrong type is a failure; no mcpServ
   expect(claudeConfigServers(JSON.stringify([]))).toBeNull();
   expect(claudeConfigServers(JSON.stringify({ other: 1 }))).toEqual([]);
 });
+
+// BB review round 3: the parser is total. An unclosed multi-line string anywhere or a value it cannot decode is the
+// failure value, never an exception and never an empty list.
+test("Codex config.toml: an unclosed multi-line string anywhere or an undecodable escape is a failure, not a throw", () => {
+  expect(codexConfigServers('instructions = """\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n')).toBeNull();
+  expect(codexConfigServers("[profiles.x]\nnote = \'\'\'\nopen\n")).toBeNull();
+  expect(() => codexConfigServers('[mcp_servers.doan-notion]\nurl = "https://x/\\UFFFFFFFF"\n')).not.toThrow();
+  expect(codexConfigServers('[mcp_servers.doan-notion]\nurl = "https://x/\\UFFFFFFFF"\n')).toBeNull();
+});

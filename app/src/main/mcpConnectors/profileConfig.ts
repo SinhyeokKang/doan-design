@@ -48,6 +48,10 @@ function value(text: string): { ok: true; string: string | null } | { ok: false 
 // one is not a header); any other way of naming MCP servers (dotted keys, inline tables, arrays of tables, the bare
 // `[mcp_servers]` table) or an unreadable line inside a server table is a failure.
 export function codexConfigServers(text: string): ListedServer[] | null {
+  // Total: whatever goes wrong while reading is the failure value, never an exception out of a sign-out.
+  try { return codexServers(text); } catch { return null; }
+}
+function codexServers(text: string): ListedServer[] | null {
   const servers: ListedServer[] = [];
   let server: ListedServer | null = null, inServers = false, multiline: string | null = null;
   for (const raw of text.split("\n")) {
@@ -93,12 +97,16 @@ export function codexConfigServers(text: string): ListedServer[] | null {
       server.url = read.string;
     }
   }
-  return multiline && inServers ? null : servers;
+  // A multi-line string still open at the end hid the rest of the file, servers included.
+  return multiline ? null : servers;
 }
 
 // Claude `.claude.json` in the profile (CLAUDE_CONFIG_DIR): the user-scope `mcpServers` map. Absent is no servers;
 // a map or entry of another shape is a failure.
 export function claudeConfigServers(text: string): ListedServer[] | null {
+  try { return claudeServers(text); } catch { return null; }
+}
+function claudeServers(text: string): ListedServer[] | null {
   let doc: unknown;
   try { doc = JSON.parse(text); } catch { return null; }
   const object = (item: unknown): item is Record<string, unknown> => typeof item === "object" && item !== null && !Array.isArray(item);

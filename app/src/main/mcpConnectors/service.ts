@@ -296,9 +296,8 @@ export class McpService implements McpConversationFacts {
         // leave a record that blocks Connect without cause. Unknown statuses are logged out.
         const holding = listed.servers.filter(server => server.authenticated !== false);
         const input: McpLogoutInput = { provider, kind: request.kind, previousAccountId: request.previousAccountId, nextAccountId: request.nextAccountId, servers: holding.map(server => server.name) };
-        const failed = listed.readable ? [] : mcpLogoutPlan(input).logout;
+        const failed: string[] = [];
         for (const name of mcpLogoutPlan(input).logout) {
-          if (failed.includes(name)) continue;
           const run = await request.run(COMMANDS[provider].logout(name)).catch(() => null);
           if (run?.code !== 0) { failed.push(name); console.error(`doan: ${provider} MCP logout of ${name} failed${run ? `: ${tail(run.stderr || run.stdout)}` : ""}`); }
         }
@@ -325,17 +324,19 @@ export class McpService implements McpConversationFacts {
     }
   }
 
-  private async listForAuth(provider: McpProvider, request: McpLogoutRequest): Promise<{ servers: ListedServer[]; readable: boolean }> {
+  // Without the provider's list, the targets are the union of the profile config's doan- servers (when that read
+  // succeeds; it also finds servers the connectors file does not know) and every server Doan knows (presets, and the
+  // file's servers when it can be read), so a config parser miss can never drop a known server (BB review round 3).
+  // Each is logged out; a failure is recorded and blocks Connect until a retry succeeds. The config is read before
+  // the provider logout, which may change the profile.
+  private async listForAuth(provider: McpProvider, request: McpLogoutRequest): Promise<{ servers: ListedServer[] }> {
     const run = await request.run([...COMMANDS[provider].list]).catch(() => null);
     const servers = run && (provider === "claude" ? parseClaudeMcpList(run.stdout, run.code ?? -1) : run.code === 0 ? codexMcpServers(run.stdout) : null);
-    if (servers) return { servers, readable: true };
-    // Without the list, the profile's own config names its registrations (BB review Y3), never the connectors file,
-    // which may be broken or behind. Read before the provider logout, which may change the profile.
-    const config = this.profileServers(provider, request.profileDir);
-    if (config) { console.error(`doan: ${provider} MCP servers could not be listed for the logout; the profile's config names them`); return { servers: config, readable: true }; }
-    // Without either, every server Doan knows is treated as a failed logout: recorded and blocked, never skipped.
-    console.error(`doan: ${provider} MCP servers could not be listed for the logout; every known server is kept as a pending logout`);
-    return { servers: this.servers().map(server => ({ name: server.name, url: server.url, authenticated: null })), readable: false };
+    if (servers) return { servers };
+    const config = this.profileServers(provider, request.profileDir) ?? [];
+    const known = this.servers().filter(server => !config.some(entry => entry.name === server.name)).map(server => ({ name: server.name, url: server.url, authenticated: null }));
+    console.error(`doan: ${provider} MCP servers could not be listed for the logout; logging out ${config.length} from the profile's config and every known server`);
+    return { servers: [...config, ...known] };
   }
   private profileServers(provider: McpProvider, profileDir: string): ListedServer[] | null {
     let text: string;
