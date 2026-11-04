@@ -287,6 +287,7 @@ test("a live blocking reason and its action show over an old error notice, and t
 });
 
 test("the / list's closed state and highlight belong to the draft on screen", () => {
+  pressDocument();
   const { props, render } = setup({}, [["conversation:a", draft("/po")], ["conversation:b", draft("/cr")]]);
   const escape = { key: "Escape", shiftKey: false, keyCode: 27, nativeEvent: { isComposing: false }, preventDefault: vi.fn() };
   (field(render()).onKeyDown as (event: unknown) => void)(escape);
@@ -481,4 +482,91 @@ test("a repeated Send now refusal changes the composer's status text each time",
   expect([before, first, second].map(text => String(text).trim())).toEqual(["", SEND_NOW_REFUSED_TEXT, SEND_NOW_REFUSED_TEXT]);
   expect(first).not.toBe(before);
   expect(second).not.toBe(first);
+});
+
+// A press outside the `/` list and its field closes it as Escape does, for the draft on screen, until that field is empty
+// again; a press in the field or the list keeps it. A press in the canvas, which the app's document never sees, closes
+// both preset lists through the canvas page's signal.
+function pressDocument() {
+  const listeners: ((event: { target: unknown }) => void)[] = [];
+  vi.stubGlobal("document", {
+    addEventListener: (type: string, listener: (event: { target: unknown }) => void, capture: boolean) => { if (type === "pointerdown" && capture) listeners.push(listener); },
+    removeEventListener: (_type: string, listener: (event: { target: unknown }) => void) => { const at = listeners.indexOf(listener); if (at >= 0) listeners.splice(at, 1); },
+  });
+  return { listeners, press: (target: unknown) => { for (const listener of [...listeners]) listener({ target }); } };
+}
+const slashList = (tree: Record<string, unknown>[]) => find(tree, props => typeof props.className === "string" && props.className.includes("slash-popover"));
+const runEffects = () => hooks.effects.map(effect => effect()).filter((cleanup): cleanup is () => void => typeof cleanup === "function");
+
+test("a press outside the / list closes it for that draft until its field is empty; a press in the field or the list keeps it", () => {
+  const { listeners, press } = pressDocument();
+  const { props, store, render } = setup({}, [["conversation:a", draft("/po")], ["conversation:b", draft("/cr")]]);
+  const text = {}, row = {}, chip = {};
+  const tree = render();
+  hooks.refs[2]!.current = { focus: vi.fn(), element: () => ({ contains: (node: unknown) => node === text }) };
+  (slashList(tree).ref as { current: unknown }).current = { contains: (node: unknown) => node === row };
+  let cleanups = runEffects();
+  press(text); press(row);
+  expect(field(render()).role).toBe("combobox");
+  press(chip);
+  expect(field(render()).role).toBe("textbox");
+  expect(draftText(store.current.get("conversation:a"))).toBe("/po");
+  cleanups.forEach(cleanup => cleanup());
+  expect(listeners).toHaveLength(0);
+  // Typing on keeps it closed; the other conversation's list is its own.
+  type(render(), "/pol");
+  expect(field(render()).role).toBe("textbox");
+  props.mode = B;
+  render(); cleanups = runEffects();
+  expect(field(render()).role).toBe("combobox");
+  cleanups.forEach(cleanup => cleanup());
+  props.mode = A;
+  type(render(), "");
+  render(); runEffects().forEach(cleanup => cleanup());
+  type(render(), "/");
+  expect(field(render()).role).toBe("combobox");
+});
+
+test("the canvas's press signal closes the / list and the Presets popover", () => {
+  pressDocument();
+  const subscribers = new Set<() => void>();
+  const canvasPress = vi.fn((listener: () => void) => { subscribers.add(listener); return () => { subscribers.delete(listener); }; });
+  const { render } = setup({ canvasPress }, [["conversation:a", draft("/po")]]);
+  const root = (tree: Record<string, unknown>[]) => find(tree, props => typeof props.onOpenChange === "function" && typeof props.open === "boolean");
+  (root(render()).onOpenChange as (open: boolean) => void)(true);
+  render();
+  const cleanups = runEffects();
+  expect(subscribers.size).toBe(2);
+  for (const listener of [...subscribers]) listener();
+  const tree = render();
+  expect(field(tree).role).toBe("textbox");
+  expect(root(tree).open).toBe(false);
+  cleanups.forEach(cleanup => cleanup());
+  expect(subscribers.size).toBe(0);
+});
+
+// The composer's Pick from canvas starts the same pick as the toolbar Picker and ⌘L, so its tooltip shows ⌘L like the
+// toolbar's; an unavailable Pick shows only its reason.
+test("Pick from canvas shows ⌘L in its tooltip, and only the reason while unavailable", () => {
+  const pickButton = (node: ReactNode): ReactElement<Record<string, unknown>> | null => {
+    for (const child of Children.toArray(node)) {
+      if (!isValidElement<Record<string, unknown>>(child)) continue;
+      if (typeof child.type === "function" && child.type.name === "PickButton") return child;
+      const found = pickButton(child.props.children as ReactNode);
+      if (found) return found;
+    }
+    return null;
+  };
+  const tip = (pick: NonNullable<DockedComposerProps["pick"]>) => {
+    const element = pickButton(setup({ pick }).draw())!;
+    const drawn = (element.type as (props: unknown) => ReactNode)(element.props);
+    return elements(drawn).find(props => typeof props.className === "string" ? props.className.includes("has-key") : false) ?? elements(drawn).at(-1)!;
+  };
+  const on = tip({ pressed: false, enabled: true, reason: null, onToggle: () => {} });
+  expect(on.className).toBe("has-key");
+  const kbd = elements(on.children as ReactNode).find(props => props.className === "doan-kbd");
+  expect(kbd).toMatchObject({ "data-ui-variant": "on-prominent", "data-ui-size": "sm", children: "⌘L" });
+  const off = tip({ pressed: false, enabled: false, reason: "Pick from canvas isn’t available while the canvas can’t be shown.", onToggle: () => {} });
+  expect(off.className).toBeUndefined();
+  expect(off.children).toBe("Pick from canvas isn’t available while the canvas can’t be shown.");
 });

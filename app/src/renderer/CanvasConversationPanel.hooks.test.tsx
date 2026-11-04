@@ -166,3 +166,28 @@ test("a held Claude session returns when its work ends and the process is free",
   const view = run.view();
   expect(view?.kind === "new" ? view.start.mode : null).toBe("new");
 });
+
+// The page's canvas press signal reaches the panel's composer unchanged, so its preset lists close on a canvas press.
+test("the panel hands the page's canvas press signal to its composer", async () => {
+  const store = new ConversationStore({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, notice: vi.fn(), changed: vi.fn() });
+  const run = new CanvasRun({ list: () => [], readsStarted: () => 1, readsApplied: () => 1, reread: vi.fn(), markSeen: vi.fn(), focused: () => true, drawing: () => null, changed: vi.fn() }, store);
+  run.show({ root: ROOT, canvas: CANVAS });
+  run.sync();
+  await flush();
+  const support = Object.assign(new DockedSupport(() => {}), { readPresets: vi.fn(), readModels: vi.fn() });
+  const canvasPress = () => () => {};
+  const tree = render(() => CanvasConversation({
+    run, support, target: { root: ROOT, canvas: CANVAS }, canvasName: "checkout", project: "acme-web", entry: ENTRY, list: [], seen: new Set(),
+    prefs: null, defaults: null, now: Date.parse("2026-11-01T15:00:00"), blocked: null, frames: [], locateDisabled: false, arrival: null, onArrived: vi.fn(),
+    onLocate: vi.fn(async () => "shown" as const), pick: { pressed: false, enabled: true, reason: null, onToggle: () => {} }, composerLink: { current: null },
+    onSettings: vi.fn(), onNotice: vi.fn(), onOpenProjectConversation: vi.fn(), work: [], canvasPress,
+  }));
+  const composer = (node: ReactNode): Record<string, unknown> | null => {
+    if (Array.isArray(node)) { for (const child of node) { const found = composer(child); if (found) return found; } return null; }
+    if (!node || typeof node !== "object" || !("props" in node)) return null;
+    const element = node as { type: unknown; props: Record<string, unknown> & { children?: ReactNode } };
+    if (typeof element.type === "function" && element.type.name === "DockedComposer") return element.props;
+    return composer(element.props.children);
+  };
+  expect(composer(tree)?.canvasPress).toBe(canvasPress);
+});
