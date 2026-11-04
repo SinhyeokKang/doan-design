@@ -18,7 +18,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·공유 포맷(comment events, 
 
 - main은 바꾸지 않는다. `ConversationService.sendNow`가 에이전트가 읽은 뒤(`steerConsumed`) `user.message`를 append하고 IPC에 답하는 흐름은 그대로다. history는 append-only이고, 읽히기 전의 메시지를 history에 미리 쓰지 않는다.
 - renderer: `ConversationStore`가 Send now 중인 항목을 큐 표시에서 빼고 "보내는 중" 목록으로 옮긴다(`conversationStore.ts`의 `markQueued(..., true)`·`syncQueues`가 지금은 큐 안에 `sending`으로 둔다). 쓰레드(`ConversationThread.tsx`, `threadItems.ts`)는 history 항목 뒤에 보내는 중인 메시지를 사람 메시지 모양으로 칩·첨부까지 그리고, 보내는 중 표시를 붙인다. 열린 권한 요청 카드가 있으면 그 카드를 마지막에 두고 보내는 중 메시지는 그 위에 둔다.
-- 칩·첨부: 지금 renderer의 `QueuedMessage`는 `{ id, text, sending? }`뿐이다(큐에 넣을 때 `queuedText(request)`로 글자만 남긴다, `CanvasConversationPanel.tsx`·`overviewRun.ts`). `QueuedMessage`에 `anchors`와 첨부 표시 값을 더한다. 큐에 넣는 요청에 이미 있는 값으로 채우고, 첨부를 그리는 데 모자란 값(이름, 종류 등)은 `conversation:queue` 응답에 더해 받는다. 이 응답은 app 내부 IPC라 공유 포맷이 아니다. history와 app socket 메시지는 바뀌지 않는다.
+- 칩·첨부: 지금 renderer의 `QueuedMessage`는 `{ id, text, sending? }`뿐이다(큐에 넣을 때 `queuedText(request)`로 글자만 남긴다, `CanvasConversationPanel.tsx`·`overviewRun.ts`). `QueuedMessage`에 `anchors`와 첨부 표시 값을 더한다. 큐에 넣는 요청에 이미 있는 값으로 채우고, 첨부를 그리는 데 모자란 값(이름, 종류 등)만 `conversation:queue` 응답에 더해 받는다(사용자 확인). 이 응답은 app 내부 IPC라 공유 포맷이 아니다. history와 app socket 메시지는 바뀌지 않는다.
 - 읽힘 판정: steer로 append되는 `user.message`에는 큐 항목 id도 message id도 없다(`service.ts` `sendNow`의 `messageId`는 main 안에서만 쓴다). 그래서 renderer는 지금 `unqueued`처럼 `sendQueuedNow` IPC가 성공하면 보내는 중 항목을 지운다. main은 `user.message`를 전달한 뒤 IPC에 답하므로, 한 렌더 동안 실제 메시지와 보내는 중 항목이 함께 보일 수 있다. history에 id를 더하는 것은 포맷 변경이라 하지 않는다. `/tdd`에서 두 도착 순서(이벤트 먼저·응답 나중, 그 반대)를 모두 고정한다.
 - 큐로 돌리는 경우: IPC 거절(`not_running`, `stale`, `attachment_missing`, `bad_request`)과 턴 종료. `stale`은 턴 종료가 아니라 항목이 없어졌거나 이미 나가는 중이라는 뜻이다. 돌아온 뒤는 main의 큐 규칙을 따른다(끝난 턴 뒤 다음 턴, 실패·중지 뒤 초안). 지금 거절 문구를 보이는 큐 줄 아래 status line은 그대로 쓴다.
 - 거절 알림: 줄이 빠졌다가 거절 문구를 단 채 다시 그려지면, 내용을 가진 채 삽입된 live region은 스크린 리더가 읽지 않을 수 있다. 거절 문구는 계속 붙어 있는 live region(`DockedComposer.tsx`의 `sr-only` status)으로도 알린다. 큐와 쓰레드 사이의 이동 애니메이션은 없으므로 reduced motion에 따로 할 일은 없고, 스크롤은 쓰레드의 기존 따라가기·Jump to latest 규칙을 따른다.
@@ -53,7 +53,9 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·공유 포맷(comment events, 
 - promotion: 기존 규칙은 겹친 턴에서 틀린 대화를 고를 수 있다. `canvasWorking`(`service.ts`)은 대상 캔버스의 현재 대화가 working일 때만 막고, 판정이 끝난 대화는 working이 아니다. 예: A가 답을 기다리는 동안 B가 시작해 캔버스 X를 만들고 끝나 X에 붙는다. 그 뒤 A가 답을 받고 끝나면, X는 A의 snapshot에 없으므로 A의 새 캔버스 후보가 되고, `promoteTo`가 A를 X에 붙이며 B를 archive한다. 그래서 규칙을 하나 더한다(사용자 결정):
   - 턴의 판정은 그 턴의 snapshot 뒤에 다른 대화에 붙은 캔버스를 후보에서 뺀다(새 캔버스, 기존 캔버스 모두).
   - main은 evidence마다 "snapshot 뒤 다른 대화에 붙은 캔버스" 집합을 두고, 다른 대화를 캔버스에 붙이는 쓰기(promotion의 `conversation.bound`)가 일어나면 같은 root의 다른 evidence에 그 캔버스를 더한다. `promotionTarget`(`project.ts`)은 이 집합을 받아 후보에서 뺀다.
-  - `/tdd`에서 위 예(A 나중 판정)와 반대 순서, 겹치지 않는 기존 경우를 고정한다.
+  - 반대 순서(A가 먼저 끝나 먼저 판정되고 B가 아직 판정 전)에서는 X가 아직 어느 대화에도 붙지 않았으므로 위 규칙으로 막히지 않는다. 그래서 하나 더한다(사용자 결정): A를 판정할 때 같은 root에 아직 판정하지 않은 다른 턴의 evidence가 있고 그 evidence의 snapshot에도 새 캔버스가 없으면, 그 캔버스는 그 턴의 것일 수 있다. 이때는 후보가 여럿일 때처럼 promotion하지 않고, A는 project conversation으로 남는다. 판정하지 않은 다른 턴은 실행 중·답 대기·끝난 뒤 판정 창 안의 턴이며, 모두 `this.evidence`에 있다.
+  - `promotionTarget`은 위 두 집합(다른 대화에 붙은 캔버스, 판정하지 않은 다른 턴도 가질 수 있는 새 캔버스)을 입력으로 받는 순수 함수로 남긴다.
+  - `/tdd`에서 위 예(A 나중 판정), 반대 순서(A 먼저 판정 → promotion 없음, 뒤에 판정되는 B는 X에 붙음), 겹치지 않는 기존 경우를 고정한다.
 - Home의 새 캔버스: `homeRun.ts`의 `entriesChanged`는 새 캔버스를 root의 첫 live Home 대화에 붙여 `canvasAppeared`(자동 열기 또는 toast)와 `drew`를 정한다. 겹친 턴에서는 다른 대화의 캔버스를 그 대화의 것으로 볼 수 있으므로, 같은 root에 live 턴(실행 중, 답 대기, 끝난 뒤 판정 창 안)이 둘 이상이면 새 캔버스 후보를 확인한 것으로만 두고(`checked`) `canvasAppeared`와 `drew`를 건너뛴다(사용자 결정). live 턴 수는 Home이 시작한 대화만이 아니라 그 root의 모든 project conversation으로 센다.
 
 ### 5. 툴바 Export
@@ -105,7 +107,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·공유 포맷(comment events, 
 
 - `outsidePresetList(target, list, field)` 또는 같은 역할의 판정: `/` 목록에서 pointerdown이 목록과 필드 밖인지.
 - 보내는 중 메시지의 표시 목록: 큐 항목과 보내는 중 항목에서 큐 줄과 쓰레드 끝의 보내는 중 항목을 만드는 함수(`threadItems.ts`·`conversationStore.ts` 쪽). IPC 성공(읽힘), 거절, 턴 종료에서의 이동, 두 줄 연달아 누른 순서, 열린 권한 요청 카드 위의 위치를 포함한다.
-- `promotionTarget`의 "snapshot 뒤 다른 대화에 붙은 캔버스" 제외.
+- `promotionTarget`의 "snapshot 뒤 다른 대화에 붙은 캔버스" 제외와 "판정하지 않은 다른 턴도 가질 수 있는 새 캔버스"면 promotion 없음.
 - Home의 새 캔버스 처리: root의 live 턴 수가 둘 이상이면 자동 열기와 `drew`를 건너뛰는 판정.
 - `projectBusy`(main)의 답 대기 제외와 evidence 조건, renderer의 시작 판정 술어. 두 쪽은 입력 모양이 달라 모듈을 공유하지 않고, design에 적은 같은 상태 표로 각각 테스트한다.
 - `anotherConversation`의 문구 축소.
