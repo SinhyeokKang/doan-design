@@ -76,14 +76,21 @@ describe("mcpLogoutPlan and mcpLogoutOutcome", () => {
 });
 
 describe("codexServerToml", () => {
-  test("writes one [mcp_servers.<name>] block with the URL as its href", () => {
+  // Codex derives the keychain key from the registered URL string, so the string the provider registered is written
+  // as it is (BB review Y4), never re-serialized.
+  test("writes one [mcp_servers.<name>] block with the URL string verbatim", () => {
     expect(codexServerToml("doan-notion", "https://mcp.notion.com/mcp")).toBe('[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
-    expect(codexServerToml("doan-example-com", "https://example.com")).toBe('[mcp_servers.doan-example-com]\nurl = "https://example.com/"\n');
+    expect(codexServerToml("doan-example-com", "https://example.com")).toBe('[mcp_servers.doan-example-com]\nurl = "https://example.com"\n');
+    expect(codexServerToml("doan-example-com", "https://Example.com:443/a/")).toBe('[mcp_servers.doan-example-com]\nurl = "https://Example.com:443/a/"\n');
   });
 
-  test("escapes what the URL serializer leaves in place", () => {
-    expect(codexServerToml("doan-example-com", "https://example.com/a\\b?q=\"x\"")).toBe('[mcp_servers.doan-example-com]\nurl = "https://example.com/a/b?q=%22x%22"\n');
+  test("escapes the string for TOML", () => {
+    expect(codexServerToml("doan-example-com", "https://example.com/a\\b?q=\"x\"")).toBe('[mcp_servers.doan-example-com]\nurl = "https://example.com/a\\\\b?q=\\"x\\""\n');
     expect(codexServerToml("doan-example-com", "https://example.com/'a'?b=`c`")).toBe('[mcp_servers.doan-example-com]\nurl = "https://example.com/\'a\'?b=`c`"\n');
+  });
+
+  test("refuses a URL with a line break, which TOML escaping would hide from the parser check", () => {
+    expect(() => codexServerToml("doan-x", "https://example.com/a\nb")).toThrow();
   });
 
   test("refuses a name outside doan- or a URL that is not https", () => {

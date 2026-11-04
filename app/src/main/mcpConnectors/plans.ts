@@ -50,11 +50,13 @@ function tomlString(text: string): string {
 }
 
 // The block Doan writes into a Codex staging profile's config.toml (design '계정 교체'): `codex mcp add` would start a
-// new OAuth sign-in and open the default browser even when a token exists.
+// new OAuth sign-in and open the default browser even when a token exists. The URL string is written as the provider
+// registered it: Codex derives the keychain key from that string, so re-serializing it could name another entry.
 export function codexServerToml(name: string, url: string): string {
   if (!CONNECTOR_NAME.test(name)) throw new Error("Invalid MCP server name");
-  if (!URL.canParse(url) || new URL(url).protocol !== "https:") throw new Error("Invalid MCP server URL");
-  return `[mcp_servers.${name}]\nurl = ${tomlString(new URL(url).href)}\n`;
+  // The URL parser drops tabs and line breaks silently; the string written is the one checked.
+  if (/[\u0000-\u001f\u007f]/.test(url) || !URL.canParse(url) || new URL(url).protocol !== "https:") throw new Error("Invalid MCP server URL");
+  return `[mcp_servers.${name}]\nurl = ${tomlString(url)}\n`;
 }
 
 const PLAINTEXT: Record<McpProvider, readonly string[]> = {
