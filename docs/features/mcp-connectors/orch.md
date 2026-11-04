@@ -38,7 +38,7 @@
 | BB | B1–B4 | `mcpConnectors/`의 store·pending·providers·service·ipc, `agentAuth/`, `main/index.ts`, preload, `senderAllowed.ts` | BA, BD | Opus high — 프로세스 그룹, lease, 직렬화, sign-out 경계 | B1–B4 검증 | 통합 `01b387c5`(리뷰 4회) |
 | BC | C1–C3 | `conversation/`(runners, service, dispatcher, transport) | BA | Opus high — Codex ingress와 POSTMORTEM 2026-10-27 함정 | C1–C3 검증 | 통합 `03d44db1`(리뷰 3회), `main/index.ts` 배선 통합(리뷰 1회) |
 | BU | D2, D3 | `SettingsMcpConnectors.tsx`, `settingsSections.ts`, `App.tsx`, `agentAuthView.ts`, `public/mcp-logos/`, `docs/DESIGN.md`(D3) | BB, BS | Opus high — 포커스·읽어 주기 규칙이 많은 화면 | D2 검증, `/design-sync` | 통합 `b1146bf9`(리뷰 5회) |
-| BE | E1 | `.scratch/`, 필요하면 `app/runtime/` | BB, BC, BU, 사용자 | Opus high — 실제 계정과 키체인 상태 보호 | `/runtime-test` 보고, real-state 비교 | 진행 중 |
+| BE | E1 | `.scratch/`, 필요하면 `app/runtime/` | BB, BC, BU, 사용자 | Opus high — 실제 계정과 키체인 상태 보호 | `/runtime-test` 보고, real-state 비교 | 완료(결함 2건 → BF) |
 | 조율자 | E2, Z1 | `docs/` 승격 문서 | 전부 | — | verify exit 0, Z1 grep | 대기 |
 
 리뷰: 각 구현 배치는 다른 모델 계열의 독립 리뷰 워커가 `/code-review`로 본다. BA·BB·BC·BU는 Codex Astra medium, BS·BD는 Claude Sonnet medium.
@@ -52,6 +52,8 @@
 
 ## 리뷰와 검증 기록
 
+- E1 완료(2026-11-05, 사용자 승인 11회): Claude·Codex 연결과 첫 턴, 패키지 앱 Claude Connect(node-pty from `app.asar.unpacked`), Codex 쓰기 Deny·Allow, Plan 실패·Full access, Stop 만료 승인을 Codex가 Decline으로 처리, Waiting 접기, 교체 취소·다른 계정 교체(Claude·Codex), Disconnect, Remove(Codex), 미뤄 둔 로그아웃 CLI, sign-out 토큰 삭제 통과. MCP 실제 상태(터미널 notion 항목·`notion|eac663db…` 키체인) 전후 같음, 만든 키체인 항목 삭제. `ui-state.json` 변화는 사용자의 실제 앱 실행(00:25) 탓. 결함 2건: Codex 첫 턴 prewarm, 새 URL 서버 `Checking` 멈춤 → BF(Opus high). 관찰: GPT-6-Luna exec 코드 모드의 MCP 쓰기가 승인 없이 실행(Codex 동작, Z1 BACKLOG). 확인 못 함: 실제 앱의 Claude Remove, 로그아웃 실패로 기록이 생기는 앱 경로, 같은 계정 Claude 재로그인. real-state 확장 `191463b6` 통합.
+- 조율자 판단 — BF 결함 1 수정: 대기가 1초 알림 시점을 넘기면 준비 뒤 `config/mcpServer/reload`를 보내고 다시 준비를 기다린 뒤 `turn/start`. 실제 Codex 확인은 로컬의 늦게 뜨는 stdio 서버와 Codex sign-in(사용자 승인)으로 한다.
 - E1 중간(2026-11-04): Claude 첫 턴 Notion 도구 통과. **Codex 첫 턴 결함**: 서버 준비가 1초를 넘으면 Codex 0.166의 startup_prewarm이 Doan의 대기보다 먼저 도구 목록을 잡아(`omitting pending optional MCP server`) 첫 턴에 Notion 도구가 없다(spec 완료 조건 6 위반). 같은 대화의 다음 턴과 1초 안에 준비된 대화는 통과. E1 뒤 수정 배치로 보낸다. 사용자 승인으로 Codex 쓰기 확인에 개인 최상위 Notion 페이지 하나를 만들고 사용자가 지운다.
 
 - BS: Sonnet 리뷰 🔴0 🟡1(`docs/BACKLOG.md`의 `Stopping…`) → 수정 `1a4166cd`. 테스트 6717개·typecheck green, S1 `rg` 빈 결과, `doan check`는 base와 같다. 실제 앱 확인은 하지 않았다(문구만 바뀜). 증거 `.scratch/mcp-evidence/bs/`.
