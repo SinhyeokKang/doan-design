@@ -4,7 +4,7 @@
 
 ## U. UI 초안
 
-- [ ] U0. `/design-draft`로 새 초안 `.doan/canvases/export-viewer-chrome.html`을 그린다: 내보낸 파일의 content panel과 툴바(Select 눌림, Hand 눌림, 끄는 중), 960px 창. 요청은 design.md '초안 요청'에 있다. 기존 `canvas-row-menu.html`의 `viewer-shell` 프레임은 고치지 않는다. 사람이 앱에서 확인한다.
+- [x] U0. `/design-draft`로 새 초안 `.doan/canvases/export-viewer-chrome.html`을 그린다: 내보낸 파일의 content panel과 툴바(Select 눌림, Hand 눌림, 끄는 중), 960px 창. 요청은 design.md '초안 요청'에 있다. 기존 `canvas-row-menu.html`의 `viewer-shell` 프레임은 고치지 않는다. 사람이 앱에서 확인한다.
   - 승인된 예외: `/design-draft`와 `/design-sync`는 main에 있는 화면을 redesign child에서만 다시 그리게 한다. viewer는 main에 있고 이 feature는 redesign child가 아니지만, 사람이 이 feature에 한해 새 초안을 그리고 C2가 그 초안을 기준으로 측정하는 것을 승인했다.
   - 검증: 그리기 전과 비교해 `doan check --json --repo .`에 새 error 수준 finding이 없다. `doan ls --json --repo .`가 이 캔버스의 프레임으로 `viewer-select`, `viewer-hand`, `viewer-dragging`만 보인다. 사람의 확인을 design.md에 적는다.
 

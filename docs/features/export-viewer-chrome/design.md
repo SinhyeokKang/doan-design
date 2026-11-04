@@ -47,6 +47,7 @@ viewer는 이미 main에 있는 화면이고 이 feature는 parent의 redesign c
 - 캔버스: `.doan/canvases/export-viewer-chrome.html`, id `export-viewer-chrome`. 기존 `canvas-row-menu.html`의 `viewer-shell` 프레임은 고치지 않는다.
 - 프레임(960px 창, content panel과 헤더·보드·툴바): `viewer-select`(Select 눌림), `viewer-hand`(Hand 눌림), `viewer-dragging`(끄는 중, `grabbing` 커서).
 - 제약: 값은 spec 완료 조건 1·2와 위 구조를 따른다. 프레임 목록에 없는 상태는 그리지 않는다.
+- **사용자 확정 (2026-11-04, `a304318d`)**: 세 프레임을 확정했다. 함께 정한 것: 창 바탕은 `--bg-app`(#f1f1f2), 툴바는 92×50으로 보드 아래 20px 가운데, tooltip은 버튼 4px 위(툴바 위 테두리를 1px 덮음), 끄는 중 프레임은 Hand 눌림으로만 그리고 Select에서 Space로 끄는 경우는 같은 모양이다. 초안은 Geist로 그려지지만 viewer는 시스템 글꼴이라 C2에서 글자 너비는 비교하지 않는다.
 
 ## 순수 함수로 뺄 부분 (`/tdd` 대상)
 
