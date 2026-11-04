@@ -25,7 +25,8 @@ export function projectBusy(live: ReadonlyMap<string, ProjectTurn>, root: string
 }
 // edits: the paths of this turn's own edit activities, as the provider reported them. changed: root-relative canvas
 // files the folder watcher saw change during the turn.
-// taken: canvases another conversation was promoted to after this turn's snapshot, which this turn never takes over.
+// taken: canvases this turn never takes: one another conversation was promoted to after this turn's snapshot, or one
+// an overlapping turn judged earlier left as contested (contestedCanvas).
 // contested: canvases new to another turn of the root not judged yet, which that turn may have made instead.
 export interface PromotionTurn { root: string; edits: readonly string[]; changed: readonly string[]; taken: readonly Canvas[]; contested: readonly Canvas[] }
 // The canvas a finished project turn makes its conversation current on, or null to stay a project conversation.
@@ -36,8 +37,7 @@ export interface PromotionTurn { root: string; edits: readonly string[]; changed
 // busy: whether the canvas's current conversation is working. turn null: no turn of this run to judge.
 export function promotionTarget(turn: PromotionTurn | null, listed: readonly Canvas[], snapshot: readonly Canvas[], busy: (canvas: Canvas) => boolean): Canvas | null {
   if (!turn) return null;
-  const rows = listed.filter(row => (row.id === undefined || listed.filter(other => other.id === row.id).length === 1) && !turn.taken.some(other => sameCanvas(other, row)));
-  const created = rows.filter(row => !snapshot.some(old => sameCanvas(old, row)));
+  const { rows, created } = candidates(turn, listed, snapshot);
   let target: Canvas | undefined;
   if (created.length) target = created.length === 1 && !turn.contested.some(other => sameCanvas(other, created[0]!)) ? created[0] : undefined;
   else {
@@ -46,6 +46,18 @@ export function promotionTarget(turn: PromotionTurn | null, listed: readonly Can
     target = both.length === 1 ? both[0] : undefined;
   }
   return target && !busy(target) ? target : null;
+}
+// The one new canvas a judgement leaves because another unjudged turn could have made it, or null. Which turn drew it is
+// unknown, so the other turns that contest it must not take it either (spec 4: as with two new canvases).
+export function contestedCanvas(turn: PromotionTurn, listed: readonly Canvas[], snapshot: readonly Canvas[]): Canvas | null {
+  const { created } = candidates(turn, listed, snapshot);
+  return created.length === 1 && turn.contested.some(other => sameCanvas(other, created[0]!)) ? created[0]! : null;
+}
+// Listed rows a turn may be promoted to (an ID listed twice names neither, a taken canvas is out), and those of them
+// new since its snapshot.
+function candidates(turn: PromotionTurn, listed: readonly Canvas[], snapshot: readonly Canvas[]): { rows: Canvas[]; created: Canvas[] } {
+  const rows = listed.filter(row => (row.id === undefined || listed.filter(other => other.id === row.id).length === 1) && !turn.taken.some(other => sameCanvas(other, row)));
+  return { rows, created: rows.filter(row => !snapshot.some(old => sameCanvas(old, row))) };
 }
 // The listed rows these paths name, once each. A path at a canvas's turn-start location follows its stable ID to
 // where it is listed now. A path that held one canvas at the turn's start and another now names neither: the edit

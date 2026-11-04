@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BIND_GRACE_MS, projectBusy, promotionTarget, type ProjectTurn } from "./project";
+import { BIND_GRACE_MS, contestedCanvas, projectBusy, promotionTarget, type ProjectTurn } from "./project";
 import type { Canvas } from "./types";
 describe("projectBusy", () => {
   const now = 1_000_000;
@@ -112,6 +112,12 @@ describe("promotionTarget", () => {
     expect(promotionTarget(turn([".doan/canvases/a.html"], [".doan/canvases/a.html"], [], [b]), [a, b], [a], idle)).toBeNull();
     // A contested canvas that is not new to this turn is judged by the edit rule as before.
     expect(promotionTarget(turn([".doan/canvases/b.html"], [".doan/canvases/b.html"], [], [b]), [a, b], [a, b], idle)).toEqual(b);
+  });
+  it("names the one new canvas a judgement leaves to another unjudged turn, and none left for another reason", () => {
+    expect(contestedCanvas(turn([], [], [], [b]), [a, b], [a])).toEqual(b);
+    expect(contestedCanvas(turn([], [], [], [b, c]), [a, b, c], [a])).toBeNull();
+    expect(contestedCanvas(turn([], [], [], []), [a, b], [a])).toBeNull();
+    expect(contestedCanvas(turn([], [], [b], [b]), [a, b], [a])).toBeNull();
   });
   it("judges a turn that overlapped nothing as before", () => {
     expect(promotionTarget(turn([], [], [], []), [a, b], [a], idle)).toEqual(b);

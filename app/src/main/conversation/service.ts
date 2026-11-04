@@ -6,7 +6,7 @@ import { transportError } from "./transport";
 import { sameCanvas } from "./sessions";
 import { turnPrompt } from "./prompt";
 import { messageLine } from "./messageText";
-import { BIND_GRACE_MS, projectBusy, promotionTarget } from "./project";
+import { BIND_GRACE_MS, contestedCanvas, projectBusy, promotionTarget } from "./project";
 import { clampSeen, conversationSummary, type ConversationSummary } from "./summary";
 import { combineQueued } from "./queue";
 import { DraftStore, joined, type ReturnedDraft } from "./drafts";
@@ -643,8 +643,11 @@ export class ConversationService {
       // answer, or ended within their window.
       const listed = this.snapshot(evidence.root), others = [...this.evidence.values()].filter(other => other.root === evidence.root);
       const contested = listed.filter(row => others.some(other => !other.snapshot.some(old => sameCanvas(old, row))));
-      const target = promotionTarget({ root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed], taken: evidence.taken, contested }, listed, evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
+      const turn = { root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed], taken: evidence.taken, contested };
+      const target = promotionTarget(turn, listed, evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
       if (target) this.promoteTo(id, evidence, target);
+      const left = contestedCanvas(turn, listed, evidence.snapshot);
+      if (left) for (const other of others) if (!other.snapshot.some(old => sameCanvas(old, left))) other.taken.push(left);
     } catch (error) { console.error("doan: conversation promotion failed", error); }
     const live = this.live.get(id);
     if (live?.holding) this.flush(id, live);
