@@ -5,7 +5,7 @@ import { authStatus } from "../main/agentAuth/state";
 import type { AuthState, Provider } from "../main/agentAuth/types";
 import { plainText, textSegments, type FieldSegment } from "./anchorField";
 import * as Parts from "./ComposerParts";
-import { DockedComposer, type DockedComposerProps, type DockedOutcome } from "./DockedComposer";
+import { DockedComposer, SEND_NOW_REFUSED_TEXT, type DockedComposerProps, type DockedOutcome } from "./DockedComposer";
 import { draftKey, EMPTY_DRAFT, type DockedDraft, type DockedMode } from "./dockedRules";
 import type { ModelPickerView } from "./homeComposer";
 
@@ -465,4 +465,20 @@ test("a chosen agent that cannot run still shows its line", () => {
   const draftKeyNew = draftKey({ kind: "new", root: "/w" });
   const { render } = setup({ mode: { kind: "new", root: "/w" }, provider: "claude", auth: { revision: 1, providers: [] } }, [[draftKeyNew, draft("Draw it")]]);
   expect(has(render(), "Claude Code can’t run right now. Choose another agent.")).toBe(true);
+});
+
+// Review W1: a refusal goes to the composer's lasting live region; the same refusal again changes its text, so it is
+// read again.
+test("a repeated Send now refusal changes the composer's status text each time", () => {
+  const { render } = setup({ turn: "running", sendNow: true, onSendQueuedNow: async () => {}, queued: [{ id: "q1", text: "Also this" }] });
+  const announce = () => find(render(), props => typeof props.announce === "function").announce as (text: string) => void;
+  const said = () => find(render(), props => props.className === "sr-only" && props.role === "status").children;
+  const before = said();
+  announce()(SEND_NOW_REFUSED_TEXT);
+  const first = said();
+  announce()(SEND_NOW_REFUSED_TEXT);
+  const second = said();
+  expect([before, first, second].map(text => String(text).trim())).toEqual(["", SEND_NOW_REFUSED_TEXT, SEND_NOW_REFUSED_TEXT]);
+  expect(first).not.toBe(before);
+  expect(second).not.toBe(first);
 });

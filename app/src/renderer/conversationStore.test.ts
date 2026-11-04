@@ -104,7 +104,7 @@ test.each(["event first", "answer first"] as const)("read by the agent (%s): the
 test.each(["not_running", "stale", "attachment_missing", "bad_request"])("refused with %s, the message leaves the thread and is back in its own place", async error => {
   const h = harness();
   doan.sendQueuedNow = vi.fn(async () => ({ error }));
-  expect(await h.store.sendQueuedNow(A, "q2")).toEqual({ error });
+  expect(await h.store.sendQueuedNow(A, "q2")).toEqual({ error, turnRuns: true });
   expect(h.ids()).toEqual(["q1", "q2", "q3"]);
   expect(h.store.sending(A)).toEqual([]);
 });
@@ -112,7 +112,7 @@ test.each(["not_running", "stale", "attachment_missing", "bad_request"])("refuse
 test("a call that throws reads as a refusal", async () => {
   const h = harness();
   doan.sendQueuedNow = vi.fn(async () => { throw new Error("gone"); });
-  expect(await h.store.sendQueuedNow(A, "q3")).toEqual({ error: "unknown" });
+  expect(await h.store.sendQueuedNow(A, "q3")).toEqual({ error: "unknown", turnRuns: true });
   expect(h.ids()).toEqual(["q1", "q2", "q3"]);
 });
 
@@ -190,4 +190,23 @@ test("a row refused back into the queue stays until a read started after the ref
   expect(h.ids()).toEqual(["q1"]);
   h.read([summary({ queued: 0 })]);
   expect(h.ids()).toEqual([]);
+});
+
+// Review Y1: the answer says whether the turn still runs as the store reads it then, so a turn.done that reached the
+// store before the screen was drawn again decides it.
+test("a refusal says whether the turn still runs as the store reads it at the answer", async () => {
+  const h = harness();
+  doan.sendQueuedNow = vi.fn(async () => ({ error: "not_running" }));
+  expect(await h.store.sendQueuedNow(A, "q1")).toEqual({ error: "not_running", turnRuns: true });
+
+  h.store.track(A);
+  await flush();
+  const answer = deferred<{ error: string }>();
+  doan.sendQueuedNow = vi.fn(() => answer.promise);
+  const sent = h.store.sendQueuedNow(A, "q2");
+  // The list has not caught up: it still says the turn works.
+  h.store.event(event({ type: "turn.done" }));
+  answer.resolve({ error: "not_running" });
+  expect(await sent).toEqual({ error: "not_running", turnRuns: false });
+  expect(h.ids()).toEqual(["q1", "q2", "q3"]);
 });

@@ -3,7 +3,7 @@ import { DropdownMenu } from "radix-ui";
 import { ArrowUpRight, ChevronDown, Info, Plus, SquarePen } from "lucide-react";
 import type { Provider } from "../main/agentAuth/types";
 import { readPermissionMode } from "../main/conversation/permissionMode";
-import { sendNowShown, type SteerPhase } from "../main/conversation/steerSupport";
+import { sendNowShown } from "../main/conversation/steerSupport";
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, ConversationEvent } from "../main/conversation/types";
@@ -23,7 +23,7 @@ import { GroupIcon } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
-import type { ListView, QueuedMessage } from "./conversationStore";
+import { steerPhaseOf, type ListView, type QueuedMessage } from "./conversationStore";
 import { stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
@@ -102,18 +102,8 @@ function turnOf(events: readonly ConversationEvent[] | null, summary: Conversati
   if (summary?.phase === "waiting") return "waiting";
   return summary?.working ? "running" : "idle";
 }
-// The phase Send now reads (queue-send-now design §2.1), with turnOf's order: a turn that runs or waits for a
-// permission answer has something to take the message; a judged turn with work left (a queue about to go out) and an
-// ended one do not. The merged events' end wins over a list that has not caught up.
-export function steerPhaseOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): SteerPhase {
-  const kind = events && events.length ? stripState(events).kind : null;
-  if (kind === "permission") return "waiting";
-  if ((kind === "starting" || kind === "working") && live) return "running";
-  const ended = kind === "done" || kind === "failed" || kind === "interrupted";
-  if (!ended && summary?.phase === "waiting") return "waiting";
-  if (!ended && summary?.phase === "running") return "running";
-  return summary?.working ? "holding" : "ended";
-}
+// steerPhaseOf lives with the store, which also reads it when main answers Send now; exported here for its importers.
+export { steerPhaseOf };
 // "Linked by doan check at 14:02": the time of day, with the date when it was not today.
 export function linkedAt(at: string | undefined, now: number): string | null {
   const time = at ? Date.parse(at) : NaN;

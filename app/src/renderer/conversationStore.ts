@@ -4,7 +4,8 @@ import type { AttachmentResult } from "../main/attachments";
 import type { Anchor, AttachmentRecord, ConversationEvent } from "../main/conversation/types";
 import { fromMessage, normalize, plainText, type FieldSegment } from "./anchorField";
 import { ATTACHMENT_LIMIT_TEXT } from "./canvasConversation";
-import { mergeConversationEvents } from "./conversationStrip";
+import type { SteerPhase } from "../main/conversation/steerSupport";
+import { mergeConversationEvents, stripState } from "./conversationStrip";
 import { EMPTY_DRAFT, type DockedDraft } from "./dockedRules";
 import { splitRequest, type AttachmentDraft } from "./homeComposer";
 import type { SendingMessage, SentFile } from "./threadItems";
@@ -96,12 +97,22 @@ export class ConversationStore {
   // the thread's end on either screen until main answers: once the agent read it (it goes; the history's own message
   // stays), or when it stayed queued (refused, or the turn ended first and main refused it then), which brings its
   // row back to its place.
-  async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string }> {
+  // A refusal also says whether the turn still runs as the store reads it then: an end event merged before the screen
+  // drew it decides, not the last draw (only a running turn's refusal is said under the row).
+  async sendQueuedNow(conversationId: string, itemId: string): Promise<void | { error: string; turnRuns?: boolean }> {
     if (!this.markQueued(conversationId, itemId, true)) return { error: "stale" };
     const reply = await window.doan.sendQueuedNow({ conversationId, itemId }).catch(() => ({ error: "unknown" }));
-    if (reply && "error" in reply) this.markQueued(conversationId, itemId, false);
-    else this.unqueued(conversationId, itemId);
-    return reply;
+    if (!reply || !("error" in reply)) { this.unqueued(conversationId, itemId); return reply; }
+    this.markQueued(conversationId, itemId, false);
+    return { error: reply.error, turnRuns: this.turnRuns(conversationId) };
+  }
+  private turnRuns(conversationId: string): boolean {
+    const root = this.queues.get(conversationId)?.root;
+    if (root === undefined) return false;
+    const list = this.host.list(root);
+    const summary = Array.isArray(list) ? list.find(item => item.conversationId === conversationId) : undefined;
+    const phase = steerPhaseOf(this.threads.get(conversationId)?.events ?? null, summary, this.live(root, conversationId));
+    return phase === "running" || phase === "waiting";
   }
   private markQueued(conversationId: string, itemId: string, sending: boolean): boolean {
     const queue = this.queues.get(conversationId);
@@ -285,6 +296,18 @@ export class ConversationStore {
   }
 }
 
+// The phase Send now reads (queue-send-now design §2.1), with turnOf's order: a turn that runs or waits for a
+// permission answer has something to take the message; a judged turn with work left (a queue about to go out) and an
+// ended one do not. The merged events' end wins over a list that has not caught up.
+export function steerPhaseOf(events: readonly ConversationEvent[] | null, summary: ConversationSummary | undefined, live: boolean): SteerPhase {
+  const kind = events && events.length ? stripState(events).kind : null;
+  if (kind === "permission") return "waiting";
+  if ((kind === "starting" || kind === "working") && live) return "running";
+  const ended = kind === "done" || kind === "failed" || kind === "interrupted";
+  if (!ended && summary?.phase === "waiting") return "waiting";
+  if (!ended && summary?.phase === "running") return "running";
+  return summary?.working ? "holding" : "ended";
+}
 const emptyDraft = (draft: DockedDraft) => draft.segments.length === 0 && !draft.preset && draft.attachments.length === 0;
 
 // A request read back into a draft: the preset line becomes the chip, and recorded files are issued again from their

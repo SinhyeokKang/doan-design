@@ -101,8 +101,8 @@ export interface DockedComposerProps {
   // or waits for a permission answer (steerSupport sendNowShown, decided as if no row were sending).
   sendNow?: boolean;
   // Main's answer once the agent read the message, or an error when it stays queued. The host takes the row out of the
-  // queue at the call and puts it back on an error.
-  onSendQueuedNow?(id: string): Promise<void | { error: string }>;
+  // queue at the call and puts it back on an error; turnRuns: the turn still ran or waited when the error came.
+  onSendQueuedNow?(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
   // Send in an existing conversation, a restore in an archived one, a start in new-conversation mode.
   onSend(request: DockedRequest): Promise<DockedOutcome>;
   onQueue(request: DockedRequest): Promise<DockedOutcome>;
@@ -400,7 +400,7 @@ type QueueButton = "sendNow" | "remove";
 export interface QueueRowsProps {
   items: readonly { id: string; text: string }[];
   sendNow: boolean;
-  onSendNow(id: string): Promise<void | { error: string }>;
+  onSendNow(id: string): Promise<void | { error: string; turnRuns?: boolean }>;
   onRemove(id: string): Promise<boolean>;
   focusInput(): void;
   // The composer's lasting live region: a row drawn again with its refusal may not be read (canvas-composer-polish
@@ -420,6 +420,8 @@ export function QueueRows(props: QueueRowsProps) {
   // A focused queue button that is no longer drawn (a phase change took Send now away, main sent the queue).
   const lost = useRef(false);
   const idBase = useId();
+  // Rows whose Send now waits for main's answer.
+  const flying = useRef(new Set<string>());
   useEffect(() => {
     if (refused.size === 0) return;
     const timer = setTimeout(() => setRefused(new Set()), SEND_NOW_REFUSED_MS);
@@ -450,14 +452,19 @@ export function QueueRows(props: QueueRowsProps) {
   };
   // The row leaves at the press (the message moves into the thread), so focus is placed for it now.
   const sendNow = async (id: string) => {
+    // A second press before the row was drawn out of the queue.
+    if (flying.current.has(id)) return;
+    flying.current.add(id);
     setRefused(current => { if (!current.has(id)) return current; const next = new Set(current); next.delete(id); return next; });
     focusAfter(id, props.items);
-    const reply = await props.onSendNow(id).catch(() => ({ error: "unknown" }));
+    const reply = await props.onSendNow(id).catch((): { error: string; turnRuns?: boolean } => ({ error: "unknown" }));
+    flying.current.delete(id);
     if (!reply || !("error" in reply)) return;
     // Back in the queue: focus stays where it went, and a row that never left takes none later.
     if (pending.current?.leaving === id) pending.current = null;
     // Only a turn that still runs says so; one that ended sends or returns the queue by its own rule (condition 10).
-    if (!latest.current.sendNow) return;
+    // The answer's reading of the turn decides: the last draw may not show an end that already came.
+    if (!reply.turnRuns) return;
     setRefused(current => new Set(current).add(id));
     props.announce(SEND_NOW_REFUSED_TEXT);
   };

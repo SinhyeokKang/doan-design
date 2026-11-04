@@ -529,11 +529,11 @@ test("Send now moves the queued message to sending until main answers, then drop
   expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
 
   doan.sendQueuedNow = vi.fn(async () => ({ error: "not_running" }));
-  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "not_running" });
+  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "not_running", turnRuns: true });
   expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
   // A call that throws reads as a refusal: the row stays queued.
   doan.sendQueuedNow = vi.fn(async () => { throw new Error("gone"); });
-  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "unknown" });
+  expect(await h.run.store.sendQueuedNow(A, "q1")).toEqual({ error: "unknown", turnRuns: true });
   expect(h.run.queue(A)).toEqual([{ id: "q1", text: "first" }]);
 });
 
@@ -564,7 +564,7 @@ test("a list read with nothing queued keeps the message Send now is sending and 
   expect(h.run.sending(A).map(item => item.id)).toEqual(["q2"]);
   // Refused, it is queued again in main; the row says so until a read reports otherwise.
   refused.resolve({ error: "not_running" });
-  expect(await again).toEqual({ error: "not_running" });
+  expect(await again).toEqual({ error: "not_running", turnRuns: true });
   expect(h.run.queue(A)).toEqual([{ id: "q2", text: "second" }]);
 });
 
