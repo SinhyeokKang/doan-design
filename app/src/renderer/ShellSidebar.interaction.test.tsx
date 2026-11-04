@@ -22,10 +22,10 @@ function projectItems(rendered: Record<string, unknown>[]) {
   const items = rendered.filter(item => typeof item.onSelect === "function");
   return items.slice(0, items.findIndex(item => [item.children].flat().includes("Remove from Doan")) + 1);
 }
-function fixture(loaded: string | null = "/a") {
+function fixture(loaded: string | null = "/a", expanded = true) {
   const row = { path: ".doan/canvases/a.html", url: "u" };
   const entries: FolderEntry[] = ["/a", "/b"].map(path => ({ path, kind: "list", servedRev: 0, canvases: [row] }));
-  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded: true } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU };
+  const props = { cards: [{ key: "common", name: "demo", rows: entries }], projects: { common: { roots: ["/a", "/b"], selectedRoot: "/a", expanded } }, loaded, canvas: row.path, homeDirectory: null, search: vi.fn(), toggle: vi.fn(), disclose: vi.fn(), toggleGroup: vi.fn(), worktree: vi.fn(), open: vi.fn(), overview: vi.fn(), action: vi.fn(), remove: vi.fn(async () => {}), projectSettings: vi.fn(), canvasMenu: NO_CANVAS_MENU };
   const rendered = elements(ShellSidebar(props));
   const project = rendered.find(item => item["data-key"] === "common")!;
   const menuItems = projectItems(rendered);
@@ -37,16 +37,40 @@ function key(props: Record<string, unknown>, value: string, nested = false) {
   props.onKeyDown(event);
   return event;
 }
-it("keeps current project expanded on ArrowLeft and ignores keys from its menu trigger", () => {
+// project-row-disclosure draft: ←/→ only fold and unfold, the loaded project included; Enter is the row's move.
+it("folds the current project on ArrowLeft without moving and ignores keys from its menu trigger", () => {
   const { props, project } = fixture();
   key(project, "ArrowLeft");
   key(project, "Enter", true);
+  expect(props.disclose).toHaveBeenCalledWith("common");
   expect(props.toggle).not.toHaveBeenCalled();
+});
+it("unfolds a folded project on ArrowRight without moving", () => {
+  const { props, project } = fixture(null, false);
+  key(project, "ArrowRight");
+  expect(props.disclose).toHaveBeenCalledWith("common");
+  expect(props.toggle).not.toHaveBeenCalled();
+});
+it("the project row's chevron folds it without the row's move; the row itself moves", () => {
+  const { props, project, rendered } = fixture();
+  const chevron = rendered.find(item => item.className === "shell-disclosure")!;
+  expect(chevron["aria-label"]).toBe("Collapse demo");
+  const event = { stopPropagation: vi.fn() };
+  if (typeof chevron.onClick !== "function") throw new Error("Missing chevron handler");
+  chevron.onClick(event);
+  expect(event.stopPropagation).toHaveBeenCalled();
+  expect(props.disclose).toHaveBeenCalledWith("common");
+  expect(props.toggle).not.toHaveBeenCalled();
+  if (typeof project.onClick !== "function") throw new Error("Missing row handler");
+  project.onClick({});
+  expect(props.toggle).toHaveBeenCalledWith("common");
+  expect(fixture(null, false).rendered.find(item => item.className === "shell-disclosure")!["aria-label"]).toBe("Expand demo");
 });
 it("collapses another project and opens a canvas only on activation, not arrow movement", () => {
   const { props, project, rendered } = fixture(null);
   key(project, "ArrowLeft");
-  expect(props.toggle).toHaveBeenCalledWith("common");
+  expect(props.disclose).toHaveBeenCalledWith("common");
+  expect(props.toggle).not.toHaveBeenCalled();
   const canvas = rendered.find(item => item["data-key"] === "/a\n.doan/canvases/a.html")!;
   key(canvas, "ArrowDown");
   expect(props.open).not.toHaveBeenCalled();

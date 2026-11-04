@@ -4,6 +4,8 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { PreferencesSnapshot } from "../main/preferences";
 import type { WorkItem } from "../main/workState";
 import { initialCanvasState } from "./CanvasController";
+import { projectExpanded } from "./shellNavigation";
+import type { ShellProject } from "../restore/uiState";
 
 // terminal-agent-activity design 'Renderer IPC', '표시' and 'Deep link': App reads main's terminal work list (subscribing
 // first), gives it to the sidebar and the canvas page, and opens doan:// links once the launch restore and the first
@@ -118,7 +120,7 @@ function all(node: ReactNode): ReactElement<Record<string, unknown>>[] {
   if (!isValidElement<Record<string, unknown>>(node)) return [];
   return [node, ...Object.values(node.props).flatMap(value => Array.isArray(value) || isValidElement(value) ? all(value as ReactNode) : [])];
 }
-type Sidebar = { slots?: ReadonlyMap<string, { kind: string; label: string; source?: string }>; cards: { key: string; rows: { path: string }[] }[]; toggle(key: string, notice?: { root: string; path: string }): void; goHome(): void; projects: Record<string, { expanded: boolean }> };
+type Sidebar = { slots?: ReadonlyMap<string, { kind: string; label: string; source?: string }>; cards: { key: string; rows: { path: string }[] }[]; toggle(key: string, notice?: { root: string; path: string }): void; disclose(key: string): void; goHome(): void; projects: Record<string, ShellProject> };
 const sidebar = () => (all(tree).find(element => element.type === ShellSidebar)!.props as unknown as Sidebar);
 const agent = () => (all(tree).find(element => "agent" in (element.props as object))!.props as unknown as { agent: { work: readonly WorkItem[] } }).agent;
 const rows = (): CanvasRow[] => [{ path: A, url: "u-a", mtimeMs: 10 }, { path: B, url: "u-b", mtimeMs: 5 }];
@@ -356,8 +358,8 @@ test("during first run an open request answers busy and leaves every dialog alon
   expect(harness.toast.show).not.toHaveBeenCalled();
 });
 
-// From Home a project row opens its Overview, never the last canvas (user decision): the loaded project's row and
-// another project's row alike. From a workspace another project's row still restores its last canvas.
+// A project row opens its Overview, never the last canvas, from Home and from a workspace alike (user decisions;
+// project-row-disclosure draft): only its chevron folds or unfolds it.
 test("from Home, a project row opens its Overview, the loaded project's and another's", async () => {
   await start();
   folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
@@ -371,14 +373,47 @@ test("from Home, a project row opens its Overview, the loaded project's and anot
   sidebar().goHome(); render();
   sidebar().toggle(key("/w/b")); await flush(); render();
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
-  // From the workspace now loaded on /w/b, /w/a's row (folded) keeps restoring its last canvas.
+  // From the workspace now loaded on /w/b, /w/a's row (folded) opens its Overview too.
   expect(sidebar().projects[key("/w/a")]?.expanded).not.toBe(true);
   sidebar().toggle(key("/w/a")); await flush(); render();
-  expect(harness.controller!.openWorkspace!.mock.lastCall?.[0]).toBe("/w/a");
-  expect(harness.controller!.openWorkspace!.mock.lastCall?.[4]).not.toBe(true);
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/a", expect.any(Function), false, undefined, true);
   // An expanded project that is not loaded opens its Overview from Home instead of folding.
   sidebar().goHome(); render();
   expect(sidebar().projects[key("/w/b")]?.expanded).toBe(true);
   sidebar().toggle(key("/w/b")); await flush(); render();
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
+});
+
+// project-row-disclosure draft: from a canvas, an unfolded project that is not loaded opens its Overview instead of
+// folding (the row's old second meaning), and stays unfolded.
+test("from a canvas, another project's unfolded row opens its Overview and does not fold it", async () => {
+  await start();
+  folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
+  show(rows()[0]!);
+  const key = sidebar().cards.find(card => card.rows.some(row => row.path === "/w/b"))!.key;
+  sidebar().disclose(key); render();
+  expect(sidebar().projects[key]?.expanded).toBe(true);
+  sidebar().toggle(key); await flush(); render();
+  expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
+  expect(sidebar().projects[key]?.expanded).toBe(true);
+});
+
+// The chevron only folds or unfolds: no move, the open canvas stays, and the loaded project folds too (user decision).
+test("a project's chevron folds and unfolds it without moving, the loaded project included", async () => {
+  await start();
+  folders([{ path: "/w/b", kind: "list", servedRev: 0, canvases: [{ path: B, url: "u-b2", mtimeMs: 3 }] }]);
+  show(rows()[0]!);
+  const key = (root: string) => sidebar().cards.find(card => card.rows.some(row => row.path === root))!.key;
+  const workspaces = harness.controller!.openWorkspace!.mock.calls.length, overviews = harness.controller!.showOverview!.mock.calls.length, canvases = harness.controller!.openCanvas!.mock.calls.length;
+  sidebar().disclose(key("/w/b")); render();
+  expect(sidebar().projects[key("/w/b")]?.expanded).toBe(true);
+  sidebar().disclose(key("/w/b")); render();
+  expect(sidebar().projects[key("/w/b")]?.expanded).toBe(false);
+  sidebar().disclose(key("/w/a")); render();
+  expect(projectExpanded({ ...sidebar().projects[key("/w/a")]!, roots: ["/w/a"] }, "/w/a")).toBe(false);
+  sidebar().disclose(key("/w/a")); render();
+  expect(projectExpanded({ ...sidebar().projects[key("/w/a")]!, roots: ["/w/a"] }, "/w/a")).toBe(true);
+  expect(harness.controller!.openWorkspace!.mock.calls.length).toBe(workspaces);
+  expect(harness.controller!.showOverview!.mock.calls.length).toBe(overviews);
+  expect(harness.controller!.openCanvas!.mock.calls.length).toBe(canvases);
 });
