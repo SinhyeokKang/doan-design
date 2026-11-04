@@ -7,7 +7,7 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 ## 영향받는 구성 요소
 
 - **app main (새 모듈 `app/src/main/mcpConnectors/`)**
-  - `store`: `<userData>/mcp-connectors.json` 읽기·쓰기. 쓰기는 `preferences.ts`처럼 검증된 patch, 직렬화, temp+rename으로 하고, 더 새로운 `v`는 쓰지 않는다. 깨진 파일 처리는 `preferences.ts`(기본값으로 읽고 `.broken-*`로 옮김)가 아니라 agent-auth metadata 방식(ARCHITECTURE §7 'Agent authentication')을 따른다: 읽을 수 없으면 오류로 두고 추가·삭제를 막는다. 등록이 provider 쪽에 남아 있으므로, 빈 목록으로 읽으면 Doan 목록과 provider 등록이 어긋나기 때문이다. 커넥터마다 provider별 `everConnected`(한 번이라도 연결에 성공했는지)를 저장한다. `Reconnect needed` 판정에 쓴다.
+  - `store`: `<userData>/mcp-connectors.json` 읽기·쓰기. 쓰기는 `preferences.ts`처럼 검증된 patch, 직렬화, temp+rename으로 하고, 더 새로운 `v`는 쓰지 않는다. 깨진 파일 처리는 `preferences.ts`(기본값으로 읽고 `.broken-*`로 옮김)가 아니라 agent-auth metadata 방식(ARCHITECTURE §7 'Agent authentication')을 따른다: 읽을 수 없으면 오류로 두고 URL 서버 추가·삭제를 막는다. 등록이 provider 쪽에 남아 있으므로, 빈 목록으로 읽으면 Doan 목록과 provider 등록이 어긋나기 때문이다. 파일에는 사람이 추가한 URL 서버 목록과, 프리셋을 포함한 서버마다 provider별 `everConnected`(한 번이라도 연결에 성공했는지)를 저장한다. 프리셋 목록 자체는 코드(`PRESETS`)에 있다. `everConnected`는 `Reconnect needed` 판정에 쓴다. 파일을 읽을 수 없는 동안에도 프리셋 연결·해제는 되지만 `everConnected`를 기록하지 못하므로, 그동안 끊긴 서버는 `Reconnect needed` 대신 `Not connected`로 보인다.
   - `providers`: Claude·Codex 어댑터. 명령은 기존 `agentAuth/providers.ts`의 `command`·`args`와 `agentAuth/environment.ts`의 `providerEnv`를 그대로 쓴다(프로필 변수, `DOAN_RUNTIME`, allowlist).
     - Claude: 등록 `claude mcp add --transport http --scope user <name> <url>`, 로그인 `claude mcp login <name>`을 node-pty로 실행, 해제 `claude mcp logout <name>`, 삭제 `claude mcp remove <name> -s user`, 상태 `claude mcp get <name>`.
     - Codex: `-c mcp_oauth_credentials_store="keyring"`를 `agentAuth/providers.ts` codex `args`에 더해, MCP 명령뿐 아니라 대화 app-server를 포함한 모든 Codex 프로세스에 붙인다(기존 `cli_auth_credentials_store`와 같은 이유: `auto`는 조용히 파일로 쓸 수 있고, 대화 중 토큰 갱신도 저장을 일으킨다). 등록+로그인 `codex mcp add <name> --url <url>`(등록되어 있지 않을 때, OAuth를 스스로 시작), 재로그인 `codex mcp login <name>`, 해제 `codex mcp logout <name>`, 삭제 `codex mcp remove <name>`, 상태 `codex mcp list --json`.
@@ -16,7 +16,7 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 - **conversation (Codex)**: 실행 중인 app-server는 새 `thread/start`마다 `config.toml`의 MCP 서버를 다시 읽지만, 이미 시작된 thread는 `config/mcpServer/reload`를 받아야 새 서버를 본다(P2). 그래서 커넥터가 바뀐 provider의 app-server에는 다음 턴 전에 `config/mcpServer/reload`를 한 번 보낸다(재시작하지 않는다). 턴 시작 전에는 Doan 커넥터 서버 가운데 `Connected`인 서버만 그 thread의 `mcpServer/startupStatus/updated`(`{threadId, name, status: starting|ready|failed|cancelled, error, failureReason}`)가 `starting`이 아닌 값이 될 때까지 기다린다. 상한은 10초다(P2에서 원격 서버는 thread 시작 뒤 1–1.6초에 `ready`). 넘으면 그 서버 없이 시작하고 대화에 알림 한 줄을 남긴다. 등록만 되고 토큰이 없는 서버는 약 45ms 만에 `failed`가 되지만, 상태 판정과 맞추려고 대기 대상에서 뺀다. 이 알림에는 `threadId`는 있고 `turnId`가 없으며 thread 시작 전에는 오지 않는다. transport 리듀서(`conversation/transport.ts`)는 턴 이벤트만 다루므로 `thread/start`와 `turn/start` 사이의 runner(`conversation/runners.ts`)에서 `threadId`로 걸러 받는다. 재사용되는 thread는 reload나 `turn/start` 때 다시 오는 상태를 누적해 판정한다. 상한 초과 알림은 기존 대화 이벤트 `activity`의 `kind: "other"`(`conversation/types.ts`)로 남기고 문구는 "<Notion> wasn’t ready, so this turn started without it."이다. 새 이벤트 타입을 만들지 않으므로 history 포맷은 바뀌지 않는다. Claude는 턴마다 SDK를 새로 띄우고 `settingSources`에 `user`가 있어 바꿀 것이 없다.
 - **conversation (Codex MCP 도구 승인)**: Codex는 승인이 필요한 MCP 도구(읽기 전용 표시가 없는 도구)를 부르기 전에 서버 요청 `mcpServer/elicitation/request`를 보낸다(P2). `_meta.codex_approval_kind`가 `"mcp_tool_call"`이고 `_meta.persist`에 `["session","always"]`, `message`에 "Allow the <server> MCP server to run tool "<tool>"?"가 온다. 지금 dispatcher는 모르는 요청에 `-32601`로 답해 호출이 거부되므로, `codexPermission`(`conversation/transport.ts`)이 이 요청을 기존 `permission.request`로 바꾼다. 선택지는 Allow(`{action:"accept", content:{}}`), Deny(`{action:"decline"}`), Allow for this session(`persist`에 `session`이 있을 때만, `{action:"accept", content:{}, _meta:{persist:"session"}}`)이다. `always`는 provider 설정에 영구 승인을 쓰므로 제공하지 않는다. `tool`은 `"mcpToolCall"`, summary는 "Run <tool> on <Notion>"이고 표시 이름은 `serverName`(`doan-<slug>`)을 커넥터 목록에서 찾아 쓴다(내부 이름을 보이지 않는다, spec 완료 조건 2). Doan 커넥터가 아닌 서버(`codex_apps` 등)는 `serverName`을 그대로 쓴다. `codex_approval_kind`가 다른 elicitation(폼 입력)은 이번 범위가 아니고 지금처럼 거부된다. PoC: session 승인 뒤 같은 턴의 두 번째 호출은 요청 없이 완료됐다. Claude는 SDK `canUseTool`이 MCP 도구에도 불리므로 바꿀 것이 없다.
 - **IPC (`app/src/main/mcpConnectors/ipc.ts`, preload)**: 기존 `agent-auth:*`와 같은 kebab 접두어로 `mcp-connectors:list`, `:add`, `:connect`, `:disconnect`, `:remove`, `:cancel`, `:open-link`(링크 다시 열기. 창은 URL을 지정하지 못하고 main이 가진 링크만 연다), 이벤트 `:changed`(상태와 소유 창에 보낼 링크 포함). 채널은 `app/src/main/senderAllowed.ts`의 명시 allowlist에 더한다. 경계는 Settings IPC와 같다(메인 창의 main frame만, 입력 검증, 실패는 `{error: code}`).
-- **renderer**: `settingsSections.ts`에 `"mcp"`(target은 `{section:"mcp"}`만. 커넥터·provider 단위 target은 쓰는 곳이 생길 때 더한다), `SettingsMcpConnectors.tsx`(새 카테고리). 행·상태·동작은 Settings > Agents 행과 같은 프리미티브와 문구 규칙을 쓴다.
+- **renderer**: `settingsSections.ts`에 `"mcp"`(target은 `{section:"mcp"}`만. 커넥터·provider 단위 target은 쓰는 곳이 생길 때 더한다). Claude Code와 Codex가 둘 다 sign-in되어 있지 않으면 사이드바에서 빼고, `{section:"mcp"}` target은 `{section:"agents"}`로 바꿔 연다(보는 중에 조건이 바뀌어도 같다). `SettingsMcpConnectors.tsx`(새 카테고리)는 sign-in된 에이전트마다 섹션 하나를 두고, 섹션 안에 프리셋과 URL 서버 항목을 온보딩 Agent 단계의 provider 행(`Onboarding.tsx`, DESIGN.md 'Onboarding' 'Provider list and rows') 형식으로 그린다. 상태 문구와 알림은 Settings > Agents 규칙을 쓴다. 프리셋 로고는 provider 로고와 같은 방식의 로컬 에셋(`app/src/renderer/public/mcp-logos/`, 출처 README 포함)이다.
 - **CLI(Go)·skills·shared formats·app socket**: 바뀌지 않는다.
 
 ## pty: node-pty
@@ -40,7 +40,8 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 
 - 첫 연결을 취소하거나 실패해도 provider 등록(Codex `mcp add`가 남긴 것 포함)은 남기고 `Not connected`(등록됨+인증 필요)로 본다. Codex `mcp add`의 OAuth는 콜백을 기다리다 `timed out waiting for OAuth callback`으로 끝날 수 있고, 이때도 등록은 남는다(P3, Figma 첫 시도). 다음 Connect는 `codex mcp login <name>`으로 한다.
 - 쓰기 순서: 추가는 `mcp-connectors.json` 먼저, provider 등록은 그다음이다. 삭제는 준비된 provider마다 logout 다음 remove를 하고(Codex `mcp logout`은 `config.toml`의 URL로 키체인 키를 만들기 때문에 순서가 바뀌면 토큰이 남는다), 그 뒤 파일에서 지운다.
-- reconcile: provider가 준비될 때(앱 시작, sign-in 끝, 교체 commit)마다 그 프로필에서 파일에 없는 `doan-*` 등록을 logout·remove하고, 파일에 있는데 등록이 없는 커넥터는 다시 등록한다(상태는 `Not connected` 또는 `Reconnect needed`). Doan 연결이 없는 provider에서 Remove한 커넥터도 이 단계에서 지워진다. `doan-` 접두어는 Doan이 만든 것이므로 지워도 터미널 설정에 닿지 않는다.
+- 프리셋은 그 provider에서 처음 Connect할 때 등록한다. 등록되지 않은 프리셋은 `Not connected`다.
+- reconcile: provider가 준비될 때(앱 시작, sign-in 끝, 교체 commit)마다 그 프로필에서 프리셋 이름도 아니고 파일의 URL 서버에도 없는 `doan-*` 등록을 logout·remove하고, 파일에 있는데 등록이 없는 URL 서버는 다시 등록한다(상태는 `Not connected` 또는 `Reconnect needed`). Doan 연결이 없는 provider에서 Remove한 URL 서버도 이 단계에서 지워진다. `doan-` 접두어는 Doan이 만든 것이므로 지워도 터미널 설정에 닿지 않는다.
 
 ## 상태 판정
 
@@ -121,16 +122,18 @@ Doan은 커넥터 목록(이름, URL, 프리셋)만 자기 파일에 두고, 실
 ## 초안 요청 (`/design-draft`, task U0)
 
 - 캔버스: `.doan/canvases/mcp-connectors.html`, id `mcp-connectors`, 너비 2560(`buzz-settings.html`과 같음). Settings 셸·사이드바·행 프리미티브는 `buzz-settings.html`과 Settings > Agents 구현을 따르고, 그 파일은 고치지 않는다.
+- 레이아웃(사용자 결정): 에이전트가 섹션, 섹션 안에 서버 목록. 항목은 온보딩 Agent 단계의 provider 행을 재사용한다. 프리셋은 항상 있고 URL 서버는 모든 섹션이 공유한다. 두 에이전트 모두 sign-in되지 않았으면 카테고리가 없으므로 빈 상태 프레임은 없다.
+- 로고: Notion·Atlassian·Figma 브랜드 로고를 `.doan/assets/mcp-logos/`에 provider 로고(`app/src/renderer/public/provider-logos/README.md`)와 같은 방식으로 넣는다(공식 출처, 투명 배경 glyph로 자르기, 출처 README). 구현 때 `app/src/renderer/public/mcp-logos/`로 옮긴다(D2).
 - 프레임(`/design-sync`가 비교하는 것은 1–8):
-  1. `empty` — 빈 목록: 카테고리 설명(claude.ai 커넥터 한 줄, 미지원 provider 한 줄), "No connectors yet.", Add connector.
-  2. `list` — 커넥터 세 개(Notion, Atlassian, 긴 호스트의 Custom URL). 에이전트 줄에 여섯 상태(`Checking…`, `Not connected`, `Connecting…`, `Connected`, `Reconnect needed`, `Couldn’t check`+Retry)가 모두 한 번 이상 나온다. Codex가 sign-in되지 않은 경우의 이유 줄("Codex isn’t signed in")과 설정 > Agents 동작도 같은 프레임에 둔다.
-  3. `add-menu` — Add connector 메뉴: 프리셋(이미 추가한 Notion은 비활성 + "Added"), 구분선, "Custom URL…".
-  4. `custom-url` — Custom URL dialog: 기본 상태, 잘못된 URL 인라인 오류, "Already added as <name>." 타일.
-  5. `connecting` — Claude 연결 중(Open again, Cancel)과 Codex 연결 중("Codex opened your default browser. Allow access to <Notion> there, then return here.", Cancel) 두 줄.
-  6. `failed` — 연결 실패 alert(Agents alert 형식, 이유 + Retry). 이유 문구는 초안에서 정한다: 링크가 오지 않음(Claude `browser` 설정), 승인 시간 초과(Codex 콜백), 평문 토큰 파일 발견(`storage_failed`), CLI 실패.
-  7. `remove-alert` — Remove 확인 alert(spec 완료 조건 8 문구), 뒤 페이지 잠금.
-  8. `running-notice` — 실행 중 대화가 있는 provider 줄 아래 info notice(spec 완료 조건 10).
-  9. `file-error` — `mcp-connectors.json`을 읽을 수 없을 때의 notice(Settings storage 규칙), 추가·삭제 비활성.
+  1. `agents` — 두 에이전트 모두 sign-in: Claude Code 섹션과 Codex 섹션, 각 섹션에 Notion·Atlassian·Figma와 URL 서버 하나(긴 호스트). 두 섹션에 걸쳐 여섯 상태(`Checking…`, `Not connected`, `Connecting…`, `Connected`, `Reconnect needed`, `Couldn’t check`+Retry)가 모두 한 번 이상 나온다. 페이지 머리에 설명과 "Add server by URL".
+  2. `one-agent` — Codex만 sign-in(Claude Code 섹션 없음). 타일: sign-in은 되어 있지만 실행할 수 없는 에이전트(만료)의 섹션 머리 이유와 비활성 버튼. 캡션에 "둘 다 sign-in되지 않으면 카테고리가 없다"를 적는다.
+  3. `custom-url` — URL 추가 dialog: 기본 상태, 잘못된 URL 인라인 오류, "Already added as <name>." 타일.
+  4. `server-menu` — URL 서버 항목의 … 메뉴(Remove).
+  5. `connecting` — Claude 연결 중(Open again, Cancel)과 Codex 연결 중("Codex opened your default browser. Allow access to <Notion> there, then return here.", Cancel).
+  6. `failed` — 연결 실패 alert(Agents alert 형식, 이유 + Retry). 이유 네 가지: 링크가 오지 않음(Claude `browser` 설정), 승인 시간 초과(Codex 콜백), 평문 토큰 파일 발견(`storage_failed`), CLI 실패.
+  7. `remove-alert` — URL 서버 Remove 확인 alert(spec 완료 조건 8 문구), 뒤 페이지 잠금.
+  8. `running-notice` — 실행 중 대화가 있는 에이전트 섹션의 항목 아래 info notice(spec 완료 조건 10).
+  9. `file-error` — `mcp-connectors.json`을 읽을 수 없을 때의 notice(Settings storage 규칙), URL 추가·삭제 비활성, 프리셋은 그대로.
   10. `elsewhere` — 다른 화면에 있을 때 실패 toast("Open MCP Connectors" 동작), Agents sign-out 확인 본문에 더하는 한 줄 "Its MCP connectors need connecting again."
   11. `conversation` — Codex 대화: 서버 준비 상한 초과 activity 줄("<Notion> wasn’t ready, so this turn started without it.")과 MCP 도구 권한 요청(summary "Run <tool> on <Notion>", Allow / Deny / Allow for this session). 대화 화면은 shipped 화면을 복사하고 이 두 요소만 새로 표시한다.
 - 10·11은 shipped 화면 위에 더하는 요소라 `/design-sync` 비교 대상이 아니고, 구현은 기존 측정값을 따른다.
