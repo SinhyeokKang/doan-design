@@ -782,7 +782,11 @@ if [ "$(cat '${modeFile}')" = git ]; then
   printf '{"v":1,"ok":true,"result":{"root":"%s","scope":[".doan/canvases"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":["%s"]}}}\\n' "$root" "$root"
   exit 0
 fi
-if [ "$(cat '${modeFile}')" = uninit ]; then
+if [ "$(cat '${modeFile}')" = up ] && [ -z "$4" ]; then
+  printf '{"v":1,"ok":true,"result":{"root":"%s","scope":[".doan/canvases"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":[]}}}\\n' "$(dirname "$(pwd -P)")"
+  exit 0
+fi
+if [ "$(cat '${modeFile}')" = uninit ] || [ "$(cat '${modeFile}')" = up ]; then
   echo '{"v":1,"ok":false,"error":{"code":"repo_not_found","message":"not found","nextSteps":[]}}'
   exit 3
 fi
@@ -899,6 +903,22 @@ exit 2
     git.mode("uninit");
     shell.rereadAll();
     await vi.waitFor(() => expect(shell.entries()[1]).toEqual({ path: w, kind: "uninitialized", autoRegistered: true, lastCommon: "/c/.git" }), until);
+    expect(removed).not.toHaveBeenCalled();
+  });
+
+  // design §2.4 and POSTMORTEM 2026-11-03: an uninitialized auto-registered root never takes the upward re-root, so a
+  // parent the person never added does not become hand-added and no focus moves to it.
+  test("an uninitialized worktree is not re-rooted upward", async () => {
+    const { shell, changes, removed, main, w, file, git, checkpoint } = await adopted();
+    git.mode("up");
+    // Only W re-reads: the hand-added main would itself take the upward re-root in this mode.
+    void shell.reopen(w);
+    await vi.waitFor(() => expect(shell.entries()[1]).toEqual({ path: w, kind: "uninitialized", autoRegistered: true, lastCommon: "/c/.git" }), until);
+    await sleep(300);
+    expect(shell.entries().map(entry => entry.path)).toEqual([main, w]);
+    for (const change of changes.slice(checkpoint)) expect(change.focus).toBeUndefined();
+    expect(saved(file)).toEqual([main, w]);
+    expect(autoSaved(file)).toEqual([w]);
     expect(removed).not.toHaveBeenCalled();
   });
 
