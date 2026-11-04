@@ -202,5 +202,8 @@ test("the picking hint sits in the bottom column before the Canvas tools, led by
   const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
   // Centred from left: 50%, the column would shrink to the board's right half and squeeze the hint.
   expect(css).toMatch(/\.doan-canvas-bottom \{[^}]*gap: var\(--space-2\);[^}]*width: max-content; max-width: calc\(100% - 2 \* var\(--space-3\)\);/);
+  // The widened column is click-through like the top one, so the strips beside Canvas tools still reach the board.
+  expect(css).toMatch(/\.doan-canvas-bottom \{[^}]*pointer-events: none;/);
+  expect(css).toContain(".doan-canvas-bottom > * { pointer-events: auto; }");
   expect(css).toMatch(/\.doan-picking-icon \{ flex: none; width: var\(--size-icon-sm\); height: var\(--size-icon-sm\); \}/);
 });
