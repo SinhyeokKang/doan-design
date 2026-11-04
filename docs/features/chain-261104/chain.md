@@ -59,7 +59,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 cli-minimum-versions | Claude Code · Orca `cli-minimum-versions-orch` | 2026-11-05 | #94 · `cfa91a7b` | 완료 |
-| 2 canvas-composer-polish | Claude Code · Orca `canvas-composer-polish-orch` | 2026-11-05 | | 진행 중 |
+| 2 canvas-composer-polish | Claude Code · Orca `canvas-composer-polish-orch` | 2026-11-05 | #95 · `d0f5f7c2` | 완료 |
 | 3 export-viewer-chrome | | | | 대기 |
 
 ## 인계 기록
@@ -77,3 +77,10 @@
   - 남은 것: Notion '팀 901'의 워크스페이스 수준 "Enabled clients: Claude Code"는 사람의 다른 사용에 영향이 갈 수 있어 그대로 두었다. 연결별로 거둘 화면은 없었다. `providers.ts`의 Copilot "1.0.105 has no status command" 주석은 1.0.105에서 관찰한 사실로 남겼다(1.0.89에서도 같은 상태 확인이 통과).
   - 다음 링크가 알 것: (1) 공용 프로필의 **복사본**을 다른 worktree의 dev 앱으로 열면 vault를 읽지 못했다(Cursor·Antigravity·Copilot이 `check_failed`). 링크 2는 복사본이 아니라 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`를 그 자리에서 쓰고, 같은 증상이면 먼저 이 원인을 의심한다. (2) Copilot 요청은 링크 1에서 약 10개를 썼다. (3) 지금 Codex 계정의 모델 목록(`~/.codex/models_cache.json`)에는 gpt-6-luna, gpt-5.6-terra, gpt-5.6-luna만 있고 orchestrate §0의 Astra·Sol id가 없다. 링크 1은 리뷰를 Claude Sonnet에 맡겼다. (4) Codex·Copilot의 `login`은 기본 브라우저(Chrome)를 직접 연다. Claude는 Doan의 "Open again" 링크를 ego-browser(로그인된 계정)에서 승인할 수 있다. (5) 사람 상태 비교 스크립트 `.scratch/cli-minimum-versions/state/state.ts`(링크 1 worktree)는 실제 runtime `sessions.jsonl`도 비교한다. 셸에서 `doan check`를 돌릴 때는 꼭 임시 `DOAN_RUNTIME`을 준다.
   - 구현 브랜치(남김): `feat/cli-minimum-versions`, `SinhyeokKang/feat-lower-provider-cli`, `SinhyeokKang/fix-session-in-use`.
+- 2026-11-05 링크 2 지휘자(canvas-composer-polish): PR #95를 `d0f5f7c2`로 병합했다.
+  - 결과: 여섯 가지를 모두 넣었다. Presets 목록과 `/` 목록은 캔버스를 포함한 바깥 누름에 닫힌다(canvas script의 새 `press` 메시지). Send now는 메시지를 바로 쓰레드로 옮긴다. 툴바 세 번째 도구는 Picker이고 ⌘L은 Pick from Canvas다(Add to conversation 삭제). 권한 답을 기다리는 대화는 같은 프로젝트를 막지 않는다. 툴바 Export와 Canvas conversations 행 Delete가 생겼다. PRODUCT·ARCHITECTURE·DESIGN·BACKLOG·POSTMORTEM을 고쳤고 feature 디렉터리를 지웠다.
+  - 진행 중 지휘자가 정한 것(사용자에게 묻지 않음, 상시 권한 '멈추지 않고 진행'): 겹친 턴에서 두 턴이 다툰 새 캔버스는 어느 대화에도 붙지 않는다(design의 역방향 기대값 "뒤에 판정되는 B는 X에 붙음"보다 spec 완료 조건 4를 따름). 캔버스 누름 신호는 기존 select·clear·picked 대신 새 `press` 메시지로 했다. 픽 취소 뒤 포커스는 사람이 옮기지 않았을 때만 픽 전 위치로 돌린다. 오른쪽·Ctrl 누름은 `/` 목록을 닫고 포커스를 필드에 둔다. "열린 권한 요청이 하나라도 있으면 답 대기"로 보는 한계는 ARCHITECTURE §7에 적었다.
+  - 검증: 통합 HEAD `797bd397`에서 `verify: PASS`. 실제 앱: 격리 앱 probe 79/79(Esc 수정 뒤), 공용 프로필 Claude Code 5턴으로 답 대기 admission과 Send now 확인, `/design-sync` 9프레임 140쌍. real-state 변화 없음.
+  - 확인하지 못한 것: 네이티브 ⌘L과 네이티브 저장 패널 포커스(데스크톱 잠김, BACKLOG), 턴 실행 중 provider 거절과 겹친 턴의 캔버스 promotion의 실제 앱 동작(unit만), 중첩 iframe press(unit만).
+  - 다음 링크가 알 것: (1) export-viewer-chrome: 앱 툴바가 이제 Select, Hand, Picker, 구분선, Export다. 그 design대로 `exportViewer.test.ts`는 Select·Hand 두 항목과 toolbar 이름만 고정하면 된다. (2) 공용 프로필에는 C2b의 임시 repo용 Claude transcript가 남아 있다. 마지막 링크가 프로필을 지울 때 함께 사라진다. 이 링크는 로그아웃하지 않았다. (3) agent-questions(체인 밖)가 나중에 들어오면: main의 답 대기 판정(`project.ts` `ProjectTurn.asking`, `service.ts` `Live.asking`)은 `permission.request`·`permission.resolved`만 센다. 질문 대기도 root를 막지 않게 하려면 질문 요청을 같은 집합에 더해야 한다. (4) Codex 작업자는 쓰지 않았다(모델 목록에 Astra·Sol id가 없음). Claude 작업자와 Claude 리뷰만 썼다.
+  - 구현 브랜치(남김, 로컬): `feat/canvas-composer-polish`(원격에도 있음), `SinhyeokKang/ccp-adm`, `SinhyeokKang/ccp-send`, `SinhyeokKang/ccp-tool`, `SinhyeokKang/ccp-pre`, `SinhyeokKang/ccp-sync`, `SinhyeokKang/ccp-docs`. batch worktree는 모두 지웠다.
