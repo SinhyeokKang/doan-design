@@ -1,7 +1,7 @@
 import { parseActivityRoots, readShellActivity } from "./shellActivity";
 import { ConversationService, resolveListedCanvas } from "./conversation/service";
 import { ConversationStore } from "./conversation/store";
-import { createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
+import { connectorFacts, createAccountPrepare, createPrepare, routePrepare } from "./conversation/prepare";
 import { listModels, openRunner } from "./conversation/runners";
 import { ModelCatalog } from "./conversation/models";
 import { AttachmentStore, type AttachmentResult } from "./attachments";
@@ -834,7 +834,8 @@ async function start(): Promise<void> {
     });
   }
   // The legacy external prepare gets no records: its runs use the user's own profile and readiness does not cover them.
-  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc);
+  // Runs read the MCP connectors' generation and names when they ask (mcp-connectors C1/C2).
+  const accountPrepare = createAccountPrepare(auth, cli, provider => void authIpc?.refreshTools(provider), authIpc, connectorFacts(() => mcp));
   // Without readable account storage a doan-account run is refused; it never falls back to the external profile.
   const prepareConversation = routePrepare(createPrepare(userData, join(userData, "runtime.json"), process.env),
     (request, stored, use) => agentAuth ? accountPrepare(request, stored, use) : Promise.reject(new Error("not_logged_in")));

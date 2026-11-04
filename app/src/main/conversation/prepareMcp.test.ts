@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 const mocks = vi.hoisted(() => ({ run: vi.fn(), probe: vi.fn() }));
 vi.mock("../onboarding/machine", () => ({ probeShell: mocks.probe, runProcess: mocks.run }));
-import { createAccountPrepare, type AccountRuntime } from "./prepare";
+import { connectorFacts, createAccountPrepare, type AccountRuntime, type McpConnectorFacts } from "./prepare";
+import type { McpService } from "../mcpConnectors/service";
 import { initialAuthState } from "../agentAuth/state";
 import type { Lease } from "../agentAuth/manager";
 import type { AccountConnection, AuthState, Provider } from "../agentAuth/types";
@@ -52,4 +53,24 @@ it("gives no connector facts to a provider that cannot use the servers", async (
   const h = account("cursor");
   const run = await createAccountPrepare(h.runtime, CLI, undefined, undefined, { generation: () => 9, labels: () => ({}) })({ root: h.root, mode: "new", runtime: "cursor", text: "x", anchors: [] });
   expect(run.mcp).toBeUndefined();
+});
+
+// index.ts hands the connectors service to the account prepare as connectorFacts(() => mcp): read when a run asks, so a
+// Connect's generation and an added URL server's name reach the next run, and the defaults hold while it is absent
+// (agent sign-in storage unreadable).
+it("reads the connectors service when a run asks, and falls back to the defaults while there is none", async () => {
+  // The service is what index.ts passes; this fails to compile if it stops being one.
+  const service: McpConnectorFacts | undefined = undefined as McpService | undefined;
+  let current: McpConnectorFacts | undefined = service;
+  const facts = connectorFacts(() => current);
+  expect(facts.generation("codex")).toBe(0);
+  expect(facts.labels()).toEqual({ "doan-notion": "Notion", "doan-atlassian": "Atlassian", "doan-figma": "Figma" });
+  let generation = 1; const labels = { "doan-notion": "Notion", "doan-example-com": "example.com" };
+  current = { generation: provider => provider === "codex" ? generation : 0, labels: () => labels };
+  const h = account("codex");
+  const run = await createAccountPrepare(h.runtime, CLI, undefined, undefined, facts)({ root: h.root, mode: "new", runtime: "codex", text: "x", anchors: [] });
+  expect(run.mcp?.generation()).toBe(1);
+  // A Connect raises the provider's generation; the run that is open sees it at its next turn.
+  generation += 1; expect(run.mcp?.generation()).toBe(2);
+  expect(run.mcp?.labels()).toEqual(labels);
 });

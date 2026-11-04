@@ -124,6 +124,11 @@ export interface VersionRecords {
 export interface McpConnectorFacts { generation(provider: McpProvider): number; labels(): Readonly<Record<string, string>> }
 // Before the connectors service is wired in: nothing changes, and the presets are the only connectors.
 const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => connectorLabels([]) };
+// The connectors service as main has it when a run asks; the defaults while there is none (agent sign-in storage
+// unreadable).
+export function connectorFacts(current: () => McpConnectorFacts | undefined): McpConnectorFacts {
+  return { generation: provider => (current() ?? NO_CONNECTORS).generation(provider), labels: () => (current() ?? NO_CONNECTORS).labels() };
+}
 export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS): AccountPrepare {
   return async (request, stored, use = "run") => {
     const provider = stored ? stored.session.runtime : request.runtime;
