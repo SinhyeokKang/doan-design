@@ -28,7 +28,7 @@ PoC 코드는 `.scratch/mcp-poc/`에 둔다. 격리 HOME·userData·`Library/Key
 
 ## U. UI 초안
 
-- [ ] U0. `/design-draft`로 설정 > MCP Connectors 초안을 새 파일 `.doan/canvases/mcp-connectors.html`에 그리고 사람이 앱에서 확인한다. Settings 셸은 기존 `buzz-settings.html`를 참고만 하고 그 파일은 고치지 않는다. A1의 전제다.
+- [x] U0. `/design-draft`로 설정 > MCP Connectors 초안을 새 파일 `.doan/canvases/mcp-connectors.html`에 그리고 사람이 앱에서 확인한다. Settings 셸은 기존 `buzz-settings.html`를 참고만 하고 그 파일은 고치지 않는다. A1의 전제다.
   - 검증: `DOAN_RUNTIME=<임시 경로> go run ./cli/cmd/doan check --repo .` 통과, 사람의 확인.
 
 ## B0. 의존성
