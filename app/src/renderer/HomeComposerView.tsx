@@ -9,7 +9,7 @@ import type { FolderEntry } from "../main/view";
 import type { HomeMemory, ShellProject } from "../restore/uiState";
 import { AlertIcon } from "./AlertIcon";
 import {
-  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, useComposerDrop,
+  AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, GroupIcon, PermissionPicker, PresetsButton, SendButton, SlashPresets, useComposerDrop, usePresetListOutside,
   type ComposerFieldHandle,
 } from "./ComposerParts";
 import { Doany, type DoanyHandle } from "./Doany";
@@ -196,6 +196,7 @@ export function HeroComposer(props: HeroComposerProps) {
   const field = useRef<ComposerFieldHandle | null>(null);
   const removeButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const doany = useRef<DoanyHandle | null>(null);
+  const slashList = useRef<HTMLDivElement | null>(null);
   const listId = useId();
 
   const lastCommon = new Map(props.entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon] as const] : []));
@@ -277,6 +278,8 @@ export function HeroComposer(props: HeroComposerProps) {
   const slashView = slash !== null ? presetListView(m.presets, { project, suggested, query: slash, tab: null, slash: true }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !sending;
+  // A press outside closes the list as Escape does: it stays closed until the field is empty again.
+  usePresetListOutside(slashOpen, slashList, () => field.current?.element() ?? null, () => setDismissed(true));
   const prompts = ready && healthy ? suggestedPrompts(entry, project, presets) : [];
   const edit = (patch: Partial<ComposerMemory>) => update({ ...patch, notice: null });
   useEffect(() => { if (text === "") setDismissed(false); }, [text]);
@@ -525,7 +528,7 @@ export function HeroComposer(props: HeroComposerProps) {
             <AttachButton disabled={sending} onClick={choose} />
             <PresetsButton reply={m.presets} project={project} suggested={suggested} listId={listId} disabled={sending}
               onOpen={() => { if (memory.current.presets && !memory.current.presets.ok) readPresets(); }} onChoose={id => choosePreset(id, false)} onRetry={readPresets} onPicked={focusEnd} />
-            {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
+            {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={readPresets} />}
             <span className="grow" />
             <AgentPicker picker={picker} auth={auth} disabled={sending} onOpen={() => { if (root && healthy) for (const group of picker.groups) if (group.read) readModels(root, group.provider); }}
               onPick={(pickedProvider, value) => edit({ provider: pickedProvider, ...(value === "default" ? {} : { models: { ...memory.current.models, [pickedProvider]: value } }) })} onSettings={openSettings} />

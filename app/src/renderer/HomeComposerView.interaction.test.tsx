@@ -624,8 +624,8 @@ test("a press outside the / list closes it until the field is empty; a press in 
   });
   const { box, render } = setup({ text: "/cri" });
   const text = {}, row = {}, chip = {};
-  hooks.refs[0]!.current = { focus: vi.fn(), element: () => ({ contains: (node: unknown) => node === text }) };
   const tree = render();
+  hooks.refs[0]!.current = { focus: vi.fn(), element: () => ({ contains: (node: unknown) => node === text }) };
   const list = find(tree, props => typeof props.className === "string" && props.className.includes("slash-popover"));
   (list.ref as { current: unknown }).current = { contains: (node: unknown) => node === row };
   const cleanups = hooks.effects.map(effect => effect());
