@@ -9,7 +9,7 @@ import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { TrashPlanReply, TrashReply } from "../main/canvasTrash";
 import type { ExportReply } from "../main/canvasExport";
-import { trashBlock } from "./canvasRowMenu";
+import { canvasExportReason, trashBlock } from "./canvasRowMenu";
 import { canvasStem, exportProgress, exportToast, trashToast } from "./canvasRowMessages";
 import { CanvasTrashDialog, trashDialogView } from "./CanvasTrashDialog";
 import { ConversationDeleteDialog, unsentDraft, type DeleteTarget } from "./ConversationDeleteDialog";
@@ -20,7 +20,7 @@ import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
-import { CanvasTools, type PickerTool } from "./CanvasTools";
+import { CanvasTools, type ExportTool, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
@@ -1238,6 +1238,7 @@ export function App() {
         clearTimeout(exportTimers.current.get(key)); exportTimers.current.delete(key);
         setExporting(previous => { if (!previous.has(key)) return previous; const next = new Set(previous); next.delete(key); return next; });
       }
+      returnExportFocus(key);
       const result = exportToast(canvasStem(row.path), reply);
       if (!result) return;
       const reveal = result.reveal;
@@ -1246,11 +1247,23 @@ export function App() {
     };
     window.doan.exportCanvas(root, row.path).then(done, () => done({ kind: "failed", reason: "failed" }));
   }
+  // The canvas toolbar's Export (canvas-composer-polish spec 5): the row menu's export on the open canvas. Focus that
+  // fell to the page while the save panel was open goes back to the button once, when main reports the run or answers
+  // (POSTMORTEM 2026-11-03: never leave focus on the page body). Reads refs only, so the running listener may call it.
+  const exportFocus = useRef<{ key: string; button: HTMLElement } | null>(null);
+  function returnExportFocus(key: string) {
+    const waiting = exportFocus.current;
+    if (!waiting || waiting.key !== key) return;
+    exportFocus.current = null;
+    const active = document.activeElement;
+    if ((!active || active === document.body) && waiting.button.isConnected) waiting.button.focus({ preventScroll: true });
+  }
   useEffect(() => {
     const timers = exportTimers.current;
     const stop = window.doan.onExportRunning(({ root, path }) => {
       const key = `${root}\n${path}`;
       setExporting(previous => new Set(previous).add(key));
+      returnExportFocus(key);
       clearTimeout(timers.get(key));
       timers.set(key, setTimeout(() => { timers.delete(key); live.current.toast.show(exportProgress(canvasStem(path))); }, 1000));
     });
@@ -1409,6 +1422,13 @@ export function App() {
   // composer takes input and the canvas is loaded).
   const canvasPageShown = screen === "workspace" && !!state.open && shownOverview === null;
   const menuPicker = canvasPageShown && pickerReady;
+  const exportTarget = state.open;
+  const exportReason = canvasExportReason(exportTarget?.row ?? null, !!exportTarget && exporting.has(`${exportTarget.folder}\n${exportTarget.row.path}`), state.unlisted);
+  const exporter: ExportTool = { reason: exportReason, onExport: button => {
+    if (!exportTarget || exportReason !== null || locked()) return;
+    exportFocus.current = { key: `${exportTarget.folder}\n${exportTarget.row.path}`, button };
+    exportCanvas(exportTarget.folder, exportTarget.row);
+  } };
   const picking = state.picking;
   // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
   const toolPage = screen === "workspace" && shownOverview === null && !modal;
@@ -1726,7 +1746,7 @@ export function App() {
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
-      picking={picking} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} />
+      picking={picking} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} exporter={exporter} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -1805,11 +1825,11 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
 
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, picker }: {
+function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, picker, exporter }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
   zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
-  picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool;
+  picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool; exporter: ExportTool;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project"
@@ -1865,7 +1885,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
-      <CanvasTools tool={tool} picking={picking} onTool={onTool} picker={picker} />
+      <CanvasTools tool={tool} picking={picking} onTool={onTool} picker={picker} exporter={exporter} />
     </div>
     </section>
   </div>;

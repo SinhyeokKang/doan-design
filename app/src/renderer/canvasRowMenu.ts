@@ -1,5 +1,6 @@
 import type { ConversationSummary } from "../main/conversation/summary";
 import type { Canvas } from "../main/conversation/types";
+import type { CanvasRow } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import { agentPresence } from "./agentPresence";
 import { sameCanvas } from "./canvasConversationRows";
@@ -29,4 +30,14 @@ export function trashBlock(
   if (drawing(target.root, canvas) !== null) return "drawing";
   if (work.some(item => item.root === target.root && item.path === target.path)) return "terminal";
   return null;
+}
+
+// Why Export is unavailable, for the row menu's Export… and the canvas toolbar's Export alike (canvas-composer-polish
+// spec 5); null: it is available. `row` null: the toolbar has no open canvas (a project problem). `exporting`: that
+// canvas's own export runs; another canvas's does not count. `unlisted`: the page shown is not the listed canvas.
+export function canvasExportReason(row: CanvasRow | null, exporting: boolean, unlisted: boolean): string | null {
+  if (unlisted) return "This page is not a listed canvas.";
+  if (row === null) return "Export isn’t available while the canvas can’t be shown.";
+  if (row.error) return "Can’t read this canvas.";
+  return exporting ? "Exporting" : null;
 }

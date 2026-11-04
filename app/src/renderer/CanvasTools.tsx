@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import { Crosshair, Hand, MousePointer2 } from "lucide-react";
+import { Crosshair, Download, Hand, MousePointer2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import type { CanvasTool } from "./canvasTool";
 
@@ -21,8 +21,12 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
 // Hand a canvas click does not select, so the pressed button is what tells the person why.
 // The Picker (canvas-composer-polish spec 3) is not a tool that stays: it toggles the composer's one pick, and only it
 // shows pressed while picking. aria-disabled, not disabled, so its reason shows as a tooltip and ←/→ still reach it.
+// Export (spec 5) closes the row after a divider: an action on the open canvas, so it has no pressed state. `reason`
+// null: it can export; otherwise it stays aria-disabled, so it keeps focus through the save panel and the export.
+// `onExport` gets the button, where focus goes back when the save panel closes.
 export interface PickerTool { enabled: boolean; reason: string | null; onToggle(): void }
-export function CanvasTools({ tool, picking, onTool, picker }: { tool: CanvasTool; picking: boolean; onTool(tool: CanvasTool): void; picker: PickerTool }) {
+export interface ExportTool { reason: string | null; onExport(button: HTMLElement): void }
+export function CanvasTools({ tool, picking, onTool, picker, exporter }: { tool: CanvasTool; picking: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; exporter: ExportTool }) {
   const pressed = (own: CanvasTool) => !picking && tool === own;
   return <div className="doan-floating doan-canvas-tools" role="toolbar" aria-label="Canvas tools" onKeyDown={moveBetweenTools}>
     {TOOLS.map(({ tool: own, label, key, Icon }) => <Tooltip key={own}><TooltipTrigger asChild>
@@ -35,5 +39,10 @@ export function CanvasTools({ tool, picking, onTool, picker }: { tool: CanvasToo
     </TooltipTrigger>{picker.enabled
       ? <TooltipContent className="has-key">Pick from canvas<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></TooltipContent>
       : <TooltipContent>{picker.reason ?? "Pick from canvas"}</TooltipContent>}</Tooltip>
+    <span className="doan-canvas-tools-sep" role="separator" aria-orientation="vertical" />
+    <Tooltip><TooltipTrigger asChild>
+      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export…" aria-disabled={exporter.reason !== null || undefined} tabIndex={-1}
+        onClick={event => { if (exporter.reason === null) exporter.onExport(event.currentTarget); }}><Download aria-hidden="true" /></button>
+    </TooltipTrigger><TooltipContent>{exporter.reason ?? "Export…"}</TooltipContent></Tooltip>
   </div>;
 }

@@ -13,6 +13,7 @@ import type { PanelBounds } from "./rightPanelSize";
 import { displayPath } from "./projectDisplay";
 import { slotKey } from "./homeConversations";
 import { canvasStem } from "./canvasRowMessages";
+import { canvasExportReason } from "./canvasRowMenu";
 import type { SidebarSlot as Slot } from "./canvasNotice";
 import { settingsSectionsShown, type SettingsSection } from "./settingsSections";
 import { countDescription, headArrow, sidebarGroups, visibleItems, type GroupId, type SidebarGroup, type SidebarItem } from "./sidebarGroups";
@@ -136,7 +137,7 @@ interface RowMenu {
 // unlike the project menu, nothing in this one works then.
 function canvasRowMenu(args: RowMenu): ReactElement {
   const { menu, root, row, locked } = args;
-  const exportReason = row.error ? "Can’t read this canvas." : menu.exporting(root, row.path) ? "Exporting" : null;
+  const exportReason = canvasExportReason(row, menu.exporting(root, row.path), false);
   const trashReason = menu.blocked(root, row) ? "An agent is working on this canvas." : null;
   const item = (label: string, Icon: typeof Download, reason: string | null, id: string, act: (current: CanvasRow) => void) =>
     <DropdownMenu.Item className={`doan-menu-item${reason ? " shell-menu-reasoned" : ""}`} aria-label={reason ? label : undefined} aria-disabled={reason ? true : undefined} aria-describedby={reason ? id : undefined} onSelect={event => {
