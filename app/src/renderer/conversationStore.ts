@@ -108,7 +108,10 @@ export class ConversationStore {
     const item = queue?.items.find(entry => entry.id === itemId);
     if (!queue || !item || (item.pressed !== undefined) === sending) return false;
     const { pressed: _, ...rest } = item;
-    this.queues.set(conversationId, { ...queue, items: queue.items.map(entry => entry === item ? sending ? { ...rest, pressed: ++this.presses } : rest : entry) });
+    // Back in the queue: a read taken while it was in flight did not count it (main leaves out the message Send now
+    // has in flight), so only a read started from now can say main sent it.
+    const after = sending ? queue.after : this.host.readsStarted(queue.root);
+    this.queues.set(conversationId, { ...queue, after, items: queue.items.map(entry => entry === item ? sending ? { ...rest, pressed: ++this.presses } : rest : entry) });
     this.host.changed();
     return true;
   }

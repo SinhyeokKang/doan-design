@@ -172,3 +172,22 @@ test("deleting the conversation drops its sending messages", () => {
   h.store.deleted(A);
   expect(h.store.sending(A)).toEqual([]);
 });
+
+// Review Y1: main's count leaves out a message in flight, so a read taken then says none are queued; a refusal that
+// puts the row back must not be dropped by that read, only by one started after the refusal.
+test("a row refused back into the queue stays until a read started after the refusal says main sent it", async () => {
+  const h = harness();
+  const answer = deferred<{ error: string }>();
+  doan.sendQueuedNow = vi.fn(() => answer.promise);
+  const sent = h.store.sendQueuedNow(A, "q1");
+  h.read([summary({ queued: 0 })]);
+  expect(h.sending()).toEqual(["q1"]);
+  answer.resolve({ error: "not_running" });
+  await sent;
+  h.store.syncQueues();
+  expect(h.ids()).toEqual(["q1"]);
+  h.read([summary({ queued: 1 })]);
+  expect(h.ids()).toEqual(["q1"]);
+  h.read([summary({ queued: 0 })]);
+  expect(h.ids()).toEqual([]);
+});
