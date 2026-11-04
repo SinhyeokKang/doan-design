@@ -141,7 +141,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         detach(folder);
         // The new root is hand-added (design §2.2), even over a mark an interrupted write left.
         if (!folders.has(view.root)) {
-          void store.claim(view.root);
+          void store.claim(view.root).then(logWrite);
           add(view.root);
         }
         // Keep the surviving root's watcher and server key when merging rows.
