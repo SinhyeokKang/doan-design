@@ -17,6 +17,7 @@
 7. 보던 자동 등록 worktree가 사라질 때의 도착지는 직전 선택이나 main checkout이 문제 상태여도 그 root로 간다(사용자 결정, R1 리뷰). design §3.4 문구 그대로다.
 8. v3 'Dispatch' 순서는 schema → token → `start` 경로 패턴 → 등록된 root/자동 등록이다(사용자 결정, M 리뷰). 응답은 바뀌지 않는다. T4에서 ARCHITECTURE §4에 적는다.
 9. 자동 등록분이 외부·네트워크 볼륨에서 잠깐 사라져(ENOENT) 목록에서 빠지는 것은 spec 결정 2 그대로 두고, T4에서 BACKLOG 알려진 한계에 적는다 — 지휘자 판단(M 리뷰 정보 항목). 다음 `doan work start`에서 다시 등록된다.
+10. origin이 자동 등록 W의 workspace인 page(Project Settings, Add Projects, Settings)가 열린 채 W가 사라지거나 숨겨지면, origin을 결정 4의 도착지(`fallbackWorktree`)로 옮긴다. page를 떠나면 그 root의 기억한 캔버스나 Overview가 열린다. Locate re-root가 origin을 옮기는 것과 같다(사용자 결정, R2 리뷰). T4에서 PRODUCT §5 item 1에 적는다.
 
 ## 배치
 
@@ -50,3 +51,4 @@
 - M을 cherry-pick했다(`e18fa3d8..b0c9e7d1`). 통합 HEAD `b0c9e7d1`에서 `node .agents/skills/verify/scripts/verify.mjs` PASS(지휘자 실행).
 - R2 시작: 새 child worktree `ttw-R2`(기준 `b0c9e7d1`), Opus high.
 - R2: 작업자 완료(`acdec449`, `415b1604`). 작업자 보고: `verify.mjs` PASS(app test 6707 pass, flaky 없음). handoff와 commit이 일치하는 것을 지휘자가 확인했다. 열린 항목: origin이 W인 page(Project Settings 등)를 떠나면 Home으로 간다. 리뷰 1라운드: Opus medium.
+- R2 리뷰 1라운드(Opus medium): 🔴 0, 🟡 2(재시작 때 `loading`으로 숨겨진 W의 기억한 캔버스와 선택이 지워짐), ⚪ 4(R3 확인용), 사용자 결정 1(결정 10). 수정 1라운드: Opus high(재시작·reconcile 상태와 page origin이 얽힘).
