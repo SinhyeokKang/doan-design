@@ -3,7 +3,7 @@ import type { ConversationSummary } from "../main/conversation/summary";
 import type { CanvasRow, FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
 import type { AgentPresence } from "./agentPresence";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, stopFailedText, stopTurn, workingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, siblingWork, stopFailedText, stopTurn, workingCanvas } from "./agentIndicator";
 
 // buzz-canvas R5 (design §2 '에이전트 작업 표시', §5 copy): which canvas the indicator reads, the notice's button, Stop's
 // lifecycle and the dot field's loop.
@@ -160,6 +160,48 @@ describe("canvasAgent with terminal sessions", () => {
   test("another canvas's session and no canvas show nothing", () => {
     expect(canvasAgent([], target, null, [{ ...work("/w/a"), path: ".doan/canvases/other.html" }])).toBeNull();
     expect(canvasAgent([], null, null, [work("/w/a")])).toBeNull();
+  });
+});
+
+// DESIGN 'Terminal work in another worktree': a terminal session on the open canvas's path in another worktree of the same
+// project (the sidebar's group) is named on the board with Open; identity stays root + path (POSTMORTEM 2026-11-01).
+describe("siblingWork", () => {
+  const COMMON = "/repo/.git";
+  const git = (main: string, branch?: string) => ({ common: COMMON, main, worktrees: ["/w/a", "/w/b", "/w/c"], ...(branch === undefined ? {} : { branch }) });
+  const a: FolderEntry = { path: "/w/a", kind: "list", servedRev: 0, canvases: [row], git: git("/w/a", "main") };
+  const b: FolderEntry = { path: "/w/b", kind: "list", servedRev: 0, canvases: [row], git: git("/w/a", "feat/checkout-copy") };
+  const c: FolderEntry = { path: "/w/c", kind: "list", servedRev: 0, canvases: [row], git: { ...git("/w/a"), detached: "0123456789abcdef" } };
+  const target = { root: "/w/a", canvas: { path: row.path, id: "billing" } };
+  const work = (root: string, path = row.path): WorkItem => ({ root, path, provider: "claude", session: "s1" });
+  test("another worktree of the same project working on the same path is named by its branch", () => {
+    expect(siblingWork([work("/w/b")], target, [a, b])).toEqual({ root: "/w/b", label: "feat/checkout-copy" });
+  });
+  test("a worktree without a branch (detached HEAD) is named by its folder", () => {
+    expect(siblingWork([work("/w/c")], target, [a, b, c])).toEqual({ root: "/w/c", label: "c" });
+  });
+  test("with several, the last item of the work list wins", () => {
+    expect(siblingWork([work("/w/b"), work("/w/c")], target, [a, b, c])?.root).toBe("/w/c");
+    expect(siblingWork([work("/w/c"), work("/w/b")], target, [a, b, c])?.root).toBe("/w/b");
+  });
+  test("this root's own session on the path wins: nothing here, the terminal indicator shows instead", () => {
+    expect(siblingWork([work("/w/b"), work("/w/a")], target, [a, b])).toBeNull();
+    expect(siblingWork([work("/w/a"), work("/w/b")], target, [a, b])).toBeNull();
+  });
+  test("another path, another project, or a twin project outside git shows nothing", () => {
+    expect(siblingWork([work("/w/b", ".doan/canvases/other.html")], target, [a, b])).toBeNull();
+    const other: FolderEntry = { ...b, path: "/x/b", git: { ...git("/x/a", "feat/x"), common: "/x/.git", worktrees: ["/x/b"] } };
+    expect(siblingWork([work("/x/b")], target, [a, other])).toBeNull();
+    const plain: FolderEntry = { path: "/p/b", kind: "list", servedRev: 0, canvases: [row] };
+    expect(siblingWork([work("/p/b")], target, [a, plain])).toBeNull();
+  });
+  test("a worktree that is not a list, or has not listed the path yet, shows nothing", () => {
+    for (const kind of ["loading", "uninitialized", "notFound"] as const) {
+      expect(siblingWork([work("/w/b")], target, [a, { path: "/w/b", kind, lastCommon: COMMON }])).toBeNull();
+    }
+    expect(siblingWork([work("/w/b")], target, [a, { ...b, canvases: [] }])).toBeNull();
+  });
+  test("no open canvas shows nothing", () => {
+    expect(siblingWork([work("/w/b")], null, [a, b])).toBeNull();
   });
 });
 

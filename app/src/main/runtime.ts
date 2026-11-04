@@ -6,12 +6,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { OpenRequest, OpenResponse, WorkRequest, WorkResponse, OnboardingRequest, OnboardingResponse, RuntimeFile, Selection, SocketErrorCode, SocketRequest, SocketResponse } from "../formats/types";
 import { validateOpenRequest, validateWorkRequest, validateOnboardingRequest, validateSocketRequest } from "../formats/validate";
+import { autoRegisterRoot } from "./autoFolders";
+import type { FolderState } from "./folderState";
 
 // Electron-free on purpose, like shell.ts: index.ts supplies the open projects
 // and the selection, and owns the app lifecycle around this.
 
 const LINE_LIMIT = 64 * 1024;
 export const LINE_WAIT_MS = 2000;
+// The CLI's 2 s (`activeTimeout`) starts before it dials and LINE_WAIT_MS at the connection, so a registration
+// answers by 1.5 s or the start is refused; the registration itself goes on (ARCHITECTURE §4 'Auto-registration').
+export const AUTO_REGISTER_WAIT_MS = 1500;
 
 export interface ActiveState {
   isOpen(root: string): boolean;
@@ -25,6 +30,12 @@ export interface RuntimeState extends ActiveState {
   // Called only with a schema-valid v4 request whose token matched and whose root is registered. It must answer
   // inside the 2 s deadline (deepLinks.ts OPEN_ANSWER_TIMEOUT_MS).
   open(request: OpenRequest): Promise<OpenResponse>;
+  // Auto-registration of a saved repository's worktree on a v3 start (ARCHITECTURE §4 'Auto-registration'): the registered roots,
+  // `doan ls --json --repo <root>` (never killed early, so a late registration still lands), and the registration,
+  // which must make `isOpen(root)` true before it returns so the start's work applies.
+  roots(): readonly string[];
+  readRoot(root: string): Promise<FolderState>;
+  adopt(root: string, view: Extract<FolderState, { kind: "list" }>): void;
 }
 
 export interface Runtime {
@@ -91,6 +102,53 @@ function workError(code: "bad_request" | "bad_token" | "project_not_open", messa
   return { v: 3, ok: false, error: { code, message } };
 }
 
+// Registrations in progress per state and root: concurrent starts share one read, and a done waits for it. Keyed by
+// state so each runtime (and each test) has its own, without adding a member every RuntimeState must provide.
+const registrations = new WeakMap<RuntimeState, Map<string, Promise<boolean>>>();
+
+function register(state: RuntimeState, root: string): Promise<boolean> {
+  let pending = registrations.get(state);
+  if (!pending) {
+    pending = new Map();
+    registrations.set(state, pending);
+  }
+  const current = pending.get(root);
+  if (current) return current;
+  const task = (async () => {
+    const view = await state.readRoot(root);
+    if (state.isOpen(root)) return true;
+    // Judged against the roots registered now: after a Remove from Doan during the read, W has no group to join and
+    // must not become a project of its own.
+    if (view.kind !== "list" || !autoRegisterRoot(view, { root }, state.roots())) return false;
+    state.adopt(root, view);
+    return state.isOpen(root);
+  })().catch((error: unknown) => {
+    console.error("doan: worktree registration failed", error);
+    return false;
+  }).finally(() => pending.delete(root));
+  pending.set(root, task);
+  return task;
+}
+
+// A start from an unregistered root may register it; a done only waits for a registration already running, so it
+// lands after that start's work. Either way the work applies once registered, even after the answer said
+// project_not_open (spec decision 5).
+async function workAfterRegistration(state: RuntimeState, request: WorkRequest): Promise<WorkResponse> {
+  const notOpen = workError("project_not_open", "The project is not open in Doan.");
+  const pending = registrations.get(state)?.get(request.root) ??
+    (request.action === "start" && state.roots().length > 0 ? register(state, request.root) : undefined);
+  if (!pending) return notOpen;
+  const applied = pending.then((registered): WorkResponse => {
+    if (!registered) return notOpen;
+    try { state.work(request); return { v: 3, ok: true }; }
+    catch (error) { console.error("doan: work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<WorkResponse>((resolve) => { timer = setTimeout(() => resolve(notOpen), AUTO_REGISTER_WAIT_MS); });
+  try { return await Promise.race([applied, late]); }
+  finally { clearTimeout(timer); }
+}
+
 // Unknown versions keep the v1 refusal. No version exposes state before its token matched.
 type Answer = SocketResponse | OnboardingResponse | WorkResponse | OpenResponse;
 export async function answerLine(line: string, token: string, state: RuntimeState): Promise<Answer> {
@@ -106,8 +164,8 @@ export async function answerLine(line: string, token: string, state: RuntimeStat
   if (typeof value === "object" && value !== null && !Array.isArray(value) && Reflect.get(value, "v") === 3) {
     if (!validateWorkRequest(value)) return workError("bad_request", "The request is not an app-socket v3 request.");
     if (!tokenMatches(value.token, token)) return workError("bad_token", "The token does not match this app.");
-    if (!state.isOpen(value.root)) return workError("project_not_open", "The project is not open in Doan.");
     if (value.action === "start" && !/^\.doan\/(canvases|ds)\/[^/]+\.html$/.test(value.path)) return workError("bad_request", "The path is not a canvas path.");
+    if (!state.isOpen(value.root)) return workAfterRegistration(state, value);
     try { state.work(value); return { v: 3, ok: true }; }
     catch (error) { console.error("doan: work request failed", error); return workError("bad_request", "Doan could not handle this request."); }
   }

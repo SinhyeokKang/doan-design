@@ -1,6 +1,7 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { FolderEntry } from "../main/view";
 
 // RBR5 🟡1: the indicator's wiring, run with hooks as plain state (the App tests' no-DOM style): the Stop callback's
 // failure recovery, and the dot field's pauses and cleanup.
@@ -33,6 +34,7 @@ vi.mock("react", async original => {
 });
 
 const { CanvasAgent, DotField } = await import("./CanvasAgent");
+const { TooltipContent } = await import("./components/ui/tooltip");
 
 function reset() { hooks.states = []; hooks.refs = []; hooks.effects = []; hooks.pending = []; }
 // Renders until state settles; `mounted` runs after each render, before its effects (to attach refs).
@@ -75,7 +77,7 @@ describe("CanvasAgent Stop", () => {
   let reply: (value: unknown) => void;
   let interrupt: ReturnType<typeof vi.fn>;
   const onStopFailed = vi.fn();
-  const agent = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work: [], onOpen: vi.fn(), onStopFailed });
+  const agent = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
   beforeEach(() => {
     reset(); onStopFailed.mockClear();
     interrupt = vi.fn(() => new Promise(resolve => { reply = resolve; }));
@@ -131,7 +133,7 @@ describe("CanvasAgent Stop", () => {
   // terminal-agent-activity design '표시': the app turn ends while a terminal session still works on the canvas.
   test("after a Stop, the notice stays for a terminal session left on the canvas, without its button", async () => {
     const work = [{ session: "s1", provider: "claude" as const, root: "/w/a", path: canvas.path }];
-    const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work, onOpen: vi.fn(), onStopFailed });
+    const withWork = (list: readonly ConversationSummary[]) => () => CanvasAgent({ list, canvas: { root: "/w/a", canvas }, running: true, work, entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed });
     let tree = render(withWork([summary({})]));
     (button(tree)!.props.onClick as () => void)();
     reply(undefined); await flush();
@@ -144,8 +146,46 @@ describe("CanvasAgent Stop", () => {
 
   test("a twin canvas in another project shows nothing from the first while its list is unread", () => {
     render(agent([summary({})]));
-    const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, running: true, work: [], onOpen: vi.fn(), onStopFailed }));
+    const tree = render(() => CanvasAgent({ list: "error", canvas: { root: "/w/b", canvas }, running: true, work: [], entries: [], onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed }));
     expect(shown(tree)).toBe(false);
+  });
+});
+
+// DESIGN 'Terminal work in another worktree': the other worktree's notice. Open hands its root to App; the text's tooltip says
+// the whole sentence, so a long label cut by the ellipsis stays readable.
+describe("CanvasAgent another worktree", () => {
+  const LONG = "feat/checkout-redesign-with-saved-payment-methods-and-guest-flow";
+  const git = { common: "/repo/.git", main: "/w/a", worktrees: ["/w/a", "/w/b"] };
+  const row = { path: canvas.path, id: canvas.id, url: "u" };
+  const entries: FolderEntry[] = [
+    { path: "/w/a", kind: "list", servedRev: 0, canvases: [row], git: { ...git, branch: "main" } },
+    { path: "/w/b", kind: "list", servedRev: 0, canvases: [row], git: { ...git, branch: LONG } },
+  ];
+  const work = [{ session: "s1", provider: "claude" as const, root: "/w/b", path: canvas.path }];
+  beforeEach(reset);
+  test("Open opens that worktree, and the tooltip carries the full sentence", () => {
+    const onOpenSibling = vi.fn(), onOpen = vi.fn();
+    const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, running: true, work, entries, onOpen, onOpenSibling, onStopFailed: vi.fn() }));
+    expect(button(tree)?.props["aria-label"]).toBe(`Open this canvas in ${LONG}`);
+    expect(label(tree)).toBe("Open");
+    (button(tree)!.props.onClick as () => void)();
+    expect(onOpenSibling).toHaveBeenCalledWith("/w/b");
+    expect(onOpen).not.toHaveBeenCalled();
+    const tip = all(tree).find(element => element.type === TooltipContent);
+    expect(tip?.props.children).toBe(`Agent is working on this canvas in ${LONG}`);
+  });
+  // design-sync (draft frame sibling-notice, tile 'sibling-long'): the tooltip opened above the notice (Radix's default
+  // side), and a two-line sentence crossed the board's top edge; the draft puts it 4px under the capsule.
+  test("the tooltip opens under the notice, clear of the capsule", () => {
+    const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, running: true, work, entries, onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn() }));
+    const tip = all(tree).find(element => element.type === TooltipContent);
+    expect(tip?.props.side).toBe("bottom");
+    expect(tip?.props.sideOffset).toBe(14);
+  });
+  test("the notice goes when the session ends", () => {
+    const props = { list: [] as ConversationSummary[], canvas: { root: "/w/a", canvas }, running: true, entries, onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn() };
+    expect(button(render(() => CanvasAgent({ ...props, work })))).toBeDefined();
+    expect(button(render(() => CanvasAgent({ ...props, work: [] })))).toBeUndefined();
   });
 });
 

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { closeSync, openSync, existsSync, readdirSync, readFileSync, writeFileSync, copyFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -14,16 +14,35 @@ export function agentEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return child;
 }
 
-export function agentCommand(agent: Agent, prompt: string): { cmd: string; args: string[] } {
+// `codexServers` are the MCP servers the machine's Codex config registers (registeredCodexMcpServers).
+export function agentCommand(agent: Agent, prompt: string, codexServers: readonly string[] = []): { cmd: string; args: string[] } {
   // Claude: --strict-mcp-config ignores every MCP server in the machine's config.
   // Codex: no equivalent, and `-c mcp_servers={}` merges instead of clearing, so only a doan
   // server left registered there is switched off by name; other configured servers still load.
+  // The override is added only when that server exists: Codex 0.166 turns it into a table
+  // without a transport otherwise and exits at startup ("invalid transport in mcp_servers.doan").
   // --allowedTools is variadic, so `--` separates the prompt from tool names.
   // Codex's approval policy is pinned so a run does not depend on the machine's own config.
+  // allow_login_shell=false: a login shell re-reads the user's profile, which puts an installed
+  // ~/.local/bin ahead of the run's bin directory and drops the run's PATH entries (Codex 0.166,
+  // snapshots already off), so the agent would run the installed doan, not the measured package.
   if (agent === "claude") {
     return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", prompt] };
   }
-  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "mcp_servers.doan.enabled=false", prompt] };
+  const doan = codexServers.includes("doan") ? ["-c", "mcp_servers.doan.enabled=false"] : [];
+  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", ...doan, prompt] };
+}
+
+// Asks Codex itself, so project-level config and profiles count as well as $CODEX_HOME/config.toml.
+// Throws when the list cannot be read: guessing could let a doan server load into the run.
+export function registeredCodexMcpServers(env: NodeJS.ProcessEnv, cwd: string): string[] {
+  try {
+    const list: unknown = JSON.parse(execFileSync("codex", ["mcp", "list", "--json"], { cwd, env, encoding: "utf8", timeout: 30_000, stdio: ["ignore", "pipe", "pipe"] }));
+    if (!Array.isArray(list)) throw new Error("not an array");
+    return list.map(entry => String((entry as { name?: unknown }).name));
+  } catch (error) {
+    throw new Error(`Cannot read the Codex MCP server list: ${(error as Error).message}`);
+  }
 }
 
 // Read evidence produced by the agent's shell, not the runner's own PATH lookup.

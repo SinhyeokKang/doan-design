@@ -62,7 +62,7 @@ Doan 프로젝트(Doan root)마다 Doan 파일(`.doan/`)을 저장소에 커밋�
 - 기기 사이 동기화나 백업.
 - 모드 전환 때 파일 옮기기나 지우기.
 - 사람이 쓴 ignore 규칙을 모드로 해석하기(완료 조건 12).
-- 로컬 모드 worktree의 terminal work 자동 등록. 새 worktree에는 `.doan/config.json`이 없어 `doan work start`가 CLI에서 먼저 실패한다(terminal-work-worktrees spec 비목표).
+- 로컬 모드 worktree의 terminal work 자동 등록. 새 worktree에는 `.doan/config.json`이 없어 `doan work start`가 CLI에서 먼저 실패한다(PRODUCT §5 item 1의 자동 등록은 `doan work start`가 앱에 닿을 때만 일어난다).
 
 ## 결정 (지휘자 판단, /feature-review에서 확인)
 

@@ -13,7 +13,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, inject, test, vi } from "vitest";
-import { canvasMtimes, startShell, type Shell } from "./shell";
+import { canvasMtimes, startShell, type FolderFocus, type Shell } from "./shell";
+import type { FolderState } from "./folderState";
 import type { FolderEntry } from "./view";
 
 const cli = inject("doanCli");
@@ -759,5 +760,198 @@ describe("storing, removing and restoring", () => {
     git.mode("error");
     shell.rereadAll();
     await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: root, kind: "error", message: "bad config", lastCommon: "/c/.git" }), until);
+  });
+});
+
+// Auto-registration: a worktree the app registered on its own for a terminal agent's `doan work start`.
+describe("auto-registered worktrees", () => {
+  type Change = { entries: FolderEntry[]; focus: FolderFocus | undefined };
+  const autoSaved = (foldersFile: string): unknown => saved(join(foldersFile, "..", "auto-folders.json"));
+  const view = (root: string, worktrees: string[]): Extract<FolderState, { kind: "list" }> =>
+    ({ kind: "list", root, scope: [".doan/canvases"], canvases: [{ path: ".doan/canvases/a.html", id: "a" }], git: { common: "/c/.git", branch: "w1", worktrees } });
+
+  // Like gitCli, but a cwd run (`open`) reports the working directory as its root.
+  function autoCli(): { path: string; mode: (value: string) => void } {
+    const base = dir();
+    const modeFile = join(base, "mode");
+    const path = join(base, "doan");
+    writeFileSync(modeFile, "git");
+    writeFileSync(path, `#!/bin/sh
+root="$4"; [ -n "$root" ] || root="$(pwd -P)"
+if [ "$(cat '${modeFile}')" = git ]; then
+  printf '{"v":1,"ok":true,"result":{"root":"%s","scope":[".doan/canvases"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":["%s"]}}}\\n' "$root" "$root"
+  exit 0
+fi
+if [ "$(cat '${modeFile}')" = up ] && [ -z "$4" ]; then
+  printf '{"v":1,"ok":true,"result":{"root":"%s","scope":[".doan/canvases"],"canvases":[],"git":{"common":"/c/.git","branch":"main","worktrees":[]}}}\\n' "$(dirname "$(pwd -P)")"
+  exit 0
+fi
+if [ "$(cat '${modeFile}')" = uninit ] || [ "$(cat '${modeFile}')" = up ]; then
+  echo '{"v":1,"ok":false,"error":{"code":"repo_not_found","message":"not found","nextSteps":[]}}'
+  exit 3
+fi
+echo '{"v":1,"ok":false,"error":{"code":"invalid_config","message":"bad config","nextSteps":[]}}'
+exit 2
+`);
+    chmodSync(path, 0o755);
+    return { path, mode: (value) => writeFileSync(modeFile, value) };
+  }
+
+  async function withMain(file = join(dir(), "folders.json")) {
+    const git = autoCli();
+    const main = dir();
+    const changes: Change[] = [];
+    const removed = vi.fn();
+    const shell = await startShell(file, git.path, (entries, focus) => changes.push({ entries, focus }), { autoRemoved: removed });
+    shells.push(shell);
+    await shell.store([main]);
+    await vi.waitFor(() => expect(listed(shell.entries(), main)).toBeDefined(), until);
+    return { shell, changes, removed, main, file, git };
+  }
+
+  async function adopted() {
+    const started = await withMain();
+    const w = dir();
+    const checkpoint = started.changes.length;
+    expect(started.shell.adopt(w, view(w, [started.main, w]))).toBe(true);
+    await vi.waitFor(() => expect(autoSaved(started.file)).toEqual([w]), until);
+    return { ...started, w, checkpoint };
+  }
+
+  test("adopt lists the worktree at once, in the repository's group, with the auto flag", async () => {
+    const { shell, changes, main, w, file, checkpoint } = await adopted();
+    // Published synchronously: a work start applied right after adopt finds the root open.
+    const first = changes[checkpoint];
+    expect(first?.entries.map(entry => entry.path)).toEqual([main, w]);
+    expect(first?.entries[1]).toMatchObject({ path: w, kind: "list", autoRegistered: true, lastCommon: "/c/.git", git: { common: "/c/.git" } });
+    expect(first?.entries[0]?.lastCommon).toBe("/c/.git");
+    expect(first?.entries[0]).not.toHaveProperty("autoRegistered");
+    await vi.waitFor(() => expect(saved(file)).toEqual([main, w]), until);
+    await sleep(300);
+    for (const change of changes.slice(checkpoint)) {
+      expect(change.focus).toBeUndefined();
+      expect(change.entries.find(entry => entry.path === w)).toMatchObject({ kind: "list", autoRegistered: true });
+    }
+    expect(shell.adopt(w, view(w, [main, w]))).toBe(false);
+    expect(shell.entries().map(entry => entry.path)).toEqual([main, w]);
+    await shell.reopen(w);
+    expect(shell.entries()[1]).toEqual({ path: w, kind: "loading", autoRegistered: true, lastCommon: "/c/.git" });
+  });
+
+  test("the auto flag survives a restart", async () => {
+    const { main, w, file, git } = await adopted();
+    await Promise.all(shells.splice(0).map((shell) => shell.dispose()));
+    const shell = await startShell(file, git.path, () => {}); shells.push(shell);
+    expect(shell.entries()).toEqual([{ path: main, kind: "loading" }, { path: w, kind: "loading", autoRegistered: true }]);
+    await vi.waitFor(() => expect(listed(shell.entries(), w)).toMatchObject({ autoRegistered: true }), until);
+  });
+
+  // POSTMORTEM 2026-10-27 and design §2.3: no Missing row ever shows for a vanished auto-registered root, from the
+  // watcher or a re-read alike, and the same clean-up as Remove runs.
+  test("a vanished worktree leaves the list without ever being missing", async () => {
+    const { shell, changes, removed, main, w, file, checkpoint } = await adopted();
+    rmSync(w, { recursive: true, force: true });
+    await vi.waitFor(() => expect(shell.entries().map(entry => entry.path)).toEqual([main]), until);
+    shell.rereadAll();
+    await sleep(300);
+    for (const change of changes.slice(checkpoint)) {
+      expect(change.focus).toBeUndefined();
+      expect(change.entries.find(entry => entry.path === w && entry.kind !== "list")).toBeUndefined();
+    }
+    expect(removed).toHaveBeenCalledExactlyOnceWith([w], expect.arrayContaining([expect.objectContaining({ path: w })]));
+    await vi.waitFor(() => expect(saved(file)).toEqual([main]), until);
+    await vi.waitFor(() => expect(autoSaved(file)).toEqual([]), until);
+    expect(shell.epoch(w)).toBeNull();
+  });
+
+  test("a vanished hand-added root still shows as missing", async () => {
+    const { shell, removed, main, w } = await adopted();
+    rmSync(main, { recursive: true, force: true });
+    await vi.waitFor(() => expect(shell.entries()[0]).toEqual({ path: main, kind: "notFound", lastCommon: "/c/.git" }), until);
+    expect(shell.entries().map(entry => entry.path)).toEqual([main, w]);
+    expect(removed).not.toHaveBeenCalled();
+  });
+
+  test.skipIf(process.getuid?.() === 0)("a worktree that cannot be checked stays registered", async () => {
+    const parent = dir();
+    const started = await withMain();
+    const w = join(parent, "w");
+    mkdirSync(w);
+    started.shell.adopt(w, view(w, [started.main, w]));
+    chmodSync(parent, 0o000);
+    try {
+      started.shell.rereadAll();
+      await vi.waitFor(() => expect(started.shell.entries()[1]).toEqual({ path: w, kind: "notFound", autoRegistered: true, lastCommon: "/c/.git" }), until);
+    } finally {
+      chmodSync(parent, 0o755);
+    }
+    expect(started.removed).not.toHaveBeenCalled();
+    started.shell.rereadAll();
+    await vi.waitFor(() => expect(listed(started.shell.entries(), w)).toMatchObject({ autoRegistered: true }), until);
+  });
+
+  test("a worktree whose listing fails stays registered", async () => {
+    const { shell, removed, w, git } = await adopted();
+    git.mode("error");
+    shell.rereadAll();
+    await vi.waitFor(() => expect(shell.entries()[1]).toMatchObject({ path: w, kind: "error", autoRegistered: true }), until);
+    expect(removed).not.toHaveBeenCalled();
+  });
+
+  test("an uninitialized worktree stays registered", async () => {
+    const { shell, removed, w, git } = await adopted();
+    git.mode("uninit");
+    shell.rereadAll();
+    await vi.waitFor(() => expect(shell.entries()[1]).toEqual({ path: w, kind: "uninitialized", autoRegistered: true, lastCommon: "/c/.git" }), until);
+    expect(removed).not.toHaveBeenCalled();
+  });
+
+  // design §2.4 and POSTMORTEM 2026-11-03: an uninitialized auto-registered root never takes the upward re-root, so a
+  // parent the person never added does not become hand-added and no focus moves to it.
+  test("an uninitialized worktree is not re-rooted upward", async () => {
+    const { shell, changes, removed, main, w, file, git, checkpoint } = await adopted();
+    git.mode("up");
+    // Only W re-reads: the hand-added main would itself take the upward re-root in this mode.
+    void shell.reopen(w);
+    await vi.waitFor(() => expect(shell.entries()[1]).toEqual({ path: w, kind: "uninitialized", autoRegistered: true, lastCommon: "/c/.git" }), until);
+    await sleep(300);
+    expect(shell.entries().map(entry => entry.path)).toEqual([main, w]);
+    for (const change of changes.slice(checkpoint)) expect(change.focus).toBeUndefined();
+    expect(saved(file)).toEqual([main, w]);
+    expect(autoSaved(file)).toEqual([w]);
+    expect(removed).not.toHaveBeenCalled();
+  });
+
+  test.each(["open", "store", "locate", "locate in place"] as const)("adding the worktree by hand clears its flag: %s", async (how) => {
+    const { shell, main, w, file } = await adopted();
+    if (how === "open") {
+      expect(await shell.open(w)).toEqual({ root: w });
+    } else if (how === "store") {
+      expect(await shell.store([w])).toEqual([]);
+    } else if (how === "locate") {
+      await shell.replace(main, w);
+    } else {
+      await shell.replace(w, w);
+    }
+    expect(shell.entries().find(entry => entry.path === w)).not.toHaveProperty("autoRegistered");
+    await vi.waitFor(() => expect(autoSaved(file)).toEqual([]), until);
+    await sleep(300);
+    expect(shell.entries().find(entry => entry.path === w)).not.toHaveProperty("autoRegistered");
+  });
+
+  test("Locate away from a worktree stores the new root as hand-added", async () => {
+    const { shell, main, w, file } = await adopted();
+    const moved = dir();
+    await shell.replace(w, moved);
+    expect(shell.entries().map(entry => entry.path)).toEqual([main, moved]);
+    expect(shell.entries()[1]).not.toHaveProperty("autoRegistered");
+    await vi.waitFor(() => expect(autoSaved(file)).toEqual([]), until);
+  });
+
+  test("Remove from Doan drops the marks of the removed roots", async () => {
+    const { shell, main, w, file } = await adopted();
+    expect(await shell.remove([main, w])).toEqual({ paths: [main, w] });
+    expect(saved(file)).toEqual([]);
+    expect(autoSaved(file)).toEqual([]);
   });
 });

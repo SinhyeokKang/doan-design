@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
-import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
+import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -27,7 +27,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Plus, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crosshair, Plus, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
@@ -205,7 +205,12 @@ export function App() {
   const chipFocus = useRef(false);
   const currentScreen = useRef(screen);
   currentScreen.current = screen;
+  // `entries` is the list as shown: hidden auto-registered worktrees are left out everywhere (shownFolders). Only the
+  // launch restore reads main's whole list, so it can wait for a saved worktree that is still being read.
   const [entries, setEntries] = useState<FolderEntry[]>([]);
+  const [allEntries, setAllEntries] = useState<FolderEntry[]>([]);
+  // The group's selection before it moved to an auto-registered worktree, by that worktree (design §3.4), in memory.
+  const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
   const viewport = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
@@ -401,7 +406,8 @@ export function App() {
     };
     const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
     controller.current = instance;
-    const stopFolders = window.doan.onFolders((next, focus) => {
+    const stopFolders = window.doan.onFolders((all, focus) => {
+      const next = shownFolders(all), before = entriesRef.current;
       if (focus) {
         const located = locateFrom.current === focus.from;
         if (!located) setLoadedRoot(root => root === focus.from ? focus.root : root);
@@ -421,7 +427,8 @@ export function App() {
         forgetConversations(removed);
       }
       entriesRef.current = next;
-      setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
+      setEntries(next); setAllEntries(all); instance.updateEntries(next, all); setFoldersSeen(true);
+      live.current.leaveVanished(before, next);
     });
     instance.canvasRemoved = ({ folder, row, duplicates }) => {
       if (duplicates === null) { live.current.toast.show(removedCanvasMessage(row)); return; }
@@ -520,7 +527,7 @@ export function App() {
   useEffect(() => {
     if (restoreCancelled.current || restore === null || restore === "done" || !foldersSeen) return;
     const elapsed = performance.now() - restore.started;
-    const plan = restorePlan(restore.state, entries, elapsed);
+    const plan = restorePlan(restore.state, allEntries, elapsed);
     if (plan.kind === "wait") {
       const timer = setTimeout(() => setRestoreTick(tick => tick + 1), RESTORE_LOADING_WAIT_MS - elapsed + 10);
       return () => clearTimeout(timer);
@@ -533,7 +540,7 @@ export function App() {
     if (plan.kind === "home") return;
     // The workspace opens its remembered canvas and view, as a worktree switch does.
     controller.current?.remember(plan.root, plan.canvas?.view ? { canvas: plan.canvas.path, view: plan.canvas.view } : null);
-    const listed = entries.find(entry => entry.path === plan.root);
+    const listed = allEntries.find(entry => entry.path === plan.root);
     const row = plan.canvas && !plan.canvas.view && listed?.kind === "list" ? listed.canvases.find(row => row.path === plan.canvas?.path) : undefined;
     controller.current?.openWorkspace(plan.root, next => {
       setLoadedRoot(next); setScreen("workspace");
@@ -549,7 +556,7 @@ export function App() {
         setOverviewNotice({ root: plan.root, text });
       }
     }
-  }, [restore, foldersSeen, entries, restoreTick]);
+  }, [restore, foldersSeen, allEntries, restoreTick]);
   // Sent at once, pans included: main debounces the write and flushes it on
   // quit, while a value still waiting here would be lost to a quick ⌘Q.
   const save = () => {
@@ -579,6 +586,8 @@ export function App() {
     historyRef.current = next; setHistory(next);
     const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
     const group = groups.find(group => group.rows.some(row => row.path === root));
+    const selected = group && shellRef.current[group.key]?.selectedRoot;
+    if (selected && selected !== root && entriesRef.current.find(entry => entry.path === root)?.autoRegistered) beforeAuto.current.set(root, selected);
     if (group) setShellProjects(previous => { const groups = previous[group.key]?.groups; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(groups ? { groups } : {}) } }; });
   };
   const enter = (root: string) => {
@@ -642,6 +651,42 @@ export function App() {
     if (currentScreen.current === "workspace" && shown?.folder === root && shown.canvas === row.path && shownOverviewRef.current === null) reveal();
     else live.current.openShellCanvas(root, row, undefined, reveal);
   }
+  // An auto-registered worktree left the list as shown (its folder vanished, or it can no longer be read) without any
+  // move of the person's (design §3.4). Its remembered canvas and previous selection go. When it was on screen, its
+  // canvas, Overview or Project Settings page moves to the same place in the worktree selected before it, else the
+  // group's main checkout, even in a problem state (orch decision 7); no toast. A page opened from its workspace keeps
+  // its screen and takes that worktree as its origin. A group with nothing left was removed from Doan, and that path
+  // goes Home as before.
+  function leaveVanished(before: readonly FolderEntry[], after: readonly FolderEntry[]) {
+    for (const gone of before) {
+      if (gone.autoRegistered !== true || after.some(entry => entry.path === gone.path)) continue;
+      const previous = beforeAuto.current.get(gone.path) ?? null;
+      beforeAuto.current.delete(gone.path);
+      controller.current?.remember(gone.path, null);
+      const now = currentScreen.current;
+      const workspace = now === "workspace" && loadedRootRef.current === gone.path;
+      const settingsPage = now === "projectSettings" && projectSettingsRef.current.root === gone.path;
+      const origin = pageRef.current.origin;
+      const fromPage = (now === "addProjects" || now === "settings" || now === "projectSettings") && origin.screen === "workspace" && origin.root === gone.path;
+      if (!workspace && !settingsPage && !fromPage) continue;
+      const card = groupProjects(before, new Map(before.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === gone.path));
+      const rows = after.filter(entry => card?.rows.some(row => row.path === entry.path));
+      const open = openRef.current;
+      const to = fallbackWorktree(rows, gone.path, previous, workspace && open?.folder === gone.path ? open.canvas : null);
+      if (!to) continue;
+      // The page's origin follows as Locate moves it (projectSettingsRerooted): leaving enters the destination, its
+      // remembered canvas or Overview, rather than finding the origin gone and going Home (orch decision 10).
+      if (fromPage) { const next = { ...pageRef.current, origin: { screen: "workspace" as const, root: to.root } }; pageRef.current = next; setPage(next); }
+      if (settingsPage) setProjectSettings({ root: to.root, key: projectSettingsRef.current.key + 1, arrival: { seq: ++arrivals.current }, locked: false });
+      if (!workspace) continue;
+      const entry = after.find(entry => entry.path === to.root);
+      const row = entry?.kind === "list" && to.canvas ? entry.canvases.find(row => row.path === to.canvas) : undefined;
+      if (row) openShellCanvas(to.root, row);
+      else if (entry?.kind === "list") showShellOverview(to.root);
+      // A worktree that is not a list cannot be entered; it takes the workspace as it is, its problem screen.
+      else completeNavigation(to.root);
+    }
+  }
   function forgetConversations(roots: readonly string[]) {
     if (!memoryRead.current) for (const root of roots) memoryTouched.current.add(root);
     conversationByRoot.current = withoutRoots(conversationByRoot.current, roots); setMemoryTick(tick => tick + 1);
@@ -653,8 +698,9 @@ export function App() {
   const groupSignature = JSON.stringify(cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
   useEffect(() => {
     if (!foldersSeen || restore !== "done") return;
-    // Loading may not yet expose git.common; preserve membership until classification settles.
-    if (entries.some(entry => entry.kind === "loading")) return;
+    // Loading may not yet expose git.common; preserve membership until classification settles. A hidden auto-registered
+    // worktree still loading counts too, or a restart would drop it as the group's saved selection.
+    if (allEntries.some(entry => entry.kind === "loading")) return;
     setShellProjects(previous => {
       const next = reconcileProjects(previous, cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
       // A hand fold lasts only while its project stays loaded, so entering it again by any path shows it unfolded.
@@ -665,7 +711,7 @@ export function App() {
       }
       return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
     });
-  }, [groupSignature, entries, loadedRoot, restore, foldersSeen]);
+  }, [groupSignature, entries, allEntries, loadedRoot, restore, foldersSeen]);
   const validVisit = (visit: Visit) => validHistoryVisit(entries, visit);
   const back = historyTarget(history, -1, validVisit), forward = historyTarget(history, 1, validVisit);
   const travel = (cursor: number | null) => {
@@ -770,8 +816,8 @@ export function App() {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1524,6 +1570,13 @@ export function App() {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
     setArrival({ focus, seq: ++panelArrivals.current });
   }
+  // The other worktree notice's Open (DESIGN 'Terminal work in another worktree'): the terminal slot's path to W's same canvas,
+  // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
+  const onOpenSibling = (root: string) => {
+    if (!state.open) return;
+    controller.current?.cancelPick();
+    openNotice({ root, path: state.open.canvas });
+  };
   // The work capsule's Open while the agent waits for an answer (design §2): the panel shows that conversation, scrolled
   // to its request with focus on the first choice.
   const openRequest = () => {
@@ -1637,8 +1690,8 @@ export function App() {
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
-      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work,
-        onOpen: openRequest, onStopFailed: text => toast.show(text) }}
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
+        onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
       picking={picking} tool={state.tool} onTool={tool => controller.current?.setTool(tool)} add={{ enabled: addReady, reason: canvasPageShown && !pickerReady ? pickerView.reason : null, onAdd: addSelection }} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
@@ -1716,7 +1769,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; onOpen(): void; onStopFailed(text: string): void };
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
 function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, add }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
@@ -1764,9 +1817,6 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
     <div className="drag-layer" ref={dragLayer} hidden />
     {/* The agent notice comes first, the canvas notices stack under it (design §2 '겹침 순서', 'Esc와 포커스'). */}
     <CanvasAgent {...agent}>
-      {/* The picking hint sits right under the agent notice (design §2 'Picker' accessibility). */}
-      {picking && <div className="doan-agent doan-picking" role="status"><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
-        <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
       {state.error && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
       {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
     </CanvasAgent>
@@ -1776,7 +1826,13 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
-    <div className="doan-canvas-bottom"><CanvasTools tool={tool} onTool={onTool} add={add} /></div>
+    {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their
+        coming and going never moves it (DESIGN 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}
+    <div className="doan-canvas-bottom">
+      {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
+        <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
+      <CanvasTools tool={tool} onTool={onTool} add={add} />
+    </div>
     </section>
   </div>;
 }

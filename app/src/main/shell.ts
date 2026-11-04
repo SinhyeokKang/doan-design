@@ -1,11 +1,12 @@
 import type { ResponseRecord } from "./comments/document";
 import { realpath, stat } from "node:fs/promises";
 import { join } from "node:path";
+import { pruneAuto } from "./autoFolders";
 import { readFolder, runLs, runInit } from "./cli";
 import { replaceAt } from "./folders";
 import { openFolderStore } from "./folderStore";
 import { classifyDesignChange } from "./designChange";
-import { folderState, initOutcome, reconcileFolders, type InitOutcome } from "./folderState";
+import { folderState, initOutcome, reconcileFolders, type FolderState, type InitOutcome } from "./folderState";
 import { startServer, type LocalServer } from "./serve/server";
 import { folderEntry, openDecision, type FolderEntry } from "./view";
 import { watchFolder, type Change, type FolderWatch } from "./watch";
@@ -26,8 +27,13 @@ export interface Shell {
   initialize(path: string, tokenCss: string | null): Promise<ProjectInitResult>;
   reopen(path: string): Promise<void>;
   // Stores roots main already judged, after the stored ones; resolves to the
-  // paths that were not stored yet.
+  // paths that were not stored yet. A given root already stored becomes hand-added.
   store(paths: readonly string[]): Promise<string[]>;
+  // Registers a worktree for a terminal agent's work signal (ARCHITECTURE §4 'Auto-registration'), listed at once
+  // from `view` (its `doan ls`) so it never shows as a loading row of its own. The caller has judged it with
+  // `autoRegisterRoot`. Publishes the list synchronously, with no focus: nothing on screen moves. False when the
+  // root is already stored.
+  adopt(root: string, view: Extract<FolderState, { kind: "list" }>): boolean;
   // Resolves to the stored paths it removed, in stored order.
   remove(paths: readonly string[]): Promise<{ paths: string[] }>;
   // Locate: `to` takes `from`'s place, or only `from` goes when `to` is stored.
@@ -76,9 +82,16 @@ function sameScope(a: readonly string[], b: readonly string[]): boolean {
 }
 
 // Electron-free on purpose: the window, dialog and IPC live in index.ts.
-export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, documents?: { response(record: ResponseRecord): void }): Promise<Shell> {
+// `autoRemoved` runs when a vanished auto-registered root left the list on its own, before the list goes out, so main
+// clears what it keeps for that root as on Remove; `before` is the list before the removal.
+export interface ShellHooks {
+  response?(record: ResponseRecord): void;
+  autoRemoved?(paths: string[], before: FolderEntry[]): void;
+}
+
+export async function startShell(foldersFile: string, cli: string, onChange: (entries: FolderEntry[], focus?: FolderFocus) => void, hooks?: ShellHooks): Promise<Shell> {
   const store = await openFolderStore(foldersFile);
-  const server: LocalServer = await startServer(documents?.response);
+  const server: LocalServer = await startServer(hooks?.response);
   // Insertion order is folders.json order, which is the order the human opened them.
   let nextEpoch = 0;
   const folders = new Map<string, Folder>();
@@ -106,13 +119,33 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     const read = ++folder.reads;
     let view = await readFolder(cli, folder.path);
     if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
-    if (view.kind === "uninitialized") {
+    if (view.kind === "notFound") {
+      // A vanished auto-registered root leaves quietly instead of showing as missing (design §2.3). No focus: the
+      // renderer moves off it on its own.
+      const next = pruneAuto(store.list(), store.auto(), new Map([[folder.path, view.code]]));
+      if (!next.includes(folder.path)) {
+        const before = entries();
+        detach(folder);
+        const write = store.replace(next);
+        hooks?.autoRemoved?.([folder.path], before);
+        onChange(entries());
+        logWrite(await write);
+        return false;
+      }
+    }
+    // An auto-registered root stays uninitialized for the renderer to hide (design §3.3): an upward re-root would make
+    // a parent the person never added hand-added and move focus to it (design §2.4, POSTMORTEM 2026-11-03).
+    if (view.kind === "uninitialized" && !store.auto().includes(folder.path)) {
       view = folderState(await runLs(cli, { cwd: folder.path }));
       if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
       if (view.kind === "list" && view.root !== folder.path) {
         const next = reconcileFolders(store.list(), folder.path, view);
         detach(folder);
-        if (!folders.has(view.root)) add(view.root);
+        // The new root is hand-added (design §2.2), even over a mark an interrupted write left.
+        if (!folders.has(view.root)) {
+          void store.claim(view.root).then(logWrite);
+          add(view.root);
+        }
         // Keep the surviving root's watcher and server key when merging rows.
         const ordered = next.folders.map(path => folders.get(path));
         folders.clear();
@@ -141,7 +174,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       folder.servedRev++;
     }
     folder.watch?.setScope(scope);
-    folder.entry = withCommon(folder, withRevs(folder, folderEntry(folder.path, view, baseUrl(folder.key), folder.servedRev, mtimes)));
+    folder.entry = withAuto(withCommon(folder, withRevs(folder, folderEntry(folder.path, view, baseUrl(folder.key), folder.servedRev, mtimes))));
     if (view.kind === "notFound") {
       // A watcher on a deleted root is dead and is never re-armed (watch.ts);
       // opening the folder again attaches a fresh one.
@@ -158,12 +191,13 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     void refresh(folder, { reread: true, served: false });
   };
 
-  const add = (path: string): Folder => {
+  // Without `read` the folder starts loading and is read; with it the folder is listed from that `doan ls` at once.
+  const add = (path: string, read?: Extract<FolderState, { kind: "list" }>): Folder => {
     const folder: Folder = {
       path,
       epoch: ++nextEpoch,
       key: server.addFolder({ root: path, scope: [] }),
-      entry: { path, kind: "loading" },
+      entry: withAuto({ path, kind: "loading" }),
       watch: undefined,
       reads: 0,
       servedRev: 0,
@@ -172,8 +206,40 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       common: undefined,
     };
     folders.set(path, folder);
+    if (read) {
+      folder.scope = read.scope;
+      server.updateFolder(folder.key, { root: path, scope: read.scope });
+      if (read.git) folder.common = read.git.common;
+      folder.entry = withAuto(withCommon(folder, folderEntry(path, read, baseUrl(folder.key), folder.servedRev)));
+    }
+    // A listed entry stays listed while this re-read fills in the mtimes.
     attach(folder);
     return folder;
+  };
+
+  const withAuto = (entry: FolderEntry): FolderEntry => {
+    if (store.auto().includes(entry.path)) return entry.autoRegistered ? entry : { ...entry, autoRegistered: true };
+    if (!entry.autoRegistered) return entry;
+    const next = { ...entry };
+    delete next.autoRegistered;
+    return next;
+  };
+
+  // The human added or pointed at these roots by hand. Queued before any list write that follows, so the mark is
+  // gone before folders.json lists the root. True when a stored entry lost its flag.
+  const claim = (paths: readonly string[]): boolean => {
+    let changed = false;
+    for (const path of paths) {
+      void store.claim(path).then(logWrite);
+      const folder = folders.get(path);
+      if (!folder) continue;
+      const entry = withAuto(folder.entry);
+      if (entry !== folder.entry) {
+        folder.entry = entry;
+        changed = true;
+      }
+    }
+    return changed;
   };
 
   const withCommon = (folder: Folder, entry: FolderEntry): FolderEntry =>
@@ -226,6 +292,7 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       if ("refuse" in decision) return { refused: decision.refuse };
       const path = decision.store;
       const existing = folders.get(path);
+      if (claim([path])) onChange(entries());
       if (existing) {
         attach(existing);
         return { root: path };
@@ -261,13 +328,17 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       const folder = folders.get(path);
       if (!folder) return;
       folder.epoch = ++nextEpoch;
-      folder.entry = withCommon(folder, { path, kind: "loading" });
+      folder.entry = withAuto(withCommon(folder, { path, kind: "loading" }));
       onChange(entries());
       attach(folder);
     },
     async store(paths) {
+      const claimed = claim(paths);
       const added = [...new Set(paths)].filter((path) => !folders.has(path));
-      if (added.length === 0) return [];
+      if (added.length === 0) {
+        if (claimed) onChange(entries());
+        return [];
+      }
       for (const path of added) add(path);
       const write = store.replace([...store.list(), ...added]);
       onChange(entries());
@@ -290,7 +361,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
     async replace(from, to) {
       const folder = folders.get(from);
       if (!folder) return;
+      const claimed = claim([to]);
       if (from === to) {
+        if (claimed) onChange(entries());
         attach(folder);
         return;
       }
@@ -303,6 +376,15 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
       // workspace follow it, where a bare list would show the old root vanishing.
       onChange(entries(), { from, root: to });
       logWrite(await write);
+    },
+    adopt(root, view) {
+      if (folders.has(root)) return false;
+      // The mark is written before the list (folderStore), so a stop between them never leaves a hand-added root.
+      const write = store.adopt(root);
+      add(root, view);
+      onChange(entries());
+      void write.then(logWrite);
+      return true;
     },
     rereadAll() {
       for (const folder of folders.values()) {

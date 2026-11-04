@@ -1189,6 +1189,23 @@ it("forgets navigation memory when a project is removed and added again", () => 
   } finally { h.controller.dispose(); }
 });
 
+// A restart: reads an auto-registered worktree as `loading`, and App hides it meanwhile. Hidden
+// is not removed: its remembered canvas stays while main still lists it (R2 review 🟡1).
+it("keeps the memory of a root hidden from the shown list while main still lists it", () => {
+  const h = selectionHarness();
+  try {
+    const repo: FolderEntry = { path: "/repo", kind: "list", servedRev: 0, canvases: [h.row, h.other] };
+    const other: FolderEntry = { path: "/other", kind: "list", servedRev: 0, canvases: [] };
+    const view = { scale: 0.5, x: 12, y: -40 };
+    h.controller.remember("/repo", { canvas: h.other.path, view });
+    h.controller.updateEntries([other], [other, { path: "/repo", kind: "loading", autoRegistered: true }]);
+    h.controller.updateEntries([other, repo]);
+    expect(h.controller.memory()["/repo"]).toEqual({ canvas: h.other.path, view });
+    h.controller.openWorkspace("/repo", () => {});
+    expect(h.state().open.canvas).toBe(h.other.path);
+  } finally { h.controller.dispose(); }
+});
+
 it("reports the open canvas leaving its folder's list, but not a closed project", () => {
   const h = selectionHarness();
   try {

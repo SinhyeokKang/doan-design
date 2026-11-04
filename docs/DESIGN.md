@@ -658,7 +658,7 @@ Reference: `.doan/canvases/buzz-canvas-conversation.html` (15 frames; `panel-sta
 | Not found note | "No longer in the canvas": caption 12/16 `--text-metadata`, `role="status"`, and the chip's `aria-describedby` while it shows; under the bubble for a sent chip, 6 px under the reply block for an agent reply's chip, and for a composer chip an overlay 4 px under that chip, start-aligned with it, outside the field | The field's DOM is never touched. |
 | Docked composer | The shipped docked composer (Project Overview) in a 12 px foot: capsule while empty or one line of plain text; any chip — attachment, preset or anchor — makes the box (padding 16 / 12 / 12 / 16, radius 24). The capsule's placeholder is one line ending in an ellipsis | A chip in the capsule would clip in the 320–347 px panel. |
 | Pick from canvas | 24 px xs icon button at the start of the model row (`margin-right: auto`), `--text-subtle`; pressed: `--affordance-backdrop-pressed` and `--text-standard`; unavailable: `aria-disabled`, `--text-disabled`, pointer cursor (its tooltip names the reason) | |
-| Picking hint | The agent notice's capsule: 40 high (`--size-control`, the agent notice's height), padding 4 / 8 / 4 / 16, gap 8, 60 % prominent with blur; wording 14/20 white; the shared `on-prominent` Esc key (28 high, padding 4 / 8, 16 % white fill, white, no ring); hidden "Press Escape to cancel"; `role="status"`; under the agent notice when both show. The board shows a crosshair; the panel keeps its own cursors | |
+| Picking hint | The agent notice's capsule: 40 high (`--size-control`, the agent notice's height), padding 4 / 8 / 4 / 16, gap 8, 60 % prominent with blur; wording 14/20 white; the shared `on-prominent` Esc key (28 high, padding 4 / 8, 16 % white fill, white, no ring); hidden "Press Escape to cancel"; `role="status"`. It leads with the composer pick button's Crosshair (14 px, 8 before the text) and sits 8 above the Canvas tools row in the board's bottom column, so the agent notices in the top column never move it ('Terminal work in another worktree'). The board shows a crosshair; the panel keeps its own cursors | Picking is a mode the person turned on; its hint stays by the tools that switch modes. |
 | Tools row | Select, Hand, then Add to conversation (40 px): disabled is `aria-disabled` with a not-allowed cursor and no hover or pressed fill, so its reason tooltip still shows (tooltip: 24 high, padding 4 / 8, radius 12, black, caption white; Select and Hand name their key) | |
 | Terminal session | Choice cards above the composer (`ob-choice-list cp-resume`, margin-bottom 4); the model and effort triggers keep their size without chevrons; Attach is `aria-disabled` in `--text-disabled` with a not-allowed cursor. While that session works in a terminal the choice is held: 'Terminal agent activity' | The same triggers, not interactive. |
 | Suggestions | sm `quiet` buttons as on Home and the Overview (32 high, padding 6 / 16, gap 6, 14 px accent icon), re-measured on `panel-new`. They show only in the plain new state, not beside a terminal session choice (`CanvasConversationPanel.tsx`) | |
@@ -735,7 +735,7 @@ Reference: `.doan/canvases/terminal-agent-activity.html` (`terminal-notice`, `si
 |---|---|---|
 | Terminal notice | `.doan-agent.doan-agent-terminal` in the top column: the agent notice's pill, 40 high, padding 4 / 16 / 4 / 16, gap 8, 60 % prominent with a 16 px blur and `--shadow-sm`; the 8 px accent dot and "Agent is working" (body-sm 14/20 white) as the app notice; no button. `role="status"` is on the text | Without Stop the pill keeps the app notice's height and takes an even inline padding. |
 | App notice beside it | The app conversation's notice is unchanged (40 high, padding 4 / 4 / 4 / 16, sm Stop 32 high) and wins over the terminal notice on the same canvas | Equal to the draft's comparison tile. |
-| Picking hint | 40 high under the terminal notice; the top column is 88 high with both (gap 8). The board's crosshair cursor reaches the notices | See 'Canvas conversation panel'. |
+| Picking hint | In the bottom column above Canvas tools, not under the terminal notice, so the top column holds the notice alone while picking (code and `CanvasAgent.test.tsx` 'the picking hint sits in the bottom column…'; not re-measured with the terminal notice). The board's crosshair cursor reaches the notices | See 'Canvas conversation panel'. |
 | Glow | The shipped glow (inset 12 px accent 85 % and 36 px accent 50 %) on the canvas panel | Unchanged; the draft draws it on tiles. |
 | Sidebar slot | The shipped working slot: 16 × 16 `.row-slot.working` with a 14 px spinner (2 px ring), `role="img"`. On a canvas row it is the last item, 10 from the row's end (the row's padding), 8 from the 32 px row's top; on a folded project row it sits after the branch chip and 4 before the 32 px menu button. Names: "Codex is working in a terminal", "Claude Code is working in a terminal", "An agent is working in a terminal" (read through CDP; the anonymous tile was checked by name only) | A terminal session differs from an app conversation only in the name. |
 | Held terminal choice | `.ob-choice[data-disabled]`: the shipped white card (padding 16, gap 12, radius 24, panel shadow), default cursor; radio 16 px `--surface-inset` fill with a 1 px `--border-standard` ring; title 14/20 500 in `--text-disabled` (rgb(149,149,149)); the reason "Still working in your terminal. You can continue it when it finishes." caption 12/16 in `--text-subtle` (rgb(82,82,82)) in place of the "Linked by doan check" line. The input is disabled and `aria-describedby` points at the reason. Start a new conversation is checked | |
@@ -755,6 +755,38 @@ Reference: `.doan/canvases/terminal-agent-activity.html` (`terminal-notice`, `si
 ### Regression pointers
 
 `CanvasAgent.test.tsx` ('a terminal session: …', 'the agent notices and the picking hint are 40px tall…'), `agentIndicator.test.ts`, `conversationList.test.ts`, `ShellSidebar.interaction.test.tsx`, `CanvasConversationPanel.test.tsx` ('a terminal session still working holds its choice…'), `canvasConversation.test.ts`, `App.terminalWork.test.tsx` ('a refused link shows one toast…'). Geometry and colours above are `.scratch/` probes only.
+
+## Terminal work in another worktree
+
+Reference: `.doan/canvases/terminal-work-worktrees.html` (`sibling-notice`, `picking-hint`). Measured by `/design-sync` (`.scratch/design-sync/terminal-work-worktrees/measure.ts`) in the built app at 1280 × 800 against the draft read in the app's canvas iframe: 156 rows over 5 states (the notice for a short branch, a long branch with its tooltip, a detached worktree, picking alone; Open's hover on the app side only). The notice was real: worktrees of a temp repo made with `git worktree add`, registered by the built CLI's `doan work start` against the isolated app's `DOAN_RUNTIME`. The dots' breathing animation was cancelled on both sides before reading boxes. Roles and names were read through CDP.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Notice | `.doan-agent.doan-agent-sibling` in the top column: the app notice's pill (40 high, padding 4 / 4 / 4 / 16, gap 8, 60 % prominent with a 16 px blur and `--shadow-sm`), the 8 px accent dot (16 from the start, 8 before the text), "Agent is working in <label>" (body-sm 14/20 white, `role="status"`), and an sm Open (32 high, padding 6 / 16, 16 % white fill, 4 from the end, 8 after the text; 26 % on hover, read in the app only). No glow or dot field on the board. 362.6 wide for `feat/checkout-copy`; capped at 420 | Equal to the draft at rest. Open is named "Open this canvas in <label>". |
+| Long label | The text ellipsizes (308.8 of the 420 pill); Open's name keeps the whole label | |
+| Tooltip | On the text: the shared tooltip (caption 12/16 white on black, padding 4 / 8, radius 12, at most 384 wide; the full sentence "Agent is working on this canvas in <label>" wraps to two lines, 40 high). It opens below, 4 under the pill (`side="bottom"`, `sideOffset` 14 from the text) | Radix's default side put the two-line tooltip above the pill, across the board's top edge into the canvas header (runtime probe before the fix; screenshot `.scratch/runtime-test/terminal-work-worktrees/03-picking-with-sibling.png`). |
+| No branch | A detached worktree is named by its folder ("Agent is working in checkout-spike") | |
+| Picking hint | `.doan-canvas-bottom` column (gap 8, `width: max-content`, at most the board less 2 × 12): the hint (399.7 × 40, padding 4 / 8 / 4 / 16, gap 8) sits 8 above Canvas tools (134 × 50), centred on them. The Crosshair is 14 × 14, stroke 2, white, 16 from the hint's start and 8 before the text. Esc is the shared `on-prominent` key (38.8 × 28, padding 4 / 8, 16 % white fill, white) | The hint stays put when an agent notice comes or goes (runtime probe: equal boxes before, without and after the notice). |
+| Bottom column | `pointer-events: none` with its children `auto` | The column is as wide as the hint while picking; without it the strips beside Canvas tools swallowed the clicks that pick (runtime probe: a click there picks). |
+
+### Documented deviations from the draft
+
+- **Tooltip centre.** The tooltip centres on its trigger, the text, so it sits 24 left of the pill's centre (the draft centres it under the pill, where its comment says Radix would place it). A Radix tooltip has no anchor other than its trigger, and the text, not the pill, carries the tooltip (design §3.1): a pill trigger would also open it over Open.
+- **Esc key.** The draft draws the hint's Esc as a plain `.doan-kbd` (light fill, rgb(245,245,246), grey ink) with a `doan-picking-esc` class it defines no rule for, while its caption and design §3.6 keep the hint's Esc unchanged: the draft copied older markup (the hint already used `on-prominent` at the commit it names). The app keeps the shipped `on-prominent` key ('Canvas conversation panel').
+- **Bottom column pointer events.** The draft's column takes pointer events; the app's lets them through (above).
+- Context, not deviations: the draft's tile boards against the app's board (the notice and hint keep their sizes; only their position on the board differs), and fixture copy.
+
+### Not verified
+
+- Open's focus ring and pressed fill (the draft draws neither); Open's hover in the draft (its rule says 26 %, but its frame takes the pointer on the board, so it was not hovered).
+- Picking while an app conversation works (the draft's `pick-agent` tile): no agent signs in in an isolated app. The hint with the other-worktree notice (`pick-sibling`) was checked for position only, by the runtime probe.
+- A narrow board, where the hint's text ellipsizes; dark mode and forced colours.
+
+### Regression pointers
+
+`CanvasAgent.hooks.test.tsx` ('the tooltip opens under the notice, clear of the capsule', 'Open opens that worktree…'), `CanvasAgent.test.tsx` ('another worktree's work on this path', 'the picking hint sits in the bottom column…'), `agentIndicator.test.ts` (`siblingWork`). Geometry and colours above are `.scratch/` probes only (`.scratch/design-sync/terminal-work-worktrees/`, `.scratch/runtime-test/terminal-work-worktrees/`).
 
 ## Permission mode picker
 

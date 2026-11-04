@@ -344,8 +344,10 @@ export class CanvasController {
     return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title]), layout?.truncated, status, shown, unlisted]);
   }
 
-  updateEntries(next: FolderEntry[]): void {
-    this.applyEntries(next);
+  // `listed` is main's list before App hides rows (PRODUCT §5 item 1): a hidden root keeps its
+  // remembered canvas, since a restart reads an auto-registered worktree as `loading` and only then shows it.
+  updateEntries(next: FolderEntry[], listed: readonly FolderEntry[] = next): void {
+    this.applyEntries(next, listed);
     // After the open canvas has followed this update, so the entered workspace
     // starts from the new list rather than being diffed against the old one.
     const waiting = this.waitingWorkspace;
@@ -357,9 +359,9 @@ export class CanvasController {
     }
   }
 
-  private applyEntries(next: FolderEntry[]): void {
+  private applyEntries(next: FolderEntry[], listed: readonly FolderEntry[]): void {
     for (const root of this.workspaceMemory.keys()) {
-      if (!next.some(entry => entry.path === root)) this.workspaceMemory.delete(root);
+      if (!listed.some(entry => entry.path === root)) this.workspaceMemory.delete(root);
     }
     const prev = this.entries;
     this.entries = next;

@@ -1,3 +1,4 @@
+import type { FolderEntry } from "../main/view";
 import type { ShellProject } from "../restore/uiState";
 
 const hues = ["rose", "orange", "amber", "emerald", "teal", "sky", "indigo", "fuchsia"] as const;
@@ -23,6 +24,21 @@ export function commitVisit(history: History, visit: Visit): History {
 export function historyTarget(history: History, direction: -1 | 1, valid: (visit: Visit) => boolean): number | null {
   for (let index = history.cursor + direction; index >= 0 && index < history.visits.length; index += direction) if (valid(history.visits[index]!)) return index;
   return null;
+}
+// Where to go when the auto-registered worktree being shown vanishes or hides (PRODUCT §5 item 1): the worktree
+// selected before it, else the group's main checkout, else its first list root; there, the same canvas when that worktree lists it, else
+// its Overview. `rows` are the group's rows as the sidebar shows them; `gone` may already be out of them. null: nothing in the group is left to go to.
+export function fallbackWorktree(rows: readonly FolderEntry[], gone: string, previous: string | null, path: string | null): Visit | null {
+  const others = rows.filter(row => row.path !== gone);
+  const main = others.flatMap(row => row.kind === "list" && row.git?.main !== undefined ? [row.git.main] : [])[0];
+  const to = others.find(row => row.path === previous) ?? others.find(row => row.path === main) ?? others.find(row => row.kind === "list");
+  if (!to) return null;
+  return path !== null && to.kind === "list" && to.canvases.some(row => row.path === path) ? { root: to.path, canvas: path } : { root: to.path };
+}
+// An auto-registered worktree shows only while it is a list (PRODUCT §5 item 1): unread, it would be a
+// problem row whose only way out is the whole group's Remove from Doan. A hand-added worktree keeps its problem rows.
+export function shownFolders(entries: readonly FolderEntry[]): FolderEntry[] {
+  return entries.filter(entry => entry.autoRegistered !== true || entry.kind === "list");
 }
 export interface ShellActivity { root: string; at?: number; incomplete: boolean }
 export function selectProjectRoot(project: ShellProject, activity: readonly ShellActivity[], loaded: string | null): string | undefined {

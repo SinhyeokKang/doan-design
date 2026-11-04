@@ -8,6 +8,7 @@ import type { OnboardingResponse, OpenRequest, OpenResponse } from "../formats/t
 import { validateOpenResponse } from "../formats/validate";
 import { OPEN_ANSWER_TIMEOUT_MS, openRequests, type OpenAsk, type OpenRequestsHost } from "./deepLinks";
 import { answerLine, LINE_WAIT_MS, startRuntime, type Runtime } from "./runtime";
+import type { FolderState } from "./folderState";
 
 // canvas-open-offer T5: app-socket v4 (`doan open`), main's half. answerLine checks schema, token and registered root
 // in the v3 order; openRequests (deepLinks.ts) then answers readiness and the list itself and asks the renderer, by id,
@@ -19,6 +20,7 @@ const state = (open: (request: OpenRequest) => Promise<OpenResponse> = async () 
   isOpen: vi.fn((value: string) => value === root), selection: vi.fn(() => null), work: vi.fn(),
   onboarding: vi.fn(async (): Promise<OnboardingResponse> => ({ v: 2, ok: false, error: { code: "bad_request", message: "unused" } })),
   open: vi.fn(open),
+  roots: () => [root], readRoot: vi.fn(async (): Promise<FolderState> => ({ kind: "uninitialized" })), adopt: vi.fn(),
 });
 
 test("v4 validates schema, then token, then registered root, before the open handler runs", async () => {

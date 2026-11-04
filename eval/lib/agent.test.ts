@@ -3,21 +3,52 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { setTimeout as sleep } from "node:timers/promises";
 import { join } from "node:path";
 import { test } from "node:test";
-import { agentCommand, runProcess, readAgentTranscript } from "./agent.ts";
+import { agentCommand, registeredCodexMcpServers, runProcess, readAgentTranscript } from "./agent.ts";
 import { buildJudgePrompt } from "./judge.ts";
 import { createContext } from "./context.ts";
 
 test("agent commands match the documented invocations", () => {
   assert.deepEqual(agentCommand("claude", "P"), { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", "P"] });
-  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "mcp_servers.doan.enabled=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P"), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", "P"] });
+  assert.deepEqual(agentCommand("codex", "P", ["figma", "doan"]), { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", "-c", "mcp_servers.doan.enabled=false", "P"] });
 });
 
 // Claude has --strict-mcp-config; Codex has no equivalent and merges `-c mcp_servers={}` into the
-// machine's servers, so a doan server left registered there is switched off by name.
+// machine's servers, so a doan server left registered there is switched off by name. Codex 0.166
+// refuses to start when that override names a server the config does not define (the override
+// alone makes a table without a transport), so it is added only for a registered server.
 test("neither agent loads a doan MCP server from the machine's config", () => {
   assert.ok(agentCommand("claude", "P").args.includes("--strict-mcp-config"));
-  assert.ok(agentCommand("codex", "P").args.includes("mcp_servers.doan.enabled=false"));
-  for (const agent of ["claude", "codex"] as const) assert.ok(!agentCommand(agent, "P").args.some(arg => /mcp__doan|^--mcp-config$|mcp_servers\.doan\.(command|args|env)/.test(arg)), agent);
+  assert.ok(agentCommand("codex", "P", ["doan"]).args.includes("mcp_servers.doan.enabled=false"));
+  for (const agent of ["claude", "codex"] as const) assert.ok(!agentCommand(agent, "P", ["doan"]).args.some(arg => /mcp__doan|^--mcp-config$|mcp_servers\.doan\.(command|args|env)/.test(arg)), agent);
+});
+
+test("Codex gets no doan MCP override when the machine registers no doan server", () => {
+  assert.ok(!agentCommand("codex", "P").args.some(arg => arg.startsWith("mcp_servers")));
+  assert.ok(!agentCommand("codex", "P", ["figma", "doan-extra"]).args.some(arg => arg.startsWith("mcp_servers")));
+});
+
+test("registered Codex MCP servers are read from `codex mcp list --json` in the run's environment", () => {
+  const dir = mkdtempSync("/tmp/doan-eval-test-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    // Prints the server names found in FAKE_CODEX_SERVERS so the test controls the machine's config.
+    writeFileSync(join(bin, "codex"), '#!/bin/sh\n[ "$1 $2 $3" = "mcp list --json" ] || exit 2\necho "$FAKE_CODEX_SERVERS"\n', { mode: 0o755 });
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+    assert.deepEqual(registeredCodexMcpServers({ ...env, FAKE_CODEX_SERVERS: '[{"name":"figma","enabled":true},{"name":"doan","enabled":false}]' }, dir), ["figma", "doan"]);
+    assert.deepEqual(registeredCodexMcpServers({ ...env, FAKE_CODEX_SERVERS: "[]" }, dir), []);
+    // A list that cannot be read must stop the run: guessing could load a doan server.
+    assert.throws(() => registeredCodexMcpServers({ ...env, FAKE_CODEX_SERVERS: "not json" }, dir), /Codex MCP server list/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A login shell re-reads the user's profile, which puts the installed ~/.local/bin ahead of the
+// run's bin directory (the snapshot pin alone no longer keeps the run's PATH with Codex 0.166).
+test("Codex runs commands in a non-login shell so the run's PATH survives", () => {
+  assert.ok(agentCommand("codex", "P").args.includes("allow_login_shell=false"));
 });
 
 test("Codex never asks for approval, whatever the machine's own config says", () => {

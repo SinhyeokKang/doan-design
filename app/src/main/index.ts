@@ -614,7 +614,15 @@ async function start(): Promise<void> {
     thumbnails?.entriesChanged(entries);
     if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send("folders", seenStore.apply(entries), focus);
     readyOpenLinks();
-  }, { response: record => documents.response(record) });
+  }, {
+    response: record => documents.response(record),
+    // A vanished auto-registered worktree is cleaned up like Remove (folders:remove); its work items go with the
+    // list's retainWorkRoots above.
+    autoRemoved(paths, before) {
+      if (selection && paths.includes(selection.root)) selection = null;
+      void thumbnails?.removed(paths, before);
+    },
+  });
   shell = ready;
   updateWork(retainWorkRoots(workState, ready.entries().map(entry => entry.path)));
   handle("work:get", [], (_event, value: unknown) => value === undefined ? workItems(workState) : []);
@@ -674,6 +682,12 @@ async function start(): Promise<void> {
   runtime = await startRuntime(userData, {
     isOpen, selection: () => selection,
     work(request) { updateWork(applyWork(workState, request, Date.now())); },
+    roots: () => ready.entries().map(entry => entry.path),
+    // Only runLs's default 10 s timeout applies, not the answer deadline: a start past it still registers
+    // (runtime.ts AUTO_REGISTER_WAIT_MS).
+    readRoot: async root => folderState(await runLs(cli, { repo: root })),
+    // The shell publishes the list synchronously, so the work state holds the root before the start's work applies.
+    adopt(root, view) { ready.adopt(root, view); },
     open: request => openCanvasRequests.open(request),
     async onboarding(request) {
       const service = await onboardingStarted;
@@ -728,6 +742,8 @@ async function start(): Promise<void> {
       const flow = addFlow;
       if (!flow) return null;
       const outcome = await flow.add(path);
+      // A duplicate may be an auto-registered worktree; choosing it by hand makes it hand-added.
+      if (outcome.duplicate) await ready.store([outcome.duplicate]);
       const stored = outcome.added[0] ?? outcome.duplicate;
       if (stored) return stored;
       const confirm = outcome.confirm;
