@@ -657,6 +657,8 @@ export function App() {
     if (entries.some(entry => entry.kind === "loading")) return;
     setShellProjects(previous => {
       const next = reconcileProjects(previous, cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
+      // A hand fold lasts only while its project stays loaded, so entering it again by any path shows it unfolded.
+      for (const [key, project] of Object.entries(next)) if (project.collapsed && !(loadedRoot && project.roots.includes(loadedRoot))) { const { collapsed: _, ...rest } = project; next[key] = rest; }
       if (loadedRoot && card && next[card.key]?.selectedRoot !== loadedRoot) {
         const project = next[card.key]!;
         next[card.key] = { roots: project.roots, expanded: project.expanded, selectedRoot: loadedRoot, ...(project.collapsed ? { collapsed: true } : {}), ...(project.groups ? { groups: project.groups } : {}) };
