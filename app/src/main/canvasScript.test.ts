@@ -1208,6 +1208,37 @@ describe("canvasScript selection input", () => {
     expect(ofType(canvas, "select")).toEqual([]);
   });
 
+  // A nested iframe has no script of ours, so a press in it shows only as focus moving into it: that is the press the
+  // app's preset lists close on, sent before the selection or pick it leads to, with or without ⌥.
+  test("focus moving into a nested iframe posts a press before its selection or pick, ⌥ included", () => {
+    const types = (canvas: { posted: unknown[] }) => messages(canvas).map(message => message.type).filter(type => type === "press" || type === "select" || type === "picked");
+    const nested = node("iframe");
+    const canvas = fakeCanvas({ readyState: "interactive", body: node("body", {}, [nested]) });
+    canvas.document.activeElement = nested;
+    canvas.fireWindow("blur", {});
+    canvas.advance(0);
+    expect(types(canvas)).toEqual(["press", "select"]);
+    const alt = fakeCanvas({ readyState: "interactive", body: node("body", {}, [node("iframe")]) });
+    const inner = (alt.document as unknown as { body: { children: unknown[] } }).body.children[0];
+    alt.fireWindow("pointermove", input({ target: inner, altKey: true }));
+    alt.document.activeElement = inner;
+    alt.fireWindow("blur", {});
+    alt.advance(0);
+    expect(types(alt)).toEqual(["press"]);
+    const frame = node("section", { "data-doan-frame": "embed" }, [node("iframe")]);
+    const picking = fakeCanvas({ readyState: "interactive", body: node("body", {}, [frame]) });
+    startPick(picking, 1);
+    picking.document.activeElement = (frame as unknown as { children: unknown[] }).children[0];
+    picking.fireWindow("blur", {});
+    picking.advance(0);
+    expect(types(picking)).toEqual(["press", "picked"]);
+    // Focus leaving for anything else is not a press.
+    const away = fakeCanvas({ readyState: "interactive", body: node("body", {}, [node("p")]) });
+    away.fireWindow("blur", {});
+    away.advance(0);
+    expect(types(away)).toEqual([]);
+  });
+
   test("carries the frame id but no index for a frame past the 1,000 listed", () => {
     const inner = node("p");
     const frames = Array.from({ length: 1001 }, (_, i) => node("div", { "data-doan-frame": `f${i}` }, i === 1000 ? [inner] : []));
