@@ -417,7 +417,7 @@ test("the URL dialog and the Remove alert use default-size actions", async () =>
   await settle();
   click(all(tree).find(element => element.props["data-mcp-add"] === ""));
   render();
-  const actions = () => all(tree).filter(element => element.type === "button" && all(tree).some(d => d.type === "dialog" && all(d.props.children as ReactNode).includes(element)));
+  const actions = () => all(all(tree).find(element => element.type === "dialog")!.props.children as ReactNode).filter(element => element.type === "button");
   expect(actions().map(button => [words(button.props.children), button.props["data-ui-size"]])).toEqual([["Cancel", undefined], ["Add", undefined]]);
   click(actions()[0]);
   render();

@@ -239,8 +239,9 @@ function AddServerDialog({ dialog, change, submit, close }: { dialog: Extract<Di
         aria-invalid={dialog.error ? true : undefined} aria-describedby={dialog.error ? "mcp-add-error" : undefined} onChange={event => change(event.target.value)} />
       {dialog.error && <p className="settings-msg error mcp-field-error" role="alert" id="mcp-add-error"><AlertIcon /><span>{dialog.error}</span></p>}
       <div className="doan-dialog-actions">
-        <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" onClick={close}>Cancel</button>
-        <button type="submit" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" disabled={!dialog.value.trim() || dialog.busy}>Add</button>
+        {/* Default-size actions, as the compact dialogs are drawn (40px); Settings' row buttons stay sm. */}
+        <button type="button" className="doan-button" data-ui-variant="subtle" onClick={close}>Cancel</button>
+        <button type="submit" className="doan-button" data-ui-variant="prominent" disabled={!dialog.value.trim() || dialog.busy}>Add</button>
       </div>
     </form>
   </dialog>;
@@ -253,8 +254,8 @@ function RemoveAlert({ label, confirm, close }: { label: string; confirm(): void
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="mcp-remove-title">{`Remove ${label} from Doan’s agents?`}</h3>
       <p className="doan-dialog-description" id="mcp-remove-body">Claude Code and Codex disconnect from it. Your terminal setup is not changed.</p></div></div>
     <div className="doan-dialog-actions">
-      <button type="button" className="doan-button" data-ui-variant="subtle" data-ui-size="sm" autoFocus onClick={close}>Cancel</button>
-      <button type="button" className="doan-button" data-ui-variant="prominent" data-ui-size="sm" data-consent="" onClick={confirm}>Remove</button>
+      <button type="button" className="doan-button" data-ui-variant="subtle" autoFocus onClick={close}>Cancel</button>
+      <button type="button" className="doan-button" data-ui-variant="prominent" data-consent="" onClick={confirm}>Remove</button>
     </div>
   </dialog>;
 }
