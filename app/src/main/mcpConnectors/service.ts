@@ -130,7 +130,7 @@ export class McpService implements McpConversationFacts {
     const read = this.options.store.connectors();
     const servers = this.servers();
     const everConnected = read.ok ? read.file.everConnected : {};
-    const busy = this.attempts.size > 0, pending = this.options.store.pending();
+    const busy = this.attempts.size > 0;
     return {
       revision: this.revision, file: read.ok ? "ok" : read.code,
       servers: servers.map(server => ({
@@ -146,7 +146,9 @@ export class McpService implements McpConversationFacts {
             view: connectorState({
               name: server.name, readiness, attempt: attempt && { name: attempt.name, kind: attempt.kind },
               check: { reading: this.reads.has(provider), last: this.checks.get(provider)?.get(server.name) ?? null },
-              everConnected: (everConnected[server.name] ?? []).includes(provider), blocked: pending.some(entry => entry.provider === provider && entry.name === server.name),
+              everConnected: (everConnected[server.name] ?? []).includes(provider),
+              // Records and an unknown (unreadable or newer) pending file alike.
+              blocked: this.options.store.blocked(provider, server.name),
             }),
             failure: this.failures.get(key(provider, server.name)) ?? null,
             link: attempt?.name === server.name && attempt.link !== null,

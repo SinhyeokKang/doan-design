@@ -724,6 +724,16 @@ describe("review fixes", () => {
     await s.idle();
   });
 
+  it("Round 2 Y2: an unreadable list and a profile config it cannot read fall back to every known server", async () => {
+    writeFileSync(join(profile("codex"), "config.toml"), "[mcp_servers.doan-custom]\nurl = [ broken\n");
+    cli.failing.add("codex list");
+    const s = service();
+    const result = await s.logoutForAuth("codex", { kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, profileDir: profile("codex"), run: runner("codex") });
+    expect(result).toEqual({ failed: ["doan-notion", "doan-atlassian", "doan-figma"] });
+    expect(store.pending("codex").map(entry => entry.name)).toEqual(["doan-notion", "doan-atlassian", "doan-figma"]);
+    await s.idle();
+  });
+
   it("Y3: an unreadable Claude list takes the servers from the profile's .claude.json", async () => {
     writeFileSync(join(profile("claude"), ".claude.json"), JSON.stringify({ mcpServers: { "doan-custom": { type: "http", url: "https://custom.example/mcp" }, notion: { type: "http", url: "https://mcp.notion.com/mcp" } } }));
     cli.failing.add("claude list");
@@ -731,6 +741,18 @@ describe("review fixes", () => {
     await s.logoutForAuth("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a2", staging: null, profileDir: profile("claude"), run: runner("claude") });
     expect(cli.commands("claude").filter(c => c[1] === "logout").map(c => c[2])).toEqual(["doan-custom"]);
     await s.idle();
+  });
+
+  it("Round 2 Y1: an unknown pending state shows the blocked line and Reconnect on read or unread rows", async () => {
+    writeFileSync(join(dir, "mcp-connectors-pending.json"), "{broken");
+    cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    cli.failing.add("claude get doan-figma");
+    const s = service();
+    s.refresh();
+    await s.idle();
+    expect(row(s, "codex", "doan-notion")?.view).toMatchObject({ status: "reconnect_needed", action: "reconnect", blocked: true });
+    expect(row(s, "codex", "doan-figma")?.view).toMatchObject({ status: "not_connected", action: "connect", blocked: true });
+    expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "check_failed", action: "connect", blocked: true });
   });
 
   it("Y3: an unknown pending state blocks every doan- server for both providers until one logout of it succeeds", async () => {
