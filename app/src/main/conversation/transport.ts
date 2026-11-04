@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import { canvasDir } from "../../formats/canvasPath";
 import { object } from "./sessions";
 import { claudeModeAfterPlan, type PermissionModeId } from "./permissionMode";
+import { connectorLabels, serverLabel } from "../mcpConnectors/presets";
 import type { EventPayload, FailureCode, PendingPermission, PermissionChoice, TransportResult, TransportState } from "./types";
 
 export function initialTransport(): TransportState {
@@ -80,7 +81,14 @@ function claudeKind(tool: string): ActivityKind {
   return /^(Write|Edit|MultiEdit)$/.test(tool) ? "edit" : /^(Read|Glob|Grep)$/.test(tool) ? "read" : tool === "Bash" ? "command" : "other";
 }
 function claudePath(input: Record<string, unknown>): string { return text(input.file_path) || text(input.path); }
-export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string): string {
+// A Doan connector's tool (`mcp__doan-<slug>__<tool>`) is named with its connector, and its input never reaches the
+// summary: it can hold page ids, queries and bodies (mcp-connectors spec 완료 조건 6). labels maps doan- names to
+// connector names; the presets are always known.
+const DOAN_MCP_TOOL = /^mcp__(doan-[a-z0-9][a-z0-9-]{0,15})__(.+)$/s;
+const PRESET_LABELS = connectorLabels([]);
+export function claudePermissionSummary(tool: string, input: Record<string, unknown>, root: string, labels: Readonly<Record<string, string>> = PRESET_LABELS): string {
+  const mcp = tool.match(DOAN_MCP_TOOL);
+  if (mcp) return `Run ${mcp[2]} on ${serverLabel(mcp[1]!, { ...PRESET_LABELS, ...labels })}`.slice(0, 512);
   const path = claudePath(input);
   return (text(input.description) || text(input.command) || (path && displayPath(path, root)) || text(input.pattern) || GENERIC_SUMMARY[claudeKind(tool)]).slice(0, 512);
 }

@@ -8,9 +8,10 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; title: string }[
 ];
 const IDS: readonly unknown[] = SETTINGS_SECTIONS.map(section => section.id);
 
-// Also reads the old Settings window's tab: its Projects tab moved to the project menu, so it opens Agents.
+// Also reads the old Settings window's tab: its Projects tab moved to the project menu, so it opens Agents. MCP
+// Connectors opens Agents while it has no page (mcp-connectors task D2), as it will whenever the category is hidden.
 export function parseSettingsSection(value: unknown): SettingsSection | null {
-  if (value === "projects") return "agents";
+  if (value === "projects" || value === "mcp") return "agents";
   return IDS.includes(value) ? value as SettingsSection : null;
 }
 
@@ -23,7 +24,7 @@ export function parseSettingsTarget(value: unknown): SettingsTarget | null {
   if (Object.keys(value).some(key => key !== "section" && key !== "provider")) return null;
   const { section, provider } = value as Record<string, unknown>;
   if (section !== undefined && (section === "projects" || parseSettingsSection(section) === null)) return null;
-  if (provider === undefined) return section === undefined ? {} : { section: section as SettingsSection };
+  if (provider === undefined) return section === undefined ? {} : { section: parseSettingsSection(section)! };
   if (!validProvider(provider) || (section !== undefined && section !== "agents")) return null;
   return { section: "agents", provider };
 }

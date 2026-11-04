@@ -75,3 +75,11 @@ activity and permission summaries). Kept: a `commandExecution` start with
 `item/fileChange/requestApproval` with `reason: null` that refers to it only by
 `itemId`, its completion and `turn/completed`. Paths, IDs and the diff are
 synthetic; output, `rootTurnId` and the turn's items are omitted.
+
+`codex-mcp-startup-status.json` and `codex-mcp-elicitation.json` (mcp-connectors task A0) come from the
+2026-11-04 Codex 0.166.0 app-server probe whose sanitized logs were committed with the mcp-connectors feature
+documents: one thread's `mcpServer/startupStatus/updated` window from `probe.log`, and the
+`mcpServer/elicitation/request` from `probe-accept.log`. The committed log had every server name redacted; the
+startup names (`doan-notion`, `doan-atlassian`, `doan-figma`, `codex_apps`) are put back from the probe notes and
+the `not logged in` error text, so which ready event belongs to which remote server is a reconstruction. The probe
+log does not record JSON-RPC ids; the elicitation's id is synthetic.

@@ -55,7 +55,8 @@ test("the summary stays within 512 characters", () => {
 
 test("a string id keeps its type in the request id and the response", () => {
   const read = codexMcpApproval({ ...request, id: "req-1" }, LABELS);
-  expect(read).toMatchObject({ kind: "permission", permission: { event: { requestId: "string:req-1" }, choices: [{ response: { id: "req-1" } }] } });
+  expect(read?.kind === "permission" && read.permission.event.requestId).toBe("string:req-1");
+  expect(read?.kind === "permission" && read.permission.choices.map(c => (c.response as { id: unknown }).id)).toEqual(["req-1", "req-1", "req-1"]);
 });
 
 test("any other elicitation, such as a form, is declined without asking", () => {
