@@ -911,8 +911,9 @@ readline.createInterface({ input: process.stdin }).on('line', text => {
   const owner = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
   const lines = () => existsSync(seen) ? readFileSync(seen, "utf8").split("\n").filter(Boolean) : [];
   const at = (match: (text: string) => boolean) => lines().findIndex(match);
+  const last = (match: (text: string) => boolean) => lines().map(match).lastIndexOf(true);
   const method = (name: string) => (text: string) => text.startsWith("{") && (JSON.parse(text) as { method?: string }).method === name;
-  return { root, command, owner, lines, at, method, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+  return { root, command, owner, lines, at, last, method, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 const MCP_RUN = { generation: () => 0, labels: () => ({ "doan-example-com": "example.com", "doan-notion": "Notion" }) };
 it("waits for the profile's doan- servers before turn/start, counting only its own thread, and reloads on request", async () => {
@@ -931,12 +932,12 @@ it("waits for the profile's doan- servers before turn/start, counting only its o
     // After a reload the statuses are forgotten and the new ones waited for.
     await runner.send("third", "t3", undefined, { permissionMode: "default", reloadMcp: true });
     expect(h.at(h.method("config/mcpServer/reload"))).toBeGreaterThan(-1);
-    expect(h.lines().findLastIndex(h.method("turn/start"))).toBeGreaterThan(h.at(t => t === "notion-settled"));
+    expect(h.last(h.method("turn/start"))).toBeGreaterThan(h.at(t => t === "notion-settled"));
     expect(h.at(h.method("config/mcpServer/reload"))).toBeLessThan(h.at(t => t === "notion-settled"));
     // The servers to wait for are read from the profile again for every turn.
     writeFileSync(join(h.root, "config.toml"), '[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n[mcp_servers.doan-figma]\nurl = "https://mcp.figma.com/mcp"\n');
     await runner.send("fourth", "t4", undefined, { permissionMode: "default", reloadMcp: true });
-    expect(h.lines().findLastIndex(h.method("turn/start"))).toBeGreaterThan(h.at(t => t === "figma-settled"));
+    expect(h.last(h.method("turn/start"))).toBeGreaterThan(h.at(t => t === "figma-settled"));
     expect(h.lines().filter(h.method("config/mcpServer/reload"))).toHaveLength(2);
   } finally { await runner.close(); h.cleanup(); }
 }, 15000);

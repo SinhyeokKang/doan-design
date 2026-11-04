@@ -10,7 +10,8 @@ import { insideRoot, parseCliVersion, pickSession, versionStatus } from "./sessi
 import { judgeConnection } from "../agentAuth/connection";
 import type { Lease, Started } from "../agentAuth/manager";
 import type { AuthState, ConnectionJudgment, Provider } from "../agentAuth/types";
-import type { Prepare, Prepared, StartRequest } from "./service";
+import type { McpRun, Prepare, Prepared, StartRequest } from "./service";
+import { connectorLabels, MCP_PROVIDERS, type McpProvider } from "../mcpConnectors/presets";
 import { externalConversation, type ConversationMetadata, type ExternalSession } from "./store";
 // The pinned @anthropic-ai/claude-agent-sdk in app/package.json. It ships with the app, so a test pins it rather
 // than a check at run time.
@@ -117,7 +118,13 @@ export interface VersionRecords {
 // the minimum or unreadable, so the readiness facts read at launch may be stale (an install, removal or downgrade since).
 // The Antigravity server has no version run: it is the sha-pinned download (agentAuth/antigravity.ts) and its
 // initialize reply names its version.
-export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords): AccountPrepare {
+// What a Claude or Codex run needs from the MCP connectors (mcp-connectors design 'conversation (Codex)'): the
+// provider's connector generation, which a successful Connect, Disconnect, Remove or replacement raises, and the
+// connector names by doan- name. Both are read when the run asks, so a reused Codex server sees later changes.
+export interface McpConnectorFacts { generation(provider: McpProvider): number; labels(): Readonly<Record<string, string>> }
+// Before the connectors service is wired in: nothing changes, and the presets are the only connectors.
+const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => connectorLabels([]) };
+export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFailed: (provider: Provider) => void = () => {}, versions?: VersionRecords, connectors: McpConnectorFacts = NO_CONNECTORS): AccountPrepare {
   return async (request, stored, use = "run") => {
     const provider = stored ? stored.session.runtime : request.runtime;
     if (!provider) throw new Error("no_agent");
@@ -174,6 +181,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         if (judgment.decision !== "resume") throw new Error(judgmentCode(judgment));
       }
       const connection = recheck(), ran = installed;
+      const mcp: McpRun | undefined = (MCP_PROVIDERS as readonly Provider[]).includes(provider) ? { generation: () => connectors.generation(provider as McpProvider), labels: () => connectors.labels() } : undefined;
       const runArgs = provider === "claude" || provider === "codex" ? RUN_ARGS[provider] : adapter.acp!.args;
       return {
         runtime: provider, command: lease.command, args: [...adapter.args, ...runArgs], configDir, cwd,
@@ -184,6 +192,7 @@ export function createAccountPrepare(auth: AccountRuntime, cli: string, toolsFai
         ...(adapter.verifyByRun ? { confirm: () => auth.confirm(provider, connection.connectionId) } : {}),
         ...(versions && ran ? { incompatible: () => versions.incompatible(provider, ran), compatible: () => versions.compatible(provider, ran) } : {}),
         ...(ran ? { installed: ran } : {}),
+        ...(mcp ? { mcp } : {}),
       };
     } catch (error) { await lease.release(); throw error; }
   };

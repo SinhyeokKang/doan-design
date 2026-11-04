@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { query, type EffortLevel, type PermissionResult, type PermissionUpdate, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { openAcp } from "./acpRunner";
@@ -8,6 +10,8 @@ import { codexInitialize, codexThreadStart, type HandshakeReply, type HandshakeV
 import { OwnedGroup } from "./process";
 import { object } from "./sessions";
 import { parseClaudeModels, parseCodexModels } from "./models";
+import { CodexStartupWatch, codexProfileServers } from "./mcpStartup";
+import { connectorLabels } from "../mcpConnectors/presets";
 import { claudePermissionSummary, claudeReportedMode, endSteerWait, endTransport, initialTransport, normalizeClaude, steerTransport, transportError } from "./transport";
 import { claudePermission, codexDefaults, codexPermission, codexWorkspace, type CodexDefaults, type CodexWorkspace } from "./permissionMode";
 import type { OpenRunner, Prepared, ReadModels, Runner } from "./service";
@@ -52,6 +56,12 @@ function timeout<T>(promise: Promise<T>): Promise<T> {
     promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
   });
 }
+// The doan- servers Doan registered in this Codex profile, read from its config.toml for every turn: a Connect may have
+// added one since the server started. An unreadable or oversized file names none, so the turn does not wait.
+function profileServers(configDir: string): string[] {
+  try { const text = readFileSync(join(configDir, "config.toml"), "utf8"); return text.length > 1024 * 1024 ? [] : codexProfileServers(text); }
+  catch { return []; }
+}
 function openCodexList(input: Prepared, emit: (event: EventPayload) => void, exited: () => void, registerStop: (stop: () => Promise<void>) => void): Promise<Runner> {
   return openCodex(input, emit, exited, registerStop, true);
 }
@@ -60,6 +70,8 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
   // Doan-account args select the dedicated credential store; they must precede the subcommand.
   const child = spawn(input.command, [...input.args ?? [], "app-server"], { cwd: input.cwd, env: input.env, detached: true, stdio: ["pipe", "pipe", "pipe"] });
   let startingTurn = false; const queued: unknown[] = [];
+  // waiting: cancels the turn's wait for its MCP servers; closing: close() ran, so a cancelled wait ends the send.
+  const startup = new CodexStartupWatch(); let waiting: (() => void) | undefined, closing = false;
   let group: OwnedGroup | undefined, sessionId = input.sessionId ?? "", activeTurn = "", localTurn = "", buffer = "", dead = false;
   let defaults: CodexDefaults | undefined, workspace: CodexWorkspace = {};
   const write = (value: unknown) => { if (dead || !child.stdin.writable) throw new Error("process_exited"); child.stdin.write(JSON.stringify(value) + "\n"); };
@@ -76,13 +88,14 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     let end: number;
     while ((end = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, end); buffer = buffer.slice(end + 1);
-      try { const raw: unknown = JSON.parse(line); if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { failProtocol(); }
+      // Startup statuses name a thread but no turn, and the reply that names the thread can still be on its way here.
+      try { const raw: unknown = JSON.parse(line); if (startup.receive(raw, sessionId)) continue; if (startingTurn && object(raw) && typeof raw.method === "string") { if (queued.length >= 4096) throw new Error("Protocol queue limit"); queued.push(raw); } else dispatcher.receive(raw); } catch { failProtocol(); }
     }
   });
   const transportDied = () => {
     if (dead) return; dead = true;
     // Transport loss ends the turn now; only group disappearance releases ownership.
-    dispatcher.end(); void group?.stop();
+    dispatcher.end(); waiting?.(); void group?.stop();
   };
   child.stderr.resume(); child.stdin.on("error", transportDied); child.stdout.once("end", transportDied);
   child.once("exit", () => { transportDied(); group?.childExited(); });
@@ -119,14 +132,36 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
     }
     if (dead) throw new Error("process_exited");
   } catch (error) { dispatcher.close(); void group?.stop(); throw new Error(dead ? "process_exited" : transportError(error instanceof Error ? error.message : "")); }
+  // A turn that starts before its servers are ready runs without their tools ("omitting pending optional MCP server",
+  // P2), so a doan run waits for the profile's doan- servers first. A reload restarts them: their earlier statuses are
+  // forgotten before it is sent, since the new ones can follow its reply at once. False: a Stop ended the wait.
+  const serversReady = async (reload: boolean, labels: Readonly<Record<string, string>>): Promise<boolean> => {
+    if (!input.owner) return true;
+    const names = profileServers(input.configDir);
+    if (reload) {
+      startup.forget(sessionId, names);
+      // A server that refuses the reload keeps its servers and their settled statuses, so the turn need not wait.
+      try { await dispatcher.request("config/mcpServer/reload", {}); } catch (error) { if (error instanceof RpcError) return true; throw error; }
+    }
+    if (dead || closing) throw new Error("process_exited");
+    const wait = startup.wait(sessionId, names, labels, emit);
+    waiting = wait.cancel;
+    const started = await wait.started; waiting = undefined;
+    if (dead || closing) throw new Error("process_exited");
+    if (!started) emit({ type: "interrupted", reason: "user" });
+    return started;
+  };
   return {
     sessionId,
     async send(prompt, turnId, _attachments, choice) {
       if (dead) { emit({ type: "turn.failed", code: "process_exited" }); return; }
       // The server was opened with the conversation's choice then; a send may have changed it since.
       const turn = choice ?? input, permission = defaults ? codexPermission(turn.permissionMode ?? "default", defaults, workspace) : {};
-      activeTurn = turnId; localTurn = turnId; startingTurn = true;
-      dispatcher.begin({ root: input.cwd, sessionId, turnId });
+      activeTurn = turnId; localTurn = turnId;
+      const labels = input.mcp?.labels() ?? connectorLabels([]);
+      dispatcher.begin({ root: input.cwd, sessionId, turnId, labels });
+      if (!await serversReady(choice?.reloadMcp === true, labels)) return;
+      startingTurn = true;
       let result: unknown;
       // Passed on every turn, as Claude and ACP must be, though Codex keeps a turn's model for the next (P1).
       try { result = await dispatcher.request("turn/start", { threadId: sessionId, input: [{ type: "text", text: prompt }], ...(turn.model ? { model: turn.model } : {}), ...(turn.effort ? { effort: turn.effort } : {}), ...permission }); } catch (error) { startingTurn = false; for (const raw of queued.splice(0)) dispatcher.receive(raw); throw error; }
@@ -142,8 +177,9 @@ async function openCodex(input: Prepared & SteerHooks, emit: (event: EventPayloa
       await dispatcher.steer({ threadId: sessionId, expectedTurnId: activeTurn, input: [{ type: "text", text: prompt }], clientUserMessageId: messageId }, messageId);
     },
     answer: (id, option) => dispatcher.answer(id, option),
-    async stop() { dispatcher.stop("user"); if (activeTurn) await dispatcher.request("turn/interrupt", { threadId: sessionId, turnId: activeTurn }).catch(() => { void group?.stop(); }); },
-    async close() { dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
+    // A turn still waiting for its servers has nothing to interrupt on the server.
+    async stop() { dispatcher.stop("user"); if (waiting) { waiting(); return; } if (activeTurn) await dispatcher.request("turn/interrupt", { threadId: sessionId, turnId: activeTurn }).catch(() => { void group?.stop(); }); },
+    async close() { closing = true; waiting?.(); dispatcher.stop("appQuit"); dispatcher.close(); await group?.stop(); },
   };
 }
 // After a success result leaves a steered message unread, the CLI echoes its uuid when it starts the follow-up turn,
@@ -159,6 +195,8 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
   const organization = input.owner ? input.owner.workspaceId : undefined;
   if (organization === null || organization === "") throw new Error("not_logged_in");
   const sessionId = input.sessionId ?? randomUUID(); const controller = new AbortController();
+  // A Claude run opens for one turn, so the connector names read here are current for it.
+  const labels = input.mcp?.labels();
   let group: OwnedGroup | undefined, state = initialTransport();
   const pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve(value: PermissionResult): void }>();
   let finished = false, childExited = false, stderr = "", stderrDone: Promise<unknown> = Promise.resolve();
@@ -211,7 +249,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
       const requestId = randomUUID(); const suggestions = options.suggestions ?? [];
       return new Promise<PermissionResult>(resolve => {
         pending.set(requestId, { input: toolInput, suggestions, resolve });
-        emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
+        emit({ type: "permission.request", requestId, tool, summary: claudePermissionSummary(tool, toolInput, input.cwd, labels), options: [{ id: "allow", label: "Allow", kind: "allow" }, { id: "deny", label: "Deny", kind: "deny" }, ...(suggestions.length ? [{ id: "always", label: "Allow with suggested permissions", kind: "allowAlways" as const }] : [])] });
       });
     },
   } });
@@ -244,7 +282,7 @@ async function openClaude(input: Prepared & SteerHooks, emit: (event: EventPaylo
             // turn stays that process's.
             const reported = input.permissionMode === "plan" ? claudeReportedMode(raw) : undefined;
             if (reported && reported !== "plan") input.planApproved?.(reported);
-            const result = normalizeClaude(state, raw, input.cwd); state = result.state;
+            const result = normalizeClaude(state, raw, input.cwd, labels); state = result.state;
             for (const id of result.consumed ?? []) input.steerConsumed?.(id);
             if (result.consumed?.length) endReadWait();
             if (result.awaitingRead && !readWait) readWait = setTimeout(expireRead, STEER_READ_WAIT_MS);

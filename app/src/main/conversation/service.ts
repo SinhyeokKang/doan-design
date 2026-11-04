@@ -37,7 +37,12 @@ export interface Prepared {
   permissionMode?: PermissionModeId; planApproved?: (mode: PermissionModeId) => void;
   // The agent read a message steer added (its messageId), in line with the run's events (runners.ts SteerHooks).
   steerConsumed?: (messageId: string) => void;
+  // Doan-account Claude and Codex runs only: the provider's MCP connector facts (prepare.ts McpConnectorFacts).
+  mcp?: McpRun;
 }
+// generation: the provider's connector generation now. labels: connector names by doan- name, for permission
+// summaries and activity lines.
+export interface McpRun { generation(): number; labels(): Readonly<Record<string, string>> }
 // attachments: the turn's files, which only Antigravity also receives as image blocks. models: the provider's list for
 // this folder, from a runner opened only to read it.
 // A start's attachments, checked again right before acceptance (recheck throws attachment_missing with the missing
@@ -46,7 +51,8 @@ export interface StartAttachments { recheck(): AttachmentRecord[]; sent(): void 
 // The model, effort and permission mode of one send. Claude and ACP runs open a process per turn with them already; a
 // reused Codex server needs them on the turn itself. A send names its mode always, Default included, since a Codex
 // override holds for later turns.
-export interface TurnChoice { model?: string; effort?: string; permissionMode?: PermissionModeId }
+// reloadMcp: a reused Codex server whose provider's connectors changed since it opened reloads its MCP servers first.
+export interface TurnChoice { model?: string; effort?: string; permissionMode?: PermissionModeId; reloadMcp?: true }
 // What a send may carry besides its text: a new choice (model given, effort optional), a new permission mode (judged
 // apart from the model, Default included) and rechecked attachments.
 // defaultEffort: the level the turn names when its choice has none (models.ts ModelOption); it is never stored.
@@ -81,7 +87,8 @@ const EXIT_WAIT_MS = 10_000;
 // closed: the conversation was archived and its runner is closing; it is never reused (a restore opens a new one).
 // holding: queued messages wait to go out after this turn; each hold is its own object, so a flush that ends late
 // never lets go of the hold a later turn set.
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object }
+// mcpGeneration: the provider's connector generation the runner's MCP servers were read at (its opening or last reload).
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined }
 // A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
@@ -153,6 +160,7 @@ export class ConversationService {
       if (this.quitting) throw new Error("busy");
       if (input.sessionId) this.promote(id, input, input.sessionId);
       opening = true;
+      live.mcpGeneration = input.mcp?.generation();
       const runner = await this.openRunner(id, live, input); live.runner = runner;
       if (live.exited) throw new Error("process_exited");
       input.recheck?.();
@@ -245,7 +253,7 @@ export class ConversationService {
       if (input.owner) live.provider = input.owner.provider;
       this.checkSend(id, live, expected);
       if (live.exited) throw new Error("process_exited");
-      if (!live.runner) { opening = true; leased = true; live.runner = await this.openRunner(id, live, input); }
+      if (!live.runner) { opening = true; leased = true; live.mcpGeneration = input.mcp?.generation(); live.runner = await this.openRunner(id, live, input); }
       if (live.exited) throw new Error("process_exited");
       if (live.runner.sessionId !== metadata.session.sessionId) throw new Error("session_unavailable");
       this.checkSend(id, live, expected);
@@ -294,7 +302,11 @@ export class ConversationService {
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
-      const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}) };
+      // A new server read the profile as it opened; only a reused one may hold servers from before a change.
+      const generation = input.mcp?.generation();
+      const reloadMcp = !opening && generation !== undefined && generation !== live.mcpGeneration;
+      if (reloadMcp) live.mcpGeneration = generation;
+      const turnChoice: TurnChoice = { ...chosen, permissionMode: chosen.permissionMode ?? "default", ...(!chosen.effort && extras.defaultEffort ? { effort: extras.defaultEffort } : {}), ...(reloadMcp ? { reloadMcp: true as const } : {}) };
       this.sendTurn(id, live, live.runner, prompt, attachments.length ? attachments : undefined, turnChoice);
     } catch (error) {
       live.busy = false;
