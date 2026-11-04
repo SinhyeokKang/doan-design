@@ -46,8 +46,8 @@ Doan 연결(PRODUCT §3 In scope 7)로 실행하는 대화에서 에이전트가
    - Cursor·Copilot·Antigravity는 섹션을 만들지 않고, 카테고리 설명에 "Cursor, Antigravity and GitHub Copilot can’t use these servers yet." 한 줄만 둔다.
 3. 항목의 상태는 `Checking`(상태를 읽는 중, 동작 비활성), `Not connected`(Connect), `Connecting`(연결 중), `Connected`(Disconnect), `Disconnecting`(해제 중), `Removing`(삭제 중), `Reconnect needed`(Reconnect), `Couldn’t check`(확인 실패, Retry) 중 하나다. 진행 상태 문구는 말줄임표 없는 현재분사다. 앱 UI 문구는 영어다(PRODUCT §5). 그 밖의 문구 형식은 Settings > Agents를 따른다. sign-in은 되어 있지만 실행할 수 없는 에이전트(만료, 업데이트 필요)는 섹션 머리에 그 이유와 설정 > Agents로 가는 동작을 보이고, 목록의 버튼을 비활성으로 둔다.
    - Reconnect와 연결 실패의 Retry는 Connect와 같은 sign-in 흐름을 실행한다.
-   - Disconnect를 누르면 `Disconnecting`이 되고 동작이 비활성이다. 실패하면 이전 상태로 돌아가고 이유와 Retry가 있는 alert를 보인다.
-   - Remove는 확인 뒤 alert를 닫고, 항목을 남긴 채 `Removing`으로 두고 동작을 비활성으로 한다. 파일 수정까지 성공한 뒤에만 목록에서 뺀다. 어느 단계든 실패하면 항목에 오류 alert와 Retry를 보인다.
+   - Disconnect를 누르면 `Disconnecting`이 되고 동작이 비활성이다. 실패하면 이전 상태로 돌아가고 이유와 Retry가 있는 alert를 보인다("Couldn’t disconnect <Notion> from <Codex>. Try again.").
+   - Remove는 확인 뒤 alert를 닫고, 항목을 남긴 채 `Removing`으로 두고 동작을 비활성으로 한다. 파일 수정까지 성공한 뒤에만 목록에서 뺀다. 어느 단계든 실패하면 항목에 오류 alert("Couldn’t remove <host> from Doan’s agents. Try again.")와 Retry를 보인다.
    - 한 에이전트에서 시도가 하나 진행 중이면 그 에이전트 섹션의 다른 Connect 버튼은 비활성이고, 이유를 tooltip으로 보인다. 어느 에이전트든 그 서버를 연결하는 중이면 그 서버의 Remove는 비활성이다.
    - 그 provider의 sign-in·sign-out·교체가 진행 중이면(agentAuth `admit()`가 `busy`) Connect는 실패 alert "Codex is busy signing in or out. Try again in a moment."(에이전트 이름은 그 provider)와 Retry를 보인다.
    - 실패 alert는 그 항목의 다음 Connect·Retry·Cancel까지 남는다. 페이지를 떠났다 돌아와도 남는다.
