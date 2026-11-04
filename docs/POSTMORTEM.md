@@ -6,6 +6,14 @@
 > Historical `app/e2e/` paths refer to the suite retired on 2026-10-27. Current runtime safety helpers live in `app/runtime/`; use focused probes under `.scratch/`, as specified in AGENTS.md.
 > Some entries name app code removed later: the app's comment UI (`useComments.tsx`, `CommentsSession.ts`, `CommentsPanel.tsx`, `CommentPins.ts` and most of `app/src/comments/` and `app/src/main/comments/`, with their tests) on 2026-11-01; the separate Settings window (`settingsWindow.tsx`) and the `Sidebar.tsx` component on 2026-10-30; Settings > Connections (`ConnectionRows.tsx`, `connectionRowView.ts`, `setupBroker.ts`) on 2026-10-31. Their search commands and test pointers apply only to code that still exists; the comment files, the CLI comment commands and `app/src/comments/projection.ts` remain.
 
+### 2026-11-05 — A server added by URL stayed Checking with Connect disabled until the page was reopened
+
+- **Area**: `app/src/main/mcpConnectors/service.ts` (`add`, `refresh`); fixed in 69dc43fd on the mcp-connectors BF batch.
+- **Symptom**: in the real app (E1), Settings > MCP Connectors > Add server by URL added the row to every agent section as `Checking` with Connect disabled. No status command ran for about 2.5 minutes; leaving the category and coming back showed `Not connected` at once.
+- **Root cause**: a row with no read result and no read running derives `Checking` (design '상태 판정'), and statuses are read only at fixed points (page entry, attempt end, Retry, auth change) because they cost a network health check. Every other change that writes the connectors file runs inside an attempt (whose `end()` refreshes) or `logoutForAuth` (whose `finally` refreshes); `add` writes the file outside both, so nothing started the read the new row was waiting for.
+- **Net**: caught by the person-run E1 probe. Missed by the service tests, which checked Add's reply and file contents and the reads only after explicit `refresh()` calls, and by the page tests, which fed a hand-made snapshot after Add rather than what main publishes.
+- **Prevention**: any `McpService` path that adds a row, or changes what a row reads as, must start a read itself or run inside an attempt; the service test now asserts the read after Add in every signed-in provider. Search: `rg -n 'store\.(patch|record)\(' app/src/main/mcpConnectors/service.ts` and check that each hit sits in an attempt flow (refreshed by `end()`), in `logoutForAuth` (refreshed in `finally`) or is followed by `this.refresh(`. Run on 2026-11-05: the `everConnected` patches and the Remove patch are attempt flows, `record` is in `logoutForAuth`, and `add` now refreshes.
+
 ### 2026-11-03 — Export refused icons the app showed, set as url() in a custom property
 
 - **Area**: `cli/internal/export/inline.go` (`replace`), `customurl.go`, `cli/internal/canvas/css.go` (`CSSRefs`, `CustomUses`); fixed in 62a466e1 on `fix/export-var-url`.
