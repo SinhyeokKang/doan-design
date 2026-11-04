@@ -174,6 +174,14 @@ describe("CanvasAgent another worktree", () => {
     const tip = all(tree).find(element => element.type === TooltipContent);
     expect(tip?.props.children).toBe(`Agent is working on this canvas in ${LONG}`);
   });
+  // design-sync (draft frame sibling-notice, tile 'sibling-long'): the tooltip opened above the notice (Radix's default
+  // side), and a two-line sentence crossed the board's top edge; the draft puts it 4px under the capsule.
+  test("the tooltip opens under the notice, clear of the capsule", () => {
+    const tree = render(() => CanvasAgent({ list: [], canvas: { root: "/w/a", canvas }, running: true, work, entries, onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn() }));
+    const tip = all(tree).find(element => element.type === TooltipContent);
+    expect(tip?.props.side).toBe("bottom");
+    expect(tip?.props.sideOffset).toBe(14);
+  });
   test("the notice goes when the session ends", () => {
     const props = { list: [] as ConversationSummary[], canvas: { root: "/w/a", canvas }, running: true, entries, onOpen: vi.fn(), onOpenSibling: vi.fn(), onStopFailed: vi.fn() };
     expect(button(render(() => CanvasAgent({ ...props, work })))).toBeDefined();

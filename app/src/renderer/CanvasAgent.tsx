@@ -60,11 +60,14 @@ export function CanvasAgent({ list, canvas, running, work, entries, onOpen, onOp
             {action.disabled ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}{action.label}</button>
           : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={onOpen}>{action.label}</button>}
       </div>}
-      {/* The text ellipsizes a long label; its tooltip and Open's name carry it whole. */}
+      {/* The text ellipsizes a long label; its tooltip and Open's name carry it whole. The tooltip opens below: the
+          notice sits near the board's top edge, and above it a two-line sentence crossed into the canvas header.
+          14 = the tooltip's usual 4px gap plus the 10px between the 20px text line and the 40px capsule's bottom, so it
+          clears the capsule instead of covering it. */}
       {sibling && <div className="doan-agent doan-agent-sibling">
         <span className="doan-agent-dot" aria-hidden="true" />
         <Tooltip><TooltipTrigger asChild><span className="doan-agent-text" role="status">{`Agent is working in ${sibling.label}`}</span></TooltipTrigger>
-          <TooltipContent>{`Agent is working on this canvas in ${sibling.label}`}</TooltipContent></Tooltip>
+          <TooltipContent side="bottom" sideOffset={14}>{`Agent is working on this canvas in ${sibling.label}`}</TooltipContent></Tooltip>
         <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={`Open this canvas in ${sibling.label}`} onClick={() => onOpenSibling(sibling.root)}>Open</button>
       </div>}
       {children}
