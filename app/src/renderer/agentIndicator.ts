@@ -7,6 +7,7 @@ import { PROVIDER_NAMES } from "./agentAuthView";
 import { agentPresence, type AgentPresence } from "./agentPresence";
 import type { CanvasState } from "./CanvasController";
 import { partitionDots, dotScale, type Dot } from "./dotField";
+import { groupProjects } from "./homeCards";
 
 // The agent indicator on the board (buzz-canvas design §2 '에이전트 작업 표시').
 
@@ -42,6 +43,25 @@ export function canvasAgent(list: readonly ConversationSummary[] | null, target:
     return { root: target.root, presence, provider: listed ? PROVIDER_NAMES[listed.provider] : kept?.presence ? kept.provider : "" };
   }
   return work.some(item => item.root === target.root && item.path === target.canvas.path) ? { root: target.root, presence: null, terminal: true } : null;
+}
+
+// A terminal session on the open canvas's path in another worktree of the same project (terminal-work-worktrees design
+// §3.1). The group is the sidebar's (`groupProjects`), so the notice never names a worktree the sidebar puts elsewhere.
+// Only a list worktree that lists the path counts: its Open needs that row. With several, the last in `work` wins
+// (WorkItem has no time). This root's own session wins, and the caller lets an app conversation win too. The label is
+// the branch, else the folder name (a detached HEAD included, design §3.1).
+export function siblingWork(work: readonly WorkItem[], target: WorkingCanvas | null, entries: readonly FolderEntry[]): { root: string; label: string } | null {
+  if (!target) return null;
+  const path = target.canvas.path;
+  if (work.some(item => item.root === target.root && item.path === path)) return null;
+  const group = groupProjects(entries, new Map(entries.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === target.root));
+  for (const item of [...work].reverse()) {
+    if (item.path !== path || item.root === target.root) continue;
+    const entry = group?.rows.find(row => row.path === item.root);
+    if (entry?.kind !== "list" || !entry.canvases.some(row => row.path === path)) continue;
+    return { root: entry.path, label: entry.git?.branch ?? entry.path.split("/").filter(Boolean).at(-1) ?? entry.path };
+  }
+  return null;
 }
 
 export interface AgentNoticeView {
