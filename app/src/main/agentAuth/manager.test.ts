@@ -9,7 +9,7 @@ import { AuthManager, hookLinks, removeStaleLinkDirs, spawnAuthProcess, type Aut
 import { PROVIDER_AUTH, type ProviderAuth } from "./providers";
 import { AuthStorage, type Cipher } from "./storage";
 import { fakeCipher } from "./fixtures/cipher";
-import { PROVIDERS, type CheckResult, type Provider } from "./types";
+import { PROVIDERS, type AuthState, type CheckResult, type Provider } from "./types";
 
 type Step = "login" | "status" | "logout" | "acp" | "rpc";
 class FakeProcess implements AuthProcess {
@@ -2064,14 +2064,17 @@ describe("MCP connector steps", () => {
   it("keeps the provider closed until a committed replacement's MCP step finished, then publishes again", async () => {
     let entered!: () => void, release!: () => void;
     const inStep = new Promise<void>(resolve => { entered = resolve; }), gate = new Promise<void>(resolve => { release = resolve; });
-    const changes: Provider[] = [];
-    const m = manager({ onChange: state => changes.push(state.provider), mcpLogout: async () => { entered(); await gate; return { failed: [] }; } }); await m.load();
+    const changes: Provider[] = [], published: AuthState[] = [];
+    const m = manager({ onChange: state => { changes.push(state.provider); published.push(state); }, mcpLogout: async () => { entered(); await gate; return { failed: [] }; } }); await m.load();
     await signedInClaude(m, "a1");
     keychain = account("a2");
     const second = started(await m.signIn("claude", 7)); await finish("login", 0); await finish("status", 0);
     await inStep;
     expect(m.state("claude").connection?.account.id).toBe("a2");
     expect(m.settling("claude")).toBe(true);
+    // Round 2 W1: readers see the provider busy, and nothing announced the new connection yet.
+    expect(m.status("claude", { cli: "found", version: "supported", tools: "ready" }).readiness).toEqual({ ready: false, cause: "busy", action: "wait" });
+    expect(published.some(state => state.connection?.account.id === "a2")).toBe(false);
     await expect(m.acquire("claude", "run")).rejects.toThrow("busy");
     await expect(m.acquire("claude", "mcp")).rejects.toThrow("busy");
     const before = changes.length;
@@ -2079,6 +2082,9 @@ describe("MCP connector steps", () => {
     await second.done;
     expect(m.settling("claude")).toBe(false);
     expect(changes.length).toBeGreaterThan(before);
+    expect(published.at(-1)).toMatchObject({ phase: "connected", connection: { account: { id: "a2" } } });
+    // No longer busy (this fixture's Claude account has no organization, so it reads as needing a new sign-in).
+    expect(m.status("claude", { cli: "found", version: "supported", tools: "ready" }).readiness).not.toMatchObject({ cause: "busy" });
     await (await m.acquire("claude", "run")).release();
   });
   it("keeps Codex closed while its staging profile is being registered", async () => {

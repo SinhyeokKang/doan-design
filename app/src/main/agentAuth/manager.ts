@@ -43,6 +43,10 @@ export interface AuthManagerOptions {
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
   // Closes the provider's doan-account conversation runs for a sign-out or replacement the user chose to stop them for.
   stopRuns?(provider: Provider): Promise<void>; drainTimeoutMs?: number;
+  // Stops the provider's MCP connector work at the start of every sign-in or sign-out write. That work may hold no
+  // lease (a pending Codex logout runs in a temporary CODEX_HOME), so the drain would not reach it; it never needs the
+  // person's stop either, which stays the conversations' rule (stopRuns, stop_required).
+  stopMcp?(provider: Provider): Promise<void>;
   // Never fails the sign-out or replacement it runs in: a failed logout is the step's own pending record.
   mcpLogout?(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }>;
   // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
@@ -160,7 +164,7 @@ export class AuthManager {
   state(provider: Provider): AuthState { return this.states.get(provider)!; }
   // A committed replacement still running its MCP step: connected in state, but admitting no lease yet.
   settling(provider: Provider): boolean { return this.settlings.has(provider); }
-  status(provider: Provider, facts: ToolFacts): AuthStatusDto { return authStatus(this.state(provider), facts, this.revision); }
+  status(provider: Provider, facts: ToolFacts): AuthStatusDto { return settlingStatus(authStatus(this.state(provider), facts, this.revision), this.settling(provider)); }
 
   async check(provider: Provider): Promise<CheckStarted> {
     const attemptId = this.newId();
@@ -215,6 +219,7 @@ export class AuthManager {
     const done = this.track((async () => {
       try {
         await check;
+        if (this.options.stopMcp) await this.stopMcp(provider);
         if ((options.stop || this.leased(provider)) && !await this.drain(provider, attemptId)) {
           // Nothing was touched: the previous login stays as it was, still used by the run that did not stop.
           this.apply(provider, this.cancelled(provider, attemptId) ? { type: "settled", attemptId, kept: true }
@@ -306,6 +311,7 @@ export class AuthManager {
     const done = this.track((async () => {
       try {
         await check;
+        if (this.options.stopMcp) await this.stopMcp(provider);
         let removed: { status: "removed" } | { status: "failed"; detail?: string };
         try {
           if ((options.stop || this.leased(provider)) && !await this.drain(provider, attemptId)) throw new Error("running conversations did not stop");
@@ -521,6 +527,14 @@ export class AuthManager {
     const checked = await this.statusRun(provider, attemptId);
     if (checked.status !== "disconnected" && checked.status !== "expired") throw new Error(`profile still reports ${checked.status}`);
     storage.writeMetadata(replaceAccount(storage.readMetadata(), provider, null, false));
+  }
+
+  private async stopMcp(provider: Provider): Promise<void> {
+    if (!this.options.stopMcp) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stopped = this.options.stopMcp(provider).catch(error => console.error(`doan: ${provider} MCP work could not be stopped`, message(error)));
+    await Promise.race([stopped, new Promise(resolve => { timer = setTimeout(resolve, this.options.drainTimeoutMs ?? DRAIN_MS); timer.unref?.(); })]);
+    clearTimeout(timer);
   }
 
   private async mcpStep(provider: Provider, attemptId: string, profile: string, request: Omit<McpLogoutRequest, "run" | "profileDir">): Promise<void> {
@@ -887,7 +901,8 @@ export class AuthManager {
     const result = transition(this.state(provider), event);
     if (result.ok && result.outcome === "applied") {
       this.states.set(provider, result.state); this.revision += 1;
-      this.options.onChange?.(result.state, this.revision);
+      // A settling replacement is announced once its MCP step ended (signIn), not before.
+      if (!this.settlings.has(provider)) this.options.onChange?.(result.state, this.revision);
     }
     return result;
   }
@@ -935,6 +950,11 @@ export function removeStaleLinkDirs(tmp = tmpdir(), uid = process.getuid?.()): v
 const replyJson = async (reply: Response): Promise<unknown> => { try { return await reply.json(); } catch { return null; } };
 // Google's OAuth error code only (invalid_grant, invalid_token); its description and the rest of the body stay out.
 const googleError = (reply: unknown) => object(reply) && typeof reply.error === "string" && /^[a-z_]{1,64}$/.test(reply.error) ? ` (${reply.error})` : "";
+
+// A committed replacement still running its MCP step admits nothing; readers see it busy until then.
+export function settlingStatus(status: AuthStatusDto, settling: boolean): AuthStatusDto {
+  return settling ? { ...status, readiness: { ready: false, cause: "busy", action: "wait" } } : status;
+}
 
 // Other providers' connections and failed sign-outs are kept as they are.
 function replaceAccount(metadata: AuthMetadata, provider: Provider, connection: AccountConnection | null, signOutFailed: boolean): AuthMetadata {

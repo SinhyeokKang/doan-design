@@ -711,8 +711,9 @@ async function start(): Promise<void> {
   const auth = new AuthManager({ storage: new AuthStorage(join(userData, "agent-auth"), electronCipher), spawn: spawnAuthProcess, inherited: process.env, appRuntime: join(userData, "runtime.json"), locate: shellLocator(process.env, PROVIDER_AUTH, { antigravity: signal => antigravityServer(join(userData, "agent-runtimes", "antigravity-acp"), signal ? { signal } : {}) }),
     // The onboarding tap comes after AuthIpc stored the link, so the link it opens is this prompt's.
     onChange: () => authIpc?.changed(), onPrompt: prompt => { authIpc?.prompted(prompt); onboarding?.prompted(prompt); },
-    // A sign-out or replacement waits for every lease of the provider: its conversations and its MCP connector work.
-    stopRuns: provider => Promise.all([conversations?.stopRuns(provider), mcp?.stopProvider(provider)]).then(() => {}),
+    stopRuns: provider => conversations?.stopRuns(provider) ?? Promise.resolve(),
+    // Every sign-in or sign-out write first stops the provider's MCP connector work, lease or not.
+    stopMcp: provider => mcp?.stopProvider(provider) ?? Promise.resolve(),
     mcpLogout: (provider, request) => mcp ? mcp.logoutForAuth(provider, request) : Promise.resolve({ failed: [] }) });
   // Unreadable metadata leaves sign-in unavailable rather than letting a later save erase other connections.
   try { await auth.load(); agentAuth = auth; } catch (error) { console.error("doan: agent sign-in storage is unreadable", error); }

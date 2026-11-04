@@ -230,3 +230,14 @@ describe("toolFacts", () => {
     expect(ipc().ipc.toolFacts("claude")).toBeNull();
   });
 });
+
+// BB review round 2: a committed replacement still running its MCP step admits nothing, and readers see it busy.
+it("reports a provider whose replacement is settling as busy", async () => {
+  const t = ipc();
+  let settling = true;
+  const settled = new AuthIpc({ ...t.options, backend: { ...t.api, settling: () => settling } });
+  t.apply("cursor", { type: "runConfirmed", connectionId: "conn-secret", account: cursor.account });
+  expect((await settled.read()).providers.find(p => p.provider === "cursor")?.readiness).toEqual({ ready: false, cause: "busy", action: "wait" });
+  settling = false;
+  expect(settled.latest().providers.find(p => p.provider === "cursor")?.readiness).toEqual({ ready: true });
+});
