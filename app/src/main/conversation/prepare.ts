@@ -119,8 +119,10 @@ export interface VersionRecords {
 // The Antigravity server has no version run: it is the sha-pinned download (agentAuth/antigravity.ts) and its
 // initialize reply names its version.
 // What a Claude or Codex run needs from the MCP connectors (mcp-connectors design 'conversation (Codex)'): the
-// provider's connector generation, which a successful Connect, Disconnect, Remove or replacement raises, and the
-// connector names by doan- name. Both are read when the run asks, so a reused Codex server sees later changes.
+// provider's connector generation, which a successful Connect, Disconnect or Remove raises, and the connector names by
+// doan- name. Both are read when the run asks, so a reused Codex server sees later changes. A replacement sign-in does
+// not raise the generation: a Codex replacement moves to a new staging profile, so its runners are new, and Claude
+// starts the SDK afresh for every turn.
 export interface McpConnectorFacts { generation(provider: McpProvider): number; labels(): Readonly<Record<string, string>> }
 // Before the connectors service is wired in: nothing changes, and the presets are the only connectors.
 const NO_CONNECTORS: McpConnectorFacts = { generation: () => 0, labels: () => connectorLabels([]) };
