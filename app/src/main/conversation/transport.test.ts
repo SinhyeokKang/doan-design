@@ -201,8 +201,14 @@ describe("readable activity and permission summaries", () => {
     expect(claudePermissionSummary(`mcp__doan-notion__${"t".repeat(2000)}`, {}, "/repo")).toHaveLength(512);
     expect(claudePermission("r1", "mcp__doan-notion__notion-fetch", input, [], "/repo").event.summary).toBe("Run notion-fetch on Notion");
     const tool = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "mcp__doan-notion__notion-fetch", input }] } };
-    // The activity line reuses the summary; keeping the input's path out of it is task C3 (the conversation batch).
-    expect(collect("claude", [tool]).events).toMatchObject([{ type: "activity", kind: "other", summary: "Run notion-fetch on Notion" }]);
+    // The activity is stored for every call, so the input's path stays out of it as well (C3).
+    expect(collect("claude", [tool]).events).toEqual([{ type: "activity", kind: "other", summary: "Run notion-fetch on Notion" }]);
+    const added = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t2", name: "mcp__doan-example-com__search", input: { file_path: "/repo/.doan/canvases/a.html" } }] } };
+    expect(normalizeClaude(initialTransport(), added, "/repo", { "doan-example-com": "example.com" }).events).toEqual([{ type: "activity", kind: "other", summary: "Run search on example.com" }]);
+    expect(claudePermission("r2", "mcp__doan-example-com__search", input, [], "/repo", { "doan-example-com": "example.com" }).event.summary).toBe("Run search on example.com");
+    // Another server's tool keeps the path an input names, as any tool does.
+    const other = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t3", name: "mcp__claude_ai_Figma__get_screenshot", input: { path: "/repo/a.html" } }] } };
+    expect(collect("claude", [other]).events).toMatchObject([{ type: "activity", path: "/repo/a.html" }]);
   });
   it("leaves other MCP servers' tools and lookalike names to the input-based summary", () => {
     expect(claudePermissionSummary("mcp__claude_ai_Figma__get_screenshot", { description: "Take a screenshot" }, "/repo")).toBe("Take a screenshot");

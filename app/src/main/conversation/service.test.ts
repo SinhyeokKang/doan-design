@@ -45,6 +45,43 @@ it("tells prepare when a send reuses the conversation's live Codex server", asyn
   await h.service.send(id, "after exit", []);
   expect(h.prepare.mock.calls[2]?.[3]).toBeFalsy();
 });
+// mcp-connectors C1: a reused Codex server reloads its MCP servers before the next turn when a Connect, Disconnect,
+// Remove or replacement changed the provider's connectors since it opened (design 'reload 배선').
+describe("Codex MCP reload", () => {
+  function connectors() {
+    let generation = 4; const fake = fixture();
+    fake.prepare.mockImplementation(async () => ({ runtime: "codex" as const, configDir: "/profile", cwd: "/repo", sessionId: "same-session", command: "/fake", env: {}, mcp: { generation: () => generation, labels: () => ({}) } }));
+    const choices = (runner = 0) => vi.mocked(fake.runners[runner]!.send).mock.calls.map(call => call[3]?.reloadMcp ?? false);
+    return { ...fake, bump: () => { generation += 1; }, choices };
+  }
+  it("reloads once on the next turn after the generation changed, and not again", async () => {
+    const h = connectors(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "same", []);
+    h.service.receive(id, { type: "turn.done" }); h.bump(); await h.service.send(id, "changed", []);
+    h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "after", []);
+    expect(h.open).toHaveBeenCalledOnce(); expect(h.choices()).toEqual([false, false, true, false]);
+  });
+  it("keeps a running turn and reloads only before the next one", async () => {
+    const h = connectors(); const id = (await h.service.start(request)).conversationId;
+    h.bump(); h.bump();
+    expect(h.runners[0]!.stop).not.toHaveBeenCalled(); expect(h.runners[0]!.close).not.toHaveBeenCalled(); expect(h.runners[0]!.send).toHaveBeenCalledOnce();
+    h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "next", []);
+    expect(h.choices()).toEqual([false, true]);
+  });
+  it("never reloads a server it just opened, which read the current profile", async () => {
+    const h = connectors(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); await h.service.interrupt(id); h.exits[0]?.(); h.bump();
+    await h.service.send(id, "reopened", []);
+    expect(h.open).toHaveBeenCalledTimes(2); expect(h.choices(1)).toEqual([false]);
+    h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "reused", []);
+    expect(h.choices(1)).toEqual([false, false]);
+  });
+  it("sends no reload for a run without connector facts", async () => {
+    const h = fixture(); const id = (await h.service.start(request)).conversationId;
+    h.service.receive(id, { type: "turn.done" }); await h.service.send(id, "again", []);
+    expect(vi.mocked(h.runners[0]!.send).mock.calls.map(call => call[3]?.reloadMcp)).toEqual([undefined, undefined]);
+  });
+});
 it("keeps archived history read-only and persists quit interruption synchronously", async () => {
   const h = fixture(); const id = (await h.service.start(request)).conversationId;
   h.service.quit(); expect(h.store.read(id).at(-1)).toMatchObject({ type: "interrupted", reason: "appQuit" });

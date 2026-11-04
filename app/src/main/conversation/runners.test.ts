@@ -870,3 +870,102 @@ it("accepts a Claude send issued on turn.done, before the first CLI has exited",
     await vi.waitFor(() => expect(store.read(conversationId).filter(e => e.type === "turn.done")).toHaveLength(2));
   } finally { await service.quit(); rmSync(root, { recursive: true, force: true }); }
 }, 15000);
+
+// mcp-connectors C1/C2: a Codex app-server started a thread's MCP servers at thread/start; a turn waits until the
+// profile's doan- servers settle, so their tools are there from the first turn. The fake records every line it reads and
+// marks when it sent a status, so the order of a status and turn/start is read from one file.
+function mcpCodex(plan: { readyMs?: number | null; elicit?: boolean }) {
+  const root = mkdtempSync(join(tmpdir(), "doan-mcp-codex-")), command = join(root, "codex"), seen = join(root, "seen");
+  writeFileSync(join(root, "config.toml"), 'model = "gpt-6"\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n');
+  writeFileSync(command, `#!/usr/bin/env node
+const fs = require('node:fs'); const readline = require('node:readline');
+const plan = ${JSON.stringify(plan)}; const seen = ${JSON.stringify(seen)};
+const mark = text => fs.appendFileSync(seen, text + '\\n');
+const line = value => JSON.stringify(value) + '\\n';
+const status = (threadId, name, value) => line({ method: 'mcpServer/startupStatus/updated', params: { threadId, name, status: value, error: null, failureReason: null } });
+let reloads = 0;
+readline.createInterface({ input: process.stdin }).on('line', text => {
+  mark(text); const r = JSON.parse(text);
+  if (r.method === 'initialize') process.stdout.write(line({ id: r.id, result: {} }));
+  if (r.method === 'thread/start' && r.params.ephemeral) process.stdout.write(line({ id: r.id, result: { thread: { id: 'probe' }, approvalPolicy: 'on-request', sandbox: { type: 'workspaceWrite' } } }) + status('probe', 'doan-notion', 'starting') + status('probe', 'doan-notion', 'ready'));
+  else if (r.method === 'thread/start') {
+    // The reply and the thread's first statuses in one chunk; another thread says ready at once.
+    process.stdout.write(line({ id: r.id, result: { thread: { id: 'session' }, approvalPolicy: 'on-request', sandbox: { type: 'workspaceWrite' } } }) + status('session', 'doan-notion', 'starting') + status('other', 'doan-notion', 'ready'));
+    if (plan.readyMs != null) setTimeout(() => { process.stdout.write(status('session', 'doan-notion', 'ready')); mark('ready-sent'); }, plan.readyMs);
+  }
+  if (r.method === 'config/read') process.stdout.write(line({ id: r.id, result: { config: {} } }));
+  if (r.method === 'config/mcpServer/reload') {
+    reloads += 1; const round = reloads;
+    process.stdout.write(line({ id: r.id, result: {} }) + status('session', 'doan-notion', 'starting'));
+    if (round === 1) setTimeout(() => { process.stdout.write(status('session', 'doan-notion', 'ready')); mark('notion-settled'); }, 150);
+    else { process.stdout.write(status('session', 'doan-notion', 'ready')); setTimeout(() => { process.stdout.write(status('session', 'doan-figma', 'failed')); mark('figma-settled'); }, 150); }
+  }
+  if (r.method === 'turn/start') {
+    process.stdout.write(line({ id: r.id, result: { turn: { id: 'native-turn' } } }));
+    if (plan.elicit) process.stdout.write(line({ id: 7, method: 'mcpServer/elicitation/request', params: { threadId: 'session', turnId: 'native-turn', serverName: 'doan-example-com', mode: 'form', _meta: { codex_approval_kind: 'mcp_tool_call', persist: ['session', 'always'] }, message: 'Allow the doan-example-com MCP server to run tool "search"?', requestedSchema: { type: 'object', properties: {} } } }));
+    else process.stdout.write(line({ method: 'turn/completed', params: { threadId: 'session', turn: { id: 'native-turn', status: 'completed' } } }));
+  }
+  if (r.id === 7 && !r.method) process.stdout.write(line({ method: 'turn/completed', params: { threadId: 'session', turn: { id: 'native-turn', status: 'completed' } } }));
+});
+`, { mode: 0o700 });
+  const owner = { kind: "doan" as const, provider: "codex" as const, connectionId: "c1", accountId: "a1", workspaceId: null, profile: "codex" };
+  const lines = () => existsSync(seen) ? readFileSync(seen, "utf8").split("\n").filter(Boolean) : [];
+  const at = (match: (text: string) => boolean) => lines().findIndex(match);
+  const method = (name: string) => (text: string) => text.startsWith("{") && (JSON.parse(text) as { method?: string }).method === name;
+  return { root, command, owner, lines, at, method, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+}
+const MCP_RUN = { generation: () => 0, labels: () => ({ "doan-example-com": "example.com", "doan-notion": "Notion" }) };
+it("waits for the profile's doan- servers before turn/start, counting only its own thread, and reloads on request", async () => {
+  const h = mcpCodex({ readyMs: 300 }); const events: EventPayload[] = [];
+  const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("first", "t1");
+    expect(h.at(t => t === "ready-sent")).toBeGreaterThan(-1);
+    expect(h.at(h.method("turn/start"))).toBeGreaterThan(h.at(t => t === "ready-sent"));
+    await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    // Ready within a second: no activity line.
+    expect(events.filter(e => e.type === "activity")).toEqual([]);
+    // A reused thread keeps what it learned, so the next turn starts at once.
+    const before = h.lines().length; await runner.send("second", "t2");
+    expect(h.lines().slice(before).map(t => (JSON.parse(t) as { method?: string }).method)).toEqual(["turn/start"]);
+    // After a reload the statuses are forgotten and the new ones waited for.
+    await runner.send("third", "t3", undefined, { permissionMode: "default", reloadMcp: true });
+    expect(h.at(h.method("config/mcpServer/reload"))).toBeGreaterThan(-1);
+    expect(h.lines().findLastIndex(h.method("turn/start"))).toBeGreaterThan(h.at(t => t === "notion-settled"));
+    expect(h.at(h.method("config/mcpServer/reload"))).toBeLessThan(h.at(t => t === "notion-settled"));
+    // The servers to wait for are read from the profile again for every turn.
+    writeFileSync(join(h.root, "config.toml"), '[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n[mcp_servers.doan-figma]\nurl = "https://mcp.figma.com/mcp"\n');
+    await runner.send("fourth", "t4", undefined, { permissionMode: "default", reloadMcp: true });
+    expect(h.lines().findLastIndex(h.method("turn/start"))).toBeGreaterThan(h.at(t => t === "figma-settled"));
+    expect(h.lines().filter(h.method("config/mcpServer/reload"))).toHaveLength(2);
+  } finally { await runner.close(); h.cleanup(); }
+}, 15000);
+it("does not wait for a run on an external profile, which Doan registered nothing in", async () => {
+  const h = mcpCodex({ readyMs: null }); const events: EventPayload[] = [];
+  const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env }, e => events.push(e), () => {}, () => {});
+  try { await runner.send("hello", "t1"); await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" })); expect(events.filter(e => e.type === "activity")).toEqual([]); }
+  finally { await runner.close(); h.cleanup(); }
+}, 15000);
+it("a Stop while the turn waits for its servers ends it as interrupted without starting it or losing the server", async () => {
+  const h = mcpCodex({ readyMs: null }); const events: EventPayload[] = []; const exited = vi.fn();
+  const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), exited, () => {});
+  try {
+    const sent = runner.send("hello", "t1");
+    await new Promise(resolve => setTimeout(resolve, 200));
+    await runner.stop(); await sent;
+    expect(events).toEqual([{ type: "interrupted", reason: "user" }]);
+    expect(h.at(h.method("turn/start"))).toBe(-1); expect(h.at(h.method("turn/interrupt"))).toBe(-1);
+    expect(exited).not.toHaveBeenCalled();
+  } finally { await runner.close(); h.cleanup(); }
+}, 15000);
+it("asks before a Doan connector's MCP tool with the connector's name and sends the chosen answer", async () => {
+  const h = mcpCodex({ readyMs: 0, elicit: true }); const events: EventPayload[] = [];
+  const runner = await openRunner({ command: h.command, runtime: "codex", cwd: h.root, configDir: h.root, env: process.env, owner: h.owner, mcp: MCP_RUN }, e => events.push(e), () => {}, () => {});
+  try {
+    await runner.send("hello", "t1");
+    await vi.waitFor(() => expect(events).toContainEqual(expect.objectContaining({ type: "permission.request", requestId: "number:7", tool: "mcpToolCall", summary: "Run search on example.com" })));
+    expect(runner.answer("number:7", "accept")).toBe(true);
+    await vi.waitFor(() => expect(events).toContainEqual({ type: "turn.done" }));
+    expect(h.lines().filter(t => t.startsWith('{"id":7'))).toEqual([JSON.stringify({ id: 7, result: { action: "accept", content: {} } })]);
+  } finally { await runner.close(); h.cleanup(); }
+}, 15000);
