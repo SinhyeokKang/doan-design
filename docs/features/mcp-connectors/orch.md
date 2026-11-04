@@ -37,8 +37,8 @@
 | BA | A0–A3. 처음에는 픽스처 없이 시작했고, PoC 사본이 main에 들어온 뒤 A0와 픽스처 함수를 이어서 한다 | `app/src/main/mcpConnectors/`(순수 모듈), `conversation/transport.ts`의 `claudePermissionSummary`, `renderer/settingsSections.ts`와 각 테스트 | 없음 | Opus high — 이후 배치가 모두 기대는 스키마와 상태 판정 | `npm --prefix app test`, typecheck | 통합 `f71fabfb`(리뷰 2회) |
 | BB | B1–B4 | `mcpConnectors/`의 store·pending·providers·service·ipc, `agentAuth/`, `main/index.ts`, preload, `senderAllowed.ts` | BA, BD | Opus high — 프로세스 그룹, lease, 직렬화, sign-out 경계 | B1–B4 검증 | 통합 `01b387c5`(리뷰 4회) |
 | BC | C1–C3 | `conversation/`(runners, service, dispatcher, transport) | BA | Opus high — Codex ingress와 POSTMORTEM 2026-10-27 함정 | C1–C3 검증 | 통합 `03d44db1`(리뷰 3회), `main/index.ts` 배선 통합(리뷰 1회) |
-| BU | D2, D3 | `SettingsMcpConnectors.tsx`, `settingsSections.ts`, `App.tsx`, `agentAuthView.ts`, `public/mcp-logos/`, `docs/DESIGN.md`(D3) | BB, BS | Opus high — 포커스·읽어 주기 규칙이 많은 화면 | D2 검증, `/design-sync` | D2 구현 중 |
-| BE | E1 | `.scratch/`, 필요하면 `app/runtime/` | BB, BC, BU, 사용자 | Opus high — 실제 계정과 키체인 상태 보호 | `/runtime-test` 보고, real-state 비교 | 대기 |
+| BU | D2, D3 | `SettingsMcpConnectors.tsx`, `settingsSections.ts`, `App.tsx`, `agentAuthView.ts`, `public/mcp-logos/`, `docs/DESIGN.md`(D3) | BB, BS | Opus high — 포커스·읽어 주기 규칙이 많은 화면 | D2 검증, `/design-sync` | 통합 `b1146bf9`(리뷰 5회) |
+| BE | E1 | `.scratch/`, 필요하면 `app/runtime/` | BB, BC, BU, 사용자 | Opus high — 실제 계정과 키체인 상태 보호 | `/runtime-test` 보고, real-state 비교 | 진행 중 |
 | 조율자 | E2, Z1 | `docs/` 승격 문서 | 전부 | — | verify exit 0, Z1 grep | 대기 |
 
 리뷰: 각 구현 배치는 다른 모델 계열의 독립 리뷰 워커가 `/code-review`로 본다. BA·BB·BC·BU는 Codex Astra medium, BS·BD는 Claude Sonnet medium.
@@ -57,4 +57,6 @@
 - BA: Codex Astra 리뷰 🔴0 🟡2(정규화한 URL을 저장 파서가 거절, blocked가 Connected·확인 실패와 겹칠 때 사라짐) ⚪3. 수정 `8a036a80`·`db3ac93a`·`1166e47b`·`b7f67299` 뒤 Round 2는 🔴0 🟡0. 미뤄 둔 로그아웃이 있는 서버는 Connected로 읽혀도 `Reconnect needed`+Reconnect로 보인다(이전 계정 토큰일 수 있다). Z1에서 이 예외를 '상태 판정'과 함께 적는다. ⚪3(`mcp`→`agents` 임시 처리)은 BU가 최종 규칙으로 바꾼다. 리뷰 `.scratch/review-BA.md`, 증거 `.scratch/mcp-evidence/ba/`.
 - BC: Codex Astra 리뷰 🔴0 🟡3 ⚪4. Stop 뒤 도착한 MCP 승인이 답할 수 없는 대기로 남음, reload 응답 대기 중 Stop이 없는 턴을 interrupt해 서버를 죽임, Waiting 줄이 교체되지 않음(BU 렌더러로 배정). 🟡1·🟡2와 ⚪1·⚪2·⚪4를 수정 중이다. ⚪3(만료 승인의 `-32601`)은 E1에서 확인한다. 리뷰 `.scratch/review-BC.md`. 수정 `b2ef7e63`·`a2df8988` 뒤 Round 2에서 🟡1 추가(Stop 직후 새 send가 이전 턴 시작의 취소를 지움) → `4d542686`, Round 3 🔴0 🟡0.
 - BB: Codex Astra 리뷰 🔴3 🟡4 ⚪2. 교체 MCP 로그아웃 전에 새 계정 대화가 허용됨, 시작 작업이 stop·quit 소유 밖, 실패·취소한 Claude 로그인의 평문 파일 미삭제, 연결 없는 시작에서 미뤄 둔 로그아웃 재시도 없음, 정리 대상을 모를 때 차단 없음, TOML URL 재정규화. Round 2 🟡3(깨진 기록 파일의 차단이 화면에 안 보임, 설정 파서 실패를 빈 목록으로 처리, 연결 없는 sign-out이 MCP 작업을 취소하지 않음) → Round 3 🟡1(파서 일부) → Round 4 🔴0 🟡0. 리뷰 `.scratch/review-BB.md`, 증거 `.scratch/mcp-evidence/bb/`.
+- BU: Codex Astra 리뷰 5회. Round 1 🟡7(live role 중복, 오래된 read, Remove 오류 우선순위, 포커스, 알림, 접기) → Round 2 🟡2 → Round 3 🟡1(잘린 서버 목록) → Round 4 🟡1(한 host가 512자에 닿는 경우, 한계로 둠) → D3·preference-row 교체 뒤 Round 5 앱 회귀 없음. 리뷰 `.scratch/review-BU.md`.
+- 통합 `b1146bf9`(BS·BD·BA·BB·BC·BU)에서 `verify.mjs` PASS, `doan check` finding 13개(base와 같음).
 - 통합 `f71fabfb`(BS·BD·BA)에서 `verify.mjs` PASS: verify-tests, runtime-support, go-test, go-vet, typecheck, app-test, build.
