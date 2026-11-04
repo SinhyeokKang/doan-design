@@ -104,7 +104,7 @@ spec 결정 1~7을 main(소켓 v3 처리, 폴더 목록)과 renderer(보드 안�
 - 안내 맨 앞에 composer pick 버튼의 `Crosshair`(`DockedComposer.tsx`)를 14px(`--size-icon-sm`, Stop 아이콘과 같은 크기), 문구 앞 8px로 둔다. 그 버튼이 켠 모드라는 것을 보이기 위해서다(사용자 결정, `/design-draft`). 아이콘은 `aria-hidden`이다.
 - 그 밖의 모양, 문구, Esc, 숨은 "Press Escape to cancel", `role="status"`는 그대로다. 다른 worktree 안내의 Open은 pick 중에도 누를 수 있고 pick을 취소한다(§3.1).
 - 이유: pick은 사람이 켠 모드라 모드를 바꾸는 tools 옆이 맞다. 상단에 쌓이면 에이전트 안내가 오갈 때마다 안내가 위아래로 움직이고 column이 88px까지 커진다.
-- 드래프트 frame `picking-hint`. DESIGN.md 'Picking hint'의 "under the agent notice when both show"와 'Terminal agent activity' 표의 "40 high under the terminal notice" 줄은 T4에서 새 위치로 고쳐 쓴다.
+- 드래프트 frame `picking-hint`. 사용자가 앱에서 확인해 확정했다. DESIGN.md 'Picking hint'의 "under the agent notice when both show"와 'Terminal agent activity' 표의 "40 high under the terminal notice" 줄은 T4에서 새 위치로 고쳐 쓴다.
 
 ## 4. 순수 함수로 뺄 부분 (`/tdd` 대상)
 
