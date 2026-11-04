@@ -62,7 +62,7 @@ export interface ProjectOverviewProps {
   // HomeRun's pending seen marks, so a status never flashes back between a mark and the next read.
   seen: ReadonlySet<string>;
   // The project conversation that holds this root (HomeRun's running map).
-  holder: { conversationId: string; waiting: boolean } | null;
+  holder: { conversationId: string } | null;
   prefs: HomeMemory | null;
   defaults: NewConversationDefault | null | undefined;
   // A model or effort pick is remembered as Last used before any send (dogfooding #6).
@@ -269,8 +269,8 @@ export function ProjectOverview(props: ProjectOverviewProps) {
     return { ok: true };
   };
   const busy: DockedBusy | null = props.holder && props.holder.conversationId !== conversationId
-    ? { kind: "project", waiting: props.holder.waiting, open: props.holder.conversationId || null } : null;
-  const openOther = (id: string) => { run.request(root, id, props.holder?.waiting ? "permission" : null); };
+    ? { kind: "project", open: props.holder.conversationId || null } : null;
+  const openOther = (id: string) => { run.request(root, id, null); };
 
   // The header
   const menuItems = listed ? projectConversationMenu(listed, props.now, props.seen) : [];

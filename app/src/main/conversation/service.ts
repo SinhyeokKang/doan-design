@@ -88,14 +88,17 @@ const EXIT_WAIT_MS = 10_000;
 // holding: queued messages wait to go out after this turn; each hold is its own object, so a flush that ends late
 // never lets go of the hold a later turn set.
 // mcpGeneration: the provider's connector generation the runner's MCP servers were read at (its opening or last reload).
-interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined }
+// asking: the accepted turn's permission requests not answered yet; while any is open the turn waits for the person and
+// does not keep its root (projectBusy). A turn's end expires them.
+interface Live { turnId: string; busy: boolean; accepted: boolean; runner?: Runner; cleanup?: () => Promise<void>; terminal: boolean; events: EventPayload[]; failedPersistence: boolean; exited: boolean; provider?: Provider; since: number; endedAt?: number; project?: string; closed?: boolean; holding?: object; mcpGeneration?: number | undefined; asking?: Set<string> }
 // A project turn's grounds for promotion (design §2.4): the canvas list when the turn was accepted, the paths of its own
 // edit activities and the canvas files the folder watcher saw change. endedAt: the turn is over and waits for its first
 // folder refresh, or for the timer at the end of the binding window. turnId: the judged turn, for its bound marker.
 // Only one turn's own grounds count: the conversation's next send waits for this judgement (waiters) and starts with a
 // new snapshot. Kept apart from the live entries, which a send replaces before it is accepted: until judged, it keeps
-// its root (checkProject).
-interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; endedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
+// its root (checkProject), unless it waits for an answer.
+// taken: canvases another conversation of the root was promoted to after this snapshot (promotionTarget).
+interface Evidence { root: string; turnId: string; snapshot: Canvas[]; edits: Set<string>; changed: Set<string>; taken: Canvas[]; endedAt?: number; timer?: ReturnType<typeof setTimeout>; waiters: (() => void)[] }
 // A model-list read: stopped by quit and by a stop of its provider like a run, holding its lease until its group is gone.
 interface Listing { provider: Provider; since: number; cleanup?: () => Promise<void> }
 // A queued message Send now put into a running turn (live, turnId) that the agent has not read yet. Its item stays in
@@ -196,7 +199,7 @@ export class ConversationService {
       attached?.sent();
       const saved = this.store.acceptStart([...entries.map(m => replaced.includes(m) ? { ...m, state: "archived" as const } : m), metadata], id, writes);
       live.accepted = true;
-      if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), waiters: [] });
+      if (project) this.evidence.set(id, { root: project, turnId: live.turnId, snapshot: base.canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       for (const old of replaced) this.archive(old.conversationId);
       for (const event of saved) this.deliver(event);
       this.changed(request.root);
@@ -298,7 +301,7 @@ export class ConversationService {
           this.store.save(this.store.list().map(m => m.conversationId === id ? updated : m));
         this.append(id, live.turnId, message); this.append(id, live.turnId, { type: "turn.started" }); live.accepted = true;
       }
-      if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), waiters: [] });
+      if (projectTurn) this.evidence.set(id, { root: metadata.root, turnId: live.turnId, snapshot: canvasesAtStart ?? [], edits: new Set(), changed: new Set(), taken: [], waiters: [] });
       for (const event of live.events.splice(0)) this.receive(id, event);
       // A reused Codex server keeps the lease it opened with; this preparation's lease covered only the checks.
       if (!leased) freeLease(input);
@@ -396,7 +399,9 @@ export class ConversationService {
       this.append(id, live.turnId, event);
       const evidence = this.evidence.get(id);
       if (event.type === "activity" && event.kind === "edit" && event.path && evidence && evidence.endedAt === undefined) evidence.edits.add(event.path);
-      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.endedAt = Date.now(); this.dropSteers(id); this.ended(id, live, event.type); }
+      if (event.type === "permission.request") (live.asking ??= new Set()).add(event.requestId);
+      else if (event.type === "permission.resolved") live.asking?.delete(event.requestId);
+      if (event.type === "turn.done" || event.type === "turn.failed" || event.type === "interrupted") { live.terminal = true; live.busy = false; live.endedAt = Date.now(); delete live.asking; this.dropSteers(id); this.ended(id, live, event.type); }
     } catch (error) {
       live.failedPersistence = true; console.error("doan: conversation event persistence failed", error); void live.runner?.close();
       this.dropSteers(id);
@@ -634,7 +639,11 @@ export class ConversationService {
     clearTimeout(evidence.timer); this.evidence.delete(id);
     // A send waiting for this judgement runs once it is written; the queue, if any, is sent before (it was there first).
     try {
-      const target = promotionTarget({ root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed] }, this.snapshot(evidence.root), evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
+      // The other turns of the root not judged yet (this one is out of the map already): running, waiting for an
+      // answer, or ended within their window.
+      const listed = this.snapshot(evidence.root), others = [...this.evidence.values()].filter(other => other.root === evidence.root);
+      const contested = listed.filter(row => others.some(other => !other.snapshot.some(old => sameCanvas(old, row))));
+      const target = promotionTarget({ root: evidence.root, edits: [...evidence.edits], changed: [...evidence.changed], taken: evidence.taken, contested }, listed, evidence.snapshot, canvas => this.canvasWorking(evidence.root, canvas, id));
       if (target) this.promoteTo(id, evidence, target);
     } catch (error) { console.error("doan: conversation promotion failed", error); }
     const live = this.live.get(id);
@@ -654,6 +663,8 @@ export class ConversationService {
     writes.push({ id, turn: evidence.turnId, body: { type: "conversation.bound", canvas: target } });
     const kind = evidence.snapshot.some(c => sameCanvas(c, target)) ? "promote" : "bind";
     const saved = this.store.acceptChange({ kind, id, canvas: target, replaced }, entries.map(m => m.conversationId === id ? { ...m, canvas: target } : replaced.includes(m.conversationId) ? { ...m, state: "archived" } : m), writes);
+    // An overlapping turn judged later must not take this canvas over and archive this conversation.
+    for (const [other, grounds] of this.evidence) if (other !== id && grounds.root === me.root) grounds.taken.push(target);
     for (const old of replaced) this.archive(old);
     for (const event of saved) this.deliver(event);
     this.changed(me.root);
@@ -793,8 +804,10 @@ export class ConversationService {
     const now = Date.now();
     // A turn whose window passed without its timer having run yet (a busy main loop) is judged before it is counted.
     for (const [id, evidence] of [...this.evidence]) if (evidence.endedAt !== undefined && now - evidence.endedAt > BIND_GRACE_MS) this.judge(id);
-    // A turn not judged yet keeps its root even when the send that carried it was refused (its live entry no longer counts).
-    if (projectBusy(this.live, root, exceptId, now) || [...this.evidence].some(([id, evidence]) => id !== exceptId && evidence.root === root)) throw new Error("project_busy");
+    // A turn not judged yet keeps its root even when the send that carried it was refused (its live entry no longer
+    // counts), except while it waits for an answer.
+    const asking = (id: string) => !!this.live.get(id)?.asking?.size;
+    if (projectBusy(this.live, root, exceptId, now) || [...this.evidence].some(([id, evidence]) => id !== exceptId && evidence.root === root && !(evidence.endedAt === undefined && asking(id)))) throw new Error("project_busy");
   }
   private snapshot(root: string): Canvas[] { return this.canvases(root).map(c => c.id === undefined ? { path: c.path } : { path: c.path, id: c.id }); }
   private checkSend(id: string, live: Live, state: "current" | "archived"): void {

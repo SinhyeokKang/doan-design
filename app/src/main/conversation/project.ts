@@ -8,31 +8,38 @@ export const BIND_GRACE_MS = 10_000;
 // turn even when the conversation is bound to a canvas mid-turn.
 // failedPersistence: its history stopped taking writes, so its turn never ends; it must not hold the root until a restart.
 // holding: its queued messages are about to go out as its next turn, which keeps the root past the window.
-export interface ProjectTurn { project?: string; busy: boolean; terminal: boolean; endedAt?: number; failedPersistence?: boolean; holding?: object | boolean }
+// asking: the permission requests of its running turn still open.
+export interface ProjectTurn { project?: string; busy: boolean; terminal: boolean; endedAt?: number; failedPersistence?: boolean; holding?: object | boolean; asking?: ReadonlySet<string> }
 // The conversation that keeps another project conversation of this root from starting or sending, if any: one still
-// preparing, running or waiting for an answer, or one whose turn ended within the binding window, so that a new
-// canvas is never judged against the wrong conversation.
+// preparing or running, or one whose turn ended within the binding window, so that a new canvas is never judged
+// against the wrong conversation. A turn waiting for the person's answer does not keep the root: once answered it runs
+// on beside the other, and promotion leaves out what either could have made (promotionTarget).
 export function projectBusy(live: ReadonlyMap<string, ProjectTurn>, root: string, exceptId: string | undefined, now: number): string | null {
   for (const [id, turn] of live) {
     if (id === exceptId || turn.project !== root || turn.failedPersistence) continue;
-    if ((turn.busy && !turn.terminal) || turn.holding || (turn.endedAt !== undefined && now - turn.endedAt <= BIND_GRACE_MS)) return id;
+    if (turn.busy && !turn.terminal) { if (!turn.asking?.size) return id; continue; }
+    // endedAt of a busy entry is its earlier turn's, which its send waited to have judged.
+    if (turn.holding || (turn.endedAt !== undefined && now - turn.endedAt <= BIND_GRACE_MS)) return id;
   }
   return null;
 }
 // edits: the paths of this turn's own edit activities, as the provider reported them. changed: root-relative canvas
 // files the folder watcher saw change during the turn.
-export interface PromotionTurn { root: string; edits: readonly string[]; changed: readonly string[] }
+// taken: canvases another conversation was promoted to after this turn's snapshot, which this turn never takes over.
+// contested: canvases new to another turn of the root not judged yet, which that turn may have made instead.
+export interface PromotionTurn { root: string; edits: readonly string[]; changed: readonly string[]; taken: readonly Canvas[]; contested: readonly Canvas[] }
 // The canvas a finished project turn makes its conversation current on, or null to stay a project conversation.
 // A canvas that is new since the turn's snapshot wins; without one, an existing canvas qualifies only when the
 // conversation's own edit and an observed file change both point at it, since a person's terminal agent or another
-// conversation may change the same file and an edit activity is reported even for a refused edit.
+// conversation may change the same file and an edit activity is reported even for a refused edit. A new canvas another
+// unjudged turn could have made is unknown to be this turn's, as with two new canvases.
 // busy: whether the canvas's current conversation is working. turn null: no turn of this run to judge.
 export function promotionTarget(turn: PromotionTurn | null, listed: readonly Canvas[], snapshot: readonly Canvas[], busy: (canvas: Canvas) => boolean): Canvas | null {
   if (!turn) return null;
-  const rows = listed.filter(row => row.id === undefined || listed.filter(other => other.id === row.id).length === 1);
+  const rows = listed.filter(row => (row.id === undefined || listed.filter(other => other.id === row.id).length === 1) && !turn.taken.some(other => sameCanvas(other, row)));
   const created = rows.filter(row => !snapshot.some(old => sameCanvas(old, row)));
   let target: Canvas | undefined;
-  if (created.length) target = created.length === 1 ? created[0] : undefined;
+  if (created.length) target = created.length === 1 && !turn.contested.some(other => sameCanvas(other, created[0]!)) ? created[0] : undefined;
   else {
     const edited = canvasesAt(turn.root, turn.edits, rows, snapshot), changed = canvasesAt(turn.root, turn.changed, rows, snapshot);
     const both = edited.filter(row => changed.some(other => sameCanvas(row, other)));

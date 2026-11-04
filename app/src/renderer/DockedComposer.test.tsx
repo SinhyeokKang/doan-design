@@ -90,7 +90,7 @@ test("waiting for a permission answer shows the reason line, and the line descri
 });
 
 test("another project conversation running blocks Send with Open named for the running conversation", () => {
-  const html = render({ busy: { kind: "project", waiting: false, open: "c9" } }, { text: "Draw a first settings screen" });
+  const html = render({ busy: { kind: "project", open: "c9" } }, { text: "Draw a first settings screen" });
   expect(html).toMatch(/aria-label="Send" disabled=""/);
   expect(html).toMatch(/<span>Another conversation is still running in doan-design\.<\/span><button type="button" class="doan-button" data-ui-size="sm" data-ui-variant="panel" aria-label="Open the running conversation">Open<\/button>/);
 });

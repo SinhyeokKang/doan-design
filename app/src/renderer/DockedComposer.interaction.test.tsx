@@ -174,7 +174,7 @@ test("a busy refusal gives way once the host has reported that conversation and 
   (button(render(), "Send").onClick as () => void)();
   await flush();
   expect(button(render(), "Send").disabled).toBe(true);
-  props.busy = { kind: "project", waiting: false, open: "c9" };
+  props.busy = { kind: "project", open: "c9" };
   expect(render().some(item => item["aria-label"] === "Open the running conversation")).toBe(true);
   props.busy = null;
   expect(button(render(), "Send").disabled).toBe(false);
@@ -276,7 +276,7 @@ test("a live blocking reason and its action show over an old error notice, and t
   let tree = render();
   expect(tree.some(item => item.children === "Claude Code is rate limited. Try again later.")).toBe(true);
   expect(field(tree)["aria-describedby"]).toBeUndefined();
-  props.busy = { kind: "project", waiting: true, open: "other" };
+  props.busy = { kind: "project", open: "other" };
   tree = render();
   const ids = String(field(tree)["aria-describedby"]).split(" ");
   expect(ids.every(id => tree.some(item => item.id === id))).toBe(true);

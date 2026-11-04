@@ -60,6 +60,9 @@ function isText(event: ConversationEvent) { return event.type === "message.delta
 // judgement, a queue about to go out, a send waiting for the previous process. Main binds a canvas only after a turn
 // ends, so a working conversation with a canvas is a canvas one.
 const holdsRoot = (c: ConversationSummary) => c.state === "current" && c.working && !c.canvas;
+// What keeps Home from starting another project conversation in the root: one that holds it, unless it waits for the
+// person's answer (main's projectBusy). The removal guard still counts a waiting one, which it stops first.
+export const blocksStart = (c: ConversationSummary) => holdsRoot(c) && c.phase !== "waiting";
 // Must equal main's BIND_GRACE_MS (main/conversation/project.ts), which the renderer cannot import (POSTMORTEM
 // 2026-10-30); homeRun.test.ts compares the two. Main still counts a project conversation this long after its turn
 // ends and binds the canvas the turn made in it, so a refusal and a late folder update both live this long.
@@ -301,6 +304,7 @@ export class HomeRun {
   // binding, which is decided after the turn ends (decision 17, design §2.4); slots follow main's list once it binds.
   entriesChanged(): void {
     this.syncRoots();
+    const merged = this.merged();
     for (const conversation of this.conversations) {
       const extras = this.extras.get(conversation.conversationId);
       const listed = this.host.view().entries.find(entry => entry.path === conversation.root);
@@ -309,6 +313,10 @@ export class HomeRun {
       if (!extras || extras.opened || !live || listed?.kind !== "list") continue;
       const rows = newCanvasCandidates(listed.canvases, extras.atStart, extras.checked);
       extras.checked.push(...rows.map(row => row.path));
+      // With two or more live turns in the root (one went on after its answer), the canvas may be the other's: nothing
+      // opens and none is recorded as drawn (canvas-composer-polish design §4). All of the root's project
+      // conversations count, not only Home's.
+      if ((merged.get(conversation.root) ?? []).filter(holdsRoot).length >= 2) continue;
       if (rows[0]) { extras.opened = true; extras.drew = rows[0].path; this.canvasAppeared(conversation.conversationId, rows[0]); }
     }
   }
@@ -395,16 +403,16 @@ export class HomeRun {
     for (const list of this.merged().values()) for (const c of list) if (c.owner === "doan" && c.phase !== "ended") providers.add(c.provider);
     return providers;
   }
-  // Home's reason line by root (spec decision 18): the conversation that holds the root, and whether it waits for an
-  // answer. After a late project_busy with no such conversation listed yet, the line names none.
-  running(): Map<string, { conversationId: string; waiting: boolean }> {
-    const running = new Map<string, { conversationId: string; waiting: boolean }>();
+  // Home's reason line by root (spec decision 18): the conversation that keeps another from starting there (blocksStart).
+  // After a late project_busy with no such conversation listed yet, the line names none.
+  running(): Map<string, { conversationId: string }> {
+    const running = new Map<string, { conversationId: string }>();
     for (const [root, list] of this.merged()) {
-      const holder = list.find(holdsRoot);
-      if (holder) running.set(root, { conversationId: holder.conversationId, waiting: holder.phase === "waiting" });
+      const holder = list.find(blocksStart);
+      if (holder) running.set(root, { conversationId: holder.conversationId });
     }
     const now = Date.now();
-    for (const [root, { at }] of this.refused) if (!running.has(root) && now - at <= BIND_GRACE_MS) running.set(root, { conversationId: "", waiting: false });
+    for (const [root, { at }] of this.refused) if (!running.has(root) && now - at <= BIND_GRACE_MS) running.set(root, { conversationId: "" });
     return running;
   }
   strip(root: string | null): { conversation: HomeConversation; state: StripState } | null {

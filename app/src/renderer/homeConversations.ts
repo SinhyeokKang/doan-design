@@ -28,9 +28,10 @@ export function runningInRoot(conversations: readonly HomeConversation[], root: 
 
 // Home's reason line and the removal confirmation (spec decision 18): project conversations started outside Home count
 // too, so the sentence no longer says where the conversation came from. The removal dialog has no conversation of its
-// own to compare with, so it says "A" where the reason line says "Another".
-export function anotherConversation(project: string, waiting: boolean): string {
-  return waiting ? `Another conversation in ${project} needs your answer.` : `Another conversation is still running in ${project}.`;
+// own to compare with, so it says "A" where the reason line says "Another". Only a running conversation blocks a start
+// (canvas-composer-polish spec 4); the removal also stops one waiting for an answer and says so.
+export function anotherConversation(project: string): string {
+  return `Another conversation is still running in ${project}.`;
 }
 function aConversation(project: string, waiting: boolean): string {
   return waiting ? `A conversation in ${project} needs your answer.` : `A conversation is still running in ${project}.`;

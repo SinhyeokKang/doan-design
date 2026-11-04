@@ -72,8 +72,8 @@ export interface SendInput {
   root: FolderEntry | null; projectName: string;
   auth: AuthSnapshot | null | undefined; provider: Provider | null;
   text: string; preset: PresetRef | null; attachments: readonly AttachmentDraft[];
-  // A Home conversation still running in this root; waiting: it waits for a permission answer.
-  running: { conversationId: string; waiting: boolean } | null;
+  // A project conversation still running in this root (HomeRun.running).
+  running: { conversationId: string } | null;
   sending: boolean;
 }
 export type SendReason = { kind: "noProject" | "projectUnavailable" | "noAgent" | "agentUnavailable" | "overLimit" | "anchorMarkers" | "checking" | "attachmentMissing"; text: string } | { kind: "running"; text: string; open: string };
@@ -88,7 +88,7 @@ export function sendAvailability(input: SendInput): { enabled: boolean; reason: 
   if (agent) return off(agent);
   // An empty composer shows no line, running or not: Home keeps its suggestions until something is typed.
   if (!input.text.trim() && !input.preset && input.attachments.length === 0) return off(null);
-  if (input.running) return off({ kind: "running", text: anotherConversation(input.projectName, input.running.waiting), open: input.running.conversationId });
+  if (input.running) return off({ kind: "running", text: anotherConversation(input.projectName), open: input.running.conversationId });
   const draft = draftProblem(input.text, input.preset, input.attachments);
   return draft ? off(draft) : { enabled: true, reason: null };
 }

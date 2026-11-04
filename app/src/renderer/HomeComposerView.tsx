@@ -87,7 +87,7 @@ export interface HeroComposerProps {
   prefs: HomeMemory | null;
   memory: { current: ComposerMemory };
   // Running Home conversations by root (one per root, design §4.5).
-  running: ReadonlyMap<string, { conversationId: string; waiting: boolean }>;
+  running: ReadonlyMap<string, { conversationId: string }>;
   restore: { request: LastRequest; seq: number } | null;
   greeting: string;
   start(request: StartInput, last: LastRequest): Promise<StartOutcome>;
