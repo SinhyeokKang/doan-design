@@ -73,8 +73,8 @@ PoC 코드는 `.scratch/mcp-poc/`에 둔다. 격리 HOME·userData·`Library/Key
 
 ## D. UI
 
-- [ ] D2. `SettingsMcpConnectors.tsx`: 목록, 추가(프리셋·URL), 에이전트별 상태와 동작, 실행 중 대화 안내, 빈 상태와 오류 상태.
-  - 검증: `npm --prefix app test` green, `npm --prefix app run build`. `SettingsMcpConnectors.test.tsx` 필수 케이스: 미지원 provider는 행이 없고 설명 한 줄만 있음, Doan 연결이 없거나 CLI가 없을 때 이유와 설정 > Agents 동작, `Checking…`, 실행 중 대화가 있을 때 "다음 턴부터 적용" 안내, 빈 목록, `Couldn’t check`와 Retry, 파일 오류 화면. 사이드바 순서(Agents, MCP Connectors, Notifications)는 `settingsSections.test.ts`에서 확인한다.
+- [ ] D2. `SettingsMcpConnectors.tsx`: sign-in된 에이전트별 섹션, 섹션 안의 프리셋·URL 서버 항목(온보딩 provider 행 재사용)과 상태·동작, URL 추가 dialog와 … 메뉴 Remove, 실행 중 대화 안내, 오류 상태. 카테고리 표시 조건과 `{section:"mcp"}` → Agents 대체(`settingsSections.ts`). 프리셋 로고를 `.doan/assets/mcp-logos/`에서 `app/src/renderer/public/mcp-logos/`로 옮긴다(출처 README 포함).
+  - 검증: `npm --prefix app test` green, `npm --prefix app run build`. `SettingsMcpConnectors.test.tsx` 필수 케이스: 미지원 provider는 섹션이 없고 설명 한 줄만 있음, sign-in되지 않은 에이전트는 섹션이 없음, 실행할 수 없는 에이전트는 섹션 머리 이유와 비활성 버튼, 프리셋은 파일이 비어도 보임, URL 서버가 모든 섹션에 보임, `Checking…`, 실행 중 대화가 있을 때 "다음 턴부터 적용" 안내, `Couldn’t check`와 Retry, 파일 오류 화면(URL 추가·삭제만 막힘). 사이드바 순서(Agents, MCP Connectors, Notifications)와 두 에이전트 모두 sign-in되지 않았을 때 카테고리가 빠지고 `{section:"mcp"}`가 Agents를 여는 것은 `settingsSections.test.ts`에서 확인한다.
 - [ ] D3. `/design-sync`로 초안과 구현을 맞추고 DESIGN.md에 측정값을 적는다.
   - 검증: `/design-sync` 보고의 측정 일치.
 
