@@ -56,7 +56,9 @@ export class FakeCli {
   }
 
   private answer(p: FakeProcess): void {
-    const [, verb, name = ""] = p.sub;
+    const verb = p.sub[1]!;
+    // Claude's add puts its options before the name.
+    const name = (p.provider === "claude" && verb === "add" ? p.sub[p.sub.indexOf("user") + 1] : p.sub[2]) ?? "";
     const key = `${p.provider} ${verb}${verb === "list" ? "" : ` ${name}`}`;
     const servers = this.registered[p.provider];
     if (this.hanging.has(key)) return;

@@ -26,6 +26,14 @@ export type Started = { ok: true; attemptId: string; done: Promise<AuthState> } 
 // A check's own result once its write-back is done; "replaced": a sign-in or sign-out took its place before the result.
 export type CheckOutcome = "ok" | "replaced" | "network" | "check_failed" | "cli_install_failed" | "account_mismatch" | "storage_failed";
 export type CheckStarted = (Extract<Started, { ok: true }> & { outcome: Promise<CheckOutcome> }) | Extract<Started, { ok: false }>;
+// The MCP connector step of a sign-out or a committed replacement (mcp-connectors design 'sign-out·교체의 MCP 로그아웃
+// 경계'). agentAuth knows no connector file: the step decides from the provider's own list. run executes the provider
+// CLI (with its base arguments) in the profile being left, the live one or a replaced one, and resolves after its
+// group is gone. staging: the new profile of a staged replacement (Codex), which takes the servers still valid.
+export interface McpLogoutRequest {
+  kind: "signOut" | "replace"; previousAccountId: string | null; nextAccountId: string | null; staging: string | null;
+  run(args: string[]): Promise<{ code: number | null; stdout: string; stderr: string }>;
+}
 export interface AuthManagerOptions {
   storage: AuthStorage; spawn: Spawn; inherited: Record<string, string | undefined>; appRuntime: string;
   // signal aborts when the attempt is stopped; Antigravity's locate may be a long server download.
@@ -34,6 +42,8 @@ export interface AuthManagerOptions {
   onChange?(state: AuthState, revision: number): void; onPrompt?(prompt: AuthPrompt): void;
   // Closes the provider's doan-account conversation runs for a sign-out or replacement the user chose to stop them for.
   stopRuns?(provider: Provider): Promise<void>; drainTimeoutMs?: number;
+  // Never fails the sign-out or replacement it runs in: a failed logout is the step's own pending record.
+  mcpLogout?(provider: Provider, request: McpLogoutRequest): Promise<{ failed: string[] }>;
   // Antigravity's account lookup (Google token and userinfo requests); globalThis.fetch when absent.
   fetch?: typeof globalThis.fetch;
 }
@@ -225,6 +235,12 @@ export class AuthManager {
             : { status: "failed", code: error instanceof Failure ? error.code : "sign_in_failed", detail: message(error) };
         }
         this.apply(provider, outcome ? { type: "signedIn", attemptId, result: outcome, kept: !touch.live } : { type: "settled", attemptId, kept: !touch.live });
+        // Only after the commit, so a replacement that does not finish leaves the MCP registrations and tokens as they
+        // were (POSTMORTEM 2026-10-29), and before a staged replacement's previous profile is logged out and removed:
+        // the MCP logouts run in it.
+        if (previous && outcome?.status === "stored") {
+          await this.mcpStep(provider, attemptId, previous.profile, { kind: "replace", previousAccountId: previous.account.id, nextAccountId: outcome.connection.account.id, staging: staged && this.options.storage.profileDir(provider, staged) });
+        }
         if (staged && previous && outcome?.status === "stored") await this.retire(provider, attemptId, previous.profile);
       } finally { if (this.writer === attemptId) this.writer = null; this.stopRequests.delete(attemptId); this.links.delete(attemptId); }
       return this.state(provider);
@@ -294,11 +310,12 @@ export class AuthManager {
     return { ok: true, attemptId, done };
   }
 
-  // listing: a model list read. It holds the profile like a run, but it is not a conversation the person would be
-  // asked to stop: a sign-out or replacement stops it and waits for it without stop_required.
-  async acquire(provider: Provider, use: "run" | "listing" = "run"): Promise<Lease> {
+  // listing: a model list read; mcp: an MCP connector command (mcp-connectors). Either holds the profile like a run,
+  // but neither is a conversation the person would be asked to stop: a sign-out or replacement stops it (stopRuns)
+  // and waits for it without stop_required. added: extra environment, such as the MCP sign-in's link file.
+  async acquire(provider: Provider, use: "run" | "listing" | "mcp" = "run", added: Record<string, string> = {}): Promise<Lease> {
     this.admit(provider);
-    const { command, env, profileDir } = await this.launch(provider);
+    const { command, env, profileDir } = await this.launch(provider, undefined, added);
     // A sign-in or sign-out may have started while the CLI was being located.
     this.admit(provider);
     const counts = (delta: number) => {
@@ -472,6 +489,9 @@ export class AuthManager {
 
   private async signOutFlow(provider: Provider, attemptId: string): Promise<void> {
     const auth = this.adapters[provider], storage = this.options.storage;
+    // Before the provider logout: Codex keeps MCP tokens in keychain entries its logout does not clear (P1).
+    const connection = this.state(provider).connection;
+    if (connection) await this.mcpStep(provider, attemptId, connection.profile, { kind: "signOut", previousAccountId: connection.account.id, nextAccountId: null, staging: null });
     // The server's own logout clears its stored token (logout.py, 1.3.0; no remote revocation is documented). doan's
     // copy goes either way, and only the fresh status below decides the result.
     if (auth.acpAuth && auth.vault) await this.acpLogout(provider, attemptId);
@@ -486,6 +506,13 @@ export class AuthManager {
     const checked = await this.statusRun(provider, attemptId);
     if (checked.status !== "disconnected" && checked.status !== "expired") throw new Error(`profile still reports ${checked.status}`);
     storage.writeMetadata(replaceAccount(storage.readMetadata(), provider, null, false));
+  }
+
+  private async mcpStep(provider: Provider, attemptId: string, profile: string, request: Omit<McpLogoutRequest, "run">): Promise<void> {
+    if (!this.options.mcpLogout) return;
+    const run = (args: string[]) => this.exec(provider, attemptId, args, this.options.statusTimeoutMs ?? 20_000, profile);
+    try { await this.options.mcpLogout(provider, { ...request, run }); }
+    catch (error) { console.error(`doan: ${provider} MCP logout step failed`, message(error)); }
   }
 
   // The runs were asked to stop; each lease goes only when its process group is gone and its write-back landed. The
@@ -839,7 +866,8 @@ export class AuthManager {
 }
 
 // The hook leaves each link on its own line in a file only this login is given; polling it needs nothing from the CLI.
-function hookLinks(onLink: (raw: string) => void): { env: Record<string, string>; close(): void } {
+// The MCP connector sign-in uses it too (mcpConnectors/service.ts).
+export function hookLinks(onLink: (raw: string) => void): { env: Record<string, string>; close(): void } {
   const dir = mkdtempSync(join(tmpdir(), LINK_DIR_PREFIX)), file = join(dir, "links");
   let read = 0;
   const timer = setInterval(() => {

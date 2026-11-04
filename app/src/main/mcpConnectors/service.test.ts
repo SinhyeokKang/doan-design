@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Lease } from "../agentAuth/manager";
+import type { Lease, McpLogoutRequest } from "../agentAuth/manager";
 import type { AuthState, Readiness } from "../agentAuth/types";
 import { BASE_ARGS, FakeCli, type FakeProcess } from "./fixtures/fakeCli";
 import type { McpProvider } from "./presets";
@@ -127,6 +127,7 @@ describe("connect", () => {
 
   it("allows one attempt per provider: a second Connect there is refused, the other provider is free", async () => {
     const s = service();
+    s.refresh(); await s.idle();
     s.connect("claude", "doan-notion");
     expect(s.connect("claude", "doan-figma")).toEqual({ ok: false, reason: "busy" });
     expect(s.disconnect("claude", "doan-figma")).toEqual({ ok: false, reason: "busy" });
@@ -234,7 +235,7 @@ describe("connect", () => {
     await s.idle();
     expect(row(s, "claude", "doan-notion")?.failure).toBe("storage_failed");
     expect(existsSync(join(profile("claude"), ".credentials.json"))).toBe(false);
-    expect(fileJson().everConnected).toEqual({});
+    expect(existsSync(join(dir, "mcp-connectors.json"))).toBe(false);
   });
 
   it("a sign-in or sign-out in progress (admit busy) fails with the busy reason", async () => {
@@ -267,6 +268,8 @@ describe("connect", () => {
     s.connect("claude", "doan-notion");
     const p = await login("claude");
     expect(held.claude).toBe(1);
+    // The sign-out holds the provider, so nothing can lease it again meanwhile.
+    refusals.claude = "busy";
     await s.stopProvider("claude");
     expect(p.stopped).toBe(true);
     expect(held.claude).toBe(0);
@@ -391,6 +394,7 @@ describe("add and remove", () => {
 
   it("a provider without a Doan connection is skipped; a failed step keeps the server with removeFailed", async () => {
     states.claude = { ...connected("claude"), connection: null, phase: "disconnected" };
+    readiness.claude = { ready: false, cause: "not_connected", action: "signIn" };
     const s = service();
     s.add("https://mcp.example.com/mcp");
     cli.registered.codex.set("doan-mcp-example-com", { url: "https://mcp.example.com/mcp", auth: false });
@@ -481,6 +485,86 @@ describe("provider ready: pending logouts and reconcile", () => {
     expect(cli.commands("claude").map(c => c[1])).toContain("logout");
     cli.approve(p); await s.idle();
     expect(status(s, "claude", "doan-notion")).toBe("connected");
+  });
+});
+
+// B3: the MCP step agentAuth runs in a sign-out or a committed replacement, with its own process runner.
+describe("sign-out and replacement logout", () => {
+  const runner = (provider: McpProvider) => async (args: string[]) => {
+    const p = cli.spawn(`/verified/bin/${provider}`, [...BASE_ARGS[provider], ...args], { cwd: profile(provider), env: {} });
+    let stdout = "", stderr = "";
+    p.onOutput((text, stream) => { if (stream === "stderr") stderr += text; else stdout += text; });
+    return { code: await p.exit, stdout, stderr };
+  };
+  const request = (provider: McpProvider, over: Partial<McpLogoutRequest> = {}): McpLogoutRequest =>
+    ({ kind: "signOut", previousAccountId: null, nextAccountId: null, staging: null, run: runner(provider), ...over });
+  const logouts = (provider: McpProvider) => cli.commands(provider).filter(c => c[1] !== "list" && c[1] !== "get");
+  beforeEach(() => {
+    cli.registered.codex.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    cli.registered.codex.set("doan-figma", { url: "https://mcp.figma.com/mcp", auth: true });
+    cli.registered.codex.set("notion", { url: "https://mcp.notion.com/mcp", auth: true });
+  });
+
+  it("Codex sign-out logs each doan- server out; a failed one is unregistered from the live profile and recorded", async () => {
+    cli.failing.add("codex logout doan-figma");
+    const s = service();
+    expect(await s.logoutForAuth("codex", request("codex"))).toEqual({ failed: ["doan-figma"] });
+    expect(logouts("codex")).toEqual([["mcp", "logout", "doan-notion"], ["mcp", "logout", "doan-figma"], ["mcp", "remove", "doan-figma"]]);
+    expect([...cli.registered.codex.keys()]).toEqual(["doan-notion", "notion"]);
+    expect(store.pending()).toEqual([{ provider: "codex", name: "doan-figma", url: "https://mcp.figma.com/mcp" }]);
+    expect(store.blocked("codex", "doan-figma")).toBe(true);
+    await s.idle();
+  });
+
+  it("a Codex replacement registers in the new profile the servers whose logout succeeded and the signed-out ones", async () => {
+    cli.failing.add("codex logout doan-figma");
+    cli.registered.codex.set("doan-atlassian", { url: "https://mcp.atlassian.com/v1/mcp", auth: false });
+    const staging = join(dir, "profiles", "codex-next");
+    mkdirSync(staging);
+    const s = service();
+    expect(await s.logoutForAuth("codex", request("codex", { kind: "replace", staging }))).toEqual({ failed: ["doan-figma"] });
+    expect(readFileSync(join(staging, "config.toml"), "utf8")).toBe('\n[mcp_servers.doan-notion]\nurl = "https://mcp.notion.com/mcp"\n\n[mcp_servers.doan-atlassian]\nurl = "https://mcp.atlassian.com/v1/mcp"\n');
+    expect(logouts("codex")).toEqual([["mcp", "logout", "doan-notion"], ["mcp", "logout", "doan-figma"]]);
+    expect(store.blocked("codex", "doan-figma")).toBe(true);
+    await s.idle();
+  });
+
+  it("a Claude replacement logs out only when the account changed; a failed logout blocks that Claude Connect", async () => {
+    cli.registered.claude.set("doan-notion", { url: "https://mcp.notion.com/mcp", auth: true });
+    cli.registered.claude.set("doan-figma", { url: "https://mcp.figma.com/mcp", auth: true });
+    const s = service();
+    expect(await s.logoutForAuth("claude", request("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a1" }))).toEqual({ failed: [] });
+    expect(cli.commands("claude")).toEqual([]);
+    cli.failing.add("claude logout doan-figma");
+    expect(await s.logoutForAuth("claude", request("claude", { kind: "replace", previousAccountId: "a1", nextAccountId: "a2" }))).toEqual({ failed: ["doan-figma"] });
+    expect(logouts("claude")).toEqual([["mcp", "logout", "doan-notion"], ["mcp", "logout", "doan-figma"]]);
+    expect(cli.registered.claude.has("doan-figma")).toBe(true);
+    expect(store.blocked("claude", "doan-figma")).toBe(true);
+    await s.idle();
+    expect(row(s, "claude", "doan-figma")?.view).toMatchObject({ status: "reconnect_needed", blocked: true });
+  });
+
+  it("a Claude sign-out adds no MCP step: its auth logout clears the MCP tokens", async () => {
+    const s = service();
+    expect(await s.logoutForAuth("claude", request("claude"))).toEqual({ failed: [] });
+    expect(cli.commands("claude")).toEqual([]);
+  });
+
+  it("takes the servers from the provider's list while the connectors file is broken", async () => {
+    writeFileSync(join(dir, "mcp-connectors.json"), "{broken");
+    cli.registered.codex.set("doan-mcp-example-com", { url: "https://mcp.example.com/mcp", auth: true });
+    const s = service();
+    await s.logoutForAuth("codex", request("codex"));
+    expect(logouts("codex")).toContainEqual(["mcp", "logout", "doan-mcp-example-com"]);
+    await s.idle();
+  });
+
+  it("an unreadable list records every server Doan knows, so none is skipped", async () => {
+    cli.failing.add("codex list");
+    const s = service();
+    expect(await s.logoutForAuth("codex", request("codex"))).toEqual({ failed: ["doan-notion", "doan-atlassian", "doan-figma"] });
+    expect(store.pending().map(entry => entry.name)).toEqual(["doan-notion", "doan-atlassian", "doan-figma"]);
+    await s.idle();
   });
 });
 

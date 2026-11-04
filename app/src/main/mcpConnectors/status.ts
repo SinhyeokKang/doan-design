@@ -28,3 +28,37 @@ export function parseCodexMcpList(text: string): { name: string; authenticated: 
   }
   return servers;
 }
+
+// A server a provider's list names. url is null for one that is not a remote server (a stdio command); authenticated
+// is null when its status says neither signed in nor signed out.
+export interface ListedServer { name: string; url: string | null; authenticated: boolean | null }
+
+// `claude mcp list` (it health-checks every server first). Only doan- lines are read: the list also holds claude.ai
+// connectors and the person's own servers. A doan- line in another shape makes the whole list unreadable, so a
+// sign-out or replacement never skips one of Doan's servers silently.
+export function parseClaudeMcpList(output: string, exitCode: number): ListedServer[] | null {
+  if (exitCode !== 0) return null;
+  const servers: ListedServer[] = [];
+  for (const line of output.split("\n").map(text => text.trim())) {
+    if (!line.startsWith("doan-")) continue;
+    const found = /^(doan-[a-z0-9][a-z0-9-]*): (https:\/\/\S+) \(HTTP\) - (\S.*)$/.exec(line);
+    if (!found) return null;
+    const status = found[3]!.trim();
+    servers.push({ name: found[1]!, url: found[2]!, authenticated: status === "✔ Connected" ? true : status === "! Needs authentication" ? false : null });
+  }
+  return servers;
+}
+
+// `codex mcp list --json` with each server's registered URL.
+export function codexMcpServers(text: string): ListedServer[] | null {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return null; }
+  if (!Array.isArray(value)) return null;
+  const servers: ListedServer[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null || typeof item.name !== "string" || !item.name) return null;
+    const url = typeof item.transport === "object" && item.transport !== null && typeof item.transport.url === "string" ? item.transport.url : null;
+    servers.push({ name: item.name, url, authenticated: item.auth_status === "o_auth" ? true : item.auth_status === "not_logged_in" ? false : null });
+  }
+  return servers;
+}

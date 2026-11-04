@@ -2,6 +2,8 @@ import type { WorkItem } from "../main/workState";
 import type { OpenAnswer, OpenAsk, OpenLinkResult } from "../main/deepLinks";
 import type { AuthCheckReply, AuthPromptEvent, AuthReply, AuthSnapshot, AuthStartReply } from "../main/agentAuth/ipc";
 import type { Provider } from "../main/agentAuth/types";
+import type { McpAddReply, McpReply, McpSnapshot } from "../main/mcpConnectors/ipc";
+import type { McpProvider } from "../main/mcpConnectors/presets";
 import type { ShellActivity } from "../main/shellActivity";
 import type { ConversationService, StartRequest } from "../main/conversation/service";
 import type { ConversationError } from "../main/conversation/ipc";
@@ -35,6 +37,7 @@ import type { UiState } from "../restore/uiState";
 import type { AddPageResponse, AddPageState } from "../main/addPage";
 
 export type { AddPageResponse, AddPageState, WorkItem, OpenLinkResult, TrashPlanReply, TrashReply, ExportReply };
+export type { McpAddReply, McpReply, McpSnapshot };
 export type {
   AboutRead, ConfigChoice, ConfigKind, ConfigReply, NotificationTarget, Preferences, PreferencesPatch, PreferencesSnapshot, PreferencesWriteReply,
   SettingsPageTarget, SettingsSection, TestNotificationReply,
@@ -210,6 +213,27 @@ const api = {
     ipcRenderer.on("agent-auth:prompt", receive);
     return () => ipcRenderer.removeListener("agent-auth:prompt", receive);
   },
+  // Settings > MCP Connectors (mcp-connectors). Snapshots carry one revision, delivered newest only as onAgentAuth.
+  // refresh re-reads the provider statuses (entering the page, Retry of a failed read); they are never polled. Links
+  // stay in main: a Claude sign-in's link opens in the browser by itself and openMcpLink opens it again.
+  readMcpConnectors: (options: { refresh?: boolean } = {}): Promise<McpSnapshot> => ipcRenderer.invoke("mcp-connectors:list", options.refresh ? { refresh: true } : undefined),
+  onMcpConnectors(listener: (snapshot: McpSnapshot) => void): () => void {
+    let active = true, revision = -1;
+    const deliver = (snapshot: McpSnapshot | null) => {
+      if (!active || !snapshot || snapshot.revision <= revision) return;
+      revision = snapshot.revision; listener(snapshot);
+    };
+    const receive = (_event: Electron.IpcRendererEvent, snapshot: McpSnapshot) => deliver(snapshot);
+    ipcRenderer.on("mcp-connectors:changed", receive);
+    ipcRenderer.invoke("mcp-connectors:list", undefined).then(deliver, () => {});
+    return () => { active = false; ipcRenderer.removeListener("mcp-connectors:changed", receive); };
+  },
+  addMcpServer: (url: string): Promise<McpAddReply> => ipcRenderer.invoke("mcp-connectors:add", { url }),
+  connectMcpServer: (provider: McpProvider, name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:connect", { provider, name }),
+  disconnectMcpServer: (provider: McpProvider, name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:disconnect", { provider, name }),
+  cancelMcpConnect: (provider: McpProvider, name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:cancel", { provider, name }),
+  openMcpLink: (provider: McpProvider, name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:open-link", { provider, name }),
+  removeMcpServer: (name: string): Promise<McpReply> => ipcRenderer.invoke("mcp-connectors:remove", { name }),
   // The first-run session the CLI shares: same state, revision and operations as app-socket v2 (the reply DTO is
   // the socket's). Sign-in itself stays on the agent-auth calls above; a CLI sign-in is owned by this window too.
   startOnboardingSession: (): Promise<OnboardingResponse> => ipcRenderer.invoke("onboarding:start", {}),

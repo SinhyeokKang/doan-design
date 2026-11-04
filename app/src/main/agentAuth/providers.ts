@@ -120,8 +120,9 @@ export const PROVIDER_AUTH: Record<Provider, ProviderAuth> = {
   // PoC 10: a non-default CLAUDE_CONFIG_DIR gets its own Keychain item; .credentials.json would be the plaintext fallback.
   claude: { command: "claude", args: [], env: {}, login: ["auth", "login"], status: ["auth", "status", "--json"], logout: ["auth", "logout"],
     vault: null, plaintext: [".credentials.json"], settings: SKILL_STUB, ...CLI_RUN, hookLink: claudeLink, parseStatus: claudeStatus },
-  // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead.
-  codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
+  // The keyring entry is keyed by the canonical CODEX_HOME; "auto" could silently write auth.json instead. MCP OAuth
+  // tokens are forced into the keyring the same way, on every Codex process: a conversation's token refresh stores too.
+  codex: { command: "codex", args: ["-c", 'cli_auth_credentials_store="keyring"', "-c", 'mcp_oauth_credentials_store="keyring"'], env: {}, login: ["login"], status: ["login", "status"], logout: ["logout"],
     vault: null, plaintext: ["auth.json"], settings: SKILL_STUB, ...CLI_RUN, loginClears: true, identity: "codex-app-server", parseStatus: codexStatus },
   // AGENT_CLI_CREDENTIAL_STORE=file is Cursor's official switch; the default macOS Keychain item is shared by every profile.
   // On macOS the file store is ~/.cursor/auth.json (getAuthFilePath in the 2026.10.22 bundle).
