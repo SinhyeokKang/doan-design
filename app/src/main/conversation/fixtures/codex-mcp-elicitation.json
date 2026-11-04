@@ -1,0 +1,25 @@
+{
+  "id": 7,
+  "method": "mcpServer/elicitation/request",
+  "params": {
+    "threadId": "thread-5636",
+    "turnId": "thread-9279",
+    "serverName": "doan-echo-poc",
+    "mode": "form",
+    "_meta": {
+      "codex_approval_kind": "mcp_tool_call",
+      "persist": [
+        "session",
+        "always"
+      ],
+      "tool_description": "Returns pong.",
+      "tool_params": {},
+      "tool_params_display": []
+    },
+    "message": "Allow the doan-echo-poc MCP server to run tool \"ping\"?",
+    "requestedSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+}

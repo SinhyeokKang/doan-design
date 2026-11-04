@@ -10,6 +10,9 @@ test("the LNB lists Agents, Notifications and About in that order", () => {
 test("a saved section is read back; the old settingsTab value projects becomes Agents", () => {
   for (const section of ["agents", "notifications", "about"]) expect(parseSettingsSection(section)).toBe(section);
   expect(parseSettingsSection("projects")).toBe("agents");
+  // MCP Connectors has no page yet (mcp-connectors task D2): a saved mcp section opens Agents, as it will whenever the
+  // category is hidden.
+  expect(parseSettingsSection("mcp")).toBe("agents");
   for (const value of [undefined, null, "", "Agents", "settings", 1, {}]) expect(parseSettingsSection(value)).toBeNull();
 });
 
@@ -19,6 +22,9 @@ test("an openSettings target names an optional section and, for Agents, an optio
   expect(parseSettingsTarget({ section: "agents", provider: "codex" })).toEqual({ section: "agents", provider: "codex" });
   // A provider only lives on Agents, so naming one alone means Agents.
   expect(parseSettingsTarget({ provider: "copilot" })).toEqual({ section: "agents", provider: "copilot" });
+  // MCP Connectors' target opens Agents until its page exists, and names no provider.
+  expect(parseSettingsTarget({ section: "mcp" })).toEqual({ section: "agents" });
+  expect(parseSettingsTarget({ section: "mcp", provider: "codex" })).toBeNull();
 });
 
 test("an openSettings target with an unknown section, a provider outside Agents or extra keys is refused", () => {

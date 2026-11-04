@@ -187,6 +187,30 @@ describe("readable activity and permission summaries", () => {
     expect(claudePermissionSummary("Bash", { command: "npm test" }, "/repo")).toBe("npm test");
     expect(claudePermissionSummary("WebFetch", {}, "/repo")).toBe("Using a tool");
   });
+  // mcp-connectors spec 완료 조건 6: a Doan connector's tool is named with the connector, and its input (page ids,
+  // queries, bodies) never reaches the summary or the stored activity.
+  it("names a Doan MCP connector's tool and its connector, never its input or internal doan- name", () => {
+    const input = { description: "Read the spec page", path: "/repo/secret.md", pattern: "token", id: "page-123" };
+    expect(claudePermissionSummary("mcp__doan-notion__notion-fetch", input, "/repo")).toBe("Run notion-fetch on Notion");
+    expect(claudePermissionSummary("mcp__doan-example-com__search", input, "/repo", { "doan-example-com": "example.com" })).toBe("Run search on example.com");
+    expect(claudePermissionSummary("mcp__doan-notion__notion-fetch", input, "/repo", { "doan-notion": "Notion" })).toBe("Run notion-fetch on Notion");
+    // A tool name may itself hold double underscores.
+    expect(claudePermissionSummary("mcp__doan-figma__get__node", {}, "/repo")).toBe("Run get__node on Figma");
+    // A connector missing from the labels (removed meanwhile) shows its slug.
+    expect(claudePermissionSummary("mcp__doan-example-com__search", input, "/repo")).toBe("Run search on example-com");
+    expect(claudePermissionSummary(`mcp__doan-notion__${"t".repeat(2000)}`, {}, "/repo")).toHaveLength(512);
+    expect(claudePermission("r1", "mcp__doan-notion__notion-fetch", input, [], "/repo").event.summary).toBe("Run notion-fetch on Notion");
+    const tool = { type: "assistant", message: { id: "m", content: [{ type: "tool_use", id: "t1", name: "mcp__doan-notion__notion-fetch", input }] } };
+    // The activity line reuses the summary; keeping the input's path out of it is task C3 (the conversation batch).
+    expect(collect("claude", [tool]).events).toMatchObject([{ type: "activity", kind: "other", summary: "Run notion-fetch on Notion" }]);
+  });
+  it("leaves other MCP servers' tools and lookalike names to the input-based summary", () => {
+    expect(claudePermissionSummary("mcp__claude_ai_Figma__get_screenshot", { description: "Take a screenshot" }, "/repo")).toBe("Take a screenshot");
+    expect(claudePermissionSummary("mcp__notion__notion-fetch", { description: "Fetch" }, "/repo")).toBe("Fetch");
+    expect(claudePermissionSummary("mcp__doan-__x", { description: "Fetch" }, "/repo")).toBe("Fetch");
+    expect(claudePermissionSummary("mcp__doan-notion__", { description: "Fetch" }, "/repo")).toBe("Fetch");
+    expect(claudePermissionSummary("mcp__doan-Notion__x", { description: "Fetch" }, "/repo")).toBe("Fetch");
+  });
 });
 it("fails closed for an unsupported request rather than silently waiting forever", () => {
   expect(collect("codex", [{ id: 9, method: "item/future/requestApproval", params: { threadId: "session-1", turnId: "turn-1" } }]).events).toContainEqual({ type: "turn.failed", code: "session_unavailable" });
