@@ -858,7 +858,7 @@ Settings is a page of the main window, like Add Projects: the shell's header and
 | Element | Measured contract | Reason |
 |---|---|---|
 | Header tab | Settings is the capsule's third tab; on the page it is the current white pill with standard ink (the App shell values) | |
-| Sidebar | 'Settings' heading in the Projects heading's place, then three 204 × 32 rows (Agents, Notifications, About) 2px apart with 10px insets, a 16px Lucide icon in `--text-subtle` and body-sm label; the current row takes the pressed fill rgba(0,0,0,.1) with standard ink and icon; Search stays | The shipped sidebar with its project tree replaced. |
+| Sidebar | 'Settings' heading in the Projects heading's place, then 204 × 32 rows (Agents, MCP Connectors while Claude Code or Codex is signed in, Notifications, About) 2px apart with 10px insets, a 16px Lucide icon in `--text-subtle` and body-sm label; the current row takes the pressed fill rgba(0,0,0,.1) with standard ink and icon; Search stays | The shipped sidebar with its project tree replaced. |
 | Panel | Home's panel, the scroll container (`.doan-scroll`, thin); 14/20 body-sm with its tracking and plain numerals | Like the Add Projects panel. |
 | Column | max 768px (48rem), centred, padding 32 / 24 / 24 | Buzz's settings reading column. |
 | Header | 17px inline inset (the group's 16px plus its border, so text lines up with row text); title heading 24 / 26.4 / 500; lead caption 12 / 16 `--text-subtle`, 8px below; 32px to the first section; an action slot on the right (About's Copy details), hidden while empty | |
@@ -919,6 +919,48 @@ Reference: `.doan/canvases/zero-setup-agents.html`, the windows `about-skipped`,
 ### Regression pointers
 
 `ds/controls.test.ts` (switch, group, row), `SettingsPage.test.tsx` (sidebar ink, dialog type, group-level line), `agentAuthView.test.ts` (Settings' Check), `rendererImports.test.ts` (the renderer never loads the ajv validators: a blank window under the CSP otherwise). Probes: `.scratch/design-sync/buzz-settings/measure.mjs`, `.scratch/runtime-test/buzz-settings/r2.mjs`.
+
+## Settings › MCP Connectors
+
+Reference: `.doan/canvases/mcp-connectors.html`, frames `agents`, `one-agent`, `custom-url`, `server-menu`, `connecting`, `failed`, `remove-alert` and `running-notice` (windows and the tiles inside them). Frames `file-error`, `elsewhere` and `conversation` add to shipped surfaces and follow their measured values; they were not compared. Measured by computed style in the built app, Electron 45.0.0 at 1238 × 780 (`.scratch/design-sync/mcp-connectors/measure.mjs`): the draft is opened as a canvas of a fixture repo and read inside its iframe, the implementation is the same window's Settings page. 377 element pairs over 33 states; every pair exists on both sides. No provider signs in: agent-auth, the conversation list and every `mcp-connectors:*` handler are replaced in main, so signed-in, expired and signed-out agents, connector states, failures and the running turn are injected state, not a real provider CLI or `McpService`.
+
+### Measured contracts
+
+| Element | Measured contract | Reason |
+|---|---|---|
+| Category | Fourth Settings sidebar row between Agents and Notifications (204 × 32, the Settings rows' values) with a 16px Lucide Plug; listed only while Claude Code or Codex is signed in to Doan | |
+| Header | The Settings header (17px inset, title 24 / 26.4 / 500, lead caption 12 / 16 `--text-subtle` 8px below); Add server by URL in the action slot: `sm` `subtle` button 32 high, 16px Plus, 8px gap | |
+| Agent section | One per signed-in Claude Code and Codex, a `group` named by the agent; title label-sm 14 / 20 / 500 with the agent's 16px logo 6px before it; the header centres a signed-in-but-can't-run reason (caption, 2px under the title) and its `sm` `prominent` Open Agents settings | Shared Settings section values. |
+| List | The first-run provider list on Settings' white panel: `doan-panel` with 24px corner, 0 16px padding, panel shadow | DESIGN 'Onboarding' › 'Provider list and rows'. |
+| Item | The first-run provider row: min-height 72, padding 16 0, 1px `--border-standard` between items; 32px mark slot with a 24px preset logo (`public/mcp-logos/`) or a 24px Lucide Server in `--text-subtle` for a URL server; name 14 / 20 / 500, wrapping anywhere (a long host); status caption 12 / 16 `--text-metadata`; a URL server's full URL a second caption line under the status, wrapping anywhere | Long hosts and URLs wrap on this page only. |
+| Item actions | `sm` buttons 32 high: Connect and Reconnect `prominent`, Disconnect `subtle`; a URL server's … is a 32px `doan-icon-button` in `--text-subtle` with a 16px Ellipsis, after the button; its menu is the shared `doan-menu` (one Remove item, 32 high) | |
+| Lines under an item | Reconnect needed's helper and the pending-logout line: `ob-provider-help` 12px below in `--text-subtle`; the waiting, failure and running-turn notices: the default `doan-notice` (inset fill, 12 / 16 padding, 16px corner, 6px gap) 12px below, a 16px icon or spinner 2px down; the notice's actions 16px below it, `sm`, Cancel left and Open again right, a single Retry on the right | |
+| Disabled | Checking, Disconnecting and Removing keep the row's button disabled (`--affordance-disabled`, `--text-disabled`); a busy section's other Connect buttons have the same look through `data-disabled` but stay focusable (`aria-disabled`) for their tooltip | |
+| URL dialog | Compact dialog 400 wide, 32px padding, 28px corner, 16px between parts: title, description, the URL field (40 high, 20px corner), Cancel `subtle` and Add `prominent` default-size (40 high, 24px inline padding); an invalid field takes the danger border (`aria-invalid`) and the inline error sits 8px under it (`settings-msg error`, 16px icon, `role=alert`) | |
+| Remove alert | The same compact dialog as an `alertdialog` named by its title, Cancel focused, Remove `prominent`, default-size actions; the page is locked behind it | |
+| Live region | One page live region (`.ob-live`, `role=status`); the accessibility tree shows no other live node on the page | |
+
+### Documented deviations from the draft
+
+- **No live roles on item and file notices** (spec 2; conductor decision for D2 review Y1). The draft gives the waiting notice `role=status` and the failure and Couldn’t check notices `role=alert`; the implementation keeps their look and drops the roles, so the page live region is the only announcement channel. The URL dialog's field error and the Remove `alertdialog` keep theirs.
+- **Progress labels without an ellipsis** (design '문구 규칙: 진행 상태'): Checking, Connecting, Disconnecting, Removing; any draft label with an ellipsis follows the rule.
+- **Disconnect returns to Not connected** with Connect and the "Not connected" line (user decision, orch.md); Reconnect needed is only for a connection that ended without the person's Disconnect.
+- **Panel tracking.** Item names, notice text and helper lines inherit the Settings panel's body-sm tracking (−0.035px), as Settings › Agents' rows do; the draft's canvas body has none. Lines are up to 3px narrower than drawn.
+- **Busy reason.** A busy Connect carries its reason as a visually hidden description (`sr-only`) besides the tooltip, so the item's text content is longer than drawn; its box is unchanged.
+- **Image reset.** The app's base gives images `max-width: 100%`; the draft's base does not. No box differs.
+- **Sidebar label** keeps the shipped `white-space: nowrap`.
+- Not deviations: a tile's first item has no divider in the draft while the same item is not first in the app's full list (1px); a tile's dialog is drawn in place while the app centres the modal; the column is 11px narrower while the page scrolls (scroll bar); a spinning icon's box follows its rotation (its computed 16px size matches); a keyboard-highlighted menu item also shows the shared focus outline.
+
+### Not verified
+
+- A real provider: Connect, Disconnect and Remove through the provider CLIs, the Claude link and browser approval, and the snapshot timing of `McpService` in the app (E1).
+- Hover, pressed and keyboard focus of every control, the tooltip's own box, and the 960 × 600 width.
+- Frames `file-error`, `elsewhere` and `conversation` (not compared); the failure toast and the stop-dialog line were only checked in the earlier runtime probe; the Codex not-ready activity line only in unit tests.
+- Screen-reader speech: only DOM and accessibility-tree values were read, not what a screen reader says.
+
+### Regression pointers
+
+`SettingsMcpConnectors.test.tsx` (default-size dialog actions, live roles, focus, dialogs), `mcpConnectorsView.test.ts` (copy and states), `SettingsPage.test.tsx` (sidebar order), `threadItems.test.ts` (the not-ready line). Probes: `.scratch/design-sync/mcp-connectors/measure.mjs`, `.scratch/runtime-test/mcp-bu/probe.mjs`.
 
 ## Project Settings page
 
