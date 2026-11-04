@@ -26,8 +26,8 @@
 | M | T1(main: `autoRegisterRoot`, `pruneAuto`, `autoAfterAdd`), T2a, T2b | `app/src/main/**`(새 규칙 모듈, `folderStore`, `shell`, `cli`, `view`, `index`, `runtime`, `addFlow`·`addProjects`와 각 테스트), `app/src/preload/**` | 없음 | Opus high — 두 파일 쓰기 순서·세대 직렬화, 비동기 등록과 기한 경쟁, 동시 `start` 합치기. 틀리면 목록 유실이나 남는 스피너 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합(`e18fa3d8..b0c9e7d1`), 리뷰 1라운드 🔴 0, 🟡 2 수정 완료 |
 | R1 | T1(renderer: `siblingWork`, W 소멸 도착지), T3 중 플래그가 필요 없는 것(보드 안내 + Open §3.1, 사이드바 slot 테스트 §3.2, picking 안내 위치 §3.6) | `app/src/renderer/**` | 없음 | Opus high — App navigation·기록·focus 상태가 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck, build | 통합(`470d48ec..8dbcd2ca`), 리뷰 1라운드 🔴 0 |
 | R2 | T3 중 플래그 의존 항목: 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4)과 그 App 테스트 | `app/src/renderer/**` | M 통합 | Opus high — R1과 같은 이유 | R1과 같음 | 통합(`10182ce1..62df4227`), 리뷰 1라운드 🔴 0, 🟡 2 수정 완료 |
-| R3 | T3 `/runtime-test` 전 항목과 실제 Orca worktree(`orca worktree create`로 만든 것)에서 보낸 `doan work start` probe(사용자 요청), `/design-sync`(`sibling-notice`, `picking-hint`)와 `docs/DESIGN.md` 측정값 | `app/src/renderer/**`(sync 수정), `docs/DESIGN.md`, `.scratch/` | M·R1·R2 통합 | Opus high — 실제 앱 격리와 측정 판단 | `/runtime-test` 증거, `/design-sync` 보고, 앱 test·typecheck·build | 대기 |
-| E | T4 `/agent-eval` | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 전체 통합 | Sonnet medium — 정해진 시나리오 실행과 기록 | `node eval/run.ts` 결과와 기록 | 대기 |
+| R3 | T3 `/runtime-test` 전 항목과 실제 Orca worktree(`orca worktree create`로 만든 것)에서 보낸 `doan work start` probe(사용자 요청), `/design-sync`(`sibling-notice`, `picking-hint`)와 `docs/DESIGN.md` 측정값 | `app/src/renderer/**`(sync 수정), `docs/DESIGN.md`, `.scratch/` | M·R1·R2 통합 | Opus high — 실제 앱 격리와 측정 판단 | `/runtime-test` 증거, `/design-sync` 보고, 앱 test·typecheck·build | 통합(`737b3b14`, `061acbf9`) |
+| E | T4 `/agent-eval` | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 전체 통합 | Sonnet medium — 정해진 시나리오 실행과 기록 | `node eval/run.ts` 결과와 기록 | 진행 중(W3b·H7) |
 | 지휘자 | T4 승격(PRODUCT, ARCHITECTURE, BACKLOG), feature 디렉터리 삭제, 통합 `/verify` | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/terminal-work-worktrees/` | 전체 통합 | — | `verify.mjs`, `rg` 참조 확인 | 대기 |
 | 리뷰 | 배치별 `/code-review`(보고만) | 없음 | 각 배치 완료 | M: Opus high, R: Opus medium — diff 난이도 기준 | 🔴 0 | 대기 |
 
@@ -56,3 +56,10 @@
 - R2를 cherry-pick했다(`10182ce1..62df4227`). 통합 HEAD `62df4227`에서 `verify.mjs` PASS(지휘자 실행).
 - worktree 정리: `ttw-M`(tip `f7d35b90`), `ttw-R1`(tip `6a719dfe`), `ttw-R2`(tip `01acb4d7`)를 `git cherry`에 `+`가 없음을 확인하고 `orca worktree rm`으로 지웠다. 브랜치는 남아 있다. handoff는 `.scratch/orch/handoff-{M,R1,R2}.md`로 옮겼다.
 - R3 시작: 새 child worktree `ttw-R3`(기준 `62df4227`), Opus high. 리뷰 ⚪ 중 실제 앱 확인 항목을 brief에 넣었다.
+- R3(Opus high): `/runtime-test` git worktree probe 43 checks PASS, 실제 Orca worktree probe 11 checks PASS(`orca worktree create`로 만든 worktree에서 `delivered: true` 34 ms, 자동 등록·안내·Open·`orca worktree rm` 뒤 조용한 제거까지 git worktree와 같음). `/design-sync` 156행. 찾은 결함은 하나다: 다른 worktree 안내의 tooltip이 안내 위로 열려 캔버스 헤더에 걸쳤다 → `46f87633`(4px 아래로). design-sync 안의 Opus 리뷰 2라운드 🔴 0 🟡 0. DESIGN.md `2e44c9c2`. 작업자 `verify.mjs` PASS.
+  - 첫 probe의 real-state 검사가 실제 `ui-state.json` 변경을 보고했다. 실제 `/Applications/Doan.app`(pid 71320, 10:04 시작)이 계속 떠 있었고 지금도 그 파일을 쓰는 것을 지휘자가 확인했다. probe 앱은 임시 userData였다. 뒤의 두 실행과 측정은 real-state 검사를 통과했다.
+  - 재지 못한 상태: Open focus ring·pressed(드래프트에 없음), 드래프트 쪽 Open hover, 앱 대화 중 picking(`pick-agent`, 격리 앱의 에이전트 로그인 불가), 좁은 보드의 hint 줄임표, dark mode, forced colours. tooltip 수정 뒤 runtime probe는 다시 돌리지 않았다(side·offset만 바뀜, 실제 앱에서 재측정).
+  - 드래프트 불일치: `picking-hint` frame은 Esc를 기본 `.doan-kbd`(밝은 채움)로 그렸지만 캡션과 design §3.6은 "그대로"라고 한다. 구현은 출시된 `on-prominent` Esc를 유지하고 DESIGN.md에 deviation으로 적었다.
+- R3를 cherry-pick했다(`737b3b14`, `061acbf9`). evidence는 `.scratch/orch/r3-evidence/`로 옮겼다.
+- worktree 정리 사고: Orca가 `orca worktree rm` 뒤에 `SinhyeokKang/ttw-{M,R1,R2,R3}`를 지웠다(receipt의 `branchDeleted`는 null이었고, 직후 확인에서는 브랜치가 있었다). 기록한 tip으로 네 브랜치를 다시 만들었다(M `f7d35b90`, R1 `6a719dfe`, R2 `01acb4d7`, R3 `2e44c9c2`). `ttw-R3` worktree도 지웠다.
+- E 시작: `/agent-eval` W3b·H7만 — 지휘자 판단. CLI·guide·skill stub·`doan check`·app-socket v3 모양과 eval fake app이 바뀌지 않았다(design §5). 새 child worktree `ttw-E`, Sonnet medium.
