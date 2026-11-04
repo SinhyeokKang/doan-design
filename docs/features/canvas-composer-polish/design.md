@@ -54,9 +54,10 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·공유 포맷(comment events, 
 - promotion: 기존 규칙은 겹친 턴에서 틀린 대화를 고를 수 있다. `canvasWorking`(`service.ts`)은 대상 캔버스의 현재 대화가 working일 때만 막고, 판정이 끝난 대화는 working이 아니다. 예: A가 답을 기다리는 동안 B가 시작해 캔버스 X를 만들고 끝나 X에 붙는다. 그 뒤 A가 답을 받고 끝나면, X는 A의 snapshot에 없으므로 A의 새 캔버스 후보가 되고, `promoteTo`가 A를 X에 붙이며 B를 archive한다. 그래서 규칙을 하나 더한다(사용자 결정):
   - 턴의 판정은 그 턴의 snapshot 뒤에 다른 대화에 붙은 캔버스를 후보에서 뺀다(새 캔버스, 기존 캔버스 모두).
   - main은 evidence마다 "snapshot 뒤 다른 대화에 붙은 캔버스" 집합을 두고, 다른 대화를 캔버스에 붙이는 쓰기(promotion의 `conversation.bound`)가 일어나면 같은 root의 다른 evidence에 그 캔버스를 더한다. `promotionTarget`(`project.ts`)은 이 집합을 받아 후보에서 뺀다.
-  - 반대 순서(A가 먼저 끝나 먼저 판정되고 B가 아직 판정 전)에서는 X가 아직 어느 대화에도 붙지 않았으므로 위 규칙으로 막히지 않는다. 그래서 하나 더한다(사용자 결정): A를 판정할 때 같은 root에 아직 판정하지 않은 다른 턴의 evidence가 있고 그 evidence의 snapshot에도 새 캔버스가 없으면, 그 캔버스는 그 턴의 것일 수 있다. 이때는 후보가 여럿일 때처럼 promotion하지 않고, A는 project conversation으로 남는다. 판정하지 않은 다른 턴은 실행 중·답 대기·끝난 뒤 판정 창 안의 턴이며, 모두 `this.evidence`에 있다.
-  - `promotionTarget`은 위 두 집합(다른 대화에 붙은 캔버스, 판정하지 않은 다른 턴도 가질 수 있는 새 캔버스)을 입력으로 받는 순수 함수로 남긴다.
-  - `/tdd`에서 위 예(A 나중 판정), 반대 순서(A 먼저 판정 → promotion 없음, 뒤에 판정되는 B는 X에 붙음), 겹치지 않는 기존 경우를 고정한다.
+  - 판정할 때 같은 root에 아직 판정하지 않은 다른 턴의 evidence가 있고 그 evidence의 snapshot에도 새 캔버스가 없으면, 그 캔버스는 그 턴의 것일 수 있다. 이때는 후보가 여럿일 때처럼 promotion하지 않고, 대화는 project conversation으로 남는다. 판정하지 않은 다른 턴은 실행 중·답 대기·끝난 뒤 판정 창 안의 턴이며, 모두 `this.evidence`에 있다. 그래서 위 예에서도 B가 먼저 판정되면 X는 A의 것일 수 있으므로 B는 X에 붙지 않는다.
+  - 어느 턴이 그렸는지 알 수 없는 캔버스는 어느 쪽도 갖지 않는다(지휘자 결정, spec 완료 조건 4). 새 캔버스 하나를 위 이유로 promotion하지 않은 판정은, 그 캔버스를 snapshot에 갖지 않은 다른 미판정 evidence의 제외 집합(`taken`)에 더한다. 그래서 나중에 판정되는 쪽도 X에 붙지 않고, 두 대화 모두 project conversation으로 남는다. 새 캔버스가 둘 이상이라 promotion하지 않은 판정은 다른 evidence에 아무것도 더하지 않는다.
+  - `promotionTarget`은 위 두 집합(다른 대화에 붙었거나 다툰 끝에 남긴 캔버스, 판정하지 않은 다른 턴도 가질 수 있는 새 캔버스)을 입력으로 받는 순수 함수로 남긴다. 다툰 캔버스를 알려 주는 판정도 순수 함수(`contestedCanvas`)로 둔다.
+  - `/tdd`에서 정방향(B 먼저 판정 → promotion 없음, 뒤에 Deny로 끝난 A도 X에 붙지 않음), 역방향(Stop으로 끝난 A 먼저 판정 → promotion 없음, 뒤에 판정되는 B도 X에 붙지 않음), 기존 캔버스와 다른 턴 snapshot에 이미 있던 새 캔버스로 본 `taken` 제외, 새 캔버스가 둘이라 막힌 판정은 다른 턴을 막지 않음, 겹치지 않는 기존 경우를 고정한다.
 - Home의 새 캔버스: `homeRun.ts`의 `entriesChanged`는 새 캔버스를 root의 첫 live Home 대화에 붙여 `canvasAppeared`(자동 열기 또는 toast)와 `drew`를 정한다. 겹친 턴에서는 다른 대화의 캔버스를 그 대화의 것으로 볼 수 있으므로, 같은 root에 live 턴(실행 중, 답 대기, 끝난 뒤 판정 창 안)이 둘 이상이면 새 캔버스 후보를 확인한 것으로만 두고(`checked`) `canvasAppeared`와 `drew`를 건너뛴다(사용자 결정). live 턴 수는 Home이 시작한 대화만이 아니라 그 root의 모든 project conversation으로 센다.
 
 ### 5. 툴바 Export
