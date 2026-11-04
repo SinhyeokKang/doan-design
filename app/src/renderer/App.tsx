@@ -1570,7 +1570,7 @@ export function App() {
     if (!rightPanelRef.current.open) foldPanel(true, "content");
     setArrival({ focus, seq: ++panelArrivals.current });
   }
-  // The other worktree notice's Open (terminal-work-worktrees design §3.1): the terminal slot's path to W's same canvas,
+  // The other worktree notice's Open (DESIGN 'Terminal work in another worktree'): the terminal slot's path to W's same canvas,
   // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
   const onOpenSibling = (root: string) => {
     if (!state.open) return;
@@ -1827,7 +1827,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
         : <p>{state.message}</p>}
     </div>}
     {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their
-        coming and going never moves it (terminal-work-worktrees design §3.6). The composer pick button's glyph leads it. */}
+        coming and going never moves it (DESIGN 'Terminal work in another worktree'). The composer pick button's glyph leads it. */}
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}

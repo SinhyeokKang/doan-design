@@ -151,7 +151,7 @@ describe("CanvasAgent Stop", () => {
   });
 });
 
-// terminal-work-worktrees design §3.1: the other worktree's notice. Open hands its root to App; the text's tooltip says
+// DESIGN 'Terminal work in another worktree': the other worktree's notice. Open hands its root to App; the text's tooltip says
 // the whole sentence, so a long label cut by the ellipsis stays readable.
 describe("CanvasAgent another worktree", () => {
   const LONG = "feat/checkout-redesign-with-saved-payment-methods-and-guest-flow";

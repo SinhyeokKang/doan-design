@@ -763,7 +763,7 @@ describe("storing, removing and restoring", () => {
   });
 });
 
-// terminal-work-worktrees: a worktree the app registered on its own for a terminal agent's `doan work start`.
+// Auto-registration: a worktree the app registered on its own for a terminal agent's `doan work start`.
 describe("auto-registered worktrees", () => {
   type Change = { entries: FolderEntry[]; focus: FolderFocus | undefined };
   const autoSaved = (foldersFile: string): unknown => saved(join(foldersFile, "..", "auto-folders.json"));

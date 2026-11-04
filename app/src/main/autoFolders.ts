@@ -1,7 +1,7 @@
 import type { FolderState } from "./folderState";
 
 // Rules for worktrees the app registers on its own when a terminal agent's `doan work start` comes from an
-// unregistered worktree of a saved repository (terminal-work-worktrees). The I/O lives in folderStore, shell and
+// unregistered worktree of a saved repository (ARCHITECTURE §4 'Auto-registration'). The I/O lives in folderStore, shell and
 // runtime; these decide.
 
 // `view` is `doan ls --json --repo <request root>`. `git.worktrees` lists where this doan root sits in each worktree

@@ -29,7 +29,7 @@ export interface Shell {
   // Stores roots main already judged, after the stored ones; resolves to the
   // paths that were not stored yet. A given root already stored becomes hand-added.
   store(paths: readonly string[]): Promise<string[]>;
-  // Registers a worktree for a terminal agent's work signal (terminal-work-worktrees design §2.1), listed at once
+  // Registers a worktree for a terminal agent's work signal (ARCHITECTURE §4 'Auto-registration'), listed at once
   // from `view` (its `doan ls`) so it never shows as a loading row of its own. The caller has judged it with
   // `autoRegisterRoot`. Publishes the list synchronously, with no focus: nothing on screen moves. False when the
   // root is already stored.

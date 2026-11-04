@@ -54,7 +54,7 @@ export interface GitInfo {
 // `lastCommon` is the last `git.common` main saw for the path, kept while the
 // row is not a list so it stays on its card until the app quits.
 // `autoRegistered` marks a worktree the app registered for a terminal agent's `doan work start`
-// (terminal-work-worktrees); absent on hand-added roots. The renderer hides such a row while it is not a list.
+// (ARCHITECTURE §7 `auto-folders.json`); absent on hand-added roots. The renderer hides such a row while it is not a list.
 export type FolderEntry = { path: string; lastCommon?: string; autoRegistered?: true } & (
   | { kind: "loading" }
   // Bumped by the shell whenever a served file of the folder changed; the

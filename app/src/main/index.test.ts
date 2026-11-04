@@ -460,7 +460,7 @@ test("clears only the removed project selection", async () => {
   expect(runtimeState().selection()).toBeNull();
 });
 
-// terminal-work-worktrees design §2.3: a vanished auto-registered worktree goes through Remove's clean-up.
+// ARCHITECTURE §4 'Auto-registration': a vanished auto-registered worktree goes through Remove's clean-up.
 test("an auto-removed worktree clears its selection and thumbnails", async () => {
   const W = "/orca/workspaces/repo/w1";
   const before = [{ path: ROOT }, { path: W }];
@@ -1696,7 +1696,7 @@ describe("Add Projects page session", () => {
     expect(mocks.flow.add).toHaveBeenCalledExactlyOnceWith("/picked");
   });
 
-  // terminal-work-worktrees: selecting an already registered worktree, auto-registered or not, makes it hand-added.
+  // Auto-registration marks: selecting an already registered worktree, auto-registered or not, makes it hand-added.
   test("a selected folder that is already registered is stored again as hand-added", async () => {
     const contents = window().webContents, sessionId = await pageSession();
     mocks.projects.canonicalFolder.mockResolvedValue("/w");
@@ -2113,7 +2113,7 @@ test("main exposes work only to its main frame and clears it on root removal", (
   expect(invoke("work:get", window().webContents, null)).toEqual([]);
 });
 
-// terminal-work-worktrees design §2.1-4: the adopted root is in the work state before the start's work applies.
+// ARCHITECTURE §4 'Auto-registration': the adopted root is in the work state before the start's work applies.
 test("an adopted worktree takes the start's work at once", () => {
   const W = "/orca/workspaces/repo/w1";
   const state = mocks.startRuntime.mock.calls[0]?.[1] as { roots(): readonly string[]; adopt(root: string, view: unknown): void; work(request: unknown): void } | undefined;

@@ -135,7 +135,7 @@ describe("CLI environment", () => {
 });
 
 describe("readFolder before running the CLI", () => {
-  // The errno code tells a vanished folder (ENOENT, ENOTDIR) from one that could not be checked (terminal-work-worktrees design §2.3).
+  // The errno code tells a vanished folder (ENOENT, ENOTDIR) from one that could not be checked.
   test.each([
     ["a missing path", () => join(tmp, "gone"), "ENOENT"],
     ["a file", () => {

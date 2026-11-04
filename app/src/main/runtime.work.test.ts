@@ -23,7 +23,7 @@ test("non-numeric or unknown versions keep the v1 refusal", async () => {
   for (const v of ["3", 5, null]) expect(await answerLine(JSON.stringify({ ...request, v }), token, state())).toMatchObject({ v: 1, ok: false, error: { code: "bad_request" } });
 });
 
-// terminal-work-worktrees design §2.1: a `start` from an unregistered worktree of a saved repository registers it.
+// ARCHITECTURE §4 'Auto-registration': a `start` from an unregistered worktree of a saved repository registers it.
 describe("auto-registration", () => {
   const W = "/orca/workspaces/repo/w1";
   const start = { v: 3, token, root: W, action: "start", path, session: "s1", provider: "claude" };

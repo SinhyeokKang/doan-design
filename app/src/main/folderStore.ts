@@ -11,7 +11,7 @@ export interface FolderStore {
   // memory either way, and the app keeps running on that list.
   add(path: string): Promise<Error | null>;
   remove(path: string): Promise<Error | null>;
-  // Auto-registered roots (terminal-work-worktrees), in list order. Kept in `auto-folders.json` beside folders.json,
+  // Auto-registered roots (ARCHITECTURE §7 `auto-folders.json`), in list order. Kept in `auto-folders.json` beside folders.json,
   // which stays a plain string array so an older app still reads the list.
   auto(): string[];
   // Adds the root marked as auto-registered.

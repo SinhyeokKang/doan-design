@@ -344,7 +344,7 @@ export class CanvasController {
     return JSON.stringify([layout?.frames.map(frame => [frame.id, frame.title]), layout?.truncated, status, shown, unlisted]);
   }
 
-  // `listed` is main's list before App hides rows (terminal-work-worktrees design §3.3): a hidden root keeps its
+  // `listed` is main's list before App hides rows (PRODUCT §5 item 1): a hidden root keeps its
   // remembered canvas, since a restart reads an auto-registered worktree as `loading` and only then shows it.
   updateEntries(next: FolderEntry[], listed: readonly FolderEntry[] = next): void {
     this.applyEntries(next, listed);

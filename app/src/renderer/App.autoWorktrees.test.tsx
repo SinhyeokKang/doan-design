@@ -6,7 +6,7 @@ import type { WorkItem } from "../main/workState";
 import { initialCanvasState } from "./CanvasController";
 import type { ShellProject } from "../restore/uiState";
 
-// terminal-work-worktrees design §3.3 and §3.4: an auto-registered worktree that is not a list is hidden everywhere the
+// PRODUCT §5 item 1: an auto-registered worktree that is not a list is hidden everywhere the
 // group's worktrees show, its registration and removal move nothing, and the worktree on screen that vanishes or hides
 // hands the screen to the worktree selected before it (else the main checkout) instead of going Home. Hooks run as plain
 // state so App's own wiring runs (App.terminalWork.test.tsx).

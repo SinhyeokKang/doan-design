@@ -196,13 +196,13 @@ test("an expanded project that is not loaded opens its terminal slot's canvas an
   expect(sidebar().projects[key]?.expanded).toBe(true);
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
-  // Once the slot's canvas shows, its worktree is the project's selected one (terminal-work-worktrees design §3.2).
+  // Once the slot's canvas shows, its worktree is the project's selected one (DESIGN 'Terminal work in another worktree').
   slotOpen.opened(); await flush(); render();
   expect(sidebar().projects[key]?.selectedRoot).toBe("/w/b");
 });
 
-// terminal-work-worktrees: W is another worktree of the loaded project, not selected, so its canvas rows are not on
-// screen and its session's spinner stands on the project row (spec done-when 3, design §3.2).
+// W is another worktree of the loaded project, not selected, so its canvas rows are not on
+// screen and its session's spinner stands on the project row (PRODUCT §5 item 2 'Terminal work').
 const COMMON = "/repo/.git";
 const tree2 = (wCanvases: CanvasRow[]): FolderEntry[] => [
   { path: "/w/a", kind: "list", servedRev: 0, canvases: rows(), git: { common: COMMON, main: "/w/a", branch: "main", worktrees: ["/w/a", "/w/w"] } },
@@ -226,7 +226,7 @@ test("another worktree's spinner waits until it lists the path; the project row'
   expect(sidebar().projects[key]?.selectedRoot).toBe("/w/w");
 });
 
-// terminal-work-worktrees design §3.1: the board notice's Open on (R, P) opens (W, P) the way the terminal slot does,
+// DESIGN 'Terminal work in another worktree': the board notice's Open on (R, P) opens (W, P) the way the terminal slot does,
 // cancels a pick, and leaves one canvas visit, so Back returns to R's canvas.
 test("the other worktree notice's Open cancels a pick, opens W's same canvas and selects W; Back returns to R's canvas", async () => {
   render();

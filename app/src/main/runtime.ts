@@ -15,7 +15,7 @@ import type { FolderState } from "./folderState";
 const LINE_LIMIT = 64 * 1024;
 export const LINE_WAIT_MS = 2000;
 // The CLI's 2 s (`activeTimeout`) starts before it dials and LINE_WAIT_MS at the connection, so a registration
-// answers by 1.5 s or the start is refused; the registration itself goes on (terminal-work-worktrees design §2.1-7).
+// answers by 1.5 s or the start is refused; the registration itself goes on (ARCHITECTURE §4 'Auto-registration').
 export const AUTO_REGISTER_WAIT_MS = 1500;
 
 export interface ActiveState {
@@ -30,7 +30,7 @@ export interface RuntimeState extends ActiveState {
   // Called only with a schema-valid v4 request whose token matched and whose root is registered. It must answer
   // inside the 2 s deadline (deepLinks.ts OPEN_ANSWER_TIMEOUT_MS).
   open(request: OpenRequest): Promise<OpenResponse>;
-  // Auto-registration of a saved repository's worktree on a v3 start (terminal-work-worktrees): the registered roots,
+  // Auto-registration of a saved repository's worktree on a v3 start (ARCHITECTURE §4 'Auto-registration'): the registered roots,
   // `doan ls --json --repo <root>` (never killed early, so a late registration still lands), and the registration,
   // which must make `isOpen(root)` true before it returns so the start's work applies.
   roots(): readonly string[];

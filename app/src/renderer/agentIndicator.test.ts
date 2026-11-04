@@ -163,7 +163,7 @@ describe("canvasAgent with terminal sessions", () => {
   });
 });
 
-// terminal-work-worktrees design §3.1: a terminal session on the open canvas's path in another worktree of the same
+// DESIGN 'Terminal work in another worktree': a terminal session on the open canvas's path in another worktree of the same
 // project (the sidebar's group) is named on the board with Open; identity stays root + path (POSTMORTEM 2026-11-01).
 describe("siblingWork", () => {
   const COMMON = "/repo/.git";

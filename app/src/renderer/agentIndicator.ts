@@ -45,11 +45,11 @@ export function canvasAgent(list: readonly ConversationSummary[] | null, target:
   return work.some(item => item.root === target.root && item.path === target.canvas.path) ? { root: target.root, presence: null, terminal: true } : null;
 }
 
-// A terminal session on the open canvas's path in another worktree of the same project (terminal-work-worktrees design
-// §3.1). The group is the sidebar's (`groupProjects`), so the notice never names a worktree the sidebar puts elsewhere.
+// A terminal session on the open canvas's path in another worktree of the same project (DESIGN 'Terminal work in another worktree').
+// The group is the sidebar's (`groupProjects`), so the notice never names a worktree the sidebar puts elsewhere.
 // Only a list worktree that lists the path counts: its Open needs that row. With several, the last in `work` wins
 // (WorkItem has no time). This root's own session wins, and the caller lets an app conversation win too. The label is
-// the branch, else the folder name (a detached HEAD included, design §3.1).
+// the branch, else the folder name (a detached HEAD included).
 export function siblingWork(work: readonly WorkItem[], target: WorkingCanvas | null, entries: readonly FolderEntry[]): { root: string; label: string } | null {
   if (!target) return null;
   const path = target.canvas.path;

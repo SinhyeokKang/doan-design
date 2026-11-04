@@ -1189,7 +1189,7 @@ it("forgets navigation memory when a project is removed and added again", () => 
   } finally { h.controller.dispose(); }
 });
 
-// terminal-work-worktrees: a restart reads an auto-registered worktree as `loading`, and App hides it meanwhile. Hidden
+// A restart: reads an auto-registered worktree as `loading`, and App hides it meanwhile. Hidden
 // is not removed: its remembered canvas stays while main still lists it (R2 review 🟡1).
 it("keeps the memory of a root hidden from the shown list while main still lists it", () => {
   const h = selectionHarness();

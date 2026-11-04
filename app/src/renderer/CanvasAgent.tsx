@@ -17,7 +17,7 @@ import { autoCursor, dotGrid, type Dot } from "./dotField";
 // `work`: the canvases terminal sessions work on (terminal-agent-activity, draft frame terminal-notice); one on this
 // canvas shows the same indicator without a button.
 // `entries` group the worktrees: with nothing on this canvas here, a session on its path in another worktree of the
-// project shows a notice with Open and no glow (terminal-work-worktrees design §3.1, draft frame sibling-notice).
+// project shows a notice with Open and no glow (DESIGN 'Terminal work in another worktree', draft frame sibling-notice).
 // `onOpenSibling` gets that worktree's root.
 export function CanvasAgent({ list, canvas, running, work, entries, onOpen, onOpenSibling, onStopFailed, children }: {
   list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[];

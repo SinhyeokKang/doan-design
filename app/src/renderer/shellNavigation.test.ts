@@ -105,7 +105,7 @@ describe("ways back", () => {
   });
 });
 
-// terminal-work-worktrees spec decision 4, design §3.4: where the person goes when the auto-registered worktree they were
+// PRODUCT §5 item 1: where the person goes when the auto-registered worktree they were
 // on vanishes or hides. The worktree selected before it, else the main checkout, else the group's first list; the same
 // canvas there when listed, else that worktree's Overview.
 describe("fallbackWorktree", () => {
@@ -140,7 +140,7 @@ describe("fallbackWorktree", () => {
   });
 });
 
-// terminal-work-worktrees design §3.3: an auto-registered worktree shows only while it is a list; a hand-added one keeps
+// PRODUCT §5 item 1: an auto-registered worktree shows only while it is a list; a hand-added one keeps
 // its problem rows.
 describe("shownFolders", () => {
   const git = { common: "/repo/.git", main: "/w/main", worktrees: ["/w/main", "/w/auto"] };
