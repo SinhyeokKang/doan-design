@@ -291,3 +291,112 @@ test("an unreadable connectors file disables Add server by URL and shows the sto
   expect(add.props.disabled).toBe(true);
   expect(all(tree).some(element => element.type === NoticeView && (element.props.notice as { body?: string }).body === "Doan couldn’t read its saved servers, so you can’t add or remove servers by URL.")).toBe(true);
 });
+
+// Rows with a failure, as main sends them.
+const failing = (snapshot: McpSnapshot, provider: McpProvider, name: string, failure: McpSnapshot["providers"][number]["rows"][number]["failure"]): McpSnapshot =>
+  ({ ...snapshot, providers: snapshot.providers.map(p => p.provider !== provider ? p : { ...p, rows: p.rows.map(r => r.name === name ? { ...r, failure } : r) }) });
+const live = () => all(tree).filter(element => element.props.className === "ob-live");
+const liveRoles = () => all(tree).filter(element => element.props.role === "status" || element.props.role === "alert" || element.props["aria-live"] !== undefined);
+
+// BU review Y1 (spec 2, conductor: the spec wins): the page live region is the only announcement channel.
+test("row notices, the running notice and the file notice keep their look but carry no live role", async () => {
+  running.add("claude");
+  feed(snap({ claude: { "doan-notion": "connecting" } }));
+  feed(snap({ claude: { "doan-notion": "connected", "doan-figma": "connecting" }, codex: { "doan-atlassian": "check_failed" } }, SERVERS.map(s => s.name === "doan-mcp-two-com" ? { ...s, removeFailed: true } : s), { claude: { lastChanged: "doan-notion", generation: 1 } }));
+  feed(failing(snap({ claude: { "doan-notion": "connected", "doan-figma": "connecting" }, codex: { "doan-atlassian": "check_failed" } }, SERVERS.map(s => s.name === "doan-mcp-two-com" ? { ...s, removeFailed: true } : s), { claude: { lastChanged: "doan-notion", generation: 1 } }), "codex", "doan-figma", "failed"));
+  await settle();
+  const notices = all(tree).filter(element => typeof element.props.className === "string" && (element.props.className as string).startsWith("doan-notice"));
+  expect(notices.length).toBeGreaterThanOrEqual(5);
+  expect(notices.some(element => element.props.className === "doan-notice error")).toBe(true);
+  expect(liveRoles()).toEqual(live());
+  feed({ ...snap({}, SERVERS.slice(0, 3)), file: "broken" });
+  render();
+  expect(all(tree).some(element => element.props.className === "doan-notice error")).toBe(true);
+  expect(liveRoles()).toEqual(live());
+});
+
+// BU review Y6: a repeated identical message changes the live region each time and is read once each time.
+test("two identical failures in a row each change the page live region once", async () => {
+  await settle();
+  feed(snap({ codex: { "doan-notion": "connecting" } }));
+  feed(failing(snap(), "codex", "doan-notion", "failed"));
+  render();
+  const first = words(live()[0]!.props.children);
+  feed(snap({ codex: { "doan-notion": "connecting" } }));
+  render();
+  expect(words(live()[0]!.props.children)).toBe(first);
+  feed(failing(snap(), "codex", "doan-notion", "failed"));
+  render();
+  const second = words(live()[0]!.props.children);
+  expect(second).not.toBe(first);
+  for (const text of [first, second]) expect(text.replace(/​/g, "")).toBe("Codex couldn’t connect to Notion");
+});
+
+// BU review Y4: focus entered by keyboard is watched too; native and aria disabled are alike; focus moved away is kept.
+function focusable() {
+  const state = { disabled: false, aria: false };
+  const node = { state, isConnected: true, focus: vi.fn(), matches: (selector: string) => selector === ":disabled" && state.disabled, getAttribute: (name: string) => name === "aria-disabled" && state.aria ? "true" : null };
+  return node;
+}
+test("a button focused by keyboard that becomes disabled or aria-disabled hands focus to its row group", async () => {
+  for (const key of ["disabled", "aria"] as const) {
+    hooks.states = []; hooks.refs = []; hooks.effects = []; nodes.clear();
+    await settle();
+    const button = focusable();
+    doc.activeElement = button;
+    (byLabel("Notion for Codex")!.props.onFocus as (event: { target: unknown }) => void)({ target: button });
+    render();
+    expect(nodes.get('[data-mcp-row="codex:doan-notion"]')?.focus).toBeUndefined();
+    button.state[key] = true;
+    render();
+    expect(nodes.get('[data-mcp-row="codex:doan-notion"]')?.focus, key).toHaveBeenCalledTimes(1);
+  }
+});
+
+test("focus the person moved elsewhere is not taken back when the watched button is disabled", async () => {
+  await settle();
+  const button = focusable(), elsewhere = focusable();
+  doc.activeElement = button;
+  (byLabel("Notion for Codex")!.props.onFocus as (event: { target: unknown }) => void)({ target: button });
+  render();
+  doc.activeElement = elsewhere;
+  button.state.disabled = true;
+  render();
+  expect(nodes.get('[data-mcp-row="codex:doan-notion"]')?.focus).toBeUndefined();
+});
+
+// review C1.
+test("a failure stays on its row when the page is opened again", async () => {
+  feed(failing(snap(), "codex", "doan-notion", "approval_timeout"));
+  await settle();
+  for (const slot of hooks.effects) slot?.cleanup?.();
+  hooks.states = []; hooks.refs = []; hooks.effects = [];
+  await settle();
+  expect(all(tree).some(element => element.props.className === "doan-notice error" && words(element.props.children).startsWith("Codex stopped waiting for Notion"))).toBe(true);
+});
+
+test("Cancel in the URL dialog and in the Remove alert returns focus to the button that opened it", async () => {
+  await settle();
+  click(all(tree).find(element => element.props["data-mcp-add"] === ""));
+  render();
+  click(all(tree).find(element => element.type === "button" && words(element.props.children) === "Cancel" && all(tree).some(d => d.type === "dialog")));
+  render();
+  expect(nodes.get("[data-mcp-add]")?.focus).toHaveBeenCalled();
+  expect(props.onLock).toHaveBeenLastCalledWith(false);
+  (all(tree).find(element => element.props["data-mcp-remove"] === "claude:doan-mcp-two-com")!.props.onSelect as () => void)();
+  render();
+  click(all(tree).find(element => element.type === "button" && words(element.props.children) === "Cancel" && element.props.autoFocus === true));
+  render();
+  expect(nodes.get('[data-mcp-more="claude:doan-mcp-two-com"]')?.focus).toHaveBeenCalled();
+});
+
+test("removing the last item of a section focuses the item before it", async () => {
+  await settle();
+  (all(tree).find(element => element.props["data-mcp-remove"] === "claude:doan-mcp-two-com")!.props.onSelect as () => void)();
+  render();
+  click(all(tree).find(element => element.props["data-consent"] === "" && words(element.props.children) === "Remove"));
+  render();
+  feed(snap({}, SERVERS.filter(server => server.name !== "doan-mcp-two-com")));
+  render();
+  expect(nodes.get('[data-mcp-row="claude:doan-mcp-example-com"]')?.focus).toHaveBeenCalled();
+});

@@ -143,7 +143,7 @@ test("Remove is disabled while any agent connects the server; a failed Remove ke
   expect(find(busy, "claude", URL_SERVER.name).menu).toMatchObject({ disabled: false, removeDisabled: true });
   const failed = mcpPageView(snapshot({}, { servers: [...PRESET_SERVERS, { ...URL_SERVER, removeFailed: true }] }), AUTH);
   for (const provider of ["claude", "codex"] as const) expect(find(failed, provider, URL_SERVER.name).notice).toMatchObject({
-    role: "alert", body: "Couldn’t remove mcp.example.com from Doan’s agents. Try again.", actions: [{ command: "remove", label: "Retry", ariaLabel: "Retry removing mcp.example.com" }] });
+    role: "alert", body: "Couldn’t remove mcp.example.com from Doan’s agents. Try again.", actions: [{ command: "remove", label: "Retry", ariaLabel: "Retry removing mcp.example.com from Claude Code and Codex" }] });
 });
 
 test("an agent that is signed in but can't run gives the reason in its section header and disables every button", () => {
@@ -202,8 +202,8 @@ test("a cancelled Connect says nothing; a failure, an added and a removed server
   const cancelled = snapshot({ codex: { "doan-notion": "not_connected", "doan-figma": "connecting" } }, {}, { codex: { generation: 2 } });
   expect(mcpChanges(before, cancelled)).toEqual([]);
   const failed = snapshot({ codex: { "doan-figma": ["not_connected", { failure: "failed" }] } }, { servers: PRESET_SERVERS }, { codex: { generation: 2 } });
-  expect(mcpChanges(before, failed).map(mcpChangeText).filter(Boolean)).toEqual(["Codex couldn’t connect to Figma", "mcp.example.com removed from Doan’s agents"]);
-  expect(mcpChanges(failed, snapshot({})).map(mcpChangeText).filter(Boolean)).toEqual(["mcp.example.com added"]);
+  expect(mcpChanges(before, failed).map(mcpChangeText).filter(Boolean)).toEqual(["Codex couldn’t connect to Figma", "mcp.example.com removed from Claude Code and Codex"]);
+  expect(mcpChanges(failed, snapshot({})).map(mcpChangeText).filter(Boolean)).toEqual(["mcp.example.com added for Claude Code and Codex"]);
 });
 
 function watchHarness(running: McpProvider[] = [], shown = false) {
@@ -261,4 +261,48 @@ test("announcements carry a sequence so a page opened later reads only newer one
   h.send({ ...snapshot({ codex: { "doan-notion": "connected" } }, {}, { codex: { lastChanged: "doan-notion", generation: 1 } }), revision: 2 });
   expect(h.watch.announcement).toEqual({ seq: 1, text: "Notion connected for Codex" });
   h.stop();
+});
+
+// BU review Y3 (.scratch/review-bu/view.test.ts): the Remove in progress and its own failure win over an earlier Connect failure.
+test("Removing disables the Retry an earlier Connect failure left, in every section", () => {
+  const view = mcpPageView(snapshot({ codex: { [URL_SERVER.name]: ["removing", { failure: "failed" }] }, claude: { [URL_SERVER.name]: "removing" } }), AUTH);
+  for (const provider of ["claude", "codex"] as const) {
+    const row = find(view, provider, URL_SERVER.name);
+    expect(row.status).toBe("Removing");
+    expect(row.notice).toBeNull();
+    expect(row.button?.disabled).toBe(true);
+  }
+});
+
+test("a Remove failure shows its own alert and Retry Remove in every section, over an earlier Connect failure", () => {
+  const view = mcpPageView(snapshot({ codex: { [URL_SERVER.name]: ["not_connected", { failure: "failed" }] } }, { servers: [...PRESET_SERVERS, { ...URL_SERVER, removeFailed: true }] }), AUTH);
+  for (const provider of ["claude", "codex"] as const) expect(find(view, provider, URL_SERVER.name).notice).toMatchObject({
+    body: "Couldn’t remove mcp.example.com from Doan’s agents. Try again.", actions: [{ command: "remove", label: "Retry", disabled: false }] });
+});
+
+// BU review Y5: later changes are read, a first Checking result and a cancel are not.
+test("a later change to Connected or Not connected is read, also without an attempt; the first Checking result is not", () => {
+  const text = (before: Parameters<typeof snapshot>[0], after: Parameters<typeof snapshot>[0]) => mcpChanges(snapshot(before), snapshot(after)).map(mcpChangeText).filter(Boolean);
+  expect(text({ codex: { "doan-notion": "check_failed" } }, { codex: { "doan-notion": "connected" } })).toEqual(["Notion connected for Codex"]);
+  expect(text({ codex: { "doan-notion": "connected" } }, { codex: { "doan-notion": "not_connected" } })).toEqual(["Notion disconnected for Codex"]);
+  expect(text({ codex: { "doan-notion": "reconnect_needed" } }, { codex: { "doan-notion": "connected" } })).toEqual(["Notion connected for Codex"]);
+  expect(text({ codex: { "doan-notion": "checking" } }, { codex: { "doan-notion": "connected" } })).toEqual([]);
+  expect(text({ codex: { "doan-notion": "checking" } }, { codex: { "doan-notion": "check_failed" } })).toEqual([]);
+  expect(text({ codex: { "doan-notion": "connecting" } }, { codex: { "doan-notion": "not_connected" } })).toEqual([]);
+  expect(text({ codex: { "doan-notion": "removing" } }, { codex: { "doan-notion": "not_connected" } })).toEqual([]);
+});
+
+// review C1: the unverified cause gets its own header.
+test("an agent whose connection Doan hasn't checked yet says so in its header", () => {
+  const view = mcpPageView(snapshot({}), auth(true, true, { codex: status("codex", true, { ready: false, cause: "unverified", action: "retry" }) }));
+  expect(view.sections[1]!.header?.reason).toBe("Doan hasn’t checked Codex’s connection yet. Check it in Agents to connect or disconnect its servers.");
+});
+
+test("the watch reads two identical messages as two announcements", () => {
+  const h = watchHarness();
+  h.send({ ...snapshot({ codex: { "doan-notion": "connecting" } }), revision: 1 });
+  h.send({ ...snapshot({ codex: { "doan-notion": ["not_connected", { failure: "failed" }] } }), revision: 2 });
+  h.send({ ...snapshot({ codex: { "doan-notion": "connecting" } }), revision: 3 });
+  h.send({ ...snapshot({ codex: { "doan-notion": ["not_connected", { failure: "failed" }] } }), revision: 4 });
+  expect(h.watch.announcement).toEqual({ seq: 2, text: "Codex couldn’t connect to Notion" });
 });

@@ -222,12 +222,20 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
     expect((fewer[1] as { steps: unknown[] }).steps).toHaveLength(1);
   });
 
-  test("a Waiting line whose servers became ready stays a step; an agent's own 'other' activity is not folded", () => {
+  test("a Waiting line whose servers became ready stays a step; an agent's own 'other' activity is not folded or wrapped", () => {
     seq = 0;
     const events = [...turn("t1"), waiting("Waiting for Notion"), ev("t1", { type: "activity", kind: "read", path: `${ROOT}/a.html`, summary: "Read" }),
       waiting("Waiting for review"), waiting("Searching the web")];
     const items = threadItems(events, ROOT, true);
     expect((items[1] as { steps: { verb: string; sentence?: true }[] }).steps.map(step => [step.verb, step.sentence ?? false])).toEqual([
-      ["Waiting for Notion", true], ["Read", false], ["Waiting for review", true], ["Searching the web", false]]);
+      ["Waiting for Notion", true], ["Read", false], ["Waiting for review", false], ["Searching the web", false]]);
+  });
+
+  // BU review Y7 (.scratch/review-bu/fold.test.ts): only the Waiting line for the same MCP servers is replaced.
+  test("an unrelated Waiting line and a Waiting line for other servers stay beside the not-ready line", () => {
+    const steps = (first: string) => { seq = 0; return (threadItems([...turn("t1"), waiting(first), waiting("Notion wasn’t ready, so this turn started without it.")], ROOT, true)[1] as { steps: { verb: string }[] }).steps.map(step => step.verb); };
+    expect(steps("Waiting for review")).toEqual(["Waiting for review", "Notion wasn’t ready, so this turn started without it."]);
+    expect(steps("Waiting for Figma")).toEqual(["Waiting for Figma", "Notion wasn’t ready, so this turn started without it."]);
+    expect(steps("Waiting for mcp.example.com and Notion")).toEqual(["Notion wasn’t ready, so this turn started without it."]);
   });
 });
