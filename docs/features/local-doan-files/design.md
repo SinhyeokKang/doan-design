@@ -108,7 +108,7 @@ spec 결정 1~8을 CLI(파일 쓰기와 판단), app main(셋업 계획, onboard
 - `doan check`는 바뀌지 않는다.
 - **No git operations**(PRODUCT §3 Out of scope 6): git 명령은 실행하지 않는다. exclude 쌍 쓰기만 예외다.
 - **guide·CLI 출력 변경**: `/agent-eval`이 필요하다.
-- **terminal-work-worktrees와의 관계**: 로컬 모드의 새 worktree에는 `.doan/config.json`이 없어 `doan work start`가 CLI의 `repo.Find`에서 먼저 실패하고 앱에 신호가 오지 않는다. 그 worktree는 자동 등록되지 않는다.
+- **worktree 자동 등록(PRODUCT §5 item 1)과의 관계**: 로컬 모드의 새 worktree에는 `.doan/config.json`이 없어 `doan work start`가 CLI의 `repo.Find`에서 먼저 실패하고 앱에 신호가 오지 않는다. 그 worktree는 자동 등록되지 않는다.
 - **위쪽 탐색**: main checkout 안에 놓인 worktree(예: `.claude/worktrees/x`)는 자기 config가 없으면 위쪽 탐색이 main checkout의 `.doan/config.json`을 찾는다(ARCHITECTURE §13 'Discovery'). 로컬 모드에서 그 worktree의 에이전트는 main checkout의 `.doan/`에 쓴다. 지금 규칙의 결과이고, 문서에 적는다.
 
 ## 7. PoC 의존
