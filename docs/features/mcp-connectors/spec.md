@@ -40,7 +40,7 @@ Doan 연결(PRODUCT §3 In scope 7)로 실행하는 대화에서 에이전트가
    - URL 서버 항목에만 … 메뉴가 있고 그 안에 Remove가 있다. 프리셋은 지울 수 없고 연결·해제만 한다.
    - 빈 상태는 없다(프리셋이 항상 있다). `mcp-connectors.json`을 읽을 수 없거나 더 새로운 `v`이면 Settings storage 규칙과 같은 notice를 보이고 URL 추가·삭제를 막는다. 프리셋의 연결·해제는 막지 않는다.
    - 포커스: URL 추가 뒤에는 첫 섹션의 새 항목 버튼으로, Remove 뒤에는 같은 섹션의 다음 항목(없으면 앞 항목)으로 간다.
-   - Cursor·Copilot·Antigravity는 섹션을 만들지 않고, 카테고리 설명에 "Cursor, Antigravity and GitHub Copilot can’t use these connectors yet." 한 줄만 둔다.
+   - Cursor·Copilot·Antigravity는 섹션을 만들지 않고, 카테고리 설명에 "Cursor, Antigravity and GitHub Copilot can’t use these servers yet." 한 줄만 둔다.
 3. 항목의 상태는 `Checking…`(상태를 읽는 중, 동작 비활성, role=status), `Not connected`(Connect), `Connecting…`(연결 중), `Connected`(Disconnect), `Reconnect needed`(Reconnect), `Couldn’t check`(확인 실패, Retry) 중 하나다. 앱 UI 문구는 영어다(PRODUCT §5). 문구 형식은 Settings > Agents를 따른다. sign-in은 되어 있지만 실행할 수 없는 에이전트(만료, 업데이트 필요)는 섹션 머리에 그 이유와 설정 > Agents로 가는 동작을 보이고, 목록의 버튼을 비활성으로 둔다.
 4. Connect를 누르면 그 provider의 공식 MCP 로그인이 실행된다. 흐름은 Settings > Agents sign-in 규칙(PRODUCT §5 항목 0)을 따른다.
    - Claude: 인증 링크가 Connect를 누른 창에 오고 자동으로 열린다. 행에는 Open again과 Cancel이 있다.
