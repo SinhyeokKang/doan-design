@@ -45,7 +45,8 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 
 ### 4. ACP
 
-- 바꾸지 않는다(이번 범위 밖). `Runner.answerQuestion`은 ACP runner에서 항상 `false`다.
+- P6의 결정 전까지 바꾸지 않는다. `Runner.answerQuestion`은 ACP runner에서 항상 `false`다.
+- P3–P5가 질문 요청을 찾으면, 그 요청을 받을 자리는 `acp.ts` `onRequestOf`(`:66-72`)다. 권한 요청과 같은 갈래로 받아 `question.request`로 바꾸고, 질문 카드·이벤트·IPC는 Claude·Codex와 같은 것을 쓴다. 구현 여부와 범위는 P6가 정한다.
 
 ### 5. IPC
 
@@ -121,7 +122,7 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
 
 ## PoC 의존
 
-질문 경로의 핵심 가정은 실제 실행으로 확인하지 않았다. 둘 다 로그인한 provider 프로필과 실제 모델 호출이 필요하다(사용자 승인 필요).
+질문 경로의 핵심 가정은 실제 실행으로 확인하지 않았다. P1–P5는 모두 로그인한 provider 프로필과 실제 모델 호출이 필요하다(사용자 승인 필요).
 
 - **P1 Claude**(설치 2.1.318, 최소 2.1.312, SDK 0.3.312): Doan과 같은 `query` 옵션(`settingSources`, `canUseTool`, 스트리밍 입력)으로 모델이 `AskUserQuestion`을 부르게 하고 다음을 기록한다.
   - Default·Accept edits·Plan·Full access에서 `canUseTool`이 `AskUserQuestion`으로 불리는지, 입력 모양.
@@ -130,6 +131,14 @@ app(Electron + TS)만 바뀐다. CLI(Go)·skills·guide·`doan check`·공유 JS
   - 지금의 동작(입력 그대로 Allow, Deny)에서 에이전트가 받는 것(문제 1의 확인).
   - 질문 대기 중 Send now의 steer가 언제 읽히는지.
 - **P2 Codex**(설치 0.166.0, 최소 0.164.0): Doan과 같은 app-server 턴(`experimentalApi: true`, Doan의 네 권한 모드)에서 `item/tool/requestUserInput`이 오는지, `isBlocking` 값, 답과 빈 답을 받아들이는지, `serverRequest/resolved`가 오는지. 0.164.0과 0.166.0의 `ToolRequestUserInput*` 스키마를 비교한다. 이 기기의 `codex features list`는 `default_mode_request_user_input`을 false로 보이므로, 요청이 오지 않으면 완료 조건 4를 5로 줄이고 Z1에 "Codex는 Doan 대화에서 질문 도구를 쓰지 않는다(버전)"를 적는다.
+- **P3 Cursor, P4 GitHub Copilot, P5 Antigravity(ACP)**: 임시 userData로 격리한 Doan에서 그 provider의 Doan 연결로 로그인하고, 모델이 사람에게 묻게 하는 대화를 보내 ACP 입출력을 기록한다. provider마다 다음을 적는다.
+  - 에이전트가 질문 요청을 보내는지, 보낸다면 ACP 표준 요청인지 provider 확장인지. Cursor는 `cursor/ask_question`(Doan이 지금 `skipped`로 답함, `acp.ts:68-69`), Copilot·Antigravity는 트래픽에서 찾은 것.
+  - 요청의 모양(질문, 선택지, 여러 선택, 직접 쓰는 답).
+  - 답과 건너뛰기를 돌려주는 모양.
+  - Doan의 지금 답(`skipped` 또는 `Method not found`) 뒤에 에이전트와 턴이 어떻게 되는지.
+  - 요청을 보내지 않으면 그 사실과 provider 버전.
+  - 알려진 위험: 2026-11-03 mcp-connectors PoC에서 Cursor는 계정 플랜 제한("Upgrade your plan")으로 확인하지 못했다(`docs/features/mcp-connectors/spec.md:29`). 같은 제한이나 로그인 실패로 막히면 "막힘"과 그 이유를 기록하고, 결과를 짐작해 적지 않는다.
+- **P6 ACP 구현 범위(사람의 결정)**: P3–P5 결과를 보고 provider마다 구현할지, 지금 답을 유지할지 사람이 정한다. PoC가 막힌 provider도 사람이 정한다.
 
 ## POSTMORTEM에서 가져온 함정
 
@@ -159,7 +168,7 @@ PRODUCT·ARCHITECTURE가 정하지 않았던 점을 사람이 다음과 같이 �
 3. Skip(답 없이 이어 가기)을 둔다.
 4. 질문 대기 중 composer의 메시지는 큐로 가고 Send now는 그대로 둔다. 큐의 메시지는 질문의 답으로 쓰지 않는다.
 5. Codex `isBlocking: false` 질문은 카드 없이 빈 답으로 바로 답한다.
-6. ACP provider(Cursor `cursor/ask_question` 포함)는 이번 범위 밖이다.
+6. PoC는 다섯 provider 모두에 한다. ACP provider(Cursor, GitHub Copilot, Antigravity)의 구현 범위는 P3–P5 결과를 보고 사람이 정한다(P6). 그 전까지 완료 조건은 Claude Code와 Codex를 다룬다.
 7. Claude 선택지의 `preview`와 `annotations.notes`는 이번 범위 밖이다.
 8. 문제 workspace의 conversation strip은 질문 문장(줄임)과 Skip·Stop만 보인다. 답은 대화 화면에서 한다.
 9. 질문 알림은 Approval requests 스위치를 따르고, 제목은 `<Provider> needs your answer`다.

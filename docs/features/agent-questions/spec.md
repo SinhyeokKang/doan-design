@@ -1,6 +1,6 @@
 # agent-questions — spec
 
-사람의 요청: "에이전트가 AskQuestion으로 턴 넘길 수 있게 하기". Doan 앱 대화에서 에이전트가 자기 질문 도구(Claude Code의 `AskUserQuestion`, Codex의 `request_user_input`)로 사람에게 묻고, 턴은 대화 안에서 답을 기다렸다가 그 답으로 이어진다.
+사람의 요청: "에이전트가 AskQuestion으로 턴 넘길 수 있게 하기". Doan 앱 대화에서 에이전트가 자기 질문 도구(Claude Code의 `AskUserQuestion`, Codex의 `request_user_input`)로 사람에게 묻고, 턴은 대화 안에서 답을 기다렸다가 그 답으로 이어진다. PoC는 다섯 provider 모두에 하고, 완료 조건은 Claude Code와 Codex를 다룬다. ACP provider의 구현 범위는 PoC 뒤 사람이 정한다(P6).
 
 ## 범위 확인(scope gate)
 
@@ -18,7 +18,7 @@
 1. **Claude의 질문이 권한 요청으로 보인다.** Claude 러너는 모든 도구 승인을 `canUseTool` 하나로 받아 `permission.request`로 내보낸다(`app/src/main/conversation/runners.ts:286-292`). `AskUserQuestion`도 여기로 오면, 요약은 `claudePermissionSummary`가 `description`·`command`·경로·`pattern`을 찾지 못해 `GENERIC_SUMMARY.other` "Using a tool"이 되고(`transport.ts:46`, `:90-95`), 선택지는 Allow·Deny뿐이다. Allow는 입력을 그대로 돌려주므로(`runners.ts:358`) 답(`answers`)이 비어 있다. SDK 타입은 답을 "User answers collected by the permission component"로 입력의 `answers`에 담는다고 적는다(`app/node_modules/@anthropic-ai/claude-agent-sdk/sdk-tools.d.ts:2685-2689`). 사람은 질문 문장도 선택지도 볼 수 없다. `AskUserQuestion`이 실제로 `canUseTool`에 오는지, 어떤 권한 모드에서 오는지, 답 없이 허용하면 에이전트가 무엇을 받는지는 실제 실행으로 확인하지 않았다(P1).
 2. **Codex의 질문은 턴을 실패시킨다.** Codex app-server 0.166.0 스키마에는 서버 요청 `item/tool/requestUserInput`(EXPERIMENTAL)이 있다(`codex app-server generate-json-schema` 출력의 `ToolRequestUserInputParams.json`·`ToolRequestUserInputResponse.json`). Doan은 initialize에서 `experimentalApi: true`를 보내므로(`runners.ts:115`) 이 요청을 받을 수 있다. 그런데 `normalizeCodex`는 권한으로 읽지 못한 같은 턴의 서버 요청을 `unsupported`로 답하고 턴을 `turn.failed` `session_unavailable`로 끝낸다(`transport.ts:194-198`, `dispatcher.ts:61`, `:101-104`). 코드를 읽어 얻은 결론이고, Doan의 권한 모드에서 Codex가 이 도구를 실제로 쓰는지는 확인하지 않았다(P2). 이 기기의 `codex features list`는 `default_mode_request_user_input`을 "under development / false"로 보이므로, Default 협업 모드에서는 도구가 없을 수 있다.
 3. **Doan의 design preset이 질문 도구를 쓰라고 한다.** `shape` preset은 "Use a structured question tool when available; otherwise ask and wait."라고 쓴다(`doan design-skill shape --json`). 앱 대화에서 이 preset을 고른 Claude는 1의 경로로 간다.
-4. **ACP provider는 질문을 건너뛴다.** Cursor의 `cursor/ask_question` 확장 요청은 `skipped`로 바로 답한다(`acp.ts:68-69`). 다른 ACP 요청은 `Method not found`다(`acp.ts:70-71`).
+4. **ACP provider는 질문을 건너뛰거나 거절한다.** Cursor의 `cursor/ask_question` 확장 요청은 `skipped`로 바로 답한다(`acp.ts:68-69`). 그 밖의 클라이언트 요청은 `Method not found`다(`acp.ts:70-71`). Cursor가 실제로 `cursor/ask_question`을 보내는지(P3), Copilot과 Antigravity가 질문을 ACP나 자체 확장으로 보내는지와 지금의 답에 무엇이 일어나는지(P4·P5)는 확인하지 않았다.
 
 ## 완료 조건
 
@@ -31,11 +31,11 @@
 7. **답 대기의 나머지 규칙은 권한 요청과 같다.** 대화의 phase는 `waiting`이고, 사이드바 슬롯·Canvas conversations 행·agent indicator("Agent needs your answer")·Show sidebar·Show conversation 점·다른 대화의 toast·Delete 불가·docked composer 이유 줄이 권한 요청과 같은 규칙을 따른다. 프로젝트를 막는 규칙도 그 시점의 권한 대기 규칙을 따른다(canvas-composer-polish 완료 조건 4가 바꾸는 중). 권한 요청 진입(toast·알림의 Open, 사이드바 슬롯)은 질문 카드의 첫 선택지에 포커스를 준다.
 8. **보내기와 Stop.** 질문을 기다리는 동안 composer의 메시지는 큐로 가고, Claude·Codex는 Send now를 그대로 보인다. 큐의 메시지는 질문의 답으로 쓰지 않는다. Stop은 지금처럼 턴을 끝내고 질문은 답 없이 접힌다.
 9. **기록.** 질문과 답은 대화 history에 남아 reload와 재시작 뒤에도 같은 쓰레드로 보인다. Codex의 `isSecret` 질문은 입력을 가리고 답 글을 history에 남기지 않는다.
-10. **기존 동작 보존.** 권한 요청, MCP 도구 승인(mcp-connectors), MCP form elicitation 거절, ACP provider의 동작은 바뀌지 않는다. `runners.test.ts`·`transport.test.ts`·`codexIngress.test.ts`·`dispatcher.test.ts`·`state.test.ts`의 기존 기대값은 질문과 관계없는 경우에 그대로 통과한다.
+10. **기존 동작 보존.** 권한 요청, MCP 도구 승인(mcp-connectors), MCP form elicitation 거절은 바뀌지 않는다. ACP provider의 동작은 P6의 결정 전까지 바뀌지 않는다. `runners.test.ts`·`transport.test.ts`·`codexIngress.test.ts`·`dispatcher.test.ts`·`state.test.ts`의 기존 기대값은 질문과 관계없는 경우에 그대로 통과한다.
 
 ## 비목표
 
-- ACP provider(Cursor, Antigravity, Copilot)의 질문. Cursor의 `cursor/ask_question`은 지금처럼 `skipped`로 답한다.
+- ACP provider(Cursor, GitHub Copilot, Antigravity)의 질문 구현은 지금의 완료 조건에 없다. 세 provider의 PoC(P3–P5)는 이번 feature에서 하고, 구현 범위는 그 결과를 보고 사람이 정한다(P6). 정하기 전까지 Cursor의 `cursor/ask_question`은 지금처럼 `skipped`로 답한다. P6가 구현을 넣기로 하면 그 범위를 완료 조건에 더한다.
 - MCP 서버의 form elicitation에 답하는 화면. mcp-connectors가 정한 대로 거절한다.
 - Claude 선택지의 `preview`(목업·코드 미리보기)와 답의 `annotations.notes` 입력. 카드는 label과 description만 보인다.
 - Codex의 협업 모드(`collaborationMode`)를 바꿔 `request_user_input`을 켜는 것. Doan의 Plan은 지금처럼 승인 정책과 sandbox로만 매핑한다(`permissionMode.ts:100`).

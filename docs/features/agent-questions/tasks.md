@@ -4,16 +4,24 @@
 
 ## P. PoC
 
-P1·P2는 로그인한 provider 프로필과 실제 모델 호출이 필요하다. 사람의 승인 뒤, 일회성 스크립트는 `.scratch/agent-questions/`에 두고 결과(버전, 모드별 관찰, 날짜)는 이 파일 아래 'P 결과'에 적는다.
+P1–P5는 로그인한 provider 프로필과 실제 모델 호출이 필요하다. 사람의 승인 뒤, 일회성 스크립트는 `.scratch/agent-questions/`에 두고 결과(버전, 모드별 관찰, 날짜)는 이 파일 아래 'P 결과'에 적는다.
 
 - [ ] P1. Claude `AskUserQuestion` 경로를 기록한다(design 'PoC 의존' P1의 다섯 항목). 결과로 Skip의 wire 형태와, `canUseTool`이 불리지 않는 모드가 있는지 정한다.
   - 검증: AGENTS.md 'Commands'에 해당 명령이 없어 실행 방법은 사람이 정한다(실제 Claude 로그인과 모델 호출). 결과를 'P 결과'에 적고, 줄인 기록을 B1의 fixture 재료로 남긴다.
 - [ ] P2. Codex `item/tool/requestUserInput` 경로를 기록한다(design P2). 결과로 완료 조건 4를 유지할지 5로 줄일지 정한다.
   - 검증: AGENTS.md 'Commands'에 해당 명령이 없어 실행 방법은 사람이 정한다(실제 Codex 로그인과 모델 호출). 결과를 'P 결과'에 적는다.
+- [ ] P3. Cursor(ACP) 질문 경로를 기록한다(design 'PoC 의존' P3–P5의 항목): `cursor/ask_question`을 보내는지, 모양, 답·건너뛰기의 모양, Doan의 지금 답 `skipped` 뒤의 동작. 2026-11-03 PoC가 계정 플랜 제한("Upgrade your plan")에 막혔으므로, 다시 막히면 막힘과 이유를 기록한다.
+  - 검증: AGENTS.md 'Commands'에 해당 명령이 없어 실행 방법은 사람이 정한다(격리한 Doan에서 Cursor Doan 연결 로그인과 모델 호출). 결과 또는 막힘을 'P 결과'에 적는다.
+- [ ] P4. GitHub Copilot(ACP) 질문 경로를 기록한다(같은 항목). 질문 요청은 ACP 트래픽에서 찾고, Doan의 지금 답(`Method not found` 등) 뒤의 동작을 적는다.
+  - 검증: AGENTS.md 'Commands'에 해당 명령이 없어 실행 방법은 사람이 정한다(격리한 Doan에서 Copilot Doan 연결 로그인과 모델 호출). 결과 또는 막힘을 'P 결과'에 적는다.
+- [ ] P5. Antigravity(ACP) 질문 경로를 기록한다(같은 항목).
+  - 검증: AGENTS.md 'Commands'에 해당 명령이 없어 실행 방법은 사람이 정한다(격리한 Doan에서 Antigravity Doan 연결 로그인과 모델 호출). 결과 또는 막힘을 'P 결과'에 적는다.
+- [ ] P6. (사람의 결정) P3–P5 결과로 ACP provider마다 질문 구현을 넣을지 정한다. 넣는 provider가 있으면 spec 완료 조건, design §4, 이 파일의 A·B·C·D 작업에 그 범위를 더한다.
+  - 검증: 사람의 결정을 design '결정한 규칙' 6에 적고, 바뀐 spec·design·tasks를 커밋한다.
 
 ### P 결과
 
-(PoC 뒤 채운다.)
+(PoC 뒤 채운다. 막힌 PoC는 막힘과 이유를 적는다.)
 
 ── commit: `docs(feature): record agent-questions PoC results` ──
 
@@ -61,7 +69,7 @@ P1·P2는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
 
 - [ ] D1. `/design-sync`로 질문 카드와 접힌 줄을 초안과 맞추고 DESIGN.md에 측정값을 적는다.
   - 검증: `/design-sync` 보고의 측정 일치.
-- [ ] D2. `/runtime-test`: Claude 대화에서 질문 → 답 → 이어짐, 여러 선택과 Other, Skip, Stop, 다른 화면에서의 toast·사이드바 슬롯·agent indicator, 답 뒤 `turn.done` 순간의 send. P2가 Codex 요청을 확인했으면 Codex도 같은 항목. 로그인한 provider 프로필이 필요하므로 사람의 승인을 받고, 없으면 unit 테스트로만 확인했다고 적는다.
+- [ ] D2. `/runtime-test`: Claude 대화에서 질문 → 답 → 이어짐, 여러 선택과 Other, Skip, Stop, 다른 화면에서의 toast·사이드바 슬롯·agent indicator, 답 뒤 `turn.done` 순간의 send. P2가 Codex 요청을 확인했으면 Codex도 같은 항목, P6가 넣은 ACP provider도 같은 항목. 로그인한 provider 프로필이 필요하므로 사람의 승인을 받고, 없으면 unit 테스트로만 확인했다고 적는다.
   - 검증: `/runtime-test` 보고(스크린샷).
 - [ ] D3. 공통 gate.
   - 검증: `node .agents/skills/verify/scripts/verify.mjs` exit 0.
@@ -74,7 +82,7 @@ P1·P2는 로그인한 provider 프로필과 실제 모델 호출이 필요하�
   - PRODUCT: §3 'Agent conversation foundation contract'('Resume and permissions'에 질문 전달, 'Events and ownership'에 재시작 뒤 질문 만료), §5 item 1('Project conversations'의 답 대기, Send now 조건), item 0 'Notifications'(질문 알림), item 2 'Conversation panel'·'Agent indicator'와 item 3 'Project Overview'(질문 카드, 첫 선택지 포커스), strip 규칙, P1·P2가 남긴 한계(질문을 볼 수 없는 모드, Codex 버전 조건). design '결정한 규칙' 아홉 항목을 모두 반영한다.
   - ARCHITECTURE §7 'Agent conversation runtime and IPC': 'Events'에 `question.request`·`question.resolved`와 이전 빌드에서 손상으로 읽힘, 'Permissions and terminals'에 Claude `AskUserQuestion`과 Codex `item/tool/requestUserInput` 경로·빈 답 규칙, IPC `answerQuestion`, secret 답을 저장하지 않음.
   - DESIGN.md: D1 측정값.
-  - BACKLOG.md: P2에서 본 `serverRequest/resolved`가 있으면 그 항목, ACP provider의 질문(이번 범위 밖).
+  - BACKLOG.md: P2에서 본 `serverRequest/resolved`가 있으면 그 항목, P6에서 구현하지 않기로 한 ACP provider의 질문과 막힌 PoC.
   - 그리고 `docs/features/agent-questions/`를 지운다.
   - 검증: `grep -n 'question.request' docs/ARCHITECTURE.md`에 줄이 있다, `grep -n -i 'question' docs/PRODUCT.md`에 질문 카드 규칙이 있다, `docs/features/agent-questions/`가 없다.
 
