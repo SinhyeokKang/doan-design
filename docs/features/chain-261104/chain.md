@@ -36,8 +36,9 @@
 ## 로그인 (필요한 링크만)
 
 - provider 로그인이 필요한 probe는 실제 HOME(Keychain)의 로그인을 쓴다. 임시 HOME에서는 로그인이 실패한다.
-- 링크 1: 후보 CLI마다 따로 둔 userData를 쓰고, 그 정리는 링크 1의 Z0이 한다. 공용 프로필을 쓰지 않는다.
-- 링크 2 C2는 로그인한 provider로 Send now와 답 대기 admission을 본다(사용자, 2026-11-05). 체인 작성 세션이 시작 점검에서 사용자 브라우저 승인으로 다섯 provider(Claude Code, Codex, Cursor, Antigravity, Copilot)의 로그인을 만들었다. 이 프로필은 지금 설치된 CLI의 로그인이라 링크 1의 후보별 sign-in을 대신하지 않는다. 로그인한 userData는 main checkout의 절대 경로 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 둔다. 링크마다 worktree가 달라서다. `DOAN_RUNTIME`과 repo는 probe마다 임시로 둔다.
+- 공용 프로필: 체인 작성 세션이 시작 점검에서 사용자 브라우저 승인으로 다섯 provider(Claude Code, Codex, Cursor, Antigravity, Copilot)의 로그인을 만들었다. 세 링크 모두 로그인한 provider가 필요한 확인에 이 프로필을 쓴다(사용자, 2026-11-05). 링크 2 C2는 이 프로필로 Send now와 답 대기 admission을 본다.
+- 링크 1: 후보 CLI는 공용 프로필 자체에 붙이지 않는다(오래된 CLI가 프로필을 망가뜨릴 수 있다, cli-minimum-versions design 'HOME과 로그인'). 후보마다 따로 둔 userData를 쓰고 그 정리는 Z0이 한다. Cursor·Copilot처럼 credential이 프로필 안 파일에 있는 provider는 공용 프로필의 복사본으로 통과 기준 1(a)의 지금 설치본 sign-in을 대신해 사용자 sign-in을 줄인다. Claude Code·Codex의 credential은 프로필 경로로 구분한 Keychain 항목이라 복사본에서 sign-in되지 않은 상태가 되므로(같은 design '통과 기준' 1), 이 둘과 통과 기준 2(후보 CLI의 새 sign-in)는 사용자 sign-in이 필요하다. 복사본이 만든 Keychain 항목도 Z0이 지운다.
+- 로그인한 userData는 main checkout의 절대 경로 `/Users/sinhyeok/code/doan-design/.scratch/provider-profile/userData`에 둔다. 링크마다 worktree가 달라서다. `DOAN_RUNTIME`과 repo는 probe마다 임시로 둔다.
 - 프로필을 망가뜨릴 수 있는 probe는 복사본으로 돌린다. 로그인을 다시 요청하기 전에 프로필이 연결되어 있는지 먼저 확인한다. 링크마다 병합할 때 로그아웃하지 않는다. 마지막 링크가 병합하기 전에 앱에서 다섯 연결을 모두 로그아웃하고, 그 프로필이 만든 Keychain 항목(Claude는 `Claude Code-credentials-5def49d2`)이 사라졌는지 확인한 뒤 userData를 지운다.
 
 ## 인계와 물러나기
@@ -67,5 +68,5 @@
   - 확인: mcp-connectors가 main에 병합됐다(`c43ce39f`). 세 feature 문서와 두 초안이 main에 있다. 세 feature에 '확인 필요'가 없다. export-viewer-chrome C1의 '명령 미정'은 검증 명령이라 그 링크 지휘자가 정해 tasks.md에 적는다.
   - 순서: 그대로 둔다(사용자). 링크 1은 사용자가 있어야 진행되는 단계가 남아 있다: E0의 테스터 Copy details, E3·E4의 후보별 브라우저 sign-in, D1 최소 버전 결정, C1 Copilot 요청 사전 고지. 링크 1 지휘자는 그 단계에서 사용자를 기다리고, 그동안 사용자 없이 할 수 있는 일(Antigravity 코드 근거, 실험 환경 스크립트 준비 등)만 한다.
   - 링크 1 명령과 내려받기: '상시 권한'대로 규칙으로 미리 승인했다.
-  - 로그인: 링크 2 C2는 로그인 확인을 한다. 공용 프로필에 다섯 provider 연결을 만들었다('로그인'). 프로필을 만든 dev 앱은 닫았다.
+  - 로그인: 공용 프로필에 다섯 provider 연결을 만들었고 세 링크가 모두 쓴다('로그인'). 링크 1은 그 복사본으로 Cursor·Copilot의 sign-in만 줄일 수 있다. 프로필을 만든 dev 앱은 닫았다.
   - Codex 작업자 허가를 사용자가 다시 확인했다. 남은 사용량은 각 링크 지휘자가 시작 때 본다.
