@@ -133,7 +133,9 @@ export async function startShell(foldersFile: string, cli: string, onChange: (en
         return false;
       }
     }
-    if (view.kind === "uninitialized") {
+    // An auto-registered root stays uninitialized for the renderer to hide (design §3.3): an upward re-root would make
+    // a parent the person never added hand-added and move focus to it (design §2.4, POSTMORTEM 2026-11-03).
+    if (view.kind === "uninitialized" && !store.auto().includes(folder.path)) {
       view = folderState(await runLs(cli, { cwd: folder.path }));
       if (folders.get(folder.path) !== folder || read !== folder.reads) return false;
       if (view.kind === "list" && view.root !== folder.path) {
