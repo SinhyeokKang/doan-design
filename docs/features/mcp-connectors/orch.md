@@ -13,6 +13,7 @@
 - 조율자 판단 — 설치된 `doan check --repo .`는 base `f6439835`에서 이미 exit 4다(`.doan/canvases/select-inspect.html`의 `implements_not_found`, S1 범위 밖). 배치의 `doan check` 검증은 "base와 HEAD의 finding 목록이 같다"로 본다.
 - 조율자 판단 — 새 child worktree에는 `node_modules`가 없으므로 워커는 AGENTS.md 'App setup'(`npm --prefix app ci`, Electron 바이너리 다운로드)을 먼저 한다. gate 실패로 보지 않는다.
 - 사용자 결정 — Disconnect는 그 provider의 `everConnected`를 지운다. 해제한 항목은 `Reconnect needed`가 아니라 `Not connected`(Connect)로 보이고, 확정 초안처럼 이름 아래 'Not connected' 줄을 유지한다. `Reconnect needed`는 사람이 해제하지 않았는데 끊긴 경우(교체, 만료)에만 보인다. Z1에서 PRODUCT에 반영한다.
+- 사용자 결정 — `poc/p2/probe-approval.log`에 남은 Atlassian account_id·계정 날짜와 `poc/links/`의 DCR client_id는 비밀값이 아니므로 main 이력을 다시 쓰지 않는다(force push 안 함). `poc/`는 Z1에서 디렉터리째 지운다.
 - 조율자 판단 — E1은 사용자의 Notion 계정과 브라우저 승인이 필요하므로 사용자가 돌아온 뒤 시작한다.
 
 ## 배치
