@@ -234,7 +234,7 @@ export type CanvasPress = (listener: () => void) => () => void;
 // app's document closes it by Radix's own rule; a press in the canvas closes it through `canvasPress`.
 export function PresetsButton(props: {
   reply: PresetListReply | undefined; project: string; suggested: readonly PresetSummary[]; listId: string; disabled: boolean;
-  onOpen(): void; onChoose(id: string): void; onRetry(): void; onPicked(): void; canvasPress?: CanvasPress;
+  onOpen(): void; onChoose(id: string): void; onRetry(): void; onPicked(): void; canvasPress?: CanvasPress | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");

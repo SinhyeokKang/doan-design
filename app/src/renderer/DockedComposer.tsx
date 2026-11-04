@@ -10,7 +10,7 @@ import { distinctTargets, plainText, sameSegments, typedText } from "./anchorFie
 import { LIMITS } from "../main/conversation/messageText";
 import {
   AgentPicker, AttachButton, ComposerCard, ComposerChips, ComposerField, ComposerTools, EffortPicker, PermissionPicker, PresetsButton,
-  SendButton, SlashPresets, useComposerDrop, type ComposerFieldHandle,
+  SendButton, SlashPresets, useComposerDrop, usePresetListOutside, type CanvasPress, type ComposerFieldHandle,
 } from "./ComposerParts";
 import { composerAction, composerShape, focusAfter, type FocusAction } from "./composerRules";
 import {
@@ -40,8 +40,8 @@ import type { SettingsTarget } from "./settingsSections";
 // takes only the ids.
 export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[] }
 
-// The canvas page's way into the shown composer's field (design §2 'Picker and Add to conversation'). `insert` puts a
-// chip at the field's caret, or at its end, and shows the 32-place line itself when the chip would pass the limit.
+// The canvas page's way into the shown composer's field (design §2 'Picker'). `insert` puts a chip at the field's
+// caret, or at its end, and shows the 32-place line itself when the chip would pass the limit.
 export interface DockedFieldLink {
   insert(anchor: Anchor, at: "caret" | "end"): ChipInsert;
   focus(): void;
@@ -113,6 +113,8 @@ export interface DockedComposerProps {
   // The canvas panel's: Pick from canvas, the field link, and chip locate for a chip clicked in the field.
   pick?: DockedPicker;
   link?: MutableRefObject<DockedFieldLink | null>;
+  // The canvas page's press signal: a press in the canvas closes the preset lists, as one outside them in the app does.
+  canvasPress?: CanvasPress | undefined;
   onLocate?(anchor: Anchor): Promise<LocateOutcome>;
 }
 
@@ -156,6 +158,7 @@ export function DockedComposer(props: DockedComposerProps) {
   const hostSawBusy = useRef(new Set<string>());
   // The composer's own box, which places the chip note.
   const root = useRef<HTMLDivElement | null>(null);
+  const slashList = useRef<HTMLDivElement | null>(null);
   const listId = useId(), reasonId = `${listId}-reason`, noteId = `${listId}-missing`;
 
   const isSending = sending.has(key);
@@ -189,6 +192,8 @@ export function DockedComposer(props: DockedComposerProps) {
   const slashView = slash !== null ? presetListView(props.presets, { project: props.project, suggested: props.suggested, query: slash, tab: null, slash: true }) : null;
   const slashRows = slashView?.kind === "list" ? slashView.sections.flatMap(section => section.rows) : [];
   const slashOpen = slash !== null && !isSending;
+  // A press outside closes the list as Escape does, for the draft on screen, until its field is empty again.
+  usePresetListOutside(slashOpen, slashList, () => field.current?.element() ?? null, () => setDismissedKey(key), props.canvasPress);
   const chips = [...draft.attachments.map(a => ({ label: attachmentChipView(a, props.homeDirectory).label })), ...(draft.preset ? [{ label: draft.preset.title, preset: true }] : [])];
 
   // Every edit takes the shape rule with the overflow known without measuring (a typed line break); the wrap at the
@@ -352,8 +357,8 @@ export function DockedComposer(props: DockedComposerProps) {
         onKey={keyDown} onSubmit={() => void send()} onPaste={paste} />
       <ComposerTools>
         <PresetsButton reply={props.presets} project={props.project} suggested={props.suggested} listId={listId} disabled={isSending || locked}
-          onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} />
-        {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
+          onOpen={props.onPresetsOpen} onChoose={id => choosePreset(id, false)} onRetry={props.onPresetsRetry} onPicked={() => focus({ kind: "restored" })} canvasPress={props.canvasPress} />
+        {slashOpen && slashView && <SlashPresets view={slashView} query={slash} listId={listId} highlight={highlight} listRef={slashList} onHighlight={setHighlight} onChoose={id => choosePreset(id, true)} onRetry={props.onPresetsRetry} />}
         <span className="grow" />
         <SendButton action={action} enabled={action === "stop" ? !isSending : availability.enabled} sending={isSending} onSend={() => { if (action === "stop") stop(); else void send(); }} hint={reason?.noAgent ? reason.text : undefined} />
       </ComposerTools>
@@ -507,13 +512,14 @@ function QueueButtonLife({ onLost, children }: { onLost(): void; children(life: 
 }
 
 // Pick from canvas, after Attach at the left end of the model row (design §2 'Picker'). aria-disabled, not disabled, so its reason
-// shows as a tooltip on hover and focus.
+// shows as a tooltip on hover and focus. It starts the same pick as the toolbar Picker and ⌘L, so it names the key too.
 function PickButton({ pick }: { pick: DockedPicker }) {
   const unavailable = !pick.enabled && !pick.pressed;
   return <Tooltip><TooltipTrigger asChild>
     <button type="button" className="doan-icon-button composer-pick" data-ui-size="xs" aria-label="Pick from canvas" aria-pressed={pick.pressed}
       aria-disabled={unavailable || undefined} onClick={() => { if (!unavailable) pick.onToggle(); }}><Crosshair aria-hidden="true" /></button>
-  </TooltipTrigger><TooltipContent>{unavailable && pick.reason ? pick.reason : "Pick from canvas"}</TooltipContent></Tooltip>;
+  </TooltipTrigger>{unavailable && pick.reason ? <TooltipContent>{pick.reason}</TooltipContent>
+    : <TooltipContent className="has-key">Pick from canvas<span className="doan-kbd" data-ui-variant="on-prominent" data-ui-size="sm">⌘L</span></TooltipContent>}</Tooltip>;
 }
 
 // A control that keeps its place but cannot be used: aria-disabled, so its tooltip still shows on hover and focus.

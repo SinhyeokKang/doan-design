@@ -19,7 +19,7 @@ import { canvasConversationError, canvasConversationMenu, resumeHeld } from "./c
 import { sameCanvas } from "./canvasConversationRows";
 import type { CanvasRun, CanvasTarget, ResumeReply } from "./canvasRun";
 import { focusFieldEnd } from "./chipField";
-import { GroupIcon } from "./ComposerParts";
+import { GroupIcon, type CanvasPress } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
@@ -77,7 +77,7 @@ export interface CanvasConversationProps {
   onReplyChip?(link: ReplyAnchor): Promise<LocateOutcome | null>;
   // The person chose what the panel shows (a conversation, New, a notice's Open).
   onChoose?(): void;
-  // The composer's Pick from canvas, and the page's way into its field (picker results, Add to conversation).
+  // The composer's Pick from canvas, and the page's way into its field (pick results).
   pick: DockedPicker;
   composerLink: MutableRefObject<DockedFieldLink | null>;
   onSettings(target: SettingsTarget): void;
@@ -86,6 +86,8 @@ export interface CanvasConversationProps {
   onOpenProjectConversation(conversationId: string): void;
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
+  // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).
+  canvasPress?: CanvasPress;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";
@@ -427,7 +429,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     </div>
     <div className="cp-foot">
       <DockedComposer mode={mode} project={project} homeDirectory={null} placeholder={placeholder} chipScope={canvasScope(target)}
-        pick={props.pick} link={props.composerLink} onLocate={props.onLocate}
+        pick={props.pick} link={props.composerLink} onLocate={props.onLocate} canvasPress={props.canvasPress}
         drafts={store.drafts} onDrafts={update => store.setDrafts(update)}
         auth={auth} picker={picker} provider={chosen} effort={effort}
         onPickerOpen={() => { if (healthy && !fixed) for (const group of picker.groups) if (group.read) support.readModels(root, group.provider); }}
