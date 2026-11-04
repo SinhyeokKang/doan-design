@@ -20,7 +20,7 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | M | T1(main: `autoRegisterRoot`, `pruneAuto`, `autoAfterAdd`), T2a, T2b | `app/src/main/**`(새 규칙 모듈, `folderStore`, `shell`, `cli`, `view`, `index`, `runtime`, `addFlow`·`addProjects`와 각 테스트), `app/src/preload/**` | 없음 | Opus high — 두 파일 쓰기 순서·세대 직렬화, 비동기 등록과 기한 경쟁, 동시 `start` 합치기. 틀리면 목록 유실이나 남는 스피너 | `npm --prefix app test`, `npm --prefix app run typecheck` | 대기 |
-| R1 | T1(renderer: `siblingWork`, W 소멸 도착지), T3 중 플래그가 필요 없는 것(보드 안내 + Open §3.1, 사이드바 slot 테스트 §3.2, picking 안내 위치 §3.6) | `app/src/renderer/**` | 없음 | Opus high — App navigation·기록·focus 상태가 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck, build | 대기 |
+| R1 | T1(renderer: `siblingWork`, W 소멸 도착지), T3 중 플래그가 필요 없는 것(보드 안내 + Open §3.1, 사이드바 slot 테스트 §3.2, picking 안내 위치 §3.6) | `app/src/renderer/**` | 없음 | Opus high — App navigation·기록·focus 상태가 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck, build | 구현 완료(`4f1ccedf`), 리뷰 중 |
 | R2 | T3 중 플래그 의존 항목: 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4)과 그 App 테스트 | `app/src/renderer/**` | M 통합 | Opus high — R1과 같은 이유 | R1과 같음 | 대기 |
 | R3 | T3 `/runtime-test` 전 항목과 실제 Orca worktree(`orca worktree create`로 만든 것)에서 보낸 `doan work start` probe(사용자 요청), `/design-sync`(`sibling-notice`, `picking-hint`)와 `docs/DESIGN.md` 측정값 | `app/src/renderer/**`(sync 수정), `docs/DESIGN.md`, `.scratch/` | M·R1·R2 통합 | Opus high — 실제 앱 격리와 측정 판단 | `/runtime-test` 증거, `/design-sync` 보고, 앱 test·typecheck·build | 대기 |
 | E | T4 `/agent-eval` | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 전체 통합 | Sonnet medium — 정해진 시나리오 실행과 기록 | `node eval/run.ts` 결과와 기록 | 대기 |
@@ -36,4 +36,5 @@
 
 ## 진행
 
-(통합 hash, 리뷰 라운드, 검증 증거를 여기 적는다.)
+- R1: 작업자 완료(`SinhyeokKang/ttw-R1`, `efe364c9..4f1ccedf` 5 commits). 작업자 보고: `verify.mjs` PASS(app test 6625 pass). handoff와 commit이 일치하고 worktree가 깨끗한 것을 지휘자가 확인했다. 작업자 terminal은 리뷰 수정과 R2를 위해 남겨 뒀다. 리뷰 1라운드: Opus medium.
+- 실제 앱 확인으로 넘긴 것(R3): notice가 사라질 때 Open의 focus가 캔버스 영역으로 가는지, 긴 label의 줄임표와 tooltip.
