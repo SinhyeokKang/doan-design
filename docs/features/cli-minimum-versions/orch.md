@@ -9,6 +9,8 @@
 - 2026-11-05 사용자(E0): 테스터 버전을 모른다. 하한을 테스터 버전 대신 날짜로 잡는다: 2026-09-28 이후의 정식 릴리스부터 지금 최소 버전 바로 아래까지. 내려받기는 체인 '상시 권한'의 규칙 승인이 이 목록에 그대로 적용된다(지휘자 판단 — 목록의 출처만 바뀌었다).
 - 2026-11-05 사용자(D1): 규칙으로 미리 정한다. provider마다 design '통과 기준' 1~10을 모두 통과한 가장 오래된 후보로 낮춘다. Claude Code는 그 후보와 지금 최소 버전 사이에 C2 실패 릴리스가 있으면 그보다 위로 잡는다. 통과한 후보가 없으면 지금 값을 유지한다. 지휘자는 적용 결과만 보고한다.
 - 2026-11-05 사용자(C1·E3): Copilot 요청은 이 링크 전체에서 최대 40개까지 쓴다. 넘을 것 같으면 멈추고 묻는다.
+- 2026-11-05 사용자: OAuth 승인은 ego-browser에서 지휘자가 누른다. Codex·Copilot의 `login`이 Chrome을 직접 열 때는 사람이 Chrome에서 승인했다.
+- 2026-11-05 사용자: 통과 기준 8은 ego-browser에 로그인된 Notion '팀 901'로 Connect하고 읽기 도구만 부른다. Z0에서 Notion의 연결 승인도 거둔다.
 - 2026-11-05 사용자: 브라우저 sign-in은 설치와 정적 검사가 끝나는 대로 한 번에 모아 부른다.
 - 지휘자 판단(정식 릴리스): `npm view` 목록 중 `x.y.z`만 쓴다. prerelease(`-alpha`, `-0`, `-unstable`)와 플랫폼 패키지(`-darwin-arm64` 등)는 릴리스 목록에서 뺀다. Codex 플랫폼 패키지는 그 버전 설치의 의존성으로만 받는다.
 - 지휘자 판단(Cursor): 옛 버전을 받을 공개 경로가 없다. 설치 경로는 `downloads.cursor.com/lab/<version>-<hash>/…`로 build hash가 필요하고, `downloads.cursor.com/lab/`과 `anysphere-binaries` S3 목록은 403이며, cursor.com/changelog·/cli·/docs/cli/changelog에 버전 hash가 없다(2026-11-05 조회). design '후보 CLI 설치'대로 Cursor는 E1에서 빼고 D1에서 지금 값을 유지한다.
@@ -18,8 +20,8 @@
 
 | 항목 | 파일 | 선행 | 모델·effort와 이유 | 검증 | 상태 |
 |---|---|---|---|---|---|
-| E0~E5 실험 | `.scratch/cli-minimum-versions/`, 실험 중 임시 `minimumVersions.ts`·`sessions.ts`·`io.ts`(커밋 안 함) | — | 지휘자(Claude Opus) — 사람의 sign-in과 상태 보호 판단이 섞여 나눌 수 없다 | tasks E0~E5 | 진행 중 |
-| D1 | tasks 'E 결과' | E | 사용자 규칙 적용(위 결정) | 적용 보고 | 대기 |
+| E0~E5 실험 | `.scratch/cli-minimum-versions/`, 실험 중 임시 `minimumVersions.ts`·`sessions.ts`·`io.ts`(커밋 안 함) | — | 지휘자(Claude Opus) — 사람의 sign-in과 상태 보호 판단이 섞여 나눌 수 없다 | tasks E0~E5 | 완료(첫 후보가 모두 통과) |
+| D1 | tasks 'E 결과' | E | 사용자 규칙 적용(위 결정) | 적용 보고 | 완료: Claude Code 2.1.284, Codex 0.158.0, Copilot 1.0.89, Cursor 유지 |
 | A1·A2 | `conversation/minimumVersions.ts`, `sessions.ts`, (필요하면) `io.ts`, 버전 테스트·주석 | D1 | Claude Sonnet medium — 경계 값 교체가 대부분인 기계적 작업. `io.ts`를 고쳐야 하면 Opus medium | `npm --prefix app test`, typecheck | 대기 |
 | A 리뷰 | — | A | Codex Astra medium(체인 허가) 또는 Claude Sonnet medium — 시작 때 Codex 남은 사용량을 보고 정한다 | `/code-review` 보고서 | 대기 |
 | C1 | `.scratch` probe | A 통합 | 지휘자 — E와 같은 checkout | tasks C1 | 대기 |
