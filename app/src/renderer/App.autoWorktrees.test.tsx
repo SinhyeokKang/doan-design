@@ -266,3 +266,62 @@ test("a launch restore on an auto-registered worktree waits while it is read, th
   expect(controller().openWorkspace!).toHaveBeenLastCalledWith(W, expect.any(Function));
   expect(sidebar().loaded).toBe(W);
 });
+
+// R2 review 🟡1·🟡2: at a restart the auto-registered worktree is `loading`, hidden but not gone. Its remembered canvas
+// and the group's saved selection stay until it is read, even when another root is read first.
+const loading = (root: string): FolderEntry => ({ path: root, kind: "loading", lastCommon: KEY });
+const VIEW = { scale: 0.5, x: 12, y: -40 };
+const homeRestore = { screen: "home", expanded: {}, lastByRoot: { [W]: { canvas: A, view: VIEW } }, shellProjects: { [KEY]: { roots: [MAIN, OTHER, W], expanded: true, selectedRoot: W, selectedAt: 5 } } };
+
+test("a Home restore keeps the remembered canvas of an auto-registered worktree read after another root", async () => {
+  await start([loading(MAIN), loading(OTHER), hiddenW("loading")], homeRestore);
+  expect(controller().remember!).toHaveBeenCalledWith(W, { canvas: A, view: VIEW });
+  folders([main(), loading(OTHER), hiddenW("loading")]);
+  folders([main(), other(), wt()]);
+  // The controller prunes its per-root memory against main's list, which still holds the hidden worktree.
+  for (const [, listed] of controller().updateEntries!.mock.calls) expect((listed as FolderEntry[] | undefined)?.map(entry => entry.path)).toContain(W);
+  expect(controller().remember!).not.toHaveBeenCalledWith(W, null);
+  enter(W);
+  expect(controller().openWorkspace!).toHaveBeenLastCalledWith(W, expect.any(Function), false);
+  expect(sidebar().loaded).toBe(W);
+});
+
+test("a Home restore keeps the group's selected auto-registered worktree while it is read last", async () => {
+  await start([main(), other(), hiddenW("loading")], homeRestore);
+  expect(sidebar().projects[KEY]?.selectedRoot).toBe(W);
+  folders([main(), other(), wt()]);
+  expect(sidebar().projects[KEY]?.selectedRoot).toBe(W);
+  expect(home()).toBeDefined();
+});
+
+// orch decision 10: a page opened from the vanished worktree's workspace leaves for the worktree that took its place,
+// as Locate moves the origin (POSTMORTEM 2026-10-25); Remove from Doan of the whole group still leaves for Home.
+const leave = () => { (all(tree).find(element => "forward" in element.props && "previous" in element.props)!.props as { previous(): void }).previous(); render(); };
+const pages = [
+  ["Project Settings", () => { sidebar().projectSettings(W); render(); }],
+  ["Add Projects", () => { listeners.openAddProjects!(); render(); }],
+  ["Settings", () => { listeners.openSettingsPage!({} as never); render(); }],
+] as const;
+for (const [name, open] of pages) {
+  test(`leaving the ${name} page opened from the vanished worktree's workspace enters the worktree selected before it`, async () => {
+    await start();
+    enter(OTHER); enter(W); show(W, A);
+    open();
+    expect(home()).toBeUndefined();
+    folders([main(), other()]);
+    leave();
+    expect(home()).toBeUndefined();
+    expect(sidebar().loaded).toBe(OTHER);
+    expect(controller().openWorkspace!).toHaveBeenLastCalledWith(OTHER, expect.any(Function), false);
+    expect(harness.toast.show).not.toHaveBeenCalled();
+  });
+  test(`leaving the ${name} page after Remove from Doan of the whole group goes Home`, async () => {
+    await start();
+    enter(OTHER); enter(W); show(W, A);
+    open();
+    folders([]);
+    leave();
+    expect(home()).toBeDefined();
+    expect(sidebar().loaded).toBeNull();
+  });
+}
