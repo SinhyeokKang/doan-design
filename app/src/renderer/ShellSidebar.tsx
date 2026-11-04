@@ -32,6 +32,8 @@ interface Props {
   // `notice`: the canvas the project row's canvas notice or terminal session stands for, which the activation opens
   // (canvas-viewport-units D10, terminal-agent-activity); passed only when the row shows one.
   toggle(key: string, notice?: { root: string; path: string }): void;
+  // The project row's chevron and ←/→: fold or unfold without moving (project-row-disclosure draft).
+  disclose(key: string): void;
   // Opens or closes a project's group; allowed while the page is locked, as project disclosure is.
   toggleGroup(key: string, group: GroupId): void;
   worktree(root: string): void;
@@ -219,7 +221,7 @@ export function ShellSidebar(props: Props) {
     const slot = props.slots && projectSlotEntry(props.slots, card.rows.map(row => row.path), shown);
     const notice = noticeTarget(slot);
     layouts.set(card.key, { groups, items, slot });
-    rows.push({ key: card.key, name: card.name, activate: () => notice ? props.toggle(card.key, notice) : props.toggle(card.key), right: () => expanded ? focus(groups[0] ? headKey(root!, groups[0].id) : card.key) : props.toggle(card.key), left: () => { if (expanded && !card.rows.some(row => row.path === loaded)) props.toggle(card.key); } });
+    rows.push({ key: card.key, name: card.name, activate: () => notice ? props.toggle(card.key, notice) : props.toggle(card.key), right: () => expanded ? focus(groups[0] ? headKey(root!, groups[0].id) : card.key) : props.disclose(card.key), left: () => { if (expanded) props.disclose(card.key); } });
     for (const item of items) {
       const group = item.group, head = headKey(root!, group.id);
       if (item.kind === "head") {
@@ -296,7 +298,10 @@ export function ShellSidebar(props: Props) {
         const run = (action: () => void) => { if (target()) action(); };
         return <div className="shell-project" key={card.key}>
           <div ref={rowRef(card.key)} className={`shell-project-row row${card.rows.some(row => props.highlight?.includes(row.path)) ? " flash" : ""}`} role="treeitem" data-key={card.key} aria-label={card.name} aria-disabled={locked} aria-level={1} aria-expanded={expanded} aria-current={current && !canvas && !props.unlisted ? "location" : undefined} tabIndex={active === card.key ? 0 : -1} onFocus={event => { if (event.target === event.currentTarget) setFocused(card.key); }} onKeyDown={event => keyboard(event, card.key)} onClick={() => notice ? props.toggle(card.key, notice) : props.toggle(card.key)}>
-            <span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
+            {/* The chevron takes the thumbnail's place on hover and focus; tabIndex -1 because the row is the tree's stop
+                and ←/→ fold it (project-row-disclosure draft). */}
+            <span className="shell-lead"><span className={`shell-thumbnail hue-${projectHue(card.name)}`} aria-hidden="true">{projectInitial(card.name)}</span>
+              <button type="button" className="shell-disclosure" aria-label={`${expanded ? "Collapse" : "Expand"} ${card.name}`} tabIndex={-1} onClick={event => { event.stopPropagation(); props.disclose(card.key); }}><ChevronDown aria-hidden="true" /></button></span>
             <span className="shell-project-name">{card.name}</span>
             {info.summary?.branch && <span className="doan-chip shell-branch" data-ui-variant="translucent"><GitBranch aria-hidden="true" /><span>{info.summary.branch}</span></span>}
             {info.chip && <span className="shell-problem">{info.chip}</span>}

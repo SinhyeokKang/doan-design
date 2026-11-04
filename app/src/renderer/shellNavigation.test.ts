@@ -20,6 +20,13 @@ describe("shell navigation", () => {
     expect(projectExpanded({ roots: ["a"], expanded: false }, "a")).toBe(true);
     expect(projectExpanded({ roots: ["a"], expanded: false }, "b")).toBe(false);
   });
+  // project-row-disclosure: the loaded project folds by its chevron; the fold lives in memory only.
+  it("keeps a hand-folded loaded project folded", () => {
+    expect(projectExpanded({ roots: ["a"], expanded: false, collapsed: true }, "a")).toBe(false);
+    expect(projectExpanded({ roots: ["a"], expanded: true, collapsed: true }, "b")).toBe(true);
+    // A folder update reconciles the projects; it must not unfold the hand-folded one.
+    expect(reconcileProjects({ p: { roots: ["a"], expanded: false, collapsed: true } }, [{ key: "p", roots: ["a", "b"] }]).p?.collapsed).toBe(true);
+  });
   it("commits only a final destination and truncates forward history", () => {
     const a = { root: "a", canvas: ".doan/canvases/a.html" }, b = { root: "b" };
     const first = commitVisit(emptyHistory(), a);

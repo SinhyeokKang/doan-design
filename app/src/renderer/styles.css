@@ -430,6 +430,18 @@ body:has(.shell-top) { background: transparent; }
 .shell-side .shell-project-row { gap: 4px; padding: 0 0 0 10px; margin-bottom: 4px; }
 .shell-project-name { margin-left: 4px; letter-spacing: var(--type-body-sm-letter-spacing); color: var(--text-standard); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shell-thumbnail { display: flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 4px; font-size: 10px; font-weight: var(--type-weight-semibold); line-height: 16px; }
+/* project-row-disclosure draft: the lead spot holds the thumbnail at rest and the chevron while the pointer is on the row
+   or focus is in it, both 16px so the name never moves. The chevron folds only; the rest of the row moves. */
+.shell-lead { position: relative; display: grid; flex: none; width: var(--size-icon); height: var(--size-icon); }
+.shell-lead > * { grid-area: 1 / 1; }
+.shell-disclosure { display: grid; place-items: center; width: var(--size-icon); height: var(--size-icon); padding: 0; border: 0; border-radius: var(--space-1); background: transparent; color: var(--text-metadata); cursor: pointer; visibility: hidden; }
+/* A 24px hit area around the 16px glyph, inside the row's 10px start inset. */
+.shell-disclosure::before { content: ""; position: absolute; inset: calc(-1 * var(--space-1)); }
+.shell-disclosure svg { width: var(--size-icon); height: var(--size-icon); transition: transform var(--time-state) var(--ease-state); }
+.shell-project-row[aria-expanded="false"] .shell-disclosure svg { transform: rotate(-90deg); }
+.shell-project-row:is(:hover, :focus-within) .shell-disclosure { visibility: visible; }
+.shell-project-row:is(:hover, :focus-within) .shell-lead > .shell-thumbnail { visibility: hidden; }
+@media (hover: hover) and (pointer: fine) { .shell-disclosure:hover { background: var(--affordance-backdrop-pressed); color: var(--text-standard); } }
 /* A light tint with dark ink (buzz-onboarding approved draft), shared with onboarding project cards. */
 .hue-rose { background: color-mix(in srgb, var(--identity-project-rose) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-rose) 65%, var(--text-standard)); }
 .hue-orange { background: color-mix(in srgb, var(--identity-project-orange) 14%, var(--surface-panel)); color: color-mix(in srgb, var(--identity-project-orange) 65%, var(--text-standard)); }
