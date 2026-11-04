@@ -17,10 +17,10 @@
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
 | ADM | A3, B3 | `main/conversation/project.ts`·`service.ts`(+테스트), `renderer/homeRun.ts`·`homeConversations.ts`·`homeComposer.ts`·`dockedRules.ts`·`ProjectOverview.tsx`(+테스트) | 없음 | Opus high — admission·promotion은 겹친 턴의 동시성 판단이 많고 틀리면 대화를 잘못 archive한다 | `npm --prefix app test`, typecheck | 통합 |
-| SEND | A2, B2 | `renderer/conversationStore.ts`·`ConversationThread.tsx`·`threadItems.ts`·`queueFocus.ts`·`CanvasConversationPanel.tsx`·`overviewRun.ts`·`DockedComposer.tsx`(+테스트), `conversation:queue` 응답(main IPC·preload) | 없음 | Opus high — 이벤트·IPC 응답 도착 순서와 큐 복귀 규칙이 까다롭다 | `npm --prefix app test`, typecheck | 통합(Overview 배선 남음) |
+| SEND | A2, B2 | `renderer/conversationStore.ts`·`ConversationThread.tsx`·`threadItems.ts`·`queueFocus.ts`·`CanvasConversationPanel.tsx`·`overviewRun.ts`·`DockedComposer.tsx`(+테스트), `conversation:queue` 응답(main IPC·preload) | 없음 | Opus high — 이벤트·IPC 응답 도착 순서와 큐 복귀 규칙이 까다롭다 | `npm --prefix app test`, typecheck | 통합 |
 | TOOL | B4, A4, B5, A5, B6 | `renderer/CanvasTools.tsx`·`App.tsx`·`rightPanelOpen.ts`·`canvasPicker.ts`·`CanvasController.ts`·`ShellSidebar.tsx`·`CanvasConversationList.tsx`·`RightPanel.tsx`·`conversationDelete.ts`·`ConversationDeleteDialog.tsx`·`listKeyboard.ts`, `main/index.ts`·`menuState.ts`(+테스트) | 없음 | Opus high — 픽 상태·포커스 복귀·메뉴 고아 정리가 여러 경로에 걸친다. App.tsx를 공유해 Picker·Export·Delete를 한 작업자가 순서대로 한다 | `npm --prefix app test`, typecheck, build | 통합 |
 | PRE | T1, A1, B1 | `renderer/ComposerParts.tsx`·`HomeComposerView.tsx`, 새 순수 함수 파일(+테스트), tasks.md T1 줄·design 1번. 미룸: `DockedComposer.tsx` 배선(SEND 뒤), 캔버스 신호의 `App.tsx`·`CanvasController.ts`·`canvasScript.ts`/`canvasMessage.ts` 배선(TOOL 뒤) | T1 probe | Opus medium — Radix 포커스와 iframe 신호 판단이 있지만 범위가 좁다 | `/runtime-test` probe(T1), `npm --prefix app test`, typecheck | 통합(배선 남음) |
-| SYNC | C1 | 초안 대비 구현 수정(통합 뒤 해당 화면 파일), `docs/DESIGN.md` 측정값 | 모든 배치 통합 | Opus medium — 측정·수정 반복이고 판단은 초안이 정한다 | `/design-sync` 보고 | 대기 |
+| SYNC | C1 | 초안 대비 구현 수정(통합 뒤 해당 화면 파일), `docs/DESIGN.md` 측정값 | 모든 배치 통합 | Opus medium — 측정·수정 반복이고 판단은 초안이 정한다 | `/design-sync` 보고 | 진행 |
 | 리뷰 | 배치마다 | 보고만 | 해당 배치 완료 | Sonnet high(SEND·ADM·TOOL은 Opus medium) — diff 난도에 맞춤 | `/code-review` 보고 | 대기 |
 
 ## 겹침과 순서
@@ -53,3 +53,5 @@
 - TOOL 수정 라운드 완료(`65533ed6` test, `bb351254` fix; typecheck·`npm test` 7111·build 통과). TOOL을 통합했다: TOOL 8커밋, HEAD `ebfe3248`. 🟡2는 PRE 배선 1부에 들어가 있다.
 - 통합 HEAD `ebfe3248`(SEND+PRE+ADM+TOOL)에서 typecheck 통과, `npm test` 276 files·7159 tests 통과.
 - PRE 배선 1부 완료(`34921939` test, `165d286d` feat; 7115 통과). 통합: HEAD `cb402168`. `"end"` 모드는 App.tsx 호출이 남아 2부로 넘겼다. PRE 배선 2부 `ctx_c3c9dbb972d6`: press 신호 배선, 캔버스로 가는 포커스, command reply 제외, `"end"` 정리, docked probe.
+- SEND Overview 배선 완료(`934c3556` test, `afa35535` feat; 7130 통과). 통합했다. SEND 배치는 C2만 남았다.
+- SYNC(C1) `/design-sync`를 PRE 배선 2부와 병렬로 시작한다(Opus medium). 파일 소유가 겹치지 않고, GUI probe는 둘 다 격리된 앱이라 서로의 상태를 건드리지 않는다.
