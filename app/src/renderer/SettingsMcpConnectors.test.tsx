@@ -146,7 +146,9 @@ test("entering the page reads the statuses once; sections are groups named by th
   expect(titles.map(title => words(title.props.children))).toEqual(["Claude Code", "Codex"]);
   expect(all(tree).filter(element => element.props.className === "ob-live")).toHaveLength(1);
   const group = byLabel("Notion for Codex")!;
-  expect(group.props).toMatchObject({ role: "group", tabIndex: -1, className: "ob-provider" });
+  // Settings' shared preference row in a settings group (user decision).
+  expect(group.props).toMatchObject({ role: "group", tabIndex: -1, className: "doan-preference-row", "data-has-icon": "" });
+  expect(all(tree).filter(element => element.props.className === "doan-settings-group" && element.props["data-layout"] === "rows")).toHaveLength(2);
   render();
   expect(api.readMcpConnectors).toHaveBeenCalledTimes(1);
 });

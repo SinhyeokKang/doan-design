@@ -804,14 +804,10 @@ body:has(.shell-top) { background: transparent; }
 .settings-msg-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
 .settings-save-error { margin-top: var(--space-3); padding-inline: calc(var(--space-4) + 1px); }
 .settings-loading { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-subtle); }
-/* Settings > MCP Connectors (.doan/canvases/mcp-connectors.html, confirmed 2026-11-04): only what the first-run provider
-   rows and the Settings primitives don't already give. The section title carries the agent's 16px mark, 6px apart. */
+/* Settings > MCP Connectors (.doan/canvases/mcp-connectors.html): only what the Settings group, preference rows and
+   section primitives don't already give. The section title carries the agent's 16px mark, 6px apart. */
 .mcp-agent .settings-section-header { align-items: center; }
 .mcp-agent-title { display: flex; align-items: center; gap: var(--space-1h); }
-/* A URL server's mark is lucide Server in the 24px glyph box, in the subtle ink of the Settings row icons. */
-.ob-provider-mark .mcp-generic-mark { width: 24px; height: 24px; color: var(--text-subtle); }
-/* A URL server's name is its host, one long word: it wraps anywhere on this page instead of overflowing the row. */
-.mcp-agent .ob-provider-label strong { overflow-wrap: anywhere; }
 .mcp-more { color: var(--text-subtle); }
 /* A busy section's Connect looks disabled but keeps hover and focus for its tooltip. */
 .mcp-agent .doan-button[data-disabled]:hover { background: var(--affordance-disabled); }

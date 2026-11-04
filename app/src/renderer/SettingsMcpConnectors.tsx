@@ -178,7 +178,7 @@ export function SettingsMcpConnectors({ watch, signIn, onLock, openAgents, actio
           {section.header && <div className="settings-header-actions"><button type="button" className="doan-button" data-ui-variant={section.header.action.variant} data-ui-size="sm"
             aria-label={section.header.action.ariaLabel} onClick={() => openAgents(section.provider)}>{section.header.action.label}</button></div>}
         </div>
-        <div className="doan-panel ob-provider-list">
+        <div className="doan-settings-group" data-layout="rows">
           {section.rows.map(row => <McpRow key={row.name} row={row} run={run(row)} askRemove={() => askRemove(row)} focused={node => watchFocus(row, node)}
             runningNotice={noticeAt === row.name ? watch.noticeText(section.provider) : null} />)}
         </div>
@@ -207,10 +207,13 @@ function RowButton({ button, run, describedBy }: { button: McpButton; run: (comm
 
 function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowView; run: (command: McpCommand) => void; askRemove(): void; focused(node: HTMLElement): void; runningNotice: string | null }) {
   const key = rowKey(row.provider, row.name);
-  return <div className="ob-provider" role="group" tabIndex={-1} aria-label={row.group} data-mcp-row={key} onFocus={event => focused(event.target)}>
-    <div className="ob-provider-row">
-      <span className="ob-provider-mark" aria-hidden="true">{row.logo ? <img src={row.logo} alt="" /> : <Server className="mcp-generic-mark" />}</span>
-      <div className="ob-provider-label"><strong>{row.label}</strong><span>{row.status}</span>{row.url && <span className="mcp-url">{row.url}</span>}</div>
+  // Settings' shared preference row, as Settings > Agents builds its provider rows (user decision over the first-run
+  // provider row): icon, content (name, status and URL lines), trailing actions, and the lines under the row.
+  return <div className="doan-preference-row" data-has-icon="" role="group" tabIndex={-1} aria-label={row.group} data-mcp-row={key} onFocus={event => focused(event.target)}>
+    <span className="doan-preference-row-icon" aria-hidden="true">{row.logo ? <img className="logo" src={row.logo} alt="" /> : <Server />}</span>
+    <div className="doan-preference-row-content"><span className="doan-preference-row-label">{row.label}</span><span className="doan-preference-row-description">{row.status}</span>
+      {row.url && <span className="doan-preference-row-description mcp-url">{row.url}</span>}</div>
+    {(row.button || row.menu) && <div className="doan-preference-row-trailing">
       {row.button && <RowButton button={row.button} run={run} describedBy={`mcp-busy-${row.provider}-${row.name}`} />}
       {row.menu && <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild disabled={row.menu.disabled}><button type="button" className="doan-icon-button mcp-more" aria-label={row.menu.label} data-mcp-more={key} disabled={row.menu.disabled}>
@@ -222,10 +225,12 @@ function McpRow({ row, run, askRemove, focused, runningNotice }: { row: McpRowVi
           <DropdownMenu.Item className="doan-menu-item" data-mcp-remove={key} disabled={row.menu.removeDisabled} onSelect={askRemove}>Remove</DropdownMenu.Item>
         </DropdownMenu.Content></DropdownMenu.Portal>
       </DropdownMenu.Root>}
-    </div>
-    {row.helper && <p className="ob-provider-help">{row.helper}</p>}
-    {row.notice && <NoticeView notice={row.notice} run={run} live={false} />}
-    {runningNotice && <NoticeView notice={{ role: "status", spinner: false, body: runningNotice, actions: [] }} run={() => {}} live={false} />}
+    </div>}
+    {row.helper && <p className="doan-preference-row-extra settings-help">{row.helper}</p>}
+    {(row.notice || runningNotice) && <div className="doan-preference-row-extra">
+      {row.notice && <NoticeView notice={row.notice} run={run} live={false} />}
+      {runningNotice && <NoticeView notice={{ role: "status", spinner: false, body: runningNotice, actions: [] }} run={() => {}} live={false} />}
+    </div>}
   </div>;
 }
 
