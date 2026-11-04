@@ -59,7 +59,7 @@
 | 링크 | 세션·worktree | 시작 | PR·병합 | 상태 |
 |---|---|---|---|---|
 | 1 cli-minimum-versions | Claude Code · Orca `cli-minimum-versions-orch` | 2026-11-05 | #94 · `cfa91a7b` | 완료 |
-| 2 canvas-composer-polish | | | | 대기 |
+| 2 canvas-composer-polish | Claude Code · Orca `canvas-composer-polish-orch` | 2026-11-05 | | 진행 중 |
 | 3 export-viewer-chrome | | | | 대기 |
 
 ## 인계 기록
