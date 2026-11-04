@@ -1072,7 +1072,9 @@ body:has(.shell-top) { background: transparent; }
 .doan-zoom-menu { width: 184px; }
 .doan-zoom-key { margin-left: auto; }
 /* The tools row floats at the board's bottom centre on the shared floating surface, like menus and toasts. */
-.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+/* Centred from left: 50%, the column would otherwise shrink to the board's right half and squeeze the picking hint; it
+   takes its content's width up to the top column's side insets, so a narrow board ellipsizes the hint. */
+.doan-canvas-bottom { position: absolute; z-index: 3; bottom: var(--space-5); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); width: max-content; max-width: calc(100% - 2 * var(--space-3)); }
 .doan-canvas-tools { display: flex; align-items: center; gap: var(--space-half); }
 .doan-canvas-tools .doan-icon-button { color: var(--text-standard); }
 /* The pressed tool keeps its fill under the pointer and while held: the shared hover (0,4,0) and active (0,5,0) fills
@@ -1166,6 +1168,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
 /* .doan-agent (later, same weight) sets a 4px end inset for its action button; the hint ends in the Esc key instead. */
 .doan-agent.doan-picking { padding-right: var(--space-2); }
+.doan-picking-icon { flex: none; width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .area[data-picking] { cursor: crosshair; }
 /* A permission answer that did not reach the agent, under its request's choices. */
 .conversation-thread .thread-notice > .ask-error { grid-column: 2; color: var(--text-danger); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); }

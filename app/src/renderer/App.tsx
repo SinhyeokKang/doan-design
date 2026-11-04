@@ -27,7 +27,7 @@ import { CanvasAgent } from "./CanvasAgent";
 import { workingCanvas, type WorkingCanvas } from "./agentIndicator";
 import { controlFocusLost } from "./canvasFocus";
 import { projectNames } from "./projectRow";
-import { ArrowLeft, ArrowRight, Plus, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crosshair, Plus, Settings, LayoutGrid, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Home, ProblemActions } from "./Home";
 import { ProjectSetupDialog } from "./ProjectSetupDialog";
 import { ProjectSettingsPage } from "./ProjectSettingsPage";
@@ -1526,6 +1526,13 @@ export function App() {
   }
   // The work capsule's Open while the agent waits for an answer (design §2): the panel shows that conversation, scrolled
   // to its request with focus on the first choice.
+  // The other worktree notice's Open (terminal-work-worktrees design §3.1): the terminal slot's path to W's same canvas,
+  // which makes W the selected worktree and leaves one canvas visit. A pick on this canvas ends first.
+  const onOpenSibling = (root: string) => {
+    if (!state.open) return;
+    controller.current?.cancelPick();
+    openNotice({ root, path: state.open.canvas });
+  };
   const openRequest = () => {
     const target = panelTargetRef.current;
     const list = target ? homeRun.current.listState(target.root) : null;
@@ -1637,8 +1644,8 @@ export function App() {
     {strip}
     <CanvasPane viewport={viewport} board={board} overlay={overlay} dragLayer={dragLayer} state={state} entry={entry} projectName={names.get(loadedRoot ?? "") ?? loadedRoot ?? ""} command={command} covered={overview !== null}
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
-      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work,
-        onOpen: openRequest, onStopFailed: text => toast.show(text) }}
+      agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
+        onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
       picking={picking} tool={state.tool} onTool={tool => controller.current?.setTool(tool)} add={{ enabled: addReady, reason: canvasPageShown && !pickerReady ? pickerView.reason : null, onAdd: addSelection }} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
@@ -1716,7 +1723,7 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
   </header>;
 }
 
-type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; onOpen(): void; onStopFailed(text: string): void };
+type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
 function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, add }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
@@ -1764,9 +1771,6 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
     <div className="drag-layer" ref={dragLayer} hidden />
     {/* The agent notice comes first, the canvas notices stack under it (design §2 '겹침 순서', 'Esc와 포커스'). */}
     <CanvasAgent {...agent}>
-      {/* The picking hint sits right under the agent notice (design §2 'Picker' accessibility). */}
-      {picking && <div className="doan-agent doan-picking" role="status"><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
-        <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
       {state.error && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">{state.error}</span></div>}
       {state.unlisted && <div className="doan-notice doan-panel" role="status"><AlertIcon /><span className="grow-text">This page is not a listed canvas. Choose a canvas from the Sidebar.</span></div>}
     </CanvasAgent>
@@ -1776,7 +1780,13 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
         : state.status === "noWidth" ? <p><b>Could not read a valid board width.</b>{state.message.slice("Could not read a valid board width.".length)}</p>
         : <p>{state.message}</p>}
     </div>}
-    <div className="doan-canvas-bottom"><CanvasTools tool={tool} onTool={onTool} add={add} /></div>
+    {/* Picking is a mode the person turned on, so its hint sits by the tools, out of the agent notices' column: their
+        coming and going never moves it (terminal-work-worktrees design §3.6). The composer pick button's glyph leads it. */}
+    <div className="doan-canvas-bottom">
+      {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
+        <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
+      <CanvasTools tool={tool} onTool={onTool} add={add} />
+    </div>
     </section>
   </div>;
 }

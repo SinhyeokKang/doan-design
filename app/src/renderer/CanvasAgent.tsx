@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Square } from "lucide-react";
 import type { ConversationSummary } from "../main/conversation/summary";
+import type { FolderEntry } from "../main/view";
 import type { WorkItem } from "../main/workState";
-import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, stopTurn, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
+import { agentNoticeView, canvasAgent, DOT_FIELD, DotFieldLoop, drawDotField, listForPresence, settleStopping, siblingWork, stopTurn, type CanvasAgentState, type WorkingCanvas } from "./agentIndicator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { autoCursor, dotGrid, type Dot } from "./dotField";
 
 // The agent indicator on the board while this canvas's current conversation works or waits (buzz-canvas design §2
@@ -14,9 +16,12 @@ import { autoCursor, dotGrid, type Dot } from "./dotField";
 // top-centre column under the agent notice (design §0 '확정 값'), so the column stays when no agent shows.
 // `work`: the canvases terminal sessions work on (terminal-agent-activity, draft frame terminal-notice); one on this
 // canvas shows the same indicator without a button.
-export function CanvasAgent({ list, canvas, running, work, onOpen, onStopFailed, children }: {
+// `entries` group the worktrees: with nothing on this canvas here, a session on its path in another worktree of the
+// project shows a notice with Open and no glow (terminal-work-worktrees design §3.1, draft frame sibling-notice).
+// `onOpenSibling` gets that worktree's root.
+export function CanvasAgent({ list, canvas, running, work, entries, onOpen, onOpenSibling, onStopFailed, children }: {
   list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[];
-  onOpen(): void; onStopFailed(text: string): void; children?: ReactNode;
+  entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void; children?: ReactNode;
 }) {
   // The last answer, kept across a failed list read (agentPresence).
   const previous = useRef<CanvasAgentState | null>(null);
@@ -27,6 +32,8 @@ export function CanvasAgent({ list, canvas, running, work, onOpen, onStopFailed,
   const held = settleStopping(stopping, presence);
   useEffect(() => { if (stopping !== null && held === null) setStopping(null); }, [stopping, held]);
   const view = agentNoticeView(presence, held, agent !== null && agent.presence === null);
+  // This checkout's own work, app or terminal, wins the column.
+  const sibling = agent === null ? siblingWork(work, canvas, entries) : null;
 
   const stop = () => {
     if (!agent?.presence || view?.action?.kind !== "stop" || view.action.disabled) return;
@@ -52,6 +59,13 @@ export function CanvasAgent({ list, canvas, running, work, onOpen, onStopFailed,
           ? <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-disabled={action.disabled || undefined} onClick={stop}>
             {action.disabled ? <span className="doan-spinner" aria-hidden="true" /> : <Square fill="currentColor" stroke="none" aria-hidden="true" />}{action.label}</button>
           : <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={action.name} onClick={onOpen}>{action.label}</button>}
+      </div>}
+      {/* The text ellipsizes a long label; its tooltip and Open's name carry it whole. */}
+      {sibling && <div className="doan-agent doan-agent-sibling">
+        <span className="doan-agent-dot" aria-hidden="true" />
+        <Tooltip><TooltipTrigger asChild><span className="doan-agent-text" role="status">{`Agent is working in ${sibling.label}`}</span></TooltipTrigger>
+          <TooltipContent>{`Agent is working on this canvas in ${sibling.label}`}</TooltipContent></Tooltip>
+        <button type="button" className="doan-button doan-agent-action" data-ui-size="sm" aria-label={`Open this canvas in ${sibling.label}`} onClick={() => onOpenSibling(sibling.root)}>Open</button>
       </div>}
       {children}
     </div>
