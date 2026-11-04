@@ -172,7 +172,8 @@ test("the tools are larger and both overlays sit further from the board's edges"
   const tools = readFileSync(new URL("./CanvasTools.tsx", import.meta.url), "utf8");
   expect(tools.match(/className="doan-icon-button doan-canvas-tool" data-ui-size="md"/g)).toHaveLength(2);
   const agent = readFileSync(new URL("./CanvasAgent.tsx", import.meta.url), "utf8");
-  expect(agent.match(/doan-agent-action" data-ui-size="sm"/g)).toHaveLength(2);
+  // Stop, the request's Open and the other worktree's Open.
+  expect(agent.match(/doan-agent-action" data-ui-size="sm"/g)).toHaveLength(3);
   expect(css).toMatch(/\.doan-agent-text \{[^}]*font-size: var\(--type-body-sm-size\);/);
 });
 

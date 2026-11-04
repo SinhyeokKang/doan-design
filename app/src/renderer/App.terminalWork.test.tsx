@@ -243,10 +243,14 @@ test("the other worktree notice's Open cancels a pick, opens W's same canvas and
   expect(harness.controller!.cancelPick).toHaveBeenCalled();
   expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/w", expect.objectContaining({ path: A }), undefined, expect.anything());
   expect(sidebar().projects[key]?.selectedRoot).toBe("/w/w");
-  const top = all(tree).find(element => typeof element.props.previous === "function")!.props as unknown as { back: boolean; previous(): void };
-  expect(top.back).toBe(true);
-  top.previous(); await flush(); render();
-  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/a", expect.objectContaining({ path: A }), expect.any(Number), expect.anything());
+  const top = () => all(tree).find(element => typeof element.props.previous === "function")!.props as unknown as { back: boolean; forward: boolean; previous(): void };
+  expect(top().back).toBe(true);
+  top().previous(); await flush(); render();
+  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/a", expect.objectContaining({ path: A }), undefined, expect.anything());
+  // One visit for the Open: Back lands on R's canvas, the first visit, and W's is ahead.
+  expect(top().back).toBe(false);
+  expect(top().forward).toBe(true);
+  expect(sidebar().projects[key]?.selectedRoot).toBe("/w/a");
 });
 
 test("App subscribes to links first and says it is ready only after the restore and the first folders", async () => {
