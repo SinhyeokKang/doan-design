@@ -68,16 +68,22 @@ function step(event: ActivityEvent, root: string): ActivityStep {
 // (mcp-connectors spec 6).
 const WAITING = /^Waiting for (.+)$/;
 const NOT_READY = /^(.+) (?:wasn’t ready, so this turn started without it|weren’t ready, so this turn started without them)\.$/;
-// What mcpStartup.ts names: a preset's label or a URL server's host, joined "A, B and C". Anything else (an agent's own
-// "Waiting for review") is not a startup line.
+// What mcpStartup.ts names: a preset's label or a URL server's label, which is connectorLabel's URL host (presets.ts)
+// of any URL parseConnectorUrl accepts: localhost, IPv6 literals, trailing dots and ports included. Joined
+// "A, B and C". A name that is no such host ("the review") is not a startup line; a single word that is a valid host
+// can't be told apart, which is safe because folding also needs a following not-ready line for the same servers.
 const PRESET_LABELS = new Set(PRESETS.map(preset => preset.label));
-const SERVER = /^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?$/i;
+function isServerLabel(name: string): boolean {
+  if (PRESET_LABELS.has(name)) return true;
+  if (!name || /[\s/?#@\\]/.test(name) || !URL.canParse(`https://${name}/`)) return false;
+  return new URL(`https://${name}/`).host === name;
+}
 function startupServers(summary: string): { kind: "waiting" | "notReady"; names: string[] } | null {
   const waiting = WAITING.exec(summary), notReady = waiting ? null : NOT_READY.exec(summary);
   const list = waiting?.[1] ?? notReady?.[1];
   if (!list) return null;
   const names = list.split(/, | and /);
-  return names.every(name => PRESET_LABELS.has(name) || SERVER.test(name)) ? { kind: waiting ? "waiting" : "notReady", names } : null;
+  return names.every(isServerLabel) ? { kind: waiting ? "waiting" : "notReady", names } : null;
 }
 // The not-ready line replaces the Waiting line it ends: the servers it names were all waited for (some of them may have
 // become ready meanwhile).
