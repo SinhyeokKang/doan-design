@@ -172,7 +172,7 @@ export function App() {
   const [deletingConversation, setDeletingConversation] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
   const deletingRef = useRef(deletingConversation);
   const changeDeleting = (next: typeof deletingConversation) => { deletingRef.current = next; setDeletingConversation(next); };
-  const afterDelete = useRef<{ selector: string; field: boolean } | null>(null);
+  const afterDelete = useRef<{ selector: string; field: boolean; fallback?: string } | null>(null);
   const quittingRef = useRef(false);
   // The canvases whose `doan export` runs (`root\npath`): from main's running event, sent once the save panel closed on
   // a file, to the export's reply. The progress toast waits a second from that event.
@@ -831,7 +831,8 @@ export function App() {
   useEffect(() => {
     if (modal || !focusAfterModal.current) return;
     focusAfterModal.current = false;
-    const after = afterDelete.current, field = after && document.querySelector<HTMLElement>(after.selector);
+    const after = afterDelete.current;
+    const field = after && (document.querySelector<HTMLElement>(after.selector) ?? (after.fallback ? document.querySelector<HTMLElement>(after.fallback) : null));
     afterDelete.current = null;
     if (field) { if (after.field) focusFieldEnd(field); else field.focus(); return; }
     const previous = beforeModal.current;
@@ -1216,7 +1217,11 @@ export function App() {
           const shown = from === "overview" ? overviewView.kind === "conversation" && overviewView.conversationId === conversationId
             : from === "canvas" && canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
           overviewRuns.deleted(conversationId); canvasRuns.deleted(conversationId); homeRun.current.deleted(conversationId);
-          if (target.from === "canvasList") afterDelete.current = { field: false, selector: target.after.kind === "row" ? `.ov-right .cv-row[data-key="${CSS.escape(target.after.key)}"]` : ".ov-right .rp-head" };
+          // The row the list chose can leave too before focus moves (another deletion, a re-read); the title stays, and
+          // the deleted row's Delete, where focus would otherwise go back, leaves with its row.
+          if (target.from === "canvasList") afterDelete.current = target.after.kind === "row"
+            ? { field: false, selector: `.ov-right .cv-row[data-key="${CSS.escape(target.after.key)}"]`, fallback: ".ov-right .rp-head" }
+            : { field: false, selector: ".ov-right .rp-head" };
           else if (shown) afterDelete.current = { field: true, selector: from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input" };
         } finally { store.deleted(conversationId); }
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
@@ -1481,9 +1486,11 @@ export function App() {
     // A composing field gets its chip once the composition ends, and no focus or caret call meanwhile.
     const returns = holds && !link.composing();
     if (result.kind !== "picked") {
-      // A cancel by a press leaves focus on what was pressed; Esc and the other cancels go back to where focus was
-      // before the pick, or the field when that was the page itself (spec 3: never the page body).
-      if (!returns || intent.pressed) return;
+      // A cancel by a press leaves focus on what was pressed. Esc and the other cancels go back to where focus was
+      // before the pick, or the field when that was the page itself (spec 3: never the page body), but only from where
+      // the pick left focus: focus the person moved meanwhile, such as into the field, stays.
+      const left = !active || active === document.body || active === intent.from || (active instanceof Node && !!viewport.current?.contains(active));
+      if (!returns || intent.pressed || !left) return;
       const from = intent.from;
       if (from instanceof HTMLElement && from !== document.body && from.isConnected) from.focus({ preventScroll: true });
       else link.focus();
