@@ -427,7 +427,7 @@ export function App() {
         forgetConversations(removed);
       }
       entriesRef.current = next;
-      setEntries(next); setAllEntries(all); instance.updateEntries(next); setFoldersSeen(true);
+      setEntries(next); setAllEntries(all); instance.updateEntries(next, all); setFoldersSeen(true);
       live.current.leaveVanished(before, next);
     });
     instance.canvasRemoved = ({ folder, row, duplicates }) => {
@@ -654,8 +654,9 @@ export function App() {
   // An auto-registered worktree left the list as shown (its folder vanished, or it can no longer be read) without any
   // move of the person's (design §3.4). Its remembered canvas and previous selection go. When it was on screen, its
   // canvas, Overview or Project Settings page moves to the same place in the worktree selected before it, else the
-  // group's main checkout, even in a problem state (orch decision 7); no toast. A group with nothing left was removed
-  // from Doan, and that path goes Home as before.
+  // group's main checkout, even in a problem state (orch decision 7); no toast. A page opened from its workspace keeps
+  // its screen and takes that worktree as its origin. A group with nothing left was removed from Doan, and that path
+  // goes Home as before.
   function leaveVanished(before: readonly FolderEntry[], after: readonly FolderEntry[]) {
     for (const gone of before) {
       if (gone.autoRegistered !== true || after.some(entry => entry.path === gone.path)) continue;
@@ -664,13 +665,20 @@ export function App() {
       controller.current?.remember(gone.path, null);
       const now = currentScreen.current;
       const workspace = now === "workspace" && loadedRootRef.current === gone.path;
-      if (!workspace && !(now === "projectSettings" && projectSettingsRef.current.root === gone.path)) continue;
+      const settingsPage = now === "projectSettings" && projectSettingsRef.current.root === gone.path;
+      const origin = pageRef.current.origin;
+      const fromPage = (now === "addProjects" || now === "settings" || now === "projectSettings") && origin.screen === "workspace" && origin.root === gone.path;
+      if (!workspace && !settingsPage && !fromPage) continue;
       const card = groupProjects(before, new Map(before.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === gone.path));
       const rows = after.filter(entry => card?.rows.some(row => row.path === entry.path));
       const open = openRef.current;
       const to = fallbackWorktree(rows, gone.path, previous, workspace && open?.folder === gone.path ? open.canvas : null);
       if (!to) continue;
-      if (!workspace) { setProjectSettings({ root: to.root, key: projectSettingsRef.current.key + 1, arrival: { seq: ++arrivals.current }, locked: false }); continue; }
+      // The page's origin follows as Locate moves it (projectSettingsRerooted): leaving enters the destination, its
+      // remembered canvas or Overview, rather than finding the origin gone and going Home (orch decision 10).
+      if (fromPage) { const next = { ...pageRef.current, origin: { screen: "workspace" as const, root: to.root } }; pageRef.current = next; setPage(next); }
+      if (settingsPage) setProjectSettings({ root: to.root, key: projectSettingsRef.current.key + 1, arrival: { seq: ++arrivals.current }, locked: false });
+      if (!workspace) continue;
       const entry = after.find(entry => entry.path === to.root);
       const row = entry?.kind === "list" && to.canvas ? entry.canvases.find(row => row.path === to.canvas) : undefined;
       if (row) openShellCanvas(to.root, row);
@@ -690,8 +698,9 @@ export function App() {
   const groupSignature = JSON.stringify(cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
   useEffect(() => {
     if (!foldersSeen || restore !== "done") return;
-    // Loading may not yet expose git.common; preserve membership until classification settles.
-    if (entries.some(entry => entry.kind === "loading")) return;
+    // Loading may not yet expose git.common; preserve membership until classification settles. A hidden auto-registered
+    // worktree still loading counts too, or a restart would drop it as the group's saved selection.
+    if (allEntries.some(entry => entry.kind === "loading")) return;
     setShellProjects(previous => {
       const next = reconcileProjects(previous, cards.map(card => ({ key: card.key, roots: card.rows.map(row => row.path) })));
       // A hand fold lasts only while its project stays loaded, so entering it again by any path shows it unfolded.
@@ -702,7 +711,7 @@ export function App() {
       }
       return JSON.stringify(previous) === JSON.stringify(next) ? previous : next;
     });
-  }, [groupSignature, entries, loadedRoot, restore, foldersSeen]);
+  }, [groupSignature, entries, allEntries, loadedRoot, restore, foldersSeen]);
   const validVisit = (visit: Visit) => validHistoryVisit(entries, visit);
   const back = historyTarget(history, -1, validVisit), forward = historyTarget(history, 1, validVisit);
   const travel = (cursor: number | null) => {
