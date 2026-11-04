@@ -400,3 +400,14 @@ test("removing the last item of a section focuses the item before it", async () 
   render();
   expect(nodes.get('[data-mcp-row="claude:doan-mcp-example-com"]')?.focus).toHaveBeenCalled();
 });
+
+// BU fix round 1 probe: Escape that closes the … menu must not also reach App's window handler, which leaves Settings
+// (the menu is already gone from the DOM when that handler runs).
+test("Escape on a server's menu closes only the menu", async () => {
+  await settle();
+  const content = all(tree).find(element => element.type === DropdownMenu.Content)!;
+  const event = { stopPropagation: vi.fn(), preventDefault: vi.fn() };
+  (content.props.onEscapeKeyDown as ((event: unknown) => void) | undefined)?.(event);
+  expect(event.stopPropagation).toHaveBeenCalledTimes(1);
+  expect(event.preventDefault).not.toHaveBeenCalled();
+});
