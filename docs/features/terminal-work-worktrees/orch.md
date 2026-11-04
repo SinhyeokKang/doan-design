@@ -25,7 +25,7 @@
 |---|---|---|---|---|---|---|
 | M | T1(main: `autoRegisterRoot`, `pruneAuto`, `autoAfterAdd`), T2a, T2b | `app/src/main/**`(새 규칙 모듈, `folderStore`, `shell`, `cli`, `view`, `index`, `runtime`, `addFlow`·`addProjects`와 각 테스트), `app/src/preload/**` | 없음 | Opus high — 두 파일 쓰기 순서·세대 직렬화, 비동기 등록과 기한 경쟁, 동시 `start` 합치기. 틀리면 목록 유실이나 남는 스피너 | `npm --prefix app test`, `npm --prefix app run typecheck` | 통합(`e18fa3d8..b0c9e7d1`), 리뷰 1라운드 🔴 0, 🟡 2 수정 완료 |
 | R1 | T1(renderer: `siblingWork`, W 소멸 도착지), T3 중 플래그가 필요 없는 것(보드 안내 + Open §3.1, 사이드바 slot 테스트 §3.2, picking 안내 위치 §3.6) | `app/src/renderer/**` | 없음 | Opus high — App navigation·기록·focus 상태가 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck, build | 통합(`470d48ec..8dbcd2ca`), 리뷰 1라운드 🔴 0 |
-| R2 | T3 중 플래그 의존 항목: 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4)과 그 App 테스트 | `app/src/renderer/**` | M 통합 | Opus high — R1과 같은 이유 | R1과 같음 | 대기 |
+| R2 | T3 중 플래그 의존 항목: 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4)과 그 App 테스트 | `app/src/renderer/**` | M 통합 | Opus high — R1과 같은 이유 | R1과 같음 | 통합(`10182ce1..62df4227`), 리뷰 1라운드 🔴 0, 🟡 2 수정 완료 |
 | R3 | T3 `/runtime-test` 전 항목과 실제 Orca worktree(`orca worktree create`로 만든 것)에서 보낸 `doan work start` probe(사용자 요청), `/design-sync`(`sibling-notice`, `picking-hint`)와 `docs/DESIGN.md` 측정값 | `app/src/renderer/**`(sync 수정), `docs/DESIGN.md`, `.scratch/` | M·R1·R2 통합 | Opus high — 실제 앱 격리와 측정 판단 | `/runtime-test` 증거, `/design-sync` 보고, 앱 test·typecheck·build | 대기 |
 | E | T4 `/agent-eval` | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 전체 통합 | Sonnet medium — 정해진 시나리오 실행과 기록 | `node eval/run.ts` 결과와 기록 | 대기 |
 | 지휘자 | T4 승격(PRODUCT, ARCHITECTURE, BACKLOG), feature 디렉터리 삭제, 통합 `/verify` | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/terminal-work-worktrees/` | 전체 통합 | — | `verify.mjs`, `rg` 참조 확인 | 대기 |
@@ -52,3 +52,7 @@
 - R2 시작: 새 child worktree `ttw-R2`(기준 `b0c9e7d1`), Opus high.
 - R2: 작업자 완료(`acdec449`, `415b1604`). 작업자 보고: `verify.mjs` PASS(app test 6707 pass, flaky 없음). handoff와 commit이 일치하는 것을 지휘자가 확인했다. 열린 항목: origin이 W인 page(Project Settings 등)를 떠나면 Home으로 간다. 리뷰 1라운드: Opus medium.
 - R2 리뷰 1라운드(Opus medium): 🔴 0, 🟡 2(재시작 때 `loading`으로 숨겨진 W의 기억한 캔버스와 선택이 지워짐), ⚪ 4(R3 확인용), 사용자 결정 1(결정 10). 수정 1라운드: Opus high(재시작·reconcile 상태와 page origin이 얽힘).
+- R2 수정 1라운드(Opus high): `a4e799a5`, `01acb4d7`(🟡1·🟡2, 결정 10). 🔴 0 상태의 국소 수정이라 재리뷰 없이 받았다. 작업자 `verify.mjs` PASS(app test 6716 pass).
+- R2를 cherry-pick했다(`10182ce1..62df4227`). 통합 HEAD `62df4227`에서 `verify.mjs` PASS(지휘자 실행).
+- worktree 정리: `ttw-M`(tip `f7d35b90`), `ttw-R1`(tip `6a719dfe`), `ttw-R2`(tip `01acb4d7`)를 `git cherry`에 `+`가 없음을 확인하고 `orca worktree rm`으로 지웠다. 브랜치는 남아 있다. handoff는 `.scratch/orch/handoff-{M,R1,R2}.md`로 옮겼다.
+- R3 시작: 새 child worktree `ttw-R3`(기준 `62df4227`), Opus high. 리뷰 ⚪ 중 실제 앱 확인 항목을 brief에 넣었다.
