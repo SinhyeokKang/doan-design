@@ -33,14 +33,15 @@
 
 ## T3. renderer 안내, 숨김, 이동
 
-- 보드 안내 + Open(design §3.1), 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4).
+- 보드 안내 + Open(design §3.1), 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4), picking 안내를 Canvas tools 위로 옮기기(§3.6).
 - 테스트:
   - 안내 컴포넌트: 문구와 accessible name, Open이 W와 캔버스를 고르고 기록에 방문 하나, Back으로 R의 캔버스, 자기 root 작업이 이김, R의 캔버스에 glow·dot field 없음, 안내가 사라질 때 focus가 캔버스 영역으로 감, 나타날 때 focus를 가져가지 않음.
   - App 테스트: 자동 등록 뒤 화면·선택된 worktree·Back/Forward가 그대로임; focus 이벤트 없이 W가 목록에서 빠질 때 W의 캔버스·Overview·Project Settings 각각의 도착지, W의 기억한 캔버스가 지워짐(POSTMORTEM 2026-11-03); 자동 등록분이 `list`가 아니면 목록·문제 행·Home 카드에 없음.
+  - picking 안내: pick 중 안내가 `.doan-canvas-bottom` 안 Canvas tools 앞에 있고 상단 column에는 없음, 에이전트 안내가 생기거나 사라져도 그대로임(기존 'the agent notices and the picking hint are 40px tall…' 테스트를 새 위치로 고침).
   - `App.terminalWork.test.tsx`: "an expanded project that is not loaded opens its terminal slot's canvas"를 넓혀 클릭 뒤 선택된 worktree가 W임을 확인; work가 W의 첫 목록보다 먼저 오면 W가 경로를 목록에 올린 뒤 스피너가 뜸.
 - 검증: `npm --prefix app test` green, typecheck·build 통과.
 - `/runtime-test`(격리된 앱과 그 앱의 CLI·`DOAN_RUNTIME`): 등록된 repo에 `git worktree add`로 W를 만들고 W에서 `doan work start` → W 자동 등록(별도 카드 없음), 프로젝트 행 스피너, 스피너 클릭으로 W 선택, main checkout의 같은 캔버스에 안내, Open으로 W 이동, Back으로 복귀, `done` 뒤 안내 사라짐, 재시작 뒤 W 유지, W 폴더 삭제 → 목록 변화를 기다린 뒤 W가 빠지고 보던 화면이 직전 worktree로 감(Missing 줄 없음).
-- `/design-sync`로 안내를 초안과 비교한다.
+- `/design-sync`로 안내와 picking 안내 위치를 초안(`sibling-notice`, `picking-hint`)과 비교한다.
 - **commit 경계**: `feat(renderer): show terminal work from another worktree with Open`
 
 ## T4. 문서 승격과 feature 디렉터리 삭제
@@ -48,7 +49,7 @@
 - 마지막 통합 전에 `/agent-eval`을 돌린다(AGENTS.md 'Workflow'). W3b와 H7은 영향이 없을 것으로 본다(design §5).
 - `docs/PRODUCT.md`: spec '바뀌는 PRODUCT·ARCHITECTURE 결정'의 PRODUCT 항목(§3 Out of scope 4, §5 item 1·2·10).
 - `docs/ARCHITECTURE.md`: 같은 목록의 ARCHITECTURE 항목(§3 'Shell tree', §4 'Terminal work over app-socket v3'의 'Dispatch'·'Best effort'·'State', §12 `project_not_open`, §7·§11 `auto-folders.json`).
-- `docs/DESIGN.md`: `/design-sync`가 잰 안내 값.
+- `docs/DESIGN.md`: `/design-sync`가 잰 안내 값, 'Picking hint' 위치(design §3.6).
 - `docs/BACKLOG.md`: 자동 등록분 누적과 worktree별 제거 없음(spec 결정 6), 실제 앱에서 확인하지 못한 표면.
 - `docs/features/terminal-work-worktrees/` 삭제.
 - 검증: `node .agents/skills/verify/scripts/verify.mjs` 통과. 문서 전용 확인으로 `rg -n "terminal-work-worktrees" docs AGENTS.md .agents app cli eval` 결과가 없다(`rg`는 AGENTS.md 'Commands'에 없는 대상 확인용 명령이다).

@@ -42,6 +42,7 @@ PRODUCT §5 item 3 'Deep links'는 링크와 `doan open`이 프로젝트를 추�
 9. 자동 등록된 W의 폴더가 사라지면 W는 목록에서 빠지고, Missing 상태 줄·문제 행·토스트는 한 번도 보이지 않는다. W를 보고 있었으면 결정 4대로 이동한다. W의 기억한 캔버스와 선택도 함께 지워진다.
 10. 자동 등록된 W가 폴더는 남은 채 목록을 읽지 못하면 W는 목록에서 숨고 문제 행으로 보이지 않는다(그래서 group 전체를 지우는 Remove from Doan을 W 때문에 마주치지 않는다). 보고 있었으면 결정 4대로 이동한다. 다시 읽히면 보인다.
 11. 사람이 Add Projects, Open Project, Locate로 W를 직접 추가하거나 다시 가리키면 W는 직접 추가한 worktree가 된다(완료 조건 9·10을 따르지 않음). Remove from Doan은 자동 등록분을 포함해 group의 worktree를 모두 목록에서 뺀다.
+12. 캔버스 picking 안내(`Click a frame or an element, or Shift-click a spot` + Esc)는 상단 가운데 column이 아니라 하단 Canvas tools 바로 위(8px)에 뜬다. 상단 column은 에이전트 안내만 쓰므로, 에이전트 안내가 생기거나 사라져도 picking 안내는 움직이지 않는다. 안내의 모양·문구·접근성은 바뀌지 않는다(사용자 결정, design §3.6).
 
 ## 바뀌는 PRODUCT·ARCHITECTURE 결정
 
@@ -50,6 +51,7 @@ PRODUCT §5 item 3 'Deep links'는 링크와 `doan open`이 프로젝트를 추�
 - PRODUCT §3 Out of scope 4 "Terminal work signals (`doan work`) only show work": 등록된 프로젝트의 다른 worktree를 목록에 더할 수 있다는 예외.
 - PRODUCT §5 item 1: "Only registered worktrees appear"에 자동 등록·숨김·제거 규칙, 사라진 자동 등록분에 대한 Missing·Remove 문단의 예외, 터미널 slot 클릭이 그 worktree를 고른다는 것.
 - PRODUCT §5 item 2 'Terminal work': 다른 worktree 작업 안내와 Open.
+- `docs/DESIGN.md` 'Picking hint'의 위치(에이전트 안내 아래 → Canvas tools 위).
 - PRODUCT §5 item 10 `doan work`: `start`가 worktree를 등록할 수 있다는 것.
 - ARCHITECTURE §3 'Shell tree' "Git-discovered worktrees are never added": work 신호로 온 worktree는 예외.
 - ARCHITECTURE §4 'Terminal work over app-socket v3': 'Dispatch' 순서, 'Best effort', 'State'의 "Unregistered roots are dropped".

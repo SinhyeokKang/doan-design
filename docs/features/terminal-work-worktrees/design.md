@@ -97,6 +97,14 @@ spec 결정 1~7을 main(소켓 v3 처리, 폴더 목록)과 renderer(보드 안�
 - P가 W의 목록에 아직 없으면 스피너도 안내도 없다. W가 worktree 목록 끝에 조용히 생길 뿐이다.
 - R의 page가 목록에 없거나 R이 문제 상태면 안내가 없다(`workingCanvas`가 null).
 
+### 3.6 picking 안내 위치
+
+- picking 안내를 `CanvasAgent`의 children(상단 column)에서 빼서 `.doan-canvas-bottom`의 Canvas tools 앞에 둔다. column의 기존 gap 8px로 tools 위에 붙는다(`App.tsx`). 상단 column에는 에이전트 안내와 canvas notice(`state.error`, `state.unlisted`)만 남는다.
+- `.doan-canvas-bottom`은 `left: 50%`에서 가운데로 옮겨지므로, 너비를 정하지 않으면 보드 오른쪽 절반으로 줄어 안내가 눌린다. `width: max-content`, `max-width: calc(100% - 2 * var(--space-3))`(상단 column과 같은 좌우 여백)를 준다. 좁은 보드에서는 안내 문구가 줄임표로 잘린다.
+- 안내의 모양, 문구, Esc, 숨은 "Press Escape to cancel", `role="status"`는 그대로다. 다른 worktree 안내의 Open은 pick 중에도 누를 수 있고 pick을 취소한다(§3.1).
+- 이유: pick은 사람이 켠 모드라 모드를 바꾸는 tools 옆이 맞다. 상단에 쌓이면 에이전트 안내가 오갈 때마다 안내가 위아래로 움직이고 column이 88px까지 커진다.
+- 드래프트 frame `picking-hint`. DESIGN.md 'Picking hint'의 "under the agent notice when both show"와 'Terminal agent activity' 표의 "40 high under the terminal notice" 줄은 T4에서 새 위치로 고쳐 쓴다.
+
 ## 4. 순수 함수로 뺄 부분 (`/tdd` 대상)
 
 | 함수 | 위치 | 고정할 사례 |
