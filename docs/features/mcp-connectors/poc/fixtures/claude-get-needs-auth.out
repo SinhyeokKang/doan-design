@@ -1,8 +1,0 @@
-doan-notion:
-  Scope: User config (available in all your projects)
-  Status: ! Needs authentication
-  Type: http
-  URL: https://mcp.notion.com/mcp
-
-To remove this server, run: claude mcp remove doan-notion -s user
-exit 0
