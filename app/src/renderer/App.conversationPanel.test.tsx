@@ -523,7 +523,7 @@ test("a pick ends with focus back in the composer while focus stayed with the pi
   const ended = harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void;
   ended({ kind: "picked", anchor: ANCHOR, frames: [] });
   expect(link.focus).toHaveBeenCalledOnce();
-  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR);
   expect(link.focus.mock.invocationCallOrder[0]).toBeLessThan(link.insert.mock.invocationCallOrder[0]!);
 });
 
@@ -535,7 +535,7 @@ test("a pick whose focus went elsewhere meanwhile adds its chip but does not tak
   // Focus coming back to the picker before the canvas click does not restore the intent.
   focusMoved(null);
   ended({ kind: "picked", anchor: ANCHOR, frames: [] });
-  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR);
   expect(link.focus).not.toHaveBeenCalled();
   conversation.pick.onToggle();
   focusMoved({ name: "a menu" });
@@ -548,7 +548,7 @@ test("a pick that ends while the field composes keeps the chip waiting and makes
   link.insert.mockReturnValue("pending");
   conversation.pick.onToggle();
   (harness.controller!.onPicked!.mock.calls[0]![0] as (result: unknown) => void)({ kind: "picked", anchor: ANCHOR, frames: [] });
-  expect(link.insert).toHaveBeenCalledWith(ANCHOR, "caret");
+  expect(link.insert).toHaveBeenCalledWith(ANCHOR);
   expect(link.focus).not.toHaveBeenCalled();
 });
 

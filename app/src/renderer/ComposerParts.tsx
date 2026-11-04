@@ -1,4 +1,5 @@
 import { forwardRef, Fragment, useEffect, useId, useImperativeHandle, useLayoutEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type MutableRefObject, type PointerEvent, type ReactNode, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { DropdownMenu, Popover } from "radix-ui";
 import { ArrowUp, Check, ChevronDown, Compass, Eye, FilePenLine, FileText, Gauge, Paintbrush, PencilSparkles, Plus, ScanEye, Search, Settings, Shapes, Shield, ShieldAlert, Square, TextAlignStart, TriangleAlert, X } from "lucide-react";
 import type { AuthSnapshot } from "../main/agentAuth/ipc";
@@ -246,7 +247,8 @@ export function PresetsButton(props: {
   const { canvasPress } = props;
   useEffect(() => {
     if (!open || !canvasPress) return;
-    return canvasPress(() => { pressed.current = true; setOpen(false); });
+    // Closed at once, so the canvas page sees where focus fell when the search box went with the popover.
+    return canvasPress(() => { pressed.current = true; flushSync(() => setOpen(false)); });
   }, [open, canvasPress]);
   const view = presetListView(props.reply, { project: props.project, suggested: props.suggested, query, tab });
   const choose = (id: string) => { picked.current = true; setOpen(false); props.onChoose(id); };

@@ -41,9 +41,9 @@ import type { SettingsTarget } from "./settingsSections";
 export interface DockedRequest { text: string; anchors: readonly Anchor[]; attachments: { id: string }[]; files?: SentFile[] }
 
 // The canvas page's way into the shown composer's field (design §2 'Picker'). `insert` puts a chip at the field's
-// caret, or at its end, and shows the 32-place line itself when the chip would pass the limit.
+// caret and shows the 32-place line itself when the chip would pass the limit.
 export interface DockedFieldLink {
-  insert(anchor: Anchor, at: "caret" | "end"): ChipInsert;
+  insert(anchor: Anchor): ChipInsert;
   focus(): void;
   composing(): boolean;
   element(): HTMLElement | null;
@@ -265,8 +265,7 @@ export function DockedComposer(props: DockedComposerProps) {
     const link = props.link;
     if (!link) return;
     const mine: DockedFieldLink = {
-      insert: (anchor, at) => {
-        if (at === "end") field.current?.focus("end");
+      insert: anchor => {
         const result = field.current?.insertChip(anchor) ?? "refused";
         if (result === "limit") setLimitAt(shownKey.current);
         return result;

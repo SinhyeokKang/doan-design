@@ -165,6 +165,8 @@ export class CanvasController {
   private canvasPage = true;
   // The newest canvas click waiting for main's cursor reading; an older reading does not move focus.
   private clickTag = 0;
+  // The composer's preset lists, which close on a press in the canvas (the app's document never sees one).
+  private pressListeners = new Set<() => void>();
 
   // Raised by every move or selection change; a workspace open that waits for its folder's read goes ahead only
   // while it is still the latest. `valid` checks the destination against the current list right before applying.
@@ -295,8 +297,15 @@ export class CanvasController {
     layer.addEventListener("lostpointercapture", this.layerUp);
   }
 
+  // An arrow property, so the page can hand it on as is: one function for the controller's life, `this` bound.
+  canvasPress = (listener: () => void): (() => void) => {
+    this.pressListeners.add(listener);
+    return () => { this.pressListeners.delete(listener); };
+  };
+
   dispose(): void {
     this.pickListener = null;
+    this.pressListeners.clear();
     this.endLocate();
     this.viewResize?.disconnect();
     window.removeEventListener("message", this.receive);
@@ -750,8 +759,7 @@ export class CanvasController {
     if (message.type === "anchors") { this.onAnchors(message); return; }
     if (message.type === "picked") { this.receivePicked(message); return; }
     if (message.type === "pick-started") { this.receivePickStarted(message); return; }
-    // A press is not a selection; it only closes the composer's open preset lists, which are not wired here yet.
-    if (message.type === "press") return;
+    if (message.type === "press") { this.pressed(); return; }
     this.onSelectionMessage(message);
   };
 
@@ -1060,6 +1068,16 @@ export class CanvasController {
     this.viewport.focus(CLICK_FOCUS);
     this.clearOnEscape();
   };
+
+  // A press closes the open preset lists at once. One that held focus takes its focused search box with it, and focus
+  // would fall to the page body; it goes to the canvas area the person pressed instead. Focus already in the canvas
+  // frame (an ⌥-press) or anywhere still on the page stays where it is.
+  private pressed(): void {
+    const focused = document.activeElement;
+    for (const listener of [...this.pressListeners]) listener();
+    const now = document.activeElement;
+    if (focused !== null && focused !== document.body && !(focused as Node).isConnected && (now === null || now === document.body)) this.viewport.focus(CLICK_FOCUS);
+  }
 
   // A click on the canvas sends the keys after it there, not to the composer. Never during a pick: its chip goes in at
   // the composer's caret. The click reaches the app only as the canvas's message, which a canvas can send without one,

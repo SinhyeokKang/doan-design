@@ -1499,7 +1499,7 @@ export function App() {
     // Focus first, then the chip: the field puts its kept caret back on focus, and Chromium moves a caret set in an
     // unfocused field to the field's start when it takes focus afterwards (BR4b runtime probe).
     if (returns) link.focus();
-    link.insert(result.anchor, "caret");
+    link.insert(result.anchor);
     // Placing the caret for the chip can pull focus into the field; focus that may not move goes back where it was.
     if (!returns && active instanceof HTMLElement && active !== document.activeElement) active.focus({ preventScroll: true });
   }
@@ -1781,7 +1781,7 @@ export function App() {
           project={panelProject} entry={entry} list={panelList} seen={run.seenPending()} prefs={homeMemory}
           defaults={preferences ? preferences.preferences.newConversation : undefined} now={Date.now()} blocked={panelBlocked} onRemember={rememberPick}
           frames={state.layout?.frames} locateDisabled={state.status !== null || state.unlisted} arrival={arrival} onArrived={seq => setArrival(current => current?.seq === seq ? null : current)}
-          onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink}
+          onLocate={locateChip} onReplyChip={link => replyChip(panelTarget.root, link)} onChoose={() => controller.current?.dropPendingLocate()} pick={{ pressed: picking, enabled: pickerReady, reason: pickerView.reason, onToggle: togglePick }} composerLink={composerLink} canvasPress={controller.current?.canvasPress}
           onSettings={target => openSettings(target)} onNotice={text => toast.show(text)}
           onOpenProjectConversation={id => showShellOverview(panelTarget.root, undefined, () => askConversation(panelTarget.root, id))} work={work} />}
       </ConversationPanel>}

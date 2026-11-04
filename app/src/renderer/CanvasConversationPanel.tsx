@@ -87,7 +87,7 @@ export interface CanvasConversationProps {
   // The canvases terminal sessions work on: the terminal session choice waits while its session is among them.
   work: readonly WorkItem[];
   // The page's canvas press signal, for the composer's preset lists (the app's document never sees a canvas press).
-  canvasPress?: CanvasPress;
+  canvasPress?: CanvasPress | undefined;
 }
 
 const NEW_PLACEHOLDER = "Ask, / for presets";

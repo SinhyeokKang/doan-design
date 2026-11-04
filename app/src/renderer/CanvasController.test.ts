@@ -3513,7 +3513,7 @@ describe("canvas press", () => {
       h.doc.activeElement = search;
       const stop = h.controller.canvasPress(() => { search.isConnected = false; h.doc.activeElement = body; });
       h.receive({ type: "press" });
-      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith(CLICK_FOCUS);
+      expect(h.viewport.focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true, focusVisible: false });
       stop();
       h.viewport.focus.mockClear();
       // Nothing closed: the field keeps focus (a right press moves nothing by itself).
