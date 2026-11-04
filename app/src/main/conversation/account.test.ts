@@ -149,7 +149,7 @@ it("waits for a check another caller started instead of refusing the run", async
 });
 
 it("refuses an executable below the minimum version, an unreadable version and a missing bundled doan CLI", async () => {
-  const h = harness("claude"); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2.1.310 (Claude Code)" });
+  const h = harness("claude"); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "2.1.283 (Claude Code)" });
   await expect(start(h, "claude")).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
   mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout: "Claude Code" });
   await expect(start(h, "claude")).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
@@ -266,7 +266,7 @@ it.each([
 });
 
 it("refuses a Cursor or Copilot build below the minimum and runs a newer one", async () => {
-  for (const [provider, stdout] of [["cursor", "2026.10.21-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.104.\n"]] as const) {
+  for (const [provider, stdout] of [["cursor", "2026.10.21-0aa1111\n"], ["copilot", "GitHub Copilot CLI 1.0.88.\n"]] as const) {
     const h = harness(provider); mocks.run.mockResolvedValueOnce({ exitCode: 0, timedOut: false, stdout });
     await expect(start(h, provider)).rejects.toThrow("runtime_unsupported"); expect(h.auth.leases.open).toBe(0);
   }

@@ -5,16 +5,16 @@ import { DOCK, TERMINAL } from "../launchEnv.fixture";
 
 const CLI = "/Applications/doan.app/Contents/Resources/bin/doan";
 function deps(over: Partial<FactsDeps> = {}): FactsDeps & { run: ReturnType<typeof vi.fn> } {
-  const run = vi.fn(async (command: string) => ({ exitCode: 0, timedOut: false, stdout: ({ "/bin/claude": "2.1.312 (Claude Code)", "/bin/codex": "codex-cli 0.164.0", "/bin/cursor-agent": "2026.10.22-27dcf5f", "/bin/copilot": "GitHub Copilot CLI 1.0.105." } as Record<string, string>)[command] ?? "", stderr: "" }));
+  const run = vi.fn(async (command: string) => ({ exitCode: 0, timedOut: false, stdout: ({ "/bin/claude": "2.1.284 (Claude Code)", "/bin/codex": "codex-cli 0.158.0", "/bin/cursor-agent": "2026.10.22-27dcf5f", "/bin/copilot": "GitHub Copilot CLI 1.0.89." } as Record<string, string>)[command] ?? "", stderr: "" }));
   return { shell: async () => ({ ok: true, path: "/bin" }), run, executable: path => path === CLI || ["/bin/claude", "/bin/codex", "/bin/cursor-agent", "/bin/copilot"].includes(path), inherited: { HOME: "/Users/ada", PATH: "/usr/bin" }, cli: CLI, ...over } as FactsDeps & { run: ReturnType<typeof vi.fn> };
 }
 
 describe("tool facts", () => {
   it.each([
-    ["claude", "2.1.312", "2.1.311 (Claude Code)", "2.1.400 (Claude Code)", "2.1.400"],
-    ["codex", "0.164.0", "codex-cli 0.162.0", "codex-cli 0.170.0", "0.170.0"],
+    ["claude", "2.1.284", "2.1.283 (Claude Code)", "2.1.400 (Claude Code)", "2.1.400"],
+    ["codex", "0.158.0", "codex-cli 0.157.0", "codex-cli 0.170.0", "0.170.0"],
     ["cursor", "2026.10.22-27dcf5f", "2026.10.21-0aa1111", "2026.10.23-0aa1111", "2026.10.23-0aa1111"],
-    ["copilot", "1.0.105", "GitHub Copilot CLI 1.0.104.", "GitHub Copilot CLI 1.0.106.", "1.0.106"],
+    ["copilot", "1.0.89", "GitHub Copilot CLI 1.0.88.", "GitHub Copilot CLI 1.0.106.", "1.0.106"],
   ] as const)("finds %s on the login shell's PATH and accepts its minimum version or newer", async (provider, installed, older, newer, newerInstalled) => {
     const d = deps();
     expect(await toolFacts(provider, d)).toEqual({ cli: "found", version: "supported", installed, tools: "ready" });

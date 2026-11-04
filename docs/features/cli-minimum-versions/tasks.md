@@ -109,6 +109,11 @@ mcp-connectors가 main에 합쳐진 뒤 main에서 시작한다. D1에서 어느
 - POSTMORTEM 2026-10-29: `rg -n 'loginClears: true' app/src/main/agentAuth/providers.ts`의 결과는 Codex 한 줄(`providers.ts:126`)이다. E3 통과 기준 2에서 세 후보 모두 교체 sign-in을 취소한 뒤 연결이 남았으므로 바꿀 것이 없다.
 - Codex를 0.164.0 아래로 내리지만 0.158.0도 writer lock을 만들므로, PRODUCT 'Live terminal policy'와 `io.ts:116` 주석의 사실은 그대로다.
 
+- **A1 rg 결과**: `rg -n '2\.1\.312|2\.1\.311|0\.164\.0|0\.163\.0|0\.162\.|1\.0\.105|1\.0\.104' app/src`로 옛 경계와 한 단계 아래 값을 찾았다.
+  - 고침(새 경계 `2.1.284`·`0.158.0`·`1.0.89`, 한 단계 아래 `2.1.283`·`0.157.0`·`1.0.88`): `sessions.test.ts`(버전 표, `MINIMUM_VERSIONS`·floor 기대값, 저장 버전 표, 최소 버전 아래 사실), `facts.test.ts`(stub 출력과 경계 표), `about.test.ts`("Doan needs X or later."와 최소 버전 아래 Codex 값 `0.163.0` → `0.157.0`), `SettingsAbout.test.tsx:61`(같은 Codex 값), `prepare.test.ts`(최소 버전 아래 stub `0.162.0` → `0.157.0`, Codex rollout 표 `valid-0.163.0` → `valid-0.158.0`, `wrong-version`), `io.test.ts`(floor 아래 registry 버전 `2.1.310`·`2.1.311` → `2.1.283`, floor 위 `2.1.312` → `2.1.284`), `account.test.ts`(최소 버전 아래 Copilot `1.0.104` → `1.0.88`, Claude `2.1.310` → `2.1.283`; 뒤의 것은 `rg` 패턴에 없던 값이라 전체 `npm test`에서 잡혔다). 숫자 비교 사례 `copilot 1.0.99`는 새 최소 버전 위가 되어 `1.0.9`로 바꿨다.
+  - 고치지 않음, 새 경계에서도 최소 버전 이상이라 뜻이 같다: `prepare.test.ts`·`prepareMcp.test.ts`·`account.test.ts`의 정상 stub 출력과 Codex rollout 기본값 `0.164.0`, `sessions.test.ts`의 파싱 예시와 `facts`의 `2.1.312`, `io.test.ts`의 registry fixture `2.1.312`, `ipc.test.ts`의 Copilot `1.0.105`(ToolFacts를 그대로 통과시키는 fixture), 모양이 틀려 거절되는 `v0.164.0`·`0.164.0 x` 등(버전 크기와 무관).
+  - 고치지 않음, 관측 사실이라 최소 버전과 무관하다: `runners.test.ts`, `transport.test.ts`, `models.test.ts`, `identity.test.ts`, `manager.test.ts`, `providers.test.ts`의 주석·설명에 적힌 CLI 버전, `io.test.ts`의 `2.1.312` 주석.
+
 ── commit: `docs(feature): record cli-minimum-versions PoC results` ──
 
 ## D. 결정

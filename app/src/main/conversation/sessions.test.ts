@@ -42,7 +42,7 @@ describe("session records", () => {
   });
   const unavailableCases: [Partial<AvailabilityFacts>, UnavailableReason][] = [
     [{ cli: false }, "cli_missing"], [{ version: "9" }, "session_unavailable"],
-    [{ version: "2.1.311" }, "session_unavailable"], [{ version: null }, "session_unavailable"], [{ occupancy: "occupied" }, "session_in_use"],
+    [{ version: "2.1.283" }, "session_unavailable"], [{ version: null }, "session_unavailable"], [{ occupancy: "occupied" }, "session_in_use"],
     [{ occupancy: "unknown" }, "session_unavailable"], [{ sessionExists: false }, "session_unavailable"],
     [{ cwd: "/repo2" }, "outside_root"], [{ cwd: "/outside/symlink-target" }, "outside_root"],
     [{ cwd: null }, "session_unavailable"], [{ root: null }, "session_unavailable"],
@@ -55,9 +55,9 @@ describe("session records", () => {
     expect(sessionAvailability(record, { ...facts, cwd: "/repo/sub" })).toBeNull();
     expect(sessionAvailability(record, { ...facts, version: "2.1.400" })).toBeNull();
     const codex: SessionRecord = { ...record, runtime: "codex" };
-    expect(sessionAvailability(codex, { ...facts, version: "0.164.0" })).toBeNull();
+    expect(sessionAvailability(codex, { ...facts, version: "0.158.0" })).toBeNull();
     expect(sessionAvailability(codex, { ...facts, version: "0.170.0" })).toBeNull();
-    expect(sessionAvailability(codex, { ...facts, version: "0.163.0" })).toBe("session_unavailable");
+    expect(sessionAvailability(codex, { ...facts, version: "0.157.0" })).toBe("session_unavailable");
   });
   it("rejects empty session IDs via schema", () => {
     expect(parseSessionRecords(JSON.stringify({ ...record, runtime: "codex", sessionId: "" }))).toEqual([]);
@@ -81,28 +81,28 @@ describe("agent CLI versions", () => {
     expect(parseCliVersion("")).toBeNull();
   });
   it.each([
-    ["claude", "2.1.311 (Claude Code)", "unsupported"], ["claude", "2.1.312 (Claude Code)", "supported"], ["claude", "2.1.400 (Claude Code)", "supported"], ["claude", "3.0.0", "supported"],
-    ["codex", "codex-cli 0.162.0", "unsupported"], ["codex", "codex-cli 0.164.0", "supported"], ["codex", "codex-cli 0.170.0", "supported"], ["codex", "codex-cli 1.0.0", "supported"],
+    ["claude", "2.1.283 (Claude Code)", "unsupported"], ["claude", "2.1.284 (Claude Code)", "supported"], ["claude", "2.1.400 (Claude Code)", "supported"], ["claude", "3.0.0", "supported"],
+    ["codex", "codex-cli 0.157.0", "unsupported"], ["codex", "codex-cli 0.158.0", "supported"], ["codex", "codex-cli 0.170.0", "supported"], ["codex", "codex-cli 1.0.0", "supported"],
     ["cursor", "2026.10.21-0aa1111", "unsupported"], ["cursor", "2026.10.22-0aa1111", "supported"], ["cursor", "2026.10.23-0aa1111", "supported"], ["cursor", "2026.10.22", "supported"],
-    ["copilot", "GitHub Copilot CLI 1.0.104.", "unsupported"], ["copilot", "GitHub Copilot CLI 1.0.105.", "supported"], ["copilot", "GitHub Copilot CLI 1.0.106.", "supported"],
-    ["codex", "codex-cli 0.99.0", "unsupported"], ["copilot", "1.0.99", "unsupported"], ["copilot", "1.0.1000", "supported"],
-    ["claude", "2.1.311-beta.9", "unsupported"], ["claude", "2.1.312-beta.1", "supported"],
+    ["copilot", "GitHub Copilot CLI 1.0.88.", "unsupported"], ["copilot", "GitHub Copilot CLI 1.0.89.", "supported"], ["copilot", "GitHub Copilot CLI 1.0.90.", "supported"],
+    ["codex", "codex-cli 0.99.0", "unsupported"], ["copilot", "1.0.9", "unsupported"], ["copilot", "1.0.1000", "supported"],
+    ["claude", "2.1.283-beta.9", "unsupported"], ["claude", "2.1.284-beta.1", "supported"],
     ["codex", "codex-cli", "unknown"], ["cursor", "", "unknown"], ["copilot", "1.0", "unknown"],
   ] as const)("compares %s %j numerically with its minimum: %s", (provider, output, status) => {
     expect(versionStatus(provider, output)).toBe(status);
   });
   it("keeps the verified minimums and floors where the session evidence needs them", () => {
-    expect(MINIMUM_VERSIONS).toEqual({ claude: "2.1.312", codex: "0.164.0", cursor: "2026.10.22", copilot: "1.0.105" });
+    expect(MINIMUM_VERSIONS).toEqual({ claude: "2.1.284", codex: "0.158.0", cursor: "2026.10.22", copilot: "1.0.89" });
     // A floor never follows a raised minimum: raising one abandons conversations the older versions made.
     expect(storedVersionAtLeast(MINIMUM_VERSIONS.codex, CODEX_ROLLOUT_FLOOR)).toBe(true);
     expect(storedVersionAtLeast(MINIMUM_VERSIONS.claude, CLAUDE_REGISTRY_FLOOR)).toBe(true);
-    expect(CODEX_ROLLOUT_FLOOR).toBe("0.163.0"); expect(CLAUDE_REGISTRY_FLOOR).toBe("2.1.312");
+    expect(CODEX_ROLLOUT_FLOOR).toBe("0.158.0"); expect(CLAUDE_REGISTRY_FLOOR).toBe("2.1.284");
   });
   it.each([
-    ["0.163.0", true], ["0.164.0", true], ["0.170.0", true], ["1.0.0", true], ["0.164.0-alpha.2", true],
-    ["0.162.0", false], ["0.99.0", false], ["v0.164.0", false], ["0.164.0 x", false], [" 0.164.0", false], ["0.164", false], ["0.164.0+build", false], ["", false], [164, false], [null, false], [undefined, false],
+    ["0.158.0", true], ["0.164.0", true], ["0.170.0", true], ["1.0.0", true], ["0.164.0-alpha.2", true],
+    ["0.157.0", false], ["0.99.0", false], ["v0.164.0", false], ["0.164.0 x", false], [" 0.164.0", false], ["0.164", false], ["0.164.0+build", false], ["", false], [164, false], [null, false], [undefined, false],
   ] as const)("accepts a stored version %j against the floor only as a whole x.y.z[-suffix]: %s", (value, accepted) => {
-    expect(storedVersionAtLeast(value, "0.163.0")).toBe(accepted);
+    expect(storedVersionAtLeast(value, "0.158.0")).toBe(accepted);
   });
 });
 
