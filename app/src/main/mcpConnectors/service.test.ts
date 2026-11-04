@@ -381,6 +381,23 @@ describe("add and remove", () => {
     expect([s.generation("claude"), s.generation("codex")]).toEqual([1, 1]);
   });
 
+  it("removes a server whose health check fails (no status Doan knows) from Claude", async () => {
+    const s = service();
+    s.add("https://down.example.com/mcp");
+    cli.registered.claude.set("doan-down-example-com", { url: "https://down.example.com/mcp", auth: false });
+    const spawn = cli.spawn;
+    const unreachable = service({ spawn: (command, args, options) => {
+      const p = spawn(command, args, options) as FakeProcess;
+      if (args.includes("get")) { const print = p.print.bind(p); p.print = (text: string, stream?: "stderr") => print(text.replace("! Needs authentication", "✘ Failed to connect"), stream); }
+      return p;
+    } });
+    unreachable.remove("doan-down-example-com");
+    await unreachable.idle();
+    expect(cli.registered.claude.has("doan-down-example-com")).toBe(false);
+    expect(fileJson().servers).toEqual([]);
+    await s.idle();
+  });
+
   it("refuses Remove while any provider runs an attempt, and a preset can never be removed", async () => {
     const s = service();
     s.add("https://mcp.example.com/mcp");
@@ -587,4 +604,3 @@ describe("conversation facts", () => {
   });
 });
 
-export type { FakeProcess };

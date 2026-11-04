@@ -332,10 +332,10 @@ export class McpService implements McpConversationFacts {
   }
 
   private async claudeConnect(attempt: Attempt, lease: Lease, server: ConnectorServer): Promise<void> {
-    const facts = await this.claudeGet(attempt, lease, server.name);
+    const registered = await this.registered(attempt, lease, "claude", server.name);
     if (attempt.stopped) return;
-    if (!facts.ok) throw new Failure("failed", `status before sign-in: ${facts.reason}`);
-    if (!facts.facts.registered) await this.must(attempt, lease, "claude", COMMANDS.claude.add(server));
+    if (registered === null) throw new Failure("failed", "the registration could not be read");
+    if (!registered) await this.must(attempt, lease, "claude", COMMANDS.claude.add(server));
     if (attempt.stopped) return;
     let missing = false, late = false, approval: ReturnType<typeof setTimeout> | undefined;
     const link = setTimeout(() => { missing = true; this.stop(attempt, false); }, this.limits.linkMs);
@@ -426,10 +426,10 @@ export class McpService implements McpConversationFacts {
   // Logs a registered server out and removes it from one profile; false when it was not registered. strict: any
   // failure throws; otherwise (reconcile) failures are logged and the next server goes on.
   private async unregister(owner: Owner, lease: Lease, provider: McpProvider, name: string, strict: boolean): Promise<boolean> {
-    const before = await this.facts(owner, lease, provider, name);
+    const registered = await this.registered(owner, lease, provider, name);
     if (owner.stopped) return false;
-    if (!before.ok) { if (strict) throw new Failure("failed", `status before removal: ${before.reason}`); return false; }
-    if (!before.facts.registered) return false;
+    if (registered === null) { if (strict) throw new Failure("failed", "the registration could not be read"); return false; }
+    if (!registered) return false;
     const logout = await this.run(owner, lease, provider, COMMANDS[provider].logout(name), { timeoutMs: this.limits.commandMs });
     if (owner.stopped) return false;
     // A logout can fail because there was no token to clear; only a server still signed in must not be removed.
@@ -513,6 +513,16 @@ export class McpService implements McpConversationFacts {
       if (this.reads.get(provider) === owner) this.reads.delete(provider);
       this.changed();
     }
+  }
+
+  // Whether a server is registered, whatever its sign-in reads as: an unreachable server's health check gives Claude
+  // no status Doan knows, and it must still be removable. null: unreadable.
+  private async registered(owner: Owner, lease: Lease, provider: McpProvider, name: string): Promise<boolean | null> {
+    if (provider === "codex") { const listed = await this.codexList(owner, lease); return listed ? listed.some(server => server.name === name) : null; }
+    const run = await this.run(owner, lease, "claude", COMMANDS.claude.get(name), { timeoutMs: this.limits.commandMs });
+    const facts = run.timedOut ? null : parseClaudeMcpGet(name, run.output, run.code ?? -1);
+    if (facts) return facts.registered;
+    return run.code === 0 && run.output.split("\n")[0]?.trim() === `${name}:` ? true : null;
   }
 
   // One server's status: `claude mcp get <name>`, or its entry in `codex mcp list --json`.
