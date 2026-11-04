@@ -15,12 +15,14 @@
 5. `/runtime-test`와 `/design-sync`는 main과 renderer가 모두 통합된 뒤 배치 R 작업자가 한다 — 지휘자 판단. 보드 안내는 main의 자동 등록이 있어야 실제 앱에서 보인다.
 6. T4의 PRODUCT·ARCHITECTURE·BACKLOG 승격과 feature 디렉터리 삭제는 지휘자가 한다(/orchestrate §4·§5). DESIGN.md 측정값은 `/design-sync`를 하는 배치 R이 적는다.
 7. 보던 자동 등록 worktree가 사라질 때의 도착지는 직전 선택이나 main checkout이 문제 상태여도 그 root로 간다(사용자 결정, R1 리뷰). design §3.4 문구 그대로다.
+8. v3 'Dispatch' 순서는 schema → token → `start` 경로 패턴 → 등록된 root/자동 등록이다(사용자 결정, M 리뷰). 응답은 바뀌지 않는다. T4에서 ARCHITECTURE §4에 적는다.
+9. 자동 등록분이 외부·네트워크 볼륨에서 잠깐 사라져(ENOENT) 목록에서 빠지는 것은 spec 결정 2 그대로 두고, T4에서 BACKLOG 알려진 한계에 적는다 — 지휘자 판단(M 리뷰 정보 항목). 다음 `doan work start`에서 다시 등록된다.
 
 ## 배치
 
 | 배치 | 항목 | 파일 소유 | 선행 | 모델·effort와 이유 | 검증 gate | 상태 |
 |---|---|---|---|---|---|---|
-| M | T1(main: `autoRegisterRoot`, `pruneAuto`, `autoAfterAdd`), T2a, T2b | `app/src/main/**`(새 규칙 모듈, `folderStore`, `shell`, `cli`, `view`, `index`, `runtime`, `addFlow`·`addProjects`와 각 테스트), `app/src/preload/**` | 없음 | Opus high — 두 파일 쓰기 순서·세대 직렬화, 비동기 등록과 기한 경쟁, 동시 `start` 합치기. 틀리면 목록 유실이나 남는 스피너 | `npm --prefix app test`, `npm --prefix app run typecheck` | 구현 완료(`1819f5fd`), 리뷰 중 |
+| M | T1(main: `autoRegisterRoot`, `pruneAuto`, `autoAfterAdd`), T2a, T2b | `app/src/main/**`(새 규칙 모듈, `folderStore`, `shell`, `cli`, `view`, `index`, `runtime`, `addFlow`·`addProjects`와 각 테스트), `app/src/preload/**` | 없음 | Opus high — 두 파일 쓰기 순서·세대 직렬화, 비동기 등록과 기한 경쟁, 동시 `start` 합치기. 틀리면 목록 유실이나 남는 스피너 | `npm --prefix app test`, `npm --prefix app run typecheck` | 구현 완료(`1819f5fd`), 리뷰 1라운드 🔴 0 🟡 2, 수정 중 |
 | R1 | T1(renderer: `siblingWork`, W 소멸 도착지), T3 중 플래그가 필요 없는 것(보드 안내 + Open §3.1, 사이드바 slot 테스트 §3.2, picking 안내 위치 §3.6) | `app/src/renderer/**` | 없음 | Opus high — App navigation·기록·focus 상태가 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck, build | 통합(`470d48ec..8dbcd2ca`), 리뷰 1라운드 🔴 0 |
 | R2 | T3 중 플래그 의존 항목: 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4)과 그 App 테스트 | `app/src/renderer/**` | M 통합 | Opus high — R1과 같은 이유 | R1과 같음 | 대기 |
 | R3 | T3 `/runtime-test` 전 항목과 실제 Orca worktree(`orca worktree create`로 만든 것)에서 보낸 `doan work start` probe(사용자 요청), `/design-sync`(`sibling-notice`, `picking-hint`)와 `docs/DESIGN.md` 측정값 | `app/src/renderer/**`(sync 수정), `docs/DESIGN.md`, `.scratch/` | M·R1·R2 통합 | Opus high — 실제 앱 격리와 측정 판단 | `/runtime-test` 증거, `/design-sync` 보고, 앱 test·typecheck·build | 대기 |
@@ -43,3 +45,4 @@
 - M: 작업자 완료(`SinhyeokKang/ttw-M`, `3c15f7b2..1819f5fd` 7 commits). 작업자 보고: `verify.mjs` PASS(app test 6672 pass). 플래그는 `FolderEntry.autoRegistered?: true`(`view.ts`), 모든 kind에 붙는다. `RuntimeState`에는 멤버 하나 대신 `roots`·`readRoot`·`adopt` 셋이 생겼다(handoff '계획과 다른 점'). handoff와 commit이 일치하고 worktree가 깨끗한 것을 지휘자가 확인했다. 작업자는 해제했다. 리뷰 1라운드: Opus high.
 - R1 수정 1라운드(Sonnet medium): `6a719dfe`(통합 `8dbcd2ca`) — `.doan-canvas-bottom`을 click-through로. 작업자의 `verify.mjs`는 세 번째에 PASS였다. 앞의 두 번은 이 배치가 건드리지 않은 `app/src/main/shell.test.ts:718` "replace reports the move as a re-root focus"에서 실패했다(main 기존 flaky로 보임). M 통합 뒤 다시 보고, 남으면 BACKLOG에 적는다.
 - R1을 `feat/terminal-work-worktrees`에 cherry-pick했다(`470d48ec..8dbcd2ca`). 통합 `/verify`는 M까지 넣은 뒤 한 번 돌린다.
+- M 리뷰 1라운드(Opus high): 🔴 0, 🟡 2(자동 등록분이 `uninitialized`가 되면 상위 re-root로 직접 추가분이 되고 `FolderFocus`가 나감; `readMarks`가 읽기 실패를 기록 없이 삼킴), ⚪ 3, 사용자 결정 1(결정 8). 수정 1라운드: Opus medium(🟡1이 re-root 경로 판단을 요구), shell.test.ts:718 flaky 관찰도 함께 맡겼다.
