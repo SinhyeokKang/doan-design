@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { ShellSidebar } from "./ShellSidebar";
-import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, type Visit } from "./shellNavigation";
+import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectExpanded, projectsTab, reconcileProjects, selectProjectRoot, shownFolders, type Visit } from "./shellNavigation";
 import { groupToOpen, openGroup, toggleGroup, type GroupId, type ShownCanvas } from "./sidebarGroups";
 import { canvasLabel, moveExpanded } from "./canvasTree";
 import type { Selection } from "../formats/types";
@@ -205,7 +205,12 @@ export function App() {
   const chipFocus = useRef(false);
   const currentScreen = useRef(screen);
   currentScreen.current = screen;
+  // `entries` is the list as shown: hidden auto-registered worktrees are left out everywhere (shownFolders). Only the
+  // launch restore reads main's whole list, so it can wait for a saved worktree that is still being read.
   const [entries, setEntries] = useState<FolderEntry[]>([]);
+  const [allEntries, setAllEntries] = useState<FolderEntry[]>([]);
+  // The group's selection before it moved to an auto-registered worktree, by that worktree (design §3.4), in memory.
+  const beforeAuto = useRef(new Map<string, string>());
   const [state, setState] = useState(initialCanvasState);
   const viewport = useRef<HTMLDivElement>(null);
   const board = useRef<HTMLDivElement>(null);
@@ -401,7 +406,8 @@ export function App() {
     };
     const instance = new CanvasController(viewport.current, board.current, overlay.current, setState, sendSelection, selector => window.doan.inspect(selector), dragLayer.current, () => window.doan.pointer());
     controller.current = instance;
-    const stopFolders = window.doan.onFolders((next, focus) => {
+    const stopFolders = window.doan.onFolders((all, focus) => {
+      const next = shownFolders(all), before = entriesRef.current;
       if (focus) {
         const located = locateFrom.current === focus.from;
         if (!located) setLoadedRoot(root => root === focus.from ? focus.root : root);
@@ -421,7 +427,8 @@ export function App() {
         forgetConversations(removed);
       }
       entriesRef.current = next;
-      setEntries(next); instance.updateEntries(next); setFoldersSeen(true);
+      setEntries(next); setAllEntries(all); instance.updateEntries(next); setFoldersSeen(true);
+      live.current.leaveVanished(before, next);
     });
     instance.canvasRemoved = ({ folder, row, duplicates }) => {
       if (duplicates === null) { live.current.toast.show(removedCanvasMessage(row)); return; }
@@ -520,7 +527,7 @@ export function App() {
   useEffect(() => {
     if (restoreCancelled.current || restore === null || restore === "done" || !foldersSeen) return;
     const elapsed = performance.now() - restore.started;
-    const plan = restorePlan(restore.state, entries, elapsed);
+    const plan = restorePlan(restore.state, allEntries, elapsed);
     if (plan.kind === "wait") {
       const timer = setTimeout(() => setRestoreTick(tick => tick + 1), RESTORE_LOADING_WAIT_MS - elapsed + 10);
       return () => clearTimeout(timer);
@@ -533,7 +540,7 @@ export function App() {
     if (plan.kind === "home") return;
     // The workspace opens its remembered canvas and view, as a worktree switch does.
     controller.current?.remember(plan.root, plan.canvas?.view ? { canvas: plan.canvas.path, view: plan.canvas.view } : null);
-    const listed = entries.find(entry => entry.path === plan.root);
+    const listed = allEntries.find(entry => entry.path === plan.root);
     const row = plan.canvas && !plan.canvas.view && listed?.kind === "list" ? listed.canvases.find(row => row.path === plan.canvas?.path) : undefined;
     controller.current?.openWorkspace(plan.root, next => {
       setLoadedRoot(next); setScreen("workspace");
@@ -549,7 +556,7 @@ export function App() {
         setOverviewNotice({ root: plan.root, text });
       }
     }
-  }, [restore, foldersSeen, entries, restoreTick]);
+  }, [restore, foldersSeen, allEntries, restoreTick]);
   // Sent at once, pans included: main debounces the write and flushes it on
   // quit, while a value still waiting here would be lost to a quick ⌘Q.
   const save = () => {
@@ -579,6 +586,8 @@ export function App() {
     historyRef.current = next; setHistory(next);
     const groups = groupProjects(entriesRef.current, new Map(entriesRef.current.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : [])));
     const group = groups.find(group => group.rows.some(row => row.path === root));
+    const selected = group && shellRef.current[group.key]?.selectedRoot;
+    if (selected && selected !== root && entriesRef.current.find(entry => entry.path === root)?.autoRegistered) beforeAuto.current.set(root, selected);
     if (group) setShellProjects(previous => { const groups = previous[group.key]?.groups; return { ...previous, [group.key]: { roots: group.rows.map(row => row.path), expanded: previous[group.key]?.expanded ?? false, selectedRoot: root, selectedAt: Date.now(), ...(groups ? { groups } : {}) } }; });
   };
   const enter = (root: string) => {
@@ -641,6 +650,34 @@ export function App() {
     const shown = openRef.current;
     if (currentScreen.current === "workspace" && shown?.folder === root && shown.canvas === row.path && shownOverviewRef.current === null) reveal();
     else live.current.openShellCanvas(root, row, undefined, reveal);
+  }
+  // An auto-registered worktree left the list as shown (its folder vanished, or it can no longer be read) without any
+  // move of the person's (design §3.4). Its remembered canvas and previous selection go. When it was on screen, its
+  // canvas, Overview or Project Settings page moves to the same place in the worktree selected before it, else the
+  // group's main checkout, even in a problem state (orch decision 7); no toast. A group with nothing left was removed
+  // from Doan, and that path goes Home as before.
+  function leaveVanished(before: readonly FolderEntry[], after: readonly FolderEntry[]) {
+    for (const gone of before) {
+      if (gone.autoRegistered !== true || after.some(entry => entry.path === gone.path)) continue;
+      const previous = beforeAuto.current.get(gone.path) ?? null;
+      beforeAuto.current.delete(gone.path);
+      controller.current?.remember(gone.path, null);
+      const now = currentScreen.current;
+      const workspace = now === "workspace" && loadedRootRef.current === gone.path;
+      if (!workspace && !(now === "projectSettings" && projectSettingsRef.current.root === gone.path)) continue;
+      const card = groupProjects(before, new Map(before.flatMap(entry => entry.lastCommon ? [[entry.path, entry.lastCommon]] : []))).find(card => card.rows.some(row => row.path === gone.path));
+      const rows = after.filter(entry => card?.rows.some(row => row.path === entry.path));
+      const open = openRef.current;
+      const to = fallbackWorktree(rows, gone.path, previous, workspace && open?.folder === gone.path ? open.canvas : null);
+      if (!to) continue;
+      if (!workspace) { setProjectSettings({ root: to.root, key: projectSettingsRef.current.key + 1, arrival: { seq: ++arrivals.current }, locked: false }); continue; }
+      const entry = after.find(entry => entry.path === to.root);
+      const row = entry?.kind === "list" && to.canvas ? entry.canvases.find(row => row.path === to.canvas) : undefined;
+      if (row) openShellCanvas(to.root, row);
+      else if (entry?.kind === "list") showShellOverview(to.root);
+      // A worktree that is not a list cannot be entered; it takes the workspace as it is, its problem screen.
+      else completeNavigation(to.root);
+    }
   }
   function forgetConversations(roots: readonly string[]) {
     if (!memoryRead.current) for (const root of roots) memoryTouched.current.add(root);
@@ -770,8 +807,8 @@ export function App() {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {

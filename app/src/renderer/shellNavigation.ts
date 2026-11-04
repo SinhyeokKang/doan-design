@@ -36,6 +36,11 @@ export function fallbackWorktree(rows: readonly FolderEntry[], gone: string, pre
   if (!to) return null;
   return path !== null && to.kind === "list" && to.canvases.some(row => row.path === path) ? { root: to.path, canvas: path } : { root: to.path };
 }
+// An auto-registered worktree shows only while it is a list (terminal-work-worktrees design §3.3): unread, it would be a
+// problem row whose only way out is the whole group's Remove from Doan. A hand-added worktree keeps its problem rows.
+export function shownFolders(entries: readonly FolderEntry[]): FolderEntry[] {
+  return entries.filter(entry => entry.autoRegistered !== true || entry.kind === "list");
+}
 export interface ShellActivity { root: string; at?: number; incomplete: boolean }
 export function selectProjectRoot(project: ShellProject, activity: readonly ShellActivity[], loaded: string | null): string | undefined {
   const selected = project.roots.includes(project.selectedRoot ?? "") ? project.selectedRoot : undefined;
