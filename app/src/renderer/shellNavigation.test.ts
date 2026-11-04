@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { commitVisit, emptyHistory, historyTarget, loadedProjectRow, projectsTab, projectExpanded, projectHue, projectInitial, reconcileProjects, selectProjectRoot } from "./shellNavigation";
+import type { FolderEntry } from "../main/view";
+import { commitVisit, emptyHistory, fallbackWorktree, historyTarget, loadedProjectRow, projectsTab, projectExpanded, projectHue, projectInitial, reconcileProjects, selectProjectRoot } from "./shellNavigation";
 import { parseUiState } from "../restore/uiState";
 
 describe("shell navigation", () => {
@@ -101,5 +102,40 @@ describe("ways back", () => {
     expect(projectsTab("projectSettings")).toBe("leavePage");
     expect(projectsTab("workspace")).toBe("home");
     expect(projectsTab("home")).toBe("stay");
+  });
+});
+
+// terminal-work-worktrees spec decision 4, design §3.4: where the person goes when the auto-registered worktree they were
+// on vanishes or hides. The worktree selected before it, else the main checkout, else the group's first list; the same
+// canvas there when listed, else that worktree's Overview.
+describe("fallbackWorktree", () => {
+  const P = ".doan/canvases/billing.html", Q = ".doan/canvases/other.html";
+  const git = { common: "/repo/.git", main: "/w/main", worktrees: ["/w/main", "/w/b", "/w/c", "/w/gone"] };
+  const list = (path: string, canvases: string[] = [P]): FolderEntry => ({ path, kind: "list", servedRev: 0, git, canvases: canvases.map(canvas => ({ path: canvas, url: `u-${canvas}` })) });
+  const main = list("/w/main"), b = list("/w/b"), c = list("/w/c", [Q]), gone = list("/w/gone");
+  it("goes to the worktree selected before, with the same canvas when it lists it", () => {
+    expect(fallbackWorktree([main, b, c, gone], "/w/gone", "/w/b", P)).toEqual({ root: "/w/b", canvas: P });
+  });
+  it("opens that worktree's Overview when it does not list the path", () => {
+    expect(fallbackWorktree([main, b, c, gone], "/w/gone", "/w/c", P)).toEqual({ root: "/w/c" });
+  });
+  it("from an Overview or Project Settings (no path), goes to that worktree's Overview", () => {
+    expect(fallbackWorktree([main, b, gone], "/w/gone", "/w/b", null)).toEqual({ root: "/w/b" });
+  });
+  it("without a remembered selection, goes to the main checkout", () => {
+    expect(fallbackWorktree([b, main, gone], "/w/gone", null, P)).toEqual({ root: "/w/main", canvas: P });
+  });
+  it("a remembered selection that is the vanished worktree itself or left the group falls through to the main checkout", () => {
+    expect(fallbackWorktree([b, main, gone], "/w/gone", "/w/gone", P)).toEqual({ root: "/w/main", canvas: P });
+    expect(fallbackWorktree([b, main, gone], "/w/gone", "/w/elsewhere", P)).toEqual({ root: "/w/main", canvas: P });
+  });
+  it("without the main checkout in the group, goes to the group's first list root", () => {
+    const loading: FolderEntry = { path: "/w/l", kind: "loading" };
+    expect(fallbackWorktree([gone, loading, c, b], "/w/gone", null, P)).toEqual({ root: "/w/c" });
+  });
+  it("the vanished worktree may be absent from the rows already; nothing else to go to is null", () => {
+    expect(fallbackWorktree([b], "/w/gone", null, P)).toEqual({ root: "/w/b", canvas: P });
+    expect(fallbackWorktree([gone], "/w/gone", null, P)).toBeNull();
+    expect(fallbackWorktree([], "/w/gone", "/w/b", P)).toBeNull();
   });
 });

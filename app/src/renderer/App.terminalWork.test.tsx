@@ -187,6 +187,7 @@ test("an expanded project that is not loaded opens its terminal slot's canvas an
   sidebar().toggle(key, { root: "/w/b", path: B }); await flush(); render();
   expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/b", expect.objectContaining({ path: B }), undefined, expect.anything());
   expect(sidebar().projects[key]?.expanded).toBe(true);
+  const slotOpen = harness.controller!.openCanvas!.mock.calls.at(-1)![3] as { opened(): void };
   // Without a terminal slot an expanded project's row opens its Overview and stays expanded: only its chevron folds it
   // (project-row-disclosure draft).
   listeners.work!([] as never); render();
@@ -195,6 +196,57 @@ test("an expanded project that is not loaded opens its terminal slot's canvas an
   expect(sidebar().projects[key]?.expanded).toBe(true);
   expect(harness.controller!.openWorkspace).toHaveBeenLastCalledWith("/w/b", expect.any(Function), false, undefined, true);
   expect(harness.controller!.openCanvas!.mock.calls.length).toBe(before);
+  // Once the slot's canvas shows, its worktree is the project's selected one (terminal-work-worktrees design §3.2).
+  slotOpen.opened(); await flush(); render();
+  expect(sidebar().projects[key]?.selectedRoot).toBe("/w/b");
+});
+
+// terminal-work-worktrees: W is another worktree of the loaded project, not selected, so its canvas rows are not on
+// screen and its session's spinner stands on the project row (spec done-when 3, design §3.2).
+const COMMON = "/repo/.git";
+const tree2 = (wCanvases: CanvasRow[]): FolderEntry[] => [
+  { path: "/w/a", kind: "list", servedRev: 0, canvases: rows(), git: { common: COMMON, main: "/w/a", branch: "main", worktrees: ["/w/a", "/w/w"] } },
+  { path: "/w/w", kind: "list", servedRev: 0, canvases: wCanvases, git: { common: COMMON, main: "/w/a", branch: "feat/w", worktrees: ["/w/a", "/w/w"] } },
+];
+const opensAtOnce = () => harness.controller!.openCanvas!.mockImplementation((_root: string, _row: CanvasRow, _at: unknown, done: { opened(): void }) => done.opened());
+
+test("another worktree's spinner waits until it lists the path; the project row's slot then selects it and opens its canvas", async () => {
+  render();
+  listeners.folders!(tree2([{ path: A, url: "w-a", mtimeMs: 1 }]) as never); render();
+  readUiState(workspace); await flush(); render();
+  const key = sidebar().cards.find(card => card.rows.some(row => row.path === "/w/a"))!.key;
+  expect(sidebar().cards.find(card => card.key === key)!.rows.map(row => row.path)).toEqual(["/w/a", "/w/w"]);
+  listeners.work!([item(B, "/w/w")] as never); render();
+  expect(sidebar().slots?.get(`/w/w\n${B}`)).toBeUndefined();
+  listeners.folders!(tree2([{ path: A, url: "w-a", mtimeMs: 1 }, { path: B, url: "w-b", mtimeMs: 2 }]) as never); render();
+  expect(sidebar().slots?.get(`/w/w\n${B}`)?.source).toBe("terminal");
+  opensAtOnce();
+  sidebar().toggle(key, { root: "/w/w", path: B }); await flush(); render();
+  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/w", expect.objectContaining({ path: B }), undefined, expect.anything());
+  expect(sidebar().projects[key]?.selectedRoot).toBe("/w/w");
+});
+
+// terminal-work-worktrees design §3.1: the board notice's Open on (R, P) opens (W, P) the way the terminal slot does,
+// cancels a pick, and leaves one canvas visit, so Back returns to R's canvas.
+test("the other worktree notice's Open cancels a pick, opens W's same canvas and selects W; Back returns to R's canvas", async () => {
+  render();
+  listeners.folders!(tree2(rows()) as never); render();
+  readUiState(workspace); await flush(); render();
+  opensAtOnce();
+  show(rows()[0]!);
+  listeners.work!([item(A, "/w/w")] as never); render();
+  const props = agent() as unknown as { entries: readonly FolderEntry[]; onOpenSibling(root: string): void };
+  expect(props.entries.map(entry => entry.path)).toEqual(["/w/a", "/w/w"]);
+  const key = sidebar().cards.find(card => card.rows.some(row => row.path === "/w/a"))!.key;
+  harness.controller!.cancelPick!.mockClear();
+  props.onOpenSibling("/w/w"); await flush(); render();
+  expect(harness.controller!.cancelPick).toHaveBeenCalled();
+  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/w", expect.objectContaining({ path: A }), undefined, expect.anything());
+  expect(sidebar().projects[key]?.selectedRoot).toBe("/w/w");
+  const top = all(tree).find(element => typeof element.props.previous === "function")!.props as unknown as { back: boolean; previous(): void };
+  expect(top.back).toBe(true);
+  top.previous(); await flush(); render();
+  expect(harness.controller!.openCanvas).toHaveBeenLastCalledWith("/w/a", expect.objectContaining({ path: A }), expect.any(Number), expect.anything());
 });
 
 test("App subscribes to links first and says it is ready only after the restore and the first folders", async () => {
