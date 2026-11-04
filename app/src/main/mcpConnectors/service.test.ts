@@ -368,6 +368,27 @@ describe("add and remove", () => {
     expect(s.add("http://mcp.example.com/mcp")).toEqual({ ok: false, reason: "not_https" });
   });
 
+  // E1 defect 2: a server added by URL stayed Checking with Connect disabled until the page was entered again.
+  it("a successful Add reads the new server's status in every signed-in provider, so it leaves Checking", async () => {
+    readiness.claude = { ready: false, cause: "not_connected", action: "signIn" };
+    const s = service();
+    expect(s.add("https://mcp.example.com/mcp")).toEqual({ ok: true, name: "doan-mcp-example-com" });
+    expect(status(s, "codex", "doan-mcp-example-com")).toBe("checking");
+    await s.idle();
+    expect(row(s, "codex", "doan-mcp-example-com")?.view).toMatchObject({ status: "not_connected", action: "connect" });
+    expect(cli.commands("codex")).toEqual([["mcp", "list", "--json"]]);
+    expect(cli.commands("claude")).toEqual([]);
+    // Once Claude is signed in too, the next Add reads both, and a refused Add reads nothing.
+    readiness.claude = { ready: true };
+    s.add("https://two.example.com/mcp"); await s.idle();
+    expect(status(s, "claude", "doan-two-example-com")).toBe("not_connected");
+    expect(status(s, "codex", "doan-two-example-com")).toBe("not_connected");
+    expect(cli.commands("claude")).toContainEqual(["mcp", "get", "doan-two-example-com"]);
+    const before = cli.commands("codex").length + cli.commands("claude").length;
+    expect(s.add("https://two.example.com/mcp").ok).toBe(false); await s.idle();
+    expect(cli.commands("codex").length + cli.commands("claude").length).toBe(before);
+  });
+
   it("refuses add and remove while the connectors file is unreadable; presets still connect", async () => {
     writeFileSync(join(dir, "mcp-connectors.json"), "{broken");
     const s = service();

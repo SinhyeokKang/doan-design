@@ -236,6 +236,30 @@ test("after Add, focus goes to the new item's row group in the first section, sc
   expect(words(all(tree).find(element => element.props.className === "ob-live")?.props.children).replace(/\u200b/g, "")).toBe("new.example.com added for Claude Code and Codex");
 });
 
+// E1 defect 2: main reads the new server's status after Add (McpService.add); the page shows Checking until that read
+// publishes, then the item's Connect, without a read of its own or a second focus move.
+test("after Add, the new item shows Checking until main's read arrives, then its Connect", async () => {
+  await settle();
+  click(all(tree).find(element => words(element.props.children).endsWith("Add server by URL") && element.type === "button"));
+  render();
+  (all(tree).find(element => element.type === "input")!.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "https://new.example.com/mcp" } });
+  render();
+  (all(tree).find(element => element.type === "form")!.props.onSubmit as (event: { preventDefault(): void }) => void)({ preventDefault: () => {} });
+  await settle();
+  const servers = [...SERVERS, { name: "doan-new-example-com", label: "new.example.com", url: "https://new.example.com/mcp", preset: false, removable: true, removeFailed: false }];
+  feed(snap({ claude: { "doan-new-example-com": "checking" }, codex: { "doan-new-example-com": "checking" } }, servers));
+  render();
+  for (const agent of ["Claude Code", "Codex"]) expect(byLabel(`Connect new.example.com for ${agent}`)!.props.disabled).toBe(true);
+  feed(snap({}, servers));
+  render();
+  const connect = byLabel("Connect new.example.com for Codex")!;
+  expect(connect.props.disabled).toBeFalsy(); expect(connect.props["aria-disabled"]).toBeFalsy();
+  click(connect);
+  expect(api.connectMcpServer).toHaveBeenCalledWith("codex", "doan-new-example-com");
+  expect(api.readMcpConnectors).toHaveBeenCalledTimes(1);
+  expect(nodes.get('[data-mcp-row="claude:doan-new-example-com"]')!.focus).toHaveBeenCalledTimes(1);
+});
+
 test("Remove asks first and locks the page; Cancel returns to the … button, Remove sends and later focuses the next item", async () => {
   await settle();
   expect(byLabel("mcp.example.com menu for Codex")).toBeDefined();
