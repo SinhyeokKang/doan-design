@@ -662,6 +662,9 @@ export function canvasScript(lib: CanvasLib): void {
       type,
       (event: MouseEvent) => {
         if (!event.isTrusted) return;
+        // Every press, ⌥, right and Ctrl included, tells the app the canvas was pressed: the app's document never sees
+        // a press inside this frame, and its open lists close on a press anywhere outside them.
+        if (type === "pointerdown") post({ type: "press" });
         if (type !== "pointerdown" && (event.button !== 0 || event.ctrlKey)) return;
         // ⌥ picks like a plain click while picking, so nothing reaches the canvas then.
         if (event.altKey && picking === null) {

@@ -749,6 +749,8 @@ export class CanvasController {
     if (message.type === "anchors") { this.onAnchors(message); return; }
     if (message.type === "picked") { this.receivePicked(message); return; }
     if (message.type === "pick-started") { this.receivePickStarted(message); return; }
+    // A press is not a selection; it only closes the composer's open preset lists, which are not wired here yet.
+    if (message.type === "press") return;
     this.onSelectionMessage(message);
   };
 

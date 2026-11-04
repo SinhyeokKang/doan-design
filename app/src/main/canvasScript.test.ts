@@ -1041,6 +1041,17 @@ describe("canvasScript selection input", () => {
     expect(ofType(canvas, "select")).toEqual([]);
   });
 
+  // The app's document never sees a press inside the canvas frame, yet its open lists close on a press anywhere outside
+  // them: every trusted press says so, whatever its button or modifier, and before any click selects.
+  test("every trusted press, ⌥, right and Ctrl included, posts a press; the canvas's own presses and later events do not", () => {
+    const { canvas, span, field } = heroCanvas();
+    for (const fields of [{}, { altKey: true }, { button: 2 }, { ctrlKey: true }, { button: 1 }]) canvas.fireWindow("pointerdown", input({ target: span, ...fields }));
+    expect(ofType(canvas, "press")).toEqual(Array(5).fill({ type: "press" }));
+    canvas.fireWindow("pointerdown", input({ target: field, isTrusted: false }));
+    for (const type of ["mousedown", "click", "dblclick"]) canvas.fireWindow(type, input({ target: span }));
+    expect(ofType(canvas, "press")).toHaveLength(5);
+  });
+
   test("a plain press blurs whatever the canvas had focused, so Esc reaches the script", () => {
     const { canvas, span, field } = heroCanvas();
     canvas.document.activeElement = field;
