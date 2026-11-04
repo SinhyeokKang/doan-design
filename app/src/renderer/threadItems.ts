@@ -78,18 +78,34 @@ function isServerLabel(name: string): boolean {
   if (!name || /[\s/?#@\\]/.test(name) || !URL.canParse(`https://${name}/`)) return false;
   return new URL(`https://${name}/`).host === name;
 }
-function startupServers(summary: string): { kind: "waiting" | "notReady"; names: string[] } | null {
+// main bounds both lines at 512 characters by cutting the server list (waitingLine slices the line, notReadyLine its
+// list), so a line of that length may end in part of a server name, or in part of ", " / " and ".
+const LINE_BOUND = 512;
+interface StartupServers { kind: "waiting" | "notReady"; names: string[]; cut: string | null }
+function startupServers(summary: string): StartupServers | null {
   const waiting = WAITING.exec(summary), notReady = waiting ? null : NOT_READY.exec(summary);
   const list = waiting?.[1] ?? notReady?.[1];
   if (!list) return null;
   const names = list.split(/, | and /);
-  return names.every(isServerLabel) ? { kind: waiting ? "waiting" : "notReady", names } : null;
+  let cut: string | null = null;
+  if (summary.length >= LINE_BOUND) {
+    // Possibly cut: the last item is the start of a name (a host has no space or comma, so whatever follows one is a
+    // separator's start). One name alone never reaches the bound (a host is at most a few hundred characters), so a
+    // bounded line with no complete name before its cut is no startup line (an agent's own long "Waiting for …").
+    cut = names.pop()!.split(/[ ,]/)[0]!;
+    if (names.length === 0) return null;
+  }
+  return names.every(isServerLabel) ? { kind: waiting ? "waiting" : "notReady", names, cut: cut || null } : null;
 }
 // The not-ready line replaces the Waiting line it ends: the servers it names were all waited for (some of them may have
-// become ready meanwhile).
+// become ready meanwhile). Complete names match exactly; a cut item matches the waited-for name it begins (BU review
+// R3-Y1), so another server's line still stays apart.
 function endsWaiting(previous: ActivityStep, next: ActivityStep): boolean {
   const before = previous.sentence ? startupServers(previous.verb) : null, after = next.sentence ? startupServers(next.verb) : null;
-  return before?.kind === "waiting" && after?.kind === "notReady" && after.names.every(name => before.names.includes(name));
+  if (before?.kind !== "waiting" || after?.kind !== "notReady") return false;
+  const waited = (name: string) => before.names.includes(name) || (before.cut !== null && name.startsWith(before.cut));
+  const begins = (start: string) => before.names.some(name => name.startsWith(start)) || (before.cut !== null && (before.cut.startsWith(start) || start.startsWith(before.cut)));
+  return after.names.every(waited) && (after.cut === null || begins(after.cut));
 }
 function runningHead(last: ActivityStep): string {
   if (last.kind === "command") return "Running a command";

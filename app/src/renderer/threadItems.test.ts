@@ -269,6 +269,10 @@ describe("threadItems with a Codex MCP server that was not ready", () => {
     expect(fold([waitingLine(waited.names, waited.labels), notReadyLine(mixed.names, mixed.labels)])).toBe(2);
     // A short Waiting line is complete: a not-ready line cut inside a server it never named does not fold.
     expect(fold([waitingLine(waited.names.slice(0, 2), waited.labels), notReadyLine(waited.names, waited.labels)])).toBe(2);
+    // An agent's own Waiting line of the same length is no startup line.
+    seq = 0;
+    const own = `Waiting for ${"the review of the checkout flow ".repeat(20)}`.slice(0, 512);
+    expect((threadItems([...turn("t1"), waiting(own)], ROOT, true)[1] as { steps: { sentence?: true }[] }).steps[0]!.sentence).toBeUndefined();
   });
 
   // BU review R2-Y2 (.scratch/review-bu/round2-host.test.ts): servers are named by main's label contract, so every URL
