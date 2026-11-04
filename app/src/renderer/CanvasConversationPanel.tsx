@@ -23,7 +23,7 @@ import { GroupIcon } from "./ComposerParts";
 import { ConversationDeleteItem, type DeleteTarget } from "./ConversationDeleteDialog";
 import { ConversationHead } from "./ConversationLine";
 import { ConversationThread, LOADING_DELAY_MS, type ConversationThreadHandle, type LocateOutcome } from "./ConversationThread";
-import type { ListView } from "./conversationStore";
+import type { ListView, QueuedMessage } from "./conversationStore";
 import { stripState } from "./conversationStrip";
 import { copyText } from "./copyText";
 import { DockedComposer, type DockedFieldLink, type DockedOutcome, type DockedPicker, type DockedRequest } from "./DockedComposer";
@@ -36,7 +36,7 @@ import {
 import { PROVIDER_NAMES } from "./agentAuthView";
 import { scrollTarget } from "./overviewRun";
 import type { SettingsTarget } from "./settingsSections";
-import { threadItems } from "./threadItems";
+import { threadItems, withSending } from "./threadItems";
 import type { ComposerChoice } from "./rememberChoice";
 import { defaultPermission, permissionChoices, permissionPickerView } from "./permissionPicker";
 
@@ -262,7 +262,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
 
   // The thread, and an entry's scroll to its pending permission request.
   const handle = useRef<ConversationThreadHandle | null>(null);
-  const items = thread?.read === "ready" ? threadItems(thread.events, root, live) : thread?.read === "error" ? "error" as const : null;
+  const items = thread?.read === "ready" ? withSending(threadItems(thread.events, root, live), conversationId ? store.sending(conversationId) : []) : thread?.read === "error" ? "error" as const : null;
   const scroll = conversationId ? run.scrollRequest(conversationId) : null;
   const asking = summary?.phase === "waiting";
   useEffect(() => {
@@ -375,7 +375,7 @@ export function CanvasConversation(props: CanvasConversationProps) {
     if (mode.kind !== "existing" && mode.kind !== "archived") return { error: "not_running" };
     const reply = await window.doan.queueConversation({ conversationId: mode.conversationId, text: request.text, anchors: [...request.anchors], ...(request.attachments.length ? { attachments: request.attachments } : {}) }).catch(() => ({ error: "unknown" as const }));
     if ("error" in reply) return { error: reply.error, ...("missing" in reply && Array.isArray(reply.missing) ? { missing: reply.missing as string[] } : {}) };
-    store.queued(root, mode.conversationId, { id: reply.itemId, text: queuedText(request) });
+    store.queued(root, mode.conversationId, queuedMessage(reply.itemId, request));
     return { ok: true };
   };
   // The canvas panel's reading of a refusal (canvasConversationError): attachment_missing is the composer's own.
@@ -472,6 +472,10 @@ export function CanvasConversation(props: CanvasConversationProps) {
 // A queued message's line: chips by name, as other one-line places show them; the request keeps its markers.
 export function queuedText(request: DockedRequest): string {
   return messageLine(request.text, request.anchors);
+}
+// The row shows the line; the request itself is kept for the thread, where Send now moves the message.
+export function queuedMessage(itemId: string, request: DockedRequest): QueuedMessage {
+  return { id: itemId, text: queuedText(request), message: { text: request.text, anchors: request.anchors, attachments: request.files ?? [] } };
 }
 
 // The chips the canvas panel's field takes and pastes as chips: the open canvas's (design §2 'Chip field').

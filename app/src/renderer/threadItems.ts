@@ -11,8 +11,9 @@ export type MessagePart = { text: string } | { anchor: number };
 export interface ActivityStep { key: string; kind: "edit" | "read" | "command" | "other"; verb: string; path: string | null; sentence?: true }
 export type TurnEnd = { kind: "failed"; code: FailureCode } | { kind: "interrupted"; reason: "user" | "appQuit" | "crashed" };
 export type ThreadItem =
-  // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips.
-  | { kind: "user"; key: string; seq: number; parts: MessagePart[]; anchors: readonly Anchor[]; preset: PresetRef | null; attachments: { name: string; size: number; kind: "image" | "file" }[] }
+  // anchors: the message's own, which its `{{n}}` parts point at (1-based), drawn as chips. `sending`: Send now has it
+  // in flight and the history has no event for it yet (seq null).
+  | { kind: "user"; key: string; seq: number | null; parts: MessagePart[]; anchors: readonly Anchor[]; preset: PresetRef | null; attachments: SentFile[]; sending?: true }
   // `streaming`: more text may still come; a stopped or failed turn keeps what arrived and drops the caret.
   | { kind: "agent"; key: string; messageId: string; text: string; streaming: boolean }
   | { kind: "noReply"; key: string }
@@ -22,6 +23,11 @@ export type ThreadItem =
   // seq is null for the end a crash-folded turn never wrote; its key is the turn's, so it stays when later turns arrive.
   | { kind: "end"; key: string; seq: number | null; end: TurnEnd }
   | { kind: "marker"; key: string; seq: number; marker: "bound" | "archived" | "restored"; canvas: Canvas | null };
+
+export interface SentFile { name: string; size: number; kind: "image" | "file" }
+// A queued message Send now put into the running turn, as its request: the text with its preset line and `{{n}}`
+// markers, the anchors those point at, and its files.
+export interface SendingMessage { id: string; text: string; anchors: readonly Anchor[]; attachments: readonly SentFile[] }
 
 export function anchorParts(text: string): MessagePart[] {
   const parts: MessagePart[] = [];
@@ -222,6 +228,21 @@ export function threadItems(events: readonly ConversationEvent[], root: string, 
     if (item.running && item.steps.at(-1)!.kind === "command") item.steps[item.steps.length - 1] = { ...item.steps.at(-1)!, verb: "Running a command" };
   }
   return items;
+}
+
+// Messages Send now has in flight, as the person's messages after the history in press order (canvas-composer-polish
+// design §2). An open permission request stays last, so they sit right above the first one still waiting. The history
+// has no event for them until the agent reads one; main writes that event before it answers Send now, so for a
+// moment both may show.
+export function withSending(items: ThreadItem[], sending: readonly SendingMessage[]): ThreadItem[] {
+  if (sending.length === 0) return items;
+  const messages = sending.map((message): ThreadItem => {
+    const { preset, body } = splitRequest(message.text, message.attachments.length);
+    return { kind: "user", key: `q${message.id}`, seq: null, sending: true, parts: anchorParts(body), anchors: message.anchors, preset, attachments: message.attachments.map(({ name, size, kind }) => ({ name, size, kind })) };
+  });
+  const ask = items.findIndex(item => item.kind === "permission" && item.status === "pending");
+  const at = ask === -1 ? items.length : ask;
+  return [...items.slice(0, at), ...messages, ...items.slice(at)];
 }
 
 export const FOLLOW_DISTANCE = 24;

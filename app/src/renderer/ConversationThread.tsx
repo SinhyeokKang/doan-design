@@ -253,7 +253,8 @@ export function SentChip({ marker, anchor, frames, disabled, onLocate, missing }
     onClick={() => { if (!disabled) void onLocate(anchor).then(outcome => { if (outcome === "missing") missing?.show(missing.key); }); }}>{body}</button>;
 }
 
-// A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`).
+// A sent message: its bubble, attachments and the chip locate note under the bubble (draft frame `chip-locate`). One
+// Send now has in flight ends with a Sending line and has no actions (canvas-composer-polish draft frame `sending`).
 function UserMessage({ entry, frames, disabled, onLocate }: { entry: Extract<ThreadItem, { kind: "user" }>; frames: readonly FrameName[] | undefined; disabled: boolean; onLocate: ConversationThreadProps["onLocate"] }) {
   const base = useId();
   const [shown, show] = useLocateNote();
@@ -266,6 +267,7 @@ function UserMessage({ entry, frames, disabled, onLocate }: { entry: Extract<Thr
         disabled={disabled} onLocate={onLocate} missing={missing(`${base}-${i}`)} />)}</div>
     {entry.attachments.length > 0 && <div className="msg-files">{entry.attachments.map((file, i) => <span key={i} className="attach-chip">
       <span className="file-icon" aria-hidden="true"><FileText /></span><span className="attach-text"><b>{file.name}</b><small>{formatSize(file.size)}</small></span></span>)}</div>}
+    {entry.sending && <span className="msg-sending"><span className="doan-spinner" aria-hidden="true" />Sending</span>}
     {shownFor && <span className="chip-missing" id={`${shownFor}-missing`} role="status">{LOCATE_MISSING_TEXT}</span>}
   </div>;
 }
@@ -281,7 +283,8 @@ function Steps({ id, steps }: { id: string; steps: readonly ActivityStep[] }) {
 function lastEnd(items: readonly ThreadItem[]): string | null {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]!;
-    if (item.kind === "user") return null;
+    // A message Send now has in flight is not in the history yet, so it starts no turn after the end.
+    if (item.kind === "user" && !item.sending) return null;
     if (item.kind === "end") return item.key;
   }
   return null;

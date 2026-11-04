@@ -699,13 +699,14 @@ body:has(.shell-top) { background: transparent; }
 .composer-stop svg { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .composer-reason.docked-reason { justify-content: flex-start; margin-top: var(--space-2); padding-inline: var(--space-4); }
 .queue { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-2); }
-/* Larger than a chip since dogfooding found queued messages hard to read: label type, a 16px icon, 40px tall. */
-.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-inset); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
+/* Larger than a chip since dogfooding found queued messages hard to read: label type, a 16px icon, 40px tall. White with
+   the standard border (canvas-composer-polish draft `sending`) so Send now reads as the row's action; the border is an
+   inset shadow, so the row keeps its height and padding. */
+.queue-item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); border-radius: var(--radius-chip); background: var(--surface-panel); box-shadow: inset 0 0 0 1px var(--border-standard); font-size: var(--type-label-size); line-height: var(--type-label-line-height); }
 .queue-item > svg { flex: none; width: var(--size-icon); height: var(--size-icon); color: var(--text-metadata); }
 .queue-item .queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Send now (queue-send-now draft `queue-row`): the shared xs button; the row's text gives way, the button never shrinks. */
+/* Send now: the shared xs subtle capsule; the row's text gives way, the button never shrinks. */
 .queue-item .queue-send { color: var(--text-standard); }
-.queue-item .queue-send[aria-disabled="true"] { color: var(--text-metadata); cursor: default; }
 .queue-entry { display: flex; flex-direction: column; min-width: 0; }
 /* Refused while the turn runs: one caption line under the row, aligned with its clock, neutral ink. Empty, it takes no
    room; with text, it keeps the queue's row gap above it. */
@@ -879,6 +880,10 @@ body:has(.shell-top) { background: transparent; }
 .conversation-thread .msg-files { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1h); }
 /* A sent file has no remove button, so the chip keeps its own inline end padding. */
 .conversation-thread .msg-files .attach-chip { gap: var(--space-3); padding: var(--space-1h) var(--space-4) var(--space-1h) var(--space-1h); }
+/* Send now's message in flight (canvas-composer-polish draft `sending`): one caption line under it, the activity row's
+   14px spinner, then Sending. Reduced motion stops the spinner (ds/controls.css). */
+.conversation-thread .msg-sending { display: inline-flex; align-items: center; gap: var(--space-1h); color: var(--text-metadata); font-size: var(--type-caption-size); line-height: var(--type-caption-line-height); letter-spacing: var(--type-caption-letter-spacing); }
+.conversation-thread .msg-sending .doan-spinner { width: var(--size-icon-sm); height: var(--size-icon-sm); }
 .conversation-thread .msg-agent { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; user-select: text; }
 .conversation-thread .msg-agent p { font-size: var(--type-label-size); line-height: var(--type-label-line-height); letter-spacing: var(--type-label-letter-spacing); overflow-wrap: anywhere; }
 .conversation-thread .msg-agent .muted { color: var(--text-metadata); }

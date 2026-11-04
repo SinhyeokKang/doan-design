@@ -363,7 +363,8 @@ describe("a message Send now has in flight", () => {
     expect(out).not.toContain("<button");
   });
   test("a sent message has no Sending line, and a sending one does not hide the last end's Edit and resend", () => {
-    expect(html([{ ...sending, sending: undefined, key: "u1", seq: 1 } as ThreadItem])).not.toContain("msg-sending");
+    const { sending: _, ...sent } = sending as Extract<ThreadItem, { kind: "user" }>;
+    expect(html([{ ...sent, key: "u1", seq: 1 }])).not.toContain("msg-sending");
     const out = html([{ kind: "end", key: "e2", seq: 2, end: { kind: "interrupted", reason: "user" } }, sending]);
     expect(out).toContain("Edit and resend");
   });
