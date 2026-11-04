@@ -736,12 +736,16 @@ describe("project conversation limit", () => {
   });
   it("forgets a turn's open requests when it ends, so the conversation's next turn holds the root", async () => {
     const h = homeFixture();
+    // Codex keeps its server, and with it the live entry, between turns.
+    const prepared = h.prepare.getMockImplementation()!;
+    h.prepare.mockImplementation(async (...args) => ({ ...await prepared(...args), runtime: "codex" as const, owner: { ...h.owner, provider: "codex" as const } }));
     const a = (await h.service.start(homeRequest)).conversationId;
     h.service.receive(a, ask("r1"));
     const b = (await h.service.start(homeRequest)).conversationId;
     h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
-    h.service.receive(a, { type: "turn.done" }); h.open.mock.calls[0]![2](); h.service.refreshed("/repo", []); h.passBindingWindow();
+    h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []); h.passBindingWindow();
     await h.service.send(a, "again", []);
+    expect(h.open).toHaveBeenCalledTimes(2);
     await expect(h.service.start(homeRequest)).rejects.toThrow("project_busy");
     expect(h.store.list().find(m => m.conversationId === b)).toBeDefined();
   });
