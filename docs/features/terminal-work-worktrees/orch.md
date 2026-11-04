@@ -18,6 +18,7 @@
 8. v3 'Dispatch' 순서는 schema → token → `start` 경로 패턴 → 등록된 root/자동 등록이다(사용자 결정, M 리뷰). 응답은 바뀌지 않는다. T4에서 ARCHITECTURE §4에 적는다.
 9. 자동 등록분이 외부·네트워크 볼륨에서 잠깐 사라져(ENOENT) 목록에서 빠지는 것은 spec 결정 2 그대로 두고, T4에서 BACKLOG 알려진 한계에 적는다 — 지휘자 판단(M 리뷰 정보 항목). 다음 `doan work start`에서 다시 등록된다.
 10. origin이 자동 등록 W의 workspace인 page(Project Settings, Add Projects, Settings)가 열린 채 W가 사라지거나 숨겨지면, origin을 결정 4의 도착지(`fallbackWorktree`)로 옮긴다. page를 떠나면 그 root의 기억한 캔버스나 Overview가 열린다. Locate re-root가 origin을 옮기는 것과 같다(사용자 결정, R2 리뷰). T4에서 PRODUCT §5 item 1에 적는다.
+11. `/agent-eval`에서 Codex가 runner 결함(Codex 0.166.0이 `-c mcp_servers.doan.enabled=false`를 invalid transport로 거부)으로 측정되지 않은 것은 이 run에서 고친다(사용자 결정). 배치 F가 `eval/**`를 고치고 Codex W3b·H7을 다시 잰다.
 
 ## 배치
 
@@ -27,7 +28,9 @@
 | R1 | T1(renderer: `siblingWork`, W 소멸 도착지), T3 중 플래그가 필요 없는 것(보드 안내 + Open §3.1, 사이드바 slot 테스트 §3.2, picking 안내 위치 §3.6) | `app/src/renderer/**` | 없음 | Opus high — App navigation·기록·focus 상태가 얽히고 POSTMORTEM 함정이 많다 | `npm --prefix app test`, typecheck, build | 통합(`470d48ec..8dbcd2ca`), 리뷰 1라운드 🔴 0 |
 | R2 | T3 중 플래그 의존 항목: 자동 등록분 숨김(§3.3), 보던 W가 사라지거나 숨겨질 때의 이동과 직전 선택 기억(§3.4)과 그 App 테스트 | `app/src/renderer/**` | M 통합 | Opus high — R1과 같은 이유 | R1과 같음 | 통합(`10182ce1..62df4227`), 리뷰 1라운드 🔴 0, 🟡 2 수정 완료 |
 | R3 | T3 `/runtime-test` 전 항목과 실제 Orca worktree(`orca worktree create`로 만든 것)에서 보낸 `doan work start` probe(사용자 요청), `/design-sync`(`sibling-notice`, `picking-hint`)와 `docs/DESIGN.md` 측정값 | `app/src/renderer/**`(sync 수정), `docs/DESIGN.md`, `.scratch/` | M·R1·R2 통합 | Opus high — 실제 앱 격리와 측정 판단 | `/runtime-test` 증거, `/design-sync` 보고, 앱 test·typecheck·build | 통합(`737b3b14`, `061acbf9`) |
-| E | T4 `/agent-eval` | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 전체 통합 | Sonnet medium — 정해진 시나리오 실행과 기록 | `node eval/run.ts` 결과와 기록 | 진행 중(W3b·H7) |
+| E | T4 `/agent-eval` | `docs/USABILITY-EVAL.md`, `.scratch/agent-eval/` | 전체 통합 | Sonnet medium — 정해진 시나리오 실행과 기록 | `node eval/run.ts` 결과와 기록 | 통합(Claude만 측정) |
+| F | runner 수정(결정 11), Codex W3b·H7 재측정과 기록 | `eval/**`, `docs/USABILITY-EVAL.md` | E | Sonnet high — 한 줄 원인이지만 Codex 설정 동작을 실험으로 확인해야 한다 | `node --test 'eval/**/*.test.ts'`, `--self-test`, `verify.mjs --eval` | 진행 중 |
+| C | 곧 지울 feature 문서를 가리키는 코드 주석 정리 | `app/src/**` 주석 | 승격 | Sonnet medium — 기계적 | `rg`, typecheck, app test | 진행 중 |
 | 지휘자 | T4 승격(PRODUCT, ARCHITECTURE, BACKLOG), feature 디렉터리 삭제, 통합 `/verify` | `docs/PRODUCT.md`, `docs/ARCHITECTURE.md`, `docs/BACKLOG.md`, `docs/features/terminal-work-worktrees/` | 전체 통합 | — | `verify.mjs`, `rg` 참조 확인 | 대기 |
 | 리뷰 | 배치별 `/code-review`(보고만) | 없음 | 각 배치 완료 | M: Opus high, R: Opus medium — diff 난이도 기준 | 🔴 0 | 대기 |
 
@@ -63,3 +66,6 @@
 - R3를 cherry-pick했다(`737b3b14`, `061acbf9`). evidence는 `.scratch/orch/r3-evidence/`로 옮겼다.
 - worktree 정리 사고: Orca가 `orca worktree rm` 뒤에 `SinhyeokKang/ttw-{M,R1,R2,R3}`를 지웠다(receipt의 `branchDeleted`는 null이었고, 직후 확인에서는 브랜치가 있었다). 기록한 tip으로 네 브랜치를 다시 만들었다(M `f7d35b90`, R1 `6a719dfe`, R2 `01acb4d7`, R3 `2e44c9c2`). `ttw-R3` worktree도 지웠다.
 - E 시작: `/agent-eval` W3b·H7만 — 지휘자 판단. CLI·guide·skill stub·`doan check`·app-socket v3 모양과 eval fake app이 바뀌지 않았다(design §5). 새 child worktree `ttw-E`, Sonnet medium.
+- E(Sonnet medium): round `terminal-work-worktrees`, 측정 HEAD `061acbf9`. Claude Code 2.1.318 W3b·H7 pass. Codex 0.166.0은 두 run 모두 시작에서 exit 1(`invalid transport in mcp_servers.doan`, runner의 `eval/lib/agent.ts:26`). doan usability 문제는 없다. USABILITY-EVAL 기록을 cherry-pick했다. evidence는 `.scratch/orch/e-evidence/`. `ttw-E`를 지웠다(브랜치 tip `7c28dca2`).
+- 지휘자 승격: ARCHITECTURE `4b8493c0`, PRODUCT `3895a504`, BACKLOG `ff439982`(자동 등록분 누적·외부 볼륨, 재지 못한 안내 상태, shell.test.ts flaky). local-doan-files 문서가 이 feature 문서를 가리키던 두 곳을 PRODUCT로 바꿨다.
+- C 시작(Sonnet medium, 기준 `4b8493c0`): 코드 주석 33곳이 `terminal-work-worktrees design §…`을 가리킨다. F 시작(Sonnet high).
