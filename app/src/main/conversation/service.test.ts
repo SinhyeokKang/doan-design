@@ -753,8 +753,9 @@ describe("project conversation limit", () => {
   describe("promotion of overlapping turns", () => {
     const x = { path: ".doan/canvases/x.html", id: "x" }, existing = { path: ".doan/canvases/a.html", id: "a" };
     const canvasOf = (h: ReturnType<typeof homeFixture>, id: string) => h.store.list().find(m => m.conversationId === id)!;
-    it("does not promote the first judged turn to a new canvas the other unjudged turn could have made; the later one takes it", async () => {
-      // Forward: B started while A waited, made X and is judged first.
+    // spec 4: which turn drew a contested canvas is unknown, so neither conversation binds it, whichever is judged first.
+    it("binds neither conversation to a new canvas the turn judged first had to leave to an unjudged one (forward)", async () => {
+      // B started while A waited, made X and is judged first; A is then denied and ends without a canvas.
       const h = homeFixture([existing]);
       const a = (await h.service.start(homeRequest)).conversationId;
       h.service.receive(a, ask("r"));
@@ -762,23 +763,38 @@ describe("project conversation limit", () => {
       h.listed.push(x); h.service.refreshed("/repo", [x.path]);
       h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
       expect(canvasOf(h, b).canvas).toBeUndefined();
-      h.service.receive(a, answered("r")); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
-      expect(canvasOf(h, a)).toMatchObject({ canvas: x, state: "current" });
+      h.service.receive(a, { type: "permission.resolved", requestId: "r", optionId: "deny" }); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, a)).toMatchObject({ state: "current" });
+      expect(canvasOf(h, a).canvas).toBeUndefined();
       expect(canvasOf(h, b)).toMatchObject({ state: "current" });
       expect(canvasOf(h, b).canvas).toBeUndefined();
-      expect(h.store.read(b).some(e => e.type === "conversation.archived")).toBe(false);
     });
-    it("in the reverse order keeps the first judged conversation a project one and binds the later judged one", async () => {
+    it("binds neither conversation to a new canvas the turn judged first had to leave to an unjudged one (reverse)", async () => {
+      // A is stopped while B draws X, so A is judged first; B ends after.
       const h = homeFixture([existing]);
       const a = (await h.service.start(homeRequest)).conversationId;
       h.service.receive(a, ask("r"));
       const b = (await h.service.start(homeRequest)).conversationId;
       h.listed.push(x); h.service.refreshed("/repo", [x.path]);
-      h.service.receive(a, answered("r")); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      await h.service.interrupt(a); h.service.refreshed("/repo", []);
       expect(canvasOf(h, a).canvas).toBeUndefined();
       h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
-      expect(canvasOf(h, b)).toMatchObject({ canvas: x, state: "current" });
+      expect(canvasOf(h, b).canvas).toBeUndefined();
       expect(canvasOf(h, a).canvas).toBeUndefined();
+    });
+    it("still binds a turn whose new canvas was left only for multiplicity elsewhere, once no unjudged turn contests it", async () => {
+      // B makes two new canvases: B cannot choose, and that refusal leaves nothing behind for A, who made one of them later.
+      const h = homeFixture([existing]);
+      const a = (await h.service.start(homeRequest)).conversationId;
+      const y = { path: ".doan/canvases/y.html", id: "y" };
+      h.service.receive(a, ask("r"));
+      const b = (await h.service.start(homeRequest)).conversationId;
+      h.listed.push(x, y); h.service.refreshed("/repo", [x.path, y.path]);
+      h.service.receive(b, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, b).canvas).toBeUndefined();
+      h.listed.splice(h.listed.indexOf(y), 1);
+      h.service.receive(a, answered("r")); h.service.receive(a, { type: "turn.done" }); h.service.refreshed("/repo", []);
+      expect(canvasOf(h, a).canvas).toEqual(x);
     });
     it("never moves a later judged turn onto an existing canvas another conversation was promoted to after its snapshot", async () => {
       const h = homeFixture([existing]);
