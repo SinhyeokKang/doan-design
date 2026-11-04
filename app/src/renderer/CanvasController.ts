@@ -468,9 +468,10 @@ export class CanvasController {
 
   private onCanvasPage(): boolean { return this.workspaceActive && this.canvasPage; }
 
-  // The toolbar's Select and Hand. A pick runs ahead of the tool, so they change nothing meanwhile, like V and H.
+  // The toolbar's Select and Hand. While picking they cancel the pick first (canvas-composer-polish spec 3); V and H
+  // still change nothing then (shortcut).
   setTool(tool: CanvasTool): void {
-    if (this.state.picking) return;
+    this.cancelPick();
     this.toolChosen = true;
     this.applyTool(tool);
   }
@@ -958,7 +959,7 @@ export class CanvasController {
       this.lastHref === null || !sameDocument(this.lastHref, message.href)) return;
     if ("cancelled" in message) { this.cancelPick(); return; }
     // The picker's boundary: only frames and what is in them can be chips. A forged or stray reply for anything
-    // outside every frame keeps picking (targetAnchor itself still takes such a selection for Add to conversation).
+    // outside every frame keeps picking (targetAnchor itself takes any frame or element).
     if ("target" in message && message.target.frame === undefined) return;
     const frames = this.state.layout?.frames ?? [];
     const anchor = "target" in message ? targetAnchor(message.target) : pointAnchor(message.point, frames);

@@ -20,7 +20,7 @@ import type { OpenAsk, OpenLinkResult, OpenResult } from "../main/deepLinks";
 import type { MenuCommand, ViewCommand } from "../main/index";
 import { CanvasController, initialCanvasState, type CanvasState, type PickResult } from "./CanvasController";
 import { CanvasHeader } from "./CanvasHeader";
-import { CanvasTools, type AddTool } from "./CanvasTools";
+import { CanvasTools, type PickerTool } from "./CanvasTools";
 import { AlertIcon } from "./AlertIcon";
 import { noticeToast } from "./selection";
 import { CanvasAgent } from "./CanvasAgent";
@@ -42,7 +42,7 @@ import { CanvasRun, type CanvasTarget } from "./canvasRun";
 import { CanvasConversation, CanvasConversationTitle, canvasConversationTitle } from "./CanvasConversationPanel";
 import { canvasUnlistedText, DUPLICATE_CANVAS_TEXT } from "./canvasConversation";
 import { openButtonBadge, panelOpenFor, type OpenBadge, type PanelTrigger } from "./rightPanelOpen";
-import { PICKER_UNAVAILABLE, pickerAvailability, targetAnchor, type CanvasLoad } from "./canvasPicker";
+import { PICKER_UNAVAILABLE, pickerAvailability, type CanvasLoad } from "./canvasPicker";
 import type { DockedFieldLink } from "./DockedComposer";
 import type { LocateOutcome } from "./ConversationThread";
 import { replyChipTarget } from "./replyChipTarget";
@@ -91,15 +91,15 @@ import type { PreferencesPatch, PreferencesSnapshot } from "../main/preferences"
 import { preferenceAfterPick, rememberChoice, rememberPermission, type ComposerChoice } from "./rememberChoice";
 
 // Each command names its handler; one App does not know does nothing (R-M ⚪5).
-export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; addSelection: () => void; toggleSidebar: () => void }): void {
+export function menuCommand(name: MenuCommand, to: { home: () => void; quickOpen: () => void; newConversation: () => void; pickFromCanvas: () => void; toggleSidebar: () => void }): void {
   if (name === "home") to.home();
   else if (name === "toggleSidebar") to.toggleSidebar();
   else if (name === "newConversation") to.newConversation();
-  else if (name === "addSelectionToConversation") to.addSelection();
+  else if (name === "pickFromCanvas") to.pickFromCanvas();
   else if (name === "quickOpen") to.quickOpen();
 }
 
-// A focus move that waits (a pick's end, Add on a folded panel) carries the intent it started with (design §2 'Focus
+// A focus move that waits (a pick's end) carries the intent it started with (design §2 'Focus
 // return', POSTMORTEM 2026-10-23 R-L): it holds while focus stays where the wait left it, and ends for good the moment
 // focus goes anywhere else, even if it comes back later.
 export class FocusIntent {
@@ -823,8 +823,8 @@ export function App() {
   // renderer-only lifetime checks').
   const toastHeld = modal || (screen === "projectSettings" && projectSettings.locked);
   useLayoutEffect(() => { toast.setModal(toastHeld); }, [toastHeld]);
-  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, addSelection: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
-  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, addSelection, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
+  const live = useRef({ home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: (root: string) => root, askConversation, openConversationCanvas, openCanvasConversation, newConversation: () => {}, pickFromCanvas: () => {}, toggleSidebar: () => {}, pickEnded: (_result: PickResult) => {}, followMode: (_provider: Provider, _mode: PermissionModeId) => {}, openLink: (_result: OpenLinkResult) => {}, openCanvasRequest: (_request: OpenAsk) => {} });
+  live.current = { home, enter, toast, modal, save, completeNavigation, openShellCanvas, removeNow, search, openAddProjects, leavePage, openSettings, openProjectSettings, notificationClick, leaveVanished, projectLabel: root => projectLabelRef.current(root), askConversation, openConversationCanvas, openCanvasConversation, newConversation, pickFromCanvas, toggleSidebar, pickEnded, followMode, openLink, openCanvasRequest };
   const rememberFocus = () => { beforeModal.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; };
   const modalClosed = () => { focusAfterModal.current = true; };
   useEffect(() => {
@@ -1283,7 +1283,7 @@ export function App() {
       home: () => live.current.home(),
       quickOpen: () => live.current.search(),
       newConversation: () => live.current.newConversation(),
-      addSelection: () => live.current.addSelection(),
+      pickFromCanvas: () => live.current.pickFromCanvas(),
       toggleSidebar: () => live.current.toggleSidebar(),
     });
   }), []);
@@ -1405,33 +1405,46 @@ export function App() {
   const composerChips = composerKey ? distinctTargets(overviewRun.current!.store.drafts.get(composerKey)?.segments ?? []) : 0;
   const pickerView = panelTarget !== null ? pickerAvailability(panelBlocked, canvasLoad, composerChips) : { enabled: false, reason: PICKER_UNAVAILABLE };
   const pickerReady = pickerView.enabled;
-  // Edit > Add Selection to Conversation follows the canvas toolbar's Add to conversation: a selection to add, and the
-  // picker available (the composer takes input and the canvas is loaded).
+  // Edit > Pick from Canvas follows the canvas toolbar's Picker: the canvas page, with the picker available (the
+  // composer takes input and the canvas is loaded).
   const canvasPageShown = screen === "workspace" && !!state.open && shownOverview === null;
-  const menuSelection = canvasPageShown && state.selection !== null;
   const menuPicker = canvasPageShown && pickerReady;
   const picking = state.picking;
   // V, H and Space switch tools only on the canvas page itself (canvas-hand-tool design '키').
   const toolPage = screen === "workspace" && shownOverview === null && !modal;
   useEffect(() => { controller.current?.setCanvasPage(toolPage); }, [toolPage]);
-  // Pick from canvas and Add to conversation (design §2 'Picker and Add to conversation'). The pick's start keeps
-  // where focus was, so the end can tell whether focus still waits for the composer.
-  // The pick's start: the composer field it will put the chip in, and whether focus may go back there.
-  const pickIntent = useRef<{ field: HTMLElement | null; focus: FocusIntent } | null>(null);
+  // Pick from canvas: the composer's Pick, the toolbar's Picker and ⌘L share one pick (canvas-composer-polish spec 3).
+  // The pick's start keeps where focus was, so the end can tell whether focus still waits for the composer.
+  // The pick's start: the composer field it will put the chip in, where focus was, and whether focus may go back.
+  // `pressed`: the pick ends because the person pressed a control (the Picker, Pick, ⌘L, Select or Hand), which keeps
+  // focus where that press left it.
+  const pickIntent = useRef<{ field: HTMLElement | null; from: Element | null; focus: FocusIntent; pressed?: boolean } | null>(null);
   // The shown composer's field, which the panel's composer registers (DockedFieldLink).
   const composerLink = useRef<DockedFieldLink | null>(null);
   const togglePick = () => {
     const instance = controller.current;
     if (!instance) return;
-    if (picking) { instance.cancelPick(); return; }
+    if (picking) { pressedCancel(); instance.cancelPick(); return; }
     if (!pickerReady) return;
     const from = document.activeElement, field = composerLink.current?.element() ?? null;
     // The picker, the page, the canvas and the field itself are where a pick leaves focus; anything else ends it.
     const focus = new FocusIntent(target => !target || target === from || target === document.body || target === field
       || (target instanceof Node && !!viewport.current?.contains(target)));
     pickIntent.current?.focus.end();
-    pickIntent.current = { field, focus };
+    pickIntent.current = { field, from, focus };
     if (!instance.pick()) { focus.end(); pickIntent.current = null; }
+  };
+  const pressedCancel = () => { if (pickIntent.current) pickIntent.current.pressed = true; };
+  // The toolbar's Picker and ⌘L: a folded panel unfolds first. Its composer stays mounted, so the pick starts at once
+  // and focus waits for the pick's end.
+  function pickFromCanvas() {
+    if (!picking && pickerReady && !rightPanelRef.current.open && panelOpenFor({ kind: "picker" }, null).open === true) foldPanel(true, "content");
+    togglePick();
+  }
+  // The toolbar's Select and Hand cancel a pick, then switch (the controller); focus stays on the pressed tool.
+  const chooseTool = (tool: CanvasState["tool"]) => {
+    if (picking) pressedCancel();
+    controller.current?.setTool(tool);
   };
   function pickEnded(result: PickResult) {
     const intent = pickIntent.current;
@@ -1444,10 +1457,18 @@ export function App() {
     const active = document.activeElement;
     // A composing field gets its chip once the composition ends, and no focus or caret call meanwhile.
     const returns = holds && !link.composing();
+    if (result.kind !== "picked") {
+      // A cancel by a press leaves focus on what was pressed; Esc and the other cancels go back to where focus was
+      // before the pick, or the field when that was the page itself (spec 3: never the page body).
+      if (!returns || intent.pressed) return;
+      const from = intent.from;
+      if (from instanceof HTMLElement && from !== document.body && from.isConnected) from.focus({ preventScroll: true });
+      else link.focus();
+      return;
+    }
     // Focus first, then the chip: the field puts its kept caret back on focus, and Chromium moves a caret set in an
     // unfocused field to the field's start when it takes focus afterwards (BR4b runtime probe).
     if (returns) link.focus();
-    if (result.kind !== "picked") return;
     link.insert(result.anchor, "caret");
     // Placing the caret for the chip can pull focus into the field; focus that may not move goes back where it was.
     if (!returns && active instanceof HTMLElement && active !== document.activeElement) active.focus({ preventScroll: true });
@@ -1456,31 +1477,6 @@ export function App() {
   // (design §2 'Esc and cancel'); a reload or a same-ID move keeps both, so the pick goes on.
   useEffect(() => { controller.current?.cancelPick(); }, [composerKey]);
   useEffect(() => { if (!pickerReady) controller.current?.cancelPick(); }, [pickerReady]);
-  const addReady = menuSelection && pickerReady;
-  // A folded panel keeps its composer mounted but inert: the chip goes in now, focus once the panel shows.
-  const focusOnOpen = useRef<{ field: HTMLElement | null; focus: FocusIntent } | null>(null);
-  function addSelection() {
-    if (live.current.modal || !addReady || !state.selection) return;
-    const anchor = targetAnchor(state.selection), link = composerLink.current;
-    if (!anchor || !link) return;
-    const field = link.element(), from = document.activeElement;
-    // A composing field takes the chip at its caret once the composition ends; its caret and focus stay the person's.
-    if (link.composing()) { link.insert(anchor, "caret"); return; }
-    link.insert(anchor, field !== null && field === from ? "caret" : "end");
-    if (rightPanelRef.current.open) { link.focus(); return; }
-    focusOnOpen.current?.focus.end();
-    focusOnOpen.current = { field, focus: new FocusIntent(target => !target || target === from || target === document.body || target === field) };
-    foldPanel(true, "content");
-  }
-  useEffect(() => {
-    const waiting = focusOnOpen.current;
-    if (!rightPanel.open || !waiting) return;
-    focusOnOpen.current = null;
-    const holds = waiting.focus.holds();
-    waiting.focus.end();
-    const link = composerLink.current;
-    if (holds && link && link.element() === waiting.field && !link.composing()) link.focus();
-  }, [rightPanel.open]);
   const locateChip = (anchor: Anchor) => new Promise<LocateOutcome>(settle => {
     if (!controller.current?.locate(anchor, settle)) settle("unavailable");
   });
@@ -1489,8 +1485,8 @@ export function App() {
     // menu state needs no screen of its own (project-settings design '영향 범위' 메뉴).
     void window.doan.setMenuState({ screen: onPage ? "addProjects" : onSettings || onProjectSettings ? "settings" : screen === "home" ? "home" : state.open ? "canvas" : "workspace", modal,
       ...(onPage && page.choose ? { choose: true } : {}), ...(pageLocked ? { locked: true } : {}), ...(shownOverview !== null ? { overview: true } : {}),
-      ...(menuSelection ? { selection: true } : {}), ...(menuPicker ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}) });
-  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuSelection, menuPicker, sidebarHidden]);
+      ...(menuPicker ? { pickerAvailable: true } : {}), ...(sidebarHidden ? { sidebarHidden: true } : {}) });
+  }, [screen, state.open, modal, page.choose, pageLocked, shownOverview, menuPicker, sidebarHidden]);
   useLayoutEffect(() => { overviewRun.current!.show(shownOverview); }, [shownOverview]);
   // The window's focus decides whether the shown conversation is seen (spec decision 11); the focus listener is the
   // sign-in controller's below.
@@ -1730,7 +1726,7 @@ export function App() {
       zoomTo={scale => controller.current?.zoomTo(scale)} selectFrame={(index, id) => controller.current?.selectFrame(index, id)} conversation={{ open: rightPanel.open, show: () => foldPanel(true), badge: panelBadge }}
       agent={{ list: state.open ? run.listState(state.open.folder) : undefined, canvas: workingCanvas(state.open, state.unlisted, entry), running: screen === "workspace" && overview === null, work, entries,
         onOpen: openRequest, onOpenSibling, onStopFailed: text => toast.show(text) }}
-      picking={picking} tool={state.tool} onTool={tool => controller.current?.setTool(tool)} add={{ enabled: addReady, reason: canvasPageShown && !pickerReady ? pickerView.reason : null, onAdd: addSelection }} />
+      picking={picking} tool={state.tool} onTool={chooseTool} picker={{ enabled: pickerReady, reason: pickerView.reason, onToggle: pickFromCanvas }} />
     {overview && <ProjectOverview key={overview.path} run={overviewRun.current!} support={support.current!} root={overview.path} project={projectLabel(overview.path)} entry={overview}
       worktrees={card?.rows ?? [overview]} homeDirectory={homeDirectory} notice={overviewNotice?.root === overview.path ? overviewNotice.text : null}
       unavailable={overview.kind === "list" ? null : startErrorView("project_not_open", "claude", projectLabel(overview.path)).text}
@@ -1809,11 +1805,11 @@ function TopBar({ sidebar, back, forward, previous, next, page, locked, addProje
 
 type AgentProps = { list: readonly ConversationSummary[] | "loading" | "error" | undefined; canvas: WorkingCanvas | null; running: boolean; work: readonly WorkItem[]; entries: readonly FolderEntry[]; onOpen(): void; onOpenSibling(root: string): void; onStopFailed(text: string): void };
 
-function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, add }: {
+function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, projectName, command, covered, zoomTo, selectFrame, conversation, agent, picking, tool, onTool, picker }: {
   viewport: RefObject<HTMLDivElement | null>; board: RefObject<HTMLDivElement | null>; overlay: RefObject<HTMLDivElement | null>; dragLayer: RefObject<HTMLDivElement | null>;
   state: CanvasState; entry: FolderEntry | undefined; projectName: string; command: (name: ViewCommand) => void; covered: boolean;
   zoomTo(scale: number): void; selectFrame(index: number, id: string): void; conversation: { open: boolean; show(): void; badge: OpenBadge | null }; agent: AgentProps;
-  picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; add: AddTool;
+  picking: boolean; tool: CanvasState["tool"]; onTool(tool: CanvasState["tool"]): void; picker: PickerTool;
 }) {
   const problem = !state.open && entry && entry.kind !== "list" ? entry : null;
   const problemMessage = problem?.kind === "loading" ? "Reading project"
@@ -1869,7 +1865,7 @@ function CanvasPane({ viewport, board, overlay, dragLayer, state, entry, project
     <div className="doan-canvas-bottom">
       {picking && <div className="doan-agent doan-picking" role="status"><Crosshair className="doan-picking-icon" aria-hidden="true" /><span className="doan-agent-text">Click a frame or an element, or Shift-click a spot</span>
         <span className="doan-kbd" data-ui-variant="on-prominent" aria-hidden="true">Esc</span><span className="sr-only">Press Escape to cancel</span></div>}
-      <CanvasTools tool={tool} onTool={onTool} add={add} />
+      <CanvasTools tool={tool} picking={picking} onTool={onTool} picker={picker} />
     </div>
     </section>
   </div>;

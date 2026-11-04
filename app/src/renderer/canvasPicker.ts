@@ -9,7 +9,7 @@ export const ANCHOR_LIMIT_TEXT = `A message can point at up to ${LIMITS.anchors}
 
 export type CanvasLoad = "loaded" | "loading" | "failed" | "noWidth" | "unlisted";
 
-// The picker, Add to conversation and ⌘L. `composer` is the composer's reason line while it takes no input (null: it
+// The composer's Pick, the toolbar's Picker and ⌘L. `composer` is the composer's reason line while it takes no input (null: it
 // does); `chips` the different places the draft already points at. A disabled control keeps its reason as a tooltip.
 export function pickerAvailability(composer: string | null, canvas: CanvasLoad, chips: number): { enabled: boolean; reason: string | null } {
   if (canvas !== "loaded") return { enabled: false, reason: PICKER_UNAVAILABLE };

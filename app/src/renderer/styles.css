@@ -1104,6 +1104,8 @@ body:has(.shell-top) { background: transparent; }
    would otherwise replace it, and the default tool would look unpressed while its tooltip shows. Equal weight and later
    in the cascade wins; a disabled tool still takes the shared disabled look. */
 .doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-pressed="true"]:not(:disabled) { background: var(--affordance-backdrop-pressed); }
+/* An unavailable Picker draws its icon as the composer's unavailable Attach and Pick do (canvas-composer-polish B2). */
+.doan-canvas-tools > .doan-icon-button.doan-canvas-tool[aria-disabled="true"] { color: var(--text-disabled); }
 /* The conversation panel's open button closes the header row after a divider, only while the panel is folded. */
 .doan-canvas-head-sep { flex: none; width: 1px; height: var(--space-5); margin-inline: var(--space-1); background: var(--border-standard); }
 
@@ -1185,7 +1187,7 @@ button.anchor-chip[aria-disabled="true"] { cursor: default; }
 .composer-pick[aria-pressed="true"] { background: var(--affordance-backdrop-pressed); color: var(--text-standard); }
 .docked .composer-tray :is(.composer-attach, .composer-pick):is(:disabled, [aria-disabled="true"]) { color: var(--text-disabled); }
 /* aria-disabled (not disabled) keeps these controls hoverable for their reason tooltip, so they take the disabled
-   look: without it the terminal session's Attach and an unavailable Add to conversation read as working buttons. */
+   look: without it the terminal session's Attach and an unavailable Picker read as working buttons. */
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"] { cursor: not-allowed; }
 @media (hover: hover) and (pointer: fine) { :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:hover { background: transparent; } }
 :is(.docked .composer-tray .composer-attach, .doan-canvas-tools > .doan-canvas-tool)[aria-disabled="true"]:active { background: transparent; }
