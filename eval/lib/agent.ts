@@ -23,11 +23,14 @@ export function agentCommand(agent: Agent, prompt: string, codexServers: readonl
   // without a transport otherwise and exits at startup ("invalid transport in mcp_servers.doan").
   // --allowedTools is variadic, so `--` separates the prompt from tool names.
   // Codex's approval policy is pinned so a run does not depend on the machine's own config.
+  // allow_login_shell=false: a login shell re-reads the user's profile, which puts an installed
+  // ~/.local/bin ahead of the run's bin directory and drops the run's PATH entries (Codex 0.166,
+  // snapshots already off), so the agent would run the installed doan, not the measured package.
   if (agent === "claude") {
     return { cmd: "claude", args: ["-p", "--output-format", "stream-json", "--verbose", "--strict-mcp-config", "--allowedTools", "Bash Read Write Edit Glob Grep", "--", prompt] };
   }
   const doan = codexServers.includes("doan") ? ["-c", "mcp_servers.doan.enabled=false"] : [];
-  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', ...doan, prompt] };
+  return { cmd: "codex", args: ["exec", "--sandbox", "workspace-write", "-c", "features.shell_snapshot=false", "-c", 'approval_policy="never"', "-c", "allow_login_shell=false", ...doan, prompt] };
 }
 
 // Asks Codex itself, so project-level config and profiles count as well as $CODEX_HOME/config.toml.
