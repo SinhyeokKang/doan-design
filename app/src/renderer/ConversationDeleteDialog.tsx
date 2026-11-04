@@ -52,7 +52,11 @@ export function ConversationDeleteDialog({ view, reason, pending, cancel, confir
   const confirmable = reason === null && !pending;
   const dismiss = () => { if (!pending) cancel(); };
   return <dialog className="doan-dialog" data-ui-size="compact" role="alertdialog" aria-labelledby="conversation-delete-title" aria-describedby="conversation-delete-body"
-    ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}>
+    ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { event.preventDefault(); dismiss(); }}
+    // A Canvas conversations Delete pressed from the keyboard opens the alert while its tooltip still exits; that
+    // tooltip's dismissable layer takes the next Escape and prevents its default, so no cancel event would follow. The
+    // keydown itself cancels, and preventing its default keeps the native cancel from cancelling a second time.
+    onKeyDown={event => { if (event.key !== "Escape" || event.nativeEvent.isComposing) return; event.preventDefault(); dismiss(); }}>
     <div className="doan-dialog-header"><div className="doan-dialog-heading"><h3 className="doan-dialog-title" id="conversation-delete-title">{view.title}</h3><p className="doan-dialog-description" id="conversation-delete-body">{view.body}</p></div></div>
     {reason && <p className="doan-notice" id="conversation-delete-reason"><AlertIcon /><span>{reason}</span></p>}
     <div className="doan-dialog-actions">
