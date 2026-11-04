@@ -122,6 +122,17 @@ describe("CanvasTools", () => {
     expect(text(tips[3]!.props.children as ReactNode)).toBe("Exporting");
   });
 
+  // Radix links the tooltip only while it is open, so a closed one (after a press, or under a screen reader's cursor)
+  // left the button without its reason (design-sync measurement, canvas-composer-polish draft frame toolbar-disabled).
+  it("an unavailable Export names its reason with aria-describedby even while the tooltip is closed", () => {
+    const html = markup({ exporter: { reason: "This page is not a listed canvas.", onExport: () => {} } });
+    const tag = html.match(/<button[^>]*aria-label="Export…"[^>]*>/)?.[0] ?? "";
+    const id = tag.match(/aria-describedby="([^"]+)"/)?.[1];
+    expect(id).toBeTruthy();
+    expect(html).toMatch(new RegExp(`<span class="sr-only" id="${id}">This page is not a listed canvas.</span>`));
+    expect(markup()).not.toMatch(/aria-describedby|sr-only/);
+  });
+
   it("←/→ reach unavailable tools too, since they are aria-disabled, not disabled", () => {
     const tree = CanvasTools(props({ picker: { enabled: false, reason: UNAVAILABLE, onToggle: () => {} }, exporter: { reason: "Exporting", onExport: () => {} } }));
     const toolbar = all(tree).find(element => element.props.role === "toolbar")!;

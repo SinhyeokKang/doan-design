@@ -24,6 +24,9 @@ const TOOLS: readonly { tool: CanvasTool; label: string; key: string; Icon: type
 // Export (spec 5) closes the row after a divider: an action on the open canvas, so it has no pressed state. `reason`
 // null: it can export; otherwise it stays aria-disabled, so it keeps focus through the save panel and the export.
 // `onExport` gets the button, where focus goes back when the save panel closes.
+// The unavailable Export's reason is also an sr-only sibling it names: Radix links the tooltip only while it is open, so
+// without it the reason is gone once the tooltip closes. One canvas area, so one id.
+const EXPORT_REASON_ID = "canvas-export-reason";
 export interface PickerTool { enabled: boolean; reason: string | null; onToggle(): void }
 export interface ExportTool { reason: string | null; onExport(button: HTMLElement): void }
 export function CanvasTools({ tool, picking, onTool, picker, exporter }: { tool: CanvasTool; picking: boolean; onTool(tool: CanvasTool): void; picker: PickerTool; exporter: ExportTool }) {
@@ -41,8 +44,10 @@ export function CanvasTools({ tool, picking, onTool, picker, exporter }: { tool:
       : <TooltipContent>{picker.reason ?? "Pick from canvas"}</TooltipContent>}</Tooltip>
     <span className="doan-canvas-tools-sep" role="separator" aria-orientation="vertical" />
     <Tooltip><TooltipTrigger asChild>
-      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export…" aria-disabled={exporter.reason !== null || undefined} tabIndex={-1}
+      <button type="button" className="doan-icon-button doan-canvas-tool" data-ui-size="md" aria-label="Export…" tabIndex={-1}
+        {...(exporter.reason !== null ? { "aria-disabled": true, "aria-describedby": EXPORT_REASON_ID } : {})}
         onClick={event => { if (exporter.reason === null) exporter.onExport(event.currentTarget); }}><Download aria-hidden="true" /></button>
     </TooltipTrigger><TooltipContent>{exporter.reason ?? "Export…"}</TooltipContent></Tooltip>
+    {exporter.reason !== null && <span className="sr-only" id={EXPORT_REASON_ID}>{exporter.reason}</span>}
   </div>;
 }
