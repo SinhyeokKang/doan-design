@@ -128,6 +128,7 @@ const SEND_ERRORS: Record<string, (p: string) => string> = {
   // The code alone does not tell an expired sign-in from none (decision 18).
   not_logged_in: p => `Sign in to ${p} in Settings > Agents, then send again.`,
   rate_limited: p => `${p} is rate limited. Try again later.`,
+  session_in_use: p => `${p} is using this session in another terminal. Try again when it finishes there.`,
 };
 
 // Every refusal of a terminal session reads the same way and never says "Choose another agent": its provider is the

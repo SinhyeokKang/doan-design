@@ -26,9 +26,9 @@ it("uses selected canonical profile and fails unknown versions before opening", 
   const request = { root, mode: "new" as const, runtime: "codex" as const, text: "hello", anchors: [] };
   const ready = await prepare(request); expect(ready.command).toBe(join(root, "codex")); expect(ready.env.CODEX_HOME).toBe(config); expect(ready.env.CLAUDE_CODE_SESSION_ID).toBeUndefined();
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.165.0" }); expect((await prepare(request)).command).toBe(join(root, "codex"));
-  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.162.0" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
+  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.157.0" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli" }); await expect(prepare(request)).rejects.toThrow("runtime_unsupported");
-  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.162.0" });
+  mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.157.0" });
   await expect(prepare({ ...request, mode: "resume" }, { runtime: "codex", origin: "new", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: config, cwd: root })).rejects.toThrow("session_unavailable");
   mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli" });
   await expect(prepare({ ...request, mode: "resume" }, { runtime: "codex", origin: "new", sessionId: "01a178ba-f9dc-7161-9544-f20f656064a1", configDir: config, cwd: root })).rejects.toThrow("session_unavailable");
@@ -132,13 +132,13 @@ it("sends again on the Codex server Doan reused although the thread's lock is he
   } finally { closeSync(fd); }
 });
 
-it.each(["valid", "valid-0.163.0", "valid-0.170.0", "wrong-id", "wrong-cwd", "wrong-version", "version-prefixed", "version-trailing", "version-number", "version-null", "version-missing", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {
+it.each(["valid", "valid-0.158.0", "valid-0.170.0", "wrong-id", "wrong-cwd", "wrong-version", "version-prefixed", "version-trailing", "version-number", "version-null", "version-missing", "malformed", "linked", "linked-directory", "oversized-header", "duplicate"])("checks Codex stored session evidence: %s", async kind => {
   const root = temp(); writeFileSync(join(root, "codex"), "fake", { mode: 0o700 });
   mocks.probe.mockResolvedValue({ ok: true, path: root, codexHome: root }); mocks.run.mockResolvedValue({ exitCode: 0, stdout: "codex-cli 0.164.0" });
   const sessionId = "01a178ba-f9dc-7161-9544-f20f656064a1";
   const directory = join(root, "sessions", "2026", "10", "27"); mkdirSync(directory, { recursive: true });
   const path = join(directory, `rollout-2026-10-27T00-01-23-${sessionId}.jsonl`);
-  const versions: Record<string, unknown> = { "wrong-version": "0.162.0", "valid-0.163.0": "0.163.0", "valid-0.170.0": "0.170.0", "version-prefixed": "v0.164.0", "version-trailing": "0.164.0 x", "version-number": 164, "version-null": null };
+  const versions: Record<string, unknown> = { "wrong-version": "0.157.0", "valid-0.158.0": "0.158.0", "valid-0.170.0": "0.170.0", "version-prefixed": "v0.164.0", "version-trailing": "0.164.0 x", "version-number": 164, "version-null": null };
   const cliVersion = kind in versions ? versions[kind] : "0.164.0";
   const payload: Record<string, unknown> = { id: kind === "wrong-id" ? "other" : sessionId, cwd: kind === "wrong-cwd" ? temp() : root, cli_version: cliVersion };
   if (kind === "version-missing") delete payload.cli_version;

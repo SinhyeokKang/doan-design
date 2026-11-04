@@ -74,7 +74,7 @@ describe("conversation disk boundaries", () => {
     // 2.1.312 writes a per-process key file beside each record; it is skipped, never parsed.
     writeFileSync(join(config, "sessions", `12.${"a".repeat(64)}.key`), "not json", { mode: 0o600 });
     expect(await claudeOccupancy(config, "s", inspect)).toBe("free");
-    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.310", procStart: start }));
+    writeFileSync(join(config, "sessions", "12.json"), JSON.stringify({ pid: 12, sessionId: "s", cwd: "/other", kind: "interactive", version: "2.1.283", procStart: start }));
     expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
     rmSync(join(config, "sessions", "12.json"));
     writeFileSync(join(config, "sessions", "12.key"), "not json"); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown");
@@ -85,10 +85,10 @@ describe("conversation disk boundaries", () => {
     const config = temp(); const start = "Wed Oct 28 10:40:00 2026"; mkdirSync(join(config, "sessions"));
     const inspect = async (pid: number) => pid === 12 || pid === 13 ? start : null;
     const write = (pid: number, sessionId: string, version: unknown) => writeFileSync(join(config, "sessions", `${pid}.json`), JSON.stringify({ pid, sessionId, cwd: "/other", kind: "interactive", version, procStart: start }));
-    for (const version of ["2.1.312", "2.1.400", "3.0.0", "2.1.400-beta.1"]) { write(12, "s", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied"); }
+    for (const version of ["2.1.284", "2.1.400", "3.0.0", "2.1.400-beta.1"]) { write(12, "s", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("occupied"); }
     write(12, "s", "2.1.400");
     // Another terminal's record below the floor or in another shape makes every resume in that profile unverifiable.
-    for (const version of ["2.1.311", "v2.1.400", "2.1.400 (Claude Code)", 2, null]) { write(13, "other", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
+    for (const version of ["2.1.283", "v2.1.400", "2.1.400 (Claude Code)", 2, null]) { write(13, "other", version); expect(await claudeOccupancy(config, "s", inspect)).toBe("unknown"); }
   });
   it("lets one doan Claude conversation resume while another runs in the same dedicated profile", async () => {
     // The record shape a running doan SDK turn left in the dedicated profile (B45 live, CLI 2.1.312): interactive, sdk-ts.

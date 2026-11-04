@@ -58,7 +58,7 @@ const { AlertIcon } = await import("./AlertIcon");
 import type { AboutRead } from "../main/about";
 
 const READ: AboutRead = { version: "0.1.0", cli: { path: "/Applications/Doan.app/Contents/Resources/bin/doan", version: "0.1.0" }, tools: [
-  { provider: "claude", cli: "found", installed: "2.1.330", support: "supported" }, { provider: "codex", cli: "found", installed: "0.163.0", support: "unsupported" },
+  { provider: "claude", cli: "found", installed: "2.1.330", support: "supported" }, { provider: "codex", cli: "found", installed: "0.157.0", support: "unsupported" },
   { provider: "cursor", cli: "missing", installed: null, support: "unknown" }, { provider: "antigravity", cli: "missing", installed: null, support: "unknown" },
   { provider: "copilot", cli: "found", installed: null, support: "unknown" }], setup: { home: "/Users/you", items: [] } };
 let doan: Record<string, ReturnType<typeof vi.fn>>;

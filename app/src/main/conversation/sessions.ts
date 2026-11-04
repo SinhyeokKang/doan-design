@@ -7,13 +7,14 @@ export { MINIMUM_VERSIONS };
 
 export const SESSION_TAIL_BYTES = 1024 * 1024;
 export type VersionedProvider = keyof typeof MINIMUM_VERSIONS;
-// Stored sessions keep the version that wrote them, so these floors stay put when a minimum rises: the oldest Codex
-// doan supported, and the Claude version of every terminal sharing a registry. Raising one abandons those sessions.
-export const CODEX_ROLLOUT_FLOOR = "0.163.0";
-export const CLAUDE_REGISTRY_FLOOR = "2.1.312";
+// Stored sessions keep the version that wrote them: the oldest Codex doan supports, and the Claude version of every
+// terminal sharing a registry. A floor follows a lowered minimum, but never rises with one: raising it abandons the
+// sessions the older versions made.
+export const CODEX_ROLLOUT_FLOOR = "0.158.0";
+export const CLAUDE_REGISTRY_FLOOR = "2.1.284";
 const CLI_VERSION = /(\d+)\.(\d+)\.(\d+)((?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)/;
 const STORED_VERSION = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
-// Numeric per part, so 0.99.0 < 0.164.0; suffixes never take part.
+// Numeric per part, so 0.99.0 < 0.158.0; suffixes never take part.
 function atLeast(match: RegExpExecArray, minimum: string): boolean {
   const floor = minimum.split(".").map(Number);
   for (let i = 0; i < 3; i++) { const part = Number(match[i + 1]); if (part !== floor[i]) return part > floor[i]!; }

@@ -11,7 +11,7 @@ const READ: AboutRead = {
   setup: { home: "/Users/you", items: [] },
   tools: [
     { provider: "claude", cli: "found", installed: "2.1.330", support: "supported" },
-    { provider: "codex", cli: "found", installed: "0.163.0", support: "unsupported" },
+    { provider: "codex", cli: "found", installed: "0.157.0", support: "unsupported" },
     { provider: "cursor", cli: "missing", installed: null, support: "unknown" },
     { provider: "antigravity", cli: "found", installed: null, support: "supported" },
     { provider: "copilot", cli: "found", installed: "1.0.110", support: "supported" },
@@ -33,7 +33,7 @@ describe("reading", () => {
   });
 
   test("tool facts keep only what About shows", () => {
-    expect(aboutTool("codex", { cli: "found", version: "unsupported", installed: "0.163.0", tools: "ready" })).toEqual({ provider: "codex", cli: "found", installed: "0.163.0", support: "unsupported" });
+    expect(aboutTool("codex", { cli: "found", version: "unsupported", installed: "0.157.0", tools: "ready" })).toEqual({ provider: "codex", cli: "found", installed: "0.157.0", support: "unsupported" });
     expect(aboutTool("cursor", { cli: "missing", version: "unknown", tools: "missing" })).toEqual({ provider: "cursor", cli: "missing", installed: null, support: "unknown" });
   });
 });
@@ -46,11 +46,11 @@ describe("aboutView", () => {
       { id: "cli", label: "doan command", description: PATH, value: "0.1.0", status: null, tone: "neutral", error: null },
     ]);
     expect(view.tools).toEqual([
-      { id: "claude", label: "Claude Code", description: "Doan needs 2.1.312 or later.", value: "2.1.330", status: "Supported", tone: "ok", error: null },
-      { id: "codex", label: "Codex", description: "Doan needs 0.164.0 or later.", value: "0.163.0", status: "Update needed", tone: "warning", error: null },
+      { id: "claude", label: "Claude Code", description: "Doan needs 2.1.284 or later.", value: "2.1.330", status: "Supported", tone: "ok", error: null },
+      { id: "codex", label: "Codex", description: "Doan needs 0.158.0 or later.", value: "0.157.0", status: "Update needed", tone: "warning", error: null },
       { id: "cursor", label: "Cursor", description: "Doan needs 2026.10.22 or later.", value: null, status: "Not installed", tone: "neutral", error: null },
       { id: "antigravity", label: "Antigravity", description: "Doan downloads its sign-in server when you first sign in.", value: null, status: "Downloaded by Doan", tone: "neutral", error: null },
-      { id: "copilot", label: "GitHub Copilot", description: "Doan needs 1.0.105 or later.", value: "1.0.110", status: "Supported", tone: "ok", error: null },
+      { id: "copilot", label: "GitHub Copilot", description: "Doan needs 1.0.89 or later.", value: "1.0.110", status: "Supported", tone: "ok", error: null },
     ]);
   });
 
@@ -63,13 +63,13 @@ describe("aboutView", () => {
     expect(view.app[1]).toEqual({ id: "cli", label: "doan command", description: PATH, value: null, status: null, tone: "error", error: "Couldn’t read the doan command’s version." });
     expect(view.app[0]).toMatchObject({ value: "0.1.0", error: null });
     // The same contract as the doan command row: `error` replaces value and status, and the page offers Retry.
-    expect(view.tools.find(row => row.id === "claude")).toEqual({ id: "claude", label: "Claude Code", description: "Doan needs 2.1.312 or later.", value: null, status: null, tone: "error", error: "Couldn’t read the version." });
+    expect(view.tools.find(row => row.id === "claude")).toEqual({ id: "claude", label: "Claude Code", description: "Doan needs 2.1.284 or later.", value: null, status: null, tone: "error", error: "Couldn’t read the version." });
     expect(view.tools.find(row => row.id === "cursor")).toMatchObject({ value: "2026.11.03", status: "Doan can’t run this version", tone: "error" });
   });
 
   test("not installed, update needed and can’t run are answers, not read failures: no error, no Retry", () => {
     const view = aboutView({ ...READ, tools: [
-      { provider: "codex", cli: "found", installed: "0.163.0", support: "unsupported" },
+      { provider: "codex", cli: "found", installed: "0.157.0", support: "unsupported" },
       { provider: "cursor", cli: "found", installed: "2026.11.03", support: "incompatible" },
       { provider: "copilot", cli: "missing", installed: null, support: "unknown" },
     ] });
@@ -83,7 +83,7 @@ describe("aboutView", () => {
     expect(view.app.map(row => [row.label, row.value])).toEqual([["Version", "Checking"], ["doan command", "Checking"]]);
     expect(view.tools.map(row => row.id)).toEqual(["claude", "codex", "cursor", "antigravity", "copilot"]);
     for (const row of view.tools) expect(row).toMatchObject({ value: "Checking", status: null, error: null });
-    expect(view.tools[1]?.description).toBe("Doan needs 0.164.0 or later.");
+    expect(view.tools[1]?.description).toBe("Doan needs 0.158.0 or later.");
   });
 
   test("unreadable agent tools (no account storage) fail on each tool row", () => {
@@ -97,11 +97,11 @@ describe("aboutText", () => {
     expect(aboutText(READ)).toBe([
       "Doan 0.1.0",
       `doan command 0.1.0 (${PATH})`,
-      "Claude Code 2.1.330: Supported (Doan needs 2.1.312 or later)",
-      "Codex 0.163.0: Update needed (Doan needs 0.164.0 or later)",
+      "Claude Code 2.1.330: Supported (Doan needs 2.1.284 or later)",
+      "Codex 0.157.0: Update needed (Doan needs 0.158.0 or later)",
       "Cursor: Not installed (Doan needs 2026.10.22 or later)",
       "Antigravity: Downloaded by Doan",
-      "GitHub Copilot 1.0.110: Supported (Doan needs 1.0.105 or later)",
+      "GitHub Copilot 1.0.110: Supported (Doan needs 1.0.89 or later)",
       "",
     ].join("\n"));
   });
@@ -121,7 +121,7 @@ describe("aboutText", () => {
       'export PATH="$HOME/.local/bin:$PATH"',
       "Claude Code — ~/.claude/skills/doan is a folder Doan didn’t create. Remove or rename it, then reopen Doan.",
       "Codex — Doan couldn’t write ~/.codex/rules/doan.rules (permission denied). Make ~/.codex/rules writable, then reopen Doan.",
-      "Claude Code 2.1.330: Supported (Doan needs 2.1.312 or later)",
+      "Claude Code 2.1.330: Supported (Doan needs 2.1.284 or later)",
     ]);
   });
 
@@ -135,6 +135,6 @@ describe("aboutText", () => {
 
   test("unread values are named as such", () => {
     const text = aboutText({ ...READ, cli: { path: "doan", version: null }, tools: null });
-    expect(text.split("\n").slice(0, 3)).toEqual(["Doan 0.1.0", "doan command: Couldn’t read the version (doan)", "Claude Code: Couldn’t read the version (Doan needs 2.1.312 or later)"]);
+    expect(text.split("\n").slice(0, 3)).toEqual(["Doan 0.1.0", "doan command: Couldn’t read the version (doan)", "Claude Code: Couldn’t read the version (Doan needs 2.1.284 or later)"]);
   });
 });

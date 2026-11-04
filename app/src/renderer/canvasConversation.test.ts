@@ -196,6 +196,10 @@ describe("canvasConversationError", () => {
     expect(canvasConversationError(code, EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: (refusal as { text: string }).text, retry: false, startNew: false });
   });
 
+  test("a send refused while a terminal holds the session says so", () => {
+    expect(canvasConversationError("session_in_use", EXISTING, "claude", "acme-web")).toEqual({ kind: "notice", text: "Claude Code is using this session in another terminal. Try again when it finishes there.", retry: false, startNew: false });
+  });
+
   test("restoring while the current conversation runs is the restore busy line", () => {
     expect(canvasConversationError("busy", ARCHIVED, "claude", "acme-web")).toEqual({ kind: "busy", busy: { kind: "restore", open: null } });
   });
