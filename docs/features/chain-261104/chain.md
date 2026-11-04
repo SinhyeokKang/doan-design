@@ -60,7 +60,7 @@
 |---|---|---|---|---|
 | 1 cli-minimum-versions | Claude Code · Orca `cli-minimum-versions-orch` | 2026-11-05 | #94 · `cfa91a7b` | 완료 |
 | 2 canvas-composer-polish | Claude Code · Orca `canvas-composer-polish-orch` | 2026-11-05 | #95 · `d0f5f7c2` | 완료 |
-| 3 export-viewer-chrome | | | | 대기 |
+| 3 export-viewer-chrome | Claude Code · Orca `export-viewer-chrome-orch` | 2026-11-05 | | 진행 중 |
 
 ## 인계 기록
 
