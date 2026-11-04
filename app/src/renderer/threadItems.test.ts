@@ -192,3 +192,42 @@ describe("threadItems with a message pushed into a running turn (queue-send-now)
     expect(threadItems(events, ROOT, true).map(i => i.kind)).toEqual(["user", "agent", "user", "agent"]);
   });
 });
+
+// mcp-connectors spec 6 and draft frame 11: main writes "Waiting for <X>" and then "<X> wasn’t ready…" as two
+// activities (history is append-only, mcpStartup.ts), and the thread shows one step that changed its text.
+describe("threadItems with a Codex MCP server that was not ready", () => {
+  const waiting = (text: string) => ev("t1", { type: "activity", kind: "other", summary: text });
+
+  test("while the turn waits, the running head is the Waiting line, as a sentence step", () => {
+    seq = 0;
+    const items = threadItems([...turn("t1"), waiting("Waiting for Notion")], ROOT, true);
+    expect(items[1]).toEqual({ kind: "activity", key: "a3", running: true, head: "Waiting for Notion", steps: [{ key: "s3", kind: "other", verb: "Waiting for Notion", path: null, sentence: true }] });
+  });
+
+  test("the not-ready line replaces its Waiting line: one step with the second text", () => {
+    seq = 0;
+    const events = [...turn("t1"), waiting("Waiting for Notion"), waiting("Notion wasn’t ready, so this turn started without it."),
+      ev("t1", { type: "message.done", messageId: "m1", text: "I couldn’t reach Notion." }), ev("t1", { type: "turn.done" })];
+    const items = threadItems(events, ROOT, true);
+    expect(items[1]).toEqual({ kind: "activity", key: "a3", running: false, head: "1 step",
+      steps: [{ key: "s4", kind: "other", verb: "Notion wasn’t ready, so this turn started without it.", path: null, sentence: true }] });
+  });
+
+  test("the plural lines fold the same way, also when fewer servers were not ready than were waited for", () => {
+    seq = 0;
+    const plural = threadItems([...turn("t1"), waiting("Waiting for Notion and Figma"), waiting("Notion and Figma weren’t ready, so this turn started without them.")], ROOT, true);
+    expect(plural[1]).toMatchObject({ running: true, head: "Notion and Figma weren’t ready, so this turn started without them.", steps: [{ verb: "Notion and Figma weren’t ready, so this turn started without them." }] });
+    seq = 0;
+    const fewer = threadItems([...turn("t1"), waiting("Waiting for Notion, Atlassian and Figma"), waiting("Figma wasn’t ready, so this turn started without it.")], ROOT, true);
+    expect((fewer[1] as { steps: unknown[] }).steps).toHaveLength(1);
+  });
+
+  test("a Waiting line whose servers became ready stays a step; an agent's own 'other' activity is not folded", () => {
+    seq = 0;
+    const events = [...turn("t1"), waiting("Waiting for Notion"), ev("t1", { type: "activity", kind: "read", path: `${ROOT}/a.html`, summary: "Read" }),
+      waiting("Waiting for review"), waiting("Searching the web")];
+    const items = threadItems(events, ROOT, true);
+    expect((items[1] as { steps: { verb: string; sentence?: true }[] }).steps.map(step => [step.verb, step.sentence ?? false])).toEqual([
+      ["Waiting for Notion", true], ["Read", false], ["Waiting for review", true], ["Searching the web", false]]);
+  });
+});

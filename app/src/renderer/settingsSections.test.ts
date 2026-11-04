@@ -1,18 +1,29 @@
 import { expect, test } from "vitest";
-import { parseSettingsSection, parseSettingsTarget, SETTINGS_SECTIONS, settingsArrival, SettingsTargetQueue } from "./settingsSections";
+import { parseSettingsSection, parseSettingsTarget, SETTINGS_SECTIONS, settingsArrival, settingsSectionsShown, SettingsTargetQueue, shownSettingsSection } from "./settingsSections";
 
-test("the LNB lists Agents, Notifications and About in that order", () => {
+test("the LNB lists Agents, MCP Connectors, Notifications and About in that order", () => {
   expect(SETTINGS_SECTIONS).toEqual([
-    { id: "agents", title: "Agents" }, { id: "notifications", title: "Notifications" }, { id: "about", title: "About" },
+    { id: "agents", title: "Agents" }, { id: "mcp", title: "MCP Connectors" }, { id: "notifications", title: "Notifications" }, { id: "about", title: "About" },
   ]);
 });
 
+// mcp-connectors spec 1: the category exists only while Claude Code or Codex is signed in to Doan.
+test("MCP Connectors is left out of the LNB while neither Claude Code nor Codex is signed in", () => {
+  expect(settingsSectionsShown(true).map(section => section.id)).toEqual(["agents", "mcp", "notifications", "about"]);
+  expect(settingsSectionsShown(false).map(section => section.id)).toEqual(["agents", "notifications", "about"]);
+});
+
+test("a target or saved section of MCP Connectors opens Agents while the category is hidden, and waits while sign-ins are unread", () => {
+  expect(shownSettingsSection("mcp", false)).toBe("agents");
+  expect(shownSettingsSection("mcp", true)).toBe("mcp");
+  // Before agent-auth is read nothing is known, so a restored MCP Connectors is kept rather than replaced.
+  expect(shownSettingsSection("mcp", null)).toBe("mcp");
+  for (const section of ["agents", "notifications", "about"] as const) expect(shownSettingsSection(section, false)).toBe(section);
+});
+
 test("a saved section is read back; the old settingsTab value projects becomes Agents", () => {
-  for (const section of ["agents", "notifications", "about"]) expect(parseSettingsSection(section)).toBe(section);
+  for (const section of ["agents", "mcp", "notifications", "about"]) expect(parseSettingsSection(section)).toBe(section);
   expect(parseSettingsSection("projects")).toBe("agents");
-  // MCP Connectors has no page yet (mcp-connectors task D2): a saved mcp section opens Agents, as it will whenever the
-  // category is hidden.
-  expect(parseSettingsSection("mcp")).toBe("agents");
   for (const value of [undefined, null, "", "Agents", "settings", 1, {}]) expect(parseSettingsSection(value)).toBeNull();
 });
 
@@ -22,8 +33,8 @@ test("an openSettings target names an optional section and, for Agents, an optio
   expect(parseSettingsTarget({ section: "agents", provider: "codex" })).toEqual({ section: "agents", provider: "codex" });
   // A provider only lives on Agents, so naming one alone means Agents.
   expect(parseSettingsTarget({ provider: "copilot" })).toEqual({ section: "agents", provider: "copilot" });
-  // MCP Connectors' target opens Agents until its page exists, and names no provider.
-  expect(parseSettingsTarget({ section: "mcp" })).toEqual({ section: "agents" });
+  // MCP Connectors' target names no provider; App opens Agents instead while the category is hidden.
+  expect(parseSettingsTarget({ section: "mcp" })).toEqual({ section: "mcp" });
   expect(parseSettingsTarget({ section: "mcp", provider: "codex" })).toBeNull();
 });
 
