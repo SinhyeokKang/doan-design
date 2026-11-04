@@ -56,6 +56,7 @@ vi.mock("./CanvasController", async original => ({
       self.destination = vi.fn((root: string) => ({ root }));
       self.currentView = vi.fn(() => ({ scale: 1, x: 0, y: 0 }));
       self.memory = vi.fn(() => ({}));
+      self.canvasPress = vi.fn(() => () => {});
       harness.controller = self;
     }
   },
@@ -669,4 +670,13 @@ test("the toolbar's Select or Hand while picking switches the tool through the c
   ended()({ kind: "cancelled" });
   expect(link.focus).not.toHaveBeenCalled();
   expect(picker.focus).not.toHaveBeenCalled();
+});
+// The canvas's press reaches the panel's composer, whose preset lists close on it: the panel gets the controller's
+// subscription, the same function on every render so the lists do not subscribe again each time.
+test("the canvas page hands the controller's press subscription to the panel's composer", async () => {
+  await openCanvas();
+  const press = (conversation() as unknown as { canvasPress?: unknown }).canvasPress;
+  expect(press).toBe(harness.controller!.canvasPress);
+  render();
+  expect((conversation() as unknown as { canvasPress?: unknown }).canvasPress).toBe(press);
 });
