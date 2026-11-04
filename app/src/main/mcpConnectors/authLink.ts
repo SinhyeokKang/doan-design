@@ -8,7 +8,8 @@ export function mcpAuthLink(raw: string): string | null {
   const one = (name: string) => url.searchParams.getAll(name).length === 1 ? url.searchParams.get(name) ?? "" : "";
   const redirect = URL.canParse(one("redirect_uri")) ? new URL(one("redirect_uri")) : null;
   const port = Number(redirect?.port);
-  if (url.protocol !== "https:" || url.username || url.password || url.hash || raw.includes("#") ||
+  // An empty user info ("https://@host") parses to empty fields, so the raw authority is checked too, as names.ts does.
+  if (url.protocol !== "https:" || url.username || url.password || /^https:\/\/[^/?#]*@/i.test(raw) || url.hash || raw.includes("#") ||
       one("response_type") !== "code" || !/^\S{1,512}$/.test(one("code_challenge")) ||
       !redirect || redirect.protocol !== "http:" || (redirect.hostname !== "localhost" && redirect.hostname !== "127.0.0.1") ||
       !Number.isInteger(port) || port < 1024 || port > 65535 || redirect.pathname !== "/callback" || redirect.username || redirect.password) return null;

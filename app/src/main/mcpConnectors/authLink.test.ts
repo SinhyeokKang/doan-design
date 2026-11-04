@@ -19,6 +19,8 @@ test.each([
   ["http", (raw: string) => raw.replace("https://", "http://")],
   ["a non-web scheme", (raw: string) => raw.replace("https://", "file://")],
   ["user info", (raw: string) => raw.replace("https://", "https://user:pw@")],
+  ["empty user info", (raw: string) => raw.replace("https://", "https://@")],
+  ["empty user info with a colon", (raw: string) => raw.replace("https://", "https://:@")],
   ["a fragment", (raw: string) => `${raw}#x`],
   ["whitespace", (raw: string) => `${raw}\n`],
   ["another response_type", (raw: string) => raw.replace("response_type=code", "response_type=token")],
