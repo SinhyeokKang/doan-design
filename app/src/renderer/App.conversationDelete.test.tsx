@@ -411,6 +411,9 @@ test("a Canvas conversations row's Delete asks first, deletes through main, and 
     expect(button.focus).not.toHaveBeenCalled();
     expect(focused.calls).toEqual([]);
     expect(harness.toast.show).not.toHaveBeenCalled();
+    // main's list change after the deletion takes the row out, as for a title menu's Delete.
+    doan.listConversations!.mockResolvedValue([summary("c1"), summary("c3", { canvas: { path: ".doan/canvases/b.html" }, fromHome: false })]);
+    listeners.conversationList!({ root: "/w/a" } as never); await flushAll();
     expect((canvasList()!.list as { conversationId: string }[]).map(item => item.conversationId)).not.toContain("c2");
   } finally { delete FIELDS['.ov-right .cv-row[data-key="c3"]']; delete FIELDS[".ov-right .rp-head"]; }
 });

@@ -68,9 +68,9 @@ describe("canvas conversation list", () => {
     expect(item(html, "r")).toContain('<span aria-hidden="true">3m</span><span class="sr-only">3 minutes ago</span>');
   });
 
-  test("one Tab stop: the first row, the others reached with the arrow keys", () => {
-    expect(html.match(/tabindex="0"/g)).toHaveLength(1);
-    expect(item(html, "b")).toContain('tabindex="0"');
+  test("one Tab stop: the first row (with its Delete), the others reached with the arrow keys", () => {
+    expect(html.match(/tabindex="0"/g)).toHaveLength(2);
+    expect(item(html, "b").match(/tabindex="0"/g)).toHaveLength(2);
     for (const key of ["r", "f", "l", "g", "t"]) expect(item(html, key)).toContain('tabindex="-1"');
   });
 

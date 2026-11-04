@@ -6,9 +6,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip
 import { DELETE_TOOLTIP, deleteItemLabel, type DeleteAvailability } from "./conversationDelete";
 import type { DockedDraft } from "./dockedRules";
 
-// What a title menu row's Delete hands the host: the conversation, and the screen whose menu it came from (the shown
-// conversation's deletion moves focus to that screen's composer).
-export interface DeleteTarget { conversationId: string; root: string; title: string; provider: Provider; from: "overview" | "canvas" }
+// What a Delete hands the host: the conversation, and where it came from. From a title menu, the shown conversation's
+// deletion moves focus to that screen's composer. From the Overview's Canvas conversations list (`canvasList`), focus
+// goes to `after`, which the list computed before the alert took focus from it (canvas-composer-polish spec 6).
+export type ListFocus = { kind: "row"; key: string } | { kind: "title" };
+export type DeleteTarget = { conversationId: string; root: string; title: string; provider: Provider }
+  & ({ from: "overview" | "canvas" } | { from: "canvasList"; after: ListFocus });
 
 // A title menu row's Delete (conversation-delete design §3.3, draft frames row-button, row-unavailable): a menu item
 // beside the row's radio item, not inside it, so pressing it never picks the row and the arrow keys reach it after its

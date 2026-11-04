@@ -1046,6 +1046,28 @@ body:has(.shell-top) { background: transparent; }
 .cv-row:not([aria-disabled="true"]):hover { background: var(--affordance-backdrop-hover); }
 .cv-row:focus-visible { outline-offset: -2px; }
 .cv-row[aria-disabled="true"] { cursor: default; align-items: center; }
+/* A row's Delete (canvas-composer-polish spec 6, draft frames cv-delete, cv-special): the title menu's row Delete
+   (.conv-delete) as a sibling of the row button, over the time's spot and centred on the row's first line (the head
+   line, or a special row's name, which a centred special row places lower), found by anchor positioning. */
+.cv-item { anchor-scope: --cv-line; }
+.cv-head, .cv-text > b { anchor-name: --cv-line; }
+.cv-delete.doan-icon-button { position: absolute; position-anchor: --cv-line; top: calc(anchor(center) - var(--size-control-xs) / 2); right: var(--space-1); width: var(--size-control-xs); height: var(--size-control-xs); color: var(--text-subtle); }
+.cv-item > .cv-delete.doan-icon-button:not([aria-disabled="true"]):hover { background: var(--affordance-subtle-hover); }
+.cv-delete.doan-icon-button[aria-disabled="true"] { color: var(--text-disabled); cursor: default; }
+.cv-item > .cv-delete.doan-icon-button[aria-disabled="true"]:is(:hover, :active) { background: transparent; }
+/* Shown while the pointer is over the row or its Delete, or keyboard focus is on either; otherwise clipped to 1px,
+   never display: none, so focus can return to it (POSTMORTEM 2026-11-03). While it shows, the time's visible text is
+   clipped and its spot keeps the button's width; the spoken label stays. */
+.cv-item:not(:hover, :has(:focus-visible)) > .cv-delete { width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.cv-item:is(:hover, :has(:focus-visible)) .cv-when { position: relative; min-width: var(--size-control-xs); }
+.cv-item:is(:hover, :has(:focus-visible)) .cv-when > [aria-hidden="true"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+/* A row without a time (an unreadable conversation) still keeps the spot, so the Delete covers no title or mark. */
+.cv-item:is(:hover, :has(:focus-visible)) .cv-head:not(:has(.cv-when))::after { content: ""; flex: none; width: var(--size-control-xs); }
+/* A special row has no time: its name keeps the same spot (24 + the head's 6 gap), so the Delete covers no name. */
+.cv-item:is(:hover, :has(:focus-visible)) .cv-text > b { padding-right: calc(var(--size-control-xs) + var(--space-1h)); }
+/* The row keeps its hover fill and hides its hairlines while the pointer rests on its Delete. */
+.cv-item:has(> .cv-delete:hover) > .cv-row:not([aria-disabled="true"]) { background: var(--affordance-backdrop-hover); }
+.cv-item:has(> .cv-delete:hover)::before, .cv-item:has(> .cv-delete:hover) + .cv-item::before { display: none; }
 .cv-thumb { position: relative; flex: none; width: 72px; height: var(--space-12); overflow: hidden; border-radius: var(--radius-toolbar-icon); box-shadow: inset 0 0 0 1px var(--border-standard); }
 /* Captures are 480px wide; the 72×48 cell shows their top. */
 .cv-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }

@@ -166,12 +166,13 @@ export function App() {
   const changeTrashing = (next: typeof trashing) => { trashingRef.current = next; setTrashing(next); };
   const trashSeq = useRef(0);
   // conversation-delete: the conversation a title menu's Delete asks about, and whether its request is out. Set through
-  // `changeDeleting`, so the reply sees the dialog as it is. `afterDelete` is the composer focus goes to once the
-  // shown conversation was deleted, instead of the menu's trigger.
+  // `changeDeleting`, so the reply sees the dialog as it is. `afterDelete` is where focus goes once the conversation
+  // was deleted, instead of the Delete's trigger: the shown conversation's composer (`field`), or the Canvas
+  // conversations row or title the list chose.
   const [deletingConversation, setDeletingConversation] = useState<{ target: DeleteTarget; pending: boolean } | null>(null);
   const deletingRef = useRef(deletingConversation);
   const changeDeleting = (next: typeof deletingConversation) => { deletingRef.current = next; setDeletingConversation(next); };
-  const afterDelete = useRef<string | null>(null);
+  const afterDelete = useRef<{ selector: string; field: boolean } | null>(null);
   const quittingRef = useRef(false);
   // The canvases whose `doan export` runs (`root\npath`): from main's running event, sent once the save panel closed on
   // a file, to the export's reply. The progress toast waits a second from that event.
@@ -830,9 +831,9 @@ export function App() {
   useEffect(() => {
     if (modal || !focusAfterModal.current) return;
     focusAfterModal.current = false;
-    const field = afterDelete.current && document.querySelector<HTMLElement>(afterDelete.current);
+    const after = afterDelete.current, field = after && document.querySelector<HTMLElement>(after.selector);
     afterDelete.current = null;
-    if (field) { focusFieldEnd(field); return; }
+    if (field) { if (after.field) focusFieldEnd(field); else field.focus(); return; }
     const previous = beforeModal.current;
     focusCurrent(previous);
   }, [modal, entries]);
@@ -1175,7 +1176,8 @@ export function App() {
     window.doan.trashCanvas(root, row.path).then(done, () => done({ kind: "refused", reason: "failed" }));
   }
   // conversation-delete design §3.4: a title menu row's Delete asks first. Cancel and Escape return focus to the menu's
-  // trigger (`beforeModal`); the row's button is inside the closed menu.
+  // trigger (`beforeModal`); the row's button is inside the closed menu. A Canvas conversations row's Delete passes
+  // itself as the trigger.
   function openDelete(target: DeleteTarget, trigger: HTMLElement | null): boolean {
     if (locked() || live.current.modal) return false;
     beforeModal.current = trigger;
@@ -1197,7 +1199,7 @@ export function App() {
     const current = deletingRef.current;
     if (!current || current.pending) return;
     changeDeleting({ ...current, pending: true });
-    const { conversationId, root, title, from } = current.target;
+    const { conversationId, root, title, from } = current.target, target = current.target;
     const overviewRuns = overviewRun.current!, canvasRuns = canvasRun.current!, store = overviewRuns.store;
     store.startDelete(conversationId);
     let code: string | null = "unknown";
@@ -1212,9 +1214,10 @@ export function App() {
         try {
           const overviewView = overviewRuns.view(root), canvasView = canvasRuns.view();
           const shown = from === "overview" ? overviewView.kind === "conversation" && overviewView.conversationId === conversationId
-            : canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
+            : from === "canvas" && canvasView?.kind === "conversation" && canvasView.conversationId === conversationId;
           overviewRuns.deleted(conversationId); canvasRuns.deleted(conversationId); homeRun.current.deleted(conversationId);
-          if (shown) afterDelete.current = from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input";
+          if (target.from === "canvasList") afterDelete.current = { field: false, selector: target.after.kind === "row" ? `.ov-right .cv-row[data-key="${CSS.escape(target.after.key)}"]` : ".ov-right .rp-head" };
+          else if (shown) afterDelete.current = { field: true, selector: from === "overview" ? ".workspace .ov-main .composer-input" : ".doan-conv-panel .composer-input" };
         } finally { store.deleted(conversationId); }
       } else { store.cancelDelete(conversationId); overviewRuns.sync(); canvasRuns.sync(); }
     } catch (error) { console.error(error); }
@@ -1762,7 +1765,8 @@ export function App() {
     {overview && <ResizeHandle className="doan-overview-handle" label="Resize canvas conversations" width={shownOverviewPanel} bounds={panelLimits} preview={previewPanel}
       onResize={width => { overviewTouched.current = true; setOverviewSaved(width); }} />}
     {overview ? <div className="right-stack"><CanvasConversations key={overview.path} list={canvasList} project={projectLabel(overview.path)} thumbnails={thumbs.thumbnails} onVisible={thumbs.onVisible}
-      open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)} /></div>
+      open={item => { if (item.row) openCanvasConversation(overview.path, item.row, item.conversationId, { kind: "overviewRow" }); }} retry={() => run.retryList(overview.path)}
+      onDelete={(item, button, after) => openDelete({ conversationId: item.conversationId, root: overview.path, title: item.title, provider: item.provider, from: "canvasList", after }, button)} /></div>
       : <ConversationPanel open={rightPanel.open} width={shownPanel} bounds={panelLimits} onHide={() => { controller.current?.cancelPick(); foldPanel(false); }} onResize={resizePanel} preview={previewPanel}
         title={panelTarget && <CanvasConversationTitle run={canvasRun.current!} list={panelList} canvasName={panelCanvasName} now={Date.now()} seen={run.seenPending()}
           title={panelTitle.title} current={panelTitle.current} onChoose={() => controller.current?.dropPendingLocate()} onDelete={openDelete} onPicked={() => queueMicrotask(() => document.querySelector<HTMLElement>(".doan-conv-panel .composer-input")?.focus())} />}>
